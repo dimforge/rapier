@@ -1,6 +1,6 @@
 [workspace]
-members = [ "build/rapier2d", "build/rapier_testbed2d", "examples2d", "examples2d/wasm",
-            "build/rapier3d", "build/rapier_testbed3d", "examples3d", "examples3d/wasm",]
+members = [ "build/rapier2d", "build/rapier_testbed2d", "examples2d",
+            "build/rapier3d", "build/rapier_testbed3d", "examples3d" ]
 
 [patch.crates-io]
 #wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }
