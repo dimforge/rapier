@@ -1,0 +1,8 @@
+**/*.rs.bk
+Cargo.lock
+node_modules
+target
+.idea
+.DS_Store
+package-lock.json
+**/*.csv

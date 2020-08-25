@@ -1,0 +1,45 @@
+[package]
+name    = "rapier_testbed2d"
+version = "0.1.0"
+authors = [ "Sébastien Crozet <developer@crozet.re>" ]
+description = "Testbed for the 2-dimensional physics engine in Rust."
+homepage = "http://rapier.org"
+repository = "https://github.com/rustsim/rapier"
+keywords = [ "physics", "dynamics", "rigid", "real-time", "joints" ]
+license = "Apache-2.0"
+edition = "2018"
+
+
+[lib]
+name = "rapier_testbed2d"
+path = "../../src_testbed/lib.rs"
+required-features = [ "dim2" ]
+
+[features]
+default = [ "dim2" ]
+dim2 = [ ]
+parallel = [ "rapier2d/parallel", "num_cpus" ]
+other-backends = [ "wrapped2d", "nphysics2d" ]
+
+
+[dependencies]
+nalgebra   = "0.22"
+kiss3d     = { version = "0.25", features = [ "conrod" ] }
+rand       = "0.7"
+rand_pcg   = "0.2"
+instant    = { version = "0.1", features = [ "web-sys", "now" ]}
+bitflags   = "1"
+num_cpus   = { version = "1", optional = true }
+wrapped2d  = { version = "0.4", optional = true }
+ncollide2d = "0.24"
+nphysics2d = { version = "0.17", optional = true }
+crossbeam = "0.7"
+bincode = "1"
+flexbuffers = "0.1"
+md5 = "0.7"
+
+
+[dependencies.rapier2d]
+path = "../rapier2d"
+version = "0.1"
+features = [ "serde-serialize" ]

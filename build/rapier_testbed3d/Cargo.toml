@@ -1,0 +1,47 @@
+[package]
+name    = "rapier_testbed3d"
+version = "0.1.0"
+authors = [ "Sébastien Crozet <developer@crozet.re>" ]
+description = "Testbed for the 3-dimensional physics engine in Rust."
+homepage = "http://rapier.org"
+repository = "https://github.com/rustsim/rapier"
+keywords = [ "physics", "dynamics", "rigid", "real-time", "joints" ]
+license = "Apache-2.0"
+edition = "2018"
+
+
+[lib]
+name = "rapier_testbed3d"
+path = "../../src_testbed/lib.rs"
+required-features = [ "dim3" ]
+
+[features]
+default = [ "dim3" ]
+dim3 = [ ]
+parallel = [ "rapier3d/parallel", "num_cpus" ]
+other-backends = [ "physx", "physx-sys", "glam", "nphysics3d" ]
+
+[dependencies]
+nalgebra   = "0.22"
+kiss3d     = { version = "0.25", features = [ "conrod" ] }
+rand       = "0.7"
+rand_pcg   = "0.2"
+instant    = { version = "0.1", features = [ "web-sys", "now" ]}
+bitflags   = "1"
+glam       = { version = "0.8", optional = true }
+num_cpus   = { version = "1", optional = true }
+ncollide3d = "0.24"
+nphysics3d = { version = "0.17", optional = true }
+physx      = { version = "0.6", optional = true }
+physx-sys = { version = "0.4", optional = true }
+crossbeam = "0.7"
+bincode = "1"
+flexbuffers = "0.1"
+serde_cbor = "0.11"
+md5 = "0.7"
+serde = { version = "1", features = [ "derive" ] }
+
+[dependencies.rapier3d]
+path = "../rapier3d"
+version = "0.1"
+features = [ "serde-serialize" ]

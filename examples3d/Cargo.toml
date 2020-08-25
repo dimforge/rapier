@@ -1,0 +1,27 @@
+[package]
+name    = "nphysics-examples-3d"
+version = "0.1.0"
+authors = [ "Sébastien Crozet <developer@crozet.re>" ]
+edition = "2018"
+
+[features]
+parallel = [ "rapier3d/parallel", "rapier_testbed3d/parallel" ]
+simd-stable = [ "rapier3d/simd-stable" ]
+simd-nightly = [ "rapier3d/simd-nightly" ]
+other-backends = [ "rapier_testbed3d/other-backends" ]
+enhanced-determinism = [ "rapier3d/enhanced-determinism" ]
+
+[dependencies]
+rand       = "0.7"
+Inflector  = "0.11"
+nalgebra = "0.22"
+
+[dependencies.rapier_testbed3d]
+path = "../build/rapier_testbed3d"
+
+[dependencies.rapier3d]
+path = "../build/rapier3d"
+
+[[bin]]
+name = "all_examples3"
+path = "./all_examples3.rs"

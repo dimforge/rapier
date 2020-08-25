@@ -1,0 +1,27 @@
+[package]
+name    = "nphysics-examples-2d"
+version = "0.1.0"
+authors = [ "Sébastien Crozet <developer@crozet.re>" ]
+edition = "2018"
+
+[features]
+parallel = [ "rapier2d/parallel", "rapier_testbed2d/parallel" ]
+simd-stable = [ "rapier2d/simd-stable" ]
+simd-nightly = [ "rapier2d/simd-nightly" ]
+other-backends = [ "rapier_testbed2d/other-backends" ]
+enhanced-determinism = [ "rapier2d/enhanced-determinism" ]
+
+[dependencies]
+rand       = "0.7"
+Inflector  = "0.11"
+nalgebra = "0.22"
+
+[dependencies.rapier_testbed2d]
+path = "../build/rapier_testbed2d"
+
+[dependencies.rapier2d]
+path = "../build/rapier2d"
+
+[[bin]]
+name = "all_examples2"
+path = "./all_examples2.rs"
