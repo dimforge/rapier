@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://www.rapier.rs/img/rapier_logo_color_textpath.svg" alt="crates.io">
+  <img src="https://www.rapier.rs/img/rapier_logo_color_textpath_dark.svg" alt="crates.io">
 </p>
 <p align="center">
     <a href="https://discord.gg/vt9DJSW">
