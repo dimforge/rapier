@@ -1,0 +1,3 @@
+## v0.2.0 - WIP
+- Fix a crash happening when removing a rigid-body with a collider, stepping the simulation, adding another rigid-body
+ with a collider, and stepping the simulation again.
