@@ -426,10 +426,10 @@ impl Proxies {
 
     pub fn insert(&mut self, proxy: BroadPhaseProxy) -> usize {
         if self.first_free != NEXT_FREE_SENTINEL {
-            let proxy_id = self.first_free;
-            self.first_free = self.elements[self.first_free as usize].next_free;
-            self.elements[self.first_free as usize] = proxy;
-            proxy_id as usize
+            let proxy_id = self.first_free as usize;
+            self.first_free = self.elements[proxy_id].next_free;
+            self.elements[proxy_id] = proxy;
+            proxy_id
         } else {
             self.elements.push(proxy);
             self.elements.len() - 1
@@ -641,5 +641,49 @@ impl BroadPhase {
         //     num_delete_events,
         //     out_events.len()
         // );
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
+    use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
+    use crate::pipeline::PhysicsPipeline;
+
+    #[test]
+    fn test_add_update_remove() {
+        let mut broad_phase = BroadPhase::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut bodies = RigidBodySet::new();
+        let mut colliders = ColliderSet::new();
+        let mut joints = JointSet::new();
+        let mut pipeline = PhysicsPipeline::new();
+
+        let rb = RigidBodyBuilder::new_dynamic().build();
+        let co = ColliderBuilder::ball(0.5).build();
+        let hrb = bodies.insert(rb);
+        let hco = colliders.insert(co, hrb, &mut bodies);
+
+        broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
+
+        pipeline.remove_rigid_body(
+            hrb,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut bodies,
+            &mut colliders,
+            &mut joints,
+        );
+
+        broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
+
+        // Create another body.
+        let rb = RigidBodyBuilder::new_dynamic().build();
+        let co = ColliderBuilder::ball(0.5).build();
+        let hrb = bodies.insert(rb);
+        let hco = colliders.insert(co, hrb, &mut bodies);
+
+        // Make sure the proxy handles is recycled properly.
+        broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
     }
 }

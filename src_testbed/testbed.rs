@@ -172,6 +172,28 @@ impl PhysicsEvents {
     }
 }
 
+pub struct PhysicsState {
+    pub broad_phase: BroadPhase,
+    pub narrow_phase: NarrowPhase,
+    pub bodies: RigidBodySet,
+    pub colliders: ColliderSet,
+    pub joints: JointSet,
+    pub pipeline: PhysicsPipeline,
+}
+
+impl PhysicsState {
+    fn new() -> Self {
+        Self {
+            broad_phase: BroadPhase::new(),
+            narrow_phase: NarrowPhase::new(),
+            bodies: RigidBodySet::new(),
+            colliders: ColliderSet::new(),
+            joints: JointSet::new(),
+            pipeline: PhysicsPipeline::new(),
+        }
+    }
+}
+
 pub struct TestbedState {
     pub running: RunMode,
     pub draw_colls: bool,
@@ -207,12 +229,7 @@ pub struct Testbed {
     fluids: Option<FluidsState>,
     gravity: Vector<f32>,
     integration_parameters: IntegrationParameters,
-    broad_phase: BroadPhase,
-    narrow_phase: NarrowPhase,
-    bodies: RigidBodySet,
-    colliders: ColliderSet,
-    joints: JointSet,
-    physics_pipeline: PhysicsPipeline,
+    physics: PhysicsState,
     window: Option<Box<Window>>,
     graphics: GraphicsManager,
     nsteps: usize,
@@ -237,17 +254,17 @@ pub struct Testbed {
     nphysics: Option<NPhysicsWorld>,
 }
 
-type Callbacks = Vec<
-    Box<dyn FnMut(&mut RigidBodySet, &mut ColliderSet, &PhysicsEvents, &mut GraphicsManager, f32)>,
->;
+type Callbacks =
+    Vec<Box<dyn FnMut(&mut Window, &mut PhysicsState, &PhysicsEvents, &mut GraphicsManager, f32)>>;
 
 #[cfg(feature = "fluids")]
 type CallbacksFluids = Vec<
     Box<
         dyn FnMut(
+            &mut Window,
             &mut LiquidWorld<f32>,
             &mut ColliderCouplingSet<f32, RigidBodyHandle>,
-            &mut RigidBodySet,
+            &mut PhysicsState,
             &mut GraphicsManager,
             f32,
         ),
@@ -316,11 +333,6 @@ impl Testbed {
 
         let gravity = Vector::y() * -9.81;
         let integration_parameters = IntegrationParameters::default();
-        let broad_phase = BroadPhase::new();
-        let narrow_phase = NarrowPhase::new();
-        let bodies = RigidBodySet::new();
-        let colliders = ColliderSet::new();
-        let joints = JointSet::new();
         let contact_channel = crossbeam::channel::unbounded();
         let proximity_channel = crossbeam::channel::unbounded();
         let event_handler = ChannelEventCollector::new(proximity_channel.0, contact_channel.0);
@@ -328,6 +340,7 @@ impl Testbed {
             contact_events: contact_channel.1,
             proximity_events: proximity_channel.1,
         };
+        let physics = PhysicsState::new();
 
         Testbed {
             builders: Vec::new(),
@@ -335,12 +348,7 @@ impl Testbed {
             fluids: None,
             gravity,
             integration_parameters,
-            broad_phase,
-            narrow_phase,
-            bodies,
-            colliders,
-            joints,
-            physics_pipeline: PhysicsPipeline::new(),
+            physics,
             callbacks: Vec::new(),
             #[cfg(feature = "fluids")]
             callbacks_fluids: Vec::new(),
@@ -401,26 +409,26 @@ impl Testbed {
     pub fn set_world(&mut self, bodies: RigidBodySet, colliders: ColliderSet, joints: JointSet) {
         println!("Num bodies: {}", bodies.len());
         println!("Num joints: {}", joints.len());
-        self.bodies = bodies;
-        self.colliders = colliders;
-        self.joints = joints;
-        self.broad_phase = BroadPhase::new();
-        self.narrow_phase = NarrowPhase::new();
+        self.physics.bodies = bodies;
+        self.physics.colliders = colliders;
+        self.physics.joints = joints;
+        self.physics.broad_phase = BroadPhase::new();
+        self.physics.narrow_phase = NarrowPhase::new();
         self.state
             .action_flags
             .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
         self.time = 0.0;
         self.state.timestep_id = 0;
-        self.physics_pipeline.counters.enable();
+        self.physics.pipeline.counters.enable();
 
         #[cfg(all(feature = "dim2", feature = "other-backends"))]
         {
             if self.state.selected_backend == BOX2D_BACKEND {
                 self.box2d = Some(Box2dWorld::from_rapier(
                     self.gravity,
-                    &self.bodies,
-                    &self.colliders,
-                    &self.joints,
+                    &self.physics.bodies,
+                    &self.physics.colliders,
+                    &self.physics.joints,
                 ));
             }
         }
@@ -433,9 +441,9 @@ impl Testbed {
                 self.physx = Some(PhysxWorld::from_rapier(
                     self.gravity,
                     &self.integration_parameters,
-                    &self.bodies,
-                    &self.colliders,
-                    &self.joints,
+                    &self.physics.bodies,
+                    &self.physics.colliders,
+                    &self.physics.joints,
                     self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR,
                     self.state.num_threads,
                 ));
@@ -447,9 +455,9 @@ impl Testbed {
             if self.state.selected_backend == NPHYSICS_BACKEND {
                 self.nphysics = Some(NPhysicsWorld::from_rapier(
                     self.gravity,
-                    &self.bodies,
-                    &self.colliders,
-                    &self.joints,
+                    &self.physics.bodies,
+                    &self.physics.colliders,
+                    &self.physics.joints,
                 ));
             }
         }
@@ -562,8 +570,7 @@ impl Testbed {
     }
 
     pub fn add_callback<
-        F: FnMut(&mut RigidBodySet, &mut ColliderSet, &PhysicsEvents, &mut GraphicsManager, f32)
-            + 'static,
+        F: FnMut(&mut Window, &mut PhysicsState, &PhysicsEvents, &mut GraphicsManager, f32) + 'static,
     >(
         &mut self,
         callback: F,
@@ -574,9 +581,10 @@ impl Testbed {
     #[cfg(feature = "fluids")]
     pub fn add_callback_with_fluids<
         F: FnMut(
+                &mut Window,
                 &mut LiquidWorld<f32>,
                 &mut ColliderCouplingSet<f32, RigidBodyHandle>,
-                &mut RigidBodySet,
+                &mut PhysicsState,
                 &mut GraphicsManager,
                 f32,
             ) + 'static,
@@ -643,36 +651,31 @@ impl Testbed {
                                 {
                                     let gravity = &self.gravity;
                                     let params = &self.integration_parameters;
-                                    let pipeline = &mut self.physics_pipeline;
-                                    let narrow_phase = &mut self.narrow_phase;
-                                    let broad_phase = &mut self.broad_phase;
-                                    let bodies = &mut self.bodies;
-                                    let colliders = &mut self.colliders;
-                                    let joints = &mut self.joints;
+                                    let physics = &mut self.physics;
                                     let event_handler = &self.event_handler;
                                     self.state.thread_pool.install(|| {
-                                        pipeline.step(
+                                        physics.pipeline.step(
                                             gravity,
                                             params,
-                                            broad_phase,
-                                            narrow_phase,
-                                            bodies,
-                                            colliders,
-                                            joints,
+                                            &mut physics.broad_phase,
+                                            &mut physics.narrow_phase,
+                                            &mut physics.bodies,
+                                            &mut physics.colliders,
+                                            &mut physics.joints,
                                             event_handler,
                                         );
                                     });
                                 }
 
                                 #[cfg(not(feature = "parallel"))]
-                                self.physics_pipeline.step(
+                                self.physics.pipeline.step(
                                     &self.gravity,
                                     &self.integration_parameters,
-                                    &mut self.broad_phase,
-                                    &mut self.narrow_phase,
-                                    &mut self.bodies,
-                                    &mut self.colliders,
-                                    &mut self.joints,
+                                    &mut self.physics.broad_phase,
+                                    &mut self.physics.narrow_phase,
+                                    &mut self.physics.bodies,
+                                    &mut self.physics.colliders,
+                                    &mut self.physics.joints,
                                     &self.event_handler,
                                 );
 
@@ -685,9 +688,10 @@ impl Testbed {
                                         fluids.world.step_with_coupling(
                                             dt,
                                             gravity,
-                                            &mut fluids
-                                                .coupling
-                                                .as_manager_mut(&self.colliders, &mut self.bodies),
+                                            &mut fluids.coupling.as_manager_mut(
+                                                &self.physics.colliders,
+                                                &mut self.physics.bodies,
+                                            ),
                                         );
                                     }
 
@@ -699,13 +703,13 @@ impl Testbed {
                             {
                                 if self.state.selected_backend == BOX2D_BACKEND {
                                     self.box2d.as_mut().unwrap().step(
-                                        &mut self.physics_pipeline.counters,
+                                        &mut self.physics.pipeline.counters,
                                         &self.integration_parameters,
                                     );
-                                    self.box2d
-                                        .as_mut()
-                                        .unwrap()
-                                        .sync(&mut self.bodies, &mut self.colliders);
+                                    self.box2d.as_mut().unwrap().sync(
+                                        &mut self.physics.bodies,
+                                        &mut self.physics.colliders,
+                                    );
                                 }
                             }
 
@@ -716,13 +720,13 @@ impl Testbed {
                                 {
                                     //                        println!("Step");
                                     self.physx.as_mut().unwrap().step(
-                                        &mut self.physics_pipeline.counters,
+                                        &mut self.physics.pipeline.counters,
                                         &self.integration_parameters,
                                     );
-                                    self.physx
-                                        .as_mut()
-                                        .unwrap()
-                                        .sync(&mut self.bodies, &mut self.colliders);
+                                    self.physx.as_mut().unwrap().sync(
+                                        &mut self.physics.bodies,
+                                        &mut self.physics.colliders,
+                                    );
                                 }
                             }
 
@@ -730,20 +734,20 @@ impl Testbed {
                             {
                                 if self.state.selected_backend == NPHYSICS_BACKEND {
                                     self.nphysics.as_mut().unwrap().step(
-                                        &mut self.physics_pipeline.counters,
+                                        &mut self.physics.pipeline.counters,
                                         &self.integration_parameters,
                                     );
-                                    self.nphysics
-                                        .as_mut()
-                                        .unwrap()
-                                        .sync(&mut self.bodies, &mut self.colliders);
+                                    self.nphysics.as_mut().unwrap().sync(
+                                        &mut self.physics.bodies,
+                                        &mut self.physics.colliders,
+                                    );
                                 }
                             }
                         }
 
                         // Skip the first update.
                         if k > 0 {
-                            timings.push(self.physics_pipeline.counters.step_time.time());
+                            timings.push(self.physics.pipeline.counters.step_time.time());
                         }
                     }
                     results.push(timings);
@@ -790,6 +794,7 @@ impl Testbed {
             WindowEvent::Key(Key::D, Action::Release, _) => {
                 // Delete 10% of the remaining dynamic bodies.
                 let dynamic_bodies: Vec<_> = self
+                    .physics
                     .bodies
                     .iter()
                     .filter(|e| e.1.is_dynamic())
@@ -797,13 +802,13 @@ impl Testbed {
                     .collect();
                 let num_to_delete = (dynamic_bodies.len() / 10).max(1);
                 for to_delete in &dynamic_bodies[..num_to_delete] {
-                    self.physics_pipeline.remove_rigid_body(
+                    self.physics.pipeline.remove_rigid_body(
                         *to_delete,
-                        &mut self.broad_phase,
-                        &mut self.narrow_phase,
-                        &mut self.bodies,
-                        &mut self.colliders,
-                        &mut self.joints,
+                        &mut self.physics.broad_phase,
+                        &mut self.physics.narrow_phase,
+                        &mut self.physics.bodies,
+                        &mut self.physics.colliders,
+                        &mut self.physics.joints,
                     );
                 }
             }
@@ -1236,11 +1241,11 @@ impl State for Testbed {
                     .set(TestbedActionFlags::TAKE_SNAPSHOT, false);
                 self.state.snapshot = PhysicsSnapshot::new(
                     self.state.timestep_id,
-                    &self.broad_phase,
-                    &self.narrow_phase,
-                    &self.bodies,
-                    &self.colliders,
-                    &self.joints,
+                    &self.physics.broad_phase,
+                    &self.physics.narrow_phase,
+                    &self.physics.bodies,
+                    &self.physics.colliders,
+                    &self.physics.joints,
                 )
                 .ok();
 
@@ -1261,8 +1266,8 @@ impl State for Testbed {
                     if let Ok(w) = snapshot.restore() {
                         self.clear(window);
                         self.graphics.clear(window);
-                        self.broad_phase = w.1;
-                        self.narrow_phase = w.2;
+                        self.physics.broad_phase = w.1;
+                        self.physics.narrow_phase = w.2;
                         self.set_world(w.3, w.4, w.5);
                         self.state.timestep_id = w.0;
                     }
@@ -1277,9 +1282,13 @@ impl State for Testbed {
                 self.state
                     .action_flags
                     .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, false);
-                for (handle, _) in self.bodies.iter() {
-                    self.graphics
-                        .add(window, handle, &self.bodies, &self.colliders);
+                for (handle, _) in self.physics.bodies.iter() {
+                    self.graphics.add(
+                        window,
+                        handle,
+                        &self.physics.bodies,
+                        &self.physics.colliders,
+                    );
                 }
 
                 #[cfg(feature = "fluids")]
@@ -1303,7 +1312,7 @@ impl State for Testbed {
                     != self.state.flags.contains(TestbedStateFlags::WIREFRAME)
             {
                 self.graphics.toggle_wireframe_mode(
-                    &self.colliders,
+                    &self.physics.colliders,
                     self.state.flags.contains(TestbedStateFlags::WIREFRAME),
                 )
             }
@@ -1312,11 +1321,11 @@ impl State for Testbed {
                 != self.state.flags.contains(TestbedStateFlags::SLEEP)
             {
                 if self.state.flags.contains(TestbedStateFlags::SLEEP) {
-                    for (_, mut body) in self.bodies.iter_mut() {
+                    for (_, mut body) in self.physics.bodies.iter_mut() {
                         body.activation.threshold = ActivationStatus::default_threshold();
                     }
                 } else {
-                    for (_, mut body) in self.bodies.iter_mut() {
+                    for (_, mut body) in self.physics.bodies.iter_mut() {
                         body.wake_up();
                         body.activation.threshold = -1.0;
                     }
@@ -1388,36 +1397,31 @@ impl State for Testbed {
                     {
                         let gravity = &self.gravity;
                         let params = &self.integration_parameters;
-                        let pipeline = &mut self.physics_pipeline;
-                        let narrow_phase = &mut self.narrow_phase;
-                        let broad_phase = &mut self.broad_phase;
-                        let bodies = &mut self.bodies;
-                        let colliders = &mut self.colliders;
-                        let joints = &mut self.joints;
+                        let physics = &mut self.physics;
                         let event_handler = &self.event_handler;
                         self.state.thread_pool.install(|| {
-                            pipeline.step(
+                            physics.pipeline.step(
                                 gravity,
                                 params,
-                                broad_phase,
-                                narrow_phase,
-                                bodies,
-                                colliders,
-                                joints,
+                                &mut physics.broad_phase,
+                                &mut physics.narrow_phase,
+                                &mut physics.bodies,
+                                &mut physics.colliders,
+                                &mut physics.joints,
                                 event_handler,
                             );
                         });
                     }
 
                     #[cfg(not(feature = "parallel"))]
-                    self.physics_pipeline.step(
+                    self.physics.pipeline.step(
                         &self.gravity,
                         &self.integration_parameters,
-                        &mut self.broad_phase,
-                        &mut self.narrow_phase,
-                        &mut self.bodies,
-                        &mut self.colliders,
-                        &mut self.joints,
+                        &mut self.physics.broad_phase,
+                        &mut self.physics.narrow_phase,
+                        &mut self.physics.bodies,
+                        &mut self.physics.colliders,
+                        &mut self.physics.joints,
                         &self.event_handler,
                     );
 
@@ -1430,9 +1434,10 @@ impl State for Testbed {
                             fluids.world.step_with_coupling(
                                 dt,
                                 gravity,
-                                &mut fluids
-                                    .coupling
-                                    .as_manager_mut(&self.colliders, &mut self.bodies),
+                                &mut fluids.coupling.as_manager_mut(
+                                    &self.physics.colliders,
+                                    &mut self.physics.bodies,
+                                ),
                             );
                         }
 
@@ -1444,13 +1449,13 @@ impl State for Testbed {
                 {
                     if self.state.selected_backend == BOX2D_BACKEND {
                         self.box2d.as_mut().unwrap().step(
-                            &mut self.physics_pipeline.counters,
+                            &mut self.physics.pipeline.counters,
                             &self.integration_parameters,
                         );
                         self.box2d
                             .as_mut()
                             .unwrap()
-                            .sync(&mut self.bodies, &mut self.colliders);
+                            .sync(&mut self.physics.bodies, &mut self.physics.colliders);
                     }
                 }
 
@@ -1461,13 +1466,13 @@ impl State for Testbed {
                     {
                         //                        println!("Step");
                         self.physx.as_mut().unwrap().step(
-                            &mut self.physics_pipeline.counters,
+                            &mut self.physics.pipeline.counters,
                             &self.integration_parameters,
                         );
                         self.physx
                             .as_mut()
                             .unwrap()
-                            .sync(&mut self.bodies, &mut self.colliders);
+                            .sync(&mut self.physics.bodies, &mut self.physics.colliders);
                     }
                 }
 
@@ -1475,20 +1480,20 @@ impl State for Testbed {
                 {
                     if self.state.selected_backend == NPHYSICS_BACKEND {
                         self.nphysics.as_mut().unwrap().step(
-                            &mut self.physics_pipeline.counters,
+                            &mut self.physics.pipeline.counters,
                             &self.integration_parameters,
                         );
                         self.nphysics
                             .as_mut()
                             .unwrap()
-                            .sync(&mut self.bodies, &mut self.colliders);
+                            .sync(&mut self.physics.bodies, &mut self.physics.colliders);
                     }
                 }
 
                 for f in &mut self.callbacks {
                     f(
-                        &mut self.bodies,
-                        &mut self.colliders,
+                        window,
+                        &mut self.physics,
                         &self.events,
                         &mut self.graphics,
                         self.time,
@@ -1500,10 +1505,10 @@ impl State for Testbed {
                     if let Some(fluid_state) = &mut self.fluids {
                         for f in &mut self.callbacks_fluids {
                             f(
+                                window,
                                 &mut fluid_state.world,
                                 &mut fluid_state.coupling,
-                                &mut self.world,
-                                &mut self.bodies,
+                                &mut self.physics,
                                 &mut self.graphics,
                                 self.time,
                             )
@@ -1524,7 +1529,7 @@ impl State for Testbed {
             }
         }
 
-        self.graphics.draw(&self.colliders, window);
+        self.graphics.draw(&self.physics.colliders, window);
 
         #[cfg(feature = "fluids")]
         {
@@ -1534,7 +1539,7 @@ impl State for Testbed {
         }
 
         if self.state.flags.contains(TestbedStateFlags::CONTACT_POINTS) {
-            draw_contacts(window, &self.narrow_phase, &self.bodies);
+            draw_contacts(window, &self.physics.narrow_phase, &self.physics.bodies);
         }
 
         if self.state.running == RunMode::Step {
@@ -1546,7 +1551,7 @@ impl State for Testbed {
         }
 
         let color = Point3::new(0.0, 0.0, 0.0);
-        let counters = self.physics_pipeline.counters;
+        let counters = self.physics.pipeline.counters;
         let mut profile = String::new();
 
         if self.state.flags.contains(TestbedStateFlags::PROFILE) {
@@ -1601,11 +1606,12 @@ Fluids: {:.2}ms
         }
 
         if self.state.flags.contains(TestbedStateFlags::DEBUG) {
-            let hash_bf = md5::compute(&bincode::serialize(&self.broad_phase).unwrap());
-            let hash_nf = md5::compute(&bincode::serialize(&self.narrow_phase).unwrap());
-            let hash_bodies = md5::compute(&bincode::serialize(&self.bodies).unwrap());
-            let hash_colliders = md5::compute(&bincode::serialize(&self.colliders).unwrap());
-            let hash_joints = md5::compute(&bincode::serialize(&self.joints).unwrap());
+            let hash_bf = md5::compute(&bincode::serialize(&self.physics.broad_phase).unwrap());
+            let hash_nf = md5::compute(&bincode::serialize(&self.physics.narrow_phase).unwrap());
+            let hash_bodies = md5::compute(&bincode::serialize(&self.physics.bodies).unwrap());
+            let hash_colliders =
+                md5::compute(&bincode::serialize(&self.physics.colliders).unwrap());
+            let hash_joints = md5::compute(&bincode::serialize(&self.physics.joints).unwrap());
             profile = format!(
                 r#"{}
 Hashes at frame: {}

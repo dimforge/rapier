@@ -10,6 +10,7 @@ use inflector::Inflector;
 use rapier_testbed3d::Testbed;
 use std::cmp::Ordering;
 
+mod add_remove3;
 mod balls3;
 mod boxes3;
 mod capsules3;
@@ -66,6 +67,7 @@ pub fn main() {
         .to_camel_case();
 
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
+        ("Add remove", add_remove3::init_world),
         ("Balls", balls3::init_world),
         ("Boxes", boxes3::init_world),
         ("Capsules", capsules3::init_world),
