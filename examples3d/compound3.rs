@@ -1,4 +1,4 @@
-use na::Point3;
+use na::{Point3, Vector3};
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
@@ -41,14 +41,20 @@ pub fn init_world(testbed: &mut Testbed) {
         for i in 0..num {
             for k in 0usize..num {
                 let x = i as f32 * shift - centerx + offset;
-                let y = j as f32 * shift + centery + 3.0;
+                let y = j as f32 * (shift * 2.0) + centery + 3.0;
                 let z = k as f32 * shift - centerz + offset;
 
                 // Build the rigid body.
                 let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
                 let handle = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::cuboid(rad, rad, rad).density(1.0).build();
-                colliders.insert(collider, handle, &mut bodies);
+                let collider1 = ColliderBuilder::cuboid(rad, rad, rad).density(1.0).build();
+                let collider2 = ColliderBuilder::cuboid(rad, rad, rad)
+                    .translation(0.0, -rad * 3.0, 0.0)
+                    .rotation(Vector3::x() * 0.5)
+                    .density(1.0)
+                    .build();
+                colliders.insert(collider1, handle, &mut bodies);
+                colliders.insert(collider2, handle, &mut bodies);
             }
         }
 

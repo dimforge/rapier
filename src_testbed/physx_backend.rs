@@ -399,7 +399,7 @@ impl PhysxWorld {
 fn physx_collider_from_rapier_collider(
     collider: &Collider,
 ) -> Option<(ColliderDesc, Isometry3<f32>)> {
-    let mut local_pose = Isometry3::identity();
+    let mut local_pose = *collider.position_wrt_parent();
     let desc = match collider.shape() {
         Shape::Cuboid(cuboid) => ColliderDesc::Box(
             cuboid.half_extents.x,
@@ -416,7 +416,7 @@ fn physx_collider_from_rapier_collider(
             }
 
             let rot = UnitQuaternion::rotation_between(&Vector3::x(), &dir);
-            local_pose =
+            local_pose *=
                 Translation3::from(center.coords) * rot.unwrap_or(UnitQuaternion::identity());
             ColliderDesc::Capsule(capsule.radius, capsule.height())
         }

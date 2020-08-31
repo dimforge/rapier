@@ -176,7 +176,7 @@ fn nphysics_collider_from_rapier_collider(
     is_dynamic: bool,
 ) -> Option<ColliderDesc<f32>> {
     let margin = ColliderDesc::<f32>::default_margin();
-    let mut pos = Isometry::identity();
+    let mut pos = *collider.position_wrt_parent();
 
     let shape = match collider.shape() {
         Shape::Cuboid(cuboid) => {
@@ -184,7 +184,7 @@ fn nphysics_collider_from_rapier_collider(
         }
         Shape::Ball(ball) => ShapeHandle::new(Ball::new(ball.radius - margin)),
         Shape::Capsule(capsule) => {
-            pos = capsule.transform_wrt_y();
+            pos *= capsule.transform_wrt_y();
             ShapeHandle::new(Capsule::new(capsule.half_height(), capsule.radius))
         }
         Shape::HeightField(heightfield) => ShapeHandle::new(heightfield.clone()),
