@@ -10,8 +10,10 @@ pub fn generate_contacts_cuboid_cuboid(ctxt: &mut PrimitiveContactGenerationCont
         generate_contacts(
             ctxt.prediction_distance,
             cube1,
+            ctxt.collider1.position_wrt_parent(),
             ctxt.position1,
             cube2,
+            ctxt.collider2.position_wrt_parent(),
             ctxt.position2,
             ctxt.manifold,
         );
@@ -26,15 +28,19 @@ pub fn generate_contacts_cuboid_cuboid(ctxt: &mut PrimitiveContactGenerationCont
 pub fn generate_contacts<'a>(
     prediction_distance: f32,
     mut cube1: &'a Cuboid<f32>,
+    mut origin1: &'a Isometry<f32>,
     mut pos1: &'a Isometry<f32>,
     mut cube2: &'a Cuboid<f32>,
+    mut origin2: &'a Isometry<f32>,
     mut pos2: &'a Isometry<f32>,
     manifold: &mut ContactManifold,
 ) {
     let mut pos12 = pos1.inverse() * pos2;
     let mut pos21 = pos12.inverse();
+    let mut orig_pos12 = origin1 * pos12 * origin2.inverse();
+    let mut orig_pos21 = orig_pos12.inverse();
 
-    if manifold.try_update_contacts(&pos12) {
+    if manifold.try_update_contacts(&orig_pos12) {
         return;
     }
 
@@ -81,8 +87,9 @@ pub fn generate_contacts<'a>(
     if sep2.0 > sep1.0 && sep2.0 > sep3.0 {
         // The reference shape will be the second shape.
         std::mem::swap(&mut cube1, &mut cube2);
-        std::mem::swap(&mut pos1, &mut pos2);
         std::mem::swap(&mut pos12, &mut pos21);
+        std::mem::swap(&mut orig_pos12, &mut orig_pos21);
+        std::mem::swap(&mut origin1, &mut origin2);
         manifold.swap_identifiers();
         best_sep = sep2;
         swapped = true;
@@ -97,46 +104,49 @@ pub fn generate_contacts<'a>(
 
     // Now the reference feature is from `cube1` and the best separation is `best_sep`.
     // Everything must be expressed in the local-space of `cube1` for contact clipping.
-    let feature1 = cuboid::support_feature(cube1, best_sep.1);
+    let mut feature1 = cuboid::support_feature(cube1, best_sep.1);
+    feature1.transform_by(origin1);
     let mut feature2 = cuboid::support_feature(cube2, pos21 * -best_sep.1);
     feature2.transform_by(&pos12);
+    feature2.transform_by(origin1);
+    let n1 = origin1 * best_sep.1;
 
     match (&feature1, &feature2) {
         (CuboidFeature::Face(f1), CuboidFeature::Vertex(v2)) => {
-            CuboidFeature::face_vertex_contacts(f1, &best_sep.1, v2, &pos21, manifold)
+            CuboidFeature::face_vertex_contacts(f1, &n1, v2, &orig_pos21, manifold)
         }
         #[cfg(feature = "dim3")]
         (CuboidFeature::Face(f1), CuboidFeature::Edge(e2)) => CuboidFeature::face_edge_contacts(
             prediction_distance,
             f1,
-            &best_sep.1,
+            &n1,
             e2,
-            &pos21,
+            &orig_pos21,
             manifold,
             false,
         ),
         (CuboidFeature::Face(f1), CuboidFeature::Face(f2)) => CuboidFeature::face_face_contacts(
             prediction_distance,
             f1,
-            &best_sep.1,
+            &n1,
             f2,
-            &pos21,
+            &orig_pos21,
             manifold,
         ),
         #[cfg(feature = "dim3")]
         (CuboidFeature::Edge(e1), CuboidFeature::Edge(e2)) => {
-            CuboidFeature::edge_edge_contacts(e1, &best_sep.1, e2, &pos21, manifold)
+            CuboidFeature::edge_edge_contacts(e1, &n1, e2, &orig_pos21, manifold)
         }
         #[cfg(feature = "dim3")]
         (CuboidFeature::Edge(e1), CuboidFeature::Face(f2)) => {
             // Since f2 is also expressed in the local-space of the first
-            // feature, the position we provide here is pos21.
+            // feature, the position we provide here is orig_pos21.
             CuboidFeature::face_edge_contacts(
                 prediction_distance,
                 f2,
-                &-best_sep.1,
+                &-n1,
                 e1,
-                &pos21,
+                &orig_pos21,
                 manifold,
                 true,
             )
@@ -144,8 +154,8 @@ pub fn generate_contacts<'a>(
         _ => unreachable!(), // The other cases are not possible.
     }
 
-    manifold.local_n1 = best_sep.1;
-    manifold.local_n2 = pos21 * -best_sep.1;
+    manifold.local_n1 = n1;
+    manifold.local_n2 = orig_pos21 * -n1;
     manifold.kinematics.category = KinematicsCategory::PlanePoint;
     manifold.kinematics.radius1 = 0.0;
     manifold.kinematics.radius2 = 0.0;
