@@ -215,10 +215,8 @@ impl VelocityConstraint {
 
             for k in 0..manifold_points.len() {
                 let manifold_point = &manifold_points[k];
-                let dp1 = (rb1.position * manifold_point.local_p1).coords
-                    - rb1.position.translation.vector;
-                let dp2 = (rb2.position * manifold_point.local_p2).coords
-                    - rb2.position.translation.vector;
+                let dp1 = (rb1.position * manifold_point.local_p1) - rb1.world_com;
+                let dp2 = (rb2.position * manifold_point.local_p2) - rb2.world_com;
 
                 let vel1 = rb1.linvel + rb1.angvel.gcross(dp1);
                 let vel2 = rb2.linvel + rb2.angvel.gcross(dp2);
@@ -355,7 +353,7 @@ impl VelocityConstraint {
             }
         }
 
-        // Solve penetration.
+        // Solve non-penetration.
         for i in 0..self.num_contacts as usize {
             let elt = &mut self.elements[i].normal_part;
             let dimpulse = self.dir1.dot(&mj_lambda1.linear) + elt.gcross1.gdot(mj_lambda1.angular)

@@ -80,6 +80,7 @@ impl WVelocityConstraint {
         let angvel1 = AngVector::<SimdFloat>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
 
         let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
+        let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
 
         let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
         let ii2: AngularInertia<SimdFloat> =
@@ -89,6 +90,7 @@ impl WVelocityConstraint {
         let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
 
         let position2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
+        let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
 
         let force_dir1 = position1 * -Vector::from(array![|ii| manifolds[ii].local_n1; SIMD_WIDTH]);
 
@@ -130,8 +132,8 @@ impl WVelocityConstraint {
                 let impulse =
                     SimdFloat::from(array![|ii| manifold_points[ii][k].impulse; SIMD_WIDTH]);
 
-                let dp1 = p1.coords - position1.translation.vector;
-                let dp2 = p2.coords - position2.translation.vector;
+                let dp1 = p1 - world_com1;
+                let dp2 = p2 - world_com2;
 
                 let vel1 = linvel1 + angvel1.gcross(dp1);
                 let vel2 = linvel2 + angvel2.gcross(dp2);

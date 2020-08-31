@@ -155,8 +155,8 @@ impl VelocityGroundConstraint {
                         rb2.position * manifold_point.local_p2,
                     )
                 };
-                let dp2 = p2.coords - rb2.position.translation.vector;
-                let dp1 = p1.coords - rb1.position.translation.vector;
+                let dp2 = p2 - rb2.world_com;
+                let dp1 = p1 - rb1.world_com;
                 let vel1 = rb1.linvel + rb1.angvel.gcross(dp1);
                 let vel2 = rb2.linvel + rb2.angvel.gcross(dp2);
 
