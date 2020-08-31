@@ -47,7 +47,6 @@ impl ColliderSet {
         parent_handle: RigidBodyHandle,
         bodies: &mut RigidBodySet,
     ) -> ColliderHandle {
-        let mass_properties = coll.mass_properties();
         coll.parent = parent_handle;
         let parent = bodies
             .get_mut_internal(parent_handle)
@@ -55,9 +54,8 @@ impl ColliderSet {
         coll.position = parent.position * coll.delta;
         coll.predicted_position = parent.predicted_position * coll.delta;
         let handle = self.colliders.insert(coll);
-        parent.colliders.push(handle);
-        parent.mass_properties += mass_properties;
-        parent.update_world_mass_properties();
+        let coll = self.colliders.get(handle).unwrap();
+        parent.add_collider_internal(handle, &coll);
         bodies.activate(parent_handle);
         handle
     }

@@ -3,7 +3,7 @@ use crate::geometry::{
     Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph, Polygon,
     Proximity, Triangle, Trimesh,
 };
-use crate::math::{Isometry, Point, Vector};
+use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
 use na::Point3;
 use ncollide::bounding_volume::{HasBoundingVolume, AABB};
 use num::Zero;
@@ -157,6 +157,11 @@ impl Collider {
     /// The world-space position of this collider.
     pub fn position(&self) -> &Isometry<f32> {
         &self.position
+    }
+
+    /// The position of this collider wrt the body it is attached to.
+    pub fn position_wrt_parent(&self) -> &Isometry<f32> {
+        &self.delta
     }
 
     /// The density of this collider.
@@ -347,7 +352,41 @@ impl ColliderBuilder {
         self
     }
 
+    /// Sets the initial translation of the collider to be created,
+    /// relative to the rigid-body it is attached to.
+    #[cfg(feature = "dim2")]
+    pub fn translation(mut self, x: f32, y: f32) -> Self {
+        self.delta.translation.x = x;
+        self.delta.translation.y = y;
+        self
+    }
+
+    /// Sets the initial translation of the collider to be created,
+    /// relative to the rigid-body it is attached to.
+    #[cfg(feature = "dim3")]
+    pub fn translation(mut self, x: f32, y: f32, z: f32) -> Self {
+        self.delta.translation.x = x;
+        self.delta.translation.y = y;
+        self.delta.translation.z = z;
+        self
+    }
+
+    /// Sets the initial orientation of the collider to be created,
+    /// relative to the rigid-body it is attached to.
+    pub fn rotation(mut self, angle: AngVector<f32>) -> Self {
+        self.delta.rotation = Rotation::new(angle);
+        self
+    }
+
+    /// Sets the initial position (translation and orientation) of the collider to be created,
+    /// relative to the rigid-body it is attached to.
+    pub fn position(mut self, pos: Isometry<f32>) -> Self {
+        self.delta = pos;
+        self
+    }
+
     /// Set the position of this collider in the local-space of the rigid-body it is attached to.
+    #[deprecated(note = "Use `.position` instead.")]
     pub fn delta(mut self, delta: Isometry<f32>) -> Self {
         self.delta = delta;
         self

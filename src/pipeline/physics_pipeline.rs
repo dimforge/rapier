@@ -7,7 +7,8 @@ use crate::dynamics::{IntegrationParameters, JointSet, RigidBody, RigidBodyHandl
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactManifoldIndex, NarrowPhase,
+    BroadPhase, BroadPhasePairEvent, Collider, ColliderHandle, ColliderPair, ColliderSet,
+    ContactManifoldIndex, NarrowPhase,
 };
 use crate::math::Vector;
 use crate::pipeline::EventHandler;
@@ -243,6 +244,27 @@ impl PhysicsPipeline {
 
         bodies.modified_inactive_set.clear();
         self.counters.step_completed();
+    }
+
+    /// Remove a collider and all its associated data.
+    pub fn remove_collider(
+        &mut self,
+        handle: ColliderHandle,
+        broad_phase: &mut BroadPhase,
+        narrow_phase: &mut NarrowPhase,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+    ) -> Option<Collider> {
+        broad_phase.remove_colliders(&[handle], colliders);
+        narrow_phase.remove_colliders(&[handle], colliders, bodies);
+        let collider = colliders.remove_internal(handle)?;
+
+        if let Some(parent) = bodies.get_mut_internal(collider.parent) {
+            parent.remove_collider_internal(handle, &collider);
+            bodies.wake_up(collider.parent);
+        }
+
+        Some(collider)
     }
 
     /// Remove a rigid-body and all its associated data.

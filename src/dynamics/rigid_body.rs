@@ -1,5 +1,5 @@
 use crate::dynamics::MassProperties;
-use crate::geometry::{ColliderHandle, InteractionGraph, RigidBodyGraphIndex};
+use crate::geometry::{Collider, ColliderHandle, InteractionGraph, RigidBodyGraphIndex};
 use crate::math::{AngVector, AngularInertia, Isometry, Point, Rotation, Translation, Vector};
 use crate::utils::{WCross, WDot};
 use num::Zero;
@@ -135,6 +135,24 @@ impl RigidBody {
     /// Returns zero if this rigid body has an infinite mass.
     pub fn mass(&self) -> f32 {
         crate::utils::inv(self.mass_properties.inv_mass)
+    }
+
+    /// Adds a collider to this rigid-body.
+    pub(crate) fn add_collider_internal(&mut self, handle: ColliderHandle, coll: &Collider) {
+        let mass_properties = coll.mass_properties();
+        self.colliders.push(handle);
+        self.mass_properties += mass_properties;
+        self.update_world_mass_properties();
+    }
+
+    /// Removes a collider from this rigid-body.
+    pub(crate) fn remove_collider_internal(&mut self, handle: ColliderHandle, coll: &Collider) {
+        if let Some(i) = self.colliders.iter().position(|e| *e == handle) {
+            self.colliders.swap_remove(i);
+            let mass_properties = coll.mass_properties();
+            self.mass_properties -= mass_properties;
+            self.update_world_mass_properties();
+        }
     }
 
     /// Put this rigid body to sleep.

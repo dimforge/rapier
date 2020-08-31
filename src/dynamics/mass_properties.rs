@@ -1,7 +1,7 @@
 use crate::math::{AngVector, AngularInertia, Isometry, Point, Rotation, Vector};
 use crate::utils;
 use num::Zero;
-use std::ops::{Add, AddAssign};
+use std::ops::{Add, AddAssign, Sub, SubAssign};
 #[cfg(feature = "dim3")]
 use {na::Matrix3, std::ops::MulAssign};
 
@@ -22,6 +22,59 @@ pub struct MassProperties {
     #[cfg(feature = "dim3")]
     /// The principal vectors of the local angular inertia tensor of the rigid-body.
     pub principal_inertia_local_frame: Rotation<f32>,
+}
+
+impl approx::AbsDiffEq for MassProperties {
+    type Epsilon = f32;
+    fn default_epsilon() -> Self::Epsilon {
+        f32::default_epsilon()
+    }
+
+    fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+        self.local_com.abs_diff_eq(&other.local_com, epsilon)
+            && self.inv_mass.abs_diff_eq(&other.inv_mass, epsilon)
+            && self
+                .inv_principal_inertia_sqrt
+                .abs_diff_eq(&other.inv_principal_inertia_sqrt, epsilon)
+        // && self
+        //     .principal_inertia_local_frame
+        //     .abs_diff_eq(&other.principal_inertia_local_frame, epsilon)
+    }
+}
+
+impl approx::RelativeEq for MassProperties {
+    fn default_max_relative() -> Self::Epsilon {
+        f32::default_max_relative()
+    }
+
+    fn relative_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+        max_relative: Self::Epsilon,
+    ) -> bool {
+        #[cfg(feature = "dim2")]
+        let inertia_is_ok = self.inv_principal_inertia_sqrt.relative_eq(
+            &other.inv_principal_inertia_sqrt,
+            epsilon,
+            max_relative,
+        );
+
+        #[cfg(feature = "dim3")]
+        let inertia_is_ok = self.reconstruct_inverse_inertia_matrix().relative_eq(
+            &other.reconstruct_inverse_inertia_matrix(),
+            epsilon,
+            max_relative,
+        );
+
+        inertia_is_ok
+            && self
+                .local_com
+                .relative_eq(&other.local_com, epsilon, max_relative)
+            && self
+                .inv_mass
+                .relative_eq(&other.inv_mass, epsilon, max_relative)
+    }
 }
 
 impl MassProperties {
@@ -91,6 +144,18 @@ impl MassProperties {
     }
 
     #[cfg(feature = "dim3")]
+    /// Reconstructs the inverse angular inertia tensor of the rigid body from its principal inertia values and axii.
+    pub fn reconstruct_inverse_inertia_matrix(&self) -> Matrix3<f32> {
+        let inv_principal_inertia = self.inv_principal_inertia_sqrt.map(|e| e * e);
+        self.principal_inertia_local_frame.to_rotation_matrix()
+            * Matrix3::from_diagonal(&inv_principal_inertia)
+            * self
+                .principal_inertia_local_frame
+                .inverse()
+                .to_rotation_matrix()
+    }
+
+    #[cfg(feature = "dim3")]
     /// Reconstructs the angular inertia tensor of the rigid body from its principal inertia values and axii.
     pub fn reconstruct_inertia_matrix(&self) -> Matrix3<f32> {
         let principal_inertia = self.inv_principal_inertia_sqrt.map(|e| utils::inv(e * e));
@@ -140,6 +205,67 @@ impl Zero for MassProperties {
 
     fn is_zero(&self) -> bool {
         *self == Self::zero()
+    }
+}
+
+impl Sub<MassProperties> for MassProperties {
+    type Output = Self;
+
+    #[cfg(feature = "dim2")]
+    fn sub(self, other: MassProperties) -> Self {
+        if self.is_zero() || other.is_zero() {
+            return self;
+        }
+
+        let m1 = utils::inv(self.inv_mass);
+        let m2 = utils::inv(other.inv_mass);
+        let inv_mass = utils::inv(m1 - m2);
+
+        let local_com = (self.local_com * m1 - other.local_com.coords * m2) * inv_mass;
+        let i1 = self.construct_shifted_inertia_matrix(local_com - self.local_com);
+        let i2 = other.construct_shifted_inertia_matrix(local_com - other.local_com);
+        let inertia = i1 - i2;
+        // NOTE: we drop the negative eigenvalues that may result from subtraction rounding errors.
+        let inv_principal_inertia_sqrt = utils::inv(inertia.max(0.0).sqrt());
+
+        Self {
+            local_com,
+            inv_mass,
+            inv_principal_inertia_sqrt,
+        }
+    }
+
+    #[cfg(feature = "dim3")]
+    fn sub(self, other: MassProperties) -> Self {
+        if self.is_zero() || other.is_zero() {
+            return self;
+        }
+
+        let m1 = utils::inv(self.inv_mass);
+        let m2 = utils::inv(other.inv_mass);
+        let inv_mass = utils::inv(m1 - m2);
+        let local_com = (self.local_com * m1 - other.local_com.coords * m2) * inv_mass;
+        let i1 = self.construct_shifted_inertia_matrix(local_com - self.local_com);
+        let i2 = other.construct_shifted_inertia_matrix(local_com - other.local_com);
+        let inertia = i1 - i2;
+        let eigen = inertia.symmetric_eigen();
+        let principal_inertia_local_frame = Rotation::from_matrix(&eigen.eigenvectors);
+        let principal_inertia = eigen.eigenvalues;
+        // NOTE: we drop the negative eigenvalues that may result from subtraction rounding errors.
+        let inv_principal_inertia_sqrt = principal_inertia.map(|e| utils::inv(e.max(0.0).sqrt()));
+
+        Self {
+            local_com,
+            inv_mass,
+            inv_principal_inertia_sqrt,
+            principal_inertia_local_frame,
+        }
+    }
+}
+
+impl SubAssign<MassProperties> for MassProperties {
+    fn sub_assign(&mut self, rhs: MassProperties) {
+        *self = *self - rhs
     }
 }
 
@@ -202,5 +328,42 @@ impl Add<MassProperties> for MassProperties {
 impl AddAssign<MassProperties> for MassProperties {
     fn add_assign(&mut self, rhs: MassProperties) {
         *self = *self + rhs
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::MassProperties;
+    use crate::geometry::ColliderBuilder;
+    use approx::assert_relative_eq;
+    use num::Zero;
+
+    #[test]
+    fn mass_properties_add_sub() {
+        // Check that addition and subtraction of mass properties behave as expected.
+        let c1 = ColliderBuilder::capsule_x(1.0, 2.0).build();
+        let c2 = ColliderBuilder::capsule_y(3.0, 4.0).build();
+        let c3 = ColliderBuilder::ball(5.0).build();
+
+        let m1 = c1.mass_properties();
+        let m2 = c2.mass_properties();
+        let m3 = c3.mass_properties();
+        let m1m2m3 = m1 + m2 + m3;
+
+        assert_relative_eq!(m1 + m2, m2 + m1, epsilon = 1.0e-6);
+        assert_relative_eq!(m1m2m3 - m1, m2 + m3, epsilon = 1.0e-6);
+        assert_relative_eq!(m1m2m3 - m2, m1 + m3, epsilon = 1.0e-6);
+        assert_relative_eq!(m1m2m3 - m3, m1 + m2, epsilon = 1.0e-6);
+        assert_relative_eq!(m1m2m3 - (m1 + m2), m3, epsilon = 1.0e-6);
+        assert_relative_eq!(m1m2m3 - (m1 + m3), m2, epsilon = 1.0e-6);
+        assert_relative_eq!(m1m2m3 - (m2 + m3), m1, epsilon = 1.0e-6);
+        assert_relative_eq!(m1m2m3 - m1 - m2, m3, epsilon = 1.0e-6);
+        assert_relative_eq!(m1m2m3 - m1 - m3, m2, epsilon = 1.0e-6);
+        assert_relative_eq!(m1m2m3 - m2 - m3, m1, epsilon = 1.0e-6);
+        assert_relative_eq!(
+            m1m2m3 - m1 - m2 - m3,
+            MassProperties::zero(),
+            epsilon = 1.0e-6
+        );
     }
 }
