@@ -10,3 +10,10 @@ debug = false
 codegen-units = 1
 #opt-level = 1
 #lto = true
+
+
+#[profile.dev.package.rapier3d]
+#opt-level = 3
+#
+#[profile.dev.package.kiss3d]
+#opt-level = 3
