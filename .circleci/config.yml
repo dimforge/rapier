@@ -68,22 +68,22 @@ jobs:
           command: cargo install -f cargo-web;
       - run:
           name: build rapier2d
-          command: cd build/rapier2d && cargo web build --verbose --target wasm32-unknown-unknown;
+          command: cd build/rapier2d && cargo web build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
       - run:
           name: build rapier3d
-          command: cd build/rapier3d && cargo web build --verbose --target wasm32-unknown-unknown;
+          command: cd build/rapier3d && cargo web build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
       - run:
           name: build rapier-examples-2d
-          command: cd examples2d && cargo web build --verbose --target wasm32-unknown-unknown;
+          command: cd examples2d && cargo web build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
       - run:
           name: build rapier-examples-3d
-          command: cd examples3d && cargo web build --verbose --target wasm32-unknown-unknown;
+          command: cd examples3d && cargo web build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
       - run:
           name: build rapier_testbed2d
-          command: cd build/rapier_testbed2d && cargo web build --verbose --target wasm32-unknown-unknown;
+          command: cd build/rapier_testbed2d && cargo web build --features wasm-bindgen --verbose --target wasm32-unknown-unknown;
       - run:
           name: build rapier_testbed3d
-          command: cd build/rapier_testbed3d && cargo web build --verbose --target wasm32-unknown-unknown;
+          command: cd build/rapier_testbed3d && cargo web build --features wasm-bindgen --verbose --target wasm32-unknown-unknown;
 
 
 workflows:
