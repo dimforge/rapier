@@ -86,13 +86,23 @@ impl WVelocityGroundConstraint {
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
         let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
 
-        let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
-        let position2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
+        let pos1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
+        let pos2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
+
+        let delta1 = Isometry::from(
+            array![|ii| if flipped[ii] { manifolds[ii].delta2 } else { manifolds[ii].delta1 }; SIMD_WIDTH],
+        );
+        let delta2 = Isometry::from(
+            array![|ii| if flipped[ii] { manifolds[ii].delta1 } else { manifolds[ii].delta2 }; SIMD_WIDTH],
+        );
+
+        let coll_pos1 = pos1 * delta1;
+        let coll_pos2 = pos2 * delta2;
 
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
 
-        let force_dir1 = position1
+        let force_dir1 = coll_pos1
             * -Vector::from(
                 array![|ii| if flipped[ii] { manifolds[ii].local_n2 } else { manifolds[ii].local_n1 }; SIMD_WIDTH],
             );
@@ -120,11 +130,11 @@ impl WVelocityGroundConstraint {
             };
 
             for k in 0..num_points {
-                let p1 = position1
+                let p1 = coll_pos1
                     * Point::from(
                         array![|ii| if flipped[ii] { manifold_points[ii][k].local_p2 } else { manifold_points[ii][k].local_p1 }; SIMD_WIDTH],
                     );
-                let p2 = position2
+                let p2 = coll_pos2
                     * Point::from(
                         array![|ii| if flipped[ii] { manifold_points[ii][k].local_p1 } else { manifold_points[ii][k].local_p2 }; SIMD_WIDTH],
                     );

@@ -148,7 +148,9 @@ impl VelocityConstraint {
         let rb2 = &bodies[manifold.body_pair.body2];
         let mj_lambda1 = rb1.active_set_offset;
         let mj_lambda2 = rb2.active_set_offset;
-        let force_dir1 = rb1.position * (-manifold.local_n1);
+        let pos_coll1 = rb1.position * manifold.delta1;
+        let pos_coll2 = rb2.position * manifold.delta2;
+        let force_dir1 = pos_coll1 * (-manifold.local_n1);
         let warmstart_coeff = manifold.warmstart_multiplier * params.warmstart_coeff;
 
         for (l, manifold_points) in manifold
@@ -215,8 +217,8 @@ impl VelocityConstraint {
 
             for k in 0..manifold_points.len() {
                 let manifold_point = &manifold_points[k];
-                let dp1 = (rb1.position * manifold_point.local_p1) - rb1.world_com;
-                let dp2 = (rb2.position * manifold_point.local_p2) - rb2.world_com;
+                let dp1 = (pos_coll1 * manifold_point.local_p1) - rb1.world_com;
+                let dp2 = (pos_coll2 * manifold_point.local_p2) - rb2.world_com;
 
                 let vel1 = rb1.linvel + rb1.angvel.gcross(dp1);
                 let vel2 = rb2.linvel + rb2.angvel.gcross(dp2);

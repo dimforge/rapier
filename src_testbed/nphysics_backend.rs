@@ -13,7 +13,7 @@ use rapier::dynamics::{
     IntegrationParameters, JointParams, JointSet, RigidBodyHandle, RigidBodySet,
 };
 use rapier::geometry::{Collider, ColliderSet, Shape};
-use rapier::math::{Isometry, Vector};
+use rapier::math::Vector;
 use std::collections::HashMap;
 #[cfg(feature = "dim3")]
 use {ncollide::shape::TriMesh, nphysics::joint::BallConstraint};

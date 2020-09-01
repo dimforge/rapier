@@ -104,8 +104,8 @@ impl PositionConstraint {
             let mut local_p2 = [Point::origin(); MAX_MANIFOLD_POINTS];
 
             for l in 0..manifold_points.len() {
-                local_p1[l] = manifold_points[l].local_p1 + shift1;
-                local_p2[l] = manifold_points[l].local_p2 + shift2;
+                local_p1[l] = manifold.delta1 * (manifold_points[l].local_p1 + shift1);
+                local_p2[l] = manifold.delta2 * (manifold_points[l].local_p2 + shift2);
             }
 
             let constraint = PositionConstraint {

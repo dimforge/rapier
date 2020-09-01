@@ -51,6 +51,9 @@ impl WPositionConstraint {
         let radius1 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius1; SIMD_WIDTH]);
         let radius2 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius2; SIMD_WIDTH]);
 
+        let delta1 = Isometry::from(array![|ii| manifolds[ii].delta1; SIMD_WIDTH]);
+        let delta2 = Isometry::from(array![|ii| manifolds[ii].delta2; SIMD_WIDTH]);
+
         let rb1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
         let rb2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
@@ -85,8 +88,8 @@ impl WPositionConstraint {
                 let local_p2 =
                     Point::from(array![|ii| manifold_points[ii][i].local_p2; SIMD_WIDTH]);
 
-                constraint.local_p1[i] = local_p1 + shift1;
-                constraint.local_p2[i] = local_p2 + shift2;
+                constraint.local_p1[i] = delta1 * (local_p1 + shift1);
+                constraint.local_p2[i] = delta2 * (local_p2 + shift2);
             }
 
             if push {

@@ -66,20 +66,22 @@ impl VelocityGroundConstraint {
         let mut rb1 = &bodies[manifold.body_pair.body1];
         let mut rb2 = &bodies[manifold.body_pair.body2];
         let flipped = !rb2.is_dynamic();
+        let force_dir1;
+        let coll_pos1;
+        let coll_pos2;
 
         if flipped {
+            coll_pos1 = rb2.position * manifold.delta2;
+            coll_pos2 = rb1.position * manifold.delta1;
+            force_dir1 = coll_pos1 * (-manifold.local_n2);
             std::mem::swap(&mut rb1, &mut rb2);
+        } else {
+            coll_pos1 = rb1.position * manifold.delta1;
+            coll_pos2 = rb2.position * manifold.delta2;
+            force_dir1 = coll_pos1 * (-manifold.local_n1);
         }
 
         let mj_lambda2 = rb2.active_set_offset;
-        let force_dir1 = if flipped {
-            // NOTE: we already swapped rb1 and rb2
-            // so we multiply by rb1.position.
-            rb1.position * (-manifold.local_n2)
-        } else {
-            rb1.position * (-manifold.local_n1)
-        };
-
         let warmstart_coeff = manifold.warmstart_multiplier * params.warmstart_coeff;
 
         for (l, manifold_points) in manifold
@@ -144,15 +146,15 @@ impl VelocityGroundConstraint {
                 let manifold_point = &manifold_points[k];
                 let (p1, p2) = if flipped {
                     // NOTE: we already swapped rb1 and rb2
-                    // so we multiply by rb2.position.
+                    // so we multiply by coll_pos1/coll_pos2.
                     (
-                        rb1.position * manifold_point.local_p2,
-                        rb2.position * manifold_point.local_p1,
+                        coll_pos1 * manifold_point.local_p2,
+                        coll_pos2 * manifold_point.local_p1,
                     )
                 } else {
                     (
-                        rb1.position * manifold_point.local_p1,
-                        rb2.position * manifold_point.local_p2,
+                        coll_pos1 * manifold_point.local_p1,
+                        coll_pos2 * manifold_point.local_p2,
                     )
                 };
                 let dp2 = p2 - rb2.world_com;
