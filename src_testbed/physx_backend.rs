@@ -228,7 +228,7 @@ impl PhysxWorld {
         // Update mass properties.
         for (rapier_handle, physx_handle) in rapier2physx.iter() {
             let rb = &bodies[*rapier_handle];
-            if let Some(mut ra) = scene.get_dynamic_mut(*physx_handle) {
+            if let Some(rp) = scene.get_dynamic_mut(*physx_handle) {
                 let densities: Vec<_> = rb
                     .colliders()
                     .iter()
@@ -237,7 +237,7 @@ impl PhysxWorld {
 
                 unsafe {
                     physx_sys::PxRigidBodyExt_updateMassAndInertia_mut(
-                        ra.as_ptr_mut().ptr as *mut physx_sys::PxRigidBody,
+                        rp.as_ptr_mut().ptr as *mut physx_sys::PxRigidBody,
                         densities.as_ptr(),
                         densities.len() as u32,
                         std::ptr::null(),

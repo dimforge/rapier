@@ -209,7 +209,8 @@ impl Sub<MassProperties> for MassProperties {
         let i2 = other.construct_shifted_inertia_matrix(local_com - other.local_com);
         let inertia = i1 - i2;
         let eigen = inertia.symmetric_eigen();
-        let principal_inertia_local_frame = Rotation::from_matrix(&eigen.eigenvectors);
+        let principal_inertia_local_frame =
+            Rotation::from_matrix_eps(&eigen.eigenvectors, 1.0e-6, 10, na::one());
         let principal_inertia = eigen.eigenvalues;
         // NOTE: we drop the negative eigenvalues that may result from subtraction rounding errors.
         let inv_principal_inertia_sqrt = principal_inertia.map(|e| utils::inv(e.max(0.0).sqrt()));
@@ -272,7 +273,8 @@ impl Add<MassProperties> for MassProperties {
         let i2 = other.construct_shifted_inertia_matrix(local_com - other.local_com);
         let inertia = i1 + i2;
         let eigen = inertia.symmetric_eigen();
-        let principal_inertia_local_frame = Rotation::from_matrix(&eigen.eigenvectors);
+        let principal_inertia_local_frame =
+            Rotation::from_matrix_eps(&eigen.eigenvectors, 1.0e-6, 10, na::one());
         let principal_inertia = eigen.eigenvalues;
         let inv_principal_inertia_sqrt = principal_inertia.map(|e| utils::inv(e.sqrt()));
 
