@@ -33,17 +33,14 @@ jobs:
           name: build rapier3d SIMD
           command: cd build/rapier3d; cargo build --verbose --features simd-stable;
       - run:
-          name: build rapier2d SIMD Paallel
+          name: build rapier2d SIMD Parallel
           command: cd build/rapier2d; cargo build --verbose --features simd-stable --features parallel;
       - run:
-          name: build rapier3d SIMD Paallel
+          name: build rapier3d SIMD Parallel
           command: cd build/rapier3d; cargo build --verbose --features simd-stable --features parallel;
       - run:
-          name: test rapier2d
-          command: cargo test --verbose -p rapier2d;
-      - run:
-          name: test rapier3d
-          command: cargo test --verbose -p rapier3d;
+          name: test
+          command: cargo test
       - run:
           name: check rapier_testbed2d
           command: cargo check --verbose -p rapier_testbed2d;

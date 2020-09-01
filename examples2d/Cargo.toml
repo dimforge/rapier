@@ -1,5 +1,5 @@
 [package]
-name    = "nphysics-examples-2d"
+name    = "rapier-examples-2d"
 version = "0.1.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 edition = "2018"
