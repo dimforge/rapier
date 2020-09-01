@@ -300,14 +300,22 @@ impl approx::AbsDiffEq for MassProperties {
     }
 
     fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
-        self.local_com.abs_diff_eq(&other.local_com, epsilon)
+        #[cfg(feature = "dim2")]
+        let inertia_is_ok = self
+            .inv_principal_inertia_sqrt
+            .abs_diff_eq(&other.inv_principal_inertia_sqrt, epsilon);
+
+        #[cfg(feature = "dim3")]
+        let inertia_is_ok = self
+            .reconstruct_inverse_inertia_matrix()
+            .abs_diff_eq(&other.reconstruct_inverse_inertia_matrix(), epsilon);
+
+        inertia_is_ok
+            && self.local_com.abs_diff_eq(&other.local_com, epsilon)
             && self.inv_mass.abs_diff_eq(&other.inv_mass, epsilon)
             && self
                 .inv_principal_inertia_sqrt
                 .abs_diff_eq(&other.inv_principal_inertia_sqrt, epsilon)
-        // && self
-        //     .principal_inertia_local_frame
-        //     .abs_diff_eq(&other.principal_inertia_local_frame, epsilon)
     }
 }
 
