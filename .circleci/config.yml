@@ -55,12 +55,6 @@ jobs:
       - run:
           name: check rapier-examples-3d
           command: cargo check -j 1 --verbose -p rapier-examples-3d;
-      - run:
-          name: check rapier_testbed2d with fluids
-          command: cd build/rapier_testbed2d && cargo check --verbose --features=fluids;
-      - run:
-          name: check rapier_testbed3d with fluids
-          command: cd build/rapier_testbed3d && cargo check --verbose --features=fluids;
   build-wasm:
     executor: rust-executor
     steps:
