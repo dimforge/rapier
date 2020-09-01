@@ -13,7 +13,7 @@ use rapier::dynamics::{
     IntegrationParameters, JointParams, JointSet, RigidBodyHandle, RigidBodySet,
 };
 use rapier::geometry::{Collider, ColliderSet, Shape};
-use rapier::math::{Isometry, Vector};
+use rapier::math::Vector;
 use std::collections::HashMap;
 #[cfg(feature = "dim3")]
 use {ncollide::shape::TriMesh, nphysics::joint::BallConstraint};
@@ -165,7 +165,7 @@ impl NPhysicsWorld {
 
             for coll_handle in rb.colliders() {
                 let collider = &mut colliders[*coll_handle];
-                collider.set_position_debug(pos * collider.delta());
+                collider.set_position_debug(pos * collider.position_wrt_parent());
             }
         }
     }
@@ -176,7 +176,7 @@ fn nphysics_collider_from_rapier_collider(
     is_dynamic: bool,
 ) -> Option<ColliderDesc<f32>> {
     let margin = ColliderDesc::<f32>::default_margin();
-    let mut pos = Isometry::identity();
+    let mut pos = *collider.position_wrt_parent();
 
     let shape = match collider.shape() {
         Shape::Cuboid(cuboid) => {
@@ -184,7 +184,7 @@ fn nphysics_collider_from_rapier_collider(
         }
         Shape::Ball(ball) => ShapeHandle::new(Ball::new(ball.radius - margin)),
         Shape::Capsule(capsule) => {
-            pos = capsule.transform_wrt_y();
+            pos *= capsule.transform_wrt_y();
             ShapeHandle::new(Capsule::new(capsule.half_height(), capsule.radius))
         }
         Shape::HeightField(heightfield) => ShapeHandle::new(heightfield.clone()),

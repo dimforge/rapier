@@ -791,6 +791,29 @@ impl Testbed {
                 .state
                 .action_flags
                 .set(TestbedActionFlags::EXAMPLE_CHANGED, true),
+            WindowEvent::Key(Key::C, Action::Release, _) => {
+                // Delete 1 collider of 10% of the remaining dynamic bodies.
+                let mut colliders: Vec<_> = self
+                    .physics
+                    .bodies
+                    .iter()
+                    .filter(|e| e.1.is_dynamic())
+                    .filter(|e| !e.1.colliders().is_empty())
+                    .map(|e| e.1.colliders().to_vec())
+                    .collect();
+                colliders.sort_by_key(|co| -(co.len() as isize));
+
+                let num_to_delete = (colliders.len() / 10).max(1);
+                for to_delete in &colliders[..num_to_delete] {
+                    self.physics.pipeline.remove_collider(
+                        to_delete[0],
+                        &mut self.physics.broad_phase,
+                        &mut self.physics.narrow_phase,
+                        &mut self.physics.bodies,
+                        &mut self.physics.colliders,
+                    );
+                }
+            }
             WindowEvent::Key(Key::D, Action::Release, _) => {
                 // Delete 10% of the remaining dynamic bodies.
                 let dynamic_bodies: Vec<_> = self
@@ -1539,7 +1562,7 @@ impl State for Testbed {
         }
 
         if self.state.flags.contains(TestbedStateFlags::CONTACT_POINTS) {
-            draw_contacts(window, &self.physics.narrow_phase, &self.physics.bodies);
+            draw_contacts(window, &self.physics.narrow_phase, &self.physics.colliders);
         }
 
         if self.state.running == RunMode::Step {
@@ -1634,7 +1657,7 @@ Hashes at frame: {}
     }
 }
 
-fn draw_contacts(window: &mut Window, nf: &NarrowPhase, bodies: &RigidBodySet) {
+fn draw_contacts(window: &mut Window, nf: &NarrowPhase, colliders: &ColliderSet) {
     for (_, _, pair) in nf.contact_graph().interaction_pairs() {
         for manifold in &pair.manifolds {
             for pt in manifold.all_contacts() {
@@ -1643,8 +1666,8 @@ fn draw_contacts(window: &mut Window, nf: &NarrowPhase, bodies: &RigidBodySet) {
                 } else {
                     Point3::new(1.0, 0.0, 0.0)
                 };
-                let pos1 = bodies[manifold.body_pair.body1].position;
-                let pos2 = bodies[manifold.body_pair.body2].position;
+                let pos1 = colliders[manifold.pair.collider1].position();
+                let pos2 = colliders[manifold.pair.collider2].position();
                 let start = pos1 * pt.local_p1;
                 let end = pos2 * pt.local_p2;
                 let n = pos1 * manifold.local_n1;

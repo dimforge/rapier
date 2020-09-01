@@ -54,16 +54,24 @@ impl WPositionGroundConstraint {
             array![|ii| if flipped[ii] { manifolds[ii].local_n1 } else { manifolds[ii].local_n2 }; SIMD_WIDTH],
         );
 
+        let delta1 = Isometry::from(
+            array![|ii| if flipped[ii] { manifolds[ii].delta2 } else { manifolds[ii].delta1 }; SIMD_WIDTH],
+        );
+        let delta2 = Isometry::from(
+            array![|ii| if flipped[ii] { manifolds[ii].delta1 } else { manifolds[ii].delta2 }; SIMD_WIDTH],
+        );
+
         let radius1 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius1; SIMD_WIDTH]);
         let radius2 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius2; SIMD_WIDTH]);
 
-        let position1 = Isometry::from(array![|ii| rbs1[ii].predicted_position; SIMD_WIDTH]);
+        let coll_pos1 =
+            delta1 * Isometry::from(array![|ii| rbs1[ii].predicted_position; SIMD_WIDTH]);
 
         let rb2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
         let radius = radius1 + radius2 /*- SimdFloat::splat(params.allowed_linear_error)*/;
 
-        let n1 = position1 * local_n1;
+        let n1 = coll_pos1 * local_n1;
 
         for l in (0..manifolds[0].num_active_contacts()).step_by(MAX_MANIFOLD_POINTS) {
             let manifold_points = array![|ii| &manifolds[ii].active_contacts()[l..]; SIMD_WIDTH];
@@ -90,8 +98,8 @@ impl WPositionGroundConstraint {
                     array![|ii| if flipped[ii] { manifold_points[ii][i].local_p1 } else { manifold_points[ii][i].local_p2 }; SIMD_WIDTH],
                 );
 
-                constraint.p1[i] = position1 * local_p1 - n1 * radius1;
-                constraint.local_p2[i] = local_p2 - local_n2 * radius2;
+                constraint.p1[i] = coll_pos1 * local_p1 - n1 * radius1;
+                constraint.local_p2[i] = delta2 * (local_p2 - local_n2 * radius2);
             }
 
             if push {

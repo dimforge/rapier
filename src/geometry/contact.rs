@@ -273,16 +273,21 @@ pub struct ContactManifold {
     /// The pair of subshapes involved in this contact manifold.
     pub subshape_index_pair: (usize, usize),
     pub(crate) warmstart_multiplier: f32,
-    // We put the friction and restitution here because
-    // this avoids reading the colliders inside of the
+    // The two following are set by the constraints solver.
+    pub(crate) constraint_index: usize,
+    pub(crate) position_constraint_index: usize,
+    // We put the following fields here to avoids reading the colliders inside of the
     // contact preparation method.
     /// The friction coefficient for of all the contacts on this contact manifold.
     pub friction: f32,
     /// The restitution coefficient for all the contacts on this contact manifold.
     pub restitution: f32,
-    // The following are set by the constraints solver.
-    pub(crate) constraint_index: usize,
-    pub(crate) position_constraint_index: usize,
+    /// The relative position between the first collider and its parent at the time the
+    /// contact points were generated.
+    pub delta1: Isometry<f32>,
+    /// The relative position between the second collider and its parent at the time the
+    /// contact points were generated.
+    pub delta2: Isometry<f32>,
 }
 
 impl ContactManifold {
@@ -290,6 +295,8 @@ impl ContactManifold {
         pair: ColliderPair,
         subshapes: (usize, usize),
         body_pair: BodyPair,
+        delta1: Isometry<f32>,
+        delta2: Isometry<f32>,
         friction: f32,
         restitution: f32,
     ) -> ContactManifold {
@@ -308,6 +315,8 @@ impl ContactManifold {
             warmstart_multiplier: Self::min_warmstart_multiplier(),
             friction,
             restitution,
+            delta1,
+            delta2,
             constraint_index: 0,
             position_constraint_index: 0,
         }
@@ -329,6 +338,8 @@ impl ContactManifold {
             warmstart_multiplier: self.warmstart_multiplier,
             friction: self.friction,
             restitution: self.restitution,
+            delta1: self.delta1,
+            delta2: self.delta2,
             constraint_index: self.constraint_index,
             position_constraint_index: self.position_constraint_index,
         }
@@ -349,6 +360,8 @@ impl ContactManifold {
             pair,
             (subshape1, subshape2),
             BodyPair::new(coll1.parent, coll2.parent),
+            *coll1.position_wrt_parent(),
+            *coll2.position_wrt_parent(),
             (coll1.friction + coll2.friction) * 0.5,
             (coll1.restitution + coll2.restitution) * 0.5,
         )
@@ -391,6 +404,7 @@ impl ContactManifold {
         self.pair = self.pair.swap();
         self.body_pair = self.body_pair.swap();
         self.subshape_index_pair = (self.subshape_index_pair.1, self.subshape_index_pair.0);
+        std::mem::swap(&mut self.delta1, &mut self.delta2);
     }
 
     pub(crate) fn update_warmstart_multiplier(&mut self) {

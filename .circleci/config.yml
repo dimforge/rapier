@@ -1,0 +1,82 @@
+version: 2.1
+
+executors:
+  rust-executor:
+    docker:
+      - image: rust:latest
+
+jobs:
+  check-fmt:
+    executor: rust-executor
+    steps:
+      - checkout
+      - run:
+          name: install rustfmt
+          command: rustup component add rustfmt
+      - run:
+          name: check formatting
+          command: cargo fmt -- --check
+  build-native:
+    executor: rust-executor
+    steps:
+      - checkout
+      - run: apt-get update
+      - run: apt-get install -y cmake libxcb-composite0-dev
+      - run:
+          name: build rapier2d
+          command: cargo build --verbose -p rapier2d;
+      - run:
+          name: build rapier3d
+          command: cargo build --verbose -p rapier3d;
+      - run:
+          name: build rapier2d SIMD
+          command: cd build/rapier2d; cargo build --verbose --features simd-stable;
+      - run:
+          name: build rapier3d SIMD
+          command: cd build/rapier3d; cargo build --verbose --features simd-stable;
+      - run:
+          name: build rapier2d SIMD Parallel
+          command: cd build/rapier2d; cargo build --verbose --features simd-stable --features parallel;
+      - run:
+          name: build rapier3d SIMD Parallel
+          command: cd build/rapier3d; cargo build --verbose --features simd-stable --features parallel;
+      - run:
+          name: test
+          command: cargo test
+      - run:
+          name: check rapier_testbed2d
+          command: cargo check --verbose -p rapier_testbed2d;
+      - run:
+          name: check rapier_testbed3d
+          command: cargo check --verbose -p rapier_testbed3d;
+      - run:
+          name: check rapier-examples-2d
+          command: cargo check -j 1 --verbose -p rapier-examples-2d;
+      - run:
+          name: check rapier-examples-3d
+          command: cargo check -j 1 --verbose -p rapier-examples-3d;
+  build-wasm:
+    executor: rust-executor
+    steps:
+      - checkout
+      - run:
+          name: install cargo-web
+          command: cargo install -f cargo-web;
+      - run:
+          name: build rapier2d
+          command: cd build/rapier2d && cargo web build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
+      - run:
+          name: build rapier3d
+          command: cd build/rapier3d && cargo web build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - check-fmt
+      - build-native:
+          requires:
+            - check-fmt
+      - build-wasm:
+          requires:
+            - check-fmt

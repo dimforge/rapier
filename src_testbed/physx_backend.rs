@@ -225,6 +225,28 @@ impl PhysxWorld {
             }
         }
 
+        // Update mass properties.
+        for (rapier_handle, physx_handle) in rapier2physx.iter() {
+            let rb = &bodies[*rapier_handle];
+            if let Some(rp) = scene.get_dynamic_mut(*physx_handle) {
+                let densities: Vec<_> = rb
+                    .colliders()
+                    .iter()
+                    .map(|h| colliders[*h].density())
+                    .collect();
+
+                unsafe {
+                    physx_sys::PxRigidBodyExt_updateMassAndInertia_mut(
+                        rp.as_ptr_mut().ptr as *mut physx_sys::PxRigidBody,
+                        densities.as_ptr(),
+                        densities.len() as u32,
+                        std::ptr::null(),
+                        false,
+                    );
+                }
+            }
+        }
+
         let mut res = Self {
             physics,
             cooking,
@@ -390,7 +412,7 @@ impl PhysxWorld {
 
             for coll_handle in rb.colliders() {
                 let collider = &mut colliders[*coll_handle];
-                collider.set_position_debug(iso * collider.delta());
+                collider.set_position_debug(iso * collider.position_wrt_parent());
             }
         }
     }
@@ -399,7 +421,7 @@ impl PhysxWorld {
 fn physx_collider_from_rapier_collider(
     collider: &Collider,
 ) -> Option<(ColliderDesc, Isometry3<f32>)> {
-    let mut local_pose = Isometry3::identity();
+    let mut local_pose = *collider.position_wrt_parent();
     let desc = match collider.shape() {
         Shape::Cuboid(cuboid) => ColliderDesc::Box(
             cuboid.half_extents.x,
@@ -416,7 +438,7 @@ fn physx_collider_from_rapier_collider(
             }
 
             let rot = UnitQuaternion::rotation_between(&Vector3::x(), &dir);
-            local_pose =
+            local_pose *=
                 Translation3::from(center.coords) * rot.unwrap_or(UnitQuaternion::identity());
             ColliderDesc::Capsule(capsule.radius, capsule.height())
         }

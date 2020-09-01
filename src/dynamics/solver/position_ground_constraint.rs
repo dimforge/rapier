@@ -34,22 +34,30 @@ impl PositionGroundConstraint {
 
         let local_n1;
         let local_n2;
+        let delta1;
+        let delta2;
 
         if flip {
             std::mem::swap(&mut rb1, &mut rb2);
             local_n1 = manifold.local_n2;
             local_n2 = manifold.local_n1;
+            delta1 = &manifold.delta2;
+            delta2 = &manifold.delta1;
         } else {
             local_n1 = manifold.local_n1;
             local_n2 = manifold.local_n2;
+            delta1 = &manifold.delta1;
+            delta2 = &manifold.delta2;
         };
 
+        let coll_pos1 = rb1.position * delta1;
         let shift1 = local_n1 * -manifold.kinematics.radius1;
         let shift2 = local_n2 * -manifold.kinematics.radius2;
+        let n1 = coll_pos1 * local_n1;
         let radius =
             manifold.kinematics.radius1 + manifold.kinematics.radius2 /* - params.allowed_linear_error */;
 
-        for (l, manifold_points) in manifold
+        for (l, manifold_contacts) in manifold
             .active_contacts()
             .chunks(MAX_MANIFOLD_POINTS)
             .enumerate()
@@ -59,16 +67,16 @@ impl PositionGroundConstraint {
 
             if flip {
                 // Don't forget that we already swapped rb1 and rb2 above.
-                // So if we flip, only manifold_points[k].{local_p1,local_p2} have to
+                // So if we flip, only manifold_contacts[k].{local_p1,local_p2} have to
                 // be swapped.
-                for k in 0..manifold_points.len() {
-                    p1[k] = rb1.predicted_position * (manifold_points[k].local_p2 + shift1);
-                    local_p2[k] = manifold_points[k].local_p1 + shift2;
+                for k in 0..manifold_contacts.len() {
+                    p1[k] = coll_pos1 * (manifold_contacts[k].local_p2 + shift1);
+                    local_p2[k] = delta2 * (manifold_contacts[k].local_p1 + shift2);
                 }
             } else {
-                for k in 0..manifold_points.len() {
-                    p1[k] = rb1.predicted_position * (manifold_points[k].local_p1 + shift1);
-                    local_p2[k] = manifold_points[k].local_p2 + shift2;
+                for k in 0..manifold_contacts.len() {
+                    p1[k] = coll_pos1 * (manifold_contacts[k].local_p1 + shift1);
+                    local_p2[k] = delta2 * (manifold_contacts[k].local_p2 + shift2);
                 }
             }
 
@@ -76,11 +84,11 @@ impl PositionGroundConstraint {
                 rb2: rb2.active_set_offset,
                 p1,
                 local_p2,
-                n1: rb1.predicted_position * local_n1,
+                n1,
                 radius,
                 im2: rb2.mass_properties.inv_mass,
                 ii2: rb2.world_inv_inertia_sqrt.squared(),
-                num_contacts: manifold_points.len() as u8,
+                num_contacts: manifold_contacts.len() as u8,
                 erp: params.erp,
                 max_linear_correction: params.max_linear_correction,
             };

@@ -72,6 +72,9 @@ impl WVelocityConstraint {
         let rbs1 = array![|ii| &bodies[manifolds[ii].body_pair.body1]; SIMD_WIDTH];
         let rbs2 = array![|ii| &bodies[manifolds[ii].body_pair.body2]; SIMD_WIDTH];
 
+        let delta1 = Isometry::from(array![|ii| manifolds[ii].delta1; SIMD_WIDTH]);
+        let delta2 = Isometry::from(array![|ii| manifolds[ii].delta2; SIMD_WIDTH]);
+
         let im1 = SimdFloat::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
         let ii1: AngularInertia<SimdFloat> =
             AngularInertia::from(array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
@@ -79,7 +82,8 @@ impl WVelocityConstraint {
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
         let angvel1 = AngVector::<SimdFloat>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
 
-        let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
+        let pos1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
+        let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
 
         let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
         let ii2: AngularInertia<SimdFloat> =
@@ -88,9 +92,13 @@ impl WVelocityConstraint {
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
         let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
 
-        let position2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
+        let pos2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
+        let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
 
-        let force_dir1 = position1 * -Vector::from(array![|ii| manifolds[ii].local_n1; SIMD_WIDTH]);
+        let coll_pos1 = pos1 * delta1;
+        let coll_pos2 = pos2 * delta2;
+
+        let force_dir1 = coll_pos1 * -Vector::from(array![|ii| manifolds[ii].local_n1; SIMD_WIDTH]);
 
         let mj_lambda1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
@@ -118,11 +126,11 @@ impl WVelocityConstraint {
             };
 
             for k in 0..num_points {
-                // FIXME: can we avoid the multiplications by position1/position2 here?
+                // FIXME: can we avoid the multiplications by coll_pos1/coll_pos2 here?
                 // By working as much as possible in local-space.
-                let p1 = position1
+                let p1 = coll_pos1
                     * Point::from(array![|ii| manifold_points[ii][k].local_p1; SIMD_WIDTH]);
-                let p2 = position2
+                let p2 = coll_pos2
                     * Point::from(array![|ii| manifold_points[ii][k].local_p2; SIMD_WIDTH]);
 
                 let dist = SimdFloat::from(array![|ii| manifold_points[ii][k].dist; SIMD_WIDTH]);
@@ -130,8 +138,8 @@ impl WVelocityConstraint {
                 let impulse =
                     SimdFloat::from(array![|ii| manifold_points[ii][k].impulse; SIMD_WIDTH]);
 
-                let dp1 = p1.coords - position1.translation.vector;
-                let dp2 = p2.coords - position2.translation.vector;
+                let dp1 = p1 - world_com1;
+                let dp2 = p2 - world_com2;
 
                 let vel1 = linvel1 + angvel1.gcross(dp1);
                 let vel2 = linvel2 + angvel2.gcross(dp2);

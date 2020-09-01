@@ -96,7 +96,7 @@ impl NarrowPhase {
                 }
 
                 // We have to manage the fact that one other collider will
-                // hive its graph index changed because of the node's swap-remove.
+                // have its graph index changed because of the node's swap-remove.
                 if let Some(replacement) = self
                     .proximity_graph
                     .remove_node(proximity_graph_id)
@@ -129,6 +129,11 @@ impl NarrowPhase {
                     if let (Some(co1), Some(co2)) =
                         colliders.get2_mut_internal(pair.collider1, pair.collider2)
                     {
+                        if co1.parent == co2.parent {
+                            // Same parents. Ignore collisions.
+                            continue;
+                        }
+
                         if co1.is_sensor() || co2.is_sensor() {
                             let gid1 = co1.proximity_graph_index;
                             let gid2 = co2.proximity_graph_index;

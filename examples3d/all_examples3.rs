@@ -14,6 +14,7 @@ mod add_remove3;
 mod balls3;
 mod boxes3;
 mod capsules3;
+mod compound3;
 mod debug_boxes3;
 mod debug_triangle3;
 mod domino3;
@@ -71,6 +72,7 @@ pub fn main() {
         ("Balls", balls3::init_world),
         ("Boxes", boxes3::init_world),
         ("Capsules", capsules3::init_world),
+        ("Compound", compound3::init_world),
         ("Domino", domino3::init_world),
         ("Heightfield", heightfield3::init_world),
         ("Joints", joints3::init_world),
