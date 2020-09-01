@@ -24,59 +24,6 @@ pub struct MassProperties {
     pub principal_inertia_local_frame: Rotation<f32>,
 }
 
-impl approx::AbsDiffEq for MassProperties {
-    type Epsilon = f32;
-    fn default_epsilon() -> Self::Epsilon {
-        f32::default_epsilon()
-    }
-
-    fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
-        self.local_com.abs_diff_eq(&other.local_com, epsilon)
-            && self.inv_mass.abs_diff_eq(&other.inv_mass, epsilon)
-            && self
-                .inv_principal_inertia_sqrt
-                .abs_diff_eq(&other.inv_principal_inertia_sqrt, epsilon)
-        // && self
-        //     .principal_inertia_local_frame
-        //     .abs_diff_eq(&other.principal_inertia_local_frame, epsilon)
-    }
-}
-
-impl approx::RelativeEq for MassProperties {
-    fn default_max_relative() -> Self::Epsilon {
-        f32::default_max_relative()
-    }
-
-    fn relative_eq(
-        &self,
-        other: &Self,
-        epsilon: Self::Epsilon,
-        max_relative: Self::Epsilon,
-    ) -> bool {
-        #[cfg(feature = "dim2")]
-        let inertia_is_ok = self.inv_principal_inertia_sqrt.relative_eq(
-            &other.inv_principal_inertia_sqrt,
-            epsilon,
-            max_relative,
-        );
-
-        #[cfg(feature = "dim3")]
-        let inertia_is_ok = self.reconstruct_inverse_inertia_matrix().relative_eq(
-            &other.reconstruct_inverse_inertia_matrix(),
-            epsilon,
-            max_relative,
-        );
-
-        inertia_is_ok
-            && self
-                .local_com
-                .relative_eq(&other.local_com, epsilon, max_relative)
-            && self
-                .inv_mass
-                .relative_eq(&other.inv_mass, epsilon, max_relative)
-    }
-}
-
 impl MassProperties {
     #[cfg(feature = "dim2")]
     pub(crate) fn new(local_com: Point<f32>, mass: f32, principal_inertia: f32) -> Self {
@@ -188,6 +135,19 @@ impl MassProperties {
             matrix + (diagm + shift * shift.transpose()) * mass
         } else {
             Matrix3::zeros()
+        }
+    }
+
+    /// Transform each element of the mass properties.
+    pub fn transform_by(&self, m: &Isometry<f32>) -> Self {
+        // NOTE: we don't apply the parallel axis theorem here
+        // because the center of mass is also transformed.
+        Self {
+            local_com: m * self.local_com,
+            inv_mass: self.inv_mass,
+            inv_principal_inertia_sqrt: self.inv_principal_inertia_sqrt,
+            #[cfg(feature = "dim3")]
+            principal_inertia_local_frame: m.rotation * self.principal_inertia_local_frame,
         }
     }
 }
@@ -328,6 +288,59 @@ impl Add<MassProperties> for MassProperties {
 impl AddAssign<MassProperties> for MassProperties {
     fn add_assign(&mut self, rhs: MassProperties) {
         *self = *self + rhs
+    }
+}
+
+impl approx::AbsDiffEq for MassProperties {
+    type Epsilon = f32;
+    fn default_epsilon() -> Self::Epsilon {
+        f32::default_epsilon()
+    }
+
+    fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+        self.local_com.abs_diff_eq(&other.local_com, epsilon)
+            && self.inv_mass.abs_diff_eq(&other.inv_mass, epsilon)
+            && self
+                .inv_principal_inertia_sqrt
+                .abs_diff_eq(&other.inv_principal_inertia_sqrt, epsilon)
+        // && self
+        //     .principal_inertia_local_frame
+        //     .abs_diff_eq(&other.principal_inertia_local_frame, epsilon)
+    }
+}
+
+impl approx::RelativeEq for MassProperties {
+    fn default_max_relative() -> Self::Epsilon {
+        f32::default_max_relative()
+    }
+
+    fn relative_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+        max_relative: Self::Epsilon,
+    ) -> bool {
+        #[cfg(feature = "dim2")]
+        let inertia_is_ok = self.inv_principal_inertia_sqrt.relative_eq(
+            &other.inv_principal_inertia_sqrt,
+            epsilon,
+            max_relative,
+        );
+
+        #[cfg(feature = "dim3")]
+        let inertia_is_ok = self.reconstruct_inverse_inertia_matrix().relative_eq(
+            &other.reconstruct_inverse_inertia_matrix(),
+            epsilon,
+            max_relative,
+        );
+
+        inertia_is_ok
+            && self
+                .local_com
+                .relative_eq(&other.local_com, epsilon, max_relative)
+            && self
+                .inv_mass
+                .relative_eq(&other.inv_mass, epsilon, max_relative)
     }
 }
 

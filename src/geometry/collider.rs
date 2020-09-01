@@ -150,6 +150,7 @@ impl Collider {
     }
 
     /// The position of this collider expressed in the local-space of the rigid-body it is attached to.
+    #[deprecated(note = "use `.position_wrt_parent()` instead.")]
     pub fn delta(&self) -> &Isometry<f32> {
         &self.delta
     }

@@ -139,7 +139,9 @@ impl RigidBody {
 
     /// Adds a collider to this rigid-body.
     pub(crate) fn add_collider_internal(&mut self, handle: ColliderHandle, coll: &Collider) {
-        let mass_properties = coll.mass_properties();
+        let mass_properties = coll
+            .mass_properties()
+            .transform_by(coll.position_wrt_parent());
         self.colliders.push(handle);
         self.mass_properties += mass_properties;
         self.update_world_mass_properties();
@@ -149,7 +151,9 @@ impl RigidBody {
     pub(crate) fn remove_collider_internal(&mut self, handle: ColliderHandle, coll: &Collider) {
         if let Some(i) = self.colliders.iter().position(|e| *e == handle) {
             self.colliders.swap_remove(i);
-            let mass_properties = coll.mass_properties();
+            let mass_properties = coll
+                .mass_properties()
+                .transform_by(coll.position_wrt_parent());
             self.mass_properties -= mass_properties;
             self.update_world_mass_properties();
         }
@@ -189,7 +193,7 @@ impl RigidBody {
     }
 
     fn integrate_velocity(&self, dt: f32) -> Isometry<f32> {
-        let com = &self.position * self.mass_properties.local_com; // FIXME: use non-origin center of masses.
+        let com = &self.position * self.mass_properties.local_com;
         let shift = Translation::from(com.coords);
         shift * Isometry::new(self.linvel * dt, self.angvel * dt) * shift.inverse()
     }

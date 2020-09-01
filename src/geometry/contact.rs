@@ -360,8 +360,8 @@ impl ContactManifold {
             pair,
             (subshape1, subshape2),
             BodyPair::new(coll1.parent, coll2.parent),
-            *coll1.delta(),
-            *coll2.delta(),
+            *coll1.position_wrt_parent(),
+            *coll2.position_wrt_parent(),
             (coll1.friction + coll2.friction) * 0.5,
             (coll1.restitution + coll2.restitution) * 0.5,
         )

@@ -165,7 +165,7 @@ impl NPhysicsWorld {
 
             for coll_handle in rb.colliders() {
                 let collider = &mut colliders[*coll_handle];
-                collider.set_position_debug(pos * collider.delta());
+                collider.set_position_debug(pos * collider.position_wrt_parent());
             }
         }
     }
