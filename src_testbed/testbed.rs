@@ -754,7 +754,8 @@ impl Testbed {
                 }
 
                 // Write the result as a csv file.
-                let filename = format!("{}.csv", builder.0);
+                use inflector::Inflector;
+                let filename = format!("{}.csv", builder.0.to_camel_case());
                 let mut file = BufWriter::new(File::create(filename).unwrap());
 
                 write!(file, "{}", backend_names[0]).unwrap();
