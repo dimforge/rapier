@@ -50,10 +50,10 @@ pub fn init_world(testbed: &mut Testbed) {
             let handle = bodies.insert(rigid_body);
 
             if j % 2 == 0 {
-                let collider = ColliderBuilder::cuboid(rad, rad).density(1.0).build();
+                let collider = ColliderBuilder::cuboid(rad, rad).build();
                 colliders.insert(collider, handle, &mut bodies);
             } else {
-                let collider = ColliderBuilder::ball(rad).density(1.0).build();
+                let collider = ColliderBuilder::ball(rad).build();
                 colliders.insert(collider, handle, &mut bodies);
             }
         }

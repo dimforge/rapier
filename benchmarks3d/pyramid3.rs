@@ -28,9 +28,7 @@ fn create_pyramid(
                 let rigid_body_handle = bodies.insert(rigid_body);
 
                 let collider =
-                    ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
-                        .density(1.0)
-                        .build();
+                    ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z).build();
                 colliders.insert(collider, rigid_body_handle, bodies);
             }
         }

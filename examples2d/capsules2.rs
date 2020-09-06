@@ -56,9 +56,7 @@ pub fn init_world(testbed: &mut Testbed) {
             // Build the rigid body.
             let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y).build();
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::capsule_y(rad * 1.5, rad)
-                .density(1.0)
-                .build();
+            let collider = ColliderBuilder::capsule_y(rad * 1.5, rad).build();
             colliders.insert(collider, handle, &mut bodies);
         }
     }

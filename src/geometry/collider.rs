@@ -212,7 +212,7 @@ pub struct ColliderBuilder {
     /// The shape of the collider to be built.
     pub shape: Shape,
     /// The density of the collider to be built.
-    pub density: f32,
+    density: Option<f32>,
     /// The friction coefficient of the collider to be built.
     pub friction: f32,
     /// The restitution coefficient of the collider to be built.
@@ -228,12 +228,18 @@ impl ColliderBuilder {
     pub fn new(shape: Shape) -> Self {
         Self {
             shape,
-            density: 1.0,
+            density: None,
             friction: Self::default_friction(),
             restitution: 0.0,
             delta: Isometry::identity(),
             is_sensor: false,
         }
+    }
+
+    /// The density of the collider being built.
+    pub fn get_density(&self) -> f32 {
+        let default_density = if self.is_sensor { 0.0 } else { 1.0 };
+        self.density.unwrap_or(default_density)
     }
 
     /// Initialize a new collider builder with a ball shape defined by its radius.
@@ -349,7 +355,7 @@ impl ColliderBuilder {
 
     /// Sets the density of the collider this builder will build.
     pub fn density(mut self, density: f32) -> Self {
-        self.density = density;
+        self.density = Some(density);
         self
     }
 
@@ -395,9 +401,11 @@ impl ColliderBuilder {
 
     /// Buildes a new collider attached to the given rigid-body.
     pub fn build(&self) -> Collider {
+        let density = self.get_density();
+
         Collider {
             shape: self.shape.clone(),
-            density: self.density,
+            density,
             friction: self.friction,
             restitution: self.restitution,
             delta: self.delta,

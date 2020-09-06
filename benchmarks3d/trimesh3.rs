@@ -1,4 +1,4 @@
-use na::{DMatrix, Point3, Vector3};
+use na::Point3;
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
@@ -14,22 +14,32 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_size = Vector3::new(100.0, 1.0, 100.0);
+    let ground_size = 200.0f32;
+    let ground_height = 1.0;
     let nsubdivs = 20;
 
-    let heights = DMatrix::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
-        if i == 0 || i == nsubdivs || j == 0 || j == nsubdivs {
-            10.0
-        } else {
-            let x = i as f32 * ground_size.x / (nsubdivs as f32);
-            let z = j as f32 * ground_size.z / (nsubdivs as f32);
-            x.sin() + z.cos()
+    let quad = rapier3d::ncollide::procedural::quad(ground_size, ground_size, nsubdivs, nsubdivs);
+    let indices = quad
+        .flat_indices()
+        .chunks(3)
+        .map(|is| Point3::new(is[0], is[2], is[1]))
+        .collect();
+    let mut vertices = quad.coords;
+
+    // ncollide generates a quad with `z` as the normal.
+    // so we switch z and y here and set a random altitude at each point.
+    for p in vertices.iter_mut() {
+        p.z = p.y;
+        p.y = (p.x.sin() + p.z.cos()) * ground_height;
+
+        if p.x.abs() == ground_size / 2.0 || p.z.abs() == ground_size / 2.0 {
+            p.y = 10.0;
         }
-    });
+    }
 
     let rigid_body = RigidBodyBuilder::new_static().build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::heightfield(heights, ground_size).build();
+    let collider = ColliderBuilder::trimesh(vertices, indices).build();
     colliders.insert(collider, handle, &mut bodies);
 
     /*
@@ -43,7 +53,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let centery = shift / 2.0;
     let centerz = shift * (num / 2) as f32;
 
-    for j in 0usize..20 {
+    for j in 0usize..47 {
         for i in 0..num {
             for k in 0usize..num {
                 let x = i as f32 * shift - centerx;

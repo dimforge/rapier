@@ -14,7 +14,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_size = Vector3::new(100.0, 1.0, 100.0);
+    let ground_size = Vector3::new(200.0, 1.0, 200.0);
     let nsubdivs = 20;
 
     let heights = DMatrix::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
@@ -43,7 +43,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let centery = shift / 2.0;
     let centerz = shift * (num / 2) as f32;
 
-    for j in 0usize..20 {
+    for j in 0usize..47 {
         for i in 0..num {
             for k in 0usize..num {
                 let x = i as f32 * shift - centerx;

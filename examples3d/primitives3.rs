@@ -1,4 +1,4 @@
-use na::{DMatrix, Point3, Vector3};
+use na::Point3;
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
@@ -14,22 +14,14 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_size = Vector3::new(100.0, 1.0, 100.0);
-    let nsubdivs = 20;
+    let ground_size = 100.1;
+    let ground_height = 0.1;
 
-    let heights = DMatrix::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
-        if i == 0 || i == nsubdivs || j == 0 || j == nsubdivs {
-            10.0
-        } else {
-            let x = i as f32 * ground_size.x / (nsubdivs as f32);
-            let z = j as f32 * ground_size.z / (nsubdivs as f32);
-            x.sin() + z.cos()
-        }
-    });
-
-    let rigid_body = RigidBodyBuilder::new_static().build();
+    let rigid_body = RigidBodyBuilder::new_static()
+        .translation(0.0, -ground_height, 0.0)
+        .build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::heightfield(heights, ground_size).build();
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
     colliders.insert(collider, handle, &mut bodies);
 
     /*
@@ -43,26 +35,31 @@ pub fn init_world(testbed: &mut Testbed) {
     let centery = shift / 2.0;
     let centerz = shift * (num / 2) as f32;
 
+    let mut offset = -(num as f32) * (rad * 2.0 + rad) * 0.5;
+
     for j in 0usize..20 {
         for i in 0..num {
             for k in 0usize..num {
-                let x = i as f32 * shift - centerx;
+                let x = i as f32 * shift - centerx + offset;
                 let y = j as f32 * shift + centery + 3.0;
-                let z = k as f32 * shift - centerz;
+                let z = k as f32 * shift - centerz + offset;
 
                 // Build the rigid body.
                 let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
                 let handle = bodies.insert(rigid_body);
 
-                if j % 2 == 0 {
-                    let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
-                    colliders.insert(collider, handle, &mut bodies);
-                } else {
-                    let collider = ColliderBuilder::ball(rad).build();
-                    colliders.insert(collider, handle, &mut bodies);
-                }
+                let collider = match j % 2 {
+                    0 => ColliderBuilder::cuboid(rad, rad, rad).build(),
+                    1 => ColliderBuilder::ball(rad).build(),
+                    // 2 => ColliderBuilder::capsule_y(rad, rad).build(),
+                    _ => unreachable!(),
+                };
+
+                colliders.insert(collider, handle, &mut bodies);
             }
         }
+
+        offset -= 0.05 * rad * (num as f32 - 1.0);
     }
 
     /*

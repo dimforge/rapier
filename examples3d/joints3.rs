@@ -150,7 +150,7 @@ fn create_fixed_joints(
                 .translation(origin.x + fk * shift, origin.y, origin.z + fi * shift)
                 .build();
             let child_handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::ball(rad).density(1.0).build();
+            let collider = ColliderBuilder::ball(rad).build();
             colliders.insert(collider, child_handle, bodies);
 
             // Vertical joint.
@@ -205,7 +205,7 @@ fn create_ball_joints(
                 .translation(fk * shift, 0.0, fi * shift)
                 .build();
             let child_handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::ball(rad).density(1.0).build();
+            let collider = ColliderBuilder::ball(rad).build();
             colliders.insert(collider, child_handle, bodies);
 
             // Vertical joint.

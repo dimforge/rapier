@@ -14,7 +14,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_size = 200.0f32;
+    let ground_size = 100.0f32;
     let ground_height = 1.0;
     let nsubdivs = 20;
 
@@ -53,7 +53,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let centery = shift / 2.0;
     let centerz = shift * (num / 2) as f32;
 
-    for j in 0usize..47 {
+    for j in 0usize..20 {
         for i in 0..num {
             for k in 0usize..num {
                 let x = i as f32 * shift - centerx;
@@ -65,10 +65,10 @@ pub fn init_world(testbed: &mut Testbed) {
                 let handle = bodies.insert(rigid_body);
 
                 if j % 2 == 0 {
-                    let collider = ColliderBuilder::cuboid(rad, rad, rad).density(1.0).build();
+                    let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
                     colliders.insert(collider, handle, &mut bodies);
                 } else {
-                    let collider = ColliderBuilder::ball(rad).density(1.0).build();
+                    let collider = ColliderBuilder::ball(rad).build();
                     colliders.insert(collider, handle, &mut bodies);
                 }
             }

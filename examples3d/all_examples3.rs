@@ -11,24 +11,17 @@ use rapier_testbed3d::Testbed;
 use std::cmp::Ordering;
 
 mod add_remove3;
-mod balls3;
-mod boxes3;
-mod capsules3;
 mod compound3;
 mod debug_boxes3;
 mod debug_triangle3;
 mod domino3;
 mod heightfield3;
 mod joints3;
-mod kinematic3;
-mod pyramid3;
+mod keva3;
+mod platform3;
+mod primitives3;
 mod sensor3;
 mod stacks3;
-mod stress_joint_ball3;
-mod stress_joint_fixed3;
-mod stress_joint_prismatic3;
-mod stress_joint_revolute3;
-mod stress_keva3;
 mod trimesh3;
 
 fn demo_name_from_command_line() -> Option<String> {
@@ -69,31 +62,18 @@ pub fn main() {
 
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Add remove", add_remove3::init_world),
-        ("Balls", balls3::init_world),
-        ("Boxes", boxes3::init_world),
-        ("Capsules", capsules3::init_world),
+        ("Primitives", primitives3::init_world),
         ("Compound", compound3::init_world),
         ("Domino", domino3::init_world),
         ("Heightfield", heightfield3::init_world),
         ("Joints", joints3::init_world),
-        ("Kinematic", kinematic3::init_world),
+        ("Platform", platform3::init_world),
         ("Stacks", stacks3::init_world),
-        ("Pyramid", pyramid3::init_world),
         ("Sensor", sensor3::init_world),
         ("Trimesh", trimesh3::init_world),
+        ("Keva tower", keva3::init_world),
         ("(Debug) boxes", debug_boxes3::init_world),
         ("(Debug) triangle", debug_triangle3::init_world),
-        ("(Stress test) joint ball", stress_joint_ball3::init_world),
-        ("(Stress test) joint fixed", stress_joint_fixed3::init_world),
-        (
-            "(Stress test) joint revolute",
-            stress_joint_revolute3::init_world,
-        ),
-        (
-            "(Stress test) joint prismatic",
-            stress_joint_prismatic3::init_world,
-        ),
-        ("(Stress test) keva tower", stress_keva3::init_world),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
