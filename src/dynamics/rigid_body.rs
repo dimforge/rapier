@@ -137,6 +137,15 @@ impl RigidBody {
         crate::utils::inv(self.mass_properties.inv_mass)
     }
 
+    /// The predicted position of this rigid-body.
+    ///
+    /// If this rigid-body is kinematic this value is set by the `set_next_kinematic_position`
+    /// method and is used for estimating the kinematic body velocity at the next timestep.
+    /// For non-kinematic bodies, this value is currently unspecified.
+    pub fn predicted_position(&self) -> &Isometry<f32> {
+        &self.predicted_position
+    }
+
     /// Adds a collider to this rigid-body.
     pub(crate) fn add_collider_internal(&mut self, handle: ColliderHandle, coll: &Collider) {
         let mass_properties = coll
@@ -201,12 +210,17 @@ impl RigidBody {
         self.position = self.integrate_velocity(dt) * self.position;
     }
 
-    /// Sets the position of this rigid body.
+    /// Sets the position and `next_kinematic_position` of this rigid body.
+    ///
+    /// This will teleport the rigid-body to the specified position/orientation,
+    /// completely ignoring any physics rule. If this body is kinematic, this will
+    /// also set the next kinematic position to the same value, effectively
+    /// resetting to zero the next interpolated velocity of the kinematic body.
     pub fn set_position(&mut self, pos: Isometry<f32>) {
         self.position = pos;
 
         // TODO: update the predicted position for dynamic bodies too?
-        if self.is_static() {
+        if self.is_static() || self.is_kinematic() {
             self.predicted_position = pos;
         }
     }

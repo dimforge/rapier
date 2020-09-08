@@ -5,6 +5,7 @@
 - Add `ColliderDesc::rotation(...)` to set the rotation of a collider relative to the rigid-body it is attached to.
 - Add `ColliderDesc::position(...)` to set the position of a collider relative to the rigid-body it is attached to.
 - Add `Collider::position_wrt_parent()` to get the position of a collider relative to the rigid-body it is attached to.
+- Modify `RigidBody::set_position(...)` so it also resets the next kinematic position to the same value.
 - Deprecate `Collider::delta()` in favor of the new `Collider::position_wrt_parent()`.
 - Fix multiple issues occurring when having colliders resulting in a non-zero center-of-mass.
 - Fix a crash happening when removing a rigid-body with a collider, stepping the simulation, adding another rigid-body

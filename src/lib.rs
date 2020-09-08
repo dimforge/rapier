@@ -44,7 +44,6 @@ macro_rules! enable_flush_to_zero(
     }
 );
 
-#[cfg(feature = "simd-is-enabled")]
 macro_rules! array(
     ($callback: expr; SIMD_WIDTH) => {
         {
@@ -139,7 +138,6 @@ pub mod utils;
 #[cfg(feature = "dim2")]
 /// Math primitives used throughout Rapier.
 pub mod math {
-    #[cfg(feature = "simd-is-enabled")]
     pub use super::simd::*;
     use na::{Isometry2, Matrix2, Point2, Translation2, UnitComplex, Vector2, Vector3, U1, U2};
 
@@ -182,7 +180,6 @@ pub mod math {
 #[cfg(feature = "dim3")]
 /// Math primitives used throughout Rapier.
 pub mod math {
-    #[cfg(feature = "simd-is-enabled")]
     pub use super::simd::*;
     use na::{Isometry3, Matrix3, Point3, Translation3, UnitQuaternion, Vector3, Vector6, U3};
 
@@ -218,6 +215,12 @@ pub mod math {
     pub type SpacialVector<N> = Vector6<N>;
     /// A 3D symmetric-definite-positive matrix.
     pub type SdpMatrix<N> = crate::utils::SdpMatrix3<N>;
+}
+
+#[cfg(not(feature = "simd-is-enabled"))]
+mod simd {
+    /// The number of lanes of a SIMD number.
+    pub const SIMD_WIDTH: usize = 4;
 }
 
 #[cfg(feature = "simd-is-enabled")]

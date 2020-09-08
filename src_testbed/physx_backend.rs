@@ -196,7 +196,8 @@ impl PhysxWorld {
                     }
                 } else {
                     physx_sys::PxShapeFlags {
-                        mBits: physx_sys::PxShapeFlag::eSIMULATION_SHAPE as u8,
+                        mBits: physx_sys::PxShapeFlag::eSIMULATION_SHAPE as u8
+                            | physx_sys::PxShapeFlag::eSCENE_QUERY_SHAPE as u8,
                     }
                 };
 

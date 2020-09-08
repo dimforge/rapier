@@ -36,6 +36,10 @@ pub type AABB = ncollide::bounding_volume::AABB<f32>;
 pub type ContactEvent = ncollide::pipeline::ContactEvent<ColliderHandle>;
 /// Event triggered when a sensor collider starts or stop being in proximity with another collider (sensor or not).
 pub type ProximityEvent = ncollide::pipeline::ProximityEvent<ColliderHandle>;
+/// A ray that can be cast against colliders.
+pub type Ray = ncollide::query::Ray<f32>;
+/// The intersection between a ray and a  collider.
+pub type RayIntersection = ncollide::query::RayIntersection<f32>;
 
 #[cfg(feature = "simd-is-enabled")]
 pub(crate) use self::ball::WBall;
@@ -48,7 +52,6 @@ pub(crate) use self::contact_generator::{clip_segments, clip_segments_with_norma
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
 #[cfg(feature = "dim3")]
 pub(crate) use self::polyhedron_feature3d::PolyhedronFace;
-#[cfg(feature = "simd-is-enabled")]
 pub(crate) use self::waabb::WAABB;
 //pub(crate) use self::z_order::z_cmp_floats;
 
@@ -75,6 +78,5 @@ mod proximity_detector;
 pub(crate) mod sat;
 pub(crate) mod triangle;
 mod trimesh;
-#[cfg(feature = "simd-is-enabled")]
 mod waabb;
 //mod z_order;

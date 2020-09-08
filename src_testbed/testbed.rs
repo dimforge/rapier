@@ -21,9 +21,9 @@ use na::{self, Point2, Point3, Vector3};
 use rapier::dynamics::{
     ActivationStatus, IntegrationParameters, JointSet, RigidBodyHandle, RigidBodySet,
 };
-use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent};
+use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent, Ray};
 use rapier::math::Vector;
-use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline};
+use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
 #[cfg(feature = "fluids")]
 use salva::{coupling::ColliderCouplingSet, object::FluidHandle, LiquidWorld};
 
@@ -179,6 +179,7 @@ pub struct PhysicsState {
     pub colliders: ColliderSet,
     pub joints: JointSet,
     pub pipeline: PhysicsPipeline,
+    pub query_pipeline: QueryPipeline,
 }
 
 impl PhysicsState {
@@ -190,6 +191,7 @@ impl PhysicsState {
             colliders: ColliderSet::new(),
             joints: JointSet::new(),
             pipeline: PhysicsPipeline::new(),
+            query_pipeline: QueryPipeline::new(),
         }
     }
 }
@@ -197,6 +199,7 @@ impl PhysicsState {
 pub struct TestbedState {
     pub running: RunMode,
     pub draw_colls: bool,
+    pub highlighted_body: Option<RigidBodyHandle>,
     //    pub grabbed_object: Option<DefaultBodyPartHandle>,
     //    pub grabbed_object_constraint: Option<DefaultJointConstraintHandle>,
     pub grabbed_object_plane: (Point3<f32>, Vector3<f32>),
@@ -240,7 +243,7 @@ pub struct Testbed {
     hide_counters: bool,
     //    persistant_contacts: HashMap<ContactId, bool>,
     font: Rc<Font>,
-    // cursor_pos: Point2<f32>,
+    cursor_pos: Point2<f32>,
     events: PhysicsEvents,
     event_handler: ChannelEventCollector,
     ui: Option<TestbedUi>,
@@ -301,6 +304,7 @@ impl Testbed {
         let state = TestbedState {
             running: RunMode::Running,
             draw_colls: false,
+            highlighted_body: None,
             //            grabbed_object: None,
             //            grabbed_object_constraint: None,
             grabbed_object_plane: (Point3::origin(), na::zero()),
@@ -349,7 +353,7 @@ impl Testbed {
             hide_counters: true,
             //            persistant_contacts: HashMap::new(),
             font: Font::default(),
-            // cursor_pos: Point2::new(0.0f32, 0.0),
+            cursor_pos: Point2::new(0.0f32, 0.0),
             ui,
             event_handler,
             events,
@@ -408,6 +412,9 @@ impl Testbed {
             .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
         self.time = 0.0;
         self.state.timestep_id = 0;
+        self.state.highlighted_body = None;
+        self.physics.query_pipeline = QueryPipeline::new();
+        self.physics.pipeline = PhysicsPipeline::new();
         self.physics.pipeline.counters.enable();
 
         #[cfg(all(feature = "dim2", feature = "other-backends"))]
@@ -832,6 +839,10 @@ impl Testbed {
                     );
                 }
             }
+            WindowEvent::CursorPos(x, y, _) => {
+                self.cursor_pos.x = x as f32;
+                self.cursor_pos.y = y as f32;
+            }
             _ => {}
         }
 
@@ -1146,36 +1157,45 @@ impl Testbed {
                 self.state.grabbed_object = None;
                 self.state.grabbed_object_constraint = None;
             }
-            WindowEvent::CursorPos(x, y, modifiers) => {
-                self.cursor_pos.x = x as f32;
-                self.cursor_pos.y = y as f32;
-
-                // update the joint
-                if let Some(joint) = self.state.grabbed_object_constraint {
-                    let size = window.size();
-                    let (pos, dir) = self
-                        .graphics
-                        .camera()
-                        .unproject(&self.cursor_pos, &na::convert(size));
-                    let (ref ppos, ref pdir) = self.state.grabbed_object_plane;
-
-                    if let Some(inter) = query::ray_toi_with_plane(ppos, pdir, &Ray::new(pos, dir))
-                    {
-                        let joint = self
-                            .constraints
-                            .get_mut(joint)
-                            .unwrap()
-                            .downcast_mut::<MouseConstraint<f32, RigidBodyHandle>>()
-                            .unwrap();
-                        joint.set_anchor_1(pos + dir * inter)
-                    }
-                }
-
-                event.inhibited = modifiers.contains(Modifiers::Shift);
-            }
             _ => {}
         }
         */
+    }
+
+    #[cfg(feature = "dim2")]
+    fn highlight_hovered_body(&mut self, window: &Window) {
+        // Do nothing for now.
+    }
+
+    #[cfg(feature = "dim3")]
+    fn highlight_hovered_body(&mut self, window: &Window) {
+        if let Some(highlighted_body) = self.state.highlighted_body {
+            if let Some(nodes) = self.graphics.body_nodes_mut(highlighted_body) {
+                for node in nodes {
+                    node.unselect()
+                }
+            }
+        }
+
+        let size = window.size();
+        let (pos, dir) = self
+            .graphics
+            .camera()
+            .unproject(&self.cursor_pos, &na::convert(size));
+        let ray = Ray::new(pos, dir);
+        let hit = self
+            .physics
+            .query_pipeline
+            .cast_ray(&self.physics.colliders, &ray, f32::MAX);
+
+        if let Some((_, collider, _)) = hit {
+            if self.physics.bodies[collider.parent()].is_dynamic() {
+                self.state.highlighted_body = Some(collider.parent());
+                for node in self.graphics.body_nodes_mut(collider.parent()).unwrap() {
+                    node.select()
+                }
+            }
+        }
     }
 }
 
@@ -1550,6 +1570,7 @@ impl State for Testbed {
             }
         }
 
+        self.highlight_hovered_body(window);
         self.graphics.draw(&self.physics.colliders, window);
 
         #[cfg(feature = "fluids")]

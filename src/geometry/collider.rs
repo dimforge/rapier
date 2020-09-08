@@ -1,11 +1,12 @@
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{
     Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph, Polygon,
-    Proximity, Triangle, Trimesh,
+    Proximity, Ray, RayIntersection, Triangle, Trimesh,
 };
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
 use na::Point3;
 use ncollide::bounding_volume::{HasBoundingVolume, AABB};
+use ncollide::query::RayCast;
 use num::Zero;
 
 #[derive(Clone)]
@@ -95,6 +96,46 @@ impl Shape {
             Shape::Triangle(triangle) => triangle.bounding_volume(position),
             Shape::Trimesh(trimesh) => trimesh.aabb(position),
             Shape::HeightField(heightfield) => heightfield.bounding_volume(position),
+        }
+    }
+
+    /// Computes the first intersection point between a ray in this collider.
+    ///
+    /// Some shapes are not supported yet and will always return `None`.
+    ///
+    /// # Parameters
+    /// - `position`: the position of this shape.
+    /// - `ray`: the ray to cast.
+    /// - `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
+    ///   limits the length of the ray to `ray.dir.norm() * max_toi`. Use `f32::MAX` for an unbounded ray.
+    pub fn cast_ray(
+        &self,
+        position: &Isometry<f32>,
+        ray: &Ray,
+        max_toi: f32,
+    ) -> Option<RayIntersection> {
+        match self {
+            Shape::Ball(ball) => ball.toi_and_normal_with_ray(position, ray, max_toi, true),
+            Shape::Polygon(_poly) => None,
+            Shape::Capsule(caps) => {
+                let pos = position * caps.transform_wrt_y();
+                let caps = ncollide::shape::Capsule::new(caps.half_height(), caps.radius);
+                caps.toi_and_normal_with_ray(&pos, ray, max_toi, true)
+            }
+            Shape::Cuboid(cuboid) => cuboid.toi_and_normal_with_ray(position, ray, max_toi, true),
+            #[cfg(feature = "dim2")]
+            Shape::Triangle(triangle) => {
+                // This is not implemented yet in 2D.
+                None
+            }
+            #[cfg(feature = "dim3")]
+            Shape::Triangle(triangle) => {
+                triangle.toi_and_normal_with_ray(position, ray, max_toi, true)
+            }
+            Shape::Trimesh(_trimesh) => None,
+            Shape::HeightField(heightfield) => {
+                heightfield.toi_and_normal_with_ray(position, ray, max_toi, true)
+            }
         }
     }
 }
@@ -350,6 +391,12 @@ impl ColliderBuilder {
     /// Sets the friction coefficient of the collider this builder will build.
     pub fn friction(mut self, friction: f32) -> Self {
         self.friction = friction;
+        self
+    }
+
+    /// Sets the restitution coefficient of the collider this builder will build.
+    pub fn restitution(mut self, restitution: f32) -> Self {
+        self.restitution = restitution;
         self
     }
 
