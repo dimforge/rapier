@@ -2,7 +2,7 @@
 use rayon::prelude::*;
 
 use crate::data::arena::Arena;
-use crate::dynamics::{Joint, RigidBody};
+use crate::dynamics::{BodyStatus, Joint, RigidBody};
 use crate::geometry::{ColliderSet, ContactPair, InteractionGraph};
 use crossbeam::channel::{Receiver, Sender};
 use std::ops::{Deref, DerefMut, Index, IndexMut};
@@ -128,9 +128,23 @@ impl RigidBodySet {
 
     pub(crate) fn activate(&mut self, handle: RigidBodyHandle) {
         let mut rb = &mut self.bodies[handle];
-        if self.active_dynamic_set.get(rb.active_set_id) != Some(&handle) {
-            rb.active_set_id = self.active_dynamic_set.len();
-            self.active_dynamic_set.push(handle);
+        match rb.body_status {
+            // XXX: this case should only concern the dynamic bodies.
+            // For static bodies we should use the modified_inactive_set, or something
+            // similar. Right now we do this for static bodies as well so the broad-phase
+            // takes them into account the first time they are inserted.
+            BodyStatus::Dynamic | BodyStatus::Static => {
+                if self.active_dynamic_set.get(rb.active_set_id) != Some(&handle) {
+                    rb.active_set_id = self.active_dynamic_set.len();
+                    self.active_dynamic_set.push(handle);
+                }
+            }
+            BodyStatus::Kinematic => {
+                if self.active_kinematic_set.get(rb.active_set_id) != Some(&handle) {
+                    rb.active_set_id = self.active_kinematic_set.len();
+                    self.active_kinematic_set.push(handle);
+                }
+            }
         }
     }
 
@@ -143,13 +157,14 @@ impl RigidBodySet {
     pub fn insert(&mut self, rb: RigidBody) -> RigidBodyHandle {
         let handle = self.bodies.insert(rb);
         let rb = &mut self.bodies[handle];
-        rb.active_set_id = self.active_dynamic_set.len();
 
         if !rb.is_sleeping() && rb.is_dynamic() {
+            rb.active_set_id = self.active_dynamic_set.len();
             self.active_dynamic_set.push(handle);
         }
 
         if rb.is_kinematic() {
+            rb.active_set_id = self.active_kinematic_set.len();
             self.active_kinematic_set.push(handle);
         }
 
@@ -166,12 +181,15 @@ impl RigidBodySet {
 
     pub(crate) fn remove_internal(&mut self, handle: RigidBodyHandle) -> Option<RigidBody> {
         let rb = self.bodies.remove(handle)?;
-        // Remove this body from the active dynamic set.
-        if self.active_dynamic_set.get(rb.active_set_id) == Some(&handle) {
-            self.active_dynamic_set.swap_remove(rb.active_set_id);
+        let mut active_sets = [&mut self.active_kinematic_set, &mut self.active_dynamic_set];
 
-            if let Some(replacement) = self.active_dynamic_set.get(rb.active_set_id) {
-                self.bodies[*replacement].active_set_id = rb.active_set_id;
+        for active_set in &mut active_sets {
+            if active_set.get(rb.active_set_id) == Some(&handle) {
+                active_set.swap_remove(rb.active_set_id);
+
+                if let Some(replacement) = active_set.get(rb.active_set_id) {
+                    self.bodies[*replacement].active_set_id = rb.active_set_id;
+                }
             }
         }
 
@@ -181,6 +199,7 @@ impl RigidBodySet {
     /// Forces the specified rigid-body to wake up if it is dynamic.
     pub fn wake_up(&mut self, handle: RigidBodyHandle) {
         if let Some(rb) = self.bodies.get_mut(handle) {
+            // TODO: what about kinematic bodies?
             if rb.is_dynamic() {
                 rb.wake_up();
 
@@ -214,8 +233,11 @@ impl RigidBodySet {
     ///
     /// Using this is discouraged in favor of `self.get_mut(handle)` which does not
     /// suffer form the ABA problem.
-    pub fn get_unknown_gen_mut(&mut self, i: usize) -> Option<(&mut RigidBody, RigidBodyHandle)> {
-        self.bodies.get_unknown_gen_mut(i)
+    pub fn get_unknown_gen_mut(&mut self, i: usize) -> Option<(RigidBodyMut, RigidBodyHandle)> {
+        let sender = &self.activation_channel.0;
+        self.bodies
+            .get_unknown_gen_mut(i)
+            .map(|(rb, handle)| (RigidBodyMut::new(handle, rb, sender), handle))
     }
 
     /// Gets the rigid-body with the given handle.

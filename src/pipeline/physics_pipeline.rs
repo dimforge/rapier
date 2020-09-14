@@ -298,8 +298,9 @@ impl PhysicsPipeline {
 
 #[cfg(test)]
 mod test {
-    use crate::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-    use crate::geometry::{BroadPhase, ColliderSet, NarrowPhase};
+    use crate::dynamics::{IntegrationParameters, JointSet, RigidBodyBuilder, RigidBodySet};
+    use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
+    use crate::math::Vector;
     use crate::pipeline::PhysicsPipeline;
 
     #[test]
@@ -310,12 +311,45 @@ mod test {
         let mut bf = BroadPhase::new();
         let mut nf = NarrowPhase::new();
 
-        let mut set = RigidBodySet::new();
-        let rb = RigidBodyBuilder::new_dynamic().build();
+        let mut bodies = RigidBodySet::new();
 
         // Check that removing the body right after inserting it works.
-        let h1 = set.insert(rb.clone());
-        pipeline.remove_rigid_body(h1, &mut bf, &mut nf, &mut set, &mut colliders, &mut joints);
+        // We add two dynamic bodies, one kinematic body and one static body before removing
+        // them. This include a non-regression test where deleting a kimenatic body crashes.
+        let rb = RigidBodyBuilder::new_dynamic().build();
+        let h1 = bodies.insert(rb.clone());
+        let h2 = bodies.insert(rb.clone());
+
+        // The same but with a kinematic body.
+        let rb = RigidBodyBuilder::new_kinematic().build();
+        let h3 = bodies.insert(rb.clone());
+
+        // The same but with a static body.
+        let rb = RigidBodyBuilder::new_static().build();
+        let h4 = bodies.insert(rb.clone());
+
+        let to_delete = [h1, h2, h3, h4];
+        for h in &to_delete {
+            pipeline.remove_rigid_body(
+                *h,
+                &mut bf,
+                &mut nf,
+                &mut bodies,
+                &mut colliders,
+                &mut joints,
+            );
+        }
+
+        pipeline.step(
+            &Vector::zeros(),
+            &IntegrationParameters::default(),
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut joints,
+            &(),
+        );
     }
 
     #[test]
