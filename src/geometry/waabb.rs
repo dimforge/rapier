@@ -1,12 +1,38 @@
+use crate::geometry::Ray;
 #[cfg(feature = "serde-serialize")]
 use crate::math::DIM;
-use crate::math::{Point, SIMD_WIDTH};
+use crate::math::{Point, Vector, SIMD_WIDTH};
+use crate::utils;
 use ncollide::bounding_volume::AABB;
+use num::{One, Zero};
 #[cfg(feature = "simd-is-enabled")]
 use {
     crate::math::{SimdBool, SimdFloat},
     simba::simd::{SimdPartialOrd, SimdValue},
 };
+
+#[derive(Debug, Copy, Clone)]
+#[cfg(feature = "simd-is-enabled")]
+pub(crate) struct WRay {
+    pub origin: Point<SimdFloat>,
+    pub dir: Vector<SimdFloat>,
+}
+
+impl WRay {
+    pub fn splat(ray: Ray) -> Self {
+        Self {
+            origin: Point::splat(ray.origin),
+            dir: Vector::splat(ray.dir),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+#[cfg(not(feature = "simd-is-enabled"))]
+pub(crate) struct WRay {
+    pub origin: [Point<f32>; SIMD_WIDTH],
+    pub dir: [Vector<f32>; SIMD_WIDTH],
+}
 
 #[derive(Debug, Copy, Clone)]
 #[cfg(feature = "simd-is-enabled")]
@@ -122,6 +148,42 @@ impl WAABB {
             mins: Point::splat(aabb.mins),
             maxs: Point::splat(aabb.maxs),
         }
+    }
+
+    pub fn intersects_ray(&self, ray: &WRay, max_toi: SimdFloat) -> SimdBool {
+        let _0 = SimdFloat::zero();
+        let _1 = SimdFloat::one();
+        let _infinity = SimdFloat::splat(f32::MAX);
+
+        let mut hit = SimdBool::splat(true);
+        let mut tmin = SimdFloat::zero();
+        let mut tmax = max_toi;
+
+        // TODO: could this be optimized more considering we really just need a boolean answer?
+        for i in 0usize..DIM {
+            let is_not_zero = ray.dir[i].simd_ne(_0);
+            let is_zero_test =
+                (ray.origin[i].simd_ge(self.mins[i]) & ray.origin[i].simd_le(self.maxs[i]));
+            let is_not_zero_test = {
+                let denom = _1 / ray.dir[i];
+                let mut inter_with_near_plane =
+                    ((self.mins[i] - ray.origin[i]) * denom).select(is_not_zero, -_infinity);
+                let mut inter_with_far_plane =
+                    ((self.maxs[i] - ray.origin[i]) * denom).select(is_not_zero, _infinity);
+
+                let gt = inter_with_near_plane.simd_gt(inter_with_far_plane);
+                utils::simd_swap(gt, &mut inter_with_near_plane, &mut inter_with_far_plane);
+
+                tmin = tmin.simd_max(inter_with_near_plane);
+                tmax = tmax.simd_min(inter_with_far_plane);
+
+                tmin.simd_le(tmax)
+            };
+
+            hit = hit & is_not_zero_test.select(is_not_zero, is_zero_test);
+        }
+
+        hit
     }
 
     #[cfg(feature = "dim2")]

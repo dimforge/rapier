@@ -52,7 +52,8 @@ pub(crate) use self::contact_generator::{clip_segments, clip_segments_with_norma
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
 #[cfg(feature = "dim3")]
 pub(crate) use self::polyhedron_feature3d::PolyhedronFace;
-pub(crate) use self::waabb::WAABB;
+pub(crate) use self::waabb::{WRay, WAABB};
+pub(crate) use self::wquadtree::WQuadtree;
 //pub(crate) use self::z_order::z_cmp_floats;
 
 mod ball;
@@ -79,4 +80,5 @@ pub(crate) mod sat;
 pub(crate) mod triangle;
 mod trimesh;
 mod waabb;
+mod wquadtree;
 //mod z_order;

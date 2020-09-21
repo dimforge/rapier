@@ -11,7 +11,11 @@ use simba::simd::SimdValue;
 use std::collections::HashMap;
 use std::ops::{Add, Mul};
 #[cfg(feature = "simd-is-enabled")]
-use {crate::simd::SimdFloat, na::SimdPartialOrd, num::One};
+use {
+    crate::simd::{SimdBool, SimdFloat},
+    na::SimdPartialOrd,
+    num::One,
+};
 
 // pub(crate) const SIN_10_DEGREES: f32 = 0.17364817766;
 // pub(crate) const COS_10_DEGREES: f32 = 0.98480775301;
@@ -29,6 +33,17 @@ pub(crate) fn inv(val: f32) -> f32 {
     } else {
         1.0 / val
     }
+}
+
+/// Conditionally swaps each lanes of `a` with those of `b`.
+///
+/// For each `i in [0..SIMD_WIDTH[`, if `do_swap.extract(i)` is `true` then
+/// `a.extract(i)` is swapped with `b.extract(i)`.
+#[cfg(feature = "simd-is-enabled")]
+pub fn simd_swap(do_swap: SimdBool, a: &mut SimdFloat, b: &mut SimdFloat) {
+    let _a = *a;
+    *a = b.select(do_swap, *a);
+    *b = _a.select(do_swap, *b);
 }
 
 /// Trait to copy the sign of each component of one scalar/vector/matrix to another.
