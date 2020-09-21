@@ -50,7 +50,7 @@ impl CollisionPipeline {
         self.broad_phase_events.clear();
         broad_phase.find_pairs(&mut self.broad_phase_events);
 
-        narrow_phase.register_pairs(colliders, &self.broad_phase_events, events);
+        narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
 
         narrow_phase.compute_contacts(prediction_distance, bodies, colliders, events);
         narrow_phase.compute_proximities(prediction_distance, bodies, colliders, events);

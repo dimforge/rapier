@@ -181,10 +181,13 @@ impl RigidBody {
     }
 
     /// Wakes up this rigid body if it is sleeping.
-    pub fn wake_up(&mut self) {
+    ///
+    /// If `strong` is `true` then it is assured that the rigid-body will
+    /// remain awake during multiple subsequent timesteps.
+    pub fn wake_up(&mut self, strong: bool) {
         self.activation.sleeping = false;
 
-        if self.activation.energy == 0.0 && self.is_dynamic() {
+        if (strong || self.activation.energy == 0.0) && self.is_dynamic() {
             self.activation.energy = self.activation.threshold.abs() * 2.0;
         }
     }
@@ -198,7 +201,16 @@ impl RigidBody {
 
     /// Is this rigid body sleeping?
     pub fn is_sleeping(&self) -> bool {
+        // TODO: should we:
+        // - return false for static bodies.
+        // - return true for non-sleeping dynamic bodies.
+        // - return true only for kinematic bodies with non-zero velocity?
         self.activation.sleeping
+    }
+
+    /// Is the velocity of this body not zero?
+    pub fn is_moving(&self) -> bool {
+        !self.linvel.is_zero() || !self.angvel.is_zero()
     }
 
     fn integrate_velocity(&self, dt: f32) -> Isometry<f32> {

@@ -202,8 +202,8 @@ impl JointSet {
                 }
 
                 // Wake up the attached bodies.
-                bodies.wake_up(h1);
-                bodies.wake_up(h2);
+                bodies.wake_up(h1, true);
+                bodies.wake_up(h2, true);
             }
 
             if let Some(other) = self.joint_graph.remove_node(deleted_id) {

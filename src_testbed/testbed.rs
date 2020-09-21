@@ -824,7 +824,7 @@ impl Testbed {
                     .physics
                     .bodies
                     .iter()
-                    .filter(|e| e.1.is_dynamic())
+                    .filter(|e| !e.1.is_static())
                     .map(|e| e.0)
                     .collect();
                 let num_to_delete = (dynamic_bodies.len() / 10).max(1);
@@ -1367,7 +1367,7 @@ impl State for Testbed {
                     }
                 } else {
                     for (_, mut body) in self.physics.bodies.iter_mut() {
-                        body.wake_up();
+                        body.wake_up(true);
                         body.activation.threshold = -1.0;
                     }
                 }
@@ -1571,7 +1571,8 @@ impl State for Testbed {
         }
 
         self.highlight_hovered_body(window);
-        self.graphics.draw(&self.physics.colliders, window);
+        self.graphics
+            .draw(&self.physics.bodies, &self.physics.colliders, window);
 
         #[cfg(feature = "fluids")]
         {
@@ -1648,26 +1649,35 @@ Fluids: {:.2}ms
         }
 
         if self.state.flags.contains(TestbedStateFlags::DEBUG) {
-            let hash_bf = md5::compute(&bincode::serialize(&self.physics.broad_phase).unwrap());
-            let hash_nf = md5::compute(&bincode::serialize(&self.physics.narrow_phase).unwrap());
-            let hash_bodies = md5::compute(&bincode::serialize(&self.physics.bodies).unwrap());
-            let hash_colliders =
-                md5::compute(&bincode::serialize(&self.physics.colliders).unwrap());
-            let hash_joints = md5::compute(&bincode::serialize(&self.physics.joints).unwrap());
+            let bf = bincode::serialize(&self.physics.broad_phase).unwrap();
+            let nf = bincode::serialize(&self.physics.narrow_phase).unwrap();
+            let bs = bincode::serialize(&self.physics.bodies).unwrap();
+            let cs = bincode::serialize(&self.physics.colliders).unwrap();
+            let js = bincode::serialize(&self.physics.joints).unwrap();
+            let hash_bf = md5::compute(&bf);
+            let hash_nf = md5::compute(&nf);
+            let hash_bodies = md5::compute(&bs);
+            let hash_colliders = md5::compute(&cs);
+            let hash_joints = md5::compute(&js);
             profile = format!(
                 r#"{}
 Hashes at frame: {}
-|_ Broad phase: {:?}
-|_ Narrow phase: {:?}
-|_ Bodies: {:?}
-|_ Colliders: {:?}
-|_ Joints: {:?}"#,
+|_ Broad phase [{:.1}KB]: {:?}
+|_ Narrow phase [{:.1}KB]: {:?}
+|_ Bodies [{:.1}KB]: {:?}
+|_ Colliders [{:.1}KB]: {:?}
+|_ Joints [{:.1}KB]: {:?}"#,
                 profile,
                 self.state.timestep_id,
+                bf.len() as f32 / 1000.0,
                 hash_bf,
+                nf.len() as f32 / 1000.0,
                 hash_nf,
+                bs.len() as f32 / 1000.0,
                 hash_bodies,
+                cs.len() as f32 / 1000.0,
                 hash_colliders,
+                js.len() as f32 / 1000.0,
                 hash_joints
             );
         }

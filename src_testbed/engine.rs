@@ -609,7 +609,7 @@ impl GraphicsManager {
         }
     }
 
-    pub fn draw(&mut self, colliders: &ColliderSet, window: &mut Window) {
+    pub fn draw(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet, window: &mut Window) {
         // use kiss3d::camera::Camera;
         // println!(
         //     "camera eye {:?}, at: {:?}",
@@ -618,6 +618,20 @@ impl GraphicsManager {
         // );
         for (_, ns) in self.b2sn.iter_mut() {
             for n in ns.iter_mut() {
+                /*
+                if let Some(co) = colliders.get(n.collider()) {
+                    let bo = &bodies[co.parent()];
+
+                    if bo.is_dynamic() {
+                        if bo.is_sleeping() {
+                            n.set_color(Point3::new(1.0, 0.0, 0.0));
+                        } else {
+                            n.set_color(Point3::new(0.0, 1.0, 0.0));
+                        }
+                    }
+                }
+                 */
+
                 n.update(colliders);
                 n.draw(window);
             }

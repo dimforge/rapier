@@ -3,8 +3,9 @@ use rayon::prelude::*;
 
 use crate::data::arena::Arena;
 use crate::dynamics::{BodyStatus, Joint, RigidBody};
-use crate::geometry::{ColliderSet, ContactPair, InteractionGraph};
+use crate::geometry::{ColliderHandle, ColliderSet, ContactPair, InteractionGraph};
 use crossbeam::channel::{Receiver, Sender};
+use num::Zero;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 /// A mutable reference to a rigid-body.
@@ -197,11 +198,14 @@ impl RigidBodySet {
     }
 
     /// Forces the specified rigid-body to wake up if it is dynamic.
-    pub fn wake_up(&mut self, handle: RigidBodyHandle) {
+    ///
+    /// If `strong` is `true` then it is assured that the rigid-body will
+    /// remain awake during multiple subsequent timesteps.
+    pub fn wake_up(&mut self, handle: RigidBodyHandle, strong: bool) {
         if let Some(rb) = self.bodies.get_mut(handle) {
             // TODO: what about kinematic bodies?
             if rb.is_dynamic() {
-                rb.wake_up();
+                rb.wake_up(strong);
 
                 if self.active_dynamic_set.get(rb.active_set_id) != Some(&handle) {
                     rb.active_set_id = self.active_dynamic_set.len();
@@ -447,6 +451,45 @@ impl RigidBodySet {
             }
         }
 
+        // Read all the contacts and push objects touching touching this rigid-body.
+        #[inline(always)]
+        fn push_contacting_colliders(
+            rb: &RigidBody,
+            colliders: &ColliderSet,
+            contact_graph: &InteractionGraph<ContactPair>,
+            stack: &mut Vec<ColliderHandle>,
+        ) {
+            for collider_handle in &rb.colliders {
+                let collider = &colliders[*collider_handle];
+
+                for inter in contact_graph.interactions_with(collider.contact_graph_index) {
+                    for manifold in &inter.2.manifolds {
+                        if manifold.num_active_contacts() > 0 {
+                            let other =
+                                crate::utils::other_handle((inter.0, inter.1), *collider_handle);
+                            let other_body = colliders[other].parent;
+                            stack.push(other_body);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Now iterate on all active kinematic bodies and push all the bodies
+        // touching them to the stack so they can be woken up.
+        for h in self.active_kinematic_set.iter() {
+            let rb = &self.bodies[*h];
+
+            if !rb.is_moving() {
+                // If the kinematic body does not move, it does not have
+                // to wake up any dynamic body.
+                continue;
+            }
+
+            push_contacting_colliders(rb, colliders, contact_graph, &mut self.stack);
+        }
+
         //        println!("Selection: {}", instant::now() - t);
 
         //        let t = instant::now();
@@ -465,7 +508,9 @@ impl RigidBodySet {
                 // We already visited this body and its neighbors.
                 // Also, we don't propagate awake state through static bodies.
                 continue;
-            } else if self.stack.len() < island_marker {
+            }
+
+            if self.stack.len() < island_marker {
                 if self.active_dynamic_set.len() - *self.active_islands.last().unwrap()
                     >= min_island_size
                 {
@@ -476,29 +521,16 @@ impl RigidBodySet {
                 island_marker = self.stack.len();
             }
 
-            rb.wake_up();
+            rb.wake_up(false);
             rb.active_island_id = self.active_islands.len() - 1;
             rb.active_set_id = self.active_dynamic_set.len();
             rb.active_set_offset = rb.active_set_id - self.active_islands[rb.active_island_id];
             rb.active_set_timestamp = self.active_set_timestamp;
             self.active_dynamic_set.push(handle);
 
-            // Read all the contacts and push objects touching this one.
-            for collider_handle in &rb.colliders {
-                let collider = &colliders[*collider_handle];
-
-                for inter in contact_graph.interactions_with(collider.contact_graph_index) {
-                    for manifold in &inter.2.manifolds {
-                        if manifold.num_active_contacts() > 0 {
-                            let other =
-                                crate::utils::other_handle((inter.0, inter.1), *collider_handle);
-                            let other_body = colliders[other].parent;
-                            self.stack.push(other_body);
-                            break;
-                        }
-                    }
-                }
-            }
+            // Transmit the active state to all the rigid-bodies with colliders
+            // in contact or joined with this collider.
+            push_contacting_colliders(rb, colliders, contact_graph, &mut self.stack);
 
             for inter in joint_graph.interactions_with(rb.joint_graph_index) {
                 let other = crate::utils::other_handle((inter.0, inter.1), handle);

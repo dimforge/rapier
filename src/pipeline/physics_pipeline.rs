@@ -75,6 +75,15 @@ impl PhysicsPipeline {
         self.counters.step_started();
         bodies.maintain_active_set();
 
+        // Update kinematic bodies velocities.
+        // TODO: what is the best place for this? It should at least be
+        // located before the island computation because we test the velocity
+        // there to determine if this kinematic body should wake-up dynamic
+        // bodies it is touching.
+        bodies.foreach_active_kinematic_body_mut_internal(|_, body| {
+            body.compute_velocity_from_predicted_position(integration_parameters.inv_dt());
+        });
+
         self.counters.stages.collision_detection_time.start();
         self.counters.cd.broad_phase_time.start();
         self.broadphase_collider_pairs.clear();
@@ -91,7 +100,7 @@ impl PhysicsPipeline {
         broad_phase.find_pairs(&mut self.broad_phase_events);
         //        println!("Find pairs time: {}", instant::now() - t);
 
-        narrow_phase.register_pairs(colliders, &self.broad_phase_events, events);
+        narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
         self.counters.cd.broad_phase_time.pause();
 
         //        println!("Num contact pairs: {}", pairs.len());
@@ -121,11 +130,6 @@ impl PhysicsPipeline {
             integration_parameters.min_island_size,
         );
         self.counters.stages.island_construction_time.pause();
-
-        // Update kinematic bodies velocities.
-        bodies.foreach_active_kinematic_body_mut_internal(|_, body| {
-            body.compute_velocity_from_predicted_position(integration_parameters.inv_dt());
-        });
 
         if self.manifold_indices.len() < bodies.num_islands() {
             self.manifold_indices
@@ -261,7 +265,7 @@ impl PhysicsPipeline {
 
         if let Some(parent) = bodies.get_mut_internal(collider.parent) {
             parent.remove_collider_internal(handle, &collider);
-            bodies.wake_up(collider.parent);
+            bodies.wake_up(collider.parent, true);
         }
 
         Some(collider)
@@ -302,6 +306,37 @@ mod test {
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
     use crate::math::Vector;
     use crate::pipeline::PhysicsPipeline;
+
+    #[test]
+    fn kinematic_and_static_contact_crash() {
+        let mut colliders = ColliderSet::new();
+        let mut joints = JointSet::new();
+        let mut pipeline = PhysicsPipeline::new();
+        let mut bf = BroadPhase::new();
+        let mut nf = NarrowPhase::new();
+        let mut bodies = RigidBodySet::new();
+
+        let rb = RigidBodyBuilder::new_static().build();
+        let h1 = bodies.insert(rb.clone());
+        let co = ColliderBuilder::ball(10.0).build();
+        colliders.insert(co.clone(), h1, &mut bodies);
+
+        // The same but with a kinematic body.
+        let rb = RigidBodyBuilder::new_kinematic().build();
+        let h2 = bodies.insert(rb.clone());
+        colliders.insert(co, h2, &mut bodies);
+
+        pipeline.step(
+            &Vector::zeros(),
+            &IntegrationParameters::default(),
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut joints,
+            &(),
+        );
+    }
 
     #[test]
     fn rigid_body_removal_before_step() {

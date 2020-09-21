@@ -87,11 +87,11 @@ impl NarrowPhase {
                 // Wake up every body in contact with the deleted collider.
                 for (a, b, _) in self.contact_graph.interactions_with(contact_graph_id) {
                     if let Some(parent) = colliders.get(a).map(|c| c.parent) {
-                        bodies.wake_up(parent)
+                        bodies.wake_up(parent, true)
                     }
 
                     if let Some(parent) = colliders.get(b).map(|c| c.parent) {
-                        bodies.wake_up(parent)
+                        bodies.wake_up(parent, true)
                     }
                 }
 
@@ -119,6 +119,7 @@ impl NarrowPhase {
     pub(crate) fn register_pairs(
         &mut self,
         colliders: &mut ColliderSet,
+        bodies: &mut RigidBodySet,
         broad_phase_events: &[BroadPhasePairEvent],
         events: &dyn EventHandler,
     ) {
@@ -218,9 +219,13 @@ impl NarrowPhase {
                                 .contact_graph
                                 .remove_edge(co1.contact_graph_index, co2.contact_graph_index);
 
-                            // Emit a contact stopped event if we had a proximity before removing the edge.
+                            // Emit a contact stopped event if we had a contact before removing the edge.
+                            // Also wake up the dynamic bodies that were in contact.
                             if let Some(ctct) = contact_pair {
                                 if ctct.has_any_active_contact() {
+                                    bodies.wake_up(co1.parent, true);
+                                    bodies.wake_up(co2.parent, true);
+
                                     events.handle_contact_event(ContactEvent::Stopped(
                                         pair.collider1,
                                         pair.collider2,
@@ -250,8 +255,7 @@ impl NarrowPhase {
             let rb1 = &bodies[co1.parent];
             let rb2 = &bodies[co2.parent];
 
-            if (rb1.is_sleeping() || !rb1.is_dynamic()) && (rb2.is_sleeping() || !rb2.is_dynamic())
-            {
+            if (rb1.is_sleeping() || rb1.is_static()) && (rb2.is_sleeping() || rb2.is_static()) {
                 // No need to update this contact because nothing moved.
                 return;
             }
@@ -359,7 +363,8 @@ impl NarrowPhase {
             let rb1 = &bodies[co1.parent];
             let rb2 = &bodies[co2.parent];
 
-            if (rb1.is_sleeping() || !rb1.is_dynamic()) && (rb2.is_sleeping() || !rb2.is_dynamic())
+            if ((rb1.is_sleeping() || rb1.is_static()) && (rb2.is_sleeping() || rb2.is_static()))
+                || (!rb1.is_dynamic() && !rb2.is_dynamic())
             {
                 // No need to update this contact because nothing moved.
                 return;
