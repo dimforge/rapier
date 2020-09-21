@@ -150,6 +150,11 @@ impl WAABB {
         }
     }
 
+    pub fn replace(&mut self, i: usize, aabb: AABB<f32>) {
+        self.mins.replace(i, aabb.mins);
+        self.maxs.replace(i, aabb.maxs);
+    }
+
     pub fn intersects_ray(&self, ray: &WRay, max_toi: SimdFloat) -> SimdBool {
         let _0 = SimdFloat::zero();
         let _1 = SimdFloat::one();

@@ -4,6 +4,7 @@ use crate::math::{Point, Vector};
 use crate::simd::{SimdFloat, SIMD_WIDTH};
 use ncollide::bounding_volume::BoundingVolume;
 use simba::simd::{SimdBool, SimdValue};
+use std::ops::Range;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 struct NodeIndex {
@@ -25,7 +26,7 @@ impl NodeIndex {
 }
 
 #[derive(Copy, Clone, Debug)]
-struct WQuadtreeNodeChildren {
+struct WQuadtreeNode {
     waabb: WAABB,
     // Index of the nodes of the 4 nodes represented by self.
     // If this is a leaf, it contains the proxy ids instead.
@@ -50,7 +51,7 @@ impl ColliderNodeIndex {
 }
 
 pub struct WQuadtree {
-    nodes: Vec<WQuadtreeNodeChildren>,
+    nodes: Vec<WQuadtreeNode>,
     dirty: Vec<bool>, // TODO: use a bitvec/Vob and check it does not break cross-platform determinism.
     proxies: Vec<ColliderNodeIndex>,
 }
@@ -92,7 +93,7 @@ impl WQuadtree {
         }
 
         // Build the tree recursively.
-        let root_node = WQuadtreeNodeChildren {
+        let root_node = WQuadtreeNode {
             waabb: WAABB::new_invalid(),
             children: [1, u32::MAX, u32::MAX, u32::MAX],
             parent: NodeIndex::invalid(),
@@ -129,7 +130,7 @@ impl WQuadtree {
                 proxy_ids[k] = *id as u32;
             }
 
-            let node = WQuadtreeNodeChildren {
+            let node = WQuadtreeNode {
                 waabb: WAABB::from(leaf_aabbs),
                 children: proxy_ids,
                 parent,
@@ -192,7 +193,7 @@ impl WQuadtree {
         //     right_top.len()
         // );
 
-        let node = WQuadtreeNodeChildren {
+        let node = WQuadtreeNode {
             waabb: WAABB::new_invalid(),
             children: [0; 4], // Will be set after the recursive call
             parent,
@@ -254,6 +255,150 @@ impl WQuadtree {
         }
 
         res
+    }
+}
+
+struct WQuadtreeIncrementalBuilderStep {
+    range: Range<usize>,
+    parent: NodeIndex,
+}
+
+struct WQuadtreeIncrementalBuilder {
+    quadtree: WQuadtree,
+    to_insert: Vec<WQuadtreeIncrementalBuilderStep>,
+    aabbs: Vec<AABB>,
+    indices: Vec<usize>,
+}
+
+impl WQuadtreeIncrementalBuilder {
+    pub fn new() -> Self {
+        Self {
+            quadtree: WQuadtree::new(),
+            to_insert: Vec::new(),
+            aabbs: Vec::new(),
+            indices: Vec::new(),
+        }
+    }
+
+    pub fn update_single_depth(&mut self) {
+        if let Some(to_insert) = self.to_insert.pop() {
+            let indices = &mut self.indices[to_insert.range];
+
+            // Leaf case.
+            if indices.len() <= 4 {
+                let id = self.quadtree.nodes.len();
+                let mut aabb = AABB::new_invalid();
+                let mut leaf_aabbs = [AABB::new_invalid(); 4];
+                let mut proxy_ids = [u32::MAX; 4];
+
+                for (k, id) in indices.iter().enumerate() {
+                    aabb.merge(&self.aabbs[*id]);
+                    leaf_aabbs[k] = self.aabbs[*id];
+                    proxy_ids[k] = *id as u32;
+                }
+
+                let node = WQuadtreeNode {
+                    waabb: WAABB::from(leaf_aabbs),
+                    children: proxy_ids,
+                    parent: to_insert.parent,
+                    leaf: true,
+                };
+
+                self.quadtree.nodes[to_insert.parent.index as usize].children
+                    [to_insert.parent.lane as usize] = id as u32;
+                self.quadtree.nodes[to_insert.parent.index as usize]
+                    .waabb
+                    .replace(to_insert.parent.lane as usize, aabb);
+                self.quadtree.nodes.push(node);
+                return;
+            }
+
+            // Compute the center and variance along each dimension.
+            // In 3D we compute the variance to not-subdivide the dimension with lowest variance.
+            // Therefore variance computation is not needed in 2D because we only have 2 dimension
+            // to split in the first place.
+            let mut center = Point::origin();
+            #[cfg(feature = "dim3")]
+            let mut variance = Vector::zeros();
+
+            let denom = 1.0 / (indices.len() as f32);
+            let mut aabb = AABB::new_invalid();
+
+            for i in &*indices {
+                let coords = self.aabbs[*i].center().coords;
+                aabb.merge(&self.aabbs[*i]);
+                center += coords * denom;
+                #[cfg(feature = "dim3")]
+                {
+                    variance += coords.component_mul(&coords) * denom;
+                }
+            }
+
+            #[cfg(feature = "dim3")]
+            {
+                variance = variance - center.coords.component_mul(&center.coords);
+            }
+
+            // Find the axis with minimum variance. This is the axis along
+            // which we are **not** subdividing our set.
+            let mut subdiv_dims = [0, 1];
+            #[cfg(feature = "dim3")]
+            {
+                let min = variance.imin();
+                subdiv_dims[0] = (min + 1) % 3;
+                subdiv_dims[1] = (min + 2) % 3;
+            }
+
+            // Split the set along the two subdiv_dims dimensions.
+            // TODO: should we split wrt. the median instead of the average?
+            // TODO: we should ensure each subslice contains at least 4 elements each (or less if
+            // indices has less than 16 elements in the first place.
+            let (left, right) =
+                split_indices_wrt_dim(indices, &self.aabbs, &center, subdiv_dims[0]);
+
+            let (left_bottom, left_top) =
+                split_indices_wrt_dim(left, &self.aabbs, &center, subdiv_dims[1]);
+            let (right_bottom, right_top) =
+                split_indices_wrt_dim(right, &self.aabbs, &center, subdiv_dims[1]);
+
+            let node = WQuadtreeNode {
+                waabb: WAABB::new_invalid(),
+                children: [0; 4], // Will be set after the recursive call
+                parent: to_insert.parent,
+                leaf: false,
+            };
+
+            let id = self.quadtree.nodes.len() as u32;
+            self.quadtree.nodes.push(node);
+
+            // Recurse!
+            let a = left_bottom.len();
+            let b = a + left_top.len();
+            let c = b + right_bottom.len();
+            let d = c + right_top.len();
+            self.to_insert.push(WQuadtreeIncrementalBuilderStep {
+                range: 0..a,
+                parent: NodeIndex::new(id, 0),
+            });
+            self.to_insert.push(WQuadtreeIncrementalBuilderStep {
+                range: a..b,
+                parent: NodeIndex::new(id, 1),
+            });
+            self.to_insert.push(WQuadtreeIncrementalBuilderStep {
+                range: b..c,
+                parent: NodeIndex::new(id, 2),
+            });
+            self.to_insert.push(WQuadtreeIncrementalBuilderStep {
+                range: c..d,
+                parent: NodeIndex::new(id, 3),
+            });
+
+            self.quadtree.nodes[to_insert.parent.index as usize].children
+                [to_insert.parent.lane as usize] = id as u32;
+            self.quadtree.nodes[to_insert.parent.index as usize]
+                .waabb
+                .replace(to_insert.parent.lane as usize, aabb);
+        }
     }
 }
 
