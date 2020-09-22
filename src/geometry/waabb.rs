@@ -150,6 +150,12 @@ impl WAABB {
         }
     }
 
+    pub fn dilate_by_factor(&mut self, factor: SimdFloat) {
+        let dilation = (self.maxs - self.mins) * factor;
+        self.mins -= dilation;
+        self.maxs += dilation;
+    }
+
     pub fn replace(&mut self, i: usize, aabb: AABB<f32>) {
         self.mins.replace(i, aabb.mins);
         self.maxs.replace(i, aabb.maxs);
@@ -192,6 +198,24 @@ impl WAABB {
     }
 
     #[cfg(feature = "dim2")]
+    pub fn contains_lanewise(&self, other: &WAABB) -> SimdBool {
+        self.mins.x.simd_le(other.mins.x)
+            & self.mins.y.simd_le(other.mins.y)
+            & self.maxs.x.simd_ge(other.maxs.x)
+            & self.maxs.y.simd_ge(other.maxs.y)
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn contains_lanewise(&self, other: &WAABB) -> SimdBool {
+        self.mins.x.simd_le(other.mins.x)
+            & self.mins.y.simd_le(other.mins.y)
+            & self.mins.z.simd_le(other.mins.z)
+            & self.maxs.x.simd_ge(other.maxs.x)
+            & self.maxs.y.simd_ge(other.maxs.y)
+            & self.maxs.z.simd_ge(other.maxs.z)
+    }
+
+    #[cfg(feature = "dim2")]
     pub fn intersects_lanewise(&self, other: &WAABB) -> SimdBool {
         self.mins.x.simd_le(other.maxs.x)
             & other.mins.x.simd_le(self.maxs.x)
@@ -207,6 +231,13 @@ impl WAABB {
             & other.mins.y.simd_le(self.maxs.y)
             & self.mins.z.simd_le(other.maxs.z)
             & other.mins.z.simd_le(self.maxs.z)
+    }
+
+    pub fn to_merged_aabb(&self) -> AABB<f32> {
+        AABB::new(
+            self.mins.coords.map(|e| e.simd_horizontal_min()).into(),
+            self.maxs.coords.map(|e| e.simd_horizontal_max()).into(),
+        )
     }
 }
 

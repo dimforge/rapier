@@ -4,6 +4,7 @@ use crate::math::{Point, Vector};
 use crate::simd::{SimdFloat, SIMD_WIDTH};
 use ncollide::bounding_volume::BoundingVolume;
 use simba::simd::{SimdBool, SimdValue};
+use std::collections::VecDeque;
 use std::ops::Range;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -32,16 +33,17 @@ struct WQuadtreeNode {
     // If this is a leaf, it contains the proxy ids instead.
     children: [u32; 4],
     parent: NodeIndex,
-    leaf: bool, // TODO: pack this with the NodexIndex.lane?
+    leaf: bool,  // TODO: pack this with the NodexIndex.lane?
+    dirty: bool, // TODO: move this to a separate bitvec?
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-struct ColliderNodeIndex {
+struct WQuadtreeProxy {
     node: NodeIndex,
     handle: ColliderHandle, // The collider handle. TODO: only set the collider generation here?
 }
 
-impl ColliderNodeIndex {
+impl WQuadtreeProxy {
     fn invalid() -> Self {
         Self {
             node: NodeIndex::invalid(),
@@ -52,32 +54,77 @@ impl ColliderNodeIndex {
 
 pub struct WQuadtree {
     nodes: Vec<WQuadtreeNode>,
-    dirty: Vec<bool>, // TODO: use a bitvec/Vob and check it does not break cross-platform determinism.
-    proxies: Vec<ColliderNodeIndex>,
+    dirty_nodes: VecDeque<u32>,
+    proxies: Vec<WQuadtreeProxy>,
 }
 
 impl WQuadtree {
     pub fn new() -> Self {
         WQuadtree {
             nodes: Vec::new(),
-            dirty: Vec::new(),
+            dirty_nodes: VecDeque::new(),
             proxies: Vec::new(),
         }
     }
 
-    pub fn clear_and_rebuild(&mut self, colliders: &ColliderSet) {
+    pub fn pre_update(&mut self, handle: ColliderHandle) {
+        let id = handle.into_raw_parts().0;
+        let node_id = self.proxies[id].node.index;
+        let node = &mut self.nodes[node_id as usize];
+        if !node.dirty {
+            node.dirty = true;
+            self.dirty_nodes.push_back(node_id);
+        }
+    }
+
+    pub fn update(&mut self, colliders: &ColliderSet, dilation_factor: f32) {
+        // Loop on the dirty leaves.
+        let dilation_factor = SimdFloat::splat(dilation_factor);
+
+        while let Some(id) = self.dirty_nodes.pop_front() {
+            // NOTE: this will handle the case where we reach the root of the tree.
+            if let Some(node) = self.nodes.get(id as usize) {
+                // Compute the new WAABB.
+                let mut new_aabbs = [AABB::new_invalid(); SIMD_WIDTH];
+                for (child_id, new_aabb) in node.children.iter().zip(new_aabbs.iter_mut()) {
+                    if node.leaf {
+                        // We are in a leaf: compute the colliders' AABBs.
+                        if let Some(proxy) = self.proxies.get(*child_id as usize) {
+                            let collider = &colliders[proxy.handle];
+                            *new_aabb = collider.compute_aabb();
+                        }
+                    } else {
+                        // We are in an internal node: compute the children's AABBs.
+                        if let Some(node) = self.nodes.get(*child_id as usize) {
+                            *new_aabb = node.waabb.to_merged_aabb();
+                        }
+                    }
+                }
+
+                let node = &mut self.nodes[id as usize];
+                let new_waabb = WAABB::from(new_aabbs);
+                if !node.waabb.contains_lanewise(&new_waabb).all() {
+                    node.waabb = new_waabb;
+                    node.waabb.dilate_by_factor(dilation_factor);
+                    self.dirty_nodes.push_back(node.parent.index);
+                }
+                node.dirty = false;
+            }
+        }
+    }
+
+    pub fn clear_and_rebuild(&mut self, colliders: &ColliderSet, dilation_factor: f32) {
         self.nodes.clear();
-        self.dirty.clear();
         self.proxies.clear();
 
         // Create proxies.
         let mut indices = Vec::with_capacity(colliders.len());
-        self.proxies = vec![ColliderNodeIndex::invalid(); colliders.len()];
+        self.proxies = vec![WQuadtreeProxy::invalid(); colliders.len()];
 
         for (handle, collider) in colliders.iter() {
             let index = handle.into_raw_parts().0;
             if self.proxies.len() < index {
-                self.proxies.resize(index + 1, ColliderNodeIndex::invalid());
+                self.proxies.resize(index + 1, WQuadtreeProxy::invalid());
             }
 
             self.proxies[index].handle = handle;
@@ -98,11 +145,12 @@ impl WQuadtree {
             children: [1, u32::MAX, u32::MAX, u32::MAX],
             parent: NodeIndex::invalid(),
             leaf: false,
+            dirty: false,
         };
 
         self.nodes.push(root_node);
         let root_id = NodeIndex::new(0, 0);
-        let (_, aabb) = self.do_recurse_build(&mut indices, &aabbs, root_id);
+        let (_, aabb) = self.do_recurse_build(&mut indices, &aabbs, root_id, dilation_factor);
         self.nodes[0].waabb = WAABB::from([
             aabb,
             AABB::new_invalid(),
@@ -116,9 +164,10 @@ impl WQuadtree {
         indices: &mut [usize],
         aabbs: &[AABB],
         parent: NodeIndex,
+        dilation_factor: f32,
     ) -> (u32, AABB) {
-        // Leaf case.
         if indices.len() <= 4 {
+            // Leaf case.
             let my_id = self.nodes.len();
             let mut my_aabb = AABB::new_invalid();
             let mut leaf_aabbs = [AABB::new_invalid(); 4];
@@ -128,15 +177,19 @@ impl WQuadtree {
                 my_aabb.merge(&aabbs[*id]);
                 leaf_aabbs[k] = aabbs[*id];
                 proxy_ids[k] = *id as u32;
+                self.proxies[*id].node = NodeIndex::new(my_id as u32, k as u8);
             }
 
-            let node = WQuadtreeNode {
+            let mut node = WQuadtreeNode {
                 waabb: WAABB::from(leaf_aabbs),
                 children: proxy_ids,
                 parent,
                 leaf: true,
+                dirty: false,
             };
 
+            node.waabb
+                .dilate_by_factor(SimdFloat::splat(dilation_factor));
             self.nodes.push(node);
             return (my_id as u32, my_aabb);
         }
@@ -198,20 +251,24 @@ impl WQuadtree {
             children: [0; 4], // Will be set after the recursive call
             parent,
             leaf: false,
+            dirty: false,
         };
 
         let id = self.nodes.len() as u32;
         self.nodes.push(node);
 
         // Recurse!
-        let a = self.do_recurse_build(left_bottom, aabbs, NodeIndex::new(id, 0));
-        let b = self.do_recurse_build(left_top, aabbs, NodeIndex::new(id, 1));
-        let c = self.do_recurse_build(right_bottom, aabbs, NodeIndex::new(id, 2));
-        let d = self.do_recurse_build(right_top, aabbs, NodeIndex::new(id, 3));
+        let a = self.do_recurse_build(left_bottom, aabbs, NodeIndex::new(id, 0), dilation_factor);
+        let b = self.do_recurse_build(left_top, aabbs, NodeIndex::new(id, 1), dilation_factor);
+        let c = self.do_recurse_build(right_bottom, aabbs, NodeIndex::new(id, 2), dilation_factor);
+        let d = self.do_recurse_build(right_top, aabbs, NodeIndex::new(id, 3), dilation_factor);
 
         // Now we know the indices of the grand-nodes.
         self.nodes[id as usize].children = [a.0, b.0, c.0, d.0];
         self.nodes[id as usize].waabb = WAABB::from([a.1, b.1, c.1, d.1]);
+        self.nodes[id as usize]
+            .waabb
+            .dilate_by_factor(SimdFloat::splat(dilation_factor));
 
         // TODO: will this chain of .merged be properly optimized?
         let my_aabb = a.1.merged(&b.1).merged(&c.1).merged(&d.1);
@@ -302,6 +359,7 @@ impl WQuadtreeIncrementalBuilder {
                     children: proxy_ids,
                     parent: to_insert.parent,
                     leaf: true,
+                    dirty: false,
                 };
 
                 self.quadtree.nodes[to_insert.parent.index as usize].children
@@ -366,6 +424,7 @@ impl WQuadtreeIncrementalBuilder {
                 children: [0; 4], // Will be set after the recursive call
                 parent: to_insert.parent,
                 leaf: false,
+                dirty: false,
             };
 
             let id = self.quadtree.nodes.len() as u32;

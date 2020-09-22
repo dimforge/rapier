@@ -7,7 +7,9 @@ use ncollide::bounding_volume::BoundingVolume;
 
 /// A pipeline for performing queries on all the colliders of a scene.
 pub struct QueryPipeline {
-    // hierarchy: WAABBHierarchy,
+    quadtree: WQuadtree,
+    tree_built: bool,
+    dilation_factor: f32,
 }
 
 impl Default for QueryPipeline {
@@ -20,12 +22,32 @@ impl QueryPipeline {
     /// Initializes an empty query pipeline.
     pub fn new() -> Self {
         Self {
-            // hierarchy: WAABBHierarchy::new(),
+            quadtree: WQuadtree::new(),
+            tree_built: false,
+            dilation_factor: 0.01,
         }
     }
 
     /// Update the acceleration structure on the query pipeline.
-    pub fn update(&mut self, _bodies: &mut RigidBodySet, _colliders: &mut ColliderSet) {}
+    pub fn update(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet) {
+        if !self.tree_built {
+            self.quadtree
+                .clear_and_rebuild(colliders, self.dilation_factor);
+            self.tree_built = true;
+            return;
+        }
+
+        for (_, body) in bodies
+            .iter_active_dynamic()
+            .chain(bodies.iter_active_kinematic())
+        {
+            for handle in &body.colliders {
+                self.quadtree.pre_update(*handle)
+            }
+        }
+
+        self.quadtree.update(colliders, self.dilation_factor);
+    }
 
     /// Find the closest intersection between a ray and a set of collider.
     ///
@@ -41,11 +63,7 @@ impl QueryPipeline {
         max_toi: f32,
     ) -> Option<(ColliderHandle, &'a Collider, RayIntersection)> {
         let t0 = instant::now();
-        let mut tree = WQuadtree::new();
-        tree.clear_and_rebuild(colliders);
-        println!("Built quadtree in time: {}", instant::now() - t0);
-        let t0 = instant::now();
-        let inter = tree.cast_ray(ray, max_toi);
+        let inter = self.quadtree.cast_ray(ray, max_toi);
         println!(
             "Found {} interefrences in time {}.",
             inter.len(),

@@ -675,6 +675,10 @@ impl Testbed {
                                     &self.event_handler,
                                 );
 
+                                self.physics
+                                    .query_pipeline
+                                    .update(&self.physics.bodies, &self.physics.colliders);
+
                                 #[cfg(feature = "fluids")]
                                 {
                                     fluids_time = instant::now();
@@ -1465,6 +1469,10 @@ impl State for Testbed {
                         &mut self.physics.joints,
                         &self.event_handler,
                     );
+
+                    self.physics
+                        .query_pipeline
+                        .update(&self.physics.bodies, &self.physics.colliders);
 
                     #[cfg(feature = "fluids")]
                     {

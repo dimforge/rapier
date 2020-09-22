@@ -282,6 +282,16 @@ impl RigidBodySet {
             .map(move |(h, rb)| (h, RigidBodyMut::new(h, rb, sender)))
     }
 
+    /// Iter through all the active kinematic rigid-bodies on this set.
+    pub fn iter_active_kinematic<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (RigidBodyHandle, &'a RigidBody)> {
+        let bodies: &'a _ = &self.bodies;
+        self.active_kinematic_set
+            .iter()
+            .filter_map(move |h| Some((*h, bodies.get(*h)?)))
+    }
+
     /// Iter through all the active dynamic rigid-bodies on this set.
     pub fn iter_active_dynamic<'a>(
         &'a self,
