@@ -33,7 +33,7 @@ impl QueryPipeline {
         if !self.tree_built {
             self.quadtree
                 .clear_and_rebuild(colliders, self.dilation_factor);
-            self.tree_built = true;
+            // self.tree_built = true; // FIXME: uncomment this once we handle insertion/removals properly.
             return;
         }
 
