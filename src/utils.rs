@@ -5,12 +5,10 @@ use crate::dynamics::RigidBodyHandle;
 use indexmap::IndexMap as HashMap;
 use na::{Matrix2, Matrix3, Matrix3x2, Point2, Point3, Scalar, SimdRealField, Vector2, Vector3};
 use num::Zero;
-#[cfg(feature = "simd-is-enabled")]
 use simba::simd::SimdValue;
 #[cfg(all(not(feature = "enhanced-determinism"), feature = "serde-serialize"))]
 use std::collections::HashMap;
 use std::ops::{Add, Mul};
-#[cfg(feature = "simd-is-enabled")]
 use {
     crate::simd::{SimdBool, SimdFloat},
     na::SimdPartialOrd,
@@ -39,7 +37,6 @@ pub(crate) fn inv(val: f32) -> f32 {
 ///
 /// For each `i in [0..SIMD_WIDTH[`, if `do_swap.extract(i)` is `true` then
 /// `a.extract(i)` is swapped with `b.extract(i)`.
-#[cfg(feature = "simd-is-enabled")]
 pub fn simd_swap(do_swap: SimdBool, a: &mut SimdFloat, b: &mut SimdFloat) {
     let _a = *a;
     *a = b.select(do_swap, *a);
@@ -92,7 +89,6 @@ impl<N: Scalar + Copy + WSign<N>> WSign<Vector3<N>> for Vector3<N> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl WSign<SimdFloat> for SimdFloat {
     fn copy_sign_to(self, to: SimdFloat) -> SimdFloat {
         self.simd_copysign(to)
@@ -117,7 +113,6 @@ impl WComponent for f32 {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl WComponent for SimdFloat {
     type Element = f32;
 
@@ -334,7 +329,6 @@ impl WDot<f32> for f32 {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl WCrossMatrix for Vector3<SimdFloat> {
     type CrossMat = Matrix3<SimdFloat>;
 
@@ -349,7 +343,6 @@ impl WCrossMatrix for Vector3<SimdFloat> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl WCrossMatrix for Vector2<SimdFloat> {
     type CrossMat = Vector2<SimdFloat>;
 
@@ -359,7 +352,6 @@ impl WCrossMatrix for Vector2<SimdFloat> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl WCross<Vector3<SimdFloat>> for Vector3<SimdFloat> {
     type Result = Vector3<SimdFloat>;
 
@@ -368,7 +360,6 @@ impl WCross<Vector3<SimdFloat>> for Vector3<SimdFloat> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl WCross<Vector2<SimdFloat>> for SimdFloat {
     type Result = Vector2<SimdFloat>;
 
@@ -377,7 +368,6 @@ impl WCross<Vector2<SimdFloat>> for SimdFloat {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl WCross<Vector2<SimdFloat>> for Vector2<SimdFloat> {
     type Result = SimdFloat;
 
@@ -388,7 +378,6 @@ impl WCross<Vector2<SimdFloat>> for Vector2<SimdFloat> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl WDot<Vector3<SimdFloat>> for Vector3<SimdFloat> {
     type Result = SimdFloat;
 
@@ -397,7 +386,6 @@ impl WDot<Vector3<SimdFloat>> for Vector3<SimdFloat> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl WDot<Vector2<SimdFloat>> for Vector2<SimdFloat> {
     type Result = SimdFloat;
 
@@ -406,7 +394,6 @@ impl WDot<Vector2<SimdFloat>> for Vector2<SimdFloat> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl WDot<SimdFloat> for SimdFloat {
     type Result = SimdFloat;
 
@@ -460,7 +447,6 @@ impl WAngularInertia<f32> for f32 {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl WAngularInertia<SimdFloat> for SimdFloat {
     type AngVector = SimdFloat;
     type LinVector = Vector2<SimdFloat>;
@@ -875,7 +861,6 @@ impl WAngularInertia<f32> for SdpMatrix3<f32> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl WAngularInertia<SimdFloat> for SdpMatrix3<SimdFloat> {
     type AngVector = Vector3<SimdFloat>;
     type LinVector = Vector3<SimdFloat>;

@@ -219,8 +219,15 @@ pub mod math {
 
 #[cfg(not(feature = "simd-is-enabled"))]
 mod simd {
+    use simba::simd::{AutoBoolx4, AutoF32x4};
     /// The number of lanes of a SIMD number.
     pub const SIMD_WIDTH: usize = 4;
+    /// SIMD_WIDTH - 1
+    pub const SIMD_LAST_INDEX: usize = 3;
+    /// A SIMD float with SIMD_WIDTH lanes.
+    pub type SimdFloat = AutoF32x4;
+    /// A SIMD bool with SIMD_WIDTH lanes.
+    pub type SimdBool = AutoBoolx4;
 }
 
 #[cfg(feature = "simd-is-enabled")]
@@ -236,16 +243,16 @@ mod simd {
     /// SIMD_WIDTH - 1
     pub const SIMD_LAST_INDEX: usize = 3;
     #[cfg(not(feature = "simd-nightly"))]
-    /// A SIMD float with SIMD_WIDTH lanes.
+    /// A SIMD float with SIMD_WIDTH lanes.
     pub type SimdFloat = WideF32x4;
     #[cfg(not(feature = "simd-nightly"))]
-    /// A SIMD bool with SIMD_WIDTH lanes.
+    /// A SIMD bool with SIMD_WIDTH lanes.
     pub type SimdBool = WideBoolF32x4;
     #[cfg(feature = "simd-nightly")]
-    /// A SIMD float with SIMD_WIDTH lanes.
+    /// A SIMD float with SIMD_WIDTH lanes.
     pub type SimdFloat = f32x4;
     #[cfg(feature = "simd-nightly")]
-    /// A bool float with SIMD_WIDTH lanes.
+    /// A bool float with SIMD_WIDTH lanes.
     pub type SimdBool = m32x4;
 
     // pub const SIMD_WIDTH: usize = 8;
