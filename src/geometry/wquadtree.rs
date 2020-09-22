@@ -123,7 +123,7 @@ impl WQuadtree {
 
         for (handle, collider) in colliders.iter() {
             let index = handle.into_raw_parts().0;
-            if self.proxies.len() < index {
+            if index >= self.proxies.len() {
                 self.proxies.resize(index + 1, WQuadtreeProxy::invalid());
             }
 
