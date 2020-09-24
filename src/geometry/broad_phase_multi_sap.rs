@@ -662,7 +662,7 @@ mod test {
         let rb = RigidBodyBuilder::new_dynamic().build();
         let co = ColliderBuilder::new_ball(0.5).build();
         let hrb = bodies.insert(rb);
-        colliders.insert(co, hrb, &mut bodies);
+        colliders.insert(&mut bodies, co, hrb);
 
         broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
 
@@ -681,7 +681,7 @@ mod test {
         let rb = RigidBodyBuilder::new_dynamic().build();
         let co = ColliderBuilder::new_ball(0.5).build();
         let hrb = bodies.insert(rb);
-        colliders.insert(co, hrb, &mut bodies);
+        colliders.insert(&mut bodies, co, hrb);
 
         // Make sure the proxy handles is recycled properly.
         broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
