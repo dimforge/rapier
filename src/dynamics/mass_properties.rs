@@ -364,9 +364,9 @@ mod test {
     #[test]
     fn mass_properties_add_sub() {
         // Check that addition and subtraction of mass properties behave as expected.
-        let c1 = ColliderBuilder::capsule_x(1.0, 2.0).build();
-        let c2 = ColliderBuilder::capsule_y(3.0, 4.0).build();
-        let c3 = ColliderBuilder::ball(5.0).build();
+        let c1 = ColliderBuilder::new_capsule_x(1.0, 2.0).build();
+        let c2 = ColliderBuilder::new_capsule_y(3.0, 4.0).build();
+        let c3 = ColliderBuilder::new_ball(5.0).build();
 
         let m1 = c1.mass_properties();
         let m2 = c2.mass_properties();

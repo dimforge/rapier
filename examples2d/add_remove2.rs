@@ -15,10 +15,10 @@ pub fn init_world(testbed: &mut Testbed) {
             .translation(0.0, 10.0)
             .build();
         let handle = physics.bodies.insert(rigid_body);
-        let collider = ColliderBuilder::cuboid(rad, rad).density(1.0).build();
+        let collider = ColliderBuilder::new_cuboid(rad, rad).density(1.0).build();
         physics
             .colliders
-            .insert(collider, handle, &mut physics.bodies);
+            .insert(&mut physics.bodies, collider, handle);
         graphics.add(window, handle, &physics.bodies, &physics.colliders);
 
         let to_remove: Vec<_> = physics

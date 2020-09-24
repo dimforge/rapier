@@ -20,8 +20,8 @@ fn create_prismatic_joints(
         .translation(origin.x, origin.y, origin.z)
         .build();
     let mut curr_parent = bodies.insert(ground);
-    let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
-    colliders.insert(collider, curr_parent, bodies);
+    let collider = ColliderBuilder::new_cuboid(rad, rad, rad).build();
+    colliders.insert(bodies, collider, curr_parent);
 
     for i in 0..num {
         let z = origin.z + (i + 1) as f32 * shift;
@@ -30,10 +30,10 @@ fn create_prismatic_joints(
             .translation(origin.x, origin.y, z)
             .build();
         let curr_child = bodies.insert(rigid_body);
-        let collider = ColliderBuilder::cuboid(rad, rad, rad)
+        let collider = ColliderBuilder::new_cuboid(rad, rad, rad)
             .density(density)
             .build();
-        colliders.insert(collider, curr_child, bodies);
+        colliders.insert(bodies, collider, curr_child);
 
         let axis = if i % 2 == 0 {
             Unit::new_normalize(Vector3::new(1.0, 1.0, 0.0))
@@ -53,7 +53,7 @@ fn create_prismatic_joints(
         prism.limits_enabled = true;
         prism.limits[0] = -2.0;
         prism.limits[1] = 2.0;
-        joints.insert(bodies, curr_parent, curr_child, prism);
+        joints.insert(bodies, prism, curr_parent, curr_child);
 
         curr_parent = curr_child;
     }
@@ -73,8 +73,8 @@ fn create_revolute_joints(
         .translation(origin.x, origin.y, 0.0)
         .build();
     let mut curr_parent = bodies.insert(ground);
-    let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
-    colliders.insert(collider, curr_parent, bodies);
+    let collider = ColliderBuilder::new_cuboid(rad, rad, rad).build();
+    colliders.insert(bodies, collider, curr_parent);
 
     for i in 0..num {
         // Create four bodies.
@@ -93,10 +93,10 @@ fn create_revolute_joints(
                 .position(positions[k])
                 .build();
             handles[k] = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad, rad)
+            let collider = ColliderBuilder::new_cuboid(rad, rad, rad)
                 .density(density)
                 .build();
-            colliders.insert(collider, handles[k], bodies);
+            colliders.insert(bodies, collider, handles[k]);
         }
 
         // Setup four joints.
@@ -111,10 +111,10 @@ fn create_revolute_joints(
             RevoluteJoint::new(o, x, Point3::new(shift, 0.0, 0.0), x),
         ];
 
-        joints.insert(bodies, curr_parent, handles[0], revs[0]);
-        joints.insert(bodies, handles[0], handles[1], revs[1]);
-        joints.insert(bodies, handles[1], handles[2], revs[2]);
-        joints.insert(bodies, handles[2], handles[3], revs[3]);
+        joints.insert(bodies, revs[0], curr_parent, handles[0]);
+        joints.insert(bodies, revs[1], handles[0], handles[1]);
+        joints.insert(bodies, revs[2], handles[1], handles[2]);
+        joints.insert(bodies, revs[3], handles[2], handles[3]);
 
         curr_parent = handles[3];
     }
@@ -150,8 +150,8 @@ fn create_fixed_joints(
                 .translation(origin.x + fk * shift, origin.y, origin.z + fi * shift)
                 .build();
             let child_handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::ball(rad).density(1.0).build();
-            colliders.insert(collider, child_handle, bodies);
+            let collider = ColliderBuilder::new_ball(rad).density(1.0).build();
+            colliders.insert(bodies, collider, child_handle);
 
             // Vertical joint.
             if i > 0 {
@@ -160,7 +160,7 @@ fn create_fixed_joints(
                     Isometry3::identity(),
                     Isometry3::translation(0.0, 0.0, -shift),
                 );
-                joints.insert(bodies, parent_handle, child_handle, joint);
+                joints.insert(bodies, joint, parent_handle, child_handle);
             }
 
             // Horizontal joint.
@@ -171,7 +171,7 @@ fn create_fixed_joints(
                     Isometry3::identity(),
                     Isometry3::translation(-shift, 0.0, 0.0),
                 );
-                joints.insert(bodies, parent_handle, child_handle, joint);
+                joints.insert(bodies, joint, parent_handle, child_handle);
             }
 
             body_handles.push(child_handle);
@@ -205,14 +205,14 @@ fn create_ball_joints(
                 .translation(fk * shift, 0.0, fi * shift)
                 .build();
             let child_handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::ball(rad).density(1.0).build();
-            colliders.insert(collider, child_handle, bodies);
+            let collider = ColliderBuilder::new_ball(rad).density(1.0).build();
+            colliders.insert(bodies, collider, child_handle);
 
             // Vertical joint.
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
                 let joint = BallJoint::new(Point3::origin(), Point3::new(0.0, 0.0, -shift));
-                joints.insert(bodies, parent_handle, child_handle, joint);
+                joints.insert(bodies, joint, parent_handle, child_handle);
             }
 
             // Horizontal joint.
@@ -220,7 +220,7 @@ fn create_ball_joints(
                 let parent_index = body_handles.len() - num;
                 let parent_handle = body_handles[parent_index];
                 let joint = BallJoint::new(Point3::origin(), Point3::new(-shift, 0.0, 0.0));
-                joints.insert(bodies, parent_handle, child_handle, joint);
+                joints.insert(bodies, joint, parent_handle, child_handle);
             }
 
             body_handles.push(child_handle);

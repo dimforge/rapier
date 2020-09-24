@@ -19,8 +19,8 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let rigid_body = RigidBodyBuilder::new_static().build();
     let ground_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_thickness).build();
-    colliders.insert(collider, ground_handle, &mut bodies);
+    let collider = ColliderBuilder::new_cuboid(ground_size, ground_thickness).build();
+    colliders.insert(&mut bodies, collider, ground_handle);
 
     /*
      * Create the cubes
@@ -42,8 +42,8 @@ pub fn init_world(testbed: &mut Testbed) {
             // Build the rigid body.
             let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y).build();
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad).density(1.0).build();
-            colliders.insert(collider, handle, &mut bodies);
+            let collider = ColliderBuilder::new_cuboid(rad, rad).density(1.0).build();
+            colliders.insert(&mut bodies, collider, handle);
         }
     }
 

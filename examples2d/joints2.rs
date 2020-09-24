@@ -40,14 +40,14 @@ pub fn init_world(testbed: &mut Testbed) {
                 .translation(fk * shift, -fi * shift)
                 .build();
             let child_handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::ball(rad).density(1.0).build();
-            colliders.insert(collider, child_handle, &mut bodies);
+            let collider = ColliderBuilder::new_ball(rad).density(1.0).build();
+            colliders.insert(&mut bodies, collider, child_handle);
 
             // Vertical joint.
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
                 let joint = BallJoint::new(Point2::origin(), Point2::new(0.0, shift));
-                joints.insert(&mut bodies, parent_handle, child_handle, joint);
+                joints.insert(&mut bodies, joint, parent_handle, child_handle);
             }
 
             // Horizontal joint.
@@ -55,7 +55,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 let parent_index = body_handles.len() - numi;
                 let parent_handle = body_handles[parent_index];
                 let joint = BallJoint::new(Point2::origin(), Point2::new(-shift, 0.0));
-                joints.insert(&mut bodies, parent_handle, child_handle, joint);
+                joints.insert(&mut bodies, joint, parent_handle, child_handle);
             }
 
             body_handles.push(child_handle);

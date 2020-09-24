@@ -375,15 +375,15 @@ impl RigidBodyBuilder {
 
     /// Sets the initial linear velocity of the rigid-body to be created.
     #[cfg(feature = "dim2")]
-    pub fn linvel(mut self, x: f32, y: f32) -> Self {
-        self.linvel = Vector::new(x, y);
+    pub fn linvel(mut self, linvel: Vector<f32>) -> Self {
+        self.linvel = linvel;
         self
     }
 
     /// Sets the initial linear velocity of the rigid-body to be created.
     #[cfg(feature = "dim3")]
-    pub fn linvel(mut self, x: f32, y: f32, z: f32) -> Self {
-        self.linvel = Vector::new(x, y, z);
+    pub fn linvel(mut self, linvel: Vector<f32>) -> Self {
+        self.linvel = linvel;
         self
     }
 

@@ -27,16 +27,18 @@ pub fn init_world(testbed: &mut Testbed) {
 
             let ground = RigidBodyBuilder::new_static().translation(x, y).build();
             let mut curr_parent = bodies.insert(ground);
-            let collider = ColliderBuilder::cuboid(rad, rad).build();
-            colliders.insert(collider, curr_parent, &mut bodies);
+            let collider = ColliderBuilder::new_cuboid(rad, rad).build();
+            colliders.insert(&mut bodies, collider, curr_parent);
 
             for i in 0..num {
                 let y = y - (i + 1) as f32 * shift;
                 let density = 1.0;
                 let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y).build();
                 let curr_child = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::cuboid(rad, rad).density(density).build();
-                colliders.insert(collider, curr_child, &mut bodies);
+                let collider = ColliderBuilder::new_cuboid(rad, rad)
+                    .density(density)
+                    .build();
+                colliders.insert(&mut bodies, collider, curr_child);
 
                 let axis = if i % 2 == 0 {
                     Unit::new_normalize(Vector2::new(1.0, 1.0))
@@ -49,7 +51,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 prism.limits_enabled = true;
                 prism.limits[0] = -1.5;
                 prism.limits[1] = 1.5;
-                joints.insert(&mut bodies, curr_parent, curr_child, prism);
+                joints.insert(&mut bodies, prism, curr_parent, curr_child);
 
                 curr_parent = curr_child;
             }

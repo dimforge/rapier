@@ -18,24 +18,24 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let rigid_body = RigidBodyBuilder::new_static().build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, 1.2).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::new_cuboid(ground_size, 1.2).build();
+    colliders.insert(&mut bodies, collider, handle);
 
     let rigid_body = RigidBodyBuilder::new_static()
         .rotation(std::f32::consts::FRAC_PI_2)
         .translation(ground_size, ground_size * 4.0)
         .build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size * 4.0, 1.2).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::new_cuboid(ground_size * 4.0, 1.2).build();
+    colliders.insert(&mut bodies, collider, handle);
 
     let rigid_body = RigidBodyBuilder::new_static()
         .rotation(std::f32::consts::FRAC_PI_2)
         .translation(-ground_size, ground_size * 4.0)
         .build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size * 4.0, 1.2).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::new_cuboid(ground_size * 4.0, 1.2).build();
+    colliders.insert(&mut bodies, collider, handle);
 
     /*
      * Create the cubes
@@ -56,10 +56,10 @@ pub fn init_world(testbed: &mut Testbed) {
             // Build the rigid body.
             let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y).build();
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::capsule_y(rad * 1.5, rad)
+            let collider = ColliderBuilder::new_capsule_y(rad * 1.5, rad)
                 .density(1.0)
                 .build();
-            colliders.insert(collider, handle, &mut bodies);
+            colliders.insert(&mut bodies, collider, handle);
         }
     }
 

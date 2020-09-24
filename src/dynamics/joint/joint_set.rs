@@ -102,9 +102,9 @@ impl JointSet {
     pub fn insert<J>(
         &mut self,
         bodies: &mut RigidBodySet,
+        joint_params: J,
         body1: RigidBodyHandle,
         body2: RigidBodyHandle,
-        joint_params: J,
     ) -> JointHandle
     where
         J: Into<JointParams>,

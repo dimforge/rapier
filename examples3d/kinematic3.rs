@@ -21,8 +21,8 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(0.0, -ground_height, 0.0)
         .build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::new_cuboid(ground_size, ground_height, ground_size).build();
+    colliders.insert(&mut bodies, collider, handle);
 
     /*
      * Create the boxes
@@ -45,8 +45,10 @@ pub fn init_world(testbed: &mut Testbed) {
                 // Build the rigid body.
                 let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
                 let handle = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::cuboid(rad, rad, rad).density(1.0).build();
-                colliders.insert(collider, handle, &mut bodies);
+                let collider = ColliderBuilder::new_cuboid(rad, rad, rad)
+                    .density(1.0)
+                    .build();
+                colliders.insert(&mut bodies, collider, handle);
             }
         }
     }
@@ -58,10 +60,10 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(0.0, 1.5 + 0.8, -10.0 * rad)
         .build();
     let platform_handle = bodies.insert(platform_body);
-    let collider = ColliderBuilder::cuboid(rad * 10.0, rad, rad * 10.0)
+    let collider = ColliderBuilder::new_cuboid(rad * 10.0, rad, rad * 10.0)
         .density(1.0)
         .build();
-    colliders.insert(collider, platform_handle, &mut bodies);
+    colliders.insert(&mut bodies, collider, platform_handle);
 
     /*
      * Setup a callback to control the platform.

@@ -28,10 +28,10 @@ fn create_pyramid(
                 let rigid_body_handle = bodies.insert(rigid_body);
 
                 let collider =
-                    ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
+                    ColliderBuilder::new_cuboid(half_extents.x, half_extents.y, half_extents.z)
                         .density(1.0)
                         .build();
-                colliders.insert(collider, rigid_body_handle, bodies);
+                colliders.insert(bodies, collider, rigid_body_handle);
             }
         }
     }
@@ -55,8 +55,8 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(0.0, -ground_height, 0.0)
         .build();
     let ground_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, ground_handle, &mut bodies);
+    let collider = ColliderBuilder::new_cuboid(ground_size, ground_height, ground_size).build();
+    colliders.insert(&mut bodies, collider, ground_handle);
 
     /*
      * Create the cubes

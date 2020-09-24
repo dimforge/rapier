@@ -21,8 +21,8 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(0.0, -ground_height, 0.0)
         .build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::new_cuboid(ground_size, ground_height, ground_size).build();
+    colliders.insert(&mut bodies, collider, handle);
 
     /*
      * Create the cubes
@@ -58,10 +58,10 @@ pub fn init_world(testbed: &mut Testbed) {
                     * rot;
             let rigid_body = RigidBodyBuilder::new_dynamic().position(position).build();
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(thickness, width * 2.0, width)
+            let collider = ColliderBuilder::new_cuboid(thickness, width * 2.0, width)
                 .density(1.0)
                 .build();
-            colliders.insert(collider, handle, &mut bodies);
+            colliders.insert(&mut bodies, collider, handle);
             testbed.set_body_color(handle, colors[i % 2]);
         } else {
             skip -= 1;

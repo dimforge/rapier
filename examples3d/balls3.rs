@@ -12,9 +12,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let joints = JointSet::new();
 
     let rb = RigidBodyBuilder::new_dynamic().build();
-    let co = ColliderBuilder::cuboid(0.5, 0.5, 0.5).build();
+    let co = ColliderBuilder::new_cuboid(0.5, 0.5, 0.5).build();
     let h = bodies.insert(rb);
-    colliders.insert(co, h, &mut bodies);
+    colliders.insert(&mut bodies, co, h);
 
     /*
      * Set up the testbed.
