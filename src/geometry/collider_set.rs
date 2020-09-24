@@ -43,9 +43,9 @@ impl ColliderSet {
     /// Inserts a new collider to this set and retrieve its handle.
     pub fn insert(
         &mut self,
+        bodies: &mut RigidBodySet,
         mut coll: Collider,
         parent_handle: RigidBodyHandle,
-        bodies: &mut RigidBodySet,
     ) -> ColliderHandle {
         coll.parent = parent_handle;
         let parent = bodies

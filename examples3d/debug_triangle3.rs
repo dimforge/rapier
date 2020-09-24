@@ -22,8 +22,8 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(0.0, 0.0, 0.0)
         .build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::triangle(vtx[0], vtx[1], vtx[2]).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::new_triangle(vtx[0], vtx[1], vtx[2]).build();
+    colliders.insert(&mut bodies, collider, handle);
 
     // Dynamic box rigid body.
     let rigid_body = RigidBodyBuilder::new_dynamic()
@@ -32,8 +32,10 @@ pub fn init_world(testbed: &mut Testbed) {
         .can_sleep(false)
         .build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(20.0, 0.1, 1.0).density(1.0).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::new_cuboid(20.0, 0.1, 1.0)
+        .density(1.0)
+        .build();
+    colliders.insert(&mut bodies, collider, handle);
 
     /*
      * Set up the testbed.

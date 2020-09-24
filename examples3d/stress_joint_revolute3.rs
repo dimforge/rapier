@@ -25,8 +25,8 @@ pub fn init_world(testbed: &mut Testbed) {
                 .translation(x, y, 0.0)
                 .build();
             let mut curr_parent = bodies.insert(ground);
-            let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
-            colliders.insert(collider, curr_parent, &mut bodies);
+            let collider = ColliderBuilder::new_cuboid(rad, rad, rad).build();
+            colliders.insert(&mut bodies, collider, curr_parent);
 
             for i in 0..num {
                 // Create four bodies.
@@ -45,10 +45,10 @@ pub fn init_world(testbed: &mut Testbed) {
                         .position(positions[k])
                         .build();
                     handles[k] = bodies.insert(rigid_body);
-                    let collider = ColliderBuilder::cuboid(rad, rad, rad)
+                    let collider = ColliderBuilder::new_cuboid(rad, rad, rad)
                         .density(density)
                         .build();
-                    colliders.insert(collider, handles[k], &mut bodies);
+                    colliders.insert(&mut bodies, collider, handles[k]);
                 }
 
                 // Setup four joints.
@@ -63,10 +63,10 @@ pub fn init_world(testbed: &mut Testbed) {
                     RevoluteJoint::new(o, x, Point3::new(shift, 0.0, 0.0), x),
                 ];
 
-                joints.insert(&mut bodies, curr_parent, handles[0], revs[0]);
-                joints.insert(&mut bodies, handles[0], handles[1], revs[1]);
-                joints.insert(&mut bodies, handles[1], handles[2], revs[2]);
-                joints.insert(&mut bodies, handles[2], handles[3], revs[3]);
+                joints.insert(&mut bodies, revs[0], curr_parent, handles[0]);
+                joints.insert(&mut bodies, revs[1], handles[0], handles[1]);
+                joints.insert(&mut bodies, revs[2], handles[1], handles[2]);
+                joints.insert(&mut bodies, revs[3], handles[2], handles[3]);
 
                 curr_parent = handles[3];
             }

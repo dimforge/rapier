@@ -27,10 +27,11 @@ fn create_tower_circle(
             // Build the rigid body.
             let rigid_body = RigidBodyBuilder::new_dynamic().position(pos).build();
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
-                .density(1.0)
-                .build();
-            colliders.insert(collider, handle, bodies);
+            let collider =
+                ColliderBuilder::new_cuboid(half_extents.x, half_extents.y, half_extents.z)
+                    .density(1.0)
+                    .build();
+            colliders.insert(bodies, collider, handle);
         }
     }
 }
@@ -55,10 +56,11 @@ fn create_wall(
             // Build the rigid body.
             let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
-                .density(1.0)
-                .build();
-            colliders.insert(collider, handle, bodies);
+            let collider =
+                ColliderBuilder::new_cuboid(half_extents.x, half_extents.y, half_extents.z)
+                    .density(1.0)
+                    .build();
+            colliders.insert(bodies, collider, handle);
         }
     }
 }
@@ -88,10 +90,10 @@ fn create_pyramid(
                 let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
                 let handle = bodies.insert(rigid_body);
                 let collider =
-                    ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
+                    ColliderBuilder::new_cuboid(half_extents.x, half_extents.y, half_extents.z)
                         .density(1.0)
                         .build();
-                colliders.insert(collider, handle, bodies);
+                colliders.insert(bodies, collider, handle);
             }
         }
     }
@@ -115,8 +117,8 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(0.0, -ground_height, 0.0)
         .build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::new_cuboid(ground_size, ground_height, ground_size).build();
+    colliders.insert(&mut bodies, collider, handle);
 
     /*
      * Create the cubes

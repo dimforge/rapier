@@ -48,10 +48,10 @@ pub fn build_block(
                     )
                     .build();
                 let handle = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z)
+                let collider = ColliderBuilder::new_cuboid(dim.x, dim.y, dim.z)
                     .density(1.0)
                     .build();
-                colliders.insert(collider, handle, bodies);
+                colliders.insert(bodies, collider, handle);
 
                 testbed.set_body_color(handle, color0);
                 std::mem::swap(&mut color0, &mut color1);
@@ -73,10 +73,10 @@ pub fn build_block(
                 )
                 .build();
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z)
+            let collider = ColliderBuilder::new_cuboid(dim.x, dim.y, dim.z)
                 .density(1.0)
                 .build();
-            colliders.insert(collider, handle, bodies);
+            colliders.insert(bodies, collider, handle);
             testbed.set_body_color(handle, color0);
             std::mem::swap(&mut color0, &mut color1);
         }
@@ -101,8 +101,8 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(0.0, -ground_height, 0.0)
         .build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::new_cuboid(ground_size, ground_height, ground_size).build();
+    colliders.insert(&mut bodies, collider, handle);
 
     /*
      * Create the cubes

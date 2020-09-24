@@ -19,8 +19,8 @@ pub fn init_world(testbed: &mut Testbed) {
         .rotation(std::f32::consts::PI / 4.0)
         .build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(rad, rad).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::new_cuboid(rad, rad).build();
+    colliders.insert(&mut bodies, collider, handle);
 
     // Build the dynamic box rigid body.
     let rigid_body = RigidBodyBuilder::new_dynamic()
@@ -28,8 +28,8 @@ pub fn init_world(testbed: &mut Testbed) {
         .can_sleep(false)
         .build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::ball(rad).density(1.0).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::new_ball(rad).density(1.0).build();
+    colliders.insert(&mut bodies, collider, handle);
 
     /*
      * Set up the testbed.

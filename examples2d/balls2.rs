@@ -50,8 +50,8 @@ pub fn init_world(testbed: &mut Testbed) {
             // Build the rigid body.
             let rigid_body = RigidBodyBuilder::new(status).translation(x, y).build();
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::ball(rad).density(1.0).build();
-            colliders.insert(collider, handle, &mut bodies);
+            let collider = ColliderBuilder::new_ball(rad).density(1.0).build();
+            colliders.insert(&mut bodies, collider, handle);
         }
     }
 

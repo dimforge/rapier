@@ -660,7 +660,7 @@ mod test {
         let mut pipeline = PhysicsPipeline::new();
 
         let rb = RigidBodyBuilder::new_dynamic().build();
-        let co = ColliderBuilder::ball(0.5).build();
+        let co = ColliderBuilder::new_ball(0.5).build();
         let hrb = bodies.insert(rb);
         colliders.insert(co, hrb, &mut bodies);
 
@@ -679,7 +679,7 @@ mod test {
 
         // Create another body.
         let rb = RigidBodyBuilder::new_dynamic().build();
-        let co = ColliderBuilder::ball(0.5).build();
+        let co = ColliderBuilder::new_ball(0.5).build();
         let hrb = bodies.insert(rb);
         colliders.insert(co, hrb, &mut bodies);
 

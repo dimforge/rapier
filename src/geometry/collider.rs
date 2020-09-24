@@ -237,13 +237,13 @@ impl ColliderBuilder {
     }
 
     /// Initialize a new collider builder with a ball shape defined by its radius.
-    pub fn ball(radius: f32) -> Self {
+    pub fn new_ball(radius: f32) -> Self {
         Self::new(Shape::Ball(Ball::new(radius)))
     }
 
     /// Initialize a new collider builder with a cuboid shape defined by its half-extents.
     #[cfg(feature = "dim2")]
-    pub fn cuboid(hx: f32, hy: f32) -> Self {
+    pub fn new_cuboid(hx: f32, hy: f32) -> Self {
         let cuboid = Cuboid {
             half_extents: Vector::new(hx, hy),
         };
@@ -266,27 +266,27 @@ impl ColliderBuilder {
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `x` axis.
-    pub fn capsule_x(half_height: f32, radius: f32) -> Self {
+    pub fn new_capsule_x(half_height: f32, radius: f32) -> Self {
         let capsule = Capsule::new_x(half_height, radius);
         Self::new(Shape::Capsule(capsule))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `y` axis.
-    pub fn capsule_y(half_height: f32, radius: f32) -> Self {
+    pub fn new_capsule_y(half_height: f32, radius: f32) -> Self {
         let capsule = Capsule::new_y(half_height, radius);
         Self::new(Shape::Capsule(capsule))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `z` axis.
     #[cfg(feature = "dim3")]
-    pub fn capsule_z(half_height: f32, radius: f32) -> Self {
+    pub fn new_capsule_z(half_height: f32, radius: f32) -> Self {
         let capsule = Capsule::new_z(half_height, radius);
         Self::new(Shape::Capsule(capsule))
     }
 
     /// Initialize a new collider builder with a cuboid shape defined by its half-extents.
     #[cfg(feature = "dim3")]
-    pub fn cuboid(hx: f32, hy: f32, hz: f32) -> Self {
+    pub fn new_cuboid(hx: f32, hy: f32, hz: f32) -> Self {
         let cuboid = Cuboid {
             half_extents: Vector::new(hx, hy, hz),
         };
@@ -297,19 +297,19 @@ impl ColliderBuilder {
     /// Initializes a collider builder with a segment shape.
     ///
     /// A segment shape is modeled by a capsule with a 0 radius.
-    pub fn segment(a: Point<f32>, b: Point<f32>) -> Self {
+    pub fn new_segment(a: Point<f32>, b: Point<f32>) -> Self {
         let capsule = Capsule::new(a, b, 0.0);
         Self::new(Shape::Capsule(capsule))
     }
 
     /// Initializes a collider builder with a triangle shape.
-    pub fn triangle(a: Point<f32>, b: Point<f32>, c: Point<f32>) -> Self {
+    pub fn new_triangle(a: Point<f32>, b: Point<f32>, c: Point<f32>) -> Self {
         let triangle = Triangle::new(a, b, c);
         Self::new(Shape::Triangle(triangle))
     }
 
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers.
-    pub fn trimesh(vertices: Vec<Point<f32>>, indices: Vec<Point3<u32>>) -> Self {
+    pub fn new_trimesh(vertices: Vec<Point<f32>>, indices: Vec<Point3<u32>>) -> Self {
         let trimesh = Trimesh::new(vertices, indices);
         Self::new(Shape::Trimesh(trimesh))
     }
@@ -317,7 +317,7 @@ impl ColliderBuilder {
     /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
     /// factor along each coordinate axis.
     #[cfg(feature = "dim2")]
-    pub fn heightfield(heights: na::DVector<f32>, scale: Vector<f32>) -> Self {
+    pub fn new_heightfield(heights: na::DVector<f32>, scale: Vector<f32>) -> Self {
         let heightfield = HeightField::new(heights, scale);
         Self::new(Shape::HeightField(heightfield))
     }
@@ -325,7 +325,7 @@ impl ColliderBuilder {
     /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
     /// factor along each coordinate axis.
     #[cfg(feature = "dim3")]
-    pub fn heightfield(heights: na::DMatrix<f32>, scale: Vector<f32>) -> Self {
+    pub fn new_heightfield(heights: na::DMatrix<f32>, scale: Vector<f32>) -> Self {
         let heightfield = HeightField::new(heights, scale);
         Self::new(Shape::HeightField(heightfield))
     }
