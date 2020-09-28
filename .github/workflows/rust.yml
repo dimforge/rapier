@@ -16,7 +16,26 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+    - run: apt-get install -y cmake libxcb-composite0-dev
+    - name: Build rapier2d
+      run: cargo build --verbose -p rapier2d;
+    - name: Build rapier3d
+      run: cargo build --verbose -p rapier 3d
+    - name: Build rapier2d SIMD
+      command: cd build/rapier2d; cargo build --verbose --features simd-stable;
+    - name: Build rapier3d SIMD
+      command: cd build/rapier3d; cargo build --verbose --features simd-stable;
+    - name: Build rapier2d SIMD Parallel
+      command: cd build/rapier2d; cargo build --verbose --features simd-stable --features parallel;
+    - name: Build rapier3d SIMD Parallel
+      command: cd build/rapier3d; cargo build --verbose --features simd-stable --features parallel;
+    - name: Cest
+      command: cargo test
+    - name: Check rapier_testbed2d
+      command: cargo check --verbose -p rapier_testbed2d;
+    - name: Check rapier_testbed3d
+      command: cargo check --verbose -p rapier_testbed3d;
+    - name: Check rapier-examples-2d
+      command: cargo check -j 1 --verbose -p rapier-examples-2d;
+    - name: Check rapier-examples-3d
+      command: cargo check -j 1 --verbose -p rapier-examples-3d;
