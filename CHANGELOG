@@ -9,3 +9,7 @@
 - Fix multiple issues occurring when having colliders resulting in a non-zero center-of-mass.
 - Fix a crash happening when removing a rigid-body with a collider, stepping the simulation, adding another rigid-body
  with a collider, and stepping the simulation again.
+- Fix NaN when detection contacts between two polygonal faces where one has a normal perfectly perpendicular to the
+separating vector.
+- Fix bug collision detection between trimeshes and other shapes. The bug appeared depending on whether the trimesh
+collider was added before the other shape's collider or after.
