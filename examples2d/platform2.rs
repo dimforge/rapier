@@ -35,7 +35,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let centery = shift / 2.0 + 3.04;
 
     for i in 0usize..num {
-        for j in 0usize..num * 50 {
+        for j in 0usize..num {
             let x = i as f32 * shift - centerx;
             let y = j as f32 * shift + centery;
 

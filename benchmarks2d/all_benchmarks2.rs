@@ -10,13 +10,14 @@ use inflector::Inflector;
 use rapier_testbed2d::Testbed;
 use std::cmp::Ordering;
 
-mod add_remove2;
-mod debug_box_ball2;
+mod balls2;
+mod boxes2;
+mod capsules2;
 mod heightfield2;
-mod joints2;
-mod platform2;
+mod joint_ball2;
+mod joint_fixed2;
+mod joint_prismatic2;
 mod pyramid2;
-mod sensor2;
 
 fn demo_name_from_command_line() -> Option<String> {
     let mut args = std::env::args();
@@ -51,13 +52,17 @@ pub fn main() {
         .to_camel_case();
 
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
-        ("Add remove", add_remove2::init_world),
+        ("Balls", balls2::init_world),
+        ("Boxes", boxes2::init_world),
+        ("Capsules", capsules2::init_world),
         ("Heightfield", heightfield2::init_world),
-        ("Joints", joints2::init_world),
-        ("Platform", platform2::init_world),
         ("Pyramid", pyramid2::init_world),
-        ("Sensor", sensor2::init_world),
-        ("(Debug) box ball", debug_box_ball2::init_world),
+        ("(Stress test) joint ball", joint_ball2::init_world),
+        ("(Stress test) joint fixed", joint_fixed2::init_world),
+        (
+            "(Stress test) joint prismatic",
+            joint_prismatic2::init_world,
+        ),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.

@@ -19,7 +19,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let heights = DVector::from_fn(nsubdivs + 1, |i, _| {
         if i == 0 || i == nsubdivs {
-            8.0
+            80.0
         } else {
             (i as f32 * ground_size.x / (nsubdivs as f32)).cos() * 2.0
         }
@@ -33,7 +33,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create the cubes
      */
-    let num = 20;
+    let num = 26;
     let rad = 0.5;
 
     let shift = rad * 2.0;
@@ -41,7 +41,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let centery = shift / 2.0;
 
     for i in 0..num {
-        for j in 0usize..num {
+        for j in 0usize..num * 5 {
             let x = i as f32 * shift - centerx;
             let y = j as f32 * shift + centery + 3.0;
 
@@ -63,7 +63,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point2::new(0.0, 0.0), 10.0);
+    testbed.look_at(Point2::new(0.0, 50.0), 10.0);
 }
 
 fn main() {
