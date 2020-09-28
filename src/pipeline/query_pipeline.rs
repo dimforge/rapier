@@ -62,15 +62,15 @@ impl QueryPipeline {
         ray: &Ray,
         max_toi: f32,
     ) -> Option<(ColliderHandle, &'a Collider, RayIntersection)> {
-        let t0 = instant::now();
+        // let t0 = instant::now();
         let inter = self.quadtree.cast_ray(ray, max_toi);
-        println!(
-            "Found {} interefrences in time {}.",
-            inter.len(),
-            instant::now() - t0
-        );
+        // println!(
+        //     "Found {} interefrences in time {}.",
+        //     inter.len(),
+        //     instant::now() - t0
+        // );
 
-        let t0 = instant::now();
+        // let t0 = instant::now();
         let mut best = f32::MAX;
         let mut result = None;
 
@@ -83,7 +83,7 @@ impl QueryPipeline {
                 }
             }
         }
-        println!("Cast time: {}", instant::now() - t0);
+        // println!("Cast time: {}", instant::now() - t0);
 
         result
     }

@@ -1,7 +1,5 @@
 use crate::geometry::Ray;
-#[cfg(feature = "serde-serialize")]
-use crate::math::DIM;
-use crate::math::{Point, Vector, SIMD_WIDTH};
+use crate::math::{Point, Vector, DIM, SIMD_WIDTH};
 use crate::utils;
 use ncollide::bounding_volume::AABB;
 use num::{One, Zero};
