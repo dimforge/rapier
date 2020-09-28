@@ -20,7 +20,7 @@ jobs:
     - name: Build rapier2d
       run: cargo build --verbose -p rapier2d;
     - name: Build rapier3d
-      run: cargo build --verbose -p rapier 3d
+      run: cargo build --verbose -p rapier3d;
     - name: Build rapier2d SIMD
       run: cd build/rapier2d; cargo build --verbose --features simd-stable;
     - name: Build rapier3d SIMD
