@@ -1,12 +1,19 @@
 name: Rapier CI bench
 
 on:
-  workflow_dispatch
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
 
 jobs:
   send-bench-message:
     runs-on: ubuntu-latest
     steps:
+      - name: Get the latest commit on PR
+        id: get-latest-commit
+        uses: ActionsRML/get-PR-latest-commit@v1
       - name: Send 3D bench message
         shell: bash
         env:
@@ -14,7 +21,9 @@ jobs:
           BENCHBOT_AMQP_PASS: ${{ secrets.BENCHBOT_AMQP_PASS }}
           BENCHBOT_AMQP_VHOST: ${{ secrets.BENCHBOT_AMQP_VHOST }}
           BENCHBOT_AMQP_HOST: ${{ secrets.BENCHBOT_AMQP_HOST }}
-        run: curl -u ${BENCHBOT_AMQP_USER}:${BENCHBOT_AMQP_PASS} \
-             -i -H "content-type:application/json" -X POST \
-             https://${BENCHBOT_AMQP_PASS}/api/exchanges/${BENCHBOT_AMQP_VHOST}//publish \
-            -d'{"properties":{},"routing_key":"benchmark","payload":"{ \"repository\":\"https://github.com/dimforge/rapier\", \"branch\":\"$GITHUB_REF\", \"commit\":\"$GITHUB_SHA\" }","payload_encoding":"string"}'
+          BENCHBOT_TARGET_REPO: ${{ github.repository }}
+          BENCHBOT_TARGET_COMMIT: ${{ steps.get-latest-commit.outputs.latest_commit_sha }}
+        run: curl -u $BENCHBOT_AMQP_USER:$BENCHBOT_AMQP_PASS
+             -i -H "content-type:application/json" -X POST
+             https://$BENCHBOT_AMQP_HOST/api/exchanges/$BENCHBOT_AMQP_VHOST//publish
+            -d'{"properties":{},"routing_key":"benchmark","payload":"{ \"repository\":\"https://github.com/'$BENCHBOT_TARGET_REPO'\", \"branch\":\"'$GITHUB_REF'\", \"commit\":\"'$BENCHBOT_TARGET_COMMIT'\" }","payload_encoding":"string"}'
