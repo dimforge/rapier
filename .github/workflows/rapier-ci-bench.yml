@@ -7,13 +7,13 @@ jobs:
   send-bench-message:
     runs-on: ubuntu-latest
     steps:
-      - shell: bash
+      - name: Send 3D bench message
+        shell: bash
         env:
           BENCHBOT_AMQP_USER: ${{ secrets.BENCHBOT_AMQP_USER }}
           BENCHBOT_AMQP_PASS: ${{ secrets.BENCHBOT_AMQP_PASS }}
           BENCHBOT_AMQP_VHOST: ${{ secrets.BENCHBOT_AMQP_VHOST }}
           BENCHBOT_AMQP_HOST: ${{ secrets.BENCHBOT_AMQP_HOST }}
-      - name: Send 3D bench message
         run: curl -u ${BENCHBOT_AMQP_USER}:${BENCHBOT_AMQP_PASS} \
              -i -H "content-type:application/json" -X POST \
              https://${BENCHBOT_AMQP_PASS}/api/exchanges/${BENCHBOT_AMQP_VHOST}//publish \
