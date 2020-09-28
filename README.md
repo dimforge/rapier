@@ -8,8 +8,11 @@
     <a href="https://travis-ci.org/dimforge/rapier">
         <img src="https://travis-ci.org/dimforge/rapier.svg?branch=master" alt="Build status">
     </a>
-    <a href="https://crates.io/crates/rapier">
-         <img src="https://meritbadge.herokuapp.com/rapier?style=flat-square" alt="crates.io">
+    <a href="https://crates.io/crates/rapier2d">
+         <img src="https://meritbadge.herokuapp.com/rapier2d?style=flat-square" alt="crates.io">
+    </a>
+    <a href="https://crates.io/crates/rapier3d">
+         <img src="https://meritbadge.herokuapp.com/rapier3d?style=flat-square" alt="crates.io">
     </a>
     <a href="https://opensource.org/licenses/Apache-2.0">
         <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg">
