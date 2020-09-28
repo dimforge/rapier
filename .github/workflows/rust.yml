@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - run: apt-get install -y cmake libxcb-composite0-dev
+    - run: sudo apt-get install -y cmake libxcb-composite0-dev
     - name: Build rapier2d
       run: cargo build --verbose -p rapier2d;
     - name: Build rapier3d
