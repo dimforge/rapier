@@ -18,6 +18,8 @@ pub extern crate ncollide3d as ncollide;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate approx;
 extern crate num_traits as num;
 // #[macro_use]
 // extern crate array_macro;

@@ -110,39 +110,41 @@ impl PolyhedronFace {
         if face2.num_vertices > 2 {
             let normal2 = (face2.vertices[2] - face2.vertices[1])
                 .cross(&(face2.vertices[0] - face2.vertices[1]));
+            let denom = normal2.dot(&sep_axis1);
 
-            let last_index2 = face2.num_vertices as usize - 1;
-            'point_loop1: for i in 0..face1.num_vertices as usize {
-                let p1 = projected_face1[i];
+            if !relative_eq!(denom, 0.0) {
+                let last_index2 = face2.num_vertices as usize - 1;
+                'point_loop1: for i in 0..face1.num_vertices as usize {
+                    let p1 = projected_face1[i];
 
-                let sign = (projected_face2[0] - projected_face2[last_index2])
-                    .perp(&(p1 - projected_face2[last_index2]));
-                for j in 0..last_index2 {
-                    let new_sign = (projected_face2[j + 1] - projected_face2[j])
-                        .perp(&(p1 - projected_face2[j]));
-                    if new_sign * sign < 0.0 {
-                        // The point lies outside.
-                        continue 'point_loop1;
+                    let sign = (projected_face2[0] - projected_face2[last_index2])
+                        .perp(&(p1 - projected_face2[last_index2]));
+                    for j in 0..last_index2 {
+                        let new_sign = (projected_face2[j + 1] - projected_face2[j])
+                            .perp(&(p1 - projected_face2[j]));
+                        if new_sign * sign < 0.0 {
+                            // The point lies outside.
+                            continue 'point_loop1;
+                        }
                     }
-                }
 
-                // All the perp had the same sign: the point is inside of the other shapes projection.
-                // Output the contact.
-                let denom = normal2.dot(&sep_axis1);
-                let dist = (face2.vertices[0] - face1.vertices[i]).dot(&normal2) / denom;
-                let local_p1 = face1.vertices[i];
-                let local_p2 = face1.vertices[i] + dist * sep_axis1;
+                    // All the perp had the same sign: the point is inside of the other shapes projection.
+                    // Output the contact.
+                    let dist = (face2.vertices[0] - face1.vertices[i]).dot(&normal2) / denom;
+                    let local_p1 = face1.vertices[i];
+                    let local_p2 = face1.vertices[i] + dist * sep_axis1;
 
-                if dist <= prediction_distance {
-                    manifold.points.push(Contact {
-                        local_p1,
-                        local_p2: pos21 * local_p2,
-                        impulse: 0.0,
-                        tangent_impulse: Contact::zero_tangent_impulse(),
-                        fid1: face1.vids[i],
-                        fid2: face2.fid,
-                        dist,
-                    });
+                    if dist <= prediction_distance {
+                        manifold.points.push(Contact {
+                            local_p1,
+                            local_p2: pos21 * local_p2,
+                            impulse: 0.0,
+                            tangent_impulse: Contact::zero_tangent_impulse(),
+                            fid1: face1.vids[i],
+                            fid2: face2.fid,
+                            dist,
+                        });
+                    }
                 }
             }
         }
@@ -151,40 +153,42 @@ impl PolyhedronFace {
             let normal1 = (face1.vertices[2] - face1.vertices[1])
                 .cross(&(face1.vertices[0] - face1.vertices[1]));
 
-            let last_index1 = face1.num_vertices as usize - 1;
-            'point_loop2: for i in 0..face2.num_vertices as usize {
-                let p2 = projected_face2[i];
+            let denom = -normal1.dot(&sep_axis1);
+            if !relative_eq!(denom, 0.0) {
+                let last_index1 = face1.num_vertices as usize - 1;
+                'point_loop2: for i in 0..face2.num_vertices as usize {
+                    let p2 = projected_face2[i];
 
-                let sign = (projected_face1[0] - projected_face1[last_index1])
-                    .perp(&(p2 - projected_face1[last_index1]));
-                for j in 0..last_index1 {
-                    let new_sign = (projected_face1[j + 1] - projected_face1[j])
-                        .perp(&(p2 - projected_face1[j]));
+                    let sign = (projected_face1[0] - projected_face1[last_index1])
+                        .perp(&(p2 - projected_face1[last_index1]));
+                    for j in 0..last_index1 {
+                        let new_sign = (projected_face1[j + 1] - projected_face1[j])
+                            .perp(&(p2 - projected_face1[j]));
 
-                    if new_sign * sign < 0.0 {
-                        // The point lies outside.
-                        continue 'point_loop2;
+                        if new_sign * sign < 0.0 {
+                            // The point lies outside.
+                            continue 'point_loop2;
+                        }
                     }
-                }
 
-                // All the perp had the same sign: the point is inside of the other shapes projection.
-                // Output the contact.
-                let denom = -normal1.dot(&sep_axis1);
-                let dist = (face1.vertices[0] - face2.vertices[i]).dot(&normal1) / denom;
-                let local_p2 = face2.vertices[i];
-                let local_p1 = face2.vertices[i] - dist * sep_axis1;
+                    // All the perp had the same sign: the point is inside of the other shapes projection.
+                    // Output the contact.
+                    let dist = (face1.vertices[0] - face2.vertices[i]).dot(&normal1) / denom;
+                    let local_p2 = face2.vertices[i];
+                    let local_p1 = face2.vertices[i] - dist * sep_axis1;
 
-                if true {
-                    // dist <= prediction_distance {
-                    manifold.points.push(Contact {
-                        local_p1,
-                        local_p2: pos21 * local_p2,
-                        impulse: 0.0,
-                        tangent_impulse: Contact::zero_tangent_impulse(),
-                        fid1: face1.fid,
-                        fid2: face2.vids[i],
-                        dist,
-                    });
+                    if true {
+                        // dist <= prediction_distance {
+                        manifold.points.push(Contact {
+                            local_p1,
+                            local_p2: pos21 * local_p2,
+                            impulse: 0.0,
+                            tangent_impulse: Contact::zero_tangent_impulse(),
+                            fid1: face1.fid,
+                            fid2: face2.vids[i],
+                            dist,
+                        });
+                    }
                 }
             }
         }
