@@ -40,6 +40,12 @@ fn do_generate_contacts(
     ctxt: &mut ContactGenerationContext,
     flipped: bool,
 ) {
+    let ctxt_pair_pair = if flipped {
+        ctxt.pair.pair.swap()
+    } else {
+        ctxt.pair.pair
+    };
+
     let workspace: &mut TrimeshShapeContactGeneratorWorkspace = ctxt
         .pair
         .generator_workspace
@@ -78,7 +84,7 @@ fn do_generate_contacts(
             // and rebuilt. In this case, we hate to reconstruct the `old_interferences`
             // array using the subshape ids from the contact manifolds.
             // TODO: always rely on the subshape ids instead of maintaining `.ord_interferences` ?
-            let ctxt_collider1 = ctxt.pair.pair.collider1;
+            let ctxt_collider1 = ctxt_pair_pair.collider1;
             workspace.old_interferences = workspace
                 .old_manifolds
                 .iter()
@@ -91,13 +97,16 @@ fn do_generate_contacts(
                 })
                 .collect();
         }
-        assert_eq!(
-            workspace
-                .old_interferences
-                .len()
-                .min(trimesh1.num_triangles()),
-            workspace.old_manifolds.len()
-        );
+        // This assertion may fire due to the invalid triangle_ids that the
+        // near-phase may return (due to SIMD sentinels).
+        //
+        // assert_eq!(
+        //     workspace
+        //         .old_interferences
+        //         .len()
+        //         .min(trimesh1.num_triangles()),
+        //     workspace.old_manifolds.len()
+        // );
 
         trimesh1
             .waabbs()
@@ -118,6 +127,7 @@ fn do_generate_contacts(
             // than the max.
             continue;
         }
+
         if !same_local_aabb2 {
             loop {
                 match old_inter_it.peek() {
@@ -131,23 +141,13 @@ fn do_generate_contacts(
 
             let manifold = if old_inter_it.peek() != Some(triangle_id) {
                 // We don't have a manifold for this triangle yet.
-                if flipped {
-                    ContactManifold::with_subshape_indices(
-                        ctxt.pair.pair,
-                        collider2,
-                        collider1,
-                        *triangle_id,
-                        0,
-                    )
-                } else {
-                    ContactManifold::with_subshape_indices(
-                        ctxt.pair.pair,
-                        collider1,
-                        collider2,
-                        0,
-                        *triangle_id,
-                    )
-                }
+                ContactManifold::with_subshape_indices(
+                    ctxt_pair_pair,
+                    collider1,
+                    collider2,
+                    *triangle_id,
+                    0,
+                )
             } else {
                 // We already have a manifold for this triangle.
                 old_inter_it.next();
@@ -163,7 +163,7 @@ fn do_generate_contacts(
             .dispatcher
             .dispatch_primitives(&triangle1, collider2.shape());
 
-        let mut ctxt2 = if ctxt.pair.pair.collider1 != manifold.pair.collider1 {
+        let mut ctxt2 = if ctxt_pair_pair.collider1 != manifold.pair.collider1 {
             PrimitiveContactGenerationContext {
                 prediction_distance: ctxt.prediction_distance,
                 collider1: collider2,
