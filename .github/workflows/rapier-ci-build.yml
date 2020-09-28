@@ -1,0 +1,54 @@
+name: Rapier CI build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-fmt:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Check formatting
+      run: cargo fmt -- --check
+  build-native:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: sudo apt-get install -y cmake libxcb-composite0-dev
+    - name: Build rapier2d
+      run: cargo build --verbose -p rapier2d;
+    - name: Build rapier3d
+      run: cargo build --verbose -p rapier3d;
+    - name: Build rapier2d SIMD
+      run: cd build/rapier2d; cargo build --verbose --features simd-stable;
+    - name: Build rapier3d SIMD
+      run: cd build/rapier3d; cargo build --verbose --features simd-stable;
+    - name: Build rapier2d SIMD Parallel
+      run: cd build/rapier2d; cargo build --verbose --features simd-stable --features parallel;
+    - name: Build rapier3d SIMD Parallel
+      run: cd build/rapier3d; cargo build --verbose --features simd-stable --features parallel;
+    - name: Run tests
+      run: cargo test
+    - name: Check rapier_testbed2d
+      run: cargo check --verbose -p rapier_testbed2d;
+    - name: Check rapier_testbed3d
+      run: cargo check --verbose -p rapier_testbed3d;
+    - name: Check rapier-examples-2d
+      run: cargo check -j 1 --verbose -p rapier-examples-2d;
+    - name: Check rapier-examples-3d
+      run: cargo check -j 1 --verbose -p rapier-examples-3d;
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: rustup target add wasm32-unknown-unknown
+      - name: build rapier2d
+        run: cd build/rapier2d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
+      - name: build rapier3d
+        run: cd build/rapier3d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
