@@ -14,6 +14,7 @@ mod add_remove3;
 mod compound3;
 mod debug_boxes3;
 mod debug_triangle3;
+mod debug_trimesh3;
 mod domino3;
 mod heightfield3;
 mod joints3;
@@ -74,6 +75,7 @@ pub fn main() {
         ("Keva tower", keva3::init_world),
         ("(Debug) boxes", debug_boxes3::init_world),
         ("(Debug) triangle", debug_triangle3::init_world),
+        ("(Debug) trimesh", debug_trimesh3::init_world),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
