@@ -58,9 +58,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     * rot;
             let rigid_body = RigidBodyBuilder::new_dynamic().position(position).build();
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(thickness, width * 2.0, width)
-                .density(1.0)
-                .build();
+            let collider = ColliderBuilder::cuboid(thickness, width * 2.0, width).build();
             colliders.insert(collider, handle, &mut bodies);
             testbed.set_body_color(handle, colors[i % 2]);
         } else {

@@ -43,7 +43,7 @@ pub fn init_world(testbed: &mut Testbed) {
             // Build the rigid body.
             let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad, rad).density(1.0).build();
+            let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
             colliders.insert(collider, handle, &mut bodies);
 
             testbed.set_body_color(handle, Point3::new(0.5, 0.5, 1.0));
@@ -56,13 +56,13 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Rigid body so that the sensor can move.
     let sensor = RigidBodyBuilder::new_dynamic()
-        .translation(0.0, 10.0, 0.0)
+        .translation(0.0, 5.0, 0.0)
         .build();
     let sensor_handle = bodies.insert(sensor);
 
     // Solid cube attached to the sensor which
     // other colliders can touch.
-    let collider = ColliderBuilder::cuboid(rad, rad, rad).density(1.0).build();
+    let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
     colliders.insert(collider, sensor_handle, &mut bodies);
 
     // We create a collider desc without density because we don't

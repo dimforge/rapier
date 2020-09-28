@@ -19,8 +19,8 @@ pub fn init_world(testbed: &mut Testbed) {
     // in order to be able to compare rapier with Box2D,
     // we set it to 0.4.
     let rad = 0.4;
-    let numi = 100; // Num vertical nodes.
-    let numk = 100; // Num horizontal nodes.
+    let numi = 10; // Num vertical nodes.
+    let numk = 10; // Num horizontal nodes.
     let shift = 1.0;
 
     let mut body_handles = Vec::new();
@@ -30,7 +30,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let fk = k as f32;
             let fi = i as f32;
 
-            let status = if i == 0 && (k % 4 == 0 || k == numk - 1) {
+            let status = if i == 0 && k == 0 {
                 BodyStatus::Static
             } else {
                 BodyStatus::Dynamic
@@ -40,7 +40,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 .translation(fk * shift, -fi * shift)
                 .build();
             let child_handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::ball(rad).density(1.0).build();
+            let collider = ColliderBuilder::ball(rad).build();
             colliders.insert(collider, child_handle, &mut bodies);
 
             // Vertical joint.
@@ -66,7 +66,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point2::new(numk as f32 * rad, numi as f32 * -rad), 5.0);
+    testbed.look_at(Point2::new(numk as f32 * rad, numi as f32 * -rad), 20.0);
 }
 
 fn main() {

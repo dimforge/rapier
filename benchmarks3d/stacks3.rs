@@ -120,7 +120,27 @@ pub fn init_world(testbed: &mut Testbed) {
     let cube_size = 1.0;
     let hext = Vector3::repeat(cube_size);
     let bottomy = cube_size * 50.0;
-
+    create_pyramid(
+        &mut bodies,
+        &mut colliders,
+        Vector3::new(-110.0, bottomy, 0.0),
+        12,
+        hext,
+    );
+    create_pyramid(
+        &mut bodies,
+        &mut colliders,
+        Vector3::new(-80.0, bottomy, 0.0),
+        12,
+        hext,
+    );
+    create_pyramid(
+        &mut bodies,
+        &mut colliders,
+        Vector3::new(-50.0, bottomy, 0.0),
+        12,
+        hext,
+    );
     create_pyramid(
         &mut bodies,
         &mut colliders,

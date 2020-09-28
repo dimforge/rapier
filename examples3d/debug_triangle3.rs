@@ -32,7 +32,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .can_sleep(false)
         .build();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(20.0, 0.1, 1.0).density(1.0).build();
+    let collider = ColliderBuilder::cuboid(20.0, 0.1, 1.0).build();
     colliders.insert(collider, handle, &mut bodies);
 
     /*

@@ -1,12 +1,12 @@
 [workspace]
-members = [ "build/rapier2d", "build/rapier_testbed2d", "examples2d",
-            "build/rapier3d", "build/rapier_testbed3d", "examples3d" ]
+members = [ "build/rapier2d", "build/rapier_testbed2d", "examples2d", "benchmarks2d",
+            "build/rapier3d", "build/rapier_testbed3d", "examples3d", "benchmarks3d" ]
 
 [patch.crates-io]
 #wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }
 
 [profile.release]
-debug = false
+#debug = true
 codegen-units = 1
 #opt-level = 1
 #lto = true

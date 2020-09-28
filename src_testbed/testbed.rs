@@ -230,7 +230,6 @@ pub struct Testbed {
     gravity: Vector<f32>,
     integration_parameters: IntegrationParameters,
     physics: PhysicsState,
-    window: Option<Box<Window>>,
     graphics: GraphicsManager,
     nsteps: usize,
     camera_locked: bool, // Used so that the camera can remain the same before and after we change backend or press the restart button.
@@ -244,7 +243,7 @@ pub struct Testbed {
     // cursor_pos: Point2<f32>,
     events: PhysicsEvents,
     event_handler: ChannelEventCollector,
-    ui: TestbedUi,
+    ui: Option<TestbedUi>,
     state: TestbedState,
     #[cfg(all(feature = "dim2", feature = "other-backends"))]
     box2d: Option<Box2dWorld>,
@@ -274,17 +273,8 @@ type CallbacksFluids = Vec<
 impl Testbed {
     pub fn new_empty() -> Testbed {
         let graphics = GraphicsManager::new();
-
-        #[cfg(feature = "dim3")]
-        let mut window = Box::new(Window::new("rapier: 3d demo"));
-        #[cfg(feature = "dim2")]
-        let mut window = Box::new(Window::new("rapier: 2d demo"));
-        window.set_background_color(0.85, 0.85, 0.85);
-        window.set_framerate_limit(Some(60));
-        window.set_light(Light::StickToCamera);
-
         let flags = TestbedStateFlags::SLEEP;
-        let ui = TestbedUi::new(&mut window);
+        let ui = None;
 
         #[allow(unused_mut)]
         let mut backend_names = vec!["rapier"];
@@ -352,7 +342,6 @@ impl Testbed {
             callbacks: Vec::new(),
             #[cfg(feature = "fluids")]
             callbacks_fluids: Vec::new(),
-            window: Some(window),
             graphics,
             nsteps: 1,
             camera_locked: false,
@@ -754,7 +743,8 @@ impl Testbed {
                 }
 
                 // Write the result as a csv file.
-                let filename = format!("{}.csv", builder.0);
+                use inflector::Inflector;
+                let filename = format!("{}.csv", builder.0.to_camel_case());
                 let mut file = BufWriter::new(File::create(filename).unwrap());
 
                 write!(file, "{}", backend_names[0]).unwrap();
@@ -772,7 +762,14 @@ impl Testbed {
                 }
             }
         } else {
-            let window = mem::replace(&mut self.window, None).unwrap();
+            #[cfg(feature = "dim3")]
+            let mut window = Window::new("rapier: 3d demo");
+            #[cfg(feature = "dim2")]
+            let mut window = Window::new("rapier: 2d demo");
+            window.set_background_color(0.85, 0.85, 0.85);
+            window.set_framerate_limit(Some(60));
+            window.set_light(Light::StickToCamera);
+            self.ui = Some(TestbedUi::new(&mut window));
             window.render_loop(self);
         }
     }
@@ -1206,8 +1203,9 @@ impl State for Testbed {
     }
 
     fn step(&mut self, window: &mut Window) {
-        self.ui
-            .update(window, &mut self.integration_parameters, &mut self.state);
+        if let Some(ui) = &mut self.ui {
+            ui.update(window, &mut self.integration_parameters, &mut self.state);
+        }
 
         // Handle UI actions.
         {

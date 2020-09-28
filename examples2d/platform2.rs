@@ -35,14 +35,14 @@ pub fn init_world(testbed: &mut Testbed) {
     let centery = shift / 2.0 + 3.04;
 
     for i in 0usize..num {
-        for j in 0usize..num * 50 {
+        for j in 0usize..num {
             let x = i as f32 * shift - centerx;
             let y = j as f32 * shift + centery;
 
             // Build the rigid body.
             let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y).build();
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad).density(1.0).build();
+            let collider = ColliderBuilder::cuboid(rad, rad).build();
             colliders.insert(collider, handle, &mut bodies);
         }
     }
@@ -54,9 +54,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(-10.0 * rad, 1.5 + 0.8)
         .build();
     let platform_handle = bodies.insert(platform_body);
-    let collider = ColliderBuilder::cuboid(rad * 10.0, rad)
-        .density(1.0)
-        .build();
+    let collider = ColliderBuilder::cuboid(rad * 10.0, rad).build();
     colliders.insert(collider, platform_handle, &mut bodies);
 
     /*

@@ -14,7 +14,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_size = 10.0;
+    let ground_size = 100.0;
     let ground_thickness = 1.0;
 
     let rigid_body = RigidBodyBuilder::new_static().build();
@@ -25,7 +25,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create the cubes
      */
-    let num = 10;
+    let num = 100;
     let rad = 0.5;
 
     let shift = rad * 2.0;
@@ -51,7 +51,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point2::new(0.0, 2.5), 20.0);
+    testbed.look_at(Point2::new(0.0, 2.5), 5.0);
 }
 
 fn main() {

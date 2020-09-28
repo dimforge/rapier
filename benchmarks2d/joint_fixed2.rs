@@ -42,7 +42,7 @@ pub fn init_world(testbed: &mut Testbed) {
                         .translation(x + fk * shift, y - fi * shift)
                         .build();
                     let child_handle = bodies.insert(rigid_body);
-                    let collider = ColliderBuilder::ball(rad).density(1.0).build();
+                    let collider = ColliderBuilder::ball(rad).build();
                     colliders.insert(collider, child_handle, &mut bodies);
 
                     // Vertical joint.

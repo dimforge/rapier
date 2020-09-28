@@ -14,7 +14,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_size = 50.0;
+    let ground_size = 200.1;
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
@@ -37,7 +37,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let mut offset = -(num as f32) * (rad * 2.0 + rad) * 0.5;
 
-    for j in 0usize..15 {
+    for j in 0usize..25 {
         for i in 0..num {
             for k in 0usize..num {
                 let x = i as f32 * shift * 5.0 - centerx + offset;

@@ -15,7 +15,7 @@ pub fn init_world(testbed: &mut Testbed) {
             .translation(0.0, 10.0)
             .build();
         let handle = physics.bodies.insert(rigid_body);
-        let collider = ColliderBuilder::cuboid(rad, rad).density(1.0).build();
+        let collider = ColliderBuilder::cuboid(rad, rad).build();
         physics
             .colliders
             .insert(collider, handle, &mut physics.bodies);

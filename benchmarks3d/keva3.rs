@@ -48,9 +48,7 @@ pub fn build_block(
                     )
                     .build();
                 let handle = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z)
-                    .density(1.0)
-                    .build();
+                let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z).build();
                 colliders.insert(collider, handle, bodies);
 
                 testbed.set_body_color(handle, color0);
@@ -73,9 +71,7 @@ pub fn build_block(
                 )
                 .build();
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z)
-                .density(1.0)
-                .build();
+            let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z).build();
             colliders.insert(collider, handle, bodies);
             testbed.set_body_color(handle, color0);
             std::mem::swap(&mut color0, &mut color1);
