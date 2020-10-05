@@ -1304,9 +1304,9 @@ impl State for Testbed {
                     if let Ok(w) = snapshot.restore() {
                         self.clear(window);
                         self.graphics.clear(window);
+                        self.set_world(w.3, w.4, w.5);
                         self.physics.broad_phase = w.1;
                         self.physics.narrow_phase = w.2;
-                        self.set_world(w.3, w.4, w.5);
                         self.state.timestep_id = w.0;
                     }
                 }
