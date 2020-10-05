@@ -28,14 +28,9 @@ pub fn init_world(testbed: &mut Testbed) {
             .map(|e| e.0)
             .collect();
         for handle in to_remove {
-            physics.pipeline.remove_rigid_body(
-                handle,
-                &mut physics.broad_phase,
-                &mut physics.narrow_phase,
-                &mut physics.bodies,
-                &mut physics.colliders,
-                &mut physics.joints,
-            );
+            physics
+                .bodies
+                .remove(handle, &mut physics.colliders, &mut physics.joints);
             graphics.remove_body_nodes(window, handle);
         }
     });

@@ -84,28 +84,4 @@ impl CollisionPipeline {
 
         bodies.modified_inactive_set.clear();
     }
-
-    /// Remove a rigid-body and all its associated data.
-    pub fn remove_rigid_body(
-        &mut self,
-        handle: RigidBodyHandle,
-        broad_phase: &mut BroadPhase,
-        narrow_phase: &mut NarrowPhase,
-        bodies: &mut RigidBodySet,
-        colliders: &mut ColliderSet,
-    ) -> Option<RigidBody> {
-        // Remove the body.
-        let body = bodies.remove_internal(handle)?;
-
-        // Remove this rigid-body from the broad-phase and narrow-phase.
-        broad_phase.remove_colliders(&body.colliders, colliders);
-        narrow_phase.remove_colliders(&body.colliders, colliders, bodies);
-
-        // Remove all colliders attached to this body.
-        for collider in &body.colliders {
-            colliders.remove_internal(*collider);
-        }
-
-        Some(body)
-    }
 }

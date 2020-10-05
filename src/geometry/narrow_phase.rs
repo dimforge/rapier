@@ -14,13 +14,16 @@ use crate::geometry::proximity_detector::{
 //    proximity_detector::ProximityDetectionContextSimd, WBall,
 //};
 use crate::geometry::{
-    BroadPhasePairEvent, ColliderHandle, ContactEvent, ProximityEvent, ProximityPair,
+    BroadPhasePairEvent, Collider, ColliderGraphIndex, ColliderHandle, ContactEvent,
+    ProximityEvent, ProximityPair, RemovedCollider,
 };
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 //#[cfg(feature = "simd-is-enabled")]
 //use crate::math::{SimdFloat, SIMD_WIDTH};
+use crate::data::pubsub::PubSubCursor;
 use crate::ncollide::query::Proximity;
 use crate::pipeline::EventHandler;
+use std::collections::HashMap;
 //use simba::simd::SimdValue;
 
 /// The narrow-phase responsible for computing precise contact information between colliders.
@@ -28,6 +31,7 @@ use crate::pipeline::EventHandler;
 pub struct NarrowPhase {
     contact_graph: InteractionGraph<ContactPair>,
     proximity_graph: InteractionGraph<ProximityPair>,
+    removed_colliders: Option<PubSubCursor<RemovedCollider>>,
     //    ball_ball: Vec<usize>,        // Workspace: Vec<*mut ContactPair>,
     //    shape_shape: Vec<usize>,      // Workspace: Vec<*mut ContactPair>,
     //    ball_ball_prox: Vec<usize>,   // Workspace: Vec<*mut ProximityPair>,
@@ -42,6 +46,7 @@ impl NarrowPhase {
         Self {
             contact_graph: InteractionGraph::new(),
             proximity_graph: InteractionGraph::new(),
+            removed_colliders: None,
             //            ball_ball: Vec::new(),
             //            shape_shape: Vec::new(),
             //            ball_ball_prox: Vec::new(),
@@ -73,45 +78,84 @@ impl NarrowPhase {
     //     &mut self.contact_graph.interactions
     // }
 
-    pub(crate) fn remove_colliders(
+    /// Maintain the narrow-phase internal state by taking collider removal into account.
+    pub fn maintain(&mut self, colliders: &mut ColliderSet, bodies: &mut RigidBodySet) {
+        // Ensure we already subscribed.
+        if self.removed_colliders.is_none() {
+            self.removed_colliders = Some(colliders.removed_colliders.subscribe());
+        }
+
+        let mut cursor = self.removed_colliders.take().unwrap();
+
+        // TODO: avoid these hash-maps.
+        // They are necessary to handle the swap-remove done internally
+        // by the contact/proximity graphs when a node is removed.
+        let mut prox_id_remap = HashMap::new();
+        let mut contact_id_remap = HashMap::new();
+
+        for i in 0.. {
+            if let Some(collider) = colliders.removed_colliders.read_ith(&cursor, i) {
+                let proximity_graph_id = prox_id_remap
+                    .get(&collider.handle)
+                    .copied()
+                    .unwrap_or(collider.proximity_graph_index);
+                let contact_graph_id = contact_id_remap
+                    .get(&collider.handle)
+                    .copied()
+                    .unwrap_or(collider.contact_graph_index);
+
+                self.remove_collider(
+                    proximity_graph_id,
+                    contact_graph_id,
+                    colliders,
+                    bodies,
+                    &mut prox_id_remap,
+                    &mut contact_id_remap,
+                );
+            } else {
+                break;
+            }
+        }
+
+        colliders.removed_colliders.ack(&mut cursor);
+        self.removed_colliders = Some(cursor);
+    }
+
+    pub(crate) fn remove_collider<'a>(
         &mut self,
-        handles: &[ColliderHandle],
+        proximity_graph_id: ColliderGraphIndex,
+        contact_graph_id: ColliderGraphIndex,
         colliders: &mut ColliderSet,
         bodies: &mut RigidBodySet,
+        prox_id_remap: &mut HashMap<ColliderHandle, ColliderGraphIndex>,
+        contact_id_remap: &mut HashMap<ColliderHandle, ColliderGraphIndex>,
     ) {
-        for handle in handles {
-            if let Some(collider) = colliders.get(*handle) {
-                let proximity_graph_id = collider.proximity_graph_index;
-                let contact_graph_id = collider.contact_graph_index;
+        // Wake up every body in contact with the deleted collider.
+        for (a, b, _) in self.contact_graph.interactions_with(contact_graph_id) {
+            if let Some(parent) = colliders.get(a).map(|c| c.parent) {
+                bodies.wake_up(parent, true)
+            }
 
-                // Wake up every body in contact with the deleted collider.
-                for (a, b, _) in self.contact_graph.interactions_with(contact_graph_id) {
-                    if let Some(parent) = colliders.get(a).map(|c| c.parent) {
-                        bodies.wake_up(parent, true)
-                    }
+            if let Some(parent) = colliders.get(b).map(|c| c.parent) {
+                bodies.wake_up(parent, true)
+            }
+        }
 
-                    if let Some(parent) = colliders.get(b).map(|c| c.parent) {
-                        bodies.wake_up(parent, true)
-                    }
-                }
+        // We have to manage the fact that one other collider will
+        // have its graph index changed because of the node's swap-remove.
+        if let Some(replacement) = self.proximity_graph.remove_node(proximity_graph_id) {
+            if let Some(replacement) = colliders.get_mut(replacement) {
+                replacement.proximity_graph_index = proximity_graph_id;
+            } else {
+                prox_id_remap.insert(replacement, proximity_graph_id);
+            }
+        }
 
-                // We have to manage the fact that one other collider will
-                // have its graph index changed because of the node's swap-remove.
-                if let Some(replacement) = self
-                    .proximity_graph
-                    .remove_node(proximity_graph_id)
-                    .and_then(|h| colliders.get_mut(h))
-                {
-                    replacement.proximity_graph_index = proximity_graph_id;
-                }
-
-                if let Some(replacement) = self
-                    .contact_graph
-                    .remove_node(contact_graph_id)
-                    .and_then(|h| colliders.get_mut(h))
-                {
-                    replacement.contact_graph_index = contact_graph_id;
-                }
+        if let Some(replacement) = self.contact_graph.remove_node(contact_graph_id) {
+            if let Some(replacement) = colliders.get_mut(replacement) {
+                replacement.contact_graph_index = contact_graph_id;
+            } else {
+                contact_id_remap.insert(replacement, contact_graph_id);
             }
         }
     }

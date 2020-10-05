@@ -1,5 +1,6 @@
+use crate::data::pubsub::PubSubCursor;
 use crate::dynamics::RigidBodySet;
-use crate::geometry::{ColliderHandle, ColliderPair, ColliderSet};
+use crate::geometry::{Collider, ColliderHandle, ColliderPair, ColliderSet, RemovedCollider};
 use crate::math::{Point, Vector, DIM};
 #[cfg(feature = "enhanced-determinism")]
 use crate::utils::FxHashMap32 as HashMap;
@@ -381,6 +382,7 @@ impl SAPRegion {
 pub struct BroadPhase {
     proxies: Proxies,
     regions: HashMap<Point<i32>, SAPRegion>,
+    removed_colliders: Option<PubSubCursor<RemovedCollider>>,
     deleted_any: bool,
     // We could think serializing this workspace is useless.
     // It turns out is is important to serialize at least its capacity
@@ -469,6 +471,7 @@ impl BroadPhase {
     /// Create a new empty broad-phase.
     pub fn new() -> Self {
         BroadPhase {
+            removed_colliders: None,
             proxies: Proxies::new(),
             regions: HashMap::default(),
             reporting: HashMap::default(),
@@ -476,46 +479,60 @@ impl BroadPhase {
         }
     }
 
-    pub(crate) fn remove_colliders(&mut self, handles: &[ColliderHandle], colliders: &ColliderSet) {
-        for collider in handles.iter().filter_map(|h| colliders.get(*h)) {
-            if collider.proxy_index == crate::INVALID_USIZE {
-                // This collider has not been added to the broad-phase yet.
-                continue;
+    /// Maintain the broad-phase internal state by taking collider removal into account.
+    pub fn maintain(&mut self, colliders: &mut ColliderSet) {
+        // Ensure we already subscribed.
+        if self.removed_colliders.is_none() {
+            self.removed_colliders = Some(colliders.removed_colliders.subscribe());
+        }
+
+        let mut cursor = self.removed_colliders.take().unwrap();
+        for collider in colliders.removed_colliders.read(&cursor) {
+            self.remove_collider(collider.proxy_index);
+        }
+
+        colliders.removed_colliders.ack(&mut cursor);
+        self.removed_colliders = Some(cursor);
+    }
+
+    fn remove_collider<'a>(&mut self, proxy_index: usize) {
+        if proxy_index == crate::INVALID_USIZE {
+            // This collider has not been added to the broad-phase yet.
+            return;
+        }
+
+        let proxy = &mut self.proxies[proxy_index];
+
+        // Push the proxy to infinity, but not beyond the sentinels.
+        proxy.aabb.mins.coords.fill(SENTINEL_VALUE / 2.0);
+        proxy.aabb.maxs.coords.fill(SENTINEL_VALUE / 2.0);
+        // Discretize the AABB to find the regions that need to be invalidated.
+        let start = point_key(proxy.aabb.mins);
+        let end = point_key(proxy.aabb.maxs);
+
+        #[cfg(feature = "dim2")]
+        for i in start.x..=end.x {
+            for j in start.y..=end.y {
+                if let Some(region) = self.regions.get_mut(&Point::new(i, j)) {
+                    region.predelete_proxy(proxy_index);
+                    self.deleted_any = true;
+                }
             }
+        }
 
-            let proxy = &mut self.proxies[collider.proxy_index];
-
-            // Push the proxy to infinity, but not beyond the sentinels.
-            proxy.aabb.mins.coords.fill(SENTINEL_VALUE / 2.0);
-            proxy.aabb.maxs.coords.fill(SENTINEL_VALUE / 2.0);
-            // Discretize the AABB to find the regions that need to be invalidated.
-            let start = point_key(proxy.aabb.mins);
-            let end = point_key(proxy.aabb.maxs);
-
-            #[cfg(feature = "dim2")]
-            for i in start.x..=end.x {
-                for j in start.y..=end.y {
-                    if let Some(region) = self.regions.get_mut(&Point::new(i, j)) {
-                        region.predelete_proxy(collider.proxy_index);
+        #[cfg(feature = "dim3")]
+        for i in start.x..=end.x {
+            for j in start.y..=end.y {
+                for k in start.z..=end.z {
+                    if let Some(region) = self.regions.get_mut(&Point::new(i, j, k)) {
+                        region.predelete_proxy(proxy_index);
                         self.deleted_any = true;
                     }
                 }
             }
-
-            #[cfg(feature = "dim3")]
-            for i in start.x..=end.x {
-                for j in start.y..=end.y {
-                    for k in start.z..=end.z {
-                        if let Some(region) = self.regions.get_mut(&Point::new(i, j, k)) {
-                            region.predelete_proxy(collider.proxy_index);
-                            self.deleted_any = true;
-                        }
-                    }
-                }
-            }
-
-            self.proxies.remove(collider.proxy_index);
         }
+
+        self.proxies.remove(proxy_index);
     }
 
     pub(crate) fn update_aabbs(

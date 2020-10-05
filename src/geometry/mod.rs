@@ -45,6 +45,7 @@ pub type RayIntersection = ncollide::query::RayIntersection<f32>;
 pub(crate) use self::ball::WBall;
 pub(crate) use self::broad_phase::{ColliderPair, WAABBHierarchy, WAABBHierarchyIntersections};
 pub(crate) use self::broad_phase_multi_sap::BroadPhasePairEvent;
+pub(crate) use self::collider_set::RemovedCollider;
 #[cfg(feature = "simd-is-enabled")]
 pub(crate) use self::contact::WContact;
 #[cfg(feature = "dim2")]

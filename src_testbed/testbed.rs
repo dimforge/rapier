@@ -813,13 +813,9 @@ impl Testbed {
 
                 let num_to_delete = (colliders.len() / 10).max(1);
                 for to_delete in &colliders[..num_to_delete] {
-                    self.physics.pipeline.remove_collider(
-                        to_delete[0],
-                        &mut self.physics.broad_phase,
-                        &mut self.physics.narrow_phase,
-                        &mut self.physics.bodies,
-                        &mut self.physics.colliders,
-                    );
+                    self.physics
+                        .colliders
+                        .remove(to_delete[0], &mut self.physics.bodies);
                 }
             }
             WindowEvent::Key(Key::D, Action::Release, _) => {
@@ -833,11 +829,8 @@ impl Testbed {
                     .collect();
                 let num_to_delete = (dynamic_bodies.len() / 10).max(1);
                 for to_delete in &dynamic_bodies[..num_to_delete] {
-                    self.physics.pipeline.remove_rigid_body(
+                    self.physics.bodies.remove(
                         *to_delete,
-                        &mut self.physics.broad_phase,
-                        &mut self.physics.narrow_phase,
-                        &mut self.physics.bodies,
                         &mut self.physics.colliders,
                         &mut self.physics.joints,
                     );

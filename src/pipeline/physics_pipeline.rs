@@ -1,6 +1,7 @@
 //! Physics pipeline structures.
 
 use crate::counters::Counters;
+use crate::data::pubsub::PubSubCursor;
 #[cfg(not(feature = "parallel"))]
 use crate::dynamics::IslandSolver;
 use crate::dynamics::{IntegrationParameters, JointSet, RigidBody, RigidBodyHandle, RigidBodySet};
@@ -8,7 +9,7 @@ use crate::dynamics::{IntegrationParameters, JointSet, RigidBody, RigidBodyHandl
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, Collider, ColliderHandle, ColliderPair, ColliderSet,
-    ContactManifoldIndex, NarrowPhase,
+    ContactManifoldIndex, NarrowPhase, RemovedCollider,
 };
 use crate::math::Vector;
 use crate::pipeline::EventHandler;
@@ -59,6 +60,18 @@ impl PhysicsPipeline {
         }
     }
 
+    /// Remove this.
+    pub fn maintain(
+        &mut self,
+        broad_phase: &mut BroadPhase,
+        narrow_phase: &mut NarrowPhase,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+    ) {
+        // broad_phase.maintain(colliders);
+        // narrow_phase.maintain(colliders, bodies);
+    }
+
     /// Executes one timestep of the physics simulation.
     pub fn step(
         &mut self,
@@ -73,6 +86,7 @@ impl PhysicsPipeline {
     ) {
         // println!("Step");
         self.counters.step_started();
+        self.maintain(broad_phase, narrow_phase, bodies, colliders);
         bodies.maintain_active_set();
 
         // Update kinematic bodies velocities.
@@ -248,55 +262,6 @@ impl PhysicsPipeline {
 
         bodies.modified_inactive_set.clear();
         self.counters.step_completed();
-    }
-
-    /// Remove a collider and all its associated data.
-    pub fn remove_collider(
-        &mut self,
-        handle: ColliderHandle,
-        broad_phase: &mut BroadPhase,
-        narrow_phase: &mut NarrowPhase,
-        bodies: &mut RigidBodySet,
-        colliders: &mut ColliderSet,
-    ) -> Option<Collider> {
-        broad_phase.remove_colliders(&[handle], colliders);
-        narrow_phase.remove_colliders(&[handle], colliders, bodies);
-        let collider = colliders.remove_internal(handle)?;
-
-        if let Some(parent) = bodies.get_mut_internal(collider.parent) {
-            parent.remove_collider_internal(handle, &collider);
-            bodies.wake_up(collider.parent, true);
-        }
-
-        Some(collider)
-    }
-
-    /// Remove a rigid-body and all its associated data.
-    pub fn remove_rigid_body(
-        &mut self,
-        handle: RigidBodyHandle,
-        broad_phase: &mut BroadPhase,
-        narrow_phase: &mut NarrowPhase,
-        bodies: &mut RigidBodySet,
-        colliders: &mut ColliderSet,
-        joints: &mut JointSet,
-    ) -> Option<RigidBody> {
-        // Remove the body.
-        let body = bodies.remove_internal(handle)?;
-
-        // Remove this rigid-body from the broad-phase and narrow-phase.
-        broad_phase.remove_colliders(&body.colliders, colliders);
-        narrow_phase.remove_colliders(&body.colliders, colliders, bodies);
-
-        // Remove all joints attached to this body.
-        joints.remove_rigid_body(body.joint_graph_index, bodies);
-
-        // Remove all colliders attached to this body.
-        for collider in &body.colliders {
-            colliders.remove_internal(*collider);
-        }
-
-        Some(body)
     }
 }
 

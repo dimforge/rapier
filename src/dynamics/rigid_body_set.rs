@@ -2,7 +2,8 @@
 use rayon::prelude::*;
 
 use crate::data::arena::Arena;
-use crate::dynamics::{BodyStatus, Joint, RigidBody};
+use crate::data::pubsub::PubSub;
+use crate::dynamics::{BodyStatus, Joint, JointSet, RigidBody};
 use crate::geometry::{ColliderHandle, ColliderSet, ContactPair, InteractionGraph};
 use crossbeam::channel::{Receiver, Sender};
 use num::Zero;
@@ -176,12 +177,17 @@ impl RigidBodySet {
         handle
     }
 
-    pub(crate) fn num_islands(&self) -> usize {
-        self.active_islands.len() - 1
-    }
-
-    pub(crate) fn remove_internal(&mut self, handle: RigidBodyHandle) -> Option<RigidBody> {
+    /// Removes a rigid-body, and all its attached colliders and joints, from these sets.
+    pub fn remove(
+        &mut self,
+        handle: RigidBodyHandle,
+        colliders: &mut ColliderSet,
+        joints: &mut JointSet,
+    ) -> Option<RigidBody> {
         let rb = self.bodies.remove(handle)?;
+        /*
+         * Update active sets.
+         */
         let mut active_sets = [&mut self.active_kinematic_set, &mut self.active_dynamic_set];
 
         for active_set in &mut active_sets {
@@ -194,7 +200,23 @@ impl RigidBodySet {
             }
         }
 
+        /*
+         * Remove colliders attached to this rigid-body.
+         */
+        for collider in &rb.colliders {
+            colliders.remove(*collider, self);
+        }
+
+        /*
+         * Remove joints attached to this rigid-body.
+         */
+        joints.remove_rigid_body(rb.joint_graph_index, self);
+
         Some(rb)
+    }
+
+    pub(crate) fn num_islands(&self) -> usize {
+        self.active_islands.len() - 1
     }
 
     /// Forces the specified rigid-body to wake up if it is dynamic.

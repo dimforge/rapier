@@ -2,3 +2,4 @@
 
 pub mod arena;
 pub(crate) mod graph;
+pub mod pubsub;
