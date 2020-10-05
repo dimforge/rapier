@@ -8,6 +8,7 @@ use std::collections::VecDeque;
 use std::ops::Range;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 struct NodeIndex {
     index: u32, // Index of the addressed node in the `nodes` array.
     lane: u8,   // SIMD lane of the addressed node.
@@ -27,6 +28,7 @@ impl NodeIndex {
 }
 
 #[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 struct WQuadtreeNode {
     waabb: WAABB,
     // Index of the nodes of the 4 nodes represented by self.
@@ -38,6 +40,7 @@ struct WQuadtreeNode {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 struct WQuadtreeProxy {
     node: NodeIndex,
     handle: ColliderHandle, // The collider handle. TODO: only set the collider generation here?
@@ -52,6 +55,7 @@ impl WQuadtreeProxy {
     }
 }
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct WQuadtree {
     nodes: Vec<WQuadtreeNode>,
     dirty_nodes: VecDeque<u32>,
