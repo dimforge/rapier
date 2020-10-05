@@ -66,10 +66,10 @@ impl NPhysicsWorld {
         }
 
         for joint in joints.iter() {
-            let b1 = BodyPartHandle(rapier2nphysics[&joint.body1], 0);
-            let b2 = BodyPartHandle(rapier2nphysics[&joint.body2], 0);
+            let b1 = BodyPartHandle(rapier2nphysics[&joint.1.body1], 0);
+            let b2 = BodyPartHandle(rapier2nphysics[&joint.1.body2], 0);
 
-            match &joint.params {
+            match &joint.1.params {
                 JointParams::FixedJoint(params) => {
                     let c = FixedConstraint::new(
                         b1,

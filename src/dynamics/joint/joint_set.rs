@@ -66,17 +66,21 @@ impl JointSet {
     }
 
     /// Iterates through all the joint on this set.
-    pub fn iter(&self) -> impl Iterator<Item = &Joint> {
-        self.joint_graph.graph.edges.iter().map(|e| &e.weight)
+    pub fn iter(&self) -> impl Iterator<Item = (JointHandle, &Joint)> {
+        self.joint_graph
+            .graph
+            .edges
+            .iter()
+            .map(|e| (e.weight.handle, &e.weight))
     }
 
     /// Iterates mutably through all the joint on this set.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Joint> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (JointHandle, &mut Joint)> {
         self.joint_graph
             .graph
             .edges
             .iter_mut()
-            .map(|e| &mut e.weight)
+            .map(|e| (e.weight.handle, &mut e.weight))
     }
 
     // /// The set of joints as an array.
