@@ -6,6 +6,7 @@ use crate::math::{Point, Vector};
 use ncollide::bounding_volume::BoundingVolume;
 
 /// A pipeline for performing queries on all the colliders of a scene.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct QueryPipeline {
     quadtree: WQuadtree,
     tree_built: bool,
@@ -65,7 +66,7 @@ impl QueryPipeline {
         // let t0 = instant::now();
         let inter = self.quadtree.cast_ray(ray, max_toi);
         // println!(
-        //     "Found {} interefrences in time {}.",
+        //     "Found {} interferences in time {}.",
         //     inter.len(),
         //     instant::now() - t0
         // );
