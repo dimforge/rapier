@@ -204,13 +204,13 @@ impl SAPAxis {
         }
     }
 
-    fn delete_out_of_bounds_proxies(&self, existing_proxies: &mut BitVec) -> bool {
-        let mut deleted_any = false;
+    fn delete_out_of_bounds_proxies(&self, existing_proxies: &mut BitVec) -> usize {
+        let mut deleted = 0;
         for endpoint in &self.endpoints {
             if endpoint.value < self.min_bound {
                 if endpoint.is_end() {
                     existing_proxies.set(endpoint.proxy() as usize, false);
-                    deleted_any = true;
+                    deleted += 1;
                 }
             } else {
                 break;
@@ -221,14 +221,14 @@ impl SAPAxis {
             if endpoint.value > self.max_bound {
                 if endpoint.is_start() {
                     existing_proxies.set(endpoint.proxy() as usize, false);
-                    deleted_any = true;
+                    deleted += 1;
                 }
             } else {
                 break;
             }
         }
 
-        deleted_any
+        deleted
     }
 
     fn delete_out_of_bounds_endpoints(&mut self, existing_proxies: &BitVec) {
@@ -304,6 +304,7 @@ struct SAPRegion {
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     to_insert: Vec<usize>, // Workspace
     need_update: bool,
+    proxy_count: usize,
 }
 
 impl SAPRegion {
@@ -319,6 +320,7 @@ impl SAPRegion {
             existing_proxies: BitVec::new(),
             to_insert: Vec::new(),
             need_update: false,
+            proxy_count: 0,
         }
     }
 
@@ -338,6 +340,7 @@ impl SAPRegion {
         if !self.existing_proxies[proxy_id] {
             self.to_insert.push(proxy_id);
             self.existing_proxies.set(proxy_id, true);
+            self.proxy_count += 1;
             false
         } else {
             self.need_update = true;
@@ -348,15 +351,14 @@ impl SAPRegion {
     pub fn update(&mut self, proxies: &Proxies, reporting: &mut HashMap<(u32, u32), bool>) {
         if self.need_update {
             // Update endpoints.
-            let mut deleted_any = false;
+            let mut deleted = 0;
             for dim in 0..DIM {
                 self.axii[dim].update_endpoints(dim, proxies, reporting);
-                deleted_any = self.axii[dim]
-                    .delete_out_of_bounds_proxies(&mut self.existing_proxies)
-                    || deleted_any;
+                deleted += self.axii[dim].delete_out_of_bounds_proxies(&mut self.existing_proxies);
             }
 
-            if deleted_any {
+            if deleted > 0 {
+                self.proxy_count -= deleted;
                 for dim in 0..DIM {
                     self.axii[dim].delete_out_of_bounds_endpoints(&self.existing_proxies);
                 }
@@ -588,11 +590,18 @@ impl BroadPhase {
         }
     }
 
+    fn update_regions(&mut self) {
+        for (_, region) in &mut self.regions {
+            region.update(&self.proxies, &mut self.reporting);
+        }
+
+        // Remove all the empty regions
+        self.regions.retain(|_, region| region.proxy_count > 0);
+    }
+
     pub(crate) fn complete_removals(&mut self) {
         if self.deleted_any {
-            for (_, region) in &mut self.regions {
-                region.update(&self.proxies, &mut self.reporting);
-            }
+            self.update_regions();
 
             // NOTE: we don't care about reporting pairs.
             self.reporting.clear();
@@ -604,9 +613,7 @@ impl BroadPhase {
         // println!("num regions: {}", self.regions.len());
 
         self.reporting.clear();
-        for (_, region) in &mut self.regions {
-            region.update(&self.proxies, &mut self.reporting)
-        }
+        self.update_regions();
 
         // Convert reports to broad phase events.
         // let t = instant::now();
