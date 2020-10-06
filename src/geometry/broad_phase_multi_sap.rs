@@ -1,6 +1,6 @@
 use crate::data::pubsub::PubSubCursor;
 use crate::dynamics::RigidBodySet;
-use crate::geometry::{Collider, ColliderHandle, ColliderPair, ColliderSet, RemovedCollider};
+use crate::geometry::{Collider, ColliderHandle, ColliderSet, RemovedCollider};
 use crate::math::{Point, Vector, DIM};
 #[cfg(feature = "enhanced-determinism")]
 use crate::utils::FxHashMap32 as HashMap;
@@ -15,6 +15,41 @@ const NUM_SENTINELS: usize = 1;
 const NEXT_FREE_SENTINEL: u32 = u32::MAX;
 const SENTINEL_VALUE: f32 = f32::MAX;
 const CELL_WIDTH: f32 = 20.0;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+pub struct ColliderPair {
+    pub collider1: ColliderHandle,
+    pub collider2: ColliderHandle,
+}
+
+impl ColliderPair {
+    pub fn new(collider1: ColliderHandle, collider2: ColliderHandle) -> Self {
+        ColliderPair {
+            collider1,
+            collider2,
+        }
+    }
+
+    pub fn new_sorted(collider1: ColliderHandle, collider2: ColliderHandle) -> Self {
+        if collider1.into_raw_parts().0 <= collider2.into_raw_parts().0 {
+            Self::new(collider1, collider2)
+        } else {
+            Self::new(collider2, collider1)
+        }
+    }
+
+    pub fn swap(self) -> Self {
+        Self::new(self.collider2, self.collider1)
+    }
+
+    pub fn zero() -> Self {
+        Self {
+            collider1: ColliderHandle::from_raw_parts(0, 0),
+            collider2: ColliderHandle::from_raw_parts(0, 0),
+        }
+    }
+}
 
 pub enum BroadPhasePairEvent {
     AddPair(ColliderPair),
