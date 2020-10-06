@@ -132,7 +132,9 @@ impl Shape {
             Shape::Triangle(triangle) => {
                 triangle.toi_and_normal_with_ray(position, ray, max_toi, true)
             }
-            Shape::Trimesh(_trimesh) => None,
+            Shape::Trimesh(trimesh) => {
+                trimesh.toi_and_normal_with_ray(position, ray, max_toi, true)
+            }
             Shape::HeightField(heightfield) => {
                 heightfield.toi_and_normal_with_ray(position, ray, max_toi, true)
             }

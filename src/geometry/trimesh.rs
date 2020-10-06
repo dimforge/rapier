@@ -1,5 +1,6 @@
-use crate::geometry::{Triangle, WQuadtree};
+use crate::geometry::{Ray, RayIntersection, Triangle, WQuadtree};
 use crate::math::{Isometry, Point};
+use crate::ncollide::query::RayCast;
 use na::Point3;
 use ncollide::bounding_volume::{HasBoundingVolume, AABB};
 
@@ -101,5 +102,54 @@ impl Trimesh {
             let data = self.indices.as_ptr() as *const u32;
             std::slice::from_raw_parts(data, len)
         }
+    }
+}
+
+impl RayCast<f32> for Trimesh {
+    fn toi_and_normal_with_ray(
+        &self,
+        m: &Isometry<f32>,
+        ray: &Ray,
+        max_toi: f32,
+        solid: bool,
+    ) -> Option<RayIntersection> {
+        // FIXME: do a best-first search.
+        let mut intersections = Vec::new();
+        let ls_ray = ray.inverse_transform_by(m);
+        self.wquadtree
+            .cast_ray(&ls_ray, max_toi, &mut intersections);
+        let mut best: Option<RayIntersection> = None;
+
+        for inter in intersections {
+            let tri = self.triangle(inter);
+            if let Some(inter) = tri.toi_and_normal_with_ray(m, ray, max_toi, solid) {
+                if let Some(curr) = &mut best {
+                    if curr.toi > inter.toi {
+                        *curr = inter;
+                    }
+                } else {
+                    best = Some(inter);
+                }
+            }
+        }
+
+        best
+    }
+
+    fn intersects_ray(&self, m: &Isometry<f32>, ray: &Ray, max_toi: f32) -> bool {
+        // FIXME: do a best-first search.
+        let mut intersections = Vec::new();
+        let ls_ray = ray.inverse_transform_by(m);
+        self.wquadtree
+            .cast_ray(&ls_ray, max_toi, &mut intersections);
+
+        for inter in intersections {
+            let tri = self.triangle(inter);
+            if tri.intersects_ray(m, ray, max_toi) {
+                return true;
+            }
+        }
+
+        false
     }
 }
