@@ -64,15 +64,10 @@ impl QueryPipeline {
         ray: &Ray,
         max_toi: f32,
     ) -> Option<(ColliderHandle, &'a Collider, RayIntersection)> {
-        // let t0 = instant::now();
-        let inter = self.quadtree.cast_ray(ray, max_toi);
-        // println!(
-        //     "Found {} interferences in time {}.",
-        //     inter.len(),
-        //     instant::now() - t0
-        // );
+        // TODO: avoid allocation?
+        let mut inter = Vec::new();
+        self.quadtree.cast_ray(ray, max_toi, &mut inter);
 
-        // let t0 = instant::now();
         let mut best = f32::MAX;
         let mut result = None;
 
@@ -85,7 +80,6 @@ impl QueryPipeline {
                 }
             }
         }
-        // println!("Cast time: {}", instant::now() - t0);
 
         result
     }
@@ -107,8 +101,12 @@ impl QueryPipeline {
         max_toi: f32,
         mut callback: impl FnMut(ColliderHandle, &'a Collider, RayIntersection) -> bool,
     ) {
-        // FIXME: this is a brute-force approach.
-        for (handle, collider) in colliders.iter() {
+        // TODO: avoid allocation?
+        let mut inter = Vec::new();
+        self.quadtree.cast_ray(ray, max_toi, &mut inter);
+
+        for handle in inter {
+            let collider = &colliders[handle];
             if let Some(inter) = collider.shape().cast_ray(collider.position(), ray, max_toi) {
                 if !callback(handle, collider, inter) {
                     return;

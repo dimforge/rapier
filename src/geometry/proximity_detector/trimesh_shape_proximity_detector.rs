@@ -70,7 +70,10 @@ fn do_detect_proximity(
             &mut workspace.interferences,
         );
 
-        workspace.interferences = trimesh1.waabbs().intersect_aabb(&local_aabb2);
+        workspace.interferences.clear();
+        trimesh1
+            .waabbs()
+            .intersect_aabb(&local_aabb2, &mut workspace.interferences);
         workspace.local_aabb2 = local_aabb2;
     }
 
