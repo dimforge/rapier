@@ -1160,7 +1160,7 @@ impl Testbed {
     }
 
     #[cfg(feature = "dim2")]
-    fn highlight_hovered_body(&mut self, window: &Window) {
+    fn highlight_hovered_body(&mut self, _window: &Window) {
         // Do nothing for now.
     }
 

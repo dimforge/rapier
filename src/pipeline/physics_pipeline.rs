@@ -58,18 +58,6 @@ impl PhysicsPipeline {
         }
     }
 
-    /// Remove this.
-    pub fn maintain(
-        &mut self,
-        broad_phase: &mut BroadPhase,
-        narrow_phase: &mut NarrowPhase,
-        bodies: &mut RigidBodySet,
-        colliders: &mut ColliderSet,
-    ) {
-        broad_phase.maintain(colliders);
-        narrow_phase.maintain(colliders, bodies);
-    }
-
     /// Executes one timestep of the physics simulation.
     pub fn step(
         &mut self,
@@ -82,9 +70,9 @@ impl PhysicsPipeline {
         joints: &mut JointSet,
         events: &dyn EventHandler,
     ) {
-        // println!("Step");
         self.counters.step_started();
-        self.maintain(broad_phase, narrow_phase, bodies, colliders);
+        broad_phase.maintain(colliders);
+        narrow_phase.maintain(colliders, bodies);
         bodies.maintain_active_set();
 
         // Update kinematic bodies velocities.

@@ -124,7 +124,7 @@ impl Shape {
             }
             Shape::Cuboid(cuboid) => cuboid.toi_and_normal_with_ray(position, ray, max_toi, true),
             #[cfg(feature = "dim2")]
-            Shape::Triangle(triangle) => {
+            Shape::Triangle(_) | Shape::Trimesh(_) => {
                 // This is not implemented yet in 2D.
                 None
             }
@@ -132,6 +132,7 @@ impl Shape {
             Shape::Triangle(triangle) => {
                 triangle.toi_and_normal_with_ray(position, ray, max_toi, true)
             }
+            #[cfg(feature = "dim3")]
             Shape::Trimesh(trimesh) => {
                 trimesh.toi_and_normal_with_ray(position, ray, max_toi, true)
             }

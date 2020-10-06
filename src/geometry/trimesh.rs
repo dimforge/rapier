@@ -1,8 +1,13 @@
-use crate::geometry::{Ray, RayIntersection, Triangle, WQuadtree};
+use crate::geometry::{Triangle, WQuadtree};
 use crate::math::{Isometry, Point};
-use crate::ncollide::query::RayCast;
 use na::Point3;
 use ncollide::bounding_volume::{HasBoundingVolume, AABB};
+
+#[cfg(feature = "dim3")]
+use {
+    crate::geometry::{Ray, RayIntersection},
+    ncollide::query::RayCast,
+};
 
 #[derive(Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -105,6 +110,7 @@ impl Trimesh {
     }
 }
 
+#[cfg(feature = "dim3")]
 impl RayCast<f32> for Trimesh {
     fn toi_and_normal_with_ray(
         &self,

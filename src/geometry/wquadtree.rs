@@ -1,6 +1,8 @@
 use crate::geometry::{ColliderHandle, ColliderSet, Ray, AABB};
 use crate::geometry::{WRay, WAABB};
-use crate::math::{Point, Vector};
+use crate::math::Point;
+#[cfg(feature = "dim3")]
+use crate::math::Vector;
 use crate::simd::{SimdFloat, SIMD_WIDTH};
 use ncollide::bounding_volume::BoundingVolume;
 use simba::simd::{SimdBool, SimdValue};
@@ -252,6 +254,7 @@ impl<T: IndexedData> WQuadtree<T> {
 
         // Find the axis with minimum variance. This is the axis along
         // which we are **not** subdividing our set.
+        #[allow(unused_mut)] // Does not need to be mutable in 2D.
         let mut subdiv_dims = [0, 1];
         #[cfg(feature = "dim3")]
         {
@@ -466,6 +469,7 @@ impl<T: IndexedData> WQuadtreeIncrementalBuilder<T> {
 
             // Find the axis with minimum variance. This is the axis along
             // which we are **not** subdividing our set.
+            #[allow(unused_mut)] // Does not need to be mutable in 2D.
             let mut subdiv_dims = [0, 1];
             #[cfg(feature = "dim3")]
             {
