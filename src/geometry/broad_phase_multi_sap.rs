@@ -303,7 +303,7 @@ struct SAPRegion {
     existing_proxies: BitVec,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     to_insert: Vec<usize>, // Workspace
-    need_update: bool,
+    update_count: usize,
     proxy_count: usize,
 }
 
@@ -319,7 +319,7 @@ impl SAPRegion {
             axii,
             existing_proxies: BitVec::new(),
             to_insert: Vec::new(),
-            need_update: false,
+            update_count: 0,
             proxy_count: 0,
         }
     }
@@ -328,7 +328,7 @@ impl SAPRegion {
         // We keep the proxy_id as argument for uniformity with the "preupdate"
         // method. However we don't actually need it because the deletion will be
         // handled transparently during the next update.
-        self.need_update = true;
+        self.update_count = 1;
     }
 
     pub fn preupdate_proxy(&mut self, proxy_id: usize) -> bool {
@@ -343,13 +343,16 @@ impl SAPRegion {
             self.proxy_count += 1;
             false
         } else {
-            self.need_update = true;
+            // Here we need a second update if all proxies exit this region. In this case, we need
+            // to delete the final proxy, but the region may not have AABBs overlapping it, so it
+            // wouldn't get an update otherwise.
+            self.update_count = 2;
             true
         }
     }
 
     pub fn update(&mut self, proxies: &Proxies, reporting: &mut HashMap<(u32, u32), bool>) {
-        if self.need_update {
+        if self.update_count > 0 {
             // Update endpoints.
             let mut deleted = 0;
             for dim in 0..DIM {
@@ -364,7 +367,7 @@ impl SAPRegion {
                 }
             }
 
-            self.need_update = false;
+            self.update_count -= 1;
         }
 
         if !self.to_insert.is_empty() {
