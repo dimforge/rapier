@@ -3,12 +3,11 @@
 use crate::counters::Counters;
 #[cfg(not(feature = "parallel"))]
 use crate::dynamics::IslandSolver;
-use crate::dynamics::{IntegrationParameters, JointSet, RigidBody, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, Collider, ColliderHandle, ColliderPair, ColliderSet,
-    ContactManifoldIndex, NarrowPhase,
+    BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactManifoldIndex, NarrowPhase,
 };
 use crate::math::Vector;
 use crate::pipeline::EventHandler;
@@ -71,9 +70,19 @@ impl PhysicsPipeline {
         joints: &mut JointSet,
         events: &dyn EventHandler,
     ) {
-        // println!("Step");
         self.counters.step_started();
+        broad_phase.maintain(colliders);
+        narrow_phase.maintain(colliders, bodies);
         bodies.maintain_active_set();
+
+        // Update kinematic bodies velocities.
+        // TODO: what is the best place for this? It should at least be
+        // located before the island computation because we test the velocity
+        // there to determine if this kinematic body should wake-up dynamic
+        // bodies it is touching.
+        bodies.foreach_active_kinematic_body_mut_internal(|_, body| {
+            body.compute_velocity_from_predicted_position(integration_parameters.inv_dt());
+        });
 
         self.counters.stages.collision_detection_time.start();
         self.counters.cd.broad_phase_time.start();
@@ -91,7 +100,7 @@ impl PhysicsPipeline {
         broad_phase.find_pairs(&mut self.broad_phase_events);
         //        println!("Find pairs time: {}", instant::now() - t);
 
-        narrow_phase.register_pairs(colliders, &self.broad_phase_events, events);
+        narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
         self.counters.cd.broad_phase_time.pause();
 
         //        println!("Num contact pairs: {}", pairs.len());
@@ -121,11 +130,6 @@ impl PhysicsPipeline {
             integration_parameters.min_island_size,
         );
         self.counters.stages.island_construction_time.pause();
-
-        // Update kinematic bodies velocities.
-        bodies.foreach_active_kinematic_body_mut_internal(|_, body| {
-            body.compute_velocity_from_predicted_position(integration_parameters.inv_dt());
-        });
 
         if self.manifold_indices.len() < bodies.num_islands() {
             self.manifold_indices
@@ -245,62 +249,45 @@ impl PhysicsPipeline {
         bodies.modified_inactive_set.clear();
         self.counters.step_completed();
     }
-
-    /// Remove a collider and all its associated data.
-    pub fn remove_collider(
-        &mut self,
-        handle: ColliderHandle,
-        broad_phase: &mut BroadPhase,
-        narrow_phase: &mut NarrowPhase,
-        bodies: &mut RigidBodySet,
-        colliders: &mut ColliderSet,
-    ) -> Option<Collider> {
-        broad_phase.remove_colliders(&[handle], colliders);
-        narrow_phase.remove_colliders(&[handle], colliders, bodies);
-        let collider = colliders.remove_internal(handle)?;
-
-        if let Some(parent) = bodies.get_mut_internal(collider.parent) {
-            parent.remove_collider_internal(handle, &collider);
-            bodies.wake_up(collider.parent);
-        }
-
-        Some(collider)
-    }
-
-    /// Remove a rigid-body and all its associated data.
-    pub fn remove_rigid_body(
-        &mut self,
-        handle: RigidBodyHandle,
-        broad_phase: &mut BroadPhase,
-        narrow_phase: &mut NarrowPhase,
-        bodies: &mut RigidBodySet,
-        colliders: &mut ColliderSet,
-        joints: &mut JointSet,
-    ) -> Option<RigidBody> {
-        // Remove the body.
-        let body = bodies.remove_internal(handle)?;
-
-        // Remove this rigid-body from the broad-phase and narrow-phase.
-        broad_phase.remove_colliders(&body.colliders, colliders);
-        narrow_phase.remove_colliders(&body.colliders, colliders, bodies);
-
-        // Remove all joints attached to this body.
-        joints.remove_rigid_body(body.joint_graph_index, bodies);
-
-        // Remove all colliders attached to this body.
-        for collider in &body.colliders {
-            colliders.remove_internal(*collider);
-        }
-
-        Some(body)
-    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-    use crate::geometry::{BroadPhase, ColliderSet, NarrowPhase};
+    use crate::dynamics::{IntegrationParameters, JointSet, RigidBodyBuilder, RigidBodySet};
+    use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
+    use crate::math::Vector;
     use crate::pipeline::PhysicsPipeline;
+
+    #[test]
+    fn kinematic_and_static_contact_crash() {
+        let mut colliders = ColliderSet::new();
+        let mut joints = JointSet::new();
+        let mut pipeline = PhysicsPipeline::new();
+        let mut bf = BroadPhase::new();
+        let mut nf = NarrowPhase::new();
+        let mut bodies = RigidBodySet::new();
+
+        let rb = RigidBodyBuilder::new_static().build();
+        let h1 = bodies.insert(rb.clone());
+        let co = ColliderBuilder::ball(10.0).build();
+        colliders.insert(co.clone(), h1, &mut bodies);
+
+        // The same but with a kinematic body.
+        let rb = RigidBodyBuilder::new_kinematic().build();
+        let h2 = bodies.insert(rb.clone());
+        colliders.insert(co, h2, &mut bodies);
+
+        pipeline.step(
+            &Vector::zeros(),
+            &IntegrationParameters::default(),
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut joints,
+            &(),
+        );
+    }
 
     #[test]
     fn rigid_body_removal_before_step() {
@@ -310,42 +297,65 @@ mod test {
         let mut bf = BroadPhase::new();
         let mut nf = NarrowPhase::new();
 
-        let mut set = RigidBodySet::new();
-        let rb = RigidBodyBuilder::new_dynamic().build();
+        let mut bodies = RigidBodySet::new();
 
         // Check that removing the body right after inserting it works.
-        let h1 = set.insert(rb.clone());
-        pipeline.remove_rigid_body(h1, &mut bf, &mut nf, &mut set, &mut colliders, &mut joints);
+        // We add two dynamic bodies, one kinematic body and one static body before removing
+        // them. This include a non-regression test where deleting a kimenatic body crashes.
+        let rb = RigidBodyBuilder::new_dynamic().build();
+        let h1 = bodies.insert(rb.clone());
+        let h2 = bodies.insert(rb.clone());
+
+        // The same but with a kinematic body.
+        let rb = RigidBodyBuilder::new_kinematic().build();
+        let h3 = bodies.insert(rb.clone());
+
+        // The same but with a static body.
+        let rb = RigidBodyBuilder::new_static().build();
+        let h4 = bodies.insert(rb.clone());
+
+        let to_delete = [h1, h2, h3, h4];
+        for h in &to_delete {
+            bodies.remove(*h, &mut colliders, &mut joints);
+        }
+
+        pipeline.step(
+            &Vector::zeros(),
+            &IntegrationParameters::default(),
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut joints,
+            &(),
+        );
     }
 
     #[test]
     fn rigid_body_removal_snapshot_handle_determinism() {
         let mut colliders = ColliderSet::new();
         let mut joints = JointSet::new();
-        let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhase::new();
-        let mut nf = NarrowPhase::new();
 
-        let mut set = RigidBodySet::new();
+        let mut bodies = RigidBodySet::new();
         let rb = RigidBodyBuilder::new_dynamic().build();
-        let h1 = set.insert(rb.clone());
-        let h2 = set.insert(rb.clone());
-        let h3 = set.insert(rb.clone());
+        let h1 = bodies.insert(rb.clone());
+        let h2 = bodies.insert(rb.clone());
+        let h3 = bodies.insert(rb.clone());
 
-        pipeline.remove_rigid_body(h1, &mut bf, &mut nf, &mut set, &mut colliders, &mut joints);
-        pipeline.remove_rigid_body(h3, &mut bf, &mut nf, &mut set, &mut colliders, &mut joints);
-        pipeline.remove_rigid_body(h2, &mut bf, &mut nf, &mut set, &mut colliders, &mut joints);
+        bodies.remove(h1, &mut colliders, &mut joints);
+        bodies.remove(h3, &mut colliders, &mut joints);
+        bodies.remove(h2, &mut colliders, &mut joints);
 
-        let ser_set = bincode::serialize(&set).unwrap();
-        let mut set2: RigidBodySet = bincode::deserialize(&ser_set).unwrap();
+        let ser_bodies = bincode::serialize(&bodies).unwrap();
+        let mut bodies2: RigidBodySet = bincode::deserialize(&ser_bodies).unwrap();
 
-        let h1a = set.insert(rb.clone());
-        let h2a = set.insert(rb.clone());
-        let h3a = set.insert(rb.clone());
+        let h1a = bodies.insert(rb.clone());
+        let h2a = bodies.insert(rb.clone());
+        let h3a = bodies.insert(rb.clone());
 
-        let h1b = set2.insert(rb.clone());
-        let h2b = set2.insert(rb.clone());
-        let h3b = set2.insert(rb.clone());
+        let h1b = bodies2.insert(rb.clone());
+        let h2b = bodies2.insert(rb.clone());
+        let h3b = bodies2.insert(rb.clone());
 
         assert_eq!(h1a, h1b);
         assert_eq!(h2a, h2b);

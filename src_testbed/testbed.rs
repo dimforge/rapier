@@ -21,9 +21,9 @@ use na::{self, Point2, Point3, Vector3};
 use rapier::dynamics::{
     ActivationStatus, IntegrationParameters, JointSet, RigidBodyHandle, RigidBodySet,
 };
-use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent};
+use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent, Ray};
 use rapier::math::Vector;
-use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline};
+use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
 #[cfg(feature = "fluids")]
 use salva::{coupling::ColliderCouplingSet, object::FluidHandle, LiquidWorld};
 
@@ -179,6 +179,7 @@ pub struct PhysicsState {
     pub colliders: ColliderSet,
     pub joints: JointSet,
     pub pipeline: PhysicsPipeline,
+    pub query_pipeline: QueryPipeline,
 }
 
 impl PhysicsState {
@@ -190,6 +191,7 @@ impl PhysicsState {
             colliders: ColliderSet::new(),
             joints: JointSet::new(),
             pipeline: PhysicsPipeline::new(),
+            query_pipeline: QueryPipeline::new(),
         }
     }
 }
@@ -197,6 +199,7 @@ impl PhysicsState {
 pub struct TestbedState {
     pub running: RunMode,
     pub draw_colls: bool,
+    pub highlighted_body: Option<RigidBodyHandle>,
     //    pub grabbed_object: Option<DefaultBodyPartHandle>,
     //    pub grabbed_object_constraint: Option<DefaultJointConstraintHandle>,
     pub grabbed_object_plane: (Point3<f32>, Vector3<f32>),
@@ -240,7 +243,7 @@ pub struct Testbed {
     hide_counters: bool,
     //    persistant_contacts: HashMap<ContactId, bool>,
     font: Rc<Font>,
-    // cursor_pos: Point2<f32>,
+    cursor_pos: Point2<f32>,
     events: PhysicsEvents,
     event_handler: ChannelEventCollector,
     ui: Option<TestbedUi>,
@@ -301,6 +304,7 @@ impl Testbed {
         let state = TestbedState {
             running: RunMode::Running,
             draw_colls: false,
+            highlighted_body: None,
             //            grabbed_object: None,
             //            grabbed_object_constraint: None,
             grabbed_object_plane: (Point3::origin(), na::zero()),
@@ -349,7 +353,7 @@ impl Testbed {
             hide_counters: true,
             //            persistant_contacts: HashMap::new(),
             font: Font::default(),
-            // cursor_pos: Point2::new(0.0f32, 0.0),
+            cursor_pos: Point2::new(0.0f32, 0.0),
             ui,
             event_handler,
             events,
@@ -408,6 +412,9 @@ impl Testbed {
             .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
         self.time = 0.0;
         self.state.timestep_id = 0;
+        self.state.highlighted_body = None;
+        self.physics.query_pipeline = QueryPipeline::new();
+        self.physics.pipeline = PhysicsPipeline::new();
         self.physics.pipeline.counters.enable();
 
         #[cfg(all(feature = "dim2", feature = "other-backends"))]
@@ -668,6 +675,10 @@ impl Testbed {
                                     &self.event_handler,
                                 );
 
+                                self.physics
+                                    .query_pipeline
+                                    .update(&self.physics.bodies, &self.physics.colliders);
+
                                 #[cfg(feature = "fluids")]
                                 {
                                     fluids_time = instant::now();
@@ -802,13 +813,9 @@ impl Testbed {
 
                 let num_to_delete = (colliders.len() / 10).max(1);
                 for to_delete in &colliders[..num_to_delete] {
-                    self.physics.pipeline.remove_collider(
-                        to_delete[0],
-                        &mut self.physics.broad_phase,
-                        &mut self.physics.narrow_phase,
-                        &mut self.physics.bodies,
-                        &mut self.physics.colliders,
-                    );
+                    self.physics
+                        .colliders
+                        .remove(to_delete[0], &mut self.physics.bodies);
                 }
             }
             WindowEvent::Key(Key::D, Action::Release, _) => {
@@ -817,20 +824,21 @@ impl Testbed {
                     .physics
                     .bodies
                     .iter()
-                    .filter(|e| e.1.is_dynamic())
+                    .filter(|e| !e.1.is_static())
                     .map(|e| e.0)
                     .collect();
                 let num_to_delete = (dynamic_bodies.len() / 10).max(1);
                 for to_delete in &dynamic_bodies[..num_to_delete] {
-                    self.physics.pipeline.remove_rigid_body(
+                    self.physics.bodies.remove(
                         *to_delete,
-                        &mut self.physics.broad_phase,
-                        &mut self.physics.narrow_phase,
-                        &mut self.physics.bodies,
                         &mut self.physics.colliders,
                         &mut self.physics.joints,
                     );
                 }
+            }
+            WindowEvent::CursorPos(x, y, _) => {
+                self.cursor_pos.x = x as f32;
+                self.cursor_pos.y = y as f32;
             }
             _ => {}
         }
@@ -1146,36 +1154,45 @@ impl Testbed {
                 self.state.grabbed_object = None;
                 self.state.grabbed_object_constraint = None;
             }
-            WindowEvent::CursorPos(x, y, modifiers) => {
-                self.cursor_pos.x = x as f32;
-                self.cursor_pos.y = y as f32;
-
-                // update the joint
-                if let Some(joint) = self.state.grabbed_object_constraint {
-                    let size = window.size();
-                    let (pos, dir) = self
-                        .graphics
-                        .camera()
-                        .unproject(&self.cursor_pos, &na::convert(size));
-                    let (ref ppos, ref pdir) = self.state.grabbed_object_plane;
-
-                    if let Some(inter) = query::ray_toi_with_plane(ppos, pdir, &Ray::new(pos, dir))
-                    {
-                        let joint = self
-                            .constraints
-                            .get_mut(joint)
-                            .unwrap()
-                            .downcast_mut::<MouseConstraint<f32, RigidBodyHandle>>()
-                            .unwrap();
-                        joint.set_anchor_1(pos + dir * inter)
-                    }
-                }
-
-                event.inhibited = modifiers.contains(Modifiers::Shift);
-            }
             _ => {}
         }
         */
+    }
+
+    #[cfg(feature = "dim2")]
+    fn highlight_hovered_body(&mut self, _window: &Window) {
+        // Do nothing for now.
+    }
+
+    #[cfg(feature = "dim3")]
+    fn highlight_hovered_body(&mut self, window: &Window) {
+        if let Some(highlighted_body) = self.state.highlighted_body {
+            if let Some(nodes) = self.graphics.body_nodes_mut(highlighted_body) {
+                for node in nodes {
+                    node.unselect()
+                }
+            }
+        }
+
+        let size = window.size();
+        let (pos, dir) = self
+            .graphics
+            .camera()
+            .unproject(&self.cursor_pos, &na::convert(size));
+        let ray = Ray::new(pos, dir);
+        let hit = self
+            .physics
+            .query_pipeline
+            .cast_ray(&self.physics.colliders, &ray, f32::MAX);
+
+        if let Some((_, collider, _)) = hit {
+            if self.physics.bodies[collider.parent()].is_dynamic() {
+                self.state.highlighted_body = Some(collider.parent());
+                for node in self.graphics.body_nodes_mut(collider.parent()).unwrap() {
+                    node.select()
+                }
+            }
+        }
     }
 }
 
@@ -1287,9 +1304,9 @@ impl State for Testbed {
                     if let Ok(w) = snapshot.restore() {
                         self.clear(window);
                         self.graphics.clear(window);
+                        self.set_world(w.3, w.4, w.5);
                         self.physics.broad_phase = w.1;
                         self.physics.narrow_phase = w.2;
-                        self.set_world(w.3, w.4, w.5);
                         self.state.timestep_id = w.0;
                     }
                 }
@@ -1347,7 +1364,7 @@ impl State for Testbed {
                     }
                 } else {
                     for (_, mut body) in self.physics.bodies.iter_mut() {
-                        body.wake_up();
+                        body.wake_up(true);
                         body.activation.threshold = -1.0;
                     }
                 }
@@ -1445,6 +1462,10 @@ impl State for Testbed {
                         &mut self.physics.joints,
                         &self.event_handler,
                     );
+
+                    self.physics
+                        .query_pipeline
+                        .update(&self.physics.bodies, &self.physics.colliders);
 
                     #[cfg(feature = "fluids")]
                     {
@@ -1550,7 +1571,9 @@ impl State for Testbed {
             }
         }
 
-        self.graphics.draw(&self.physics.colliders, window);
+        self.highlight_hovered_body(window);
+        self.graphics
+            .draw(&self.physics.bodies, &self.physics.colliders, window);
 
         #[cfg(feature = "fluids")]
         {
@@ -1627,26 +1650,35 @@ Fluids: {:.2}ms
         }
 
         if self.state.flags.contains(TestbedStateFlags::DEBUG) {
-            let hash_bf = md5::compute(&bincode::serialize(&self.physics.broad_phase).unwrap());
-            let hash_nf = md5::compute(&bincode::serialize(&self.physics.narrow_phase).unwrap());
-            let hash_bodies = md5::compute(&bincode::serialize(&self.physics.bodies).unwrap());
-            let hash_colliders =
-                md5::compute(&bincode::serialize(&self.physics.colliders).unwrap());
-            let hash_joints = md5::compute(&bincode::serialize(&self.physics.joints).unwrap());
+            let bf = bincode::serialize(&self.physics.broad_phase).unwrap();
+            let nf = bincode::serialize(&self.physics.narrow_phase).unwrap();
+            let bs = bincode::serialize(&self.physics.bodies).unwrap();
+            let cs = bincode::serialize(&self.physics.colliders).unwrap();
+            let js = bincode::serialize(&self.physics.joints).unwrap();
+            let hash_bf = md5::compute(&bf);
+            let hash_nf = md5::compute(&nf);
+            let hash_bodies = md5::compute(&bs);
+            let hash_colliders = md5::compute(&cs);
+            let hash_joints = md5::compute(&js);
             profile = format!(
                 r#"{}
 Hashes at frame: {}
-|_ Broad phase: {:?}
-|_ Narrow phase: {:?}
-|_ Bodies: {:?}
-|_ Colliders: {:?}
-|_ Joints: {:?}"#,
+|_ Broad phase [{:.1}KB]: {:?}
+|_ Narrow phase [{:.1}KB]: {:?}
+|_ Bodies [{:.1}KB]: {:?}
+|_ Colliders [{:.1}KB]: {:?}
+|_ Joints [{:.1}KB]: {:?}"#,
                 profile,
                 self.state.timestep_id,
+                bf.len() as f32 / 1000.0,
                 hash_bf,
+                nf.len() as f32 / 1000.0,
                 hash_nf,
+                bs.len() as f32 / 1000.0,
                 hash_bodies,
+                cs.len() as f32 / 1000.0,
                 hash_colliders,
+                js.len() as f32 / 1000.0,
                 hash_joints
             );
         }

@@ -1,7 +1,7 @@
 # Name idea: bident for 2D and trident for 3D
 [package]
 name    = "rapier3d"
-version = "0.1.5"
+version = "0.2.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "3-dimensional physics engine in Rust."
 documentation = "http://docs.rs/rapier3d"
@@ -37,7 +37,7 @@ instant = { version = "0.1", features = [ "now" ]}
 num-traits = "0.2"
 nalgebra = "0.22"
 ncollide3d = "0.24"
-simba = "0.2"
+simba = "^0.2.1"
 approx = "0.3"
 rayon = { version = "1", optional = true }
 crossbeam = "0.7"

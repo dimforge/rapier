@@ -4,6 +4,7 @@ members = [ "build/rapier2d", "build/rapier_testbed2d", "examples2d", "benchmark
 
 [patch.crates-io]
 #wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }
+#simba = { path = "../simba" }
 
 [profile.release]
 #debug = true
