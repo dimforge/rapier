@@ -68,8 +68,8 @@ impl PhysicsPipeline {
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
     ) {
-        // broad_phase.maintain(colliders);
-        // narrow_phase.maintain(colliders, bodies);
+        broad_phase.maintain(colliders);
+        narrow_phase.maintain(colliders, bodies);
     }
 
     /// Executes one timestep of the physics simulation.
