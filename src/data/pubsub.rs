@@ -1,7 +1,7 @@
 //! Publish-subscribe mechanism for internal events.
 
-use serde::export::PhantomData;
 use std::collections::VecDeque;
+use std::marker::PhantomData;
 
 /// A permanent subscription to a pub-sub queue.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
