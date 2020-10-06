@@ -208,8 +208,9 @@ impl SAPAxis {
         let mut deleted = 0;
         for endpoint in &self.endpoints {
             if endpoint.value < self.min_bound {
-                if endpoint.is_end() {
-                    existing_proxies.set(endpoint.proxy() as usize, false);
+                let proxy_idx = endpoint.proxy() as usize;
+                if endpoint.is_end() && existing_proxies[proxy_idx] {
+                    existing_proxies.set(proxy_idx, false);
                     deleted += 1;
                 }
             } else {
@@ -219,7 +220,8 @@ impl SAPAxis {
 
         for endpoint in self.endpoints.iter().rev() {
             if endpoint.value > self.max_bound {
-                if endpoint.is_start() {
+                let proxy_idx = endpoint.proxy() as usize;
+                if endpoint.is_start() && existing_proxies[proxy_idx] {
                     existing_proxies.set(endpoint.proxy() as usize, false);
                     deleted += 1;
                 }
