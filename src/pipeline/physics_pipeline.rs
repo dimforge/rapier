@@ -316,14 +316,7 @@ mod test {
 
         let to_delete = [h1, h2, h3, h4];
         for h in &to_delete {
-            pipeline.remove_rigid_body(
-                *h,
-                &mut bf,
-                &mut nf,
-                &mut bodies,
-                &mut colliders,
-                &mut joints,
-            );
+            bodies.remove(*h, &mut colliders, &mut joints);
         }
 
         pipeline.step(
@@ -342,30 +335,27 @@ mod test {
     fn rigid_body_removal_snapshot_handle_determinism() {
         let mut colliders = ColliderSet::new();
         let mut joints = JointSet::new();
-        let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhase::new();
-        let mut nf = NarrowPhase::new();
 
-        let mut set = RigidBodySet::new();
+        let mut bodies = RigidBodySet::new();
         let rb = RigidBodyBuilder::new_dynamic().build();
-        let h1 = set.insert(rb.clone());
-        let h2 = set.insert(rb.clone());
-        let h3 = set.insert(rb.clone());
+        let h1 = bodies.insert(rb.clone());
+        let h2 = bodies.insert(rb.clone());
+        let h3 = bodies.insert(rb.clone());
 
-        pipeline.remove_rigid_body(h1, &mut bf, &mut nf, &mut set, &mut colliders, &mut joints);
-        pipeline.remove_rigid_body(h3, &mut bf, &mut nf, &mut set, &mut colliders, &mut joints);
-        pipeline.remove_rigid_body(h2, &mut bf, &mut nf, &mut set, &mut colliders, &mut joints);
+        bodies.remove(h1, &mut colliders, &mut joints);
+        bodies.remove(h3, &mut colliders, &mut joints);
+        bodies.remove(h2, &mut colliders, &mut joints);
 
-        let ser_set = bincode::serialize(&set).unwrap();
-        let mut set2: RigidBodySet = bincode::deserialize(&ser_set).unwrap();
+        let ser_bodies = bincode::serialize(&bodies).unwrap();
+        let mut bodies2: RigidBodySet = bincode::deserialize(&ser_bodies).unwrap();
 
-        let h1a = set.insert(rb.clone());
-        let h2a = set.insert(rb.clone());
-        let h3a = set.insert(rb.clone());
+        let h1a = bodies.insert(rb.clone());
+        let h2a = bodies.insert(rb.clone());
+        let h3a = bodies.insert(rb.clone());
 
-        let h1b = set2.insert(rb.clone());
-        let h2b = set2.insert(rb.clone());
-        let h3b = set2.insert(rb.clone());
+        let h1b = bodies2.insert(rb.clone());
+        let h2b = bodies2.insert(rb.clone());
+        let h3b = bodies2.insert(rb.clone());
 
         assert_eq!(h1a, h1b);
         assert_eq!(h2a, h2b);

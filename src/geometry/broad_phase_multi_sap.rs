@@ -700,16 +700,13 @@ impl BroadPhase {
 mod test {
     use crate::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
-    use crate::pipeline::PhysicsPipeline;
 
     #[test]
     fn test_add_update_remove() {
         let mut broad_phase = BroadPhase::new();
-        let mut narrow_phase = NarrowPhase::new();
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
         let mut joints = JointSet::new();
-        let mut pipeline = PhysicsPipeline::new();
 
         let rb = RigidBodyBuilder::new_dynamic().build();
         let co = ColliderBuilder::ball(0.5).build();
@@ -718,15 +715,8 @@ mod test {
 
         broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
 
-        pipeline.remove_rigid_body(
-            hrb,
-            &mut broad_phase,
-            &mut narrow_phase,
-            &mut bodies,
-            &mut colliders,
-            &mut joints,
-        );
-
+        bodies.remove(hrb, &mut colliders, &mut joints);
+        broad_phase.maintain(&mut colliders);
         broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
 
         // Create another body.
