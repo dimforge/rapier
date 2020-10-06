@@ -309,11 +309,9 @@ impl<T: IndexedData> WQuadtree<T> {
 
     // FIXME: implement a visitor pattern to merge intersect_aabb
     // and intersect_ray into a single method.
-    pub fn intersect_aabb(&self, aabb: &AABB) -> Vec<T> {
-        let mut res = Vec::new();
-
+    pub fn intersect_aabb(&self, aabb: &AABB, out: &mut Vec<T>) {
         if self.nodes.is_empty() {
-            return res;
+            return;
         }
 
         // Special case for the root.
@@ -330,7 +328,7 @@ impl<T: IndexedData> WQuadtree<T> {
                         // We found a leaf!
                         // Unfortunately, invalid AABBs return a intersection as well.
                         if let Some(proxy) = self.proxies.get(node.children[ii] as usize) {
-                            res.push(proxy.data);
+                            out.push(proxy.data);
                         }
                     } else {
                         // Internal node, visit the child.
@@ -343,15 +341,11 @@ impl<T: IndexedData> WQuadtree<T> {
                 }
             }
         }
-
-        res
     }
 
-    pub fn cast_ray(&self, ray: &Ray, max_toi: f32) -> Vec<T> {
-        let mut res = Vec::new();
-
+    pub fn cast_ray(&self, ray: &Ray, max_toi: f32, out: &mut Vec<T>) {
         if self.nodes.is_empty() {
-            return res;
+            return;
         }
 
         // Special case for the root.
@@ -369,7 +363,7 @@ impl<T: IndexedData> WQuadtree<T> {
                         // We found a leaf!
                         // Unfortunately, invalid AABBs return a hit as well.
                         if let Some(proxy) = self.proxies.get(node.children[ii] as usize) {
-                            res.push(proxy.data);
+                            out.push(proxy.data);
                         }
                     } else {
                         // Internal node, visit the child.
@@ -382,8 +376,6 @@ impl<T: IndexedData> WQuadtree<T> {
                 }
             }
         }
-
-        res
     }
 }
 
