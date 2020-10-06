@@ -7,6 +7,31 @@ use simba::simd::{SimdBool, SimdValue};
 use std::collections::VecDeque;
 use std::ops::Range;
 
+pub trait IndexedData: Copy {
+    fn default() -> Self;
+    fn index(&self) -> usize;
+}
+
+impl IndexedData for usize {
+    fn default() -> Self {
+        u32::MAX as usize
+    }
+
+    fn index(&self) -> usize {
+        *self
+    }
+}
+
+impl IndexedData for ColliderHandle {
+    fn default() -> Self {
+        ColliderSet::invalid_handle()
+    }
+
+    fn index(&self) -> usize {
+        self.into_raw_parts().0
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 struct NodeIndex {
@@ -41,38 +66,32 @@ struct WQuadtreeNode {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-struct WQuadtreeProxy {
+struct WQuadtreeProxy<T> {
     node: NodeIndex,
-    handle: ColliderHandle, // The collider handle. TODO: only set the collider generation here?
+    data: T, // The collider data. TODO: only set the collider generation here?
 }
 
-impl WQuadtreeProxy {
+impl<T: IndexedData> WQuadtreeProxy<T> {
     fn invalid() -> Self {
         Self {
             node: NodeIndex::invalid(),
-            handle: ColliderSet::invalid_handle(),
+            data: T::default(),
         }
     }
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-pub struct WQuadtree {
+#[derive(Clone, Debug)]
+pub struct WQuadtree<T> {
     nodes: Vec<WQuadtreeNode>,
     dirty_nodes: VecDeque<u32>,
-    proxies: Vec<WQuadtreeProxy>,
+    proxies: Vec<WQuadtreeProxy<T>>,
 }
 
-impl WQuadtree {
-    pub fn new() -> Self {
-        WQuadtree {
-            nodes: Vec::new(),
-            dirty_nodes: VecDeque::new(),
-            proxies: Vec::new(),
-        }
-    }
-
-    pub fn pre_update(&mut self, handle: ColliderHandle) {
-        let id = handle.into_raw_parts().0;
+// FIXME: this should be generic too.
+impl WQuadtree<ColliderHandle> {
+    pub fn pre_update(&mut self, data: ColliderHandle) {
+        let id = data.into_raw_parts().0;
         let node_id = self.proxies[id].node.index;
         let node = &mut self.nodes[node_id as usize];
         if !node.dirty {
@@ -86,7 +105,7 @@ impl WQuadtree {
         let dilation_factor = SimdFloat::splat(dilation_factor);
 
         while let Some(id) = self.dirty_nodes.pop_front() {
-            // NOTE: this will handle the case where we reach the root of the tree.
+            // NOTE: this will data the case where we reach the root of the tree.
             if let Some(node) = self.nodes.get(id as usize) {
                 // Compute the new WAABB.
                 let mut new_aabbs = [AABB::new_invalid(); SIMD_WIDTH];
@@ -94,7 +113,7 @@ impl WQuadtree {
                     if node.leaf {
                         // We are in a leaf: compute the colliders' AABBs.
                         if let Some(proxy) = self.proxies.get(*child_id as usize) {
-                            let collider = &colliders[proxy.handle];
+                            let collider = &colliders[proxy.data];
                             *new_aabb = collider.compute_aabb();
                         }
                     } else {
@@ -107,7 +126,7 @@ impl WQuadtree {
 
                 let node = &mut self.nodes[id as usize];
                 let new_waabb = WAABB::from(new_aabbs);
-                if !node.waabb.contains_lanewise(&new_waabb).all() {
+                if !node.waabb.contains(&new_waabb).all() {
                     node.waabb = new_waabb;
                     node.waabb.dilate_by_factor(dilation_factor);
                     self.dirty_nodes.push_back(node.parent.index);
@@ -116,31 +135,40 @@ impl WQuadtree {
             }
         }
     }
+}
 
-    pub fn clear_and_rebuild(&mut self, colliders: &ColliderSet, dilation_factor: f32) {
+impl<T: IndexedData> WQuadtree<T> {
+    pub fn new() -> Self {
+        WQuadtree {
+            nodes: Vec::new(),
+            dirty_nodes: VecDeque::new(),
+            proxies: Vec::new(),
+        }
+    }
+
+    pub fn clear_and_rebuild(
+        &mut self,
+        data: impl ExactSizeIterator<Item = (T, AABB)>,
+        dilation_factor: f32,
+    ) {
         self.nodes.clear();
         self.proxies.clear();
 
         // Create proxies.
-        let mut indices = Vec::with_capacity(colliders.len());
-        self.proxies = vec![WQuadtreeProxy::invalid(); colliders.len()];
+        let mut indices = Vec::with_capacity(data.len());
+        let mut aabbs = vec![AABB::new_invalid(); data.len()];
+        self.proxies = vec![WQuadtreeProxy::invalid(); data.len()];
 
-        for (handle, collider) in colliders.iter() {
-            let index = handle.into_raw_parts().0;
+        for (data, aabb) in data {
+            let index = data.index();
             if index >= self.proxies.len() {
                 self.proxies.resize(index + 1, WQuadtreeProxy::invalid());
+                aabbs.resize(index + 1, AABB::new_invalid());
             }
 
-            self.proxies[index].handle = handle;
-            indices.push(index);
-        }
-
-        // Compute AABBs.
-        let mut aabbs = vec![AABB::new_invalid(); self.proxies.len()];
-        for (handle, collider) in colliders.iter() {
-            let index = handle.into_raw_parts().0;
-            let aabb = collider.compute_aabb();
+            self.proxies[index].data = data;
             aabbs[index] = aabb;
+            indices.push(index);
         }
 
         // Build the tree recursively.
@@ -279,7 +307,47 @@ impl WQuadtree {
         (id, my_aabb)
     }
 
-    pub fn cast_ray(&self, ray: &Ray, max_toi: f32) -> Vec<ColliderHandle> {
+    // FIXME: implement a visitor pattern to merge intersect_aabb
+    // and intersect_ray into a single method.
+    pub fn intersect_aabb(&self, aabb: &AABB) -> Vec<T> {
+        let mut res = Vec::new();
+
+        if self.nodes.is_empty() {
+            return res;
+        }
+
+        // Special case for the root.
+        let mut stack = vec![0u32];
+        let waabb = WAABB::splat(*aabb);
+        while let Some(inode) = stack.pop() {
+            let node = self.nodes[inode as usize];
+            let intersections = node.waabb.intersects(&waabb);
+            let bitmask = intersections.bitmask();
+
+            for ii in 0..SIMD_WIDTH {
+                if (bitmask & (1 << ii)) != 0 {
+                    if node.leaf {
+                        // We found a leaf!
+                        // Unfortunately, invalid AABBs return a intersection as well.
+                        if let Some(proxy) = self.proxies.get(node.children[ii] as usize) {
+                            res.push(proxy.data);
+                        }
+                    } else {
+                        // Internal node, visit the child.
+                        // Unfortunately, we have this check because invalid AABBs
+                        // return a intersection as well.
+                        if node.children[ii] as usize <= self.nodes.len() {
+                            stack.push(node.children[ii]);
+                        }
+                    }
+                }
+            }
+        }
+
+        res
+    }
+
+    pub fn cast_ray(&self, ray: &Ray, max_toi: f32) -> Vec<T> {
         let mut res = Vec::new();
 
         if self.nodes.is_empty() {
@@ -301,7 +369,7 @@ impl WQuadtree {
                         // We found a leaf!
                         // Unfortunately, invalid AABBs return a hit as well.
                         if let Some(proxy) = self.proxies.get(node.children[ii] as usize) {
-                            res.push(proxy.handle);
+                            res.push(proxy.data);
                         }
                     } else {
                         // Internal node, visit the child.
@@ -324,14 +392,14 @@ struct WQuadtreeIncrementalBuilderStep {
     parent: NodeIndex,
 }
 
-struct WQuadtreeIncrementalBuilder {
-    quadtree: WQuadtree,
+struct WQuadtreeIncrementalBuilder<T> {
+    quadtree: WQuadtree<T>,
     to_insert: Vec<WQuadtreeIncrementalBuilderStep>,
     aabbs: Vec<AABB>,
     indices: Vec<usize>,
 }
 
-impl WQuadtreeIncrementalBuilder {
+impl<T: IndexedData> WQuadtreeIncrementalBuilder<T> {
     pub fn new() -> Self {
         Self {
             quadtree: WQuadtree::new(),

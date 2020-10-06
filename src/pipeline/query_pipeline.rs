@@ -8,7 +8,7 @@ use ncollide::bounding_volume::BoundingVolume;
 /// A pipeline for performing queries on all the colliders of a scene.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct QueryPipeline {
-    quadtree: WQuadtree,
+    quadtree: WQuadtree<ColliderHandle>,
     tree_built: bool,
     dilation_factor: f32,
 }
@@ -32,9 +32,10 @@ impl QueryPipeline {
     /// Update the acceleration structure on the query pipeline.
     pub fn update(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet) {
         if !self.tree_built {
-            self.quadtree
-                .clear_and_rebuild(colliders, self.dilation_factor);
-            // self.tree_built = true; // FIXME: uncomment this once we handle insertion/removals properly.
+            let data = colliders.iter().map(|(h, c)| (h, c.compute_aabb()));
+            self.quadtree.clear_and_rebuild(data, self.dilation_factor);
+            // FIXME: uncomment this once we handle insertion/removals properly.
+            // self.tree_built = true;
             return;
         }
 

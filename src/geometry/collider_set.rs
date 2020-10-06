@@ -38,7 +38,7 @@ impl ColliderSet {
     }
 
     /// Iterate through all the colliders on this set.
-    pub fn iter(&self) -> impl Iterator<Item = (ColliderHandle, &Collider)> {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (ColliderHandle, &Collider)> {
         self.colliders.iter()
     }
 

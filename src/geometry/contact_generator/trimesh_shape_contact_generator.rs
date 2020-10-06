@@ -5,7 +5,7 @@ use crate::geometry::{Collider, ContactManifold, Shape, Trimesh, WAABBHierarchyI
 use crate::ncollide::bounding_volume::{BoundingVolume, AABB};
 
 pub struct TrimeshShapeContactGeneratorWorkspace {
-    interferences: WAABBHierarchyIntersections,
+    interferences: Vec<usize>,
     local_aabb2: AABB<f32>,
     old_interferences: Vec<usize>,
     old_manifolds: Vec<ContactManifold>,
@@ -14,7 +14,7 @@ pub struct TrimeshShapeContactGeneratorWorkspace {
 impl TrimeshShapeContactGeneratorWorkspace {
     pub fn new() -> Self {
         Self {
-            interferences: WAABBHierarchyIntersections::new(),
+            interferences: Vec::new(),
             local_aabb2: AABB::new_invalid(),
             old_interferences: Vec::new(),
             old_manifolds: Vec::new(),
@@ -74,7 +74,7 @@ fn do_generate_contacts(
         let local_aabb2 = new_local_aabb2; // .loosened(ctxt.prediction_distance * 2.0); // FIXME: what would be the best value?
         std::mem::swap(
             &mut workspace.old_interferences,
-            workspace.interferences.computed_interferences_mut(),
+            &mut workspace.interferences,
         );
         std::mem::swap(&mut workspace.old_manifolds, &mut ctxt.pair.manifolds);
         ctxt.pair.manifolds.clear();
@@ -108,16 +108,14 @@ fn do_generate_contacts(
         //     workspace.old_manifolds.len()
         // );
 
-        trimesh1
-            .waabbs()
-            .compute_interferences_with(local_aabb2, &mut workspace.interferences);
+        workspace.interferences = trimesh1.waabbs().intersect_aabb(&local_aabb2);
         workspace.local_aabb2 = local_aabb2;
     }
 
     /*
      * Dispatch to the specific solver by keeping the previous manifold if we already had one.
      */
-    let new_interferences = workspace.interferences.computed_interferences();
+    let new_interferences = &workspace.interferences;
     let mut old_inter_it = workspace.old_interferences.drain(..).peekable();
     let mut old_manifolds_it = workspace.old_manifolds.drain(..);
 

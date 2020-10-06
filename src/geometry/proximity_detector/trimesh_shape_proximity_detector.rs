@@ -5,7 +5,7 @@ use crate::geometry::{Collider, Proximity, Shape, Trimesh, WAABBHierarchyInterse
 use crate::ncollide::bounding_volume::{BoundingVolume, AABB};
 
 pub struct TrimeshShapeProximityDetectorWorkspace {
-    interferences: WAABBHierarchyIntersections,
+    interferences: Vec<usize>,
     local_aabb2: AABB<f32>,
     old_interferences: Vec<usize>,
 }
@@ -13,7 +13,7 @@ pub struct TrimeshShapeProximityDetectorWorkspace {
 impl TrimeshShapeProximityDetectorWorkspace {
     pub fn new() -> Self {
         Self {
-            interferences: WAABBHierarchyIntersections::new(),
+            interferences: Vec::new(),
             local_aabb2: AABB::new_invalid(),
             old_interferences: Vec::new(),
         }
@@ -67,19 +67,17 @@ fn do_detect_proximity(
         let local_aabb2 = new_local_aabb2; // .loosened(ctxt.prediction_distance * 2.0); // FIXME: what would be the best value?
         std::mem::swap(
             &mut workspace.old_interferences,
-            &mut workspace.interferences.computed_interferences_mut(),
+            &mut workspace.interferences,
         );
 
-        trimesh1
-            .waabbs()
-            .compute_interferences_with(local_aabb2, &mut workspace.interferences);
+        workspace.interferences = trimesh1.waabbs().intersect_aabb(&local_aabb2);
         workspace.local_aabb2 = local_aabb2;
     }
 
     /*
      * Dispatch to the specific solver by keeping the previous manifold if we already had one.
      */
-    let new_interferences = workspace.interferences.computed_interferences();
+    let new_interferences = &workspace.interferences;
     let mut old_inter_it = workspace.old_interferences.drain(..).peekable();
     let mut best_proximity = Proximity::Disjoint;
 

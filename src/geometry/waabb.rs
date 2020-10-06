@@ -156,7 +156,7 @@ impl WAABB {
     }
 
     #[cfg(feature = "dim2")]
-    pub fn contains_lanewise(&self, other: &WAABB) -> SimdBool {
+    pub fn contains(&self, other: &WAABB) -> SimdBool {
         self.mins.x.simd_le(other.mins.x)
             & self.mins.y.simd_le(other.mins.y)
             & self.maxs.x.simd_ge(other.maxs.x)
@@ -164,7 +164,7 @@ impl WAABB {
     }
 
     #[cfg(feature = "dim3")]
-    pub fn contains_lanewise(&self, other: &WAABB) -> SimdBool {
+    pub fn contains(&self, other: &WAABB) -> SimdBool {
         self.mins.x.simd_le(other.mins.x)
             & self.mins.y.simd_le(other.mins.y)
             & self.mins.z.simd_le(other.mins.z)
@@ -174,7 +174,7 @@ impl WAABB {
     }
 
     #[cfg(feature = "dim2")]
-    pub fn intersects_lanewise(&self, other: &WAABB) -> SimdBool {
+    pub fn intersects(&self, other: &WAABB) -> SimdBool {
         self.mins.x.simd_le(other.maxs.x)
             & other.mins.x.simd_le(self.maxs.x)
             & self.mins.y.simd_le(other.maxs.y)
@@ -182,7 +182,7 @@ impl WAABB {
     }
 
     #[cfg(feature = "dim3")]
-    pub fn intersects_lanewise(&self, other: &WAABB) -> SimdBool {
+    pub fn intersects(&self, other: &WAABB) -> SimdBool {
         self.mins.x.simd_le(other.maxs.x)
             & other.mins.x.simd_le(self.maxs.x)
             & self.mins.y.simd_le(other.maxs.y)

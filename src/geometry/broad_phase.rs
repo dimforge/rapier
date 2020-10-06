@@ -144,7 +144,7 @@ impl WAABBHierarchy {
                 if let Some(waabb2) = level.get(*i) {
                     // NOTE: using `intersect.bitmask()` and performing bit comparisons
                     // is much more efficient than testing if each intersect.extract(i) is true.
-                    let intersect = waabb1.intersects_lanewise(waabb2);
+                    let intersect = waabb1.intersects(waabb2);
                     let bitmask = intersect.bitmask();
 
                     for j in 0..SIMD_WIDTH {

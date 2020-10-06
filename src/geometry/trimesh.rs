@@ -1,4 +1,4 @@
-use crate::geometry::{Triangle, WAABBHierarchy};
+use crate::geometry::{Triangle, WQuadtree};
 use crate::math::{Isometry, Point};
 use na::Point3;
 use ncollide::bounding_volume::{HasBoundingVolume, AABB};
@@ -7,7 +7,7 @@ use ncollide::bounding_volume::{HasBoundingVolume, AABB};
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A triangle mesh.
 pub struct Trimesh {
-    waabb_tree: WAABBHierarchy,
+    wquadtree: WQuadtree<usize>,
     aabb: AABB<f32>,
     vertices: Vec<Point<f32>>,
     indices: Vec<Point3<u32>>,
@@ -25,41 +25,24 @@ impl Trimesh {
             "A triangle mesh must contain at least one triangle."
         );
 
-        // z-sort the indices.
-        //        indices.sort_unstable_by(|idx, jdx| {
-        //            let ti = Triangle::new(
-        //                vertices[idx[0] as usize],
-        //                vertices[idx[1] as usize],
-        //                vertices[idx[2] as usize],
-        //            );
-        //            let tj = Triangle::new(
-        //                vertices[jdx[0] as usize],
-        //                vertices[jdx[1] as usize],
-        //                vertices[jdx[2] as usize],
-        //            );
-        //            let center_i = (ti.a.coords + ti.b.coords + ti.c.coords) / 3.0;
-        //            let center_j = (tj.a.coords + tj.b.coords + tj.c.coords) / 3.0;
-        //            crate::geometry::z_cmp_floats(center_i.as_slice(), center_j.as_slice())
-        //                .unwrap_or(std::cmp::Ordering::Equal)
-        //        });
         let aabb = AABB::from_points(&vertices);
+        let data = indices.iter().enumerate().map(|(i, idx)| {
+            let aabb = Triangle::new(
+                vertices[idx[0] as usize],
+                vertices[idx[1] as usize],
+                vertices[idx[2] as usize],
+            )
+            .local_bounding_volume();
+            (i, aabb)
+        });
 
-        let aabbs: Vec<_> = indices
-            .iter()
-            .map(|idx| {
-                Triangle::new(
-                    vertices[idx[0] as usize],
-                    vertices[idx[1] as usize],
-                    vertices[idx[2] as usize],
-                )
-                .local_bounding_volume()
-            })
-            .collect();
-
-        let waabb_tree = WAABBHierarchy::new(&aabbs);
+        let mut wquadtree = WQuadtree::new();
+        // NOTE: we apply no dilation factor because we won't
+        // update this tree dynamically.
+        wquadtree.clear_and_rebuild(data, 0.0);
 
         Self {
-            waabb_tree,
+            wquadtree,
             aabb,
             vertices,
             indices,
@@ -71,8 +54,8 @@ impl Trimesh {
         self.aabb.transform_by(pos)
     }
 
-    pub(crate) fn waabbs(&self) -> &WAABBHierarchy {
-        &self.waabb_tree
+    pub(crate) fn waabbs(&self) -> &WQuadtree<usize> {
+        &self.wquadtree
     }
 
     /// The number of triangles forming this mesh.
