@@ -609,7 +609,7 @@ impl GraphicsManager {
         }
     }
 
-    pub fn draw(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet, window: &mut Window) {
+    pub fn draw(&mut self, _bodies: &RigidBodySet, colliders: &ColliderSet, window: &mut Window) {
         // use kiss3d::camera::Camera;
         // println!(
         //     "camera eye {:?}, at: {:?}",

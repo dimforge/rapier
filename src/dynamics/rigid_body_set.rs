@@ -2,11 +2,9 @@
 use rayon::prelude::*;
 
 use crate::data::arena::Arena;
-use crate::data::pubsub::PubSub;
 use crate::dynamics::{BodyStatus, Joint, JointSet, RigidBody};
 use crate::geometry::{ColliderHandle, ColliderSet, ContactPair, InteractionGraph};
 use crossbeam::channel::{Receiver, Sender};
-use num::Zero;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 /// A mutable reference to a rigid-body.

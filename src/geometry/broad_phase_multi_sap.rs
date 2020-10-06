@@ -1,6 +1,6 @@
-use crate::data::pubsub::PubSubCursor;
+use crate::data::pubsub::Subscription;
 use crate::dynamics::RigidBodySet;
-use crate::geometry::{Collider, ColliderHandle, ColliderSet, RemovedCollider};
+use crate::geometry::{ColliderHandle, ColliderSet, RemovedCollider};
 use crate::math::{Point, Vector, DIM};
 #[cfg(feature = "enhanced-determinism")]
 use crate::utils::FxHashMap32 as HashMap;
@@ -417,7 +417,7 @@ impl SAPRegion {
 pub struct BroadPhase {
     proxies: Proxies,
     regions: HashMap<Point<i32>, SAPRegion>,
-    removed_colliders: Option<PubSubCursor<RemovedCollider>>,
+    removed_colliders: Option<Subscription<RemovedCollider>>,
     deleted_any: bool,
     // We could think serializing this workspace is useless.
     // It turns out is is important to serialize at least its capacity

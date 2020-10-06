@@ -1,15 +1,13 @@
 //! Physics pipeline structures.
 
 use crate::counters::Counters;
-use crate::data::pubsub::PubSubCursor;
 #[cfg(not(feature = "parallel"))]
 use crate::dynamics::IslandSolver;
-use crate::dynamics::{IntegrationParameters, JointSet, RigidBody, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, Collider, ColliderHandle, ColliderPair, ColliderSet,
-    ContactManifoldIndex, NarrowPhase, RemovedCollider,
+    BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactManifoldIndex, NarrowPhase,
 };
 use crate::math::Vector;
 use crate::pipeline::EventHandler;

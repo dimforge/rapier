@@ -14,13 +14,13 @@ use crate::geometry::proximity_detector::{
 //    proximity_detector::ProximityDetectionContextSimd, WBall,
 //};
 use crate::geometry::{
-    BroadPhasePairEvent, Collider, ColliderGraphIndex, ColliderHandle, ContactEvent,
-    ProximityEvent, ProximityPair, RemovedCollider,
+    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactEvent, ProximityEvent,
+    ProximityPair, RemovedCollider,
 };
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 //#[cfg(feature = "simd-is-enabled")]
 //use crate::math::{SimdFloat, SIMD_WIDTH};
-use crate::data::pubsub::PubSubCursor;
+use crate::data::pubsub::Subscription;
 use crate::ncollide::query::Proximity;
 use crate::pipeline::EventHandler;
 use std::collections::HashMap;
@@ -31,7 +31,7 @@ use std::collections::HashMap;
 pub struct NarrowPhase {
     contact_graph: InteractionGraph<ContactPair>,
     proximity_graph: InteractionGraph<ProximityPair>,
-    removed_colliders: Option<PubSubCursor<RemovedCollider>>,
+    removed_colliders: Option<Subscription<RemovedCollider>>,
     //    ball_ball: Vec<usize>,        // Workspace: Vec<*mut ContactPair>,
     //    shape_shape: Vec<usize>,      // Workspace: Vec<*mut ContactPair>,
     //    ball_ball_prox: Vec<usize>,   // Workspace: Vec<*mut ProximityPair>,

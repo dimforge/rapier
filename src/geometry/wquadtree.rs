@@ -379,11 +379,13 @@ impl<T: IndexedData> WQuadtree<T> {
     }
 }
 
+#[allow(dead_code)]
 struct WQuadtreeIncrementalBuilderStep {
     range: Range<usize>,
     parent: NodeIndex,
 }
 
+#[allow(dead_code)]
 struct WQuadtreeIncrementalBuilder<T> {
     quadtree: WQuadtree<T>,
     to_insert: Vec<WQuadtreeIncrementalBuilderStep>,
@@ -391,6 +393,7 @@ struct WQuadtreeIncrementalBuilder<T> {
     indices: Vec<usize>,
 }
 
+#[allow(dead_code)]
 impl<T: IndexedData> WQuadtreeIncrementalBuilder<T> {
     pub fn new() -> Self {
         Self {

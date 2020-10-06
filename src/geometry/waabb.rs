@@ -93,10 +93,6 @@ impl<'de> serde::Deserialize<'de> for WAABB {
 }
 
 impl WAABB {
-    pub fn new(mins: Point<SimdFloat>, maxs: Point<SimdFloat>) -> Self {
-        Self { mins, maxs }
-    }
-
     pub fn new_invalid() -> Self {
         Self::splat(AABB::new_invalid())
     }
@@ -132,7 +128,7 @@ impl WAABB {
         for i in 0usize..DIM {
             let is_not_zero = ray.dir[i].simd_ne(_0);
             let is_zero_test =
-                (ray.origin[i].simd_ge(self.mins[i]) & ray.origin[i].simd_le(self.maxs[i]));
+                ray.origin[i].simd_ge(self.mins[i]) & ray.origin[i].simd_le(self.maxs[i]);
             let is_not_zero_test = {
                 let denom = _1 / ray.dir[i];
                 let mut inter_with_near_plane =

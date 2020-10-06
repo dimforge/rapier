@@ -83,7 +83,7 @@ impl ColliderSet {
         /*
          * Delete the collider from its parent body.
          */
-        if let Some(mut parent) = bodies.get_mut_internal(collider.parent) {
+        if let Some(parent) = bodies.get_mut_internal(collider.parent) {
             parent.remove_collider_internal(handle, &collider);
             bodies.wake_up(collider.parent, true);
         }

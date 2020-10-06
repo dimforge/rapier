@@ -1,9 +1,5 @@
 use crate::dynamics::RigidBodySet;
-use crate::geometry::{
-    Collider, ColliderHandle, ColliderSet, Ray, RayIntersection, WQuadtree, AABB, WAABB,
-};
-use crate::math::{Point, Vector};
-use ncollide::bounding_volume::BoundingVolume;
+use crate::geometry::{Collider, ColliderHandle, ColliderSet, Ray, RayIntersection, WQuadtree};
 
 /// A pipeline for performing queries on all the colliders of a scene.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]

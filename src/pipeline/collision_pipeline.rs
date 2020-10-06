@@ -1,6 +1,6 @@
 //! Physics pipeline structures.
 
-use crate::dynamics::{JointSet, RigidBody, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{JointSet, RigidBodySet};
 use crate::geometry::{BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, NarrowPhase};
 use crate::pipeline::EventHandler;
 
