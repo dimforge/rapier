@@ -377,6 +377,10 @@ impl SAPRegion {
             }
             self.axii[0].batch_insert(0, &self.to_insert, proxies, Some(reporting));
             self.to_insert.clear();
+
+            // In the rare event that all proxies leave this region in the next step, we need an
+            // update to remove them.
+            self.update_count = 1;
         }
     }
 }
