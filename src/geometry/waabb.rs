@@ -1,8 +1,27 @@
-#[cfg(feature = "serde-serialize")]
-use crate::math::DIM;
-use crate::math::{Point, SimdBool, SimdFloat, SIMD_WIDTH};
+use crate::geometry::Ray;
+use crate::math::{Point, Vector, DIM, SIMD_WIDTH};
+use crate::utils;
 use ncollide::bounding_volume::AABB;
-use simba::simd::{SimdPartialOrd, SimdValue};
+use num::{One, Zero};
+use {
+    crate::math::{SimdBool, SimdFloat},
+    simba::simd::{SimdPartialOrd, SimdValue},
+};
+
+#[derive(Debug, Copy, Clone)]
+pub(crate) struct WRay {
+    pub origin: Point<SimdFloat>,
+    pub dir: Vector<SimdFloat>,
+}
+
+impl WRay {
+    pub fn splat(ray: Ray) -> Self {
+        Self {
+            origin: Point::splat(ray.origin),
+            dir: Vector::splat(ray.dir),
+        }
+    }
+}
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct WAABB {
@@ -28,6 +47,7 @@ impl serde::Serialize for WAABB {
                 .coords
                 .map(|e| array![|ii| e.extract(ii); SIMD_WIDTH]),
         );
+
         let mut waabb = serializer.serialize_struct("WAABB", 2)?;
         waabb.serialize_field("mins", &mins)?;
         waabb.serialize_field("maxs", &maxs)?;
@@ -73,8 +93,8 @@ impl<'de> serde::Deserialize<'de> for WAABB {
 }
 
 impl WAABB {
-    pub fn new(mins: Point<SimdFloat>, maxs: Point<SimdFloat>) -> Self {
-        Self { mins, maxs }
+    pub fn new_invalid() -> Self {
+        Self::splat(AABB::new_invalid())
     }
 
     pub fn splat(aabb: AABB<f32>) -> Self {
@@ -84,8 +104,73 @@ impl WAABB {
         }
     }
 
+    pub fn dilate_by_factor(&mut self, factor: SimdFloat) {
+        let dilation = (self.maxs - self.mins) * factor;
+        self.mins -= dilation;
+        self.maxs += dilation;
+    }
+
+    pub fn replace(&mut self, i: usize, aabb: AABB<f32>) {
+        self.mins.replace(i, aabb.mins);
+        self.maxs.replace(i, aabb.maxs);
+    }
+
+    pub fn intersects_ray(&self, ray: &WRay, max_toi: SimdFloat) -> SimdBool {
+        let _0 = SimdFloat::zero();
+        let _1 = SimdFloat::one();
+        let _infinity = SimdFloat::splat(f32::MAX);
+
+        let mut hit = SimdBool::splat(true);
+        let mut tmin = SimdFloat::zero();
+        let mut tmax = max_toi;
+
+        // TODO: could this be optimized more considering we really just need a boolean answer?
+        for i in 0usize..DIM {
+            let is_not_zero = ray.dir[i].simd_ne(_0);
+            let is_zero_test =
+                ray.origin[i].simd_ge(self.mins[i]) & ray.origin[i].simd_le(self.maxs[i]);
+            let is_not_zero_test = {
+                let denom = _1 / ray.dir[i];
+                let mut inter_with_near_plane =
+                    ((self.mins[i] - ray.origin[i]) * denom).select(is_not_zero, -_infinity);
+                let mut inter_with_far_plane =
+                    ((self.maxs[i] - ray.origin[i]) * denom).select(is_not_zero, _infinity);
+
+                let gt = inter_with_near_plane.simd_gt(inter_with_far_plane);
+                utils::simd_swap(gt, &mut inter_with_near_plane, &mut inter_with_far_plane);
+
+                tmin = tmin.simd_max(inter_with_near_plane);
+                tmax = tmax.simd_min(inter_with_far_plane);
+
+                tmin.simd_le(tmax)
+            };
+
+            hit = hit & is_not_zero_test.select(is_not_zero, is_zero_test);
+        }
+
+        hit
+    }
+
     #[cfg(feature = "dim2")]
-    pub fn intersects_lanewise(&self, other: &WAABB) -> SimdBool {
+    pub fn contains(&self, other: &WAABB) -> SimdBool {
+        self.mins.x.simd_le(other.mins.x)
+            & self.mins.y.simd_le(other.mins.y)
+            & self.maxs.x.simd_ge(other.maxs.x)
+            & self.maxs.y.simd_ge(other.maxs.y)
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn contains(&self, other: &WAABB) -> SimdBool {
+        self.mins.x.simd_le(other.mins.x)
+            & self.mins.y.simd_le(other.mins.y)
+            & self.mins.z.simd_le(other.mins.z)
+            & self.maxs.x.simd_ge(other.maxs.x)
+            & self.maxs.y.simd_ge(other.maxs.y)
+            & self.maxs.z.simd_ge(other.maxs.z)
+    }
+
+    #[cfg(feature = "dim2")]
+    pub fn intersects(&self, other: &WAABB) -> SimdBool {
         self.mins.x.simd_le(other.maxs.x)
             & other.mins.x.simd_le(self.maxs.x)
             & self.mins.y.simd_le(other.maxs.y)
@@ -93,13 +178,20 @@ impl WAABB {
     }
 
     #[cfg(feature = "dim3")]
-    pub fn intersects_lanewise(&self, other: &WAABB) -> SimdBool {
+    pub fn intersects(&self, other: &WAABB) -> SimdBool {
         self.mins.x.simd_le(other.maxs.x)
             & other.mins.x.simd_le(self.maxs.x)
             & self.mins.y.simd_le(other.maxs.y)
             & other.mins.y.simd_le(self.maxs.y)
             & self.mins.z.simd_le(other.maxs.z)
             & other.mins.z.simd_le(self.maxs.z)
+    }
+
+    pub fn to_merged_aabb(&self) -> AABB<f32> {
+        AABB::new(
+            self.mins.coords.map(|e| e.simd_horizontal_min()).into(),
+            self.maxs.coords.map(|e| e.simd_horizontal_max()).into(),
+        )
     }
 }
 

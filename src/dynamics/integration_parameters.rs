@@ -2,7 +2,7 @@
 #[derive(Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct IntegrationParameters {
-    /// The timestep (default: `1.0 / 60.0`)
+    /// The timestep length (default: `1.0 / 60.0`)
     dt: f32,
     /// The inverse of `dt`.
     inv_dt: f32,

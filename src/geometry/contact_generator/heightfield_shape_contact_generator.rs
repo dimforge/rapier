@@ -71,10 +71,10 @@ fn do_generate_contacts(
             } else {
                 manifold.subshape_index_pair.1
             };
-            println!(
-                "Restoring for {} [chosen with {:?}]",
-                subshape_id, manifold.subshape_index_pair
-            );
+            // println!(
+            //     "Restoring for {} [chosen with {:?}]",
+            //     subshape_id, manifold.subshape_index_pair
+            // );
 
             // Use dummy shapes for the dispatch.
             #[cfg(feature = "dim2")]

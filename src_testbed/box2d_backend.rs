@@ -98,10 +98,10 @@ impl Box2dWorld {
 
     fn insert_joints(&mut self, joints: &JointSet) {
         for joint in joints.iter() {
-            let body_a = self.rapier2box2d[&joint.body1];
-            let body_b = self.rapier2box2d[&joint.body2];
+            let body_a = self.rapier2box2d[&joint.1.body1];
+            let body_b = self.rapier2box2d[&joint.1.body2];
 
-            match &joint.params {
+            match &joint.1.params {
                 JointParams::BallJoint(params) => {
                     let def = RevoluteJointDef {
                         body_a,
@@ -158,7 +158,7 @@ impl Box2dWorld {
     }
 
     fn create_fixture(collider: &Collider, body: &mut b2::MetaBody<NoUserData>) {
-        let center = na_vec_to_b2_vec(collider.delta().translation.vector);
+        let center = na_vec_to_b2_vec(collider.position_wrt_parent().translation.vector);
         let mut fixture_def = b2::FixtureDef::new();
 
         fixture_def.restitution = 0.0;
@@ -182,7 +182,7 @@ impl Box2dWorld {
                 let points: Vec<_> = poly
                     .vertices()
                     .iter()
-                    .map(|p| collider.delta() * p)
+                    .map(|p| collider.position_wrt_parent() * p)
                     .map(|p| na_vec_to_b2_vec(p.coords))
                     .collect();
                 let b2_shape = b2::PolygonShape::new_with(&points);
@@ -229,7 +229,7 @@ impl Box2dWorld {
 
                 for coll_handle in body.colliders() {
                     let collider = &mut colliders[*coll_handle];
-                    collider.set_position_debug(pos * collider.delta());
+                    collider.set_position_debug(pos * collider.position_wrt_parent());
                 }
             }
         }

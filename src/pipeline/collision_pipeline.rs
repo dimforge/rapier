@@ -1,6 +1,6 @@
 //! Physics pipeline structures.
 
-use crate::dynamics::{JointSet, RigidBody, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{JointSet, RigidBodySet};
 use crate::geometry::{BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, NarrowPhase};
 use crate::pipeline::EventHandler;
 
@@ -50,7 +50,7 @@ impl CollisionPipeline {
         self.broad_phase_events.clear();
         broad_phase.find_pairs(&mut self.broad_phase_events);
 
-        narrow_phase.register_pairs(colliders, &self.broad_phase_events, events);
+        narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
 
         narrow_phase.compute_contacts(prediction_distance, bodies, colliders, events);
         narrow_phase.compute_proximities(prediction_distance, bodies, colliders, events);
@@ -83,29 +83,5 @@ impl CollisionPipeline {
         });
 
         bodies.modified_inactive_set.clear();
-    }
-
-    /// Remove a rigid-body and all its associated data.
-    pub fn remove_rigid_body(
-        &mut self,
-        handle: RigidBodyHandle,
-        broad_phase: &mut BroadPhase,
-        narrow_phase: &mut NarrowPhase,
-        bodies: &mut RigidBodySet,
-        colliders: &mut ColliderSet,
-    ) -> Option<RigidBody> {
-        // Remove the body.
-        let body = bodies.remove_internal(handle)?;
-
-        // Remove this rigid-body from the broad-phase and narrow-phase.
-        broad_phase.remove_colliders(&body.colliders, colliders);
-        narrow_phase.remove_colliders(&body.colliders, colliders, bodies);
-
-        // Remove all colliders attached to this body.
-        for collider in &body.colliders {
-            colliders.remove_internal(*collider);
-        }
-
-        Some(body)
     }
 }

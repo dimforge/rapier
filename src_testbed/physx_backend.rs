@@ -196,7 +196,7 @@ impl PhysxWorld {
                     }
                 } else {
                     physx_sys::PxShapeFlags {
-                        mBits: physx_sys::PxShapeFlag::eSIMULATION_SHAPE as u8,
+                        mBits: physx_sys::PxShapeFlag::eSIMULATION_SHAPE as u8, // | physx_sys::PxShapeFlag::eSCENE_QUERY_SHAPE as u8,
                     }
                 };
 
@@ -261,10 +261,10 @@ impl PhysxWorld {
     fn setup_joints(&mut self, joints: &JointSet) {
         unsafe {
             for joint in joints.iter() {
-                let actor1 = self.rapier2physx[&joint.body1];
-                let actor2 = self.rapier2physx[&joint.body2];
+                let actor1 = self.rapier2physx[&joint.1.body1];
+                let actor2 = self.rapier2physx[&joint.1.body2];
 
-                match &joint.params {
+                match &joint.1.params {
                     JointParams::BallJoint(params) => {
                         let frame1 = physx::transform::gl_to_px_tf(
                             Isometry3::new(params.local_anchor1.coords, na::zero()).into_glam(),

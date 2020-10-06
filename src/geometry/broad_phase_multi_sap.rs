@@ -1,5 +1,6 @@
+use crate::data::pubsub::Subscription;
 use crate::dynamics::RigidBodySet;
-use crate::geometry::{ColliderHandle, ColliderPair, ColliderSet};
+use crate::geometry::{ColliderHandle, ColliderSet, RemovedCollider};
 use crate::math::{Point, Vector, DIM};
 #[cfg(feature = "enhanced-determinism")]
 use crate::utils::FxHashMap32 as HashMap;
@@ -14,6 +15,41 @@ const NUM_SENTINELS: usize = 1;
 const NEXT_FREE_SENTINEL: u32 = u32::MAX;
 const SENTINEL_VALUE: f32 = f32::MAX;
 const CELL_WIDTH: f32 = 20.0;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+pub struct ColliderPair {
+    pub collider1: ColliderHandle,
+    pub collider2: ColliderHandle,
+}
+
+impl ColliderPair {
+    pub fn new(collider1: ColliderHandle, collider2: ColliderHandle) -> Self {
+        ColliderPair {
+            collider1,
+            collider2,
+        }
+    }
+
+    pub fn new_sorted(collider1: ColliderHandle, collider2: ColliderHandle) -> Self {
+        if collider1.into_raw_parts().0 <= collider2.into_raw_parts().0 {
+            Self::new(collider1, collider2)
+        } else {
+            Self::new(collider2, collider1)
+        }
+    }
+
+    pub fn swap(self) -> Self {
+        Self::new(self.collider2, self.collider1)
+    }
+
+    pub fn zero() -> Self {
+        Self {
+            collider1: ColliderHandle::from_raw_parts(0, 0),
+            collider2: ColliderHandle::from_raw_parts(0, 0),
+        }
+    }
+}
 
 pub enum BroadPhasePairEvent {
     AddPair(ColliderPair),
@@ -381,6 +417,7 @@ impl SAPRegion {
 pub struct BroadPhase {
     proxies: Proxies,
     regions: HashMap<Point<i32>, SAPRegion>,
+    removed_colliders: Option<Subscription<RemovedCollider>>,
     deleted_any: bool,
     // We could think serializing this workspace is useless.
     // It turns out is is important to serialize at least its capacity
@@ -469,6 +506,7 @@ impl BroadPhase {
     /// Create a new empty broad-phase.
     pub fn new() -> Self {
         BroadPhase {
+            removed_colliders: None,
             proxies: Proxies::new(),
             regions: HashMap::default(),
             reporting: HashMap::default(),
@@ -476,46 +514,60 @@ impl BroadPhase {
         }
     }
 
-    pub(crate) fn remove_colliders(&mut self, handles: &[ColliderHandle], colliders: &ColliderSet) {
-        for collider in handles.iter().filter_map(|h| colliders.get(*h)) {
-            if collider.proxy_index == crate::INVALID_USIZE {
-                // This collider has not been added to the broad-phase yet.
-                continue;
+    /// Maintain the broad-phase internal state by taking collider removal into account.
+    pub fn maintain(&mut self, colliders: &mut ColliderSet) {
+        // Ensure we already subscribed.
+        if self.removed_colliders.is_none() {
+            self.removed_colliders = Some(colliders.removed_colliders.subscribe());
+        }
+
+        let mut cursor = self.removed_colliders.take().unwrap();
+        for collider in colliders.removed_colliders.read(&cursor) {
+            self.remove_collider(collider.proxy_index);
+        }
+
+        colliders.removed_colliders.ack(&mut cursor);
+        self.removed_colliders = Some(cursor);
+    }
+
+    fn remove_collider<'a>(&mut self, proxy_index: usize) {
+        if proxy_index == crate::INVALID_USIZE {
+            // This collider has not been added to the broad-phase yet.
+            return;
+        }
+
+        let proxy = &mut self.proxies[proxy_index];
+
+        // Push the proxy to infinity, but not beyond the sentinels.
+        proxy.aabb.mins.coords.fill(SENTINEL_VALUE / 2.0);
+        proxy.aabb.maxs.coords.fill(SENTINEL_VALUE / 2.0);
+        // Discretize the AABB to find the regions that need to be invalidated.
+        let start = point_key(proxy.aabb.mins);
+        let end = point_key(proxy.aabb.maxs);
+
+        #[cfg(feature = "dim2")]
+        for i in start.x..=end.x {
+            for j in start.y..=end.y {
+                if let Some(region) = self.regions.get_mut(&Point::new(i, j)) {
+                    region.predelete_proxy(proxy_index);
+                    self.deleted_any = true;
+                }
             }
+        }
 
-            let proxy = &mut self.proxies[collider.proxy_index];
-
-            // Push the proxy to infinity, but not beyond the sentinels.
-            proxy.aabb.mins.coords.fill(SENTINEL_VALUE / 2.0);
-            proxy.aabb.maxs.coords.fill(SENTINEL_VALUE / 2.0);
-            // Discretize the AABB to find the regions that need to be invalidated.
-            let start = point_key(proxy.aabb.mins);
-            let end = point_key(proxy.aabb.maxs);
-
-            #[cfg(feature = "dim2")]
-            for i in start.x..=end.x {
-                for j in start.y..=end.y {
-                    if let Some(region) = self.regions.get_mut(&Point::new(i, j)) {
-                        region.predelete_proxy(collider.proxy_index);
+        #[cfg(feature = "dim3")]
+        for i in start.x..=end.x {
+            for j in start.y..=end.y {
+                for k in start.z..=end.z {
+                    if let Some(region) = self.regions.get_mut(&Point::new(i, j, k)) {
+                        region.predelete_proxy(proxy_index);
                         self.deleted_any = true;
                     }
                 }
             }
-
-            #[cfg(feature = "dim3")]
-            for i in start.x..=end.x {
-                for j in start.y..=end.y {
-                    for k in start.z..=end.z {
-                        if let Some(region) = self.regions.get_mut(&Point::new(i, j, k)) {
-                            region.predelete_proxy(collider.proxy_index);
-                            self.deleted_any = true;
-                        }
-                    }
-                }
-            }
-
-            self.proxies.remove(collider.proxy_index);
         }
+
+        self.proxies.remove(proxy_index);
     }
 
     pub(crate) fn update_aabbs(
@@ -648,16 +700,13 @@ impl BroadPhase {
 mod test {
     use crate::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
-    use crate::pipeline::PhysicsPipeline;
 
     #[test]
     fn test_add_update_remove() {
         let mut broad_phase = BroadPhase::new();
-        let mut narrow_phase = NarrowPhase::new();
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
         let mut joints = JointSet::new();
-        let mut pipeline = PhysicsPipeline::new();
 
         let rb = RigidBodyBuilder::new_dynamic().build();
         let co = ColliderBuilder::ball(0.5).build();
@@ -666,15 +715,8 @@ mod test {
 
         broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
 
-        pipeline.remove_rigid_body(
-            hrb,
-            &mut broad_phase,
-            &mut narrow_phase,
-            &mut bodies,
-            &mut colliders,
-            &mut joints,
-        );
-
+        bodies.remove(hrb, &mut colliders, &mut joints);
+        broad_phase.maintain(&mut colliders);
         broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
 
         // Create another body.

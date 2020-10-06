@@ -1,14 +1,25 @@
 use crate::data::arena::Arena;
+use crate::data::pubsub::PubSub;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
-use crate::geometry::Collider;
+use crate::geometry::{Collider, ColliderGraphIndex};
 use std::ops::{Index, IndexMut};
 
 /// The unique identifier of a collider added to a collider set.
 pub type ColliderHandle = crate::data::arena::Index;
 
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+pub(crate) struct RemovedCollider {
+    pub handle: ColliderHandle,
+    pub(crate) contact_graph_index: ColliderGraphIndex,
+    pub(crate) proximity_graph_index: ColliderGraphIndex,
+    pub(crate) proxy_index: usize,
+}
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A set of colliders that can be handled by a physics `World`.
 pub struct ColliderSet {
+    pub(crate) removed_colliders: PubSub<RemovedCollider>,
     pub(crate) colliders: Arena<Collider>,
 }
 
@@ -16,6 +27,7 @@ impl ColliderSet {
     /// Create a new empty set of colliders.
     pub fn new() -> Self {
         ColliderSet {
+            removed_colliders: PubSub::new(),
             colliders: Arena::new(),
         }
     }
@@ -26,7 +38,7 @@ impl ColliderSet {
     }
 
     /// Iterate through all the colliders on this set.
-    pub fn iter(&self) -> impl Iterator<Item = (ColliderHandle, &Collider)> {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (ColliderHandle, &Collider)> {
         self.colliders.iter()
     }
 
@@ -60,8 +72,35 @@ impl ColliderSet {
         handle
     }
 
-    pub(crate) fn remove_internal(&mut self, handle: ColliderHandle) -> Option<Collider> {
-        self.colliders.remove(handle)
+    /// Remove a collider from this set and update its parent accordingly.
+    pub fn remove(
+        &mut self,
+        handle: ColliderHandle,
+        bodies: &mut RigidBodySet,
+    ) -> Option<Collider> {
+        let collider = self.colliders.remove(handle)?;
+
+        /*
+         * Delete the collider from its parent body.
+         */
+        if let Some(parent) = bodies.get_mut_internal(collider.parent) {
+            parent.remove_collider_internal(handle, &collider);
+            bodies.wake_up(collider.parent, true);
+        }
+
+        /*
+         * Publish removal.
+         */
+        let message = RemovedCollider {
+            handle,
+            contact_graph_index: collider.contact_graph_index,
+            proximity_graph_index: collider.proximity_graph_index,
+            proxy_index: collider.proxy_index,
+        };
+
+        self.removed_colliders.publish(message);
+
+        Some(collider)
     }
 
     /// Gets the collider with the given handle without a known generation.

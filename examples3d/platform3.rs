@@ -64,22 +64,29 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Setup a callback to control the platform.
      */
+    let mut count = 0;
     testbed.add_callback(move |_, physics, _, _, time| {
-        let mut platform = physics.bodies.get_mut(platform_handle).unwrap();
-        let mut next_pos = platform.position;
-
-        let dt = 0.016;
-        next_pos.translation.vector.y += (time * 5.0).sin() * dt;
-        next_pos.translation.vector.z += time.sin() * 5.0 * dt;
-
-        if next_pos.translation.vector.z >= rad * 10.0 {
-            next_pos.translation.vector.z -= dt;
-        }
-        if next_pos.translation.vector.z <= -rad * 10.0 {
-            next_pos.translation.vector.z += dt;
+        count += 1;
+        if count % 100 > 50 {
+            return;
         }
 
-        platform.set_next_kinematic_position(next_pos);
+        if let Some(mut platform) = physics.bodies.get_mut(platform_handle) {
+            let mut next_pos = platform.position;
+
+            let dt = 0.016;
+            next_pos.translation.vector.y += (time * 5.0).sin() * dt;
+            next_pos.translation.vector.z += time.sin() * 5.0 * dt;
+
+            if next_pos.translation.vector.z >= rad * 10.0 {
+                next_pos.translation.vector.z -= dt;
+            }
+            if next_pos.translation.vector.z <= -rad * 10.0 {
+                next_pos.translation.vector.z += dt;
+            }
+
+            platform.set_next_kinematic_position(next_pos);
+        }
     });
 
     /*

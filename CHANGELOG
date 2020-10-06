@@ -1,10 +1,15 @@
 ## v0.2.0 - WIP
+The most significant change on this version is the addition of the `QueryPipeline` responsible for performing
+scene-wide queries. So far only ray-casting has been implemented.
 
-- Add `PhysicsPipeline::remove_collider(...)` to remove a collider from the `ColliderSet`.
+- Add `ColliderSet::remove(...)` to remove a collider from the `ColliderSet`.
+- Replace `PhysicsPipeline::remove_rigid_body` by `RigidBodySet::remove`.
+- The `JointSet.iter()` now returns an iterator yielding `(JointHandle, &Joint)` instead of just `&Joint`.
 - Add `ColliderDesc::translation(...)` to set the translation of a collider relative to the rigid-body it is attached to.
 - Add `ColliderDesc::rotation(...)` to set the rotation of a collider relative to the rigid-body it is attached to.
 - Add `ColliderDesc::position(...)` to set the position of a collider relative to the rigid-body it is attached to.
 - Add `Collider::position_wrt_parent()` to get the position of a collider relative to the rigid-body it is attached to.
+- Modify `RigidBody::set_position(...)` so it also resets the next kinematic position to the same value.
 - Deprecate `Collider::delta()` in favor of the new `Collider::position_wrt_parent()`.
 - Fix multiple issues occurring when having colliders resulting in a non-zero center-of-mass.
 - Fix a crash happening when removing a rigid-body with a collider, stepping the simulation, adding another rigid-body
