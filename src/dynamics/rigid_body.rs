@@ -272,65 +272,102 @@ impl RigidBody {
      * Application of forces/impulses.
      */
     /// Applies a force at the center-of-mass of this rigid-body.
-    pub fn apply_force(&mut self, force: Vector<f32>) {
+    pub fn apply_force(&mut self, force: Vector<f32>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
             self.linacc += force * self.mass_properties.inv_mass;
+        }
+
+        if wake_up {
+            self.wake_up(false);
         }
     }
 
     /// Applies an impulse at the center-of-mass of this rigid-body.
-    pub fn apply_impulse(&mut self, impulse: Vector<f32>) {
+    pub fn apply_impulse(&mut self, impulse: Vector<f32>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
             self.linvel += impulse * self.mass_properties.inv_mass;
         }
+
+        if wake_up {
+            self.wake_up(false);
+        }
     }
 
     /// Applies a torque at the center-of-mass of this rigid-body.
     #[cfg(feature = "dim2")]
-    pub fn apply_torque(&mut self, torque: f32) {
+    pub fn apply_torque(&mut self, torque: f32, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
             self.angacc += self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque);
+        }
+
+        if wake_up {
+            self.wake_up(false);
         }
     }
 
     /// Applies a torque at the center-of-mass of this rigid-body.
     #[cfg(feature = "dim3")]
-    pub fn apply_torque(&mut self, torque: Vector<f32>) {
+    pub fn apply_torque(&mut self, torque: Vector<f32>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
             self.angacc += self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque);
+        }
+
+        if wake_up {
+            self.wake_up(false);
         }
     }
 
     /// Applies an impulsive torque at the center-of-mass of this rigid-body.
     #[cfg(feature = "dim2")]
-    pub fn apply_torque_impulse(&mut self, torque_impulse: f32) {
+    pub fn apply_torque_impulse(&mut self, torque_impulse: f32, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
             self.angvel +=
                 self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque_impulse);
+        }
+
+        if wake_up {
+            self.wake_up(false);
         }
     }
 
     /// Applies an impulsive torque at the center-of-mass of this rigid-body.
     #[cfg(feature = "dim3")]
-    pub fn apply_torque_impulse(&mut self, torque_impulse: Vector<f32>) {
+    pub fn apply_torque_impulse(&mut self, torque_impulse: Vector<f32>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
             self.angvel +=
                 self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque_impulse);
+        }
+
+        if wake_up {
+            self.wake_up(false);
         }
     }
 
     /// Applies a force at the given world-space point of this rigid-body.
-    pub fn apply_force_at_point(&mut self, force: Vector<f32>, point: Point<f32>) {
+    pub fn apply_force_at_point(&mut self, force: Vector<f32>, point: Point<f32>, wake_up: bool) {
         let torque = (point - self.world_com).gcross(force);
-        self.apply_force(force);
-        self.apply_torque(torque);
+        self.apply_force(force, false);
+        self.apply_torque(torque, false);
+
+        if wake_up {
+            self.wake_up(false);
+        }
     }
 
     /// Applies an impulse at the given world-space point of this rigid-body.
-    pub fn apply_impulse_at_point(&mut self, impulse: Vector<f32>, point: Point<f32>) {
+    pub fn apply_impulse_at_point(
+        &mut self,
+        impulse: Vector<f32>,
+        point: Point<f32>,
+        wake_up: bool,
+    ) {
         let torque_impulse = (point - self.world_com).gcross(impulse);
-        self.apply_impulse(impulse);
-        self.apply_torque_impulse(torque_impulse);
+        self.apply_impulse(impulse, false);
+        self.apply_torque_impulse(torque_impulse, false);
+
+        if wake_up {
+            self.wake_up(false);
+        }
     }
 }
 
