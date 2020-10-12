@@ -275,10 +275,10 @@ impl RigidBody {
     pub fn apply_force(&mut self, force: Vector<f32>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
             self.linacc += force * self.mass_properties.inv_mass;
-        }
 
-        if wake_up {
-            self.wake_up(false);
+            if wake_up {
+                self.wake_up(true);
+            }
         }
     }
 
@@ -286,10 +286,10 @@ impl RigidBody {
     pub fn apply_impulse(&mut self, impulse: Vector<f32>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
             self.linvel += impulse * self.mass_properties.inv_mass;
-        }
 
-        if wake_up {
-            self.wake_up(false);
+            if wake_up {
+                self.wake_up(true);
+            }
         }
     }
 
@@ -298,10 +298,10 @@ impl RigidBody {
     pub fn apply_torque(&mut self, torque: f32, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
             self.angacc += self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque);
-        }
 
-        if wake_up {
-            self.wake_up(false);
+            if wake_up {
+                self.wake_up(true);
+            }
         }
     }
 
@@ -310,10 +310,10 @@ impl RigidBody {
     pub fn apply_torque(&mut self, torque: Vector<f32>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
             self.angacc += self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque);
-        }
 
-        if wake_up {
-            self.wake_up(false);
+            if wake_up {
+                self.wake_up(true);
+            }
         }
     }
 
@@ -323,10 +323,10 @@ impl RigidBody {
         if self.body_status == BodyStatus::Dynamic {
             self.angvel +=
                 self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque_impulse);
-        }
 
-        if wake_up {
-            self.wake_up(false);
+            if wake_up {
+                self.wake_up(true);
+            }
         }
     }
 
@@ -336,22 +336,18 @@ impl RigidBody {
         if self.body_status == BodyStatus::Dynamic {
             self.angvel +=
                 self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque_impulse);
-        }
 
-        if wake_up {
-            self.wake_up(false);
+            if wake_up {
+                self.wake_up(true);
+            }
         }
     }
 
     /// Applies a force at the given world-space point of this rigid-body.
     pub fn apply_force_at_point(&mut self, force: Vector<f32>, point: Point<f32>, wake_up: bool) {
         let torque = (point - self.world_com).gcross(force);
-        self.apply_force(force, false);
-        self.apply_torque(torque, false);
-
-        if wake_up {
-            self.wake_up(false);
-        }
+        self.apply_force(force, wake_up);
+        self.apply_torque(torque, wake_up);
     }
 
     /// Applies an impulse at the given world-space point of this rigid-body.
@@ -362,12 +358,8 @@ impl RigidBody {
         wake_up: bool,
     ) {
         let torque_impulse = (point - self.world_com).gcross(impulse);
-        self.apply_impulse(impulse, false);
-        self.apply_torque_impulse(torque_impulse, false);
-
-        if wake_up {
-            self.wake_up(false);
-        }
+        self.apply_impulse(impulse, wake_up);
+        self.apply_torque_impulse(torque_impulse, wake_up);
     }
 }
 
