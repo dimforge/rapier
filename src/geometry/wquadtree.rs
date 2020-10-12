@@ -539,7 +539,7 @@ fn split_indices_wrt_dim<'a>(
     dim: usize,
 ) -> (&'a mut [usize], &'a mut [usize]) {
     let mut icurr = 0;
-    let mut ilast = indices.len() - 1;
+    let mut ilast = indices.len();
 
     // The loop condition we can just do 0..indices.len()
     // instead of the test icurr < ilast because we know
@@ -549,10 +549,7 @@ fn split_indices_wrt_dim<'a>(
         let center = aabbs[i].center();
 
         if center[dim] > split_point[dim] {
-            indices.swap(icurr, ilast);
-            if ilast == 0 {
-                break;
-            }
+            indices.swap(icurr, ilast - 1);
             ilast -= 1;
         } else {
             icurr += 1;
