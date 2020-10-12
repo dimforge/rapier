@@ -550,6 +550,9 @@ fn split_indices_wrt_dim<'a>(
 
         if center[dim] > split_point[dim] {
             indices.swap(icurr, ilast);
+            if ilast == 0 {
+                break;
+            }
             ilast -= 1;
         } else {
             icurr += 1;
