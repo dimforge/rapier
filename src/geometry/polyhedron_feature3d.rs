@@ -50,6 +50,16 @@ impl From<Segment<f32>> for PolyhedronFace {
 }
 
 impl PolyhedronFace {
+    pub fn new() -> Self {
+        Self {
+            vertices: [Point::origin(); 4],
+            vids: [0; 4],
+            eids: [0; 4],
+            fid: 0,
+            num_vertices: 0,
+        }
+    }
+
     pub fn transform_by(&mut self, iso: &Isometry<f32>) {
         for v in &mut self.vertices[0..self.num_vertices] {
             *v = iso * *v;

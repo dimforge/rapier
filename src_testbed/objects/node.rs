@@ -10,6 +10,7 @@ use crate::objects::mesh::Mesh;
 use kiss3d::window::Window;
 use na::Point3;
 
+use crate::objects::cylinder::Cylinder;
 use rapier::geometry::{ColliderHandle, ColliderSet};
 use rapier::math::Isometry;
 
@@ -28,6 +29,7 @@ pub enum Node {
     //    Polyline(Polyline),
     Mesh(Mesh),
     Convex(Convex),
+    Cylinder(Cylinder),
 }
 
 impl Node {
@@ -42,6 +44,7 @@ impl Node {
             //            Node::Polyline(ref mut n) => n.select(),
             Node::Mesh(ref mut n) => n.select(),
             Node::Convex(ref mut n) => n.select(),
+            Node::Cylinder(ref mut n) => n.select(),
         }
     }
 
@@ -56,6 +59,7 @@ impl Node {
             //            Node::Polyline(ref mut n) => n.unselect(),
             Node::Mesh(ref mut n) => n.unselect(),
             Node::Convex(ref mut n) => n.unselect(),
+            Node::Cylinder(ref mut n) => n.unselect(),
         }
     }
 
@@ -70,6 +74,7 @@ impl Node {
             //            Node::Polyline(ref mut n) => n.update(colliders),
             Node::Mesh(ref mut n) => n.update(colliders),
             Node::Convex(ref mut n) => n.update(colliders),
+            Node::Cylinder(ref mut n) => n.update(colliders),
         }
     }
 
@@ -97,6 +102,7 @@ impl Node {
             Node::HeightField(ref n) => Some(n.scene_node()),
             Node::Mesh(ref n) => Some(n.scene_node()),
             Node::Convex(ref n) => Some(n.scene_node()),
+            Node::Cylinder(ref n) => Some(n.scene_node()),
             #[cfg(feature = "dim2")]
             _ => None,
         }
@@ -113,6 +119,7 @@ impl Node {
             Node::HeightField(ref mut n) => Some(n.scene_node_mut()),
             Node::Mesh(ref mut n) => Some(n.scene_node_mut()),
             Node::Convex(ref mut n) => Some(n.scene_node_mut()),
+            Node::Cylinder(ref mut n) => Some(n.scene_node_mut()),
             #[cfg(feature = "dim2")]
             _ => None,
         }
@@ -129,6 +136,7 @@ impl Node {
             //            Node::Polyline(ref n) => n.object(),
             Node::Mesh(ref n) => n.object(),
             Node::Convex(ref n) => n.object(),
+            Node::Cylinder(ref n) => n.object(),
         }
     }
 
@@ -143,6 +151,7 @@ impl Node {
             //            Node::Polyline(ref mut n) => n.set_color(color),
             Node::Mesh(ref mut n) => n.set_color(color),
             Node::Convex(ref mut n) => n.set_color(color),
+            Node::Cylinder(ref mut n) => n.set_color(color),
         }
     }
 }

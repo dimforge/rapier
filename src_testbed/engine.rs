@@ -26,6 +26,7 @@ use rapier::geometry::{Collider, ColliderHandle, ColliderSet, Shape};
 //#[cfg(feature = "fluids")]
 //use crate::objects::FluidRenderingMode;
 use crate::objects::capsule::Capsule;
+use crate::objects::cylinder::Cylinder;
 use crate::objects::mesh::Mesh;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg32;
@@ -389,6 +390,14 @@ impl GraphicsManager {
             Shape::HeightField(heightfield) => out.push(Node::HeightField(HeightField::new(
                 handle,
                 heightfield,
+                color,
+                window,
+            ))),
+            #[cfg(feature = "dim3")]
+            Shape::Cylinder(cylinder) => out.push(Node::Cylinder(Cylinder::new(
+                handle,
+                cylinder.half_height,
+                cylinder.radius,
                 color,
                 window,
             ))),

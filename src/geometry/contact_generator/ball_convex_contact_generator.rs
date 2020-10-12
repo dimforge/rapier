@@ -12,6 +12,7 @@ pub fn generate_contacts_ball_convex(ctxt: &mut PrimitiveContactGenerationContex
             Shape::Triangle(tri2) => do_generate_contacts(tri2, ball1, ctxt, true),
             Shape::Cuboid(cube2) => do_generate_contacts(cube2, ball1, ctxt, true),
             Shape::Capsule(capsule2) => do_generate_contacts(capsule2, ball1, ctxt, true),
+            Shape::Cylinder(cylinder2) => do_generate_contacts(cylinder2, ball1, ctxt, true),
             _ => unimplemented!(),
         }
     } else if let Shape::Ball(ball2) = ctxt.shape2 {
@@ -19,6 +20,7 @@ pub fn generate_contacts_ball_convex(ctxt: &mut PrimitiveContactGenerationContex
             Shape::Triangle(tri1) => do_generate_contacts(tri1, ball2, ctxt, false),
             Shape::Cuboid(cube1) => do_generate_contacts(cube1, ball2, ctxt, false),
             Shape::Capsule(capsule1) => do_generate_contacts(capsule1, ball2, ctxt, false),
+            Shape::Cylinder(cylinder1) => do_generate_contacts(cylinder1, ball2, ctxt, false),
             _ => unimplemented!(),
         }
     }

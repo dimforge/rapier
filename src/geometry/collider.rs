@@ -1,7 +1,9 @@
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
+#[cfg(feature = "dim3")]
+use crate::geometry::PolygonalFeatureMap;
 use crate::geometry::{
-    Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph, Polygon,
-    Proximity, Ray, RayIntersection, Triangle, Trimesh,
+    Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, Cylinder, HeightField, InteractionGraph,
+    Polygon, Proximity, Ray, RayIntersection, Triangle, Trimesh,
 };
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
 use na::Point3;
@@ -27,6 +29,9 @@ pub enum Shape {
     Trimesh(Trimesh),
     /// A heightfield shape.
     HeightField(HeightField),
+    #[cfg(feature = "dim3")]
+    /// A cylindrical shape.
+    Cylinder(Cylinder),
 }
 
 impl Shape {
@@ -86,6 +91,25 @@ impl Shape {
         }
     }
 
+    /// Gets a reference to the underlying cylindrical shape, if `self` is one.
+    pub fn as_cylinder(&self) -> Option<&Cylinder> {
+        match self {
+            Shape::Cylinder(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    /// gets a reference to this shape seen as a PolygonalFeatureMap.
+    #[cfg(feature = "dim3")]
+    pub fn as_polygonal_feature_map(&self) -> Option<&dyn PolygonalFeatureMap> {
+        match self {
+            Shape::Triangle(t) => Some(t),
+            Shape::Cuboid(c) => Some(c),
+            Shape::Cylinder(c) => Some(c),
+            _ => None,
+        }
+    }
+
     /// Computes the axis-aligned bounding box of this shape.
     pub fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
         match self {
@@ -96,6 +120,7 @@ impl Shape {
             Shape::Triangle(triangle) => triangle.bounding_volume(position),
             Shape::Trimesh(trimesh) => trimesh.aabb(position),
             Shape::HeightField(heightfield) => heightfield.bounding_volume(position),
+            Shape::Cylinder(cylinder) => cylinder.bounding_volume(position),
         }
     }
 
@@ -138,6 +163,10 @@ impl Shape {
             }
             Shape::HeightField(heightfield) => {
                 heightfield.toi_and_normal_with_ray(position, ray, max_toi, true)
+            }
+            #[cfg(feature = "dim3")]
+            Shape::Cylinder(cylinder) => {
+                cylinder.toi_and_normal_with_ray(position, ray, max_toi, true)
             }
         }
     }
@@ -242,9 +271,12 @@ impl Collider {
             Shape::Capsule(caps) => {
                 MassProperties::from_capsule(self.density, caps.a, caps.b, caps.radius)
             }
-            Shape::Triangle(_) => MassProperties::zero(),
-            Shape::Trimesh(_) => MassProperties::zero(),
-            Shape::HeightField(_) => MassProperties::zero(),
+            Shape::Triangle(_) | Shape::Trimesh(_) | Shape::HeightField(_) => {
+                MassProperties::zero()
+            }
+            Shape::Cylinder(c) => {
+                MassProperties::from_cylinder(self.density, c.half_height, c.radius)
+            }
         }
     }
 }
@@ -289,6 +321,12 @@ impl ColliderBuilder {
     /// Initialize a new collider builder with a ball shape defined by its radius.
     pub fn ball(radius: f32) -> Self {
         Self::new(Shape::Ball(Ball::new(radius)))
+    }
+
+    /// Initialize a new collider builder with a cylindrical shape defined by its half-height
+    /// (along along the y axis) and its radius.
+    pub fn cylinder(half_height: f32, radius: f32) -> Self {
+        Self::new(Shape::Cylinder(Cylinder::new(half_height, radius)))
     }
 
     /// Initialize a new collider builder with a cuboid shape defined by its half-extents.

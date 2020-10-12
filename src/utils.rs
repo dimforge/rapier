@@ -91,7 +91,7 @@ impl<N: Scalar + Copy + WSign<N>> WSign<Vector3<N>> for Vector3<N> {
 
 impl WSign<SimdFloat> for SimdFloat {
     fn copy_sign_to(self, to: SimdFloat) -> SimdFloat {
-        self.simd_copysign(to)
+        to.simd_copysign(self)
     }
 }
 

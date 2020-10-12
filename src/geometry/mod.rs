@@ -30,6 +30,9 @@ pub type Triangle = ncollide::shape::Triangle<f32>;
 pub type Ball = ncollide::shape::Ball<f32>;
 /// A heightfield shape.
 pub type HeightField = ncollide::shape::HeightField<f32>;
+/// A cylindrical shape.
+#[cfg(feature = "dim3")]
+pub type Cylinder = ncollide::shape::Cylinder<f32>;
 /// An axis-aligned bounding box.
 pub type AABB = ncollide::bounding_volume::AABB<f32>;
 /// Event triggered when two non-sensor colliders start or stop being in contact.
@@ -50,6 +53,8 @@ pub(crate) use self::contact::WContact;
 #[cfg(feature = "dim2")]
 pub(crate) use self::contact_generator::{clip_segments, clip_segments_with_normal};
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
+#[cfg(feature = "dim3")]
+pub(crate) use self::polygonal_feature_map::PolygonalFeatureMap;
 #[cfg(feature = "dim3")]
 pub(crate) use self::polyhedron_feature3d::PolyhedronFace;
 pub(crate) use self::waabb::{WRay, WAABB};
@@ -81,3 +86,5 @@ mod trimesh;
 mod waabb;
 mod wquadtree;
 //mod z_order;
+#[cfg(feature = "dim3")]
+mod polygonal_feature_map;

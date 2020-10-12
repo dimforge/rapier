@@ -1,6 +1,7 @@
 use crate::geometry::contact_generator::{
     ContactGenerator, ContactPhase, HeightFieldShapeContactGeneratorWorkspace,
-    PrimitiveContactGenerator, TrimeshShapeContactGeneratorWorkspace,
+    PfmPfmContactManifoldGeneratorWorkspace, PrimitiveContactGenerator,
+    TrimeshShapeContactGeneratorWorkspace,
 };
 use crate::geometry::Shape;
 use std::any::Any;
@@ -73,7 +74,9 @@ impl ContactDispatcher for DefaultContactDispatcher {
             | (Shape::Triangle(_), Shape::Ball(_))
             | (Shape::Ball(_), Shape::Triangle(_))
             | (Shape::Capsule(_), Shape::Ball(_))
-            | (Shape::Ball(_), Shape::Capsule(_)) => (
+            | (Shape::Ball(_), Shape::Capsule(_))
+            | (Shape::Cylinder(_), Shape::Ball(_))
+            | (Shape::Ball(_), Shape::Cylinder(_)) => (
                 PrimitiveContactGenerator {
                     generate_contacts: super::generate_contacts_ball_convex,
                     ..PrimitiveContactGenerator::default()
@@ -93,6 +96,13 @@ impl ContactDispatcher for DefaultContactDispatcher {
                     ..PrimitiveContactGenerator::default()
                 },
                 None,
+            ),
+            (Shape::Cylinder(_), _) | (_, Shape::Cylinder(_)) => (
+                PrimitiveContactGenerator {
+                    generate_contacts: super::generate_contacts_pfm_pfm,
+                    ..PrimitiveContactGenerator::default()
+                },
+                Some(Box::new(PfmPfmContactManifoldGeneratorWorkspace::default())),
             ),
             _ => (PrimitiveContactGenerator::default(), None),
         }

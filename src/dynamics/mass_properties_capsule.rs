@@ -1,7 +1,7 @@
 use crate::dynamics::MassProperties;
 #[cfg(feature = "dim3")]
 use crate::geometry::Capsule;
-use crate::math::{Point, PrincipalAngularInertia, Vector};
+use crate::math::{Point, PrincipalAngularInertia, Rotation, Vector};
 
 impl MassProperties {
     fn cylinder_y_volume_unit_inertia(
@@ -56,5 +56,17 @@ impl MassProperties {
                 local_frame,
             )
         }
+    }
+
+    #[cfg(feature = "dim3")]
+    pub(crate) fn from_cylinder(density: f32, half_height: f32, radius: f32) -> Self {
+        let (cyl_vol, cyl_unit_i) = Self::cylinder_y_volume_unit_inertia(half_height, radius);
+
+        Self::with_principal_inertia_frame(
+            Point::origin(),
+            cyl_vol * density,
+            cyl_unit_i * density,
+            Rotation::identity(),
+        )
     }
 }
