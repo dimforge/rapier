@@ -1,4 +1,8 @@
-## v0.2.0 - WIP
+
+## v0.2.1
+- Fix panic in TriMesh construction and QueryPipeline update caused by a stack overflow or a subtraction underflow.
+
+## v0.2.0
 The most significant change on this version is the addition of the `QueryPipeline` responsible for performing
 scene-wide queries. So far only ray-casting has been implemented.
 
