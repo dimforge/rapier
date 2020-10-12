@@ -16,6 +16,10 @@ pub extern crate nalgebra as na;
 pub extern crate ncollide2d as ncollide;
 #[cfg(feature = "dim3")]
 pub extern crate ncollide3d as ncollide;
+#[cfg(feature = "dim2")]
+pub extern crate salva2d as salva;
+#[cfg(feature = "dim3")]
+pub extern crate salva3d as salva;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;

@@ -17,6 +17,9 @@ pub(crate) use self::solver::IslandSolver;
 #[cfg(feature = "parallel")]
 pub(crate) use self::solver::ParallelIslandSolver;
 
+#[cfg(feature = "fluids")]
+pub use salva::object::{Boundary, BoundaryHandle, BoundarySet, Fluid, FluidHandle, FluidSet};
+
 mod integration_parameters;
 mod joint;
 mod mass_properties;
