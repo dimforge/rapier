@@ -539,7 +539,7 @@ fn split_indices_wrt_dim<'a>(
     dim: usize,
 ) -> (&'a mut [usize], &'a mut [usize]) {
     let mut icurr = 0;
-    let mut ilast = indices.len() - 1;
+    let mut ilast = indices.len();
 
     // The loop condition we can just do 0..indices.len()
     // instead of the test icurr < ilast because we know
@@ -549,12 +549,39 @@ fn split_indices_wrt_dim<'a>(
         let center = aabbs[i].center();
 
         if center[dim] > split_point[dim] {
-            indices.swap(icurr, ilast);
             ilast -= 1;
+            indices.swap(icurr, ilast);
         } else {
             icurr += 1;
         }
     }
 
-    indices.split_at_mut(icurr)
+    if icurr == 0 || icurr == indices.len() {
+        // We don't want to return one empty set. But
+        // this can happen if all the coordinates along the
+        // given dimension are equal.
+        // In this is the case, we just split in the middle.
+        let half = indices.len() / 2;
+        indices.split_at_mut(half)
+    } else {
+        indices.split_at_mut(icurr)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::geometry::{WQuadtree, AABB};
+    use crate::math::{Point, Vector};
+
+    #[test]
+    fn multiple_identical_AABB_stack_overflow() {
+        // A stack overflow was caused during the construction of the
+        // WAABB tree with more than four AABB with the same center.
+        let aabb = AABB::new(Point::origin(), Vector::repeat(1.0).into());
+
+        for k in 0..20 {
+            let mut tree = WQuadtree::new();
+            tree.clear_and_rebuild((0..k).map(|i| (i, aabb)), 0.0);
+        }
+    }
 }
