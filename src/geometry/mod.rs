@@ -50,8 +50,9 @@ pub(crate) use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair};
 pub(crate) use self::collider_set::RemovedCollider;
 #[cfg(feature = "simd-is-enabled")]
 pub(crate) use self::contact::WContact;
+pub(crate) use self::contact_generator::clip_segments;
 #[cfg(feature = "dim2")]
-pub(crate) use self::contact_generator::{clip_segments, clip_segments_with_normal};
+pub(crate) use self::contact_generator::clip_segments_with_normal;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
 #[cfg(feature = "dim3")]
 pub(crate) use self::polygonal_feature_map::PolygonalFeatureMap;

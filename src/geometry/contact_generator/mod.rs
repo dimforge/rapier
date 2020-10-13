@@ -27,10 +27,9 @@ pub use self::trimesh_shape_contact_generator::{
     generate_contacts_trimesh_shape, TrimeshShapeContactGeneratorWorkspace,
 };
 
+pub(crate) use self::polygon_polygon_contact_generator::clip_segments;
 #[cfg(feature = "dim2")]
-pub(crate) use self::polygon_polygon_contact_generator::{
-    clip_segments, clip_segments_with_normal,
-};
+pub(crate) use self::polygon_polygon_contact_generator::clip_segments_with_normal;
 
 mod ball_ball_contact_generator;
 mod ball_convex_contact_generator;

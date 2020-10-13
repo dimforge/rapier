@@ -34,7 +34,7 @@ pub fn generate_contacts<'a>(
     let mut pos12 = pos1.inverse() * pos2;
     let mut pos21 = pos12.inverse();
 
-    if manifold.try_update_contacts(&pos12) {
+    if manifold.try_update_contacts(&pos12, true) {
         return;
     }
 
