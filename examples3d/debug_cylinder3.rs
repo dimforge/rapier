@@ -3,6 +3,9 @@ use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
 
+// This shows a bug when a cylinder is in contact with a very large
+// but very thin cuboid. In this case the EPA returns an incorrect
+// contact normal, resulting in the cylinder falling through the floor.
 pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
@@ -15,7 +18,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Ground
      */
     let ground_size = 100.1;
-    let ground_height = 2.1;
+    let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
         .translation(0.0, -ground_height, 0.0)
@@ -27,7 +30,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create the cubes
      */
-    let num = 8;
+    let num = 1;
     let rad = 1.0;
 
     let shiftx = rad * 2.0 + rad;
@@ -39,29 +42,15 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let mut offset = -(num as f32) * (rad * 2.0 + rad) * 0.5;
 
-    for j in 0usize..20 {
-        for i in 0..num {
-            for k in 0usize..num {
-                let x = i as f32 * shiftx - centerx + offset;
-                let y = j as f32 * shifty + centery + 3.0;
-                let z = k as f32 * shiftz - centerz + offset;
+    let x = -centerx + offset;
+    let y = centery + 3.0;
+    let z = -centerz + offset;
 
-                // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
-                let handle = bodies.insert(rigid_body);
-
-                let collider = match j % 3 {
-                    0 => ColliderBuilder::cuboid(rad, rad, rad).build(),
-                    1 => ColliderBuilder::ball(rad).build(),
-                    _ => ColliderBuilder::cylinder(rad, rad).build(),
-                };
-
-                colliders.insert(collider, handle, &mut bodies);
-            }
-        }
-
-        offset -= 0.05 * rad * (num as f32 - 1.0);
-    }
+    // Build the rigid body.
+    let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
+    let handle = bodies.insert(rigid_body);
+    let collider = ColliderBuilder::cylinder(rad, rad).build();
+    colliders.insert(collider, handle, &mut bodies);
 
     /*
      * Set up the testbed.

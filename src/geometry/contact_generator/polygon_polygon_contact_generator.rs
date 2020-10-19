@@ -31,7 +31,7 @@ fn generate_contacts<'a>(
     let mut m12 = m1.inverse() * m2;
     let mut m21 = m12.inverse();
 
-    if manifold.try_update_contacts(&m12, true) {
+    if manifold.try_update_contacts(&m12) {
         return;
     }
 

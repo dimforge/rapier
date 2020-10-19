@@ -13,6 +13,7 @@ use std::cmp::Ordering;
 mod add_remove3;
 mod compound3;
 mod debug_boxes3;
+mod debug_cylinder3;
 mod debug_triangle3;
 mod debug_trimesh3;
 mod domino3;
@@ -76,6 +77,7 @@ pub fn main() {
         ("(Debug) boxes", debug_boxes3::init_world),
         ("(Debug) triangle", debug_triangle3::init_world),
         ("(Debug) trimesh", debug_trimesh3::init_world),
+        ("(Debug) cylinder", debug_cylinder3::init_world),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.

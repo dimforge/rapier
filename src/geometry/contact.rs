@@ -429,17 +429,27 @@ impl ContactManifold {
     }
 
     #[inline]
-    pub(crate) fn try_update_contacts(&mut self, pos12: &Isometry<f32>, early_stop: bool) -> bool {
+    pub(crate) fn try_update_contacts(&mut self, pos12: &Isometry<f32>) -> bool {
+        //        const DOT_THRESHOLD: f32 = 0.crate::COS_10_DEGREES;
+        const DOT_THRESHOLD: f32 = crate::utils::COS_5_DEGREES;
+        const DIST_SQ_THRESHOLD: f32 = 0.001; // FIXME: this should not be hard-coded.
+        self.try_update_contacts_eps(pos12, DOT_THRESHOLD, DIST_SQ_THRESHOLD)
+    }
+
+    #[inline]
+    pub(crate) fn try_update_contacts_eps(
+        &mut self,
+        pos12: &Isometry<f32>,
+        angle_dot_threshold: f32,
+        dist_sq_threshold: f32,
+    ) -> bool {
         if self.points.len() == 0 {
             return false;
         }
 
-        //        const DOT_THRESHOLD: f32 = 0.crate::COS_10_DEGREES;
-        const DOT_THRESHOLD: f32 = crate::utils::COS_5_DEGREES;
-
         let local_n2 = pos12 * self.local_n2;
 
-        if early_stop && -self.local_n1.dot(&local_n2) < DOT_THRESHOLD {
+        if -self.local_n1.dot(&local_n2) < angle_dot_threshold {
             return false;
         }
 
@@ -448,15 +458,14 @@ impl ContactManifold {
             let dpt = local_p2 - pt.local_p1;
             let dist = dpt.dot(&self.local_n1);
 
-            if early_stop && dist * pt.dist < 0.0 {
+            if dist * pt.dist < 0.0 {
                 // We switched between penetrating/non-penetrating.
                 // The may result in other contacts to appear.
                 return false;
             }
             let new_local_p1 = local_p2 - self.local_n1 * dist;
 
-            let dist_threshold = 0.001; // FIXME: this should not be hard-coded.
-            if early_stop && na::distance_squared(&pt.local_p1, &new_local_p1) > dist_threshold {
+            if na::distance_squared(&pt.local_p1, &new_local_p1) > dist_sq_threshold {
                 return false;
             }
 

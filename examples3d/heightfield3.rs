@@ -54,13 +54,13 @@ pub fn init_world(testbed: &mut Testbed) {
                 let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
                 let handle = bodies.insert(rigid_body);
 
-                if j % 2 == 0 {
-                    let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
-                    colliders.insert(collider, handle, &mut bodies);
-                } else {
-                    let collider = ColliderBuilder::ball(rad).build();
-                    colliders.insert(collider, handle, &mut bodies);
-                }
+                let collider = match j % 3 {
+                    0 => ColliderBuilder::cuboid(rad, rad, rad).build(),
+                    1 => ColliderBuilder::ball(rad).build(),
+                    _ => ColliderBuilder::cylinder(rad, rad).build(),
+                };
+
+                colliders.insert(collider, handle, &mut bodies);
             }
         }
     }

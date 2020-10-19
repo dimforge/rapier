@@ -48,8 +48,8 @@ pub fn generate_contacts<'a>(
     let mut pos12 = pos1.inverse() * pos2;
     let mut pos21 = pos12.inverse();
 
-    if (!swapped && manifold.try_update_contacts(&pos12, true))
-        || (swapped && manifold.try_update_contacts(&pos21, true))
+    if (!swapped && manifold.try_update_contacts(&pos12))
+        || (swapped && manifold.try_update_contacts(&pos21))
     {
         return;
     }
