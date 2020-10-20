@@ -1,7 +1,7 @@
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{
     Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph, Polygon,
-    Proximity, Ray, RayIntersection, Shape, ShapeType, Triangle, Trimesh,
+    Proximity, Ray, RayIntersection, Rounded, Shape, ShapeType, Triangle, Trimesh,
 };
 #[cfg(feature = "dim3")]
 use crate::geometry::{Cone, Cylinder, PolygonalFeatureMap};
@@ -38,6 +38,17 @@ impl ColliderShape {
     #[cfg(feature = "dim3")]
     pub fn cylinder(half_height: f32, radius: f32) -> Self {
         ColliderShape(Arc::new(Cylinder::new(half_height, radius)))
+    }
+
+    /// Initialize a rounded cylindrical shape defined by its half-height
+    /// (along along the y axis), its radius, and its roundedness (the
+    /// radius of the sphere used for dilating the cylinder).
+    #[cfg(feature = "dim3")]
+    pub fn rounded_cylinder(half_height: f32, radius: f32, rounding_radius: f32) -> Self {
+        ColliderShape(Arc::new(Rounded::new(
+            Cylinder::new(half_height, radius),
+            rounding_radius,
+        )))
     }
 
     /// Initialize a cone shape defined by its half-height
@@ -127,13 +138,20 @@ impl<'de> serde::Deserialize<'de> for ColliderShape {
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
 
+                fn deser<'de, A, S: Shape + serde::Deserialize<'de>>(
+                    seq: &mut A,
+                ) -> Result<Arc<dyn Shape>, A::Error>
+                where
+                    A: serde::de::SeqAccess<'de>,
+                {
+                    let shape: S = seq.next_element()?.ok_or_else(|| {
+                        serde::de::Error::custom("Failed to deserialize builtin shape.")
+                    })?;
+                    Ok(Arc::new(shape) as Arc<dyn Shape>)
+                }
+
                 let shape = match ShapeType::from_i32(tag) {
-                    Some(ShapeType::Ball) => {
-                        let shape: Ball = seq
-                            .next_element()?
-                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                        Arc::new(shape) as Arc<dyn Shape>
-                    }
+                    Some(ShapeType::Ball) => deser::<A, Ball>(&mut seq)?,
                     Some(ShapeType::Polygon) => {
                         unimplemented!()
                         // let shape: Polygon = seq
@@ -141,50 +159,17 @@ impl<'de> serde::Deserialize<'de> for ColliderShape {
                         //     .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                         // Arc::new(shape) as Arc<dyn Shape>
                     }
-                    Some(ShapeType::Cuboid) => {
-                        let shape: Cuboid = seq
-                            .next_element()?
-                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                        Arc::new(shape) as Arc<dyn Shape>
-                    }
-                    Some(ShapeType::Capsule) => {
-                        let shape: Capsule = seq
-                            .next_element()?
-                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                        Arc::new(shape) as Arc<dyn Shape>
-                    }
-                    Some(ShapeType::Triangle) => {
-                        let shape: Triangle = seq
-                            .next_element()?
-                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                        Arc::new(shape) as Arc<dyn Shape>
-                    }
-                    Some(ShapeType::Trimesh) => {
-                        let shape: Trimesh = seq
-                            .next_element()?
-                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                        Arc::new(shape) as Arc<dyn Shape>
-                    }
-                    Some(ShapeType::HeightField) => {
-                        let shape: HeightField = seq
-                            .next_element()?
-                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                        Arc::new(shape) as Arc<dyn Shape>
-                    }
+                    Some(ShapeType::Cuboid) => deser::<A, Cuboid>(&mut seq)?,
+                    Some(ShapeType::Capsule) => deser::<A, Capsule>(&mut seq)?,
+                    Some(ShapeType::Triangle) => deser::<A, Triangle>(&mut seq)?,
+                    Some(ShapeType::Trimesh) => deser::<A, Trimesh>(&mut seq)?,
+                    Some(ShapeType::HeightField) => deser::<A, HeightField>(&mut seq)?,
                     #[cfg(feature = "dim3")]
-                    Some(ShapeType::Cylinder) => {
-                        let shape: Cylinder = seq
-                            .next_element()?
-                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                        Arc::new(shape) as Arc<dyn Shape>
-                    }
+                    Some(ShapeType::Cylinder) => deser::<A, Cylinder>(&mut seq)?,
                     #[cfg(feature = "dim3")]
-                    Some(ShapeType::Cone) => {
-                        let shape: Cone = seq
-                            .next_element()?
-                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                        Arc::new(shape) as Arc<dyn Shape>
-                    }
+                    Some(ShapeType::Cone) => deser::<A, Cone>(&mut seq)?,
+                    #[cfg(feature = "dim3")]
+                    Some(ShapeType::RoundedCylinder) => deser::<A, Rounded<Cylinder>>(&mut seq)?,
                     None => {
                         return Err(serde::de::Error::custom(
                             "found invalid shape type to deserialize",
@@ -340,6 +325,18 @@ impl ColliderBuilder {
     #[cfg(feature = "dim3")]
     pub fn cylinder(half_height: f32, radius: f32) -> Self {
         Self::new(ColliderShape::cylinder(half_height, radius))
+    }
+
+    /// Initialize a new collider builder with a rounded cylindrical shape defined by its half-height
+    /// (along along the y axis), its radius, and its roundedness (the
+    /// radius of the sphere used for dilating the cylinder).
+    #[cfg(feature = "dim3")]
+    pub fn rounded_cylinder(half_height: f32, radius: f32, rounding_radius: f32) -> Self {
+        Self::new(ColliderShape::rounded_cylinder(
+            half_height,
+            radius,
+            rounding_radius,
+        ))
     }
 
     /// Initialize a new collider builder with a cone shape defined by its half-height

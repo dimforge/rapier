@@ -57,7 +57,9 @@ pub fn init_world(testbed: &mut Testbed) {
                 let collider = match j % 4 {
                     0 => ColliderBuilder::cuboid(rad, rad, rad).build(),
                     1 => ColliderBuilder::ball(rad).build(),
-                    2 => ColliderBuilder::cylinder(rad, rad).build(),
+                    // Rounded cylinders are much more efficient that cylinder, even if the
+                    // rounding margin is small.
+                    2 => ColliderBuilder::rounded_cylinder(rad, rad, rad / 10.0).build(),
                     _ => ColliderBuilder::cone(rad, rad).build(),
                 };
 

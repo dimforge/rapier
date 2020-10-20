@@ -411,7 +411,7 @@ impl GraphicsManager {
         }
 
         #[cfg(feature = "dim3")]
-        if let Some(cylinder) = shape.as_cylinder() {
+        if let Some(cylinder) = shape.as_cylinder().or(shape.as_rounded().map(|r| &r.shape)) {
             out.push(Node::Cylinder(Cylinder::new(
                 handle,
                 cylinder.half_height,

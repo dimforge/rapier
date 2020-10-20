@@ -29,11 +29,11 @@ impl Default for PfmPfmContactManifoldGeneratorWorkspace {
 }
 
 pub fn generate_contacts_pfm_pfm(ctxt: &mut PrimitiveContactGenerationContext) {
-    if let (Some(pfm1), Some(pfm2)) = (
+    if let (Some((pfm1, round_radius1)), Some((pfm2, round_radius2))) = (
         ctxt.shape1.as_polygonal_feature_map(),
         ctxt.shape2.as_polygonal_feature_map(),
     ) {
-        do_generate_contacts(pfm1, pfm2, ctxt);
+        do_generate_contacts(pfm1, round_radius1, pfm2, round_radius2, ctxt);
         ctxt.manifold.update_warmstart_multiplier();
         ctxt.manifold.sort_contacts(ctxt.prediction_distance);
     }
@@ -41,7 +41,9 @@ pub fn generate_contacts_pfm_pfm(ctxt: &mut PrimitiveContactGenerationContext) {
 
 fn do_generate_contacts(
     pfm1: &dyn PolygonalFeatureMap,
+    round_radius1: f32,
     pfm2: &dyn PolygonalFeatureMap,
+    round_radius2: f32,
     ctxt: &mut PrimitiveContactGenerationContext,
 ) {
     let pos12 = ctxt.position1.inverse() * ctxt.position2;
@@ -64,12 +66,13 @@ fn do_generate_contacts(
         .downcast_mut()
         .expect("Invalid workspace type, expected a PfmPfmContactManifoldGeneratorWorkspace.");
 
+    let total_prediction = ctxt.prediction_distance + round_radius1 + round_radius2;
     let contact = query::contact_support_map_support_map_with_params(
         &Isometry::identity(),
         pfm1,
         &pos12,
         pfm2,
-        ctxt.prediction_distance,
+        total_prediction,
         &mut workspace.simplex,
         workspace.last_gjk_dir,
     );
@@ -87,13 +90,21 @@ fn do_generate_contacts(
             workspace.feature2.transform_by(&pos12);
 
             PolyhedronFace::contacts(
-                ctxt.prediction_distance,
+                total_prediction,
                 &workspace.feature1,
                 &normal1,
                 &workspace.feature2,
                 &pos21,
                 ctxt.manifold,
             );
+
+            if round_radius1 != 0.0 || round_radius2 != 0.0 {
+                for contact in &mut ctxt.manifold.points {
+                    contact.local_p1 += *normal1 * round_radius1;
+                    contact.local_p2 += *normal2 * round_radius2;
+                    contact.dist -= round_radius1 + round_radius2;
+                }
+            }
 
             // Adjust points to take the radius into account.
             ctxt.manifold.local_n1 = *normal1;

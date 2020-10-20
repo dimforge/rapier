@@ -1,7 +1,7 @@
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{
     Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph, Polygon,
-    Proximity, Ray, RayIntersection, Triangle, Trimesh,
+    Proximity, Ray, RayIntersection, Roundable, Rounded, Triangle, Trimesh,
 };
 #[cfg(feature = "dim3")]
 use crate::geometry::{Cone, Cylinder, PolygonalFeatureMap};
@@ -9,7 +9,7 @@ use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
 use downcast_rs::{impl_downcast, DowncastSync};
 use erased_serde::Serialize;
 use na::Point3;
-use ncollide::bounding_volume::{HasBoundingVolume, AABB};
+use ncollide::bounding_volume::{BoundingVolume, HasBoundingVolume, AABB};
 use ncollide::query::{PointQuery, RayCast};
 use num::Zero;
 use num_derive::FromPrimitive;
@@ -40,6 +40,18 @@ pub enum ShapeType {
     Cone,
     // /// A custom shape type.
     // Custom(u8),
+    // /// A cuboid with rounded corners.
+    // RoundedCuboid,
+    // /// A triangle with rounded corners.
+    // RoundedTriangle,
+    // /// A triangle-mesh with rounded corners.
+    // RoundedTrimesh,
+    // /// An heightfield with rounded corners.
+    // RoundedHeightField,
+    /// A cylinder with rounded corners.
+    RoundedCylinder,
+    // /// A cone with rounded corners.
+    // RoundedCone,
 }
 
 /// Trait implemented by shapes usable by Rapier.
@@ -61,7 +73,7 @@ pub trait Shape: RayCast<f32> + PointQuery<f32> + DowncastSync {
 
     /// Converts this shape to a polygonal feature-map, if it is one.
     #[cfg(feature = "dim3")]
-    fn as_polygonal_feature_map(&self) -> Option<&dyn PolygonalFeatureMap> {
+    fn as_polygonal_feature_map(&self) -> Option<(&dyn PolygonalFeatureMap, f32)> {
         None
     }
 
@@ -110,6 +122,15 @@ impl dyn Shape {
 
     /// Converts this abstract shape to a cone, if it is one.
     pub fn as_cone(&self) -> Option<&Cone> {
+        self.downcast_ref()
+    }
+
+    /// Converts this abstract shape to a cone, if it is one.
+    pub fn as_rounded<S>(&self) -> Option<&Rounded<S>>
+    where
+        S: Roundable,
+        Rounded<S>: Shape,
+    {
         self.downcast_ref()
     }
 }
@@ -171,8 +192,8 @@ impl Shape for Cuboid {
     }
 
     #[cfg(feature = "dim3")]
-    fn as_polygonal_feature_map(&self) -> Option<&dyn PolygonalFeatureMap> {
-        Some(self as &dyn PolygonalFeatureMap)
+    fn as_polygonal_feature_map(&self) -> Option<(&dyn PolygonalFeatureMap, f32)> {
+        Some((self as &dyn PolygonalFeatureMap, 0.0))
     }
 }
 
@@ -214,8 +235,8 @@ impl Shape for Triangle {
     }
 
     #[cfg(feature = "dim3")]
-    fn as_polygonal_feature_map(&self) -> Option<&dyn PolygonalFeatureMap> {
-        Some(self as &dyn PolygonalFeatureMap)
+    fn as_polygonal_feature_map(&self) -> Option<(&dyn PolygonalFeatureMap, f32)> {
+        Some((self as &dyn PolygonalFeatureMap, 0.0))
     }
 }
 
@@ -277,8 +298,8 @@ impl Shape for Cylinder {
     }
 
     #[cfg(feature = "dim3")]
-    fn as_polygonal_feature_map(&self) -> Option<&dyn PolygonalFeatureMap> {
-        Some(self as &dyn PolygonalFeatureMap)
+    fn as_polygonal_feature_map(&self) -> Option<(&dyn PolygonalFeatureMap, f32)> {
+        Some((self as &dyn PolygonalFeatureMap, 0.0))
     }
 }
 
@@ -302,7 +323,32 @@ impl Shape for Cone {
     }
 
     #[cfg(feature = "dim3")]
-    fn as_polygonal_feature_map(&self) -> Option<&dyn PolygonalFeatureMap> {
-        Some(self as &dyn PolygonalFeatureMap)
+    fn as_polygonal_feature_map(&self) -> Option<(&dyn PolygonalFeatureMap, f32)> {
+        Some((self as &dyn PolygonalFeatureMap, 0.0))
+    }
+}
+
+#[cfg(feature = "dim3")]
+impl Shape for Rounded<Cylinder> {
+    fn as_serialize(&self) -> Option<&dyn Serialize> {
+        Some(self as &dyn Serialize)
+    }
+
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
+        self.shape.compute_aabb(position).loosened(self.radius)
+    }
+
+    fn mass_properties(&self, density: f32) -> MassProperties {
+        // We ignore the margin here.
+        self.shape.mass_properties(density)
+    }
+
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::RoundedCylinder
+    }
+
+    #[cfg(feature = "dim3")]
+    fn as_polygonal_feature_map(&self) -> Option<(&dyn PolygonalFeatureMap, f32)> {
+        Some((&self.shape as &dyn PolygonalFeatureMap, self.radius))
     }
 }

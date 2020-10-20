@@ -18,7 +18,7 @@ pub use self::narrow_phase::NarrowPhase;
 pub use self::polygon::Polygon;
 pub use self::proximity::ProximityPair;
 pub use self::proximity_detector::{DefaultProximityDispatcher, ProximityDispatcher};
-pub use self::rounded::Rounded;
+pub use self::rounded::{Roundable, Rounded};
 pub use self::trimesh::Trimesh;
 pub use ncollide::query::Proximity;
 
