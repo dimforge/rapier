@@ -11,6 +11,7 @@
 #![deny(missing_docs)]
 
 pub extern crate nalgebra as na;
+pub extern crate crossbeam;
 #[cfg(feature = "dim2")]
 pub extern crate ncollide2d as ncollide;
 #[cfg(feature = "dim3")]
@@ -26,6 +27,7 @@ extern crate num_traits as num;
 
 #[cfg(feature = "parallel")]
 pub use rayon;
+
 
 #[cfg(all(
     feature = "simd-is-enabled",
