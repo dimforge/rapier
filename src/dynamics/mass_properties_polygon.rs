@@ -1,3 +1,5 @@
+#![allow(dead_code)] // TODO: remove this
+
 use crate::dynamics::MassProperties;
 use crate::math::Point;
 

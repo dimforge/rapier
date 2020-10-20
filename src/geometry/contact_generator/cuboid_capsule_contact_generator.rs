@@ -1,12 +1,11 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
 #[cfg(feature = "dim3")]
 use crate::geometry::PolyhedronFace;
-use crate::geometry::{cuboid, sat, Capsule, ContactManifold, Cuboid, KinematicsCategory, Shape};
+use crate::geometry::{cuboid, sat, Capsule, ContactManifold, Cuboid, KinematicsCategory};
 #[cfg(feature = "dim2")]
 use crate::geometry::{CuboidFeature, CuboidFeatureFace};
 use crate::math::Isometry;
 use crate::math::Vector;
-use ncollide::shape::Segment;
 
 pub fn generate_contacts_cuboid_capsule(ctxt: &mut PrimitiveContactGenerationContext) {
     if let (Some(cube1), Some(capsule2)) = (ctxt.shape1.as_cuboid(), ctxt.shape2.as_capsule()) {

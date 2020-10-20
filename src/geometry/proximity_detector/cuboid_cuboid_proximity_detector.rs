@@ -1,5 +1,5 @@
 use crate::geometry::proximity_detector::PrimitiveProximityDetectionContext;
-use crate::geometry::{sat, Proximity, Shape};
+use crate::geometry::{sat, Proximity};
 use crate::math::Isometry;
 use ncollide::shape::Cuboid;
 

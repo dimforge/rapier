@@ -1,9 +1,10 @@
+#[cfg(feature = "dim3")]
+use crate::geometry::contact_generator::PfmPfmContactManifoldGeneratorWorkspace;
 use crate::geometry::contact_generator::{
     ContactGenerator, ContactPhase, HeightFieldShapeContactGeneratorWorkspace,
-    PfmPfmContactManifoldGeneratorWorkspace, PrimitiveContactGenerator,
-    TrimeshShapeContactGeneratorWorkspace,
+    PrimitiveContactGenerator, TrimeshShapeContactGeneratorWorkspace,
 };
-use crate::geometry::{Shape, ShapeType};
+use crate::geometry::ShapeType;
 use std::any::Any;
 
 /// Trait implemented by structures responsible for selecting a collision-detection algorithm
@@ -92,6 +93,7 @@ impl ContactDispatcher for DefaultContactDispatcher {
                     None,
                 )
             }
+            #[cfg(feature = "dim3")]
             (ShapeType::Cylinder, _)
             | (_, ShapeType::Cylinder)
             | (ShapeType::Cone, _)

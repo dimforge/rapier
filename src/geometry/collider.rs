@@ -1,18 +1,13 @@
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{
-    Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph, Polygon,
-    Proximity, Ray, RayIntersection, Rounded, Shape, ShapeType, Triangle, Trimesh,
+    Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph, Proximity,
+    Shape, ShapeType, Triangle, Trimesh,
 };
 #[cfg(feature = "dim3")]
-use crate::geometry::{Cone, Cylinder, PolygonalFeatureMap};
+use crate::geometry::{Cone, Cylinder, PolygonalFeatureMap, Rounded};
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
-use downcast_rs::{impl_downcast, DowncastSync};
-use erased_serde::Serialize;
 use na::Point3;
-use ncollide::bounding_volume::{HasBoundingVolume, AABB};
-use ncollide::query::RayCast;
-use num::Zero;
-use std::any::Any;
+use ncollide::bounding_volume::AABB;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -21,8 +16,8 @@ use std::sync::Arc;
 pub struct ColliderShape(pub Arc<dyn Shape>);
 
 impl Deref for ColliderShape {
-    type Target = Shape;
-    fn deref(&self) -> &Shape {
+    type Target = dyn Shape;
+    fn deref(&self) -> &dyn Shape {
         &*self.0
     }
 }
@@ -257,7 +252,7 @@ impl Collider {
     }
 
     /// The geometric shape of this collider.
-    pub fn shape(&self) -> &Shape {
+    pub fn shape(&self) -> &dyn Shape {
         &*self.shape.0
     }
 

@@ -1,7 +1,7 @@
 use crate::geometry::proximity_detector::{
     PrimitiveProximityDetectionContext, ProximityDetectionContext,
 };
-use crate::geometry::{Collider, Proximity, Shape, ShapeType, Trimesh};
+use crate::geometry::{Collider, Proximity, ShapeType, Trimesh};
 use crate::ncollide::bounding_volume::{BoundingVolume, AABB};
 
 pub struct TrimeshShapeProximityDetectorWorkspace {

@@ -9,11 +9,10 @@ use na::Point3;
 use crate::math::Point;
 use crate::objects::ball::Ball;
 use crate::objects::box_node::Box as BoxNode;
-use crate::objects::convex::Convex;
 use crate::objects::heightfield::HeightField;
 use crate::objects::node::{GraphicsNode, Node};
 use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
-use rapier::geometry::{Collider, ColliderHandle, ColliderSet, Shape};
+use rapier::geometry::{Collider, ColliderHandle, ColliderSet};
 //use crate::objects::capsule::Capsule;
 //use crate::objects::convex::Convex;
 //#[cfg(feature = "fluids")]
@@ -26,7 +25,9 @@ use rapier::geometry::{Collider, ColliderHandle, ColliderSet, Shape};
 //#[cfg(feature = "fluids")]
 //use crate::objects::FluidRenderingMode;
 use crate::objects::capsule::Capsule;
+#[cfg(feature = "dim3")]
 use crate::objects::cone::Cone;
+#[cfg(feature = "dim3")]
 use crate::objects::cylinder::Cylinder;
 use crate::objects::mesh::Mesh;
 use rand::{Rng, SeedableRng};

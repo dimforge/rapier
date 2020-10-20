@@ -107,15 +107,15 @@ impl Trimesh {
 }
 
 impl PointQuery<f32> for Trimesh {
-    fn project_point(&self, m: &Isometry<f32>, pt: &Point<f32>, solid: bool) -> PointProjection {
+    fn project_point(&self, _m: &Isometry<f32>, _pt: &Point<f32>, _solid: bool) -> PointProjection {
         // TODO
         unimplemented!()
     }
 
     fn project_point_with_feature(
         &self,
-        m: &Isometry<f32>,
-        pt: &Point<f32>,
+        _m: &Isometry<f32>,
+        _pt: &Point<f32>,
     ) -> (PointProjection, FeatureId) {
         // TODO
         unimplemented!()
@@ -126,16 +126,16 @@ impl PointQuery<f32> for Trimesh {
 impl RayCast<f32> for Trimesh {
     fn toi_and_normal_with_ray(
         &self,
-        m: &Isometry<f32>,
-        ray: &Ray,
-        max_toi: f32,
-        solid: bool,
+        _m: &Isometry<f32>,
+        _ray: &Ray,
+        _max_toi: f32,
+        _solid: bool,
     ) -> Option<RayIntersection> {
         // TODO
         None
     }
 
-    fn intersects_ray(&self, m: &Isometry<f32>, ray: &Ray, max_toi: f32) -> bool {
+    fn intersects_ray(&self, _m: &Isometry<f32>, _ray: &Ray, _max_toi: f32) -> bool {
         // TODO
         false
     }

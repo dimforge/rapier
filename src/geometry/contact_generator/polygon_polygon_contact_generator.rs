@@ -1,10 +1,10 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-use crate::geometry::{sat, Contact, ContactManifold, KinematicsCategory, Polygon, Shape};
+use crate::geometry::{sat, Contact, ContactManifold, KinematicsCategory, Polygon};
 use crate::math::{Isometry, Point};
 #[cfg(feature = "dim2")]
 use crate::{math::Vector, utils};
 
-pub fn generate_contacts_polygon_polygon(ctxt: &mut PrimitiveContactGenerationContext) {
+pub fn generate_contacts_polygon_polygon(_ctxt: &mut PrimitiveContactGenerationContext) {
     unimplemented!()
     // if let (Shape::Polygon(polygon1), Shape::Polygon(polygon2)) = (ctxt.shape1, ctxt.shape2) {
     //     generate_contacts(

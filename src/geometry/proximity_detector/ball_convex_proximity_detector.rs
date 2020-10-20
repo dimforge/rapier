@@ -1,5 +1,5 @@
 use crate::geometry::proximity_detector::PrimitiveProximityDetectionContext;
-use crate::geometry::{Ball, Proximity, Shape};
+use crate::geometry::{Ball, Proximity};
 use crate::math::Isometry;
 use ncollide::query::PointQuery;
 

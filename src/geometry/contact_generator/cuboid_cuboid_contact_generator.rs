@@ -1,5 +1,5 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-use crate::geometry::{cuboid, sat, ContactManifold, CuboidFeature, KinematicsCategory, Shape};
+use crate::geometry::{cuboid, sat, ContactManifold, CuboidFeature, KinematicsCategory};
 use crate::math::Isometry;
 #[cfg(feature = "dim2")]
 use crate::math::Vector;

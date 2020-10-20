@@ -1,9 +1,9 @@
 use crate::geometry::proximity_detector::PrimitiveProximityDetectionContext;
-use crate::geometry::{sat, Polygon, Proximity, Shape};
+use crate::geometry::{sat, Polygon, Proximity};
 use crate::math::Isometry;
 
 pub fn detect_proximity_polygon_polygon(
-    ctxt: &mut PrimitiveProximityDetectionContext,
+    _ctxt: &mut PrimitiveProximityDetectionContext,
 ) -> Proximity {
     unimplemented!()
     // if let (Some(polygon1), Some(polygon2)) = (ctxt.shape1.as_polygon(), ctxt.shape2.as_polygon()) {

@@ -1,4 +1,6 @@
-use crate::geometry::{Cylinder, ShapeType};
+#[cfg(feature = "dim3")]
+use crate::geometry::Cylinder;
+use crate::geometry::ShapeType;
 use crate::math::{Isometry, Point, Vector};
 use na::Unit;
 use ncollide::query::{
@@ -12,6 +14,7 @@ pub trait Roundable {
     fn rounded_shape_type() -> ShapeType;
 }
 
+#[cfg(feature = "dim3")]
 impl Roundable for Cylinder {
     fn rounded_shape_type() -> ShapeType {
         ShapeType::RoundedCylinder

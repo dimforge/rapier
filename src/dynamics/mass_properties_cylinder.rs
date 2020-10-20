@@ -1,7 +1,10 @@
 use crate::dynamics::MassProperties;
+use crate::math::{PrincipalAngularInertia, Vector};
 #[cfg(feature = "dim3")]
-use crate::geometry::Capsule;
-use crate::math::{Point, PrincipalAngularInertia, Rotation, Vector};
+use {
+    crate::geometry::Capsule,
+    crate::math::{Point, Rotation},
+};
 
 impl MassProperties {
     pub(crate) fn cylinder_y_volume_unit_inertia(

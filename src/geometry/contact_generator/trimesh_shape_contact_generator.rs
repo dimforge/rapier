@@ -1,7 +1,7 @@
 use crate::geometry::contact_generator::{
     ContactGenerationContext, PrimitiveContactGenerationContext,
 };
-use crate::geometry::{Collider, ContactManifold, Shape, ShapeType, Trimesh};
+use crate::geometry::{Collider, ContactManifold, ShapeType, Trimesh};
 use crate::ncollide::bounding_volume::{BoundingVolume, AABB};
 
 pub struct TrimeshShapeContactGeneratorWorkspace {

@@ -2,7 +2,7 @@ use crate::geometry::proximity_detector::{
     PrimitiveProximityDetector, ProximityDetector, ProximityPhase,
     TrimeshShapeProximityDetectorWorkspace,
 };
-use crate::geometry::{Shape, ShapeType};
+use crate::geometry::ShapeType;
 use std::any::Any;
 
 /// Trait implemented by structures responsible for selecting a collision-detection algorithm

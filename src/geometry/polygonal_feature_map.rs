@@ -2,7 +2,7 @@ use crate::geometry::PolyhedronFace;
 use crate::geometry::{cuboid, Cone, Cuboid, Cylinder, Triangle};
 use crate::math::{Point, Vector};
 use approx::AbsDiffEq;
-use na::{Unit, Vector2, Vector3};
+use na::{Unit, Vector2};
 use ncollide::shape::Segment;
 use ncollide::shape::SupportMap;
 

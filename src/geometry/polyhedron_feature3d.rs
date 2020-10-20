@@ -387,8 +387,6 @@ impl PolyhedronFace {
 /// Compute the barycentric coordinates of the intersection between the two given lines.
 /// Returns `None` if the lines are parallel.
 fn closest_points_line2d(edge1: [Point2<f32>; 2], edge2: [Point2<f32>; 2]) -> Option<(f32, f32)> {
-    use approx::AbsDiffEq;
-
     // Inspired by Real-time collision detection by Christer Ericson.
     let dir1 = edge1[1] - edge1[0];
     let dir2 = edge2[1] - edge2[0];

@@ -1,19 +1,17 @@
-use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
-use crate::geometry::{
-    Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph, Polygon,
-    Proximity, Ray, RayIntersection, Roundable, Rounded, Triangle, Trimesh,
-};
-#[cfg(feature = "dim3")]
-use crate::geometry::{Cone, Cylinder, PolygonalFeatureMap};
-use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
+use crate::dynamics::MassProperties;
+use crate::geometry::{Ball, Capsule, Cuboid, HeightField, Roundable, Rounded, Triangle, Trimesh};
+use crate::math::Isometry;
 use downcast_rs::{impl_downcast, DowncastSync};
 use erased_serde::Serialize;
-use na::Point3;
-use ncollide::bounding_volume::{BoundingVolume, HasBoundingVolume, AABB};
+use ncollide::bounding_volume::{HasBoundingVolume, AABB};
 use ncollide::query::{PointQuery, RayCast};
 use num::Zero;
 use num_derive::FromPrimitive;
-use std::any::Any;
+#[cfg(feature = "dim3")]
+use {
+    crate::geometry::{Cone, Cylinder, PolygonalFeatureMap},
+    ncollide::bounding_volume::BoundingVolume,
+};
 
 #[derive(Copy, Clone, Debug, FromPrimitive)]
 /// Enum representing the type of a shape.
@@ -49,6 +47,7 @@ pub enum ShapeType {
     // /// An heightfield with rounded corners.
     // RoundedHeightField,
     /// A cylinder with rounded corners.
+    #[cfg(feature = "dim3")]
     RoundedCylinder,
     // /// A cone with rounded corners.
     // RoundedCone,
@@ -116,11 +115,13 @@ impl dyn Shape {
     }
 
     /// Converts this abstract shape to a cylinder, if it is one.
+    #[cfg(feature = "dim3")]
     pub fn as_cylinder(&self) -> Option<&Cylinder> {
         self.downcast_ref()
     }
 
     /// Converts this abstract shape to a cone, if it is one.
+    #[cfg(feature = "dim3")]
     pub fn as_cone(&self) -> Option<&Cone> {
         self.downcast_ref()
     }
@@ -226,7 +227,7 @@ impl Shape for Triangle {
         self.bounding_volume(position)
     }
 
-    fn mass_properties(&self, density: f32) -> MassProperties {
+    fn mass_properties(&self, _density: f32) -> MassProperties {
         MassProperties::zero()
     }
 

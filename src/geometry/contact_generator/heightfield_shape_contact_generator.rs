@@ -3,7 +3,7 @@ use crate::geometry::contact_generator::{
 };
 #[cfg(feature = "dim2")]
 use crate::geometry::Capsule;
-use crate::geometry::{Collider, ContactManifold, HeightField, Shape, ShapeType};
+use crate::geometry::{Collider, ContactManifold, HeightField, ShapeType};
 use crate::ncollide::bounding_volume::BoundingVolume;
 #[cfg(feature = "dim3")]
 use crate::{geometry::Triangle, math::Point};
@@ -117,8 +117,8 @@ fn do_generate_contacts(
         let position1 = *collider1.position();
         #[cfg(feature = "dim2")]
         let (position1, sub_shape1) = {
-            let (dpos, height) = crate::utils::segment_to_capsule(&part1.a, &part1.b);
-            (position1 * dpos, Capsule::new(height, 0.0));
+            let (dpos, half_height) = crate::utils::segment_to_capsule(&part1.a, &part1.b);
+            (position1 * dpos, Capsule::new(half_height, 0.0))
         };
         #[cfg(feature = "dim3")]
         let sub_shape1 = *part1;

@@ -1,11 +1,11 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-use crate::geometry::{Capsule, Contact, ContactManifold, KinematicsCategory, Shape};
+use crate::geometry::{Capsule, Contact, ContactManifold, KinematicsCategory};
 use crate::math::Isometry;
 use crate::math::Vector;
 use approx::AbsDiffEq;
 use na::Unit;
 #[cfg(feature = "dim2")]
-use ncollide::shape::{Segment, SegmentPointLocation};
+use ncollide::shape::SegmentPointLocation;
 
 pub fn generate_contacts_capsule_capsule(ctxt: &mut PrimitiveContactGenerationContext) {
     if let (Some(capsule1), Some(capsule2)) = (ctxt.shape1.as_capsule(), ctxt.shape2.as_capsule()) {
@@ -39,10 +39,11 @@ pub fn generate_contacts<'a>(
     let pos12 = pos1.inverse() * pos2;
     let pos21 = pos12.inverse();
 
-    let capsule2_1 = capsule2.transform_by(&pos12);
+    let seg1 = capsule1.segment();
+    let seg2_1 = capsule2.segment().transformed(&pos12);
     let (loc1, loc2) = ncollide::query::closest_points_segment_segment_with_locations_nD(
-        (&capsule1.a, &capsule1.b),
-        (&capsule2_1.a, &capsule2_1.b),
+        (&seg1.a, &seg1.b),
+        (&seg2_1.a, &seg2_1.b),
     );
 
     // We do this clone to perform contact tracking and transfer impulses.
@@ -65,8 +66,8 @@ pub fn generate_contacts<'a>(
 
     let bcoords1 = loc1.barycentric_coordinates();
     let bcoords2 = loc2.barycentric_coordinates();
-    let local_p1 = capsule1.a * bcoords1[0] + capsule1.b.coords * bcoords1[1];
-    let local_p2 = capsule2_1.a * bcoords2[0] + capsule2_1.b.coords * bcoords2[1];
+    let local_p1 = seg1.a * bcoords1[0] + seg1.b.coords * bcoords1[1];
+    let local_p2 = seg2_1.a * bcoords2[0] + seg2_1.b.coords * bcoords2[1];
 
     let local_n1 =
         Unit::try_new(local_p2 - local_p1, f32::default_epsilon()).unwrap_or(Vector::y_axis());
@@ -87,18 +88,15 @@ pub fn generate_contacts<'a>(
         return;
     }
 
-    let seg1 = Segment::new(capsule1.a, capsule1.b);
-    let seg2 = Segment::new(capsule2_1.a, capsule2_1.b);
-
-    if let (Some(dir1), Some(dir2)) = (seg1.direction(), seg2.direction()) {
+    if let (Some(dir1), Some(dir2)) = (seg1.direction(), seg2_1.direction()) {
         if dir1.dot(&dir2).abs() >= crate::utils::COS_FRAC_PI_8
             && dir1.dot(&local_n1).abs() < crate::utils::SIN_FRAC_PI_8
         {
             // Capsules axes are almost parallel and are almost perpendicular to the normal.
             // Find a second contact point.
             if let Some((clip_a, clip_b)) = crate::geometry::clip_segments_with_normal(
-                (capsule1.a, capsule1.b),
-                (capsule2_1.a, capsule2_1.b),
+                (seg1.a, seg1.b),
+                (seg2_1.a, seg2_1.b),
                 *local_n1,
             ) {
                 let contact =

@@ -1,7 +1,7 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
 #[cfg(feature = "dim3")]
 use crate::geometry::PolyhedronFace;
-use crate::geometry::{cuboid, sat, ContactManifold, Cuboid, KinematicsCategory, Shape, Triangle};
+use crate::geometry::{cuboid, sat, ContactManifold, Cuboid, KinematicsCategory, Triangle};
 use crate::math::Isometry;
 #[cfg(feature = "dim2")]
 use crate::{

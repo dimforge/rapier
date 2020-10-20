@@ -1,5 +1,5 @@
 use crate::geometry::proximity_detector::PrimitiveProximityDetectionContext;
-use crate::geometry::{sat, Cuboid, Proximity, Shape, Triangle};
+use crate::geometry::{sat, Cuboid, Proximity, Triangle};
 use crate::math::Isometry;
 
 pub fn detect_proximity_cuboid_triangle(

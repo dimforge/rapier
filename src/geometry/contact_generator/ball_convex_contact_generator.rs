@@ -1,5 +1,5 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-use crate::geometry::{Ball, Contact, KinematicsCategory, Shape};
+use crate::geometry::{Ball, Contact, KinematicsCategory};
 use crate::math::Isometry;
 use na::Unit;
 use ncollide::query::PointQuery;
