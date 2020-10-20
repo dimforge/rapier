@@ -1,37 +1,37 @@
 use crate::objects::node::{self, GraphicsNode};
-use kiss3d::window;
+use kiss3d::window::Window;
 use na::Point3;
-use rapier::geometry::{self, ColliderHandle, ColliderSet};
+use rapier::geometry::{ColliderHandle, ColliderSet};
 use rapier::math::Isometry;
 
-pub struct Capsule {
+pub struct Cone {
     color: Point3<f32>,
     base_color: Point3<f32>,
     gfx: GraphicsNode,
     collider: ColliderHandle,
 }
 
-impl Capsule {
+impl Cone {
     pub fn new(
         collider: ColliderHandle,
-        capsule: &geometry::Capsule,
+        half_height: f32,
+        radius: f32,
         color: Point3<f32>,
-        window: &mut window::Window,
-    ) -> Capsule {
-        let r = capsule.radius;
-        let h = capsule.half_height * 2.0;
+        window: &mut Window,
+    ) -> Cone {
         #[cfg(feature = "dim2")]
-        let node = window.add_planar_capsule(r, h);
+        let node = window.add_rectangle(radius, half_height);
         #[cfg(feature = "dim3")]
-        let node = window.add_capsule(r, h);
+        let node = window.add_cone(radius, half_height * 2.0);
 
-        let mut res = Capsule {
+        let mut res = Cone {
             color,
             base_color: color,
             gfx: node,
             collider,
         };
 
+        // res.gfx.set_texture_from_file(&Path::new("media/kitten.png"), "kitten");
         res.gfx.set_color(color.x, color.y, color.z);
         res
     }
@@ -44,6 +44,12 @@ impl Capsule {
         self.color = self.base_color;
     }
 
+    pub fn set_color(&mut self, color: Point3<f32>) {
+        self.gfx.set_color(color.x, color.y, color.z);
+        self.color = color;
+        self.base_color = color;
+    }
+
     pub fn update(&mut self, colliders: &ColliderSet) {
         node::update_scene_node(
             &mut self.gfx,
@@ -52,12 +58,6 @@ impl Capsule {
             &self.color,
             &Isometry::identity(),
         );
-    }
-
-    pub fn set_color(&mut self, color: Point3<f32>) {
-        self.gfx.set_color(color.x, color.y, color.z);
-        self.color = color;
-        self.base_color = color;
     }
 
     pub fn scene_node(&self) -> &GraphicsNode {

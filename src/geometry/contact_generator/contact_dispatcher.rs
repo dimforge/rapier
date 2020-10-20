@@ -76,7 +76,9 @@ impl ContactDispatcher for DefaultContactDispatcher {
             | (ShapeType::Capsule, ShapeType::Ball)
             | (ShapeType::Ball, ShapeType::Capsule)
             | (ShapeType::Cylinder, ShapeType::Ball)
-            | (ShapeType::Ball, ShapeType::Cylinder) => (
+            | (ShapeType::Ball, ShapeType::Cylinder)
+            | (ShapeType::Cone, ShapeType::Ball)
+            | (ShapeType::Ball, ShapeType::Cone) => (
                 PrimitiveContactGenerator {
                     generate_contacts: super::generate_contacts_ball_convex,
                     ..PrimitiveContactGenerator::default()
@@ -99,7 +101,10 @@ impl ContactDispatcher for DefaultContactDispatcher {
                     None,
                 )
             }
-            (ShapeType::Cylinder, _) | (_, ShapeType::Cylinder) => (
+            (ShapeType::Cylinder, _)
+            | (_, ShapeType::Cylinder)
+            | (ShapeType::Cone, _)
+            | (_, ShapeType::Cone) => (
                 PrimitiveContactGenerator {
                     generate_contacts: super::generate_contacts_pfm_pfm,
                     ..PrimitiveContactGenerator::default()

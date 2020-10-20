@@ -26,6 +26,7 @@ use rapier::geometry::{Collider, ColliderHandle, ColliderSet, Shape};
 //#[cfg(feature = "fluids")]
 //use crate::objects::FluidRenderingMode;
 use crate::objects::capsule::Capsule;
+use crate::objects::cone::Cone;
 use crate::objects::cylinder::Cylinder;
 use crate::objects::mesh::Mesh;
 use rand::{Rng, SeedableRng};
@@ -415,6 +416,17 @@ impl GraphicsManager {
                 handle,
                 cylinder.half_height,
                 cylinder.radius,
+                color,
+                window,
+            )))
+        }
+
+        #[cfg(feature = "dim3")]
+        if let Some(cone) = shape.as_cone() {
+            out.push(Node::Cone(Cone::new(
+                handle,
+                cone.half_height,
+                cone.radius,
                 color,
                 window,
             )))

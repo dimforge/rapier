@@ -35,6 +35,9 @@ pub type HeightField = ncollide::shape::HeightField<f32>;
 /// A cylindrical shape.
 #[cfg(feature = "dim3")]
 pub type Cylinder = ncollide::shape::Cylinder<f32>;
+/// A cone shape.
+#[cfg(feature = "dim3")]
+pub type Cone = ncollide::shape::Cone<f32>;
 /// An axis-aligned bounding box.
 pub type AABB = ncollide::bounding_volume::AABB<f32>;
 /// Event triggered when two non-sensor colliders start or stop being in contact.

@@ -54,10 +54,11 @@ pub fn init_world(testbed: &mut Testbed) {
                 let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
                 let handle = bodies.insert(rigid_body);
 
-                let collider = match j % 3 {
+                let collider = match j % 4 {
                     0 => ColliderBuilder::cuboid(rad, rad, rad).build(),
                     1 => ColliderBuilder::ball(rad).build(),
-                    _ => ColliderBuilder::cylinder(rad, rad).build(),
+                    2 => ColliderBuilder::cylinder(rad, rad).build(),
+                    _ => ColliderBuilder::cone(rad, rad).build(),
                 };
 
                 colliders.insert(collider, handle, &mut bodies);

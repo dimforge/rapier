@@ -1,10 +1,10 @@
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
-#[cfg(feature = "dim3")]
-use crate::geometry::PolygonalFeatureMap;
 use crate::geometry::{
-    Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, Cylinder, HeightField, InteractionGraph,
-    Polygon, Proximity, Ray, RayIntersection, Triangle, Trimesh,
+    Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph, Polygon,
+    Proximity, Ray, RayIntersection, Triangle, Trimesh,
 };
+#[cfg(feature = "dim3")]
+use crate::geometry::{Cone, Cylinder, PolygonalFeatureMap};
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
 use downcast_rs::{impl_downcast, DowncastSync};
 use erased_serde::Serialize;
@@ -35,6 +35,9 @@ pub enum ShapeType {
     #[cfg(feature = "dim3")]
     /// A cylindrical shape.
     Cylinder,
+    #[cfg(feature = "dim3")]
+    /// A cylindrical shape.
+    Cone,
     // /// A custom shape type.
     // Custom(u8),
 }
@@ -102,6 +105,11 @@ impl dyn Shape {
 
     /// Converts this abstract shape to a cylinder, if it is one.
     pub fn as_cylinder(&self) -> Option<&Cylinder> {
+        self.downcast_ref()
+    }
+
+    /// Converts this abstract shape to a cone, if it is one.
+    pub fn as_cone(&self) -> Option<&Cone> {
         self.downcast_ref()
     }
 }
@@ -266,6 +274,31 @@ impl Shape for Cylinder {
 
     fn shape_type(&self) -> ShapeType {
         ShapeType::Cylinder
+    }
+
+    #[cfg(feature = "dim3")]
+    fn as_polygonal_feature_map(&self) -> Option<&dyn PolygonalFeatureMap> {
+        Some(self as &dyn PolygonalFeatureMap)
+    }
+}
+
+#[cfg(feature = "dim3")]
+impl Shape for Cone {
+    #[cfg(feature = "serde-serialize")]
+    fn as_serialize(&self) -> Option<&dyn Serialize> {
+        Some(self as &dyn Serialize)
+    }
+
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
+        self.bounding_volume(position)
+    }
+
+    fn mass_properties(&self, density: f32) -> MassProperties {
+        MassProperties::from_cone(density, self.half_height, self.radius)
+    }
+
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Cone
     }
 
     #[cfg(feature = "dim3")]

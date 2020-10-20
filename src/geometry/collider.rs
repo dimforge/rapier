@@ -1,10 +1,10 @@
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
-#[cfg(feature = "dim3")]
-use crate::geometry::PolygonalFeatureMap;
 use crate::geometry::{
-    Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, Cylinder, HeightField, InteractionGraph,
-    Polygon, Proximity, Ray, RayIntersection, Shape, ShapeType, Triangle, Trimesh,
+    Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph, Polygon,
+    Proximity, Ray, RayIntersection, Shape, ShapeType, Triangle, Trimesh,
 };
+#[cfg(feature = "dim3")]
+use crate::geometry::{Cone, Cylinder, PolygonalFeatureMap};
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
 use downcast_rs::{impl_downcast, DowncastSync};
 use erased_serde::Serialize;
@@ -38,6 +38,13 @@ impl ColliderShape {
     #[cfg(feature = "dim3")]
     pub fn cylinder(half_height: f32, radius: f32) -> Self {
         ColliderShape(Arc::new(Cylinder::new(half_height, radius)))
+    }
+
+    /// Initialize a cone shape defined by its half-height
+    /// (along along the y axis) and its basis radius.
+    #[cfg(feature = "dim3")]
+    pub fn cone(half_height: f32, radius: f32) -> Self {
+        ColliderShape(Arc::new(Cone::new(half_height, radius)))
     }
 
     /// Initialize a cuboid shape defined by its half-extents.
@@ -167,6 +174,13 @@ impl<'de> serde::Deserialize<'de> for ColliderShape {
                     #[cfg(feature = "dim3")]
                     Some(ShapeType::Cylinder) => {
                         let shape: Cylinder = seq
+                            .next_element()?
+                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        Arc::new(shape) as Arc<dyn Shape>
+                    }
+                    #[cfg(feature = "dim3")]
+                    Some(ShapeType::Cone) => {
+                        let shape: Cone = seq
                             .next_element()?
                             .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
                         Arc::new(shape) as Arc<dyn Shape>
@@ -326,6 +340,13 @@ impl ColliderBuilder {
     #[cfg(feature = "dim3")]
     pub fn cylinder(half_height: f32, radius: f32) -> Self {
         Self::new(ColliderShape::cylinder(half_height, radius))
+    }
+
+    /// Initialize a new collider builder with a cone shape defined by its half-height
+    /// (along along the y axis) and its basis radius.
+    #[cfg(feature = "dim3")]
+    pub fn cone(half_height: f32, radius: f32) -> Self {
+        Self::new(ColliderShape::cone(half_height, radius))
     }
 
     /// Initialize a new collider builder with a cuboid shape defined by its half-extents.
