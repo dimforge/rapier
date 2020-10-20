@@ -48,7 +48,7 @@ pub enum ShapeType {
     // RoundedHeightField,
     /// A cylinder with rounded corners.
     #[cfg(feature = "dim3")]
-    RoundedCylinder,
+    RoundCylinder,
     // /// A cone with rounded corners.
     // RoundedCone,
 }
@@ -345,7 +345,7 @@ impl Shape for Rounded<Cylinder> {
     }
 
     fn shape_type(&self) -> ShapeType {
-        ShapeType::RoundedCylinder
+        ShapeType::RoundCylinder
     }
 
     #[cfg(feature = "dim3")]

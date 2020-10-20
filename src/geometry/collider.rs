@@ -39,7 +39,7 @@ impl ColliderShape {
     /// (along along the y axis), its radius, and its roundedness (the
     /// radius of the sphere used for dilating the cylinder).
     #[cfg(feature = "dim3")]
-    pub fn rounded_cylinder(half_height: f32, radius: f32, rounding_radius: f32) -> Self {
+    pub fn round_cylinder(half_height: f32, radius: f32, rounding_radius: f32) -> Self {
         ColliderShape(Arc::new(Rounded::new(
             Cylinder::new(half_height, radius),
             rounding_radius,
@@ -164,7 +164,7 @@ impl<'de> serde::Deserialize<'de> for ColliderShape {
                     #[cfg(feature = "dim3")]
                     Some(ShapeType::Cone) => deser::<A, Cone>(&mut seq)?,
                     #[cfg(feature = "dim3")]
-                    Some(ShapeType::RoundedCylinder) => deser::<A, Rounded<Cylinder>>(&mut seq)?,
+                    Some(ShapeType::RoundCylinder) => deser::<A, Rounded<Cylinder>>(&mut seq)?,
                     None => {
                         return Err(serde::de::Error::custom(
                             "found invalid shape type to deserialize",
@@ -326,8 +326,8 @@ impl ColliderBuilder {
     /// (along along the y axis), its radius, and its roundedness (the
     /// radius of the sphere used for dilating the cylinder).
     #[cfg(feature = "dim3")]
-    pub fn rounded_cylinder(half_height: f32, radius: f32, rounding_radius: f32) -> Self {
-        Self::new(ColliderShape::rounded_cylinder(
+    pub fn round_cylinder(half_height: f32, radius: f32, rounding_radius: f32) -> Self {
+        Self::new(ColliderShape::round_cylinder(
             half_height,
             radius,
             rounding_radius,

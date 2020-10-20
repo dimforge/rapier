@@ -98,8 +98,8 @@ impl ContactDispatcher for DefaultContactDispatcher {
             | (_, ShapeType::Cylinder)
             | (ShapeType::Cone, _)
             | (_, ShapeType::Cone)
-            | (ShapeType::RoundedCylinder, _)
-            | (_, ShapeType::RoundedCylinder) => (
+            | (ShapeType::RoundCylinder, _)
+            | (_, ShapeType::RoundCylinder) => (
                 PrimitiveContactGenerator {
                     generate_contacts: super::generate_contacts_pfm_pfm,
                     ..PrimitiveContactGenerator::default()

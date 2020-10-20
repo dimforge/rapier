@@ -17,7 +17,7 @@ pub trait Roundable {
 #[cfg(feature = "dim3")]
 impl Roundable for Cylinder {
     fn rounded_shape_type() -> ShapeType {
-        ShapeType::RoundedCylinder
+        ShapeType::RoundCylinder
     }
 }
 
