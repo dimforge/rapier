@@ -5,20 +5,21 @@ use crate::math::{Isometry, Point};
 use crate::{math::Vector, utils};
 
 pub fn generate_contacts_polygon_polygon(ctxt: &mut PrimitiveContactGenerationContext) {
-    if let (Shape::Polygon(polygon1), Shape::Polygon(polygon2)) = (ctxt.shape1, ctxt.shape2) {
-        generate_contacts(
-            polygon1,
-            &ctxt.position1,
-            polygon2,
-            &ctxt.position2,
-            ctxt.manifold,
-        );
-        ctxt.manifold.update_warmstart_multiplier();
-    } else {
-        unreachable!()
-    }
-
-    ctxt.manifold.sort_contacts(ctxt.prediction_distance);
+    unimplemented!()
+    // if let (Shape::Polygon(polygon1), Shape::Polygon(polygon2)) = (ctxt.shape1, ctxt.shape2) {
+    //     generate_contacts(
+    //         polygon1,
+    //         &ctxt.position1,
+    //         polygon2,
+    //         &ctxt.position2,
+    //         ctxt.manifold,
+    //     );
+    //     ctxt.manifold.update_warmstart_multiplier();
+    // } else {
+    //     unreachable!()
+    // }
+    //
+    // ctxt.manifold.sort_contacts(ctxt.prediction_distance);
 }
 
 fn generate_contacts<'a>(

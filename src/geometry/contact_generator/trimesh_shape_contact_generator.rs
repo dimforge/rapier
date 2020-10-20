@@ -1,7 +1,7 @@
 use crate::geometry::contact_generator::{
     ContactGenerationContext, PrimitiveContactGenerationContext,
 };
-use crate::geometry::{Collider, ContactManifold, Shape, Trimesh};
+use crate::geometry::{Collider, ContactManifold, Shape, ShapeType, Trimesh};
 use crate::ncollide::bounding_volume::{BoundingVolume, AABB};
 
 pub struct TrimeshShapeContactGeneratorWorkspace {
@@ -26,9 +26,9 @@ pub fn generate_contacts_trimesh_shape(ctxt: &mut ContactGenerationContext) {
     let collider1 = &ctxt.colliders[ctxt.pair.pair.collider1];
     let collider2 = &ctxt.colliders[ctxt.pair.pair.collider2];
 
-    if let Shape::Trimesh(trimesh1) = collider1.shape() {
+    if let Some(trimesh1) = collider1.shape().as_trimesh() {
         do_generate_contacts(trimesh1, collider1, collider2, ctxt, false)
-    } else if let Shape::Trimesh(trimesh2) = collider2.shape() {
+    } else if let Some(trimesh2) = collider2.shape().as_trimesh() {
         do_generate_contacts(trimesh2, collider2, collider1, ctxt, true)
     }
 }
@@ -121,6 +121,7 @@ fn do_generate_contacts(
     let new_interferences = &workspace.interferences;
     let mut old_inter_it = workspace.old_interferences.drain(..).peekable();
     let mut old_manifolds_it = workspace.old_manifolds.drain(..);
+    let shape_type2 = collider2.shape().shape_type();
 
     for (i, triangle_id) in new_interferences.iter().enumerate() {
         if *triangle_id >= trimesh1.num_triangles() {
@@ -159,10 +160,10 @@ fn do_generate_contacts(
         }
 
         let manifold = &mut ctxt.pair.manifolds[i];
-        let triangle1 = Shape::Triangle(trimesh1.triangle(*triangle_id));
+        let triangle1 = trimesh1.triangle(*triangle_id);
         let (generator, mut workspace2) = ctxt
             .dispatcher
-            .dispatch_primitives(&triangle1, collider2.shape());
+            .dispatch_primitives(ShapeType::Triangle, shape_type2);
 
         let mut ctxt2 = if ctxt_pair_pair.collider1 != manifold.pair.collider1 {
             PrimitiveContactGenerationContext {

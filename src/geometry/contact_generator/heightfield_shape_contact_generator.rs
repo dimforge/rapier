@@ -3,7 +3,7 @@ use crate::geometry::contact_generator::{
 };
 #[cfg(feature = "dim2")]
 use crate::geometry::Capsule;
-use crate::geometry::{Collider, ContactManifold, HeightField, Shape};
+use crate::geometry::{Collider, ContactManifold, HeightField, Shape, ShapeType};
 use crate::ncollide::bounding_volume::BoundingVolume;
 #[cfg(feature = "dim3")]
 use crate::{geometry::Triangle, math::Point};
@@ -38,9 +38,9 @@ pub fn generate_contacts_heightfield_shape(ctxt: &mut ContactGenerationContext) 
     let collider1 = &ctxt.colliders[ctxt.pair.pair.collider1];
     let collider2 = &ctxt.colliders[ctxt.pair.pair.collider2];
 
-    if let Shape::HeightField(heightfield1) = collider1.shape() {
+    if let Some(heightfield1) = collider1.shape().as_heightfield() {
         do_generate_contacts(heightfield1, collider1, collider2, ctxt, false)
-    } else if let Shape::HeightField(heightfield2) = collider2.shape() {
+    } else if let Some(heightfield2) = collider2.shape().as_heightfield() {
         do_generate_contacts(heightfield2, collider2, collider1, ctxt, true)
     }
 }
@@ -59,6 +59,7 @@ fn do_generate_contacts(
         .expect("The HeightFieldShapeContactGeneratorWorkspace is missing.")
         .downcast_mut()
         .expect("Invalid workspace type, expected a HeightFieldShapeContactGeneratorWorkspace.");
+    let shape_type2 = collider2.shape().shape_type();
 
     /*
      * Detect if the detector context has been reset.
@@ -76,19 +77,9 @@ fn do_generate_contacts(
             //     subshape_id, manifold.subshape_index_pair
             // );
 
-            // Use dummy shapes for the dispatch.
-            #[cfg(feature = "dim2")]
-            let sub_shape1 =
-                Shape::Capsule(Capsule::new(na::Point::origin(), na::Point::origin(), 0.0));
-            #[cfg(feature = "dim3")]
-            let sub_shape1 = Shape::Triangle(Triangle::new(
-                Point::origin(),
-                Point::origin(),
-                Point::origin(),
-            ));
             let (generator, workspace2) = ctxt
                 .dispatcher
-                .dispatch_primitives(&sub_shape1, collider2.shape());
+                .dispatch_primitives(ShapeType::Capsule, shape_type2);
 
             let sub_detector = SubDetector {
                 generator,
@@ -120,12 +111,18 @@ fn do_generate_contacts(
     let manifolds = &mut ctxt.pair.manifolds;
     let prediction_distance = ctxt.prediction_distance;
     let dispatcher = ctxt.dispatcher;
+    let shape_type2 = collider2.shape().shape_type();
 
     heightfield1.map_elements_in_local_aabb(&ls_aabb2, &mut |i, part1, _| {
+        let position1 = *collider1.position();
         #[cfg(feature = "dim2")]
-        let sub_shape1 = Shape::Capsule(Capsule::new(part1.a, part1.b, 0.0));
+        let (position1, sub_shape1) = {
+            let (dpos, height) = crate::utils::segment_to_capsule(&part1.a, &part1.b);
+            (position1 * dpos, Capsule::new(height, 0.0));
+        };
         #[cfg(feature = "dim3")]
-        let sub_shape1 = Shape::Triangle(*part1);
+        let sub_shape1 = *part1;
+
         let sub_detector = match workspace.sub_detectors.entry(i) {
             Entry::Occupied(entry) => {
                 let sub_detector = entry.into_mut();
@@ -137,7 +134,7 @@ fn do_generate_contacts(
             }
             Entry::Vacant(entry) => {
                 let (generator, workspace2) =
-                    dispatcher.dispatch_primitives(&sub_shape1, collider2.shape());
+                    dispatcher.dispatch_primitives(ShapeType::Triangle, shape_type2);
                 let sub_detector = SubDetector {
                     generator,
                     manifold_id: manifolds.len(),
@@ -162,7 +159,7 @@ fn do_generate_contacts(
                 shape1: collider2.shape(),
                 shape2: &sub_shape1,
                 position1: collider2.position(),
-                position2: collider1.position(),
+                position2: &position1,
                 manifold,
                 workspace: sub_detector.workspace.as_deref_mut(),
             }
@@ -173,7 +170,7 @@ fn do_generate_contacts(
                 collider2,
                 shape1: &sub_shape1,
                 shape2: collider2.shape(),
-                position1: collider1.position(),
+                position1: &position1,
                 position2: collider2.position(),
                 manifold,
                 workspace: sub_detector.workspace.as_deref_mut(),

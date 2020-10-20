@@ -9,7 +9,7 @@ use crate::math::Vector;
 use ncollide::shape::Segment;
 
 pub fn generate_contacts_cuboid_capsule(ctxt: &mut PrimitiveContactGenerationContext) {
-    if let (Shape::Cuboid(cube1), Shape::Capsule(capsule2)) = (ctxt.shape1, ctxt.shape2) {
+    if let (Some(cube1), Some(capsule2)) = (ctxt.shape1.as_cuboid(), ctxt.shape2.as_capsule()) {
         generate_contacts(
             ctxt.prediction_distance,
             cube1,
@@ -20,7 +20,9 @@ pub fn generate_contacts_cuboid_capsule(ctxt: &mut PrimitiveContactGenerationCon
             false,
         );
         ctxt.manifold.update_warmstart_multiplier();
-    } else if let (Shape::Capsule(capsule1), Shape::Cuboid(cube2)) = (ctxt.shape1, ctxt.shape2) {
+    } else if let (Some(capsule1), Some(cube2)) =
+        (ctxt.shape1.as_capsule(), ctxt.shape2.as_cuboid())
+    {
         generate_contacts(
             ctxt.prediction_distance,
             cube2,
@@ -53,7 +55,7 @@ pub fn generate_contacts<'a>(
         return;
     }
 
-    let segment2 = Segment::new(capsule2.a, capsule2.b);
+    let segment2 = capsule2.segment();
 
     /*
      *

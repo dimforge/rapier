@@ -1,13 +1,9 @@
-use crate::geometry::{Triangle, WQuadtree};
+use crate::geometry::{PointProjection, Ray, RayIntersection, Triangle, WQuadtree};
 use crate::math::{Isometry, Point};
 use na::Point3;
 use ncollide::bounding_volume::{HasBoundingVolume, AABB};
-
-#[cfg(feature = "dim3")]
-use {
-    crate::geometry::{Ray, RayIntersection},
-    ncollide::query::RayCast,
-};
+use ncollide::query::{PointQuery, RayCast};
+use ncollide::shape::FeatureId;
 
 #[derive(Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -107,6 +103,41 @@ impl Trimesh {
             let data = self.indices.as_ptr() as *const u32;
             std::slice::from_raw_parts(data, len)
         }
+    }
+}
+
+impl PointQuery<f32> for Trimesh {
+    fn project_point(&self, m: &Isometry<f32>, pt: &Point<f32>, solid: bool) -> PointProjection {
+        // TODO
+        unimplemented!()
+    }
+
+    fn project_point_with_feature(
+        &self,
+        m: &Isometry<f32>,
+        pt: &Point<f32>,
+    ) -> (PointProjection, FeatureId) {
+        // TODO
+        unimplemented!()
+    }
+}
+
+#[cfg(feature = "dim2")]
+impl RayCast<f32> for Trimesh {
+    fn toi_and_normal_with_ray(
+        &self,
+        m: &Isometry<f32>,
+        ray: &Ray,
+        max_toi: f32,
+        solid: bool,
+    ) -> Option<RayIntersection> {
+        // TODO
+        None
+    }
+
+    fn intersects_ray(&self, m: &Isometry<f32>, ray: &Ray, max_toi: f32) -> bool {
+        // TODO
+        false
     }
 }
 

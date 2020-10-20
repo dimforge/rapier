@@ -58,8 +58,8 @@ pub fn cuboid_cuboid_find_local_separating_edge_twoway(
     let y2 = pos12 * Vector::y();
     let z2 = pos12 * Vector::z();
 
-    // We have 3 * 3 = 9 axii to test.
-    let axii = [
+    // We have 3 * 3 = 9 axes to test.
+    let axes = [
         // Vector::{x, y ,z}().cross(y2)
         Vector::new(0.0, -x2.z, x2.y),
         Vector::new(x2.z, 0.0, -x2.x),
@@ -74,7 +74,7 @@ pub fn cuboid_cuboid_find_local_separating_edge_twoway(
         Vector::new(-z2.y, z2.x, 0.0),
     ];
 
-    for axis1 in &axii {
+    for axis1 in &axes {
         let norm1 = axis1.norm();
         if norm1 > f32::default_epsilon() {
             let (separation, axis1) = cuboid_cuboid_compute_separation_wrt_local_line(
@@ -149,7 +149,7 @@ pub fn cube_support_map_compute_separation_wrt_local_line<S: SupportMap<f32>>(
 pub fn cube_support_map_find_local_separating_edge_twoway(
     cube1: &Cuboid,
     shape2: &impl SupportMap<f32>,
-    axii: &[Vector<f32>],
+    axes: &[Vector<f32>],
     pos12: &Isometry<f32>,
     pos21: &Isometry<f32>,
 ) -> (f32, Vector<f32>) {
@@ -157,7 +157,7 @@ pub fn cube_support_map_find_local_separating_edge_twoway(
     let mut best_separation = -std::f32::MAX;
     let mut best_dir = Vector::zeros();
 
-    for axis1 in axii {
+    for axis1 in axes {
         if let Some(axis1) = Unit::try_new(*axis1, f32::default_epsilon()) {
             let (separation, axis1) = cube_support_map_compute_separation_wrt_local_line(
                 cube1, shape2, pos12, pos21, &axis1,
@@ -184,8 +184,8 @@ pub fn cube_triangle_find_local_separating_edge_twoway(
     let y2 = pos12 * (triangle2.c - triangle2.b);
     let z2 = pos12 * (triangle2.a - triangle2.c);
 
-    // We have 3 * 3 = 3 axii to test.
-    let axii = [
+    // We have 3 * 3 = 3 axes to test.
+    let axes = [
         // Vector::{x, y ,z}().cross(y2)
         Vector::new(0.0, -x2.z, x2.y),
         Vector::new(x2.z, 0.0, -x2.x),
@@ -200,7 +200,7 @@ pub fn cube_triangle_find_local_separating_edge_twoway(
         Vector::new(-z2.y, z2.x, 0.0),
     ];
 
-    cube_support_map_find_local_separating_edge_twoway(cube1, triangle2, &axii, pos12, pos21)
+    cube_support_map_find_local_separating_edge_twoway(cube1, triangle2, &axes, pos12, pos21)
 }
 
 #[cfg(feature = "dim3")]
@@ -212,14 +212,14 @@ pub fn cube_segment_find_local_separating_edge_twoway(
 ) -> (f32, Vector<f32>) {
     let x2 = pos12 * (segment2.b - segment2.a);
 
-    let axii = [
+    let axes = [
         // Vector::{x, y ,z}().cross(y2)
         Vector::new(0.0, -x2.z, x2.y),
         Vector::new(x2.z, 0.0, -x2.x),
         Vector::new(-x2.y, x2.x, 0.0),
     ];
 
-    cube_support_map_find_local_separating_edge_twoway(cube1, segment2, &axii, pos12, pos21)
+    cube_support_map_find_local_separating_edge_twoway(cube1, segment2, &axes, pos12, pos21)
 }
 
 pub fn cube_support_map_find_local_separating_normal_oneway<S: SupportMap<f32>>(

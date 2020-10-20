@@ -3,7 +3,7 @@ use crate::geometry::contact_generator::{
     PfmPfmContactManifoldGeneratorWorkspace, PrimitiveContactGenerator,
     TrimeshShapeContactGeneratorWorkspace,
 };
-use crate::geometry::Shape;
+use crate::geometry::{Shape, ShapeType};
 use std::any::Any;
 
 /// Trait implemented by structures responsible for selecting a collision-detection algorithm
@@ -12,8 +12,8 @@ pub trait ContactDispatcher {
     /// Select the collision-detection algorithm for the given pair of primitive shapes.
     fn dispatch_primitives(
         &self,
-        shape1: &Shape,
-        shape2: &Shape,
+        shape1: ShapeType,
+        shape2: ShapeType,
     ) -> (
         PrimitiveContactGenerator,
         Option<Box<dyn Any + Send + Sync>>,
@@ -21,8 +21,8 @@ pub trait ContactDispatcher {
     /// Select the collision-detection algorithm for the given pair of non-primitive shapes.
     fn dispatch(
         &self,
-        shape1: &Shape,
-        shape2: &Shape,
+        shape1: ShapeType,
+        shape2: ShapeType,
     ) -> (ContactPhase, Option<Box<dyn Any + Send + Sync>>);
 }
 
@@ -32,14 +32,14 @@ pub struct DefaultContactDispatcher;
 impl ContactDispatcher for DefaultContactDispatcher {
     fn dispatch_primitives(
         &self,
-        shape1: &Shape,
-        shape2: &Shape,
+        shape1: ShapeType,
+        shape2: ShapeType,
     ) -> (
         PrimitiveContactGenerator,
         Option<Box<dyn Any + Send + Sync>>,
     ) {
         match (shape1, shape2) {
-            (Shape::Ball(_), Shape::Ball(_)) => (
+            (ShapeType::Ball, ShapeType::Ball) => (
                 PrimitiveContactGenerator {
                     generate_contacts: super::generate_contacts_ball_ball,
                     #[cfg(feature = "simd-is-enabled")]
@@ -48,56 +48,58 @@ impl ContactDispatcher for DefaultContactDispatcher {
                 },
                 None,
             ),
-            (Shape::Cuboid(_), Shape::Cuboid(_)) => (
+            (ShapeType::Cuboid, ShapeType::Cuboid) => (
                 PrimitiveContactGenerator {
                     generate_contacts: super::generate_contacts_cuboid_cuboid,
                     ..PrimitiveContactGenerator::default()
                 },
                 None,
             ),
-            (Shape::Polygon(_), Shape::Polygon(_)) => (
-                PrimitiveContactGenerator {
-                    generate_contacts: super::generate_contacts_polygon_polygon,
-                    ..PrimitiveContactGenerator::default()
-                },
-                None,
-            ),
-            (Shape::Capsule(_), Shape::Capsule(_)) => (
+            // (ShapeType::Polygon, ShapeType::Polygon) => (
+            //     PrimitiveContactGenerator {
+            //         generate_contacts: super::generate_contacts_polygon_polygon,
+            //         ..PrimitiveContactGenerator::default()
+            //     },
+            //     None,
+            // ),
+            (ShapeType::Capsule, ShapeType::Capsule) => (
                 PrimitiveContactGenerator {
                     generate_contacts: super::generate_contacts_capsule_capsule,
                     ..PrimitiveContactGenerator::default()
                 },
                 None,
             ),
-            (Shape::Cuboid(_), Shape::Ball(_))
-            | (Shape::Ball(_), Shape::Cuboid(_))
-            | (Shape::Triangle(_), Shape::Ball(_))
-            | (Shape::Ball(_), Shape::Triangle(_))
-            | (Shape::Capsule(_), Shape::Ball(_))
-            | (Shape::Ball(_), Shape::Capsule(_))
-            | (Shape::Cylinder(_), Shape::Ball(_))
-            | (Shape::Ball(_), Shape::Cylinder(_)) => (
+            (ShapeType::Cuboid, ShapeType::Ball)
+            | (ShapeType::Ball, ShapeType::Cuboid)
+            | (ShapeType::Triangle, ShapeType::Ball)
+            | (ShapeType::Ball, ShapeType::Triangle)
+            | (ShapeType::Capsule, ShapeType::Ball)
+            | (ShapeType::Ball, ShapeType::Capsule)
+            | (ShapeType::Cylinder, ShapeType::Ball)
+            | (ShapeType::Ball, ShapeType::Cylinder) => (
                 PrimitiveContactGenerator {
                     generate_contacts: super::generate_contacts_ball_convex,
                     ..PrimitiveContactGenerator::default()
                 },
                 None,
             ),
-            (Shape::Capsule(_), Shape::Cuboid(_)) | (Shape::Cuboid(_), Shape::Capsule(_)) => (
+            (ShapeType::Capsule, ShapeType::Cuboid) | (ShapeType::Cuboid, ShapeType::Capsule) => (
                 PrimitiveContactGenerator {
                     generate_contacts: super::generate_contacts_cuboid_capsule,
                     ..PrimitiveContactGenerator::default()
                 },
                 None,
             ),
-            (Shape::Triangle(_), Shape::Cuboid(_)) | (Shape::Cuboid(_), Shape::Triangle(_)) => (
-                PrimitiveContactGenerator {
-                    generate_contacts: super::generate_contacts_cuboid_triangle,
-                    ..PrimitiveContactGenerator::default()
-                },
-                None,
-            ),
-            (Shape::Cylinder(_), _) | (_, Shape::Cylinder(_)) => (
+            (ShapeType::Triangle, ShapeType::Cuboid) | (ShapeType::Cuboid, ShapeType::Triangle) => {
+                (
+                    PrimitiveContactGenerator {
+                        generate_contacts: super::generate_contacts_cuboid_triangle,
+                        ..PrimitiveContactGenerator::default()
+                    },
+                    None,
+                )
+            }
+            (ShapeType::Cylinder, _) | (_, ShapeType::Cylinder) => (
                 PrimitiveContactGenerator {
                     generate_contacts: super::generate_contacts_pfm_pfm,
                     ..PrimitiveContactGenerator::default()
@@ -110,18 +112,18 @@ impl ContactDispatcher for DefaultContactDispatcher {
 
     fn dispatch(
         &self,
-        shape1: &Shape,
-        shape2: &Shape,
+        shape1: ShapeType,
+        shape2: ShapeType,
     ) -> (ContactPhase, Option<Box<dyn Any + Send + Sync>>) {
         match (shape1, shape2) {
-            (Shape::Trimesh(_), _) | (_, Shape::Trimesh(_)) => (
+            (ShapeType::Trimesh, _) | (_, ShapeType::Trimesh) => (
                 ContactPhase::NearPhase(ContactGenerator {
                     generate_contacts: super::generate_contacts_trimesh_shape,
                     ..ContactGenerator::default()
                 }),
                 Some(Box::new(TrimeshShapeContactGeneratorWorkspace::new())),
             ),
-            (Shape::HeightField(_), _) | (_, Shape::HeightField(_)) => (
+            (ShapeType::HeightField, _) | (_, ShapeType::HeightField) => (
                 ContactPhase::NearPhase(ContactGenerator {
                     generate_contacts: super::generate_contacts_heightfield_shape,
                     ..ContactGenerator::default()

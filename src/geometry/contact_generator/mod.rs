@@ -22,7 +22,7 @@ pub use self::heightfield_shape_contact_generator::{
 pub use self::pfm_pfm_contact_generator::{
     generate_contacts_pfm_pfm, PfmPfmContactManifoldGeneratorWorkspace,
 };
-pub use self::polygon_polygon_contact_generator::generate_contacts_polygon_polygon;
+// pub use self::polygon_polygon_contact_generator::generate_contacts_polygon_polygon;
 pub use self::trimesh_shape_contact_generator::{
     generate_contacts_trimesh_shape, TrimeshShapeContactGeneratorWorkspace,
 };

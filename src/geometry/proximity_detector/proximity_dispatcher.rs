@@ -2,7 +2,7 @@ use crate::geometry::proximity_detector::{
     PrimitiveProximityDetector, ProximityDetector, ProximityPhase,
     TrimeshShapeProximityDetectorWorkspace,
 };
-use crate::geometry::Shape;
+use crate::geometry::{Shape, ShapeType};
 use std::any::Any;
 
 /// Trait implemented by structures responsible for selecting a collision-detection algorithm
@@ -11,8 +11,8 @@ pub trait ProximityDispatcher {
     /// Select the proximity detection algorithm for the given pair of primitive shapes.
     fn dispatch_primitives(
         &self,
-        shape1: &Shape,
-        shape2: &Shape,
+        shape1: ShapeType,
+        shape2: ShapeType,
     ) -> (
         PrimitiveProximityDetector,
         Option<Box<dyn Any + Send + Sync>>,
@@ -20,8 +20,8 @@ pub trait ProximityDispatcher {
     /// Select the proximity detection algorithm for the given pair of non-primitive shapes.
     fn dispatch(
         &self,
-        shape1: &Shape,
-        shape2: &Shape,
+        shape1: ShapeType,
+        shape2: ShapeType,
     ) -> (ProximityPhase, Option<Box<dyn Any + Send + Sync>>);
 }
 
@@ -31,14 +31,14 @@ pub struct DefaultProximityDispatcher;
 impl ProximityDispatcher for DefaultProximityDispatcher {
     fn dispatch_primitives(
         &self,
-        shape1: &Shape,
-        shape2: &Shape,
+        shape1: ShapeType,
+        shape2: ShapeType,
     ) -> (
         PrimitiveProximityDetector,
         Option<Box<dyn Any + Send + Sync>>,
     ) {
         match (shape1, shape2) {
-            (Shape::Ball(_), Shape::Ball(_)) => (
+            (ShapeType::Ball, ShapeType::Ball) => (
                 PrimitiveProximityDetector {
                     #[cfg(feature = "simd-is-enabled")]
                     detect_proximity_simd: super::detect_proximity_ball_ball_simd,
@@ -47,56 +47,56 @@ impl ProximityDispatcher for DefaultProximityDispatcher {
                 },
                 None,
             ),
-            (Shape::Cuboid(_), Shape::Cuboid(_)) => (
+            (ShapeType::Cuboid, ShapeType::Cuboid) => (
                 PrimitiveProximityDetector {
                     detect_proximity: super::detect_proximity_cuboid_cuboid,
                     ..PrimitiveProximityDetector::default()
                 },
                 None,
             ),
-            (Shape::Polygon(_), Shape::Polygon(_)) => (
+            (ShapeType::Polygon, ShapeType::Polygon) => (
                 PrimitiveProximityDetector {
                     detect_proximity: super::detect_proximity_polygon_polygon,
                     ..PrimitiveProximityDetector::default()
                 },
                 None,
             ),
-            (Shape::Triangle(_), Shape::Ball(_)) => (
+            (ShapeType::Triangle, ShapeType::Ball) => (
                 PrimitiveProximityDetector {
                     detect_proximity: super::detect_proximity_ball_convex,
                     ..PrimitiveProximityDetector::default()
                 },
                 None,
             ),
-            (Shape::Ball(_), Shape::Triangle(_)) => (
+            (ShapeType::Ball, ShapeType::Triangle) => (
                 PrimitiveProximityDetector {
                     detect_proximity: super::detect_proximity_ball_convex,
                     ..PrimitiveProximityDetector::default()
                 },
                 None,
             ),
-            (Shape::Cuboid(_), Shape::Ball(_)) => (
+            (ShapeType::Cuboid, ShapeType::Ball) => (
                 PrimitiveProximityDetector {
                     detect_proximity: super::detect_proximity_ball_convex,
                     ..PrimitiveProximityDetector::default()
                 },
                 None,
             ),
-            (Shape::Ball(_), Shape::Cuboid(_)) => (
+            (ShapeType::Ball, ShapeType::Cuboid) => (
                 PrimitiveProximityDetector {
                     detect_proximity: super::detect_proximity_ball_convex,
                     ..PrimitiveProximityDetector::default()
                 },
                 None,
             ),
-            (Shape::Triangle(_), Shape::Cuboid(_)) => (
+            (ShapeType::Triangle, ShapeType::Cuboid) => (
                 PrimitiveProximityDetector {
                     detect_proximity: super::detect_proximity_cuboid_triangle,
                     ..PrimitiveProximityDetector::default()
                 },
                 None,
             ),
-            (Shape::Cuboid(_), Shape::Triangle(_)) => (
+            (ShapeType::Cuboid, ShapeType::Triangle) => (
                 PrimitiveProximityDetector {
                     detect_proximity: super::detect_proximity_cuboid_triangle,
                     ..PrimitiveProximityDetector::default()
@@ -109,18 +109,18 @@ impl ProximityDispatcher for DefaultProximityDispatcher {
 
     fn dispatch(
         &self,
-        shape1: &Shape,
-        shape2: &Shape,
+        shape1: ShapeType,
+        shape2: ShapeType,
     ) -> (ProximityPhase, Option<Box<dyn Any + Send + Sync>>) {
         match (shape1, shape2) {
-            (Shape::Trimesh(_), _) => (
+            (ShapeType::Trimesh, _) => (
                 ProximityPhase::NearPhase(ProximityDetector {
                     detect_proximity: super::detect_proximity_trimesh_shape,
                     ..ProximityDetector::default()
                 }),
                 Some(Box::new(TrimeshShapeProximityDetectorWorkspace::new())),
             ),
-            (_, Shape::Trimesh(_)) => (
+            (_, ShapeType::Trimesh) => (
                 ProximityPhase::NearPhase(ProximityDetector {
                     detect_proximity: super::detect_proximity_trimesh_shape,
                     ..ProximityDetector::default()

@@ -5,17 +5,18 @@ use crate::math::Isometry;
 pub fn detect_proximity_polygon_polygon(
     ctxt: &mut PrimitiveProximityDetectionContext,
 ) -> Proximity {
-    if let (Shape::Polygon(polygon1), Shape::Polygon(polygon2)) = (ctxt.shape1, ctxt.shape2) {
-        detect_proximity(
-            ctxt.prediction_distance,
-            polygon1,
-            &ctxt.position1,
-            polygon2,
-            &ctxt.position2,
-        )
-    } else {
-        unreachable!()
-    }
+    unimplemented!()
+    // if let (Some(polygon1), Some(polygon2)) = (ctxt.shape1.as_polygon(), ctxt.shape2.as_polygon()) {
+    //     detect_proximity(
+    //         ctxt.prediction_distance,
+    //         polygon1,
+    //         &ctxt.position1,
+    //         polygon2,
+    //         &ctxt.position2,
+    //     )
+    // } else {
+    //     unreachable!()
+    // }
 }
 
 fn detect_proximity<'a>(

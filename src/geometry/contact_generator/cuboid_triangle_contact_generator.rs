@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub fn generate_contacts_cuboid_triangle(ctxt: &mut PrimitiveContactGenerationContext) {
-    if let (Shape::Cuboid(cube1), Shape::Triangle(triangle2)) = (ctxt.shape1, ctxt.shape2) {
+    if let (Some(cube1), Some(triangle2)) = (ctxt.shape1.as_cuboid(), ctxt.shape2.as_triangle()) {
         generate_contacts(
             ctxt.prediction_distance,
             cube1,
@@ -21,7 +21,9 @@ pub fn generate_contacts_cuboid_triangle(ctxt: &mut PrimitiveContactGenerationCo
             false,
         );
         ctxt.manifold.update_warmstart_multiplier();
-    } else if let (Shape::Triangle(triangle1), Shape::Cuboid(cube2)) = (ctxt.shape1, ctxt.shape2) {
+    } else if let (Some(triangle1), Some(cube2)) =
+        (ctxt.shape1.as_triangle(), ctxt.shape2.as_cuboid())
+    {
         generate_contacts(
             ctxt.prediction_distance,
             cube2,

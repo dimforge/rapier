@@ -3,172 +3,186 @@ use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
 use crate::geometry::PolygonalFeatureMap;
 use crate::geometry::{
     Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, Cylinder, HeightField, InteractionGraph,
-    Polygon, Proximity, Ray, RayIntersection, Triangle, Trimesh,
+    Polygon, Proximity, Ray, RayIntersection, Shape, ShapeType, Triangle, Trimesh,
 };
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
+use downcast_rs::{impl_downcast, DowncastSync};
+use erased_serde::Serialize;
 use na::Point3;
 use ncollide::bounding_volume::{HasBoundingVolume, AABB};
 use ncollide::query::RayCast;
 use num::Zero;
+use std::any::Any;
+use std::ops::Deref;
+use std::sync::Arc;
 
+/// The shape of a collider.
 #[derive(Clone)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-/// An enum grouping all the possible shape of a collider.
-pub enum Shape {
-    /// A ball shape.
-    Ball(Ball),
-    /// A convex polygon shape.
-    Polygon(Polygon),
-    /// A cuboid shape.
-    Cuboid(Cuboid),
-    /// A capsule shape.
-    Capsule(Capsule),
-    /// A triangle shape.
-    Triangle(Triangle),
-    /// A triangle mesh shape.
-    Trimesh(Trimesh),
-    /// A heightfield shape.
-    HeightField(HeightField),
-    #[cfg(feature = "dim3")]
-    /// A cylindrical shape.
-    Cylinder(Cylinder),
+pub struct ColliderShape(pub Arc<dyn Shape>);
+
+impl Deref for ColliderShape {
+    type Target = Shape;
+    fn deref(&self) -> &Shape {
+        &*self.0
+    }
 }
 
-impl Shape {
-    /// Gets a reference to the underlying ball shape, if `self` is one.
-    pub fn as_ball(&self) -> Option<&Ball> {
-        match self {
-            Shape::Ball(b) => Some(b),
-            _ => None,
-        }
+impl ColliderShape {
+    /// Initialize a ball shape defined by its radius.
+    pub fn ball(radius: f32) -> Self {
+        ColliderShape(Arc::new(Ball::new(radius)))
     }
 
-    /// Gets a reference to the underlying polygon shape, if `self` is one.
-    pub fn as_polygon(&self) -> Option<&Polygon> {
-        match self {
-            Shape::Polygon(p) => Some(p),
-            _ => None,
-        }
-    }
-
-    /// Gets a reference to the underlying cuboid shape, if `self` is one.
-    pub fn as_cuboid(&self) -> Option<&Cuboid> {
-        match self {
-            Shape::Cuboid(c) => Some(c),
-            _ => None,
-        }
-    }
-
-    /// Gets a reference to the underlying capsule shape, if `self` is one.
-    pub fn as_capsule(&self) -> Option<&Capsule> {
-        match self {
-            Shape::Capsule(c) => Some(c),
-            _ => None,
-        }
-    }
-
-    /// Gets a reference to the underlying triangle mesh shape, if `self` is one.
-    pub fn as_trimesh(&self) -> Option<&Trimesh> {
-        match self {
-            Shape::Trimesh(c) => Some(c),
-            _ => None,
-        }
-    }
-
-    /// Gets a reference to the underlying heightfield shape, if `self` is one.
-    pub fn as_heightfield(&self) -> Option<&HeightField> {
-        match self {
-            Shape::HeightField(h) => Some(h),
-            _ => None,
-        }
-    }
-
-    /// Gets a reference to the underlying triangle shape, if `self` is one.
-    pub fn as_triangle(&self) -> Option<&Triangle> {
-        match self {
-            Shape::Triangle(c) => Some(c),
-            _ => None,
-        }
-    }
-
-    /// Gets a reference to the underlying cylindrical shape, if `self` is one.
-    pub fn as_cylinder(&self) -> Option<&Cylinder> {
-        match self {
-            Shape::Cylinder(c) => Some(c),
-            _ => None,
-        }
-    }
-
-    /// gets a reference to this shape seen as a PolygonalFeatureMap.
+    /// Initialize a cylindrical shape defined by its half-height
+    /// (along along the y axis) and its radius.
     #[cfg(feature = "dim3")]
-    pub fn as_polygonal_feature_map(&self) -> Option<&dyn PolygonalFeatureMap> {
-        match self {
-            Shape::Triangle(t) => Some(t),
-            Shape::Cuboid(c) => Some(c),
-            Shape::Cylinder(c) => Some(c),
-            _ => None,
-        }
+    pub fn cylinder(half_height: f32, radius: f32) -> Self {
+        ColliderShape(Arc::new(Cylinder::new(half_height, radius)))
     }
 
-    /// Computes the axis-aligned bounding box of this shape.
-    pub fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
-        match self {
-            Shape::Ball(ball) => ball.bounding_volume(position),
-            Shape::Polygon(poly) => poly.aabb(position),
-            Shape::Capsule(caps) => caps.aabb(position),
-            Shape::Cuboid(cuboid) => cuboid.bounding_volume(position),
-            Shape::Triangle(triangle) => triangle.bounding_volume(position),
-            Shape::Trimesh(trimesh) => trimesh.aabb(position),
-            Shape::HeightField(heightfield) => heightfield.bounding_volume(position),
-            Shape::Cylinder(cylinder) => cylinder.bounding_volume(position),
-        }
+    /// Initialize a cuboid shape defined by its half-extents.
+    pub fn cuboid(half_extents: Vector<f32>) -> Self {
+        ColliderShape(Arc::new(Cuboid::new(half_extents)))
     }
 
-    /// Computes the first intersection point between a ray in this collider.
-    ///
-    /// Some shapes are not supported yet and will always return `None`.
-    ///
-    /// # Parameters
-    /// - `position`: the position of this shape.
-    /// - `ray`: the ray to cast.
-    /// - `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
-    ///   limits the length of the ray to `ray.dir.norm() * max_toi`. Use `f32::MAX` for an unbounded ray.
-    pub fn cast_ray(
-        &self,
-        position: &Isometry<f32>,
-        ray: &Ray,
-        max_toi: f32,
-    ) -> Option<RayIntersection> {
-        match self {
-            Shape::Ball(ball) => ball.toi_and_normal_with_ray(position, ray, max_toi, true),
-            Shape::Polygon(_poly) => None,
-            Shape::Capsule(caps) => {
-                let pos = position * caps.transform_wrt_y();
-                let caps = ncollide::shape::Capsule::new(caps.half_height(), caps.radius);
-                caps.toi_and_normal_with_ray(&pos, ray, max_toi, true)
+    /// Initialize a capsule shape aligned with the `y` axis.
+    pub fn capsule(half_height: f32, radius: f32) -> Self {
+        ColliderShape(Arc::new(Capsule::new(half_height, radius)))
+    }
+
+    /// Initializes a triangle shape.
+    pub fn triangle(a: Point<f32>, b: Point<f32>, c: Point<f32>) -> Self {
+        ColliderShape(Arc::new(Triangle::new(a, b, c)))
+    }
+
+    /// Initializes a triangle mesh shape defined by its vertex and index buffers.
+    pub fn trimesh(vertices: Vec<Point<f32>>, indices: Vec<Point3<u32>>) -> Self {
+        ColliderShape(Arc::new(Trimesh::new(vertices, indices)))
+    }
+
+    /// Initializes an heightfield shape defined by its set of height and a scale
+    /// factor along each coordinate axis.
+    #[cfg(feature = "dim2")]
+    pub fn heightfield(heights: na::DVector<f32>, scale: Vector<f32>) -> Self {
+        ColliderShape(Arc::new(HeightField::new(heights, scale)))
+    }
+
+    /// Initializes an heightfield shape on the x-z plane defined by its set of height and a scale
+    /// factor along each coordinate axis.
+    #[cfg(feature = "dim3")]
+    pub fn heightfield(heights: na::DMatrix<f32>, scale: Vector<f32>) -> Self {
+        ColliderShape(Arc::new(HeightField::new(heights, scale)))
+    }
+}
+
+#[cfg(feature = "serde-serialize")]
+impl serde::Serialize for ColliderShape {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use crate::serde::ser::SerializeStruct;
+
+        if let Some(ser) = self.0.as_serialize() {
+            let typ = self.0.shape_type();
+            let mut state = serializer.serialize_struct("ColliderShape", 2)?;
+            state.serialize_field("tag", &(typ as i32))?;
+            state.serialize_field("inner", ser)?;
+            state.end()
+        } else {
+            Err(serde::ser::Error::custom(
+                "Found a non-serializable custom shape.",
+            ))
+        }
+    }
+}
+
+#[cfg(feature = "serde-serialize")]
+impl<'de> serde::Deserialize<'de> for ColliderShape {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct Visitor {};
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = ColliderShape;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(formatter, "one shape type tag and the inner shape data")
             }
-            Shape::Cuboid(cuboid) => cuboid.toi_and_normal_with_ray(position, ray, max_toi, true),
-            #[cfg(feature = "dim2")]
-            Shape::Triangle(_) | Shape::Trimesh(_) => {
-                // This is not implemented yet in 2D.
-                None
-            }
-            #[cfg(feature = "dim3")]
-            Shape::Triangle(triangle) => {
-                triangle.toi_and_normal_with_ray(position, ray, max_toi, true)
-            }
-            #[cfg(feature = "dim3")]
-            Shape::Trimesh(trimesh) => {
-                trimesh.toi_and_normal_with_ray(position, ray, max_toi, true)
-            }
-            Shape::HeightField(heightfield) => {
-                heightfield.toi_and_normal_with_ray(position, ray, max_toi, true)
-            }
-            #[cfg(feature = "dim3")]
-            Shape::Cylinder(cylinder) => {
-                cylinder.toi_and_normal_with_ray(position, ray, max_toi, true)
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                use num::cast::FromPrimitive;
+
+                let tag: i32 = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+
+                let shape = match ShapeType::from_i32(tag) {
+                    Some(ShapeType::Ball) => {
+                        let shape: Ball = seq
+                            .next_element()?
+                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        Arc::new(shape) as Arc<dyn Shape>
+                    }
+                    Some(ShapeType::Polygon) => {
+                        unimplemented!()
+                        // let shape: Polygon = seq
+                        //     .next_element()?
+                        //     .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        // Arc::new(shape) as Arc<dyn Shape>
+                    }
+                    Some(ShapeType::Cuboid) => {
+                        let shape: Cuboid = seq
+                            .next_element()?
+                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        Arc::new(shape) as Arc<dyn Shape>
+                    }
+                    Some(ShapeType::Capsule) => {
+                        let shape: Capsule = seq
+                            .next_element()?
+                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        Arc::new(shape) as Arc<dyn Shape>
+                    }
+                    Some(ShapeType::Triangle) => {
+                        let shape: Triangle = seq
+                            .next_element()?
+                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        Arc::new(shape) as Arc<dyn Shape>
+                    }
+                    Some(ShapeType::Trimesh) => {
+                        let shape: Trimesh = seq
+                            .next_element()?
+                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        Arc::new(shape) as Arc<dyn Shape>
+                    }
+                    Some(ShapeType::HeightField) => {
+                        let shape: HeightField = seq
+                            .next_element()?
+                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        Arc::new(shape) as Arc<dyn Shape>
+                    }
+                    #[cfg(feature = "dim3")]
+                    Some(ShapeType::Cylinder) => {
+                        let shape: Cylinder = seq
+                            .next_element()?
+                            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                        Arc::new(shape) as Arc<dyn Shape>
+                    }
+                    None => {
+                        return Err(serde::de::Error::custom(
+                            "found invalid shape type to deserialize",
+                        ))
+                    }
+                };
+
+                Ok(ColliderShape(shape))
             }
         }
+
+        deserializer.deserialize_struct("ColliderShape", &["tag", "inner"], Visitor {})
     }
 }
 
@@ -177,7 +191,7 @@ impl Shape {
 ///
 /// To build a new collider, use the `ColliderBuilder` structure.
 pub struct Collider {
-    shape: Shape,
+    shape: ColliderShape,
     density: f32,
     is_sensor: bool,
     pub(crate) parent: RigidBodyHandle,
@@ -245,7 +259,7 @@ impl Collider {
 
     /// The geometric shape of this collider.
     pub fn shape(&self) -> &Shape {
-        &self.shape
+        &*self.shape.0
     }
 
     /// Compute the axis-aligned bounding box of this collider.
@@ -261,23 +275,7 @@ impl Collider {
 
     /// Compute the local-space mass properties of this collider.
     pub fn mass_properties(&self) -> MassProperties {
-        match &self.shape {
-            Shape::Ball(ball) => MassProperties::from_ball(self.density, ball.radius),
-            #[cfg(feature = "dim2")]
-            Shape::Polygon(p) => MassProperties::from_polygon(self.density, p.vertices()),
-            #[cfg(feature = "dim3")]
-            Shape::Polygon(_p) => unimplemented!(),
-            Shape::Cuboid(c) => MassProperties::from_cuboid(self.density, c.half_extents),
-            Shape::Capsule(caps) => {
-                MassProperties::from_capsule(self.density, caps.a, caps.b, caps.radius)
-            }
-            Shape::Triangle(_) | Shape::Trimesh(_) | Shape::HeightField(_) => {
-                MassProperties::zero()
-            }
-            Shape::Cylinder(c) => {
-                MassProperties::from_cylinder(self.density, c.half_height, c.radius)
-            }
-        }
+        self.shape.mass_properties(self.density)
     }
 }
 
@@ -286,7 +284,7 @@ impl Collider {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct ColliderBuilder {
     /// The shape of the collider to be built.
-    pub shape: Shape,
+    pub shape: ColliderShape,
     /// The density of the collider to be built.
     density: Option<f32>,
     /// The friction coefficient of the collider to be built.
@@ -301,7 +299,7 @@ pub struct ColliderBuilder {
 
 impl ColliderBuilder {
     /// Initialize a new collider builder with the given shape.
-    pub fn new(shape: Shape) -> Self {
+    pub fn new(shape: ColliderShape) -> Self {
         Self {
             shape,
             density: None,
@@ -320,102 +318,81 @@ impl ColliderBuilder {
 
     /// Initialize a new collider builder with a ball shape defined by its radius.
     pub fn ball(radius: f32) -> Self {
-        Self::new(Shape::Ball(Ball::new(radius)))
+        Self::new(ColliderShape::ball(radius))
     }
 
     /// Initialize a new collider builder with a cylindrical shape defined by its half-height
     /// (along along the y axis) and its radius.
+    #[cfg(feature = "dim3")]
     pub fn cylinder(half_height: f32, radius: f32) -> Self {
-        Self::new(Shape::Cylinder(Cylinder::new(half_height, radius)))
+        Self::new(ColliderShape::cylinder(half_height, radius))
     }
 
     /// Initialize a new collider builder with a cuboid shape defined by its half-extents.
     #[cfg(feature = "dim2")]
     pub fn cuboid(hx: f32, hy: f32) -> Self {
-        let cuboid = Cuboid {
-            half_extents: Vector::new(hx, hy),
-        };
-
-        Self::new(Shape::Cuboid(cuboid))
-
-        /*
-        use crate::math::Point;
-        let vertices = vec![
-            Point::new(hx, -hy),
-            Point::new(hx, hy),
-            Point::new(-hx, hy),
-            Point::new(-hx, -hy),
-        ];
-        let normals = vec![Vector::x(), Vector::y(), -Vector::x(), -Vector::y()];
-        let polygon = Polygon::new(vertices, normals);
-
-        Self::new(Shape::Polygon(polygon))
-        */
+        Self::new(ColliderShape::cuboid(Vector::new(hx, hy)))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `x` axis.
     pub fn capsule_x(half_height: f32, radius: f32) -> Self {
-        let capsule = Capsule::new_x(half_height, radius);
-        Self::new(Shape::Capsule(capsule))
+        #[cfg(feature = "dim2")]
+        let rot = -std::f32::consts::FRAC_PI_2;
+        #[cfg(feature = "dim3")]
+        let rot = Vector::z() * -std::f32::consts::FRAC_PI_2;
+        Self::new(ColliderShape::capsule(half_height, radius))
+            .position(Isometry::new(na::zero(), rot))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `y` axis.
     pub fn capsule_y(half_height: f32, radius: f32) -> Self {
-        let capsule = Capsule::new_y(half_height, radius);
-        Self::new(Shape::Capsule(capsule))
+        Self::new(ColliderShape::capsule(half_height, radius))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `z` axis.
     #[cfg(feature = "dim3")]
     pub fn capsule_z(half_height: f32, radius: f32) -> Self {
-        let capsule = Capsule::new_z(half_height, radius);
-        Self::new(Shape::Capsule(capsule))
+        let rot = Vector::x() * std::f32::consts::FRAC_PI_2;
+        Self::new(ColliderShape::capsule(half_height, radius))
+            .position(Isometry::new(na::zero(), rot))
     }
 
     /// Initialize a new collider builder with a cuboid shape defined by its half-extents.
     #[cfg(feature = "dim3")]
     pub fn cuboid(hx: f32, hy: f32, hz: f32) -> Self {
-        let cuboid = Cuboid {
-            half_extents: Vector::new(hx, hy, hz),
-        };
-
-        Self::new(Shape::Cuboid(cuboid))
+        Self::new(ColliderShape::cuboid(Vector::new(hx, hy, hz)))
     }
 
     /// Initializes a collider builder with a segment shape.
     ///
     /// A segment shape is modeled by a capsule with a 0 radius.
     pub fn segment(a: Point<f32>, b: Point<f32>) -> Self {
-        let capsule = Capsule::new(a, b, 0.0);
-        Self::new(Shape::Capsule(capsule))
+        let (pos, half_height) = crate::utils::segment_to_capsule(&a, &b);
+        Self::new(ColliderShape::capsule(half_height, 0.0)).position(pos)
     }
 
     /// Initializes a collider builder with a triangle shape.
     pub fn triangle(a: Point<f32>, b: Point<f32>, c: Point<f32>) -> Self {
-        let triangle = Triangle::new(a, b, c);
-        Self::new(Shape::Triangle(triangle))
+        Self::new(ColliderShape::triangle(a, b, c))
     }
 
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers.
     pub fn trimesh(vertices: Vec<Point<f32>>, indices: Vec<Point3<u32>>) -> Self {
-        let trimesh = Trimesh::new(vertices, indices);
-        Self::new(Shape::Trimesh(trimesh))
+        Self::new(ColliderShape::trimesh(vertices, indices))
     }
 
     /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
     /// factor along each coordinate axis.
     #[cfg(feature = "dim2")]
     pub fn heightfield(heights: na::DVector<f32>, scale: Vector<f32>) -> Self {
-        let heightfield = HeightField::new(heights, scale);
-        Self::new(Shape::HeightField(heightfield))
+        Self::new(ColliderShape::heightfield(heights, scale))
     }
 
     /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
     /// factor along each coordinate axis.
     #[cfg(feature = "dim3")]
     pub fn heightfield(heights: na::DMatrix<f32>, scale: Vector<f32>) -> Self {
-        let heightfield = HeightField::new(heights, scale);
-        Self::new(Shape::HeightField(heightfield))
+        Self::new(ColliderShape::heightfield(heights, scale))
     }
 
     /// The default friction coefficient used by the collider builder.

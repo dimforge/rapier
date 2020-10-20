@@ -335,7 +335,7 @@ impl SAPAxis {
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 struct SAPRegion {
-    axii: [SAPAxis; DIM],
+    axes: [SAPAxis; DIM],
     existing_proxies: BitVec,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     to_insert: Vec<usize>, // Workspace
@@ -344,14 +344,14 @@ struct SAPRegion {
 
 impl SAPRegion {
     pub fn new(bounds: AABB<f32>) -> Self {
-        let axii = [
+        let axes = [
             SAPAxis::new(bounds.mins.x, bounds.maxs.x),
             SAPAxis::new(bounds.mins.y, bounds.maxs.y),
             #[cfg(feature = "dim3")]
             SAPAxis::new(bounds.mins.z, bounds.maxs.z),
         ];
         SAPRegion {
-            axii,
+            axes,
             existing_proxies: BitVec::new(),
             to_insert: Vec::new(),
             need_update: false,
@@ -386,15 +386,15 @@ impl SAPRegion {
             // Update endpoints.
             let mut deleted_any = false;
             for dim in 0..DIM {
-                self.axii[dim].update_endpoints(dim, proxies, reporting);
-                deleted_any = self.axii[dim]
+                self.axes[dim].update_endpoints(dim, proxies, reporting);
+                deleted_any = self.axes[dim]
                     .delete_out_of_bounds_proxies(&mut self.existing_proxies)
                     || deleted_any;
             }
 
             if deleted_any {
                 for dim in 0..DIM {
-                    self.axii[dim].delete_out_of_bounds_endpoints(&self.existing_proxies);
+                    self.axes[dim].delete_out_of_bounds_endpoints(&self.existing_proxies);
                 }
             }
 
@@ -404,9 +404,9 @@ impl SAPRegion {
         if !self.to_insert.is_empty() {
             // Insert new proxies.
             for dim in 1..DIM {
-                self.axii[dim].batch_insert(dim, &self.to_insert, proxies, None);
+                self.axes[dim].batch_insert(dim, &self.to_insert, proxies, None);
             }
-            self.axii[0].batch_insert(0, &self.to_insert, proxies, Some(reporting));
+            self.axes[0].batch_insert(0, &self.to_insert, proxies, Some(reporting));
             self.to_insert.clear();
         }
     }

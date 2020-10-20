@@ -5,7 +5,7 @@ use crate::math::Isometry;
 pub fn detect_proximity_cuboid_triangle(
     ctxt: &mut PrimitiveProximityDetectionContext,
 ) -> Proximity {
-    if let (Shape::Cuboid(cube1), Shape::Triangle(triangle2)) = (ctxt.shape1, ctxt.shape2) {
+    if let (Some(cube1), Some(triangle2)) = (ctxt.shape1.as_cuboid(), ctxt.shape2.as_triangle()) {
         detect_proximity(
             ctxt.prediction_distance,
             cube1,
@@ -13,7 +13,9 @@ pub fn detect_proximity_cuboid_triangle(
             triangle2,
             ctxt.position2,
         )
-    } else if let (Shape::Triangle(triangle1), Shape::Cuboid(cube2)) = (ctxt.shape1, ctxt.shape2) {
+    } else if let (Some(triangle1), Some(cube2)) =
+        (ctxt.shape1.as_triangle(), ctxt.shape2.as_cuboid())
+    {
         detect_proximity(
             ctxt.prediction_distance,
             cube2,

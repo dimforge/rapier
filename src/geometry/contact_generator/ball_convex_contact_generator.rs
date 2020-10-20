@@ -5,30 +5,17 @@ use na::Unit;
 use ncollide::query::PointQuery;
 
 pub fn generate_contacts_ball_convex(ctxt: &mut PrimitiveContactGenerationContext) {
-    if let Shape::Ball(ball1) = ctxt.shape1 {
+    if let Some(ball1) = ctxt.shape1.as_ball() {
         ctxt.manifold.swap_identifiers();
-
-        match ctxt.shape2 {
-            Shape::Triangle(tri2) => do_generate_contacts(tri2, ball1, ctxt, true),
-            Shape::Cuboid(cube2) => do_generate_contacts(cube2, ball1, ctxt, true),
-            Shape::Capsule(capsule2) => do_generate_contacts(capsule2, ball1, ctxt, true),
-            Shape::Cylinder(cylinder2) => do_generate_contacts(cylinder2, ball1, ctxt, true),
-            _ => unimplemented!(),
-        }
-    } else if let Shape::Ball(ball2) = ctxt.shape2 {
-        match ctxt.shape1 {
-            Shape::Triangle(tri1) => do_generate_contacts(tri1, ball2, ctxt, false),
-            Shape::Cuboid(cube1) => do_generate_contacts(cube1, ball2, ctxt, false),
-            Shape::Capsule(capsule1) => do_generate_contacts(capsule1, ball2, ctxt, false),
-            Shape::Cylinder(cylinder1) => do_generate_contacts(cylinder1, ball2, ctxt, false),
-            _ => unimplemented!(),
-        }
+        do_generate_contacts(ctxt.shape2, ball1, ctxt, true);
+    } else if let Some(ball2) = ctxt.shape2.as_ball() {
+        do_generate_contacts(ctxt.shape1, ball2, ctxt, false);
     }
 
     ctxt.manifold.sort_contacts(ctxt.prediction_distance);
 }
 
-fn do_generate_contacts<P: PointQuery<f32>>(
+fn do_generate_contacts<P: ?Sized + PointQuery<f32>>(
     point_query1: &P,
     ball2: &Ball,
     ctxt: &mut PrimitiveContactGenerationContext,
