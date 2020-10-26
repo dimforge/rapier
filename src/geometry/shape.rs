@@ -221,6 +221,7 @@ impl Shape for Capsule {
         ShapeType::Capsule
     }
 
+    #[cfg(feature = "dim3")]
     fn as_polygonal_feature_map(&self) -> Option<(&dyn PolygonalFeatureMap, f32)> {
         Some((&self.segment as &dyn PolygonalFeatureMap, self.radius))
     }

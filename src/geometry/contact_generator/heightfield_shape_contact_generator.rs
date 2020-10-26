@@ -109,12 +109,9 @@ fn do_generate_contacts(
     let shape_type2 = collider2.shape().shape_type();
 
     heightfield1.map_elements_in_local_aabb(&ls_aabb2, &mut |i, part1, _| {
-        let position1 = *collider1.position();
+        let position1 = collider1.position();
         #[cfg(feature = "dim2")]
-        let (position1, dpos1, sub_shape1) = {
-            let (dpos, half_height) = crate::utils::segment_to_capsule(&part1.a, &part1.b);
-            (position1 * dpos, dpos, Capsule::new(half_height, 0.0))
-        };
+        let sub_shape1 = Capsule::new(part1.a, part1.b, 0.0);
         #[cfg(feature = "dim3")]
         let sub_shape1 = *part1;
 
@@ -154,7 +151,7 @@ fn do_generate_contacts(
                 shape1: collider2.shape(),
                 shape2: &sub_shape1,
                 position1: collider2.position(),
-                position2: &position1,
+                position2: position1,
                 manifold,
                 workspace: sub_detector.workspace.as_deref_mut(),
             }
@@ -165,19 +162,12 @@ fn do_generate_contacts(
                 collider2,
                 shape1: &sub_shape1,
                 shape2: collider2.shape(),
-                position1: &position1,
+                position1: position1,
                 position2: collider2.position(),
                 manifold,
                 workspace: sub_detector.workspace.as_deref_mut(),
             }
         };
-
-        #[cfg(feature = "dim2")]
-        if coll_pair.collider1 != ctxt2.manifold.pair.collider1 {
-            ctxt2.manifold.delta2 = collider1.position_wrt_parent() * dpos1;
-        } else {
-            ctxt2.manifold.delta1 = collider1.position_wrt_parent() * dpos1;
-        }
 
         (sub_detector.generator.generate_contacts)(&mut ctxt2)
     });
