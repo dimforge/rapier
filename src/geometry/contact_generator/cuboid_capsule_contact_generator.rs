@@ -54,7 +54,7 @@ pub fn generate_contacts<'a>(
         return;
     }
 
-    let segment2 = capsule2.segment();
+    let segment2 = capsule2.segment;
 
     /*
      *

@@ -1,9 +1,8 @@
 use crate::geometry::PolyhedronFace;
-use crate::geometry::{cuboid, Cone, Cuboid, Cylinder, Triangle};
+use crate::geometry::{cuboid, Cone, Cuboid, Cylinder, Segment, Triangle};
 use crate::math::{Point, Vector};
 use approx::AbsDiffEq;
 use na::{Unit, Vector2};
-use ncollide::shape::Segment;
 use ncollide::shape::SupportMap;
 
 /// Trait implemented by convex shapes with features with polyhedral approximations.
@@ -11,7 +10,7 @@ pub trait PolygonalFeatureMap: SupportMap<f32> {
     fn local_support_feature(&self, dir: &Unit<Vector<f32>>, out_feature: &mut PolyhedronFace);
 }
 
-impl PolygonalFeatureMap for Segment<f32> {
+impl PolygonalFeatureMap for Segment {
     fn local_support_feature(&self, _: &Unit<Vector<f32>>, out_feature: &mut PolyhedronFace) {
         *out_feature = PolyhedronFace::from(*self);
     }

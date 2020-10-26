@@ -1,5 +1,7 @@
 use crate::dynamics::MassProperties;
-use crate::geometry::{Ball, Capsule, Cuboid, HeightField, Roundable, Rounded, Triangle, Trimesh};
+use crate::geometry::{
+    Ball, Capsule, Cuboid, HeightField, Roundable, Rounded, Segment, Triangle, Trimesh,
+};
 use crate::math::Isometry;
 use downcast_rs::{impl_downcast, DowncastSync};
 use erased_serde::Serialize;
@@ -24,6 +26,8 @@ pub enum ShapeType {
     Cuboid,
     /// A capsule shape.
     Capsule,
+    /// A segment shape.
+    Segment,
     /// A triangle shape.
     Triangle,
     /// A triangle mesh shape.
@@ -205,15 +209,19 @@ impl Shape for Capsule {
     }
 
     fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
-        self.bounding_volume(position)
+        self.aabb(position)
     }
 
     fn mass_properties(&self, density: f32) -> MassProperties {
-        MassProperties::from_capsule(density, self.half_height, self.radius)
+        MassProperties::from_capsule(density, self.segment.a, self.segment.b, self.radius)
     }
 
     fn shape_type(&self) -> ShapeType {
         ShapeType::Capsule
+    }
+
+    fn as_polygonal_feature_map(&self) -> Option<(&dyn PolygonalFeatureMap, f32)> {
+        Some((&self.segment as &dyn PolygonalFeatureMap, self.radius))
     }
 }
 
@@ -233,6 +241,30 @@ impl Shape for Triangle {
 
     fn shape_type(&self) -> ShapeType {
         ShapeType::Triangle
+    }
+
+    #[cfg(feature = "dim3")]
+    fn as_polygonal_feature_map(&self) -> Option<(&dyn PolygonalFeatureMap, f32)> {
+        Some((self as &dyn PolygonalFeatureMap, 0.0))
+    }
+}
+
+impl Shape for Segment {
+    #[cfg(feature = "serde-serialize")]
+    fn as_serialize(&self) -> Option<&dyn Serialize> {
+        Some(self as &dyn Serialize)
+    }
+
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
+        self.bounding_volume(position)
+    }
+
+    fn mass_properties(&self, _density: f32) -> MassProperties {
+        MassProperties::zero()
+    }
+
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Segment
     }
 
     #[cfg(feature = "dim3")]

@@ -1,7 +1,7 @@
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{
     Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph, Proximity,
-    Shape, ShapeType, Triangle, Trimesh,
+    Segment, Shape, ShapeType, Triangle, Trimesh,
 };
 #[cfg(feature = "dim3")]
 use crate::geometry::{Cone, Cylinder, PolygonalFeatureMap, Rounded};
@@ -58,9 +58,14 @@ impl ColliderShape {
         ColliderShape(Arc::new(Cuboid::new(half_extents)))
     }
 
-    /// Initialize a capsule shape aligned with the `y` axis.
-    pub fn capsule(half_height: f32, radius: f32) -> Self {
-        ColliderShape(Arc::new(Capsule::new(half_height, radius)))
+    /// Initialize a capsule shape from its endpoints and radius.
+    pub fn capsule(a: Point<f32>, b: Point<f32>, radius: f32) -> Self {
+        ColliderShape(Arc::new(Capsule::new(a, b, radius)))
+    }
+
+    /// Initialize a segment shape from its endpoints.
+    pub fn segment(a: Point<f32>, b: Point<f32>) -> Self {
+        ColliderShape(Arc::new(Segment::new(a, b)))
     }
 
     /// Initializes a triangle shape.
@@ -157,6 +162,7 @@ impl<'de> serde::Deserialize<'de> for ColliderShape {
                     Some(ShapeType::Cuboid) => deser::<A, Cuboid>(&mut seq)?,
                     Some(ShapeType::Capsule) => deser::<A, Capsule>(&mut seq)?,
                     Some(ShapeType::Triangle) => deser::<A, Triangle>(&mut seq)?,
+                    Some(ShapeType::Segment) => deser::<A, Segment>(&mut seq)?,
                     Some(ShapeType::Trimesh) => deser::<A, Trimesh>(&mut seq)?,
                     Some(ShapeType::HeightField) => deser::<A, HeightField>(&mut seq)?,
                     #[cfg(feature = "dim3")]
@@ -349,25 +355,21 @@ impl ColliderBuilder {
 
     /// Initialize a new collider builder with a capsule shape aligned with the `x` axis.
     pub fn capsule_x(half_height: f32, radius: f32) -> Self {
-        #[cfg(feature = "dim2")]
-        let rot = -std::f32::consts::FRAC_PI_2;
-        #[cfg(feature = "dim3")]
-        let rot = Vector::z() * -std::f32::consts::FRAC_PI_2;
-        Self::new(ColliderShape::capsule(half_height, radius))
-            .position(Isometry::new(na::zero(), rot))
+        let p = Point::from(Vector::x() * half_height);
+        Self::new(ColliderShape::capsule(-p, p, radius))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `y` axis.
     pub fn capsule_y(half_height: f32, radius: f32) -> Self {
-        Self::new(ColliderShape::capsule(half_height, radius))
+        let p = Point::from(Vector::y() * half_height);
+        Self::new(ColliderShape::capsule(-p, p, radius))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `z` axis.
     #[cfg(feature = "dim3")]
     pub fn capsule_z(half_height: f32, radius: f32) -> Self {
-        let rot = Vector::x() * std::f32::consts::FRAC_PI_2;
-        Self::new(ColliderShape::capsule(half_height, radius))
-            .position(Isometry::new(na::zero(), rot))
+        let p = Point::from(Vector::z() * half_height);
+        Self::new(ColliderShape::capsule(-p, p, radius))
     }
 
     /// Initialize a new collider builder with a cuboid shape defined by its half-extents.
@@ -377,11 +379,8 @@ impl ColliderBuilder {
     }
 
     /// Initializes a collider builder with a segment shape.
-    ///
-    /// A segment shape is modeled by a capsule with a 0 radius.
     pub fn segment(a: Point<f32>, b: Point<f32>) -> Self {
-        let (pos, half_height) = crate::utils::segment_to_capsule(&a, &b);
-        Self::new(ColliderShape::capsule(half_height, 0.0)).position(pos)
+        Self::new(ColliderShape::segment(a, b))
     }
 
     /// Initializes a collider builder with a triangle shape.

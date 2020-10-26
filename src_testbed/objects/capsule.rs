@@ -19,7 +19,7 @@ impl Capsule {
         window: &mut window::Window,
     ) -> Capsule {
         let r = capsule.radius;
-        let h = capsule.half_height * 2.0;
+        let h = capsule.half_height() * 2.0;
         #[cfg(feature = "dim2")]
         let node = window.add_planar_capsule(r, h);
         #[cfg(feature = "dim3")]

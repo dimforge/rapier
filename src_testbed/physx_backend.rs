@@ -433,8 +433,15 @@ fn physx_collider_from_rapier_collider(
     } else if let Some(ball) = shape.as_ball() {
         ColliderDesc::Sphere(ball.radius)
     } else if let Some(capsule) = shape.as_capsule() {
-        let rot = UnitQuaternion::rotation_between(&Vector3::x(), &Vector3::y());
-        local_pose *= rot.unwrap_or(UnitQuaternion::identity());
+        let center = capsule.center();
+        let mut dir = capsule.segment.b - capsule.segment.a;
+
+        if dir.x < 0.0 {
+            dir = -dir;
+        }
+
+        let rot = UnitQuaternion::rotation_between(&Vector3::x(), &dir);
+        local_pose *= Translation3::from(center.coords) * rot.unwrap_or(UnitQuaternion::identity());
         ColliderDesc::Capsule(capsule.radius, capsule.height())
     } else if let Some(trimesh) = shape.as_trimesh() {
         ColliderDesc::TriMesh {

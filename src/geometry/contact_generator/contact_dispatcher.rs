@@ -99,7 +99,9 @@ impl ContactDispatcher for DefaultContactDispatcher {
             | (ShapeType::Cone, _)
             | (_, ShapeType::Cone)
             | (ShapeType::RoundCylinder, _)
-            | (_, ShapeType::RoundCylinder) => (
+            | (_, ShapeType::RoundCylinder)
+            | (ShapeType::Capsule, _)
+            | (_, ShapeType::Capsule) => (
                 PrimitiveContactGenerator {
                     generate_contacts: super::generate_contacts_pfm_pfm,
                     ..PrimitiveContactGenerator::default()

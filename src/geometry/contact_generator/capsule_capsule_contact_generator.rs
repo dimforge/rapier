@@ -154,8 +154,8 @@ pub fn generate_contacts<'a>(
     let pos12 = pos1.inverse() * pos2;
     let pos21 = pos12.inverse();
 
-    let seg1 = capsule1.segment();
-    let seg2_1 = capsule2.segment().transformed(&pos12);
+    let seg1 = capsule1.segment;
+    let seg2_1 = capsule2.segment.transformed(&pos12);
     let (loc1, loc2) = ncollide::query::closest_points_segment_segment_with_locations_nD(
         (&seg1.a, &seg1.b),
         (&seg2_1.a, &seg2_1.b),

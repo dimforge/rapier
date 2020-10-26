@@ -1,6 +1,7 @@
 //! Structures related to geometry: colliders, shapes, etc.
 
 pub use self::broad_phase_multi_sap::BroadPhase;
+pub use self::capsule::Capsule;
 pub use self::collider::{Collider, ColliderBuilder, ColliderShape};
 pub use self::collider_set::{ColliderHandle, ColliderSet};
 pub use self::contact::{
@@ -22,8 +23,8 @@ pub use self::rounded::{Roundable, Rounded};
 pub use self::trimesh::Trimesh;
 pub use ncollide::query::Proximity;
 
-/// A capsule shape.
-pub type Capsule = ncollide::shape::Capsule<f32>;
+/// A segment shape.
+pub type Segment = ncollide::shape::Segment<f32>;
 /// A cuboid shape.
 pub type Cuboid = ncollide::shape::Cuboid<f32>;
 /// A triangle shape.
@@ -94,6 +95,7 @@ mod trimesh;
 mod waabb;
 mod wquadtree;
 //mod z_order;
+mod capsule;
 #[cfg(feature = "dim3")]
 mod polygonal_feature_map;
 mod rounded;

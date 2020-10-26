@@ -184,7 +184,8 @@ fn nphysics_collider_from_rapier_collider(
     } else if let Some(ball) = shape.as_ball() {
         ShapeHandle::new(Ball::new(ball.radius - margin))
     } else if let Some(capsule) = shape.as_capsule() {
-        ShapeHandle::new(Capsule::new(capsule.half_height, capsule.radius))
+        pos *= capsule.transform_wrt_y();
+        ShapeHandle::new(Capsule::new(capsule.half_height(), capsule.radius))
     } else if let Some(heightfield) = shape.as_heightfield() {
         ShapeHandle::new(heightfield.clone())
     } else {

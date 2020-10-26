@@ -40,6 +40,8 @@ impl From<Triangle> for PolyhedronFace {
 
 impl From<Segment<f32>> for PolyhedronFace {
     fn from(seg: Segment<f32>) -> Self {
+        // Vertices have feature ids 0 and 2.
+        // The segment interior has feature id 1.
         Self {
             vertices: [seg.a, seg.b, seg.b, seg.b],
             vids: [0, 2, 2, 2],
