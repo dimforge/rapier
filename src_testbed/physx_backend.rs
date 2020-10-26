@@ -422,27 +422,22 @@ fn physx_collider_from_rapier_collider(
     collider: &Collider,
 ) -> Option<(ColliderDesc, Isometry3<f32>)> {
     let mut local_pose = *collider.position_wrt_parent();
-    let desc = match collider.shape() {
-        Shape::Cuboid(cuboid) => ColliderDesc::Box(
+    let shape = collider.shape();
+
+    let desc = if let Some(cuboid) = shape.as_cuboid() {
+        ColliderDesc::Box(
             cuboid.half_extents.x,
             cuboid.half_extents.y,
             cuboid.half_extents.z,
-        ),
-        Shape::Ball(ball) => ColliderDesc::Sphere(ball.radius),
-        Shape::Capsule(capsule) => {
-            let center = capsule.center();
-            let mut dir = capsule.b - capsule.a;
-
-            if dir.x < 0.0 {
-                dir = -dir;
-            }
-
-            let rot = UnitQuaternion::rotation_between(&Vector3::x(), &dir);
-            local_pose *=
-                Translation3::from(center.coords) * rot.unwrap_or(UnitQuaternion::identity());
-            ColliderDesc::Capsule(capsule.radius, capsule.height())
-        }
-        Shape::Trimesh(trimesh) => ColliderDesc::TriMesh {
+        )
+    } else if let Some(ball) = shape.as_ball() {
+        ColliderDesc::Sphere(ball.radius)
+    } else if let Some(capsule) = shape.as_capsule() {
+        let rot = UnitQuaternion::rotation_between(&Vector3::x(), &Vector3::y());
+        local_pose *= rot.unwrap_or(UnitQuaternion::identity());
+        ColliderDesc::Capsule(capsule.radius, capsule.height())
+    } else if let Some(trimesh) = shape.as_trimesh() {
+        ColliderDesc::TriMesh {
             vertices: trimesh
                 .vertices()
                 .iter()
@@ -450,11 +445,10 @@ fn physx_collider_from_rapier_collider(
                 .collect(),
             indices: trimesh.flat_indices().to_vec(),
             mesh_scale: Vector3::repeat(1.0).into_glam(),
-        },
-        _ => {
-            eprintln!("Creating a shape unknown to the PhysX backend.");
-            return None;
         }
+    } else {
+        eprintln!("Creating a shape unknown to the PhysX backend.");
+        return None;
     };
 
     Some((desc, local_pose))

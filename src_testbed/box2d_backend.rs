@@ -167,44 +167,42 @@ impl Box2dWorld {
         fixture_def.is_sensor = collider.is_sensor();
         fixture_def.filter = b2::Filter::new();
 
-        match collider.shape() {
-            Shape::Ball(b) => {
-                let mut b2_shape = b2::CircleShape::new();
-                b2_shape.set_radius(b.radius);
-                b2_shape.set_position(center);
-                body.create_fixture(&b2_shape, &mut fixture_def);
-            }
-            Shape::Cuboid(c) => {
-                let b2_shape = b2::PolygonShape::new_box(c.half_extents.x, c.half_extents.y);
-                body.create_fixture(&b2_shape, &mut fixture_def);
-            }
-            Shape::Polygon(poly) => {
-                let points: Vec<_> = poly
-                    .vertices()
-                    .iter()
-                    .map(|p| collider.position_wrt_parent() * p)
-                    .map(|p| na_vec_to_b2_vec(p.coords))
-                    .collect();
-                let b2_shape = b2::PolygonShape::new_with(&points);
-                body.create_fixture(&b2_shape, &mut fixture_def);
-            }
-            Shape::HeightField(heightfield) => {
-                let mut segments = heightfield.segments();
-                let seg1 = segments.next().unwrap();
-                let mut vertices = vec![
-                    na_vec_to_b2_vec(seg1.a.coords),
-                    na_vec_to_b2_vec(seg1.b.coords),
-                ];
+        let shape = collider.shape();
 
-                // TODO: this will not handle holes properly.
-                segments.for_each(|seg| {
-                    vertices.push(na_vec_to_b2_vec(seg.b.coords));
-                });
+        if let Some(b) = shape.as_ball() {
+            let mut b2_shape = b2::CircleShape::new();
+            b2_shape.set_radius(b.radius);
+            b2_shape.set_position(center);
+            body.create_fixture(&b2_shape, &mut fixture_def);
+        } else if let Some(c) = shape.as_cuboid() {
+            let b2_shape = b2::PolygonShape::new_box(c.half_extents.x, c.half_extents.y);
+            body.create_fixture(&b2_shape, &mut fixture_def);
+        // } else if let Some(polygon) = shape.as_polygon() {
+        //     let points: Vec<_> = poly
+        //         .vertices()
+        //         .iter()
+        //         .map(|p| collider.position_wrt_parent() * p)
+        //         .map(|p| na_vec_to_b2_vec(p.coords))
+        //         .collect();
+        //     let b2_shape = b2::PolygonShape::new_with(&points);
+        //     body.create_fixture(&b2_shape, &mut fixture_def);
+        } else if let Some(heightfield) = shape.as_heightfield() {
+            let mut segments = heightfield.segments();
+            let seg1 = segments.next().unwrap();
+            let mut vertices = vec![
+                na_vec_to_b2_vec(seg1.a.coords),
+                na_vec_to_b2_vec(seg1.b.coords),
+            ];
 
-                let b2_shape = b2::ChainShape::new_chain(&vertices);
-                body.create_fixture(&b2_shape, &mut fixture_def);
-            }
-            _ => eprintln!("Creating a shape unknown to the Box2d backend."),
+            // TODO: this will not handle holes properly.
+            segments.for_each(|seg| {
+                vertices.push(na_vec_to_b2_vec(seg.b.coords));
+            });
+
+            let b2_shape = b2::ChainShape::new_chain(&vertices);
+            body.create_fixture(&b2_shape, &mut fixture_def);
+        } else {
+            eprintln!("Creating a shape unknown to the Box2d backend.");
         }
     }
 
