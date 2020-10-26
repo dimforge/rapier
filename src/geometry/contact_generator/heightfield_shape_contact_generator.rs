@@ -3,7 +3,7 @@ use crate::geometry::contact_generator::{
 };
 #[cfg(feature = "dim2")]
 use crate::geometry::Capsule;
-use crate::geometry::{Collider, ContactManifold, HeightField, ShapeType};
+use crate::geometry::{Collider, ContactManifold, HeightField, Shape, ShapeType};
 use crate::ncollide::bounding_volume::BoundingVolume;
 #[cfg(feature = "dim3")]
 use crate::{geometry::Triangle, math::Point};
@@ -72,11 +72,6 @@ fn do_generate_contacts(
             } else {
                 manifold.subshape_index_pair.1
             };
-            // println!(
-            //     "Restoring for {} [chosen with {:?}]",
-            //     subshape_id, manifold.subshape_index_pair
-            // );
-
             let (generator, workspace2) = ctxt
                 .dispatcher
                 .dispatch_primitives(ShapeType::Capsule, shape_type2);
@@ -116,9 +111,9 @@ fn do_generate_contacts(
     heightfield1.map_elements_in_local_aabb(&ls_aabb2, &mut |i, part1, _| {
         let position1 = *collider1.position();
         #[cfg(feature = "dim2")]
-        let (position1, sub_shape1) = {
+        let (position1, dpos1, sub_shape1) = {
             let (dpos, half_height) = crate::utils::segment_to_capsule(&part1.a, &part1.b);
-            (position1 * dpos, Capsule::new(half_height, 0.0))
+            (position1 * dpos, dpos, Capsule::new(half_height, 0.0))
         };
         #[cfg(feature = "dim3")]
         let sub_shape1 = *part1;
@@ -134,7 +129,7 @@ fn do_generate_contacts(
             }
             Entry::Vacant(entry) => {
                 let (generator, workspace2) =
-                    dispatcher.dispatch_primitives(ShapeType::Triangle, shape_type2);
+                    dispatcher.dispatch_primitives(sub_shape1.shape_type(), shape_type2);
                 let sub_detector = SubDetector {
                     generator,
                     manifold_id: manifolds.len(),
@@ -176,6 +171,13 @@ fn do_generate_contacts(
                 workspace: sub_detector.workspace.as_deref_mut(),
             }
         };
+
+        #[cfg(feature = "dim2")]
+        if coll_pair.collider1 != ctxt2.manifold.pair.collider1 {
+            ctxt2.manifold.delta2 = collider1.position_wrt_parent() * dpos1;
+        } else {
+            ctxt2.manifold.delta1 = collider1.position_wrt_parent() * dpos1;
+        }
 
         (sub_detector.generator.generate_contacts)(&mut ctxt2)
     });
