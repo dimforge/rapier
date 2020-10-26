@@ -5,7 +5,7 @@ use rapier::counters::Counters;
 use rapier::dynamics::{
     IntegrationParameters, JointParams, JointSet, RigidBodyHandle, RigidBodySet,
 };
-use rapier::geometry::{Collider, ColliderSet, Shape};
+use rapier::geometry::{Collider, ColliderSet};
 use std::f32;
 
 use wrapped2d::b2;

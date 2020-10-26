@@ -12,7 +12,7 @@ use rapier::counters::Counters;
 use rapier::dynamics::{
     IntegrationParameters, JointParams, JointSet, RigidBodyHandle, RigidBodySet,
 };
-use rapier::geometry::{Collider, ColliderSet, Shape};
+use rapier::geometry::{Collider, ColliderSet};
 use rapier::math::Vector;
 use std::collections::HashMap;
 #[cfg(feature = "dim3")]

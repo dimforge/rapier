@@ -1,7 +1,6 @@
 //! Miscellaneous utilities.
 
 use crate::dynamics::RigidBodyHandle;
-use crate::math::{Isometry, Point, Rotation, Vector};
 #[cfg(all(feature = "enhanced-determinism", feature = "serde-serialize"))]
 use indexmap::IndexMap as HashMap;
 use na::{Matrix2, Matrix3, Matrix3x2, Point2, Point3, Scalar, SimdRealField, Vector2, Vector3};
@@ -1333,29 +1332,4 @@ pub(crate) fn other_handle(
     } else {
         pair.0
     }
-}
-
-/// Returns the rotation that aligns the y axis to the segment direction.
-pub(crate) fn rotation_wrt_y(a: &Point<f32>, b: &Point<f32>) -> Rotation<f32> {
-    let mut dir = b - a;
-
-    if dir.y < 0.0 {
-        dir = -dir;
-    }
-
-    #[cfg(feature = "dim2")]
-    return Rotation::rotation_between(&Vector::y(), &dir);
-
-    #[cfg(feature = "dim3")]
-    return Rotation::rotation_between(&Vector::y(), &dir).unwrap_or(Rotation::identity());
-}
-
-// Return the transform that aligns the y axis to the segment and move the origin to the segment middle,
-// and the capsule's half-height.
-pub(crate) fn segment_to_capsule(a: &Point<f32>, b: &Point<f32>) -> (Isometry<f32>, f32) {
-    let rot = rotation_wrt_y(a, b);
-    let half_height = (b - a).norm() / 2.0;
-    let center = na::center(a, b);
-    let pos = Isometry::from_parts(center.coords.into(), rot);
-    (pos, half_height)
 }

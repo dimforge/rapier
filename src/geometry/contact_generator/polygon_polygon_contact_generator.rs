@@ -1,3 +1,5 @@
+#![allow(dead_code)] // TODO: remove this once we support polygons.
+
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
 use crate::geometry::{sat, Contact, ContactManifold, KinematicsCategory, Polygon};
 use crate::math::{Isometry, Point};

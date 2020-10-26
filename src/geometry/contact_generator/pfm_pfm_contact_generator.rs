@@ -1,9 +1,6 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-use crate::geometry::{
-    Contact, ContactManifold, KinematicsCategory, PolygonalFeatureMap, PolyhedronFace,
-};
+use crate::geometry::{KinematicsCategory, PolygonalFeatureMap, PolyhedronFace};
 use crate::math::{Isometry, Vector};
-use crate::na::UnitQuaternion;
 use na::Unit;
 use ncollide::query;
 use ncollide::query::algorithms::{gjk::GJKResult, VoronoiSimplex};
@@ -11,7 +8,6 @@ use ncollide::query::algorithms::{gjk::GJKResult, VoronoiSimplex};
 pub struct PfmPfmContactManifoldGeneratorWorkspace {
     simplex: VoronoiSimplex<f32>,
     last_gjk_dir: Option<Unit<Vector<f32>>>,
-    last_optimal_dir: Option<Unit<Vector<f32>>>,
     feature1: PolyhedronFace,
     feature2: PolyhedronFace,
 }
@@ -21,7 +17,6 @@ impl Default for PfmPfmContactManifoldGeneratorWorkspace {
         Self {
             simplex: VoronoiSimplex::new(),
             last_gjk_dir: None,
-            last_optimal_dir: None,
             feature1: PolyhedronFace::new(),
             feature2: PolyhedronFace::new(),
         }

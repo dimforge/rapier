@@ -5,8 +5,6 @@ use crate::geometry::contact_generator::{
 use crate::geometry::Capsule;
 use crate::geometry::{Collider, ContactManifold, HeightField, Shape, ShapeType};
 use crate::ncollide::bounding_volume::BoundingVolume;
-#[cfg(feature = "dim3")]
-use crate::{geometry::Triangle, math::Point};
 use std::any::Any;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -111,7 +109,7 @@ fn do_generate_contacts(
     heightfield1.map_elements_in_local_aabb(&ls_aabb2, &mut |i, part1, _| {
         let position1 = collider1.position();
         #[cfg(feature = "dim2")]
-        let sub_shape1 = Capsule::new(part1.a, part1.b, 0.0);
+        let sub_shape1 = Capsule::new(part1.a, part1.b, 0.0); // TODO: use a segment instead.
         #[cfg(feature = "dim3")]
         let sub_shape1 = *part1;
 

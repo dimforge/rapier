@@ -1,7 +1,7 @@
 use crate::dynamics::MassProperties;
-use crate::math::Point;
 #[cfg(feature = "dim3")]
-use crate::{geometry::Capsule, math::Rotation};
+use crate::geometry::Capsule;
+use crate::math::Point;
 
 impl MassProperties {
     pub(crate) fn from_capsule(density: f32, a: Point<f32>, b: Point<f32>, radius: f32) -> Self {

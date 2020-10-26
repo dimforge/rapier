@@ -1,5 +1,4 @@
 use crate::dynamics::MassProperties;
-use crate::geometry::Cone;
 use crate::math::{Point, PrincipalAngularInertia, Rotation, Vector};
 
 impl MassProperties {

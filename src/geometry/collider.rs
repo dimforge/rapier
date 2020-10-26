@@ -4,7 +4,7 @@ use crate::geometry::{
     Segment, Shape, ShapeType, Triangle, Trimesh,
 };
 #[cfg(feature = "dim3")]
-use crate::geometry::{Cone, Cylinder, PolygonalFeatureMap, Rounded};
+use crate::geometry::{Cone, Cylinder, Rounded};
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
 use na::Point3;
 use ncollide::bounding_volume::AABB;

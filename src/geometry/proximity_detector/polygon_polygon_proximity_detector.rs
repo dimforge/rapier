@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::geometry::proximity_detector::PrimitiveProximityDetectionContext;
 use crate::geometry::{sat, Polygon, Proximity};
 use crate::math::Isometry;

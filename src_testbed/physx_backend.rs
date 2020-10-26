@@ -6,7 +6,7 @@ use rapier::counters::Counters;
 use rapier::dynamics::{
     IntegrationParameters, JointParams, JointSet, RigidBodyHandle, RigidBodySet,
 };
-use rapier::geometry::{Collider, ColliderSet, Shape};
+use rapier::geometry::{Collider, ColliderSet};
 use rapier::utils::WBasis;
 use std::collections::HashMap;
 

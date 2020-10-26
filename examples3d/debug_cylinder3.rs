@@ -1,4 +1,4 @@
-use na::{Point3, Vector3};
+use na::Point3;
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
@@ -40,7 +40,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let centery = shifty / 2.0;
     let centerz = shiftz * (num / 2) as f32;
 
-    let mut offset = -(num as f32) * (rad * 2.0 + rad) * 0.5;
+    let offset = -(num as f32) * (rad * 2.0 + rad) * 0.5;
 
     let x = -centerx + offset;
     let y = centery + 3.0;

@@ -4,6 +4,7 @@ use crate::utils::WSign;
 use na::Unit;
 use ncollide::shape::{Segment, SupportMap};
 
+#[allow(dead_code)]
 pub fn polygon_polygon_compute_separation_features(
     p1: &Polygon,
     p2: &Polygon,
