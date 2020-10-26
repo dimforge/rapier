@@ -365,6 +365,7 @@ impl Shape for Cone {
 
 #[cfg(feature = "dim3")]
 impl Shape for Rounded<Cylinder> {
+    #[cfg(feature = "serde-serialize")]
     fn as_serialize(&self) -> Option<&dyn Serialize> {
         Some(self as &dyn Serialize)
     }
