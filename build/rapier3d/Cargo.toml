@@ -1,4 +1,3 @@
-# Name idea: bident for 2D and trident for 3D
 [package]
 name    = "rapier3d"
 version = "0.2.1"
@@ -35,12 +34,12 @@ required-features = [ "dim3" ]
 vec_map = "0.8"
 instant = { version = "0.1", features = [ "now" ]}
 num-traits = "0.2"
-nalgebra = "0.22"
-ncollide3d = "0.25"
-simba = "^0.2.1"
-approx = "0.3"
+nalgebra = "0.23"
+ncollide3d = "0.26"
+simba = "0.3"
+approx = "0.4"
 rayon = { version = "1", optional = true }
-crossbeam = "0.7"
+crossbeam = "0.8"
 generational-arena = "0.2"
 arrayvec = "0.5"
 bit-vec = "0.6"

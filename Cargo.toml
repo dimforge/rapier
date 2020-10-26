@@ -5,6 +5,11 @@ members = [ "build/rapier2d", "build/rapier_testbed2d", "examples2d", "benchmark
 [patch.crates-io]
 #wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }
 #simba = { path = "../simba" }
+#ncollide2d = { path = "../ncollide/build/ncollide2d" }
+#ncollide3d = { path = "../ncollide/build/ncollide3d" }
+#nphysics2d = { path = "../nphysics/build/nphysics2d" }
+#nphysics3d = { path = "../nphysics/build/nphysics3d" }
+#kiss3d = { path = "../kiss3d" }
 
 [profile.release]
 #debug = true
