@@ -4,6 +4,7 @@ use crate::geometry::{
 };
 use crate::math::Isometry;
 use downcast_rs::{impl_downcast, DowncastSync};
+#[cfg(feature = "serde-serialize")]
 use erased_serde::Serialize;
 use ncollide::bounding_volume::{HasBoundingVolume, AABB};
 use ncollide::query::{PointQuery, RayCast};
