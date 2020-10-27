@@ -12,7 +12,7 @@
 /// - The interaction groups of `a` has at least one bit set to `1` in common with the interaction mask of `b`.
 /// - The interaction groups of `b` has at least one bit set to `1` in common with the interaction mask of `a`.
 /// In other words, interactions are allowed between two filter iff. the following condition is met:
-/// ```rust
+/// ```ignore
 /// ((self.0 >> 16) & rhs.0) != 0 && ((rhs.0 >> 16) & self.0) != 0
 /// ```
 pub struct InteractionGroups(pub u32);
