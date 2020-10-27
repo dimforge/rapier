@@ -22,6 +22,7 @@ pub use self::proximity_detector::{DefaultProximityDispatcher, ProximityDispatch
 #[cfg(feature = "dim3")]
 pub use self::round_cylinder::RoundCylinder;
 pub use self::trimesh::Trimesh;
+pub use self::user_callbacks::{ContactPairFilter, PairFilterContext, ProximityPairFilter};
 pub use ncollide::query::Proximity;
 
 /// A segment shape.
@@ -104,3 +105,4 @@ mod polygonal_feature_map;
 #[cfg(feature = "dim3")]
 mod round_cylinder;
 mod shape;
+mod user_callbacks;
