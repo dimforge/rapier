@@ -15,7 +15,7 @@ bitflags::bitflags! {
     pub struct SolverFlags: u32 {
         /// The constraint solver will take this contact manifold into
         /// account for force computation.
-        const COMPUTE_FORCES = 0b01;
+        const COMPUTE_IMPULSES = 0b01;
     }
 }
 

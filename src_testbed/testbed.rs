@@ -681,6 +681,8 @@ impl Testbed {
                                     &mut self.physics.bodies,
                                     &mut self.physics.colliders,
                                     &mut self.physics.joints,
+                                    None,
+                                    None,
                                     &self.event_handler,
                                 );
 
@@ -1457,6 +1459,8 @@ impl State for Testbed {
                                 &mut physics.bodies,
                                 &mut physics.colliders,
                                 &mut physics.joints,
+                                None,
+                                None,
                                 event_handler,
                             );
                         });
@@ -1471,6 +1475,8 @@ impl State for Testbed {
                         &mut self.physics.bodies,
                         &mut self.physics.colliders,
                         &mut self.physics.joints,
+                        None,
+                        None,
                         &self.event_handler,
                     );
 

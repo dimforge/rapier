@@ -14,8 +14,9 @@ use crate::geometry::proximity_detector::{
 //    proximity_detector::ProximityDetectionContextSimd, WBall,
 //};
 use crate::geometry::{
-    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactEvent, ProximityEvent,
-    ProximityPair, RemovedCollider, SolverFlags,
+    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactEvent, ContactPairFilter,
+    PairFilterContext, ProximityEvent, ProximityPair, ProximityPairFilter, RemovedCollider,
+    SolverFlags,
 };
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 //#[cfg(feature = "simd-is-enabled")]
@@ -290,6 +291,7 @@ impl NarrowPhase {
         prediction_distance: f32,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
+        pair_filter: Option<&dyn ProximityPairFilter>,
         events: &dyn EventHandler,
     ) {
         par_iter_mut!(&mut self.proximity_graph.graph.edges).for_each(|edge| {
@@ -301,14 +303,36 @@ impl NarrowPhase {
             let rb1 = &bodies[co1.parent];
             let rb2 = &bodies[co2.parent];
 
-            if (rb1.is_sleeping() || rb1.is_static()) && (rb2.is_sleeping() || rb2.is_static()) {
-                // No need to update this contact because nothing moved.
+            if (rb1.is_sleeping() && rb2.is_static())
+                || (rb2.is_sleeping() && rb1.is_static())
+                || (rb1.is_sleeping() && rb2.is_sleeping())
+            {
+                // No need to update this proximity because nothing moved.
                 return;
             }
 
             if !co1.collision_groups.test(co2.collision_groups) {
-                // The collision is not allowed.
+                // The proximity is not allowed.
                 return;
+            }
+
+            if pair_filter.is_none() && !rb1.is_dynamic() && !rb2.is_dynamic() {
+                // Default filtering rule: no proximity between two non-dynamic bodies.
+                return;
+            }
+
+            if let Some(filter) = pair_filter {
+                let context = PairFilterContext {
+                    rigid_body1: rb1,
+                    rigid_body2: rb2,
+                    collider1: co1,
+                    collider2: co2,
+                };
+
+                if !filter.filter_proximity_pair(&context) {
+                    // No proximity allowed.
+                    return;
+                }
             }
 
             let dispatcher = DefaultProximityDispatcher;
@@ -341,6 +365,7 @@ impl NarrowPhase {
         prediction_distance: f32,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
+        pair_filter: Option<&dyn ContactPairFilter>,
         events: &dyn EventHandler,
     ) {
         par_iter_mut!(&mut self.contact_graph.graph.edges).for_each(|edge| {
@@ -352,8 +377,9 @@ impl NarrowPhase {
             let rb1 = &bodies[co1.parent];
             let rb2 = &bodies[co2.parent];
 
-            if ((rb1.is_sleeping() || rb1.is_static()) && (rb2.is_sleeping() || rb2.is_static()))
-                || (!rb1.is_dynamic() && !rb2.is_dynamic())
+            if (rb1.is_sleeping() && rb2.is_static())
+                || (rb2.is_sleeping() && rb1.is_static())
+                || (rb1.is_sleeping() && rb2.is_sleeping())
             {
                 // No need to update this contact because nothing moved.
                 return;
@@ -362,6 +388,33 @@ impl NarrowPhase {
             if !co1.collision_groups.test(co2.collision_groups) {
                 // The collision is not allowed.
                 return;
+            }
+
+            if pair_filter.is_none() && !rb1.is_dynamic() && !rb2.is_dynamic() {
+                // Default filtering rule: no contact between two non-dynamic bodies.
+                return;
+            }
+
+            let mut solver_flags = if let Some(filter) = pair_filter {
+                let context = PairFilterContext {
+                    rigid_body1: rb1,
+                    rigid_body2: rb2,
+                    collider1: co1,
+                    collider2: co2,
+                };
+
+                if let Some(solver_flags) = filter.filter_contact_pair(&context) {
+                    solver_flags
+                } else {
+                    // No contact allowed.
+                    return;
+                }
+            } else {
+                SolverFlags::COMPUTE_IMPULSES
+            };
+
+            if !co1.solver_groups.test(co2.solver_groups) {
+                solver_flags.remove(SolverFlags::COMPUTE_IMPULSES);
             }
 
             let dispatcher = DefaultContactDispatcher;
@@ -373,12 +426,6 @@ impl NarrowPhase {
                 pair.generator = Some(generator);
                 pair.generator_workspace = workspace;
             }
-
-            let solver_flags = if co1.solver_groups.test(co2.solver_groups) {
-                SolverFlags::COMPUTE_FORCES
-            } else {
-                SolverFlags::empty()
-            };
 
             let context = ContactGenerationContext {
                 dispatcher: &dispatcher,
@@ -413,8 +460,11 @@ impl NarrowPhase {
             for manifold in &mut inter.weight.manifolds {
                 let rb1 = &bodies[manifold.body_pair.body1];
                 let rb2 = &bodies[manifold.body_pair.body2];
-                if manifold.solver_flags.contains(SolverFlags::COMPUTE_FORCES)
+                if manifold
+                    .solver_flags
+                    .contains(SolverFlags::COMPUTE_IMPULSES)
                     && manifold.num_active_contacts() != 0
+                    && (rb1.is_dynamic() || rb2.is_dynamic())
                     && (!rb1.is_dynamic() || !rb1.is_sleeping())
                     && (!rb2.is_dynamic() || !rb2.is_sleeping())
                 {
