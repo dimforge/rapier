@@ -413,7 +413,8 @@ impl NarrowPhase {
             for manifold in &mut inter.weight.manifolds {
                 let rb1 = &bodies[manifold.body_pair.body1];
                 let rb2 = &bodies[manifold.body_pair.body2];
-                if manifold.num_active_contacts() != 0
+                if manifold.solver_flags.contains(SolverFlags::COMPUTE_FORCES)
+                    && manifold.num_active_contacts() != 0
                     && (!rb1.is_dynamic() || !rb1.is_sleeping())
                     && (!rb2.is_dynamic() || !rb2.is_sleeping())
                 {
