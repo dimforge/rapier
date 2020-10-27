@@ -33,7 +33,7 @@ pub trait ContactPairFilter: Send + Sync {
     /// not compute any contact manifolds for it.
     /// If this returns `Some`, then the narrow-phase will compute contact manifolds for
     /// this pair of colliders, and configure them with the returned solver flags. For
-    /// example, if this returns `Some(SolverFlags::COMPUTE_FORCES)` then the contacts
+    /// example, if this returns `Some(SolverFlags::COMPUTE_IMPULSES)` then the contacts
     /// will be taken into account by the constraints solver. If this returns
     /// `Some(SolverFlags::empty())` then the constraints solver will ignore these
     /// contacts.

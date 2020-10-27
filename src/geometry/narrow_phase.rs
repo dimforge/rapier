@@ -405,7 +405,7 @@ impl NarrowPhase {
                 }
             } else {
                 if co1.solver_groups.test(co2.solver_groups) {
-                    SolverFlags::COMPUTE_FORCES
+                    SolverFlags::COMPUTE_IMPULSES
                 } else {
                     SolverFlags::empty()
                 }
@@ -454,7 +454,9 @@ impl NarrowPhase {
             for manifold in &mut inter.weight.manifolds {
                 let rb1 = &bodies[manifold.body_pair.body1];
                 let rb2 = &bodies[manifold.body_pair.body2];
-                if manifold.solver_flags.contains(SolverFlags::COMPUTE_FORCES)
+                if manifold
+                    .solver_flags
+                    .contains(SolverFlags::COMPUTE_IMPULSES)
                     && manifold.num_active_contacts() != 0
                     && (rb1.is_dynamic() || rb2.is_dynamic())
                     && (!rb1.is_dynamic() || !rb1.is_sleeping())
