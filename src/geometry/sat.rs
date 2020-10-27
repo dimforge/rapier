@@ -298,7 +298,7 @@ pub fn triangle_cuboid_find_local_separating_normal_oneway(
 
 #[cfg(feature = "dim2")]
 pub fn segment_cuboid_find_local_separating_normal_oneway(
-    segment1: &Segment<f32>,
+    segment1: &Segment,
     shape2: &Cuboid,
     pos12: &Isometry<f32>,
 ) -> (f32, Vector<f32>) {

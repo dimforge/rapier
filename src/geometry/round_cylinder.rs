@@ -1,4 +1,3 @@
-#[cfg(feature = "dim3")]
 use crate::geometry::Cylinder;
 use crate::math::{Isometry, Point, Vector};
 use na::Unit;

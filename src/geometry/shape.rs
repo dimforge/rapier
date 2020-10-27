@@ -1,7 +1,5 @@
 use crate::dynamics::MassProperties;
-use crate::geometry::{
-    Ball, Capsule, Cuboid, HeightField, RoundCylinder, Segment, Triangle, Trimesh,
-};
+use crate::geometry::{Ball, Capsule, Cuboid, HeightField, Segment, Triangle, Trimesh};
 use crate::math::Isometry;
 use downcast_rs::{impl_downcast, DowncastSync};
 #[cfg(feature = "serde-serialize")]
@@ -12,7 +10,7 @@ use num::Zero;
 use num_derive::FromPrimitive;
 #[cfg(feature = "dim3")]
 use {
-    crate::geometry::{Cone, Cylinder, PolygonalFeatureMap},
+    crate::geometry::{Cone, Cylinder, PolygonalFeatureMap, RoundCylinder},
     ncollide::bounding_volume::BoundingVolume,
 };
 

@@ -19,6 +19,7 @@ pub use self::narrow_phase::NarrowPhase;
 pub use self::polygon::Polygon;
 pub use self::proximity::ProximityPair;
 pub use self::proximity_detector::{DefaultProximityDispatcher, ProximityDispatcher};
+#[cfg(feature = "dim3")]
 pub use self::round_cylinder::RoundCylinder;
 pub use self::trimesh::Trimesh;
 pub use ncollide::query::Proximity;
@@ -98,5 +99,6 @@ mod wquadtree;
 mod capsule;
 #[cfg(feature = "dim3")]
 mod polygonal_feature_map;
+#[cfg(feature = "dim3")]
 mod round_cylinder;
 mod shape;
