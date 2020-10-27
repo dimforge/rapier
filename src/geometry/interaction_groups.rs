@@ -18,23 +18,28 @@
 pub struct InteractionGroups(pub u32);
 
 impl InteractionGroups {
+    /// Initializes with the given interaction groups and interaction mask.
+    pub const fn new(groups: u16, masks: u16) -> Self {
+        Self::none().with_groups(groups).with_mask(masks)
+    }
+
     /// Allow interaction with everything.
-    pub fn all() -> Self {
+    pub const fn all() -> Self {
         Self(u32::MAX)
     }
 
     /// Prevent all interactions.
-    pub fn none() -> Self {
+    pub const fn none() -> Self {
         Self(0)
     }
 
     /// Sets the group this filter is part of.
-    pub fn with_groups(self, groups: u16) -> Self {
+    pub const fn with_groups(self, groups: u16) -> Self {
         Self((self.0 & 0x0000ffff) | ((groups as u32) << 16))
     }
 
     /// Sets the interaction mask of this filter.
-    pub fn with_mask(self, mask: u16) -> Self {
+    pub const fn with_mask(self, mask: u16) -> Self {
         Self((self.0 & 0xffff0000) | (mask as u32))
     }
 
@@ -42,7 +47,8 @@ impl InteractionGroups {
     ///
     /// An interaction is allowed iff. the groups of `self` contain at least one bit set to 1 in common
     /// with the mask of `rhs`, and vice-versa.
-    pub fn test(self, rhs: Self) -> bool {
+    #[inline]
+    pub const fn test(self, rhs: Self) -> bool {
         ((self.0 >> 16) & rhs.0) != 0 && ((rhs.0 >> 16) & self.0) != 0
     }
 }
