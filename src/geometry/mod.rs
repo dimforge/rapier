@@ -5,7 +5,7 @@ pub use self::capsule::Capsule;
 pub use self::collider::{Collider, ColliderBuilder, ColliderShape};
 pub use self::collider_set::{ColliderHandle, ColliderSet};
 pub use self::contact::{
-    Contact, ContactKinematics, ContactManifold, ContactPair, KinematicsCategory,
+    Contact, ContactKinematics, ContactManifold, ContactPair, KinematicsCategory, SolverFlags,
 };
 pub use self::contact_generator::{ContactDispatcher, DefaultContactDispatcher};
 #[cfg(feature = "dim2")]

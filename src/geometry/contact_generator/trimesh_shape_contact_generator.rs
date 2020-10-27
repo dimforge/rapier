@@ -149,6 +149,7 @@ fn do_generate_contacts(
                     collider2,
                     *triangle_id,
                     0,
+                    ctxt.solver_flags,
                 )
             } else {
                 // We already have a manifold for this triangle.

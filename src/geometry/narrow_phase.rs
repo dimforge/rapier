@@ -15,7 +15,7 @@ use crate::geometry::proximity_detector::{
 //};
 use crate::geometry::{
     BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactEvent, ProximityEvent,
-    ProximityPair, RemovedCollider,
+    ProximityPair, RemovedCollider, SolverFlags,
 };
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 //#[cfg(feature = "simd-is-enabled")]
@@ -374,11 +374,18 @@ impl NarrowPhase {
                 pair.generator_workspace = workspace;
             }
 
+            let solver_flags = if co1.solver_groups.test(co2.solver_groups) {
+                SolverFlags::COMPUTE_FORCES
+            } else {
+                SolverFlags::empty()
+            };
+
             let context = ContactGenerationContext {
                 dispatcher: &dispatcher,
                 prediction_distance,
                 colliders,
                 pair,
+                solver_flags,
             };
 
             context
