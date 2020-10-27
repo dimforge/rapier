@@ -23,7 +23,9 @@ use rapier::dynamics::{
 };
 #[cfg(feature = "dim3")]
 use rapier::geometry::Ray;
-use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent};
+use rapier::geometry::{
+    BroadPhase, ColliderHandle, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent,
+};
 use rapier::math::Vector;
 use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
 #[cfg(feature = "fluids")]
@@ -495,6 +497,10 @@ impl Testbed {
 
     pub fn set_body_color(&mut self, body: RigidBodyHandle, color: Point3<f32>) {
         self.graphics.set_body_color(body, color);
+    }
+
+    pub fn set_collider_initial_color(&mut self, collider: ColliderHandle, color: Point3<f32>) {
+        self.graphics.set_collider_initial_color(collider, color);
     }
 
     #[cfg(feature = "fluids")]

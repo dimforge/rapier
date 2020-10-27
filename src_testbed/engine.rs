@@ -63,6 +63,7 @@ pub struct GraphicsManager {
     #[cfg(feature = "fluids")]
     boundary2sn: HashMap<BoundaryHandle, FluidNode>,
     b2color: HashMap<RigidBodyHandle, Point3<f32>>,
+    c2color: HashMap<ColliderHandle, Point3<f32>>,
     b2wireframe: HashMap<RigidBodyHandle, bool>,
     #[cfg(feature = "fluids")]
     f2color: HashMap<FluidHandle, Point3<f32>>,
@@ -100,6 +101,7 @@ impl GraphicsManager {
             #[cfg(feature = "fluids")]
             boundary2sn: HashMap::new(),
             b2color: HashMap::new(),
+            c2color: HashMap::new(),
             #[cfg(feature = "fluids")]
             f2color: HashMap::new(),
             ground_color: Point3::new(0.5, 0.5, 0.5),
@@ -184,6 +186,10 @@ impl GraphicsManager {
                 n.set_color(color)
             }
         }
+    }
+
+    pub fn set_collider_initial_color(&mut self, c: ColliderHandle, color: Point3<f32>) {
+        self.c2color.insert(c, color);
     }
 
     pub fn set_body_wireframe(&mut self, b: RigidBodyHandle, enabled: bool) {
@@ -324,6 +330,7 @@ impl GraphicsManager {
         let mut new_nodes = Vec::new();
 
         for collider_handle in bodies[handle].colliders() {
+            let color = self.c2color.get(collider_handle).copied().unwrap_or(color);
             let collider = &colliders[*collider_handle];
             self.add_collider(window, *collider_handle, collider, color, &mut new_nodes);
         }
