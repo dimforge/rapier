@@ -306,6 +306,11 @@ impl NarrowPhase {
                 return;
             }
 
+            if !co1.collision_groups.test(co2.collision_groups) {
+                // The collision is not allowed.
+                return;
+            }
+
             let dispatcher = DefaultProximityDispatcher;
             if pair.detector.is_none() {
                 // We need a redispatch for this detector.
@@ -329,69 +334,6 @@ impl NarrowPhase {
                 .unwrap()
                 .detect_proximity(context, events);
         });
-
-        /*
-        // First, group pairs.
-        // NOTE: the transmutes here are OK because the Vec are all cleared
-        // before we leave this method.
-        // We do this in order to avoid reallocating those vecs each time
-        // we compute the contacts. Unsafe is necessary because we can't just
-        // store a Vec<&mut ProximityPair> into the NarrowPhase struct without
-        // polluting the World with lifetimes.
-        let ball_ball_prox: &mut Vec<&mut ProximityPair> =
-            unsafe { std::mem::transmute(&mut self.ball_ball_prox) };
-        let shape_shape_prox: &mut Vec<&mut ProximityPair> =
-            unsafe { std::mem::transmute(&mut self.shape_shape_prox) };
-
-        let bodies = &bodies.bodies;
-
-        // FIXME: don't iterate through all the interactions.
-        for pair in &mut self.proximity_graph.interactions {
-            let co1 = &colliders[pair.pair.collider1];
-            let co2 = &colliders[pair.pair.collider2];
-
-            // FIXME: avoid lookup into bodies.
-            let rb1 = &bodies[co1.parent];
-            let rb2 = &bodies[co2.parent];
-
-            if (rb1.is_sleeping() || !rb1.is_dynamic()) && (rb2.is_sleeping() || !rb2.is_dynamic())
-            {
-                // No need to update this proximity because nothing moved.
-                continue;
-            }
-
-            match (co1.shape(), co2.shape()) {
-                (Shape::Ball(_), Shape::Ball(_)) => ball_ball_prox.push(pair),
-                _ => shape_shape_prox.push(pair),
-            }
-        }
-
-        par_chunks_mut!(ball_ball_prox, SIMD_WIDTH).for_each(|pairs| {
-            let context = ProximityDetectionContextSimd {
-                dispatcher: &DefaultProximityDispatcher,
-                prediction_distance,
-                colliders,
-                pairs,
-            };
-            context.pairs[0]
-                .detector
-                .detect_proximity_simd(context, events);
-        });
-
-        par_iter_mut!(shape_shape_prox).for_each(|pair| {
-            let context = ProximityDetectionContext {
-                dispatcher: &DefaultProximityDispatcher,
-                prediction_distance,
-                colliders,
-                pair,
-            };
-
-            context.pair.detector.detect_proximity(context, events);
-        });
-
-        ball_ball_prox.clear();
-        shape_shape_prox.clear();
-        */
     }
 
     pub(crate) fn compute_contacts(
@@ -414,6 +356,11 @@ impl NarrowPhase {
                 || (!rb1.is_dynamic() && !rb2.is_dynamic())
             {
                 // No need to update this contact because nothing moved.
+                return;
+            }
+
+            if !co1.collision_groups.test(co2.collision_groups) {
+                // The collision is not allowed.
                 return;
             }
 
@@ -440,69 +387,6 @@ impl NarrowPhase {
                 .unwrap()
                 .generate_contacts(context, events);
         });
-
-        /*
-        // First, group pairs.
-        // NOTE: the transmutes here are OK because the Vec are all cleared
-        // before we leave this method.
-        // We do this in order to avoid reallocating those vecs each time
-        // we compute the contacts. Unsafe is necessary because we can't just
-        // store a Vec<&mut ContactPair> into the NarrowPhase struct without
-        // polluting the World with lifetimes.
-        let ball_ball: &mut Vec<&mut ContactPair> =
-            unsafe { std::mem::transmute(&mut self.ball_ball) };
-        let shape_shape: &mut Vec<&mut ContactPair> =
-            unsafe { std::mem::transmute(&mut self.shape_shape) };
-
-        let bodies = &bodies.bodies;
-
-        // FIXME: don't iterate through all the interactions.
-        for pair in &mut self.contact_graph.interactions {
-            let co1 = &colliders[pair.pair.collider1];
-            let co2 = &colliders[pair.pair.collider2];
-
-            // FIXME: avoid lookup into bodies.
-            let rb1 = &bodies[co1.parent];
-            let rb2 = &bodies[co2.parent];
-
-            if (rb1.is_sleeping() || !rb1.is_dynamic()) && (rb2.is_sleeping() || !rb2.is_dynamic())
-            {
-                // No need to update this contact because nothing moved.
-                continue;
-            }
-
-            match (co1.shape(), co2.shape()) {
-                (Shape::Ball(_), Shape::Ball(_)) => ball_ball.push(pair),
-                _ => shape_shape.push(pair),
-            }
-        }
-
-        par_chunks_mut!(ball_ball, SIMD_WIDTH).for_each(|pairs| {
-            let context = ContactGenerationContextSimd {
-                dispatcher: &DefaultContactDispatcher,
-                prediction_distance,
-                colliders,
-                pairs,
-            };
-            context.pairs[0]
-                .generator
-                .generate_contacts_simd(context, events);
-        });
-
-        par_iter_mut!(shape_shape).for_each(|pair| {
-            let context = ContactGenerationContext {
-                dispatcher: &DefaultContactDispatcher,
-                prediction_distance,
-                colliders,
-                pair,
-            };
-
-            context.pair.generator.generate_contacts(context, events);
-        });
-
-        ball_ball.clear();
-        shape_shape.clear();
-        */
     }
 
     /// Retrieve all the interactions with at least one contact point, happening between two active bodies.

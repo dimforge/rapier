@@ -70,6 +70,7 @@ pub(crate) use self::polyhedron_feature3d::PolyhedronFace;
 pub(crate) use self::waabb::{WRay, WAABB};
 pub(crate) use self::wquadtree::WQuadtree;
 //pub(crate) use self::z_order::z_cmp_floats;
+pub use self::interaction_groups::InteractionGroups;
 pub use self::shape::{Shape, ShapeType};
 
 mod ball;
@@ -97,6 +98,7 @@ mod waabb;
 mod wquadtree;
 //mod z_order;
 mod capsule;
+mod interaction_groups;
 #[cfg(feature = "dim3")]
 mod polygonal_feature_map;
 #[cfg(feature = "dim3")]
