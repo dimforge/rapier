@@ -303,7 +303,10 @@ impl NarrowPhase {
             let rb1 = &bodies[co1.parent];
             let rb2 = &bodies[co2.parent];
 
-            if (rb1.is_sleeping() && rb2.is_static()) || (rb2.is_sleeping() && rb1.is_static()) {
+            if (rb1.is_sleeping() && rb2.is_static())
+                || (rb2.is_sleeping() && rb1.is_static())
+                || (rb1.is_sleeping() && rb2.is_sleeping())
+            {
                 // No need to update this proximity because nothing moved.
                 return;
             }
@@ -374,7 +377,10 @@ impl NarrowPhase {
             let rb1 = &bodies[co1.parent];
             let rb2 = &bodies[co2.parent];
 
-            if (rb1.is_sleeping() && rb2.is_static()) || (rb2.is_sleeping() && rb1.is_static()) {
+            if (rb1.is_sleeping() && rb2.is_static())
+                || (rb2.is_sleeping() && rb1.is_static())
+                || (rb1.is_sleeping() && rb2.is_sleeping())
+            {
                 // No need to update this contact because nothing moved.
                 return;
             }
