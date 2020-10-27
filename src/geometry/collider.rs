@@ -206,6 +206,8 @@ pub struct Collider {
     pub(crate) contact_graph_index: ColliderGraphIndex,
     pub(crate) proximity_graph_index: ColliderGraphIndex,
     pub(crate) proxy_index: usize,
+    /// User-defined data associated to this rigid-body.
+    pub user_data: u128,
 }
 
 impl Clone for Collider {
@@ -296,6 +298,8 @@ pub struct ColliderBuilder {
     pub delta: Isometry<f32>,
     /// Is this collider a sensor?
     pub is_sensor: bool,
+    /// The user-data of the collider beind built.
+    pub user_data: u128,
 }
 
 impl ColliderBuilder {
@@ -308,6 +312,7 @@ impl ColliderBuilder {
             restitution: 0.0,
             delta: Isometry::identity(),
             is_sensor: false,
+            user_data: 0,
         }
     }
 
@@ -413,6 +418,12 @@ impl ColliderBuilder {
         0.5
     }
 
+    /// An arbitrary user-defined 128-bit integer associated to the colliders built by this builder.
+    pub fn user_data(mut self, data: u128) -> Self {
+        self.user_data = data;
+        self
+    }
+
     /// Sets whether or not the collider built by this builder is a sensor.
     pub fn sensor(mut self, is_sensor: bool) -> Self {
         self.is_sensor = is_sensor;
@@ -477,7 +488,7 @@ impl ColliderBuilder {
         self
     }
 
-    /// Buildes a new collider attached to the given rigid-body.
+    /// Builds a new collider attached to the given rigid-body.
     pub fn build(&self) -> Collider {
         let density = self.get_density();
 
@@ -494,6 +505,7 @@ impl ColliderBuilder {
             contact_graph_index: InteractionGraph::<Contact>::invalid_graph_index(),
             proximity_graph_index: InteractionGraph::<Proximity>::invalid_graph_index(),
             proxy_index: crate::INVALID_USIZE,
+            user_data: self.user_data,
         }
     }
 }
