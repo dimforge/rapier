@@ -4,7 +4,7 @@ use crate::geometry::{
     Segment, Shape, ShapeType, Triangle, Trimesh,
 };
 #[cfg(feature = "dim3")]
-use crate::geometry::{Cone, Cylinder, Rounded};
+use crate::geometry::{Cone, Cylinder, RoundCylinder};
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
 use na::Point3;
 use ncollide::bounding_volume::AABB;
@@ -39,10 +39,11 @@ impl ColliderShape {
     /// (along along the y axis), its radius, and its roundedness (the
     /// radius of the sphere used for dilating the cylinder).
     #[cfg(feature = "dim3")]
-    pub fn round_cylinder(half_height: f32, radius: f32, round_radius: f32) -> Self {
-        ColliderShape(Arc::new(Rounded::new(
-            Cylinder::new(half_height, radius),
-            round_radius,
+    pub fn round_cylinder(half_height: f32, radius: f32, border_radius: f32) -> Self {
+        ColliderShape(Arc::new(RoundCylinder::new(
+            half_height,
+            radius,
+            border_radius,
         )))
     }
 
@@ -170,7 +171,7 @@ impl<'de> serde::Deserialize<'de> for ColliderShape {
                     #[cfg(feature = "dim3")]
                     Some(ShapeType::Cone) => deser::<A, Cone>(&mut seq)?,
                     #[cfg(feature = "dim3")]
-                    Some(ShapeType::RoundCylinder) => deser::<A, Rounded<Cylinder>>(&mut seq)?,
+                    Some(ShapeType::RoundCylinder) => deser::<A, RoundCylinder>(&mut seq)?,
                     None => {
                         return Err(serde::de::Error::custom(
                             "found invalid shape type to deserialize",
@@ -332,11 +333,11 @@ impl ColliderBuilder {
     /// (along along the y axis), its radius, and its roundedness (the
     /// radius of the sphere used for dilating the cylinder).
     #[cfg(feature = "dim3")]
-    pub fn round_cylinder(half_height: f32, radius: f32, round_radius: f32) -> Self {
+    pub fn round_cylinder(half_height: f32, radius: f32, border_radius: f32) -> Self {
         Self::new(ColliderShape::round_cylinder(
             half_height,
             radius,
-            round_radius,
+            border_radius,
         ))
     }
 

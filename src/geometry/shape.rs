@@ -1,6 +1,6 @@
 use crate::dynamics::MassProperties;
 use crate::geometry::{
-    Ball, Capsule, Cuboid, HeightField, Roundable, Rounded, Segment, Triangle, Trimesh,
+    Ball, Capsule, Cuboid, HeightField, RoundCylinder, Segment, Triangle, Trimesh,
 };
 use crate::math::Isometry;
 use downcast_rs::{impl_downcast, DowncastSync};
@@ -132,11 +132,8 @@ impl dyn Shape {
     }
 
     /// Converts this abstract shape to a cone, if it is one.
-    pub fn as_rounded<S>(&self) -> Option<&Rounded<S>>
-    where
-        S: Roundable,
-        Rounded<S>: Shape,
-    {
+    #[cfg(feature = "dim3")]
+    pub fn as_round_cylinder(&self) -> Option<&RoundCylinder> {
         self.downcast_ref()
     }
 }
@@ -364,19 +361,21 @@ impl Shape for Cone {
 }
 
 #[cfg(feature = "dim3")]
-impl Shape for Rounded<Cylinder> {
+impl Shape for RoundCylinder {
     #[cfg(feature = "serde-serialize")]
     fn as_serialize(&self) -> Option<&dyn Serialize> {
         Some(self as &dyn Serialize)
     }
 
     fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
-        self.shape.compute_aabb(position).loosened(self.radius)
+        self.cylinder
+            .compute_aabb(position)
+            .loosened(self.border_radius)
     }
 
     fn mass_properties(&self, density: f32) -> MassProperties {
         // We ignore the margin here.
-        self.shape.mass_properties(density)
+        self.cylinder.mass_properties(density)
     }
 
     fn shape_type(&self) -> ShapeType {
@@ -385,6 +384,9 @@ impl Shape for Rounded<Cylinder> {
 
     #[cfg(feature = "dim3")]
     fn as_polygonal_feature_map(&self) -> Option<(&dyn PolygonalFeatureMap, f32)> {
-        Some((&self.shape as &dyn PolygonalFeatureMap, self.radius))
+        Some((
+            &self.cylinder as &dyn PolygonalFeatureMap,
+            self.border_radius,
+        ))
     }
 }

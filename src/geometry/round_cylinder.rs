@@ -1,6 +1,5 @@
 #[cfg(feature = "dim3")]
 use crate::geometry::Cylinder;
-use crate::geometry::ShapeType;
 use crate::math::{Isometry, Point, Vector};
 use na::Unit;
 use ncollide::query::{
@@ -8,44 +7,35 @@ use ncollide::query::{
 };
 use ncollide::shape::{FeatureId, SupportMap};
 
-/// A shape which corner can be rounded.
-pub trait Roundable {
-    /// The ShapeType fo this shape after rounding its corners.
-    fn rounded_shape_type() -> ShapeType;
-}
-
-#[cfg(feature = "dim3")]
-impl Roundable for Cylinder {
-    fn rounded_shape_type() -> ShapeType {
-        ShapeType::RoundCylinder
-    }
-}
-
-/// A rounded shape.
+/// A rounded cylinder.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-pub struct Rounded<S: Roundable> {
-    /// The shape being rounded.
-    pub shape: S,
+#[derive(Copy, Clone, Debug)]
+pub struct RoundCylinder {
+    /// The cylinder being rounded.
+    pub cylinder: Cylinder,
     /// The rounding radius.
-    pub radius: f32,
+    pub border_radius: f32,
 }
 
-impl<S: Roundable> Rounded<S> {
-    /// Create sa new shape where all its edges and vertices are rounded by a radius of `radius`.
+impl RoundCylinder {
+    /// Create sa new cylinder where all its edges and vertices are rounded by a radius of `radius`.
     ///
-    /// This is done by applying a dilation of the given radius to the shape.
-    pub fn new(shape: S, radius: f32) -> Self {
-        Self { shape, radius }
+    /// This is done by applying a dilation of the given radius to the cylinder.
+    pub fn new(half_height: f32, radius: f32, border_radius: f32) -> Self {
+        Self {
+            cylinder: Cylinder::new(half_height, radius),
+            border_radius,
+        }
     }
 }
 
-impl<S: Roundable + SupportMap<f32>> SupportMap<f32> for Rounded<S> {
+impl SupportMap<f32> for RoundCylinder {
     fn local_support_point(&self, dir: &Vector<f32>) -> Point<f32> {
         self.local_support_point_toward(&Unit::new_normalize(*dir))
     }
 
     fn local_support_point_toward(&self, dir: &Unit<Vector<f32>>) -> Point<f32> {
-        self.shape.local_support_point_toward(dir) + **dir * self.radius
+        self.cylinder.local_support_point_toward(dir) + **dir * self.border_radius
     }
 
     fn support_point(&self, transform: &Isometry<f32>, dir: &Vector<f32>) -> Point<f32> {
@@ -63,7 +53,7 @@ impl<S: Roundable + SupportMap<f32>> SupportMap<f32> for Rounded<S> {
     }
 }
 
-impl<S: Roundable + SupportMap<f32>> RayCast<f32> for Rounded<S> {
+impl RayCast<f32> for RoundCylinder {
     fn toi_and_normal_with_ray(
         &self,
         m: &Isometry<f32>,
@@ -90,7 +80,7 @@ impl<S: Roundable + SupportMap<f32>> RayCast<f32> for Rounded<S> {
 
 // TODO: if PointQuery had a `project_point_with_normal` method, we could just
 // call this and adjust the projected point accordingly.
-impl<S: Roundable + SupportMap<f32>> PointQuery<f32> for Rounded<S> {
+impl PointQuery<f32> for RoundCylinder {
     #[inline]
     fn project_point(
         &self,
