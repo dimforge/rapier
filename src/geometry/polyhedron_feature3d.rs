@@ -64,8 +64,8 @@ impl PolyhedronFace {
     }
 
     pub fn transform_by(&mut self, iso: &Isometry<f32>) {
-        for v in &mut self.vertices[0..self.num_vertices] {
-            *v = iso * *v;
+        for p in &mut self.vertices[0..self.num_vertices] {
+            *p = iso * *p;
         }
     }
 
