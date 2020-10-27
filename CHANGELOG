@@ -1,3 +1,16 @@
+## v0.3.0
+- Collider shapes are now trait-objects instead of a `Shape` enum.
+- Add a user-defined `u128` to each colliders and rigid-bodies for storing user data.
+- Add the support for `Cylinder`, `RoundCylinder`, and `Cone` shapes.
+- Added the support for collision filtering based on bit masks (often known as collision groups, collision masks, or
+  collision layers in other physics engines). Each collider has two groups. Their `collision_groups` is used for filtering
+  what pair of colliders should have their contacts computed by the narrow-phase. Their `solver_groups` is used for filtering
+  what pair of colliders should have their contact forces computed by the constraints solver.
+- Collision groups can also be used to filter what collider should be hit by a ray-cast performed by the `QueryPipeline`.
+- Added collision filters based on user-defined trait-objects. This adds two traits `ContactPairFilter` and
+  `ProximityPairFilter` that allows user-defined logic for determining if two colliders/sensors are allowed to interact.
+- The `PhysicsPipeline::step` method now takes two additional arguments: the optional `&ContactPairFilter` and `&ProximityPairFilter`
+for filtering contact and proximity pairs.
 
 ## v0.2.1
 - Fix panic in TriMesh construction and QueryPipeline update caused by a stack overflow or a subtraction underflow.
