@@ -1,7 +1,7 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
 #[cfg(feature = "dim3")]
 use crate::geometry::PolyhedronFace;
-use crate::geometry::{cuboid, sat, ContactManifold, Cuboid, KinematicsCategory, Shape, Triangle};
+use crate::geometry::{cuboid, sat, ContactManifold, Cuboid, KinematicsCategory, Triangle};
 use crate::math::Isometry;
 #[cfg(feature = "dim2")]
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub fn generate_contacts_cuboid_triangle(ctxt: &mut PrimitiveContactGenerationContext) {
-    if let (Shape::Cuboid(cube1), Shape::Triangle(triangle2)) = (ctxt.shape1, ctxt.shape2) {
+    if let (Some(cube1), Some(triangle2)) = (ctxt.shape1.as_cuboid(), ctxt.shape2.as_triangle()) {
         generate_contacts(
             ctxt.prediction_distance,
             cube1,
@@ -21,7 +21,9 @@ pub fn generate_contacts_cuboid_triangle(ctxt: &mut PrimitiveContactGenerationCo
             false,
         );
         ctxt.manifold.update_warmstart_multiplier();
-    } else if let (Shape::Triangle(triangle1), Shape::Cuboid(cube2)) = (ctxt.shape1, ctxt.shape2) {
+    } else if let (Some(triangle1), Some(cube2)) =
+        (ctxt.shape1.as_triangle(), ctxt.shape2.as_cuboid())
+    {
         generate_contacts(
             ctxt.prediction_distance,
             cube2,

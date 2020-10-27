@@ -9,11 +9,10 @@ use na::Point3;
 use crate::math::Point;
 use crate::objects::ball::Ball;
 use crate::objects::box_node::Box as BoxNode;
-use crate::objects::convex::Convex;
 use crate::objects::heightfield::HeightField;
 use crate::objects::node::{GraphicsNode, Node};
 use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
-use rapier::geometry::{Collider, ColliderHandle, ColliderSet, Shape};
+use rapier::geometry::{Collider, ColliderHandle, ColliderSet};
 //use crate::objects::capsule::Capsule;
 //use crate::objects::convex::Convex;
 //#[cfg(feature = "fluids")]
@@ -26,6 +25,10 @@ use rapier::geometry::{Collider, ColliderHandle, ColliderSet, Shape};
 //#[cfg(feature = "fluids")]
 //use crate::objects::FluidRenderingMode;
 use crate::objects::capsule::Capsule;
+#[cfg(feature = "dim3")]
+use crate::objects::cone::Cone;
+#[cfg(feature = "dim3")]
+use crate::objects::cylinder::Cylinder;
 use crate::objects::mesh::Mesh;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg32;
@@ -349,33 +352,44 @@ impl GraphicsManager {
         color: Point3<f32>,
         out: &mut Vec<Node>,
     ) {
-        match collider.shape() {
-            Shape::Ball(ball) => {
-                out.push(Node::Ball(Ball::new(handle, ball.radius, color, window)))
-            }
-            Shape::Polygon(poly) => out.push(Node::Convex(Convex::new(
-                handle,
-                poly.vertices().to_vec(),
-                color,
-                window,
-            ))),
-            Shape::Cuboid(cuboid) => out.push(Node::Box(BoxNode::new(
+        let shape = collider.shape();
+
+        if let Some(ball) = shape.as_ball() {
+            out.push(Node::Ball(Ball::new(handle, ball.radius, color, window)))
+        }
+
+        // Shape::Polygon(poly) => out.push(Node::Convex(Convex::new(
+        //     handle,
+        //     poly.vertices().to_vec(),
+        //     color,
+        //     window,
+        // ))),
+
+        if let Some(cuboid) = shape.as_cuboid() {
+            out.push(Node::Box(BoxNode::new(
                 handle,
                 cuboid.half_extents,
                 color,
                 window,
-            ))),
-            Shape::Capsule(capsule) => {
-                out.push(Node::Capsule(Capsule::new(handle, capsule, color, window)))
-            }
-            Shape::Triangle(triangle) => out.push(Node::Mesh(Mesh::new(
+            )))
+        }
+
+        if let Some(capsule) = shape.as_capsule() {
+            out.push(Node::Capsule(Capsule::new(handle, capsule, color, window)))
+        }
+
+        if let Some(triangle) = shape.as_triangle() {
+            out.push(Node::Mesh(Mesh::new(
                 handle,
                 vec![triangle.a, triangle.b, triangle.c],
                 vec![Point3::new(0, 1, 2)],
                 color,
                 window,
-            ))),
-            Shape::Trimesh(trimesh) => out.push(Node::Mesh(Mesh::new(
+            )))
+        }
+
+        if let Some(trimesh) = shape.as_trimesh() {
+            out.push(Node::Mesh(Mesh::new(
                 handle,
                 trimesh.vertices().to_vec(),
                 trimesh
@@ -385,13 +399,41 @@ impl GraphicsManager {
                     .collect(),
                 color,
                 window,
-            ))),
-            Shape::HeightField(heightfield) => out.push(Node::HeightField(HeightField::new(
+            )))
+        }
+
+        if let Some(heightfield) = shape.as_heightfield() {
+            out.push(Node::HeightField(HeightField::new(
                 handle,
                 heightfield,
                 color,
                 window,
-            ))),
+            )))
+        }
+
+        #[cfg(feature = "dim3")]
+        if let Some(cylinder) = shape
+            .as_cylinder()
+            .or(shape.as_round_cylinder().map(|r| &r.cylinder))
+        {
+            out.push(Node::Cylinder(Cylinder::new(
+                handle,
+                cylinder.half_height,
+                cylinder.radius,
+                color,
+                window,
+            )))
+        }
+
+        #[cfg(feature = "dim3")]
+        if let Some(cone) = shape.as_cone() {
+            out.push(Node::Cone(Cone::new(
+                handle,
+                cone.half_height,
+                cone.radius,
+                color,
+                window,
+            )))
         }
     }
 

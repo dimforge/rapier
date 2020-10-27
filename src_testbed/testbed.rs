@@ -21,7 +21,9 @@ use na::{self, Point2, Point3, Vector3};
 use rapier::dynamics::{
     ActivationStatus, IntegrationParameters, JointSet, RigidBodyHandle, RigidBodySet,
 };
-use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent, Ray};
+#[cfg(feature = "dim3")]
+use rapier::geometry::Ray;
+use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent};
 use rapier::math::Vector;
 use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
 #[cfg(feature = "fluids")]

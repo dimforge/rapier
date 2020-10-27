@@ -1,10 +1,10 @@
 use crate::geometry::proximity_detector::PrimitiveProximityDetectionContext;
-use crate::geometry::{sat, Proximity, Shape};
+use crate::geometry::{sat, Proximity};
 use crate::math::Isometry;
 use ncollide::shape::Cuboid;
 
 pub fn detect_proximity_cuboid_cuboid(ctxt: &mut PrimitiveProximityDetectionContext) -> Proximity {
-    if let (Shape::Cuboid(cube1), Shape::Cuboid(cube2)) = (ctxt.shape1, ctxt.shape2) {
+    if let (Some(cube1), Some(cube2)) = (ctxt.shape1.as_cuboid(), ctxt.shape2.as_cuboid()) {
         detect_proximity(
             ctxt.prediction_distance,
             cube1,

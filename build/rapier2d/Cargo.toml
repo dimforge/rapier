@@ -1,4 +1,3 @@
-# Name idea: bident for 2D and trident for 3D
 [package]
 name    = "rapier2d"
 version = "0.2.1"
@@ -22,7 +21,7 @@ simd-nightly = [ "simba/packed_simd", "simd-is-enabled" ]
 # enabled with the "simd-stable" or "simd-nightly" feature.
 simd-is-enabled = [ ]
 wasm-bindgen = [ "instant/wasm-bindgen" ]
-serde-serialize = [ "nalgebra/serde-serialize", "ncollide2d/serde-serialize", "serde", "generational-arena/serde", "bit-vec/serde", "arrayvec/serde" ]
+serde-serialize = [ "erased-serde", "nalgebra/serde-serialize", "ncollide2d/serde-serialize", "serde", "generational-arena/serde", "bit-vec/serde", "arrayvec/serde" ]
 enhanced-determinism = [ "simba/libm_force", "indexmap" ]
 
 [lib]
@@ -35,18 +34,21 @@ required-features = [ "dim2" ]
 vec_map = "0.8"
 instant = { version = "0.1", features = [ "now" ]}
 num-traits = "0.2"
-nalgebra = "0.22"
-ncollide2d = "0.24"
-simba = "^0.2.1"
-approx = "0.3"
+nalgebra = "0.23"
+ncollide2d = "0.26"
+simba = "0.3"
+approx = "0.4"
 rayon = { version = "1", optional = true }
-crossbeam = "0.7"
+crossbeam = "0.8"
 generational-arena = "0.2"
 arrayvec = "0.5"
 bit-vec = "0.6"
 rustc-hash = "1"
 serde = { version = "1", features = [ "derive" ], optional = true }
+erased-serde = { version = "0.3", optional = true }
 indexmap = { version = "1", features = [ "serde-1" ], optional = true }
+downcast-rs = "1.2"
+num-derive = "0.3"
 
 [dev-dependencies]
 bincode = "1"

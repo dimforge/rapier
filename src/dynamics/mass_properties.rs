@@ -91,7 +91,7 @@ impl MassProperties {
     }
 
     #[cfg(feature = "dim3")]
-    /// Reconstructs the inverse angular inertia tensor of the rigid body from its principal inertia values and axii.
+    /// Reconstructs the inverse angular inertia tensor of the rigid body from its principal inertia values and axes.
     pub fn reconstruct_inverse_inertia_matrix(&self) -> Matrix3<f32> {
         let inv_principal_inertia = self.inv_principal_inertia_sqrt.map(|e| e * e);
         self.principal_inertia_local_frame.to_rotation_matrix()
@@ -103,7 +103,7 @@ impl MassProperties {
     }
 
     #[cfg(feature = "dim3")]
-    /// Reconstructs the angular inertia tensor of the rigid body from its principal inertia values and axii.
+    /// Reconstructs the angular inertia tensor of the rigid body from its principal inertia values and axes.
     pub fn reconstruct_inertia_matrix(&self) -> Matrix3<f32> {
         let principal_inertia = self.inv_principal_inertia_sqrt.map(|e| utils::inv(e * e));
         self.principal_inertia_local_frame.to_rotation_matrix()

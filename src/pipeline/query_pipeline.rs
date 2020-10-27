@@ -69,7 +69,11 @@ impl QueryPipeline {
 
         for handle in inter {
             let collider = &colliders[handle];
-            if let Some(inter) = collider.shape().cast_ray(collider.position(), ray, max_toi) {
+            if let Some(inter) =
+                collider
+                    .shape()
+                    .toi_and_normal_with_ray(collider.position(), ray, max_toi, true)
+            {
                 if inter.toi < best {
                     best = inter.toi;
                     result = Some((handle, collider, inter));
@@ -103,7 +107,11 @@ impl QueryPipeline {
 
         for handle in inter {
             let collider = &colliders[handle];
-            if let Some(inter) = collider.shape().cast_ray(collider.position(), ray, max_toi) {
+            if let Some(inter) =
+                collider
+                    .shape()
+                    .toi_and_normal_with_ray(collider.position(), ray, max_toi, true)
+            {
                 if !callback(handle, collider, inter) {
                     return;
                 }

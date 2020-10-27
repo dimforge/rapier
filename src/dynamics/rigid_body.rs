@@ -218,6 +218,7 @@ impl RigidBody {
         let shift = Translation::from(com.coords);
         shift * Isometry::new(self.linvel * dt, self.angvel * dt) * shift.inverse()
     }
+
     pub(crate) fn integrate(&mut self, dt: f32) {
         self.position = self.integrate_velocity(dt) * self.position;
     }
@@ -334,7 +335,7 @@ impl RigidBody {
     }
 }
 
-/// A builder for rigid-bodies.
+/// A builder for rigid-bodies.
 pub struct RigidBodyBuilder {
     position: Isometry<f32>,
     linvel: Vector<f32>,

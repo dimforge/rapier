@@ -64,13 +64,17 @@ pub fn init_world(testbed: &mut Testbed) {
                 let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
                 let handle = bodies.insert(rigid_body);
 
-                if j % 2 == 0 {
-                    let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
-                    colliders.insert(collider, handle, &mut bodies);
-                } else {
-                    let collider = ColliderBuilder::ball(rad).build();
-                    colliders.insert(collider, handle, &mut bodies);
-                }
+                let collider = match j % 5 {
+                    0 => ColliderBuilder::cuboid(rad, rad, rad).build(),
+                    1 => ColliderBuilder::ball(rad).build(),
+                    // Rounded cylinders are much more efficient that cylinder, even if the
+                    // rounding margin is small.
+                    2 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0).build(),
+                    3 => ColliderBuilder::cone(rad, rad).build(),
+                    _ => ColliderBuilder::capsule_y(rad, rad).build(),
+                };
+
+                colliders.insert(collider, handle, &mut bodies);
             }
         }
     }

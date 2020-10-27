@@ -197,7 +197,8 @@ impl NarrowPhase {
 
                             if self.proximity_graph.graph.find_edge(gid1, gid2).is_none() {
                                 let dispatcher = DefaultProximityDispatcher;
-                                let generator = dispatcher.dispatch(co1.shape(), co2.shape());
+                                let generator = dispatcher
+                                    .dispatch(co1.shape().shape_type(), co2.shape().shape_type());
                                 let interaction =
                                     ProximityPair::new(*pair, generator.0, generator.1);
                                 let _ = self.proximity_graph.add_edge(
@@ -226,7 +227,8 @@ impl NarrowPhase {
 
                             if self.contact_graph.graph.find_edge(gid1, gid2).is_none() {
                                 let dispatcher = DefaultContactDispatcher;
-                                let generator = dispatcher.dispatch(co1.shape(), co2.shape());
+                                let generator = dispatcher
+                                    .dispatch(co1.shape().shape_type(), co2.shape().shape_type());
                                 let interaction = ContactPair::new(*pair, generator.0, generator.1);
                                 let _ = self.contact_graph.add_edge(
                                     co1.contact_graph_index,
@@ -308,7 +310,8 @@ impl NarrowPhase {
             if pair.detector.is_none() {
                 // We need a redispatch for this detector.
                 // This can happen, e.g., after restoring a snapshot of the narrow-phase.
-                let (detector, workspace) = dispatcher.dispatch(co1.shape(), co2.shape());
+                let (detector, workspace) =
+                    dispatcher.dispatch(co1.shape().shape_type(), co2.shape().shape_type());
                 pair.detector = Some(detector);
                 pair.detector_workspace = workspace;
             }
@@ -418,7 +421,8 @@ impl NarrowPhase {
             if pair.generator.is_none() {
                 // We need a redispatch for this generator.
                 // This can happen, e.g., after restoring a snapshot of the narrow-phase.
-                let (generator, workspace) = dispatcher.dispatch(co1.shape(), co2.shape());
+                let (generator, workspace) =
+                    dispatcher.dispatch(co1.shape().shape_type(), co2.shape().shape_type());
                 pair.generator = Some(generator);
                 pair.generator_workspace = workspace;
             }
