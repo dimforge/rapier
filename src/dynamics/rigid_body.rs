@@ -54,6 +54,8 @@ pub struct RigidBody {
     pub(crate) active_set_timestamp: u32,
     /// The status of the body, governing how it is affected by external forces.
     pub body_status: BodyStatus,
+    /// User-defined associated to this rigid-body.
+    pub user_data: u128,
 }
 
 impl Clone for RigidBody {
@@ -90,6 +92,7 @@ impl RigidBody {
             active_set_offset: 0,
             active_set_timestamp: 0,
             body_status: BodyStatus::Dynamic,
+            user_data: 0,
         }
     }
 
@@ -342,6 +345,7 @@ pub struct RigidBodyBuilder {
     angvel: AngVector<f32>,
     body_status: BodyStatus,
     can_sleep: bool,
+    user_data: u128,
 }
 
 impl RigidBodyBuilder {
@@ -353,6 +357,7 @@ impl RigidBodyBuilder {
             angvel: na::zero(),
             body_status,
             can_sleep: true,
+            user_data: 0,
         }
     }
 
@@ -400,6 +405,12 @@ impl RigidBodyBuilder {
         self
     }
 
+    /// An arbitrary user-defined 128-bit integer associated to the rigid-bodies built by this builder.
+    pub fn user_data(mut self, data: u128) -> Self {
+        self.user_data = data;
+        self
+    }
+
     /// Sets the initial linear velocity of the rigid-body to be created.
     #[cfg(feature = "dim2")]
     pub fn linvel(mut self, x: f32, y: f32) -> Self {
@@ -434,6 +445,7 @@ impl RigidBodyBuilder {
         rb.linvel = self.linvel;
         rb.angvel = self.angvel;
         rb.body_status = self.body_status;
+        rb.user_data = self.user_data;
 
         if !self.can_sleep {
             rb.activation.threshold = -1.0;
