@@ -320,10 +320,10 @@ impl NarrowPhase {
 
             if let Some(filter) = pair_filter {
                 let context = PairFilterContext {
-                    collider1: co1,
-                    collider2: co2,
                     rigid_body1: rb1,
                     rigid_body2: rb2,
+                    collider1: co1,
+                    collider2: co2,
                 };
 
                 if !filter.filter_proximity_pair(&context) {
@@ -389,12 +389,12 @@ impl NarrowPhase {
                 return;
             }
 
-            let solver_flags = if let Some(filter) = pair_filter {
+            let mut solver_flags = if let Some(filter) = pair_filter {
                 let context = PairFilterContext {
-                    collider1: co1,
-                    collider2: co2,
                     rigid_body1: rb1,
                     rigid_body2: rb2,
+                    collider1: co1,
+                    collider2: co2,
                 };
 
                 if let Some(solver_flags) = filter.filter_contact_pair(&context) {
@@ -404,12 +404,12 @@ impl NarrowPhase {
                     return;
                 }
             } else {
-                if co1.solver_groups.test(co2.solver_groups) {
-                    SolverFlags::COMPUTE_IMPULSES
-                } else {
-                    SolverFlags::empty()
-                }
+                SolverFlags::COMPUTE_IMPULSES
             };
+
+            if !co1.solver_groups.test(co2.solver_groups) {
+                solver_flags.remove(SolverFlags::COMPUTE_IMPULSES);
+            }
 
             let dispatcher = DefaultContactDispatcher;
             if pair.generator.is_none() {

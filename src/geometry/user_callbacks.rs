@@ -4,13 +4,13 @@ use crate::geometry::{Collider, SolverFlags};
 /// Context given to custom collision filters to filter-out collisions.
 pub struct PairFilterContext<'a> {
     /// The first collider involved in the potential collision.
-    pub collider1: &'a Collider,
-    /// The first collider involved in the potential collision.
-    pub collider2: &'a Collider,
-    /// The first collider involved in the potential collision.
     pub rigid_body1: &'a RigidBody,
     /// The first collider involved in the potential collision.
     pub rigid_body2: &'a RigidBody,
+    /// The first collider involved in the potential collision.
+    pub collider1: &'a Collider,
+    /// The first collider involved in the potential collision.
+    pub collider2: &'a Collider,
 }
 
 /// User-defined filter for potential contact pairs detected by the broad-phase.
@@ -23,9 +23,6 @@ pub trait ContactPairFilter: Send + Sync {
     ///
     /// Note that using a contact pair filter will replace the default contact filtering
     /// which consists of preventing contact computation between two non-dynamic bodies.
-    ///
-    /// Note that using a contact pair filter will replace the default determination
-    /// of solver flags, based on the colliders solver groups.
     ///
     /// This filtering method is called after taking into account the colliders collision groups.
     ///
