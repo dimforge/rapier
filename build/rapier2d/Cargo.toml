@@ -49,6 +49,7 @@ erased-serde = { version = "0.3", optional = true }
 indexmap = { version = "1", features = [ "serde-1" ], optional = true }
 downcast-rs = "1.2"
 num-derive = "0.3"
+bitflags = "1"
 
 [dev-dependencies]
 bincode = "1"

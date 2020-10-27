@@ -1,5 +1,7 @@
 use crate::dynamics::RigidBodySet;
-use crate::geometry::{Collider, ColliderHandle, ColliderSet, Ray, RayIntersection, WQuadtree};
+use crate::geometry::{
+    Collider, ColliderHandle, ColliderSet, InteractionGroups, Ray, RayIntersection, WQuadtree,
+};
 
 /// A pipeline for performing queries on all the colliders of a scene.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -59,6 +61,7 @@ impl QueryPipeline {
         colliders: &'a ColliderSet,
         ray: &Ray,
         max_toi: f32,
+        groups: InteractionGroups,
     ) -> Option<(ColliderHandle, &'a Collider, RayIntersection)> {
         // TODO: avoid allocation?
         let mut inter = Vec::new();
@@ -69,14 +72,17 @@ impl QueryPipeline {
 
         for handle in inter {
             let collider = &colliders[handle];
-            if let Some(inter) =
-                collider
-                    .shape()
-                    .toi_and_normal_with_ray(collider.position(), ray, max_toi, true)
-            {
-                if inter.toi < best {
-                    best = inter.toi;
-                    result = Some((handle, collider, inter));
+            if collider.collision_groups.test(groups) {
+                if let Some(inter) = collider.shape().toi_and_normal_with_ray(
+                    collider.position(),
+                    ray,
+                    max_toi,
+                    true,
+                ) {
+                    if inter.toi < best {
+                        best = inter.toi;
+                        result = Some((handle, collider, inter));
+                    }
                 }
             }
         }
@@ -99,6 +105,7 @@ impl QueryPipeline {
         colliders: &'a ColliderSet,
         ray: &Ray,
         max_toi: f32,
+        groups: InteractionGroups,
         mut callback: impl FnMut(ColliderHandle, &'a Collider, RayIntersection) -> bool,
     ) {
         // TODO: avoid allocation?
@@ -107,13 +114,17 @@ impl QueryPipeline {
 
         for handle in inter {
             let collider = &colliders[handle];
-            if let Some(inter) =
-                collider
-                    .shape()
-                    .toi_and_normal_with_ray(collider.position(), ray, max_toi, true)
-            {
-                if !callback(handle, collider, inter) {
-                    return;
+
+            if collider.collision_groups.test(groups) {
+                if let Some(inter) = collider.shape().toi_and_normal_with_ray(
+                    collider.position(),
+                    ray,
+                    max_toi,
+                    true,
+                ) {
+                    if !callback(handle, collider, inter) {
+                        return;
+                    }
                 }
             }
         }

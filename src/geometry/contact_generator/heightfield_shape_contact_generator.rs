@@ -104,6 +104,7 @@ fn do_generate_contacts(
     let manifolds = &mut ctxt.pair.manifolds;
     let prediction_distance = ctxt.prediction_distance;
     let dispatcher = ctxt.dispatcher;
+    let solver_flags = ctxt.solver_flags;
     let shape_type2 = collider2.shape().shape_type();
 
     heightfield1.map_elements_in_local_aabb(&ls_aabb2, &mut |i, part1, _| {
@@ -131,8 +132,14 @@ fn do_generate_contacts(
                     timestamp: new_timestamp,
                     workspace: workspace2,
                 };
-                let manifold =
-                    ContactManifold::with_subshape_indices(coll_pair, collider1, collider2, i, 0);
+                let manifold = ContactManifold::with_subshape_indices(
+                    coll_pair,
+                    collider1,
+                    collider2,
+                    i,
+                    0,
+                    solver_flags,
+                );
                 manifolds.push(manifold);
 
                 entry.insert(sub_detector)

@@ -1,7 +1,7 @@
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{
-    Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph, Proximity,
-    Segment, Shape, ShapeType, Triangle, Trimesh,
+    Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph,
+    InteractionGroups, Proximity, Segment, Shape, ShapeType, Triangle, Trimesh,
 };
 #[cfg(feature = "dim3")]
 use crate::geometry::{Cone, Cylinder, RoundCylinder};
@@ -203,6 +203,8 @@ pub struct Collider {
     pub friction: f32,
     /// The restitution coefficient of this collider.
     pub restitution: f32,
+    pub(crate) collision_groups: InteractionGroups,
+    pub(crate) solver_groups: InteractionGroups,
     pub(crate) contact_graph_index: ColliderGraphIndex,
     pub(crate) proximity_graph_index: ColliderGraphIndex,
     pub(crate) proxy_index: usize,
@@ -255,6 +257,16 @@ impl Collider {
         &self.delta
     }
 
+    /// The collision groups used by this collider.
+    pub fn collision_groups(&self) -> InteractionGroups {
+        self.collision_groups
+    }
+
+    /// The solver groups used by this collider.
+    pub fn solver_groups(&self) -> InteractionGroups {
+        self.solver_groups
+    }
+
     /// The density of this collider.
     pub fn density(&self) -> f32 {
         self.density
@@ -298,8 +310,12 @@ pub struct ColliderBuilder {
     pub delta: Isometry<f32>,
     /// Is this collider a sensor?
     pub is_sensor: bool,
-    /// The user-data of the collider beind built.
+    /// The user-data of the collider being built.
     pub user_data: u128,
+    /// The collision groups for the collider being built.
+    pub collision_groups: InteractionGroups,
+    /// The solver groups for the collider being built.
+    pub solver_groups: InteractionGroups,
 }
 
 impl ColliderBuilder {
@@ -313,6 +329,8 @@ impl ColliderBuilder {
             delta: Isometry::identity(),
             is_sensor: false,
             user_data: 0,
+            collision_groups: InteractionGroups::all(),
+            solver_groups: InteractionGroups::all(),
         }
     }
 
@@ -418,9 +436,27 @@ impl ColliderBuilder {
         0.5
     }
 
-    /// An arbitrary user-defined 128-bit integer associated to the colliders built by this builder.
+    /// Sets an arbitrary user-defined 128-bit integer associated to the colliders built by this builder.
     pub fn user_data(mut self, data: u128) -> Self {
         self.user_data = data;
+        self
+    }
+
+    /// Sets the collision groups used by this collider.
+    ///
+    /// Two colliders will interact iff. their collision groups are compatible.
+    /// See [InteractionGroups::test] for details.
+    pub fn collision_groups(mut self, groups: InteractionGroups) -> Self {
+        self.collision_groups = groups;
+        self
+    }
+
+    /// Sets the solver groups used by this collider.
+    ///
+    /// Forces between two colliders in contact will be computed iff their solver groups are
+    /// compatible. See [InteractionGroups::test] for details.
+    pub fn solver_groups(mut self, groups: InteractionGroups) -> Self {
+        self.solver_groups = groups;
         self
     }
 
@@ -505,6 +541,8 @@ impl ColliderBuilder {
             contact_graph_index: InteractionGraph::<Contact>::invalid_graph_index(),
             proximity_graph_index: InteractionGraph::<Proximity>::invalid_graph_index(),
             proxy_index: crate::INVALID_USIZE,
+            collision_groups: self.collision_groups,
+            solver_groups: self.solver_groups,
             user_data: self.user_data,
         }
     }

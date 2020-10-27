@@ -23,7 +23,10 @@ use rapier::dynamics::{
 };
 #[cfg(feature = "dim3")]
 use rapier::geometry::Ray;
-use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent};
+use rapier::geometry::{
+    BroadPhase, ColliderHandle, ColliderSet, ContactEvent, InteractionGroups, NarrowPhase,
+    ProximityEvent,
+};
 use rapier::math::Vector;
 use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
 #[cfg(feature = "fluids")]
@@ -495,6 +498,10 @@ impl Testbed {
 
     pub fn set_body_color(&mut self, body: RigidBodyHandle, color: Point3<f32>) {
         self.graphics.set_body_color(body, color);
+    }
+
+    pub fn set_collider_initial_color(&mut self, collider: ColliderHandle, color: Point3<f32>) {
+        self.graphics.set_collider_initial_color(collider, color);
     }
 
     #[cfg(feature = "fluids")]
@@ -1182,10 +1189,12 @@ impl Testbed {
             .camera()
             .unproject(&self.cursor_pos, &na::convert(size));
         let ray = Ray::new(pos, dir);
-        let hit = self
-            .physics
-            .query_pipeline
-            .cast_ray(&self.physics.colliders, &ray, f32::MAX);
+        let hit = self.physics.query_pipeline.cast_ray(
+            &self.physics.colliders,
+            &ray,
+            f32::MAX,
+            InteractionGroups::all(),
+        );
 
         if let Some((_, collider, _)) = hit {
             if self.physics.bodies[collider.parent()].is_dynamic() {

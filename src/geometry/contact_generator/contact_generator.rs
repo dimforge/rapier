@@ -1,5 +1,6 @@
 use crate::geometry::{
     Collider, ColliderSet, ContactDispatcher, ContactEvent, ContactManifold, ContactPair, Shape,
+    SolverFlags,
 };
 use crate::math::Isometry;
 #[cfg(feature = "simd-is-enabled")]
@@ -26,8 +27,9 @@ impl ContactPhase {
             Self::NearPhase(gen) => (gen.generate_contacts)(&mut context),
             Self::ExactPhase(gen) => {
                 // Build the primitive context from the non-primitive context and dispatch.
-                let (collider1, collider2, manifold, workspace) =
-                    context.pair.single_manifold(context.colliders);
+                let (collider1, collider2, manifold, workspace) = context
+                    .pair
+                    .single_manifold(context.colliders, context.solver_flags);
                 let mut context2 = PrimitiveContactGenerationContext {
                     prediction_distance: context.prediction_distance,
                     collider1,
@@ -85,9 +87,11 @@ impl ContactPhase {
                     [Option<&mut (dyn Any + Send + Sync)>; SIMD_WIDTH],
                 > = ArrayVec::new();
 
-                for pair in context.pairs.iter_mut() {
+                for (pair, solver_flags) in
+                    context.pairs.iter_mut().zip(context.solver_flags.iter())
+                {
                     let (collider1, collider2, manifold, workspace) =
-                        pair.single_manifold(context.colliders);
+                        pair.single_manifold(context.colliders, *solver_flags);
                     colliders_arr.push((collider1, collider2));
                     manifold_arr.push(manifold);
                     workspace_arr.push(workspace);
@@ -188,6 +192,7 @@ pub struct ContactGenerationContext<'a> {
     pub prediction_distance: f32,
     pub colliders: &'a ColliderSet,
     pub pair: &'a mut ContactPair,
+    pub solver_flags: SolverFlags,
 }
 
 #[cfg(feature = "simd-is-enabled")]
@@ -196,6 +201,7 @@ pub struct ContactGenerationContextSimd<'a, 'b> {
     pub prediction_distance: f32,
     pub colliders: &'a ColliderSet,
     pub pairs: &'a mut [&'b mut ContactPair],
+    pub solver_flags: &'a [SolverFlags],
 }
 
 #[derive(Copy, Clone)]
