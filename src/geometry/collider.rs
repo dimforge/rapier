@@ -206,6 +206,7 @@ pub struct Collider {
     pub(crate) contact_graph_index: ColliderGraphIndex,
     pub(crate) proximity_graph_index: ColliderGraphIndex,
     pub(crate) proxy_index: usize,
+    /// User-defined data associated to this rigid-body.
     pub user_data: u128,
 }
 

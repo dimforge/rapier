@@ -54,7 +54,7 @@ pub struct RigidBody {
     pub(crate) active_set_timestamp: u32,
     /// The status of the body, governing how it is affected by external forces.
     pub body_status: BodyStatus,
-    /// User-defined associated to this rigid-body.
+    /// User-defined data associated to this rigid-body.
     pub user_data: u128,
 }
 
