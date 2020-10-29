@@ -1,7 +1,7 @@
 use crate::geometry::proximity_detector::{
     PrimitiveProximityDetectionContext, ProximityDetectionContext,
 };
-use crate::geometry::{Collider, Proximity, Shape, Trimesh};
+use crate::geometry::{Collider, Proximity, ShapeType, Trimesh};
 use crate::ncollide::bounding_volume::{BoundingVolume, AABB};
 
 pub struct TrimeshShapeProximityDetectorWorkspace {
@@ -24,9 +24,9 @@ pub fn detect_proximity_trimesh_shape(ctxt: &mut ProximityDetectionContext) -> P
     let collider1 = &ctxt.colliders[ctxt.pair.pair.collider1];
     let collider2 = &ctxt.colliders[ctxt.pair.pair.collider2];
 
-    if let Shape::Trimesh(trimesh1) = collider1.shape() {
+    if let Some(trimesh1) = collider1.shape().as_trimesh() {
         do_detect_proximity(trimesh1, collider1, collider2, ctxt)
-    } else if let Shape::Trimesh(trimesh2) = collider2.shape() {
+    } else if let Some(trimesh2) = collider2.shape().as_trimesh() {
         do_detect_proximity(trimesh2, collider2, collider1, ctxt)
     } else {
         panic!("Invalid shape types provided.")
@@ -83,6 +83,7 @@ fn do_detect_proximity(
     let new_interferences = &workspace.interferences;
     let mut old_inter_it = workspace.old_interferences.drain(..).peekable();
     let mut best_proximity = Proximity::Disjoint;
+    let shape_type2 = collider2.shape().shape_type();
 
     for triangle_id in new_interferences.iter() {
         if *triangle_id >= trimesh1.num_triangles() {
@@ -107,10 +108,10 @@ fn do_detect_proximity(
             };
         }
 
-        let triangle1 = Shape::Triangle(trimesh1.triangle(*triangle_id));
+        let triangle1 = trimesh1.triangle(*triangle_id);
         let (proximity_detector, mut workspace2) = ctxt
             .dispatcher
-            .dispatch_primitives(&triangle1, collider2.shape());
+            .dispatch_primitives(ShapeType::Triangle, shape_type2);
 
         let mut ctxt2 = PrimitiveProximityDetectionContext {
             prediction_distance: ctxt.prediction_distance,

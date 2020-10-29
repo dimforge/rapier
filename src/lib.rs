@@ -10,6 +10,7 @@
 
 #![deny(missing_docs)]
 
+pub extern crate crossbeam;
 pub extern crate nalgebra as na;
 #[cfg(feature = "dim2")]
 pub extern crate ncollide2d as ncollide;

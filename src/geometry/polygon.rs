@@ -1,3 +1,5 @@
+#![allow(dead_code)] // TODO: remove this once we support polygons.
+
 use crate::math::{Isometry, Point, Vector};
 use ncollide::bounding_volume::AABB;
 

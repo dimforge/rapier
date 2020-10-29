@@ -21,7 +21,12 @@ use na::{self, Point2, Point3, Vector3};
 use rapier::dynamics::{
     ActivationStatus, IntegrationParameters, JointSet, RigidBodyHandle, RigidBodySet,
 };
-use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent, Ray};
+#[cfg(feature = "dim3")]
+use rapier::geometry::Ray;
+use rapier::geometry::{
+    BroadPhase, ColliderHandle, ColliderSet, ContactEvent, InteractionGroups, NarrowPhase,
+    ProximityEvent,
+};
 use rapier::math::Vector;
 use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
 #[cfg(feature = "fluids")]
@@ -495,6 +500,10 @@ impl Testbed {
         self.graphics.set_body_color(body, color);
     }
 
+    pub fn set_collider_initial_color(&mut self, collider: ColliderHandle, color: Point3<f32>) {
+        self.graphics.set_collider_initial_color(collider, color);
+    }
+
     #[cfg(feature = "fluids")]
     pub fn set_fluid_color(&mut self, fluid: FluidHandle, color: Point3<f32>) {
         self.graphics.set_fluid_color(fluid, color);
@@ -672,6 +681,8 @@ impl Testbed {
                                     &mut self.physics.bodies,
                                     &mut self.physics.colliders,
                                     &mut self.physics.joints,
+                                    None,
+                                    None,
                                     &self.event_handler,
                                 );
 
@@ -1180,10 +1191,12 @@ impl Testbed {
             .camera()
             .unproject(&self.cursor_pos, &na::convert(size));
         let ray = Ray::new(pos, dir);
-        let hit = self
-            .physics
-            .query_pipeline
-            .cast_ray(&self.physics.colliders, &ray, f32::MAX);
+        let hit = self.physics.query_pipeline.cast_ray(
+            &self.physics.colliders,
+            &ray,
+            f32::MAX,
+            InteractionGroups::all(),
+        );
 
         if let Some((_, collider, _)) = hit {
             if self.physics.bodies[collider.parent()].is_dynamic() {
@@ -1446,6 +1459,8 @@ impl State for Testbed {
                                 &mut physics.bodies,
                                 &mut physics.colliders,
                                 &mut physics.joints,
+                                None,
+                                None,
                                 event_handler,
                             );
                         });
@@ -1460,6 +1475,8 @@ impl State for Testbed {
                         &mut self.physics.bodies,
                         &mut self.physics.colliders,
                         &mut self.physics.joints,
+                        None,
+                        None,
                         &self.event_handler,
                     );
 

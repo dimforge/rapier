@@ -1,9 +1,22 @@
-use crate::geometry::{cuboid, Cuboid, Polygon, Triangle};
+use crate::geometry::{cuboid, Cuboid, Polygon, Segment, Triangle};
 use crate::math::{Isometry, Point, Vector, DIM};
 use crate::utils::WSign;
 use na::Unit;
-use ncollide::shape::{Segment, SupportMap};
+use ncollide::shape::SupportMap;
 
+#[allow(dead_code)]
+pub fn support_map_support_map_compute_separation(
+    sm1: &impl SupportMap<f32>,
+    sm2: &impl SupportMap<f32>,
+    m12: &Isometry<f32>,
+    dir1: &Unit<Vector<f32>>,
+) -> f32 {
+    let p1 = sm1.local_support_point_toward(dir1);
+    let p2 = sm2.support_point_toward(m12, &-*dir1);
+    (p2 - p1).dot(dir1)
+}
+
+#[allow(dead_code)]
 pub fn polygon_polygon_compute_separation_features(
     p1: &Polygon,
     p2: &Polygon,
@@ -58,8 +71,8 @@ pub fn cuboid_cuboid_find_local_separating_edge_twoway(
     let y2 = pos12 * Vector::y();
     let z2 = pos12 * Vector::z();
 
-    // We have 3 * 3 = 9 axii to test.
-    let axii = [
+    // We have 3 * 3 = 9 axes to test.
+    let axes = [
         // Vector::{x, y ,z}().cross(y2)
         Vector::new(0.0, -x2.z, x2.y),
         Vector::new(x2.z, 0.0, -x2.x),
@@ -74,7 +87,7 @@ pub fn cuboid_cuboid_find_local_separating_edge_twoway(
         Vector::new(-z2.y, z2.x, 0.0),
     ];
 
-    for axis1 in &axii {
+    for axis1 in &axes {
         let norm1 = axis1.norm();
         if norm1 > f32::default_epsilon() {
             let (separation, axis1) = cuboid_cuboid_compute_separation_wrt_local_line(
@@ -127,7 +140,6 @@ pub fn cuboid_cuboid_find_local_separating_normal_oneway(
  *
  *
  */
-
 #[cfg(feature = "dim3")]
 pub fn cube_support_map_compute_separation_wrt_local_line<S: SupportMap<f32>>(
     cube1: &Cuboid,
@@ -149,7 +161,7 @@ pub fn cube_support_map_compute_separation_wrt_local_line<S: SupportMap<f32>>(
 pub fn cube_support_map_find_local_separating_edge_twoway(
     cube1: &Cuboid,
     shape2: &impl SupportMap<f32>,
-    axii: &[Vector<f32>],
+    axes: &[Vector<f32>],
     pos12: &Isometry<f32>,
     pos21: &Isometry<f32>,
 ) -> (f32, Vector<f32>) {
@@ -157,7 +169,7 @@ pub fn cube_support_map_find_local_separating_edge_twoway(
     let mut best_separation = -std::f32::MAX;
     let mut best_dir = Vector::zeros();
 
-    for axis1 in axii {
+    for axis1 in axes {
         if let Some(axis1) = Unit::try_new(*axis1, f32::default_epsilon()) {
             let (separation, axis1) = cube_support_map_compute_separation_wrt_local_line(
                 cube1, shape2, pos12, pos21, &axis1,
@@ -184,8 +196,8 @@ pub fn cube_triangle_find_local_separating_edge_twoway(
     let y2 = pos12 * (triangle2.c - triangle2.b);
     let z2 = pos12 * (triangle2.a - triangle2.c);
 
-    // We have 3 * 3 = 3 axii to test.
-    let axii = [
+    // We have 3 * 3 = 3 axes to test.
+    let axes = [
         // Vector::{x, y ,z}().cross(y2)
         Vector::new(0.0, -x2.z, x2.y),
         Vector::new(x2.z, 0.0, -x2.x),
@@ -200,26 +212,26 @@ pub fn cube_triangle_find_local_separating_edge_twoway(
         Vector::new(-z2.y, z2.x, 0.0),
     ];
 
-    cube_support_map_find_local_separating_edge_twoway(cube1, triangle2, &axii, pos12, pos21)
+    cube_support_map_find_local_separating_edge_twoway(cube1, triangle2, &axes, pos12, pos21)
 }
 
 #[cfg(feature = "dim3")]
 pub fn cube_segment_find_local_separating_edge_twoway(
     cube1: &Cuboid,
-    segment2: &Segment<f32>,
+    segment2: &Segment,
     pos12: &Isometry<f32>,
     pos21: &Isometry<f32>,
 ) -> (f32, Vector<f32>) {
     let x2 = pos12 * (segment2.b - segment2.a);
 
-    let axii = [
+    let axes = [
         // Vector::{x, y ,z}().cross(y2)
         Vector::new(0.0, -x2.z, x2.y),
         Vector::new(x2.z, 0.0, -x2.x),
         Vector::new(-x2.y, x2.x, 0.0),
     ];
 
-    cube_support_map_find_local_separating_edge_twoway(cube1, segment2, &axii, pos12, pos21)
+    cube_support_map_find_local_separating_edge_twoway(cube1, segment2, &axes, pos12, pos21)
 }
 
 pub fn cube_support_map_find_local_separating_normal_oneway<S: SupportMap<f32>>(
@@ -286,9 +298,72 @@ pub fn triangle_cuboid_find_local_separating_normal_oneway(
 
 #[cfg(feature = "dim2")]
 pub fn segment_cuboid_find_local_separating_normal_oneway(
-    segment1: &Segment<f32>,
+    segment1: &Segment,
     shape2: &Cuboid,
     pos12: &Isometry<f32>,
 ) -> (f32, Vector<f32>) {
     point_cuboid_find_local_separating_normal_oneway(segment1.a, segment1.normal(), shape2, pos12)
+}
+
+/*
+ * Capsules
+ */
+#[cfg(feature = "dim3")]
+pub fn triangle_segment_find_local_separating_normal_oneway(
+    triangle1: &Triangle,
+    segment2: &Segment,
+    m12: &Isometry<f32>,
+) -> (f32, Vector<f32>) {
+    if let Some(dir) = triangle1.normal() {
+        let p2a = segment2.support_point_toward(m12, &-dir);
+        let p2b = segment2.support_point_toward(m12, &dir);
+        let sep_a = (p2a - triangle1.a).dot(&dir);
+        let sep_b = -(p2b - triangle1.a).dot(&dir);
+
+        if sep_a >= sep_b {
+            (sep_a, *dir)
+        } else {
+            (sep_b, -*dir)
+        }
+    } else {
+        (-f32::MAX, Vector::zeros())
+    }
+}
+
+#[cfg(feature = "dim3")]
+pub fn segment_triangle_find_local_separating_edge(
+    segment1: &Segment,
+    triangle2: &Triangle,
+    pos12: &Isometry<f32>,
+) -> (f32, Vector<f32>) {
+    let x2 = pos12 * (triangle2.b - triangle2.a);
+    let y2 = pos12 * (triangle2.c - triangle2.b);
+    let z2 = pos12 * (triangle2.a - triangle2.c);
+    let dir1 = segment1.scaled_direction();
+
+    let crosses1 = [dir1.cross(&x2), dir1.cross(&y2), dir1.cross(&z2)];
+    let axes1 = [
+        crosses1[0],
+        crosses1[1],
+        crosses1[2],
+        -crosses1[0],
+        -crosses1[1],
+        -crosses1[2],
+    ];
+    let mut max_separation = -f32::MAX;
+    let mut sep_dir = axes1[0];
+
+    for axis1 in &axes1 {
+        if let Some(axis1) = Unit::try_new(*axis1, 0.0) {
+            let sep =
+                support_map_support_map_compute_separation(segment1, triangle2, pos12, &axis1);
+
+            if sep > max_separation {
+                max_separation = sep;
+                sep_dir = *axis1;
+            }
+        }
+    }
+
+    (max_separation, sep_dir)
 }

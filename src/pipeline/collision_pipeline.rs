@@ -1,7 +1,10 @@
 //! Physics pipeline structures.
 
 use crate::dynamics::{JointSet, RigidBodySet};
-use crate::geometry::{BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, NarrowPhase};
+use crate::geometry::{
+    BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactPairFilter, NarrowPhase,
+    ProximityPairFilter,
+};
 use crate::pipeline::EventHandler;
 
 /// The collision pipeline, responsible for performing collision detection between colliders.
@@ -40,6 +43,8 @@ impl CollisionPipeline {
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
+        contact_pair_filter: Option<&dyn ContactPairFilter>,
+        proximity_pair_filter: Option<&dyn ProximityPairFilter>,
         events: &dyn EventHandler,
     ) {
         bodies.maintain_active_set();
@@ -52,8 +57,20 @@ impl CollisionPipeline {
 
         narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
 
-        narrow_phase.compute_contacts(prediction_distance, bodies, colliders, events);
-        narrow_phase.compute_proximities(prediction_distance, bodies, colliders, events);
+        narrow_phase.compute_contacts(
+            prediction_distance,
+            bodies,
+            colliders,
+            contact_pair_filter,
+            events,
+        );
+        narrow_phase.compute_proximities(
+            prediction_distance,
+            bodies,
+            colliders,
+            proximity_pair_filter,
+            events,
+        );
 
         bodies.update_active_set_with_contacts(
             colliders,

@@ -18,15 +18,18 @@ pub use self::cuboid_triangle_contact_generator::generate_contacts_cuboid_triang
 pub use self::heightfield_shape_contact_generator::{
     generate_contacts_heightfield_shape, HeightFieldShapeContactGeneratorWorkspace,
 };
-pub use self::polygon_polygon_contact_generator::generate_contacts_polygon_polygon;
+#[cfg(feature = "dim3")]
+pub use self::pfm_pfm_contact_generator::{
+    generate_contacts_pfm_pfm, PfmPfmContactManifoldGeneratorWorkspace,
+};
+// pub use self::polygon_polygon_contact_generator::generate_contacts_polygon_polygon;
 pub use self::trimesh_shape_contact_generator::{
     generate_contacts_trimesh_shape, TrimeshShapeContactGeneratorWorkspace,
 };
 
+pub(crate) use self::polygon_polygon_contact_generator::clip_segments;
 #[cfg(feature = "dim2")]
-pub(crate) use self::polygon_polygon_contact_generator::{
-    clip_segments, clip_segments_with_normal,
-};
+pub(crate) use self::polygon_polygon_contact_generator::clip_segments_with_normal;
 
 mod ball_ball_contact_generator;
 mod ball_convex_contact_generator;
@@ -39,6 +42,8 @@ mod cuboid_cuboid_contact_generator;
 mod cuboid_polygon_contact_generator;
 mod cuboid_triangle_contact_generator;
 mod heightfield_shape_contact_generator;
+#[cfg(feature = "dim3")]
+mod pfm_pfm_contact_generator;
 mod polygon_polygon_contact_generator;
 mod trimesh_shape_contact_generator;
 

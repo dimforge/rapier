@@ -9,6 +9,16 @@ use {
     simba::simd::SimdValue,
 };
 
+bitflags::bitflags! {
+    #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    /// Flags affecting the behavior of the constraints solver for a given contact manifold.
+    pub struct SolverFlags: u32 {
+        /// The constraint solver will take this contact manifold into
+        /// account for force computation.
+        const COMPUTE_IMPULSES = 0b01;
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// The type local linear approximation of the neighborhood of a pair contact points on two shapes
@@ -206,6 +216,7 @@ impl ContactPair {
     pub(crate) fn single_manifold<'a, 'b>(
         &'a mut self,
         colliders: &'b ColliderSet,
+        flags: SolverFlags,
     ) -> (
         &'b Collider,
         &'b Collider,
@@ -216,7 +227,7 @@ impl ContactPair {
         let coll2 = &colliders[self.pair.collider2];
 
         if self.manifolds.len() == 0 {
-            let manifold = ContactManifold::from_colliders(self.pair, coll1, coll2);
+            let manifold = ContactManifold::from_colliders(self.pair, coll1, coll2, flags);
             self.manifolds.push(manifold);
         }
 
@@ -288,6 +299,8 @@ pub struct ContactManifold {
     /// The relative position between the second collider and its parent at the time the
     /// contact points were generated.
     pub delta2: Isometry<f32>,
+    /// Flags used to control some aspects of the constraints solver for this contact manifold.
+    pub solver_flags: SolverFlags,
 }
 
 impl ContactManifold {
@@ -299,6 +312,7 @@ impl ContactManifold {
         delta2: Isometry<f32>,
         friction: f32,
         restitution: f32,
+        solver_flags: SolverFlags,
     ) -> ContactManifold {
         Self {
             #[cfg(feature = "dim2")]
@@ -319,6 +333,7 @@ impl ContactManifold {
             delta2,
             constraint_index: 0,
             position_constraint_index: 0,
+            solver_flags,
         }
     }
 
@@ -342,11 +357,17 @@ impl ContactManifold {
             delta2: self.delta2,
             constraint_index: self.constraint_index,
             position_constraint_index: self.position_constraint_index,
+            solver_flags: self.solver_flags,
         }
     }
 
-    pub(crate) fn from_colliders(pair: ColliderPair, coll1: &Collider, coll2: &Collider) -> Self {
-        Self::with_subshape_indices(pair, coll1, coll2, 0, 0)
+    pub(crate) fn from_colliders(
+        pair: ColliderPair,
+        coll1: &Collider,
+        coll2: &Collider,
+        flags: SolverFlags,
+    ) -> Self {
+        Self::with_subshape_indices(pair, coll1, coll2, 0, 0, flags)
     }
 
     pub(crate) fn with_subshape_indices(
@@ -355,6 +376,7 @@ impl ContactManifold {
         coll2: &Collider,
         subshape1: usize,
         subshape2: usize,
+        solver_flags: SolverFlags,
     ) -> Self {
         Self::new(
             pair,
@@ -364,6 +386,7 @@ impl ContactManifold {
             *coll2.position_wrt_parent(),
             (coll1.friction + coll2.friction) * 0.5,
             (coll1.restitution + coll2.restitution) * 0.5,
+            solver_flags,
         )
     }
 
@@ -430,16 +453,26 @@ impl ContactManifold {
 
     #[inline]
     pub(crate) fn try_update_contacts(&mut self, pos12: &Isometry<f32>) -> bool {
+        //        const DOT_THRESHOLD: f32 = 0.crate::COS_10_DEGREES;
+        const DOT_THRESHOLD: f32 = crate::utils::COS_5_DEGREES;
+        const DIST_SQ_THRESHOLD: f32 = 0.001; // FIXME: this should not be hard-coded.
+        self.try_update_contacts_eps(pos12, DOT_THRESHOLD, DIST_SQ_THRESHOLD)
+    }
+
+    #[inline]
+    pub(crate) fn try_update_contacts_eps(
+        &mut self,
+        pos12: &Isometry<f32>,
+        angle_dot_threshold: f32,
+        dist_sq_threshold: f32,
+    ) -> bool {
         if self.points.len() == 0 {
             return false;
         }
 
-        //        const DOT_THRESHOLD: f32 = 0.crate::COS_10_DEGREES;
-        const DOT_THRESHOLD: f32 = crate::utils::COS_5_DEGREES;
-
         let local_n2 = pos12 * self.local_n2;
 
-        if -self.local_n1.dot(&local_n2) < DOT_THRESHOLD {
+        if -self.local_n1.dot(&local_n2) < angle_dot_threshold {
             return false;
         }
 
@@ -455,8 +488,7 @@ impl ContactManifold {
             }
             let new_local_p1 = local_p2 - self.local_n1 * dist;
 
-            let dist_threshold = 0.001; // FIXME: this should not be hard-coded.
-            if na::distance_squared(&pt.local_p1, &new_local_p1) > dist_threshold {
+            if na::distance_squared(&pt.local_p1, &new_local_p1) > dist_sq_threshold {
                 return false;
             }
 

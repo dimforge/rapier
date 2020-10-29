@@ -14,8 +14,9 @@ use crate::geometry::proximity_detector::{
 //    proximity_detector::ProximityDetectionContextSimd, WBall,
 //};
 use crate::geometry::{
-    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactEvent, ProximityEvent,
-    ProximityPair, RemovedCollider,
+    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactEvent, ContactPairFilter,
+    PairFilterContext, ProximityEvent, ProximityPair, ProximityPairFilter, RemovedCollider,
+    SolverFlags,
 };
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 //#[cfg(feature = "simd-is-enabled")]
@@ -197,7 +198,8 @@ impl NarrowPhase {
 
                             if self.proximity_graph.graph.find_edge(gid1, gid2).is_none() {
                                 let dispatcher = DefaultProximityDispatcher;
-                                let generator = dispatcher.dispatch(co1.shape(), co2.shape());
+                                let generator = dispatcher
+                                    .dispatch(co1.shape().shape_type(), co2.shape().shape_type());
                                 let interaction =
                                     ProximityPair::new(*pair, generator.0, generator.1);
                                 let _ = self.proximity_graph.add_edge(
@@ -226,7 +228,8 @@ impl NarrowPhase {
 
                             if self.contact_graph.graph.find_edge(gid1, gid2).is_none() {
                                 let dispatcher = DefaultContactDispatcher;
-                                let generator = dispatcher.dispatch(co1.shape(), co2.shape());
+                                let generator = dispatcher
+                                    .dispatch(co1.shape().shape_type(), co2.shape().shape_type());
                                 let interaction = ContactPair::new(*pair, generator.0, generator.1);
                                 let _ = self.contact_graph.add_edge(
                                     co1.contact_graph_index,
@@ -288,6 +291,7 @@ impl NarrowPhase {
         prediction_distance: f32,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
+        pair_filter: Option<&dyn ProximityPairFilter>,
         events: &dyn EventHandler,
     ) {
         par_iter_mut!(&mut self.proximity_graph.graph.edges).for_each(|edge| {
@@ -299,16 +303,44 @@ impl NarrowPhase {
             let rb1 = &bodies[co1.parent];
             let rb2 = &bodies[co2.parent];
 
-            if (rb1.is_sleeping() || rb1.is_static()) && (rb2.is_sleeping() || rb2.is_static()) {
-                // No need to update this contact because nothing moved.
+            if (rb1.is_sleeping() && rb2.is_static())
+                || (rb2.is_sleeping() && rb1.is_static())
+                || (rb1.is_sleeping() && rb2.is_sleeping())
+            {
+                // No need to update this proximity because nothing moved.
                 return;
+            }
+
+            if !co1.collision_groups.test(co2.collision_groups) {
+                // The proximity is not allowed.
+                return;
+            }
+
+            if pair_filter.is_none() && !rb1.is_dynamic() && !rb2.is_dynamic() {
+                // Default filtering rule: no proximity between two non-dynamic bodies.
+                return;
+            }
+
+            if let Some(filter) = pair_filter {
+                let context = PairFilterContext {
+                    rigid_body1: rb1,
+                    rigid_body2: rb2,
+                    collider1: co1,
+                    collider2: co2,
+                };
+
+                if !filter.filter_proximity_pair(&context) {
+                    // No proximity allowed.
+                    return;
+                }
             }
 
             let dispatcher = DefaultProximityDispatcher;
             if pair.detector.is_none() {
                 // We need a redispatch for this detector.
                 // This can happen, e.g., after restoring a snapshot of the narrow-phase.
-                let (detector, workspace) = dispatcher.dispatch(co1.shape(), co2.shape());
+                let (detector, workspace) =
+                    dispatcher.dispatch(co1.shape().shape_type(), co2.shape().shape_type());
                 pair.detector = Some(detector);
                 pair.detector_workspace = workspace;
             }
@@ -326,69 +358,6 @@ impl NarrowPhase {
                 .unwrap()
                 .detect_proximity(context, events);
         });
-
-        /*
-        // First, group pairs.
-        // NOTE: the transmutes here are OK because the Vec are all cleared
-        // before we leave this method.
-        // We do this in order to avoid reallocating those vecs each time
-        // we compute the contacts. Unsafe is necessary because we can't just
-        // store a Vec<&mut ProximityPair> into the NarrowPhase struct without
-        // polluting the World with lifetimes.
-        let ball_ball_prox: &mut Vec<&mut ProximityPair> =
-            unsafe { std::mem::transmute(&mut self.ball_ball_prox) };
-        let shape_shape_prox: &mut Vec<&mut ProximityPair> =
-            unsafe { std::mem::transmute(&mut self.shape_shape_prox) };
-
-        let bodies = &bodies.bodies;
-
-        // FIXME: don't iterate through all the interactions.
-        for pair in &mut self.proximity_graph.interactions {
-            let co1 = &colliders[pair.pair.collider1];
-            let co2 = &colliders[pair.pair.collider2];
-
-            // FIXME: avoid lookup into bodies.
-            let rb1 = &bodies[co1.parent];
-            let rb2 = &bodies[co2.parent];
-
-            if (rb1.is_sleeping() || !rb1.is_dynamic()) && (rb2.is_sleeping() || !rb2.is_dynamic())
-            {
-                // No need to update this proximity because nothing moved.
-                continue;
-            }
-
-            match (co1.shape(), co2.shape()) {
-                (Shape::Ball(_), Shape::Ball(_)) => ball_ball_prox.push(pair),
-                _ => shape_shape_prox.push(pair),
-            }
-        }
-
-        par_chunks_mut!(ball_ball_prox, SIMD_WIDTH).for_each(|pairs| {
-            let context = ProximityDetectionContextSimd {
-                dispatcher: &DefaultProximityDispatcher,
-                prediction_distance,
-                colliders,
-                pairs,
-            };
-            context.pairs[0]
-                .detector
-                .detect_proximity_simd(context, events);
-        });
-
-        par_iter_mut!(shape_shape_prox).for_each(|pair| {
-            let context = ProximityDetectionContext {
-                dispatcher: &DefaultProximityDispatcher,
-                prediction_distance,
-                colliders,
-                pair,
-            };
-
-            context.pair.detector.detect_proximity(context, events);
-        });
-
-        ball_ball_prox.clear();
-        shape_shape_prox.clear();
-        */
     }
 
     pub(crate) fn compute_contacts(
@@ -396,6 +365,7 @@ impl NarrowPhase {
         prediction_distance: f32,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
+        pair_filter: Option<&dyn ContactPairFilter>,
         events: &dyn EventHandler,
     ) {
         par_iter_mut!(&mut self.contact_graph.graph.edges).for_each(|edge| {
@@ -407,18 +377,52 @@ impl NarrowPhase {
             let rb1 = &bodies[co1.parent];
             let rb2 = &bodies[co2.parent];
 
-            if ((rb1.is_sleeping() || rb1.is_static()) && (rb2.is_sleeping() || rb2.is_static()))
-                || (!rb1.is_dynamic() && !rb2.is_dynamic())
+            if (rb1.is_sleeping() && rb2.is_static())
+                || (rb2.is_sleeping() && rb1.is_static())
+                || (rb1.is_sleeping() && rb2.is_sleeping())
             {
                 // No need to update this contact because nothing moved.
                 return;
+            }
+
+            if !co1.collision_groups.test(co2.collision_groups) {
+                // The collision is not allowed.
+                return;
+            }
+
+            if pair_filter.is_none() && !rb1.is_dynamic() && !rb2.is_dynamic() {
+                // Default filtering rule: no contact between two non-dynamic bodies.
+                return;
+            }
+
+            let mut solver_flags = if let Some(filter) = pair_filter {
+                let context = PairFilterContext {
+                    rigid_body1: rb1,
+                    rigid_body2: rb2,
+                    collider1: co1,
+                    collider2: co2,
+                };
+
+                if let Some(solver_flags) = filter.filter_contact_pair(&context) {
+                    solver_flags
+                } else {
+                    // No contact allowed.
+                    return;
+                }
+            } else {
+                SolverFlags::COMPUTE_IMPULSES
+            };
+
+            if !co1.solver_groups.test(co2.solver_groups) {
+                solver_flags.remove(SolverFlags::COMPUTE_IMPULSES);
             }
 
             let dispatcher = DefaultContactDispatcher;
             if pair.generator.is_none() {
                 // We need a redispatch for this generator.
                 // This can happen, e.g., after restoring a snapshot of the narrow-phase.
-                let (generator, workspace) = dispatcher.dispatch(co1.shape(), co2.shape());
+                let (generator, workspace) =
+                    dispatcher.dispatch(co1.shape().shape_type(), co2.shape().shape_type());
                 pair.generator = Some(generator);
                 pair.generator_workspace = workspace;
             }
@@ -428,6 +432,7 @@ impl NarrowPhase {
                 prediction_distance,
                 colliders,
                 pair,
+                solver_flags,
             };
 
             context
@@ -436,69 +441,6 @@ impl NarrowPhase {
                 .unwrap()
                 .generate_contacts(context, events);
         });
-
-        /*
-        // First, group pairs.
-        // NOTE: the transmutes here are OK because the Vec are all cleared
-        // before we leave this method.
-        // We do this in order to avoid reallocating those vecs each time
-        // we compute the contacts. Unsafe is necessary because we can't just
-        // store a Vec<&mut ContactPair> into the NarrowPhase struct without
-        // polluting the World with lifetimes.
-        let ball_ball: &mut Vec<&mut ContactPair> =
-            unsafe { std::mem::transmute(&mut self.ball_ball) };
-        let shape_shape: &mut Vec<&mut ContactPair> =
-            unsafe { std::mem::transmute(&mut self.shape_shape) };
-
-        let bodies = &bodies.bodies;
-
-        // FIXME: don't iterate through all the interactions.
-        for pair in &mut self.contact_graph.interactions {
-            let co1 = &colliders[pair.pair.collider1];
-            let co2 = &colliders[pair.pair.collider2];
-
-            // FIXME: avoid lookup into bodies.
-            let rb1 = &bodies[co1.parent];
-            let rb2 = &bodies[co2.parent];
-
-            if (rb1.is_sleeping() || !rb1.is_dynamic()) && (rb2.is_sleeping() || !rb2.is_dynamic())
-            {
-                // No need to update this contact because nothing moved.
-                continue;
-            }
-
-            match (co1.shape(), co2.shape()) {
-                (Shape::Ball(_), Shape::Ball(_)) => ball_ball.push(pair),
-                _ => shape_shape.push(pair),
-            }
-        }
-
-        par_chunks_mut!(ball_ball, SIMD_WIDTH).for_each(|pairs| {
-            let context = ContactGenerationContextSimd {
-                dispatcher: &DefaultContactDispatcher,
-                prediction_distance,
-                colliders,
-                pairs,
-            };
-            context.pairs[0]
-                .generator
-                .generate_contacts_simd(context, events);
-        });
-
-        par_iter_mut!(shape_shape).for_each(|pair| {
-            let context = ContactGenerationContext {
-                dispatcher: &DefaultContactDispatcher,
-                prediction_distance,
-                colliders,
-                pair,
-            };
-
-            context.pair.generator.generate_contacts(context, events);
-        });
-
-        ball_ball.clear();
-        shape_shape.clear();
-        */
     }
 
     /// Retrieve all the interactions with at least one contact point, happening between two active bodies.
@@ -518,7 +460,11 @@ impl NarrowPhase {
             for manifold in &mut inter.weight.manifolds {
                 let rb1 = &bodies[manifold.body_pair.body1];
                 let rb2 = &bodies[manifold.body_pair.body2];
-                if manifold.num_active_contacts() != 0
+                if manifold
+                    .solver_flags
+                    .contains(SolverFlags::COMPUTE_IMPULSES)
+                    && manifold.num_active_contacts() != 0
+                    && (rb1.is_dynamic() || rb2.is_dynamic())
                     && (!rb1.is_dynamic() || !rb1.is_sleeping())
                     && (!rb2.is_dynamic() || !rb2.is_sleeping())
                 {

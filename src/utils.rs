@@ -19,8 +19,10 @@ use {
 // pub(crate) const COS_10_DEGREES: f32 = 0.98480775301;
 // pub(crate) const COS_45_DEGREES: f32 = 0.70710678118;
 // pub(crate) const SIN_45_DEGREES: f32 = COS_45_DEGREES;
+#[cfg(feature = "dim3")]
+pub(crate) const COS_1_DEGREES: f32 = 0.99984769515;
 pub(crate) const COS_5_DEGREES: f32 = 0.99619469809;
-#[cfg(feature = "dim2")]
+// #[cfg(feature = "dim2")]
 pub(crate) const COS_FRAC_PI_8: f32 = 0.92387953251;
 #[cfg(feature = "dim2")]
 pub(crate) const SIN_FRAC_PI_8: f32 = 0.38268343236;
@@ -91,7 +93,7 @@ impl<N: Scalar + Copy + WSign<N>> WSign<Vector3<N>> for Vector3<N> {
 
 impl WSign<SimdFloat> for SimdFloat {
     fn copy_sign_to(self, to: SimdFloat) -> SimdFloat {
-        self.simd_copysign(to)
+        to.simd_copysign(self)
     }
 }
 

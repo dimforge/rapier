@@ -12,7 +12,7 @@ use rapier::counters::Counters;
 use rapier::dynamics::{
     IntegrationParameters, JointParams, JointSet, RigidBodyHandle, RigidBodySet,
 };
-use rapier::geometry::{Collider, ColliderSet, Shape};
+use rapier::geometry::{Collider, ColliderSet};
 use rapier::math::Vector;
 use std::collections::HashMap;
 #[cfg(feature = "dim3")]
@@ -177,28 +177,37 @@ fn nphysics_collider_from_rapier_collider(
 ) -> Option<ColliderDesc<f32>> {
     let margin = ColliderDesc::<f32>::default_margin();
     let mut pos = *collider.position_wrt_parent();
+    let shape = collider.shape();
 
-    let shape = match collider.shape() {
-        Shape::Cuboid(cuboid) => {
-            ShapeHandle::new(Cuboid::new(cuboid.half_extents.map(|e| e - margin)))
-        }
-        Shape::Ball(ball) => ShapeHandle::new(Ball::new(ball.radius - margin)),
-        Shape::Capsule(capsule) => {
-            pos *= capsule.transform_wrt_y();
-            ShapeHandle::new(Capsule::new(capsule.half_height(), capsule.radius))
-        }
-        Shape::HeightField(heightfield) => ShapeHandle::new(heightfield.clone()),
+    let shape = if let Some(cuboid) = shape.as_cuboid() {
+        ShapeHandle::new(Cuboid::new(cuboid.half_extents.map(|e| e - margin)))
+    } else if let Some(ball) = shape.as_ball() {
+        ShapeHandle::new(Ball::new(ball.radius - margin))
+    } else if let Some(capsule) = shape.as_capsule() {
+        pos *= capsule.transform_wrt_y();
+        ShapeHandle::new(Capsule::new(capsule.half_height(), capsule.radius))
+    } else if let Some(heightfield) = shape.as_heightfield() {
+        ShapeHandle::new(heightfield.clone())
+    } else {
         #[cfg(feature = "dim3")]
-        Shape::Trimesh(trimesh) => ShapeHandle::new(TriMesh::new(
-            trimesh.vertices().to_vec(),
-            trimesh
-                .indices()
-                .iter()
-                .map(|idx| na::convert(*idx))
-                .collect(),
-            None,
-        )),
-        _ => return None,
+        if let Some(trimesh) = shape.as_trimesh() {
+            ShapeHandle::new(TriMesh::new(
+                trimesh.vertices().to_vec(),
+                trimesh
+                    .indices()
+                    .iter()
+                    .map(|idx| na::convert(*idx))
+                    .collect(),
+                None,
+            ))
+        } else {
+            return None;
+        }
+
+        #[cfg(feature = "dim2")]
+        {
+            return None;
+        }
     };
 
     let density = if is_dynamic { collider.density() } else { 0.0 };

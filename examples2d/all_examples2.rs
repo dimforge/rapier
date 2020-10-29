@@ -11,6 +11,7 @@ use rapier_testbed2d::Testbed;
 use std::cmp::Ordering;
 
 mod add_remove2;
+mod collision_groups2;
 mod debug_box_ball2;
 mod debug_infinite_fall;
 mod heightfield2;
@@ -53,6 +54,7 @@ pub fn main() {
 
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Add remove", add_remove2::init_world),
+        ("Collision groups", collision_groups2::init_world),
         ("Heightfield", heightfield2::init_world),
         ("Joints", joints2::init_world),
         ("Platform", platform2::init_world),

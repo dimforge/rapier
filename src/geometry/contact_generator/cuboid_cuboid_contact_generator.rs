@@ -1,12 +1,12 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-use crate::geometry::{cuboid, sat, ContactManifold, CuboidFeature, KinematicsCategory, Shape};
+use crate::geometry::{cuboid, sat, ContactManifold, CuboidFeature, KinematicsCategory};
 use crate::math::Isometry;
 #[cfg(feature = "dim2")]
 use crate::math::Vector;
 use ncollide::shape::Cuboid;
 
 pub fn generate_contacts_cuboid_cuboid(ctxt: &mut PrimitiveContactGenerationContext) {
-    if let (Shape::Cuboid(cube1), Shape::Cuboid(cube2)) = (ctxt.shape1, ctxt.shape2) {
+    if let (Some(cube1), Some(cube2)) = (ctxt.shape1.as_cuboid(), ctxt.shape2.as_cuboid()) {
         generate_contacts(
             ctxt.prediction_distance,
             cube1,
