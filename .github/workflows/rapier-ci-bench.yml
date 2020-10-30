@@ -9,6 +9,7 @@ on:
 
 jobs:
   send-bench-message:
+    if: secrets.BENCHBOT_AMQP_HOST != ''
     env:
       BENCHBOT_AMQP_USER: ${{ secrets.BENCHBOT_AMQP_USER }}
       BENCHBOT_AMQP_PASS: ${{ secrets.BENCHBOT_AMQP_PASS }}
