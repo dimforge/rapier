@@ -13,6 +13,10 @@ extern crate nphysics3d as nphysics;
 extern crate rapier2d as rapier;
 #[cfg(feature = "dim3")]
 extern crate rapier3d as rapier;
+#[cfg(all(feature = "dim2", feature = "fluids"))]
+extern crate salva2d as salva;
+#[cfg(all(feature = "dim3", feature = "fluids"))]
+extern crate salva3d as salva;
 
 #[macro_use]
 extern crate bitflags;
@@ -22,7 +26,8 @@ extern crate bitflags;
 extern crate log;
 
 pub use crate::engine::GraphicsManager;
-pub use crate::testbed::Testbed;
+pub use crate::plugin::TestbedPlugin;
+pub use crate::testbed::{PhysicsState, Testbed};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 mod box2d_backend;
@@ -32,6 +37,7 @@ mod nphysics_backend;
 pub mod objects;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 mod physx_backend;
+mod plugin;
 mod testbed;
 mod ui;
 

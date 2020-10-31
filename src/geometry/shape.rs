@@ -64,6 +64,8 @@ pub trait Shape: RayCast<f32> + PointQuery<f32> + DowncastSync {
         None
     }
 
+    // TODO: add a compute_local_aabb method?
+
     /// Computes the AABB of this shape.
     fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32>;
 

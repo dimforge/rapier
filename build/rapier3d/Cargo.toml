@@ -23,7 +23,6 @@ simd-is-enabled = [ ]
 wasm-bindgen = [ "instant/wasm-bindgen" ]
 serde-serialize = [ "erased-serde", "nalgebra/serde-serialize", "ncollide3d/serde-serialize", "serde", "generational-arena/serde", "bit-vec/serde" ]
 enhanced-determinism = [ "simba/libm_force", "indexmap" ]
-fluids = [ "salva3d" ]
 
 [lib]
 name = "rapier3d"
@@ -51,7 +50,6 @@ indexmap = { version = "1", features = [ "serde-1" ], optional = true }
 downcast-rs = "1.2"
 num-derive = "0.3"
 bitflags = "1"
-salva3d = { version = "0.4", optional = true }
 
 [dev-dependencies]
 bincode = "1"

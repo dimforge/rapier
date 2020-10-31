@@ -15,15 +15,11 @@ use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
 use rapier::geometry::{Collider, ColliderHandle, ColliderSet};
 //use crate::objects::capsule::Capsule;
 //use crate::objects::convex::Convex;
-//#[cfg(feature = "fluids")]
-//use crate::objects::fluid::Fluid as FluidNode;
 //#[cfg(feature = "dim3")]
 //use crate::objects::mesh::Mesh;
 //use crate::objects::plane::Plane;
 //#[cfg(feature = "dim2")]
 //use crate::objects::polyline::Polyline;
-//#[cfg(feature = "fluids")]
-//use crate::objects::FluidRenderingMode;
 use crate::objects::capsule::Capsule;
 #[cfg(feature = "dim3")]
 use crate::objects::cone::Cone;
@@ -58,22 +54,12 @@ impl GraphicsWindow for Window {
 pub struct GraphicsManager {
     rand: Pcg32,
     b2sn: HashMap<RigidBodyHandle, Vec<Node>>,
-    #[cfg(feature = "fluids")]
-    f2sn: HashMap<FluidHandle, FluidNode>,
-    #[cfg(feature = "fluids")]
-    boundary2sn: HashMap<BoundaryHandle, FluidNode>,
     b2color: HashMap<RigidBodyHandle, Point3<f32>>,
     c2color: HashMap<ColliderHandle, Point3<f32>>,
     b2wireframe: HashMap<RigidBodyHandle, bool>,
-    #[cfg(feature = "fluids")]
-    f2color: HashMap<FluidHandle, Point3<f32>>,
     ground_color: Point3<f32>,
     camera: Camera,
     ground_handle: Option<RigidBodyHandle>,
-    #[cfg(feature = "fluids")]
-    fluid_rendering_mode: FluidRenderingMode,
-    #[cfg(feature = "fluids")]
-    render_boundary_particles: bool,
 }
 
 impl GraphicsManager {
@@ -96,40 +82,16 @@ impl GraphicsManager {
             camera,
             rand: Pcg32::seed_from_u64(0),
             b2sn: HashMap::new(),
-            #[cfg(feature = "fluids")]
-            f2sn: HashMap::new(),
-            #[cfg(feature = "fluids")]
-            boundary2sn: HashMap::new(),
             b2color: HashMap::new(),
             c2color: HashMap::new(),
-            #[cfg(feature = "fluids")]
-            f2color: HashMap::new(),
             ground_color: Point3::new(0.5, 0.5, 0.5),
             b2wireframe: HashMap::new(),
             ground_handle: None,
-            #[cfg(feature = "fluids")]
-            fluid_rendering_mode: FluidRenderingMode::StaticColor,
-            #[cfg(feature = "fluids")]
-            render_boundary_particles: false,
         }
     }
 
     pub fn set_ground_handle(&mut self, handle: Option<RigidBodyHandle>) {
         self.ground_handle = handle
-    }
-
-    #[cfg(feature = "fluids")]
-    pub fn set_fluid_rendering_mode(&mut self, mode: FluidRenderingMode) {
-        self.fluid_rendering_mode = mode;
-    }
-
-    #[cfg(feature = "fluids")]
-    pub fn enable_boundary_particles_rendering(&mut self, enabled: bool) {
-        self.render_boundary_particles = enabled;
-
-        for sn in self.boundary2sn.values_mut() {
-            sn.scene_node_mut().set_visible(enabled);
-        }
     }
 
     pub fn clear(&mut self, window: &mut Window) {
@@ -141,17 +103,7 @@ impl GraphicsManager {
             }
         }
 
-        #[cfg(feature = "fluids")]
-        for sn in self.f2sn.values_mut().chain(self.boundary2sn.values_mut()) {
-            let node = sn.scene_node_mut();
-            window.remove_graphics_node(node);
-        }
-
         self.b2sn.clear();
-        #[cfg(feature = "fluids")]
-        self.f2sn.clear();
-        #[cfg(feature = "fluids")]
-        self.boundary2sn.clear();
         self.c2color.clear();
         self.b2color.clear();
         self.b2wireframe.clear();
@@ -168,15 +120,6 @@ impl GraphicsManager {
         }
 
         self.b2sn.remove(&body);
-    }
-
-    #[cfg(feature = "fluids")]
-    pub fn set_fluid_color(&mut self, f: FluidHandle, color: Point3<f32>) {
-        self.f2color.insert(f, color);
-
-        if let Some(n) = self.f2sn.get_mut(&f) {
-            n.set_color(color)
-        }
     }
 
     pub fn set_body_color(&mut self, b: RigidBodyHandle, color: Point3<f32>) {
@@ -234,6 +177,10 @@ impl GraphicsManager {
         }
     }
 
+    pub fn next_color(&mut self) -> Point3<f32> {
+        Self::gen_color(&mut self.rand)
+    }
+
     fn gen_color(rng: &mut Pcg32) -> Point3<f32> {
         let mut color: Point3<f32> = rng.gen();
         color *= 1.5;
@@ -256,49 +203,6 @@ impl GraphicsManager {
         self.set_body_color(handle, color);
 
         color
-    }
-
-    #[cfg(feature = "fluids")]
-    pub fn add_fluid(
-        &mut self,
-        window: &mut Window,
-        handle: FluidHandle,
-        fluid: &Fluid<f32>,
-        particle_radius: f32,
-    ) {
-        let rand = &mut self.rand;
-        let color = *self
-            .f2color
-            .entry(handle)
-            .or_insert_with(|| Self::gen_color(rand));
-
-        self.add_fluid_with_color(window, handle, fluid, particle_radius, color);
-    }
-
-    #[cfg(feature = "fluids")]
-    pub fn add_boundary(
-        &mut self,
-        window: &mut Window,
-        handle: BoundaryHandle,
-        boundary: &Boundary<f32>,
-        particle_radius: f32,
-    ) {
-        let color = self.ground_color;
-        let node = FluidNode::new(particle_radius, &boundary.positions, color, window);
-        self.boundary2sn.insert(handle, node);
-    }
-
-    #[cfg(feature = "fluids")]
-    pub fn add_fluid_with_color(
-        &mut self,
-        window: &mut Window,
-        handle: FluidHandle,
-        fluid: &Fluid<f32>,
-        particle_radius: f32,
-        color: Point3<f32>,
-    ) {
-        let node = FluidNode::new(particle_radius, &fluid.positions, color, window);
-        self.f2sn.insert(handle, node);
     }
 
     pub fn add(
@@ -641,23 +545,6 @@ impl GraphicsManager {
         )))
     }
     */
-
-    #[cfg(feature = "fluids")]
-    pub fn draw_fluids(&mut self, liquid_world: &LiquidWorld<f32>) {
-        for (i, fluid) in liquid_world.fluids().iter() {
-            if let Some(node) = self.f2sn.get_mut(&i) {
-                node.update_with_fluid(fluid, self.fluid_rendering_mode)
-            }
-        }
-
-        if self.render_boundary_particles {
-            for (i, boundary) in liquid_world.boundaries().iter() {
-                if let Some(node) = self.boundary2sn.get_mut(&i) {
-                    node.update_with_boundary(boundary)
-                }
-            }
-        }
-    }
 
     pub fn draw(&mut self, _bodies: &RigidBodySet, colliders: &ColliderSet, window: &mut Window) {
         // use kiss3d::camera::Camera;

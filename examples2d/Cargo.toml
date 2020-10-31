@@ -10,7 +10,6 @@ simd-stable = [ "rapier2d/simd-stable" ]
 simd-nightly = [ "rapier2d/simd-nightly" ]
 other-backends = [ "rapier_testbed2d/other-backends" ]
 enhanced-determinism = [ "rapier2d/enhanced-determinism" ]
-fluids = [ "rapier2d/fluids" ]
 
 [dependencies]
 rand       = "0.7"

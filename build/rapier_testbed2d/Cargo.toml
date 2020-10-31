@@ -39,7 +39,6 @@ flexbuffers = "0.1"
 Inflector  = "0.11"
 md5 = "0.7"
 
-
 [dependencies.rapier2d]
 path = "../rapier2d"
 version = "0.3"
