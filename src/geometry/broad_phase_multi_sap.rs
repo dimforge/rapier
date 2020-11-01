@@ -359,6 +359,36 @@ impl SAPRegion {
         }
     }
 
+    pub fn recycle(bounds: AABB<f32>, mut old: Self) -> Self {
+        // Correct the bounds
+        for (axis, &bound) in old.axes.iter_mut().zip(bounds.mins.iter()) {
+            axis.min_bound = bound;
+        }
+        for (axis, &bound) in old.axes.iter_mut().zip(bounds.maxs.iter()) {
+            axis.max_bound = bound;
+        }
+
+        old.update_count = 0;
+
+        // The rest of the fields should be "empty"
+        assert_eq!(old.proxy_count, 0);
+        assert!(old.to_insert.is_empty());
+        debug_assert!(!old.existing_proxies.any());
+        for axis in old.axes.iter() {
+            assert!(axis.endpoints.len() == 2); // Account for sentinels
+        }
+
+        old
+    }
+
+    pub fn recycle_or_new(bounds: AABB<f32>, pool: &mut Vec<Self>) -> Self {
+        if let Some(old) = pool.pop() {
+            Self::recycle(bounds, old)
+        } else {
+            Self::new(bounds)
+        }
+    }
+
     pub fn predelete_proxy(&mut self, _proxy_id: usize) {
         // We keep the proxy_id as argument for uniformity with the "preupdate"
         // method. However we don't actually need it because the deletion will be
@@ -427,6 +457,8 @@ pub struct BroadPhase {
     regions: HashMap<Point<i32>, SAPRegion>,
     removed_colliders: Option<Subscription<RemovedCollider>>,
     deleted_any: bool,
+    region_pool: Vec<SAPRegion>,
+    points_to_remove: Vec<Point<i32>>, // Workspace
     // We could think serializing this workspace is useless.
     // It turns out is is important to serialize at least its capacity
     // and restore this capacity when deserializing the hashmap.
@@ -517,6 +549,8 @@ impl BroadPhase {
             removed_colliders: None,
             proxies: Proxies::new(),
             regions: HashMap::default(),
+            region_pool: Vec::new(),
+            points_to_remove: Vec::new(),
             reporting: HashMap::default(),
             deleted_any: false,
         }
@@ -617,15 +651,16 @@ impl BroadPhase {
                 let start = point_key(aabb.mins);
                 let end = point_key(aabb.maxs);
 
+                let regions = &mut self.regions;
+                let pool = &mut self.region_pool;
                 #[cfg(feature = "dim2")]
                 for i in start.x..=end.x {
                     for j in start.y..=end.y {
                         let region_key = Point::new(i, j);
                         let region_bounds = region_aabb(region_key);
-                        let region = self
-                            .regions
+                        let region = regions
                             .entry(region_key)
-                            .or_insert_with(|| SAPRegion::new(region_bounds));
+                            .or_insert_with(|| SAPRegion::recycle_or_new(region_bounds, pool));
                         let _ = region.preupdate_proxy(proxy_id);
                     }
                 }
@@ -636,10 +671,9 @@ impl BroadPhase {
                         for k in start.z..=end.z {
                             let region_key = Point::new(i, j, k);
                             let region_bounds = region_aabb(region_key);
-                            let region = self
-                                .regions
+                            let region = regions
                                 .entry(region_key)
-                                .or_insert_with(|| SAPRegion::new(region_bounds));
+                                .or_insert_with(|| SAPRegion::recycle_or_new(region_bounds, pool));
                             let _ = region.preupdate_proxy(proxy_id);
                         }
                     }
@@ -649,12 +683,20 @@ impl BroadPhase {
     }
 
     fn update_regions(&mut self) {
-        for (_, region) in &mut self.regions {
+        for (point, region) in &mut self.regions {
             region.update(&self.proxies, &mut self.reporting);
+            if region.proxy_count == 0 {
+                self.points_to_remove.push(*point);
+            }
         }
 
-        // Remove all the empty regions
-        self.regions.retain(|_, region| region.proxy_count > 0);
+        // Remove all the empty regions and store them in the region pool
+        let regions = &mut self.regions;
+        self.region_pool.extend(
+            self.points_to_remove
+                .drain(..)
+                .map(|p| regions.remove(&p).unwrap()),
+        );
     }
 
     pub(crate) fn complete_removals(&mut self) {
