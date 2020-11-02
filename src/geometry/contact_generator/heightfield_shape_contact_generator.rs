@@ -8,6 +8,7 @@ use crate::geometry::contact_generator::{
 use crate::geometry::Capsule;
 use crate::geometry::{Collider, ContactManifold, HeightField, Shape};
 use crate::ncollide::bounding_volume::BoundingVolume;
+#[cfg(feature = "serde-serialize")]
 use erased_serde::Serialize;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]

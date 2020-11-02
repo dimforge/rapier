@@ -84,7 +84,7 @@ impl ContactPhase {
                 let mut manifold_arr: ArrayVec<[&mut ContactManifold; SIMD_WIDTH]> =
                     ArrayVec::new();
                 let mut workspace_arr: ArrayVec<
-                    [Option<&mut (dyn Any + Send + Sync)>; SIMD_WIDTH],
+                    [Option<&mut (dyn MaybeSerializableData)>; SIMD_WIDTH],
                 > = ArrayVec::new();
 
                 for (pair, solver_flags) in
