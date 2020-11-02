@@ -23,6 +23,7 @@ pub use self::pfm_pfm_contact_generator::{
     generate_contacts_pfm_pfm, PfmPfmContactManifoldGeneratorWorkspace,
 };
 // pub use self::polygon_polygon_contact_generator::generate_contacts_polygon_polygon;
+pub use self::contact_generator_workspace::ContactGeneratorWorkspace;
 pub use self::trimesh_shape_contact_generator::{
     generate_contacts_trimesh_shape, TrimeshShapeContactGeneratorWorkspace,
 };
@@ -31,12 +32,15 @@ pub(crate) use self::polygon_polygon_contact_generator::clip_segments;
 #[cfg(feature = "dim2")]
 pub(crate) use self::polygon_polygon_contact_generator::clip_segments_with_normal;
 
+pub(self) use self::serializable_workspace_tag::WorkspaceSerializationTag;
+
 mod ball_ball_contact_generator;
 mod ball_convex_contact_generator;
 mod ball_polygon_contact_generator;
 mod capsule_capsule_contact_generator;
 mod contact_dispatcher;
 mod contact_generator;
+mod contact_generator_workspace;
 mod cuboid_capsule_contact_generator;
 mod cuboid_cuboid_contact_generator;
 mod cuboid_polygon_contact_generator;
@@ -45,6 +49,7 @@ mod heightfield_shape_contact_generator;
 #[cfg(feature = "dim3")]
 mod pfm_pfm_contact_generator;
 mod polygon_polygon_contact_generator;
+mod serializable_workspace_tag;
 mod trimesh_shape_contact_generator;
 
 use crate::geometry::{Contact, ContactManifold};

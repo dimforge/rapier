@@ -1,8 +1,8 @@
+use crate::data::MaybeSerializableData;
 use crate::dynamics::BodyPair;
-use crate::geometry::contact_generator::ContactPhase;
+use crate::geometry::contact_generator::{ContactGeneratorWorkspace, ContactPhase};
 use crate::geometry::{Collider, ColliderPair, ColliderSet};
 use crate::math::{Isometry, Point, Vector};
-use std::any::Any;
 #[cfg(feature = "simd-is-enabled")]
 use {
     crate::math::{SimdFloat, SIMD_WIDTH},
@@ -182,15 +182,14 @@ pub struct ContactPair {
     pub manifolds: Vec<ContactManifold>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) generator: Option<ContactPhase>,
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    pub(crate) generator_workspace: Option<Box<dyn Any + Send + Sync>>,
+    pub(crate) generator_workspace: Option<ContactGeneratorWorkspace>,
 }
 
 impl ContactPair {
     pub(crate) fn new(
         pair: ColliderPair,
         generator: ContactPhase,
-        generator_workspace: Option<Box<dyn Any + Send + Sync>>,
+        generator_workspace: Option<ContactGeneratorWorkspace>,
     ) -> Self {
         Self {
             pair,
@@ -221,7 +220,7 @@ impl ContactPair {
         &'b Collider,
         &'b Collider,
         &'a mut ContactManifold,
-        Option<&'a mut (dyn Any + Send + Sync)>,
+        Option<&'a mut (dyn MaybeSerializableData)>,
     ) {
         let coll1 = &colliders[self.pair.collider1];
         let coll2 = &colliders[self.pair.collider2];
@@ -240,14 +239,14 @@ impl ContactPair {
                 coll1,
                 coll2,
                 manifold,
-                self.generator_workspace.as_mut().map(|w| &mut **w),
+                self.generator_workspace.as_mut().map(|w| &mut *w.0),
             )
         } else {
             (
                 coll2,
                 coll1,
                 manifold,
-                self.generator_workspace.as_mut().map(|w| &mut **w),
+                self.generator_workspace.as_mut().map(|w| &mut *w.0),
             )
         }
     }

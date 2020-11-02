@@ -1,13 +1,10 @@
+use crate::data::hashmap::HashMap;
 use crate::data::pubsub::Subscription;
 use crate::dynamics::RigidBodySet;
 use crate::geometry::{ColliderHandle, ColliderSet, RemovedCollider};
 use crate::math::{Point, Vector, DIM};
-#[cfg(feature = "enhanced-determinism")]
-use crate::utils::FxHashMap32 as HashMap;
 use bit_vec::BitVec;
 use ncollide::bounding_volume::{BoundingVolume, AABB};
-#[cfg(not(feature = "enhanced-determinism"))]
-use rustc_hash::FxHashMap as HashMap;
 use std::cmp::Ordering;
 use std::ops::{Index, IndexMut};
 
@@ -433,8 +430,8 @@ pub struct BroadPhase {
     #[cfg_attr(
         feature = "serde-serialize",
         serde(
-            serialize_with = "crate::utils::serialize_hashmap_capacity",
-            deserialize_with = "crate::utils::deserialize_hashmap_capacity"
+            serialize_with = "crate::data::hashmap::serialize_hashmap_capacity",
+            deserialize_with = "crate::data::hashmap::deserialize_hashmap_capacity"
         )
     )]
     reporting: HashMap<(u32, u32), bool>, // Workspace

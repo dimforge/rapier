@@ -424,7 +424,11 @@ impl NarrowPhase {
                 let (generator, workspace) =
                     dispatcher.dispatch(co1.shape().shape_type(), co2.shape().shape_type());
                 pair.generator = Some(generator);
-                pair.generator_workspace = workspace;
+
+                // Keep the workspace if one already exists.
+                if pair.generator_workspace.is_none() {
+                    pair.generator_workspace = workspace;
+                }
             }
 
             let context = ContactGenerationContext {

@@ -1,14 +1,24 @@
+use crate::data::MaybeSerializableData;
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
 use crate::geometry::{KinematicsCategory, PolygonalFeatureMap, PolyhedronFace};
 use crate::math::{Isometry, Vector};
+#[cfg(feature = "serde-serialize")]
+use erased_serde::Serialize;
 use na::Unit;
 use ncollide::query;
 use ncollide::query::algorithms::{gjk::GJKResult, VoronoiSimplex};
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct PfmPfmContactManifoldGeneratorWorkspace {
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(skip, default = "VoronoiSimplex::new")
+    )]
     simplex: VoronoiSimplex<f32>,
     last_gjk_dir: Option<Unit<Vector<f32>>>,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     feature1: PolyhedronFace,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     feature2: PolyhedronFace,
 }
 
@@ -116,4 +126,14 @@ fn do_generate_contacts(
 
     // Transfer impulses.
     super::match_contacts(&mut ctxt.manifold, &old_manifold_points, false);
+}
+
+impl MaybeSerializableData for PfmPfmContactManifoldGeneratorWorkspace {
+    #[cfg(feature = "serde-serialize")]
+    fn as_serialize(&self) -> Option<(u32, &dyn Serialize)> {
+        Some((
+            super::WorkspaceSerializationTag::PfmPfmContactGeneratorWorkspace as u32,
+            self,
+        ))
+    }
 }

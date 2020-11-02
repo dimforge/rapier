@@ -1,13 +1,18 @@
+use crate::data::MaybeSerializableData;
 use crate::geometry::contact_generator::{
     ContactGenerationContext, PrimitiveContactGenerationContext,
 };
 use crate::geometry::{Collider, ContactManifold, ShapeType, Trimesh};
 use crate::ncollide::bounding_volume::{BoundingVolume, AABB};
+#[cfg(feature = "serde-serialize")]
+use erased_serde::Serialize;
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct TrimeshShapeContactGeneratorWorkspace {
     interferences: Vec<usize>,
     local_aabb2: AABB<f32>,
     old_interferences: Vec<usize>,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     old_manifolds: Vec<ContactManifold>,
 }
 
@@ -51,6 +56,7 @@ fn do_generate_contacts(
         .generator_workspace
         .as_mut()
         .expect("The TrimeshShapeContactGeneratorWorkspace is missing.")
+        .0
         .downcast_mut()
         .expect("Invalid workspace type, expected a TrimeshShapeContactGeneratorWorkspace.");
 
@@ -83,7 +89,7 @@ fn do_generate_contacts(
             // This happens if for some reasons the contact generator context was lost
             // and rebuilt. In this case, we hate to reconstruct the `old_interferences`
             // array using the subshape ids from the contact manifolds.
-            // TODO: always rely on the subshape ids instead of maintaining `.ord_interferences` ?
+            // TODO: always rely on the subshape ids instead of maintaining `.old_interferences` ?
             let ctxt_collider1 = ctxt_pair_pair.collider1;
             workspace.old_interferences = workspace
                 .old_manifolds
@@ -97,6 +103,7 @@ fn do_generate_contacts(
                 })
                 .collect();
         }
+
         // This assertion may fire due to the invalid triangle_ids that the
         // near-phase may return (due to SIMD sentinels).
         //
@@ -123,6 +130,8 @@ fn do_generate_contacts(
     let mut old_manifolds_it = workspace.old_manifolds.drain(..);
     let shape_type2 = collider2.shape().shape_type();
 
+    // TODO: don't redispatch at each frame (we should probably do the same as
+    // the heightfield).
     for (i, triangle_id) in new_interferences.iter().enumerate() {
         if *triangle_id >= trimesh1.num_triangles() {
             // Because of SIMD padding, the broad-phase may return tiangle indices greater
@@ -176,7 +185,7 @@ fn do_generate_contacts(
                 position1: collider2.position(),
                 position2: collider1.position(),
                 manifold,
-                workspace: workspace2.as_deref_mut(),
+                workspace: workspace2.as_mut().map(|w| &mut *w.0),
             }
         } else {
             PrimitiveContactGenerationContext {
@@ -188,10 +197,20 @@ fn do_generate_contacts(
                 position1: collider1.position(),
                 position2: collider2.position(),
                 manifold,
-                workspace: workspace2.as_deref_mut(),
+                workspace: workspace2.as_mut().map(|w| &mut *w.0),
             }
         };
 
         (generator.generate_contacts)(&mut ctxt2);
+    }
+}
+
+impl MaybeSerializableData for TrimeshShapeContactGeneratorWorkspace {
+    #[cfg(feature = "serde-serialize")]
+    fn as_serialize(&self) -> Option<(u32, &dyn Serialize)> {
+        Some((
+            super::WorkspaceSerializationTag::TrimeshShapeContactGeneratorWorkspace as u32,
+            self,
+        ))
     }
 }

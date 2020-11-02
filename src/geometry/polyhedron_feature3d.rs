@@ -14,6 +14,18 @@ pub struct PolyhedronFace {
     pub num_vertices: usize,
 }
 
+impl Default for PolyhedronFace {
+    fn default() -> Self {
+        Self {
+            vertices: [Point::origin(); 4],
+            vids: [0; 4],
+            eids: [0; 4],
+            fid: 0,
+            num_vertices: 0,
+        }
+    }
+}
+
 impl From<CuboidFeatureFace> for PolyhedronFace {
     fn from(face: CuboidFeatureFace) -> Self {
         Self {

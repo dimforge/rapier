@@ -1,3 +1,4 @@
+use crate::data::MaybeSerializableData;
 use crate::geometry::{
     Collider, ColliderSet, ContactDispatcher, ContactEvent, ContactManifold, ContactPair, Shape,
     SolverFlags,
@@ -6,7 +7,6 @@ use crate::math::Isometry;
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::{SimdFloat, SIMD_WIDTH};
 use crate::pipeline::EventHandler;
-use std::any::Any;
 
 #[derive(Copy, Clone)]
 pub enum ContactPhase {
@@ -148,7 +148,7 @@ pub struct PrimitiveContactGenerationContext<'a> {
     pub position1: &'a Isometry<f32>,
     pub position2: &'a Isometry<f32>,
     pub manifold: &'a mut ContactManifold,
-    pub workspace: Option<&'a mut (dyn Any + Send + Sync)>,
+    pub workspace: Option<&'a mut (dyn MaybeSerializableData)>,
 }
 
 #[cfg(feature = "simd-is-enabled")]
@@ -161,7 +161,7 @@ pub struct PrimitiveContactGenerationContextSimd<'a, 'b> {
     pub positions1: &'a Isometry<SimdFloat>,
     pub positions2: &'a Isometry<SimdFloat>,
     pub manifolds: &'a mut [&'b mut ContactManifold],
-    pub workspaces: &'a mut [Option<&'b mut (dyn Any + Send + Sync)>],
+    pub workspaces: &'a mut [Option<&'b mut (dyn MaybeSerializableData)>],
 }
 
 #[derive(Copy, Clone)]
