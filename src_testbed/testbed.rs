@@ -847,6 +847,16 @@ impl Testbed {
                     );
                 }
             }
+            WindowEvent::Key(Key::J, Action::Release, _) => {
+                // Delete 10% of the remaining joints.
+                let joints: Vec<_> = self.physics.joints.iter().map(|e| e.0).collect();
+                let num_to_delete = (joints.len() / 10).max(1);
+                for to_delete in &joints[..num_to_delete] {
+                    self.physics
+                        .joints
+                        .remove(*to_delete, &mut self.physics.bodies, true);
+                }
+            }
             WindowEvent::CursorPos(x, y, _) => {
                 self.cursor_pos.x = x as f32;
                 self.cursor_pos.y = y as f32;
