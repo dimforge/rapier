@@ -181,6 +181,38 @@ impl JointSet {
         }
     }
 
+    /// Removes a joint from this set.
+    ///
+    /// If `wake_up` is set to `true`, then the bodies attached to this joint will be
+    /// automatically woken up.
+    pub fn remove(
+        &mut self,
+        handle: JointHandle,
+        bodies: &mut RigidBodySet,
+        wake_up: bool,
+    ) -> Option<Joint> {
+        let id = self.joint_ids.remove(handle)?;
+        let endpoints = self.joint_graph.graph.edge_endpoints(id)?;
+
+        if wake_up {
+            // Wake-up the bodies attached to this joint.
+            if let Some(rb_handle) = self.joint_graph.graph.node_weight(endpoints.0) {
+                bodies.wake_up(*rb_handle, true);
+            }
+            if let Some(rb_handle) = self.joint_graph.graph.node_weight(endpoints.1) {
+                bodies.wake_up(*rb_handle, true);
+            }
+        }
+
+        let removed_joint = self.joint_graph.graph.remove_edge(id);
+
+        if let Some(edge) = self.joint_graph.graph.edge_weight(id) {
+            self.joint_ids[edge.handle] = id;
+        }
+
+        removed_joint
+    }
+
     pub(crate) fn remove_rigid_body(
         &mut self,
         deleted_id: RigidBodyGraphIndex,

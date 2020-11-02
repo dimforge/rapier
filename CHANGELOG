@@ -1,3 +1,7 @@
+## v0.3.1
+- Fix non-determinism problem when using triangle-meshes, cone, cylinders, or capsules.
+- Add `JointSet::remove(...)` to remove a joint from the `JointSet`.
+
 ## v0.3.0
 - Collider shapes are now trait-objects instead of a `Shape` enum.
 - Add a user-defined `u128` to each colliders and rigid-bodies for storing user data.

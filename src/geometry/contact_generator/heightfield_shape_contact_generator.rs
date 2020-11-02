@@ -1,23 +1,29 @@
+use crate::data::hashmap::{Entry, HashMap};
+use crate::data::MaybeSerializableData;
 use crate::geometry::contact_generator::{
-    ContactGenerationContext, PrimitiveContactGenerationContext, PrimitiveContactGenerator,
+    ContactGenerationContext, ContactGeneratorWorkspace, PrimitiveContactGenerationContext,
+    PrimitiveContactGenerator,
 };
 #[cfg(feature = "dim2")]
 use crate::geometry::Capsule;
-use crate::geometry::{Collider, ContactManifold, HeightField, Shape, ShapeType};
+use crate::geometry::{Collider, ContactManifold, HeightField, Shape};
 use crate::ncollide::bounding_volume::BoundingVolume;
-use std::any::Any;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+#[cfg(feature = "serde-serialize")]
+use erased_serde::Serialize;
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 struct SubDetector {
-    generator: PrimitiveContactGenerator,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    generator: Option<PrimitiveContactGenerator>,
     manifold_id: usize,
     timestamp: bool,
-    workspace: Option<Box<(dyn Any + Send + Sync)>>,
+    workspace: Option<ContactGeneratorWorkspace>,
 }
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct HeightFieldShapeContactGeneratorWorkspace {
     timestamp: bool,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     old_manifolds: Vec<ContactManifold>,
     sub_detectors: HashMap<usize, SubDetector>,
 }
@@ -55,36 +61,9 @@ fn do_generate_contacts(
         .generator_workspace
         .as_mut()
         .expect("The HeightFieldShapeContactGeneratorWorkspace is missing.")
+        .0
         .downcast_mut()
         .expect("Invalid workspace type, expected a HeightFieldShapeContactGeneratorWorkspace.");
-    let shape_type2 = collider2.shape().shape_type();
-
-    /*
-     * Detect if the detector context has been reset.
-     */
-    if !ctxt.pair.manifolds.is_empty() && workspace.sub_detectors.is_empty() {
-        // Rebuild the subdetector hashmap.
-        for (manifold_id, manifold) in ctxt.pair.manifolds.iter().enumerate() {
-            let subshape_id = if manifold.pair.collider1 == ctxt.pair.pair.collider1 {
-                manifold.subshape_index_pair.0
-            } else {
-                manifold.subshape_index_pair.1
-            };
-            let (generator, workspace2) = ctxt
-                .dispatcher
-                .dispatch_primitives(ShapeType::Capsule, shape_type2);
-
-            let sub_detector = SubDetector {
-                generator,
-                manifold_id,
-                timestamp: workspace.timestamp,
-                workspace: workspace2,
-            };
-
-            workspace.sub_detectors.insert(subshape_id, sub_detector);
-        }
-    }
-
     let new_timestamp = !workspace.timestamp;
     workspace.timestamp = new_timestamp;
 
@@ -127,7 +106,7 @@ fn do_generate_contacts(
                 let (generator, workspace2) =
                     dispatcher.dispatch_primitives(sub_shape1.shape_type(), shape_type2);
                 let sub_detector = SubDetector {
-                    generator,
+                    generator: Some(generator),
                     manifold_id: manifolds.len(),
                     timestamp: new_timestamp,
                     workspace: workspace2,
@@ -146,6 +125,19 @@ fn do_generate_contacts(
             }
         };
 
+        if sub_detector.generator.is_none() {
+            // We probably lost the generator after deserialization.
+            // So we need to dispatch again.
+            let (generator, workspace2) =
+                dispatcher.dispatch_primitives(sub_shape1.shape_type(), shape_type2);
+            sub_detector.generator = Some(generator);
+
+            // Don't overwrite the workspace if we already deserialized one.
+            if sub_detector.workspace.is_none() {
+                sub_detector.workspace = workspace2;
+            }
+        }
+
         let manifold = &mut manifolds[sub_detector.manifold_id];
 
         let mut ctxt2 = if coll_pair.collider1 != manifold.pair.collider1 {
@@ -158,7 +150,7 @@ fn do_generate_contacts(
                 position1: collider2.position(),
                 position2: position1,
                 manifold,
-                workspace: sub_detector.workspace.as_deref_mut(),
+                workspace: sub_detector.workspace.as_mut().map(|w| &mut *w.0),
             }
         } else {
             PrimitiveContactGenerationContext {
@@ -170,14 +162,24 @@ fn do_generate_contacts(
                 position1,
                 position2: collider2.position(),
                 manifold,
-                workspace: sub_detector.workspace.as_deref_mut(),
+                workspace: sub_detector.workspace.as_mut().map(|w| &mut *w.0),
             }
         };
 
-        (sub_detector.generator.generate_contacts)(&mut ctxt2)
+        (sub_detector.generator.unwrap().generate_contacts)(&mut ctxt2)
     });
 
     workspace
         .sub_detectors
         .retain(|_, detector| detector.timestamp == new_timestamp)
+}
+
+impl MaybeSerializableData for HeightFieldShapeContactGeneratorWorkspace {
+    #[cfg(feature = "serde-serialize")]
+    fn as_serialize(&self) -> Option<(u32, &dyn Serialize)> {
+        Some((
+            super::WorkspaceSerializationTag::HeightfieldShapeContactGeneratorWorkspace as u32,
+            self,
+        ))
+    }
 }

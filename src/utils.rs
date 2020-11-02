@@ -1,13 +1,10 @@
 //! Miscellaneous utilities.
 
 use crate::dynamics::RigidBodyHandle;
-#[cfg(all(feature = "enhanced-determinism", feature = "serde-serialize"))]
-use indexmap::IndexMap as HashMap;
 use na::{Matrix2, Matrix3, Matrix3x2, Point2, Point3, Scalar, SimdRealField, Vector2, Vector3};
 use num::Zero;
 use simba::simd::SimdValue;
-#[cfg(all(not(feature = "enhanced-determinism"), feature = "serde-serialize"))]
-use std::collections::HashMap;
+
 use std::ops::{Add, Mul};
 use {
     crate::simd::{SimdBool, SimdFloat},
@@ -1197,129 +1194,6 @@ impl Drop for FlushToZeroDenormalsAreZeroFlags {
         unsafe {
             std::arch::x86_64::_mm_setcsr(self.original_flags)
         }
-    }
-}
-
-#[cfg(feature = "serde-serialize")]
-pub(crate) fn serialize_hashmap_capacity<S: serde::Serializer, K, V, H: std::hash::BuildHasher>(
-    map: &HashMap<K, V, H>,
-    s: S,
-) -> Result<S::Ok, S::Error> {
-    s.serialize_u64(map.capacity() as u64)
-}
-
-#[cfg(feature = "serde-serialize")]
-pub(crate) fn deserialize_hashmap_capacity<
-    'de,
-    D: serde::Deserializer<'de>,
-    K,
-    V,
-    H: std::hash::BuildHasher + Default,
->(
-    d: D,
-) -> Result<HashMap<K, V, H>, D::Error> {
-    struct CapacityVisitor;
-    impl<'de> serde::de::Visitor<'de> for CapacityVisitor {
-        type Value = u64;
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            write!(formatter, "an integer between 0 and 2^64")
-        }
-
-        fn visit_u64<E: serde::de::Error>(self, val: u64) -> Result<Self::Value, E> {
-            Ok(val)
-        }
-    }
-
-    let capacity = d.deserialize_u64(CapacityVisitor)? as usize;
-    Ok(HashMap::with_capacity_and_hasher(
-        capacity,
-        Default::default(),
-    ))
-}
-
-/*
- * FxHasher taken from rustc_hash, except that it does not depend on the pointer size.
- */
-#[cfg(feature = "enhanced-determinism")]
-pub(crate) type FxHashMap32<K, V> =
-    indexmap::IndexMap<K, V, std::hash::BuildHasherDefault<FxHasher32>>;
-
-const K: u32 = 0x9e3779b9;
-
-pub(crate) struct FxHasher32 {
-    hash: u32,
-}
-
-impl Default for FxHasher32 {
-    #[inline]
-    fn default() -> FxHasher32 {
-        FxHasher32 { hash: 0 }
-    }
-}
-
-impl FxHasher32 {
-    #[inline]
-    fn add_to_hash(&mut self, i: u32) {
-        use std::ops::BitXor;
-        self.hash = self.hash.rotate_left(5).bitxor(i).wrapping_mul(K);
-    }
-}
-
-impl std::hash::Hasher for FxHasher32 {
-    #[inline]
-    fn write(&mut self, mut bytes: &[u8]) {
-        use std::convert::TryInto;
-        let read_u32 = |bytes: &[u8]| u32::from_ne_bytes(bytes[..4].try_into().unwrap());
-        let mut hash = FxHasher32 { hash: self.hash };
-        assert!(std::mem::size_of::<u32>() <= 8);
-        while bytes.len() >= std::mem::size_of::<u32>() {
-            hash.add_to_hash(read_u32(bytes) as u32);
-            bytes = &bytes[std::mem::size_of::<u32>()..];
-        }
-        if (std::mem::size_of::<u32>() > 4) && (bytes.len() >= 4) {
-            hash.add_to_hash(u32::from_ne_bytes(bytes[..4].try_into().unwrap()) as u32);
-            bytes = &bytes[4..];
-        }
-        if (std::mem::size_of::<u32>() > 2) && bytes.len() >= 2 {
-            hash.add_to_hash(u16::from_ne_bytes(bytes[..2].try_into().unwrap()) as u32);
-            bytes = &bytes[2..];
-        }
-        if (std::mem::size_of::<u32>() > 1) && bytes.len() >= 1 {
-            hash.add_to_hash(bytes[0] as u32);
-        }
-        self.hash = hash.hash;
-    }
-
-    #[inline]
-    fn write_u8(&mut self, i: u8) {
-        self.add_to_hash(i as u32);
-    }
-
-    #[inline]
-    fn write_u16(&mut self, i: u16) {
-        self.add_to_hash(i as u32);
-    }
-
-    #[inline]
-    fn write_u32(&mut self, i: u32) {
-        self.add_to_hash(i as u32);
-    }
-
-    #[inline]
-    fn write_u64(&mut self, i: u64) {
-        self.add_to_hash(i as u32);
-        self.add_to_hash((i >> 32) as u32);
-    }
-
-    #[inline]
-    fn write_usize(&mut self, i: usize) {
-        self.add_to_hash(i as u32);
-    }
-
-    #[inline]
-    fn finish(&self) -> u64 {
-        self.hash as u64
     }
 }
 

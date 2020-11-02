@@ -1,11 +1,11 @@
 #[cfg(feature = "dim3")]
 use crate::geometry::contact_generator::PfmPfmContactManifoldGeneratorWorkspace;
 use crate::geometry::contact_generator::{
-    ContactGenerator, ContactPhase, HeightFieldShapeContactGeneratorWorkspace,
-    PrimitiveContactGenerator, TrimeshShapeContactGeneratorWorkspace,
+    ContactGenerator, ContactGeneratorWorkspace, ContactPhase,
+    HeightFieldShapeContactGeneratorWorkspace, PrimitiveContactGenerator,
+    TrimeshShapeContactGeneratorWorkspace,
 };
 use crate::geometry::ShapeType;
-use std::any::Any;
 
 /// Trait implemented by structures responsible for selecting a collision-detection algorithm
 /// for a given pair of shapes.
@@ -15,16 +15,13 @@ pub trait ContactDispatcher {
         &self,
         shape1: ShapeType,
         shape2: ShapeType,
-    ) -> (
-        PrimitiveContactGenerator,
-        Option<Box<dyn Any + Send + Sync>>,
-    );
+    ) -> (PrimitiveContactGenerator, Option<ContactGeneratorWorkspace>);
     /// Select the collision-detection algorithm for the given pair of non-primitive shapes.
     fn dispatch(
         &self,
         shape1: ShapeType,
         shape2: ShapeType,
-    ) -> (ContactPhase, Option<Box<dyn Any + Send + Sync>>);
+    ) -> (ContactPhase, Option<ContactGeneratorWorkspace>);
 }
 
 /// The default contact dispatcher used by Rapier.
@@ -35,10 +32,7 @@ impl ContactDispatcher for DefaultContactDispatcher {
         &self,
         shape1: ShapeType,
         shape2: ShapeType,
-    ) -> (
-        PrimitiveContactGenerator,
-        Option<Box<dyn Any + Send + Sync>>,
-    ) {
+    ) -> (PrimitiveContactGenerator, Option<ContactGeneratorWorkspace>) {
         match (shape1, shape2) {
             (ShapeType::Ball, ShapeType::Ball) => (
                 PrimitiveContactGenerator {
@@ -106,7 +100,9 @@ impl ContactDispatcher for DefaultContactDispatcher {
                     generate_contacts: super::generate_contacts_pfm_pfm,
                     ..PrimitiveContactGenerator::default()
                 },
-                Some(Box::new(PfmPfmContactManifoldGeneratorWorkspace::default())),
+                Some(ContactGeneratorWorkspace::from(
+                    PfmPfmContactManifoldGeneratorWorkspace::default(),
+                )),
             ),
             _ => (PrimitiveContactGenerator::default(), None),
         }
@@ -116,21 +112,25 @@ impl ContactDispatcher for DefaultContactDispatcher {
         &self,
         shape1: ShapeType,
         shape2: ShapeType,
-    ) -> (ContactPhase, Option<Box<dyn Any + Send + Sync>>) {
+    ) -> (ContactPhase, Option<ContactGeneratorWorkspace>) {
         match (shape1, shape2) {
             (ShapeType::Trimesh, _) | (_, ShapeType::Trimesh) => (
                 ContactPhase::NearPhase(ContactGenerator {
                     generate_contacts: super::generate_contacts_trimesh_shape,
                     ..ContactGenerator::default()
                 }),
-                Some(Box::new(TrimeshShapeContactGeneratorWorkspace::new())),
+                Some(ContactGeneratorWorkspace::from(
+                    TrimeshShapeContactGeneratorWorkspace::new(),
+                )),
             ),
             (ShapeType::HeightField, _) | (_, ShapeType::HeightField) => (
                 ContactPhase::NearPhase(ContactGenerator {
                     generate_contacts: super::generate_contacts_heightfield_shape,
                     ..ContactGenerator::default()
                 }),
-                Some(Box::new(HeightFieldShapeContactGeneratorWorkspace::new())),
+                Some(ContactGeneratorWorkspace::from(
+                    HeightFieldShapeContactGeneratorWorkspace::new(),
+                )),
             ),
             _ => {
                 let (gen, workspace) = self.dispatch_primitives(shape1, shape2);
