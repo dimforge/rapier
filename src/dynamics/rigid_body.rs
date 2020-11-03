@@ -82,7 +82,7 @@ impl RigidBody {
         }
     }
 
-    pub(crate) fn reset_internal_links(&mut self) {
+    pub(crate) fn reset_internal_references(&mut self) {
         self.colliders = Vec::new();
         self.joint_graph_index = RigidBodyGraphIndex::new(crate::INVALID_U32);
         self.active_island_id = crate::INVALID_USIZE;

@@ -214,7 +214,7 @@ pub struct Collider {
 }
 
 impl Collider {
-    pub(crate) fn reset_internal_links(&mut self) {
+    pub(crate) fn reset_internal_references(&mut self) {
         self.parent = RigidBodySet::invalid_handle();
         self.contact_graph_index = ColliderGraphIndex::new(crate::INVALID_U32);
         self.proximity_graph_index = ColliderGraphIndex::new(crate::INVALID_U32);
