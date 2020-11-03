@@ -132,6 +132,7 @@ impl Endpoint {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 struct SAPAxis {
     min_bound: f32,
     max_bound: f32,
@@ -331,6 +332,7 @@ impl SAPAxis {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 struct SAPRegion {
     axes: [SAPAxis; DIM],
     existing_proxies: BitVec,
@@ -411,6 +413,7 @@ impl SAPRegion {
 
 /// A broad-phase based on multiple Sweep-and-Prune instances running of disjoint region of the 3D world.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct BroadPhase {
     proxies: Proxies,
     regions: HashMap<Point<i32>, SAPRegion>,
@@ -438,6 +441,7 @@ pub struct BroadPhase {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub(crate) struct BroadPhaseProxy {
     handle: ColliderHandle,
     aabb: AABB<f32>,
@@ -445,6 +449,7 @@ pub(crate) struct BroadPhaseProxy {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 struct Proxies {
     elements: Vec<BroadPhaseProxy>,
     first_free: u32,

@@ -9,6 +9,7 @@ use ncollide::query;
 use ncollide::query::algorithms::{gjk::GJKResult, VoronoiSimplex};
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct PfmPfmContactManifoldGeneratorWorkspace {
     #[cfg_attr(
         feature = "serde-serialize",
@@ -135,5 +136,9 @@ impl MaybeSerializableData for PfmPfmContactManifoldGeneratorWorkspace {
             super::WorkspaceSerializationTag::PfmPfmContactGeneratorWorkspace as u32,
             self,
         ))
+    }
+
+    fn clone(&self) -> Box<MaybeSerializableData> {
+        Box::new(self.clone())
     }
 }

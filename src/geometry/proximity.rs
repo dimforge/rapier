@@ -15,6 +15,18 @@ pub struct ProximityPair {
     pub(crate) detector_workspace: Option<Box<dyn Any + Send + Sync>>,
 }
 
+// TODO: use the `derive(Clone)` instead?
+impl Clone for ProximityPair {
+    fn clone(&self) -> Self {
+        ProximityPair {
+            pair: self.pair.clone(),
+            proximity: self.proximity.clone(),
+            detector: None,
+            detector_workspace: None,
+        }
+    }
+}
+
 impl ProximityPair {
     pub(crate) fn new(
         pair: ColliderPair,

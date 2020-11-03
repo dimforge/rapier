@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 
 /// A permanent subscription to a pub-sub queue.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct Subscription<T> {
     // Position on the cursor array.
     id: u32,
@@ -12,6 +13,7 @@ pub struct Subscription<T> {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 struct PubSubCursor {
     // Position on the offset array.
     id: u32,
@@ -36,6 +38,7 @@ impl PubSubCursor {
 
 /// A pub-sub queue.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct PubSub<T> {
     deleted_messages: u32,
     deleted_offsets: u32,

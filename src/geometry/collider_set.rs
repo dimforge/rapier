@@ -17,6 +17,7 @@ pub(crate) struct RemovedCollider {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 /// A set of colliders that can be handled by a physics `World`.
 pub struct ColliderSet {
     pub(crate) removed_colliders: PubSub<RemovedCollider>,
