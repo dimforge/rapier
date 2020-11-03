@@ -154,7 +154,11 @@ impl RigidBodySet {
     }
 
     /// Insert a rigid body into this set and retrieve its handle.
-    pub fn insert(&mut self, rb: RigidBody) -> RigidBodyHandle {
+    pub fn insert(&mut self, mut rb: RigidBody) -> RigidBodyHandle {
+        // Make sure the internal links are reset, they may not be
+        // if this rigid-body was obtained by cloning another one.
+        rb.reset_internal_links();
+
         let handle = self.bodies.insert(rb);
         let rb = &mut self.bodies[handle];
 
