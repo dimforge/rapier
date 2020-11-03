@@ -344,6 +344,7 @@ pub struct RigidBodyBuilder {
     linvel: Vector<f32>,
     angvel: AngVector<f32>,
     body_status: BodyStatus,
+    mass_properties: MassProperties,
     can_sleep: bool,
     user_data: u128,
 }
@@ -356,6 +357,7 @@ impl RigidBodyBuilder {
             linvel: Vector::zeros(),
             angvel: na::zero(),
             body_status,
+            mass_properties: MassProperties::zero(),
             can_sleep: true,
             user_data: 0,
         }
@@ -411,6 +413,36 @@ impl RigidBodyBuilder {
         self
     }
 
+    /// Sets the mass properties of the rigid-body being built.
+    ///
+    /// Note that the final mass properties of the rigid-bodies depends
+    /// on the initial mass-properties of the rigid-body (set by this method)
+    /// to which is added the contributions of all the colliders with non-zero density
+    /// attached to this rigid-body.
+    ///
+    /// Therefore, if you want your provided mass properties to be the final
+    /// mass properties of your rigid-body, don't attach colliders to it, or
+    /// only attach colliders with densities equal to zero.
+    pub fn mass_properties(mut self, props: MassProperties) -> Self {
+        self.mass_properties = props;
+        self
+    }
+
+    /// Sets the mass of the rigid-body being built.
+    ///
+    /// Note that the final mass of the rigid-bodies depends
+    /// on the initial mass of the rigid-body (set by this method)
+    /// to which is added the contributions of all the colliders with non-zero density
+    /// attached to this rigid-body.
+    ///
+    /// Therefore, if you want your provided mass to be the final
+    /// mass of your rigid-body, don't attach colliders to it, or
+    /// only attach colliders with densities equal to zero.
+    pub fn mass(mut self, mass: f32) -> Self {
+        self.mass_properties.inv_mass = crate::utils::inv(mass);
+        self
+    }
+
     /// Sets the initial linear velocity of the rigid-body to be created.
     #[cfg(feature = "dim2")]
     pub fn linvel(mut self, x: f32, y: f32) -> Self {
@@ -446,6 +478,7 @@ impl RigidBodyBuilder {
         rb.angvel = self.angvel;
         rb.body_status = self.body_status;
         rb.user_data = self.user_data;
+        rb.mass_properties = self.mass_properties;
 
         if !self.can_sleep {
             rb.activation.threshold = -1.0;
