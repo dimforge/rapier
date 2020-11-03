@@ -25,8 +25,9 @@ pub struct MassProperties {
 }
 
 impl MassProperties {
+    /// Initializes the mass properties from the given center-of-mass, mass, and angular inertia.
     #[cfg(feature = "dim2")]
-    pub(crate) fn new(local_com: Point<f32>, mass: f32, principal_inertia: f32) -> Self {
+    pub fn new(local_com: Point<f32>, mass: f32, principal_inertia: f32) -> Self {
         let inv_mass = utils::inv(mass);
         let inv_principal_inertia_sqrt = utils::inv(principal_inertia.sqrt());
         Self {
@@ -36,13 +37,20 @@ impl MassProperties {
         }
     }
 
+    /// Initializes the mass properties from the given center-of-mass, mass, and principal angular inertia.
+    ///
+    /// The principal angular inertia are the angular inertia along the coordinate axes.
     #[cfg(feature = "dim3")]
-    pub(crate) fn new(local_com: Point<f32>, mass: f32, principal_inertia: AngVector<f32>) -> Self {
+    pub fn new(local_com: Point<f32>, mass: f32, principal_inertia: AngVector<f32>) -> Self {
         Self::with_principal_inertia_frame(local_com, mass, principal_inertia, Rotation::identity())
     }
 
+    /// Initializes the mass properties from the given center-of-mass, mass, and principal angular inertia.
+    ///
+    /// The principal angular inertia are the angular inertia along the coordinate axes defined by
+    /// the `principal_inertia_local_frame`.
     #[cfg(feature = "dim3")]
-    pub(crate) fn with_principal_inertia_frame(
+    pub fn with_principal_inertia_frame(
         local_com: Point<f32>,
         mass: f32,
         principal_inertia: AngVector<f32>,
