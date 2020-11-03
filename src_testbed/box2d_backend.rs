@@ -161,7 +161,7 @@ impl Box2dWorld {
         let center = na_vec_to_b2_vec(collider.position_wrt_parent().translation.vector);
         let mut fixture_def = b2::FixtureDef::new();
 
-        fixture_def.restitution = 0.0;
+        fixture_def.restitution = collider.restitution;
         fixture_def.friction = collider.friction;
         fixture_def.density = collider.density();
         fixture_def.is_sensor = collider.is_sensor();

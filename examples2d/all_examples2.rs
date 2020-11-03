@@ -17,6 +17,7 @@ mod heightfield2;
 mod joints2;
 mod platform2;
 mod pyramid2;
+mod restitution2;
 mod sensor2;
 
 fn demo_name_from_command_line() -> Option<String> {
@@ -58,6 +59,7 @@ pub fn main() {
         ("Joints", joints2::init_world),
         ("Platform", platform2::init_world),
         ("Pyramid", pyramid2::init_world),
+        ("Restitution", restitution2::init_world),
         ("Sensor", sensor2::init_world),
         ("(Debug) box ball", debug_box_ball2::init_world),
     ];

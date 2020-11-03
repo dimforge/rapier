@@ -23,6 +23,7 @@ mod joints3;
 mod keva3;
 mod platform3;
 mod primitives3;
+mod restitution3;
 mod sensor3;
 mod stacks3;
 mod trimesh3;
@@ -72,6 +73,7 @@ pub fn main() {
         ("Heightfield", heightfield3::init_world),
         ("Joints", joints3::init_world),
         ("Platform", platform3::init_world),
+        ("Restitution", restitution3::init_world),
         ("Stacks", stacks3::init_world),
         ("Sensor", sensor3::init_world),
         ("Trimesh", trimesh3::init_world),

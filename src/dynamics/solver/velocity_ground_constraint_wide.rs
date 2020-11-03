@@ -110,6 +110,10 @@ impl WVelocityGroundConstraint {
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
         let friction = SimdFloat::from(array![|ii| manifolds[ii].friction; SIMD_WIDTH]);
+        let restitution = SimdFloat::from(array![|ii| manifolds[ii].restitution; SIMD_WIDTH]);
+        let restitution_velocity_threshold =
+            SimdFloat::splat(params.restitution_velocity_threshold);
+
         let warmstart_multiplier =
             SimdFloat::from(array![|ii| manifolds[ii].warmstart_multiplier; SIMD_WIDTH]);
         let warmstart_coeff = warmstart_multiplier * SimdFloat::splat(params.warmstart_coeff);
@@ -154,9 +158,11 @@ impl WVelocityGroundConstraint {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-force_dir1));
 
                     let r = SimdFloat::splat(1.0) / (im2 + gcross2.gdot(gcross2));
-                    let rhs = -vel2.dot(&force_dir1)
-                        + vel1.dot(&force_dir1)
-                        + dist.simd_max(SimdFloat::zero()) * inv_dt;
+                    let mut rhs = (vel1 - vel2).dot(&force_dir1);
+                    let use_restitution = rhs.simd_le(-restitution_velocity_threshold);
+                    let rhs_with_restitution = rhs + rhs * restitution;
+                    rhs = rhs_with_restitution.select(use_restitution, rhs);
+                    rhs += dist.simd_max(SimdFloat::zero()) * inv_dt;
 
                     constraint.elements[k].normal_part = WVelocityGroundConstraintElementPart {
                         gcross2,
