@@ -1,3 +1,11 @@
+## v0.3.2
+- Add linear and angular damping. The damping factor can be set with `RigidBodyBuilder::linear_damping` and
+  `RigidBodyBuilder::angular_damping`.
+- Implement `Clone` for almost everything that can be worth cloning.
+- Allow setting the initial mass and mass properties of a rigid-bodies using `RigidBodyBuilder::mass` and
+  `RigidBodyBuilder::mass_properties`.
+- The restitution coefficient of colliders is now taken into account by the physics solver.
+
 ## v0.3.1
 - Fix non-determinism problem when using triangle-meshes, cone, cylinders, or capsules.
 - Add `JointSet::remove(...)` to remove a joint from the `JointSet`.
