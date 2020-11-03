@@ -421,7 +421,7 @@ impl RigidBodyBuilder {
     /// attached to this rigid-body.
     ///
     /// Therefore, if you want your provided mass properties to be the final
-    /// mass properties of your rigid-bodies, don't attach colliders to it, or
+    /// mass properties of your rigid-body, don't attach colliders to it, or
     /// only attach colliders with densities equal to zero.
     pub fn mass_properties(mut self, props: MassProperties) -> Self {
         self.mass_properties = props;
@@ -436,7 +436,7 @@ impl RigidBodyBuilder {
     /// attached to this rigid-body.
     ///
     /// Therefore, if you want your provided mass to be the final
-    /// mass of your rigid-bodies, don't attach colliders to it, or
+    /// mass of your rigid-body, don't attach colliders to it, or
     /// only attach colliders with densities equal to zero.
     pub fn mass(mut self, mass: f32) -> Self {
         self.mass_properties.inv_mass = crate::utils::inv(mass);
