@@ -152,6 +152,7 @@ impl GraphicsManager {
         self.f2sn.clear();
         #[cfg(feature = "fluids")]
         self.boundary2sn.clear();
+        self.c2color.clear();
         self.b2color.clear();
         self.b2wireframe.clear();
         self.rand = Pcg32::seed_from_u64(0);

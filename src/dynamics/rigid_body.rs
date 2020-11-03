@@ -42,6 +42,10 @@ pub struct RigidBody {
     pub linvel: Vector<f32>,
     /// The angular velocity of the rigid-body.
     pub angvel: AngVector<f32>,
+    /// Damping factor for gradually slowing down the translational motion of the rigid-body.
+    pub linear_damping: f32,
+    /// Damping factor for gradually slowing down the angular motion of the rigid-body.
+    pub angular_damping: f32,
     pub(crate) linacc: Vector<f32>,
     pub(crate) angacc: AngVector<f32>,
     pub(crate) colliders: Vec<ColliderHandle>,
@@ -70,6 +74,8 @@ impl RigidBody {
             angvel: na::zero(),
             linacc: Vector::zeros(),
             angacc: na::zero(),
+            linear_damping: 0.0,
+            angular_damping: 0.0,
             colliders: Vec::new(),
             activation: ActivationStatus::new_active(),
             joint_graph_index: InteractionGraph::<()>::invalid_graph_index(),
@@ -218,6 +224,10 @@ impl RigidBody {
     }
 
     pub(crate) fn integrate(&mut self, dt: f32) {
+        // TODO: do we want to apply damping before or after the velocity integration?
+        self.linvel *= 1.0 / (1.0 + dt * self.linear_damping);
+        self.angvel *= 1.0 / (1.0 + dt * self.angular_damping);
+
         self.position = self.integrate_velocity(dt) * self.position;
     }
 
@@ -338,6 +348,8 @@ pub struct RigidBodyBuilder {
     position: Isometry<f32>,
     linvel: Vector<f32>,
     angvel: AngVector<f32>,
+    linear_damping: f32,
+    angular_damping: f32,
     body_status: BodyStatus,
     mass_properties: MassProperties,
     can_sleep: bool,
@@ -351,6 +363,8 @@ impl RigidBodyBuilder {
             position: Isometry::identity(),
             linvel: Vector::zeros(),
             angvel: na::zero(),
+            linear_damping: 0.0,
+            angular_damping: 0.0,
             body_status,
             mass_properties: MassProperties::zero(),
             can_sleep: true,
@@ -438,6 +452,24 @@ impl RigidBodyBuilder {
         self
     }
 
+    /// Sets the damping factor for the linear part of the rigid-body motion.
+    ///
+    /// The higher the linear damping factor is, the more quickly the rigid-body
+    /// will slow-down its translational movement.
+    pub fn linear_damping(mut self, factor: f32) -> Self {
+        self.linear_damping = factor;
+        self
+    }
+
+    /// Sets the damping factor for the angular part of the rigid-body motion.
+    ///
+    /// The higher the angular damping factor is, the more quickly the rigid-body
+    /// will slow-down its rotational movement.
+    pub fn angular_damping(mut self, factor: f32) -> Self {
+        self.angular_damping = factor;
+        self
+    }
+
     /// Sets the initial linear velocity of the rigid-body to be created.
     #[cfg(feature = "dim2")]
     pub fn linvel(mut self, x: f32, y: f32) -> Self {
@@ -474,6 +506,8 @@ impl RigidBodyBuilder {
         rb.body_status = self.body_status;
         rb.user_data = self.user_data;
         rb.mass_properties = self.mass_properties;
+        rb.linear_damping = self.linear_damping;
+        rb.angular_damping = self.angular_damping;
 
         if !self.can_sleep {
             rb.activation.threshold = -1.0;
