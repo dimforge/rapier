@@ -238,8 +238,13 @@ impl VelocityConstraint {
                             + gcross1.gdot(gcross1)
                             + gcross2.gdot(gcross2));
 
-                    let rhs = (vel1 - vel2).dot(&force_dir1)
-                        + manifold_point.dist.max(0.0) * params.inv_dt();
+                    let mut rhs = (vel1 - vel2).dot(&force_dir1);
+
+                    if rhs <= -params.restitution_velocity_threshold {
+                        rhs += manifold.restitution * rhs
+                    }
+
+                    rhs += manifold_point.dist.max(0.0) * params.inv_dt();
 
                     let impulse = manifold_points[k].impulse * warmstart_coeff;
 

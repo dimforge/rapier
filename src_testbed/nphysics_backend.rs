@@ -45,7 +45,7 @@ impl NPhysicsWorld {
         let force_generators = DefaultForceGeneratorSet::new();
 
         for (rapier_handle, rb) in bodies.iter() {
-            //            let material = physics.create_material(rb.collider.friction, rb.collider.friction, 0.0);
+            // let material = physics.create_material(rb.collider.friction, rb.collider.friction, 0.0);
             let nphysics_rb = RigidBodyDesc::new().position(rb.position).build();
             let nphysics_rb_handle = nphysics_bodies.insert(nphysics_rb);
 
