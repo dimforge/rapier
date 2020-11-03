@@ -5,7 +5,7 @@ use crate::utils::WBasis;
 use na::Point2;
 use ncollide::shape::Segment;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PolyhedronFace {
     pub vertices: [Point<f32>; 4],
     pub vids: [u8; 4], // Feature ID of the vertices.

@@ -138,7 +138,7 @@ impl MaybeSerializableData for PfmPfmContactManifoldGeneratorWorkspace {
         ))
     }
 
-    fn clone(&self) -> Box<MaybeSerializableData> {
+    fn clone_dyn(&self) -> Box<MaybeSerializableData> {
         Box::new(self.clone())
     }
 }
