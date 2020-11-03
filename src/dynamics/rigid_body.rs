@@ -84,11 +84,11 @@ impl RigidBody {
 
     pub(crate) fn reset_internal_references(&mut self) {
         self.colliders = Vec::new();
-        self.joint_graph_index = RigidBodyGraphIndex::new(crate::INVALID_U32);
-        self.active_island_id = crate::INVALID_USIZE;
-        self.active_set_id = crate::INVALID_USIZE;
-        self.active_set_offset = crate::INVALID_USIZE;
-        self.active_set_timestamp = crate::INVALID_U32;
+        self.joint_graph_index = InteractionGraph::<()>::invalid_graph_index();
+        self.active_island_id = 0;
+        self.active_set_id = 0;
+        self.active_set_offset = 0;
+        self.active_set_timestamp = 0;
     }
 
     pub(crate) fn integrate_accelerations(&mut self, dt: f32, gravity: Vector<f32>) {
