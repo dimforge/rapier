@@ -9,6 +9,12 @@ use crate::geometry::contact_generator::{
 // Note we have this newtype because it simplifies the serialization/deserialization code.
 pub struct ContactGeneratorWorkspace(pub Box<dyn MaybeSerializableData>);
 
+impl Clone for ContactGeneratorWorkspace {
+    fn clone(&self) -> Self {
+        ContactGeneratorWorkspace(self.0.clone_dyn())
+    }
+}
+
 impl<T: MaybeSerializableData> From<T> for ContactGeneratorWorkspace {
     fn from(data: T) -> Self {
         Self(Box::new(data) as Box<dyn MaybeSerializableData>)

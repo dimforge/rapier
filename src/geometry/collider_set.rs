@@ -17,6 +17,7 @@ pub(crate) struct RemovedCollider {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 /// A set of colliders that can be handled by a physics `World`.
 pub struct ColliderSet {
     pub(crate) removed_colliders: PubSub<RemovedCollider>,
@@ -59,6 +60,10 @@ impl ColliderSet {
         parent_handle: RigidBodyHandle,
         bodies: &mut RigidBodySet,
     ) -> ColliderHandle {
+        // Make sure the internal links are reset, they may not be
+        // if this rigid-body was obtained by cloning another one.
+        coll.reset_internal_references();
+
         coll.parent = parent_handle;
         let parent = bodies
             .get_mut_internal(parent_handle)

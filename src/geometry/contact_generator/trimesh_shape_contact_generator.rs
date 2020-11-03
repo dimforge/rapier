@@ -8,6 +8,7 @@ use crate::ncollide::bounding_volume::{BoundingVolume, AABB};
 use erased_serde::Serialize;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct TrimeshShapeContactGeneratorWorkspace {
     interferences: Vec<usize>,
     local_aabb2: AABB<f32>,
@@ -212,5 +213,9 @@ impl MaybeSerializableData for TrimeshShapeContactGeneratorWorkspace {
             super::WorkspaceSerializationTag::TrimeshShapeContactGeneratorWorkspace as u32,
             self,
         ))
+    }
+
+    fn clone_dyn(&self) -> Box<dyn MaybeSerializableData> {
+        Box::new(self.clone())
     }
 }

@@ -9,6 +9,9 @@ pub trait MaybeSerializableData: DowncastSync {
     fn as_serialize(&self) -> Option<(u32, &dyn Serialize)> {
         None
     }
+
+    /// Clones `self`.
+    fn clone_dyn(&self) -> Box<dyn MaybeSerializableData>;
 }
 
 impl_downcast!(sync MaybeSerializableData);

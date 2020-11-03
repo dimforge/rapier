@@ -188,6 +188,7 @@ impl<'de> serde::Deserialize<'de> for ColliderShape {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 /// A geometric entity that can be attached to a body so it can be affected by contacts and proximity queries.
 ///
 /// To build a new collider, use the `ColliderBuilder` structure.
@@ -212,20 +213,14 @@ pub struct Collider {
     pub user_data: u128,
 }
 
-impl Clone for Collider {
-    fn clone(&self) -> Self {
-        Self {
-            shape: self.shape.clone(),
-            parent: RigidBodySet::invalid_handle(),
-            contact_graph_index: ColliderGraphIndex::new(crate::INVALID_U32),
-            proximity_graph_index: ColliderGraphIndex::new(crate::INVALID_U32),
-            proxy_index: crate::INVALID_USIZE,
-            ..*self
-        }
-    }
-}
-
 impl Collider {
+    pub(crate) fn reset_internal_references(&mut self) {
+        self.parent = RigidBodySet::invalid_handle();
+        self.contact_graph_index = InteractionGraph::<Contact>::invalid_graph_index();
+        self.proximity_graph_index = InteractionGraph::<Proximity>::invalid_graph_index();
+        self.proxy_index = crate::INVALID_USIZE;
+    }
+
     /// The rigid body this collider is attached to.
     pub fn parent(&self) -> RigidBodyHandle {
         self.parent

@@ -172,6 +172,7 @@ impl Contact {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 /// The description of all the contacts between a pair of colliders.
 pub struct ContactPair {
     /// The pair of colliders involved.

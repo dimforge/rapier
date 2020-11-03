@@ -5,6 +5,7 @@ use crate::geometry::{
 
 /// A pipeline for performing queries on all the colliders of a scene.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct QueryPipeline {
     quadtree: WQuadtree<ColliderHandle>,
     tree_built: bool,

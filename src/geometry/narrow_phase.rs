@@ -29,6 +29,7 @@ use std::collections::HashMap;
 
 /// The narrow-phase responsible for computing precise contact information between colliders.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct NarrowPhase {
     contact_graph: InteractionGraph<ContactPair>,
     proximity_graph: InteractionGraph<ProximityPair>,

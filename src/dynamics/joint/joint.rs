@@ -95,6 +95,7 @@ impl From<PrismaticJoint> for JointParams {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 /// A joint attached to two bodies.
 pub struct Joint {
     /// Handle to the first body attached to this joint.

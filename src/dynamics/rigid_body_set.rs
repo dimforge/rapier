@@ -75,6 +75,7 @@ impl BodyPair {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 /// A set of rigid bodies that can be handled by a physics pipeline.
 pub struct RigidBodySet {
     // NOTE: the pub(crate) are needed by the broad phase
@@ -154,7 +155,11 @@ impl RigidBodySet {
     }
 
     /// Insert a rigid body into this set and retrieve its handle.
-    pub fn insert(&mut self, rb: RigidBody) -> RigidBodyHandle {
+    pub fn insert(&mut self, mut rb: RigidBody) -> RigidBodyHandle {
+        // Make sure the internal links are reset, they may not be
+        // if this rigid-body was obtained by cloning another one.
+        rb.reset_internal_references();
+
         let handle = self.bodies.insert(rb);
         let rb = &mut self.bodies[handle];
 

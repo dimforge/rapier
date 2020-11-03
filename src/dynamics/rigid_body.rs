@@ -27,7 +27,7 @@ pub enum BodyStatus {
 /// A rigid body.
 ///
 /// To create a new rigid-body, use the `RigidBodyBuilder` structure.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RigidBody {
     /// The world-space position of the rigid-body.
     pub position: Isometry<f32>,
@@ -58,20 +58,6 @@ pub struct RigidBody {
     pub user_data: u128,
 }
 
-impl Clone for RigidBody {
-    fn clone(&self) -> Self {
-        Self {
-            colliders: Vec::new(),
-            joint_graph_index: RigidBodyGraphIndex::new(crate::INVALID_U32),
-            active_island_id: crate::INVALID_USIZE,
-            active_set_id: crate::INVALID_USIZE,
-            active_set_offset: crate::INVALID_USIZE,
-            active_set_timestamp: crate::INVALID_U32,
-            ..*self
-        }
-    }
-}
-
 impl RigidBody {
     fn new() -> Self {
         Self {
@@ -94,6 +80,15 @@ impl RigidBody {
             body_status: BodyStatus::Dynamic,
             user_data: 0,
         }
+    }
+
+    pub(crate) fn reset_internal_references(&mut self) {
+        self.colliders = Vec::new();
+        self.joint_graph_index = InteractionGraph::<()>::invalid_graph_index();
+        self.active_island_id = 0;
+        self.active_set_id = 0;
+        self.active_set_offset = 0;
+        self.active_set_timestamp = 0;
     }
 
     pub(crate) fn integrate_accelerations(&mut self, dt: f32, gravity: Vector<f32>) {

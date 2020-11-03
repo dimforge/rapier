@@ -12,6 +12,7 @@ use crate::ncollide::bounding_volume::BoundingVolume;
 use erased_serde::Serialize;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 struct SubDetector {
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     generator: Option<PrimitiveContactGenerator>,
@@ -21,6 +22,7 @@ struct SubDetector {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct HeightFieldShapeContactGeneratorWorkspace {
     timestamp: bool,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
@@ -181,5 +183,9 @@ impl MaybeSerializableData for HeightFieldShapeContactGeneratorWorkspace {
             super::WorkspaceSerializationTag::HeightfieldShapeContactGeneratorWorkspace as u32,
             self,
         ))
+    }
+
+    fn clone_dyn(&self) -> Box<dyn MaybeSerializableData> {
+        Box::new(self.clone())
     }
 }

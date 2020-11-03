@@ -749,18 +749,10 @@ impl<N, E> IndexMut<EdgeIndex> for Graph<N, E> {
 /// The walker does not borrow from the graph, so it lets you step through
 /// neighbors or incident edges while also mutating graph weights, as
 /// in the following example:
+#[derive(Clone)]
 pub struct WalkNeighbors {
     skip_start: NodeIndex,
     next: [EdgeIndex; 2],
-}
-
-impl Clone for WalkNeighbors {
-    fn clone(&self) -> Self {
-        WalkNeighbors {
-            skip_start: self.skip_start,
-            next: self.next,
-        }
-    }
 }
 
 /// Reference to a `Graph` edge.
