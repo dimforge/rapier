@@ -19,11 +19,11 @@ impl Trimesh {
     /// Creates a new triangle mesh from a vertex buffer and an index buffer.
     pub fn new(vertices: Vec<Point<f32>>, indices: Vec<Point3<u32>>) -> Self {
         assert!(
-            vertices.len() > 1,
+            vertices.len() > 0,
             "A triangle mesh must contain at least one point."
         );
         assert!(
-            indices.len() > 1,
+            indices.len() > 0,
             "A triangle mesh must contain at least one triangle."
         );
 
