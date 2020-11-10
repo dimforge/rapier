@@ -238,13 +238,14 @@ impl SAPAxis {
         }
     }
 
-    fn delete_out_of_bounds_proxies(&self, existing_proxies: &mut BitVec) -> bool {
-        let mut deleted_any = false;
+    fn delete_out_of_bounds_proxies(&self, existing_proxies: &mut BitVec) -> usize {
+        let mut deleted = 0;
         for endpoint in &self.endpoints {
             if endpoint.value < self.min_bound {
-                if endpoint.is_end() {
-                    existing_proxies.set(endpoint.proxy() as usize, false);
-                    deleted_any = true;
+                let proxy_idx = endpoint.proxy() as usize;
+                if endpoint.is_end() && existing_proxies[proxy_idx] {
+                    existing_proxies.set(proxy_idx, false);
+                    deleted += 1;
                 }
             } else {
                 break;
@@ -253,16 +254,17 @@ impl SAPAxis {
 
         for endpoint in self.endpoints.iter().rev() {
             if endpoint.value > self.max_bound {
-                if endpoint.is_start() {
+                let proxy_idx = endpoint.proxy() as usize;
+                if endpoint.is_start() && existing_proxies[proxy_idx] {
                     existing_proxies.set(endpoint.proxy() as usize, false);
-                    deleted_any = true;
+                    deleted += 1;
                 }
             } else {
                 break;
             }
         }
 
-        deleted_any
+        deleted
     }
 
     fn delete_out_of_bounds_endpoints(&mut self, existing_proxies: &BitVec) {
@@ -338,7 +340,8 @@ struct SAPRegion {
     existing_proxies: BitVec,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     to_insert: Vec<usize>, // Workspace
-    need_update: bool,
+    update_count: usize,
+    proxy_count: usize,
 }
 
 impl SAPRegion {
@@ -353,7 +356,38 @@ impl SAPRegion {
             axes,
             existing_proxies: BitVec::new(),
             to_insert: Vec::new(),
-            need_update: false,
+            update_count: 0,
+            proxy_count: 0,
+        }
+    }
+
+    pub fn recycle(bounds: AABB<f32>, mut old: Self) -> Self {
+        // Correct the bounds
+        for (axis, &bound) in old.axes.iter_mut().zip(bounds.mins.iter()) {
+            axis.min_bound = bound;
+        }
+        for (axis, &bound) in old.axes.iter_mut().zip(bounds.maxs.iter()) {
+            axis.max_bound = bound;
+        }
+
+        old.update_count = 0;
+
+        // The rest of the fields should be "empty"
+        assert_eq!(old.proxy_count, 0);
+        assert!(old.to_insert.is_empty());
+        debug_assert!(!old.existing_proxies.any());
+        for axis in old.axes.iter() {
+            assert!(axis.endpoints.len() == 2); // Account for sentinels
+        }
+
+        old
+    }
+
+    pub fn recycle_or_new(bounds: AABB<f32>, pool: &mut Vec<Self>) -> Self {
+        if let Some(old) = pool.pop() {
+            Self::recycle(bounds, old)
+        } else {
+            Self::new(bounds)
         }
     }
 
@@ -361,7 +395,7 @@ impl SAPRegion {
         // We keep the proxy_id as argument for uniformity with the "preupdate"
         // method. However we don't actually need it because the deletion will be
         // handled transparently during the next update.
-        self.need_update = true;
+        self.update_count = 1;
     }
 
     pub fn preupdate_proxy(&mut self, proxy_id: usize) -> bool {
@@ -373,31 +407,34 @@ impl SAPRegion {
         if !self.existing_proxies[proxy_id] {
             self.to_insert.push(proxy_id);
             self.existing_proxies.set(proxy_id, true);
+            self.proxy_count += 1;
             false
         } else {
-            self.need_update = true;
+            // Here we need a second update if all proxies exit this region. In this case, we need
+            // to delete the final proxy, but the region may not have AABBs overlapping it, so it
+            // wouldn't get an update otherwise.
+            self.update_count = 2;
             true
         }
     }
 
     pub fn update(&mut self, proxies: &Proxies, reporting: &mut HashMap<(u32, u32), bool>) {
-        if self.need_update {
+        if self.update_count > 0 {
             // Update endpoints.
-            let mut deleted_any = false;
+            let mut deleted = 0;
             for dim in 0..DIM {
                 self.axes[dim].update_endpoints(dim, proxies, reporting);
-                deleted_any = self.axes[dim]
-                    .delete_out_of_bounds_proxies(&mut self.existing_proxies)
-                    || deleted_any;
+                deleted += self.axes[dim].delete_out_of_bounds_proxies(&mut self.existing_proxies);
             }
 
-            if deleted_any {
+            if deleted > 0 {
+                self.proxy_count -= deleted;
                 for dim in 0..DIM {
                     self.axes[dim].delete_out_of_bounds_endpoints(&self.existing_proxies);
                 }
             }
 
-            self.need_update = false;
+            self.update_count -= 1;
         }
 
         if !self.to_insert.is_empty() {
@@ -407,6 +444,10 @@ impl SAPRegion {
             }
             self.axes[0].batch_insert(0, &self.to_insert, proxies, Some(reporting));
             self.to_insert.clear();
+
+            // In the rare event that all proxies leave this region in the next step, we need an
+            // update to remove them.
+            self.update_count = 1;
         }
     }
 }
@@ -419,6 +460,8 @@ pub struct BroadPhase {
     regions: HashMap<Point<i32>, SAPRegion>,
     removed_colliders: Option<Subscription<RemovedCollider>>,
     deleted_any: bool,
+    region_pool: Vec<SAPRegion>,
+    points_to_remove: Vec<Point<i32>>, // Workspace
     // We could think serializing this workspace is useless.
     // It turns out is is important to serialize at least its capacity
     // and restore this capacity when deserializing the hashmap.
@@ -511,6 +554,8 @@ impl BroadPhase {
             removed_colliders: None,
             proxies: Proxies::new(),
             regions: HashMap::default(),
+            region_pool: Vec::new(),
+            points_to_remove: Vec::new(),
             reporting: HashMap::default(),
             deleted_any: false,
         }
@@ -611,15 +656,16 @@ impl BroadPhase {
                 let start = point_key(aabb.mins);
                 let end = point_key(aabb.maxs);
 
+                let regions = &mut self.regions;
+                let pool = &mut self.region_pool;
                 #[cfg(feature = "dim2")]
                 for i in start.x..=end.x {
                     for j in start.y..=end.y {
                         let region_key = Point::new(i, j);
                         let region_bounds = region_aabb(region_key);
-                        let region = self
-                            .regions
+                        let region = regions
                             .entry(region_key)
-                            .or_insert_with(|| SAPRegion::new(region_bounds));
+                            .or_insert_with(|| SAPRegion::recycle_or_new(region_bounds, pool));
                         let _ = region.preupdate_proxy(proxy_id);
                     }
                 }
@@ -630,10 +676,9 @@ impl BroadPhase {
                         for k in start.z..=end.z {
                             let region_key = Point::new(i, j, k);
                             let region_bounds = region_aabb(region_key);
-                            let region = self
-                                .regions
+                            let region = regions
                                 .entry(region_key)
-                                .or_insert_with(|| SAPRegion::new(region_bounds));
+                                .or_insert_with(|| SAPRegion::recycle_or_new(region_bounds, pool));
                             let _ = region.preupdate_proxy(proxy_id);
                         }
                     }
@@ -642,11 +687,26 @@ impl BroadPhase {
         }
     }
 
+    fn update_regions(&mut self) {
+        for (point, region) in &mut self.regions {
+            region.update(&self.proxies, &mut self.reporting);
+            if region.proxy_count == 0 {
+                self.points_to_remove.push(*point);
+            }
+        }
+
+        // Remove all the empty regions and store them in the region pool
+        let regions = &mut self.regions;
+        self.region_pool.extend(
+            self.points_to_remove
+                .drain(..)
+                .map(|p| regions.remove(&p).unwrap()),
+        );
+    }
+
     pub(crate) fn complete_removals(&mut self) {
         if self.deleted_any {
-            for (_, region) in &mut self.regions {
-                region.update(&self.proxies, &mut self.reporting);
-            }
+            self.update_regions();
 
             // NOTE: we don't care about reporting pairs.
             self.reporting.clear();
@@ -658,9 +718,7 @@ impl BroadPhase {
         // println!("num regions: {}", self.regions.len());
 
         self.reporting.clear();
-        for (_, region) in &mut self.regions {
-            region.update(&self.proxies, &mut self.reporting)
-        }
+        self.update_regions();
 
         // Convert reports to broad phase events.
         // let t = instant::now();
