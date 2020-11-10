@@ -1,6 +1,6 @@
-use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier2d::geometry::{ColliderBuilder, ColliderSet};
-use rapier_testbed2d::Testbed;
+use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
+use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -13,7 +13,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let rad = 1.0;
     // Build the dynamic box rigid body.
     let rigid_body = RigidBodyBuilder::new_dynamic()
-        .translation(0.0, 3.0 * rad)
+        .translation(0.0, 3.0 * rad, 0.0)
         .can_sleep(false)
         .build();
     let handle = bodies.insert(rigid_body);
@@ -24,7 +24,6 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    //    testbed.look_at(Point2::new(10.0, 10.0, 10.0), Point2::origin());
 }
 
 fn main() {

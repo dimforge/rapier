@@ -340,7 +340,7 @@ struct SAPRegion {
     existing_proxies: BitVec,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     to_insert: Vec<usize>, // Workspace
-    update_count: usize,
+    update_count: u8,
     proxy_count: usize,
 }
 
@@ -376,9 +376,7 @@ impl SAPRegion {
         assert_eq!(old.proxy_count, 0);
         assert!(old.to_insert.is_empty());
         debug_assert!(!old.existing_proxies.any());
-        for axis in old.axes.iter() {
-            assert!(axis.endpoints.len() == 2); // Account for sentinels
-        }
+        assert!(old.axes.iter().all(|ax| ax.endpoints.len() == 2));
 
         old
     }
@@ -422,6 +420,7 @@ impl SAPRegion {
         if self.update_count > 0 {
             // Update endpoints.
             let mut deleted = 0;
+
             for dim in 0..DIM {
                 self.axes[dim].update_endpoints(dim, proxies, reporting);
                 deleted += self.axes[dim].delete_out_of_bounds_proxies(&mut self.existing_proxies);
@@ -460,8 +459,10 @@ pub struct BroadPhase {
     regions: HashMap<Point<i32>, SAPRegion>,
     removed_colliders: Option<Subscription<RemovedCollider>>,
     deleted_any: bool,
-    region_pool: Vec<SAPRegion>,
-    points_to_remove: Vec<Point<i32>>, // Workspace
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    region_pool: Vec<SAPRegion>, // To avoid repeated allocations.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    regions_to_remove: Vec<Point<i32>>, // Workspace
     // We could think serializing this workspace is useless.
     // It turns out is is important to serialize at least its capacity
     // and restore this capacity when deserializing the hashmap.
@@ -555,7 +556,7 @@ impl BroadPhase {
             proxies: Proxies::new(),
             regions: HashMap::default(),
             region_pool: Vec::new(),
-            points_to_remove: Vec::new(),
+            regions_to_remove: Vec::new(),
             reporting: HashMap::default(),
             deleted_any: false,
         }
@@ -658,6 +659,7 @@ impl BroadPhase {
 
                 let regions = &mut self.regions;
                 let pool = &mut self.region_pool;
+
                 #[cfg(feature = "dim2")]
                 for i in start.x..=end.x {
                     for j in start.y..=end.y {
@@ -691,14 +693,14 @@ impl BroadPhase {
         for (point, region) in &mut self.regions {
             region.update(&self.proxies, &mut self.reporting);
             if region.proxy_count == 0 {
-                self.points_to_remove.push(*point);
+                self.regions_to_remove.push(*point);
             }
         }
 
         // Remove all the empty regions and store them in the region pool
         let regions = &mut self.regions;
         self.region_pool.extend(
-            self.points_to_remove
+            self.regions_to_remove
                 .drain(..)
                 .map(|p| regions.remove(&p).unwrap()),
         );
