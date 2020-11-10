@@ -340,7 +340,7 @@ struct SAPRegion {
     existing_proxies: BitVec,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     to_insert: Vec<usize>, // Workspace
-    update_count: usize,
+    update_count: u8,
     proxy_count: usize,
 }
 
