@@ -14,7 +14,6 @@ mod add_remove2;
 mod collision_groups2;
 mod damping2;
 mod debug_box_ball2;
-mod debug_infinite_fall;
 mod heightfield2;
 mod joints2;
 mod platform2;
@@ -65,7 +64,6 @@ pub fn main() {
         ("Restitution", restitution2::init_world),
         ("Sensor", sensor2::init_world),
         ("(Debug) box ball", debug_box_ball2::init_world),
-        ("(Debug) infinite fall", debug_infinite_fall::init_world),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
