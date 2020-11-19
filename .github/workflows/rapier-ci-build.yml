@@ -39,6 +39,10 @@ jobs:
       run: cargo check --verbose -p rapier_testbed2d;
     - name: Check rapier_testbed3d
       run: cargo check --verbose -p rapier_testbed3d;
+    - name: Check rapier_testbed2d --features parallel
+      run: cd build/rapier_testbed2d; cargo check --verbose --features parallel;
+    - name: Check rapier_testbed3d --features parallel
+      run: cd build/rapier_testbed3d; cargo check --verbose --features parallel;
     - name: Check rapier-examples-2d
       run: cargo check -j 1 --verbose -p rapier-examples-2d;
     - name: Check rapier-examples-3d

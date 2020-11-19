@@ -616,6 +616,8 @@ impl Testbed {
                                             &mut physics.bodies,
                                             &mut physics.colliders,
                                             &mut physics.joints,
+                                            None,
+                                            None,
                                             event_handler,
                                         );
                                     });
