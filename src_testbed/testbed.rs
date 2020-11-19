@@ -414,7 +414,7 @@ impl Testbed {
         {
             if self.state.selected_backend == BOX2D_BACKEND {
                 self.box2d = Some(Box2dWorld::from_rapier(
-                    self.gravity,
+                    self.physics.gravity,
                     &self.physics.bodies,
                     &self.physics.colliders,
                     &self.physics.joints,
@@ -647,7 +647,7 @@ impl Testbed {
                                 if self.state.selected_backend == BOX2D_BACKEND {
                                     self.box2d.as_mut().unwrap().step(
                                         &mut self.physics.pipeline.counters,
-                                        &self.integration_parameters,
+                                        &self.physics.integration_parameters,
                                     );
                                     self.box2d.as_mut().unwrap().sync(
                                         &mut self.physics.bodies,

@@ -250,7 +250,7 @@ impl ParallelIslandSolver {
                     let batch_size = thread.batch_size;
                     for handle in active_bodies[thread.position_writeback_index] {
                         let rb = &mut bodies[*handle];
-                        rb.set_position(positions[rb.active_set_offset]);
+                        rb.set_position(positions[rb.active_set_offset], false);
                     }
                 }
             })

@@ -30,7 +30,7 @@ pub enum BodyStatus {
 #[derive(Debug, Clone)]
 pub struct RigidBody {
     /// The world-space position of the rigid-body.
-    pub position: Isometry<f32>,
+    pub(crate) position: Isometry<f32>,
     pub(crate) predicted_position: Isometry<f32>,
     /// The local mass properties of the rigid-body.
     pub mass_properties: MassProperties,
@@ -39,9 +39,9 @@ pub struct RigidBody {
     /// The square-root of the inverse angular inertia tensor of the rigid-body.
     pub world_inv_inertia_sqrt: AngularInertia<f32>,
     /// The linear velocity of the rigid-body.
-    pub linvel: Vector<f32>,
+    pub(crate) linvel: Vector<f32>,
     /// The angular velocity of the rigid-body.
-    pub angvel: AngVector<f32>,
+    pub(crate) angvel: AngVector<f32>,
     /// Damping factor for gradually slowing down the translational motion of the rigid-body.
     pub linear_damping: f32,
     /// Damping factor for gradually slowing down the angular motion of the rigid-body.
@@ -231,18 +231,84 @@ impl RigidBody {
         self.position = self.integrate_velocity(dt) * self.position;
     }
 
+    /// The linear velocity of this rigid-body.
+    pub fn linvel(&self) -> &Vector<f32> {
+        &self.linvel
+    }
+
+    /// The angular velocity of this rigid-body.
+    #[cfg(feature = "dim2")]
+    pub fn angvel(&self) -> f32 {
+        self.angvel
+    }
+
+    /// The angular velocity of this rigid-body.
+    #[cfg(feature = "dim3")]
+    pub fn angvel(&self) -> &Vector<f32> {
+        &self.angvel
+    }
+
+    /// The linear velocity of this rigid-body.
+    ///
+    /// If `wake_up` is `true` then the rigid-body will be woken up if it was
+    /// put to sleep because it did not move for a while.
+    pub fn set_linvel(&mut self, linvel: Vector<f32>, wake_up: bool) {
+        self.linvel = linvel;
+
+        if self.is_dynamic() && wake_up {
+            self.wake_up(true)
+        }
+    }
+
+    /// The angular velocity of this rigid-body.
+    ///
+    /// If `wake_up` is `true` then the rigid-body will be woken up if it was
+    /// put to sleep because it did not move for a while.
+    #[cfg(feature = "dim2")]
+    pub fn set_angvel(&mut self, angvel: f32, wake_up: bool) {
+        self.angvel = angvel;
+
+        if self.is_dynamic() && wake_up {
+            self.wake_up(true)
+        }
+    }
+
+    /// The angular velocity of this rigid-body.
+    ///
+    /// If `wake_up` is `true` then the rigid-body will be woken up if it was
+    /// put to sleep because it did not move for a while.
+    #[cfg(feature = "dim3")]
+    pub fn set_angvel(&mut self, angvel: Vector<f32>, wake_up: bool) {
+        self.angvel = angvel;
+
+        if self.is_dynamic() && wake_up {
+            self.wake_up(true)
+        }
+    }
+
+    /// The world-space position of this rigid-body.
+    pub fn position(&self) -> &Isometry<f32> {
+        &self.position
+    }
+
     /// Sets the position and `next_kinematic_position` of this rigid body.
     ///
     /// This will teleport the rigid-body to the specified position/orientation,
     /// completely ignoring any physics rule. If this body is kinematic, this will
     /// also set the next kinematic position to the same value, effectively
     /// resetting to zero the next interpolated velocity of the kinematic body.
-    pub fn set_position(&mut self, pos: Isometry<f32>) {
+    ///
+    /// If `wake_up` is `true` then the rigid-body will be woken up if it was
+    /// put to sleep because it did not move for a while.
+    pub fn set_position(&mut self, pos: Isometry<f32>, wake_up: bool) {
         self.position = pos;
 
         // TODO: update the predicted position for dynamic bodies too?
         if self.is_static() || self.is_kinematic() {
             self.predicted_position = pos;
+        } else if wake_up {
+            // wake_up is true and the rigid-body is dynamic.
+            self.wake_up(true);
         }
     }
 
@@ -543,7 +609,7 @@ impl RigidBodyBuilder {
     pub fn build(&self) -> RigidBody {
         let mut rb = RigidBody::new();
         rb.predicted_position = self.position; // FIXME: compute the correct value?
-        rb.set_position(self.position);
+        rb.set_position(self.position, false);
         rb.linvel = self.linvel;
         rb.angvel = self.angvel;
         rb.body_status = self.body_status;

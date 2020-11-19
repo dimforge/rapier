@@ -72,17 +72,18 @@ impl QueryPipeline {
         let mut result = None;
 
         for handle in inter {
-            let collider = &colliders[handle];
-            if collider.collision_groups.test(groups) {
-                if let Some(inter) = collider.shape().toi_and_normal_with_ray(
-                    collider.position(),
-                    ray,
-                    max_toi,
-                    true,
-                ) {
-                    if inter.toi < best {
-                        best = inter.toi;
-                        result = Some((handle, collider, inter));
+            if let Some(collider) = colliders.get(handle) {
+                if collider.collision_groups.test(groups) {
+                    if let Some(inter) = collider.shape().toi_and_normal_with_ray(
+                        collider.position(),
+                        ray,
+                        max_toi,
+                        true,
+                    ) {
+                        if inter.toi < best {
+                            best = inter.toi;
+                            result = Some((handle, collider, inter));
+                        }
                     }
                 }
             }
