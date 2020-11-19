@@ -13,10 +13,6 @@ extern crate nphysics3d as nphysics;
 extern crate rapier2d as rapier;
 #[cfg(feature = "dim3")]
 extern crate rapier3d as rapier;
-#[cfg(all(feature = "dim2", feature = "fluids"))]
-extern crate salva2d as salva;
-#[cfg(all(feature = "dim3", feature = "fluids"))]
-extern crate salva3d as salva;
 
 #[macro_use]
 extern crate bitflags;
