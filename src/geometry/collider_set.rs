@@ -78,10 +78,14 @@ impl ColliderSet {
     }
 
     /// Remove a collider from this set and update its parent accordingly.
+    ///
+    /// If `wake_up` is `true`, the rigid-body the removed collider is attached to
+    /// will be woken up.
     pub fn remove(
         &mut self,
         handle: ColliderHandle,
         bodies: &mut RigidBodySet,
+        wake_up: bool,
     ) -> Option<Collider> {
         let collider = self.colliders.remove(handle)?;
 
@@ -90,7 +94,10 @@ impl ColliderSet {
          */
         if let Some(parent) = bodies.get_mut_internal(collider.parent) {
             parent.remove_collider_internal(handle, &collider);
-            bodies.wake_up(collider.parent, true);
+
+            if wake_up {
+                bodies.wake_up(collider.parent, true);
+            }
         }
 
         /*

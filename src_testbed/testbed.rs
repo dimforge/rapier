@@ -758,7 +758,7 @@ impl Testbed {
                 for to_delete in &colliders[..num_to_delete] {
                     self.physics
                         .colliders
-                        .remove(to_delete[0], &mut self.physics.bodies);
+                        .remove(to_delete[0], &mut self.physics.bodies, true);
                 }
             }
             WindowEvent::Key(Key::D, Action::Release, _) => {
@@ -1576,11 +1576,13 @@ CCD: {:.2}ms
         }
 
         if self.state.flags.contains(TestbedStateFlags::DEBUG) {
+            let t = instant::now();
             let bf = bincode::serialize(&self.physics.broad_phase).unwrap();
             let nf = bincode::serialize(&self.physics.narrow_phase).unwrap();
             let bs = bincode::serialize(&self.physics.bodies).unwrap();
             let cs = bincode::serialize(&self.physics.colliders).unwrap();
             let js = bincode::serialize(&self.physics.joints).unwrap();
+            let serialization_time = instant::now() - t;
             let hash_bf = md5::compute(&bf);
             let hash_nf = md5::compute(&nf);
             let hash_bodies = md5::compute(&bs);
@@ -1588,6 +1590,7 @@ CCD: {:.2}ms
             let hash_joints = md5::compute(&js);
             profile = format!(
                 r#"{}
+Serialization time: {:.2}ms
 Hashes at frame: {}
 |_ Broad phase [{:.1}KB]: {:?}
 |_ Narrow phase [{:.1}KB]: {:?}
@@ -1595,6 +1598,7 @@ Hashes at frame: {}
 |_ Colliders [{:.1}KB]: {:?}
 |_ Joints [{:.1}KB]: {:?}"#,
                 profile,
+                serialization_time,
                 self.state.timestep_id,
                 bf.len() as f32 / 1000.0,
                 hash_bf,
