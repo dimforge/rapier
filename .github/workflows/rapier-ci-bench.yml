@@ -24,8 +24,8 @@ jobs:
       - name: Find commit SHA
         if: github.ref == 'refs/heads/master'
         run: |
-          echo "::set-env name=BENCHBOT_TARGET_COMMIT::$BENCHBOT_SHA"
-          echo "::set-env name=BENCHBOT_OTHER_BACKENDS::true"
+          echo "BENCHBOT_TARGET_COMMIT=$BENCHBOT_SHA" >> $GITHUB_ENV
+          echo "BENCHBOT_OTHER_BACKENDS=true" >> $GITHUB_ENV
       - name: Send 3D bench message
         shell: bash
         run: curl -u $BENCHBOT_AMQP_USER:$BENCHBOT_AMQP_PASS
