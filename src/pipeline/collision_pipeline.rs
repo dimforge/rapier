@@ -74,7 +74,7 @@ impl CollisionPipeline {
 
         bodies.update_active_set_with_contacts(
             colliders,
-            narrow_phase.contact_graph(),
+            narrow_phase,
             self.empty_joints.joint_graph(),
             0,
         );

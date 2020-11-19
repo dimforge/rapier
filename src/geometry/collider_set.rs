@@ -11,8 +11,6 @@ pub type ColliderHandle = crate::data::arena::Index;
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub(crate) struct RemovedCollider {
     pub handle: ColliderHandle,
-    pub(crate) contact_graph_index: ColliderGraphIndex,
-    pub(crate) proximity_graph_index: ColliderGraphIndex,
     pub(crate) proxy_index: usize,
 }
 
@@ -105,8 +103,6 @@ impl ColliderSet {
          */
         let message = RemovedCollider {
             handle,
-            contact_graph_index: collider.contact_graph_index,
-            proximity_graph_index: collider.proximity_graph_index,
             proxy_index: collider.proxy_index,
         };
 

@@ -130,7 +130,7 @@ impl PhysicsPipeline {
         self.counters.stages.island_construction_time.start();
         bodies.update_active_set_with_contacts(
             colliders,
-            narrow_phase.contact_graph(),
+            narrow_phase,
             joints.joint_graph(),
             integration_parameters.min_island_size,
         );
