@@ -388,6 +388,7 @@ pub struct RigidBodyBuilder {
     body_status: BodyStatus,
     mass_properties: MassProperties,
     can_sleep: bool,
+    sleeping: bool,
     user_data: u128,
 }
 
@@ -403,6 +404,7 @@ impl RigidBodyBuilder {
             body_status,
             mass_properties: MassProperties::zero(),
             can_sleep: true,
+            sleeping: false,
             user_data: 0,
         }
     }
@@ -531,6 +533,12 @@ impl RigidBodyBuilder {
         self
     }
 
+    /// Sets whether or not the rigid-body is to be created asleep.
+    pub fn sleeping(mut self, sleeping: bool) -> Self {
+        self.sleeping = sleeping;
+        self
+    }
+
     /// Build a new rigid-body with the parameters configured with this builder.
     pub fn build(&self) -> RigidBody {
         let mut rb = RigidBody::new();
@@ -543,6 +551,10 @@ impl RigidBodyBuilder {
         rb.mass_properties = self.mass_properties;
         rb.linear_damping = self.linear_damping;
         rb.angular_damping = self.angular_damping;
+
+        if self.can_sleep && self.sleeping {
+            rb.sleep();
+        }
 
         if !self.can_sleep {
             rb.activation.threshold = -1.0;
