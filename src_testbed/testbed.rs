@@ -394,7 +394,7 @@ impl Testbed {
     ) {
         println!("Num bodies: {}", bodies.len());
         println!("Num joints: {}", joints.len());
-        self.gravity = gravity;
+        self.physics.gravity = gravity;
         self.physics.bodies = bodies;
         self.physics.colliders = colliders;
         self.physics.joints = joints;
