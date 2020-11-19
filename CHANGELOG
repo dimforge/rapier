@@ -1,3 +1,9 @@
+## v0.4.0 - WIP
+- The rigid-body `linvel`, `angvel`, and `position` fields are no longer public. Access using
+  their corresponding getters/setters. For example: `rb.linvel()`, `rb.set_linvel(vel, true)`.
+- Add `RigidBodyBuilder::sleeping(true)` to allow the creation of a rigid-body that is asleep
+  at initialization-time.
+
 ## v0.3.2
 - Add linear and angular damping. The damping factor can be set with `RigidBodyBuilder::linear_damping` and
   `RigidBodyBuilder::angular_damping`.
