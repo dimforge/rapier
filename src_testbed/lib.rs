@@ -22,7 +22,8 @@ extern crate bitflags;
 extern crate log;
 
 pub use crate::engine::GraphicsManager;
-pub use crate::testbed::Testbed;
+pub use crate::plugin::TestbedPlugin;
+pub use crate::testbed::{PhysicsState, Testbed};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 mod box2d_backend;
@@ -32,6 +33,7 @@ mod nphysics_backend;
 pub mod objects;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 mod physx_backend;
+mod plugin;
 mod testbed;
 mod ui;
 

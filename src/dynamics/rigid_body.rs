@@ -370,6 +370,12 @@ impl RigidBody {
         self.apply_impulse(impulse, wake_up);
         self.apply_torque_impulse(torque_impulse, wake_up);
     }
+
+    /// The velocity of the given world-space point on this rigid-body.
+    pub fn velocity_at_point(&self, point: &Point<f32>) -> Vector<f32> {
+        let dpt = point - self.world_com;
+        self.linvel + self.angvel.gcross(dpt)
+    }
 }
 
 /// A builder for rigid-bodies.
