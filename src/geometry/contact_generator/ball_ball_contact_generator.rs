@@ -1,6 +1,6 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
 use crate::geometry::{Contact, KinematicsCategory};
-use crate::math::Point;
+use crate::math::{Point, Vector};
 #[cfg(feature = "simd-is-enabled")]
 use {
     crate::geometry::contact_generator::PrimitiveContactGenerationContextSimd,
@@ -72,7 +72,12 @@ pub fn generate_contacts_ball_ball(ctxt: &mut PrimitiveContactGenerationContext)
     let dist = center_dist - radius_a - radius_b;
 
     if dist < ctxt.prediction_distance {
-        let local_n1 = dcenter / center_dist;
+        let local_n1 = if center_dist != 0.0 {
+            dcenter / center_dist
+        } else {
+            Vector::y()
+        };
+
         let local_n2 = pos_ba.inverse_transform_vector(&-local_n1);
         let local_p1 = local_n1 * radius_a;
         let local_p2 = local_n2 * radius_b;
