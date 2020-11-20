@@ -120,7 +120,7 @@ impl PositionSolver {
         }
 
         bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
-            rb.set_position(self.positions[rb.active_set_offset])
+            rb.set_position(self.positions[rb.active_set_offset], false)
         });
     }
 }

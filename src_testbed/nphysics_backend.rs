@@ -46,7 +46,7 @@ impl NPhysicsWorld {
 
         for (rapier_handle, rb) in bodies.iter() {
             // let material = physics.create_material(rb.collider.friction, rb.collider.friction, 0.0);
-            let nphysics_rb = RigidBodyDesc::new().position(rb.position).build();
+            let nphysics_rb = RigidBodyDesc::new().position(*rb.position()).build();
             let nphysics_rb_handle = nphysics_bodies.insert(nphysics_rb);
 
             rapier2nphysics.insert(rapier_handle, nphysics_rb_handle);
@@ -161,7 +161,7 @@ impl NPhysicsWorld {
             let mut rb = bodies.get_mut(*rapier_handle).unwrap();
             let ra = self.bodies.rigid_body(*nphysics_handle).unwrap();
             let pos = *ra.position();
-            rb.set_position(pos);
+            rb.set_position(pos, false);
 
             for coll_handle in rb.colliders() {
                 let collider = &mut colliders[*coll_handle];

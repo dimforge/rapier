@@ -12,7 +12,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let joints = JointSet::new();
 
     /*
-     * Create the balls
+     * Create the cubes
      */
     let num = 10;
     let rad = 0.2;

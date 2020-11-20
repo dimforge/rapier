@@ -207,7 +207,7 @@ impl RigidBodySet {
          * Remove colliders attached to this rigid-body.
          */
         for collider in &rb.colliders {
-            colliders.remove(*collider, self);
+            colliders.remove(*collider, self, false);
         }
 
         /*

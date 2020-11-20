@@ -154,7 +154,7 @@ impl PhysxWorld {
             use physx::rigid_static::RigidStatic;
             use physx::transform;
 
-            let pos = transform::gl_to_px_tf(rb.position.to_homogeneous().into_glam());
+            let pos = transform::gl_to_px_tf(rb.position().to_homogeneous().into_glam());
             if rb.is_dynamic() {
                 let actor = unsafe {
                     physx_sys::PxPhysics_createRigidDynamic_mut(physics.get_raw_mut(), &pos)
@@ -406,7 +406,7 @@ impl PhysxWorld {
             let ra = self.scene.get_rigid_actor(*physx_handle).unwrap();
             let pos = ra.get_global_pose().into_na();
             let iso = na::convert_unchecked(pos);
-            rb.set_position(iso);
+            rb.set_position(iso, false);
 
             if rb.is_kinematic() {}
 

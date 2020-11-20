@@ -24,7 +24,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let to_remove: Vec<_> = physics
             .bodies
             .iter()
-            .filter(|(_, b)| b.position.translation.vector.y < -10.0)
+            .filter(|(_, b)| b.position().translation.vector.y < -10.0)
             .map(|e| e.0)
             .collect();
         for handle in to_remove {

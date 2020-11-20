@@ -3,43 +3,82 @@ use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
 
+const MAX_NUMBER_OF_BODIES: usize = 400;
+
 pub fn init_world(testbed: &mut Testbed) {
-    let bodies = RigidBodySet::new();
-    let colliders = ColliderSet::new();
+    let mut bodies = RigidBodySet::new();
+    let mut colliders = ColliderSet::new();
     let joints = JointSet::new();
     let rad = 0.5;
 
+    /*
+     * Ground
+     */
+    let ground_size = 100.1;
+    let ground_height = 2.1;
+
+    let rigid_body = RigidBodyBuilder::new_static()
+        .translation(0.0, -ground_height, 0.0)
+        .build();
+    let handle = bodies.insert(rigid_body);
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
+    colliders.insert(collider, handle, &mut bodies);
+    let mut k = 0;
+
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |window, physics, _, graphics, _| {
+        k += 1;
         let rigid_body = RigidBodyBuilder::new_dynamic()
             .translation(0.0, 10.0, 0.0)
             .build();
         let handle = physics.bodies.insert(rigid_body);
-        let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
+        let collider = match k % 3 {
+            0 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0).build(),
+            1 => ColliderBuilder::cone(rad, rad).build(),
+            _ => ColliderBuilder::cuboid(rad, rad, rad).build(),
+        };
+
         physics
             .colliders
             .insert(collider, handle, &mut physics.bodies);
         graphics.add(window, handle, &physics.bodies, &physics.colliders);
 
-        let to_remove: Vec<_> = physics
-            .bodies
-            .iter()
-            .filter(|(_, b)| b.position.translation.vector.y < -10.0)
-            .map(|e| e.0)
-            .collect();
-        for handle in to_remove {
-            physics
+        if physics.bodies.len() > MAX_NUMBER_OF_BODIES {
+            let mut to_remove: Vec<_> = physics
                 .bodies
-                .remove(handle, &mut physics.colliders, &mut physics.joints);
-            graphics.remove_body_nodes(window, handle);
+                .iter()
+                .filter(|e| e.1.is_dynamic())
+                .map(|e| (e.0, e.1.position().translation.vector))
+                .collect();
+
+            to_remove.sort_by(|a, b| {
+                (a.1.x.abs() + a.1.z.abs())
+                    .partial_cmp(&(b.1.x.abs() + b.1.z.abs()))
+                    .unwrap()
+                    .reverse()
+            });
+
+            let num_to_remove = to_remove.len() - MAX_NUMBER_OF_BODIES;
+            for (handle, _) in &to_remove[..num_to_remove] {
+                physics
+                    .bodies
+                    .remove(*handle, &mut physics.colliders, &mut physics.joints);
+                physics.broad_phase.maintain(&mut physics.colliders);
+                physics
+                    .narrow_phase
+                    .maintain(&mut physics.colliders, &mut physics.bodies);
+                graphics.remove_body_nodes(window, *handle);
+            }
         }
+
+        println!("Num bodies: {}", physics.bodies.len());
     });
 
     /*
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(-30.0, -4.0, -30.0), Point3::new(0.0, 1.0, 0.0));
+    testbed.look_at(Point3::new(-30.0, 4.0, -30.0), Point3::new(0.0, 1.0, 0.0));
 }
 
 fn main() {

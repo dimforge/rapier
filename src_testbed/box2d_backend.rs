@@ -71,10 +71,10 @@ impl Box2dWorld {
 
             let def = b2::BodyDef {
                 body_type,
-                position: na_vec_to_b2_vec(body.position.translation.vector),
-                angle: body.position.rotation.angle(),
-                linear_velocity: na_vec_to_b2_vec(body.linvel),
-                angular_velocity: body.angvel,
+                position: na_vec_to_b2_vec(body.position().translation.vector),
+                angle: body.position().rotation.angle(),
+                linear_velocity: na_vec_to_b2_vec(*body.linvel()),
+                angular_velocity: body.angvel(),
                 linear_damping,
                 angular_damping,
                 ..b2::BodyDef::new()
@@ -223,7 +223,7 @@ impl Box2dWorld {
             if let Some(pb2_handle) = self.rapier2box2d.get(&handle) {
                 let b2_body = self.world.body(*pb2_handle);
                 let pos = b2_transform_to_na_isometry(b2_body.transform().clone());
-                body.set_position(pos);
+                body.set_position(pos, false);
 
                 for coll_handle in body.colliders() {
                     let collider = &mut colliders[*coll_handle];

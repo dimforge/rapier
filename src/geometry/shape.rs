@@ -18,7 +18,7 @@ use {
 /// Enum representing the type of a shape.
 pub enum ShapeType {
     /// A ball shape.
-    Ball = 1,
+    Ball = 0,
     /// A convex polygon shape.
     Polygon,
     /// A cuboid shape.
