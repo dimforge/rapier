@@ -24,7 +24,7 @@ other-backends = [ "wrapped2d", "nphysics2d" ]
 
 [dependencies]
 nalgebra   = "0.23"
-kiss3d     = { version = "0.27", features = [ "conrod" ] }
+kiss3d     = { version = "0.28", features = [ "conrod" ] }
 rand       = "0.7"
 rand_pcg   = "0.2"
 instant    = { version = "0.1", features = [ "web-sys", "now" ]}
@@ -35,7 +35,6 @@ ncollide2d = "0.26"
 nphysics2d = { version = "0.18", optional = true }
 crossbeam = "0.8"
 bincode = "1"
-flexbuffers = "0.1"
 Inflector  = "0.11"
 md5 = "0.7"
 
