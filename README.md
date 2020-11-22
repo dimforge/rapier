@@ -5,8 +5,8 @@
     <a href="https://discord.gg/vt9DJSW">
         <img src="https://img.shields.io/discord/507548572338880513.svg?logo=discord&colorB=7289DA">
     </a>
-    <a href="https://travis-ci.org/dimforge/rapier">
-        <img src="https://travis-ci.org/dimforge/rapier.svg?branch=master" alt="Build status">
+    <a href="https://github.com/dimforge/rapier/actions">
+        <img src="https://github.com/dimforge/rapier/workflows/Rapier%20CI%20build/badge.svg" alt="Build status">
     </a>
     <a href="https://crates.io/crates/rapier2d">
          <img src="https://meritbadge.herokuapp.com/rapier2d?style=flat-square" alt="crates.io">
