@@ -1,4 +1,4 @@
-use na::{DMatrix, Point3, Vector3};
+use na::{ComplexField, DMatrix, Point3, Vector3};
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
@@ -23,7 +23,11 @@ pub fn init_world(testbed: &mut Testbed) {
         } else {
             let x = i as f32 * ground_size.x / (nsubdivs as f32);
             let z = j as f32 * ground_size.z / (nsubdivs as f32);
-            x.sin() + z.cos()
+
+            // NOTE: make sure we use the sin/cos from simba to ensure
+            // cross-platform determinism of the example when the
+            // enhanced_determinism feature is enabled.
+            (<f32 as ComplexField>::sin(x) + <f32 as ComplexField>::cos(z))
         }
     });
 
