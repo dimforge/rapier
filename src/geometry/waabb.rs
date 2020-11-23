@@ -105,7 +105,16 @@ impl WAABB {
     }
 
     pub fn dilate_by_factor(&mut self, factor: SimdFloat) {
-        let dilation = (self.maxs - self.mins) * factor;
+        // If some of the AABBs on this WAABB are invalid,
+        // don't, dilate them.
+        let is_valid = self.mins.x.simd_le(self.maxs.x);
+        let factor = factor.select(is_valid, SimdFloat::zero());
+
+        // NOTE: we multiply each by factor instead of doing
+        // (maxs - mins) * factor. That's to avoid overflows (and
+        // therefore NaNs if this WAABB contains some invalid
+        // AABBs initialised with f32::MAX
+        let dilation = self.maxs * factor - self.mins * factor;
         self.mins -= dilation;
         self.maxs += dilation;
     }

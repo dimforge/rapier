@@ -1,4 +1,4 @@
-use na::Point3;
+use na::{ComplexField, Point3};
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
@@ -30,7 +30,10 @@ pub fn init_world(testbed: &mut Testbed) {
     // so we switch z and y here and set a random altitude at each point.
     for p in vertices.iter_mut() {
         p.z = p.y;
-        p.y = (p.x.sin() + p.z.cos()) * ground_height;
+        // NOTE: make sure we use the sin/cos from simba to ensure
+        // cross-platform determinism of the example when the
+        // enhanced_determinism feature is enabled.
+        p.y = (<f32 as ComplexField>::sin(p.x) + <f32 as ComplexField>::cos(p.z)) * ground_height;
 
         if p.x.abs() == ground_size / 2.0 || p.z.abs() == ground_size / 2.0 {
             p.y = 10.0;
