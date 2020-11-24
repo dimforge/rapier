@@ -106,14 +106,39 @@ impl NarrowPhase {
         )
     }
 
-    // #[cfg(feature = "parallel")]
-    // pub fn contact_pairs(&self) -> &[ContactPair] {
-    //     &self.contact_graph.interactions
-    // }
+    /// The contact pair involving two specific colliders.
+    ///
+    /// If this returns `None`, there is no contact between the two colliders.
+    /// If this returns `Some`, then there may be a contact between the two colliders. Check the
+    /// result [`ContactPair::has_any_active_collider`] method to see if there is an actual contact.
+    pub fn contact_pair(
+        &self,
+        collider1: ColliderHandle,
+        collider2: ColliderHandle,
+    ) -> Option<&ContactPair> {
+        let id1 = self.graph_indices.get(collider1)?;
+        let id2 = self.graph_indices.get(collider2)?;
+        self.contact_graph
+            .interaction_pair(id1.contact_graph_index, id2.contact_graph_index)
+            .map(|c| c.2)
+    }
 
-    // pub fn contact_pairs_mut(&mut self) -> &mut [ContactPair] {
-    //     &mut self.contact_graph.interactions
-    // }
+    /// The proximity pair involving two specific colliders.
+    ///
+    /// If this returns `None`, there is no intersection between the two colliders.
+    /// If this returns `Some`, then there may be an intersection between the two colliders. Check the
+    /// value of [`ProximityPair::proximity`] method to see if there is an actual intersection.
+    pub fn proximity_pair(
+        &self,
+        collider1: ColliderHandle,
+        collider2: ColliderHandle,
+    ) -> Option<&ProximityPair> {
+        let id1 = self.graph_indices.get(collider1)?;
+        let id2 = self.graph_indices.get(collider2)?;
+        self.proximity_graph
+            .interaction_pair(id1.proximity_graph_index, id2.proximity_graph_index)
+            .map(|c| c.2)
+    }
 
     // #[cfg(feature = "parallel")]
     // pub(crate) fn contact_pairs_vec_mut(&mut self) -> &mut Vec<ContactPair> {
