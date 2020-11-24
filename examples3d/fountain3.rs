@@ -70,8 +70,6 @@ pub fn init_world(testbed: &mut Testbed) {
                 graphics.remove_body_nodes(window, *handle);
             }
         }
-
-        println!("Num bodies: {}", physics.bodies.len());
     });
 
     /*

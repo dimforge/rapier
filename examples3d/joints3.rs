@@ -25,14 +25,11 @@ fn create_prismatic_joints(
 
     for i in 0..num {
         let z = origin.z + (i + 1) as f32 * shift;
-        let density = 1.0;
         let rigid_body = RigidBodyBuilder::new_dynamic()
             .translation(origin.x, origin.y, z)
             .build();
         let curr_child = bodies.insert(rigid_body);
-        let collider = ColliderBuilder::cuboid(rad, rad, rad)
-            .density(density)
-            .build();
+        let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
         colliders.insert(collider, curr_child, bodies);
 
         let axis = if i % 2 == 0 {
@@ -88,14 +85,11 @@ fn create_revolute_joints(
 
         let mut handles = [curr_parent; 4];
         for k in 0..4 {
-            let density = 1.0;
             let rigid_body = RigidBodyBuilder::new_dynamic()
                 .position(positions[k])
                 .build();
             handles[k] = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad, rad)
-                .density(density)
-                .build();
+            let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
             colliders.insert(collider, handles[k], bodies);
         }
 

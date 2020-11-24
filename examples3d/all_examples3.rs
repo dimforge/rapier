@@ -10,7 +10,6 @@ use inflector::Inflector;
 use rapier_testbed3d::Testbed;
 use std::cmp::Ordering;
 
-mod add_remove3;
 mod collision_groups3;
 mod compound3;
 mod damping3;
@@ -20,6 +19,7 @@ mod debug_infinite_fall3;
 mod debug_triangle3;
 mod debug_trimesh3;
 mod domino3;
+mod fountain3;
 mod heightfield3;
 mod joints3;
 mod keva3;
@@ -67,7 +67,7 @@ pub fn main() {
         .to_camel_case();
 
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
-        ("Add remove", add_remove3::init_world),
+        ("Fountain", fountain3::init_world),
         ("Primitives", primitives3::init_world),
         ("Collision groups", collision_groups3::init_world),
         ("Compound", compound3::init_world),

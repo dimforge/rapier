@@ -74,15 +74,9 @@ impl<T> InteractionGraph<T> {
         self.graph.node_weight(id).cloned()
     }
 
-    /// All the interactions pairs on this graph.
-    pub fn interaction_pairs(&self) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, &T)> {
-        self.graph.raw_edges().iter().map(move |edge| {
-            (
-                self.graph[edge.source()],
-                self.graph[edge.target()],
-                &edge.weight,
-            )
-        })
+    /// All the interactions on this graph.
+    pub fn interactions(&self) -> impl Iterator<Item = &T> {
+        self.graph.raw_edges().iter().map(move |edge| &edge.weight)
     }
 
     /// The interaction between the two collision objects identified by their graph index.

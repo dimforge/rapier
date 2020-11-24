@@ -11,6 +11,7 @@ use ncollide::bounding_volume::AABB;
 use std::ops::Deref;
 use std::sync::Arc;
 
+// TODO: move this to its own file.
 /// The shape of a collider.
 #[derive(Clone)]
 pub struct ColliderShape(pub Arc<dyn Shape>);
@@ -206,8 +207,6 @@ pub struct Collider {
     pub restitution: f32,
     pub(crate) collision_groups: InteractionGroups,
     pub(crate) solver_groups: InteractionGroups,
-    pub(crate) contact_graph_index: ColliderGraphIndex,
-    pub(crate) proximity_graph_index: ColliderGraphIndex,
     pub(crate) proxy_index: usize,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
@@ -216,8 +215,6 @@ pub struct Collider {
 impl Collider {
     pub(crate) fn reset_internal_references(&mut self) {
         self.parent = RigidBodySet::invalid_handle();
-        self.contact_graph_index = InteractionGraph::<Contact>::invalid_graph_index();
-        self.proximity_graph_index = InteractionGraph::<Proximity>::invalid_graph_index();
         self.proxy_index = crate::INVALID_USIZE;
     }
 
@@ -533,8 +530,6 @@ impl ColliderBuilder {
             parent: RigidBodySet::invalid_handle(),
             position: Isometry::identity(),
             predicted_position: Isometry::identity(),
-            contact_graph_index: InteractionGraph::<Contact>::invalid_graph_index(),
-            proximity_graph_index: InteractionGraph::<Proximity>::invalid_graph_index(),
             proxy_index: crate::INVALID_USIZE,
             collision_groups: self.collision_groups,
             solver_groups: self.solver_groups,

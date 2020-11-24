@@ -3,7 +3,7 @@ use rayon::prelude::*;
 
 use crate::data::arena::Arena;
 use crate::dynamics::{BodyStatus, Joint, JointSet, RigidBody};
-use crate::geometry::{ColliderHandle, ColliderSet, ContactPair, InteractionGraph};
+use crate::geometry::{ColliderHandle, ColliderSet, ContactPair, InteractionGraph, NarrowPhase};
 use crossbeam::channel::{Receiver, Sender};
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
@@ -452,7 +452,7 @@ impl RigidBodySet {
     pub(crate) fn update_active_set_with_contacts(
         &mut self,
         colliders: &ColliderSet,
-        contact_graph: &InteractionGraph<ContactPair>,
+        narrow_phase: &NarrowPhase,
         joint_graph: &InteractionGraph<Joint>,
         min_island_size: usize,
     ) {
@@ -491,20 +491,22 @@ impl RigidBodySet {
         fn push_contacting_colliders(
             rb: &RigidBody,
             colliders: &ColliderSet,
-            contact_graph: &InteractionGraph<ContactPair>,
+            narrow_phase: &NarrowPhase,
             stack: &mut Vec<ColliderHandle>,
         ) {
             for collider_handle in &rb.colliders {
-                let collider = &colliders[*collider_handle];
-
-                for inter in contact_graph.interactions_with(collider.contact_graph_index) {
-                    for manifold in &inter.2.manifolds {
-                        if manifold.num_active_contacts() > 0 {
-                            let other =
-                                crate::utils::other_handle((inter.0, inter.1), *collider_handle);
-                            let other_body = colliders[other].parent;
-                            stack.push(other_body);
-                            break;
+                if let Some(contacts) = narrow_phase.contacts_with(*collider_handle) {
+                    for inter in contacts {
+                        for manifold in &inter.2.manifolds {
+                            if manifold.num_active_contacts() > 0 {
+                                let other = crate::utils::other_handle(
+                                    (inter.0, inter.1),
+                                    *collider_handle,
+                                );
+                                let other_body = colliders[other].parent;
+                                stack.push(other_body);
+                                break;
+                            }
                         }
                     }
                 }
@@ -522,7 +524,7 @@ impl RigidBodySet {
                 continue;
             }
 
-            push_contacting_colliders(rb, colliders, contact_graph, &mut self.stack);
+            push_contacting_colliders(rb, colliders, narrow_phase, &mut self.stack);
         }
 
         //        println!("Selection: {}", instant::now() - t);
@@ -565,7 +567,7 @@ impl RigidBodySet {
 
             // Transmit the active state to all the rigid-bodies with colliders
             // in contact or joined with this collider.
-            push_contacting_colliders(rb, colliders, contact_graph, &mut self.stack);
+            push_contacting_colliders(rb, colliders, narrow_phase, &mut self.stack);
 
             for inter in joint_graph.interactions_with(rb.joint_graph_index) {
                 let other = crate::utils::other_handle((inter.0, inter.1), handle);
