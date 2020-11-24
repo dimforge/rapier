@@ -1618,7 +1618,7 @@ Hashes at frame: {}
 }
 
 fn draw_contacts(window: &mut Window, nf: &NarrowPhase, colliders: &ColliderSet) {
-    for (_, _, pair) in nf.contact_graph().interaction_pairs() {
+    for pair in nf.contact_pairs() {
         for manifold in &pair.manifolds {
             for pt in manifold.all_contacts() {
                 let color = if pt.dist > 0.0 {
