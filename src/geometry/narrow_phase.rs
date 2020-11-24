@@ -137,25 +137,27 @@ impl NarrowPhase {
         let mut i = 0;
 
         while let Some(collider) = colliders.removed_colliders.read_ith(&cursor, i) {
-            let graph_idx = self.graph_indices.get(collider.handle).unwrap();
+            // NOTE: if the collider does not have any graph indices currently, there is nothing
+            // to remove in the narrow-phase for this collider.
+            if let Some(graph_idx) = self.graph_indices.get(collider.handle) {
+                let proximity_graph_id = prox_id_remap
+                    .get(&collider.handle)
+                    .copied()
+                    .unwrap_or(graph_idx.proximity_graph_index);
+                let contact_graph_id = contact_id_remap
+                    .get(&collider.handle)
+                    .copied()
+                    .unwrap_or(graph_idx.contact_graph_index);
 
-            let proximity_graph_id = prox_id_remap
-                .get(&collider.handle)
-                .copied()
-                .unwrap_or(graph_idx.proximity_graph_index);
-            let contact_graph_id = contact_id_remap
-                .get(&collider.handle)
-                .copied()
-                .unwrap_or(graph_idx.contact_graph_index);
-
-            self.remove_collider(
-                proximity_graph_id,
-                contact_graph_id,
-                colliders,
-                bodies,
-                &mut prox_id_remap,
-                &mut contact_id_remap,
-            );
+                self.remove_collider(
+                    proximity_graph_id,
+                    contact_graph_id,
+                    colliders,
+                    bodies,
+                    &mut prox_id_remap,
+                    &mut contact_id_remap,
+                );
+            }
 
             i += 1;
         }
