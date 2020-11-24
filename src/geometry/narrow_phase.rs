@@ -140,6 +140,16 @@ impl NarrowPhase {
             .map(|c| c.2)
     }
 
+    /// All the contact pairs maintained by this narrow-phase.
+    pub fn contact_pairs(&self) -> impl Iterator<Item = &ContactPair> {
+        self.contact_graph.interactions()
+    }
+
+    /// All the proximity pairs maintained by this narrow-phase.
+    pub fn proximity_pairs(&self) -> impl Iterator<Item = &ProximityPair> {
+        self.proximity_graph.interactions()
+    }
+
     // #[cfg(feature = "parallel")]
     // pub(crate) fn contact_pairs_vec_mut(&mut self) -> &mut Vec<ContactPair> {
     //     &mut self.contact_graph.interactions
