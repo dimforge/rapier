@@ -29,10 +29,10 @@ bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
     pub(crate) struct RigidBodyChanges: u32 {
-        const MODIFIED = 0b001;
-        const POSITION = 0b010;
-        const SLEEP = 0b100;
-        const COLLIDERS = 0b1000;
+        const MODIFIED  = 1 << 0;
+        const POSITION  = 1 << 1;
+        const SLEEP     = 1 << 2;
+        const COLLIDERS = 1 << 3;
     }
 }
 
