@@ -9,9 +9,10 @@ pub use self::joint::{
 };
 pub use self::mass_properties::MassProperties;
 pub use self::rigid_body::{ActivationStatus, BodyStatus, RigidBody, RigidBodyBuilder};
-pub use self::rigid_body_set::{BodyPair, RigidBodyHandle, RigidBodyMut, RigidBodySet};
+pub use self::rigid_body_set::{BodyPair, RigidBodyHandle, RigidBodySet};
 // #[cfg(not(feature = "parallel"))]
 pub(crate) use self::joint::JointGraphEdge;
+pub(crate) use self::rigid_body::RigidBodyChanges;
 #[cfg(not(feature = "parallel"))]
 pub(crate) use self::solver::IslandSolver;
 #[cfg(feature = "parallel")]

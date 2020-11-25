@@ -634,6 +634,7 @@ impl BroadPhase {
             .active_dynamic_set
             .iter()
             .chain(bodies.active_kinematic_set.iter())
+            .chain(bodies.modified_inactive_set.iter())
         {
             for handle in &bodies[*body_handle].colliders {
                 let collider = &mut colliders[*handle];

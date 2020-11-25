@@ -74,9 +74,9 @@ impl PhysicsPipeline {
         events: &dyn EventHandler,
     ) {
         self.counters.step_started();
+        bodies.maintain(colliders);
         broad_phase.maintain(colliders);
         narrow_phase.maintain(colliders, bodies);
-        bodies.maintain_active_set();
 
         // Update kinematic bodies velocities.
         // TODO: what is the best place for this? It should at least be
@@ -242,11 +242,7 @@ impl PhysicsPipeline {
                 rb.update_predicted_position(integration_parameters.dt());
             }
 
-            for handle in &rb.colliders {
-                let collider = &mut colliders[*handle];
-                collider.position = rb.position * collider.delta;
-                collider.predicted_position = rb.predicted_position * collider.delta;
-            }
+            rb.update_colliders_positions(colliders);
         });
 
         self.counters.stages.solver_time.pause();

@@ -1,7 +1,7 @@
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{
-    Ball, Capsule, ColliderGraphIndex, Contact, Cuboid, HeightField, InteractionGraph,
-    InteractionGroups, Proximity, Segment, Shape, ShapeType, Triangle, Trimesh,
+    Ball, Capsule, Cuboid, HeightField, InteractionGroups, Segment, Shape, ShapeType, Triangle,
+    Trimesh,
 };
 #[cfg(feature = "dim3")]
 use crate::geometry::{Cone, Cylinder, RoundCylinder};

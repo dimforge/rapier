@@ -1,7 +1,7 @@
 use crate::data::arena::Arena;
 use crate::data::pubsub::PubSub;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
-use crate::geometry::{Collider, ColliderGraphIndex};
+use crate::geometry::Collider;
 use std::ops::{Index, IndexMut};
 
 /// The unique identifier of a collider added to a collider set.
@@ -70,8 +70,7 @@ impl ColliderSet {
         coll.predicted_position = parent.predicted_position * coll.delta;
         let handle = self.colliders.insert(coll);
         let coll = self.colliders.get(handle).unwrap();
-        parent.add_collider_internal(handle, &coll);
-        bodies.activate(parent_handle);
+        parent.add_collider(handle, &coll);
         handle
     }
 
@@ -147,13 +146,13 @@ impl ColliderSet {
         self.colliders.get_mut(handle)
     }
 
-    pub(crate) fn get2_mut_internal(
-        &mut self,
-        h1: ColliderHandle,
-        h2: ColliderHandle,
-    ) -> (Option<&mut Collider>, Option<&mut Collider>) {
-        self.colliders.get2_mut(h1, h2)
-    }
+    // pub(crate) fn get2_mut_internal(
+    //     &mut self,
+    //     h1: ColliderHandle,
+    //     h2: ColliderHandle,
+    // ) -> (Option<&mut Collider>, Option<&mut Collider>) {
+    //     self.colliders.get2_mut(h1, h2)
+    // }
 
     // pub fn iter_mut(&mut self) -> impl Iterator<Item = (ColliderHandle, ColliderMut)> {
     //     //        let sender = &self.activation_channel_sender;
