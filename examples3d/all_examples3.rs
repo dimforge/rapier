@@ -16,6 +16,7 @@ mod damping3;
 mod debug_boxes3;
 mod debug_cylinder3;
 mod debug_infinite_fall3;
+mod debug_rollback3;
 mod debug_triangle3;
 mod debug_trimesh3;
 mod domino3;
@@ -86,6 +87,7 @@ pub fn main() {
         ("(Debug) trimesh", debug_trimesh3::init_world),
         ("(Debug) cylinder", debug_cylinder3::init_world),
         ("(Debug) infinite fall", debug_infinite_fall3::init_world),
+        ("(Debug) rollback", debug_rollback3::init_world),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
