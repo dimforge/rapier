@@ -91,7 +91,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let coll = ColliderBuilder::cuboid(ground_size, ground_height + step as f32 * 0.01, 0.4)
             .friction(0.15)
             .build();
-        new_ground_collider_handle =
+        let new_ground_collider_handle =
             physics
                 .colliders
                 .insert(coll, ground_handle, &mut physics.bodies);

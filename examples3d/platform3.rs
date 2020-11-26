@@ -71,7 +71,7 @@ pub fn init_world(testbed: &mut Testbed) {
             return;
         }
 
-        if let Some(mut platform) = physics.bodies.get_mut(platform_handle) {
+        if let Some(platform) = physics.bodies.get_mut(platform_handle) {
             let mut next_pos = *platform.position();
 
             let dt = 0.016;

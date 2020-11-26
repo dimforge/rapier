@@ -237,7 +237,7 @@ impl GraphicsManager {
         for collider_handle in bodies[handle].colliders() {
             let color = self.c2color.get(collider_handle).copied().unwrap_or(color);
             let collider = &colliders[*collider_handle];
-            self.add_collider(window, *collider_handle, collider, color, &mut new_nodes);
+            self.do_add_collider(window, *collider_handle, collider, color, &mut new_nodes);
         }
 
         new_nodes.iter_mut().for_each(|n| n.update(colliders));
@@ -256,7 +256,22 @@ impl GraphicsManager {
         nodes.append(&mut new_nodes);
     }
 
-    fn add_collider(
+    pub fn add_collider(
+        &mut self,
+        window: &mut Window,
+        handle: ColliderHandle,
+        colliders: &ColliderSet,
+    ) {
+        let collider = &colliders[handle];
+        let color = *self.b2color.get(&collider.parent()).unwrap();
+        let color = self.c2color.get(&handle).copied().unwrap_or(color);
+        let mut nodes =
+            std::mem::replace(self.b2sn.get_mut(&collider.parent()).unwrap(), Vec::new());
+        self.do_add_collider(window, handle, collider, color, &mut nodes);
+        self.b2sn.insert(collider.parent(), nodes);
+    }
+
+    fn do_add_collider(
         &mut self,
         window: &mut Window,
         handle: ColliderHandle,

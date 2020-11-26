@@ -167,12 +167,10 @@ impl RigidBody {
 
     /// Adds a collider to this rigid-body.
     pub(crate) fn add_collider(&mut self, handle: ColliderHandle, coll: &Collider) {
-        if !self.changes.contains(RigidBodyChanges::MODIFIED) {
-            self.changes.set(
-                RigidBodyChanges::MODIFIED | RigidBodyChanges::COLLIDERS,
-                true,
-            );
-        }
+        self.changes.set(
+            RigidBodyChanges::MODIFIED | RigidBodyChanges::COLLIDERS,
+            true,
+        );
 
         let mass_properties = coll
             .mass_properties()
@@ -193,6 +191,7 @@ impl RigidBody {
     /// Removes a collider from this rigid-body.
     pub(crate) fn remove_collider_internal(&mut self, handle: ColliderHandle, coll: &Collider) {
         if let Some(i) = self.colliders.iter().position(|e| *e == handle) {
+            self.changes.set(RigidBodyChanges::COLLIDERS, true);
             self.colliders.swap_remove(i);
             let mass_properties = coll
                 .mass_properties()

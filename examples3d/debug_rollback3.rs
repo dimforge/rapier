@@ -24,17 +24,18 @@ pub fn init_world(testbed: &mut Testbed) {
         .friction(0.15)
         // .restitution(0.5)
         .build();
-    colliders.insert(collider, ground_handle, &mut bodies);
+    let mut ground_collider_handle = colliders.insert(collider, ground_handle, &mut bodies);
 
     /*
      * Rolling ball
      */
+    let ball_rad = 0.1;
     let rb = RigidBodyBuilder::new_dynamic()
         .translation(0.0, 0.2, 0.0)
         .linvel(10.0, 0.0, 0.0)
         .build();
     let ball_handle = bodies.insert(rb);
-    let collider = ColliderBuilder::ball(0.1).density(100.0).build();
+    let collider = ColliderBuilder::ball(ball_rad).density(100.0).build();
     colliders.insert(collider, ball_handle, &mut bodies);
 
     let mut linvel = Vector3::zeros();
@@ -43,8 +44,10 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut step = 0;
     let snapped_frame = 51;
 
-    testbed.add_callback(move |_, physics, _, _, _| {
+    testbed.add_callback(move |window, physics, _, graphics, _| {
         step += 1;
+
+        // Snap the ball velocity or restore it.
         let mut ball = physics.bodies.get_mut(ball_handle).unwrap();
 
         if step == snapped_frame {
@@ -59,9 +62,6 @@ pub fn init_world(testbed: &mut Testbed) {
             ball.set_position(pos, true);
             step = snapped_frame;
         }
-
-        let ground = physics.bodies.get_mut(ground_handle).unwrap();
-        ground.set_position(Isometry3::translation(0.0, step as f32 * 0.001, 0.0), false);
     });
 
     /*

@@ -63,8 +63,11 @@ impl ColliderSet {
         coll.reset_internal_references();
 
         coll.parent = parent_handle;
+
+        // NOTE: we use `get_mut` instead of `get_mut_internal` so that the
+        // modification flag is updated properly.
         let parent = bodies
-            .get_mut_internal(parent_handle)
+            .get_mut(parent_handle)
             .expect("Parent rigid body not found.");
         coll.position = parent.position * coll.delta;
         coll.predicted_position = parent.predicted_position * coll.delta;
@@ -89,7 +92,9 @@ impl ColliderSet {
         /*
          * Delete the collider from its parent body.
          */
-        if let Some(parent) = bodies.get_mut_internal(collider.parent) {
+        // NOTE: we use `get_mut` instead of `get_mut_internal` so that the
+        // modification flag is updated properly.
+        if let Some(parent) = bodies.get_mut(collider.parent) {
             parent.remove_collider_internal(handle, &collider);
 
             if wake_up {
