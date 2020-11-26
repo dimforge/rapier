@@ -631,10 +631,10 @@ impl BroadPhase {
         self.complete_removals();
 
         for body_handle in bodies
-            .active_dynamic_set
+            .modified_inactive_set
             .iter()
+            .chain(bodies.active_dynamic_set.iter())
             .chain(bodies.active_kinematic_set.iter())
-            .chain(bodies.modified_inactive_set.iter())
         {
             for handle in &bodies[*body_handle].colliders {
                 let collider = &mut colliders[*handle];
