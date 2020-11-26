@@ -2,54 +2,9 @@
 use rayon::prelude::*;
 
 use crate::data::arena::Arena;
-use crate::dynamics::{BodyStatus, Joint, JointSet, RigidBody};
-use crate::geometry::{ColliderHandle, ColliderSet, ContactPair, InteractionGraph, NarrowPhase};
-use crossbeam::channel::{Receiver, Sender};
-use std::ops::{Deref, DerefMut, Index, IndexMut};
-
-/// A mutable reference to a rigid-body.
-pub struct RigidBodyMut<'a> {
-    rb: &'a mut RigidBody,
-    was_sleeping: bool,
-    handle: RigidBodyHandle,
-    sender: &'a Sender<RigidBodyHandle>,
-}
-
-impl<'a> RigidBodyMut<'a> {
-    fn new(
-        handle: RigidBodyHandle,
-        rb: &'a mut RigidBody,
-        sender: &'a Sender<RigidBodyHandle>,
-    ) -> Self {
-        Self {
-            was_sleeping: rb.is_sleeping(),
-            handle,
-            sender,
-            rb,
-        }
-    }
-}
-
-impl<'a> Deref for RigidBodyMut<'a> {
-    type Target = RigidBody;
-    fn deref(&self) -> &RigidBody {
-        &*self.rb
-    }
-}
-
-impl<'a> DerefMut for RigidBodyMut<'a> {
-    fn deref_mut(&mut self) -> &mut RigidBody {
-        self.rb
-    }
-}
-
-impl<'a> Drop for RigidBodyMut<'a> {
-    fn drop(&mut self) {
-        if self.was_sleeping && !self.rb.is_sleeping() {
-            self.sender.send(self.handle).unwrap();
-        }
-    }
-}
+use crate::dynamics::{Joint, JointSet, RigidBody, RigidBodyChanges};
+use crate::geometry::{ColliderHandle, ColliderSet, InteractionGraph, NarrowPhase};
+use std::ops::{Index, IndexMut};
 
 /// The unique handle of a rigid body added to a `RigidBodySet`.
 pub type RigidBodyHandle = crate::data::arena::Index;
@@ -90,15 +45,12 @@ pub struct RigidBodySet {
     pub(crate) modified_inactive_set: Vec<RigidBodyHandle>,
     pub(crate) active_islands: Vec<usize>,
     active_set_timestamp: u32,
+    pub(crate) modified_bodies: Vec<RigidBodyHandle>,
+    pub(crate) modified_all_bodies: bool,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     can_sleep: Vec<RigidBodyHandle>, // Workspace.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     stack: Vec<RigidBodyHandle>, // Workspace.
-    #[cfg_attr(
-        feature = "serde-serialize",
-        serde(skip, default = "crossbeam::channel::unbounded")
-    )]
-    activation_channel: (Sender<RigidBodyHandle>, Receiver<RigidBodyHandle>),
 }
 
 impl RigidBodySet {
@@ -111,9 +63,10 @@ impl RigidBodySet {
             modified_inactive_set: Vec::new(),
             active_islands: Vec::new(),
             active_set_timestamp: 0,
+            modified_bodies: Vec::new(),
+            modified_all_bodies: false,
             can_sleep: Vec::new(),
             stack: Vec::new(),
-            activation_channel: crossbeam::channel::unbounded(),
         }
     }
 
@@ -127,28 +80,6 @@ impl RigidBodySet {
         self.bodies.len()
     }
 
-    pub(crate) fn activate(&mut self, handle: RigidBodyHandle) {
-        let mut rb = &mut self.bodies[handle];
-        match rb.body_status {
-            // XXX: this case should only concern the dynamic bodies.
-            // For static bodies we should use the modified_inactive_set, or something
-            // similar. Right now we do this for static bodies as well so the broad-phase
-            // takes them into account the first time they are inserted.
-            BodyStatus::Dynamic | BodyStatus::Static => {
-                if self.active_dynamic_set.get(rb.active_set_id) != Some(&handle) {
-                    rb.active_set_id = self.active_dynamic_set.len();
-                    self.active_dynamic_set.push(handle);
-                }
-            }
-            BodyStatus::Kinematic => {
-                if self.active_kinematic_set.get(rb.active_set_id) != Some(&handle) {
-                    rb.active_set_id = self.active_kinematic_set.len();
-                    self.active_kinematic_set.push(handle);
-                }
-            }
-        }
-    }
-
     /// Is the given body handle valid?
     pub fn contains(&self, handle: RigidBodyHandle) -> bool {
         self.bodies.contains(handle)
@@ -159,22 +90,16 @@ impl RigidBodySet {
         // Make sure the internal links are reset, they may not be
         // if this rigid-body was obtained by cloning another one.
         rb.reset_internal_references();
+        rb.changes.set(RigidBodyChanges::all(), true);
 
         let handle = self.bodies.insert(rb);
-        let rb = &mut self.bodies[handle];
+        self.modified_bodies.push(handle);
 
-        if !rb.is_sleeping() && rb.is_dynamic() {
-            rb.active_set_id = self.active_dynamic_set.len();
-            self.active_dynamic_set.push(handle);
-        }
+        let rb = &mut self.bodies[handle];
 
         if rb.is_kinematic() {
             rb.active_set_id = self.active_kinematic_set.len();
             self.active_kinematic_set.push(handle);
-        }
-
-        if !rb.is_dynamic() {
-            self.modified_inactive_set.push(handle);
         }
 
         handle
@@ -262,11 +187,13 @@ impl RigidBodySet {
     ///
     /// Using this is discouraged in favor of `self.get_mut(handle)` which does not
     /// suffer form the ABA problem.
-    pub fn get_unknown_gen_mut(&mut self, i: usize) -> Option<(RigidBodyMut, RigidBodyHandle)> {
-        let sender = &self.activation_channel.0;
-        self.bodies
-            .get_unknown_gen_mut(i)
-            .map(|(rb, handle)| (RigidBodyMut::new(handle, rb, sender), handle))
+    pub fn get_unknown_gen_mut(&mut self, i: usize) -> Option<(&mut RigidBody, RigidBodyHandle)> {
+        let result = self.bodies.get_unknown_gen_mut(i)?;
+        if !self.modified_all_bodies && !result.0.changes.contains(RigidBodyChanges::MODIFIED) {
+            result.0.changes = RigidBodyChanges::MODIFIED;
+            self.modified_bodies.push(result.1);
+        }
+        Some(result)
     }
 
     /// Gets the rigid-body with the given handle.
@@ -275,11 +202,13 @@ impl RigidBodySet {
     }
 
     /// Gets a mutable reference to the rigid-body with the given handle.
-    pub fn get_mut(&mut self, handle: RigidBodyHandle) -> Option<RigidBodyMut> {
-        let sender = &self.activation_channel.0;
-        self.bodies
-            .get_mut(handle)
-            .map(|rb| RigidBodyMut::new(handle, rb, sender))
+    pub fn get_mut(&mut self, handle: RigidBodyHandle) -> Option<&mut RigidBody> {
+        let result = self.bodies.get_mut(handle)?;
+        if !self.modified_all_bodies && !result.changes.contains(RigidBodyChanges::MODIFIED) {
+            result.changes = RigidBodyChanges::MODIFIED;
+            self.modified_bodies.push(handle);
+        }
+        Some(result)
     }
 
     pub(crate) fn get_mut_internal(&mut self, handle: RigidBodyHandle) -> Option<&mut RigidBody> {
@@ -300,11 +229,10 @@ impl RigidBodySet {
     }
 
     /// Iterates mutably through all the rigid-bodies on this set.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (RigidBodyHandle, RigidBodyMut)> {
-        let sender = &self.activation_channel.0;
-        self.bodies
-            .iter_mut()
-            .map(move |(h, rb)| (h, RigidBodyMut::new(h, rb, sender)))
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (RigidBodyHandle, &mut RigidBody)> {
+        self.modified_bodies.clear();
+        self.modified_all_bodies = true;
+        self.bodies.iter_mut()
     }
 
     /// Iter through all the active kinematic rigid-bodies on this set.
@@ -433,17 +361,70 @@ impl RigidBodySet {
         &self.active_dynamic_set[self.active_island_range(island_id)]
     }
 
-    pub(crate) fn maintain_active_set(&mut self) {
-        for handle in self.activation_channel.1.try_iter() {
-            if let Some(rb) = self.bodies.get_mut(handle) {
-                // Push the body to the active set if it is not
-                // sleeping and if it is not already inside of the active set.
-                if !rb.is_sleeping() // May happen if the body was put to sleep manually.
-                    && rb.is_dynamic() // Only dynamic bodies are in the active dynamic set.
-                    && self.active_dynamic_set.get(rb.active_set_id) != Some(&handle)
-                {
-                    rb.active_set_id = self.active_dynamic_set.len(); // This will handle the case where the activation_channel contains duplicates.
-                    self.active_dynamic_set.push(handle);
+    // Utility function to avoid some borrowing issue in the `maintain` method.
+    fn maintain_one(
+        colliders: &mut ColliderSet,
+        handle: RigidBodyHandle,
+        rb: &mut RigidBody,
+        modified_inactive_set: &mut Vec<RigidBodyHandle>,
+        active_kinematic_set: &mut Vec<RigidBodyHandle>,
+        active_dynamic_set: &mut Vec<RigidBodyHandle>,
+    ) {
+        // Update the positions of the colliders.
+        if rb.changes.contains(RigidBodyChanges::POSITION)
+            || rb.changes.contains(RigidBodyChanges::COLLIDERS)
+        {
+            rb.update_colliders_positions(colliders);
+
+            if rb.is_static() {
+                modified_inactive_set.push(handle);
+            }
+
+            if rb.is_kinematic() && active_kinematic_set.get(rb.active_set_id) != Some(&handle) {
+                rb.active_set_id = active_kinematic_set.len();
+                active_kinematic_set.push(handle);
+            }
+        }
+
+        // Push the body to the active set if it is not
+        // sleeping and if it is not already inside of the active set.
+        if rb.changes.contains(RigidBodyChanges::SLEEP)
+            && !rb.is_sleeping() // May happen if the body was put to sleep manually.
+            && rb.is_dynamic() // Only dynamic bodies are in the active dynamic set.
+            && active_dynamic_set.get(rb.active_set_id) != Some(&handle)
+        {
+            rb.active_set_id = active_dynamic_set.len(); // This will handle the case where the activation_channel contains duplicates.
+            active_dynamic_set.push(handle);
+        }
+
+        rb.changes = RigidBodyChanges::empty();
+    }
+
+    pub(crate) fn maintain(&mut self, colliders: &mut ColliderSet) {
+        if self.modified_all_bodies {
+            for (handle, rb) in self.bodies.iter_mut() {
+                Self::maintain_one(
+                    colliders,
+                    handle,
+                    rb,
+                    &mut self.modified_inactive_set,
+                    &mut self.active_kinematic_set,
+                    &mut self.active_dynamic_set,
+                )
+            }
+
+            self.modified_bodies.clear();
+        } else {
+            for handle in self.modified_bodies.drain(..) {
+                if let Some(rb) = self.bodies.get_mut(handle) {
+                    Self::maintain_one(
+                        colliders,
+                        handle,
+                        rb,
+                        &mut self.modified_inactive_set,
+                        &mut self.active_kinematic_set,
+                        &mut self.active_dynamic_set,
+                    )
                 }
             }
         }

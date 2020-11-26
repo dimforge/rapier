@@ -1,5 +1,7 @@
 use crate::dynamics::MassProperties;
-use crate::geometry::{Collider, ColliderHandle, InteractionGraph, RigidBodyGraphIndex};
+use crate::geometry::{
+    Collider, ColliderHandle, ColliderSet, InteractionGraph, RigidBodyGraphIndex,
+};
 use crate::math::{AngVector, AngularInertia, Isometry, Point, Rotation, Translation, Vector};
 use crate::utils::{WCross, WDot};
 use num::Zero;
@@ -21,6 +23,17 @@ pub enum BodyStatus {
     Kinematic,
     // Semikinematic, // A kinematic that performs automatic CCD with the static environment toi avoid traversing it?
     // Disabled,
+}
+
+bitflags::bitflags! {
+    #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    /// Flags affecting the behavior of the constraints solver for a given contact manifold.
+    pub(crate) struct RigidBodyChanges: u32 {
+        const MODIFIED  = 1 << 0;
+        const POSITION  = 1 << 1;
+        const SLEEP     = 1 << 2;
+        const COLLIDERS = 1 << 3;
+    }
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -56,6 +69,7 @@ pub struct RigidBody {
     pub(crate) active_set_id: usize,
     pub(crate) active_set_offset: usize,
     pub(crate) active_set_timestamp: u32,
+    pub(crate) changes: RigidBodyChanges,
     /// The status of the body, governing how it is affected by external forces.
     pub body_status: BodyStatus,
     /// User-defined data associated to this rigid-body.
@@ -83,6 +97,7 @@ impl RigidBody {
             active_set_id: 0,
             active_set_offset: 0,
             active_set_timestamp: 0,
+            changes: RigidBodyChanges::all(),
             body_status: BodyStatus::Dynamic,
             user_data: 0,
         }
@@ -151,7 +166,12 @@ impl RigidBody {
     }
 
     /// Adds a collider to this rigid-body.
-    pub(crate) fn add_collider_internal(&mut self, handle: ColliderHandle, coll: &Collider) {
+    pub(crate) fn add_collider(&mut self, handle: ColliderHandle, coll: &Collider) {
+        self.changes.set(
+            RigidBodyChanges::MODIFIED | RigidBodyChanges::COLLIDERS,
+            true,
+        );
+
         let mass_properties = coll
             .mass_properties()
             .transform_by(coll.position_wrt_parent());
@@ -160,9 +180,18 @@ impl RigidBody {
         self.update_world_mass_properties();
     }
 
+    pub(crate) fn update_colliders_positions(&mut self, colliders: &mut ColliderSet) {
+        for handle in &self.colliders {
+            let collider = &mut colliders[*handle];
+            collider.position = self.position * collider.delta;
+            collider.predicted_position = self.predicted_position * collider.delta;
+        }
+    }
+
     /// Removes a collider from this rigid-body.
     pub(crate) fn remove_collider_internal(&mut self, handle: ColliderHandle, coll: &Collider) {
         if let Some(i) = self.colliders.iter().position(|e| *e == handle) {
+            self.changes.set(RigidBodyChanges::COLLIDERS, true);
             self.colliders.swap_remove(i);
             let mass_properties = coll
                 .mass_properties()
@@ -189,7 +218,10 @@ impl RigidBody {
     /// If `strong` is `true` then it is assured that the rigid-body will
     /// remain awake during multiple subsequent timesteps.
     pub fn wake_up(&mut self, strong: bool) {
-        self.activation.sleeping = false;
+        if self.activation.sleeping {
+            self.changes.insert(RigidBodyChanges::SLEEP);
+            self.activation.sleeping = false;
+        }
 
         if (strong || self.activation.energy == 0.0) && self.is_dynamic() {
             self.activation.energy = self.activation.threshold.abs() * 2.0;
@@ -301,14 +333,21 @@ impl RigidBody {
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
     pub fn set_position(&mut self, pos: Isometry<f32>, wake_up: bool) {
+        self.changes.insert(RigidBodyChanges::POSITION);
+        self.set_position_internal(pos);
+
+        // TODO: Do we really need to check that the body isn't dynamic?
+        if wake_up && self.is_dynamic() {
+            self.wake_up(true)
+        }
+    }
+
+    pub(crate) fn set_position_internal(&mut self, pos: Isometry<f32>) {
         self.position = pos;
 
         // TODO: update the predicted position for dynamic bodies too?
         if self.is_static() || self.is_kinematic() {
             self.predicted_position = pos;
-        } else if wake_up {
-            // wake_up is true and the rigid-body is dynamic.
-            self.wake_up(true);
         }
     }
 
@@ -609,7 +648,7 @@ impl RigidBodyBuilder {
     pub fn build(&self) -> RigidBody {
         let mut rb = RigidBody::new();
         rb.predicted_position = self.position; // FIXME: compute the correct value?
-        rb.set_position(self.position, false);
+        rb.set_position_internal(self.position);
         rb.linvel = self.linvel;
         rb.angvel = self.angvel;
         rb.body_status = self.body_status;

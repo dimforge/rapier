@@ -586,9 +586,6 @@ impl BroadPhase {
 
         let proxy = &mut self.proxies[proxy_index];
 
-        // Push the proxy to infinity, but not beyond the sentinels.
-        proxy.aabb.mins.coords.fill(SENTINEL_VALUE / 2.0);
-        proxy.aabb.maxs.coords.fill(SENTINEL_VALUE / 2.0);
         // Discretize the AABB to find the regions that need to be invalidated.
         let start = point_key(proxy.aabb.mins);
         let end = point_key(proxy.aabb.maxs);
@@ -615,6 +612,9 @@ impl BroadPhase {
             }
         }
 
+        // Push the proxy to infinity, but not beyond the sentinels.
+        proxy.aabb.mins.coords.fill(SENTINEL_VALUE / 2.0);
+        proxy.aabb.maxs.coords.fill(SENTINEL_VALUE / 2.0);
         self.proxies.remove(proxy_index);
     }
 
@@ -631,8 +631,9 @@ impl BroadPhase {
         self.complete_removals();
 
         for body_handle in bodies
-            .active_dynamic_set
+            .modified_inactive_set
             .iter()
+            .chain(bodies.active_dynamic_set.iter())
             .chain(bodies.active_kinematic_set.iter())
         {
             for handle in &bodies[*body_handle].colliders {

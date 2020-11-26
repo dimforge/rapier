@@ -47,7 +47,7 @@ impl CollisionPipeline {
         proximity_pair_filter: Option<&dyn ProximityPairFilter>,
         events: &dyn EventHandler,
     ) {
-        bodies.maintain_active_set();
+        bodies.maintain(colliders);
         self.broadphase_collider_pairs.clear();
 
         broad_phase.update_aabbs(prediction_distance, bodies, colliders);

@@ -1,7 +1,7 @@
 use crate::data::arena::Arena;
 use crate::data::pubsub::PubSub;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
-use crate::geometry::{Collider, ColliderGraphIndex};
+use crate::geometry::Collider;
 use std::ops::{Index, IndexMut};
 
 /// The unique identifier of a collider added to a collider set.
@@ -63,15 +63,17 @@ impl ColliderSet {
         coll.reset_internal_references();
 
         coll.parent = parent_handle;
+
+        // NOTE: we use `get_mut` instead of `get_mut_internal` so that the
+        // modification flag is updated properly.
         let parent = bodies
-            .get_mut_internal(parent_handle)
+            .get_mut(parent_handle)
             .expect("Parent rigid body not found.");
         coll.position = parent.position * coll.delta;
         coll.predicted_position = parent.predicted_position * coll.delta;
         let handle = self.colliders.insert(coll);
         let coll = self.colliders.get(handle).unwrap();
-        parent.add_collider_internal(handle, &coll);
-        bodies.activate(parent_handle);
+        parent.add_collider(handle, &coll);
         handle
     }
 
@@ -90,7 +92,9 @@ impl ColliderSet {
         /*
          * Delete the collider from its parent body.
          */
-        if let Some(parent) = bodies.get_mut_internal(collider.parent) {
+        // NOTE: we use `get_mut` instead of `get_mut_internal` so that the
+        // modification flag is updated properly.
+        if let Some(parent) = bodies.get_mut(collider.parent) {
             parent.remove_collider_internal(handle, &collider);
 
             if wake_up {
@@ -147,13 +151,13 @@ impl ColliderSet {
         self.colliders.get_mut(handle)
     }
 
-    pub(crate) fn get2_mut_internal(
-        &mut self,
-        h1: ColliderHandle,
-        h2: ColliderHandle,
-    ) -> (Option<&mut Collider>, Option<&mut Collider>) {
-        self.colliders.get2_mut(h1, h2)
-    }
+    // pub(crate) fn get2_mut_internal(
+    //     &mut self,
+    //     h1: ColliderHandle,
+    //     h2: ColliderHandle,
+    // ) -> (Option<&mut Collider>, Option<&mut Collider>) {
+    //     self.colliders.get2_mut(h1, h2)
+    // }
 
     // pub fn iter_mut(&mut self) -> impl Iterator<Item = (ColliderHandle, ColliderMut)> {
     //     //        let sender = &self.activation_channel_sender;

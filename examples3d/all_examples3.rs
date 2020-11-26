@@ -13,9 +13,12 @@ use std::cmp::Ordering;
 mod collision_groups3;
 mod compound3;
 mod damping3;
+mod debug_add_remove_collider3;
 mod debug_boxes3;
 mod debug_cylinder3;
+mod debug_dynamic_collider_add3;
 mod debug_infinite_fall3;
+mod debug_rollback3;
 mod debug_triangle3;
 mod debug_trimesh3;
 mod domino3;
@@ -81,11 +84,20 @@ pub fn main() {
         ("Sensor", sensor3::init_world),
         ("Trimesh", trimesh3::init_world),
         ("Keva tower", keva3::init_world),
+        (
+            "(Debug) add/rm collider",
+            debug_add_remove_collider3::init_world,
+        ),
         ("(Debug) boxes", debug_boxes3::init_world),
+        (
+            "(Debug) dyn. coll. add",
+            debug_dynamic_collider_add3::init_world,
+        ),
         ("(Debug) triangle", debug_triangle3::init_world),
         ("(Debug) trimesh", debug_trimesh3::init_world),
         ("(Debug) cylinder", debug_cylinder3::init_world),
         ("(Debug) infinite fall", debug_infinite_fall3::init_world),
+        ("(Debug) rollback", debug_rollback3::init_world),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.

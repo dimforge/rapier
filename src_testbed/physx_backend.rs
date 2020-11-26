@@ -402,7 +402,7 @@ impl PhysxWorld {
 
     pub fn sync(&self, bodies: &mut RigidBodySet, colliders: &mut ColliderSet) {
         for (rapier_handle, physx_handle) in self.rapier2physx.iter() {
-            let mut rb = bodies.get_mut(*rapier_handle).unwrap();
+            let rb = bodies.get_mut(*rapier_handle).unwrap();
             let ra = self.scene.get_rigid_actor(*physx_handle).unwrap();
             let pos = ra.get_global_pose().into_na();
             let iso = na::convert_unchecked(pos);
