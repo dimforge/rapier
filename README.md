@@ -31,3 +31,11 @@
 </p>
 
 -----
+
+## Gold sponsors
+Rapier is supported by:
+<p>
+  <a href="https://embark-studios.com">
+    <img src="https://www.embark.dev/img/logo_black.png" width="301px">
+  </a>
+</p>
