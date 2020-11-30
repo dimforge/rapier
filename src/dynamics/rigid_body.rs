@@ -632,61 +632,63 @@ impl RigidBodyBuilder {
 
     /// Prevents this rigid-body from translating because of forces.
     ///
-    /// This is equivalent to `self.mass(0.0, true)`. See the
+    /// This is equivalent to `self.mass(0.0, false)`. See the
     /// documentation of [`RigidBodyBuilder::mass`] for more details.
     pub fn lock_translations(mut self) -> Self {
-        self.mass(0.0, true)
+        self.mass(0.0, false)
     }
 
     /// Prevents this rigid-body from rotating because of forces.
     ///
-    /// This is equivalent to `self.principal_inertia(0.0, true)` (in 2D) or
-    /// `self.principal_inertia(Vector3::zeros(), Vector3::repeat(true))` (in 3D).
+    /// This is equivalent to `self.principal_inertia(0.0, false)` (in 2D) or
+    /// `self.principal_inertia(Vector3::zeros(), Vector3::repeat(false))` (in 3D).
     ///
     /// See the documentation of [`RigidBodyBuilder::principal_inertia`] for more details.
     pub fn lock_rotations(mut self) -> Self {
         #[cfg(feature = "dim2")]
-        return self.principal_inertia(0.0, true);
+        return self.principal_inertia(0.0, false);
         #[cfg(feature = "dim3")]
-        return self.principal_inertia(Vector::zeros(), Vector::repeat(true));
+        return self.principal_inertia(Vector::zeros(), Vector::repeat(false));
     }
 
     /// Sets the mass of the rigid-body being built.
     ///
     /// In order to lock the translations of this rigid-body (by
-    /// making them kinematic), call `.mass(0.0, true)`.
+    /// making them kinematic), call `.mass(0.0, false)`.
     ///
-    /// If `ignore_colliders` is `true`, then the mass specified here
+    /// If `colliders_contribution_enabled` is `false`, then the mass specified here
     /// will be the final mass of the rigid-body created by this builder.
-    /// If `ignore_colliders` is `false`, then the final mass of the rigid-body
+    /// If `colliders_contribution_enabled` is `true`, then the final mass of the rigid-body
     /// will depends on the initial mass set by this method to which is added
     /// the contributions of all the colliders with non-zero density attached to
     /// this rigid-body.
-    pub fn mass(mut self, mass: f32, ignore_colliders: bool) -> Self {
+    pub fn mass(mut self, mass: f32, colliders_contribution_enabled: bool) -> Self {
         self.mass_properties.inv_mass = utils::inv(mass);
-        self.flags
-            .set(RigidBodyFlags::IGNORE_COLLIDER_MASS, ignore_colliders);
+        self.flags.set(
+            RigidBodyFlags::IGNORE_COLLIDER_MASS,
+            !colliders_contribution_enabled,
+        );
         self
     }
 
     /// Sets the angular inertia of this rigid-body.
     ///
     /// In order to lock the rotations of this rigid-body (by
-    /// making them kinematic), call `.principal_inertia(0.0, true)`.
+    /// making them kinematic), call `.principal_inertia(0.0, false)`.
     ///
-    /// If `ignore_colliders` is `true`, then the principal inertia specified here
+    /// If `colliders_contribution_enabled` is `false`, then the principal inertia specified here
     /// will be the final principal inertia of the rigid-body created by this builder.
-    /// If `ignore_colliders` is `false`, then the final principal of the rigid-body
+    /// If `colliders_contribution_enabled` is `true`, then the final principal of the rigid-body
     /// will depend on the initial principal inertia set by this method to which is added
     /// the contributions of all the colliders with non-zero density attached to this rigid-body.
     #[cfg(feature = "dim2")]
-    pub fn principal_inertia(mut self, inertia: f32, ignore_colliders: bool) -> Self {
+    pub fn principal_inertia(mut self, inertia: f32, colliders_contribution_enabled: bool) -> Self {
         self.mass_properties.inv_principal_inertia_sqrt = utils::inv(inertia);
         self.flags.set(
             RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_X
                 | RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Y
                 | RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z,
-            ignore_colliders,
+            !colliders_contribution_enabled,
         );
         self
     }
@@ -696,10 +698,10 @@ impl RigidBodyBuilder {
     /// In order to lock the rotations of this rigid-body (by
     /// making them kinematic), call `.principal_inertia(Vector3::zeros(), Vector3::repeat(false))`.
     ///
-    /// If `ignore_colliders[i]` is `true`, then the principal inertia specified here
+    /// If `colliders_contribution_enabled[i]` is `false`, then the principal inertia specified here
     /// along the `i`-th local axis of the rigid-body, will be the final principal inertia along
     /// the `i`-th local axis of the rigid-body created by this builder.
-    /// If `ignore_colliders[i]` is `false`, then the final principal of the rigid-body
+    /// If `colliders_contribution_enabled[i]` is `true`, then the final principal of the rigid-body
     /// along its `i`-th local axis will depend on the initial principal inertia set by this method
     /// to which is added the contributions of all the colliders with non-zero density
     /// attached to this rigid-body.
@@ -707,20 +709,20 @@ impl RigidBodyBuilder {
     pub fn principal_inertia(
         mut self,
         inertia: AngVector<f32>,
-        ignore_colliders: AngVector<bool>,
+        colliders_contribution_enabled: AngVector<bool>,
     ) -> Self {
         self.mass_properties.inv_principal_inertia_sqrt = inertia.map(utils::inv);
         self.flags.set(
             RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_X,
-            ignore_colliders.x,
+            !colliders_contribution_enabled.x,
         );
         self.flags.set(
             RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Y,
-            ignore_colliders.y,
+            !colliders_contribution_enabled.y,
         );
         self.flags.set(
             RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z,
-            ignore_colliders.z,
+            !colliders_contribution_enabled.z,
         );
         self
     }
