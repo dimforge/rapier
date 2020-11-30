@@ -1,14 +1,24 @@
-## v0.4.0 - WIP
+## v0.4.0
 - The rigid-body `linvel`, `angvel`, and `position` fields are no longer public. Access using
   their corresponding getters/setters. For example: `rb.linvel()`, `rb.set_linvel(vel, true)`.
 - Add `RigidBodyBuilder::sleeping(true)` to allow the creation of a rigid-body that is asleep
   at initialization-time.
+
+#### Locking translation and rotations of a rigid-body
 - Add `RigidBodyBuilder::lock_rotations` to prevent a rigid-body from rotating because of forces.
 - Add `RigidBodyBuilder::lock_translations` to prevent a rigid-body from translating because of forces.
 - Add `RigidBodyBuilder::principal_inertia` for setting the principal inertia of a rigid-body, and/or
   preventing the rigid-body from rotating along a specific axis.
 - Change `RigidBodyBuilder::mass` by adding a bool parameter indicating whether or not the collider
   contributions should be taken into account in the future too.
+
+#### Reading contact and proximity information
+- Add `NarrowPhase::contacts_with` and `NarrowPhase::proximities_with` to retrieve all the contact
+  pairs and proximity pairs involving a specific collider.
+- Add `NarrowPhase::contact_pair` and `NarrowPhase::proximity_pair` to retrieve one specific contact
+  pair or proximity pair if it exists.
+- Add `NarrowPhase::contact_pairs`, and `NarrowPhase::proximity_pairs` to retrieve all the contact or
+  proximity pairs detected by the narrow-phase.
 
 ## v0.3.2
 - Add linear and angular damping. The damping factor can be set with `RigidBodyBuilder::linear_damping` and
