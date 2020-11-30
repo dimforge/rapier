@@ -61,7 +61,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Setup a callback to control the platform.
      */
     testbed.add_callback(move |_, physics, _, _, time| {
-        let mut platform = physics.bodies.get_mut(platform_handle).unwrap();
+        let platform = physics.bodies.get_mut(platform_handle).unwrap();
         let mut next_pos = *platform.position();
 
         let dt = 0.016;

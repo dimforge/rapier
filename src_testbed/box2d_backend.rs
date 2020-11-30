@@ -219,7 +219,7 @@ impl Box2dWorld {
     }
 
     pub fn sync(&self, bodies: &mut RigidBodySet, colliders: &mut ColliderSet) {
-        for (handle, mut body) in bodies.iter_mut() {
+        for (handle, body) in bodies.iter_mut() {
             if let Some(pb2_handle) = self.rapier2box2d.get(&handle) {
                 let b2_body = self.world.body(*pb2_handle);
                 let pos = b2_transform_to_na_isometry(b2_body.transform().clone());

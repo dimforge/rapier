@@ -634,7 +634,7 @@ impl RigidBodyBuilder {
     ///
     /// This is equivalent to `self.mass(0.0, false)`. See the
     /// documentation of [`RigidBodyBuilder::mass`] for more details.
-    pub fn lock_translations(mut self) -> Self {
+    pub fn lock_translations(self) -> Self {
         self.mass(0.0, false)
     }
 
@@ -644,7 +644,7 @@ impl RigidBodyBuilder {
     /// `self.principal_inertia(Vector3::zeros(), Vector3::repeat(false))` (in 3D).
     ///
     /// See the documentation of [`RigidBodyBuilder::principal_inertia`] for more details.
-    pub fn lock_rotations(mut self) -> Self {
+    pub fn lock_rotations(self) -> Self {
         #[cfg(feature = "dim2")]
         return self.principal_inertia(0.0, false);
         #[cfg(feature = "dim3")]
