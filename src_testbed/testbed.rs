@@ -20,12 +20,11 @@ use na::{self, Point2, Point3, Vector3};
 use rapier::dynamics::{
     ActivationStatus, IntegrationParameters, JointSet, RigidBodyHandle, RigidBodySet,
 };
-#[cfg(feature = "dim3")]
-use rapier::geometry::Ray;
 use rapier::geometry::{
-    BroadPhase, ColliderHandle, ColliderSet, ContactEvent, InteractionGroups, NarrowPhase,
-    ProximityEvent,
+    BroadPhase, ColliderHandle, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent,
 };
+#[cfg(feature = "dim3")]
+use rapier::geometry::{InteractionGroups, Ray};
 use rapier::math::Vector;
 use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
 

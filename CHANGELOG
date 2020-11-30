@@ -3,6 +3,12 @@
   their corresponding getters/setters. For example: `rb.linvel()`, `rb.set_linvel(vel, true)`.
 - Add `RigidBodyBuilder::sleeping(true)` to allow the creation of a rigid-body that is asleep
   at initialization-time.
+- Add `RigidBodyBuilder::lock_rotations` to prevent a rigid-body from rotating because of forces.
+- Add `RigidBodyBuilder::lock_translations` to prevent a rigid-body from translating because of forces.
+- Add `RigidBodyBuilder::principal_inertia` for setting the principal inertia of a rigid-body, and/or
+  preventing the rigid-body from rotating along a specific axis.
+- Change `RigidBodyBuilder::mass` by adding a bool parameter indicating whether or not the collider
+  contributions should be taken into account in the future too.
 
 ## v0.3.2
 - Add linear and angular damping. The damping factor can be set with `RigidBodyBuilder::linear_damping` and

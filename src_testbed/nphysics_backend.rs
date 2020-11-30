@@ -158,7 +158,7 @@ impl NPhysicsWorld {
 
     pub fn sync(&self, bodies: &mut RigidBodySet, colliders: &mut ColliderSet) {
         for (rapier_handle, nphysics_handle) in self.rapier2nphysics.iter() {
-            let mut rb = bodies.get_mut(*rapier_handle).unwrap();
+            let rb = bodies.get_mut(*rapier_handle).unwrap();
             let ra = self.bodies.rigid_body(*nphysics_handle).unwrap();
             let pos = *ra.position();
             rb.set_position(pos, false);
