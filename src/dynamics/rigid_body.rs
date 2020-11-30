@@ -3,7 +3,7 @@ use crate::geometry::{
     Collider, ColliderHandle, ColliderSet, InteractionGraph, RigidBodyGraphIndex,
 };
 use crate::math::{AngVector, AngularInertia, Isometry, Point, Rotation, Translation, Vector};
-use crate::utils::{WCross, WDot};
+use crate::utils::{self, WCross, WDot};
 use num::Zero;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -28,6 +28,17 @@ pub enum BodyStatus {
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
+    pub(crate) struct RigidBodyFlags: u8 {
+        const IGNORE_COLLIDER_MASS              = 1 << 0;
+        const IGNORE_COLLIDER_ANGULAR_INERTIA_X = 1 << 1;
+        const IGNORE_COLLIDER_ANGULAR_INERTIA_Y = 1 << 2;
+        const IGNORE_COLLIDER_ANGULAR_INERTIA_Z = 1 << 3;
+    }
+}
+
+bitflags::bitflags! {
+    #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    /// Flags affecting the behavior of the constraints solver for a given contact manifold.
     pub(crate) struct RigidBodyChanges: u32 {
         const MODIFIED  = 1 << 0;
         const POSITION  = 1 << 1;
@@ -46,7 +57,7 @@ pub struct RigidBody {
     pub(crate) position: Isometry<f32>,
     pub(crate) predicted_position: Isometry<f32>,
     /// The local mass properties of the rigid-body.
-    pub mass_properties: MassProperties,
+    pub(crate) mass_properties: MassProperties,
     /// The world-space center of mass of the rigid-body.
     pub world_com: Point<f32>,
     /// The square-root of the inverse angular inertia tensor of the rigid-body.
@@ -69,6 +80,7 @@ pub struct RigidBody {
     pub(crate) active_set_id: usize,
     pub(crate) active_set_offset: usize,
     pub(crate) active_set_timestamp: u32,
+    flags: RigidBodyFlags,
     pub(crate) changes: RigidBodyChanges,
     /// The status of the body, governing how it is affected by external forces.
     pub body_status: BodyStatus,
@@ -97,6 +109,7 @@ impl RigidBody {
             active_set_id: 0,
             active_set_offset: 0,
             active_set_timestamp: 0,
+            flags: RigidBodyFlags::empty(),
             changes: RigidBodyChanges::all(),
             body_status: BodyStatus::Dynamic,
             user_data: 0,
@@ -121,6 +134,12 @@ impl RigidBody {
             self.linacc = na::zero();
             self.angacc = na::zero();
         }
+    }
+
+    /// The mass properties of this rigid-body.
+    #[inline]
+    pub fn mass_properties(&self) -> &MassProperties {
+        &self.mass_properties
     }
 
     /// The handles of colliders attached to this rigid body.
@@ -153,7 +172,7 @@ impl RigidBody {
     ///
     /// Returns zero if this rigid body has an infinite mass.
     pub fn mass(&self) -> f32 {
-        crate::utils::inv(self.mass_properties.inv_mass)
+        utils::inv(self.mass_properties.inv_mass)
     }
 
     /// The predicted position of this rigid-body.
@@ -176,8 +195,38 @@ impl RigidBody {
             .mass_properties()
             .transform_by(coll.position_wrt_parent());
         self.colliders.push(handle);
-        self.mass_properties += mass_properties;
+        self.mass_properties += Self::filter_collider_mass_props(mass_properties, self.flags);
         self.update_world_mass_properties();
+    }
+
+    fn filter_collider_mass_props(
+        mut props: MassProperties,
+        flags: RigidBodyFlags,
+    ) -> MassProperties {
+        if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_MASS) {
+            props.inv_mass = 0.0;
+        }
+
+        #[cfg(feature = "dim2")]
+        {
+            if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z) {
+                props.inv_principal_inertia_sqrt = 0.0;
+            }
+        }
+        #[cfg(feature = "dim3")]
+        {
+            if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_X) {
+                props.inv_principal_inertia_sqrt.x = 0.0;
+            }
+            if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Y) {
+                props.inv_principal_inertia_sqrt.y = 0.0;
+            }
+            if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z) {
+                props.inv_principal_inertia_sqrt.z = 0.0;
+            }
+        }
+
+        props
     }
 
     pub(crate) fn update_colliders_positions(&mut self, colliders: &mut ColliderSet) {
@@ -196,7 +245,7 @@ impl RigidBody {
             let mass_properties = coll
                 .mass_properties()
                 .transform_by(coll.position_wrt_parent());
-            self.mass_properties -= mass_properties;
+            self.mass_properties -= Self::filter_collider_mass_props(mass_properties, self.flags);
             self.update_world_mass_properties();
         }
     }
@@ -491,6 +540,7 @@ pub struct RigidBodyBuilder {
     linear_damping: f32,
     angular_damping: f32,
     body_status: BodyStatus,
+    flags: RigidBodyFlags,
     mass_properties: MassProperties,
     can_sleep: bool,
     sleeping: bool,
@@ -507,6 +557,7 @@ impl RigidBodyBuilder {
             linear_damping: 0.0,
             angular_damping: 0.0,
             body_status,
+            flags: RigidBodyFlags::empty(),
             mass_properties: MassProperties::zero(),
             can_sleep: true,
             sleeping: false,
@@ -579,18 +630,98 @@ impl RigidBodyBuilder {
         self
     }
 
+    /// Prevents this rigid-body from translating because of forces.
+    ///
+    /// This is equivalent to `self.mass(0.0, true)`. See the
+    /// documentation of [`RigidBodyBuilder::mass`] for more details.
+    pub fn lock_translations(mut self) -> Self {
+        self.mass(0.0, true)
+    }
+
+    /// Prevents this rigid-body from rotating because of forces.
+    ///
+    /// This is equivalent to `self.principal_inertia(0.0, true)` (in 2D) or
+    /// `self.principal_inertia(Vector3::zeros(), Vector3::repeat(true))` (in 3D).
+    ///
+    /// See the documentation of [`RigidBodyBuilder::principal_inertia`] for more details.
+    pub fn lock_rotations(mut self) -> Self {
+        #[cfg(feature = "dim2")]
+        return self.principal_inertia(0.0, true);
+        #[cfg(feature = "dim3")]
+        return self.principal_inertia(Vector::zeros(), Vector::repeat(true));
+    }
+
     /// Sets the mass of the rigid-body being built.
     ///
-    /// Note that the final mass of the rigid-bodies depends
-    /// on the initial mass of the rigid-body (set by this method)
+    /// In order to lock the translations of this rigid-body (by
+    /// making them kinematic), call `.mass(0.0, true)`.
+    ///
+    /// If `ignore_colliders` is `true`, then the mass specified here
+    /// will be the final mass of the rigid-body created by this builder.
+    /// If `ignore_colliders` is `false`, then the final mass of the rigid-body
+    /// will depends on the initial mass set by this method to which is added
+    /// the contributions of all the colliders with non-zero density attached to
+    /// this rigid-body.
+    pub fn mass(mut self, mass: f32, ignore_colliders: bool) -> Self {
+        self.mass_properties.inv_mass = utils::inv(mass);
+        self.flags
+            .set(RigidBodyFlags::IGNORE_COLLIDER_MASS, ignore_colliders);
+        self
+    }
+
+    /// Sets the angular inertia of this rigid-body.
+    ///
+    /// In order to lock the rotations of this rigid-body (by
+    /// making them kinematic), call `.principal_inertia(0.0, true)`.
+    ///
+    /// If `ignore_colliders` is `true`, then the principal inertia specified here
+    /// will be the final principal inertia of the rigid-body created by this builder.
+    /// If `ignore_colliders` is `false`, then the final principal of the rigid-body
+    /// will depend on the initial principal inertia set by this method to which is added
+    /// the contributions of all the colliders with non-zero density attached to this rigid-body.
+    #[cfg(feature = "dim2")]
+    pub fn principal_inertia(mut self, inertia: f32, ignore_colliders: bool) -> Self {
+        self.mass_properties.inv_principal_inertia_sqrt = utils::inv(inertia);
+        self.flags.set(
+            RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_X
+                | RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Y
+                | RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z,
+            ignore_colliders,
+        );
+        self
+    }
+
+    /// Sets the principal angular inertia of this rigid-body.
+    ///
+    /// In order to lock the rotations of this rigid-body (by
+    /// making them kinematic), call `.principal_inertia(Vector3::zeros(), Vector3::repeat(false))`.
+    ///
+    /// If `ignore_colliders[i]` is `true`, then the principal inertia specified here
+    /// along the `i`-th local axis of the rigid-body, will be the final principal inertia along
+    /// the `i`-th local axis of the rigid-body created by this builder.
+    /// If `ignore_colliders[i]` is `false`, then the final principal of the rigid-body
+    /// along its `i`-th local axis will depend on the initial principal inertia set by this method
     /// to which is added the contributions of all the colliders with non-zero density
     /// attached to this rigid-body.
-    ///
-    /// Therefore, if you want your provided mass to be the final
-    /// mass of your rigid-body, don't attach colliders to it, or
-    /// only attach colliders with densities equal to zero.
-    pub fn mass(mut self, mass: f32) -> Self {
-        self.mass_properties.inv_mass = crate::utils::inv(mass);
+    #[cfg(feature = "dim3")]
+    pub fn principal_inertia(
+        mut self,
+        inertia: AngVector<f32>,
+        ignore_colliders: AngVector<bool>,
+    ) -> Self {
+        self.mass_properties.inv_principal_inertia_sqrt = inertia.map(utils::inv);
+        self.flags.set(
+            RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_X,
+            ignore_colliders.x,
+        );
+        self.flags.set(
+            RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Y,
+            ignore_colliders.y,
+        );
+        self.flags.set(
+            RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z,
+            ignore_colliders.z,
+        );
         self
     }
 
@@ -656,6 +787,7 @@ impl RigidBodyBuilder {
         rb.mass_properties = self.mass_properties;
         rb.linear_damping = self.linear_damping;
         rb.angular_damping = self.angular_damping;
+        rb.flags = self.flags;
 
         if self.can_sleep && self.sleeping {
             rb.sleep();
