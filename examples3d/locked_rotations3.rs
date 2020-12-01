@@ -33,7 +33,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let rigid_body = RigidBodyBuilder::new_dynamic()
         .translation(0.0, 3.0, 0.0)
         .lock_translations()
-        .principal_inertia(Vector3::zeros(), Vector3::new(true, false, false))
+        .principal_angular_inertia(Vector3::zeros(), Vector3::new(true, false, false))
         .build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(0.2, 0.6, 2.0).build();

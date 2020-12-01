@@ -1,3 +1,7 @@
+## v0.4.1
+- The `RigidBodyBuilder::principal_inertia` method has been deprecated and renamed to
+  `principal_angular_inertia` for clarity.
+
 ## v0.4.0
 - The rigid-body `linvel`, `angvel`, and `position` fields are no longer public. Access using
   their corresponding getters/setters. For example: `rb.linvel()`, `rb.set_linvel(vel, true)`.

@@ -26,7 +26,7 @@ mod fountain3;
 mod heightfield3;
 mod joints3;
 mod keva3;
-mod locked_rotation3;
+mod locked_rotations3;
 mod platform3;
 mod primitives3;
 mod restitution3;
@@ -79,7 +79,7 @@ pub fn main() {
         ("Domino", domino3::init_world),
         ("Heightfield", heightfield3::init_world),
         ("Joints", joints3::init_world),
-        ("Locked rotations", locked_rotation3::init_world),
+        ("Locked rotations", locked_rotations3::init_world),
         ("Platform", platform3::init_world),
         ("Restitution", restitution3::init_world),
         ("Stacks", stacks3::init_world),
