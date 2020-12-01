@@ -24,7 +24,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .friction(0.15)
         // .restitution(0.5)
         .build();
-    let mut ground_collider_handle = colliders.insert(collider, ground_handle, &mut bodies);
+    colliders.insert(collider, ground_handle, &mut bodies);
 
     /*
      * Rolling ball
@@ -60,7 +60,7 @@ pub fn init_world(testbed: &mut Testbed) {
         extra_colliders.push(new_ball_collider_handle);
 
         // Snap the ball velocity or restore it.
-        let mut ball = physics.bodies.get_mut(ball_handle).unwrap();
+        let ball = physics.bodies.get_mut(ball_handle).unwrap();
 
         if step == snapped_frame {
             linvel = *ball.linvel();

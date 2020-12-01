@@ -16,7 +16,7 @@ mod damping2;
 mod debug_box_ball2;
 mod heightfield2;
 mod joints2;
-mod locked_rotation2;
+mod locked_rotations2;
 mod platform2;
 mod pyramid2;
 mod restitution2;
@@ -60,7 +60,7 @@ pub fn main() {
         ("Damping", damping2::init_world),
         ("Heightfield", heightfield2::init_world),
         ("Joints", joints2::init_world),
-        ("Locked rotations", locked_rotation2::init_world),
+        ("Locked rotations", locked_rotations2::init_world),
         ("Platform", platform2::init_world),
         ("Pyramid", pyramid2::init_world),
         ("Restitution", restitution2::init_world),

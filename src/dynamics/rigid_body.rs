@@ -646,9 +646,9 @@ impl RigidBodyBuilder {
     /// See the documentation of [`RigidBodyBuilder::principal_inertia`] for more details.
     pub fn lock_rotations(self) -> Self {
         #[cfg(feature = "dim2")]
-        return self.principal_inertia(0.0, false);
+        return self.principal_angular_inertia(0.0, false);
         #[cfg(feature = "dim3")]
-        return self.principal_inertia(Vector::zeros(), Vector::repeat(false));
+        return self.principal_angular_inertia(Vector::zeros(), Vector::repeat(false));
     }
 
     /// Sets the mass of the rigid-body being built.
@@ -670,7 +670,6 @@ impl RigidBodyBuilder {
         );
         self
     }
-
     /// Sets the angular inertia of this rigid-body.
     ///
     /// In order to lock the rotations of this rigid-body (by
@@ -682,7 +681,11 @@ impl RigidBodyBuilder {
     /// will depend on the initial principal inertia set by this method to which is added
     /// the contributions of all the colliders with non-zero density attached to this rigid-body.
     #[cfg(feature = "dim2")]
-    pub fn principal_inertia(mut self, inertia: f32, colliders_contribution_enabled: bool) -> Self {
+    pub fn principal_angular_inertia(
+        mut self,
+        inertia: f32,
+        colliders_contribution_enabled: bool,
+    ) -> Self {
         self.mass_properties.inv_principal_inertia_sqrt = utils::inv(inertia);
         self.flags.set(
             RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_X
@@ -691,6 +694,13 @@ impl RigidBodyBuilder {
             !colliders_contribution_enabled,
         );
         self
+    }
+
+    /// Use `self.principal_angular_inertia` instead.
+    #[cfg(feature = "dim2")]
+    #[deprecated(note = "renamed to `principal_angular_inertia`.")]
+    pub fn principal_inertia(self, inertia: f32, colliders_contribution_enabled: bool) -> Self {
+        self.principal_angular_inertia(inertia, colliders_contribution_enabled)
     }
 
     /// Sets the principal angular inertia of this rigid-body.
@@ -706,7 +716,7 @@ impl RigidBodyBuilder {
     /// to which is added the contributions of all the colliders with non-zero density
     /// attached to this rigid-body.
     #[cfg(feature = "dim3")]
-    pub fn principal_inertia(
+    pub fn principal_angular_inertia(
         mut self,
         inertia: AngVector<f32>,
         colliders_contribution_enabled: AngVector<bool>,
@@ -725,6 +735,17 @@ impl RigidBodyBuilder {
             !colliders_contribution_enabled.z,
         );
         self
+    }
+
+    /// Use `self.principal_angular_inertia` instead.
+    #[cfg(feature = "dim3")]
+    #[deprecated(note = "renamed to `principal_angular_inertia`.")]
+    pub fn principal_inertia(
+        self,
+        inertia: AngVector<f32>,
+        colliders_contribution_enabled: AngVector<bool>,
+    ) -> Self {
+        self.principal_angular_inertia(inertia, colliders_contribution_enabled)
     }
 
     /// Sets the damping factor for the linear part of the rigid-body motion.
