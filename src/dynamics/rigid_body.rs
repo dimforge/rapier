@@ -142,6 +142,19 @@ impl RigidBody {
         &self.mass_properties
     }
 
+    /// Sets the rigid-body's mass properties.
+    ///
+    /// If `wake_up` is `true` then the rigid-body will be woken up if it was
+    /// put to sleep because it did not move for a while.
+    #[inline]
+    pub fn set_mass_properties(&mut self, props: MassProperties, wake_up: bool) {
+        if self.is_dynamic() && wake_up {
+            self.wake_up(true);
+        }
+
+        self.mass_properties = props;
+    }
+
     /// The handles of colliders attached to this rigid body.
     pub fn colliders(&self) -> &[ColliderHandle] {
         &self.colliders[..]

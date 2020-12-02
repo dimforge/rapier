@@ -1,3 +1,9 @@
+## v0.4.2
+- Fix a bug in angular inertia tensor computation that could cause rotations not to
+  work properly.
+- Add `RigidBody::set_mass_properties` to set the mass properties of an already-constructed
+  rigid-body.
+
 ## v0.4.1
 - The `RigidBodyBuilder::principal_inertia` method has been deprecated and renamed to
   `principal_angular_inertia` for clarity.
