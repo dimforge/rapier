@@ -129,25 +129,27 @@ impl MassProperties {
 
     #[cfg(feature = "dim2")]
     pub(crate) fn construct_shifted_inertia_matrix(&self, shift: Vector<f32>) -> f32 {
+        let i = utils::inv(self.inv_principal_inertia_sqrt * self.inv_principal_inertia_sqrt);
+
         if self.inv_mass != 0.0 {
             let mass = 1.0 / self.inv_mass;
-            let i = utils::inv(self.inv_principal_inertia_sqrt * self.inv_principal_inertia_sqrt);
             i + shift.norm_squared() * mass
         } else {
-            0.0
+            i
         }
     }
 
     #[cfg(feature = "dim3")]
     pub(crate) fn construct_shifted_inertia_matrix(&self, shift: Vector<f32>) -> Matrix3<f32> {
+        let matrix = self.reconstruct_inertia_matrix();
+
         if self.inv_mass != 0.0 {
             let mass = 1.0 / self.inv_mass;
-            let matrix = self.reconstruct_inertia_matrix();
             let diag = shift.norm_squared();
             let diagm = Matrix3::from_diagonal_element(diag);
             matrix + (diagm + shift * shift.transpose()) * mass
         } else {
-            Matrix3::zeros()
+            matrix
         }
     }
 
@@ -371,8 +373,43 @@ impl approx::RelativeEq for MassProperties {
 mod test {
     use super::MassProperties;
     use crate::geometry::ColliderBuilder;
+    use crate::math::{Point, Rotation, Vector};
     use approx::assert_relative_eq;
     use num::Zero;
+
+    #[test]
+    fn mass_properties_add_partial_zero() {
+        let m1 = MassProperties {
+            local_com: Point::origin(),
+            inv_mass: 2.0,
+            inv_principal_inertia_sqrt: na::zero(),
+            #[cfg(feature = "dim3")]
+            principal_inertia_local_frame: Rotation::identity(),
+        };
+        let m2 = MassProperties {
+            local_com: Point::origin(),
+            inv_mass: 0.0,
+            #[cfg(feature = "dim2")]
+            inv_principal_inertia_sqrt: 1.0,
+            #[cfg(feature = "dim3")]
+            inv_principal_inertia_sqrt: Vector::new(1.0, 2.0, 3.0),
+            #[cfg(feature = "dim3")]
+            principal_inertia_local_frame: Rotation::identity(),
+        };
+        let result = MassProperties {
+            local_com: Point::origin(),
+            inv_mass: 2.0,
+            #[cfg(feature = "dim2")]
+            inv_principal_inertia_sqrt: 1.0,
+            #[cfg(feature = "dim3")]
+            inv_principal_inertia_sqrt: Vector::new(1.0, 2.0, 3.0),
+            #[cfg(feature = "dim3")]
+            principal_inertia_local_frame: Rotation::identity(),
+        };
+
+        assert_eq!(m1 + m2, result);
+        assert_eq!(m2 + m1, result);
+    }
 
     #[test]
     fn mass_properties_add_sub() {
