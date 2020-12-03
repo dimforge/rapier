@@ -151,8 +151,6 @@ fn do_generate_contacts(
                 collider2: collider1,
                 shape1: collider2.shape(),
                 shape2: &sub_shape1,
-                position1: collider2.position(),
-                position2: position1,
                 manifold,
                 workspace: sub_detector.workspace.as_mut().map(|w| &mut *w.0),
             }
@@ -165,8 +163,6 @@ fn do_generate_contacts(
                 collider2,
                 shape1: &sub_shape1,
                 shape2: collider2.shape(),
-                position1,
-                position2: collider2.position(),
                 manifold,
                 workspace: sub_detector.workspace.as_mut().map(|w| &mut *w.0),
             }

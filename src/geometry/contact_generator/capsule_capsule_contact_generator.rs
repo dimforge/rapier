@@ -9,14 +9,7 @@ use ncollide::shape::SegmentPointLocation;
 
 pub fn generate_contacts_capsule_capsule(ctxt: &mut PrimitiveContactGenerationContext) {
     if let (Some(capsule1), Some(capsule2)) = (ctxt.shape1.as_capsule(), ctxt.shape2.as_capsule()) {
-        generate_contacts(
-            ctxt.prediction_distance,
-            capsule1,
-            ctxt.position1,
-            capsule2,
-            ctxt.position2,
-            ctxt.manifold,
-        );
+        generate_contacts(ctxt.prediction_distance, capsule1, capsule2, ctxt.manifold);
     }
 
     ctxt.manifold.update_warmstart_multiplier();
@@ -27,16 +20,14 @@ pub fn generate_contacts_capsule_capsule(ctxt: &mut PrimitiveContactGenerationCo
 pub fn generate_contacts<'a>(
     prediction_distance: f32,
     capsule1: &'a Capsule,
-    pos1: &'a Isometry<f32>,
     capsule2: &'a Capsule,
-    pos2: &'a Isometry<f32>,
     manifold: &mut ContactManifold,
 ) {
     // FIXME: the contact kinematics is not correctly set here.
     // We use the common "Point-Plane" kinematics with zero radius everytime.
     // Instead we should select point/point ore point-plane (with non-zero
     // radius for the point) depending on the features involved in the contact.
-    let pos12 = pos1.inverse() * pos2;
+    let pos12 = manifold.position1.inverse() * manifold.position2;
     let pos21 = pos12.inverse();
 
     let seg1 = capsule1.segment;
@@ -146,12 +137,10 @@ pub fn generate_contacts<'a>(
 pub fn generate_contacts<'a>(
     prediction_distance: f32,
     capsule1: &'a Capsule,
-    pos1: &'a Isometry<f32>,
     capsule2: &'a Capsule,
-    pos2: &'a Isometry<f32>,
     manifold: &mut ContactManifold,
 ) {
-    let pos12 = pos1.inverse() * pos2;
+    let pos12 = manifold.position1.inverse() * manifold.position2;
     let pos21 = pos12.inverse();
 
     let seg1 = capsule1.segment;

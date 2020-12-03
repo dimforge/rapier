@@ -28,7 +28,9 @@ fn generate_contacts_simd(ball1: &WBall, ball2: &WBall, pos21: &Isometry<SimdFlo
 
 #[cfg(feature = "simd-is-enabled")]
 pub fn generate_contacts_ball_ball_simd(ctxt: &mut PrimitiveContactGenerationContextSimd) {
-    let pos_ba = ctxt.positions2.inverse() * ctxt.positions1;
+    let positions1 = Isometry::from(array![|ii| ctxt.manifolds[ii].position1; SIMD_WIDTH]);
+    let positions2 = Isometry::from(array![|ii| ctxt.manifolds[ii].position2; SIMD_WIDTH]);
+    let pos_ba = positions2.inverse() * positions1;
     let radii_a =
         SimdFloat::from(array![|ii| ctxt.shapes1[ii].as_ball().unwrap().radius; SIMD_WIDTH]);
     let radii_b =
@@ -63,7 +65,7 @@ pub fn generate_contacts_ball_ball_simd(ctxt: &mut PrimitiveContactGenerationCon
 }
 
 pub fn generate_contacts_ball_ball(ctxt: &mut PrimitiveContactGenerationContext) {
-    let pos_ba = ctxt.position2.inverse() * ctxt.position1;
+    let pos_ba = ctxt.manifold.position2.inverse() * ctxt.manifold.position1;
     let radius_a = ctxt.shape1.as_ball().unwrap().radius;
     let radius_b = ctxt.shape2.as_ball().unwrap().radius;
 

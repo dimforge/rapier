@@ -236,8 +236,8 @@ impl ContactPair {
         // (This order can be modified by the contact determination algorithm).
         let manifold = &mut self.manifolds[0];
         if manifold.pair.collider1 == self.pair.collider1 {
-            manifold.position1 = *coll1.position();
-            manifold.position2 = *coll2.position();
+            manifold.position1 = coll1.position;
+            manifold.position2 = coll2.position;
             (
                 coll1,
                 coll2,
@@ -245,8 +245,8 @@ impl ContactPair {
                 self.generator_workspace.as_mut().map(|w| &mut *w.0),
             )
         } else {
-            manifold.position1 = *coll2.position();
-            manifold.position2 = *coll1.position();
+            manifold.position1 = coll2.position;
+            manifold.position2 = coll1.position;
             (
                 coll2,
                 coll1,

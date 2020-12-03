@@ -11,9 +11,9 @@ pub fn generate_contacts_polygon_polygon(_ctxt: &mut PrimitiveContactGenerationC
     // if let (Shape::Polygon(polygon1), Shape::Polygon(polygon2)) = (ctxt.shape1, ctxt.shape2) {
     //     generate_contacts(
     //         polygon1,
-    //         &ctxt.position1,
+    //         &ctxt.manifold.position1,
     //         polygon2,
-    //         &ctxt.position2,
+    //         &ctxt.manifold.position2,
     //         ctxt.manifold,
     //     );
     //     ctxt.manifold.update_warmstart_multiplier();

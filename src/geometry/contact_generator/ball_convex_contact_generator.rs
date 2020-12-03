@@ -25,11 +25,11 @@ fn do_generate_contacts<P: ?Sized + PointQuery<f32>>(
     let position2;
 
     if swapped {
-        position1 = ctxt.position2;
-        position2 = ctxt.position1;
+        position1 = ctxt.manifold.position2;
+        position2 = ctxt.manifold.position1;
     } else {
-        position1 = ctxt.position1;
-        position2 = ctxt.position2;
+        position1 = ctxt.manifold.position1;
+        position2 = ctxt.manifold.position2;
     }
 
     let local_p2_1 = position1.inverse_transform_point(&position2.translation.vector.into());

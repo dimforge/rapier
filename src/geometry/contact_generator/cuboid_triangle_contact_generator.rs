@@ -14,9 +14,7 @@ pub fn generate_contacts_cuboid_triangle(ctxt: &mut PrimitiveContactGenerationCo
         generate_contacts(
             ctxt.prediction_distance,
             cube1,
-            ctxt.position1,
             triangle2,
-            ctxt.position2,
             ctxt.manifold,
             false,
         );
@@ -27,9 +25,7 @@ pub fn generate_contacts_cuboid_triangle(ctxt: &mut PrimitiveContactGenerationCo
         generate_contacts(
             ctxt.prediction_distance,
             cube2,
-            ctxt.position2,
             triangle1,
-            ctxt.position1,
             ctxt.manifold,
             true,
         );
@@ -41,19 +37,27 @@ pub fn generate_contacts_cuboid_triangle(ctxt: &mut PrimitiveContactGenerationCo
 pub fn generate_contacts<'a>(
     prediction_distance: f32,
     cube1: &'a Cuboid,
-    mut pos1: &'a Isometry<f32>,
     triangle2: &'a Triangle,
-    mut pos2: &'a Isometry<f32>,
     manifold: &mut ContactManifold,
     swapped: bool,
 ) {
-    let mut pos12 = pos1.inverse() * pos2;
-    let mut pos21 = pos12.inverse();
+    let mut pos12;
+    let mut pos21;
 
-    if (!swapped && manifold.try_update_contacts(&pos12))
-        || (swapped && manifold.try_update_contacts(&pos21))
-    {
-        return;
+    if !swapped {
+        pos12 = manifold.position1.inverse() * manifold.position2;
+        pos21 = pos12.inverse();
+
+        if manifold.try_update_contacts(&pos12) {
+            return;
+        }
+    } else {
+        pos12 = manifold.position2.inverse() * manifold.position1;
+        pos21 = pos12.inverse();
+
+        if manifold.try_update_contacts(&pos21) {
+            return;
+        }
     }
 
     /*
@@ -100,7 +104,6 @@ pub fn generate_contacts<'a>(
     if sep2.0 > sep1.0 && sep2.0 > sep3.0 {
         // The reference shape will be the second shape.
         // std::mem::swap(&mut cube1, &mut triangle2);
-        std::mem::swap(&mut pos1, &mut pos2);
         std::mem::swap(&mut pos12, &mut pos21);
         best_sep = sep2;
         swapped_reference = true;

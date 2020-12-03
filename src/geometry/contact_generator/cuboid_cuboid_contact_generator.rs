@@ -7,14 +7,7 @@ use ncollide::shape::Cuboid;
 
 pub fn generate_contacts_cuboid_cuboid(ctxt: &mut PrimitiveContactGenerationContext) {
     if let (Some(cube1), Some(cube2)) = (ctxt.shape1.as_cuboid(), ctxt.shape2.as_cuboid()) {
-        generate_contacts(
-            ctxt.prediction_distance,
-            cube1,
-            ctxt.position1,
-            cube2,
-            ctxt.position2,
-            ctxt.manifold,
-        );
+        generate_contacts(ctxt.prediction_distance, cube1, cube2, ctxt.manifold);
     } else {
         unreachable!()
     }
@@ -26,12 +19,10 @@ pub fn generate_contacts_cuboid_cuboid(ctxt: &mut PrimitiveContactGenerationCont
 pub fn generate_contacts<'a>(
     prediction_distance: f32,
     mut cube1: &'a Cuboid<f32>,
-    mut pos1: &'a Isometry<f32>,
     mut cube2: &'a Cuboid<f32>,
-    mut pos2: &'a Isometry<f32>,
     manifold: &mut ContactManifold,
 ) {
-    let mut pos12 = pos1.inverse() * pos2;
+    let mut pos12 = manifold.position1.inverse() * manifold.position2;
     let mut pos21 = pos12.inverse();
 
     if manifold.try_update_contacts(&pos12) {
@@ -81,7 +72,6 @@ pub fn generate_contacts<'a>(
     if sep2.0 > sep1.0 && sep2.0 > sep3.0 {
         // The reference shape will be the second shape.
         std::mem::swap(&mut cube1, &mut cube2);
-        std::mem::swap(&mut pos1, &mut pos2);
         std::mem::swap(&mut pos12, &mut pos21);
         manifold.swap_identifiers();
         best_sep = sep2;

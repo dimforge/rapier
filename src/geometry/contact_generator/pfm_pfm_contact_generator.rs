@@ -52,7 +52,7 @@ fn do_generate_contacts(
     border_radius2: f32,
     ctxt: &mut PrimitiveContactGenerationContext,
 ) {
-    let pos12 = ctxt.position1.inverse() * ctxt.position2;
+    let pos12 = ctxt.manifold.position1.inverse() * ctxt.manifold.position2;
     let pos21 = pos12.inverse();
 
     // We use very small thresholds for the manifold update because something to high would

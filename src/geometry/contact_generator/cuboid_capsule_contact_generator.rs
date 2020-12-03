@@ -12,9 +12,7 @@ pub fn generate_contacts_cuboid_capsule(ctxt: &mut PrimitiveContactGenerationCon
         generate_contacts(
             ctxt.prediction_distance,
             cube1,
-            ctxt.position1,
             capsule2,
-            ctxt.position2,
             ctxt.manifold,
             false,
         );
@@ -25,9 +23,7 @@ pub fn generate_contacts_cuboid_capsule(ctxt: &mut PrimitiveContactGenerationCon
         generate_contacts(
             ctxt.prediction_distance,
             cube2,
-            ctxt.position2,
             capsule1,
-            ctxt.position1,
             ctxt.manifold,
             true,
         );
@@ -39,19 +35,27 @@ pub fn generate_contacts_cuboid_capsule(ctxt: &mut PrimitiveContactGenerationCon
 pub fn generate_contacts<'a>(
     prediction_distance: f32,
     cube1: &'a Cuboid,
-    mut pos1: &'a Isometry<f32>,
     capsule2: &'a Capsule,
-    mut pos2: &'a Isometry<f32>,
     manifold: &mut ContactManifold,
     swapped: bool,
 ) {
-    let mut pos12 = pos1.inverse() * pos2;
-    let mut pos21 = pos12.inverse();
+    let mut pos12;
+    let mut pos21;
 
-    if (!swapped && manifold.try_update_contacts(&pos12))
-        || (swapped && manifold.try_update_contacts(&pos21))
-    {
-        return;
+    if !swapped {
+        pos12 = manifold.position1.inverse() * manifold.position2;
+        pos21 = pos12.inverse();
+
+        if manifold.try_update_contacts(&pos12) {
+            return;
+        }
+    } else {
+        pos12 = manifold.position2.inverse() * manifold.position1;
+        pos21 = pos12.inverse();
+
+        if manifold.try_update_contacts(&pos21) {
+            return;
+        }
     }
 
     let segment2 = capsule2.segment;
@@ -97,16 +101,14 @@ pub fn generate_contacts<'a>(
      * and get the polygons to clip.
      *
      */
-    let mut swapped_reference = false;
+    let mut swapped_reference = sep2.0 > sep1.0 && sep2.0 > sep3.0;
     let mut best_sep = sep1;
 
-    if sep2.0 > sep1.0 && sep2.0 > sep3.0 {
+    if swapped_reference {
         // The reference shape will be the second shape.
         // std::mem::swap(&mut cube1, &mut capsule2);
-        std::mem::swap(&mut pos1, &mut pos2);
         std::mem::swap(&mut pos12, &mut pos21);
         best_sep = sep2;
-        swapped_reference = true;
     } else if sep3.0 > sep1.0 {
         best_sep = sep3;
     }

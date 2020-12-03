@@ -36,8 +36,6 @@ impl ContactPhase {
                     collider2,
                     shape1: collider1.shape(),
                     shape2: collider2.shape(),
-                    position1: collider1.position(),
-                    position2: collider2.position(),
                     manifold,
                     workspace,
                 };
@@ -107,12 +105,6 @@ impl ContactPhase {
                     colliders2,
                     shapes1: array![|ii| colliders1[ii].shape(); SIMD_WIDTH],
                     shapes2: array![|ii| colliders2[ii].shape(); SIMD_WIDTH],
-                    positions1: &Isometry::from(
-                        array![|ii| *colliders1[ii].position(); SIMD_WIDTH],
-                    ),
-                    positions2: &Isometry::from(
-                        array![|ii| *colliders2[ii].position(); SIMD_WIDTH],
-                    ),
                     manifolds: manifold_arr.as_mut_slice(),
                     workspaces: workspace_arr.as_mut_slice(),
                 };
@@ -145,8 +137,6 @@ pub struct PrimitiveContactGenerationContext<'a> {
     pub collider2: &'a Collider,
     pub shape1: &'a dyn Shape,
     pub shape2: &'a dyn Shape,
-    pub position1: &'a Isometry<f32>,
-    pub position2: &'a Isometry<f32>,
     pub manifold: &'a mut ContactManifold,
     pub workspace: Option<&'a mut (dyn MaybeSerializableData)>,
 }
@@ -158,8 +148,6 @@ pub struct PrimitiveContactGenerationContextSimd<'a, 'b> {
     pub colliders2: [&'a Collider; SIMD_WIDTH],
     pub shapes1: [&'a dyn Shape; SIMD_WIDTH],
     pub shapes2: [&'a dyn Shape; SIMD_WIDTH],
-    pub positions1: &'a Isometry<SimdFloat>,
-    pub positions2: &'a Isometry<SimdFloat>,
     pub manifolds: &'a mut [&'b mut ContactManifold],
     pub workspaces: &'a mut [Option<&'b mut (dyn MaybeSerializableData)>],
 }
