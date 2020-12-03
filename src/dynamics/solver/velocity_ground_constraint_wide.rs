@@ -86,18 +86,12 @@ impl WVelocityGroundConstraint {
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
         let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
 
-        let pos1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
-        let pos2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
-
-        let delta1 = Isometry::from(
-            array![|ii| if flipped[ii] { manifolds[ii].delta2 } else { manifolds[ii].delta1 }; SIMD_WIDTH],
+        let coll_pos1 = Isometry::from(
+            array![|ii| if flipped[ii] { manifolds[ii].position2 } else { manifolds[ii].position1 }; SIMD_WIDTH],
         );
-        let delta2 = Isometry::from(
-            array![|ii| if flipped[ii] { manifolds[ii].delta1 } else { manifolds[ii].delta2 }; SIMD_WIDTH],
+        let coll_pos2 = Isometry::from(
+            array![|ii| if flipped[ii] { manifolds[ii].position1 } else { manifolds[ii].position2 }; SIMD_WIDTH],
         );
-
-        let coll_pos1 = pos1 * delta1;
-        let coll_pos2 = pos2 * delta2;
 
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);

@@ -34,23 +34,22 @@ impl PositionGroundConstraint {
 
         let local_n1;
         let local_n2;
-        let delta1;
+        let coll_pos1;
         let delta2;
 
         if flip {
             std::mem::swap(&mut rb1, &mut rb2);
             local_n1 = manifold.local_n2;
             local_n2 = manifold.local_n1;
-            delta1 = &manifold.delta2;
-            delta2 = &manifold.delta1;
+            coll_pos1 = &manifold.position2;
+            delta2 = rb1.position() * manifold.position1;
         } else {
             local_n1 = manifold.local_n1;
             local_n2 = manifold.local_n2;
-            delta1 = &manifold.delta1;
-            delta2 = &manifold.delta2;
+            coll_pos1 = &manifold.position1;
+            delta2 = rb2.position().inverse() * manifold.position2;
         };
 
-        let coll_pos1 = rb1.position * delta1;
         let shift1 = local_n1 * -manifold.kinematics.radius1;
         let shift2 = local_n2 * -manifold.kinematics.radius2;
         let n1 = coll_pos1 * local_n1;

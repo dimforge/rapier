@@ -381,6 +381,7 @@ impl RigidBody {
     }
 
     /// The world-space position of this rigid-body.
+    #[inline]
     pub fn position(&self) -> &Isometry<f32> {
         &self.position
     }

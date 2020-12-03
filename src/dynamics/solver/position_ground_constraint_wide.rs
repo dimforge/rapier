@@ -54,18 +54,18 @@ impl WPositionGroundConstraint {
             array![|ii| if flipped[ii] { manifolds[ii].local_n1 } else { manifolds[ii].local_n2 }; SIMD_WIDTH],
         );
 
-        let delta1 = Isometry::from(
-            array![|ii| if flipped[ii] { manifolds[ii].delta2 } else { manifolds[ii].delta1 }; SIMD_WIDTH],
+        let coll_pos1 = Isometry::from(
+            array![|ii| if flipped[ii] { manifolds[ii].position2 } else { manifolds[ii].position1 }; SIMD_WIDTH],
         );
-        let delta2 = Isometry::from(
-            array![|ii| if flipped[ii] { manifolds[ii].delta1 } else { manifolds[ii].delta2 }; SIMD_WIDTH],
+        let coll_pos2 = Isometry::from(
+            array![|ii| if flipped[ii] { manifolds[ii].position1 } else { manifolds[ii].position2 }; SIMD_WIDTH],
         );
 
         let radius1 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius1; SIMD_WIDTH]);
         let radius2 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius2; SIMD_WIDTH]);
 
-        let coll_pos1 =
-            delta1 * Isometry::from(array![|ii| rbs1[ii].predicted_position; SIMD_WIDTH]);
+        let delta2 = Isometry::from(array![|ii| rbs2[ii].predicted_position; SIMD_WIDTH]).inverse()
+            * coll_pos2;
 
         let rb2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 

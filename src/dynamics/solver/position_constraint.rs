@@ -94,6 +94,8 @@ impl PositionConstraint {
         let shift2 = manifold.local_n2 * -manifold.kinematics.radius2;
         let radius =
             manifold.kinematics.radius1 + manifold.kinematics.radius2 /*- params.allowed_linear_error*/;
+        let delta1 = rb1.position.inverse() * manifold.position1;
+        let delta2 = rb2.position.inverse() * manifold.position2;
 
         for (l, manifold_points) in manifold
             .active_contacts()
@@ -104,8 +106,8 @@ impl PositionConstraint {
             let mut local_p2 = [Point::origin(); MAX_MANIFOLD_POINTS];
 
             for l in 0..manifold_points.len() {
-                local_p1[l] = manifold.delta1 * (manifold_points[l].local_p1 + shift1);
-                local_p2[l] = manifold.delta2 * (manifold_points[l].local_p2 + shift2);
+                local_p1[l] = delta1 * (manifold_points[l].local_p1 + shift1);
+                local_p2[l] = delta2 * (manifold_points[l].local_p2 + shift2);
             }
 
             let constraint = PositionConstraint {

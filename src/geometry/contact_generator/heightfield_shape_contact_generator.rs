@@ -143,6 +143,8 @@ fn do_generate_contacts(
         let manifold = &mut manifolds[sub_detector.manifold_id];
 
         let mut ctxt2 = if coll_pair.collider1 != manifold.pair.collider1 {
+            manifold.position1 = collider2.position;
+            manifold.position2 = collider1.position;
             PrimitiveContactGenerationContext {
                 prediction_distance,
                 collider1: collider2,
@@ -155,6 +157,8 @@ fn do_generate_contacts(
                 workspace: sub_detector.workspace.as_mut().map(|w| &mut *w.0),
             }
         } else {
+            manifold.position1 = collider1.position;
+            manifold.position2 = collider2.position;
             PrimitiveContactGenerationContext {
                 prediction_distance,
                 collider1,

@@ -177,6 +177,8 @@ fn do_generate_contacts(
             .dispatch_primitives(ShapeType::Triangle, shape_type2);
 
         let mut ctxt2 = if ctxt_pair_pair.collider1 != manifold.pair.collider1 {
+            manifold.position1 = *collider2.position();
+            manifold.position2 = *collider1.position();
             PrimitiveContactGenerationContext {
                 prediction_distance: ctxt.prediction_distance,
                 collider1: collider2,
@@ -189,6 +191,8 @@ fn do_generate_contacts(
                 workspace: workspace2.as_mut().map(|w| &mut *w.0),
             }
         } else {
+            manifold.position1 = *collider1.position();
+            manifold.position2 = *collider2.position();
             PrimitiveContactGenerationContext {
                 prediction_distance: ctxt.prediction_distance,
                 collider1,

@@ -41,9 +41,12 @@ impl WPositionConstraint {
         let im1 = SimdFloat::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
         let sqrt_ii1: AngularInertia<SimdFloat> =
             AngularInertia::from(array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
+        let rb_pos1 = Isometry::from(array![|ii| *rbs1[ii].position(); SIMD_WIDTH]);
+
         let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
         let sqrt_ii2: AngularInertia<SimdFloat> =
             AngularInertia::from(array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
+        let rb_pos2 = Isometry::from(array![|ii| *rbs2[ii].position(); SIMD_WIDTH]);
 
         let local_n1 = Vector::from(array![|ii| manifolds[ii].local_n1; SIMD_WIDTH]);
         let local_n2 = Vector::from(array![|ii| manifolds[ii].local_n2; SIMD_WIDTH]);
@@ -51,8 +54,11 @@ impl WPositionConstraint {
         let radius1 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius1; SIMD_WIDTH]);
         let radius2 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius2; SIMD_WIDTH]);
 
-        let delta1 = Isometry::from(array![|ii| manifolds[ii].delta1; SIMD_WIDTH]);
-        let delta2 = Isometry::from(array![|ii| manifolds[ii].delta2; SIMD_WIDTH]);
+        let coll_pos1 = Isometry::from(array![|ii| manifolds[ii].position1; SIMD_WIDTH]);
+        let coll_pos2 = Isometry::from(array![|ii| manifolds[ii].position2; SIMD_WIDTH]);
+
+        let delta1 = rb_pos1.inverse() * coll_pos1;
+        let delta2 = rb_pos2.inverse() * coll_pos2;
 
         let rb1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
         let rb2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];

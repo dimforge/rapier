@@ -71,13 +71,13 @@ impl VelocityGroundConstraint {
         let coll_pos2;
 
         if flipped {
-            coll_pos1 = rb2.position * manifold.delta2;
-            coll_pos2 = rb1.position * manifold.delta1;
+            coll_pos1 = manifold.position2;
+            coll_pos2 = manifold.position1;
             force_dir1 = coll_pos1 * (-manifold.local_n2);
             std::mem::swap(&mut rb1, &mut rb2);
         } else {
-            coll_pos1 = rb1.position * manifold.delta1;
-            coll_pos2 = rb2.position * manifold.delta2;
+            coll_pos1 = manifold.position1;
+            coll_pos2 = manifold.position2;
             force_dir1 = coll_pos1 * (-manifold.local_n1);
         }
 

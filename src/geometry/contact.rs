@@ -236,6 +236,8 @@ impl ContactPair {
         // (This order can be modified by the contact determination algorithm).
         let manifold = &mut self.manifolds[0];
         if manifold.pair.collider1 == self.pair.collider1 {
+            manifold.position1 = *coll1.position();
+            manifold.position2 = *coll2.position();
             (
                 coll1,
                 coll2,
@@ -243,6 +245,8 @@ impl ContactPair {
                 self.generator_workspace.as_mut().map(|w| &mut *w.0),
             )
         } else {
+            manifold.position1 = *coll2.position();
+            manifold.position2 = *coll1.position();
             (
                 coll2,
                 coll1,
@@ -293,12 +297,10 @@ pub struct ContactManifold {
     pub friction: f32,
     /// The restitution coefficient for all the contacts on this contact manifold.
     pub restitution: f32,
-    /// The relative position between the first collider and its parent at the time the
-    /// contact points were generated.
-    pub delta1: Isometry<f32>,
-    /// The relative position between the second collider and its parent at the time the
-    /// contact points were generated.
-    pub delta2: Isometry<f32>,
+    /// The world-space position of the first collider at the time the contact points were generated.
+    pub position1: Isometry<f32>,
+    /// The world-space position of the second collider at the time the contact points were generated.
+    pub position2: Isometry<f32>,
     /// Flags used to control some aspects of the constraints solver for this contact manifold.
     pub solver_flags: SolverFlags,
 }
@@ -308,8 +310,8 @@ impl ContactManifold {
         pair: ColliderPair,
         subshapes: (usize, usize),
         body_pair: BodyPair,
-        delta1: Isometry<f32>,
-        delta2: Isometry<f32>,
+        position1: Isometry<f32>,
+        position2: Isometry<f32>,
         friction: f32,
         restitution: f32,
         solver_flags: SolverFlags,
@@ -329,8 +331,8 @@ impl ContactManifold {
             warmstart_multiplier: Self::min_warmstart_multiplier(),
             friction,
             restitution,
-            delta1,
-            delta2,
+            position1,
+            position2,
             constraint_index: 0,
             position_constraint_index: 0,
             solver_flags,
@@ -353,8 +355,8 @@ impl ContactManifold {
             warmstart_multiplier: self.warmstart_multiplier,
             friction: self.friction,
             restitution: self.restitution,
-            delta1: self.delta1,
-            delta2: self.delta2,
+            position1: self.position1,
+            position2: self.position2,
             constraint_index: self.constraint_index,
             position_constraint_index: self.position_constraint_index,
             solver_flags: self.solver_flags,
@@ -382,8 +384,8 @@ impl ContactManifold {
             pair,
             (subshape1, subshape2),
             BodyPair::new(coll1.parent, coll2.parent),
-            *coll1.position_wrt_parent(),
-            *coll2.position_wrt_parent(),
+            *coll1.position(),
+            *coll2.position(),
             (coll1.friction + coll2.friction) * 0.5,
             (coll1.restitution + coll2.restitution) * 0.5,
             solver_flags,
@@ -427,7 +429,7 @@ impl ContactManifold {
         self.pair = self.pair.swap();
         self.body_pair = self.body_pair.swap();
         self.subshape_index_pair = (self.subshape_index_pair.1, self.subshape_index_pair.0);
-        std::mem::swap(&mut self.delta1, &mut self.delta2);
+        std::mem::swap(&mut self.position1, &mut self.position2);
     }
 
     pub(crate) fn update_warmstart_multiplier(&mut self) {
