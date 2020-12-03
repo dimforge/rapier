@@ -42,7 +42,7 @@ impl PositionGroundConstraint {
             local_n1 = manifold.local_n2;
             local_n2 = manifold.local_n1;
             coll_pos1 = &manifold.position2;
-            delta2 = rb1.position() * manifold.position1;
+            delta2 = rb1.position().inverse() * manifold.position1;
         } else {
             local_n1 = manifold.local_n1;
             local_n2 = manifold.local_n2;
