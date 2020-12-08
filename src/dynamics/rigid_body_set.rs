@@ -479,7 +479,7 @@ impl RigidBodySet {
                 if let Some(contacts) = narrow_phase.contacts_with(*collider_handle) {
                     for inter in contacts {
                         for manifold in &inter.2.manifolds {
-                            if manifold.num_active_contacts() > 0 {
+                            if manifold.num_active_contacts > 0 {
                                 let other = crate::utils::other_handle(
                                     (inter.0, inter.1),
                                     *collider_handle,

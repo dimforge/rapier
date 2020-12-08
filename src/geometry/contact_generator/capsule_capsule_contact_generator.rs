@@ -1,11 +1,11 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-use crate::geometry::{Capsule, Contact, ContactManifold, KinematicsCategory};
+use crate::geometry::{Capsule, Contact, ContactManifold, ContactManifoldData, KinematicsCategory};
 use crate::math::Isometry;
 use crate::math::Vector;
 use approx::AbsDiffEq;
-use na::Unit;
 #[cfg(feature = "dim2")]
-use ncollide::shape::SegmentPointLocation;
+use buckler::shape::SegmentPointLocation;
+use na::Unit;
 
 pub fn generate_contacts_capsule_capsule(ctxt: &mut PrimitiveContactGenerationContext) {
     if let (Some(capsule1), Some(capsule2)) = (ctxt.shape1.as_capsule(), ctxt.shape2.as_capsule()) {
@@ -19,7 +19,7 @@ pub fn generate_contacts_capsule_capsule(ctxt: &mut PrimitiveContactGenerationCo
         );
     }
 
-    ctxt.manifold.update_warmstart_multiplier();
+    ContactManifoldData::update_warmstart_multiplier(ctxt.manifold);
     ctxt.manifold.sort_contacts(ctxt.prediction_distance);
 }
 
@@ -41,7 +41,7 @@ pub fn generate_contacts<'a>(
 
     let seg1 = capsule1.segment;
     let seg2_1 = capsule2.segment.transformed(&pos12);
-    let (loc1, loc2) = ncollide::query::closest_points_segment_segment_with_locations_nD(
+    let (loc1, loc2) = buckler::query::details::closest_points_segment_segment_with_locations_nD(
         (&seg1.a, &seg1.b),
         (&seg2_1.a, &seg2_1.b),
     );
@@ -94,11 +94,13 @@ pub fn generate_contacts<'a>(
         {
             // Capsules axes are almost parallel and are almost perpendicular to the normal.
             // Find a second contact point.
-            if let Some((clip_a, clip_b)) = crate::geometry::clip_segments_with_normal(
-                (seg1.a, seg1.b),
-                (seg2_1.a, seg2_1.b),
-                *local_n1,
-            ) {
+            if let Some((clip_a, clip_b)) =
+                buckler::query::details::clip_segment_segment_with_normal(
+                    (seg1.a, seg1.b),
+                    (seg2_1.a, seg2_1.b),
+                    *local_n1,
+                )
+            {
                 let contact =
                     if (clip_a.0 - local_p1).norm_squared() > f32::default_epsilon() * 100.0 {
                         // Use clip_a as the second contact.
@@ -139,7 +141,7 @@ pub fn generate_contacts<'a>(
         }
     }
 
-    super::match_contacts(manifold, &old_manifold_points, swapped);
+    manifold.match_contacts(&old_manifold_points, swapped);
 }
 
 #[cfg(feature = "dim3")]
@@ -156,10 +158,11 @@ pub fn generate_contacts<'a>(
 
     let seg1 = capsule1.segment;
     let seg2_1 = capsule2.segment.transformed(&pos12);
-    let (loc1, loc2) = ncollide::query::closest_points_segment_segment_with_locations_nD(
-        (&seg1.a, &seg1.b),
-        (&seg2_1.a, &seg2_1.b),
-    );
+    let (loc1, loc2) =
+        buckler::query::closest_points::closest_points_segment_segment_with_locations_nD(
+            (&seg1.a, &seg1.b),
+            (&seg2_1.a, &seg2_1.b),
+        );
 
     {
         let bcoords1 = loc1.barycentric_coordinates();

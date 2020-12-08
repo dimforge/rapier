@@ -1,13 +1,11 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-#[cfg(feature = "dim3")]
-use crate::geometry::PolyhedronFace;
-use crate::geometry::{cuboid, sat, ContactManifold, Cuboid, KinematicsCategory, Triangle};
+use crate::geometry::{ContactManifold, ContactManifoldData, Cuboid, KinematicsCategory, Triangle};
 use crate::math::Isometry;
 #[cfg(feature = "dim2")]
-use crate::{
-    geometry::{triangle, CuboidFeature},
-    math::Vector,
-};
+use crate::{buckler::shape::CuboidFeature, geometry::triangle, math::Vector};
+use buckler::query::sat;
+#[cfg(feature = "dim3")]
+use buckler::shape::PolyhedronFeature;
 
 pub fn generate_contacts_cuboid_triangle(ctxt: &mut PrimitiveContactGenerationContext) {
     if let (Some(cube1), Some(triangle2)) = (ctxt.shape1.as_cuboid(), ctxt.shape2.as_triangle()) {
@@ -20,7 +18,7 @@ pub fn generate_contacts_cuboid_triangle(ctxt: &mut PrimitiveContactGenerationCo
             ctxt.manifold,
             false,
         );
-        ctxt.manifold.update_warmstart_multiplier();
+        ContactManifoldData::update_warmstart_multiplier(ctxt.manifold);
     } else if let (Some(triangle1), Some(cube2)) =
         (ctxt.shape1.as_triangle(), ctxt.shape2.as_cuboid())
     {
@@ -33,7 +31,7 @@ pub fn generate_contacts_cuboid_triangle(ctxt: &mut PrimitiveContactGenerationCo
             ctxt.manifold,
             true,
         );
-        ctxt.manifold.update_warmstart_multiplier();
+        ContactManifoldData::update_warmstart_multiplier(ctxt.manifold);
     }
     ctxt.manifold.sort_contacts(ctxt.prediction_distance);
 }
@@ -61,7 +59,8 @@ pub fn generate_contacts<'a>(
      * Point-Face cases.
      *
      */
-    let sep1 = sat::cube_support_map_find_local_separating_normal_oneway(cube1, triangle2, &pos12);
+    let sep1 =
+        sat::cuboid_support_map_find_local_separating_normal_oneway(cube1, triangle2, &pos12);
     if sep1.0 > prediction_distance {
         manifold.points.clear();
         return;
@@ -81,8 +80,7 @@ pub fn generate_contacts<'a>(
     #[cfg(feature = "dim2")]
     let sep3 = (-f32::MAX, Vector::x()); // This case does not exist in 2D.
     #[cfg(feature = "dim3")]
-    let sep3 =
-        sat::cube_triangle_find_local_separating_edge_twoway(cube1, triangle2, &pos12, &pos21);
+    let sep3 = sat::cuboid_triangle_find_local_separating_edge_twoway(cube1, triangle2, &pos12);
     if sep3.0 > prediction_distance {
         manifold.points.clear();
         return;
@@ -115,20 +113,20 @@ pub fn generate_contacts<'a>(
     {
         if swapped_reference {
             feature1 = triangle::support_face(triangle2, best_sep.1);
-            feature2 = cuboid::support_face(cube1, pos21 * -best_sep.1);
+            feature2 = cube1.support_face(pos21 * -best_sep.1);
         } else {
-            feature1 = cuboid::support_face(cube1, best_sep.1);
+            feature1 = cube1.support_face(best_sep.1);
             feature2 = triangle::support_face(triangle2, pos21 * -best_sep.1);
         }
     }
     #[cfg(feature = "dim3")]
     {
         if swapped_reference {
-            feature1 = PolyhedronFace::from(*triangle2);
-            feature2 = cuboid::polyhedron_support_face(cube1, pos21 * -best_sep.1);
+            feature1 = PolyhedronFeature::from(*triangle2);
+            feature2 = cube1.polyhedron_support_face(pos21 * -best_sep.1);
         } else {
-            feature1 = cuboid::polyhedron_support_face(cube1, best_sep.1);
-            feature2 = PolyhedronFace::from(*triangle2);
+            feature1 = cube1.polyhedron_support_face(best_sep.1);
+            feature2 = PolyhedronFeature::from(*triangle2);
         }
     }
 
@@ -153,7 +151,7 @@ pub fn generate_contacts<'a>(
         manifold,
     );
     #[cfg(feature = "dim3")]
-    PolyhedronFace::contacts(
+    PolyhedronFeature::contacts(
         prediction_distance,
         &feature1,
         &best_sep.1,
@@ -169,5 +167,5 @@ pub fn generate_contacts<'a>(
     manifold.kinematics.radius2 = 0.0;
 
     // Transfer impulses.
-    super::match_contacts(manifold, &old_manifold_points, swapped ^ swapped_reference);
+    manifold.match_contacts(&old_manifold_points, swapped ^ swapped_reference);
 }

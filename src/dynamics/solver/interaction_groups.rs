@@ -12,7 +12,7 @@ pub(crate) trait PairInteraction {
 
 impl<'a> PairInteraction for &'a mut ContactManifold {
     fn body_pair(&self) -> BodyPair {
-        self.body_pair
+        self.data.body_pair
     }
 }
 
@@ -77,7 +77,7 @@ impl ParallelInteractionGroups {
             .iter()
             .zip(self.interaction_colors.iter_mut())
         {
-            let body_pair = interactions[*interaction_id].body_pair();
+            let body_pair = interactions[*interaction_id].data.body_pair();
             let rb1 = &bodies[body_pair.body1];
             let rb2 = &bodies[body_pair.body2];
 
@@ -338,7 +338,7 @@ impl InteractionGroups {
         let mut occupied_mask = 0u128;
         let max_interaction_points = interaction_indices
             .iter()
-            .map(|i| interactions[*i].num_active_contacts())
+            .map(|i| interactions[*i].num_active_contacts)
             .max()
             .unwrap_or(1);
 
@@ -351,12 +351,12 @@ impl InteractionGroups {
 
                 // FIXME: how could we avoid iterating
                 // on each interaction at every iteration on k?
-                if interaction.num_active_contacts() != k {
+                if interaction.num_active_contacts != k {
                     continue;
                 }
 
-                let body1 = &bodies[interaction.body_pair.body1];
-                let body2 = &bodies[interaction.body_pair.body2];
+                let body1 = &bodies[interaction.data.body_pair.body1];
+                let body2 = &bodies[interaction.data.body_pair.body2];
                 let is_static1 = !body1.is_dynamic();
                 let is_static2 = !body2.is_dynamic();
 

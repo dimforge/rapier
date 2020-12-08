@@ -1,5 +1,5 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-use crate::geometry::{Contact, KinematicsCategory};
+use crate::geometry::{Contact, ContactManifoldData, KinematicsCategory};
 use crate::math::{Point, Vector};
 #[cfg(feature = "simd-is-enabled")]
 use {
@@ -53,7 +53,7 @@ pub fn generate_contacts_ball_ball_simd(ctxt: &mut PrimitiveContactGenerationCon
             manifold.kinematics.category = KinematicsCategory::PointPoint;
             manifold.kinematics.radius1 = radii_a.extract(i);
             manifold.kinematics.radius2 = radii_b.extract(i);
-            manifold.update_warmstart_multiplier();
+            ContactManifoldData::update_warmstart_multiplier(manifold);
         } else {
             manifold.points.clear();
         }
@@ -94,7 +94,7 @@ pub fn generate_contacts_ball_ball(ctxt: &mut PrimitiveContactGenerationContext)
         ctxt.manifold.kinematics.category = KinematicsCategory::PointPoint;
         ctxt.manifold.kinematics.radius1 = radius_a;
         ctxt.manifold.kinematics.radius2 = radius_b;
-        ctxt.manifold.update_warmstart_multiplier();
+        ContactManifoldData::update_warmstart_multiplier(ctxt.manifold);
     } else {
         ctxt.manifold.points.clear();
     }

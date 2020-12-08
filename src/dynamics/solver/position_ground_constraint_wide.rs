@@ -32,8 +32,10 @@ impl WPositionGroundConstraint {
         out_constraints: &mut Vec<AnyPositionConstraint>,
         push: bool,
     ) {
-        let mut rbs1 = array![|ii| bodies.get(manifolds[ii].body_pair.body1).unwrap(); SIMD_WIDTH];
-        let mut rbs2 = array![|ii| bodies.get(manifolds[ii].body_pair.body2).unwrap(); SIMD_WIDTH];
+        let mut rbs1 =
+            array![|ii| bodies.get(manifolds[ii].data.body_pair.body1).unwrap(); SIMD_WIDTH];
+        let mut rbs2 =
+            array![|ii| bodies.get(manifolds[ii].data.body_pair.body2).unwrap(); SIMD_WIDTH];
         let mut flipped = [false; SIMD_WIDTH];
 
         for ii in 0..SIMD_WIDTH {
@@ -55,10 +57,10 @@ impl WPositionGroundConstraint {
         );
 
         let delta1 = Isometry::from(
-            array![|ii| if flipped[ii] { manifolds[ii].delta2 } else { manifolds[ii].delta1 }; SIMD_WIDTH],
+            array![|ii| if flipped[ii] { manifolds[ii].data.delta2 } else { manifolds[ii].data.delta1 }; SIMD_WIDTH],
         );
         let delta2 = Isometry::from(
-            array![|ii| if flipped[ii] { manifolds[ii].delta1 } else { manifolds[ii].delta2 }; SIMD_WIDTH],
+            array![|ii| if flipped[ii] { manifolds[ii].data.delta1 } else { manifolds[ii].data.delta2 }; SIMD_WIDTH],
         );
 
         let radius1 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius1; SIMD_WIDTH]);
@@ -112,10 +114,10 @@ impl WPositionGroundConstraint {
                 }
             } else {
                 if manifolds[0].kinematics.category == KinematicsCategory::PointPoint {
-                    out_constraints[manifolds[0].constraint_index + l / MAX_MANIFOLD_POINTS] =
+                    out_constraints[manifolds[0].data.constraint_index + l / MAX_MANIFOLD_POINTS] =
                         AnyPositionConstraint::GroupedPointPointGround(constraint);
                 } else {
-                    out_constraints[manifolds[0].constraint_index + l / MAX_MANIFOLD_POINTS] =
+                    out_constraints[manifolds[0].data.constraint_index + l / MAX_MANIFOLD_POINTS] =
                         AnyPositionConstraint::GroupedPlanePointGround(constraint);
                 }
             }

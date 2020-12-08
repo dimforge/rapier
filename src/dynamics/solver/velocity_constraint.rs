@@ -144,14 +144,14 @@ impl VelocityConstraint {
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         push: bool,
     ) {
-        let rb1 = &bodies[manifold.body_pair.body1];
-        let rb2 = &bodies[manifold.body_pair.body2];
+        let rb1 = &bodies[manifold.data.body_pair.body1];
+        let rb2 = &bodies[manifold.data.body_pair.body2];
         let mj_lambda1 = rb1.active_set_offset;
         let mj_lambda2 = rb2.active_set_offset;
-        let pos_coll1 = rb1.position * manifold.delta1;
-        let pos_coll2 = rb2.position * manifold.delta2;
+        let pos_coll1 = rb1.position * manifold.data.delta1;
+        let pos_coll2 = rb2.position * manifold.data.delta2;
         let force_dir1 = pos_coll1 * (-manifold.local_n1);
-        let warmstart_coeff = manifold.warmstart_multiplier * params.warmstart_coeff;
+        let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
 
         for (l, manifold_points) in manifold
             .active_contacts()
@@ -164,7 +164,7 @@ impl VelocityConstraint {
                 elements: [VelocityConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im1: rb1.mass_properties.inv_mass,
                 im2: rb2.mass_properties.inv_mass,
-                limit: manifold.friction,
+                limit: manifold.data.friction,
                 mj_lambda1,
                 mj_lambda2,
                 manifold_id,
@@ -207,7 +207,7 @@ impl VelocityConstraint {
                 constraint.dir1 = force_dir1;
                 constraint.im1 = rb1.mass_properties.inv_mass;
                 constraint.im2 = rb2.mass_properties.inv_mass;
-                constraint.limit = manifold.friction;
+                constraint.limit = manifold.data.friction;
                 constraint.mj_lambda1 = mj_lambda1;
                 constraint.mj_lambda2 = mj_lambda2;
                 constraint.manifold_id = manifold_id;
@@ -241,12 +241,12 @@ impl VelocityConstraint {
                     let mut rhs = (vel1 - vel2).dot(&force_dir1);
 
                     if rhs <= -params.restitution_velocity_threshold {
-                        rhs += manifold.restitution * rhs
+                        rhs += manifold.data.restitution * rhs
                     }
 
                     rhs += manifold_point.dist.max(0.0) * params.inv_dt();
 
-                    let impulse = manifold_points[k].impulse * warmstart_coeff;
+                    let impulse = manifold_points[k].data.impulse * warmstart_coeff;
 
                     constraint.elements[k].normal_part = VelocityConstraintElementPart {
                         gcross1,
@@ -275,9 +275,9 @@ impl VelocityConstraint {
                                 + gcross2.gdot(gcross2));
                         let rhs = (vel1 - vel2).dot(&tangents1[j]);
                         #[cfg(feature = "dim2")]
-                        let impulse = manifold_points[k].tangent_impulse * warmstart_coeff;
+                        let impulse = manifold_points[k].data.tangent_impulse * warmstart_coeff;
                         #[cfg(feature = "dim3")]
-                        let impulse = manifold_points[k].tangent_impulse[j] * warmstart_coeff;
+                        let impulse = manifold_points[k].data.tangent_impulse[j] * warmstart_coeff;
 
                         constraint.elements[k].tangent_part[j] = VelocityConstraintElementPart {
                             gcross1,
@@ -294,7 +294,7 @@ impl VelocityConstraint {
             if push {
                 out_constraints.push(AnyVelocityConstraint::Nongrouped(constraint));
             } else {
-                out_constraints[manifold.constraint_index + l] =
+                out_constraints[manifold.data.constraint_index + l] =
                     AnyVelocityConstraint::Nongrouped(constraint);
             }
         }
@@ -388,15 +388,15 @@ impl VelocityConstraint {
 
         for k in 0..self.num_contacts as usize {
             let active_contacts = manifold.active_contacts_mut();
-            active_contacts[k_base + k].impulse = self.elements[k].normal_part.impulse;
+            active_contacts[k_base + k].data.impulse = self.elements[k].normal_part.impulse;
             #[cfg(feature = "dim2")]
             {
-                active_contacts[k_base + k].tangent_impulse =
+                active_contacts[k_base + k].data.tangent_impulse =
                     self.elements[k].tangent_part[0].impulse;
             }
             #[cfg(feature = "dim3")]
             {
-                active_contacts[k_base + k].tangent_impulse = [
+                active_contacts[k_base + k].data.tangent_impulse = [
                     self.elements[k].tangent_part[0].impulse,
                     self.elements[k].tangent_part[1].impulse,
                 ];

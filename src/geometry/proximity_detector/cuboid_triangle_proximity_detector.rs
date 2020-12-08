@@ -1,6 +1,7 @@
 use crate::geometry::proximity_detector::PrimitiveProximityDetectionContext;
-use crate::geometry::{sat, Cuboid, Proximity, Triangle};
+use crate::geometry::{Cuboid, Proximity, Triangle};
 use crate::math::Isometry;
+use buckler::query::sat;
 
 pub fn detect_proximity_cuboid_triangle(
     ctxt: &mut PrimitiveProximityDetectionContext,
@@ -44,7 +45,7 @@ pub fn detect_proximity<'a>(
      *
      */
     let sep1 =
-        sat::cube_support_map_find_local_separating_normal_oneway(cube1, triangle2, &pos12).0;
+        sat::cuboid_support_map_find_local_separating_normal_oneway(cube1, triangle2, &pos12).0;
     if sep1 > prediction_distance {
         return Proximity::Disjoint;
     }
@@ -62,8 +63,7 @@ pub fn detect_proximity<'a>(
     #[cfg(feature = "dim2")]
     let sep3 = -f32::MAX; // This case does not exist in 2D.
     #[cfg(feature = "dim3")]
-    let sep3 =
-        sat::cube_triangle_find_local_separating_edge_twoway(cube1, triangle2, &pos12, &pos21).0;
+    let sep3 = sat::cuboid_triangle_find_local_separating_edge_twoway(cube1, triangle2, &pos12).0;
     if sep3 > prediction_distance {
         return Proximity::Disjoint;
     }

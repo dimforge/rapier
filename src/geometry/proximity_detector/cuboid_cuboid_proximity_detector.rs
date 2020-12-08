@@ -1,7 +1,8 @@
 use crate::geometry::proximity_detector::PrimitiveProximityDetectionContext;
-use crate::geometry::{sat, Proximity};
+use crate::geometry::Proximity;
 use crate::math::Isometry;
-use ncollide::shape::Cuboid;
+use buckler::query::sat;
+use buckler::shape::Cuboid;
 
 pub fn detect_proximity_cuboid_cuboid(ctxt: &mut PrimitiveProximityDetectionContext) -> Proximity {
     if let (Some(cube1), Some(cube2)) = (ctxt.shape1.as_cuboid(), ctxt.shape2.as_cuboid()) {
@@ -19,9 +20,9 @@ pub fn detect_proximity_cuboid_cuboid(ctxt: &mut PrimitiveProximityDetectionCont
 
 pub fn detect_proximity<'a>(
     prediction_distance: f32,
-    cube1: &'a Cuboid<f32>,
+    cube1: &'a Cuboid,
     pos1: &'a Isometry<f32>,
-    cube2: &'a Cuboid<f32>,
+    cube2: &'a Cuboid,
     pos2: &'a Isometry<f32>,
 ) -> Proximity {
     let pos12 = pos1.inverse() * pos2;
@@ -32,14 +33,12 @@ pub fn detect_proximity<'a>(
      * Point-Face
      *
      */
-    let sep1 =
-        sat::cuboid_cuboid_find_local_separating_normal_oneway(cube1, cube2, &pos12, &pos21).0;
+    let sep1 = sat::cuboid_cuboid_find_local_separating_normal_oneway(cube1, cube2, &pos12).0;
     if sep1 > prediction_distance {
         return Proximity::Disjoint;
     }
 
-    let sep2 =
-        sat::cuboid_cuboid_find_local_separating_normal_oneway(cube2, cube1, &pos21, &pos12).0;
+    let sep2 = sat::cuboid_cuboid_find_local_separating_normal_oneway(cube2, cube1, &pos21).0;
     if sep2 > prediction_distance {
         return Proximity::Disjoint;
     }
@@ -52,7 +51,7 @@ pub fn detect_proximity<'a>(
     #[cfg(feature = "dim2")]
     let sep3 = -f32::MAX; // This case does not exist in 2D.
     #[cfg(feature = "dim3")]
-    let sep3 = sat::cuboid_cuboid_find_local_separating_edge_twoway(cube1, cube2, &pos12, &pos21).0;
+    let sep3 = sat::cuboid_cuboid_find_local_separating_edge_twoway(cube1, cube2, &pos12).0;
     if sep3 > prediction_distance {
         return Proximity::Disjoint;
     }

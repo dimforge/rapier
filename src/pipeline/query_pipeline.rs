@@ -74,7 +74,7 @@ impl QueryPipeline {
         for handle in inter {
             if let Some(collider) = colliders.get(handle) {
                 if collider.collision_groups.test(groups) {
-                    if let Some(inter) = collider.shape().toi_and_normal_with_ray(
+                    if let Some(inter) = collider.shape().cast_ray_and_get_normal(
                         collider.position(),
                         ray,
                         max_toi,
@@ -118,7 +118,7 @@ impl QueryPipeline {
             let collider = &colliders[handle];
 
             if collider.collision_groups.test(groups) {
-                if let Some(inter) = collider.shape().toi_and_normal_with_ray(
+                if let Some(inter) = collider.shape().cast_ray_and_get_normal(
                     collider.position(),
                     ray,
                     max_toi,

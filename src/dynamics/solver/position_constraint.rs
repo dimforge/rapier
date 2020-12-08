@@ -88,8 +88,8 @@ impl PositionConstraint {
         out_constraints: &mut Vec<AnyPositionConstraint>,
         push: bool,
     ) {
-        let rb1 = &bodies[manifold.body_pair.body1];
-        let rb2 = &bodies[manifold.body_pair.body2];
+        let rb1 = &bodies[manifold.data.body_pair.body1];
+        let rb2 = &bodies[manifold.data.body_pair.body2];
         let shift1 = manifold.local_n1 * -manifold.kinematics.radius1;
         let shift2 = manifold.local_n2 * -manifold.kinematics.radius2;
         let radius =
@@ -104,8 +104,8 @@ impl PositionConstraint {
             let mut local_p2 = [Point::origin(); MAX_MANIFOLD_POINTS];
 
             for l in 0..manifold_points.len() {
-                local_p1[l] = manifold.delta1 * (manifold_points[l].local_p1 + shift1);
-                local_p2[l] = manifold.delta2 * (manifold_points[l].local_p2 + shift2);
+                local_p1[l] = manifold.data.delta1 * (manifold_points[l].local_p1 + shift1);
+                local_p2[l] = manifold.data.delta2 * (manifold_points[l].local_p2 + shift2);
             }
 
             let constraint = PositionConstraint {
@@ -132,10 +132,10 @@ impl PositionConstraint {
                 }
             } else {
                 if manifold.kinematics.category == KinematicsCategory::PointPoint {
-                    out_constraints[manifold.constraint_index + l] =
+                    out_constraints[manifold.data.constraint_index + l] =
                         AnyPositionConstraint::NongroupedPointPoint(constraint);
                 } else {
-                    out_constraints[manifold.constraint_index + l] =
+                    out_constraints[manifold.data.constraint_index + l] =
                         AnyPositionConstraint::NongroupedPlanePoint(constraint);
                 }
             }

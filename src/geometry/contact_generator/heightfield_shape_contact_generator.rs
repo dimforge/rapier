@@ -1,3 +1,4 @@
+use crate::buckler::bounding_volume::BoundingVolume;
 use crate::data::hashmap::{Entry, HashMap};
 use crate::data::MaybeSerializableData;
 use crate::geometry::contact_generator::{
@@ -6,8 +7,7 @@ use crate::geometry::contact_generator::{
 };
 #[cfg(feature = "dim2")]
 use crate::geometry::Capsule;
-use crate::geometry::{Collider, ContactManifold, HeightField, Shape};
-use crate::ncollide::bounding_volume::BoundingVolume;
+use crate::geometry::{Collider, ContactManifold, ContactManifoldData, HeightField, Shape};
 #[cfg(feature = "serde-serialize")]
 use erased_serde::Serialize;
 
@@ -88,7 +88,7 @@ fn do_generate_contacts(
     let solver_flags = ctxt.solver_flags;
     let shape_type2 = collider2.shape().shape_type();
 
-    heightfield1.map_elements_in_local_aabb(&ls_aabb2, &mut |i, part1, _| {
+    heightfield1.map_elements_in_local_aabb(&ls_aabb2, &mut |i, part1| {
         let position1 = collider1.position();
         #[cfg(feature = "dim2")]
         let sub_shape1 = Capsule::new(part1.a, part1.b, 0.0); // TODO: use a segment instead.
@@ -113,15 +113,13 @@ fn do_generate_contacts(
                     timestamp: new_timestamp,
                     workspace: workspace2,
                 };
-                let manifold = ContactManifold::with_subshape_indices(
+                let manifold_data = ContactManifoldData::from_colliders(
                     coll_pair,
                     collider1,
                     collider2,
-                    i,
-                    0,
                     solver_flags,
                 );
-                manifolds.push(manifold);
+                manifolds.push(ContactManifold::with_data((i, 0), manifold_data));
 
                 entry.insert(sub_detector)
             }
@@ -142,7 +140,7 @@ fn do_generate_contacts(
 
         let manifold = &mut manifolds[sub_detector.manifold_id];
 
-        let mut ctxt2 = if coll_pair.collider1 != manifold.pair.collider1 {
+        let mut ctxt2 = if coll_pair.collider1 != manifold.data.pair.collider1 {
             PrimitiveContactGenerationContext {
                 prediction_distance,
                 collider1: collider2,

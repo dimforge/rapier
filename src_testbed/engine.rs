@@ -501,7 +501,7 @@ impl GraphicsManager {
         object: DefaultColliderHandle,
         colliders: &DefaultColliderSet<f32>,
         delta: Isometry<f32>,
-        shape: &Cuboid<f32>,
+        shape: &Cuboid,
         color: Point3<f32>,
         out: &mut Vec<Node>,
     ) {

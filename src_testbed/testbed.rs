@@ -1521,8 +1521,8 @@ fn draw_contacts(window: &mut Window, nf: &NarrowPhase, colliders: &ColliderSet)
                 } else {
                     Point3::new(1.0, 0.0, 0.0)
                 };
-                let pos1 = colliders[manifold.pair.collider1].position();
-                let pos2 = colliders[manifold.pair.collider2].position();
+                let pos1 = colliders[manifold.data.pair.collider1].position();
+                let pos2 = colliders[manifold.data.pair.collider2].position();
                 let start = pos1 * pt.local_p1;
                 let end = pos2 * pt.local_p2;
                 let n = pos1 * manifold.local_n1;

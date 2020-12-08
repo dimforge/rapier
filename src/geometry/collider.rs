@@ -6,8 +6,8 @@ use crate::geometry::{
 #[cfg(feature = "dim3")]
 use crate::geometry::{Cone, Cylinder, RoundCylinder};
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
+use buckler::bounding_volume::AABB;
 use na::Point3;
-use ncollide::bounding_volume::AABB;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -270,11 +270,11 @@ impl Collider {
     }
 
     /// Compute the axis-aligned bounding box of this collider.
-    pub fn compute_aabb(&self) -> AABB<f32> {
+    pub fn compute_aabb(&self) -> AABB {
         self.shape.compute_aabb(&self.position)
     }
 
-    // pub(crate) fn compute_aabb_with_prediction(&self) -> AABB<f32> {
+    // pub(crate) fn compute_aabb_with_prediction(&self) -> AABB {
     //     let aabb1 = self.shape.compute_aabb(&self.position);
     //     let aabb2 = self.shape.compute_aabb(&self.predicted_position);
     //     aabb1.merged(&aabb2)

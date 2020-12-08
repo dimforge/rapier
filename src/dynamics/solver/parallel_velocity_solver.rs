@@ -247,13 +247,13 @@ impl ParallelVelocitySolverPart<AnyJointVelocityConstraint> {
                     VelocityConstraintDesc::NongroundGrouped(joint_id) => {
                         let joints = array![|ii| &joints_all[joint_id[ii]].weight; SIMD_WIDTH];
                         let constraint = AnyJointVelocityConstraint::from_wide_joint(params, *joint_id, joints, bodies);
-                        self.constraints[joints[0].constraint_index] = constraint;
+                        self.constraints[joints[0].data.constraint_index] = constraint;
                     }
                     #[cfg(feature = "simd-is-enabled")]
                     VelocityConstraintDesc::GroundGrouped(joint_id) => {
                         let joints = array![|ii| &joints_all[joint_id[ii]].weight; SIMD_WIDTH];
                         let constraint = AnyJointVelocityConstraint::from_wide_joint_ground(params, *joint_id, joints, bodies);
-                        self.constraints[joints[0].constraint_index] = constraint;
+                        self.constraints[joints[0].data.constraint_index] = constraint;
                     }
                 }
             }

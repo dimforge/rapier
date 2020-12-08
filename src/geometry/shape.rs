@@ -1,17 +1,18 @@
 use crate::dynamics::MassProperties;
 use crate::geometry::{Ball, Capsule, Cuboid, HeightField, Segment, Triangle, Trimesh};
 use crate::math::Isometry;
+use buckler::bounding_volume::AABB;
+use buckler::query::{PointQuery, RayCast};
 use downcast_rs::{impl_downcast, DowncastSync};
 #[cfg(feature = "serde-serialize")]
 use erased_serde::Serialize;
-use ncollide::bounding_volume::{HasBoundingVolume, AABB};
-use ncollide::query::{PointQuery, RayCast};
 use num::Zero;
 use num_derive::FromPrimitive;
 #[cfg(feature = "dim3")]
 use {
-    crate::geometry::{Cone, Cylinder, PolygonalFeatureMap, RoundCylinder},
-    ncollide::bounding_volume::BoundingVolume,
+    crate::geometry::{Cone, Cylinder, RoundCylinder},
+    buckler::bounding_volume::BoundingVolume,
+    buckler::shape::PolygonalFeatureMap,
 };
 
 #[derive(Copy, Clone, Debug, FromPrimitive)]
@@ -57,7 +58,7 @@ pub enum ShapeType {
 }
 
 /// Trait implemented by shapes usable by Rapier.
-pub trait Shape: RayCast<f32> + PointQuery<f32> + DowncastSync {
+pub trait Shape: RayCast + PointQuery + DowncastSync {
     /// Convert this shape as a serializable entity.
     #[cfg(feature = "serde-serialize")]
     fn as_serialize(&self) -> Option<&dyn Serialize> {
@@ -67,7 +68,7 @@ pub trait Shape: RayCast<f32> + PointQuery<f32> + DowncastSync {
     // TODO: add a compute_local_aabb method?
 
     /// Computes the AABB of this shape.
-    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32>;
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB;
 
     /// Compute the mass-properties of this shape given its uniform density.
     fn mass_properties(&self, density: f32) -> MassProperties;
@@ -144,8 +145,8 @@ impl Shape for Ball {
         Some(self as &dyn Serialize)
     }
 
-    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
-        self.bounding_volume(position)
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB {
+        self.aabb(position)
     }
 
     fn mass_properties(&self, density: f32) -> MassProperties {
@@ -163,7 +164,7 @@ impl Shape for Ball {
 //         Some(self as &dyn Serialize)
 //     }
 //
-//     fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
+//     fn compute_aabb(&self, position: &Isometry<f32>) -> AABB {
 //         self.aabb(position)
 //     }
 //
@@ -182,8 +183,8 @@ impl Shape for Cuboid {
         Some(self as &dyn Serialize)
     }
 
-    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
-        self.bounding_volume(position)
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB {
+        self.aabb(position)
     }
 
     fn mass_properties(&self, density: f32) -> MassProperties {
@@ -206,7 +207,7 @@ impl Shape for Capsule {
         Some(self as &dyn Serialize)
     }
 
-    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB {
         self.aabb(position)
     }
 
@@ -230,8 +231,8 @@ impl Shape for Triangle {
         Some(self as &dyn Serialize)
     }
 
-    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
-        self.bounding_volume(position)
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB {
+        self.aabb(position)
     }
 
     fn mass_properties(&self, _density: f32) -> MassProperties {
@@ -254,8 +255,8 @@ impl Shape for Segment {
         Some(self as &dyn Serialize)
     }
 
-    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
-        self.bounding_volume(position)
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB {
+        self.aabb(position)
     }
 
     fn mass_properties(&self, _density: f32) -> MassProperties {
@@ -278,7 +279,7 @@ impl Shape for Trimesh {
         Some(self as &dyn Serialize)
     }
 
-    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB {
         self.aabb(position)
     }
 
@@ -297,8 +298,8 @@ impl Shape for HeightField {
         Some(self as &dyn Serialize)
     }
 
-    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
-        self.bounding_volume(position)
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB {
+        self.aabb(position)
     }
 
     fn mass_properties(&self, _density: f32) -> MassProperties {
@@ -317,8 +318,8 @@ impl Shape for Cylinder {
         Some(self as &dyn Serialize)
     }
 
-    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
-        self.bounding_volume(position)
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB {
+        self.aabb(position)
     }
 
     fn mass_properties(&self, density: f32) -> MassProperties {
@@ -342,8 +343,8 @@ impl Shape for Cone {
         Some(self as &dyn Serialize)
     }
 
-    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
-        self.bounding_volume(position)
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB {
+        self.aabb(position)
     }
 
     fn mass_properties(&self, density: f32) -> MassProperties {
@@ -367,7 +368,7 @@ impl Shape for RoundCylinder {
         Some(self as &dyn Serialize)
     }
 
-    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB<f32> {
+    fn compute_aabb(&self, position: &Isometry<f32>) -> AABB {
         self.cylinder
             .compute_aabb(position)
             .loosened(self.border_radius)

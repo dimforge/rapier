@@ -28,8 +28,8 @@ impl PositionGroundConstraint {
         out_constraints: &mut Vec<AnyPositionConstraint>,
         push: bool,
     ) {
-        let mut rb1 = &bodies[manifold.body_pair.body1];
-        let mut rb2 = &bodies[manifold.body_pair.body2];
+        let mut rb1 = &bodies[manifold.data.body_pair.body1];
+        let mut rb2 = &bodies[manifold.data.body_pair.body2];
         let flip = !rb2.is_dynamic();
 
         let local_n1;
@@ -41,13 +41,13 @@ impl PositionGroundConstraint {
             std::mem::swap(&mut rb1, &mut rb2);
             local_n1 = manifold.local_n2;
             local_n2 = manifold.local_n1;
-            delta1 = &manifold.delta2;
-            delta2 = &manifold.delta1;
+            delta1 = &manifold.data.delta2;
+            delta2 = &manifold.data.delta1;
         } else {
             local_n1 = manifold.local_n1;
             local_n2 = manifold.local_n2;
-            delta1 = &manifold.delta1;
-            delta2 = &manifold.delta2;
+            delta1 = &manifold.data.delta1;
+            delta2 = &manifold.data.delta2;
         };
 
         let coll_pos1 = rb1.position * delta1;
@@ -105,10 +105,10 @@ impl PositionGroundConstraint {
                 }
             } else {
                 if manifold.kinematics.category == KinematicsCategory::PointPoint {
-                    out_constraints[manifold.constraint_index + l] =
+                    out_constraints[manifold.data.constraint_index + l] =
                         AnyPositionConstraint::NongroupedPointPointGround(constraint);
                 } else {
-                    out_constraints[manifold.constraint_index + l] =
+                    out_constraints[manifold.data.constraint_index + l] =
                         AnyPositionConstraint::NongroupedPlanePointGround(constraint);
                 }
             }

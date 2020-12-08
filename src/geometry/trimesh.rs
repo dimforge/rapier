@@ -1,16 +1,18 @@
-use crate::geometry::{PointProjection, Ray, RayIntersection, Triangle, WQuadtree};
+use crate::geometry::{
+    Cuboid, HeightField, PointProjection, Ray, RayIntersection, Triangle, WQuadtree,
+};
 use crate::math::{Isometry, Point};
+use buckler::bounding_volume::AABB;
+use buckler::query::{PointQuery, RayCast};
+use buckler::shape::FeatureId;
 use na::Point3;
-use ncollide::bounding_volume::{HasBoundingVolume, AABB};
-use ncollide::query::{PointQuery, RayCast};
-use ncollide::shape::FeatureId;
 
 #[derive(Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A triangle mesh.
 pub struct Trimesh {
     wquadtree: WQuadtree<usize>,
-    aabb: AABB<f32>,
+    aabb: AABB,
     vertices: Vec<Point<f32>>,
     indices: Vec<Point3<u32>>,
 }
@@ -34,7 +36,7 @@ impl Trimesh {
                 vertices[idx[1] as usize],
                 vertices[idx[2] as usize],
             )
-            .local_bounding_volume();
+            .local_aabb();
             (i, aabb)
         });
 
@@ -52,7 +54,7 @@ impl Trimesh {
     }
 
     /// Compute the axis-aligned bounding box of this triangle mesh.
-    pub fn aabb(&self, pos: &Isometry<f32>) -> AABB<f32> {
+    pub fn aabb(&self, pos: &Isometry<f32>) -> AABB {
         self.aabb.transform_by(pos)
     }
 
@@ -106,15 +108,14 @@ impl Trimesh {
     }
 }
 
-impl PointQuery<f32> for Trimesh {
-    fn project_point(&self, _m: &Isometry<f32>, _pt: &Point<f32>, _solid: bool) -> PointProjection {
+impl PointQuery for Trimesh {
+    fn project_local_point(&self, _pt: &Point<f32>, _solid: bool) -> PointProjection {
         // TODO
         unimplemented!()
     }
 
-    fn project_point_with_feature(
+    fn project_local_point_and_get_feature(
         &self,
-        _m: &Isometry<f32>,
         _pt: &Point<f32>,
     ) -> (PointProjection, FeatureId) {
         // TODO
@@ -123,10 +124,9 @@ impl PointQuery<f32> for Trimesh {
 }
 
 #[cfg(feature = "dim2")]
-impl RayCast<f32> for Trimesh {
-    fn toi_and_normal_with_ray(
+impl RayCast for Trimesh {
+    fn cast_local_ray_and_get_normal(
         &self,
-        _m: &Isometry<f32>,
         _ray: &Ray,
         _max_toi: f32,
         _solid: bool,
@@ -142,24 +142,21 @@ impl RayCast<f32> for Trimesh {
 }
 
 #[cfg(feature = "dim3")]
-impl RayCast<f32> for Trimesh {
-    fn toi_and_normal_with_ray(
+impl RayCast for Trimesh {
+    fn cast_local_ray_and_get_normal(
         &self,
-        m: &Isometry<f32>,
         ray: &Ray,
         max_toi: f32,
         solid: bool,
     ) -> Option<RayIntersection> {
         // FIXME: do a best-first search.
         let mut intersections = Vec::new();
-        let ls_ray = ray.inverse_transform_by(m);
-        self.wquadtree
-            .cast_ray(&ls_ray, max_toi, &mut intersections);
+        self.wquadtree.cast_ray(&ray, max_toi, &mut intersections);
         let mut best: Option<RayIntersection> = None;
 
         for inter in intersections {
             let tri = self.triangle(inter);
-            if let Some(inter) = tri.toi_and_normal_with_ray(m, ray, max_toi, solid) {
+            if let Some(inter) = tri.cast_local_ray_and_get_normal(ray, max_toi, solid) {
                 if let Some(curr) = &mut best {
                     if curr.toi > inter.toi {
                         *curr = inter;
@@ -173,20 +170,34 @@ impl RayCast<f32> for Trimesh {
         best
     }
 
-    fn intersects_ray(&self, m: &Isometry<f32>, ray: &Ray, max_toi: f32) -> bool {
+    fn intersects_local_ray(&self, ray: &Ray, max_toi: f32) -> bool {
         // FIXME: do a best-first search.
         let mut intersections = Vec::new();
-        let ls_ray = ray.inverse_transform_by(m);
-        self.wquadtree
-            .cast_ray(&ls_ray, max_toi, &mut intersections);
+        self.wquadtree.cast_ray(&ray, max_toi, &mut intersections);
 
         for inter in intersections {
             let tri = self.triangle(inter);
-            if tri.intersects_ray(m, ray, max_toi) {
+            if tri.intersects_local_ray(ray, max_toi) {
                 return true;
             }
         }
 
         false
+    }
+}
+
+#[cfg(feature = "dim3")]
+impl From<HeightField> for Trimesh {
+    fn from(heightfield: HeightField) -> Self {
+        let (vtx, idx) = heightfield.to_trimesh();
+        Trimesh::new(vtx, idx)
+    }
+}
+
+#[cfg(feature = "dim3")]
+impl From<Cuboid> for Trimesh {
+    fn from(cuboid: Cuboid) -> Self {
+        let (vtx, idx) = cuboid.to_trimesh();
+        Trimesh::new(vtx, idx)
     }
 }

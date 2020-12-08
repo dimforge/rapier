@@ -21,7 +21,7 @@ simd-nightly = [ "simba/packed_simd", "simd-is-enabled" ]
 # enabled with the "simd-stable" or "simd-nightly" feature.
 simd-is-enabled = [ ]
 wasm-bindgen = [ "instant/wasm-bindgen" ]
-serde-serialize = [ "erased-serde", "nalgebra/serde-serialize", "ncollide3d/serde-serialize", "serde", "generational-arena/serde", "bit-vec/serde" ]
+serde-serialize = [ "erased-serde", "nalgebra/serde-serialize", "buckler3d/serde-serialize", "serde", "generational-arena/serde", "bit-vec/serde" ]
 enhanced-determinism = [ "simba/libm_force", "indexmap" ]
 
 [lib]
@@ -35,7 +35,7 @@ vec_map = "0.8"
 instant = { version = "0.1", features = [ "now" ]}
 num-traits = "0.2"
 nalgebra = "0.23"
-ncollide3d = "0.26"
+buckler3d = "0.1"
 simba = "0.3"
 approx = "0.4"
 rayon = { version = "1", optional = true }

@@ -1,4 +1,4 @@
-use ncollide::shape::{Ball, Capsule, Cuboid, ShapeHandle};
+use ncollide::shape::{Ball, Capsule, Cuboid, HeightField, ShapeHandle};
 use nphysics::force_generator::DefaultForceGeneratorSet;
 use nphysics::joint::{
     DefaultJointConstraintSet, FixedConstraint, PrismaticConstraint, RevoluteConstraint,
@@ -187,7 +187,10 @@ fn nphysics_collider_from_rapier_collider(
         pos *= capsule.transform_wrt_y();
         ShapeHandle::new(Capsule::new(capsule.half_height(), capsule.radius))
     } else if let Some(heightfield) = shape.as_heightfield() {
-        ShapeHandle::new(heightfield.clone())
+        let heights = heightfield.heights();
+        let scale = heightfield.scale();
+        let heightfield = HeightField::new(heights.clone(), *scale);
+        ShapeHandle::new(heightfield)
     } else {
         #[cfg(feature = "dim3")]
         if let Some(trimesh) = shape.as_trimesh() {

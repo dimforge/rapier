@@ -1,12 +1,15 @@
 use crate::data::MaybeSerializableData;
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-use crate::geometry::{KinematicsCategory, PolygonalFeatureMap, PolyhedronFace};
+use crate::geometry::{ContactManifoldData, KinematicsCategory};
 use crate::math::{Isometry, Vector};
+use buckler::query::{
+    self,
+    gjk::{GJKResult, VoronoiSimplex},
+};
+use buckler::shape::{PolygonalFeatureMap, PolyhedronFeature};
 #[cfg(feature = "serde-serialize")]
 use erased_serde::Serialize;
 use na::Unit;
-use ncollide::query;
-use ncollide::query::algorithms::{gjk::GJKResult, VoronoiSimplex};
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
@@ -15,12 +18,12 @@ pub struct PfmPfmContactManifoldGeneratorWorkspace {
         feature = "serde-serialize",
         serde(skip, default = "VoronoiSimplex::new")
     )]
-    simplex: VoronoiSimplex<f32>,
+    simplex: VoronoiSimplex,
     last_gjk_dir: Option<Unit<Vector<f32>>>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    feature1: PolyhedronFace,
+    feature1: PolyhedronFeature,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    feature2: PolyhedronFace,
+    feature2: PolyhedronFeature,
 }
 
 impl Default for PfmPfmContactManifoldGeneratorWorkspace {
@@ -28,8 +31,8 @@ impl Default for PfmPfmContactManifoldGeneratorWorkspace {
         Self {
             simplex: VoronoiSimplex::new(),
             last_gjk_dir: None,
-            feature1: PolyhedronFace::new(),
-            feature2: PolyhedronFace::new(),
+            feature1: PolyhedronFeature::new(),
+            feature2: PolyhedronFeature::new(),
         }
     }
 }
@@ -40,7 +43,7 @@ pub fn generate_contacts_pfm_pfm(ctxt: &mut PrimitiveContactGenerationContext) {
         ctxt.shape2.as_polygonal_feature_map(),
     ) {
         do_generate_contacts(pfm1, border_radius1, pfm2, border_radius2, ctxt);
-        ctxt.manifold.update_warmstart_multiplier();
+        ContactManifoldData::update_warmstart_multiplier(ctxt.manifold);
         ctxt.manifold.sort_contacts(ctxt.prediction_distance);
     }
 }
@@ -73,10 +76,9 @@ fn do_generate_contacts(
         .expect("Invalid workspace type, expected a PfmPfmContactManifoldGeneratorWorkspace.");
 
     let total_prediction = ctxt.prediction_distance + border_radius1 + border_radius2;
-    let contact = query::contact_support_map_support_map_with_params(
-        &Isometry::identity(),
-        pfm1,
+    let contact = query::contact::contact_support_map_support_map_with_params(
         &pos12,
+        pfm1,
         pfm2,
         total_prediction,
         &mut workspace.simplex,
@@ -95,7 +97,7 @@ fn do_generate_contacts(
             pfm2.local_support_feature(&normal2, &mut workspace.feature2);
             workspace.feature2.transform_by(&pos12);
 
-            PolyhedronFace::contacts(
+            PolyhedronFeature::contacts(
                 total_prediction,
                 &workspace.feature1,
                 &normal1,
@@ -126,7 +128,7 @@ fn do_generate_contacts(
     }
 
     // Transfer impulses.
-    super::match_contacts(&mut ctxt.manifold, &old_manifold_points, false);
+    ctxt.manifold.match_contacts(&old_manifold_points, false);
 }
 
 impl MaybeSerializableData for PfmPfmContactManifoldGeneratorWorkspace {

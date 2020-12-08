@@ -69,11 +69,11 @@ impl WVelocityConstraint {
         push: bool,
     ) {
         let inv_dt = SimdFloat::splat(params.inv_dt());
-        let rbs1 = array![|ii| &bodies[manifolds[ii].body_pair.body1]; SIMD_WIDTH];
-        let rbs2 = array![|ii| &bodies[manifolds[ii].body_pair.body2]; SIMD_WIDTH];
+        let rbs1 = array![|ii| &bodies[manifolds[ii].data.body_pair.body1]; SIMD_WIDTH];
+        let rbs2 = array![|ii| &bodies[manifolds[ii].data.body_pair.body2]; SIMD_WIDTH];
 
-        let delta1 = Isometry::from(array![|ii| manifolds[ii].delta1; SIMD_WIDTH]);
-        let delta2 = Isometry::from(array![|ii| manifolds[ii].delta2; SIMD_WIDTH]);
+        let delta1 = Isometry::from(array![|ii| manifolds[ii].data.delta1; SIMD_WIDTH]);
+        let delta2 = Isometry::from(array![|ii| manifolds[ii].data.delta2; SIMD_WIDTH]);
 
         let im1 = SimdFloat::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
         let ii1: AngularInertia<SimdFloat> =
@@ -103,13 +103,13 @@ impl WVelocityConstraint {
         let mj_lambda1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
-        let friction = SimdFloat::from(array![|ii| manifolds[ii].friction; SIMD_WIDTH]);
-        let restitution = SimdFloat::from(array![|ii| manifolds[ii].restitution; SIMD_WIDTH]);
+        let friction = SimdFloat::from(array![|ii| manifolds[ii].data.friction; SIMD_WIDTH]);
+        let restitution = SimdFloat::from(array![|ii| manifolds[ii].data.restitution; SIMD_WIDTH]);
         let restitution_velocity_threshold =
             SimdFloat::splat(params.restitution_velocity_threshold);
 
         let warmstart_multiplier =
-            SimdFloat::from(array![|ii| manifolds[ii].warmstart_multiplier; SIMD_WIDTH]);
+            SimdFloat::from(array![|ii| manifolds[ii].data.warmstart_multiplier; SIMD_WIDTH]);
         let warmstart_coeff = warmstart_multiplier * SimdFloat::splat(params.warmstart_coeff);
 
         for l in (0..manifolds[0].num_active_contacts()).step_by(MAX_MANIFOLD_POINTS) {
@@ -140,7 +140,7 @@ impl WVelocityConstraint {
                 let dist = SimdFloat::from(array![|ii| manifold_points[ii][k].dist; SIMD_WIDTH]);
 
                 let impulse =
-                    SimdFloat::from(array![|ii| manifold_points[ii][k].impulse; SIMD_WIDTH]);
+                    SimdFloat::from(array![|ii| manifold_points[ii][k].data.impulse; SIMD_WIDTH]);
 
                 let dp1 = p1 - world_com1;
                 let dp2 = p2 - world_com2;
@@ -176,11 +176,11 @@ impl WVelocityConstraint {
                 for j in 0..DIM - 1 {
                     #[cfg(feature = "dim2")]
                     let impulse = SimdFloat::from(
-                        array![|ii| manifold_points[ii][k].tangent_impulse; SIMD_WIDTH],
+                        array![|ii| manifold_points[ii][k].data.tangent_impulse; SIMD_WIDTH],
                     );
                     #[cfg(feature = "dim3")]
                     let impulse = SimdFloat::from(
-                        array![|ii| manifold_points[ii][k].tangent_impulse[j]; SIMD_WIDTH],
+                        array![|ii| manifold_points[ii][k].data.tangent_impulse[j]; SIMD_WIDTH],
                     );
 
                     let gcross1 = ii1.transform_vector(dp1.gcross(tangents1[j]));
@@ -202,7 +202,7 @@ impl WVelocityConstraint {
             if push {
                 out_constraints.push(AnyVelocityConstraint::Grouped(constraint));
             } else {
-                out_constraints[manifolds[0].constraint_index + l / MAX_MANIFOLD_POINTS] =
+                out_constraints[manifolds[0].data.constraint_index + l / MAX_MANIFOLD_POINTS] =
                     AnyVelocityConstraint::Grouped(constraint);
             }
         }
@@ -342,15 +342,15 @@ impl WVelocityConstraint {
                 let manifold = &mut manifolds_all[self.manifold_id[ii]];
                 let k_base = self.manifold_contact_id;
                 let active_contacts = manifold.active_contacts_mut();
-                active_contacts[k_base + k].impulse = impulses[ii];
+                active_contacts[k_base + k].data.impulse = impulses[ii];
 
                 #[cfg(feature = "dim2")]
                 {
-                    active_contacts[k_base + k].tangent_impulse = tangent_impulses[ii];
+                    active_contacts[k_base + k].data.tangent_impulse = tangent_impulses[ii];
                 }
                 #[cfg(feature = "dim3")]
                 {
-                    active_contacts[k_base + k].tangent_impulse =
+                    active_contacts[k_base + k].data.tangent_impulse =
                         [tangent_impulses[ii], bitangent_impulses[ii]];
                 }
             }

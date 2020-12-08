@@ -4,7 +4,7 @@ use crate::math::Point;
 #[cfg(feature = "dim3")]
 use crate::math::Vector;
 use crate::simd::{SimdFloat, SIMD_WIDTH};
-use ncollide::bounding_volume::BoundingVolume;
+use buckler::bounding_volume::BoundingVolume;
 use simba::simd::{SimdBool, SimdValue};
 use std::collections::VecDeque;
 use std::ops::Range;

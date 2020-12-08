@@ -1,10 +1,13 @@
 #![allow(dead_code)] // TODO: remove this once we support polygons.
 
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-use crate::geometry::{sat, Contact, ContactManifold, KinematicsCategory, Polygon};
+use crate::geometry::{
+    sat, Contact, ContactData, ContactManifold, ContactManifoldData, KinematicsCategory, Polygon,
+};
 use crate::math::{Isometry, Point};
 #[cfg(feature = "dim2")]
 use crate::{math::Vector, utils};
+use buckler::query;
 
 pub fn generate_contacts_polygon_polygon(_ctxt: &mut PrimitiveContactGenerationContext) {
     unimplemented!()
@@ -16,7 +19,7 @@ pub fn generate_contacts_polygon_polygon(_ctxt: &mut PrimitiveContactGenerationC
     //         &ctxt.position2,
     //         ctxt.manifold,
     //     );
-    //     ctxt.manifold.update_warmstart_multiplier();
+    //     ContactManifoldData::update_warmstart_multiplier(ctxt.manifold);
     // } else {
     //     unreachable!()
     // }
@@ -75,12 +78,12 @@ fn generate_contacts<'a>(
         m12 * p2.vertices[support_face2],
         m12 * p2.vertices[(support_face2 + 1) % len2],
     );
-    if let Some((clip_a, clip_b)) = clip_segments(seg1, seg2) {
+    if let Some((clip_a, clip_b)) = query::details::clip_segment_segment(seg1, seg2) {
         let dist_a = (clip_a.1 - clip_a.0).dot(&local_n1);
         let dist_b = (clip_b.1 - clip_b.0).dot(&local_n1);
 
-        let mut impulses_a = (0.0, Contact::zero_tangent_impulse());
-        let mut impulses_b = (0.0, Contact::zero_tangent_impulse());
+        let mut data_a = ContactData::default();
+        let mut data_b = ContactData::default();
 
         let fids_a = (
             ((support_face1 * 2 + clip_a.2) % (len1 * 2)) as u8,
@@ -111,26 +114,15 @@ fn generate_contacts<'a>(
             }
 
             if fids_a == original_fids_a {
-                impulses_a = (
-                    manifold.points[0].impulse,
-                    manifold.points[0].tangent_impulse,
-                );
+                data_a = manifold.points[0].data;
             } else if fids_a == original_fids_b {
-                impulses_a = (
-                    manifold.points[1].impulse,
-                    manifold.points[1].tangent_impulse,
-                );
+                data_a = manifold.points[1].data;
             }
+
             if fids_b == original_fids_a {
-                impulses_b = (
-                    manifold.points[0].impulse,
-                    manifold.points[0].tangent_impulse,
-                );
+                data_b = manifold.points[0].data;
             } else if fids_b == original_fids_b {
-                impulses_b = (
-                    manifold.points[1].impulse,
-                    manifold.points[1].tangent_impulse,
-                );
+                data_b = manifold.points[1].data;
             }
         }
 
@@ -138,21 +130,19 @@ fn generate_contacts<'a>(
         manifold.points.push(Contact {
             local_p1: clip_a.0,
             local_p2: m21 * clip_a.1,
-            impulse: impulses_a.0,
-            tangent_impulse: impulses_a.1,
             fid1: fids_a.0,
             fid2: fids_a.1,
             dist: dist_a,
+            data: data_a,
         });
 
         manifold.points.push(Contact {
             local_p1: clip_b.0,
             local_p2: m21 * clip_b.1,
-            impulse: impulses_b.0,
-            tangent_impulse: impulses_b.1,
             fid1: fids_b.0,
             fid2: fids_b.1,
             dist: dist_b,
+            data: data_b,
         });
 
         manifold.local_n1 = local_n1;
@@ -163,139 +153,4 @@ fn generate_contacts<'a>(
     } else {
         manifold.points.clear();
     }
-}
-
-// Features in clipping points are:
-// 0 = First vertex.
-// 1 = On the face.
-// 2 = Second vertex.
-pub(crate) type ClippingPoints = (Point<f32>, Point<f32>, usize, usize);
-
-#[cfg(feature = "dim2")]
-pub(crate) fn clip_segments_with_normal(
-    mut seg1: (Point<f32>, Point<f32>),
-    mut seg2: (Point<f32>, Point<f32>),
-    normal: Vector<f32>,
-) -> Option<(ClippingPoints, ClippingPoints)> {
-    use crate::utils::WBasis;
-    let tangent = normal.orthonormal_basis()[0];
-
-    let mut range1 = [seg1.0.coords.dot(&tangent), seg1.1.coords.dot(&tangent)];
-    let mut range2 = [seg2.0.coords.dot(&tangent), seg2.1.coords.dot(&tangent)];
-    let mut features1 = [0, 2];
-    let mut features2 = [0, 2];
-
-    if range1[1] < range1[0] {
-        range1.swap(0, 1);
-        features1.swap(0, 1);
-        std::mem::swap(&mut seg1.0, &mut seg1.1);
-    }
-
-    if range2[1] < range2[0] {
-        range2.swap(0, 1);
-        features2.swap(0, 1);
-        std::mem::swap(&mut seg2.0, &mut seg2.1);
-    }
-
-    if range2[0] > range1[1] || range1[0] > range2[1] {
-        // No clip point.
-        return None;
-    }
-
-    let ca = if range2[0] > range1[0] {
-        let bcoord = (range2[0] - range1[0]) * utils::inv(range1[1] - range1[0]);
-        let p1 = seg1.0 + (seg1.1 - seg1.0) * bcoord;
-        let p2 = seg2.0;
-
-        (p1, p2, 1, features2[0])
-    } else {
-        let bcoord = (range1[0] - range2[0]) * utils::inv(range2[1] - range2[0]);
-        let p1 = seg1.0;
-        let p2 = seg2.0 + (seg2.1 - seg2.0) * bcoord;
-
-        (p1, p2, features1[0], 1)
-    };
-
-    let cb = if range2[1] < range1[1] {
-        let bcoord = (range2[1] - range1[0]) * utils::inv(range1[1] - range1[0]);
-        let p1 = seg1.0 + (seg1.1 - seg1.0) * bcoord;
-        let p2 = seg2.1;
-
-        (p1, p2, 1, features2[1])
-    } else {
-        let bcoord = (range1[1] - range2[0]) * utils::inv(range2[1] - range2[0]);
-        let p1 = seg1.1;
-        let p2 = seg2.0 + (seg2.1 - seg2.0) * bcoord;
-
-        (p1, p2, features1[1], 1)
-    };
-
-    Some((ca, cb))
-}
-
-pub(crate) fn clip_segments(
-    mut seg1: (Point<f32>, Point<f32>),
-    mut seg2: (Point<f32>, Point<f32>),
-) -> Option<(ClippingPoints, ClippingPoints)> {
-    // NOTE: no need to normalize the tangent.
-    let tangent1 = seg1.1 - seg1.0;
-    let sqnorm_tangent1 = tangent1.norm_squared();
-
-    let mut range1 = [0.0, sqnorm_tangent1];
-    let mut range2 = [
-        (seg2.0 - seg1.0).dot(&tangent1),
-        (seg2.1 - seg1.0).dot(&tangent1),
-    ];
-    let mut features1 = [0, 2];
-    let mut features2 = [0, 2];
-
-    if range1[1] < range1[0] {
-        range1.swap(0, 1);
-        features1.swap(0, 1);
-        std::mem::swap(&mut seg1.0, &mut seg1.1);
-    }
-
-    if range2[1] < range2[0] {
-        range2.swap(0, 1);
-        features2.swap(0, 1);
-        std::mem::swap(&mut seg2.0, &mut seg2.1);
-    }
-
-    if range2[0] > range1[1] || range1[0] > range2[1] {
-        // No clip point.
-        return None;
-    }
-
-    let length1 = range1[1] - range1[0];
-    let length2 = range2[1] - range2[0];
-
-    let ca = if range2[0] > range1[0] {
-        let bcoord = (range2[0] - range1[0]) / length1;
-        let p1 = seg1.0 + tangent1 * bcoord;
-        let p2 = seg2.0;
-
-        (p1, p2, 1, features2[0])
-    } else {
-        let bcoord = (range1[0] - range2[0]) / length2;
-        let p1 = seg1.0;
-        let p2 = seg2.0 + (seg2.1 - seg2.0) * bcoord;
-
-        (p1, p2, features1[0], 1)
-    };
-
-    let cb = if range2[1] < range1[1] {
-        let bcoord = (range2[1] - range1[0]) / length1;
-        let p1 = seg1.0 + tangent1 * bcoord;
-        let p2 = seg2.1;
-
-        (p1, p2, 1, features2[1])
-    } else {
-        let bcoord = (range1[1] - range2[0]) / length2;
-        let p1 = seg1.1;
-        let p2 = seg2.0 + (seg2.1 - seg2.0) * bcoord;
-
-        (p1, p2, features1[1], 1)
-    };
-
-    Some((ca, cb))
 }

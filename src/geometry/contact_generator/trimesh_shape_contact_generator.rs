@@ -1,9 +1,9 @@
+use crate::buckler::bounding_volume::{BoundingVolume, AABB};
 use crate::data::MaybeSerializableData;
 use crate::geometry::contact_generator::{
     ContactGenerationContext, PrimitiveContactGenerationContext,
 };
-use crate::geometry::{Collider, ContactManifold, ShapeType, Trimesh};
-use crate::ncollide::bounding_volume::{BoundingVolume, AABB};
+use crate::geometry::{Collider, ContactManifold, ContactManifoldData, ShapeType, Trimesh};
 #[cfg(feature = "serde-serialize")]
 use erased_serde::Serialize;
 
@@ -11,7 +11,7 @@ use erased_serde::Serialize;
 #[derive(Clone)]
 pub struct TrimeshShapeContactGeneratorWorkspace {
     interferences: Vec<usize>,
-    local_aabb2: AABB<f32>,
+    local_aabb2: AABB,
     old_interferences: Vec<usize>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     old_manifolds: Vec<ContactManifold>,
@@ -96,7 +96,7 @@ fn do_generate_contacts(
                 .old_manifolds
                 .iter()
                 .map(|manifold| {
-                    if manifold.pair.collider1 == ctxt_collider1 {
+                    if manifold.data.pair.collider1 == ctxt_collider1 {
                         manifold.subshape_index_pair.0
                     } else {
                         manifold.subshape_index_pair.1
@@ -153,14 +153,14 @@ fn do_generate_contacts(
 
             let manifold = if old_inter_it.peek() != Some(triangle_id) {
                 // We don't have a manifold for this triangle yet.
-                ContactManifold::with_subshape_indices(
+                let data = ContactManifoldData::from_colliders(
                     ctxt_pair_pair,
                     collider1,
                     collider2,
-                    *triangle_id,
-                    0,
                     ctxt.solver_flags,
-                )
+                );
+
+                ContactManifold::with_data((*triangle_id, 0), data)
             } else {
                 // We already have a manifold for this triangle.
                 old_inter_it.next();
@@ -176,7 +176,7 @@ fn do_generate_contacts(
             .dispatcher
             .dispatch_primitives(ShapeType::Triangle, shape_type2);
 
-        let mut ctxt2 = if ctxt_pair_pair.collider1 != manifold.pair.collider1 {
+        let mut ctxt2 = if ctxt_pair_pair.collider1 != manifold.data.pair.collider1 {
             PrimitiveContactGenerationContext {
                 prediction_distance: ctxt.prediction_distance,
                 collider1: collider2,

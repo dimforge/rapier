@@ -12,8 +12,8 @@ pub(crate) fn categorize_position_contacts(
 ) {
     for manifold_i in manifold_indices {
         let manifold = &manifolds[*manifold_i];
-        let rb1 = &bodies[manifold.body_pair.body1];
-        let rb2 = &bodies[manifold.body_pair.body2];
+        let rb1 = &bodies[manifold.data.body_pair.body1];
+        let rb2 = &bodies[manifold.data.body_pair.body2];
 
         if !rb1.is_dynamic() || !rb2.is_dynamic() {
             match manifold.kinematics.category {
@@ -38,8 +38,8 @@ pub(crate) fn categorize_velocity_contacts(
 ) {
     for manifold_i in manifold_indices {
         let manifold = &manifolds[*manifold_i];
-        let rb1 = &bodies[manifold.body_pair.body1];
-        let rb2 = &bodies[manifold.body_pair.body2];
+        let rb1 = &bodies[manifold.data.body_pair.body1];
+        let rb2 = &bodies[manifold.data.body_pair.body2];
 
         if !rb1.is_dynamic() || !rb2.is_dynamic() {
             out_ground.push(*manifold_i)

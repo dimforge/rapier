@@ -1,7 +1,7 @@
 #![allow(dead_code)] // TODO: remove this once we support polygons.
 
 use crate::math::{Isometry, Point, Vector};
-use ncollide::bounding_volume::AABB;
+use buckler::bounding_volume::AABB;
 
 #[derive(Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -27,7 +27,7 @@ impl Polygon {
     }
 
     /// Compute the axis-aligned bounding box of the polygon.
-    pub fn aabb(&self, pos: &Isometry<f32>) -> AABB<f32> {
+    pub fn aabb(&self, pos: &Isometry<f32>) -> AABB {
         let p0 = pos * self.vertices[0];
         let mut mins = p0;
         let mut maxs = p0;

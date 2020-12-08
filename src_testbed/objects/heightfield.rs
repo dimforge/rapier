@@ -1,15 +1,16 @@
 #[cfg(feature = "dim3")]
 use crate::objects::node::{self, GraphicsNode};
+use buckler::shape;
+use kiss3d::resource::Mesh;
 use kiss3d::window::Window;
 use na::{self, Point3};
-use ncollide::shape;
-#[cfg(feature = "dim3")]
-use ncollide::transformation::ToTriMesh;
 use rapier::geometry::{ColliderHandle, ColliderSet};
 #[cfg(feature = "dim2")]
 use rapier::math::Point;
 #[cfg(feature = "dim3")]
 use rapier::math::Vector;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct HeightField {
     color: Point3<f32>,
@@ -25,7 +26,7 @@ impl HeightField {
     #[cfg(feature = "dim2")]
     pub fn new(
         collider: ColliderHandle,
-        heightfield: &shape::HeightField<f32>,
+        heightfield: &shape::HeightField,
         color: Point3<f32>,
         _: &mut Window,
     ) -> HeightField {
@@ -47,16 +48,18 @@ impl HeightField {
     #[cfg(feature = "dim3")]
     pub fn new(
         collider: ColliderHandle,
-        heightfield: &shape::HeightField<f32>,
+        heightfield: &shape::HeightField,
         color: Point3<f32>,
         window: &mut Window,
     ) -> HeightField {
-        let mesh = heightfield.to_trimesh(());
+        let (vertices, indices) = heightfield.to_trimesh();
+        let indices = indices.into_iter().map(|i| na::convert(i)).collect();
+        let mesh = Mesh::new(vertices, indices, None, None, false);
 
         let mut res = HeightField {
             color,
             base_color: color,
-            gfx: window.add_trimesh(mesh, Vector::repeat(1.0)),
+            gfx: window.add_mesh(Rc::new(RefCell::new(mesh)), Vector::repeat(1.0)),
             collider: collider,
         };
 

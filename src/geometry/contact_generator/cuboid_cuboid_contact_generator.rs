@@ -1,9 +1,10 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-use crate::geometry::{cuboid, sat, ContactManifold, CuboidFeature, KinematicsCategory};
+use crate::geometry::{ContactManifold, ContactManifoldData, KinematicsCategory};
 use crate::math::Isometry;
 #[cfg(feature = "dim2")]
 use crate::math::Vector;
-use ncollide::shape::Cuboid;
+use buckler::query::sat;
+use buckler::shape::{Cuboid, CuboidFeature};
 
 pub fn generate_contacts_cuboid_cuboid(ctxt: &mut PrimitiveContactGenerationContext) {
     if let (Some(cube1), Some(cube2)) = (ctxt.shape1.as_cuboid(), ctxt.shape2.as_cuboid()) {
@@ -19,15 +20,15 @@ pub fn generate_contacts_cuboid_cuboid(ctxt: &mut PrimitiveContactGenerationCont
         unreachable!()
     }
 
-    ctxt.manifold.update_warmstart_multiplier();
+    ContactManifoldData::update_warmstart_multiplier(ctxt.manifold);
     ctxt.manifold.sort_contacts(ctxt.prediction_distance);
 }
 
 pub fn generate_contacts<'a>(
     prediction_distance: f32,
-    mut cube1: &'a Cuboid<f32>,
+    mut cube1: &'a Cuboid,
     mut pos1: &'a Isometry<f32>,
-    mut cube2: &'a Cuboid<f32>,
+    mut cube2: &'a Cuboid,
     mut pos2: &'a Isometry<f32>,
     manifold: &mut ContactManifold,
 ) {
@@ -43,13 +44,13 @@ pub fn generate_contacts<'a>(
      * Point-Face
      *
      */
-    let sep1 = sat::cuboid_cuboid_find_local_separating_normal_oneway(cube1, cube2, &pos12, &pos21);
+    let sep1 = sat::cuboid_cuboid_find_local_separating_normal_oneway(cube1, cube2, &pos12);
     if sep1.0 > prediction_distance {
         manifold.points.clear();
         return;
     }
 
-    let sep2 = sat::cuboid_cuboid_find_local_separating_normal_oneway(cube2, cube1, &pos21, &pos12);
+    let sep2 = sat::cuboid_cuboid_find_local_separating_normal_oneway(cube2, cube1, &pos21);
     if sep2.0 > prediction_distance {
         manifold.points.clear();
         return;
@@ -63,7 +64,7 @@ pub fn generate_contacts<'a>(
     #[cfg(feature = "dim2")]
     let sep3 = (-f32::MAX, Vector::x()); // This case does not exist in 2D.
     #[cfg(feature = "dim3")]
-    let sep3 = sat::cuboid_cuboid_find_local_separating_edge_twoway(cube1, cube2, &pos12, &pos21);
+    let sep3 = sat::cuboid_cuboid_find_local_separating_edge_twoway(cube1, cube2, &pos12);
     if sep3.0 > prediction_distance {
         manifold.points.clear();
         return;
@@ -97,8 +98,8 @@ pub fn generate_contacts<'a>(
 
     // Now the reference feature is from `cube1` and the best separation is `best_sep`.
     // Everything must be expressed in the local-space of `cube1` for contact clipping.
-    let feature1 = cuboid::support_feature(cube1, best_sep.1);
-    let mut feature2 = cuboid::support_feature(cube2, pos21 * -best_sep.1);
+    let feature1 = cube1.support_feature(best_sep.1);
+    let mut feature2 = cube2.support_feature(pos21 * -best_sep.1);
     feature2.transform_by(&pos12);
 
     match (&feature1, &feature2) {
@@ -151,5 +152,5 @@ pub fn generate_contacts<'a>(
     manifold.kinematics.radius2 = 0.0;
 
     // Transfer impulses.
-    super::match_contacts(manifold, &old_manifold_points, swapped);
+    manifold.match_contacts(&old_manifold_points, swapped);
 }

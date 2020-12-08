@@ -8,14 +8,15 @@
 //! - The ability to run a perfectly deterministic simulation on different machine, as long as they
 //! are compliant with the IEEE 754-2008 floating point standard.
 
-#![deny(missing_docs)]
+// FIXME: deny that
+#![allow(missing_docs)]
 
+#[cfg(feature = "dim2")]
+pub extern crate buckler2d as buckler;
+#[cfg(feature = "dim3")]
+pub extern crate buckler3d as buckler;
 pub extern crate crossbeam;
 pub extern crate nalgebra as na;
-#[cfg(feature = "dim2")]
-pub extern crate ncollide2d as ncollide;
-#[cfg(feature = "dim3")]
-pub extern crate ncollide3d as ncollide;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;

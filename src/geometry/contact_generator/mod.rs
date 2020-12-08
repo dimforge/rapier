@@ -28,10 +28,6 @@ pub use self::trimesh_shape_contact_generator::{
     generate_contacts_trimesh_shape, TrimeshShapeContactGeneratorWorkspace,
 };
 
-pub(crate) use self::polygon_polygon_contact_generator::clip_segments;
-#[cfg(feature = "dim2")]
-pub(crate) use self::polygon_polygon_contact_generator::clip_segments_with_normal;
-
 pub(self) use self::serializable_workspace_tag::WorkspaceSerializationTag;
 
 mod ball_ball_contact_generator;
@@ -53,29 +49,3 @@ mod serializable_workspace_tag;
 mod trimesh_shape_contact_generator;
 
 use crate::geometry::{Contact, ContactManifold};
-
-pub(crate) fn match_contacts(
-    manifold: &mut ContactManifold,
-    old_contacts: &[Contact],
-    swapped: bool,
-) {
-    for contact in &mut manifold.points {
-        if !swapped {
-            for old_contact in old_contacts {
-                if contact.fid1 == old_contact.fid1 && contact.fid2 == old_contact.fid2 {
-                    // Transfer impulse cache.
-                    contact.impulse = old_contact.impulse;
-                    contact.tangent_impulse = old_contact.tangent_impulse;
-                }
-            }
-        } else {
-            for old_contact in old_contacts {
-                if contact.fid1 == old_contact.fid2 && contact.fid2 == old_contact.fid1 {
-                    // Transfer impulse cache.
-                    contact.impulse = old_contact.impulse;
-                    contact.tangent_impulse = old_contact.tangent_impulse;
-                }
-            }
-        }
-    }
-}

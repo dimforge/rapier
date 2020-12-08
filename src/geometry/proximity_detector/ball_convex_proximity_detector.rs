@@ -1,7 +1,7 @@
 use crate::geometry::proximity_detector::PrimitiveProximityDetectionContext;
 use crate::geometry::{Ball, Proximity};
 use crate::math::Isometry;
-use ncollide::query::PointQuery;
+use buckler::query::PointQuery;
 
 pub fn detect_proximity_ball_convex(ctxt: &mut PrimitiveProximityDetectionContext) -> Proximity {
     if let Some(ball1) = ctxt.shape1.as_ball() {
@@ -13,7 +13,7 @@ pub fn detect_proximity_ball_convex(ctxt: &mut PrimitiveProximityDetectionContex
     }
 }
 
-fn do_detect_proximity<P: ?Sized + PointQuery<f32>>(
+fn do_detect_proximity<P: ?Sized + PointQuery>(
     point_query1: &P,
     ball2: &Ball,
     ctxt: &PrimitiveProximityDetectionContext,
@@ -22,11 +22,8 @@ fn do_detect_proximity<P: ?Sized + PointQuery<f32>>(
         .position1
         .inverse_transform_point(&ctxt.position2.translation.vector.into());
 
-    // TODO: add a `project_local_point` to the PointQuery trait to avoid
-    // the identity isometry.
-    let proj =
-        point_query1.project_point(&Isometry::identity(), &local_p2_1, cfg!(feature = "dim3"));
-    let dpos = local_p2_1 - proj.point;
+    let proj = point_query1.project_local_point(&local_p2_1, cfg!(feature = "dim3"));
+    let dpos = local_p2_1 - proj.local_point;
     let dist = dpos.norm();
 
     if proj.is_inside {

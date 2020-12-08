@@ -4,7 +4,7 @@ use crate::dynamics::RigidBodySet;
 use crate::geometry::{ColliderHandle, ColliderSet, RemovedCollider};
 use crate::math::{Point, Vector, DIM};
 use bit_vec::BitVec;
-use ncollide::bounding_volume::{BoundingVolume, AABB};
+use buckler::bounding_volume::{BoundingVolume, AABB};
 use std::cmp::Ordering;
 use std::ops::{Index, IndexMut};
 
@@ -67,7 +67,7 @@ fn point_key(point: Point<f32>) -> Point<i32> {
     (point / CELL_WIDTH).coords.map(|e| e.floor() as i32).into()
 }
 
-fn region_aabb(index: Point<i32>) -> AABB<f32> {
+fn region_aabb(index: Point<i32>) -> AABB {
     let mins = index.coords.map(|i| i as f32 * CELL_WIDTH).into();
     let maxs = mins + Vector::repeat(CELL_WIDTH);
     AABB::new(mins, maxs)
@@ -345,7 +345,7 @@ struct SAPRegion {
 }
 
 impl SAPRegion {
-    pub fn new(bounds: AABB<f32>) -> Self {
+    pub fn new(bounds: AABB) -> Self {
         let axes = [
             SAPAxis::new(bounds.mins.x, bounds.maxs.x),
             SAPAxis::new(bounds.mins.y, bounds.maxs.y),
@@ -361,7 +361,7 @@ impl SAPRegion {
         }
     }
 
-    pub fn recycle(bounds: AABB<f32>, mut old: Self) -> Self {
+    pub fn recycle(bounds: AABB, mut old: Self) -> Self {
         // Correct the bounds
         for (axis, &bound) in old.axes.iter_mut().zip(bounds.mins.iter()) {
             axis.min_bound = bound;
@@ -381,7 +381,7 @@ impl SAPRegion {
         old
     }
 
-    pub fn recycle_or_new(bounds: AABB<f32>, pool: &mut Vec<Self>) -> Self {
+    pub fn recycle_or_new(bounds: AABB, pool: &mut Vec<Self>) -> Self {
         if let Some(old) = pool.pop() {
             Self::recycle(bounds, old)
         } else {
@@ -488,7 +488,7 @@ pub struct BroadPhase {
 #[derive(Clone)]
 pub(crate) struct BroadPhaseProxy {
     handle: ColliderHandle,
-    aabb: AABB<f32>,
+    aabb: AABB,
     next_free: u32,
 }
 

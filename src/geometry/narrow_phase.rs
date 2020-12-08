@@ -21,9 +21,9 @@ use crate::geometry::{
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 //#[cfg(feature = "simd-is-enabled")]
 //use crate::math::{SimdFloat, SIMD_WIDTH};
+use crate::buckler::query::Proximity;
 use crate::data::pubsub::Subscription;
 use crate::data::Coarena;
-use crate::ncollide::query::Proximity;
 use crate::pipeline::EventHandler;
 use std::collections::HashMap;
 //use simba::simd::SimdValue;
@@ -568,9 +568,10 @@ impl NarrowPhase {
         // FIXME: don't iterate through all the interactions.
         for inter in self.contact_graph.graph.edges.iter_mut() {
             for manifold in &mut inter.weight.manifolds {
-                let rb1 = &bodies[manifold.body_pair.body1];
-                let rb2 = &bodies[manifold.body_pair.body2];
+                let rb1 = &bodies[manifold.data.body_pair.body1];
+                let rb2 = &bodies[manifold.data.body_pair.body2];
                 if manifold
+                    .data
                     .solver_flags
                     .contains(SolverFlags::COMPUTE_IMPULSES)
                     && manifold.num_active_contacts() != 0

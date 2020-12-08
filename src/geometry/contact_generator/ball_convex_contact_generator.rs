@@ -1,8 +1,8 @@
 use crate::geometry::contact_generator::PrimitiveContactGenerationContext;
-use crate::geometry::{Ball, Contact, KinematicsCategory};
+use crate::geometry::{Ball, Contact, ContactManifoldData, KinematicsCategory};
 use crate::math::Isometry;
+use buckler::query::PointQuery;
 use na::Unit;
-use ncollide::query::PointQuery;
 
 pub fn generate_contacts_ball_convex(ctxt: &mut PrimitiveContactGenerationContext) {
     if let Some(ball1) = ctxt.shape1.as_ball() {
@@ -15,7 +15,7 @@ pub fn generate_contacts_ball_convex(ctxt: &mut PrimitiveContactGenerationContex
     ctxt.manifold.sort_contacts(ctxt.prediction_distance);
 }
 
-fn do_generate_contacts<P: ?Sized + PointQuery<f32>>(
+fn do_generate_contacts<P: ?Sized + PointQuery>(
     point_query1: &P,
     ball2: &Ball,
     ctxt: &mut PrimitiveContactGenerationContext,
@@ -33,12 +33,8 @@ fn do_generate_contacts<P: ?Sized + PointQuery<f32>>(
     }
 
     let local_p2_1 = position1.inverse_transform_point(&position2.translation.vector.into());
-
-    // TODO: add a `project_local_point` to the PointQuery trait to avoid
-    // the identity isometry.
-    let proj =
-        point_query1.project_point(&Isometry::identity(), &local_p2_1, cfg!(feature = "dim3"));
-    let dpos = local_p2_1 - proj.point;
+    let proj = point_query1.project_local_point(&local_p2_1, cfg!(feature = "dim3"));
+    let dpos = local_p2_1 - proj.local_point;
 
     #[allow(unused_mut)] // Because `mut local_n1, mut dist` is needed in 2D but not in 3D.
     if let Some((mut local_n1, mut dist)) = Unit::try_new_and_get(dpos, 0.0) {
@@ -51,8 +47,8 @@ fn do_generate_contacts<P: ?Sized + PointQuery<f32>>(
         if dist <= ball2.radius + ctxt.prediction_distance {
             let local_n2 = position2.inverse_transform_vector(&(position1 * -*local_n1));
             let local_p2 = (local_n2 * ball2.radius).into();
+            let contact_point = Contact::new(proj.local_point, local_p2, 0, 0, dist - ball2.radius);
 
-            let contact_point = Contact::new(proj.point, local_p2, 0, 0, dist - ball2.radius);
             if ctxt.manifold.points.len() != 1 {
                 ctxt.manifold.points.clear();
                 ctxt.manifold.points.push(contact_point);
@@ -66,7 +62,7 @@ fn do_generate_contacts<P: ?Sized + PointQuery<f32>>(
             ctxt.manifold.kinematics.category = KinematicsCategory::PlanePoint;
             ctxt.manifold.kinematics.radius1 = 0.0;
             ctxt.manifold.kinematics.radius2 = ball2.radius;
-            ctxt.manifold.update_warmstart_multiplier();
+            ContactManifoldData::update_warmstart_multiplier(ctxt.manifold);
         } else {
             ctxt.manifold.points.clear();
         }

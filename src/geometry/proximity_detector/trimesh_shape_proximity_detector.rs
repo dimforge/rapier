@@ -1,12 +1,12 @@
+use crate::buckler::bounding_volume::{BoundingVolume, AABB};
 use crate::geometry::proximity_detector::{
     PrimitiveProximityDetectionContext, ProximityDetectionContext,
 };
 use crate::geometry::{Collider, Proximity, ShapeType, Trimesh};
-use crate::ncollide::bounding_volume::{BoundingVolume, AABB};
 
 pub struct TrimeshShapeProximityDetectorWorkspace {
     interferences: Vec<usize>,
-    local_aabb2: AABB<f32>,
+    local_aabb2: AABB,
     old_interferences: Vec<usize>,
 }
 

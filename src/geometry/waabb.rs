@@ -1,7 +1,7 @@
 use crate::geometry::Ray;
 use crate::math::{Point, Vector, DIM, SIMD_WIDTH};
 use crate::utils;
-use ncollide::bounding_volume::AABB;
+use buckler::bounding_volume::AABB;
 use num::{One, Zero};
 use {
     crate::math::{SimdBool, SimdFloat},
@@ -97,7 +97,7 @@ impl WAABB {
         Self::splat(AABB::new_invalid())
     }
 
-    pub fn splat(aabb: AABB<f32>) -> Self {
+    pub fn splat(aabb: AABB) -> Self {
         Self {
             mins: Point::splat(aabb.mins),
             maxs: Point::splat(aabb.maxs),
@@ -119,7 +119,7 @@ impl WAABB {
         self.maxs += dilation;
     }
 
-    pub fn replace(&mut self, i: usize, aabb: AABB<f32>) {
+    pub fn replace(&mut self, i: usize, aabb: AABB) {
         self.mins.replace(i, aabb.mins);
         self.maxs.replace(i, aabb.maxs);
     }
@@ -196,7 +196,7 @@ impl WAABB {
             & other.mins.z.simd_le(self.maxs.z)
     }
 
-    pub fn to_merged_aabb(&self) -> AABB<f32> {
+    pub fn to_merged_aabb(&self) -> AABB {
         AABB::new(
             self.mins.coords.map(|e| e.simd_horizontal_min()).into(),
             self.maxs.coords.map(|e| e.simd_horizontal_max()).into(),
@@ -204,8 +204,8 @@ impl WAABB {
     }
 }
 
-impl From<[AABB<f32>; SIMD_WIDTH]> for WAABB {
-    fn from(aabbs: [AABB<f32>; SIMD_WIDTH]) -> Self {
+impl From<[AABB; SIMD_WIDTH]> for WAABB {
+    fn from(aabbs: [AABB; SIMD_WIDTH]) -> Self {
         let mins = array![|ii| aabbs[ii].mins; SIMD_WIDTH];
         let maxs = array![|ii| aabbs[ii].maxs; SIMD_WIDTH];
 

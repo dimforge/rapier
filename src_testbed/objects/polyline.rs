@@ -1,6 +1,6 @@
+use buckler2d::shape;
 use kiss3d::window::Window;
 use na::{Isometry2, Point2, Point3};
-use ncollide2d::shape;
 use nphysics2d::object::{ColliderAnchor, DefaultColliderHandle, DefaultColliderSet};
 
 pub struct Polyline {
