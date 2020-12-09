@@ -186,7 +186,7 @@ pub struct PhysicsState {
 }
 
 impl PhysicsState {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             broad_phase: BroadPhase::new(),
             narrow_phase: NarrowPhase::new(),
