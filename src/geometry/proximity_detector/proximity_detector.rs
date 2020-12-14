@@ -3,7 +3,7 @@ use crate::geometry::{
 };
 use crate::math::Isometry;
 #[cfg(feature = "simd-is-enabled")]
-use crate::math::{SimdFloat, SIMD_WIDTH};
+use crate::math::{SimdReal, SIMD_WIDTH};
 use crate::pipeline::EventHandler;
 use std::any::Any;
 
@@ -134,8 +134,8 @@ pub struct PrimitiveProximityDetectionContextSimd<'a, 'b> {
     pub colliders2: [&'a Collider; SIMD_WIDTH],
     pub shapes1: [&'a dyn Shape; SIMD_WIDTH],
     pub shapes2: [&'a dyn Shape; SIMD_WIDTH],
-    pub positions1: &'a Isometry<SimdFloat>,
-    pub positions2: &'a Isometry<SimdFloat>,
+    pub positions1: &'a Isometry<SimdReal>,
+    pub positions2: &'a Isometry<SimdReal>,
     pub workspaces: &'a mut [Option<&'b mut (dyn Any + Send + Sync)>],
 }
 

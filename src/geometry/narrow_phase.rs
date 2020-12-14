@@ -20,7 +20,7 @@ use crate::geometry::{
 };
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 //#[cfg(feature = "simd-is-enabled")]
-//use crate::math::{SimdFloat, SIMD_WIDTH};
+//use crate::math::{SimdReal, SIMD_WIDTH};
 use crate::buckler::query::Proximity;
 use crate::data::pubsub::Subscription;
 use crate::data::Coarena;

@@ -2,7 +2,7 @@ use super::AnyPositionConstraint;
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, KinematicsCategory};
 use crate::math::{
-    AngularInertia, Isometry, Point, Rotation, SimdFloat, Translation, Vector, MAX_MANIFOLD_POINTS,
+    AngularInertia, Isometry, Point, Rotation, SimdReal, Translation, Vector, MAX_MANIFOLD_POINTS,
     SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WDot};
@@ -14,16 +14,16 @@ pub(crate) struct WPositionConstraint {
     pub rb1: [usize; SIMD_WIDTH],
     pub rb2: [usize; SIMD_WIDTH],
     // NOTE: the points are relative to the center of masses.
-    pub local_p1: [Point<SimdFloat>; MAX_MANIFOLD_POINTS],
-    pub local_p2: [Point<SimdFloat>; MAX_MANIFOLD_POINTS],
-    pub local_n1: Vector<SimdFloat>,
-    pub radius: SimdFloat,
-    pub im1: SimdFloat,
-    pub im2: SimdFloat,
-    pub ii1: AngularInertia<SimdFloat>,
-    pub ii2: AngularInertia<SimdFloat>,
-    pub erp: SimdFloat,
-    pub max_linear_correction: SimdFloat,
+    pub local_p1: [Point<SimdReal>; MAX_MANIFOLD_POINTS],
+    pub local_p2: [Point<SimdReal>; MAX_MANIFOLD_POINTS],
+    pub local_n1: Vector<SimdReal>,
+    pub radius: SimdReal,
+    pub im1: SimdReal,
+    pub im2: SimdReal,
+    pub ii1: AngularInertia<SimdReal>,
+    pub ii2: AngularInertia<SimdReal>,
+    pub erp: SimdReal,
+    pub max_linear_correction: SimdReal,
     pub num_contacts: u8,
 }
 
@@ -38,18 +38,18 @@ impl WPositionConstraint {
         let rbs1 = array![|ii| bodies.get(manifolds[ii].data.body_pair.body1).unwrap(); SIMD_WIDTH];
         let rbs2 = array![|ii| bodies.get(manifolds[ii].data.body_pair.body2).unwrap(); SIMD_WIDTH];
 
-        let im1 = SimdFloat::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let sqrt_ii1: AngularInertia<SimdFloat> =
+        let im1 = SimdReal::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let sqrt_ii1: AngularInertia<SimdReal> =
             AngularInertia::from(array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let sqrt_ii2: AngularInertia<SimdFloat> =
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let sqrt_ii2: AngularInertia<SimdReal> =
             AngularInertia::from(array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
 
         let local_n1 = Vector::from(array![|ii| manifolds[ii].local_n1; SIMD_WIDTH]);
         let local_n2 = Vector::from(array![|ii| manifolds[ii].local_n2; SIMD_WIDTH]);
 
-        let radius1 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius1; SIMD_WIDTH]);
-        let radius2 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius2; SIMD_WIDTH]);
+        let radius1 = SimdReal::from(array![|ii| manifolds[ii].kinematics.radius1; SIMD_WIDTH]);
+        let radius2 = SimdReal::from(array![|ii| manifolds[ii].kinematics.radius2; SIMD_WIDTH]);
 
         let delta1 = Isometry::from(array![|ii| manifolds[ii].data.delta1; SIMD_WIDTH]);
         let delta2 = Isometry::from(array![|ii| manifolds[ii].data.delta2; SIMD_WIDTH]);
@@ -57,7 +57,7 @@ impl WPositionConstraint {
         let rb1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
         let rb2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
-        let radius = radius1 + radius2 /*- SimdFloat::splat(params.allowed_linear_error)*/;
+        let radius = radius1 + radius2 /*- SimdReal::splat(params.allowed_linear_error)*/;
 
         for l in (0..manifolds[0].num_active_contacts()).step_by(MAX_MANIFOLD_POINTS) {
             let manifold_points = array![|ii| &manifolds[ii].active_contacts()[l..]; SIMD_WIDTH];
@@ -74,8 +74,8 @@ impl WPositionConstraint {
                 im2,
                 ii1: sqrt_ii1.squared(),
                 ii2: sqrt_ii2.squared(),
-                erp: SimdFloat::splat(params.erp),
-                max_linear_correction: SimdFloat::splat(params.max_linear_correction),
+                erp: SimdReal::splat(params.erp),
+                max_linear_correction: SimdReal::splat(params.max_linear_correction),
                 num_contacts: num_points as u8,
             };
 
@@ -119,7 +119,7 @@ impl WPositionConstraint {
         // Compute jacobians.
         let mut pos1 = Isometry::from(array![|ii| positions[self.rb1[ii]]; SIMD_WIDTH]);
         let mut pos2 = Isometry::from(array![|ii| positions[self.rb2[ii]]; SIMD_WIDTH]);
-        let allowed_err = SimdFloat::splat(params.allowed_linear_error);
+        let allowed_err = SimdReal::splat(params.allowed_linear_error);
         let target_dist = self.radius - allowed_err;
 
         for k in 0..self.num_contacts as usize {
@@ -133,7 +133,7 @@ impl WPositionConstraint {
                 let dist = sqdist.simd_sqrt();
                 let n = dpos / dist;
                 let err = ((dist - target_dist) * self.erp)
-                    .simd_clamp(-self.max_linear_correction, SimdFloat::zero());
+                    .simd_clamp(-self.max_linear_correction, SimdReal::zero());
                 let dp1 = p1.coords - pos1.translation.vector;
                 let dp2 = p2.coords - pos2.translation.vector;
 
@@ -173,7 +173,7 @@ impl WPositionConstraint {
         // Compute jacobians.
         let mut pos1 = Isometry::from(array![|ii| positions[self.rb1[ii]]; SIMD_WIDTH]);
         let mut pos2 = Isometry::from(array![|ii| positions[self.rb2[ii]]; SIMD_WIDTH]);
-        let allowed_err = SimdFloat::splat(params.allowed_linear_error);
+        let allowed_err = SimdReal::splat(params.allowed_linear_error);
         let target_dist = self.radius - allowed_err;
 
         for k in 0..self.num_contacts as usize {
@@ -188,7 +188,7 @@ impl WPositionConstraint {
                 // NOTE: only works for the point-point case.
                 let p1 = p2 - n1 * dist;
                 let err = ((dist - target_dist) * self.erp)
-                    .simd_clamp(-self.max_linear_correction, SimdFloat::zero());
+                    .simd_clamp(-self.max_linear_correction, SimdReal::zero());
                 let dp1 = p1.coords - pos1.translation.vector;
                 let dp2 = p2.coords - pos2.translation.vector;
 

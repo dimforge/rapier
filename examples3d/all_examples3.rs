@@ -84,7 +84,7 @@ pub fn main() {
         ("Restitution", restitution3::init_world),
         ("Stacks", stacks3::init_world),
         ("Sensor", sensor3::init_world),
-        ("Trimesh", trimesh3::init_world),
+        ("TriMesh", trimesh3::init_world),
         ("Keva tower", keva3::init_world),
         (
             "(Debug) add/rm collider",

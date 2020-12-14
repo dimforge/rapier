@@ -15,7 +15,7 @@ pub use self::proximity_detector::{
 };
 pub use self::proximity_dispatcher::{DefaultProximityDispatcher, ProximityDispatcher};
 pub use self::trimesh_shape_proximity_detector::{
-    detect_proximity_trimesh_shape, TrimeshShapeProximityDetectorWorkspace,
+    detect_proximity_trimesh_shape, TriMeshShapeProximityDetectorWorkspace,
 };
 
 mod ball_ball_proximity_detector;

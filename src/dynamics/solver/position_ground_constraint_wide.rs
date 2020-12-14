@@ -2,7 +2,7 @@ use super::AnyPositionConstraint;
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, KinematicsCategory};
 use crate::math::{
-    AngularInertia, Isometry, Point, Rotation, SimdFloat, Translation, Vector, MAX_MANIFOLD_POINTS,
+    AngularInertia, Isometry, Point, Rotation, SimdReal, Translation, Vector, MAX_MANIFOLD_POINTS,
     SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WDot};
@@ -13,14 +13,14 @@ use simba::simd::{SimdBool as _, SimdComplexField, SimdPartialOrd, SimdValue};
 pub(crate) struct WPositionGroundConstraint {
     pub rb2: [usize; SIMD_WIDTH],
     // NOTE: the points are relative to the center of masses.
-    pub p1: [Point<SimdFloat>; MAX_MANIFOLD_POINTS],
-    pub local_p2: [Point<SimdFloat>; MAX_MANIFOLD_POINTS],
-    pub n1: Vector<SimdFloat>,
-    pub radius: SimdFloat,
-    pub im2: SimdFloat,
-    pub ii2: AngularInertia<SimdFloat>,
-    pub erp: SimdFloat,
-    pub max_linear_correction: SimdFloat,
+    pub p1: [Point<SimdReal>; MAX_MANIFOLD_POINTS],
+    pub local_p2: [Point<SimdReal>; MAX_MANIFOLD_POINTS],
+    pub n1: Vector<SimdReal>,
+    pub radius: SimdReal,
+    pub im2: SimdReal,
+    pub ii2: AngularInertia<SimdReal>,
+    pub erp: SimdReal,
+    pub max_linear_correction: SimdReal,
     pub num_contacts: u8,
 }
 
@@ -45,8 +45,8 @@ impl WPositionGroundConstraint {
             }
         }
 
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let sqrt_ii2: AngularInertia<SimdFloat> =
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let sqrt_ii2: AngularInertia<SimdReal> =
             AngularInertia::from(array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
 
         let local_n1 = Vector::from(
@@ -63,15 +63,15 @@ impl WPositionGroundConstraint {
             array![|ii| if flipped[ii] { manifolds[ii].data.delta1 } else { manifolds[ii].data.delta2 }; SIMD_WIDTH],
         );
 
-        let radius1 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius1; SIMD_WIDTH]);
-        let radius2 = SimdFloat::from(array![|ii| manifolds[ii].kinematics.radius2; SIMD_WIDTH]);
+        let radius1 = SimdReal::from(array![|ii| manifolds[ii].kinematics.radius1; SIMD_WIDTH]);
+        let radius2 = SimdReal::from(array![|ii| manifolds[ii].kinematics.radius2; SIMD_WIDTH]);
 
         let coll_pos1 =
             delta1 * Isometry::from(array![|ii| rbs1[ii].predicted_position; SIMD_WIDTH]);
 
         let rb2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
-        let radius = radius1 + radius2 /*- SimdFloat::splat(params.allowed_linear_error)*/;
+        let radius = radius1 + radius2 /*- SimdReal::splat(params.allowed_linear_error)*/;
 
         let n1 = coll_pos1 * local_n1;
 
@@ -87,8 +87,8 @@ impl WPositionGroundConstraint {
                 radius,
                 im2,
                 ii2: sqrt_ii2.squared(),
-                erp: SimdFloat::splat(params.erp),
-                max_linear_correction: SimdFloat::splat(params.max_linear_correction),
+                erp: SimdReal::splat(params.erp),
+                max_linear_correction: SimdReal::splat(params.max_linear_correction),
                 num_contacts: num_points as u8,
             };
 
@@ -131,7 +131,7 @@ impl WPositionGroundConstraint {
         // FIXME: can we avoid most of the multiplications by pos1/pos2?
         // Compute jacobians.
         let mut pos2 = Isometry::from(array![|ii| positions[self.rb2[ii]]; SIMD_WIDTH]);
-        let allowed_err = SimdFloat::splat(params.allowed_linear_error);
+        let allowed_err = SimdReal::splat(params.allowed_linear_error);
         let target_dist = self.radius - allowed_err;
 
         for k in 0..self.num_contacts as usize {
@@ -145,7 +145,7 @@ impl WPositionGroundConstraint {
                 let dist = sqdist.simd_sqrt();
                 let n = dpos / dist;
                 let err = ((dist - target_dist) * self.erp)
-                    .simd_clamp(-self.max_linear_correction, SimdFloat::zero());
+                    .simd_clamp(-self.max_linear_correction, SimdReal::zero());
                 let dp2 = p2.coords - pos2.translation.vector;
                 let gcross2 = -dp2.gcross(n);
                 let ii_gcross2 = self.ii2.transform_vector(gcross2);
@@ -173,7 +173,7 @@ impl WPositionGroundConstraint {
         // FIXME: can we avoid most of the multiplications by pos1/pos2?
         // Compute jacobians.
         let mut pos2 = Isometry::from(array![|ii| positions[self.rb2[ii]]; SIMD_WIDTH]);
-        let allowed_err = SimdFloat::splat(params.allowed_linear_error);
+        let allowed_err = SimdReal::splat(params.allowed_linear_error);
         let target_dist = self.radius - allowed_err;
 
         for k in 0..self.num_contacts as usize {
@@ -186,7 +186,7 @@ impl WPositionGroundConstraint {
             // NOTE: this condition does not seem to be useful perfomancewise?
             if dist.simd_lt(target_dist).any() {
                 let err = ((dist - target_dist) * self.erp)
-                    .simd_clamp(-self.max_linear_correction, SimdFloat::zero());
+                    .simd_clamp(-self.max_linear_correction, SimdReal::zero());
                 let dp2 = p2.coords - pos2.translation.vector;
 
                 let gcross2 = -dp2.gcross(n1);

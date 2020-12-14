@@ -1,12 +1,13 @@
+use crate::buckler::shape::HalfSpace;
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
-use crate::geometry::{
-    Ball, Capsule, Cuboid, HeightField, InteractionGroups, Segment, Shape, ShapeType, Triangle,
-    Trimesh,
-};
-#[cfg(feature = "dim3")]
-use crate::geometry::{Cone, Cylinder, RoundCylinder};
+use crate::geometry::InteractionGroups;
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
 use buckler::bounding_volume::AABB;
+use buckler::shape::{
+    Ball, Capsule, Cuboid, HeightField, Segment, Shape, ShapeType, TriMesh, Triangle,
+};
+#[cfg(feature = "dim3")]
+use buckler::shape::{Cone, Cylinder, RoundCylinder};
 use na::Point3;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -77,7 +78,7 @@ impl ColliderShape {
 
     /// Initializes a triangle mesh shape defined by its vertex and index buffers.
     pub fn trimesh(vertices: Vec<Point<f32>>, indices: Vec<Point3<u32>>) -> Self {
-        ColliderShape(Arc::new(Trimesh::new(vertices, indices)))
+        ColliderShape(Arc::new(TriMesh::new(vertices, indices)))
     }
 
     /// Initializes an heightfield shape defined by its set of height and a scale
@@ -165,8 +166,9 @@ impl<'de> serde::Deserialize<'de> for ColliderShape {
                     Some(ShapeType::Capsule) => deser::<A, Capsule>(&mut seq)?,
                     Some(ShapeType::Triangle) => deser::<A, Triangle>(&mut seq)?,
                     Some(ShapeType::Segment) => deser::<A, Segment>(&mut seq)?,
-                    Some(ShapeType::Trimesh) => deser::<A, Trimesh>(&mut seq)?,
+                    Some(ShapeType::TriMesh) => deser::<A, TriMesh>(&mut seq)?,
                     Some(ShapeType::HeightField) => deser::<A, HeightField>(&mut seq)?,
+                    Some(ShapeType::HalfSpace) => deser::<A, HalfSpace>(&mut seq)?,
                     #[cfg(feature = "dim3")]
                     Some(ShapeType::Cylinder) => deser::<A, Cylinder>(&mut seq)?,
                     #[cfg(feature = "dim3")]

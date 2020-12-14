@@ -15,8 +15,8 @@ edition = "2018"
 default = [ "dim3" ]
 dim3    = [ ]
 parallel = [ "rayon" ]
-simd-stable = [ "simba/wide", "simd-is-enabled" ]
-simd-nightly = [ "simba/packed_simd", "simd-is-enabled" ]
+simd-stable = [ "buckler3d/simd-stable", "simba/wide", "simd-is-enabled" ]
+simd-nightly = [ "buckler3d/simd-nightly", "simba/packed_simd", "simd-is-enabled" ]
 # Do not enable this feature directly. It is automatically
 # enabled with the "simd-stable" or "simd-nightly" feature.
 simd-is-enabled = [ ]

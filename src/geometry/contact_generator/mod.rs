@@ -25,7 +25,7 @@ pub use self::pfm_pfm_contact_generator::{
 // pub use self::polygon_polygon_contact_generator::generate_contacts_polygon_polygon;
 pub use self::contact_generator_workspace::ContactGeneratorWorkspace;
 pub use self::trimesh_shape_contact_generator::{
-    generate_contacts_trimesh_shape, TrimeshShapeContactGeneratorWorkspace,
+    generate_contacts_trimesh_shape, TriMeshShapeContactGeneratorWorkspace,
 };
 
 pub(self) use self::serializable_workspace_tag::WorkspaceSerializationTag;

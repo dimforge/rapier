@@ -5,9 +5,10 @@ use crate::geometry::contact_generator::{
     ContactGenerationContext, ContactGeneratorWorkspace, PrimitiveContactGenerationContext,
     PrimitiveContactGenerator,
 };
+use crate::geometry::{Collider, ContactManifold, ContactManifoldData};
 #[cfg(feature = "dim2")]
-use crate::geometry::Capsule;
-use crate::geometry::{Collider, ContactManifold, ContactManifoldData, HeightField, Shape};
+use buckler::shape::Capsule;
+use buckler::shape::{HeightField, Shape};
 #[cfg(feature = "serde-serialize")]
 use erased_serde::Serialize;
 
@@ -95,7 +96,7 @@ fn do_generate_contacts(
         #[cfg(feature = "dim3")]
         let sub_shape1 = *part1;
 
-        let sub_detector = match workspace.sub_detectors.entry(i) {
+        let sub_detector = match workspace.sub_detectors.entry(i as usize) {
             Entry::Occupied(entry) => {
                 let sub_detector = entry.into_mut();
                 let manifold = workspace.old_manifolds[sub_detector.manifold_id].take();
@@ -119,7 +120,7 @@ fn do_generate_contacts(
                     collider2,
                     solver_flags,
                 );
-                manifolds.push(ContactManifold::with_data((i, 0), manifold_data));
+                manifolds.push(ContactManifold::with_data((i as usize, 0), manifold_data));
 
                 entry.insert(sub_detector)
             }

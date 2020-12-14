@@ -6,7 +6,7 @@ use crate::geometry::{Collider, ColliderPair, ColliderSet, Contact, ContactManif
 use crate::math::{Isometry, Point, Vector};
 #[cfg(feature = "simd-is-enabled")]
 use {
-    crate::math::{SimdFloat, SIMD_WIDTH},
+    crate::math::{SimdReal, SIMD_WIDTH},
     simba::simd::SimdValue,
 };
 
@@ -22,11 +22,11 @@ bitflags::bitflags! {
 
 #[cfg(feature = "simd-is-enabled")]
 pub(crate) struct WContact {
-    pub local_p1: Point<SimdFloat>,
-    pub local_p2: Point<SimdFloat>,
-    pub local_n1: Vector<SimdFloat>,
-    pub local_n2: Vector<SimdFloat>,
-    pub dist: SimdFloat,
+    pub local_p1: Point<SimdReal>,
+    pub local_p2: Point<SimdReal>,
+    pub local_n1: Vector<SimdReal>,
+    pub local_n2: Vector<SimdReal>,
+    pub dist: SimdReal,
     pub fid1: [u8; SIMD_WIDTH],
     pub fid2: [u8; SIMD_WIDTH],
 }

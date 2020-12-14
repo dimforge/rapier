@@ -13,9 +13,6 @@ pub use self::narrow_phase::NarrowPhase;
 pub use self::polygon::Polygon;
 pub use self::proximity::ProximityPair;
 pub use self::proximity_detector::{DefaultProximityDispatcher, ProximityDispatcher};
-#[cfg(feature = "dim3")]
-pub use self::round_cylinder::RoundCylinder;
-pub use self::trimesh::Trimesh;
 pub use self::user_callbacks::{ContactPairFilter, PairFilterContext, ProximityPairFilter};
 pub use buckler::query::Proximity;
 
@@ -106,11 +103,10 @@ pub(crate) use self::collider_set::RemovedCollider;
 #[cfg(feature = "simd-is-enabled")]
 pub(crate) use self::contact::WContact;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
-pub(crate) use self::waabb::{WRay, WAABB};
-pub(crate) use self::wquadtree::WQuadtree;
+pub(crate) use buckler::partitioning::WQuadtree;
 //pub(crate) use self::z_order::z_cmp_floats;
 pub use self::interaction_groups::InteractionGroups;
-pub use self::shape::{Shape, ShapeType};
+pub use buckler::shape::*;
 
 mod ball;
 mod broad_phase_multi_sap;
@@ -125,12 +121,6 @@ mod proximity;
 mod proximity_detector;
 pub(crate) mod sat;
 pub(crate) mod triangle;
-mod trimesh;
-mod waabb;
-mod wquadtree;
 //mod z_order;
 mod interaction_groups;
-#[cfg(feature = "dim3")]
-mod round_cylinder;
-mod shape;
 mod user_callbacks;

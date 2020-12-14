@@ -47,7 +47,10 @@ impl QueryPipeline {
             }
         }
 
-        self.quadtree.update(colliders, self.dilation_factor);
+        self.quadtree.update(
+            |handle| colliders[*handle].compute_aabb(),
+            self.dilation_factor,
+        );
     }
 
     /// Find the closest intersection between a ray and a set of collider.

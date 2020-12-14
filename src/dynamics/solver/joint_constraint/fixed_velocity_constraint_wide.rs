@@ -5,7 +5,7 @@ use crate::dynamics::{
     FixedJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBody,
 };
 use crate::math::{
-    AngVector, AngularInertia, CrossMatrix, Dim, Isometry, Point, SimdFloat, SpacialVector, Vector,
+    AngVector, AngularInertia, CrossMatrix, Dim, Isometry, Point, SimdReal, SpacialVector, Vector,
     SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
@@ -24,29 +24,29 @@ pub(crate) struct WFixedVelocityConstraint {
 
     joint_id: [JointIndex; SIMD_WIDTH],
 
-    impulse: SpacialVector<SimdFloat>,
+    impulse: SpacialVector<SimdReal>,
 
     #[cfg(feature = "dim3")]
-    inv_lhs: Matrix6<SimdFloat>, // FIXME: replace by Cholesky.
+    inv_lhs: Matrix6<SimdReal>, // FIXME: replace by Cholesky.
     #[cfg(feature = "dim3")]
-    rhs: Vector6<SimdFloat>,
+    rhs: Vector6<SimdReal>,
 
     #[cfg(feature = "dim2")]
-    inv_lhs: Matrix3<SimdFloat>,
+    inv_lhs: Matrix3<SimdReal>,
     #[cfg(feature = "dim2")]
-    rhs: Vector3<SimdFloat>,
+    rhs: Vector3<SimdReal>,
 
-    im1: SimdFloat,
-    im2: SimdFloat,
+    im1: SimdReal,
+    im2: SimdReal,
 
-    ii1: AngularInertia<SimdFloat>,
-    ii2: AngularInertia<SimdFloat>,
+    ii1: AngularInertia<SimdReal>,
+    ii2: AngularInertia<SimdReal>,
 
-    ii1_sqrt: AngularInertia<SimdFloat>,
-    ii2_sqrt: AngularInertia<SimdFloat>,
+    ii1_sqrt: AngularInertia<SimdReal>,
+    ii2_sqrt: AngularInertia<SimdReal>,
 
-    r1: Vector<SimdFloat>,
-    r2: Vector<SimdFloat>,
+    r1: Vector<SimdReal>,
+    r2: Vector<SimdReal>,
 }
 
 impl WFixedVelocityConstraint {
@@ -59,20 +59,20 @@ impl WFixedVelocityConstraint {
     ) -> Self {
         let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
-        let angvel1 = AngVector::<SimdFloat>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
+        let angvel1 = AngVector::<SimdReal>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
-        let im1 = SimdFloat::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii1_sqrt = AngularInertia::<SimdFloat>::from(
+        let im1 = SimdReal::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let ii1_sqrt = AngularInertia::<SimdReal>::from(
             array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
 
         let position2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
-        let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
+        let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii2_sqrt = AngularInertia::<SimdFloat>::from(
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let ii2_sqrt = AngularInertia::<SimdReal>::from(
             array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
@@ -150,7 +150,7 @@ impl WFixedVelocityConstraint {
             ii2,
             ii1_sqrt,
             ii2_sqrt,
-            impulse: impulse * SimdFloat::splat(params.warmstart_coeff),
+            impulse: impulse * SimdReal::splat(params.warmstart_coeff),
             inv_lhs,
             r1,
             r2,
@@ -203,7 +203,7 @@ impl WFixedVelocityConstraint {
     }
 
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
-        let mut mj_lambda1: DeltaVel<SimdFloat> = DeltaVel {
+        let mut mj_lambda1: DeltaVel<SimdReal> = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
             ),
@@ -211,7 +211,7 @@ impl WFixedVelocityConstraint {
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].angular; SIMD_WIDTH],
             ),
         };
-        let mut mj_lambda2: DeltaVel<SimdFloat> = DeltaVel {
+        let mut mj_lambda2: DeltaVel<SimdReal> = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
             ),
@@ -279,22 +279,22 @@ pub(crate) struct WFixedVelocityGroundConstraint {
 
     joint_id: [JointIndex; SIMD_WIDTH],
 
-    impulse: SpacialVector<SimdFloat>,
+    impulse: SpacialVector<SimdReal>,
 
     #[cfg(feature = "dim3")]
-    inv_lhs: Matrix6<SimdFloat>, // FIXME: replace by Cholesky.
+    inv_lhs: Matrix6<SimdReal>, // FIXME: replace by Cholesky.
     #[cfg(feature = "dim3")]
-    rhs: Vector6<SimdFloat>,
+    rhs: Vector6<SimdReal>,
 
     #[cfg(feature = "dim2")]
-    inv_lhs: Matrix3<SimdFloat>,
+    inv_lhs: Matrix3<SimdReal>,
     #[cfg(feature = "dim2")]
-    rhs: Vector3<SimdFloat>,
+    rhs: Vector3<SimdReal>,
 
-    im2: SimdFloat,
-    ii2: AngularInertia<SimdFloat>,
-    ii2_sqrt: AngularInertia<SimdFloat>,
-    r2: Vector<SimdFloat>,
+    im2: SimdReal,
+    ii2: AngularInertia<SimdReal>,
+    ii2_sqrt: AngularInertia<SimdReal>,
+    r2: Vector<SimdReal>,
 }
 
 impl WFixedVelocityGroundConstraint {
@@ -308,15 +308,15 @@ impl WFixedVelocityGroundConstraint {
     ) -> Self {
         let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
-        let angvel1 = AngVector::<SimdFloat>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
+        let angvel1 = AngVector::<SimdReal>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
 
         let position2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
-        let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
+        let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii2_sqrt = AngularInertia::<SimdFloat>::from(
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let ii2_sqrt = AngularInertia::<SimdReal>::from(
             array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
@@ -386,7 +386,7 @@ impl WFixedVelocityGroundConstraint {
             im2,
             ii2,
             ii2_sqrt,
-            impulse: impulse * SimdFloat::splat(params.warmstart_coeff),
+            impulse: impulse * SimdReal::splat(params.warmstart_coeff),
             inv_lhs,
             r2,
             rhs,
@@ -421,7 +421,7 @@ impl WFixedVelocityGroundConstraint {
     }
 
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
-        let mut mj_lambda2: DeltaVel<SimdFloat> = DeltaVel {
+        let mut mj_lambda2: DeltaVel<SimdReal> = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
             ),

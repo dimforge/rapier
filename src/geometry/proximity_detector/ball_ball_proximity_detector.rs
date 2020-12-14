@@ -5,12 +5,12 @@ use crate::math::Point;
 #[cfg(feature = "simd-is-enabled")]
 use {
     crate::geometry::{proximity_detector::PrimitiveProximityDetectionContextSimd, WBall},
-    crate::math::{SimdFloat, SIMD_WIDTH},
+    crate::math::{SimdReal, SIMD_WIDTH},
     simba::simd::SimdValue,
 };
 
 #[cfg(feature = "simd-is-enabled")]
-fn ball_distance_simd(ball1: &WBall, ball2: &WBall) -> SimdFloat {
+fn ball_distance_simd(ball1: &WBall, ball2: &WBall) -> SimdReal {
     let dcenter = ball2.center - ball1.center;
     let center_dist = dcenter.magnitude();
     center_dist - ball1.radius - ball2.radius
@@ -22,9 +22,9 @@ pub fn detect_proximity_ball_ball_simd(
 ) -> [Proximity; SIMD_WIDTH] {
     let pos_ba = ctxt.positions2.inverse() * ctxt.positions1;
     let radii_a =
-        SimdFloat::from(array![|ii| ctxt.shapes1[ii].as_ball().unwrap().radius; SIMD_WIDTH]);
+        SimdReal::from(array![|ii| ctxt.shapes1[ii].as_ball().unwrap().radius; SIMD_WIDTH]);
     let radii_b =
-        SimdFloat::from(array![|ii| ctxt.shapes2[ii].as_ball().unwrap().radius; SIMD_WIDTH]);
+        SimdReal::from(array![|ii| ctxt.shapes2[ii].as_ball().unwrap().radius; SIMD_WIDTH]);
 
     let wball_a = WBall::new(Point::origin(), radii_a);
     let wball_b = WBall::new(pos_ba.inverse_transform_point(&Point::origin()), radii_b);

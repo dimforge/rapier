@@ -5,7 +5,7 @@ use crate::dynamics::{
     IntegrationParameters, JointGraphEdge, JointIndex, JointParams, PrismaticJoint, RigidBody,
 };
 use crate::math::{
-    AngVector, AngularInertia, Isometry, Point, SimdBool, SimdFloat, Vector, SIMD_WIDTH,
+    AngVector, AngularInertia, Isometry, Point, SimdBool, SimdReal, Vector, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 #[cfg(feature = "dim3")]
@@ -28,37 +28,37 @@ pub(crate) struct WPrismaticVelocityConstraint {
 
     joint_id: [JointIndex; SIMD_WIDTH],
 
-    r1: Vector<SimdFloat>,
-    r2: Vector<SimdFloat>,
+    r1: Vector<SimdReal>,
+    r2: Vector<SimdReal>,
 
     #[cfg(feature = "dim3")]
-    inv_lhs: Matrix5<SimdFloat>,
+    inv_lhs: Matrix5<SimdReal>,
     #[cfg(feature = "dim3")]
-    rhs: Vector5<SimdFloat>,
+    rhs: Vector5<SimdReal>,
     #[cfg(feature = "dim3")]
-    impulse: Vector5<SimdFloat>,
+    impulse: Vector5<SimdReal>,
 
     #[cfg(feature = "dim2")]
-    inv_lhs: Matrix2<SimdFloat>,
+    inv_lhs: Matrix2<SimdReal>,
     #[cfg(feature = "dim2")]
-    rhs: Vector2<SimdFloat>,
+    rhs: Vector2<SimdReal>,
     #[cfg(feature = "dim2")]
-    impulse: Vector2<SimdFloat>,
+    impulse: Vector2<SimdReal>,
 
-    limits_impulse: SimdFloat,
-    limits_forcedirs: Option<(Vector<SimdFloat>, Vector<SimdFloat>)>,
-    limits_rhs: SimdFloat,
+    limits_impulse: SimdReal,
+    limits_forcedirs: Option<(Vector<SimdReal>, Vector<SimdReal>)>,
+    limits_rhs: SimdReal,
 
     #[cfg(feature = "dim2")]
-    basis1: Vector2<SimdFloat>,
+    basis1: Vector2<SimdReal>,
     #[cfg(feature = "dim3")]
-    basis1: Matrix3x2<SimdFloat>,
+    basis1: Matrix3x2<SimdReal>,
 
-    im1: SimdFloat,
-    im2: SimdFloat,
+    im1: SimdReal,
+    im2: SimdReal,
 
-    ii1_sqrt: AngularInertia<SimdFloat>,
-    ii2_sqrt: AngularInertia<SimdFloat>,
+    ii1_sqrt: AngularInertia<SimdReal>,
+    ii2_sqrt: AngularInertia<SimdReal>,
 }
 
 impl WPrismaticVelocityConstraint {
@@ -71,20 +71,20 @@ impl WPrismaticVelocityConstraint {
     ) -> Self {
         let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
-        let angvel1 = AngVector::<SimdFloat>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
+        let angvel1 = AngVector::<SimdReal>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
-        let im1 = SimdFloat::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii1_sqrt = AngularInertia::<SimdFloat>::from(
+        let im1 = SimdReal::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let ii1_sqrt = AngularInertia::<SimdReal>::from(
             array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
 
         let position2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
-        let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
+        let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii2_sqrt = AngularInertia::<SimdFloat>::from(
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let ii2_sqrt = AngularInertia::<SimdReal>::from(
             array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
@@ -199,14 +199,14 @@ impl WPrismaticVelocityConstraint {
 
             // FIXME: we should allow both limits to be active at
             // the same time + allow predictive constraint activation.
-            let min_limit = SimdFloat::from(array![|ii| cparams[ii].limits[0]; SIMD_WIDTH]);
-            let max_limit = SimdFloat::from(array![|ii| cparams[ii].limits[1]; SIMD_WIDTH]);
-            let lim_impulse = SimdFloat::from(array![|ii| cparams[ii].limits_impulse; SIMD_WIDTH]);
+            let min_limit = SimdReal::from(array![|ii| cparams[ii].limits[0]; SIMD_WIDTH]);
+            let max_limit = SimdReal::from(array![|ii| cparams[ii].limits[1]; SIMD_WIDTH]);
+            let lim_impulse = SimdReal::from(array![|ii| cparams[ii].limits_impulse; SIMD_WIDTH]);
 
             let min_enabled = dist.simd_lt(min_limit);
             let max_enabled = dist.simd_gt(max_limit);
-            let _0: SimdFloat = na::zero();
-            let _1: SimdFloat = na::one();
+            let _0: SimdReal = na::zero();
+            let _1: SimdReal = na::one();
             let sign = _1.select(min_enabled, (-_1).select(max_enabled, _0));
 
             if sign != _0 {
@@ -224,8 +224,8 @@ impl WPrismaticVelocityConstraint {
             ii1_sqrt,
             im2,
             ii2_sqrt,
-            impulse: impulse * SimdFloat::splat(params.warmstart_coeff),
-            limits_impulse: limits_impulse * SimdFloat::splat(params.warmstart_coeff),
+            impulse: impulse * SimdReal::splat(params.warmstart_coeff),
+            limits_impulse: limits_impulse * SimdReal::splat(params.warmstart_coeff),
             limits_forcedirs,
             limits_rhs,
             basis1,
@@ -383,34 +383,34 @@ pub(crate) struct WPrismaticVelocityGroundConstraint {
 
     joint_id: [JointIndex; SIMD_WIDTH],
 
-    r2: Vector<SimdFloat>,
+    r2: Vector<SimdReal>,
 
     #[cfg(feature = "dim2")]
-    inv_lhs: Matrix2<SimdFloat>,
+    inv_lhs: Matrix2<SimdReal>,
     #[cfg(feature = "dim2")]
-    rhs: Vector2<SimdFloat>,
+    rhs: Vector2<SimdReal>,
     #[cfg(feature = "dim2")]
-    impulse: Vector2<SimdFloat>,
+    impulse: Vector2<SimdReal>,
 
     #[cfg(feature = "dim3")]
-    inv_lhs: Matrix5<SimdFloat>,
+    inv_lhs: Matrix5<SimdReal>,
     #[cfg(feature = "dim3")]
-    rhs: Vector5<SimdFloat>,
+    rhs: Vector5<SimdReal>,
     #[cfg(feature = "dim3")]
-    impulse: Vector5<SimdFloat>,
+    impulse: Vector5<SimdReal>,
 
-    limits_impulse: SimdFloat,
-    limits_rhs: SimdFloat,
+    limits_impulse: SimdReal,
+    limits_rhs: SimdReal,
 
-    axis2: Vector<SimdFloat>,
+    axis2: Vector<SimdReal>,
     #[cfg(feature = "dim2")]
-    basis1: Vector2<SimdFloat>,
+    basis1: Vector2<SimdReal>,
     #[cfg(feature = "dim3")]
-    basis1: Matrix3x2<SimdFloat>,
-    limits_forcedir2: Option<Vector<SimdFloat>>,
+    basis1: Matrix3x2<SimdReal>,
+    limits_forcedir2: Option<Vector<SimdReal>>,
 
-    im2: SimdFloat,
-    ii2_sqrt: AngularInertia<SimdFloat>,
+    im2: SimdReal,
+    ii2_sqrt: AngularInertia<SimdReal>,
 }
 
 impl WPrismaticVelocityGroundConstraint {
@@ -424,15 +424,15 @@ impl WPrismaticVelocityGroundConstraint {
     ) -> Self {
         let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
-        let angvel1 = AngVector::<SimdFloat>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
+        let angvel1 = AngVector::<SimdReal>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
 
         let position2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
-        let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
+        let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii2_sqrt = AngularInertia::<SimdFloat>::from(
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let ii2_sqrt = AngularInertia::<SimdReal>::from(
             array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
@@ -551,14 +551,14 @@ impl WPrismaticVelocityGroundConstraint {
 
             // FIXME: we should allow both limits to be active at
             // the same time + allow predictive constraint activation.
-            let min_limit = SimdFloat::from(array![|ii| cparams[ii].limits[0]; SIMD_WIDTH]);
-            let max_limit = SimdFloat::from(array![|ii| cparams[ii].limits[1]; SIMD_WIDTH]);
-            let lim_impulse = SimdFloat::from(array![|ii| cparams[ii].limits_impulse; SIMD_WIDTH]);
+            let min_limit = SimdReal::from(array![|ii| cparams[ii].limits[0]; SIMD_WIDTH]);
+            let max_limit = SimdReal::from(array![|ii| cparams[ii].limits[1]; SIMD_WIDTH]);
+            let lim_impulse = SimdReal::from(array![|ii| cparams[ii].limits_impulse; SIMD_WIDTH]);
 
             let use_min = dist.simd_lt(min_limit);
             let use_max = dist.simd_gt(max_limit);
-            let _0: SimdFloat = na::zero();
-            let _1: SimdFloat = na::one();
+            let _0: SimdReal = na::zero();
+            let _1: SimdReal = na::one();
             let sign = _1.select(use_min, (-_1).select(use_max, _0));
 
             if sign != _0 {
@@ -573,8 +573,8 @@ impl WPrismaticVelocityGroundConstraint {
             mj_lambda2,
             im2,
             ii2_sqrt,
-            impulse: impulse * SimdFloat::splat(params.warmstart_coeff),
-            limits_impulse: limits_impulse * SimdFloat::splat(params.warmstart_coeff),
+            impulse: impulse * SimdReal::splat(params.warmstart_coeff),
+            limits_impulse: limits_impulse * SimdReal::splat(params.warmstart_coeff),
             basis1,
             inv_lhs,
             rhs,

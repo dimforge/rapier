@@ -3,21 +3,21 @@ use crate::data::MaybeSerializableData;
 use crate::geometry::contact_generator::{
     ContactGenerationContext, PrimitiveContactGenerationContext,
 };
-use crate::geometry::{Collider, ContactManifold, ContactManifoldData, ShapeType, Trimesh};
+use crate::geometry::{Collider, ContactManifold, ContactManifoldData, ShapeType, TriMesh};
 #[cfg(feature = "serde-serialize")]
 use erased_serde::Serialize;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
-pub struct TrimeshShapeContactGeneratorWorkspace {
-    interferences: Vec<usize>,
+pub struct TriMeshShapeContactGeneratorWorkspace {
+    interferences: Vec<u32>,
     local_aabb2: AABB,
-    old_interferences: Vec<usize>,
+    old_interferences: Vec<u32>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     old_manifolds: Vec<ContactManifold>,
 }
 
-impl TrimeshShapeContactGeneratorWorkspace {
+impl TriMeshShapeContactGeneratorWorkspace {
     pub fn new() -> Self {
         Self {
             interferences: Vec::new(),
@@ -40,7 +40,7 @@ pub fn generate_contacts_trimesh_shape(ctxt: &mut ContactGenerationContext) {
 }
 
 fn do_generate_contacts(
-    trimesh1: &Trimesh,
+    trimesh1: &TriMesh,
     collider1: &Collider,
     collider2: &Collider,
     ctxt: &mut ContactGenerationContext,
@@ -52,14 +52,14 @@ fn do_generate_contacts(
         ctxt.pair.pair
     };
 
-    let workspace: &mut TrimeshShapeContactGeneratorWorkspace = ctxt
+    let workspace: &mut TriMeshShapeContactGeneratorWorkspace = ctxt
         .pair
         .generator_workspace
         .as_mut()
-        .expect("The TrimeshShapeContactGeneratorWorkspace is missing.")
+        .expect("The TriMeshShapeContactGeneratorWorkspace is missing.")
         .0
         .downcast_mut()
-        .expect("Invalid workspace type, expected a TrimeshShapeContactGeneratorWorkspace.");
+        .expect("Invalid workspace type, expected a TriMeshShapeContactGeneratorWorkspace.");
 
     /*
      * Compute interferences.
@@ -97,9 +97,9 @@ fn do_generate_contacts(
                 .iter()
                 .map(|manifold| {
                     if manifold.data.pair.collider1 == ctxt_collider1 {
-                        manifold.subshape_index_pair.0
+                        manifold.subshape_index_pair.0 as u32
                     } else {
-                        manifold.subshape_index_pair.1
+                        manifold.subshape_index_pair.1 as u32
                     }
                 })
                 .collect();
@@ -118,7 +118,7 @@ fn do_generate_contacts(
 
         workspace.interferences.clear();
         trimesh1
-            .waabbs()
+            .quadtree()
             .intersect_aabb(&local_aabb2, &mut workspace.interferences);
         workspace.local_aabb2 = local_aabb2;
     }
@@ -134,7 +134,7 @@ fn do_generate_contacts(
     // TODO: don't redispatch at each frame (we should probably do the same as
     // the heightfield).
     for (i, triangle_id) in new_interferences.iter().enumerate() {
-        if *triangle_id >= trimesh1.num_triangles() {
+        if *triangle_id >= trimesh1.num_triangles() as u32 {
             // Because of SIMD padding, the broad-phase may return tiangle indices greater
             // than the max.
             continue;
@@ -160,7 +160,7 @@ fn do_generate_contacts(
                     ctxt.solver_flags,
                 );
 
-                ContactManifold::with_data((*triangle_id, 0), data)
+                ContactManifold::with_data((*triangle_id as usize, 0), data)
             } else {
                 // We already have a manifold for this triangle.
                 old_inter_it.next();
@@ -206,11 +206,11 @@ fn do_generate_contacts(
     }
 }
 
-impl MaybeSerializableData for TrimeshShapeContactGeneratorWorkspace {
+impl MaybeSerializableData for TriMeshShapeContactGeneratorWorkspace {
     #[cfg(feature = "serde-serialize")]
     fn as_serialize(&self) -> Option<(u32, &dyn Serialize)> {
         Some((
-            super::WorkspaceSerializationTag::TrimeshShapeContactGeneratorWorkspace as u32,
+            super::WorkspaceSerializationTag::TriMeshShapeContactGeneratorWorkspace as u32,
             self,
         ))
     }

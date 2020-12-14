@@ -5,12 +5,12 @@ use crate::math::{Point, Vector};
 use {
     crate::geometry::contact_generator::PrimitiveContactGenerationContextSimd,
     crate::geometry::{WBall, WContact},
-    crate::math::{Isometry, SimdFloat, SIMD_WIDTH},
+    crate::math::{Isometry, SimdReal, SIMD_WIDTH},
     simba::simd::SimdValue,
 };
 
 #[cfg(feature = "simd-is-enabled")]
-fn generate_contacts_simd(ball1: &WBall, ball2: &WBall, pos21: &Isometry<SimdFloat>) -> WContact {
+fn generate_contacts_simd(ball1: &WBall, ball2: &WBall, pos21: &Isometry<SimdReal>) -> WContact {
     let dcenter = ball2.center - ball1.center;
     let center_dist = dcenter.magnitude();
     let normal = dcenter / center_dist;
@@ -30,9 +30,9 @@ fn generate_contacts_simd(ball1: &WBall, ball2: &WBall, pos21: &Isometry<SimdFlo
 pub fn generate_contacts_ball_ball_simd(ctxt: &mut PrimitiveContactGenerationContextSimd) {
     let pos_ba = ctxt.positions2.inverse() * ctxt.positions1;
     let radii_a =
-        SimdFloat::from(array![|ii| ctxt.shapes1[ii].as_ball().unwrap().radius; SIMD_WIDTH]);
+        SimdReal::from(array![|ii| ctxt.shapes1[ii].as_ball().unwrap().radius; SIMD_WIDTH]);
     let radii_b =
-        SimdFloat::from(array![|ii| ctxt.shapes2[ii].as_ball().unwrap().radius; SIMD_WIDTH]);
+        SimdReal::from(array![|ii| ctxt.shapes2[ii].as_ball().unwrap().radius; SIMD_WIDTH]);
 
     let wball_a = WBall::new(Point::origin(), radii_a);
     let wball_b = WBall::new(pos_ba.inverse_transform_point(&Point::origin()), radii_b);

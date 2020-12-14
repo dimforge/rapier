@@ -3,9 +3,9 @@ use crate::geometry::contact_generator::PfmPfmContactManifoldGeneratorWorkspace;
 use crate::geometry::contact_generator::{
     ContactGenerator, ContactGeneratorWorkspace, ContactPhase,
     HeightFieldShapeContactGeneratorWorkspace, PrimitiveContactGenerator,
-    TrimeshShapeContactGeneratorWorkspace,
+    TriMeshShapeContactGeneratorWorkspace,
 };
-use crate::geometry::ShapeType;
+use buckler::shape::ShapeType;
 
 /// Trait implemented by structures responsible for selecting a collision-detection algorithm
 /// for a given pair of shapes.
@@ -114,13 +114,13 @@ impl ContactDispatcher for DefaultContactDispatcher {
         shape2: ShapeType,
     ) -> (ContactPhase, Option<ContactGeneratorWorkspace>) {
         match (shape1, shape2) {
-            (ShapeType::Trimesh, _) | (_, ShapeType::Trimesh) => (
+            (ShapeType::TriMesh, _) | (_, ShapeType::TriMesh) => (
                 ContactPhase::NearPhase(ContactGenerator {
                     generate_contacts: super::generate_contacts_trimesh_shape,
                     ..ContactGenerator::default()
                 }),
                 Some(ContactGeneratorWorkspace::from(
-                    TrimeshShapeContactGeneratorWorkspace::new(),
+                    TriMeshShapeContactGeneratorWorkspace::new(),
                 )),
             ),
             (ShapeType::HeightField, _) | (_, ShapeType::HeightField) => (

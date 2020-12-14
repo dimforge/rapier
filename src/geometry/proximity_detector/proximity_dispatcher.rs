@@ -1,6 +1,6 @@
 use crate::geometry::proximity_detector::{
     PrimitiveProximityDetector, ProximityDetector, ProximityPhase,
-    TrimeshShapeProximityDetectorWorkspace,
+    TriMeshShapeProximityDetectorWorkspace,
 };
 use crate::geometry::ShapeType;
 use std::any::Any;
@@ -113,19 +113,19 @@ impl ProximityDispatcher for DefaultProximityDispatcher {
         shape2: ShapeType,
     ) -> (ProximityPhase, Option<Box<dyn Any + Send + Sync>>) {
         match (shape1, shape2) {
-            (ShapeType::Trimesh, _) => (
+            (ShapeType::TriMesh, _) => (
                 ProximityPhase::NearPhase(ProximityDetector {
                     detect_proximity: super::detect_proximity_trimesh_shape,
                     ..ProximityDetector::default()
                 }),
-                Some(Box::new(TrimeshShapeProximityDetectorWorkspace::new())),
+                Some(Box::new(TriMeshShapeProximityDetectorWorkspace::new())),
             ),
-            (_, ShapeType::Trimesh) => (
+            (_, ShapeType::TriMesh) => (
                 ProximityPhase::NearPhase(ProximityDetector {
                     detect_proximity: super::detect_proximity_trimesh_shape,
                     ..ProximityDetector::default()
                 }),
-                Some(Box::new(TrimeshShapeProximityDetectorWorkspace::new())),
+                Some(Box::new(TriMeshShapeProximityDetectorWorkspace::new())),
             ),
             _ => {
                 let (gen, workspace) = self.dispatch_primitives(shape1, shape2);

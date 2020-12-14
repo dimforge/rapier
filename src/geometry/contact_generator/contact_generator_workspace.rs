@@ -2,7 +2,7 @@ use crate::data::MaybeSerializableData;
 #[cfg(feature = "dim3")]
 use crate::geometry::contact_generator::PfmPfmContactManifoldGeneratorWorkspace;
 use crate::geometry::contact_generator::{
-    HeightFieldShapeContactGeneratorWorkspace, TrimeshShapeContactGeneratorWorkspace,
+    HeightFieldShapeContactGeneratorWorkspace, TriMeshShapeContactGeneratorWorkspace,
     WorkspaceSerializationTag,
 };
 
@@ -81,8 +81,8 @@ impl<'de> serde::Deserialize<'de> for ContactGeneratorWorkspace {
                     Some(WorkspaceSerializationTag::HeightfieldShapeContactGeneratorWorkspace) => {
                         deser::<A, HeightFieldShapeContactGeneratorWorkspace>(&mut seq)?
                     }
-                    Some(WorkspaceSerializationTag::TrimeshShapeContactGeneratorWorkspace) => {
-                        deser::<A, TrimeshShapeContactGeneratorWorkspace>(&mut seq)?
+                    Some(WorkspaceSerializationTag::TriMeshShapeContactGeneratorWorkspace) => {
+                        deser::<A, TriMeshShapeContactGeneratorWorkspace>(&mut seq)?
                     }
                     #[cfg(feature = "dim3")]
                     Some(WorkspaceSerializationTag::PfmPfmContactGeneratorWorkspace) => {

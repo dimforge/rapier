@@ -2,7 +2,7 @@ use super::{AnyVelocityConstraint, DeltaVel};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
-    AngVector, AngularInertia, Isometry, Point, SimdFloat, Vector, DIM, MAX_MANIFOLD_POINTS,
+    AngVector, AngularInertia, Isometry, Point, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS,
     SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WBasis, WCross, WDot};
@@ -11,19 +11,19 @@ use simba::simd::{SimdPartialOrd, SimdValue};
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct WVelocityGroundConstraintElementPart {
-    pub gcross2: AngVector<SimdFloat>,
-    pub rhs: SimdFloat,
-    pub impulse: SimdFloat,
-    pub r: SimdFloat,
+    pub gcross2: AngVector<SimdReal>,
+    pub rhs: SimdReal,
+    pub impulse: SimdReal,
+    pub r: SimdReal,
 }
 
 impl WVelocityGroundConstraintElementPart {
     pub fn zero() -> Self {
         Self {
             gcross2: AngVector::zero(),
-            rhs: SimdFloat::zero(),
-            impulse: SimdFloat::zero(),
-            r: SimdFloat::zero(),
+            rhs: SimdReal::zero(),
+            impulse: SimdReal::zero(),
+            r: SimdReal::zero(),
         }
     }
 }
@@ -45,11 +45,11 @@ impl WVelocityGroundConstraintElement {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct WVelocityGroundConstraint {
-    pub dir1: Vector<SimdFloat>, // Non-penetration force direction for the first body.
+    pub dir1: Vector<SimdReal>, // Non-penetration force direction for the first body.
     pub elements: [WVelocityGroundConstraintElement; MAX_MANIFOLD_POINTS],
     pub num_contacts: u8,
-    pub im2: SimdFloat,
-    pub limit: SimdFloat,
+    pub im2: SimdReal,
+    pub limit: SimdReal,
     pub mj_lambda2: [usize; SIMD_WIDTH],
     pub manifold_id: [ContactManifoldIndex; SIMD_WIDTH],
     pub manifold_contact_id: usize,
@@ -64,7 +64,7 @@ impl WVelocityGroundConstraint {
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         push: bool,
     ) {
-        let inv_dt = SimdFloat::splat(params.inv_dt());
+        let inv_dt = SimdReal::splat(params.inv_dt());
         let mut rbs1 = array![|ii| &bodies[manifolds[ii].data.body_pair.body1]; SIMD_WIDTH];
         let mut rbs2 = array![|ii| &bodies[manifolds[ii].data.body_pair.body2]; SIMD_WIDTH];
         let mut flipped = [false; SIMD_WIDTH];
@@ -76,15 +76,15 @@ impl WVelocityGroundConstraint {
             }
         }
 
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii2: AngularInertia<SimdFloat> =
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let ii2: AngularInertia<SimdReal> =
             AngularInertia::from(array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
 
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
-        let angvel1 = AngVector::<SimdFloat>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
+        let angvel1 = AngVector::<SimdReal>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
 
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
-        let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
+        let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
 
         let pos1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
         let pos2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
@@ -109,14 +109,13 @@ impl WVelocityGroundConstraint {
 
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
-        let friction = SimdFloat::from(array![|ii| manifolds[ii].data.friction; SIMD_WIDTH]);
-        let restitution = SimdFloat::from(array![|ii| manifolds[ii].data.restitution; SIMD_WIDTH]);
-        let restitution_velocity_threshold =
-            SimdFloat::splat(params.restitution_velocity_threshold);
+        let friction = SimdReal::from(array![|ii| manifolds[ii].data.friction; SIMD_WIDTH]);
+        let restitution = SimdReal::from(array![|ii| manifolds[ii].data.restitution; SIMD_WIDTH]);
+        let restitution_velocity_threshold = SimdReal::splat(params.restitution_velocity_threshold);
 
         let warmstart_multiplier =
-            SimdFloat::from(array![|ii| manifolds[ii].data.warmstart_multiplier; SIMD_WIDTH]);
-        let warmstart_coeff = warmstart_multiplier * SimdFloat::splat(params.warmstart_coeff);
+            SimdReal::from(array![|ii| manifolds[ii].data.warmstart_multiplier; SIMD_WIDTH]);
+        let warmstart_coeff = warmstart_multiplier * SimdReal::splat(params.warmstart_coeff);
 
         for l in (0..manifolds[0].num_active_contacts()).step_by(MAX_MANIFOLD_POINTS) {
             let manifold_points = array![|ii| &manifolds[ii].active_contacts()[l..]; SIMD_WIDTH];
@@ -143,10 +142,10 @@ impl WVelocityGroundConstraint {
                         array![|ii| if flipped[ii] { manifold_points[ii][k].local_p1 } else { manifold_points[ii][k].local_p2 }; SIMD_WIDTH],
                     );
 
-                let dist = SimdFloat::from(array![|ii| manifold_points[ii][k].dist; SIMD_WIDTH]);
+                let dist = SimdReal::from(array![|ii| manifold_points[ii][k].dist; SIMD_WIDTH]);
 
                 let impulse =
-                    SimdFloat::from(array![|ii| manifold_points[ii][k].data.impulse; SIMD_WIDTH]);
+                    SimdReal::from(array![|ii| manifold_points[ii][k].data.impulse; SIMD_WIDTH]);
                 let dp1 = p1 - world_com1;
                 let dp2 = p2 - world_com2;
 
@@ -157,12 +156,12 @@ impl WVelocityGroundConstraint {
                 {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-force_dir1));
 
-                    let r = SimdFloat::splat(1.0) / (im2 + gcross2.gdot(gcross2));
+                    let r = SimdReal::splat(1.0) / (im2 + gcross2.gdot(gcross2));
                     let mut rhs = (vel1 - vel2).dot(&force_dir1);
                     let use_restitution = rhs.simd_le(-restitution_velocity_threshold);
                     let rhs_with_restitution = rhs + rhs * restitution;
                     rhs = rhs_with_restitution.select(use_restitution, rhs);
-                    rhs += dist.simd_max(SimdFloat::zero()) * inv_dt;
+                    rhs += dist.simd_max(SimdReal::zero()) * inv_dt;
 
                     constraint.elements[k].normal_part = WVelocityGroundConstraintElementPart {
                         gcross2,
@@ -177,16 +176,16 @@ impl WVelocityGroundConstraint {
 
                 for j in 0..DIM - 1 {
                     #[cfg(feature = "dim2")]
-                    let impulse = SimdFloat::from(
+                    let impulse = SimdReal::from(
                         array![|ii| manifold_points[ii][k].data.tangent_impulse; SIMD_WIDTH],
                     );
                     #[cfg(feature = "dim3")]
-                    let impulse = SimdFloat::from(
+                    let impulse = SimdReal::from(
                         array![|ii| manifold_points[ii][k].data.tangent_impulse[j]; SIMD_WIDTH],
                     );
 
                     let gcross2 = ii2.transform_vector(dp2.gcross(-tangents1[j]));
-                    let r = SimdFloat::splat(1.0) / (im2 + gcross2.gdot(gcross2));
+                    let r = SimdReal::splat(1.0) / (im2 + gcross2.gdot(gcross2));
                     let rhs = -vel2.dot(&tangents1[j]) + vel1.dot(&tangents1[j]);
 
                     constraint.elements[k].tangent_parts[j] =
@@ -274,7 +273,7 @@ impl WVelocityGroundConstraint {
             let elt = &mut self.elements[i].normal_part;
             let dimpulse =
                 -self.dir1.dot(&mj_lambda2.linear) + elt.gcross2.gdot(mj_lambda2.angular) + elt.rhs;
-            let new_impulse = (elt.impulse - elt.r * dimpulse).simd_max(SimdFloat::zero());
+            let new_impulse = (elt.impulse - elt.r * dimpulse).simd_max(SimdReal::zero());
             let dlambda = new_impulse - elt.impulse;
             elt.impulse = new_impulse;
 

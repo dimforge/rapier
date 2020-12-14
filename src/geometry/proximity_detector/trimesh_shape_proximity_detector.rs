@@ -2,15 +2,15 @@ use crate::buckler::bounding_volume::{BoundingVolume, AABB};
 use crate::geometry::proximity_detector::{
     PrimitiveProximityDetectionContext, ProximityDetectionContext,
 };
-use crate::geometry::{Collider, Proximity, ShapeType, Trimesh};
+use crate::geometry::{Collider, Proximity, ShapeType, TriMesh};
 
-pub struct TrimeshShapeProximityDetectorWorkspace {
-    interferences: Vec<usize>,
+pub struct TriMeshShapeProximityDetectorWorkspace {
+    interferences: Vec<u32>,
     local_aabb2: AABB,
-    old_interferences: Vec<usize>,
+    old_interferences: Vec<u32>,
 }
 
-impl TrimeshShapeProximityDetectorWorkspace {
+impl TriMeshShapeProximityDetectorWorkspace {
     pub fn new() -> Self {
         Self {
             interferences: Vec::new(),
@@ -34,18 +34,18 @@ pub fn detect_proximity_trimesh_shape(ctxt: &mut ProximityDetectionContext) -> P
 }
 
 fn do_detect_proximity(
-    trimesh1: &Trimesh,
+    trimesh1: &TriMesh,
     collider1: &Collider,
     collider2: &Collider,
     ctxt: &mut ProximityDetectionContext,
 ) -> Proximity {
-    let workspace: &mut TrimeshShapeProximityDetectorWorkspace = ctxt
+    let workspace: &mut TriMeshShapeProximityDetectorWorkspace = ctxt
         .pair
         .detector_workspace
         .as_mut()
-        .expect("The TrimeshShapeProximityDetectorWorkspace is missing.")
+        .expect("The TriMeshShapeProximityDetectorWorkspace is missing.")
         .downcast_mut()
-        .expect("Invalid workspace type, expected a TrimeshShapeProximityDetectorWorkspace.");
+        .expect("Invalid workspace type, expected a TriMeshShapeProximityDetectorWorkspace.");
 
     /*
      * Compute interferences.
@@ -72,7 +72,7 @@ fn do_detect_proximity(
 
         workspace.interferences.clear();
         trimesh1
-            .waabbs()
+            .quadtree()
             .intersect_aabb(&local_aabb2, &mut workspace.interferences);
         workspace.local_aabb2 = local_aabb2;
     }
@@ -86,7 +86,7 @@ fn do_detect_proximity(
     let shape_type2 = collider2.shape().shape_type();
 
     for triangle_id in new_interferences.iter() {
-        if *triangle_id >= trimesh1.num_triangles() {
+        if *triangle_id >= trimesh1.num_triangles() as u32 {
             // Because of SIMD padding, the broad-phase may return tiangle indices greater
             // than the max.
             continue;

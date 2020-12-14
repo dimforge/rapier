@@ -55,7 +55,7 @@ pub fn main() {
         ("Heightfield", heightfield3::init_world),
         ("Stacks", stacks3::init_world),
         ("Pyramid", pyramid3::init_world),
-        ("Trimesh", trimesh3::init_world),
+        ("TriMesh", trimesh3::init_world),
         ("Joint ball", joint_ball3::init_world),
         ("Joint fixed", joint_fixed3::init_world),
         ("Joint revolute", joint_revolute3::init_world),
