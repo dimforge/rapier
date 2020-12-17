@@ -79,6 +79,19 @@ impl<T> InteractionGraph<T> {
         self.graph.raw_edges().iter().map(move |edge| &edge.weight)
     }
 
+    /// All the interactions on this graph with the corresponding endpoint weights.
+    pub fn interactions_with_endpoints(
+        &self,
+    ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, &T)> {
+        self.graph.raw_edges().iter().map(move |edge| {
+            (
+                self.graph.raw_nodes()[edge.source().index()].weight,
+                self.graph.raw_nodes()[edge.target().index()].weight,
+                &edge.weight,
+            )
+        })
+    }
+
     /// The interaction between the two collision objects identified by their graph index.
     pub fn interaction_pair(
         &self,

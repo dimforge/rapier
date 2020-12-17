@@ -118,7 +118,7 @@ impl PhysicsPipeline {
             contact_pair_filter,
             events,
         );
-        narrow_phase.compute_proximities(
+        narrow_phase.compute_intersections(
             integration_parameters.prediction_distance,
             bodies,
             colliders,

@@ -64,7 +64,7 @@ impl CollisionPipeline {
             contact_pair_filter,
             events,
         );
-        narrow_phase.compute_proximities(
+        narrow_phase.compute_intersections(
             prediction_distance,
             bodies,
             colliders,

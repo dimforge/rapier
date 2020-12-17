@@ -11,10 +11,7 @@ pub use self::interaction_graph::{
 };
 pub use self::narrow_phase::NarrowPhase;
 pub use self::polygon::Polygon;
-pub use self::proximity_detector::{DefaultProximityDispatcher, ProximityDispatcher};
-pub use self::proximity_pair::ProximityPair;
 pub use self::user_callbacks::{ContactPairFilter, PairFilterContext, ProximityPairFilter};
-pub use eagl::query::Proximity;
 
 pub use eagl::query::{KinematicsCategory, TrackedContact};
 
@@ -62,36 +59,24 @@ pub enum ContactEvent {
 
 #[derive(Copy, Clone, Debug)]
 /// Events occurring when two collision objects start or stop being in close proximity, contact, or disjoint.
-pub struct ProximityEvent {
+pub struct IntersectionEvent {
     /// The first collider to which the proximity event applies.
     pub collider1: ColliderHandle,
     /// The second collider to which the proximity event applies.
     pub collider2: ColliderHandle,
-    /// The previous state of proximity between the two collision objects.
-    pub prev_status: Proximity,
-    /// The new state of proximity between the two collision objects.
-    pub new_status: Proximity,
+    /// Are the two colliders intersecting?
+    pub intersecting: bool,
 }
 
-impl ProximityEvent {
+impl IntersectionEvent {
     /// Instantiates a new proximity event.
     ///
     /// Panics if `prev_status` is equal to `new_status`.
-    pub fn new(
-        collider1: ColliderHandle,
-        collider2: ColliderHandle,
-        prev_status: Proximity,
-        new_status: Proximity,
-    ) -> Self {
-        assert_ne!(
-            prev_status, new_status,
-            "The previous and new status of a proximity event must not be the same."
-        );
+    pub fn new(collider1: ColliderHandle, collider2: ColliderHandle, intersecting: bool) -> Self {
         Self {
             collider1,
             collider2,
-            prev_status,
-            new_status,
+            intersecting,
         }
     }
 }
@@ -117,8 +102,6 @@ mod contact_pair;
 mod interaction_graph;
 mod narrow_phase;
 mod polygon;
-mod proximity_detector;
-mod proximity_pair;
 pub(crate) mod sat;
 //mod z_order;
 mod interaction_groups;

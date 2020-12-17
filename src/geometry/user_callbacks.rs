@@ -37,21 +37,21 @@ pub trait ContactPairFilter: Send + Sync {
     fn filter_contact_pair(&self, context: &PairFilterContext) -> Option<SolverFlags>;
 }
 
-/// User-defined filter for potential proximity pairs detected by the broad-phase.
+/// User-defined filter for potential intersection pairs detected by the broad-phase.
 ///
 /// This can be used to apply custom logic in order to decide whether two colliders
-/// should have their proximity computed by the narrow-phase.
+/// should have their intersection computed by the narrow-phase.
 pub trait ProximityPairFilter: Send + Sync {
-    /// Applies the proximity pair filter.
+    /// Applies the intersection pair filter.
     ///
-    /// Note that using a proximity pair filter will replace the default proximity filtering
-    /// which consists of preventing proximity computation between two non-dynamic bodies.
+    /// Note that using an intersection pair filter will replace the default intersection filtering
+    /// which consists of preventing intersection computation between two non-dynamic bodies.
     ///
     /// This filtering method is called after taking into account the colliders collision groups.
     ///
     /// If this returns `false`, then the narrow-phase will ignore this pair and
-    /// not compute any proximity information for it.
-    /// If this return `true` then the narrow-phase will compute proximity
+    /// not compute any intersection information for it.
+    /// If this return `true` then the narrow-phase will compute intersection
     /// information for this pair.
-    fn filter_proximity_pair(&self, context: &PairFilterContext) -> bool;
+    fn filter_intersection_pair(&self, context: &PairFilterContext) -> bool;
 }
