@@ -37,7 +37,7 @@ impl ColliderGraphIndices {
 pub struct NarrowPhase {
     #[cfg_attr(
         feature = "serde-serialize",
-        serde(default = "default_query_dispatcher")
+        serde(skip, default = "default_query_dispatcher")
     )]
     query_dispatcher: Arc<dyn PersistentQueryDispatcher<ContactManifoldData, ContactData>>,
     contact_graph: InteractionGraph<ContactPair>,
