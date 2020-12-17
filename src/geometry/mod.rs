@@ -3,49 +3,49 @@
 pub use self::broad_phase_multi_sap::BroadPhase;
 pub use self::collider::{Collider, ColliderBuilder, ColliderShape};
 pub use self::collider_set::{ColliderHandle, ColliderSet};
-pub use self::contact::{ContactData, ContactManifoldData};
-pub use self::contact::{ContactPair, SolverFlags};
-pub use self::contact_generator::{ContactDispatcher, DefaultContactDispatcher};
+// pub use self::contact_generator::{ContactDispatcher, DefaultContactDispatcher};
+pub use self::contact_pair::{ContactData, ContactManifoldData};
+pub use self::contact_pair::{ContactPair, SolverFlags};
 pub use self::interaction_graph::{
     ColliderGraphIndex, InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex,
 };
 pub use self::narrow_phase::NarrowPhase;
 pub use self::polygon::Polygon;
-pub use self::proximity::ProximityPair;
 pub use self::proximity_detector::{DefaultProximityDispatcher, ProximityDispatcher};
+pub use self::proximity_pair::ProximityPair;
 pub use self::user_callbacks::{ContactPairFilter, PairFilterContext, ProximityPairFilter};
-pub use buckler::query::Proximity;
+pub use eagl::query::Proximity;
 
-pub use buckler::query::{KinematicsCategory, TrackedContact};
+pub use eagl::query::{KinematicsCategory, TrackedContact};
 
-pub type Contact = buckler::query::TrackedContact<ContactData>;
-pub type ContactManifold = buckler::query::ContactManifold<ContactManifoldData, ContactData>;
+pub type Contact = eagl::query::TrackedContact<ContactData>;
+pub type ContactManifold = eagl::query::ContactManifold<ContactManifoldData, ContactData>;
 /// A segment shape.
-pub type Segment = buckler::shape::Segment;
+pub type Segment = eagl::shape::Segment;
 /// A cuboid shape.
-pub type Cuboid = buckler::shape::Cuboid;
+pub type Cuboid = eagl::shape::Cuboid;
 /// A triangle shape.
-pub type Triangle = buckler::shape::Triangle;
+pub type Triangle = eagl::shape::Triangle;
 /// A ball shape.
-pub type Ball = buckler::shape::Ball;
+pub type Ball = eagl::shape::Ball;
 /// A capsule shape.
-pub type Capsule = buckler::shape::Capsule;
+pub type Capsule = eagl::shape::Capsule;
 /// A heightfield shape.
-pub type HeightField = buckler::shape::HeightField;
+pub type HeightField = eagl::shape::HeightField;
 /// A cylindrical shape.
 #[cfg(feature = "dim3")]
-pub type Cylinder = buckler::shape::Cylinder;
+pub type Cylinder = eagl::shape::Cylinder;
 /// A cone shape.
 #[cfg(feature = "dim3")]
-pub type Cone = buckler::shape::Cone;
+pub type Cone = eagl::shape::Cone;
 /// An axis-aligned bounding box.
-pub type AABB = buckler::bounding_volume::AABB;
+pub type AABB = eagl::bounding_volume::AABB;
 /// A ray that can be cast against colliders.
-pub type Ray = buckler::query::Ray;
+pub type Ray = eagl::query::Ray;
 /// The intersection between a ray and a  collider.
-pub type RayIntersection = buckler::query::RayIntersection;
+pub type RayIntersection = eagl::query::RayIntersection;
 /// The the projection of a point on a collider.
-pub type PointProjection = buckler::query::PointProjection;
+pub type PointProjection = eagl::query::PointProjection;
 
 #[derive(Copy, Clone, Hash, Debug)]
 /// Events occurring when two collision objects start or stop being in contact (or penetration).
@@ -101,26 +101,25 @@ pub(crate) use self::ball::WBall;
 pub(crate) use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair};
 pub(crate) use self::collider_set::RemovedCollider;
 #[cfg(feature = "simd-is-enabled")]
-pub(crate) use self::contact::WContact;
+pub(crate) use self::contact_pair::WContact;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
-pub(crate) use buckler::partitioning::WQuadtree;
+pub(crate) use eagl::partitioning::WQuadtree;
 //pub(crate) use self::z_order::z_cmp_floats;
 pub use self::interaction_groups::InteractionGroups;
-pub use buckler::shape::*;
+pub use eagl::shape::*;
 
 mod ball;
 mod broad_phase_multi_sap;
 mod collider;
 mod collider_set;
-mod contact;
-mod contact_generator;
+// mod contact_generator;
+mod contact_pair;
 mod interaction_graph;
 mod narrow_phase;
 mod polygon;
-mod proximity;
 mod proximity_detector;
+mod proximity_pair;
 pub(crate) mod sat;
-pub(crate) mod triangle;
 //mod z_order;
 mod interaction_groups;
 mod user_callbacks;

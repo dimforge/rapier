@@ -1,8 +1,8 @@
 use crate::geometry::proximity_detector::PrimitiveProximityDetectionContext;
 use crate::geometry::Proximity;
 use crate::math::Isometry;
-use buckler::query::sat;
-use buckler::shape::Cuboid;
+use eagl::query::sat;
+use eagl::shape::Cuboid;
 
 pub fn detect_proximity_cuboid_cuboid(ctxt: &mut PrimitiveProximityDetectionContext) -> Proximity {
     if let (Some(cube1), Some(cube2)) = (ctxt.shape1.as_cuboid(), ctxt.shape2.as_cuboid()) {

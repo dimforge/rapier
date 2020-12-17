@@ -1,4 +1,4 @@
-use buckler2d::shape;
+use eagl2d::shape;
 use kiss3d::window::Window;
 use na::{Isometry2, Point2, Point3};
 use nphysics2d::object::{ColliderAnchor, DefaultColliderHandle, DefaultColliderSet};

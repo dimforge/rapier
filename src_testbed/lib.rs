@@ -1,9 +1,9 @@
 #[macro_use]
 extern crate kiss3d;
 #[cfg(feature = "dim2")]
-extern crate buckler2d as buckler;
+extern crate eagl2d as eagl;
 #[cfg(feature = "dim3")]
-extern crate buckler3d as buckler;
+extern crate eagl3d as eagl;
 extern crate nalgebra as na;
 #[cfg(feature = "dim2")]
 extern crate ncollide2d as ncollide;

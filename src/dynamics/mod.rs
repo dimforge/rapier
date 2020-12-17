@@ -9,7 +9,7 @@ pub use self::joint::{
 };
 pub use self::rigid_body::{ActivationStatus, BodyStatus, RigidBody, RigidBodyBuilder};
 pub use self::rigid_body_set::{BodyPair, RigidBodyHandle, RigidBodySet};
-pub use buckler::shape::MassProperties;
+pub use eagl::shape::MassProperties;
 // #[cfg(not(feature = "parallel"))]
 pub(crate) use self::joint::JointGraphEdge;
 pub(crate) use self::rigid_body::RigidBodyChanges;

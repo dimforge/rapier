@@ -1,7 +1,7 @@
 use crate::geometry::proximity_detector::PrimitiveProximityDetectionContext;
 use crate::geometry::{Cuboid, Proximity, Triangle};
 use crate::math::Isometry;
-use buckler::query::sat;
+use eagl::query::sat;
 
 pub fn detect_proximity_cuboid_triangle(
     ctxt: &mut PrimitiveProximityDetectionContext,

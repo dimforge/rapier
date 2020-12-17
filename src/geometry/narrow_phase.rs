@@ -2,28 +2,26 @@
 use rayon::prelude::*;
 
 use crate::dynamics::RigidBodySet;
-use crate::geometry::contact_generator::{
-    ContactDispatcher, ContactGenerationContext, DefaultContactDispatcher,
-};
 use crate::geometry::proximity_detector::{
     DefaultProximityDispatcher, ProximityDetectionContext, ProximityDispatcher,
 };
+use eagl::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
 //#[cfg(feature = "simd-is-enabled")]
 //use crate::geometry::{
 //    contact_generator::ContactGenerationContextSimd,
 //    proximity_detector::ProximityDetectionContextSimd, WBall,
 //};
 use crate::geometry::{
-    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactEvent, ContactPairFilter,
-    PairFilterContext, ProximityEvent, ProximityPair, ProximityPairFilter, RemovedCollider,
-    SolverFlags,
+    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactEvent, ContactManifoldData,
+    ContactPairFilter, PairFilterContext, ProximityEvent, ProximityPair, ProximityPairFilter,
+    RemovedCollider, SolverFlags,
 };
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 //#[cfg(feature = "simd-is-enabled")]
 //use crate::math::{SimdReal, SIMD_WIDTH};
-use crate::buckler::query::Proximity;
 use crate::data::pubsub::Subscription;
 use crate::data::Coarena;
+use crate::eagl::query::Proximity;
 use crate::pipeline::EventHandler;
 use std::collections::HashMap;
 //use simba::simd::SimdValue;
@@ -324,10 +322,7 @@ impl NarrowPhase {
                                 .find_edge(gid1.contact_graph_index, gid2.contact_graph_index)
                                 .is_none()
                             {
-                                let dispatcher = DefaultContactDispatcher;
-                                let generator = dispatcher
-                                    .dispatch(co1.shape().shape_type(), co2.shape().shape_type());
-                                let interaction = ContactPair::new(*pair, generator.0, generator.1);
+                                let interaction = ContactPair::new(*pair);
                                 let _ = self.contact_graph.add_edge(
                                     gid1.contact_graph_index,
                                     gid2.contact_graph_index,
@@ -523,33 +518,22 @@ impl NarrowPhase {
                 solver_flags.remove(SolverFlags::COMPUTE_IMPULSES);
             }
 
-            let dispatcher = DefaultContactDispatcher;
-            if pair.generator.is_none() {
-                // We need a redispatch for this generator.
-                // This can happen, e.g., after restoring a snapshot of the narrow-phase.
-                let (generator, workspace) =
-                    dispatcher.dispatch(co1.shape().shape_type(), co2.shape().shape_type());
-                pair.generator = Some(generator);
-
-                // Keep the workspace if one already exists.
-                if pair.generator_workspace.is_none() {
-                    pair.generator_workspace = workspace;
-                }
-            }
-
-            let context = ContactGenerationContext {
-                dispatcher: &dispatcher,
+            let dispatcher = DefaultQueryDispatcher;
+            let pos12 = co1.position().inverse() * co2.position();
+            dispatcher.contact_manifolds(
+                &pos12,
+                co1.shape(),
+                co2.shape(),
                 prediction_distance,
-                colliders,
-                pair,
-                solver_flags,
-            };
+                &mut pair.manifolds,
+                &mut pair.workspace,
+            );
 
-            context
-                .pair
-                .generator
-                .unwrap()
-                .generate_contacts(context, events);
+            // TODO: don't write this everytime?
+            for manifold in &mut pair.manifolds {
+                manifold.data =
+                    ContactManifoldData::from_colliders(pair.pair, co1, co2, solver_flags);
+            }
         });
     }
 

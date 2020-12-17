@@ -11,11 +11,11 @@
 // FIXME: deny that
 #![allow(missing_docs)]
 
-#[cfg(feature = "dim2")]
-pub extern crate buckler2d as buckler;
-#[cfg(feature = "dim3")]
-pub extern crate buckler3d as buckler;
 pub extern crate crossbeam;
+#[cfg(feature = "dim2")]
+pub extern crate eagl2d as eagl;
+#[cfg(feature = "dim3")]
+pub extern crate eagl3d as eagl;
 pub extern crate nalgebra as na;
 #[cfg(feature = "serde")]
 #[macro_use]
@@ -128,4 +128,4 @@ pub mod dynamics;
 pub mod geometry;
 pub mod pipeline;
 pub mod utils;
-pub use buckler::math;
+pub use eagl::math;

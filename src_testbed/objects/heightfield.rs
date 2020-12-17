@@ -1,6 +1,6 @@
 #[cfg(feature = "dim3")]
 use crate::objects::node::{self, GraphicsNode};
-use buckler::shape;
+use eagl::shape;
 use kiss3d::resource::Mesh;
 use kiss3d::window::Window;
 use na::{self, Point3};

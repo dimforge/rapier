@@ -1,13 +1,13 @@
-use crate::buckler::shape::HalfSpace;
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
+use crate::eagl::shape::HalfSpace;
 use crate::geometry::InteractionGroups;
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
-use buckler::bounding_volume::AABB;
-use buckler::shape::{
+use eagl::bounding_volume::AABB;
+use eagl::shape::{
     Ball, Capsule, Cuboid, HeightField, Segment, Shape, ShapeType, TriMesh, Triangle,
 };
 #[cfg(feature = "dim3")]
-use buckler::shape::{Cone, Cylinder, RoundCylinder};
+use eagl::shape::{Cone, Cylinder, RoundCylinder};
 use na::Point3;
 use std::ops::Deref;
 use std::sync::Arc;

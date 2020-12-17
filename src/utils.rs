@@ -5,6 +5,7 @@ use na::{Matrix2, Matrix3, Matrix3x2, Point2, Point3, Scalar, SimdRealField, Vec
 use num::Zero;
 use simba::simd::SimdValue;
 
+use eagl::utils::SdpMatrix3;
 use std::ops::{Add, Mul};
 use {
     crate::math::{AngularInertia, SimdBool, SimdReal},
@@ -468,8 +469,7 @@ impl WAngularInertia<SimdReal> for SimdReal {
     }
 }
 
-#[cfg(feature = "dim3")]
-impl WAngularInertia<f32> for AngularInertia<f32> {
+impl WAngularInertia<f32> for SdpMatrix3<f32> {
     type AngVector = Vector3<f32>;
     type LinVector = Vector3<f32>;
     type AngMatrix = Matrix3<f32>;
@@ -485,7 +485,7 @@ impl WAngularInertia<f32> for AngularInertia<f32> {
         if determinant.is_zero() {
             Self::zero()
         } else {
-            AngularInertia {
+            SdpMatrix3 {
                 m11: minor_m12_m23 / determinant,
                 m12: -minor_m11_m23 / determinant,
                 m13: minor_m11_m22 / determinant,
@@ -497,7 +497,7 @@ impl WAngularInertia<f32> for AngularInertia<f32> {
     }
 
     fn squared(&self) -> Self {
-        AngularInertia {
+        SdpMatrix3 {
             m11: self.m11 * self.m11 + self.m12 * self.m12 + self.m13 * self.m13,
             m12: self.m11 * self.m12 + self.m12 * self.m22 + self.m13 * self.m23,
             m13: self.m11 * self.m13 + self.m12 * self.m23 + self.m13 * self.m33,
@@ -533,8 +533,7 @@ impl WAngularInertia<f32> for AngularInertia<f32> {
     }
 }
 
-#[cfg(feature = "dim3")]
-impl WAngularInertia<SimdReal> for AngularInertia<SimdReal> {
+impl WAngularInertia<SimdReal> for SdpMatrix3<SimdReal> {
     type AngVector = Vector3<SimdReal>;
     type LinVector = Vector3<SimdReal>;
     type AngMatrix = Matrix3<SimdReal>;
@@ -551,7 +550,7 @@ impl WAngularInertia<SimdReal> for AngularInertia<SimdReal> {
         let is_zero = determinant.simd_eq(zero);
         let inv_det = (<SimdReal>::one() / determinant).select(is_zero, zero);
 
-        AngularInertia {
+        SdpMatrix3 {
             m11: minor_m12_m23 * inv_det,
             m12: -minor_m11_m23 * inv_det,
             m13: minor_m11_m22 * inv_det,
@@ -573,7 +572,7 @@ impl WAngularInertia<SimdReal> for AngularInertia<SimdReal> {
     }
 
     fn squared(&self) -> Self {
-        AngularInertia {
+        SdpMatrix3 {
             m11: self.m11 * self.m11 + self.m12 * self.m12 + self.m13 * self.m13,
             m12: self.m11 * self.m12 + self.m12 * self.m22 + self.m13 * self.m23,
             m13: self.m11 * self.m13 + self.m12 * self.m23 + self.m13 * self.m33,

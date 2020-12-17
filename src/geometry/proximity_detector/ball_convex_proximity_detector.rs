@@ -1,7 +1,7 @@
 use crate::geometry::proximity_detector::PrimitiveProximityDetectionContext;
 use crate::geometry::{Ball, Proximity};
 use crate::math::Isometry;
-use buckler::query::PointQuery;
+use eagl::query::PointQuery;
 
 pub fn detect_proximity_ball_convex(ctxt: &mut PrimitiveProximityDetectionContext) -> Proximity {
     if let Some(ball1) = ctxt.shape1.as_ball() {

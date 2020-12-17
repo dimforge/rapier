@@ -1,9 +1,8 @@
-use crate::buckler::query::TrackedData;
-use crate::data::MaybeSerializableData;
 use crate::dynamics::{BodyPair, RigidBodyHandle, RigidBodySet};
-use crate::geometry::contact_generator::{ContactGeneratorWorkspace, ContactPhase};
 use crate::geometry::{Collider, ColliderPair, ColliderSet, Contact, ContactManifold};
 use crate::math::{Isometry, Point, Vector};
+use eagl::query::ContactManifoldsWorkspace;
+use eagl::utils::MaybeSerializableData;
 #[cfg(feature = "simd-is-enabled")]
 use {
     crate::math::{SimdReal, SIMD_WIDTH},
@@ -96,22 +95,15 @@ pub struct ContactPair {
     ///
     /// All contact manifold contain themselves contact points between the colliders.
     pub manifolds: Vec<ContactManifold>,
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    pub(crate) generator: Option<ContactPhase>,
-    pub(crate) generator_workspace: Option<ContactGeneratorWorkspace>,
+    pub(crate) workspace: Option<ContactManifoldsWorkspace>,
 }
 
 impl ContactPair {
-    pub(crate) fn new(
-        pair: ColliderPair,
-        generator: ContactPhase,
-        generator_workspace: Option<ContactGeneratorWorkspace>,
-    ) -> Self {
+    pub(crate) fn new(pair: ColliderPair) -> Self {
         Self {
             pair,
             manifolds: Vec::new(),
-            generator: Some(generator),
-            generator_workspace,
+            workspace: None,
         }
     }
 
@@ -156,14 +148,14 @@ impl ContactPair {
                 coll1,
                 coll2,
                 manifold,
-                self.generator_workspace.as_mut().map(|w| &mut *w.0),
+                self.workspace.as_mut().map(|w| &mut *w.0),
             )
         } else {
             (
                 coll2,
                 coll1,
                 manifold,
-                self.generator_workspace.as_mut().map(|w| &mut *w.0),
+                self.workspace.as_mut().map(|w| &mut *w.0),
             )
         }
     }
@@ -215,14 +207,6 @@ impl Default for ContactManifoldData {
             0.0,
             SolverFlags::empty(),
         )
-    }
-}
-
-impl TrackedData for ContactManifoldData {
-    fn flip(&mut self) {
-        std::mem::swap(&mut self.pair.collider1, &mut self.pair.collider2);
-        std::mem::swap(&mut self.body_pair.body1, &mut self.body_pair.body2);
-        std::mem::swap(&mut self.delta1, &mut self.delta2);
     }
 }
 
@@ -281,7 +265,7 @@ impl ContactManifoldData {
         // This coefficient increases exponentially over time, until it reaches 1.0.
         // This will reduce significant overshoot at the timesteps that
         // follow a timestep involving high-velocity impacts.
-        0.01
+        1.0 // 0.01
     }
 
     pub(crate) fn update_warmstart_multiplier(manifold: &mut ContactManifold) {

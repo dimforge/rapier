@@ -1,4 +1,4 @@
-use crate::buckler::bounding_volume::{BoundingVolume, AABB};
+use crate::eagl::bounding_volume::{BoundingVolume, AABB};
 use crate::geometry::proximity_detector::{
     PrimitiveProximityDetectionContext, ProximityDetectionContext,
 };
@@ -87,7 +87,7 @@ fn do_detect_proximity(
 
     for triangle_id in new_interferences.iter() {
         if *triangle_id >= trimesh1.num_triangles() as u32 {
-            // Because of SIMD padding, the broad-phase may return tiangle indices greater
+            // Because of SIMD padding, the broad-phase may return triangle indices greater
             // than the max.
             continue;
         }

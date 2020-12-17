@@ -1,7 +1,7 @@
 #![allow(dead_code)] // TODO: remove this once we support polygons.
 
 use crate::math::{Isometry, Point, Vector};
-use buckler::bounding_volume::AABB;
+use eagl::bounding_volume::AABB;
 
 #[derive(Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]

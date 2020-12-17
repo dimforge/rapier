@@ -10,8 +10,8 @@ members = [ "build/rapier2d", "build/rapier_testbed2d", "examples2d", "benchmark
 #nphysics2d = { path = "../nphysics/build/nphysics2d" }
 #nphysics3d = { path = "../nphysics/build/nphysics3d" }
 #kiss3d = { path = "../kiss3d" }
-buckler2d = { path = "../buckler/build/buckler2d" }
-buckler3d = { path = "../buckler/build/buckler3d" }
+eagl2d = { path = "../eagl/build/eagl2d" }
+eagl3d = { path = "../eagl/build/eagl3d" }
 
 [profile.release]
 #debug = true

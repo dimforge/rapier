@@ -13,7 +13,7 @@ use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 use na::{Cholesky, Matrix6, Vector6, U3};
 #[cfg(feature = "dim2")]
 use {
-    crate::utils::SdpMatrix3,
+    eagl::utils::SdpMatrix3,
     na::{Matrix3, Vector3},
 };
 
