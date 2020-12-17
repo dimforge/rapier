@@ -3,7 +3,7 @@
 //! See  https://github.com/fitzgen/generational-arena/blob/master/src/lib.rs.
 //! This has been modified to have a fully deterministic deserialization (including for the order of
 //! Index attribution after a deserialization of the arena.
-use eagl::partitioning::IndexedData;
+use cdl::partitioning::IndexedData;
 use std::cmp;
 use std::iter::{self, Extend, FromIterator, FusedIterator};
 use std::mem;

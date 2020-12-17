@@ -1,8 +1,8 @@
 use crate::dynamics::{BodyPair, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{Collider, ColliderPair, ColliderSet, Contact, ContactManifold};
 use crate::math::{Isometry, Point, Vector};
-use eagl::query::ContactManifoldsWorkspace;
-use eagl::utils::MaybeSerializableData;
+use cdl::query::ContactManifoldsWorkspace;
+use cdl::utils::MaybeSerializableData;
 #[cfg(feature = "simd-is-enabled")]
 use {
     crate::math::{SimdReal, SIMD_WIDTH},

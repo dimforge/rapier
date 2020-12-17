@@ -3,8 +3,8 @@ use crate::dynamics::RigidBodySet;
 use crate::geometry::{ColliderHandle, ColliderSet, RemovedCollider};
 use crate::math::{Point, Vector, DIM};
 use bit_vec::BitVec;
-use eagl::bounding_volume::{BoundingVolume, AABB};
-use eagl::utils::hashmap::HashMap;
+use cdl::bounding_volume::{BoundingVolume, AABB};
+use cdl::utils::hashmap::HashMap;
 use std::cmp::Ordering;
 use std::ops::{Index, IndexMut};
 
@@ -477,8 +477,8 @@ pub struct BroadPhase {
     #[cfg_attr(
         feature = "serde-serialize",
         serde(
-            serialize_with = "eagl::utils::hashmap::serialize_hashmap_capacity",
-            deserialize_with = "eagl::utils::hashmap::deserialize_hashmap_capacity"
+            serialize_with = "cdl::utils::hashmap::serialize_hashmap_capacity",
+            deserialize_with = "cdl::utils::hashmap::deserialize_hashmap_capacity"
         )
     )]
     reporting: HashMap<(u32, u32), bool>, // Workspace

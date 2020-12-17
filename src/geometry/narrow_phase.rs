@@ -1,26 +1,19 @@
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
-use crate::dynamics::RigidBodySet;
-use eagl::query::{DefaultQueryDispatcher, PersistentQueryDispatcher, QueryDispatcher};
-//#[cfg(feature = "simd-is-enabled")]
-//use crate::geometry::{
-//    contact_generator::ContactGenerationContextSimd,
-//    intersection_detector::ProximityDetectionContextSimd, WBall,
-//};
-use crate::geometry::{
-    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactEvent, ContactManifoldData,
-    ContactPairFilter, IntersectionEvent, PairFilterContext, ProximityPairFilter, RemovedCollider,
-    SolverFlags,
-};
-use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
-//#[cfg(feature = "simd-is-enabled")]
-//use crate::math::{SimdReal, SIMD_WIDTH};
 use crate::data::pubsub::Subscription;
 use crate::data::Coarena;
+use crate::dynamics::RigidBodySet;
+use crate::geometry::{
+    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactData, ContactEvent,
+    ContactManifoldData, ContactPairFilter, IntersectionEvent, PairFilterContext,
+    ProximityPairFilter, RemovedCollider, SolverFlags,
+};
+use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 use crate::pipeline::EventHandler;
+use cdl::query::{DefaultQueryDispatcher, PersistentQueryDispatcher, QueryDispatcher};
 use std::collections::HashMap;
-//use simba::simd::SimdValue;
+use std::sync::Arc;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -42,14 +35,17 @@ impl ColliderGraphIndices {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 pub struct NarrowPhase {
+    #[serde(skip, default = "default_query_dispatcher")]
+    query_dispatcher: Arc<dyn PersistentQueryDispatcher<ContactManifoldData, ContactData>>,
     contact_graph: InteractionGraph<ContactPair>,
     intersection_graph: InteractionGraph<bool>,
     graph_indices: Coarena<ColliderGraphIndices>,
     removed_colliders: Option<Subscription<RemovedCollider>>,
-    //    ball_ball: Vec<usize>,        // Workspace: Vec<*mut ContactPair>,
-    //    shape_shape: Vec<usize>,      // Workspace: Vec<*mut ContactPair>,
-    //    ball_ball_prox: Vec<usize>,   // Workspace: Vec<*mut bool>,
-    //    shape_shape_prox: Vec<usize>, // Workspace: Vec<*mut bool>,
+}
+
+fn default_query_dispatcher() -> Arc<dyn PersistentQueryDispatcher<ContactManifoldData, ContactData>>
+{
+    Arc::new(DefaultQueryDispatcher)
 }
 
 pub(crate) type ContactManifoldIndex = usize;
@@ -57,15 +53,20 @@ pub(crate) type ContactManifoldIndex = usize;
 impl NarrowPhase {
     /// Creates a new empty narrow-phase.
     pub fn new() -> Self {
+        Self::with_query_dispatcher(DefaultQueryDispatcher)
+    }
+
+    /// Creates a new empty narrow-phase with a custom query dispatcher.
+    pub fn with_query_dispatcher<D>(d: D) -> Self
+    where
+        D: 'static + PersistentQueryDispatcher<ContactManifoldData, ContactData>,
+    {
         Self {
+            query_dispatcher: Arc::new(d),
             contact_graph: InteractionGraph::new(),
             intersection_graph: InteractionGraph::new(),
             graph_indices: Coarena::new(),
             removed_colliders: None,
-            //            ball_ball: Vec::new(),
-            //            shape_shape: Vec::new(),
-            //            ball_ball_prox: Vec::new(),
-            //            shape_shape_prox: Vec::new(),
         }
     }
 
@@ -391,6 +392,7 @@ impl NarrowPhase {
         events: &dyn EventHandler,
     ) {
         let nodes = &self.intersection_graph.graph.nodes;
+        let query_dispatcher = &*self.query_dispatcher;
         par_iter_mut!(&mut self.intersection_graph.graph.edges).for_each(|edge| {
             let handle1 = nodes[edge.source().index()].weight;
             let handle2 = nodes[edge.target().index()].weight;
@@ -434,9 +436,9 @@ impl NarrowPhase {
             }
 
             let pos12 = co1.position().inverse() * co2.position();
-            let dispatcher = DefaultQueryDispatcher;
 
-            if let Ok(intersection) = dispatcher.intersection_test(&pos12, co1.shape(), co2.shape())
+            if let Ok(intersection) =
+                query_dispatcher.intersection_test(&pos12, co1.shape(), co2.shape())
             {
                 if intersection != edge.weight {
                     edge.weight = intersection;
@@ -458,6 +460,8 @@ impl NarrowPhase {
         pair_filter: Option<&dyn ContactPairFilter>,
         events: &dyn EventHandler,
     ) {
+        let query_dispatcher = &*self.query_dispatcher;
+
         par_iter_mut!(&mut self.contact_graph.graph.edges).for_each(|edge| {
             let pair = &mut edge.weight;
             let co1 = &colliders[pair.pair.collider1];
@@ -507,9 +511,8 @@ impl NarrowPhase {
                 solver_flags.remove(SolverFlags::COMPUTE_IMPULSES);
             }
 
-            let dispatcher = DefaultQueryDispatcher;
             let pos12 = co1.position().inverse() * co2.position();
-            dispatcher.contact_manifolds(
+            query_dispatcher.contact_manifolds(
                 &pos12,
                 co1.shape(),
                 co2.shape(),

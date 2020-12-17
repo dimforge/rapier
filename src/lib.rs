@@ -11,11 +11,11 @@
 // FIXME: deny that
 #![allow(missing_docs)]
 
-pub extern crate crossbeam;
 #[cfg(feature = "dim2")]
-pub extern crate eagl2d as eagl;
+pub extern crate cdl2d as cdl;
 #[cfg(feature = "dim3")]
-pub extern crate eagl3d as eagl;
+pub extern crate cdl3d as cdl;
+pub extern crate crossbeam;
 pub extern crate nalgebra as na;
 #[cfg(feature = "serde")]
 #[macro_use]
@@ -128,4 +128,4 @@ pub mod dynamics;
 pub mod geometry;
 pub mod pipeline;
 pub mod utils;
-pub use eagl::math;
+pub use cdl::math;

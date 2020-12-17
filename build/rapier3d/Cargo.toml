@@ -15,14 +15,14 @@ edition = "2018"
 default = [ "dim3" ]
 dim3    = [ ]
 parallel = [ "rayon" ]
-simd-stable = [ "eagl3d/simd-stable", "simba/wide", "simd-is-enabled" ]
-simd-nightly = [ "eagl3d/simd-nightly", "simba/packed_simd", "simd-is-enabled" ]
+simd-stable = [ "cdl3d/simd-stable", "simba/wide", "simd-is-enabled" ]
+simd-nightly = [ "cdl3d/simd-nightly", "simba/packed_simd", "simd-is-enabled" ]
 # Do not enable this feature directly. It is automatically
 # enabled with the "simd-stable" or "simd-nightly" feature.
 simd-is-enabled = [ ]
 wasm-bindgen = [ "instant/wasm-bindgen" ]
-serde-serialize = [ "erased-serde", "nalgebra/serde-serialize", "eagl3d/serde-serialize", "serde", "generational-arena/serde", "bit-vec/serde" ]
-enhanced-determinism = [ "simba/libm_force", "eagl3d/enhanced-determinism" ]
+serde-serialize = [ "erased-serde", "nalgebra/serde-serialize", "cdl3d/serde-serialize", "serde", "generational-arena/serde", "bit-vec/serde" ]
+enhanced-determinism = [ "simba/libm_force", "cdl3d/enhanced-determinism" ]
 
 [lib]
 name = "rapier3d"
@@ -35,7 +35,7 @@ vec_map = "0.8"
 instant = { version = "0.1", features = [ "now" ]}
 num-traits = "0.2"
 nalgebra = "0.23"
-eagl3d = "0.1"
+cdl3d = "0.1"
 simba = "0.3"
 approx = "0.4"
 rayon = { version = "1", optional = true }

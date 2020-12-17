@@ -5,7 +5,7 @@ use na::{Matrix2, Matrix3, Matrix3x2, Point2, Point3, Scalar, SimdRealField, Vec
 use num::Zero;
 use simba::simd::SimdValue;
 
-use eagl::utils::SdpMatrix3;
+use cdl::utils::SdpMatrix3;
 use std::ops::{Add, Mul};
 use {
     crate::math::{AngularInertia, SimdBool, SimdReal},

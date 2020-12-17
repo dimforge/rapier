@@ -31,7 +31,7 @@ instant    = { version = "0.1", features = [ "web-sys", "now" ]}
 bitflags   = "1"
 num_cpus   = { version = "1", optional = true }
 wrapped2d  = { version = "0.4", optional = true }
-eagl2d = "0.1"
+cdl2d = "0.1"
 ncollide2d = "0.26"
 nphysics2d = { version = "0.18", optional = true }
 crossbeam = "0.8"

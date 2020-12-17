@@ -10,8 +10,10 @@ members = [ "build/rapier2d", "build/rapier_testbed2d", "examples2d", "benchmark
 #nphysics2d = { path = "../nphysics/build/nphysics2d" }
 #nphysics3d = { path = "../nphysics/build/nphysics3d" }
 #kiss3d = { path = "../kiss3d" }
-eagl2d = { path = "../eagl/build/eagl2d" }
-eagl3d = { path = "../eagl/build/eagl3d" }
+#cdl2d = { path = "../cdl/build/cdl2d" }
+#cdl3d = { path = "../cdl/build/cdl3d" }
+cdl2d = { git = "https://github.com/sebcrozet/cdl.git" }
+cdl3d = { git = "https://github.com/sebcrozet/cdl.git" }
 
 [profile.release]
 #debug = true
