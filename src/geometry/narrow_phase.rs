@@ -438,7 +438,7 @@ impl NarrowPhase {
                 }
             }
 
-            let pos12 = co1.position().inverse() * co2.position();
+            let pos12 = co1.position().inv_mul(co2.position());
 
             if let Ok(intersection) =
                 query_dispatcher.intersection_test(&pos12, co1.shape(), co2.shape())
@@ -514,8 +514,8 @@ impl NarrowPhase {
                 solver_flags.remove(SolverFlags::COMPUTE_IMPULSES);
             }
 
-            let pos12 = co1.position().inverse() * co2.position();
-            query_dispatcher.contact_manifolds(
+            let pos12 = co1.position().inv_mul(co2.position());
+            let _ = query_dispatcher.contact_manifolds(
                 &pos12,
                 co1.shape(),
                 co2.shape(),

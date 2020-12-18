@@ -745,7 +745,7 @@ impl Testbed {
                             .unwrap()
                             .position();
                         let attach1 = self.cursor_pos;
-                        let attach2 = body_pos.inverse() * attach1;
+                        let attach2 = body_pos.inv_mul(&attach1);
 
                         if let Some(ground) = self.ground_handle {
                             let joint = MouseConstraint::new(
