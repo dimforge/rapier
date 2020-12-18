@@ -3,7 +3,6 @@
 pub use self::broad_phase_multi_sap::BroadPhase;
 pub use self::collider::{Collider, ColliderBuilder, ColliderShape};
 pub use self::collider_set::{ColliderHandle, ColliderSet};
-// pub use self::contact_generator::{ContactDispatcher, DefaultContactDispatcher};
 pub use self::contact_pair::{ContactData, ContactManifoldData};
 pub use self::contact_pair::{ContactPair, SolverFlags};
 pub use self::interaction_graph::{
@@ -84,19 +83,16 @@ pub(crate) use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair};
 pub(crate) use self::collider_set::RemovedCollider;
 #[cfg(feature = "simd-is-enabled")]
 pub(crate) use self::contact_pair::WContact;
+pub use self::interaction_groups::InteractionGroups;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
 pub(crate) use cdl::partitioning::WQuadtree;
-//pub(crate) use self::z_order::z_cmp_floats;
-pub use self::interaction_groups::InteractionGroups;
 pub use cdl::shape::*;
 
 mod broad_phase_multi_sap;
 mod collider;
 mod collider_set;
-// mod contact_generator;
 mod contact_pair;
 mod interaction_graph;
-mod narrow_phase;
-//mod z_order;
 mod interaction_groups;
+mod narrow_phase;
 mod pair_filter;
