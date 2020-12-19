@@ -28,6 +28,7 @@ pub use crate::testbed::Testbed;
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 mod box2d_backend;
 mod engine;
+pub mod harness;
 #[cfg(feature = "other-backends")]
 mod nphysics_backend;
 pub mod objects;
