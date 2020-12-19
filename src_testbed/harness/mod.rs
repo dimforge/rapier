@@ -1,12 +1,9 @@
 use crate::physics::{PhysicsEvents, PhysicsState};
+use crate::HarnessPlugin;
+use rapier::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
+use rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
 use rapier::math::Vector;
 use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
-use rapier::dynamics::{
-    IntegrationParameters, JointSet, RigidBodySet,
-};
-use rapier::geometry::{
-    BroadPhase, ColliderSet, NarrowPhase,
-};
 
 // #[derive(PartialEq)]
 // pub enum RunState {
@@ -24,32 +21,33 @@ pub struct HarnessState {
     // pub run_state: RunState,
 }
 
-
 pub struct Harness {
     physics: PhysicsState,
     max_steps: usize,
     callbacks: Callbacks,
-    // plugins: Vec<Box<dyn HarnessPlugin>>,
+    plugins: Vec<Box<dyn HarnessPlugin>>,
     time: f32,
     events: PhysicsEvents,
     event_handler: ChannelEventCollector,
     pub state: HarnessState,
 }
 
-type Callbacks =
-Vec<Box<dyn FnMut(&mut PhysicsState, &PhysicsEvents, f32)>>;
+type Callbacks = Vec<Box<dyn FnMut(&mut PhysicsState, &PhysicsEvents, f32)>>;
 
 #[allow(dead_code)]
 impl Harness {
     pub fn new_empty() -> Self {
         #[cfg(feature = "parallel")]
-            let num_threads = num_cpus::get_physical();
+        let num_threads = num_cpus::get_physical();
 
         #[cfg(feature = "parallel")]
-            let thread_pool = rapier::rayon::ThreadPoolBuilder::new()
+        let thread_pool = rapier::rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .build()
             .unwrap();
+
+        // #[cfg(feature = "parallel")]
+        // println!("Rapier Harness Parallel, num_threads: {}", num_threads);
 
         let contact_channel = crossbeam::channel::unbounded();
         let proximity_channel = crossbeam::channel::unbounded();
@@ -70,6 +68,7 @@ impl Harness {
             physics,
             max_steps: 1000,
             callbacks: Vec::new(),
+            plugins: Vec::new(),
             time: 0.0,
             events,
             event_handler,
@@ -126,7 +125,6 @@ impl Harness {
         self.physics.query_pipeline = QueryPipeline::new();
         self.physics.pipeline = PhysicsPipeline::new();
         self.physics.pipeline.counters.enable();
-
     }
 
     // fn clear(&mut self) {
@@ -139,13 +137,11 @@ impl Harness {
     //     self.plugins.clear();
     // }
 
-    // pub fn add_plugin(&mut self, plugin: impl TestbedPlugin + 'static) {
-    //     self.plugins.push(Box::new(plugin));
-    // }
+    pub fn add_plugin(&mut self, plugin: impl HarnessPlugin + 'static) {
+        self.plugins.push(Box::new(plugin));
+    }
 
-    pub fn add_callback<
-        F: FnMut(&mut PhysicsState, &PhysicsEvents, f32) + 'static,
-    >(
+    pub fn add_callback<F: FnMut(&mut PhysicsState, &PhysicsEvents, f32) + 'static>(
         &mut self,
         callback: F,
     ) {
@@ -154,46 +150,51 @@ impl Harness {
 
     pub fn step(&mut self) {
         #[cfg(feature = "parallel")]
-            {
-                let physics = &mut self.physics;
-                let event_handler = &self.event_handler;
-                self.state.thread_pool.install(|| {
-                    physics.pipeline.step(
-                        &physics.gravity,
-                        &physics.integration_parameters,
-                        &mut physics.broad_phase,
-                        &mut physics.narrow_phase,
-                        &mut physics.bodies,
-                        &mut physics.colliders,
-                        &mut physics.joints,
-                        None,
-                        None,
-                        event_handler,
-                    );
-                });
-            }
+        {
+            let physics = &mut self.physics;
+            let event_handler = &self.event_handler;
+            self.state.thread_pool.install(|| {
+                physics.pipeline.step(
+                    &physics.gravity,
+                    &physics.integration_parameters,
+                    &mut physics.broad_phase,
+                    &mut physics.narrow_phase,
+                    &mut physics.bodies,
+                    &mut physics.colliders,
+                    &mut physics.joints,
+                    None,
+                    None,
+                    event_handler,
+                );
+            });
+        }
 
         #[cfg(not(feature = "parallel"))]
-            self.physics.pipeline.step(
-                &self.physics.gravity,
-                &self.physics.integration_parameters,
-                &mut self.physics.broad_phase,
-                &mut self.physics.narrow_phase,
-                &mut self.physics.bodies,
-                &mut self.physics.colliders,
-                &mut self.physics.joints,
-                None,
-                None,
-                &self.event_handler,
-            );
+        self.physics.pipeline.step(
+            &self.physics.gravity,
+            &self.physics.integration_parameters,
+            &mut self.physics.broad_phase,
+            &mut self.physics.narrow_phase,
+            &mut self.physics.bodies,
+            &mut self.physics.colliders,
+            &mut self.physics.joints,
+            None,
+            None,
+            &self.event_handler,
+        );
 
         self.physics
             .query_pipeline
             .update(&self.physics.bodies, &self.physics.colliders);
 
-        // for plugin in &mut self.plugins {
-        //     plugin.step(&mut self.physics)
-        // }
+        for plugin in &mut self.plugins {
+            plugin.step(&mut self.physics)
+        }
+
+        //FIXME: not sure if this makes sense here, basically copied from Testbed
+        for plugin in &mut self.plugins {
+            plugin.run_callbacks(&mut self.physics, self.time)
+        }
     }
 
     pub fn run(&mut self) {
