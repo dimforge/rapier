@@ -4,9 +4,10 @@ use std::path::Path;
 use std::rc::Rc;
 
 use crate::engine::GraphicsManager;
+use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
 use crate::ui::TestbedUi;
-use crossbeam::channel::Receiver;
+
 use kiss3d::camera::Camera;
 use kiss3d::event::Event;
 use kiss3d::event::{Action, Key, WindowEvent};
@@ -21,7 +22,7 @@ use rapier::dynamics::{
     ActivationStatus, IntegrationParameters, JointSet, RigidBodyHandle, RigidBodySet,
 };
 use rapier::geometry::{
-    BroadPhase, ColliderHandle, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent,
+    BroadPhase, ColliderHandle, ColliderSet, NarrowPhase,
 };
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
@@ -95,109 +96,6 @@ bitflags! {
         const BACKEND_CHANGED = 1 << 3;
         const TAKE_SNAPSHOT = 1 << 4;
         const RESTORE_SNAPSHOT = 1 << 5;
-    }
-}
-
-pub struct PhysicsSnapshot {
-    timestep_id: usize,
-    broad_phase: Vec<u8>,
-    narrow_phase: Vec<u8>,
-    bodies: Vec<u8>,
-    colliders: Vec<u8>,
-    joints: Vec<u8>,
-}
-
-impl PhysicsSnapshot {
-    fn new(
-        timestep_id: usize,
-        broad_phase: &BroadPhase,
-        narrow_phase: &NarrowPhase,
-        bodies: &RigidBodySet,
-        colliders: &ColliderSet,
-        joints: &JointSet,
-    ) -> bincode::Result<Self> {
-        Ok(Self {
-            timestep_id,
-            broad_phase: bincode::serialize(broad_phase)?,
-            narrow_phase: bincode::serialize(narrow_phase)?,
-            bodies: bincode::serialize(bodies)?,
-            colliders: bincode::serialize(colliders)?,
-            joints: bincode::serialize(joints)?,
-        })
-    }
-
-    fn restore(
-        &self,
-    ) -> bincode::Result<(
-        usize,
-        BroadPhase,
-        NarrowPhase,
-        RigidBodySet,
-        ColliderSet,
-        JointSet,
-    )> {
-        Ok((
-            self.timestep_id,
-            bincode::deserialize(&self.broad_phase)?,
-            bincode::deserialize(&self.narrow_phase)?,
-            bincode::deserialize(&self.bodies)?,
-            bincode::deserialize(&self.colliders)?,
-            bincode::deserialize(&self.joints)?,
-        ))
-    }
-
-    fn print_snapshot_len(&self) {
-        let total = self.broad_phase.len()
-            + self.narrow_phase.len()
-            + self.bodies.len()
-            + self.colliders.len()
-            + self.joints.len();
-        println!("Snapshot length: {}B", total);
-        println!("|_ broad_phase: {}B", self.broad_phase.len());
-        println!("|_ narrow_phase: {}B", self.narrow_phase.len());
-        println!("|_ bodies: {}B", self.bodies.len());
-        println!("|_ colliders: {}B", self.colliders.len());
-        println!("|_ joints: {}B", self.joints.len());
-    }
-}
-
-pub struct PhysicsEvents {
-    pub contact_events: Receiver<ContactEvent>,
-    pub proximity_events: Receiver<ProximityEvent>,
-}
-
-impl PhysicsEvents {
-    fn poll_all(&self) {
-        while let Ok(_) = self.contact_events.try_recv() {}
-        while let Ok(_) = self.proximity_events.try_recv() {}
-    }
-}
-
-pub struct PhysicsState {
-    pub broad_phase: BroadPhase,
-    pub narrow_phase: NarrowPhase,
-    pub bodies: RigidBodySet,
-    pub colliders: ColliderSet,
-    pub joints: JointSet,
-    pub pipeline: PhysicsPipeline,
-    pub query_pipeline: QueryPipeline,
-    pub integration_parameters: IntegrationParameters,
-    pub gravity: Vector<f32>,
-}
-
-impl PhysicsState {
-    pub fn new() -> Self {
-        Self {
-            broad_phase: BroadPhase::new(),
-            narrow_phase: NarrowPhase::new(),
-            bodies: RigidBodySet::new(),
-            colliders: ColliderSet::new(),
-            joints: JointSet::new(),
-            pipeline: PhysicsPipeline::new(),
-            query_pipeline: QueryPipeline::new(),
-            integration_parameters: IntegrationParameters::default(),
-            gravity: Vector::y() * -9.81,
-        }
     }
 }
 
