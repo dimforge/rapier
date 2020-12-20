@@ -1,4 +1,4 @@
-use crate::testbed::PhysicsState;
+use crate::physics::PhysicsState;
 use kiss3d::window::Window;
 use na::Point3;
 
