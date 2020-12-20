@@ -1,12 +1,8 @@
 use crossbeam::channel::Receiver;
+use rapier::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
+use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent};
 use rapier::math::Vector;
 use rapier::pipeline::{PhysicsPipeline, QueryPipeline};
-use rapier::dynamics::{
-    IntegrationParameters, JointSet,RigidBodySet,
-};
-use rapier::geometry::{
-    BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent,
-};
 
 pub struct PhysicsSnapshot {
     timestep_id: usize,
