@@ -22,8 +22,8 @@ extern crate bitflags;
 extern crate log;
 
 pub use crate::engine::GraphicsManager;
-pub use crate::physics::PhysicsState;
 pub use crate::harness::plugin::HarnessPlugin;
+pub use crate::physics::PhysicsState;
 pub use crate::plugin::TestbedPlugin;
 pub use crate::testbed::Testbed;
 

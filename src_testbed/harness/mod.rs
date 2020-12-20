@@ -145,7 +145,9 @@ impl Harness {
     }
 
     // type StepCallback = FnMut(&mut PhysicsState, &PhysicsEvents, f32);
-    pub fn add_callback<F: FnMut(&mut PhysicsState, &PhysicsEvents, &HarnessState, f32) + 'static>(
+    pub fn add_callback<
+        F: FnMut(&mut PhysicsState, &PhysicsEvents, &HarnessState, f32) + 'static,
+    >(
         &mut self,
         callback: F,
     ) {
@@ -196,16 +198,11 @@ impl Harness {
         }
 
         for f in &mut self.callbacks {
-            f(
-                &mut self.physics,
-                &self.events,
-                &self.state,
-                self.time,
-            )
+            f(&mut self.physics, &self.events, &self.state, self.time)
         }
 
         for plugin in &mut self.plugins {
-            plugin.run_callbacks(&mut self.physics, &self.events,&self.state, self.time)
+            plugin.run_callbacks(&mut self.physics, &self.events, &self.state, self.time)
         }
 
         self.events.poll_all();

@@ -10,4 +10,3 @@ pub trait TestbedPlugin {
     fn draw(&mut self);
     fn profiling_string(&self) -> String;
 }
-
