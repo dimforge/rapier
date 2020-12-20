@@ -23,7 +23,7 @@ extern crate log;
 
 pub use crate::engine::GraphicsManager;
 pub use crate::physics::PhysicsState;
-pub use crate::plugin::HarnessPlugin;
+pub use crate::harness::plugin::HarnessPlugin;
 pub use crate::plugin::TestbedPlugin;
 pub use crate::testbed::Testbed;
 
@@ -34,7 +34,7 @@ pub mod harness;
 #[cfg(feature = "other-backends")]
 mod nphysics_backend;
 pub mod objects;
-mod physics;
+pub mod physics;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 mod physx_backend;
 mod plugin;

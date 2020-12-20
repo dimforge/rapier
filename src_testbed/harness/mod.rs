@@ -1,9 +1,12 @@
 use crate::physics::{PhysicsEvents, PhysicsState};
-use crate::HarnessPlugin;
 use rapier::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
 use rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
 use rapier::math::Vector;
 use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
+
+pub mod plugin;
+
+use plugin::HarnessPlugin;
 
 // #[derive(PartialEq)]
 // pub enum RunState {
@@ -32,7 +35,7 @@ pub struct Harness {
     pub state: HarnessState,
 }
 
-type Callbacks = Vec<Box<dyn FnMut(&mut PhysicsState, &PhysicsEvents, f32)>>;
+type Callbacks = Vec<Box<dyn FnMut(&mut PhysicsState, &PhysicsEvents, &HarnessState, f32)>>;
 
 #[allow(dead_code)]
 impl Harness {
@@ -141,7 +144,8 @@ impl Harness {
         self.plugins.push(Box::new(plugin));
     }
 
-    pub fn add_callback<F: FnMut(&mut PhysicsState, &PhysicsEvents, f32) + 'static>(
+    // type StepCallback = FnMut(&mut PhysicsState, &PhysicsEvents, f32);
+    pub fn add_callback<F: FnMut(&mut PhysicsState, &PhysicsEvents, &HarnessState, f32) + 'static>(
         &mut self,
         callback: F,
     ) {
@@ -191,10 +195,22 @@ impl Harness {
             plugin.step(&mut self.physics)
         }
 
-        //FIXME: not sure if this makes sense here, basically copied from Testbed
-        for plugin in &mut self.plugins {
-            plugin.run_callbacks(&mut self.physics, self.time)
+        for f in &mut self.callbacks {
+            f(
+                &mut self.physics,
+                &self.events,
+                &self.state,
+                self.time,
+            )
         }
+
+        for plugin in &mut self.plugins {
+            plugin.run_callbacks(&mut self.physics, &self.events,&self.state, self.time)
+        }
+
+        self.events.poll_all();
+
+        self.time += self.physics.integration_parameters.dt();
     }
 
     pub fn run(&mut self) {
