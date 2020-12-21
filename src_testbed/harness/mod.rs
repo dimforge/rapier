@@ -1,4 +1,5 @@
 use crate::physics::{PhysicsEvents, PhysicsState};
+use plugin::HarnessPlugin;
 use rapier::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
 use rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
 use rapier::math::Vector;
@@ -6,22 +7,10 @@ use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
 
 pub mod plugin;
 
-use plugin::HarnessPlugin;
-
-// #[derive(PartialEq)]
-// pub enum RunState {
-//     Initialized,
-//     Running,
-//     Pausing,
-//     Paused,
-//     Finished,
-// }
-
 pub struct HarnessState {
     #[cfg(feature = "parallel")]
     pub thread_pool: rapier::rayon::ThreadPool,
     pub timestep_id: usize,
-    // pub run_state: RunState,
 }
 
 pub struct Harness {
@@ -49,9 +38,6 @@ impl Harness {
             .build()
             .unwrap();
 
-        // #[cfg(feature = "parallel")]
-        // println!("Rapier Harness Parallel, num_threads: {}", num_threads);
-
         let contact_channel = crossbeam::channel::unbounded();
         let proximity_channel = crossbeam::channel::unbounded();
         let event_handler = ChannelEventCollector::new(proximity_channel.0, contact_channel.0);
@@ -64,7 +50,6 @@ impl Harness {
             #[cfg(feature = "parallel")]
             thread_pool,
             timestep_id: 0,
-            // run_state: RunState::Initialized
         };
 
         Self {
@@ -84,12 +69,6 @@ impl Harness {
         res.set_world(bodies, colliders, joints);
         res
     }
-
-    // pub fn pause_at_next_step(&mut self) {
-    //     if self.state.run_state == RunState::Running {
-    //         self.state.run_state = RunState::Pausing
-    //     }
-    // }
 
     pub fn set_max_steps(&mut self, max_steps: usize) {
         self.max_steps = max_steps
@@ -123,28 +102,16 @@ impl Harness {
         self.physics.broad_phase = BroadPhase::new();
         self.physics.narrow_phase = NarrowPhase::new();
         self.time = 0.0;
-        // self.state.timestep_id = 0;
-        // self.state.highlighted_body = None;
+        self.state.timestep_id = 0;
         self.physics.query_pipeline = QueryPipeline::new();
         self.physics.pipeline = PhysicsPipeline::new();
         self.physics.pipeline.counters.enable();
     }
 
-    // fn clear(&mut self) {
-    //     self.callbacks.clear();
-    //
-    //     for plugin in &mut self.plugins {
-    //         plugin.clear_graphics(window);
-    //     }
-    //
-    //     self.plugins.clear();
-    // }
-
     pub fn add_plugin(&mut self, plugin: impl HarnessPlugin + 'static) {
         self.plugins.push(Box::new(plugin));
     }
 
-    // type StepCallback = FnMut(&mut PhysicsState, &PhysicsEvents, f32);
     pub fn add_callback<
         F: FnMut(&mut PhysicsState, &PhysicsEvents, &HarnessState, f32) + 'static,
     >(

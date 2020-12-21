@@ -3,7 +3,6 @@ use crate::physics::PhysicsEvents;
 use crate::PhysicsState;
 
 pub trait HarnessPlugin {
-    //FIXME: is run_callbacks needed?
     fn run_callbacks(
         &mut self,
         physics: &mut PhysicsState,
