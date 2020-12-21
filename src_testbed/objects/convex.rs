@@ -19,13 +19,20 @@ impl Convex {
     pub fn new(
         body: ColliderHandle,
         vertices: Vec<Point<f32>>,
+        #[cfg(feature = "dim3")] indices: Vec<Point<u32>>,
         color: Point3<f32>,
         window: &mut Window,
     ) -> Convex {
         #[cfg(feature = "dim2")]
         let node = window.add_convex_polygon(vertices, Vector::from_element(1.0));
         #[cfg(feature = "dim3")]
-        let node = unimplemented!();
+        let node = {
+            use std::cell::RefCell;
+            use std::rc::Rc;
+            let is = indices.into_iter().map(na::convert).collect();
+            let mesh = kiss3d::resource::Mesh::new(vertices, is, None, None, false);
+            window.add_mesh(Rc::new(RefCell::new(mesh)), na::Vector3::from_element(1.0))
+        };
 
         let mut res = Convex {
             color,

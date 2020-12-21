@@ -14,7 +14,7 @@ use crate::objects::node::{GraphicsNode, Node};
 use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
 use rapier::geometry::{Collider, ColliderHandle, ColliderSet};
 //use crate::objects::capsule::Capsule;
-//use crate::objects::convex::Convex;
+use crate::objects::convex::Convex;
 //#[cfg(feature = "dim3")]
 //use crate::objects::mesh::Mesh;
 //use crate::objects::plane::Plane;
@@ -292,7 +292,10 @@ impl GraphicsManager {
         //     window,
         // ))),
 
-        if let Some(cuboid) = shape.as_cuboid() {
+        if let Some(cuboid) = shape
+            .as_cuboid()
+            .or(shape.as_round_cuboid().map(|r| &r.base_shape))
+        {
             out.push(Node::Box(BoxNode::new(
                 handle,
                 cuboid.half_extents,
@@ -305,7 +308,10 @@ impl GraphicsManager {
             out.push(Node::Capsule(Capsule::new(handle, capsule, color, window)))
         }
 
-        if let Some(triangle) = shape.as_triangle() {
+        if let Some(triangle) = shape
+            .as_triangle()
+            .or(shape.as_round_triangle().map(|r| &r.base_shape))
+        {
             out.push(Node::Mesh(Mesh::new(
                 handle,
                 vec![triangle.a, triangle.b, triangle.c],
@@ -339,9 +345,20 @@ impl GraphicsManager {
         }
 
         #[cfg(feature = "dim3")]
+        if let Some(convex_polyhedron) = shape
+            .as_convex_polyhedron()
+            .or(shape.as_round_convex_polyhedron().map(|r| &r.base_shape))
+        {
+            let (vertices, indices) = convex_polyhedron.to_trimesh();
+            out.push(Node::Convex(Convex::new(
+                handle, vertices, indices, color, window,
+            )))
+        }
+
+        #[cfg(feature = "dim3")]
         if let Some(cylinder) = shape
             .as_cylinder()
-            .or(shape.as_round_cylinder().map(|r| &r.cylinder))
+            .or(shape.as_round_cylinder().map(|r| &r.base_shape))
         {
             out.push(Node::Cylinder(Cylinder::new(
                 handle,
@@ -353,7 +370,10 @@ impl GraphicsManager {
         }
 
         #[cfg(feature = "dim3")]
-        if let Some(cone) = shape.as_cone() {
+        if let Some(cone) = shape
+            .as_cone()
+            .or(shape.as_round_cone().map(|r| &r.base_shape))
+        {
             out.push(Node::Cone(Cone::new(
                 handle,
                 cone.half_height,

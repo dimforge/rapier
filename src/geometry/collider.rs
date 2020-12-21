@@ -1,13 +1,15 @@
-use crate::cdl::shape::HalfSpace;
 use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
 use crate::geometry::InteractionGroups;
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
 use cdl::bounding_volume::AABB;
 use cdl::shape::{
-    Ball, Capsule, Cuboid, HeightField, Segment, Shape, ShapeType, TriMesh, Triangle,
+    Ball, Capsule, Cuboid, HalfSpace, HeightField, RoundCuboid, RoundTriangle, Segment, Shape,
+    ShapeType, ShapeWithBorder, TriMesh, Triangle,
 };
 #[cfg(feature = "dim3")]
-use cdl::shape::{Cone, Cylinder, RoundCylinder};
+use cdl::shape::{
+    Cone, ConvexPolyhedron, Cylinder, RoundCone, RoundConvexPolyhedron, RoundCylinder,
+};
 use na::Point3;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -42,11 +44,21 @@ impl ColliderShape {
     /// radius of the sphere used for dilating the cylinder).
     #[cfg(feature = "dim3")]
     pub fn round_cylinder(half_height: f32, radius: f32, border_radius: f32) -> Self {
-        ColliderShape(Arc::new(RoundCylinder::new(
-            half_height,
-            radius,
+        ColliderShape(Arc::new(ShapeWithBorder {
+            base_shape: Cylinder::new(half_height, radius),
             border_radius,
-        )))
+        }))
+    }
+
+    /// Initialize a rounded cone shape defined by its half-height
+    /// (along along the y axis), its radius, and its roundedness (the
+    /// radius of the sphere used for dilating the cylinder).
+    #[cfg(feature = "dim3")]
+    pub fn round_cone(half_height: f32, radius: f32, border_radius: f32) -> Self {
+        ColliderShape(Arc::new(ShapeWithBorder {
+            base_shape: Cone::new(half_height, radius),
+            border_radius,
+        }))
     }
 
     /// Initialize a cone shape defined by its half-height
@@ -79,6 +91,40 @@ impl ColliderShape {
     /// Initializes a triangle mesh shape defined by its vertex and index buffers.
     pub fn trimesh(vertices: Vec<Point<f32>>, indices: Vec<Point3<u32>>) -> Self {
         ColliderShape(Arc::new(TriMesh::new(vertices, indices)))
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn convex_hull(points: &[Point<f32>]) -> Option<Self> {
+        ConvexPolyhedron::from_convex_hull(points).map(|ch| ColliderShape(Arc::new(ch)))
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn convex_mesh(points: Vec<Point<f32>>, indices: &[usize]) -> Option<Self> {
+        ConvexPolyhedron::from_convex_mesh(points, indices).map(|ch| ColliderShape(Arc::new(ch)))
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn round_convex_hull(points: &[Point<f32>], border_radius: f32) -> Option<Self> {
+        ConvexPolyhedron::from_convex_hull(points).map(|ch| {
+            ColliderShape(Arc::new(ShapeWithBorder {
+                base_shape: ch,
+                border_radius,
+            }))
+        })
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn round_convex_mesh(
+        points: Vec<Point<f32>>,
+        indices: &[usize],
+        border_radius: f32,
+    ) -> Option<Self> {
+        ConvexPolyhedron::from_convex_mesh(points, indices).map(|ch| {
+            ColliderShape(Arc::new(ShapeWithBorder {
+                base_shape: ch,
+                border_radius,
+            }))
+        })
     }
 
     /// Initializes an heightfield shape defined by its set of height and a scale
@@ -169,12 +215,22 @@ impl<'de> serde::Deserialize<'de> for ColliderShape {
                     Some(ShapeType::TriMesh) => deser::<A, TriMesh>(&mut seq)?,
                     Some(ShapeType::HeightField) => deser::<A, HeightField>(&mut seq)?,
                     Some(ShapeType::HalfSpace) => deser::<A, HalfSpace>(&mut seq)?,
+                    Some(ShapeType::RoundCuboid) => deser::<A, RoundCuboid>(&mut seq)?,
+                    Some(ShapeType::RoundTriangle) => deser::<A, RoundTriangle>(&mut seq)?,
                     #[cfg(feature = "dim3")]
                     Some(ShapeType::Cylinder) => deser::<A, Cylinder>(&mut seq)?,
+                    #[cfg(feature = "dim3")]
+                    Some(ShapeType::ConvexPolyhedron) => deser::<A, ConvexPolyhedron>(&mut seq)?,
                     #[cfg(feature = "dim3")]
                     Some(ShapeType::Cone) => deser::<A, Cone>(&mut seq)?,
                     #[cfg(feature = "dim3")]
                     Some(ShapeType::RoundCylinder) => deser::<A, RoundCylinder>(&mut seq)?,
+                    #[cfg(feature = "dim3")]
+                    Some(ShapeType::RoundCone) => deser::<A, RoundCone>(&mut seq)?,
+                    #[cfg(feature = "dim3")]
+                    Some(ShapeType::RoundConvexPolyhedron) => {
+                        deser::<A, RoundConvexPolyhedron>(&mut seq)?
+                    }
                     None => {
                         return Err(serde::de::Error::custom(
                             "found invalid shape type to deserialize",
@@ -365,6 +421,18 @@ impl ColliderBuilder {
         Self::new(ColliderShape::cone(half_height, radius))
     }
 
+    /// Initialize a new collider builder with a rounded cone shape defined by its half-height
+    /// (along along the y axis), its radius, and its roundedness (the
+    /// radius of the sphere used for dilating the cylinder).
+    #[cfg(feature = "dim3")]
+    pub fn round_cone(half_height: f32, radius: f32, border_radius: f32) -> Self {
+        Self::new(ColliderShape::round_cone(
+            half_height,
+            radius,
+            border_radius,
+        ))
+    }
+
     /// Initialize a new collider builder with a cuboid shape defined by its half-extents.
     #[cfg(feature = "dim2")]
     pub fn cuboid(hx: f32, hy: f32) -> Self {
@@ -409,6 +477,30 @@ impl ColliderBuilder {
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers.
     pub fn trimesh(vertices: Vec<Point<f32>>, indices: Vec<Point3<u32>>) -> Self {
         Self::new(ColliderShape::trimesh(vertices, indices))
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn convex_hull(points: &[Point<f32>]) -> Option<Self> {
+        ColliderShape::convex_hull(points).map(|cp| Self::new(cp))
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn round_convex_hull(points: &[Point<f32>], border_radius: f32) -> Option<Self> {
+        ColliderShape::round_convex_hull(points, border_radius).map(|cp| Self::new(cp))
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn convex_mesh(points: Vec<Point<f32>>, indices: &[usize]) -> Option<Self> {
+        ColliderShape::convex_mesh(points, indices).map(|cp| Self::new(cp))
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn round_convex_mesh(
+        points: Vec<Point<f32>>,
+        indices: &[usize],
+        border_radius: f32,
+    ) -> Option<Self> {
+        ColliderShape::round_convex_mesh(points, indices, border_radius).map(|cp| Self::new(cp))
     }
 
     /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
