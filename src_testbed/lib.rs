@@ -22,16 +22,19 @@ extern crate bitflags;
 extern crate log;
 
 pub use crate::engine::GraphicsManager;
+pub use crate::harness::plugin::HarnessPlugin;
+pub use crate::physics::PhysicsState;
 pub use crate::plugin::TestbedPlugin;
 pub use crate::testbed::Testbed;
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 mod box2d_backend;
 mod engine;
+pub mod harness;
 #[cfg(feature = "other-backends")]
 mod nphysics_backend;
 pub mod objects;
-mod physics;
+pub mod physics;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 mod physx_backend;
 mod plugin;
