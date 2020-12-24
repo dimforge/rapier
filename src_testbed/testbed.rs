@@ -1303,8 +1303,8 @@ impl State for Testbed {
             }
         }
 
-        // FIXME: this is causing errors, but should be put back in some how
-        // self.highlight_hovered_body(window);
+        self.highlight_hovered_body(window);
+
         let physics = &self.harness.physics;
         self.graphics
             .draw(&physics.bodies, &physics.colliders, window);
