@@ -162,17 +162,6 @@ impl Testbed {
         #[cfg(all(feature = "dim3", feature = "other-backends"))]
         backend_names.push("physx (two friction dir)");
 
-        #[cfg(feature = "parallel")]
-        let num_threads = num_cpus::get_physical();
-        #[cfg(not(feature = "parallel"))]
-        let num_threads = 1;
-
-        #[cfg(feature = "parallel")]
-        let thread_pool = rapier::rayon::ThreadPoolBuilder::new()
-            .num_threads(num_threads)
-            .build()
-            .unwrap();
-
         let state = TestbedState {
             running: RunMode::Running,
             draw_colls: false,
@@ -192,8 +181,6 @@ impl Testbed {
             selected_backend: RAPIER_BACKEND,
             physx_use_two_friction_directions: true,
             num_threads,
-            #[cfg(feature = "parallel")]
-            thread_pool,
         };
 
         let harness = Harness::new_empty();
