@@ -18,7 +18,10 @@ impl RunState {
     pub fn new() -> Self {
         Self {
             #[cfg(feature = "parallel")]
-            thread_pool: rapier::rayon::ThreadPool,
+            thread_pool: rapier::rayon::ThreadPoolBuilder::new()
+                .num_threads(num_threads)
+                .build()
+                .unwrap(),
             timestep_id: 0,
             time: 0.0,
         }
