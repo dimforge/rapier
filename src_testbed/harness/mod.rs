@@ -20,7 +20,7 @@ impl RunState {
             #[cfg(feature = "parallel")]
             thread_pool: rapier::rayon::ThreadPool,
             timestep_id: 0,
-            time: 0.0
+            time: 0.0,
         }
     }
 }
@@ -117,9 +117,7 @@ impl Harness {
         self.plugins.push(Box::new(plugin));
     }
 
-    pub fn add_callback<
-        F: FnMut(&mut PhysicsState, &PhysicsEvents, &RunState, f32) + 'static,
-    >(
+    pub fn add_callback<F: FnMut(&mut PhysicsState, &PhysicsEvents, &RunState, f32) + 'static>(
         &mut self,
         callback: F,
     ) {
@@ -170,11 +168,21 @@ impl Harness {
         }
 
         for f in &mut self.callbacks {
-            f(&mut self.physics, &self.events, &self.state, self.state.time)
+            f(
+                &mut self.physics,
+                &self.events,
+                &self.state,
+                self.state.time,
+            )
         }
 
         for plugin in &mut self.plugins {
-            plugin.run_callbacks(&mut self.physics, &self.events, &self.state, self.state.time)
+            plugin.run_callbacks(
+                &mut self.physics,
+                &self.events,
+                &self.state,
+                self.state.time,
+            )
         }
 
         self.events.poll_all();

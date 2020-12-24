@@ -25,15 +25,15 @@ use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
 use rapier::math::Vector;
-use rapier::pipeline::{ChannelEventCollector};
+use rapier::pipeline::ChannelEventCollector;
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
+use crate::harness::{Harness, RunState};
 #[cfg(feature = "other-backends")]
 use crate::nphysics_backend::NPhysicsWorld;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 use crate::physx_backend::PhysxWorld;
-use crate::harness::{Harness, RunState};
 
 const RAPIER_BACKEND: usize = 0;
 const NPHYSICS_BACKEND: usize = 1;
@@ -141,8 +141,9 @@ pub struct Testbed {
     nphysics: Option<NPhysicsWorld>,
 }
 
-type Callbacks =
-    Vec<Box<dyn FnMut(&mut Window, &mut PhysicsState, &PhysicsEvents, &mut GraphicsManager, &RunState)>>;
+type Callbacks = Vec<
+    Box<dyn FnMut(&mut Window, &mut PhysicsState, &PhysicsEvents, &mut GraphicsManager, &RunState)>,
+>;
 
 impl Testbed {
     pub fn new_empty() -> Testbed {
@@ -271,10 +272,10 @@ impl Testbed {
         joints: JointSet,
         gravity: Vector<f32>,
     ) {
-
         println!("Num bodies: {}", bodies.len());
         println!("Num joints: {}", joints.len());
-        self.harness.set_world_with_gravity(bodies, colliders, joints, gravity);
+        self.harness
+            .set_world_with_gravity(bodies, colliders, joints, gravity);
 
         self.state
             .action_flags
@@ -416,7 +417,8 @@ impl Testbed {
     }
 
     pub fn add_callback<
-        F: FnMut(&mut Window, &mut PhysicsState, &PhysicsEvents, &mut GraphicsManager, &RunState) + 'static,
+        F: FnMut(&mut Window, &mut PhysicsState, &PhysicsEvents, &mut GraphicsManager, &RunState)
+            + 'static,
     >(
         &mut self,
         callback: F,
@@ -463,11 +465,23 @@ impl Testbed {
                         && (backend_id == PHYSX_BACKEND_PATCH_FRICTION
                             || backend_id == PHYSX_BACKEND_TWO_FRICTION_DIR)
                     {
-                        self.harness.physics.integration_parameters.max_velocity_iterations = 1;
-                        self.harness.physics.integration_parameters.max_position_iterations = 4;
+                        self.harness
+                            .physics
+                            .integration_parameters
+                            .max_velocity_iterations = 1;
+                        self.harness
+                            .physics
+                            .integration_parameters
+                            .max_position_iterations = 4;
                     } else {
-                        self.harness.physics.integration_parameters.max_velocity_iterations = 4;
-                        self.harness.physics.integration_parameters.max_position_iterations = 1;
+                        self.harness
+                            .physics
+                            .integration_parameters
+                            .max_velocity_iterations = 4;
+                        self.harness
+                            .physics
+                            .integration_parameters
+                            .max_position_iterations = 1;
                     }
                     // Init world.
                     (builder.1)(&mut self);
@@ -581,7 +595,9 @@ impl Testbed {
                 .set(TestbedActionFlags::EXAMPLE_CHANGED, true),
             WindowEvent::Key(Key::C, Action::Release, _) => {
                 // Delete 1 collider of 10% of the remaining dynamic bodies.
-                let mut colliders: Vec<_> = self.harness.physics
+                let mut colliders: Vec<_> = self
+                    .harness
+                    .physics
                     .bodies
                     .iter()
                     .filter(|e| e.1.is_dynamic())
@@ -592,11 +608,11 @@ impl Testbed {
 
                 let num_to_delete = (colliders.len() / 10).max(1);
                 for to_delete in &colliders[..num_to_delete] {
-                    self
-                        .harness
-                        .physics
-                        .colliders
-                        .remove(to_delete[0], &mut  self.harness.physics.bodies, true);
+                    self.harness.physics.colliders.remove(
+                        to_delete[0],
+                        &mut self.harness.physics.bodies,
+                        true,
+                    );
                 }
             }
             WindowEvent::Key(Key::D, Action::Release, _) => {
@@ -623,11 +639,11 @@ impl Testbed {
                 let joints: Vec<_> = self.harness.physics.joints.iter().map(|e| e.0).collect();
                 let num_to_delete = (joints.len() / 10).max(1);
                 for to_delete in &joints[..num_to_delete] {
-                    self
-                        .harness
-                        .physics
-                        .joints
-                        .remove(*to_delete, &mut self.harness.physics.bodies, true);
+                    self.harness.physics.joints.remove(
+                        *to_delete,
+                        &mut self.harness.physics.bodies,
+                        true,
+                    );
                 }
             }
             WindowEvent::CursorPos(x, y, _) => {
@@ -1103,7 +1119,6 @@ impl State for Testbed {
                 }
             }
 
-
             if self
                 .state
                 .action_flags
@@ -1184,7 +1199,10 @@ impl State for Testbed {
                 .contains(TestbedStateFlags::SUB_STEPPING)
                 != self.state.flags.contains(TestbedStateFlags::SUB_STEPPING)
             {
-                self.harness.physics.integration_parameters.return_after_ccd_substep =
+                self.harness
+                    .physics
+                    .integration_parameters
+                    .return_after_ccd_substep =
                     self.state.flags.contains(TestbedStateFlags::SUB_STEPPING);
             }
 
@@ -1289,7 +1307,11 @@ impl State for Testbed {
 
                 for plugin in &mut self.plugins {
                     {
-                        plugin.run_callbacks(window, &mut self.harness.physics, self.harness.state.time);
+                        plugin.run_callbacks(
+                            window,
+                            &mut self.harness.physics,
+                            self.harness.state.time,
+                        );
                     }
                 }
 
