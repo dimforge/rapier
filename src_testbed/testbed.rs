@@ -1025,7 +1025,7 @@ impl State for Testbed {
                 window,
                 &mut self.harness.physics.integration_parameters,
                 &mut self.state,
-                &mut self.harness.state
+                &mut self.harness.state,
             );
         }
 

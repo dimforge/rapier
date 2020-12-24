@@ -2,8 +2,8 @@ use kiss3d::conrod::{self, Borderable, Colorable, Labelable, Positionable, Sizea
 use kiss3d::window::Window;
 use rapier::dynamics::IntegrationParameters;
 
-use crate::testbed::{RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags};
 use crate::harness::RunState;
+use crate::testbed::{RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags};
 
 const SIDEBAR_W: f64 = 200.0;
 const ELEMENT_W: f64 = SIDEBAR_W - 20.0;
