@@ -16,12 +16,18 @@ pub struct RunState {
 
 impl RunState {
     pub fn new() -> Self {
+        #[cfg(feature = "parallel")]
+            let num_threads = num_cpus::get_physical();
+
+        #[cfg(feature = "parallel")]
+            let thread_pool = rapier::rayon::ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build()
+            .unwrap();
+
         Self {
             #[cfg(feature = "parallel")]
-            thread_pool: rapier::rayon::ThreadPoolBuilder::new()
-                .num_threads(num_threads)
-                .build()
-                .unwrap(),
+            thread_pool: thread_pool,
             timestep_id: 0,
             time: 0.0,
         }
