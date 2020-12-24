@@ -1310,7 +1310,7 @@ impl State for Testbed {
                         plugin.run_callbacks(
                             window,
                             &mut self.harness.physics,
-                            self.harness.state.time,
+                            &self.harness.state,
                         );
                     }
                 }
