@@ -21,11 +21,11 @@ use na::{self, Point2, Point3, Vector3};
 use rapier::dynamics::{
     ActivationStatus, IntegrationParameters, JointSet, RigidBodyHandle, RigidBodySet,
 };
-use rapier::geometry::{BroadPhase, ColliderHandle, ColliderSet, NarrowPhase};
+use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
 use rapier::math::Vector;
-use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
+use rapier::pipeline::{ChannelEventCollector};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
@@ -302,8 +302,6 @@ impl Testbed {
         self.time = 0.0;
         self.state.timestep_id = 0;
         self.state.highlighted_body = None;
-
-        let physics = &self.harness.physics;
 
         #[cfg(all(feature = "dim2", feature = "other-backends"))]
         {
