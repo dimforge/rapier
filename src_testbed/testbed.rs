@@ -396,6 +396,7 @@ impl Testbed {
     }
 
     fn clear(&mut self, window: &mut Window) {
+        //FIXME: do we need to do this still, after moving to harness code?
         self.callbacks.clear();
         //        self.persistant_contacts.clear();
         //        self.state.grabbed_object = None;
@@ -1236,7 +1237,6 @@ impl State for Testbed {
                 if self.state.selected_backend == RAPIER_BACKEND {
                     self.harness.step();
 
-                    //FIXME: this should probably be delegated to harness plugins
                     for plugin in &mut self.plugins {
                         plugin.step(&mut self.harness.physics)
                     }
@@ -1287,7 +1287,6 @@ impl State for Testbed {
                     }
                 }
 
-                // FIXME: should this be handled by harness plugins?
                 for plugin in &mut self.plugins {
                     {
                         plugin.run_callbacks(window, &mut self.harness.physics, self.harness.state.time);
