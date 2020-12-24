@@ -10,6 +10,6 @@ pub trait HarnessPlugin {
         harness_state: &RunState,
         t: f32,
     );
-    fn step(&mut self, physics: &mut PhysicsState);
+    fn step(&mut self, physics: &mut PhysicsState, run_state: &RunState);
     fn profiling_string(&self) -> String;
 }

@@ -166,7 +166,7 @@ impl Harness {
             .update(&self.physics.bodies, &self.physics.colliders);
 
         for plugin in &mut self.plugins {
-            plugin.step(&mut self.physics)
+            plugin.step(&mut self.physics, &self.state)
         }
 
         for f in &mut self.callbacks {
