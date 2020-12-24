@@ -3,6 +3,7 @@ use kiss3d::window::Window;
 use rapier::dynamics::IntegrationParameters;
 
 use crate::testbed::{RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags};
+use crate::harness::RunState;
 
 const SIDEBAR_W: f64 = 200.0;
 const ELEMENT_W: f64 = SIDEBAR_W - 20.0;
@@ -98,6 +99,7 @@ impl TestbedUi {
         window: &mut Window,
         integration_parameters: &mut IntegrationParameters,
         state: &mut TestbedState,
+        run_state: &mut RunState,
     ) {
         let ui_root = window.conrod_ui().window;
         let mut ui = window.conrod_ui_mut().set_widgets();
@@ -254,7 +256,7 @@ impl TestbedUi {
         let curr_vel_iters = integration_parameters.max_velocity_iterations;
         let curr_pos_iters = integration_parameters.max_position_iterations;
         #[cfg(feature = "parallel")]
-        let curr_num_threads = state.num_threads;
+        let curr_num_threads = run_state.num_threads;
         let curr_max_ccd_substeps = integration_parameters.max_ccd_substeps;
         let curr_min_island_size = integration_parameters.min_island_size;
         let curr_warmstart_coeff = integration_parameters.warmstart_coeff;
@@ -305,10 +307,10 @@ impl TestbedUi {
             .w_h(ELEMENT_W, ELEMENT_H)
             .set(self.ids.slider_num_threads, &mut ui)
             {
-                if state.num_threads != val as usize {
-                    state.num_threads = val as usize;
-                    state.thread_pool = rapier::rayon::ThreadPoolBuilder::new()
-                        .num_threads(state.num_threads)
+                if run_state.num_threads != val as usize {
+                    run_state.num_threads = val as usize;
+                    run_state.thread_pool = rapier::rayon::ThreadPoolBuilder::new()
+                        .num_threads(run_state.num_threads)
                         .build()
                         .unwrap();
                 }

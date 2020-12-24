@@ -115,7 +115,6 @@ pub struct TestbedState {
     pub selected_example: usize,
     pub selected_backend: usize,
     pub physx_use_two_friction_directions: bool,
-    pub num_threads: usize,
     pub snapshot: Option<PhysicsSnapshot>,
 }
 
@@ -180,7 +179,6 @@ impl Testbed {
             selected_example: 0,
             selected_backend: RAPIER_BACKEND,
             physx_use_two_friction_directions: true,
-            num_threads,
         };
 
         let harness = Harness::new_empty();
@@ -1027,6 +1025,7 @@ impl State for Testbed {
                 window,
                 &mut self.harness.physics.integration_parameters,
                 &mut self.state,
+                &mut self.harness.state
             );
         }
 

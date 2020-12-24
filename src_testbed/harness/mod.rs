@@ -10,6 +10,8 @@ pub mod plugin;
 pub struct RunState {
     #[cfg(feature = "parallel")]
     pub thread_pool: rapier::rayon::ThreadPool,
+    #[cfg(feature = "parallel")]
+    pub num_threads: usize,
     pub timestep_id: usize,
     pub time: f32,
 }
@@ -28,6 +30,8 @@ impl RunState {
         Self {
             #[cfg(feature = "parallel")]
             thread_pool: thread_pool,
+            #[cfg(feature = "parallel")]
+            num_threads,
             timestep_id: 0,
             time: 0.0,
         }
