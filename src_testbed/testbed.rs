@@ -117,9 +117,6 @@ pub struct TestbedState {
     pub physx_use_two_friction_directions: bool,
     pub num_threads: usize,
     pub snapshot: Option<PhysicsSnapshot>,
-    // #[cfg(feature = "parallel")]
-    // pub thread_pool: rapier::rayon::ThreadPool,
-    pub timestep_id: usize,
 }
 
 pub struct Testbed {
@@ -129,13 +126,10 @@ pub struct Testbed {
     camera_locked: bool, // Used so that the camera can remain the same before and after we change backend or press the restart button.
     callbacks: Callbacks,
     plugins: Vec<Box<dyn TestbedPlugin>>,
-    time: f32,
     hide_counters: bool,
     //    persistant_contacts: HashMap<ContactId, bool>,
     font: Rc<Font>,
     cursor_pos: Point2<f32>,
-    events: PhysicsEvents,
-    event_handler: ChannelEventCollector,
     ui: Option<TestbedUi>,
     state: TestbedState,
     harness: Harness,
@@ -194,7 +188,6 @@ impl Testbed {
             backend_names,
             example_names: Vec::new(),
             selected_example: 0,
-            timestep_id: 0,
             selected_backend: RAPIER_BACKEND,
             physx_use_two_friction_directions: true,
             num_threads,
@@ -219,14 +212,11 @@ impl Testbed {
             graphics,
             nsteps: 1,
             camera_locked: false,
-            time: 0.0,
             hide_counters: true,
             //            persistant_contacts: HashMap::new(),
             font: Font::default(),
             cursor_pos: Point2::new(0.0f32, 0.0),
             ui,
-            event_handler,
-            events,
             state,
             harness,
             #[cfg(all(feature = "dim2", feature = "other-backends"))]
@@ -298,9 +288,6 @@ impl Testbed {
             .action_flags
             .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
 
-        //FIXME: remove time & state.timestep_id if appropriate
-        self.time = 0.0;
-        self.state.timestep_id = 0;
         self.state.highlighted_body = None;
 
         #[cfg(all(feature = "dim2", feature = "other-backends"))]
@@ -462,6 +449,7 @@ impl Testbed {
             }
         }
 
+        //FIXME: move this to dedicated benchmarking code
         if benchmark_mode {
             use std::fs::File;
             use std::io::{BufWriter, Write};
@@ -494,7 +482,6 @@ impl Testbed {
                     let mut timings = Vec::new();
                     for k in 0..=NUM_ITERS {
                         {
-                            // FIXME: code duplicated from self.step()
                             if self.state.selected_backend == RAPIER_BACKEND {
                                 self.harness.step();
                             }
@@ -1109,7 +1096,7 @@ impl State for Testbed {
                     .action_flags
                     .set(TestbedActionFlags::TAKE_SNAPSHOT, false);
                 self.state.snapshot = PhysicsSnapshot::new(
-                    self.state.timestep_id,
+                    self.harness.state.timestep_id,
                     &self.harness.physics.broad_phase,
                     &self.harness.physics.narrow_phase,
                     &self.harness.physics.bodies,
@@ -1144,7 +1131,8 @@ impl State for Testbed {
                         self.set_world(w.3, w.4, w.5);
                         self.harness.physics.broad_phase = w.1;
                         self.harness.physics.narrow_phase = w.2;
-                        self.state.timestep_id = w.0;
+                        //FIXME: not completely sure this is valid
+                        self.harness.state.timestep_id = w.0;
                     }
                 }
             }
@@ -1253,7 +1241,6 @@ impl State for Testbed {
 
         if self.state.running != RunMode::Stop {
             for _ in 0..self.nsteps {
-                self.state.timestep_id += 1;
                 if self.state.selected_backend == RAPIER_BACKEND {
                     self.harness.step();
 
@@ -1311,11 +1298,9 @@ impl State for Testbed {
                 // FIXME: should this be handled by harness plugins?
                 for plugin in &mut self.plugins {
                     {
-                        plugin.run_callbacks(window, &mut self.harness.physics, self.time);
+                        plugin.run_callbacks(window, &mut self.harness.physics, self.harness.state.time);
                     }
                 }
-
-                self.events.poll_all();
 
                 //                if true {
                 //                    // !self.hide_counters {
@@ -1324,7 +1309,6 @@ impl State for Testbed {
                 //                    #[cfg(feature = "log")]
                 //                    debug!("{}", self.world.counters);
                 //                }
-                self.time += self.harness.physics.integration_parameters.dt();
             }
         }
 
@@ -1425,7 +1409,7 @@ Hashes at frame: {}
 |_ Joints [{:.1}KB]: {:?}"#,
                 profile,
                 serialization_time,
-                self.state.timestep_id,
+                self.harness.state.timestep_id,
                 bf.len() as f32 / 1000.0,
                 hash_bf,
                 nf.len() as f32 / 1000.0,
