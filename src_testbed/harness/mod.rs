@@ -7,24 +7,35 @@ use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
 
 pub mod plugin;
 
-pub struct HarnessState {
+pub struct RunState {
     #[cfg(feature = "parallel")]
     pub thread_pool: rapier::rayon::ThreadPool,
     pub timestep_id: usize,
+    pub time: f32,
+}
+
+impl RunState {
+    pub fn new() -> Self {
+        Self {
+            #[cfg(feature = "parallel")]
+            thread_pool: rapier::rayon::ThreadPool,
+            timestep_id: 0,
+            time: 0.0
+        }
+    }
 }
 
 pub struct Harness {
-    physics: PhysicsState,
+    pub physics: PhysicsState,
     max_steps: usize,
     callbacks: Callbacks,
     plugins: Vec<Box<dyn HarnessPlugin>>,
-    time: f32,
     events: PhysicsEvents,
     event_handler: ChannelEventCollector,
-    pub state: HarnessState,
+    pub state: RunState,
 }
 
-type Callbacks = Vec<Box<dyn FnMut(&mut PhysicsState, &PhysicsEvents, &HarnessState, f32)>>;
+type Callbacks = Vec<Box<dyn FnMut(&mut PhysicsState, &PhysicsEvents, &RunState, f32)>>;
 
 #[allow(dead_code)]
 impl Harness {
@@ -46,18 +57,13 @@ impl Harness {
             proximity_events: proximity_channel.1,
         };
         let physics = PhysicsState::new();
-        let state = HarnessState {
-            #[cfg(feature = "parallel")]
-            thread_pool,
-            timestep_id: 0,
-        };
+        let state = RunState::new();
 
         Self {
             physics,
             max_steps: 1000,
             callbacks: Vec::new(),
             plugins: Vec::new(),
-            time: 0.0,
             events,
             event_handler,
             state,
@@ -101,7 +107,6 @@ impl Harness {
         self.physics.joints = joints;
         self.physics.broad_phase = BroadPhase::new();
         self.physics.narrow_phase = NarrowPhase::new();
-        self.time = 0.0;
         self.state.timestep_id = 0;
         self.physics.query_pipeline = QueryPipeline::new();
         self.physics.pipeline = PhysicsPipeline::new();
@@ -113,7 +118,7 @@ impl Harness {
     }
 
     pub fn add_callback<
-        F: FnMut(&mut PhysicsState, &PhysicsEvents, &HarnessState, f32) + 'static,
+        F: FnMut(&mut PhysicsState, &PhysicsEvents, &RunState, f32) + 'static,
     >(
         &mut self,
         callback: F,
@@ -165,22 +170,22 @@ impl Harness {
         }
 
         for f in &mut self.callbacks {
-            f(&mut self.physics, &self.events, &self.state, self.time)
+            f(&mut self.physics, &self.events, &self.state, self.state.time)
         }
 
         for plugin in &mut self.plugins {
-            plugin.run_callbacks(&mut self.physics, &self.events, &self.state, self.time)
+            plugin.run_callbacks(&mut self.physics, &self.events, &self.state, self.state.time)
         }
 
         self.events.poll_all();
 
-        self.time += self.physics.integration_parameters.dt();
+        self.state.time += self.physics.integration_parameters.dt();
+        self.state.timestep_id += 1;
     }
 
     pub fn run(&mut self) {
         for _ in 0..self.max_steps {
             self.step();
-            self.state.timestep_id += 1;
         }
     }
 }

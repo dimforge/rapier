@@ -60,13 +60,13 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Setup a callback to control the platform.
      */
-    testbed.add_callback(move |_, physics, _, _, time| {
+    testbed.add_callback(move |_, physics, _, _, run_state| {
         let platform = physics.bodies.get_mut(platform_handle).unwrap();
         let mut next_pos = *platform.position();
 
         let dt = 0.016;
-        next_pos.translation.vector.y += (time * 5.0).sin() * dt;
-        next_pos.translation.vector.x += time.sin() * 5.0 * dt;
+        next_pos.translation.vector.y += (run_state.time * 5.0).sin() * dt;
+        next_pos.translation.vector.x += run_state.time.sin() * 5.0 * dt;
 
         if next_pos.translation.vector.x >= rad * 10.0 {
             next_pos.translation.vector.x -= dt;

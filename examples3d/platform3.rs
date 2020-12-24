@@ -65,7 +65,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Setup a callback to control the platform.
      */
     let mut count = 0;
-    testbed.add_callback(move |_, physics, _, _, time| {
+    testbed.add_callback(move |_, physics, _, _, run_state| {
         count += 1;
         if count % 100 > 50 {
             return;
@@ -75,8 +75,8 @@ pub fn init_world(testbed: &mut Testbed) {
             let mut next_pos = *platform.position();
 
             let dt = 0.016;
-            next_pos.translation.vector.y += (time * 5.0).sin() * dt;
-            next_pos.translation.vector.z += time.sin() * 5.0 * dt;
+            next_pos.translation.vector.y += (run_state.time * 5.0).sin() * dt;
+            next_pos.translation.vector.z += run_state.time.sin() * 5.0 * dt;
 
             if next_pos.translation.vector.z >= rad * 10.0 {
                 next_pos.translation.vector.z -= dt;
