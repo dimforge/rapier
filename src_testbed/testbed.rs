@@ -197,14 +197,6 @@ impl Testbed {
 
         let harness = Harness::new_empty();
 
-        let contact_channel = crossbeam::channel::unbounded();
-        let proximity_channel = crossbeam::channel::unbounded();
-        let event_handler = ChannelEventCollector::new(proximity_channel.0, contact_channel.0);
-        let events = PhysicsEvents {
-            contact_events: contact_channel.1,
-            proximity_events: proximity_channel.1,
-        };
-
         Testbed {
             builders: Vec::new(),
             callbacks: Vec::new(),
