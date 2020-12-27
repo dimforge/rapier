@@ -3,13 +3,15 @@ use crate::geometry::InteractionGroups;
 use crate::math::{AngVector, Isometry, Point, Rotation, Vector};
 use cdl::bounding_volume::AABB;
 use cdl::shape::{
-    Ball, Capsule, Cuboid, HalfSpace, HeightField, RoundCuboid, RoundTriangle, Segment, Shape,
-    ShapeType, ShapeWithBorder, TriMesh, Triangle,
+    Ball, Capsule, Cuboid, HalfSpace, HeightField, RoundCuboid, RoundShape, RoundTriangle, Segment,
+    Shape, ShapeType, TriMesh, Triangle,
 };
 #[cfg(feature = "dim3")]
 use cdl::shape::{
     Cone, ConvexPolyhedron, Cylinder, RoundCone, RoundConvexPolyhedron, RoundCylinder,
 };
+#[cfg(feature = "dim2")]
+use cdl::shape::{ConvexPolygon, RoundConvexPolygon};
 use na::Point3;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -44,7 +46,7 @@ impl ColliderShape {
     /// radius of the sphere used for dilating the cylinder).
     #[cfg(feature = "dim3")]
     pub fn round_cylinder(half_height: f32, radius: f32, border_radius: f32) -> Self {
-        ColliderShape(Arc::new(ShapeWithBorder {
+        ColliderShape(Arc::new(RoundShape {
             base_shape: Cylinder::new(half_height, radius),
             border_radius,
         }))
@@ -55,7 +57,7 @@ impl ColliderShape {
     /// radius of the sphere used for dilating the cylinder).
     #[cfg(feature = "dim3")]
     pub fn round_cone(half_height: f32, radius: f32, border_radius: f32) -> Self {
-        ColliderShape(Arc::new(ShapeWithBorder {
+        ColliderShape(Arc::new(RoundShape {
             base_shape: Cone::new(half_height, radius),
             border_radius,
         }))
@@ -71,6 +73,14 @@ impl ColliderShape {
     /// Initialize a cuboid shape defined by its half-extents.
     pub fn cuboid(half_extents: Vector<f32>) -> Self {
         ColliderShape(Arc::new(Cuboid::new(half_extents)))
+    }
+
+    /// Initialize a round cuboid shape defined by its half-extents and border radius.
+    pub fn round_cuboid(half_extents: Vector<f32>, border_radius: f32) -> Self {
+        ColliderShape(Arc::new(RoundShape {
+            base_shape: Cuboid::new(half_extents),
+            border_radius,
+        }))
     }
 
     /// Initialize a capsule shape from its endpoints and radius.
@@ -93,9 +103,16 @@ impl ColliderShape {
         ColliderShape(Arc::new(TriMesh::new(vertices, indices)))
     }
 
-    #[cfg(feature = "dim3")]
     pub fn convex_hull(points: &[Point<f32>]) -> Option<Self> {
-        ConvexPolyhedron::from_convex_hull(points).map(|ch| ColliderShape(Arc::new(ch)))
+        #[cfg(feature = "dim2")]
+        return ConvexPolygon::from_convex_hull(points).map(|ch| ColliderShape(Arc::new(ch)));
+        #[cfg(feature = "dim3")]
+        return ConvexPolyhedron::from_convex_hull(points).map(|ch| ColliderShape(Arc::new(ch)));
+    }
+
+    #[cfg(feature = "dim2")]
+    pub fn convex_polyline(points: Vec<Point<f32>>) -> Option<Self> {
+        ConvexPolygon::from_convex_polyline(points).map(|ch| ColliderShape(Arc::new(ch)))
     }
 
     #[cfg(feature = "dim3")]
@@ -103,10 +120,27 @@ impl ColliderShape {
         ConvexPolyhedron::from_convex_mesh(points, indices).map(|ch| ColliderShape(Arc::new(ch)))
     }
 
-    #[cfg(feature = "dim3")]
     pub fn round_convex_hull(points: &[Point<f32>], border_radius: f32) -> Option<Self> {
-        ConvexPolyhedron::from_convex_hull(points).map(|ch| {
-            ColliderShape(Arc::new(ShapeWithBorder {
+        #[cfg(feature = "dim2")]
+        return ConvexPolygon::from_convex_hull(points).map(|ch| {
+            ColliderShape(Arc::new(RoundShape {
+                base_shape: ch,
+                border_radius,
+            }))
+        });
+        #[cfg(feature = "dim3")]
+        return ConvexPolyhedron::from_convex_hull(points).map(|ch| {
+            ColliderShape(Arc::new(RoundShape {
+                base_shape: ch,
+                border_radius,
+            }))
+        });
+    }
+
+    #[cfg(feature = "dim2")]
+    pub fn round_convex_polyline(points: Vec<Point<f32>>, border_radius: f32) -> Option<Self> {
+        ConvexPolygon::from_convex_polyline(points).map(|ch| {
+            ColliderShape(Arc::new(RoundShape {
                 base_shape: ch,
                 border_radius,
             }))
@@ -120,7 +154,7 @@ impl ColliderShape {
         border_radius: f32,
     ) -> Option<Self> {
         ConvexPolyhedron::from_convex_mesh(points, indices).map(|ch| {
-            ColliderShape(Arc::new(ShapeWithBorder {
+            ColliderShape(Arc::new(RoundShape {
                 base_shape: ch,
                 border_radius,
             }))
@@ -217,6 +251,12 @@ impl<'de> serde::Deserialize<'de> for ColliderShape {
                     Some(ShapeType::HalfSpace) => deser::<A, HalfSpace>(&mut seq)?,
                     Some(ShapeType::RoundCuboid) => deser::<A, RoundCuboid>(&mut seq)?,
                     Some(ShapeType::RoundTriangle) => deser::<A, RoundTriangle>(&mut seq)?,
+                    #[cfg(feature = "dim2")]
+                    Some(ShapeType::ConvexPolygon) => deser::<A, ConvexPolygon>(&mut seq)?,
+                    #[cfg(feature = "dim2")]
+                    Some(ShapeType::RoundConvexPolygon) => {
+                        deser::<A, RoundConvexPolygon>(&mut seq)?
+                    }
                     #[cfg(feature = "dim3")]
                     Some(ShapeType::Cylinder) => deser::<A, Cylinder>(&mut seq)?,
                     #[cfg(feature = "dim3")]
@@ -439,6 +479,16 @@ impl ColliderBuilder {
         Self::new(ColliderShape::cuboid(Vector::new(hx, hy)))
     }
 
+    /// Initialize a new collider builder with a round cuboid shape defined by its half-extents
+    /// and border radius.
+    #[cfg(feature = "dim2")]
+    pub fn round_cuboid(hx: f32, hy: f32, border_radius: f32) -> Self {
+        Self::new(ColliderShape::round_cuboid(
+            Vector::new(hx, hy),
+            border_radius,
+        ))
+    }
+
     /// Initialize a new collider builder with a capsule shape aligned with the `x` axis.
     pub fn capsule_x(half_height: f32, radius: f32) -> Self {
         let p = Point::from(Vector::x() * half_height);
@@ -464,6 +514,16 @@ impl ColliderBuilder {
         Self::new(ColliderShape::cuboid(Vector::new(hx, hy, hz)))
     }
 
+    /// Initialize a new collider builder with a round cuboid shape defined by its half-extents
+    /// and border radius.
+    #[cfg(feature = "dim3")]
+    pub fn round_cuboid(hx: f32, hy: f32, hz: f32, border_radius: f32) -> Self {
+        Self::new(ColliderShape::round_cuboid(
+            Vector::new(hx, hy, hz),
+            border_radius,
+        ))
+    }
+
     /// Initializes a collider builder with a segment shape.
     pub fn segment(a: Point<f32>, b: Point<f32>) -> Self {
         Self::new(ColliderShape::segment(a, b))
@@ -479,14 +539,22 @@ impl ColliderBuilder {
         Self::new(ColliderShape::trimesh(vertices, indices))
     }
 
-    #[cfg(feature = "dim3")]
     pub fn convex_hull(points: &[Point<f32>]) -> Option<Self> {
         ColliderShape::convex_hull(points).map(|cp| Self::new(cp))
     }
 
-    #[cfg(feature = "dim3")]
     pub fn round_convex_hull(points: &[Point<f32>], border_radius: f32) -> Option<Self> {
         ColliderShape::round_convex_hull(points, border_radius).map(|cp| Self::new(cp))
+    }
+
+    #[cfg(feature = "dim2")]
+    pub fn convex_polyline(points: Vec<Point<f32>>) -> Option<Self> {
+        ColliderShape::convex_polyline(points).map(|cp| Self::new(cp))
+    }
+
+    #[cfg(feature = "dim2")]
+    pub fn round_convex_polyline(points: Vec<Point<f32>>, border_radius: f32) -> Option<Self> {
+        ColliderShape::round_convex_polyline(points, border_radius).map(|cp| Self::new(cp))
     }
 
     #[cfg(feature = "dim3")]

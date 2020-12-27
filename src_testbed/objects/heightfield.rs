@@ -10,7 +10,6 @@ use rapier::math::Point;
 #[cfg(feature = "dim3")]
 use rapier::math::Vector;
 use std::cell::RefCell;
-use std::rc::Rc;
 
 pub struct HeightField {
     color: Point3<f32>,
@@ -52,6 +51,8 @@ impl HeightField {
         color: Point3<f32>,
         window: &mut Window,
     ) -> HeightField {
+        use std::rc::Rc;
+
         let (vertices, indices) = heightfield.to_trimesh();
         let indices = indices.into_iter().map(|i| na::convert(i)).collect();
         let mesh = Mesh::new(vertices, indices, None, None, false);

@@ -344,6 +344,15 @@ impl GraphicsManager {
             )))
         }
 
+        #[cfg(feature = "dim2")]
+        if let Some(convex_polygon) = shape
+            .as_convex_polygon()
+            .or(shape.as_round_convex_polygon().map(|r| &r.base_shape))
+        {
+            let vertices = convex_polygon.points().to_vec();
+            out.push(Node::Convex(Convex::new(handle, vertices, color, window)))
+        }
+
         #[cfg(feature = "dim3")]
         if let Some(convex_polyhedron) = shape
             .as_convex_polyhedron()

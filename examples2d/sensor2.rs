@@ -1,6 +1,6 @@
 use na::{Point2, Point3};
 use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier2d::geometry::{ColliderBuilder, ColliderSet, Proximity};
+use rapier2d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed2d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -70,10 +70,11 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |_, physics, events, graphics, _| {
-        while let Ok(prox) = events.proximity_events.try_recv() {
-            let color = match prox.new_status {
-                Proximity::WithinMargin | Proximity::Intersecting => Point3::new(1.0, 1.0, 0.0),
-                Proximity::Disjoint => Point3::new(0.5, 0.5, 1.0),
+        while let Ok(prox) = events.intersection_events.try_recv() {
+            let color = if prox.intersecting {
+                Point3::new(1.0, 1.0, 0.0)
+            } else {
+                Point3::new(0.5, 0.5, 1.0)
             };
 
             let parent_handle1 = physics.colliders.get(prox.collider1).unwrap().parent();

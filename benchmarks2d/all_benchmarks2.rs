@@ -13,6 +13,7 @@ use std::cmp::Ordering;
 mod balls2;
 mod boxes2;
 mod capsules2;
+mod convex_polygons2;
 mod heightfield2;
 mod joint_ball2;
 mod joint_fixed2;
@@ -55,6 +56,7 @@ pub fn main() {
         ("Balls", balls2::init_world),
         ("Boxes", boxes2::init_world),
         ("Capsules", capsules2::init_world),
+        ("Convex polygons", convex_polygons2::init_world),
         ("Heightfield", heightfield2::init_world),
         ("Pyramid", pyramid2::init_world),
         ("(Stress test) joint ball", joint_ball2::init_world),

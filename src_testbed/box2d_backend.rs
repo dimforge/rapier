@@ -174,6 +174,14 @@ impl Box2dWorld {
             b2_shape.set_radius(b.radius);
             b2_shape.set_position(center);
             body.create_fixture(&b2_shape, &mut fixture_def);
+        } else if let Some(p) = shape.as_convex_polygon() {
+            let vertices: Vec<_> = p
+                .points()
+                .iter()
+                .map(|p| na_vec_to_b2_vec(p.coords))
+                .collect();
+            let b2_shape = b2::PolygonShape::new_with(&vertices);
+            body.create_fixture(&b2_shape, &mut fixture_def);
         } else if let Some(c) = shape.as_cuboid() {
             let b2_shape = b2::PolygonShape::new_box(c.half_extents.x, c.half_extents.y);
             body.create_fixture(&b2_shape, &mut fixture_def);
