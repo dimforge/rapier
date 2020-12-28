@@ -1,13 +1,15 @@
 use crate::dynamics::RigidBodySet;
 use crate::geometry::{
-    Collider, ColliderHandle, ColliderSet, InteractionGroups, Ray, RayIntersection, WQuadtree,
+    Collider, ColliderHandle, ColliderSet, InteractionGroups, Ray, RayIntersection, SimdQuadTree,
 };
+use cdl::query::TOI;
+use cdl::shape::Shape;
 
 /// A pipeline for performing queries on all the colliders of a scene.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 pub struct QueryPipeline {
-    quadtree: WQuadtree<ColliderHandle>,
+    quadtree: SimdQuadTree<ColliderHandle>,
     tree_built: bool,
     dilation_factor: f32,
 }
@@ -22,7 +24,7 @@ impl QueryPipeline {
     /// Initializes an empty query pipeline.
     pub fn new() -> Self {
         Self {
-            quadtree: WQuadtree::new(),
+            quadtree: SimdQuadTree::new(),
             tree_built: false,
             dilation_factor: 0.01,
         }
@@ -105,7 +107,7 @@ impl QueryPipeline {
     /// - `callback`: function executed on each collider for which a ray intersection has been found.
     ///   There is no guarantees on the order the results will be yielded. If this callback returns `false`,
     ///   this method will exit early, ignory any further raycast.
-    pub fn interferences_with_ray<'a>(
+    pub fn intersections_with_ray<'a>(
         &self,
         colliders: &'a ColliderSet,
         ray: &Ray,
@@ -134,4 +136,28 @@ impl QueryPipeline {
             }
         }
     }
+
+    /*
+    pub fn cast_shape<'a>(
+        &self,
+        colliders: &'a ColliderSet,
+        shape_pos: &Isometry<Real>,
+        shape: &dyn Shape,
+        max_toi: f32,
+        groups: InteractionGroups,
+    ) -> Option<(ColliderHandle, &'a Collider, TOI)> {
+        unimplemented!()
+    }
+
+    /// Gets all the colliders with a shape intersecting the given `shape`.
+    pub fn intersections_with_shape<'a>(
+        &self,
+        colliders: &'a ColliderSet,
+        shape_pos: &Isometry<Real>,
+        shape: &dyn Shape,
+        groups: InteractionGroups,
+        mut callback: impl FnMut(ColliderHandle, &'a Collider) -> bool,
+    ) {
+    }
+     */
 }

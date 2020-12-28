@@ -85,7 +85,7 @@ pub(crate) use self::collider_set::RemovedCollider;
 pub(crate) use self::contact_pair::WContact;
 pub use self::interaction_groups::InteractionGroups;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
-pub(crate) use cdl::partitioning::WQuadtree;
+pub(crate) use cdl::partitioning::SimdQuadTree;
 pub use cdl::shape::*;
 
 mod broad_phase_multi_sap;

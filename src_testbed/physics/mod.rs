@@ -1,6 +1,6 @@
 use crossbeam::channel::Receiver;
 use rapier::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
-use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent};
+use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, IntersectionEvent, NarrowPhase};
 use rapier::math::Vector;
 use rapier::pipeline::{PhysicsPipeline, QueryPipeline};
 
@@ -97,12 +97,12 @@ impl PhysicsState {
 
 pub struct PhysicsEvents {
     pub contact_events: Receiver<ContactEvent>,
-    pub proximity_events: Receiver<ProximityEvent>,
+    pub intersection_events: Receiver<IntersectionEvent>,
 }
 
 impl PhysicsEvents {
     pub fn poll_all(&self) {
         while let Ok(_) = self.contact_events.try_recv() {}
-        while let Ok(_) = self.proximity_events.try_recv() {}
+        while let Ok(_) = self.intersection_events.try_recv() {}
     }
 }

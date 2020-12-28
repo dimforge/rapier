@@ -43,7 +43,7 @@ impl Harness {
         let event_handler = ChannelEventCollector::new(proximity_channel.0, contact_channel.0);
         let events = PhysicsEvents {
             contact_events: contact_channel.1,
-            proximity_events: proximity_channel.1,
+            intersection_events: proximity_channel.1,
         };
         let physics = PhysicsState::new();
         let state = HarnessState {
