@@ -7,9 +7,10 @@ use crate::dynamics::RigidBodySet;
 use crate::geometry::{
     BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactData, ContactEvent,
     ContactManifoldData, ContactPairFilter, IntersectionEvent, PairFilterContext,
-    ProximityPairFilter, RemovedCollider, SolverFlags,
+    ProximityPairFilter, RemovedCollider, SolverContact, SolverFlags,
 };
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
+use crate::math::Vector;
 use crate::pipeline::EventHandler;
 use cdl::query::{DefaultQueryDispatcher, PersistentQueryDispatcher, QueryDispatcher};
 use std::collections::HashMap;
@@ -526,7 +527,23 @@ impl NarrowPhase {
 
             // TODO: don't write this everytime?
             for manifold in &mut pair.manifolds {
-                manifold.data = ContactManifoldData::from_colliders(co1, co2, solver_flags);
+                manifold.data.solver_contacts.clear();
+                manifold.data.set_from_colliders(co1, co2, solver_flags);
+                manifold.data.normal = co1.position() * manifold.local_n1;
+
+                for contact in &manifold.points[..manifold.num_active_contacts] {
+                    let solver_contact = SolverContact {
+                        point: co1.position() * contact.local_p1
+                            + manifold.data.normal * contact.dist / 2.0,
+                        dist: contact.dist,
+                        friction: (co1.friction + co2.friction) / 2.0,
+                        restitution: (co1.restitution + co2.restitution) / 2.0,
+                        surface_velocity: Vector::zeros(),
+                        data: contact.data,
+                    };
+
+                    manifold.data.solver_contacts.push(solver_contact);
+                }
             }
         });
     }

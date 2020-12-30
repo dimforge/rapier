@@ -72,9 +72,6 @@ impl WVelocityConstraint {
         let rbs1 = array![|ii| &bodies[manifolds[ii].data.body_pair.body1]; SIMD_WIDTH];
         let rbs2 = array![|ii| &bodies[manifolds[ii].data.body_pair.body2]; SIMD_WIDTH];
 
-        let delta1 = Isometry::from(array![|ii| manifolds[ii].data.delta1; SIMD_WIDTH]);
-        let delta2 = Isometry::from(array![|ii| manifolds[ii].data.delta2; SIMD_WIDTH]);
-
         let im1 = SimdReal::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
         let ii1: AngularInertia<SimdReal> =
             AngularInertia::from(array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
@@ -82,7 +79,6 @@ impl WVelocityConstraint {
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
         let angvel1 = AngVector::<SimdReal>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
 
-        let pos1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
 
         let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
@@ -92,27 +88,24 @@ impl WVelocityConstraint {
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
         let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
 
-        let pos2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
 
-        let coll_pos1 = pos1 * delta1;
-        let coll_pos2 = pos2 * delta2;
-
-        let force_dir1 = coll_pos1 * -Vector::from(array![|ii| manifolds[ii].local_n1; SIMD_WIDTH]);
+        let force_dir1 = -Vector::from(array![|ii| manifolds[ii].data.normal; SIMD_WIDTH]);
 
         let mj_lambda1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
-        let friction = SimdReal::from(array![|ii| manifolds[ii].data.friction; SIMD_WIDTH]);
-        let restitution = SimdReal::from(array![|ii| manifolds[ii].data.restitution; SIMD_WIDTH]);
         let restitution_velocity_threshold = SimdReal::splat(params.restitution_velocity_threshold);
 
         let warmstart_multiplier =
             SimdReal::from(array![|ii| manifolds[ii].data.warmstart_multiplier; SIMD_WIDTH]);
         let warmstart_coeff = warmstart_multiplier * SimdReal::splat(params.warmstart_coeff);
+        let num_active_contacts = manifolds[0].num_active_contacts();
 
-        for l in (0..manifolds[0].num_active_contacts()).step_by(MAX_MANIFOLD_POINTS) {
-            let manifold_points = array![|ii| &manifolds[ii].active_contacts()[l..]; SIMD_WIDTH];
+        for l in (0..num_active_contacts).step_by(MAX_MANIFOLD_POINTS) {
+            let manifold_points = array![|ii|
+                &manifolds[ii].data.solver_contacts[l..num_active_contacts]; SIMD_WIDTH
+            ];
             let num_points = manifold_points[0].len().min(MAX_MANIFOLD_POINTS);
 
             let mut constraint = WVelocityConstraint {
@@ -120,7 +113,7 @@ impl WVelocityConstraint {
                 elements: [WVelocityConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im1,
                 im2,
-                limit: friction,
+                limit: SimdReal::splat(0.0),
                 mj_lambda1,
                 mj_lambda2,
                 manifold_id,
@@ -129,23 +122,23 @@ impl WVelocityConstraint {
             };
 
             for k in 0..num_points {
-                // FIXME: can we avoid the multiplications by coll_pos1/coll_pos2 here?
-                // By working as much as possible in local-space.
-                let p1 = coll_pos1
-                    * Point::from(array![|ii| manifold_points[ii][k].local_p1; SIMD_WIDTH]);
-                let p2 = coll_pos2
-                    * Point::from(array![|ii| manifold_points[ii][k].local_p2; SIMD_WIDTH]);
-
+                let friction =
+                    SimdReal::from(array![|ii| manifold_points[ii][k].friction; SIMD_WIDTH]);
+                let restitution =
+                    SimdReal::from(array![|ii| manifold_points[ii][k].restitution; SIMD_WIDTH]);
+                let point = Point::from(array![|ii| manifold_points[ii][k].point; SIMD_WIDTH]);
                 let dist = SimdReal::from(array![|ii| manifold_points[ii][k].dist; SIMD_WIDTH]);
 
                 let impulse =
                     SimdReal::from(array![|ii| manifold_points[ii][k].data.impulse; SIMD_WIDTH]);
 
-                let dp1 = p1 - world_com1;
-                let dp2 = p2 - world_com2;
+                let dp1 = point - world_com1;
+                let dp2 = point - world_com2;
 
                 let vel1 = linvel1 + angvel1.gcross(dp1);
                 let vel2 = linvel2 + angvel2.gcross(dp2);
+
+                constraint.limit = friction;
 
                 // Normal part.
                 {

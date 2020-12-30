@@ -66,35 +66,25 @@ impl VelocityGroundConstraint {
         let mut rb1 = &bodies[manifold.data.body_pair.body1];
         let mut rb2 = &bodies[manifold.data.body_pair.body2];
         let flipped = !rb2.is_dynamic();
-        let force_dir1;
-        let coll_pos1;
-        let coll_pos2;
 
-        if flipped {
-            coll_pos1 = rb2.position * manifold.data.delta2;
-            coll_pos2 = rb1.position * manifold.data.delta1;
-            force_dir1 = coll_pos1 * (-manifold.local_n2);
+        let force_dir1 = if flipped {
             std::mem::swap(&mut rb1, &mut rb2);
+            manifold.data.normal
         } else {
-            coll_pos1 = rb1.position * manifold.data.delta1;
-            coll_pos2 = rb2.position * manifold.data.delta2;
-            force_dir1 = coll_pos1 * (-manifold.local_n1);
-        }
+            -manifold.data.normal
+        };
 
         let mj_lambda2 = rb2.active_set_offset;
         let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
+        let active_contacts = &manifold.data.solver_contacts[..manifold.num_active_contacts];
 
-        for (l, manifold_points) in manifold
-            .active_contacts()
-            .chunks(MAX_MANIFOLD_POINTS)
-            .enumerate()
-        {
+        for (l, manifold_points) in active_contacts.chunks(MAX_MANIFOLD_POINTS).enumerate() {
             #[cfg(not(target_arch = "wasm32"))]
             let mut constraint = VelocityGroundConstraint {
                 dir1: force_dir1,
                 elements: [VelocityGroundConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im2: rb2.mass_properties.inv_mass,
-                limit: manifold.data.friction,
+                limit: 0.0,
                 mj_lambda2,
                 manifold_id,
                 manifold_contact_id: l * MAX_MANIFOLD_POINTS,
@@ -144,23 +134,12 @@ impl VelocityGroundConstraint {
 
             for k in 0..manifold_points.len() {
                 let manifold_point = &manifold_points[k];
-                let (p1, p2) = if flipped {
-                    // NOTE: we already swapped rb1 and rb2
-                    // so we multiply by coll_pos1/coll_pos2.
-                    (
-                        coll_pos1 * manifold_point.local_p2,
-                        coll_pos2 * manifold_point.local_p1,
-                    )
-                } else {
-                    (
-                        coll_pos1 * manifold_point.local_p1,
-                        coll_pos2 * manifold_point.local_p2,
-                    )
-                };
-                let dp2 = p2 - rb2.world_com;
-                let dp1 = p1 - rb1.world_com;
+                let dp2 = manifold_point.point - rb2.world_com;
+                let dp1 = manifold_point.point - rb1.world_com;
                 let vel1 = rb1.linvel + rb1.angvel.gcross(dp1);
                 let vel2 = rb2.linvel + rb2.angvel.gcross(dp2);
+
+                constraint.limit = manifold_point.friction;
 
                 // Normal part.
                 {
@@ -173,7 +152,7 @@ impl VelocityGroundConstraint {
                     let mut rhs = (vel1 - vel2).dot(&force_dir1);
 
                     if rhs <= -params.restitution_velocity_threshold {
-                        rhs += manifold.data.restitution * rhs
+                        rhs += manifold_point.restitution * rhs
                     }
 
                     rhs += manifold_point.dist.max(0.0) * params.inv_dt();

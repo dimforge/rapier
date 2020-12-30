@@ -148,23 +148,18 @@ impl VelocityConstraint {
         let rb2 = &bodies[manifold.data.body_pair.body2];
         let mj_lambda1 = rb1.active_set_offset;
         let mj_lambda2 = rb2.active_set_offset;
-        let pos_coll1 = rb1.position * manifold.data.delta1;
-        let pos_coll2 = rb2.position * manifold.data.delta2;
-        let force_dir1 = pos_coll1 * (-manifold.local_n1);
+        let force_dir1 = -manifold.data.normal;
         let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
+        let active_contacts = &manifold.data.solver_contacts[..manifold.num_active_contacts];
 
-        for (l, manifold_points) in manifold
-            .active_contacts()
-            .chunks(MAX_MANIFOLD_POINTS)
-            .enumerate()
-        {
+        for (l, manifold_points) in active_contacts.chunks(MAX_MANIFOLD_POINTS).enumerate() {
             #[cfg(not(target_arch = "wasm32"))]
             let mut constraint = VelocityConstraint {
                 dir1: force_dir1,
                 elements: [VelocityConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im1: rb1.mass_properties.inv_mass,
                 im2: rb2.mass_properties.inv_mass,
-                limit: manifold.data.friction,
+                limit: 0.0,
                 mj_lambda1,
                 mj_lambda2,
                 manifold_id,
@@ -217,12 +212,13 @@ impl VelocityConstraint {
 
             for k in 0..manifold_points.len() {
                 let manifold_point = &manifold_points[k];
-                let dp1 = (pos_coll1 * manifold_point.local_p1) - rb1.world_com;
-                let dp2 = (pos_coll2 * manifold_point.local_p2) - rb2.world_com;
+                let dp1 = manifold_point.point - rb1.world_com;
+                let dp2 = manifold_point.point - rb2.world_com;
 
                 let vel1 = rb1.linvel + rb1.angvel.gcross(dp1);
                 let vel2 = rb2.linvel + rb2.angvel.gcross(dp2);
 
+                constraint.limit = manifold_point.friction;
                 // Normal part.
                 {
                     let gcross1 = rb1
@@ -241,12 +237,12 @@ impl VelocityConstraint {
                     let mut rhs = (vel1 - vel2).dot(&force_dir1);
 
                     if rhs <= -params.restitution_velocity_threshold {
-                        rhs += manifold.data.restitution * rhs
+                        rhs += manifold_point.restitution * rhs
                     }
 
                     rhs += manifold_point.dist.max(0.0) * params.inv_dt();
 
-                    let impulse = manifold_points[k].data.impulse * warmstart_coeff;
+                    let impulse = manifold_point.data.impulse * warmstart_coeff;
 
                     constraint.elements[k].normal_part = VelocityConstraintElementPart {
                         gcross1,
@@ -275,9 +271,9 @@ impl VelocityConstraint {
                                 + gcross2.gdot(gcross2));
                         let rhs = (vel1 - vel2).dot(&tangents1[j]);
                         #[cfg(feature = "dim2")]
-                        let impulse = manifold_points[k].data.tangent_impulse * warmstart_coeff;
+                        let impulse = manifold_point.data.tangent_impulse * warmstart_coeff;
                         #[cfg(feature = "dim3")]
-                        let impulse = manifold_points[k].data.tangent_impulse[j] * warmstart_coeff;
+                        let impulse = manifold_point.data.tangent_impulse[j] * warmstart_coeff;
 
                         constraint.elements[k].tangent_part[j] = VelocityConstraintElementPart {
                             gcross1,

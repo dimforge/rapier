@@ -16,8 +16,8 @@ pub(crate) struct WPositionConstraint {
     // NOTE: the points are relative to the center of masses.
     pub local_p1: [Point<SimdReal>; MAX_MANIFOLD_POINTS],
     pub local_p2: [Point<SimdReal>; MAX_MANIFOLD_POINTS],
+    pub dists: [SimdReal; MAX_MANIFOLD_POINTS],
     pub local_n1: Vector<SimdReal>,
-    pub radius: SimdReal,
     pub im1: SimdReal,
     pub im2: SimdReal,
     pub ii1: AngularInertia<SimdReal>,
@@ -45,22 +45,20 @@ impl WPositionConstraint {
         let sqrt_ii2: AngularInertia<SimdReal> =
             AngularInertia::from(array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
 
-        let local_n1 = Vector::from(array![|ii| manifolds[ii].local_n1; SIMD_WIDTH]);
-        let local_n2 = Vector::from(array![|ii| manifolds[ii].local_n2; SIMD_WIDTH]);
+        let pos1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
+        let pos2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
 
-        let radius1 = SimdReal::from(array![|ii| manifolds[ii].kinematics.radius1; SIMD_WIDTH]);
-        let radius2 = SimdReal::from(array![|ii| manifolds[ii].kinematics.radius2; SIMD_WIDTH]);
-
-        let delta1 = Isometry::from(array![|ii| manifolds[ii].data.delta1; SIMD_WIDTH]);
-        let delta2 = Isometry::from(array![|ii| manifolds[ii].data.delta2; SIMD_WIDTH]);
+        let local_n1 = pos1.inverse_transform_vector(&Vector::from(
+            array![|ii| manifolds[ii].local_n1; SIMD_WIDTH],
+        ));
 
         let rb1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
         let rb2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
-        let radius = radius1 + radius2 /*- SimdReal::splat(params.allowed_linear_error)*/;
+        let num_active_contacts = manifolds[0].num_active_contacts();
 
-        for l in (0..manifolds[0].num_active_contacts()).step_by(MAX_MANIFOLD_POINTS) {
-            let manifold_points = array![|ii| &manifolds[ii].active_contacts()[l..]; SIMD_WIDTH];
+        for l in (0..num_active_contacts).step_by(MAX_MANIFOLD_POINTS) {
+            let manifold_points = array![|ii| &manifolds[ii].data.solver_contacts[l..num_active_contacts]; SIMD_WIDTH];
             let num_points = manifold_points[0].len().min(MAX_MANIFOLD_POINTS);
 
             let mut constraint = WPositionConstraint {
@@ -69,7 +67,7 @@ impl WPositionConstraint {
                 local_p1: [Point::origin(); MAX_MANIFOLD_POINTS],
                 local_p2: [Point::origin(); MAX_MANIFOLD_POINTS],
                 local_n1,
-                radius,
+                dists: [SimdReal::zero(); MAX_MANIFOLD_POINTS],
                 im1,
                 im2,
                 ii1: sqrt_ii1.squared(),
@@ -79,17 +77,12 @@ impl WPositionConstraint {
                 num_contacts: num_points as u8,
             };
 
-            let shift1 = local_n1 * -radius1;
-            let shift2 = local_n2 * -radius2;
-
             for i in 0..num_points {
-                let local_p1 =
-                    Point::from(array![|ii| manifold_points[ii][i].local_p1; SIMD_WIDTH]);
-                let local_p2 =
-                    Point::from(array![|ii| manifold_points[ii][i].local_p2; SIMD_WIDTH]);
-
-                constraint.local_p1[i] = delta1 * (local_p1 + shift1);
-                constraint.local_p2[i] = delta2 * (local_p2 + shift2);
+                let point = Point::from(array![|ii| manifold_points[ii][i].point; SIMD_WIDTH]);
+                let dist = SimdReal::from(array![|ii| manifold_points[ii][i].dist; SIMD_WIDTH]);
+                constraint.local_p1[i] = pos1.inverse_transform_point(&point);
+                constraint.local_p2[i] = pos2.inverse_transform_point(&point);
+                constraint.dists[i] = dist;
             }
 
             if push {
@@ -120,9 +113,9 @@ impl WPositionConstraint {
         let mut pos1 = Isometry::from(array![|ii| positions[self.rb1[ii]]; SIMD_WIDTH]);
         let mut pos2 = Isometry::from(array![|ii| positions[self.rb2[ii]]; SIMD_WIDTH]);
         let allowed_err = SimdReal::splat(params.allowed_linear_error);
-        let target_dist = self.radius - allowed_err;
 
         for k in 0..self.num_contacts as usize {
+            let target_dist = -self.dists[k] - allowed_err;
             let p1 = pos1 * self.local_p1[k];
             let p2 = pos2 * self.local_p2[k];
 
@@ -174,9 +167,9 @@ impl WPositionConstraint {
         let mut pos1 = Isometry::from(array![|ii| positions[self.rb1[ii]]; SIMD_WIDTH]);
         let mut pos2 = Isometry::from(array![|ii| positions[self.rb2[ii]]; SIMD_WIDTH]);
         let allowed_err = SimdReal::splat(params.allowed_linear_error);
-        let target_dist = self.radius - allowed_err;
 
         for k in 0..self.num_contacts as usize {
+            let target_dist = -self.dists[k] - allowed_err;
             let n1 = pos1 * self.local_n1;
             let p1 = pos1 * self.local_p1[k];
             let p2 = pos2 * self.local_p2[k];

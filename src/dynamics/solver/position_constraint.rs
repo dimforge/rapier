@@ -63,9 +63,9 @@ pub(crate) struct PositionConstraint {
     // NOTE: the points are relative to the center of masses.
     pub local_p1: [Point<f32>; MAX_MANIFOLD_POINTS],
     pub local_p2: [Point<f32>; MAX_MANIFOLD_POINTS],
+    pub dists: [f32; MAX_MANIFOLD_POINTS],
     pub local_n1: Vector<f32>,
     pub num_contacts: u8,
-    pub radius: f32,
     pub im1: f32,
     pub im2: f32,
     pub ii1: AngularInertia<f32>,
@@ -90,22 +90,21 @@ impl PositionConstraint {
     ) {
         let rb1 = &bodies[manifold.data.body_pair.body1];
         let rb2 = &bodies[manifold.data.body_pair.body2];
-        let shift1 = manifold.local_n1 * -manifold.kinematics.radius1;
-        let shift2 = manifold.local_n2 * -manifold.kinematics.radius2;
-        let radius =
-            manifold.kinematics.radius1 + manifold.kinematics.radius2 /*- params.allowed_linear_error*/;
+        let active_contacts = &manifold.data.solver_contacts[..manifold.num_active_contacts];
 
-        for (l, manifold_points) in manifold
-            .active_contacts()
-            .chunks(MAX_MANIFOLD_POINTS)
-            .enumerate()
-        {
+        for (l, manifold_points) in active_contacts.chunks(MAX_MANIFOLD_POINTS).enumerate() {
             let mut local_p1 = [Point::origin(); MAX_MANIFOLD_POINTS];
             let mut local_p2 = [Point::origin(); MAX_MANIFOLD_POINTS];
+            let mut dists = [0.0; MAX_MANIFOLD_POINTS];
 
             for l in 0..manifold_points.len() {
-                local_p1[l] = manifold.data.delta1 * (manifold_points[l].local_p1 + shift1);
-                local_p2[l] = manifold.data.delta2 * (manifold_points[l].local_p2 + shift2);
+                local_p1[l] = rb1
+                    .position
+                    .inverse_transform_point(&manifold_points[l].point);
+                local_p2[l] = rb2
+                    .position
+                    .inverse_transform_point(&manifold_points[l].point);
+                dists[l] = manifold_points[l].dist;
             }
 
             let constraint = PositionConstraint {
@@ -113,8 +112,8 @@ impl PositionConstraint {
                 rb2: rb2.active_set_offset,
                 local_p1,
                 local_p2,
-                local_n1: manifold.local_n1,
-                radius,
+                local_n1: rb1.position.inverse_transform_vector(&manifold.data.normal),
+                dists,
                 im1: rb1.mass_properties.inv_mass,
                 im2: rb2.mass_properties.inv_mass,
                 ii1: rb1.world_inv_inertia_sqrt.squared(),
@@ -152,9 +151,9 @@ impl PositionConstraint {
         let mut pos1 = positions[self.rb1];
         let mut pos2 = positions[self.rb2];
         let allowed_err = params.allowed_linear_error;
-        let target_dist = self.radius - allowed_err;
 
         for k in 0..self.num_contacts as usize {
+            let target_dist = -self.dists[k] - allowed_err;
             let p1 = pos1 * self.local_p1[k];
             let p2 = pos2 * self.local_p2[k];
             let dpos = p2 - p1;
@@ -204,9 +203,9 @@ impl PositionConstraint {
         let mut pos1 = positions[self.rb1];
         let mut pos2 = positions[self.rb2];
         let allowed_err = params.allowed_linear_error;
-        let target_dist = self.radius - allowed_err;
 
         for k in 0..self.num_contacts as usize {
+            let target_dist = -self.dists[k] - allowed_err;
             let n1 = pos1 * self.local_n1;
             let p1 = pos1 * self.local_p1[k];
             let p2 = pos2 * self.local_p2[k];

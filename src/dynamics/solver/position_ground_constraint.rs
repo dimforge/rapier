@@ -11,9 +11,9 @@ pub(crate) struct PositionGroundConstraint {
     // NOTE: the points are relative to the center of masses.
     pub p1: [Point<f32>; MAX_MANIFOLD_POINTS],
     pub local_p2: [Point<f32>; MAX_MANIFOLD_POINTS],
+    pub dists: [f32; MAX_MANIFOLD_POINTS],
     pub n1: Vector<f32>,
     pub num_contacts: u8,
-    pub radius: f32,
     pub im2: f32,
     pub ii2: AngularInertia<f32>,
     pub erp: f32,
@@ -32,52 +32,26 @@ impl PositionGroundConstraint {
         let mut rb2 = &bodies[manifold.data.body_pair.body2];
         let flip = !rb2.is_dynamic();
 
-        let local_n1;
-        let local_n2;
-        let delta1;
-        let delta2;
-
-        if flip {
+        let n1 = if flip {
             std::mem::swap(&mut rb1, &mut rb2);
-            local_n1 = manifold.local_n2;
-            local_n2 = manifold.local_n1;
-            delta1 = &manifold.data.delta2;
-            delta2 = &manifold.data.delta1;
+            -manifold.data.normal
         } else {
-            local_n1 = manifold.local_n1;
-            local_n2 = manifold.local_n2;
-            delta1 = &manifold.data.delta1;
-            delta2 = &manifold.data.delta2;
+            manifold.data.normal
         };
 
-        let coll_pos1 = rb1.position * delta1;
-        let shift1 = local_n1 * -manifold.kinematics.radius1;
-        let shift2 = local_n2 * -manifold.kinematics.radius2;
-        let n1 = coll_pos1 * local_n1;
-        let radius =
-            manifold.kinematics.radius1 + manifold.kinematics.radius2 /* - params.allowed_linear_error */;
+        let active_contacts = &manifold.data.solver_contacts[..manifold.num_active_contacts];
 
-        for (l, manifold_contacts) in manifold
-            .active_contacts()
-            .chunks(MAX_MANIFOLD_POINTS)
-            .enumerate()
-        {
+        for (l, manifold_contacts) in active_contacts.chunks(MAX_MANIFOLD_POINTS).enumerate() {
             let mut p1 = [Point::origin(); MAX_MANIFOLD_POINTS];
             let mut local_p2 = [Point::origin(); MAX_MANIFOLD_POINTS];
+            let mut dists = [0.0; MAX_MANIFOLD_POINTS];
 
-            if flip {
-                // Don't forget that we already swapped rb1 and rb2 above.
-                // So if we flip, only manifold_contacts[k].{local_p1,local_p2} have to
-                // be swapped.
-                for k in 0..manifold_contacts.len() {
-                    p1[k] = coll_pos1 * (manifold_contacts[k].local_p2 + shift1);
-                    local_p2[k] = delta2 * (manifold_contacts[k].local_p1 + shift2);
-                }
-            } else {
-                for k in 0..manifold_contacts.len() {
-                    p1[k] = coll_pos1 * (manifold_contacts[k].local_p1 + shift1);
-                    local_p2[k] = delta2 * (manifold_contacts[k].local_p2 + shift2);
-                }
+            for k in 0..manifold_contacts.len() {
+                p1[k] = manifold_contacts[k].point;
+                local_p2[k] = rb2
+                    .position
+                    .inverse_transform_point(&manifold_contacts[k].point);
+                dists[k] = manifold_contacts[k].dist;
             }
 
             let constraint = PositionGroundConstraint {
@@ -85,7 +59,7 @@ impl PositionGroundConstraint {
                 p1,
                 local_p2,
                 n1,
-                radius,
+                dists,
                 im2: rb2.mass_properties.inv_mass,
                 ii2: rb2.world_inv_inertia_sqrt.squared(),
                 num_contacts: manifold_contacts.len() as u8,
@@ -123,9 +97,9 @@ impl PositionGroundConstraint {
         // Compute jacobians.
         let mut pos2 = positions[self.rb2];
         let allowed_err = params.allowed_linear_error;
-        let target_dist = self.radius - allowed_err;
 
         for k in 0..self.num_contacts as usize {
+            let target_dist = -self.dists[k] - allowed_err;
             let p1 = self.p1[k];
             let p2 = pos2 * self.local_p2[k];
             let dpos = p2 - p1;
@@ -165,9 +139,9 @@ impl PositionGroundConstraint {
         // Compute jacobians.
         let mut pos2 = positions[self.rb2];
         let allowed_err = params.allowed_linear_error;
-        let target_dist = self.radius - allowed_err;
 
         for k in 0..self.num_contacts as usize {
+            let target_dist = -self.dists[k] - allowed_err;
             let n1 = self.n1;
             let p1 = self.p1[k];
             let p2 = pos2 * self.local_p2[k];

@@ -4,7 +4,7 @@ pub use self::broad_phase_multi_sap::BroadPhase;
 pub use self::collider::{Collider, ColliderBuilder, ColliderShape};
 pub use self::collider_set::{ColliderHandle, ColliderSet};
 pub use self::contact_pair::{ContactData, ContactManifoldData};
-pub use self::contact_pair::{ContactPair, SolverFlags};
+pub use self::contact_pair::{ContactPair, SolverContact, SolverFlags};
 pub use self::interaction_graph::{
     ColliderGraphIndex, InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex,
 };

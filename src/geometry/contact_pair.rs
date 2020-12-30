@@ -1,6 +1,6 @@
 use crate::dynamics::{BodyPair, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{Collider, ColliderPair, ColliderSet, Contact, ContactManifold};
-use crate::math::{Isometry, Point, Vector};
+use crate::math::{Isometry, Point, Real, Vector};
 use cdl::query::ContactManifoldsWorkspace;
 use cdl::utils::MaybeSerializableData;
 #[cfg(feature = "simd-is-enabled")]
@@ -134,7 +134,7 @@ impl ContactPair {
         let coll2 = &colliders[self.pair.collider2];
 
         if self.manifolds.len() == 0 {
-            let manifold_data = ContactManifoldData::from_colliders(coll1, coll2, flags);
+            let manifold_data = ContactManifoldData::with_subshape_indices(coll1, coll2, flags);
             self.manifolds
                 .push(ContactManifold::with_data((0, 0), manifold_data));
         }
@@ -164,18 +164,21 @@ pub struct ContactManifoldData {
     pub(crate) position_constraint_index: usize,
     // We put the following fields here to avoids reading the colliders inside of the
     // contact preparation method.
-    /// The friction coefficient for of all the contacts on this contact manifold.
-    pub friction: f32,
-    /// The restitution coefficient for all the contacts on this contact manifold.
-    pub restitution: f32,
-    /// The relative position between the first collider and its parent at the time the
-    /// contact points were generated.
-    pub delta1: Isometry<f32>,
-    /// The relative position between the second collider and its parent at the time the
-    /// contact points were generated.
-    pub delta2: Isometry<f32>,
     /// Flags used to control some aspects of the constraints solver for this contact manifold.
     pub solver_flags: SolverFlags,
+    pub normal: Vector<Real>,
+    pub solver_contacts: Vec<SolverContact>,
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+pub struct SolverContact {
+    pub point: Point<Real>,
+    pub dist: Real,
+    pub friction: Real,
+    pub restitution: Real,
+    pub surface_velocity: Vector<Real>,
+    pub data: ContactData,
 }
 
 impl Default for ContactManifoldData {
@@ -185,39 +188,32 @@ impl Default for ContactManifoldData {
                 RigidBodySet::invalid_handle(),
                 RigidBodySet::invalid_handle(),
             ),
-            Isometry::identity(),
-            Isometry::identity(),
-            0.0,
-            0.0,
             SolverFlags::empty(),
         )
     }
 }
 
 impl ContactManifoldData {
-    pub(crate) fn new(
-        body_pair: BodyPair,
-        delta1: Isometry<f32>,
-        delta2: Isometry<f32>,
-        friction: f32,
-        restitution: f32,
-        solver_flags: SolverFlags,
-    ) -> ContactManifoldData {
+    pub(crate) fn new(body_pair: BodyPair, solver_flags: SolverFlags) -> ContactManifoldData {
         Self {
             body_pair,
             warmstart_multiplier: Self::min_warmstart_multiplier(),
-            friction,
-            restitution,
-            delta1,
-            delta2,
             constraint_index: 0,
             position_constraint_index: 0,
             solver_flags,
+            normal: Vector::zeros(),
+            solver_contacts: Vec::new(),
         }
     }
 
-    pub(crate) fn from_colliders(coll1: &Collider, coll2: &Collider, flags: SolverFlags) -> Self {
-        Self::with_subshape_indices(coll1, coll2, flags)
+    pub(crate) fn set_from_colliders(
+        &mut self,
+        coll1: &Collider,
+        coll2: &Collider,
+        flags: SolverFlags,
+    ) {
+        self.body_pair = BodyPair::new(coll1.parent, coll2.parent);
+        self.solver_flags = flags;
     }
 
     pub(crate) fn with_subshape_indices(
@@ -225,14 +221,7 @@ impl ContactManifoldData {
         coll2: &Collider,
         solver_flags: SolverFlags,
     ) -> Self {
-        Self::new(
-            BodyPair::new(coll1.parent, coll2.parent),
-            *coll1.position_wrt_parent(),
-            *coll2.position_wrt_parent(),
-            (coll1.friction + coll2.friction) * 0.5,
-            (coll1.restitution + coll2.restitution) * 0.5,
-            solver_flags,
-        )
+        Self::new(BodyPair::new(coll1.parent, coll2.parent), solver_flags)
     }
 
     pub(crate) fn min_warmstart_multiplier() -> f32 {
