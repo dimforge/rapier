@@ -128,4 +128,11 @@ pub mod dynamics;
 pub mod geometry;
 pub mod pipeline;
 pub mod utils;
-pub use cdl::math;
+
+pub mod math {
+    pub use cdl::math::*;
+    #[cfg(feature = "dim2")]
+    pub const MAX_MANIFOLD_POINTS: usize = 2;
+    #[cfg(feature = "dim3")]
+    pub const MAX_MANIFOLD_POINTS: usize = 4;
+}
