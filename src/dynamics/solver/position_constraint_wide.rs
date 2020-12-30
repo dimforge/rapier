@@ -49,7 +49,7 @@ impl WPositionConstraint {
         let pos2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
 
         let local_n1 = pos1.inverse_transform_vector(&Vector::from(
-            array![|ii| manifolds[ii].local_n1; SIMD_WIDTH],
+            array![|ii| manifolds[ii].data.normal; SIMD_WIDTH],
         ));
 
         let rb1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
