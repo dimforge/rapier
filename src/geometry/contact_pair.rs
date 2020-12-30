@@ -134,30 +134,17 @@ impl ContactPair {
         let coll2 = &colliders[self.pair.collider2];
 
         if self.manifolds.len() == 0 {
-            let manifold_data = ContactManifoldData::from_colliders(self.pair, coll1, coll2, flags);
+            let manifold_data = ContactManifoldData::from_colliders(coll1, coll2, flags);
             self.manifolds
                 .push(ContactManifold::with_data((0, 0), manifold_data));
         }
 
-        // We have to make sure the order of the returned collider
-        // match the order of the pair stored inside of the manifold.
-        // (This order can be modified by the contact determination algorithm).
-        let manifold = &mut self.manifolds[0];
-        if manifold.data.pair.collider1 == self.pair.collider1 {
-            (
-                coll1,
-                coll2,
-                manifold,
-                self.workspace.as_mut().map(|w| &mut *w.0),
-            )
-        } else {
-            (
-                coll2,
-                coll1,
-                manifold,
-                self.workspace.as_mut().map(|w| &mut *w.0),
-            )
-        }
+        (
+            coll1,
+            coll2,
+            &mut self.manifolds[0],
+            self.workspace.as_mut().map(|w| &mut *w.0),
+        )
     }
 }
 
@@ -169,8 +156,6 @@ impl ContactPair {
 /// part of the same contact manifold share the same contact normal and contact kinematics.
 pub struct ContactManifoldData {
     // The following are set by the narrow-phase.
-    /// The pair of colliders involved in this contact manifold.
-    pub pair: ColliderPair,
     /// The pair of body involved in this contact manifold.
     pub body_pair: BodyPair,
     pub(crate) warmstart_multiplier: f32,
@@ -196,7 +181,6 @@ pub struct ContactManifoldData {
 impl Default for ContactManifoldData {
     fn default() -> Self {
         Self::new(
-            ColliderPair::new(ColliderSet::invalid_handle(), ColliderSet::invalid_handle()),
             BodyPair::new(
                 RigidBodySet::invalid_handle(),
                 RigidBodySet::invalid_handle(),
@@ -212,7 +196,6 @@ impl Default for ContactManifoldData {
 
 impl ContactManifoldData {
     pub(crate) fn new(
-        pair: ColliderPair,
         body_pair: BodyPair,
         delta1: Isometry<f32>,
         delta2: Isometry<f32>,
@@ -221,7 +204,6 @@ impl ContactManifoldData {
         solver_flags: SolverFlags,
     ) -> ContactManifoldData {
         Self {
-            pair,
             body_pair,
             warmstart_multiplier: Self::min_warmstart_multiplier(),
             friction,
@@ -234,23 +216,16 @@ impl ContactManifoldData {
         }
     }
 
-    pub(crate) fn from_colliders(
-        pair: ColliderPair,
-        coll1: &Collider,
-        coll2: &Collider,
-        flags: SolverFlags,
-    ) -> Self {
-        Self::with_subshape_indices(pair, coll1, coll2, flags)
+    pub(crate) fn from_colliders(coll1: &Collider, coll2: &Collider, flags: SolverFlags) -> Self {
+        Self::with_subshape_indices(coll1, coll2, flags)
     }
 
     pub(crate) fn with_subshape_indices(
-        pair: ColliderPair,
         coll1: &Collider,
         coll2: &Collider,
         solver_flags: SolverFlags,
     ) -> Self {
         Self::new(
-            pair,
             BodyPair::new(coll1.parent, coll2.parent),
             *coll1.position_wrt_parent(),
             *coll2.position_wrt_parent(),

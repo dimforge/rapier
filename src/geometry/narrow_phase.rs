@@ -526,8 +526,7 @@ impl NarrowPhase {
 
             // TODO: don't write this everytime?
             for manifold in &mut pair.manifolds {
-                manifold.data =
-                    ContactManifoldData::from_colliders(pair.pair, co1, co2, solver_flags);
+                manifold.data = ContactManifoldData::from_colliders(co1, co2, solver_flags);
             }
         });
     }
