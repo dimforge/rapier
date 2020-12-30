@@ -33,13 +33,9 @@ impl PositionSolverJointPart {
 }
 
 pub(crate) struct PositionSolverPart {
-    pub point_point_manifolds: Vec<ContactManifoldIndex>,
     pub plane_point_manifolds: Vec<ContactManifoldIndex>,
-    pub point_point_ground_manifolds: Vec<ContactManifoldIndex>,
     pub plane_point_ground_manifolds: Vec<ContactManifoldIndex>,
-    pub point_point_groups: InteractionGroups,
     pub plane_point_groups: InteractionGroups,
-    pub point_point_ground_groups: InteractionGroups,
     pub plane_point_ground_groups: InteractionGroups,
     pub constraints: Vec<AnyPositionConstraint>,
 }
@@ -47,13 +43,9 @@ pub(crate) struct PositionSolverPart {
 impl PositionSolverPart {
     pub fn new() -> Self {
         Self {
-            point_point_manifolds: Vec::new(),
             plane_point_manifolds: Vec::new(),
-            point_point_ground_manifolds: Vec::new(),
             plane_point_ground_manifolds: Vec::new(),
-            point_point_groups: InteractionGroups::new(),
             plane_point_groups: InteractionGroups::new(),
-            point_point_ground_groups: InteractionGroups::new(),
             plane_point_ground_groups: InteractionGroups::new(),
             constraints: Vec::new(),
         }
@@ -62,7 +54,7 @@ impl PositionSolverPart {
 
 pub(crate) struct PositionSolver {
     positions: Vec<Isometry<f32>>,
-    part: PositionSolverPart,
+    pub part: PositionSolverPart,
     joint_part: PositionSolverJointPart,
 }
 
@@ -85,8 +77,8 @@ impl PositionSolver {
         joints: &[JointGraphEdge],
         joint_constraint_indices: &[JointIndex],
     ) {
-        self.part
-            .init_constraints(island_id, params, bodies, manifolds, manifold_indices);
+        // self.part
+        //     .init_constraints(island_id, params, bodies, manifolds, manifold_indices);
         self.joint_part.init_constraints(
             island_id,
             params,
@@ -134,27 +126,16 @@ impl PositionSolverPart {
         manifolds_all: &[&mut ContactManifold],
         manifold_indices: &[ContactManifoldIndex],
     ) {
-        self.point_point_ground_manifolds.clear();
         self.plane_point_ground_manifolds.clear();
-        self.point_point_manifolds.clear();
         self.plane_point_manifolds.clear();
         categorize_position_contacts(
             bodies,
             manifolds_all,
             manifold_indices,
-            &mut self.point_point_ground_manifolds,
             &mut self.plane_point_ground_manifolds,
-            &mut self.point_point_manifolds,
             &mut self.plane_point_manifolds,
         );
 
-        self.point_point_groups.clear_groups();
-        self.point_point_groups.group_manifolds(
-            island_id,
-            bodies,
-            manifolds_all,
-            &self.point_point_manifolds,
-        );
         self.plane_point_groups.clear_groups();
         self.plane_point_groups.group_manifolds(
             island_id,
@@ -163,13 +144,6 @@ impl PositionSolverPart {
             &self.plane_point_manifolds,
         );
 
-        self.point_point_ground_groups.clear_groups();
-        self.point_point_ground_groups.group_manifolds(
-            island_id,
-            bodies,
-            manifolds_all,
-            &self.point_point_ground_manifolds,
-        );
         self.plane_point_ground_groups.clear_groups();
         self.plane_point_ground_groups.group_manifolds(
             island_id,
@@ -189,24 +163,10 @@ impl PositionSolverPart {
                 params,
                 bodies,
                 manifolds_all,
-                &self.point_point_groups.grouped_interactions,
-                &mut self.constraints,
-            );
-            compute_grouped_constraints(
-                params,
-                bodies,
-                manifolds_all,
                 &self.plane_point_groups.grouped_interactions,
                 &mut self.constraints,
             );
         }
-        compute_nongrouped_constraints(
-            params,
-            bodies,
-            manifolds_all,
-            &self.point_point_groups.nongrouped_interactions,
-            &mut self.constraints,
-        );
         compute_nongrouped_constraints(
             params,
             bodies,
@@ -224,24 +184,10 @@ impl PositionSolverPart {
                 params,
                 bodies,
                 manifolds_all,
-                &self.point_point_ground_groups.grouped_interactions,
-                &mut self.constraints,
-            );
-            compute_grouped_ground_constraints(
-                params,
-                bodies,
-                manifolds_all,
                 &self.plane_point_ground_groups.grouped_interactions,
                 &mut self.constraints,
             );
         }
-        compute_nongrouped_ground_constraints(
-            params,
-            bodies,
-            manifolds_all,
-            &self.point_point_ground_groups.nongrouped_interactions,
-            &mut self.constraints,
-        );
         compute_nongrouped_ground_constraints(
             params,
             bodies,

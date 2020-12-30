@@ -29,6 +29,7 @@ impl IslandSolver {
     ) {
         if manifold_indices.len() != 0 || joint_indices.len() != 0 {
             counters.solver.velocity_assembly_time.resume();
+            self.position_solver.part.constraints.clear();
             self.velocity_solver.init_constraints(
                 island_id,
                 params,
@@ -37,6 +38,7 @@ impl IslandSolver {
                 &manifold_indices,
                 joints,
                 &joint_indices,
+                &mut self.position_solver.part.constraints,
             );
             counters.solver.velocity_assembly_time.pause();
 

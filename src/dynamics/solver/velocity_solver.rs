@@ -4,6 +4,10 @@ use super::{
 #[cfg(feature = "simd-is-enabled")]
 use super::{WVelocityConstraint, WVelocityGroundConstraint};
 use crate::dynamics::solver::categorization::{categorize_joints, categorize_velocity_contacts};
+use crate::dynamics::solver::{
+    AnyPositionConstraint, PositionConstraint, PositionGroundConstraint, WPositionConstraint,
+    WPositionGroundConstraint,
+};
 use crate::dynamics::{
     solver::{AnyVelocityConstraint, DeltaVel},
     IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet,
@@ -37,9 +41,16 @@ impl VelocitySolver {
         manifold_indices: &[ContactManifoldIndex],
         joints: &[JointGraphEdge],
         joint_constraint_indices: &[JointIndex],
+        position_constraints: &mut Vec<AnyPositionConstraint>,
     ) {
-        self.contact_part
-            .init_constraints(island_id, params, bodies, manifolds, manifold_indices);
+        self.contact_part.init_constraints(
+            island_id,
+            params,
+            bodies,
+            manifolds,
+            manifold_indices,
+            position_constraints,
+        );
         self.joint_part.init_constraints(
             island_id,
             params,
@@ -173,19 +184,25 @@ impl VelocitySolverPart<AnyVelocityConstraint> {
         bodies: &RigidBodySet,
         manifolds: &[&mut ContactManifold],
         manifold_indices: &[ContactManifoldIndex],
+        position_constraints: &mut Vec<AnyPositionConstraint>,
     ) {
         self.init_constraint_groups(island_id, bodies, manifolds, manifold_indices);
         self.constraints.clear();
         #[cfg(feature = "simd-is-enabled")]
         {
-            self.compute_grouped_constraints(params, bodies, manifolds);
+            self.compute_grouped_constraints(params, bodies, manifolds, position_constraints);
         }
-        self.compute_nongrouped_constraints(params, bodies, manifolds);
+        self.compute_nongrouped_constraints(params, bodies, manifolds, position_constraints);
         #[cfg(feature = "simd-is-enabled")]
         {
-            self.compute_grouped_ground_constraints(params, bodies, manifolds);
+            self.compute_grouped_ground_constraints(
+                params,
+                bodies,
+                manifolds,
+                position_constraints,
+            );
         }
-        self.compute_nongrouped_ground_constraints(params, bodies, manifolds);
+        self.compute_nongrouped_ground_constraints(params, bodies, manifolds, position_constraints);
     }
 
     #[cfg(feature = "simd-is-enabled")]
@@ -194,6 +211,7 @@ impl VelocitySolverPart<AnyVelocityConstraint> {
         params: &IntegrationParameters,
         bodies: &RigidBodySet,
         manifolds_all: &[&mut ContactManifold],
+        constraints_all: &mut Vec<AnyPositionConstraint>,
     ) {
         for manifolds_i in self
             .interaction_groups
@@ -210,6 +228,7 @@ impl VelocitySolverPart<AnyVelocityConstraint> {
                 &mut self.constraints,
                 true,
             );
+            WPositionConstraint::generate(params, manifolds, bodies, constraints_all, true);
         }
     }
 
@@ -218,6 +237,7 @@ impl VelocitySolverPart<AnyVelocityConstraint> {
         params: &IntegrationParameters,
         bodies: &RigidBodySet,
         manifolds_all: &[&mut ContactManifold],
+        constraints_all: &mut Vec<AnyPositionConstraint>,
     ) {
         for manifold_i in &self.interaction_groups.nongrouped_interactions {
             let manifold = &manifolds_all[*manifold_i];
@@ -229,6 +249,7 @@ impl VelocitySolverPart<AnyVelocityConstraint> {
                 &mut self.constraints,
                 true,
             );
+            PositionConstraint::generate(params, manifold, bodies, constraints_all, true);
         }
     }
 
@@ -238,6 +259,7 @@ impl VelocitySolverPart<AnyVelocityConstraint> {
         params: &IntegrationParameters,
         bodies: &RigidBodySet,
         manifolds_all: &[&mut ContactManifold],
+        constraints_all: &mut Vec<AnyPositionConstraint>,
     ) {
         for manifolds_i in self
             .ground_interaction_groups
@@ -254,6 +276,7 @@ impl VelocitySolverPart<AnyVelocityConstraint> {
                 &mut self.constraints,
                 true,
             );
+            WPositionGroundConstraint::generate(params, manifolds, bodies, constraints_all, true);
         }
     }
 
@@ -262,6 +285,7 @@ impl VelocitySolverPart<AnyVelocityConstraint> {
         params: &IntegrationParameters,
         bodies: &RigidBodySet,
         manifolds_all: &[&mut ContactManifold],
+        constraints_all: &mut Vec<AnyPositionConstraint>,
     ) {
         for manifold_i in &self.ground_interaction_groups.nongrouped_interactions {
             let manifold = &manifolds_all[*manifold_i];
@@ -272,7 +296,8 @@ impl VelocitySolverPart<AnyVelocityConstraint> {
                 bodies,
                 &mut self.constraints,
                 true,
-            )
+            );
+            PositionGroundConstraint::generate(params, manifold, bodies, constraints_all, true)
         }
     }
 }
