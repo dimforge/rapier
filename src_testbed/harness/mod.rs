@@ -185,12 +185,7 @@ impl Harness {
         }
 
         for plugin in &mut self.plugins {
-            plugin.run_callbacks(
-                &mut self.physics,
-                &self.events,
-                &self.state,
-                self.state.time,
-            )
+            plugin.run_callbacks(&mut self.physics, &self.events, &self.state)
         }
 
         self.events.poll_all();
