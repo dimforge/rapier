@@ -12,6 +12,9 @@ use cdl::query::details::{
     RayCompositeShapeToiAndNormalBestFirstVisitor, RayCompositeShapeToiBestFirstVisitor,
     TOICompositeShapeShapeBestFirstVisitor,
 };
+use cdl::query::visitors::{
+    BoundingVolumeIntersectionsVisitor, PointIntersectionsVisitor, RayIntersectionsVisitor,
+};
 use cdl::query::{DefaultQueryDispatcher, QueryDispatcher, TOI};
 use cdl::shape::{FeatureId, Shape, TypedSimdCompositeShape};
 use std::sync::Arc;
@@ -183,35 +186,33 @@ impl QueryPipeline {
     ///   limits the length of the ray to `ray.dir.norm() * max_toi`. Use `Real::MAX` for an unbounded ray.
     /// - `callback`: function executed on each collider for which a ray intersection has been found.
     ///   There is no guarantees on the order the results will be yielded. If this callback returns `false`,
-    ///   this method will exit early, ignory any further raycast.
+    ///   this method will exit early, ignore any further raycast.
     pub fn intersections_with_ray<'a>(
         &self,
         colliders: &'a ColliderSet,
         ray: &Ray,
         max_toi: Real,
+        solid: bool,
         groups: InteractionGroups,
         mut callback: impl FnMut(ColliderHandle, &'a Collider, RayIntersection) -> bool,
     ) {
-        // TODO: avoid allocation?
-        let mut inter = Vec::new();
-        self.quadtree.cast_ray(ray, max_toi, &mut inter);
-
-        for handle in inter {
-            let collider = &colliders[handle];
-
-            if collider.collision_groups.test(groups) {
-                if let Some(inter) = collider.shape().cast_ray_and_get_normal(
-                    collider.position(),
-                    ray,
-                    max_toi,
-                    true,
-                ) {
-                    if !callback(handle, collider, inter) {
-                        return;
+        let mut leaf_callback = &mut |handle: &ColliderHandle| {
+            if let Some(coll) = colliders.get(*handle) {
+                if coll.collision_groups.test(groups) {
+                    if let Some(hit) =
+                        coll.shape()
+                            .cast_ray_and_get_normal(coll.position(), ray, max_toi, solid)
+                    {
+                        return callback(*handle, coll, hit);
                     }
                 }
             }
-        }
+
+            true
+        };
+
+        let mut visitor = RayIntersectionsVisitor::new(ray, max_toi, &mut leaf_callback);
+        self.quadtree.traverse_depth_first(&mut visitor);
     }
 
     /// Find up to one collider intersecting the given shape.
@@ -235,8 +236,6 @@ impl QueryPipeline {
             .map(|h| (h.1 .0))
     }
 
-    // TODO: intersections_with_point (collect all colliders containing the point).
-
     /// Projects a point on the scene.
     fn project_point(
         &self,
@@ -252,6 +251,31 @@ impl QueryPipeline {
         self.quadtree
             .traverse_best_first(&mut visitor)
             .map(|h| (h.1 .1, h.1 .0))
+    }
+
+    /// Gets all the colliders containing the given point.
+    pub fn intersections_with_point<'a>(
+        &self,
+        colliders: &'a ColliderSet,
+        point: &Point<Real>,
+        groups: InteractionGroups,
+        mut callback: impl FnMut(ColliderHandle, &'a Collider) -> bool,
+    ) {
+        let mut leaf_callback = &mut |handle: &ColliderHandle| {
+            if let Some(coll) = colliders.get(*handle) {
+                if coll.collision_groups.test(groups)
+                    && coll.shape().contains_point(coll.position(), point)
+                {
+                    return callback(*handle, coll);
+                }
+            }
+
+            true
+        };
+
+        let mut visitor = PointIntersectionsVisitor::new(point, &mut leaf_callback);
+
+        self.quadtree.traverse_depth_first(&mut visitor);
     }
 
     /// Projects a point on the scene and get
@@ -313,8 +337,7 @@ impl QueryPipeline {
         self.quadtree.traverse_best_first(&mut visitor).map(|h| h.1)
     }
 
-    /*
-    /// Gets all the colliders with a shape intersecting the given `shape`.
+    /// Gets all the colliders containing the given shape.
     pub fn intersections_with_shape<'a>(
         &self,
         colliders: &'a ColliderSet,
@@ -323,6 +346,26 @@ impl QueryPipeline {
         groups: InteractionGroups,
         mut callback: impl FnMut(ColliderHandle, &'a Collider) -> bool,
     ) {
+        let dispatcher = &*self.query_dispatcher;
+        let inv_shape_pos = shape_pos.inverse();
+
+        let mut leaf_callback = &mut |handle: &ColliderHandle| {
+            if let Some(coll) = colliders.get(*handle) {
+                if coll.collision_groups.test(groups) {
+                    let pos12 = inv_shape_pos * coll.position();
+
+                    if dispatcher.intersection_test(&pos12, shape, coll.shape()) == Ok(true) {
+                        return callback(*handle, coll);
+                    }
+                }
+            }
+
+            true
+        };
+
+        let shape_aabb = shape.compute_aabb(shape_pos);
+        let mut visitor = BoundingVolumeIntersectionsVisitor::new(&shape_aabb, &mut leaf_callback);
+
+        self.quadtree.traverse_depth_first(&mut visitor);
     }
-     */
 }
