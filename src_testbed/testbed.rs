@@ -429,7 +429,7 @@ impl Testbed {
             }
         }
 
-        //FIXME: move this to dedicated benchmarking code
+        // TODO: move this to dedicated benchmarking code
         if benchmark_mode {
             use std::fs::File;
             use std::io::{BufWriter, Write};
