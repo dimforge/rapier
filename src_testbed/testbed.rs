@@ -4,7 +4,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use crate::engine::GraphicsManager;
-use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
+use crate::physics::{PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
 use crate::ui::TestbedUi;
 
@@ -28,7 +28,7 @@ use rapier::math::Vector;
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
-use crate::harness::{Harness, RunState};
+use crate::harness::Harness;
 #[cfg(feature = "other-backends")]
 use crate::nphysics_backend::NPhysicsWorld;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
