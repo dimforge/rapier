@@ -60,23 +60,25 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Setup a callback to control the platform.
      */
-    testbed.harness_mut().add_callback(move |physics, _, run_state, _| {
-        let platform = physics.bodies.get_mut(platform_handle).unwrap();
-        let mut next_pos = *platform.position();
+    testbed
+        .harness_mut()
+        .add_callback(move |physics, _, run_state, _| {
+            let platform = physics.bodies.get_mut(platform_handle).unwrap();
+            let mut next_pos = *platform.position();
 
-        let dt = 0.016;
-        next_pos.translation.vector.y += (run_state.time * 5.0).sin() * dt;
-        next_pos.translation.vector.x += run_state.time.sin() * 5.0 * dt;
+            let dt = 0.016;
+            next_pos.translation.vector.y += (run_state.time * 5.0).sin() * dt;
+            next_pos.translation.vector.x += run_state.time.sin() * 5.0 * dt;
 
-        if next_pos.translation.vector.x >= rad * 10.0 {
-            next_pos.translation.vector.x -= dt;
-        }
-        if next_pos.translation.vector.x <= -rad * 10.0 {
-            next_pos.translation.vector.x += dt;
-        }
+            if next_pos.translation.vector.x >= rad * 10.0 {
+                next_pos.translation.vector.x -= dt;
+            }
+            if next_pos.translation.vector.x <= -rad * 10.0 {
+                next_pos.translation.vector.x += dt;
+            }
 
-        platform.set_next_kinematic_position(next_pos);
-    });
+            platform.set_next_kinematic_position(next_pos);
+        });
 
     /*
      * Run the simulation.

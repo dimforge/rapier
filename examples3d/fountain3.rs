@@ -68,7 +68,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 physics
                     .narrow_phase
                     .maintain(&mut physics.colliders, &mut physics.bodies);
-                
+
                 // TODO: need a way to access graphics & window
                 // graphics.remove_body_nodes(window, *handle);
             }

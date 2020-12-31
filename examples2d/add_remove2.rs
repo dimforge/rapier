@@ -19,7 +19,7 @@ pub fn init_world(testbed: &mut Testbed) {
         physics
             .colliders
             .insert(collider, handle, &mut physics.bodies);
-        
+
         // TODO: need a way to access graphics & window
         // graphics.add(window, handle, &physics.bodies, &physics.colliders);
 
@@ -33,7 +33,7 @@ pub fn init_world(testbed: &mut Testbed) {
             physics
                 .bodies
                 .remove(handle, &mut physics.colliders, &mut physics.joints);
-        
+
             // TODO: need a way to access graphics & window
             // graphics.remove_body_nodes(window, handle);
         }
