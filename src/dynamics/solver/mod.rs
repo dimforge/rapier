@@ -9,6 +9,8 @@ pub(self) use self::parallel_velocity_solver::ParallelVelocitySolver;
 #[cfg(not(feature = "parallel"))]
 pub(self) use self::position_solver::PositionSolver;
 #[cfg(not(feature = "parallel"))]
+pub(self) use self::solver_constraints::SolverConstraints;
+#[cfg(not(feature = "parallel"))]
 pub(self) use self::velocity_solver::VelocitySolver;
 pub(self) use delta_vel::DeltaVel;
 pub(self) use interaction_groups::*;
@@ -46,6 +48,8 @@ mod position_ground_constraint;
 mod position_ground_constraint_wide;
 #[cfg(not(feature = "parallel"))]
 mod position_solver;
+#[cfg(not(feature = "parallel"))]
+mod solver_constraints;
 mod velocity_constraint;
 #[cfg(feature = "simd-is-enabled")]
 mod velocity_constraint_wide;

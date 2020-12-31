@@ -20,7 +20,7 @@ pub(crate) enum VelocityConstraintDesc {
     GroundGrouped([usize; SIMD_WIDTH]),
 }
 
-pub(crate) struct ParallelVelocitySolverPart<Constraint> {
+pub(crate) struct ParallelSolverConstraints<Constraint> {
     pub not_ground_interactions: Vec<usize>,
     pub ground_interactions: Vec<usize>,
     pub interaction_groups: InteractionGroups,
@@ -30,7 +30,7 @@ pub(crate) struct ParallelVelocitySolverPart<Constraint> {
     pub parallel_desc_groups: Vec<usize>,
 }
 
-impl<Constraint> ParallelVelocitySolverPart<Constraint> {
+impl<Constraint> ParallelSolverConstraints<Constraint> {
     pub fn new() -> Self {
         Self {
             not_ground_interactions: Vec::new(),
@@ -46,7 +46,7 @@ impl<Constraint> ParallelVelocitySolverPart<Constraint> {
 
 macro_rules! impl_init_constraints_group {
     ($Constraint: ty, $Interaction: ty, $categorize: ident, $group: ident, $num_active_constraints: path, $empty_constraint: expr $(, $weight: ident)*) => {
-        impl ParallelVelocitySolverPart<$Constraint> {
+        impl ParallelSolverConstraints<$Constraint> {
             pub fn init_constraints_groups(
                 &mut self,
                 island_id: usize,
@@ -181,7 +181,7 @@ impl_init_constraints_group!(
     weight
 );
 
-impl ParallelVelocitySolverPart<AnyVelocityConstraint> {
+impl ParallelSolverConstraints<AnyVelocityConstraint> {
     fn fill_constraints(
         &mut self,
         thread: &ThreadContext,
@@ -219,7 +219,7 @@ impl ParallelVelocitySolverPart<AnyVelocityConstraint> {
     }
 }
 
-impl ParallelVelocitySolverPart<AnyJointVelocityConstraint> {
+impl ParallelSolverConstraints<AnyJointVelocityConstraint> {
     fn fill_constraints(
         &mut self,
         thread: &ThreadContext,
@@ -262,15 +262,15 @@ impl ParallelVelocitySolverPart<AnyJointVelocityConstraint> {
 }
 
 pub(crate) struct ParallelVelocitySolver {
-    part: ParallelVelocitySolverPart<AnyVelocityConstraint>,
-    joint_part: ParallelVelocitySolverPart<AnyJointVelocityConstraint>,
+    part: ParallelSolverConstraints<AnyVelocityConstraint>,
+    joint_part: ParallelSolverConstraints<AnyJointVelocityConstraint>,
 }
 
 impl ParallelVelocitySolver {
     pub fn new() -> Self {
         Self {
-            part: ParallelVelocitySolverPart::new(),
-            joint_part: ParallelVelocitySolverPart::new(),
+            part: ParallelSolverConstraints::new(),
+            joint_part: ParallelSolverConstraints::new(),
         }
     }
 
