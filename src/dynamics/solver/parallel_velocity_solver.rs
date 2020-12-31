@@ -1,6 +1,6 @@
 use super::ParallelInteractionGroups;
 use super::{AnyJointVelocityConstraint, AnyVelocityConstraint, DeltaVel, ThreadContext};
-use crate::dynamics::solver::categorization::{categorize_joints, categorize_velocity_contacts};
+use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
 use crate::dynamics::solver::{InteractionGroups, VelocityConstraint, VelocityGroundConstraint};
 use crate::dynamics::{IntegrationParameters, JointGraphEdge, RigidBodySet};
 use crate::geometry::ContactManifold;
@@ -165,7 +165,7 @@ macro_rules! impl_init_constraints_group {
 impl_init_constraints_group!(
     AnyVelocityConstraint,
     &mut ContactManifold,
-    categorize_velocity_contacts,
+    categorize_contacts,
     group_manifolds,
     VelocityConstraint::num_active_constraints,
     AnyVelocityConstraint::Empty

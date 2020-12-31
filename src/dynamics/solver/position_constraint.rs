@@ -2,7 +2,7 @@ use crate::dynamics::solver::PositionGroundConstraint;
 #[cfg(feature = "simd-is-enabled")]
 use crate::dynamics::solver::{WPositionConstraint, WPositionGroundConstraint};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
-use crate::geometry::{ContactManifold, KinematicsCategory};
+use crate::geometry::ContactManifold;
 use crate::math::{
     AngularInertia, Isometry, Point, Rotation, Translation, Vector, MAX_MANIFOLD_POINTS,
 };
@@ -10,17 +10,11 @@ use crate::utils::{WAngularInertia, WCross, WDot};
 
 pub(crate) enum AnyPositionConstraint {
     #[cfg(feature = "simd-is-enabled")]
-    GroupedPointPointGround(WPositionGroundConstraint),
+    GroupedGround(WPositionGroundConstraint),
+    NonGroupedGround(PositionGroundConstraint),
     #[cfg(feature = "simd-is-enabled")]
-    GroupedPlanePointGround(WPositionGroundConstraint),
-    NongroupedPointPointGround(PositionGroundConstraint),
-    NongroupedPlanePointGround(PositionGroundConstraint),
-    #[cfg(feature = "simd-is-enabled")]
-    GroupedPointPoint(WPositionConstraint),
-    #[cfg(feature = "simd-is-enabled")]
-    GroupedPlanePoint(WPositionConstraint),
-    NongroupedPointPoint(PositionConstraint),
-    NongroupedPlanePoint(PositionConstraint),
+    GroupedNonGround(WPositionConstraint),
+    NonGroupedNonGround(PositionConstraint),
     #[allow(dead_code)] // The Empty variant is only used with parallel code.
     Empty,
 }
@@ -29,29 +23,11 @@ impl AnyPositionConstraint {
     pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
         match self {
             #[cfg(feature = "simd-is-enabled")]
-            AnyPositionConstraint::GroupedPointPointGround(c) => {
-                c.solve_point_point(params, positions)
-            }
+            AnyPositionConstraint::GroupedGround(c) => c.solve(params, positions),
+            AnyPositionConstraint::NonGroupedGround(c) => c.solve(params, positions),
             #[cfg(feature = "simd-is-enabled")]
-            AnyPositionConstraint::GroupedPlanePointGround(c) => {
-                c.solve_plane_point(params, positions)
-            }
-            AnyPositionConstraint::NongroupedPointPointGround(c) => {
-                c.solve_point_point(params, positions)
-            }
-            AnyPositionConstraint::NongroupedPlanePointGround(c) => {
-                c.solve_plane_point(params, positions)
-            }
-            #[cfg(feature = "simd-is-enabled")]
-            AnyPositionConstraint::GroupedPointPoint(c) => c.solve_point_point(params, positions),
-            #[cfg(feature = "simd-is-enabled")]
-            AnyPositionConstraint::GroupedPlanePoint(c) => c.solve_plane_point(params, positions),
-            AnyPositionConstraint::NongroupedPointPoint(c) => {
-                c.solve_point_point(params, positions)
-            }
-            AnyPositionConstraint::NongroupedPlanePoint(c) => {
-                c.solve_plane_point(params, positions)
-            }
+            AnyPositionConstraint::GroupedNonGround(c) => c.solve(params, positions),
+            AnyPositionConstraint::NonGroupedNonGround(c) => c.solve(params, positions),
             AnyPositionConstraint::Empty => unreachable!(),
         }
     }
@@ -124,80 +100,15 @@ impl PositionConstraint {
             };
 
             if push {
-                if manifold.kinematics.category == KinematicsCategory::PointPoint {
-                    out_constraints.push(AnyPositionConstraint::NongroupedPointPoint(constraint));
-                } else {
-                    out_constraints.push(AnyPositionConstraint::NongroupedPlanePoint(constraint));
-                }
+                out_constraints.push(AnyPositionConstraint::NonGroupedNonGround(constraint));
             } else {
-                if manifold.kinematics.category == KinematicsCategory::PointPoint {
-                    out_constraints[manifold.data.constraint_index + l] =
-                        AnyPositionConstraint::NongroupedPointPoint(constraint);
-                } else {
-                    out_constraints[manifold.data.constraint_index + l] =
-                        AnyPositionConstraint::NongroupedPlanePoint(constraint);
-                }
+                out_constraints[manifold.data.constraint_index + l] =
+                    AnyPositionConstraint::NonGroupedNonGround(constraint);
             }
         }
     }
 
-    pub fn solve_point_point(
-        &self,
-        params: &IntegrationParameters,
-        positions: &mut [Isometry<f32>],
-    ) {
-        // FIXME: can we avoid most of the multiplications by pos1/pos2?
-        // Compute jacobians.
-        let mut pos1 = positions[self.rb1];
-        let mut pos2 = positions[self.rb2];
-        let allowed_err = params.allowed_linear_error;
-
-        for k in 0..self.num_contacts as usize {
-            let target_dist = -self.dists[k] - allowed_err;
-            let p1 = pos1 * self.local_p1[k];
-            let p2 = pos2 * self.local_p2[k];
-            let dpos = p2 - p1;
-
-            let sqdist = dpos.norm_squared();
-
-            // NOTE: only works for the point-point case.
-            if sqdist < target_dist * target_dist {
-                let dist = sqdist.sqrt();
-                let n = dpos / dist;
-                let err = ((dist - target_dist) * self.erp).max(-self.max_linear_correction);
-                let dp1 = p1.coords - pos1.translation.vector;
-                let dp2 = p2.coords - pos2.translation.vector;
-
-                let gcross1 = dp1.gcross(n);
-                let gcross2 = -dp2.gcross(n);
-                let ii_gcross1 = self.ii1.transform_vector(gcross1);
-                let ii_gcross2 = self.ii2.transform_vector(gcross2);
-
-                // Compute impulse.
-                let inv_r =
-                    self.im1 + self.im2 + gcross1.gdot(ii_gcross1) + gcross2.gdot(ii_gcross2);
-                let impulse = err / inv_r;
-
-                // Apply impulse.
-                let tra1 = Translation::from(n * (impulse * self.im1));
-                let tra2 = Translation::from(n * (-impulse * self.im2));
-                let rot1 = Rotation::new(ii_gcross1 * impulse);
-                let rot2 = Rotation::new(ii_gcross2 * impulse);
-
-                pos1 = Isometry::from_parts(tra1 * pos1.translation, rot1 * pos1.rotation);
-                pos2 = Isometry::from_parts(tra2 * pos2.translation, rot2 * pos2.rotation);
-            }
-        }
-
-        positions[self.rb1] = pos1;
-        positions[self.rb2] = pos2;
-    }
-
-    pub fn solve_plane_point(
-        &self,
-        params: &IntegrationParameters,
-        positions: &mut [Isometry<f32>],
-    ) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
         // FIXME: can we avoid most of the multiplications by pos1/pos2?
         // Compute jacobians.
         let mut pos1 = positions[self.rb1];

@@ -3,7 +3,7 @@ use super::{
 };
 #[cfg(feature = "simd-is-enabled")]
 use super::{WPositionConstraint, WPositionGroundConstraint};
-use crate::dynamics::solver::categorization::{categorize_joints, categorize_position_contacts};
+use crate::dynamics::solver::categorization::categorize_joints;
 use crate::dynamics::{
     solver::AnyPositionConstraint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet,
 };
@@ -77,8 +77,6 @@ impl PositionSolver {
         joints: &[JointGraphEdge],
         joint_constraint_indices: &[JointIndex],
     ) {
-        // self.part
-        //     .init_constraints(island_id, params, bodies, manifolds, manifold_indices);
         self.joint_part.init_constraints(
             island_id,
             params,
@@ -114,87 +112,6 @@ impl PositionSolver {
         bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
             rb.set_position_internal(self.positions[rb.active_set_offset])
         });
-    }
-}
-
-impl PositionSolverPart {
-    pub fn init_constraints(
-        &mut self,
-        island_id: usize,
-        params: &IntegrationParameters,
-        bodies: &RigidBodySet,
-        manifolds_all: &[&mut ContactManifold],
-        manifold_indices: &[ContactManifoldIndex],
-    ) {
-        self.plane_point_ground_manifolds.clear();
-        self.plane_point_manifolds.clear();
-        categorize_position_contacts(
-            bodies,
-            manifolds_all,
-            manifold_indices,
-            &mut self.plane_point_ground_manifolds,
-            &mut self.plane_point_manifolds,
-        );
-
-        self.plane_point_groups.clear_groups();
-        self.plane_point_groups.group_manifolds(
-            island_id,
-            bodies,
-            manifolds_all,
-            &self.plane_point_manifolds,
-        );
-
-        self.plane_point_ground_groups.clear_groups();
-        self.plane_point_ground_groups.group_manifolds(
-            island_id,
-            bodies,
-            manifolds_all,
-            &self.plane_point_ground_manifolds,
-        );
-
-        self.constraints.clear();
-
-        /*
-         * Init non-ground contact constraints.
-         */
-        #[cfg(feature = "simd-is-enabled")]
-        {
-            compute_grouped_constraints(
-                params,
-                bodies,
-                manifolds_all,
-                &self.plane_point_groups.grouped_interactions,
-                &mut self.constraints,
-            );
-        }
-        compute_nongrouped_constraints(
-            params,
-            bodies,
-            manifolds_all,
-            &self.plane_point_groups.nongrouped_interactions,
-            &mut self.constraints,
-        );
-
-        /*
-         * Init ground contact constraints.
-         */
-        #[cfg(feature = "simd-is-enabled")]
-        {
-            compute_grouped_ground_constraints(
-                params,
-                bodies,
-                manifolds_all,
-                &self.plane_point_ground_groups.grouped_interactions,
-                &mut self.constraints,
-            );
-        }
-        compute_nongrouped_ground_constraints(
-            params,
-            bodies,
-            manifolds_all,
-            &self.plane_point_ground_groups.nongrouped_interactions,
-            &mut self.constraints,
-        );
     }
 }
 

@@ -11,7 +11,7 @@ pub use self::interaction_graph::{
 pub use self::narrow_phase::NarrowPhase;
 pub use self::pair_filter::{ContactPairFilter, PairFilterContext, ProximityPairFilter};
 
-pub use cdl::query::{KinematicsCategory, TrackedContact};
+pub use cdl::query::TrackedContact;
 
 pub type Contact = cdl::query::TrackedContact<ContactData>;
 pub type ContactManifold = cdl::query::ContactManifold<ContactManifoldData, ContactData>;

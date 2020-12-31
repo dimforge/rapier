@@ -3,7 +3,7 @@ use super::{
 };
 #[cfg(feature = "simd-is-enabled")]
 use super::{WVelocityConstraint, WVelocityGroundConstraint};
-use crate::dynamics::solver::categorization::{categorize_joints, categorize_velocity_contacts};
+use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
 use crate::dynamics::solver::{
     AnyPositionConstraint, PositionConstraint, PositionGroundConstraint, WPositionConstraint,
     WPositionGroundConstraint,
@@ -144,7 +144,7 @@ impl VelocitySolverPart<AnyVelocityConstraint> {
     ) {
         self.not_ground_interactions.clear();
         self.ground_interactions.clear();
-        categorize_velocity_contacts(
+        categorize_contacts(
             bodies,
             manifolds,
             manifold_indices,

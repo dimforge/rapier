@@ -1,6 +1,6 @@
 use super::AnyPositionConstraint;
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
-use crate::geometry::{ContactManifold, KinematicsCategory};
+use crate::geometry::ContactManifold;
 use crate::math::{
     AngularInertia, Isometry, Point, Rotation, Translation, Vector, MAX_MANIFOLD_POINTS,
 };
@@ -68,73 +68,15 @@ impl PositionGroundConstraint {
             };
 
             if push {
-                if manifold.kinematics.category == KinematicsCategory::PointPoint {
-                    out_constraints.push(AnyPositionConstraint::NongroupedPointPointGround(
-                        constraint,
-                    ));
-                } else {
-                    out_constraints.push(AnyPositionConstraint::NongroupedPlanePointGround(
-                        constraint,
-                    ));
-                }
+                out_constraints.push(AnyPositionConstraint::NonGroupedGround(constraint));
             } else {
-                if manifold.kinematics.category == KinematicsCategory::PointPoint {
-                    out_constraints[manifold.data.constraint_index + l] =
-                        AnyPositionConstraint::NongroupedPointPointGround(constraint);
-                } else {
-                    out_constraints[manifold.data.constraint_index + l] =
-                        AnyPositionConstraint::NongroupedPlanePointGround(constraint);
-                }
+                out_constraints[manifold.data.constraint_index + l] =
+                    AnyPositionConstraint::NonGroupedGround(constraint);
             }
         }
     }
-    pub fn solve_point_point(
-        &self,
-        params: &IntegrationParameters,
-        positions: &mut [Isometry<f32>],
-    ) {
-        // FIXME: can we avoid most of the multiplications by pos1/pos2?
-        // Compute jacobians.
-        let mut pos2 = positions[self.rb2];
-        let allowed_err = params.allowed_linear_error;
 
-        for k in 0..self.num_contacts as usize {
-            let target_dist = -self.dists[k] - allowed_err;
-            let p1 = self.p1[k];
-            let p2 = pos2 * self.local_p2[k];
-            let dpos = p2 - p1;
-
-            let sqdist = dpos.norm_squared();
-
-            // NOTE: only works for the point-point case.
-            if sqdist < target_dist * target_dist {
-                let dist = sqdist.sqrt();
-                let n = dpos / dist;
-                let err = ((dist - target_dist) * self.erp).max(-self.max_linear_correction);
-                let dp2 = p2.coords - pos2.translation.vector;
-
-                let gcross2 = -dp2.gcross(n);
-                let ii_gcross2 = self.ii2.transform_vector(gcross2);
-
-                // Compute impulse.
-                let inv_r = self.im2 + gcross2.gdot(ii_gcross2);
-                let impulse = err / inv_r;
-
-                // Apply impulse.
-                let tra2 = Translation::from(n * (-impulse * self.im2));
-                let rot2 = Rotation::new(ii_gcross2 * impulse);
-                pos2 = Isometry::from_parts(tra2 * pos2.translation, rot2 * pos2.rotation);
-            }
-        }
-
-        positions[self.rb2] = pos2;
-    }
-
-    pub fn solve_plane_point(
-        &self,
-        params: &IntegrationParameters,
-        positions: &mut [Isometry<f32>],
-    ) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
         // FIXME: can we avoid most of the multiplications by pos1/pos2?
         // Compute jacobians.
         let mut pos2 = positions[self.rb2];

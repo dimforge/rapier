@@ -1,27 +1,7 @@
 use crate::dynamics::{JointGraphEdge, JointIndex, RigidBodySet};
-use crate::geometry::{ContactManifold, ContactManifoldIndex, KinematicsCategory};
+use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
-pub(crate) fn categorize_position_contacts(
-    bodies: &RigidBodySet,
-    manifolds: &[&mut ContactManifold],
-    manifold_indices: &[ContactManifoldIndex],
-    out_plane_point_ground: &mut Vec<ContactManifoldIndex>,
-    out_plane_point: &mut Vec<ContactManifoldIndex>,
-) {
-    for manifold_i in manifold_indices {
-        let manifold = &manifolds[*manifold_i];
-        let rb1 = &bodies[manifold.data.body_pair.body1];
-        let rb2 = &bodies[manifold.data.body_pair.body2];
-
-        if !rb1.is_dynamic() || !rb2.is_dynamic() {
-            out_plane_point_ground.push(*manifold_i)
-        } else {
-            out_plane_point.push(*manifold_i)
-        }
-    }
-}
-
-pub(crate) fn categorize_velocity_contacts(
+pub(crate) fn categorize_contacts(
     bodies: &RigidBodySet,
     manifolds: &[&mut ContactManifold],
     manifold_indices: &[ContactManifoldIndex],
