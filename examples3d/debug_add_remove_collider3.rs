@@ -34,7 +34,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::ball(ball_rad).density(100.0).build();
     colliders.insert(collider, ball_handle, &mut bodies);
 
-    testbed.harness_mut().add_callback(move |physics, _, _, _| {
+    testbed.harness_mut().add_callback(move |physics, _, _| {
         // Remove then re-add the ground collider.
         let coll = physics
             .colliders

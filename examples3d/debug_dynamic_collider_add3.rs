@@ -45,7 +45,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut extra_colliders = Vec::new();
     let snapped_frame = 51;
 
-    testbed.harness_mut().add_callback(move |physics, _, _, _| {
+    testbed.harness_mut().add_callback(move |physics, _, _| {
         step += 1;
 
         // Add a bigger ball collider

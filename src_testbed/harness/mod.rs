@@ -48,7 +48,7 @@ pub struct Harness {
     pub state: RunState,
 }
 
-type Callbacks = Vec<Box<dyn FnMut(&mut PhysicsState, &PhysicsEvents, &RunState, f32)>>;
+type Callbacks = Vec<Box<dyn FnMut(&mut PhysicsState, &PhysicsEvents, &RunState)>>;
 
 #[allow(dead_code)]
 impl Harness {
@@ -130,7 +130,7 @@ impl Harness {
         self.plugins.push(Box::new(plugin));
     }
 
-    pub fn add_callback<F: FnMut(&mut PhysicsState, &PhysicsEvents, &RunState, f32) + 'static>(
+    pub fn add_callback<F: FnMut(&mut PhysicsState, &PhysicsEvents, &RunState) + 'static>(
         &mut self,
         callback: F,
     ) {
@@ -185,7 +185,6 @@ impl Harness {
                 &mut self.physics,
                 &self.events,
                 &self.state,
-                self.state.time,
             )
         }
 

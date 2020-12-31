@@ -67,7 +67,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut count = 0;
     testbed
         .harness_mut()
-        .add_callback(move |physics, _, run_state, _| {
+        .add_callback(move |physics, _, run_state| {
             count += 1;
             if count % 100 > 50 {
                 return;

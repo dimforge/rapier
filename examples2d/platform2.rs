@@ -62,7 +62,7 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed
         .harness_mut()
-        .add_callback(move |physics, _, run_state, _| {
+        .add_callback(move |physics, _, run_state| {
             let platform = physics.bodies.get_mut(platform_handle).unwrap();
             let mut next_pos = *platform.position();
 

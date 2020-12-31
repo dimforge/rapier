@@ -26,7 +26,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut k = 0;
 
     // Callback that will be executed on the main loop to handle proximities.
-    testbed.harness_mut().add_callback(move |physics, _, _, _| {
+    testbed.harness_mut().add_callback(move |physics, _, _| {
         k += 1;
         let rigid_body = RigidBodyBuilder::new_dynamic()
             .translation(0.0, 10.0, 0.0)
