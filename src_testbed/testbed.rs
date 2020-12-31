@@ -1291,13 +1291,11 @@ impl State for Testbed {
                 }
 
                 for plugin in &mut self.plugins {
-                    {
-                        plugin.run_callbacks(
-                            window,
-                            &mut self.harness.physics,
-                            &self.harness.state,
-                        );
-                    }
+                    plugin.run_callbacks(
+                        window,
+                        &mut self.harness.physics,
+                        &self.harness.state,
+                    );
                 }
 
                 //                if true {
