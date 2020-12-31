@@ -1125,7 +1125,6 @@ impl State for Testbed {
                         self.set_world(w.3, w.4, w.5);
                         self.harness.physics.broad_phase = w.1;
                         self.harness.physics.narrow_phase = w.2;
-                        //FIXME: not completely sure this is valid
                         self.harness.state.timestep_id = w.0;
                     }
                 }
