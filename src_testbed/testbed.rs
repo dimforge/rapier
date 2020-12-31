@@ -25,7 +25,6 @@ use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
 use rapier::math::Vector;
-use rapier::pipeline::ChannelEventCollector;
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
