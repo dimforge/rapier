@@ -181,11 +181,7 @@ impl Harness {
         }
 
         for f in &mut self.callbacks {
-            f(
-                &mut self.physics,
-                &self.events,
-                &self.state,
-            )
+            f(&mut self.physics, &self.events, &self.state)
         }
 
         for plugin in &mut self.plugins {
