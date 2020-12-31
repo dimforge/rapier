@@ -26,7 +26,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut k = 0;
 
     // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |window, physics, _, graphics, _| {
+    testbed.harness_mut().add_callback(move |physics, _, _, _| {
         k += 1;
         let rigid_body = RigidBodyBuilder::new_dynamic()
             .translation(0.0, 10.0, 0.0)
@@ -41,7 +41,8 @@ pub fn init_world(testbed: &mut Testbed) {
         physics
             .colliders
             .insert(collider, handle, &mut physics.bodies);
-        graphics.add(window, handle, &physics.bodies, &physics.colliders);
+        // TODO: need a way to access graphics & window
+        // graphics.add(window, handle, &physics.bodies, &physics.colliders);
 
         if physics.bodies.len() > MAX_NUMBER_OF_BODIES {
             let mut to_remove: Vec<_> = physics
@@ -67,7 +68,9 @@ pub fn init_world(testbed: &mut Testbed) {
                 physics
                     .narrow_phase
                     .maintain(&mut physics.colliders, &mut physics.bodies);
-                graphics.remove_body_nodes(window, *handle);
+                
+                // TODO: need a way to access graphics & window
+                // graphics.remove_body_nodes(window, *handle);
             }
         }
     });
