@@ -239,6 +239,10 @@ impl Testbed {
         &mut self.harness.physics
     }
 
+    pub fn harness_mut(&mut self) -> &mut Harness {
+        &mut self.harness
+    }
+
     pub fn set_world(&mut self, bodies: RigidBodySet, colliders: ColliderSet, joints: JointSet) {
         self.set_world_with_gravity(bodies, colliders, joints, Vector::y() * -9.81)
     }
