@@ -62,6 +62,7 @@ pub struct ContactPair {
     ///
     /// All contact manifold contain themselves contact points between the colliders.
     pub manifolds: Vec<ContactManifold>,
+    pub has_any_active_contact: bool,
     pub(crate) workspace: Option<ContactManifoldsWorkspace>,
 }
 
@@ -69,22 +70,10 @@ impl ContactPair {
     pub(crate) fn new(pair: ColliderPair) -> Self {
         Self {
             pair,
+            has_any_active_contact: false,
             manifolds: Vec::new(),
             workspace: None,
         }
-    }
-
-    /// Does this contact pair have any active contact?
-    ///
-    /// An active contact is a contact that may result in a non-zero contact force.
-    pub fn has_any_active_contact(&self) -> bool {
-        for manifold in &self.manifolds {
-            if manifold.data.num_active_contacts() != 0 {
-                return true;
-            }
-        }
-
-        false
     }
 }
 

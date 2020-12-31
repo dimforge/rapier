@@ -369,7 +369,7 @@ impl NarrowPhase {
                                 // Emit a contact stopped event if we had a contact before removing the edge.
                                 // Also wake up the dynamic bodies that were in contact.
                                 if let Some(ctct) = contact_pair {
-                                    if ctct.has_any_active_contact() {
+                                    if ctct.has_any_active_contact {
                                         bodies.wake_up(co1.parent, true);
                                         bodies.wake_up(co2.parent, true);
 
@@ -524,14 +524,16 @@ impl NarrowPhase {
                 &mut pair.workspace,
             );
 
-            // TODO: don't write this everytime?
+            let mut has_any_active_contact = false;
+
             for manifold in &mut pair.manifolds {
                 manifold.data.solver_contacts.clear();
                 manifold.data.body_pair = BodyPair::new(co1.parent(), co2.parent());
                 manifold.data.solver_flags = solver_flags;
                 manifold.data.normal = co1.position() * manifold.local_n1;
 
-                // Sort contacts and generate solver contacts.
+                // Sort contacts to keep only these with distances bellow
+                // the prediction, and generate solver contacts.
                 let mut first_inactive_index = manifold.points.len();
 
                 while manifold.data.num_active_contacts() != first_inactive_index {
@@ -551,6 +553,7 @@ impl NarrowPhase {
                         // TODO: apply the user-defined contact modification/removal, if needed.
 
                         manifold.data.solver_contacts.push(solver_contact);
+                        has_any_active_contact = true;
                         continue;
                     }
 
@@ -562,6 +565,22 @@ impl NarrowPhase {
                     );
                     first_inactive_index -= 1;
                 }
+            }
+
+            if has_any_active_contact != pair.has_any_active_contact {
+                if has_any_active_contact {
+                    events.handle_contact_event(ContactEvent::Started(
+                        pair.pair.collider1,
+                        pair.pair.collider2,
+                    ));
+                } else {
+                    events.handle_contact_event(ContactEvent::Stopped(
+                        pair.pair.collider1,
+                        pair.pair.collider2,
+                    ));
+                }
+
+                pair.has_any_active_contact = has_any_active_contact;
             }
         });
     }
