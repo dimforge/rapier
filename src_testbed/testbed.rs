@@ -123,7 +123,6 @@ pub struct Testbed {
     graphics: GraphicsManager,
     nsteps: usize,
     camera_locked: bool, // Used so that the camera can remain the same before and after we change backend or press the restart button.
-    callbacks: Callbacks,
     plugins: Vec<Box<dyn TestbedPlugin>>,
     hide_counters: bool,
     //    persistant_contacts: HashMap<ContactId, bool>,
@@ -139,10 +138,6 @@ pub struct Testbed {
     #[cfg(feature = "other-backends")]
     nphysics: Option<NPhysicsWorld>,
 }
-
-type Callbacks = Vec<
-    Box<dyn FnMut(&mut Window, &mut PhysicsState, &PhysicsEvents, &mut GraphicsManager, &RunState)>,
->;
 
 impl Testbed {
     pub fn new_empty() -> Testbed {
@@ -185,7 +180,6 @@ impl Testbed {
 
         Testbed {
             builders: Vec::new(),
-            callbacks: Vec::new(),
             plugins: Vec::new(),
             graphics,
             nsteps: 1,
@@ -382,8 +376,6 @@ impl Testbed {
     }
 
     fn clear(&mut self, window: &mut Window) {
-        //FIXME: do we need to do this still, after moving to harness code?
-        self.callbacks.clear();
         //        self.persistant_contacts.clear();
         //        self.state.grabbed_object = None;
         //        self.state.grabbed_object_constraint = None;
@@ -399,16 +391,6 @@ impl Testbed {
 
     pub fn add_plugin(&mut self, plugin: impl TestbedPlugin + 'static) {
         self.plugins.push(Box::new(plugin));
-    }
-
-    pub fn add_callback<
-        F: FnMut(&mut Window, &mut PhysicsState, &PhysicsEvents, &mut GraphicsManager, &RunState)
-            + 'static,
-    >(
-        &mut self,
-        callback: F,
-    ) {
-        self.callbacks.push(Box::new(callback));
     }
 
     pub fn run(mut self) {
@@ -1029,8 +1011,6 @@ impl State for Testbed {
             );
         }
 
-        // let physics = &self.harness.physics;
-
         // Handle UI actions.
         {
             let backend_changed = self
@@ -1291,11 +1271,7 @@ impl State for Testbed {
                 }
 
                 for plugin in &mut self.plugins {
-                    plugin.run_callbacks(
-                        window,
-                        &mut self.harness.physics,
-                        &self.harness.state,
-                    );
+                    plugin.run_callbacks(window, &mut self.harness.physics, &self.harness.state);
                 }
 
                 //                if true {
