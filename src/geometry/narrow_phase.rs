@@ -38,18 +38,13 @@ impl ColliderGraphIndices {
 pub struct NarrowPhase {
     #[cfg_attr(
         feature = "serde-serialize",
-        serde(skip, default = "default_query_dispatcher")
+        serde(skip, default = "crate::geometry::default_persistent_query_dispatcher")
     )]
     query_dispatcher: Arc<dyn PersistentQueryDispatcher<ContactManifoldData, ContactData>>,
     contact_graph: InteractionGraph<ContactPair>,
     intersection_graph: InteractionGraph<bool>,
     graph_indices: Coarena<ColliderGraphIndices>,
     removed_colliders: Option<Subscription<RemovedCollider>>,
-}
-
-fn default_query_dispatcher() -> Arc<dyn PersistentQueryDispatcher<ContactManifoldData, ContactData>>
-{
-    Arc::new(DefaultQueryDispatcher)
 }
 
 pub(crate) type ContactManifoldIndex = usize;

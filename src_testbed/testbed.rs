@@ -1032,10 +1032,12 @@ impl Testbed {
             &self.physics.colliders,
             &ray,
             f32::MAX,
+            true,
             InteractionGroups::all(),
         );
 
-        if let Some((_, collider, _)) = hit {
+        if let Some((handle, _)) = hit {
+            let collider = &self.physics.colliders[handle];
             if self.physics.bodies[collider.parent()].is_dynamic() {
                 self.state.highlighted_body = Some(collider.parent());
                 for node in self.graphics.body_nodes_mut(collider.parent()).unwrap() {
