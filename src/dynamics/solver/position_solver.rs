@@ -1,16 +1,6 @@
-use super::{
-    AnyJointPositionConstraint, InteractionGroups, PositionConstraint, PositionGroundConstraint,
-};
-#[cfg(feature = "simd-is-enabled")]
-use super::{WPositionConstraint, WPositionGroundConstraint};
-use crate::dynamics::solver::categorization::categorize_joints;
-use crate::dynamics::{
-    solver::AnyPositionConstraint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet,
-};
-use crate::geometry::{ContactManifold, ContactManifoldIndex};
+use super::AnyJointPositionConstraint;
+use crate::dynamics::{solver::AnyPositionConstraint, IntegrationParameters, RigidBodySet};
 use crate::math::Isometry;
-#[cfg(feature = "simd-is-enabled")]
-use crate::math::SIMD_WIDTH;
 
 pub(crate) struct PositionSolver {
     positions: Vec<Isometry<f32>>,

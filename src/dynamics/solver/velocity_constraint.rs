@@ -150,9 +150,13 @@ impl VelocityConstraint {
         let mj_lambda2 = rb2.active_set_offset;
         let force_dir1 = -manifold.data.normal;
         let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
-        let active_contacts = &manifold.data.solver_contacts[..manifold.num_active_contacts];
 
-        for (l, manifold_points) in active_contacts.chunks(MAX_MANIFOLD_POINTS).enumerate() {
+        for (l, manifold_points) in manifold
+            .data
+            .solver_contacts
+            .chunks(MAX_MANIFOLD_POINTS)
+            .enumerate()
+        {
             #[cfg(not(target_arch = "wasm32"))]
             let mut constraint = VelocityConstraint {
                 dir1: force_dir1,
@@ -383,7 +387,7 @@ impl VelocityConstraint {
         let k_base = self.manifold_contact_id;
 
         for k in 0..self.num_contacts as usize {
-            let active_contacts = manifold.active_contacts_mut();
+            let active_contacts = &mut manifold.points[..manifold.data.num_active_contacts()];
             active_contacts[k_base + k].data.impulse = self.elements[k].normal_part.impulse;
             #[cfg(feature = "dim2")]
             {

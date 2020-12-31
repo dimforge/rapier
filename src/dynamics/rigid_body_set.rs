@@ -20,12 +20,8 @@ pub struct BodyPair {
 }
 
 impl BodyPair {
-    pub(crate) fn new(body1: RigidBodyHandle, body2: RigidBodyHandle) -> Self {
+    pub fn new(body1: RigidBodyHandle, body2: RigidBodyHandle) -> Self {
         BodyPair { body1, body2 }
-    }
-
-    pub(crate) fn swap(self) -> Self {
-        Self::new(self.body2, self.body1)
     }
 }
 
@@ -479,7 +475,7 @@ impl RigidBodySet {
                 if let Some(contacts) = narrow_phase.contacts_with(*collider_handle) {
                     for inter in contacts {
                         for manifold in &inter.2.manifolds {
-                            if manifold.num_active_contacts > 0 {
+                            if !manifold.data.solver_contacts.is_empty() {
                                 let other = crate::utils::other_handle(
                                     (inter.0, inter.1),
                                     *collider_handle,

@@ -8,7 +8,7 @@ use crate::math::{
 use crate::utils::{WAngularInertia, WCross, WDot};
 
 use num::Zero;
-use simba::simd::{SimdBool as _, SimdComplexField, SimdPartialOrd, SimdValue};
+use simba::simd::{SimdBool as _, SimdPartialOrd, SimdValue};
 
 pub(crate) struct WPositionConstraint {
     pub rb1: [usize; SIMD_WIDTH],
@@ -55,10 +55,10 @@ impl WPositionConstraint {
         let rb1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
         let rb2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
-        let num_active_contacts = manifolds[0].num_active_contacts();
+        let num_active_contacts = manifolds[0].data.num_active_contacts();
 
         for l in (0..num_active_contacts).step_by(MAX_MANIFOLD_POINTS) {
-            let manifold_points = array![|ii| &manifolds[ii].data.solver_contacts[l..num_active_contacts]; SIMD_WIDTH];
+            let manifold_points = array![|ii| &manifolds[ii].data.solver_contacts[l..]; SIMD_WIDTH];
             let num_points = manifold_points[0].len().min(MAX_MANIFOLD_POINTS);
 
             let mut constraint = WPositionConstraint {

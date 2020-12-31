@@ -3,7 +3,7 @@ use rayon::prelude::*;
 
 use crate::data::pubsub::Subscription;
 use crate::data::Coarena;
-use crate::dynamics::RigidBodySet;
+use crate::dynamics::{BodyPair, RigidBodySet};
 use crate::geometry::{
     BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactData, ContactEvent,
     ContactManifoldData, ContactPairFilter, IntersectionEvent, PairFilterContext,
@@ -12,7 +12,7 @@ use crate::geometry::{
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 use crate::math::Vector;
 use crate::pipeline::EventHandler;
-use cdl::query::{DefaultQueryDispatcher, PersistentQueryDispatcher, QueryDispatcher};
+use cdl::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -389,7 +389,6 @@ impl NarrowPhase {
 
     pub(crate) fn compute_intersections(
         &mut self,
-        prediction_distance: f32,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
         pair_filter: Option<&dyn ProximityPairFilter>,
@@ -528,21 +527,40 @@ impl NarrowPhase {
             // TODO: don't write this everytime?
             for manifold in &mut pair.manifolds {
                 manifold.data.solver_contacts.clear();
-                manifold.data.set_from_colliders(co1, co2, solver_flags);
+                manifold.data.body_pair = BodyPair::new(co1.parent(), co2.parent());
+                manifold.data.solver_flags = solver_flags;
                 manifold.data.normal = co1.position() * manifold.local_n1;
 
-                for contact in &manifold.points[..manifold.num_active_contacts] {
-                    let solver_contact = SolverContact {
-                        point: co1.position() * contact.local_p1
-                            + manifold.data.normal * contact.dist / 2.0,
-                        dist: contact.dist,
-                        friction: (co1.friction + co2.friction) / 2.0,
-                        restitution: (co1.restitution + co2.restitution) / 2.0,
-                        surface_velocity: Vector::zeros(),
-                        data: contact.data,
-                    };
+                // Sort contacts and generate solver contacts.
+                let mut first_inactive_index = manifold.points.len();
 
-                    manifold.data.solver_contacts.push(solver_contact);
+                while manifold.data.num_active_contacts() != first_inactive_index {
+                    let contact = &manifold.points[manifold.data.num_active_contacts()];
+                    if contact.dist < prediction_distance {
+                        // Generate the solver contact.
+                        let solver_contact = SolverContact {
+                            point: co1.position() * contact.local_p1
+                                + manifold.data.normal * contact.dist / 2.0,
+                            dist: contact.dist,
+                            friction: (co1.friction + co2.friction) / 2.0,
+                            restitution: (co1.restitution + co2.restitution) / 2.0,
+                            surface_velocity: Vector::zeros(),
+                            data: contact.data,
+                        };
+
+                        // TODO: apply the user-defined contact modification/removal, if needed.
+
+                        manifold.data.solver_contacts.push(solver_contact);
+                        continue;
+                    }
+
+                    // If we reach this code, then the contact must be ignored by the constraints solver.
+                    // Swap with the last contact.
+                    manifold.points.swap(
+                        manifold.data.num_active_contacts(),
+                        first_inactive_index - 1,
+                    );
+                    first_inactive_index -= 1;
                 }
             }
         });
@@ -569,7 +587,7 @@ impl NarrowPhase {
                     .data
                     .solver_flags
                     .contains(SolverFlags::COMPUTE_IMPULSES)
-                    && manifold.num_active_contacts() != 0
+                    && manifold.data.num_active_contacts() != 0
                     && (rb1.is_dynamic() || rb2.is_dynamic())
                     && (!rb1.is_dynamic() || !rb1.is_sleeping())
                     && (!rb2.is_dynamic() || !rb2.is_sleeping())

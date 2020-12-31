@@ -39,9 +39,12 @@ impl PositionGroundConstraint {
             manifold.data.normal
         };
 
-        let active_contacts = &manifold.data.solver_contacts[..manifold.num_active_contacts];
-
-        for (l, manifold_contacts) in active_contacts.chunks(MAX_MANIFOLD_POINTS).enumerate() {
+        for (l, manifold_contacts) in manifold
+            .data
+            .solver_contacts
+            .chunks(MAX_MANIFOLD_POINTS)
+            .enumerate()
+        {
             let mut p1 = [Point::origin(); MAX_MANIFOLD_POINTS];
             let mut local_p2 = [Point::origin(); MAX_MANIFOLD_POINTS];
             let mut dists = [0.0; MAX_MANIFOLD_POINTS];

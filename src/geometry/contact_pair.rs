@@ -1,13 +1,7 @@
-use crate::dynamics::{BodyPair, RigidBodyHandle, RigidBodySet};
-use crate::geometry::{Collider, ColliderPair, ColliderSet, Contact, ContactManifold};
-use crate::math::{Isometry, Point, Real, Vector};
+use crate::dynamics::{BodyPair, RigidBodySet};
+use crate::geometry::{Collider, ColliderPair, ContactManifold};
+use crate::math::{Point, Real, Vector};
 use cdl::query::ContactManifoldsWorkspace;
-use cdl::utils::MaybeSerializableData;
-#[cfg(feature = "simd-is-enabled")]
-use {
-    crate::math::{SimdReal, SIMD_WIDTH},
-    simba::simd::SimdValue,
-};
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -16,33 +10,6 @@ bitflags::bitflags! {
         /// The constraint solver will take this contact manifold into
         /// account for force computation.
         const COMPUTE_IMPULSES = 0b01;
-    }
-}
-
-#[cfg(feature = "simd-is-enabled")]
-pub(crate) struct WContact {
-    pub local_p1: Point<SimdReal>,
-    pub local_p2: Point<SimdReal>,
-    pub local_n1: Vector<SimdReal>,
-    pub local_n2: Vector<SimdReal>,
-    pub dist: SimdReal,
-    pub fid1: [u8; SIMD_WIDTH],
-    pub fid2: [u8; SIMD_WIDTH],
-}
-
-#[cfg(feature = "simd-is-enabled")]
-impl WContact {
-    pub fn extract(&self, i: usize) -> (Contact, Vector<f32>, Vector<f32>) {
-        let c = Contact {
-            local_p1: self.local_p1.extract(i),
-            local_p2: self.local_p2.extract(i),
-            dist: self.dist.extract(i),
-            fid1: self.fid1[i],
-            fid2: self.fid2[i],
-            data: ContactData::default(),
-        };
-
-        (c, self.local_n1.extract(i), self.local_n2.extract(i))
     }
 }
 
@@ -112,39 +79,12 @@ impl ContactPair {
     /// An active contact is a contact that may result in a non-zero contact force.
     pub fn has_any_active_contact(&self) -> bool {
         for manifold in &self.manifolds {
-            if manifold.num_active_contacts != 0 {
+            if manifold.data.num_active_contacts() != 0 {
                 return true;
             }
         }
 
         false
-    }
-
-    pub(crate) fn single_manifold<'a, 'b>(
-        &'a mut self,
-        colliders: &'b ColliderSet,
-        flags: SolverFlags,
-    ) -> (
-        &'b Collider,
-        &'b Collider,
-        &'a mut ContactManifold,
-        Option<&'a mut (dyn MaybeSerializableData)>,
-    ) {
-        let coll1 = &colliders[self.pair.collider1];
-        let coll2 = &colliders[self.pair.collider2];
-
-        if self.manifolds.len() == 0 {
-            let manifold_data = ContactManifoldData::with_subshape_indices(coll1, coll2, flags);
-            self.manifolds
-                .push(ContactManifold::with_data((0, 0), manifold_data));
-        }
-
-        (
-            coll1,
-            coll2,
-            &mut self.manifolds[0],
-            self.workspace.as_mut().map(|w| &mut *w.0),
-        )
     }
 }
 
@@ -206,22 +146,9 @@ impl ContactManifoldData {
         }
     }
 
-    pub(crate) fn set_from_colliders(
-        &mut self,
-        coll1: &Collider,
-        coll2: &Collider,
-        flags: SolverFlags,
-    ) {
-        self.body_pair = BodyPair::new(coll1.parent, coll2.parent);
-        self.solver_flags = flags;
-    }
-
-    pub(crate) fn with_subshape_indices(
-        coll1: &Collider,
-        coll2: &Collider,
-        solver_flags: SolverFlags,
-    ) -> Self {
-        Self::new(BodyPair::new(coll1.parent, coll2.parent), solver_flags)
+    #[inline]
+    pub fn num_active_contacts(&self) -> usize {
+        self.solver_contacts.len()
     }
 
     pub(crate) fn min_warmstart_multiplier() -> f32 {
@@ -232,25 +159,25 @@ impl ContactManifoldData {
         1.0 // 0.01
     }
 
-    pub(crate) fn update_warmstart_multiplier(manifold: &mut ContactManifold) {
-        // In 2D, tall stacks will actually suffer from this
-        // because oscillation due to inaccuracies in 2D often
-        // cause contacts to break, which would result in
-        // a reset of the warmstart multiplier.
-        if cfg!(feature = "dim2") {
-            manifold.data.warmstart_multiplier = 1.0;
-            return;
-        }
-
-        for pt in &manifold.points {
-            if pt.data.impulse != 0.0 {
-                manifold.data.warmstart_multiplier =
-                    (manifold.data.warmstart_multiplier * 2.0).min(1.0);
-                return;
-            }
-        }
-
-        // Reset the multiplier.
-        manifold.data.warmstart_multiplier = Self::min_warmstart_multiplier()
-    }
+    // pub(crate) fn update_warmstart_multiplier(manifold: &mut ContactManifold) {
+    //     // In 2D, tall stacks will actually suffer from this
+    //     // because oscillation due to inaccuracies in 2D often
+    //     // cause contacts to break, which would result in
+    //     // a reset of the warmstart multiplier.
+    //     if cfg!(feature = "dim2") {
+    //         manifold.data.warmstart_multiplier = 1.0;
+    //         return;
+    //     }
+    //
+    //     for pt in &manifold.points {
+    //         if pt.data.impulse != 0.0 {
+    //             manifold.data.warmstart_multiplier =
+    //                 (manifold.data.warmstart_multiplier * 2.0).min(1.0);
+    //             return;
+    //         }
+    //     }
+    //
+    //     // Reset the multiplier.
+    //     manifold.data.warmstart_multiplier = Self::min_warmstart_multiplier()
+    // }
 }

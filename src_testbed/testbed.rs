@@ -1515,7 +1515,7 @@ Hashes at frame: {}
 fn draw_contacts(window: &mut Window, nf: &NarrowPhase, colliders: &ColliderSet) {
     for pair in nf.contact_pairs() {
         for manifold in &pair.manifolds {
-            for pt in manifold.all_contacts() {
+            for pt in manifold.contacts() {
                 let color = if pt.dist > 0.0 {
                     Point3::new(0.0, 0.0, 1.0)
                 } else {

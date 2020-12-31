@@ -2,8 +2,7 @@ use super::{AnyVelocityConstraint, DeltaVel};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
-    AngVector, AngularInertia, Isometry, Point, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS,
-    SIMD_WIDTH,
+    AngVector, AngularInertia, Point, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WBasis, WCross, WDot};
 use num::Zero;
@@ -100,7 +99,7 @@ impl WVelocityConstraint {
         let warmstart_multiplier =
             SimdReal::from(array![|ii| manifolds[ii].data.warmstart_multiplier; SIMD_WIDTH]);
         let warmstart_coeff = warmstart_multiplier * SimdReal::splat(params.warmstart_coeff);
-        let num_active_contacts = manifolds[0].num_active_contacts();
+        let num_active_contacts = manifolds[0].data.num_active_contacts();
 
         for l in (0..num_active_contacts).step_by(MAX_MANIFOLD_POINTS) {
             let manifold_points = array![|ii|
@@ -333,7 +332,7 @@ impl WVelocityConstraint {
             for ii in 0..SIMD_WIDTH {
                 let manifold = &mut manifolds_all[self.manifold_id[ii]];
                 let k_base = self.manifold_contact_id;
-                let active_contacts = manifold.active_contacts_mut();
+                let active_contacts = &mut manifold.points[..manifold.data.num_active_contacts()];
                 active_contacts[k_base + k].data.impulse = impulses[ii];
 
                 #[cfg(feature = "dim2")]

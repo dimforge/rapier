@@ -81,8 +81,6 @@ impl IntersectionEvent {
 
 pub(crate) use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair};
 pub(crate) use self::collider_set::RemovedCollider;
-#[cfg(feature = "simd-is-enabled")]
-pub(crate) use self::contact_pair::WContact;
 pub use self::interaction_groups::InteractionGroups;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
 pub(crate) use cdl::partitioning::SimdQuadTree;

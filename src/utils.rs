@@ -1,17 +1,12 @@
 //! Miscellaneous utilities.
 
 use crate::dynamics::RigidBodyHandle;
-use na::{Matrix2, Matrix3, Matrix3x2, Point2, Point3, Scalar, SimdRealField, Vector2, Vector3};
+use na::{Matrix3, Point2, Point3, Scalar, SimdRealField, Vector2, Vector3};
 use num::Zero;
 use simba::simd::SimdValue;
 
 use cdl::utils::SdpMatrix3;
-use std::ops::{Add, Mul};
-use {
-    crate::math::{AngularInertia, SimdBool, SimdReal},
-    na::SimdPartialOrd,
-    num::One,
-};
+use {crate::math::SimdReal, na::SimdPartialOrd, num::One};
 
 pub(crate) fn inv(val: f32) -> f32 {
     if val == 0.0 {

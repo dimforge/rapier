@@ -1,20 +1,9 @@
-use super::{
-    AnyJointVelocityConstraint, InteractionGroups, VelocityConstraint, VelocityGroundConstraint,
-};
-#[cfg(feature = "simd-is-enabled")]
-use super::{WVelocityConstraint, WVelocityGroundConstraint};
-use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
-use crate::dynamics::solver::{
-    AnyJointPositionConstraint, AnyPositionConstraint, PositionConstraint,
-    PositionGroundConstraint, WPositionConstraint, WPositionGroundConstraint,
-};
+use super::AnyJointVelocityConstraint;
 use crate::dynamics::{
     solver::{AnyVelocityConstraint, DeltaVel},
-    IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet,
+    IntegrationParameters, JointGraphEdge, RigidBodySet,
 };
-use crate::geometry::{ContactManifold, ContactManifoldIndex};
-#[cfg(feature = "simd-is-enabled")]
-use crate::math::SIMD_WIDTH;
+use crate::geometry::ContactManifold;
 use crate::utils::WAngularInertia;
 
 pub(crate) struct VelocitySolver {

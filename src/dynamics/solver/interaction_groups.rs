@@ -338,7 +338,7 @@ impl InteractionGroups {
         let mut occupied_mask = 0u128;
         let max_interaction_points = interaction_indices
             .iter()
-            .map(|i| interactions[*i].num_active_contacts)
+            .map(|i| interactions[*i].data.num_active_contacts())
             .max()
             .unwrap_or(1);
 
@@ -351,7 +351,7 @@ impl InteractionGroups {
 
                 // FIXME: how could we avoid iterating
                 // on each interaction at every iteration on k?
-                if interaction.num_active_contacts != k {
+                if interaction.data.num_active_contacts() != k {
                     continue;
                 }
 

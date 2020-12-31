@@ -9,13 +9,11 @@ use crate::dynamics::solver::{
     PositionGroundConstraint, WPositionConstraint, WPositionGroundConstraint,
 };
 use crate::dynamics::{
-    solver::{AnyVelocityConstraint, DeltaVel},
-    IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet,
+    solver::AnyVelocityConstraint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SIMD_WIDTH;
-use crate::utils::WAngularInertia;
 
 pub(crate) struct SolverConstraints<VelocityConstraint, PositionConstraint> {
     pub not_ground_interactions: Vec<usize>,

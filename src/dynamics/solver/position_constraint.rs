@@ -66,9 +66,13 @@ impl PositionConstraint {
     ) {
         let rb1 = &bodies[manifold.data.body_pair.body1];
         let rb2 = &bodies[manifold.data.body_pair.body2];
-        let active_contacts = &manifold.data.solver_contacts[..manifold.num_active_contacts];
 
-        for (l, manifold_points) in active_contacts.chunks(MAX_MANIFOLD_POINTS).enumerate() {
+        for (l, manifold_points) in manifold
+            .data
+            .solver_contacts
+            .chunks(MAX_MANIFOLD_POINTS)
+            .enumerate()
+        {
             let mut local_p1 = [Point::origin(); MAX_MANIFOLD_POINTS];
             let mut local_p2 = [Point::origin(); MAX_MANIFOLD_POINTS];
             let mut dists = [0.0; MAX_MANIFOLD_POINTS];

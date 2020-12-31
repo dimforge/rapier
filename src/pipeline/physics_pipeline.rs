@@ -118,13 +118,7 @@ impl PhysicsPipeline {
             contact_pair_filter,
             events,
         );
-        narrow_phase.compute_intersections(
-            integration_parameters.prediction_distance,
-            bodies,
-            colliders,
-            proximity_pair_filter,
-            events,
-        );
+        narrow_phase.compute_intersections(bodies, colliders, proximity_pair_filter, events);
         //        println!("Compute contact time: {}", instant::now() - t);
 
         self.counters.stages.island_construction_time.start();
