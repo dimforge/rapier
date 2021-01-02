@@ -3,10 +3,10 @@ use std::mem;
 use std::path::Path;
 use std::rc::Rc;
 
-use crate::engine::GraphicsManager;
-use crate::physics::{PhysicsSnapshot, PhysicsState};
+use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
 use crate::ui::TestbedUi;
+use crate::{engine::GraphicsManager, harness::RunState};
 
 use kiss3d::camera::Camera;
 use kiss3d::event::Event;
@@ -390,6 +390,21 @@ impl Testbed {
         }
 
         self.plugins.clear();
+    }
+
+    pub fn add_callback<
+        F: FnMut(
+                Option<&mut Window>,
+                Option<&mut GraphicsManager>,
+                &mut PhysicsState,
+                &PhysicsEvents,
+                &RunState,
+            ) + 'static,
+    >(
+        &mut self,
+        callback: F,
+    ) {
+        self.harness.add_callback(callback);
     }
 
     pub fn add_plugin(&mut self, plugin: impl TestbedPlugin + 'static) {
@@ -1221,7 +1236,9 @@ impl State for Testbed {
         if self.state.running != RunMode::Stop {
             for _ in 0..self.nsteps {
                 if self.state.selected_backend == RAPIER_BACKEND {
-                    self.harness.step();
+                    let graphics = &mut self.graphics;
+                    self.harness
+                        .step_with_graphics(Some(window), Some(graphics));
 
                     for plugin in &mut self.plugins {
                         plugin.step(&mut self.harness.physics)

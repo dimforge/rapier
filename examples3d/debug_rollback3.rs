@@ -44,7 +44,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut step = 0;
     let snapped_frame = 51;
 
-    testbed.harness_mut().add_callback(move |physics, _, _| {
+    testbed.add_callback(move |_, _, physics, _, _| {
         step += 1;
 
         // Snap the ball velocity or restore it.

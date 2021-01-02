@@ -34,7 +34,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::ball(ball_rad).density(100.0).build();
     colliders.insert(collider, ball_handle, &mut bodies);
 
-    testbed.harness_mut().add_callback(move |physics, _, _| {
+    testbed.add_callback(move |window, graphics, physics, _, _| {
         // Remove then re-add the ground collider.
         let coll = physics
             .colliders
@@ -45,7 +45,13 @@ pub fn init_world(testbed: &mut Testbed) {
             .insert(coll, ground_handle, &mut physics.bodies);
 
         // TODO: need a way to access graphics & window
-        // graphics.add_collider(window, ground_collider_handle, &physics.colliders);
+        if graphics.is_some() {
+            graphics.unwrap().add_collider(
+                window.unwrap(),
+                ground_collider_handle,
+                &physics.colliders,
+            );
+        }
     });
 
     /*

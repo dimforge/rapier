@@ -69,28 +69,26 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.set_body_color(sensor_handle, Point3::new(0.5, 1.0, 1.0));
 
     // Callback that will be executed on the main loop to handle proximities.
-    testbed
-        .harness_mut()
-        .add_callback(move |physics, events, _| {
-            while let Ok(prox) = events.proximity_events.try_recv() {
-                let color = match prox.new_status {
-                    Proximity::WithinMargin | Proximity::Intersecting => Point3::new(1.0, 1.0, 0.0),
-                    Proximity::Disjoint => Point3::new(0.5, 0.5, 1.0),
-                };
+    testbed.add_callback(move |_, _, physics, events, _| {
+        while let Ok(prox) = events.proximity_events.try_recv() {
+            let color = match prox.new_status {
+                Proximity::WithinMargin | Proximity::Intersecting => Point3::new(1.0, 1.0, 0.0),
+                Proximity::Disjoint => Point3::new(0.5, 0.5, 1.0),
+            };
 
-                let parent_handle1 = physics.colliders.get(prox.collider1).unwrap().parent();
-                let parent_handle2 = physics.colliders.get(prox.collider2).unwrap().parent();
+            let parent_handle1 = physics.colliders.get(prox.collider1).unwrap().parent();
+            let parent_handle2 = physics.colliders.get(prox.collider2).unwrap().parent();
 
-                if parent_handle1 != ground_handle && parent_handle1 != sensor_handle {
-                    // TODO: need a way to access graphics & window
-                    // graphics.set_body_color(parent_handle1, color);
-                }
-                if parent_handle2 != ground_handle && parent_handle2 != sensor_handle {
-                    // TODO: need a way to access graphics & window
-                    // graphics.set_body_color(parent_handle2, color);
-                }
+            if parent_handle1 != ground_handle && parent_handle1 != sensor_handle {
+                // FIXME: need a way to access graphics & window in a loop
+                // graphics.set_body_color(parent_handle1, color);
             }
-        });
+            if parent_handle2 != ground_handle && parent_handle2 != sensor_handle {
+                // FIXME: need a way to access graphics & window in a loop
+                // graphics.set_body_color(parent_handle2, color);
+            }
+        }
+    });
 
     /*
      * Set up the testbed.
