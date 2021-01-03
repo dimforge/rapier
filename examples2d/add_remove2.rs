@@ -10,7 +10,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let rad = 0.5;
 
     // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |window, graphics, physics, _, _| {
+    testbed.add_callback(move |mut window, mut graphics, physics, _, _| {
         let rigid_body = RigidBodyBuilder::new_dynamic()
             .translation(0.0, 10.0)
             .build();
@@ -20,10 +20,8 @@ pub fn init_world(testbed: &mut Testbed) {
             .colliders
             .insert(collider, handle, &mut physics.bodies);
 
-        if graphics.is_some() {
-            graphics
-                .unwrap()
-                .add(window.unwrap(), handle, &physics.bodies, &physics.colliders);
+        if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
+            graphics.add(*window, handle, &physics.bodies, &physics.colliders);
         }
 
         let to_remove: Vec<_> = physics
@@ -37,10 +35,9 @@ pub fn init_world(testbed: &mut Testbed) {
                 .bodies
                 .remove(handle, &mut physics.colliders, &mut physics.joints);
 
-            // FIXME: need a way to access graphics & window in a loop
-            // if graphics.is_some() {
-            //     graphics.unwrap().remove_body_nodes(window.unwrap(), handle);
-            // }
+            if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
+                graphics.remove_body_nodes(*window, handle);
+            }
         }
     });
 
