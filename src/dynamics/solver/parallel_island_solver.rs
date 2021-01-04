@@ -1,5 +1,8 @@
 use super::{DeltaVel, ParallelInteractionGroups, ParallelVelocitySolver};
-use crate::dynamics::solver::ParallelPositionSolver;
+use crate::dynamics::solver::{
+    AnyJointPositionConstraint, AnyJointVelocityConstraint, AnyPositionConstraint,
+    AnyVelocityConstraint, ParallelPositionSolver, ParallelSolverConstraints,
+};
 use crate::dynamics::{IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Isometry, Real};
@@ -123,8 +126,10 @@ pub struct ParallelIslandSolver {
     positions: Vec<Isometry<Real>>,
     parallel_groups: ParallelInteractionGroups,
     parallel_joint_groups: ParallelInteractionGroups,
-    parallel_velocity_solver: ParallelVelocitySolver,
-    parallel_position_solver: ParallelPositionSolver,
+    parallel_contact_constraints:
+        ParallelSolverConstraints<AnyVelocityConstraint, AnyPositionConstraint>,
+    parallel_joint_constraints:
+        ParallelSolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint>,
     thread: ThreadContext,
 }
 
@@ -135,8 +140,8 @@ impl ParallelIslandSolver {
             positions: Vec::new(),
             parallel_groups: ParallelInteractionGroups::new(),
             parallel_joint_groups: ParallelInteractionGroups::new(),
-            parallel_velocity_solver: ParallelVelocitySolver::new(),
-            parallel_position_solver: ParallelPositionSolver::new(),
+            parallel_contact_constraints: ParallelSolverConstraints::new(),
+            parallel_joint_constraints: ParallelSolverConstraints::new(),
             thread: ThreadContext::new(8),
         }
     }
@@ -153,25 +158,21 @@ impl ParallelIslandSolver {
         joint_indices: &[JointIndex],
     ) {
         let num_threads = rayon::current_num_threads();
-        let num_task_per_island = num_threads; // (num_threads / num_islands).max(1); // TODO: not sure this is the best value. Also, perhaps it is better to interleave tasks of each island?
+        let num_task_per_island = num_threads; // (num_threads / num_islands).max(1); // TODO: not sure this is the best value. Also, perhaps it is better to interleave tasks of each island?
         self.thread = ThreadContext::new(8); // TODO: could we compute some kind of optimal value here?
         self.parallel_groups
             .group_interactions(island_id, bodies, manifolds, manifold_indices);
         self.parallel_joint_groups
             .group_interactions(island_id, bodies, joints, joint_indices);
-        self.parallel_velocity_solver.init_constraint_groups(
+        self.parallel_contact_constraints.init_constraint_groups(
             island_id,
             bodies,
             manifolds,
             &self.parallel_groups,
-            joints,
-            &self.parallel_joint_groups,
         );
-        self.parallel_position_solver.init_constraint_groups(
+        self.parallel_joint_constraints.init_constraint_groups(
             island_id,
             bodies,
-            manifolds,
-            &self.parallel_groups,
             joints,
             &self.parallel_joint_groups,
         );
@@ -192,10 +193,10 @@ impl ParallelIslandSolver {
             let bodies = std::sync::atomic::AtomicPtr::new(bodies as *mut _);
             let manifolds = std::sync::atomic::AtomicPtr::new(manifolds as *mut _);
             let joints = std::sync::atomic::AtomicPtr::new(joints as *mut _);
-            let parallel_velocity_solver =
-                std::sync::atomic::AtomicPtr::new(&mut self.parallel_velocity_solver as *mut _);
-            let parallel_position_solver =
-                std::sync::atomic::AtomicPtr::new(&mut self.parallel_position_solver as *mut _);
+            let parallel_contact_constraints =
+                std::sync::atomic::AtomicPtr::new(&mut self.parallel_contact_constraints as *mut _);
+            let parallel_joint_constraints =
+                std::sync::atomic::AtomicPtr::new(&mut self.parallel_joint_constraints as *mut _);
 
             scope.spawn(move |_| {
                 // Transmute *mut -> &mut
@@ -209,18 +210,34 @@ impl ParallelIslandSolver {
                     unsafe { std::mem::transmute(manifolds.load(Ordering::Relaxed)) };
                 let joints: &mut Vec<JointGraphEdge> =
                     unsafe { std::mem::transmute(joints.load(Ordering::Relaxed)) };
-                let parallel_velocity_solver: &mut ParallelVelocitySolver = unsafe {
-                    std::mem::transmute(parallel_velocity_solver.load(Ordering::Relaxed))
+                let parallel_contact_constraints: &mut ParallelSolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> = unsafe {
+                    std::mem::transmute(parallel_contact_constraints.load(Ordering::Relaxed))
                 };
-                let parallel_position_solver: &mut ParallelPositionSolver = unsafe {
-                    std::mem::transmute(parallel_position_solver.load(Ordering::Relaxed))
+                let parallel_joint_constraints: &mut ParallelSolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> = unsafe {
+                    std::mem::transmute(parallel_joint_constraints.load(Ordering::Relaxed))
                 };
 
                 enable_flush_to_zero!(); // Ensure this is enabled on each thread.
-                parallel_velocity_solver.fill_constraints(&thread, params, bodies, manifolds, joints);
-                parallel_position_solver.fill_constraints(&thread, params, bodies, manifolds, joints);
-                parallel_velocity_solver
-                    .solve_constraints(&thread, params, manifolds, joints, mj_lambdas);
+                parallel_contact_constraints.fill_constraints(&thread, params, bodies, manifolds);
+                parallel_joint_constraints.fill_constraints(&thread, params, bodies, joints);
+                ThreadContext::lock_until_ge(
+                    &thread.num_initialized_constraints,
+                    parallel_contact_constraints.constraint_descs.len(),
+                );
+                ThreadContext::lock_until_ge(
+                    &thread.num_initialized_joint_constraints,
+                    parallel_joint_constraints.constraint_descs.len(),
+                );
+
+                ParallelVelocitySolver::solve(
+                        &thread,
+                        params,
+                        manifolds,
+                        joints,
+                        mj_lambdas,
+                        parallel_contact_constraints,
+                        parallel_joint_constraints
+                );
 
                 // Write results back to rigid bodies and integrate velocities.
                 let island_range = bodies.active_island_range(island_id);
@@ -243,7 +260,13 @@ impl ParallelIslandSolver {
                 // initialized `positions` to the updated values.
                 ThreadContext::lock_until_ge(&thread.num_integrated_bodies, active_bodies.len());
 
-                parallel_position_solver.solve_constraints(&thread, params, positions);
+                ParallelPositionSolver::solve(
+                    &thread,
+                    params,
+                    positions,
+                    parallel_contact_constraints,
+                    parallel_joint_constraints
+                );
 
                 // Write results back to rigid bodies.
                 concurrent_loop! {

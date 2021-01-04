@@ -318,18 +318,8 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
             );
             self.velocity_constraints.push(vel_constraint);
 
-            if let Some(pos_constraint) =
-                AnyJointPositionConstraint::from_wide_joint_ground(joints, bodies)
-            {
-                self.position_constraints.push(pos_constraint);
-            } else {
-                for joint in joints.iter() {
-                    self.position_constraints
-                        .push(AnyJointPositionConstraint::from_joint_ground(
-                            *joint, bodies,
-                        ))
-                }
-            }
+            let pos_constraint = AnyJointPositionConstraint::from_wide_joint_ground(joints, bodies);
+            self.position_constraints.push(pos_constraint);
         }
     }
 
@@ -367,16 +357,8 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
                 AnyJointVelocityConstraint::from_wide_joint(params, joints_id, joints, bodies);
             self.velocity_constraints.push(vel_constraint);
 
-            if let Some(pos_constraint) =
-                AnyJointPositionConstraint::from_wide_joint(joints, bodies)
-            {
-                self.position_constraints.push(pos_constraint);
-            } else {
-                for joint in joints.iter() {
-                    self.position_constraints
-                        .push(AnyJointPositionConstraint::from_joint(*joint, bodies))
-                }
-            }
+            let pos_constraint = AnyJointPositionConstraint::from_wide_joint(joints, bodies);
+            self.position_constraints.push(pos_constraint);
         }
     }
 }

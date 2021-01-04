@@ -77,7 +77,7 @@ impl ParallelInteractionGroups {
             .iter()
             .zip(self.interaction_colors.iter_mut())
         {
-            let body_pair = interactions[*interaction_id].data.body_pair();
+            let body_pair = interactions[*interaction_id].body_pair();
             let rb1 = &bodies[body_pair.body1];
             let rb2 = &bodies[body_pair.body2];
 

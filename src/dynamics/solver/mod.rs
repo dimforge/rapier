@@ -5,6 +5,8 @@ pub(crate) use self::parallel_island_solver::{ParallelIslandSolver, ThreadContex
 #[cfg(feature = "parallel")]
 pub(self) use self::parallel_position_solver::ParallelPositionSolver;
 #[cfg(feature = "parallel")]
+pub(self) use self::parallel_solver_constraints::ParallelSolverConstraints;
+#[cfg(feature = "parallel")]
 pub(self) use self::parallel_velocity_solver::ParallelVelocitySolver;
 #[cfg(not(feature = "parallel"))]
 pub(self) use self::position_solver::PositionSolver;
@@ -38,6 +40,8 @@ mod joint_constraint;
 mod parallel_island_solver;
 #[cfg(feature = "parallel")]
 mod parallel_position_solver;
+#[cfg(feature = "parallel")]
+mod parallel_solver_constraints;
 #[cfg(feature = "parallel")]
 mod parallel_velocity_solver;
 mod position_constraint;
