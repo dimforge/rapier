@@ -4,7 +4,7 @@ use crate::dynamics::solver::categorization::{categorize_joints, categorize_posi
 use crate::dynamics::solver::{InteractionGroups, PositionConstraint, PositionGroundConstraint};
 use crate::dynamics::{IntegrationParameters, JointGraphEdge, RigidBodySet};
 use crate::geometry::ContactManifold;
-use crate::math::Isometry;
+use crate::math::{Isometry, Real};
 #[cfg(feature = "simd-is-enabled")]
 use crate::{
     dynamics::solver::{WPositionConstraint, WPositionGroundConstraint},
@@ -500,7 +500,7 @@ impl ParallelPositionSolver {
         &mut self,
         thread: &ThreadContext,
         params: &IntegrationParameters,
-        positions: &mut [Isometry<f32>],
+        positions: &mut [Isometry<Real>],
     ) {
         if self.part.constraint_descs.len() == 0 {
             return;

@@ -10,7 +10,7 @@ use crate::geometry::{
     ProximityPairFilter, RemovedCollider, SolverContact, SolverFlags,
 };
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
-use crate::math::Vector;
+use crate::math::{Real, Vector};
 use crate::pipeline::EventHandler;
 use cdl::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
 use std::collections::HashMap;
@@ -452,7 +452,7 @@ impl NarrowPhase {
 
     pub(crate) fn compute_contacts(
         &mut self,
-        prediction_distance: f32,
+        prediction_distance: Real,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
         pair_filter: Option<&dyn ContactPairFilter>,

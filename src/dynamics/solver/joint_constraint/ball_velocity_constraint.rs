@@ -2,7 +2,7 @@ use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
     BallJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBody,
 };
-use crate::math::{SdpMatrix, Vector};
+use crate::math::{Real, SdpMatrix, Vector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 
 #[derive(Debug)]
@@ -12,16 +12,16 @@ pub(crate) struct BallVelocityConstraint {
 
     joint_id: JointIndex,
 
-    rhs: Vector<f32>,
-    pub(crate) impulse: Vector<f32>,
+    rhs: Vector<Real>,
+    pub(crate) impulse: Vector<Real>,
 
-    gcross1: Vector<f32>,
-    gcross2: Vector<f32>,
+    gcross1: Vector<Real>,
+    gcross2: Vector<Real>,
 
-    inv_lhs: SdpMatrix<f32>,
+    inv_lhs: SdpMatrix<Real>,
 
-    im1: f32,
-    im2: f32,
+    im1: Real,
+    im2: Real,
 }
 
 impl BallVelocityConstraint {
@@ -91,7 +91,7 @@ impl BallVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
@@ -104,7 +104,7 @@ impl BallVelocityConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
@@ -137,11 +137,11 @@ impl BallVelocityConstraint {
 pub(crate) struct BallVelocityGroundConstraint {
     mj_lambda2: usize,
     joint_id: JointIndex,
-    rhs: Vector<f32>,
-    impulse: Vector<f32>,
-    gcross2: Vector<f32>,
-    inv_lhs: SdpMatrix<f32>,
-    im2: f32,
+    rhs: Vector<Real>,
+    impulse: Vector<Real>,
+    gcross2: Vector<Real>,
+    inv_lhs: SdpMatrix<Real>,
+    im2: Real,
 }
 
 impl BallVelocityGroundConstraint {
@@ -206,14 +206,14 @@ impl BallVelocityGroundConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
         mj_lambda2.linear -= self.im2 * self.impulse;
         mj_lambda2.angular -= self.gcross2.gcross(self.impulse);
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         let vel2 = mj_lambda2.linear + mj_lambda2.angular.gcross(self.gcross2);

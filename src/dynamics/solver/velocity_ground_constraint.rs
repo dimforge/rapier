@@ -1,5 +1,5 @@
 use super::{AnyVelocityConstraint, DeltaVel};
-use crate::math::{AngVector, Vector, DIM, MAX_MANIFOLD_POINTS};
+use crate::math::{AngVector, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{WAngularInertia, WBasis, WCross, WDot};
 
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
@@ -8,10 +8,10 @@ use simba::simd::SimdPartialOrd;
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct VelocityGroundConstraintElementPart {
-    pub gcross2: AngVector<f32>,
-    pub rhs: f32,
-    pub impulse: f32,
-    pub r: f32,
+    pub gcross2: AngVector<Real>,
+    pub rhs: Real,
+    pub impulse: Real,
+    pub r: Real,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -44,9 +44,9 @@ impl VelocityGroundConstraintElement {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct VelocityGroundConstraint {
-    pub dir1: Vector<f32>, // Non-penetration force direction for the first body.
-    pub im2: f32,
-    pub limit: f32,
+    pub dir1: Vector<Real>, // Non-penetration force direction for the first body.
+    pub im2: Real,
+    pub limit: Real,
     pub mj_lambda2: usize,
     pub manifold_id: ContactManifoldIndex,
     pub manifold_contact_id: usize,
@@ -207,7 +207,7 @@ impl VelocityGroundConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = DeltaVel::zero();
         let tangents1 = self.dir1.orthonormal_basis();
 
@@ -227,7 +227,7 @@ impl VelocityGroundConstraint {
         mj_lambdas[self.mj_lambda2 as usize].angular += mj_lambda2.angular;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         // Solve friction.

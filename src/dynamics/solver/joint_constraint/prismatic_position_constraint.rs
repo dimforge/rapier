@@ -1,5 +1,5 @@
 use crate::dynamics::{IntegrationParameters, PrismaticJoint, RigidBody};
-use crate::math::{AngularInertia, Isometry, Point, Rotation, Vector};
+use crate::math::{AngularInertia, Isometry, Point, Real, Rotation, Vector};
 use crate::utils::WAngularInertia;
 use na::Unit;
 
@@ -8,22 +8,22 @@ pub(crate) struct PrismaticPositionConstraint {
     position1: usize,
     position2: usize,
 
-    im1: f32,
-    im2: f32,
+    im1: Real,
+    im2: Real,
 
-    ii1: AngularInertia<f32>,
-    ii2: AngularInertia<f32>,
+    ii1: AngularInertia<Real>,
+    ii2: AngularInertia<Real>,
 
-    lin_inv_lhs: f32,
-    ang_inv_lhs: AngularInertia<f32>,
+    lin_inv_lhs: Real,
+    ang_inv_lhs: AngularInertia<Real>,
 
-    limits: [f32; 2],
+    limits: [Real; 2],
 
-    local_frame1: Isometry<f32>,
-    local_frame2: Isometry<f32>,
+    local_frame1: Isometry<Real>,
+    local_frame2: Isometry<Real>,
 
-    local_axis1: Unit<Vector<f32>>,
-    local_axis2: Unit<Vector<f32>>,
+    local_axis1: Unit<Vector<Real>>,
+    local_axis2: Unit<Vector<Real>>,
 }
 
 impl PrismaticPositionConstraint {
@@ -52,7 +52,7 @@ impl PrismaticPositionConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position1 = positions[self.position1 as usize];
         let mut position2 = positions[self.position2 as usize];
 
@@ -99,11 +99,11 @@ impl PrismaticPositionConstraint {
 #[derive(Debug)]
 pub(crate) struct PrismaticPositionGroundConstraint {
     position2: usize,
-    frame1: Isometry<f32>,
-    local_frame2: Isometry<f32>,
-    axis1: Unit<Vector<f32>>,
-    local_axis2: Unit<Vector<f32>>,
-    limits: [f32; 2],
+    frame1: Isometry<Real>,
+    local_frame2: Isometry<Real>,
+    axis1: Unit<Vector<Real>>,
+    local_axis2: Unit<Vector<Real>>,
+    limits: [Real; 2],
 }
 
 impl PrismaticPositionGroundConstraint {
@@ -140,7 +140,7 @@ impl PrismaticPositionGroundConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position2 = positions[self.position2 as usize];
 
         // Angular correction.

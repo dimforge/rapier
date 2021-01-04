@@ -4,10 +4,11 @@ use crate::dynamics::{
     IntegrationParameters, JointGraphEdge, RigidBodySet,
 };
 use crate::geometry::ContactManifold;
+use crate::math::Real;
 use crate::utils::WAngularInertia;
 
 pub(crate) struct VelocitySolver {
-    pub mj_lambdas: Vec<DeltaVel<f32>>,
+    pub mj_lambdas: Vec<DeltaVel<Real>>,
 }
 
 impl VelocitySolver {

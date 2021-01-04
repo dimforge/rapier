@@ -1,9 +1,9 @@
 use super::AnyJointPositionConstraint;
 use crate::dynamics::{solver::AnyPositionConstraint, IntegrationParameters, RigidBodySet};
-use crate::math::Isometry;
+use crate::math::{Isometry, Real};
 
 pub(crate) struct PositionSolver {
-    positions: Vec<Isometry<f32>>,
+    positions: Vec<Isometry<Real>>,
 }
 
 impl PositionSolver {

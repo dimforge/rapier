@@ -1,5 +1,5 @@
 use crate::dynamics::{IntegrationParameters, RevoluteJoint, RigidBody};
-use crate::math::{AngularInertia, Isometry, Point, Rotation, Vector};
+use crate::math::{AngularInertia, Isometry, Point, Real, Rotation, Vector};
 use crate::utils::WAngularInertia;
 use na::Unit;
 
@@ -8,20 +8,20 @@ pub(crate) struct RevolutePositionConstraint {
     position1: usize,
     position2: usize,
 
-    im1: f32,
-    im2: f32,
+    im1: Real,
+    im2: Real,
 
-    ii1: AngularInertia<f32>,
-    ii2: AngularInertia<f32>,
+    ii1: AngularInertia<Real>,
+    ii2: AngularInertia<Real>,
 
-    lin_inv_lhs: f32,
-    ang_inv_lhs: AngularInertia<f32>,
+    lin_inv_lhs: Real,
+    ang_inv_lhs: AngularInertia<Real>,
 
-    local_anchor1: Point<f32>,
-    local_anchor2: Point<f32>,
+    local_anchor1: Point<Real>,
+    local_anchor2: Point<Real>,
 
-    local_axis1: Unit<Vector<f32>>,
-    local_axis2: Unit<Vector<f32>>,
+    local_axis1: Unit<Vector<Real>>,
+    local_axis2: Unit<Vector<Real>>,
 }
 
 impl RevolutePositionConstraint {
@@ -49,7 +49,7 @@ impl RevolutePositionConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position1 = positions[self.position1 as usize];
         let mut position2 = positions[self.position2 as usize];
 
@@ -83,10 +83,10 @@ impl RevolutePositionConstraint {
 #[derive(Debug)]
 pub(crate) struct RevolutePositionGroundConstraint {
     position2: usize,
-    anchor1: Point<f32>,
-    local_anchor2: Point<f32>,
-    axis1: Unit<Vector<f32>>,
-    local_axis2: Unit<Vector<f32>>,
+    anchor1: Point<Real>,
+    local_anchor2: Point<Real>,
+    axis1: Unit<Vector<Real>>,
+    local_axis2: Unit<Vector<Real>>,
 }
 
 impl RevolutePositionGroundConstraint {
@@ -122,7 +122,7 @@ impl RevolutePositionGroundConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position2 = positions[self.position2 as usize];
 
         let axis2 = position2 * self.local_axis2;

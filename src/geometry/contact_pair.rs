@@ -20,25 +20,25 @@ pub struct ContactData {
     /// The impulse, along the contact normal, applied by this contact to the first collider's rigid-body.
     ///
     /// The impulse applied to the second collider's rigid-body is given by `-impulse`.
-    pub impulse: f32,
+    pub impulse: Real,
     /// The friction impulse along the vector orthonormal to the contact normal, applied to the first
     /// collider's rigid-body.
     #[cfg(feature = "dim2")]
-    pub tangent_impulse: f32,
+    pub tangent_impulse: Real,
     /// The friction impulses along the basis orthonormal to the contact normal, applied to the first
     /// collider's rigid-body.
     #[cfg(feature = "dim3")]
-    pub tangent_impulse: [f32; 2],
+    pub tangent_impulse: [Real; 2],
 }
 
 impl ContactData {
     #[cfg(feature = "dim2")]
-    pub(crate) fn zero_tangent_impulse() -> f32 {
+    pub(crate) fn zero_tangent_impulse() -> Real {
         0.0
     }
 
     #[cfg(feature = "dim3")]
-    pub(crate) fn zero_tangent_impulse() -> [f32; 2] {
+    pub(crate) fn zero_tangent_impulse() -> [Real; 2] {
         [0.0, 0.0]
     }
 }
@@ -87,7 +87,7 @@ pub struct ContactManifoldData {
     // The following are set by the narrow-phase.
     /// The pair of body involved in this contact manifold.
     pub body_pair: BodyPair,
-    pub(crate) warmstart_multiplier: f32,
+    pub(crate) warmstart_multiplier: Real,
     // The two following are set by the constraints solver.
     pub(crate) constraint_index: usize,
     pub(crate) position_constraint_index: usize,
@@ -140,7 +140,7 @@ impl ContactManifoldData {
         self.solver_contacts.len()
     }
 
-    pub(crate) fn min_warmstart_multiplier() -> f32 {
+    pub(crate) fn min_warmstart_multiplier() -> Real {
         // Multiplier used to reduce the amount of warm-starting.
         // This coefficient increases exponentially over time, until it reaches 1.0.
         // This will reduce significant overshoot at the timesteps that

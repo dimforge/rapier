@@ -2,7 +2,7 @@ use super::{DeltaVel, ParallelInteractionGroups, ParallelVelocitySolver};
 use crate::dynamics::solver::ParallelPositionSolver;
 use crate::dynamics::{IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::Isometry;
+use crate::math::{Isometry, Real};
 use crate::utils::WAngularInertia;
 use rayon::Scope;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -119,8 +119,8 @@ impl ThreadContext {
 }
 
 pub struct ParallelIslandSolver {
-    mj_lambdas: Vec<DeltaVel<f32>>,
-    positions: Vec<Isometry<f32>>,
+    mj_lambdas: Vec<DeltaVel<Real>>,
+    positions: Vec<Isometry<Real>>,
     parallel_groups: ParallelInteractionGroups,
     parallel_joint_groups: ParallelInteractionGroups,
     parallel_velocity_solver: ParallelVelocitySolver,
@@ -199,9 +199,9 @@ impl ParallelIslandSolver {
 
             scope.spawn(move |_| {
                 // Transmute *mut -> &mut
-                let mj_lambdas: &mut Vec<DeltaVel<f32>> =
+                let mj_lambdas: &mut Vec<DeltaVel<Real>> =
                     unsafe { std::mem::transmute(mj_lambdas.load(Ordering::Relaxed)) };
-                let positions: &mut Vec<Isometry<f32>> =
+                let positions: &mut Vec<Isometry<Real>> =
                     unsafe { std::mem::transmute(positions.load(Ordering::Relaxed)) };
                 let bodies: &mut RigidBodySet =
                     unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };

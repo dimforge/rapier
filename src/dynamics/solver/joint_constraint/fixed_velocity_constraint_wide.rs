@@ -5,8 +5,8 @@ use crate::dynamics::{
     FixedJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBody,
 };
 use crate::math::{
-    AngVector, AngularInertia, CrossMatrix, Dim, Isometry, Point, SimdReal, SpacialVector, Vector,
-    SIMD_WIDTH,
+    AngVector, AngularInertia, CrossMatrix, Dim, Isometry, Point, Real, SimdReal, SpacialVector,
+    Vector, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 #[cfg(feature = "dim3")]
@@ -158,7 +158,7 @@ impl WFixedVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
@@ -202,7 +202,7 @@ impl WFixedVelocityConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1: DeltaVel<SimdReal> = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
@@ -393,7 +393,7 @@ impl WFixedVelocityGroundConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
@@ -420,7 +420,7 @@ impl WFixedVelocityGroundConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2: DeltaVel<SimdReal> = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],

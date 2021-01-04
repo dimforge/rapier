@@ -4,7 +4,7 @@ use crate::dynamics::solver::{WPositionConstraint, WPositionGroundConstraint};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::ContactManifold;
 use crate::math::{
-    AngularInertia, Isometry, Point, Rotation, Translation, Vector, MAX_MANIFOLD_POINTS,
+    AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector, MAX_MANIFOLD_POINTS,
 };
 use crate::utils::{WAngularInertia, WCross, WDot};
 
@@ -20,7 +20,7 @@ pub(crate) enum AnyPositionConstraint {
 }
 
 impl AnyPositionConstraint {
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         match self {
             #[cfg(feature = "simd-is-enabled")]
             AnyPositionConstraint::GroupedGround(c) => c.solve(params, positions),
@@ -37,17 +37,17 @@ pub(crate) struct PositionConstraint {
     pub rb1: usize,
     pub rb2: usize,
     // NOTE: the points are relative to the center of masses.
-    pub local_p1: [Point<f32>; MAX_MANIFOLD_POINTS],
-    pub local_p2: [Point<f32>; MAX_MANIFOLD_POINTS],
-    pub dists: [f32; MAX_MANIFOLD_POINTS],
-    pub local_n1: Vector<f32>,
+    pub local_p1: [Point<Real>; MAX_MANIFOLD_POINTS],
+    pub local_p2: [Point<Real>; MAX_MANIFOLD_POINTS],
+    pub dists: [Real; MAX_MANIFOLD_POINTS],
+    pub local_n1: Vector<Real>,
     pub num_contacts: u8,
-    pub im1: f32,
-    pub im2: f32,
-    pub ii1: AngularInertia<f32>,
-    pub ii2: AngularInertia<f32>,
-    pub erp: f32,
-    pub max_linear_correction: f32,
+    pub im1: Real,
+    pub im2: Real,
+    pub ii1: AngularInertia<Real>,
+    pub ii2: AngularInertia<Real>,
+    pub erp: Real,
+    pub max_linear_correction: Real,
 }
 
 impl PositionConstraint {
@@ -112,7 +112,7 @@ impl PositionConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         // FIXME: can we avoid most of the multiplications by pos1/pos2?
         // Compute jacobians.
         let mut pos1 = positions[self.rb1];

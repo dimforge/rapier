@@ -2,7 +2,7 @@ use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
     IntegrationParameters, JointGraphEdge, JointIndex, JointParams, PrismaticJoint, RigidBody,
 };
-use crate::math::{AngularInertia, Vector};
+use crate::math::{AngularInertia, Real, Vector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 #[cfg(feature = "dim3")]
 use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
@@ -24,37 +24,37 @@ pub(crate) struct PrismaticVelocityConstraint {
 
     joint_id: JointIndex,
 
-    r1: Vector<f32>,
-    r2: Vector<f32>,
+    r1: Vector<Real>,
+    r2: Vector<Real>,
 
     #[cfg(feature = "dim3")]
-    inv_lhs: Matrix5<f32>,
+    inv_lhs: Matrix5<Real>,
     #[cfg(feature = "dim3")]
-    rhs: Vector5<f32>,
+    rhs: Vector5<Real>,
     #[cfg(feature = "dim3")]
-    impulse: Vector5<f32>,
+    impulse: Vector5<Real>,
 
     #[cfg(feature = "dim2")]
-    inv_lhs: Matrix2<f32>,
+    inv_lhs: Matrix2<Real>,
     #[cfg(feature = "dim2")]
-    rhs: Vector2<f32>,
+    rhs: Vector2<Real>,
     #[cfg(feature = "dim2")]
-    impulse: Vector2<f32>,
+    impulse: Vector2<Real>,
 
-    limits_impulse: f32,
-    limits_forcedirs: Option<(Vector<f32>, Vector<f32>)>,
-    limits_rhs: f32,
+    limits_impulse: Real,
+    limits_forcedirs: Option<(Vector<Real>, Vector<Real>)>,
+    limits_rhs: Real,
 
     #[cfg(feature = "dim2")]
-    basis1: Vector2<f32>,
+    basis1: Vector2<Real>,
     #[cfg(feature = "dim3")]
-    basis1: Matrix3x2<f32>,
+    basis1: Matrix3x2<Real>,
 
-    im1: f32,
-    im2: f32,
+    im1: Real,
+    im2: Real,
 
-    ii1_sqrt: AngularInertia<f32>,
-    ii2_sqrt: AngularInertia<f32>,
+    ii1_sqrt: AngularInertia<Real>,
+    ii2_sqrt: AngularInertia<Real>,
 }
 
 impl PrismaticVelocityConstraint {
@@ -191,7 +191,7 @@ impl PrismaticVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
@@ -220,7 +220,7 @@ impl PrismaticVelocityConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
@@ -295,34 +295,34 @@ pub(crate) struct PrismaticVelocityGroundConstraint {
 
     joint_id: JointIndex,
 
-    r2: Vector<f32>,
+    r2: Vector<Real>,
 
     #[cfg(feature = "dim2")]
-    inv_lhs: Matrix2<f32>,
+    inv_lhs: Matrix2<Real>,
     #[cfg(feature = "dim2")]
-    rhs: Vector2<f32>,
+    rhs: Vector2<Real>,
     #[cfg(feature = "dim2")]
-    impulse: Vector2<f32>,
+    impulse: Vector2<Real>,
 
     #[cfg(feature = "dim3")]
-    inv_lhs: Matrix5<f32>,
+    inv_lhs: Matrix5<Real>,
     #[cfg(feature = "dim3")]
-    rhs: Vector5<f32>,
+    rhs: Vector5<Real>,
     #[cfg(feature = "dim3")]
-    impulse: Vector5<f32>,
+    impulse: Vector5<Real>,
 
-    limits_impulse: f32,
-    limits_rhs: f32,
+    limits_impulse: Real,
+    limits_rhs: Real,
 
-    axis2: Vector<f32>,
+    axis2: Vector<Real>,
     #[cfg(feature = "dim2")]
-    basis1: Vector2<f32>,
+    basis1: Vector2<Real>,
     #[cfg(feature = "dim3")]
-    basis1: Matrix3x2<f32>,
-    limits_forcedir2: Option<Vector<f32>>,
+    basis1: Matrix3x2<Real>,
+    limits_forcedir2: Option<Vector<Real>>,
 
-    im2: f32,
-    ii2_sqrt: AngularInertia<f32>,
+    im2: Real,
+    ii2_sqrt: AngularInertia<Real>,
 }
 
 impl PrismaticVelocityGroundConstraint {
@@ -478,7 +478,7 @@ impl PrismaticVelocityGroundConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         let lin_impulse = self.basis1 * self.impulse.fixed_rows::<LinImpulseDim>(0).into_owned();
@@ -499,7 +499,7 @@ impl PrismaticVelocityGroundConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         /*

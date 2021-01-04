@@ -2,7 +2,7 @@ use super::{AnyVelocityConstraint, DeltaVel};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
-    AngVector, AngularInertia, Point, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS, SIMD_WIDTH,
+    AngVector, AngularInertia, Point, Real, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WBasis, WCross, WDot};
 use num::Zero;
@@ -199,7 +199,7 @@ impl WVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
@@ -249,7 +249,7 @@ impl WVelocityConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],

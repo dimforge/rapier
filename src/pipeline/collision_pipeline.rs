@@ -5,6 +5,7 @@ use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactPairFilter, NarrowPhase,
     ProximityPairFilter,
 };
+use crate::math::Real;
 use crate::pipeline::EventHandler;
 
 /// The collision pipeline, responsible for performing collision detection between colliders.
@@ -38,7 +39,7 @@ impl CollisionPipeline {
     /// Executes one step of the collision detection.
     pub fn step(
         &mut self,
-        prediction_distance: f32,
+        prediction_distance: Real,
         broad_phase: &mut BroadPhase,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,

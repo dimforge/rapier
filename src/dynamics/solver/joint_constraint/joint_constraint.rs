@@ -17,6 +17,7 @@ use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
     IntegrationParameters, Joint, JointGraphEdge, JointIndex, JointParams, RigidBodySet,
 };
+use crate::math::Real;
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SIMD_WIDTH;
 
@@ -220,7 +221,7 @@ impl AnyJointVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         match self {
             AnyJointVelocityConstraint::BallConstraint(c) => c.warmstart(mj_lambdas),
             AnyJointVelocityConstraint::BallGroundConstraint(c) => c.warmstart(mj_lambdas),
@@ -254,7 +255,7 @@ impl AnyJointVelocityConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         match self {
             AnyJointVelocityConstraint::BallConstraint(c) => c.solve(mj_lambdas),
             AnyJointVelocityConstraint::BallGroundConstraint(c) => c.solve(mj_lambdas),

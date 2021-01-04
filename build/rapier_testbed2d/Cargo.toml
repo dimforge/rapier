@@ -23,7 +23,7 @@ other-backends = [ "wrapped2d", "nphysics2d" ]
 
 
 [dependencies]
-nalgebra   = "0.23"
+nalgebra   = "0.24"
 kiss3d     = { version = "0.28", features = [ "conrod" ] }
 rand       = "0.7"
 rand_pcg   = "0.2"

@@ -2,11 +2,12 @@ use super::{
     AnyJointVelocityConstraint, InteractionGroups, VelocityConstraint, VelocityGroundConstraint,
 };
 #[cfg(feature = "simd-is-enabled")]
-use super::{WVelocityConstraint, WVelocityGroundConstraint};
+use super::{
+    WPositionConstraint, WPositionGroundConstraint, WVelocityConstraint, WVelocityGroundConstraint,
+};
 use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
 use crate::dynamics::solver::{
-    AnyJointPositionConstraint, AnyPositionConstraint, PositionConstraint,
-    PositionGroundConstraint, WPositionConstraint, WPositionGroundConstraint,
+    AnyJointPositionConstraint, AnyPositionConstraint, PositionConstraint, PositionGroundConstraint,
 };
 use crate::dynamics::{
     solver::AnyVelocityConstraint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet,

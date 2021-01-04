@@ -2,8 +2,8 @@ use super::AnyPositionConstraint;
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::ContactManifold;
 use crate::math::{
-    AngularInertia, Isometry, Point, Rotation, SimdReal, Translation, Vector, MAX_MANIFOLD_POINTS,
-    SIMD_WIDTH,
+    AngularInertia, Isometry, Point, Real, Rotation, SimdReal, Translation, Vector,
+    MAX_MANIFOLD_POINTS, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WDot};
 
@@ -92,7 +92,7 @@ impl WPositionGroundConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         // FIXME: can we avoid most of the multiplications by pos1/pos2?
         // Compute jacobians.
         let mut pos2 = Isometry::from(array![|ii| positions[self.rb2[ii]]; SIMD_WIDTH]);

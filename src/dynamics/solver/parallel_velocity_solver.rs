@@ -317,7 +317,7 @@ impl ParallelVelocitySolver {
         params: &IntegrationParameters,
         manifolds_all: &mut [&mut ContactManifold],
         joints_all: &mut [JointGraphEdge],
-        mj_lambdas: &mut [DeltaVel<f32>],
+        mj_lambdas: &mut [DeltaVel<Real>],
     ) {
         if self.part.constraint_descs.len() == 0 && self.joint_part.constraint_descs.len() == 0 {
             return;

@@ -1,7 +1,7 @@
 use crate::dynamics::{BallJoint, IntegrationParameters, RigidBody};
 #[cfg(feature = "dim2")]
 use crate::math::SdpMatrix;
-use crate::math::{AngularInertia, Isometry, Point, Rotation, SimdReal, SIMD_WIDTH};
+use crate::math::{AngularInertia, Isometry, Point, Real, Rotation, SimdReal, SIMD_WIDTH};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 use simba::simd::SimdValue;
 
@@ -60,7 +60,7 @@ impl WBallPositionConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position1 = Isometry::from(array![|ii| positions[self.position1[ii]]; SIMD_WIDTH]);
         let mut position2 = Isometry::from(array![|ii| positions[self.position2[ii]]; SIMD_WIDTH]);
 
@@ -164,7 +164,7 @@ impl WBallPositionGroundConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position2 = Isometry::from(array![|ii| positions[self.position2[ii]]; SIMD_WIDTH]);
 
         let anchor2 = position2 * self.local_anchor2;

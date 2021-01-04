@@ -1,7 +1,7 @@
 use crate::data::pubsub::Subscription;
 use crate::dynamics::RigidBodySet;
 use crate::geometry::{ColliderHandle, ColliderSet, RemovedCollider};
-use crate::math::{Point, Vector, DIM};
+use crate::math::{Point, Real, Vector, DIM};
 use bit_vec::BitVec;
 use cdl::bounding_volume::{BoundingVolume, AABB};
 use cdl::utils::hashmap::HashMap;
@@ -10,8 +10,8 @@ use std::ops::{Index, IndexMut};
 
 const NUM_SENTINELS: usize = 1;
 const NEXT_FREE_SENTINEL: u32 = u32::MAX;
-const SENTINEL_VALUE: f32 = f32::MAX;
-const CELL_WIDTH: f32 = 20.0;
+const SENTINEL_VALUE: Real = Real::MAX;
+const CELL_WIDTH: Real = 20.0;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -63,12 +63,12 @@ fn sort2(a: u32, b: u32) -> (u32, u32) {
     }
 }
 
-fn point_key(point: Point<f32>) -> Point<i32> {
+fn point_key(point: Point<Real>) -> Point<i32> {
     (point / CELL_WIDTH).coords.map(|e| e.floor() as i32).into()
 }
 
 fn region_aabb(index: Point<i32>) -> AABB {
-    let mins = index.coords.map(|i| i as f32 * CELL_WIDTH).into();
+    let mins = index.coords.map(|i| i as Real * CELL_WIDTH).into();
     let maxs = mins + Vector::repeat(CELL_WIDTH);
     AABB::new(mins, maxs)
 }
@@ -76,7 +76,7 @@ fn region_aabb(index: Point<i32>) -> AABB {
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 struct Endpoint {
-    value: f32,
+    value: Real,
     packed_flag_proxy: u32,
 }
 
@@ -86,14 +86,14 @@ const START_SENTINEL_TAG: u32 = u32::MAX;
 const END_SENTINEL_TAG: u32 = u32::MAX ^ START_FLAG_MASK;
 
 impl Endpoint {
-    pub fn start_endpoint(value: f32, proxy: u32) -> Self {
+    pub fn start_endpoint(value: Real, proxy: u32) -> Self {
         Self {
             value,
             packed_flag_proxy: proxy | START_FLAG_MASK,
         }
     }
 
-    pub fn end_endpoint(value: f32, proxy: u32) -> Self {
+    pub fn end_endpoint(value: Real, proxy: u32) -> Self {
         Self {
             value,
             packed_flag_proxy: proxy & PROXY_MASK,
@@ -134,15 +134,15 @@ impl Endpoint {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 struct SAPAxis {
-    min_bound: f32,
-    max_bound: f32,
+    min_bound: Real,
+    max_bound: Real,
     endpoints: Vec<Endpoint>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     new_endpoints: Vec<(Endpoint, usize)>, // Workspace
 }
 
 impl SAPAxis {
-    fn new(min_bound: f32, max_bound: f32) -> Self {
+    fn new(min_bound: Real, max_bound: Real) -> Self {
         assert!(min_bound <= max_bound);
 
         Self {
@@ -620,7 +620,7 @@ impl BroadPhase {
 
     pub(crate) fn update_aabbs(
         &mut self,
-        prediction_distance: f32,
+        prediction_distance: Real,
         bodies: &RigidBodySet,
         colliders: &mut ColliderSet,
     ) {

@@ -5,7 +5,7 @@ use crate::dynamics::{
     IntegrationParameters, JointGraphEdge, JointIndex, JointParams, PrismaticJoint, RigidBody,
 };
 use crate::math::{
-    AngVector, AngularInertia, Isometry, Point, SimdBool, SimdReal, Vector, SIMD_WIDTH,
+    AngVector, AngularInertia, Isometry, Point, Real, SimdBool, SimdReal, Vector, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 #[cfg(feature = "dim3")]
@@ -236,7 +236,7 @@ impl WPrismaticVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
@@ -285,7 +285,7 @@ impl WPrismaticVelocityConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
@@ -585,7 +585,7 @@ impl WPrismaticVelocityGroundConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
@@ -616,7 +616,7 @@ impl WPrismaticVelocityGroundConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],

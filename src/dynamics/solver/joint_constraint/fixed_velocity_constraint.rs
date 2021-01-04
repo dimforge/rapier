@@ -2,7 +2,7 @@ use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
     FixedJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBody,
 };
-use crate::math::{AngularInertia, Dim, SpacialVector, Vector};
+use crate::math::{AngularInertia, Dim, Real, SpacialVector, Vector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 #[cfg(feature = "dim2")]
 use na::{Matrix3, Vector3};
@@ -16,29 +16,29 @@ pub(crate) struct FixedVelocityConstraint {
 
     joint_id: JointIndex,
 
-    impulse: SpacialVector<f32>,
+    impulse: SpacialVector<Real>,
 
     #[cfg(feature = "dim3")]
-    inv_lhs: Matrix6<f32>, // FIXME: replace by Cholesky.
+    inv_lhs: Matrix6<Real>, // FIXME: replace by Cholesky.
     #[cfg(feature = "dim3")]
-    rhs: Vector6<f32>,
+    rhs: Vector6<Real>,
 
     #[cfg(feature = "dim2")]
-    inv_lhs: Matrix3<f32>, // FIXME: replace by Cholesky.
+    inv_lhs: Matrix3<Real>, // FIXME: replace by Cholesky.
     #[cfg(feature = "dim2")]
-    rhs: Vector3<f32>,
+    rhs: Vector3<Real>,
 
-    im1: f32,
-    im2: f32,
+    im1: Real,
+    im2: Real,
 
-    ii1: AngularInertia<f32>,
-    ii2: AngularInertia<f32>,
+    ii1: AngularInertia<Real>,
+    ii2: AngularInertia<Real>,
 
-    ii1_sqrt: AngularInertia<f32>,
-    ii2_sqrt: AngularInertia<f32>,
+    ii1_sqrt: AngularInertia<Real>,
+    ii2_sqrt: AngularInertia<Real>,
 
-    r1: Vector<f32>,
-    r2: Vector<f32>,
+    r1: Vector<Real>,
+    r2: Vector<Real>,
 }
 
 impl FixedVelocityConstraint {
@@ -128,7 +128,7 @@ impl FixedVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
@@ -152,7 +152,7 @@ impl FixedVelocityConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
@@ -207,22 +207,22 @@ pub(crate) struct FixedVelocityGroundConstraint {
 
     joint_id: JointIndex,
 
-    impulse: SpacialVector<f32>,
+    impulse: SpacialVector<Real>,
 
     #[cfg(feature = "dim3")]
-    inv_lhs: Matrix6<f32>, // FIXME: replace by Cholesky.
+    inv_lhs: Matrix6<Real>, // FIXME: replace by Cholesky.
     #[cfg(feature = "dim3")]
-    rhs: Vector6<f32>,
+    rhs: Vector6<Real>,
 
     #[cfg(feature = "dim2")]
-    inv_lhs: Matrix3<f32>, // FIXME: replace by Cholesky.
+    inv_lhs: Matrix3<Real>, // FIXME: replace by Cholesky.
     #[cfg(feature = "dim2")]
-    rhs: Vector3<f32>,
+    rhs: Vector3<Real>,
 
-    im2: f32,
-    ii2: AngularInertia<f32>,
-    ii2_sqrt: AngularInertia<f32>,
-    r2: Vector<f32>,
+    im2: Real,
+    ii2: AngularInertia<Real>,
+    ii2_sqrt: AngularInertia<Real>,
+    r2: Vector<Real>,
 }
 
 impl FixedVelocityGroundConstraint {
@@ -312,7 +312,7 @@ impl FixedVelocityGroundConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         let lin_impulse = self.impulse.fixed_rows::<Dim>(0).into_owned();
@@ -329,7 +329,7 @@ impl FixedVelocityGroundConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);

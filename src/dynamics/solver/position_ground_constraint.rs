@@ -2,22 +2,22 @@ use super::AnyPositionConstraint;
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::ContactManifold;
 use crate::math::{
-    AngularInertia, Isometry, Point, Rotation, Translation, Vector, MAX_MANIFOLD_POINTS,
+    AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector, MAX_MANIFOLD_POINTS,
 };
 use crate::utils::{WAngularInertia, WCross, WDot};
 
 pub(crate) struct PositionGroundConstraint {
     pub rb2: usize,
     // NOTE: the points are relative to the center of masses.
-    pub p1: [Point<f32>; MAX_MANIFOLD_POINTS],
-    pub local_p2: [Point<f32>; MAX_MANIFOLD_POINTS],
-    pub dists: [f32; MAX_MANIFOLD_POINTS],
-    pub n1: Vector<f32>,
+    pub p1: [Point<Real>; MAX_MANIFOLD_POINTS],
+    pub local_p2: [Point<Real>; MAX_MANIFOLD_POINTS],
+    pub dists: [Real; MAX_MANIFOLD_POINTS],
+    pub n1: Vector<Real>,
     pub num_contacts: u8,
-    pub im2: f32,
-    pub ii2: AngularInertia<f32>,
-    pub erp: f32,
-    pub max_linear_correction: f32,
+    pub im2: Real,
+    pub ii2: AngularInertia<Real>,
+    pub erp: Real,
+    pub max_linear_correction: Real,
 }
 
 impl PositionGroundConstraint {
@@ -79,7 +79,7 @@ impl PositionGroundConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         // FIXME: can we avoid most of the multiplications by pos1/pos2?
         // Compute jacobians.
         let mut pos2 = positions[self.rb2];

@@ -12,8 +12,9 @@ license = "Apache-2.0"
 edition = "2018"
 
 [features]
-default = [ "dim3" ]
+default = [ "dim3", "f32" ]
 dim3    = [ ]
+f32     = [ ]
 parallel = [ "rayon" ]
 simd-stable = [ "cdl3d/simd-stable", "simba/wide", "simd-is-enabled" ]
 simd-nightly = [ "cdl3d/simd-nightly", "simba/packed_simd", "simd-is-enabled" ]
@@ -27,14 +28,14 @@ enhanced-determinism = [ "simba/libm_force", "cdl3d/enhanced-determinism" ]
 [lib]
 name = "rapier3d"
 path = "../../src/lib.rs"
-required-features = [ "dim3" ]
+required-features = [ "dim3", "f32" ]
 
 
 [dependencies]
 vec_map = "0.8"
 instant = { version = "0.1", features = [ "now" ]}
 num-traits = "0.2"
-nalgebra = "0.23"
+nalgebra = "0.24"
 cdl3d = "0.1"
 simba = "0.3"
 approx = "0.4"

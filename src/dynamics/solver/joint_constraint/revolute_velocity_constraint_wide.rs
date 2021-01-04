@@ -4,7 +4,7 @@ use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
     IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RevoluteJoint, RigidBody,
 };
-use crate::math::{AngVector, AngularInertia, Isometry, Point, SimdReal, Vector, SIMD_WIDTH};
+use crate::math::{AngVector, AngularInertia, Isometry, Point, Real, SimdReal, Vector, SIMD_WIDTH};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
 
@@ -123,7 +123,7 @@ impl WRevoluteVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
@@ -164,7 +164,7 @@ impl WRevoluteVelocityConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
@@ -330,7 +330,7 @@ impl WRevoluteVelocityGroundConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
@@ -354,7 +354,7 @@ impl WRevoluteVelocityGroundConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],

@@ -1,4 +1,4 @@
-use crate::math::{Isometry, Point, Vector, DIM};
+use crate::math::{Isometry, Point, Real, Vector, DIM};
 use crate::utils::WBasis;
 use na::Unit;
 #[cfg(feature = "dim2")]
@@ -11,35 +11,35 @@ use na::Vector5;
 /// A joint that removes all relative motion between two bodies, except for the translations along one axis.
 pub struct PrismaticJoint {
     /// Where the prismatic joint is attached on the first body, expressed in the local space of the first attached body.
-    pub local_anchor1: Point<f32>,
+    pub local_anchor1: Point<Real>,
     /// Where the prismatic joint is attached on the second body, expressed in the local space of the second attached body.
-    pub local_anchor2: Point<f32>,
-    pub(crate) local_axis1: Unit<Vector<f32>>,
-    pub(crate) local_axis2: Unit<Vector<f32>>,
-    pub(crate) basis1: [Vector<f32>; DIM - 1],
-    pub(crate) basis2: [Vector<f32>; DIM - 1],
+    pub local_anchor2: Point<Real>,
+    pub(crate) local_axis1: Unit<Vector<Real>>,
+    pub(crate) local_axis2: Unit<Vector<Real>>,
+    pub(crate) basis1: [Vector<Real>; DIM - 1],
+    pub(crate) basis2: [Vector<Real>; DIM - 1],
     /// The impulse applied by this joint on the first body.
     ///
     /// The impulse applied to the second body is given by `-impulse`.
     #[cfg(feature = "dim3")]
-    pub impulse: Vector5<f32>,
+    pub impulse: Vector5<Real>,
     /// The impulse applied by this joint on the first body.
     ///
     /// The impulse applied to the second body is given by `-impulse`.
     #[cfg(feature = "dim2")]
-    pub impulse: Vector2<f32>,
+    pub impulse: Vector2<Real>,
     /// Whether or not this joint should enforce translational limits along its axis.
     pub limits_enabled: bool,
     /// The min an max relative position of the attached bodies along this joint's axis.
-    pub limits: [f32; 2],
+    pub limits: [Real; 2],
     /// The impulse applied by this joint on the first body to enforce the position limit along this joint's axis.
     ///
     /// The impulse applied to the second body is given by `-impulse`.
-    pub limits_impulse: f32,
+    pub limits_impulse: Real,
     // pub motor_enabled: bool,
-    // pub target_motor_vel: f32,
-    // pub max_motor_impulse: f32,
-    // pub motor_impulse: f32,
+    // pub target_motor_vel: Real,
+    // pub max_motor_impulse: Real,
+    // pub motor_impulse: Real,
 }
 
 impl PrismaticJoint {
@@ -47,10 +47,10 @@ impl PrismaticJoint {
     /// in the local-space of the affected bodies.
     #[cfg(feature = "dim2")]
     pub fn new(
-        local_anchor1: Point<f32>,
-        local_axis1: Unit<Vector<f32>>,
-        local_anchor2: Point<f32>,
-        local_axis2: Unit<Vector<f32>>,
+        local_anchor1: Point<Real>,
+        local_axis1: Unit<Vector<Real>>,
+        local_anchor2: Point<Real>,
+        local_axis2: Unit<Vector<Real>>,
     ) -> Self {
         Self {
             local_anchor1,
@@ -61,11 +61,11 @@ impl PrismaticJoint {
             basis2: local_axis2.orthonormal_basis(),
             impulse: na::zero(),
             limits_enabled: false,
-            limits: [-f32::MAX, f32::MAX],
+            limits: [-Real::MAX, Real::MAX],
             limits_impulse: 0.0,
             // motor_enabled: false,
             // target_motor_vel: 0.0,
-            // max_motor_impulse: f32::MAX,
+            // max_motor_impulse: Real::MAX,
             // motor_impulse: 0.0,
         }
     }
@@ -78,12 +78,12 @@ impl PrismaticJoint {
     /// computed arbitrarily.
     #[cfg(feature = "dim3")]
     pub fn new(
-        local_anchor1: Point<f32>,
-        local_axis1: Unit<Vector<f32>>,
-        local_tangent1: Vector<f32>,
-        local_anchor2: Point<f32>,
-        local_axis2: Unit<Vector<f32>>,
-        local_tangent2: Vector<f32>,
+        local_anchor1: Point<Real>,
+        local_axis1: Unit<Vector<Real>>,
+        local_tangent1: Vector<Real>,
+        local_anchor2: Point<Real>,
+        local_axis2: Unit<Vector<Real>>,
+        local_tangent2: Vector<Real>,
     ) -> Self {
         let basis1 = if let Some(local_bitangent1) =
             Unit::try_new(local_axis1.cross(&local_tangent1), 1.0e-3)
@@ -116,28 +116,28 @@ impl PrismaticJoint {
             basis2,
             impulse: na::zero(),
             limits_enabled: false,
-            limits: [-f32::MAX, f32::MAX],
+            limits: [-Real::MAX, Real::MAX],
             limits_impulse: 0.0,
             // motor_enabled: false,
             // target_motor_vel: 0.0,
-            // max_motor_impulse: f32::MAX,
+            // max_motor_impulse: Real::MAX,
             // motor_impulse: 0.0,
         }
     }
 
     /// The local axis of this joint, expressed in the local-space of the first attached body.
-    pub fn local_axis1(&self) -> Unit<Vector<f32>> {
+    pub fn local_axis1(&self) -> Unit<Vector<Real>> {
         self.local_axis1
     }
 
     /// The local axis of this joint, expressed in the local-space of the second attached body.
-    pub fn local_axis2(&self) -> Unit<Vector<f32>> {
+    pub fn local_axis2(&self) -> Unit<Vector<Real>> {
         self.local_axis2
     }
 
     // FIXME: precompute this?
     #[cfg(feature = "dim2")]
-    pub(crate) fn local_frame1(&self) -> Isometry<f32> {
+    pub(crate) fn local_frame1(&self) -> Isometry<Real> {
         use na::{Matrix2, Rotation2, UnitComplex};
 
         let mat = Matrix2::from_columns(&[self.local_axis1.into_inner(), self.basis1[0]]);
@@ -149,7 +149,7 @@ impl PrismaticJoint {
 
     // FIXME: precompute this?
     #[cfg(feature = "dim2")]
-    pub(crate) fn local_frame2(&self) -> Isometry<f32> {
+    pub(crate) fn local_frame2(&self) -> Isometry<Real> {
         use na::{Matrix2, Rotation2, UnitComplex};
 
         let mat = Matrix2::from_columns(&[self.local_axis2.into_inner(), self.basis2[0]]);
@@ -161,7 +161,7 @@ impl PrismaticJoint {
 
     // FIXME: precompute this?
     #[cfg(feature = "dim3")]
-    pub(crate) fn local_frame1(&self) -> Isometry<f32> {
+    pub(crate) fn local_frame1(&self) -> Isometry<Real> {
         use na::{Matrix3, Rotation3, UnitQuaternion};
 
         let mat = Matrix3::from_columns(&[
@@ -177,7 +177,7 @@ impl PrismaticJoint {
 
     // FIXME: precompute this?
     #[cfg(feature = "dim3")]
-    pub(crate) fn local_frame2(&self) -> Isometry<f32> {
+    pub(crate) fn local_frame2(&self) -> Isometry<Real> {
         use na::{Matrix3, Rotation3, UnitQuaternion};
 
         let mat = Matrix3::from_columns(&[

@@ -10,7 +10,7 @@ use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactManifoldIndex,
     ContactPairFilter, NarrowPhase, ProximityPairFilter,
 };
-use crate::math::Vector;
+use crate::math::{Real, Vector};
 use crate::pipeline::EventHandler;
 
 /// The physics pipeline, responsible for stepping the whole physics simulation.
@@ -62,7 +62,7 @@ impl PhysicsPipeline {
     /// Executes one timestep of the physics simulation.
     pub fn step(
         &mut self,
-        gravity: &Vector<f32>,
+        gravity: &Vector<Real>,
         integration_parameters: &IntegrationParameters,
         broad_phase: &mut BroadPhase,
         narrow_phase: &mut NarrowPhase,
@@ -250,7 +250,7 @@ impl PhysicsPipeline {
 mod test {
     use crate::dynamics::{IntegrationParameters, JointSet, RigidBodyBuilder, RigidBodySet};
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
-    use crate::math::Vector;
+    use crate::math::{Real, Vector};
     use crate::pipeline::PhysicsPipeline;
 
     #[test]

@@ -6,9 +6,13 @@ use num::Zero;
 use simba::simd::SimdValue;
 
 use cdl::utils::SdpMatrix3;
-use {crate::math::SimdReal, na::SimdPartialOrd, num::One};
+use {
+    crate::math::{Real, SimdReal},
+    na::SimdPartialOrd,
+    num::One,
+};
 
-pub(crate) fn inv(val: f32) -> f32 {
+pub(crate) fn inv(val: Real) -> Real {
     if val == 0.0 {
         0.0
     } else {
@@ -23,10 +27,11 @@ pub trait WSign<Rhs>: Sized {
     fn copy_sign_to(self, to: Rhs) -> Rhs;
 }
 
-impl WSign<f32> for f32 {
+impl WSign<Real> for Real {
     fn copy_sign_to(self, to: Self) -> Self {
-        let signbit: u32 = (-0.0f32).to_bits();
-        f32::from_bits((signbit & self.to_bits()) | ((!signbit) & to.to_bits()))
+        const MINUS_ZERO: Real = -0.0;
+        let signbit = MINUS_ZERO.to_bits();
+        Real::from_bits((signbit & self.to_bits()) | ((!signbit) & to.to_bits()))
     }
 }
 
@@ -75,8 +80,8 @@ pub(crate) trait WComponent: Sized {
     fn max_component(self) -> Self::Element;
 }
 
-impl WComponent for f32 {
-    type Element = f32;
+impl WComponent for Real {
+    type Element = Real;
 
     fn min_component(self) -> Self::Element {
         self
@@ -87,7 +92,7 @@ impl WComponent for f32 {
 }
 
 impl WComponent for SimdReal {
-    type Element = f32;
+    type Element = Real;
 
     fn min_component(self) -> Self::Element {
         self.simd_horizontal_min()
@@ -221,8 +226,8 @@ pub(crate) trait WCrossMatrix: Sized {
     fn gcross_matrix(self) -> Self::CrossMat;
 }
 
-impl WCrossMatrix for Vector3<f32> {
-    type CrossMat = Matrix3<f32>;
+impl WCrossMatrix for Vector3<Real> {
+    type CrossMat = Matrix3<Real>;
 
     #[inline]
     #[rustfmt::skip]
@@ -235,8 +240,8 @@ impl WCrossMatrix for Vector3<f32> {
     }
 }
 
-impl WCrossMatrix for Vector2<f32> {
-    type CrossMat = Vector2<f32>;
+impl WCrossMatrix for Vector2<Real> {
+    type CrossMat = Vector2<Real>;
 
     #[inline]
     fn gcross_matrix(self) -> Self::CrossMat {
@@ -249,26 +254,26 @@ pub(crate) trait WCross<Rhs>: Sized {
     fn gcross(&self, rhs: Rhs) -> Self::Result;
 }
 
-impl WCross<Vector3<f32>> for Vector3<f32> {
+impl WCross<Vector3<Real>> for Vector3<Real> {
     type Result = Self;
 
-    fn gcross(&self, rhs: Vector3<f32>) -> Self::Result {
+    fn gcross(&self, rhs: Vector3<Real>) -> Self::Result {
         self.cross(&rhs)
     }
 }
 
-impl WCross<Vector2<f32>> for Vector2<f32> {
-    type Result = f32;
+impl WCross<Vector2<Real>> for Vector2<Real> {
+    type Result = Real;
 
-    fn gcross(&self, rhs: Vector2<f32>) -> Self::Result {
+    fn gcross(&self, rhs: Vector2<Real>) -> Self::Result {
         self.x * rhs.y - self.y * rhs.x
     }
 }
 
-impl WCross<Vector2<f32>> for f32 {
-    type Result = Vector2<f32>;
+impl WCross<Vector2<Real>> for Real {
+    type Result = Vector2<Real>;
 
-    fn gcross(&self, rhs: Vector2<f32>) -> Self::Result {
+    fn gcross(&self, rhs: Vector2<Real>) -> Self::Result {
         Vector2::new(-rhs.y * *self, rhs.x * *self)
     }
 }
@@ -278,26 +283,26 @@ pub(crate) trait WDot<Rhs>: Sized {
     fn gdot(&self, rhs: Rhs) -> Self::Result;
 }
 
-impl WDot<Vector3<f32>> for Vector3<f32> {
-    type Result = f32;
+impl WDot<Vector3<Real>> for Vector3<Real> {
+    type Result = Real;
 
-    fn gdot(&self, rhs: Vector3<f32>) -> Self::Result {
+    fn gdot(&self, rhs: Vector3<Real>) -> Self::Result {
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
     }
 }
 
-impl WDot<Vector2<f32>> for Vector2<f32> {
-    type Result = f32;
+impl WDot<Vector2<Real>> for Vector2<Real> {
+    type Result = Real;
 
-    fn gdot(&self, rhs: Vector2<f32>) -> Self::Result {
+    fn gdot(&self, rhs: Vector2<Real>) -> Self::Result {
         self.x * rhs.x + self.y * rhs.y
     }
 }
 
-impl WDot<f32> for f32 {
-    type Result = f32;
+impl WDot<Real> for Real {
+    type Result = Real;
 
-    fn gdot(&self, rhs: f32) -> Self::Result {
+    fn gdot(&self, rhs: Real) -> Self::Result {
         *self * rhs
     }
 }
@@ -387,10 +392,10 @@ pub(crate) trait WAngularInertia<N> {
     fn into_matrix(self) -> Self::AngMatrix;
 }
 
-impl WAngularInertia<f32> for f32 {
-    type AngVector = f32;
-    type LinVector = Vector2<f32>;
-    type AngMatrix = f32;
+impl WAngularInertia<Real> for Real {
+    type AngVector = Real;
+    type LinVector = Vector2<Real>;
+    type AngMatrix = Real;
 
     fn inverse(&self) -> Self {
         if *self != 0.0 {
@@ -400,14 +405,14 @@ impl WAngularInertia<f32> for f32 {
         }
     }
 
-    fn transform_lin_vector(&self, pt: Vector2<f32>) -> Vector2<f32> {
+    fn transform_lin_vector(&self, pt: Vector2<Real>) -> Vector2<Real> {
         *self * pt
     }
-    fn transform_vector(&self, pt: f32) -> f32 {
+    fn transform_vector(&self, pt: Real) -> Real {
         *self * pt
     }
 
-    fn squared(&self) -> f32 {
+    fn squared(&self) -> Real {
         *self * *self
     }
 
@@ -452,10 +457,10 @@ impl WAngularInertia<SimdReal> for SimdReal {
     }
 }
 
-impl WAngularInertia<f32> for SdpMatrix3<f32> {
-    type AngVector = Vector3<f32>;
-    type LinVector = Vector3<f32>;
-    type AngMatrix = Matrix3<f32>;
+impl WAngularInertia<Real> for SdpMatrix3<Real> {
+    type AngVector = Vector3<Real>;
+    type LinVector = Vector3<Real>;
+    type AngMatrix = Matrix3<Real>;
 
     fn inverse(&self) -> Self {
         let minor_m12_m23 = self.m22 * self.m33 - self.m23 * self.m23;
@@ -490,11 +495,11 @@ impl WAngularInertia<f32> for SdpMatrix3<f32> {
         }
     }
 
-    fn transform_lin_vector(&self, v: Vector3<f32>) -> Vector3<f32> {
+    fn transform_lin_vector(&self, v: Vector3<Real>) -> Vector3<Real> {
         self.transform_vector(v)
     }
 
-    fn transform_vector(&self, v: Vector3<f32>) -> Vector3<f32> {
+    fn transform_vector(&self, v: Vector3<Real>) -> Vector3<Real> {
         let x = self.m11 * v.x + self.m12 * v.y + self.m13 * v.z;
         let y = self.m12 * v.x + self.m22 * v.y + self.m23 * v.z;
         let z = self.m13 * v.x + self.m23 * v.y + self.m33 * v.z;
@@ -502,7 +507,7 @@ impl WAngularInertia<f32> for SdpMatrix3<f32> {
     }
 
     #[rustfmt::skip]
-    fn into_matrix(self) -> Matrix3<f32> {
+    fn into_matrix(self) -> Matrix3<Real> {
         Matrix3::new(
             self.m11, self.m12, self.m13,
             self.m12, self.m22, self.m23,
@@ -511,7 +516,7 @@ impl WAngularInertia<f32> for SdpMatrix3<f32> {
     }
 
     #[rustfmt::skip]
-    fn transform_matrix(&self, m: &Matrix3<f32>) -> Matrix3<f32> {
+    fn transform_matrix(&self, m: &Matrix3<Real>) -> Matrix3<Real> {
         *self * *m
     }
 }

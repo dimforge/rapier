@@ -11,10 +11,15 @@
 // FIXME: deny that
 #![allow(missing_docs)]
 
-#[cfg(feature = "dim2")]
+#[cfg(all(feature = "dim2", feature = "f32"))]
 pub extern crate cdl2d as cdl;
-#[cfg(feature = "dim3")]
+#[cfg(all(feature = "dim2", feature = "f64"))]
+pub extern crate cdl2d_f64 as cdl;
+#[cfg(all(feature = "dim3", feature = "f32"))]
 pub extern crate cdl3d as cdl;
+#[cfg(all(feature = "dim3", feature = "f64"))]
+pub extern crate cdl3d_f64 as cdl;
+
 pub extern crate crossbeam;
 pub extern crate nalgebra as na;
 #[cfg(feature = "serde")]

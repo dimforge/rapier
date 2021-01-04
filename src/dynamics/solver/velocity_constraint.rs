@@ -4,7 +4,7 @@ use crate::dynamics::solver::VelocityGroundConstraint;
 use crate::dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{AngVector, Vector, DIM, MAX_MANIFOLD_POINTS};
+use crate::math::{AngVector, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{WAngularInertia, WBasis, WCross, WDot};
 use simba::simd::SimdPartialOrd;
 
@@ -40,7 +40,7 @@ impl AnyVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         match self {
             AnyVelocityConstraint::NongroupedGround(c) => c.warmstart(mj_lambdas),
             AnyVelocityConstraint::Nongrouped(c) => c.warmstart(mj_lambdas),
@@ -52,7 +52,7 @@ impl AnyVelocityConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         match self {
             AnyVelocityConstraint::NongroupedGround(c) => c.solve(mj_lambdas),
             AnyVelocityConstraint::Nongrouped(c) => c.solve(mj_lambdas),
@@ -79,11 +79,11 @@ impl AnyVelocityConstraint {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct VelocityConstraintElementPart {
-    pub gcross1: AngVector<f32>,
-    pub gcross2: AngVector<f32>,
-    pub rhs: f32,
-    pub impulse: f32,
-    pub r: f32,
+    pub gcross1: AngVector<Real>,
+    pub gcross2: AngVector<Real>,
+    pub rhs: Real,
+    pub impulse: Real,
+    pub r: Real,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -117,10 +117,10 @@ impl VelocityConstraintElement {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct VelocityConstraint {
-    pub dir1: Vector<f32>, // Non-penetration force direction for the first body.
-    pub im1: f32,
-    pub im2: f32,
-    pub limit: f32,
+    pub dir1: Vector<Real>, // Non-penetration force direction for the first body.
+    pub im1: Real,
+    pub im2: Real,
+    pub limit: Real,
     pub mj_lambda1: usize,
     pub mj_lambda2: usize,
     pub manifold_id: ContactManifoldIndex,
@@ -300,7 +300,7 @@ impl VelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = DeltaVel::zero();
         let mut mj_lambda2 = DeltaVel::zero();
 
@@ -331,7 +331,7 @@ impl VelocityConstraint {
         mj_lambdas[self.mj_lambda2 as usize].angular += mj_lambda2.angular;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 

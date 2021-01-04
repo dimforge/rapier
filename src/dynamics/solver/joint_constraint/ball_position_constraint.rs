@@ -1,7 +1,7 @@
 use crate::dynamics::{BallJoint, IntegrationParameters, RigidBody};
 #[cfg(feature = "dim2")]
 use crate::math::SdpMatrix;
-use crate::math::{AngularInertia, Isometry, Point, Rotation};
+use crate::math::{AngularInertia, Isometry, Point, Real, Rotation};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 
 #[derive(Debug)]
@@ -9,17 +9,17 @@ pub(crate) struct BallPositionConstraint {
     position1: usize,
     position2: usize,
 
-    local_com1: Point<f32>,
-    local_com2: Point<f32>,
+    local_com1: Point<Real>,
+    local_com2: Point<Real>,
 
-    im1: f32,
-    im2: f32,
+    im1: Real,
+    im2: Real,
 
-    ii1: AngularInertia<f32>,
-    ii2: AngularInertia<f32>,
+    ii1: AngularInertia<Real>,
+    ii2: AngularInertia<Real>,
 
-    local_anchor1: Point<f32>,
-    local_anchor2: Point<f32>,
+    local_anchor1: Point<Real>,
+    local_anchor2: Point<Real>,
 }
 
 impl BallPositionConstraint {
@@ -38,7 +38,7 @@ impl BallPositionConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position1 = positions[self.position1 as usize];
         let mut position2 = positions[self.position2 as usize];
 
@@ -95,11 +95,11 @@ impl BallPositionConstraint {
 #[derive(Debug)]
 pub(crate) struct BallPositionGroundConstraint {
     position2: usize,
-    anchor1: Point<f32>,
-    im2: f32,
-    ii2: AngularInertia<f32>,
-    local_anchor2: Point<f32>,
-    local_com2: Point<f32>,
+    anchor1: Point<Real>,
+    im2: Real,
+    ii2: AngularInertia<Real>,
+    local_anchor2: Point<Real>,
+    local_com2: Point<Real>,
 }
 
 impl BallPositionGroundConstraint {
@@ -133,7 +133,7 @@ impl BallPositionGroundConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position2 = positions[self.position2 as usize];
 
         let anchor2 = position2 * self.local_anchor2;

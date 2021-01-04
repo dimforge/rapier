@@ -7,9 +7,9 @@ use super::{RevolutePositionConstraint, RevolutePositionGroundConstraint};
 #[cfg(feature = "simd-is-enabled")]
 use super::{WBallPositionConstraint, WBallPositionGroundConstraint};
 use crate::dynamics::{IntegrationParameters, Joint, JointParams, RigidBodySet};
-use crate::math::Isometry;
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SIMD_WIDTH;
+use crate::math::{Isometry, Real};
 
 pub(crate) enum AnyJointPositionConstraint {
     BallJoint(BallPositionConstraint),
@@ -147,7 +147,7 @@ impl AnyJointPositionConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         match self {
             AnyJointPositionConstraint::BallJoint(c) => c.solve(params, positions),
             AnyJointPositionConstraint::BallGroundConstraint(c) => c.solve(params, positions),
