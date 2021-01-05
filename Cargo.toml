@@ -4,21 +4,28 @@ members = [ "build/rapier2d", "build/rapier2d-f64", "build/rapier_testbed2d", "e
 
 [patch.crates-io]
 #wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }
+
 #simba = { path = "../simba" }
-ncollide2d = { path = "../ncollide/build/ncollide2d" }
-ncollide3d = { path = "../ncollide/build/ncollide3d" }
-nphysics2d = { path = "../nphysics/build/nphysics2d" }
-nphysics3d = { path = "../nphysics/build/nphysics3d" }
-kiss3d = { path = "../kiss3d" }
-cdl2d = { path = "../cdl/build/cdl2d" }
-cdl3d = { path = "../cdl/build/cdl3d" }
-cdl2d-f64 = { path = "../cdl/build/cdl2d-f64" }
-cdl3d-f64 = { path = "../cdl/build/cdl3d-f64" }
-#cdl2d = { git = "https://github.com/sebcrozet/cdl.git" }
-#cdl3d = { git = "https://github.com/sebcrozet/cdl.git" }
-#cdl2d-f64 = { git = "https://github.com/sebcrozet/cdl.git" }
-#cdl3d-f64 = { git = "https://github.com/sebcrozet/cdl.git" }
+#ncollide2d = { path = "../ncollide/build/ncollide2d" }
+#ncollide3d = { path = "../ncollide/build/ncollide3d" }
+#nphysics2d = { path = "../nphysics/build/nphysics2d" }
+#nphysics3d = { path = "../nphysics/build/nphysics3d" }
+#kiss3d = { path = "../kiss3d" }
+#cdl2d = { path = "../cdl/build/cdl2d" }
+#cdl3d = { path = "../cdl/build/cdl3d" }
+#cdl2d-f64 = { path = "../cdl/build/cdl2d-f64" }
+#cdl3d-f64 = { path = "../cdl/build/cdl3d-f64" }
 #nalgebra = { path = "../nalgebra" }
+
+kiss3d = { git = "https://github.com/sebcrozet/kiss3d" }
+cdl2d = { git = "https://github.com/sebcrozet/cdl" }
+cdl3d = { git = "https://github.com/sebcrozet/cdl" }
+cdl2d-f64 = { git = "https://github.com/sebcrozet/cdl" }
+cdl3d-f64 = { git = "https://github.com/sebcrozet/cdl" }
+ncollide2d = { git = "https://github.com/dimforge/ncollide" }
+ncollide3d = { git = "https://github.com/dimforge/ncollide" }
+nphysics2d = { git = "https://github.com/dimforge/nphysics" }
+nphysics3d = { git = "https://github.com/dimforge/nphysics" }
 
 [profile.release]
 #debug = true
