@@ -13,6 +13,7 @@ use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGrap
 use crate::math::{Real, Vector};
 use crate::pipeline::EventHandler;
 use cdl::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
+use cdl::utils::IsometryOpt;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -522,10 +523,11 @@ impl NarrowPhase {
             let mut has_any_active_contact = false;
 
             for manifold in &mut pair.manifolds {
+                let world_pos1 = manifold.subshape_pos1.prepend_to(co1.position());
                 manifold.data.solver_contacts.clear();
                 manifold.data.body_pair = BodyPair::new(co1.parent(), co2.parent());
                 manifold.data.solver_flags = solver_flags;
-                manifold.data.normal = co1.position() * manifold.local_n1;
+                manifold.data.normal = world_pos1 * manifold.local_n1;
 
                 // Sort contacts to keep only these with distances bellow
                 // the prediction, and generate solver contacts.
@@ -536,7 +538,7 @@ impl NarrowPhase {
                     if contact.dist < prediction_distance {
                         // Generate the solver contact.
                         let solver_contact = SolverContact {
-                            point: co1.position() * contact.local_p1
+                            point: world_pos1 * contact.local_p1
                                 + manifold.data.normal * contact.dist / 2.0,
                             dist: contact.dist,
                             friction: (co1.friction + co2.friction) / 2.0,

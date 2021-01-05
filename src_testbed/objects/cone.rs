@@ -1,6 +1,6 @@
 use crate::objects::node::{self, GraphicsNode};
 use kiss3d::window::Window;
-use na::Point3;
+use na::{Isometry3, Point3};
 use rapier::geometry::{ColliderHandle, ColliderSet};
 use rapier::math::Isometry;
 
@@ -9,11 +9,13 @@ pub struct Cone {
     base_color: Point3<f32>,
     gfx: GraphicsNode,
     collider: ColliderHandle,
+    delta: Isometry3<f32>,
 }
 
 impl Cone {
     pub fn new(
         collider: ColliderHandle,
+        delta: Isometry3<f32>,
         half_height: f32,
         radius: f32,
         color: Point3<f32>,
@@ -29,6 +31,7 @@ impl Cone {
             base_color: color,
             gfx: node,
             collider,
+            delta,
         };
 
         // res.gfx.set_texture_from_file(&Path::new("media/kitten.png"), "kitten");
@@ -56,7 +59,7 @@ impl Cone {
             colliders,
             self.collider,
             &self.color,
-            &Isometry::identity(),
+            &self.delta,
         );
     }
 

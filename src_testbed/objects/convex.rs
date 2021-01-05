@@ -5,7 +5,7 @@ use crate::math::Vector;
 use crate::math::{Isometry, Point};
 use crate::objects::node::{self, GraphicsNode};
 use kiss3d::window::Window;
-use na::Point3;
+use na::{Isometry3, Point3};
 use rapier::geometry::{ColliderHandle, ColliderSet};
 
 pub struct Convex {
@@ -13,11 +13,13 @@ pub struct Convex {
     base_color: Point3<f32>,
     gfx: GraphicsNode,
     body: ColliderHandle,
+    delta: Isometry3<f32>,
 }
 
 impl Convex {
     pub fn new(
         body: ColliderHandle,
+        delta: Isometry3<f32>,
         vertices: Vec<Point<f32>>,
         #[cfg(feature = "dim3")] indices: Vec<Point<u32>>,
         color: Point3<f32>,
@@ -39,6 +41,7 @@ impl Convex {
             base_color: color,
             gfx: node,
             body,
+            delta,
         };
 
         // res.gfx.set_texture_from_file(&Path::new("media/kitten.png"), "kitten");
@@ -66,7 +69,7 @@ impl Convex {
             colliders,
             self.body,
             &self.color,
-            &Isometry::identity(),
+            &self.delta,
         );
     }
 

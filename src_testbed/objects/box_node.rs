@@ -1,6 +1,6 @@
 use crate::objects::node::{self, GraphicsNode};
 use kiss3d::window;
-use na::Point3;
+use na::{Isometry3, Point3};
 use rapier::geometry::{ColliderHandle, ColliderSet};
 use rapier::math::{Isometry, Vector};
 
@@ -9,11 +9,13 @@ pub struct Box {
     base_color: Point3<f32>,
     gfx: GraphicsNode,
     collider: ColliderHandle,
+    delta: Isometry3<f32>,
 }
 
 impl Box {
     pub fn new(
         collider: ColliderHandle,
+        delta: Isometry3<f32>,
         half_extents: Vector<f32>,
         color: Point3<f32>,
         window: &mut window::Window,
@@ -29,6 +31,7 @@ impl Box {
             base_color: color,
             gfx: node,
             collider,
+            delta,
         };
 
         res.gfx.set_color(color.x, color.y, color.z);
@@ -55,7 +58,7 @@ impl Box {
             colliders,
             self.collider,
             &self.color,
-            &Isometry::identity(),
+            &self.delta,
         );
     }
 

@@ -17,7 +17,7 @@ use kiss3d::planar_camera::PlanarCamera;
 use kiss3d::post_processing::PostProcessingEffect;
 use kiss3d::text::Font;
 use kiss3d::window::{State, Window};
-use na::{self, Point2, Point3, Vector3};
+use na::{self, Isometry3, Point2, Point3, Vector3};
 use rapier::dynamics::{
     ActivationStatus, IntegrationParameters, JointSet, RigidBodyHandle, RigidBodySet,
 };
@@ -1525,9 +1525,13 @@ fn draw_contacts(window: &mut Window, nf: &NarrowPhase, colliders: &ColliderSet)
                 };
                 let pos1 = colliders[pair.pair.collider1].position();
                 let pos2 = colliders[pair.pair.collider2].position();
-                let start = pos1 * pt.local_p1;
-                let end = pos2 * pt.local_p2;
-                let n = pos1 * manifold.local_n1;
+                let start =
+                    pos1 * manifold.subshape_pos1.unwrap_or(Isometry3::identity()) * pt.local_p1;
+                let end =
+                    pos2 * manifold.subshape_pos2.unwrap_or(Isometry3::identity()) * pt.local_p2;
+                let n = pos1
+                    * manifold.subshape_pos1.unwrap_or(Isometry3::identity())
+                    * manifold.local_n1;
 
                 use crate::engine::GraphicsWindow;
                 window.draw_graphics_line(&start, &(start + n * 0.4), &Point3::new(0.5, 1.0, 0.5));
