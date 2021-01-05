@@ -8,7 +8,9 @@ use physx::cooking::PxCooking;
 use physx::foundation::DefaultAllocator;
 use physx::prelude::*;
 use physx::scene::FrictionType;
+use physx::traits::Class;
 use physx::triangle_mesh::TriangleMesh;
+use physx_sys::{PxActor, PxRigidActor};
 use rapier::counters::Counters;
 use rapier::dynamics::{
     IntegrationParameters, JointParams, JointSet, RigidBodyHandle, RigidBodySet,
@@ -166,6 +168,11 @@ impl PhysxWorld {
             let mut rapier2dynamic = HashMap::new();
             let mut rapier2static = HashMap::new();
 
+            /*
+             *
+             * Rigid bodies
+             *
+             */
             for (rapier_handle, rb) in bodies.iter() {
                 use physx::rigid_dynamic::RigidDynamic;
                 use physx::rigid_static::RigidStatic;
@@ -185,6 +192,11 @@ impl PhysxWorld {
                 }
             }
 
+            /*
+             *
+             * Colliders
+             *
+             */
             for (_, collider) in colliders.iter() {
                 if let Some((mut px_shape, px_material, collider_pos)) =
                     physx_collider_from_rapier_collider(&mut *physics, &collider)
@@ -198,7 +210,11 @@ impl PhysxWorld {
                         let actor = rapier2dynamic.get_mut(&collider.parent()).unwrap();
                         actor.attach_shape(&mut px_shape);
                     }
-                    // physx_sys::PxShape_setLocalPose_mut(shape, &pose);
+
+                    unsafe {
+                        let pose = collider_pos.into_physx();
+                        physx_sys::PxShape_setLocalPose_mut(px_shape.as_mut_ptr(), &pose.into());
+                    }
 
                     shapes.push(px_shape);
                     materials.push(px_material);
@@ -226,9 +242,16 @@ impl PhysxWorld {
             }
 
             /*
-               res.setup_joints(joints);
-               res
-            */
+             *
+             * Joints
+             *
+             */
+            Self::setup_joints(
+                &mut physics,
+                joints,
+                &mut rapier2static,
+                &mut rapier2dynamic,
+            );
 
             for (_, actor) in rapier2static {
                 scene.add_static_actor(actor);
@@ -246,27 +269,43 @@ impl PhysxWorld {
         })
     }
 
-    fn setup_joints(&mut self, joints: &JointSet) {
-        /*
+    fn setup_joints(
+        physics: &mut PxPhysicsFoundation,
+        joints: &JointSet,
+        rapier2static: &mut HashMap<RigidBodyHandle, Owner<PxRigidStatic>>,
+        rapier2dynamic: &mut HashMap<RigidBodyHandle, Owner<PxRigidDynamic>>,
+    ) {
         unsafe {
             for joint in joints.iter() {
-                let actor1 = self.rapier2physx[&joint.1.body1];
-                let actor2 = self.rapier2physx[&joint.1.body2];
+                let actor1 = rapier2static
+                    .get_mut(&joint.1.body1)
+                    .map(|act| &mut **act as *mut PxRigidStatic as *mut PxRigidActor)
+                    .or(rapier2dynamic
+                        .get_mut(&joint.1.body1)
+                        .map(|act| &mut **act as *mut PxRigidDynamic as *mut PxRigidActor))
+                    .unwrap();
+                let actor2 = rapier2static
+                    .get_mut(&joint.1.body2)
+                    .map(|act| &mut **act as *mut PxRigidStatic as *mut PxRigidActor)
+                    .or(rapier2dynamic
+                        .get_mut(&joint.1.body2)
+                        .map(|act| &mut **act as *mut PxRigidDynamic as *mut PxRigidActor))
+                    .unwrap();
 
                 match &joint.1.params {
                     JointParams::BallJoint(params) => {
-                        let frame1 = physx::transform::gl_to_px_tf(
-                            Isometry3::new(params.local_anchor1.coords, na::zero()).into_glam(),
-                        );
-                        let frame2 = physx::transform::gl_to_px_tf(
-                            Isometry3::new(params.local_anchor2.coords, na::zero()).into_glam(),
-                        );
+                        let frame1 = Isometry3::new(params.local_anchor1.coords, na::zero())
+                            .into_physx()
+                            .into();
+                        let frame2 = Isometry3::new(params.local_anchor2.coords, na::zero())
+                            .into_physx()
+                            .into();
 
                         physx_sys::phys_PxSphericalJointCreate(
-                            self.physics.get_raw_mut(),
-                            actor1.0 as *mut _,
+                            physics.as_mut_ptr(),
+                            actor1,
                             &frame1 as *const _,
-                            actor2.0 as *mut _,
+                            actor2,
                             &frame2 as *const _,
                         );
                     }
@@ -292,18 +331,18 @@ impl PhysxWorld {
                         let axisangle1 = rotmat1.scaled_axis();
                         let axisangle2 = rotmat2.scaled_axis();
 
-                        let frame1 = physx::transform::gl_to_px_tf(
-                            Isometry3::new(params.local_anchor1.coords, axisangle1).into_glam(),
-                        );
-                        let frame2 = physx::transform::gl_to_px_tf(
-                            Isometry3::new(params.local_anchor2.coords, axisangle2).into_glam(),
-                        );
+                        let frame1 = Isometry3::new(params.local_anchor1.coords, axisangle1)
+                            .into_physx()
+                            .into();
+                        let frame2 = Isometry3::new(params.local_anchor2.coords, axisangle2)
+                            .into_physx()
+                            .into();
 
                         physx_sys::phys_PxRevoluteJointCreate(
-                            self.physics.get_raw_mut(),
-                            actor1.0 as *mut _,
+                            physics.as_mut_ptr(),
+                            actor1,
                             &frame1 as *const _,
-                            actor2.0 as *mut _,
+                            actor2,
                             &frame2 as *const _,
                         );
                     }
@@ -331,18 +370,18 @@ impl PhysxWorld {
                         let axisangle1 = rotmat1.scaled_axis();
                         let axisangle2 = rotmat2.scaled_axis();
 
-                        let frame1 = physx::transform::gl_to_px_tf(
-                            Isometry3::new(params.local_anchor1.coords, axisangle1).into_glam(),
-                        );
-                        let frame2 = physx::transform::gl_to_px_tf(
-                            Isometry3::new(params.local_anchor2.coords, axisangle2).into_glam(),
-                        );
+                        let frame1 = Isometry3::new(params.local_anchor1.coords, axisangle1)
+                            .into_physx()
+                            .into();
+                        let frame2 = Isometry3::new(params.local_anchor2.coords, axisangle2)
+                            .into_physx()
+                            .into();
 
                         let joint = physx_sys::phys_PxPrismaticJointCreate(
-                            self.physics.get_raw_mut(),
-                            actor1.0 as *mut _,
+                            physics.as_mut_ptr(),
+                            actor1,
                             &frame1 as *const _,
-                            actor2.0 as *mut _,
+                            actor2,
                             &frame2 as *const _,
                         );
 
@@ -365,23 +404,20 @@ impl PhysxWorld {
                         }
                     }
                     JointParams::FixedJoint(params) => {
-                        let frame1 =
-                            physx::transform::gl_to_px_tf(params.local_anchor1.into_glam());
-                        let frame2 =
-                            physx::transform::gl_to_px_tf(params.local_anchor2.into_glam());
+                        let frame1 = params.local_anchor1.into_physx().into();
+                        let frame2 = params.local_anchor2.into_physx().into();
 
                         physx_sys::phys_PxFixedJointCreate(
-                            self.physics.get_raw_mut(),
-                            actor1.0 as *mut _,
+                            physics.as_mut_ptr(),
+                            actor1,
                             &frame1 as *const _,
-                            actor2.0 as *mut _,
+                            actor2,
                             &frame2 as *const _,
                         );
                     }
                 }
             }
         }
-         */
     }
 
     pub fn step(&mut self, counters: &mut Counters, params: &IntegrationParameters) {
@@ -457,7 +493,9 @@ fn physx_collider_from_rapier_collider(
         }
 
         let rot = UnitQuaternion::rotation_between(&Vector3::x(), &dir);
-        local_pose *= Translation3::from(center.coords) * rot.unwrap_or(UnitQuaternion::identity());
+        local_pose = local_pose
+            * Translation3::from(center.coords)
+            * rot.unwrap_or(UnitQuaternion::identity());
         let geometry = PxCapsuleGeometry::new(capsule.radius, capsule.half_height());
         physics.create_shape(&geometry, materials, true, shape_flags, ())
     } else if let Some(trimesh) = shape.as_trimesh() {

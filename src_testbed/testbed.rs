@@ -1126,6 +1126,14 @@ impl State for Testbed {
 
                 if self.state.selected_example != prev_example {
                     self.physics.integration_parameters = IntegrationParameters::default();
+                    if self.state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
+                        || self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
+                    {
+                        std::mem::swap(
+                            &mut self.physics.integration_parameters.max_velocity_iterations,
+                            &mut self.physics.integration_parameters.max_position_iterations,
+                        )
+                    }
                 }
 
                 self.builders[self.state.selected_example].1(self);
