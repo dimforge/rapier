@@ -75,6 +75,7 @@ pub struct RigidBody {
     pub(crate) linacc: Vector<Real>,
     pub(crate) angacc: AngVector<Real>,
     pub(crate) colliders: Vec<ColliderHandle>,
+    pub(crate) gravity_scale: Real,
     /// Whether or not this rigid-body is sleeping.
     pub activation: ActivationStatus,
     pub(crate) joint_graph_index: RigidBodyGraphIndex,
@@ -102,6 +103,7 @@ impl RigidBody {
             angvel: na::zero(),
             linacc: Vector::zeros(),
             angacc: na::zero(),
+            gravity_scale: 1.0,
             linear_damping: 0.0,
             angular_damping: 0.0,
             colliders: Vec::new(),
@@ -129,7 +131,7 @@ impl RigidBody {
 
     pub(crate) fn integrate_accelerations(&mut self, dt: Real, gravity: Vector<Real>) {
         if self.mass_properties.inv_mass != 0.0 {
-            self.linvel += (gravity + self.linacc) * dt;
+            self.linvel += (gravity * self.gravity_scale + self.linacc) * dt;
             self.angvel += self.angacc * dt;
 
             // Reset the accelerations.
@@ -197,6 +199,21 @@ impl RigidBody {
     /// For non-kinematic bodies, this value is currently unspecified.
     pub fn predicted_position(&self) -> &Isometry<Real> {
         &self.predicted_position
+    }
+
+    /// The scale factor applied to the gravity affecting this rigid-body.
+    pub fn gravity_scale(&self) -> Real {
+        self.gravity_scale
+    }
+
+    /// Sets the gravity scale facter for this rigid-body.
+    pub fn set_gravity_scale(&mut self, scale: Real, wake_up: bool) {
+        if wake_up && self.activation.sleeping {
+            self.changes.insert(RigidBodyChanges::SLEEP);
+            self.activation.sleeping = false;
+        }
+
+        self.gravity_scale = scale;
     }
 
     /// Adds a collider to this rigid-body.
@@ -552,6 +569,7 @@ pub struct RigidBodyBuilder {
     position: Isometry<Real>,
     linvel: Vector<Real>,
     angvel: AngVector<Real>,
+    gravity_scale: Real,
     linear_damping: Real,
     angular_damping: Real,
     body_status: BodyStatus,
@@ -569,6 +587,7 @@ impl RigidBodyBuilder {
             position: Isometry::identity(),
             linvel: Vector::zeros(),
             angvel: na::zero(),
+            gravity_scale: 1.0,
             linear_damping: 0.0,
             angular_damping: 0.0,
             body_status,
@@ -593,6 +612,12 @@ impl RigidBodyBuilder {
     /// Initializes the builder of a new dynamic rigid body.
     pub fn new_dynamic() -> Self {
         Self::new(BodyStatus::Dynamic)
+    }
+
+    /// Sets the scale applied to the gravity force affecting the rigid-body to be created.
+    pub fn gravity_scale(mut self, x: Real) -> Self {
+        self.gravity_scale = x;
+        self
     }
 
     /// Sets the initial translation of the rigid-body to be created.
@@ -825,6 +850,7 @@ impl RigidBodyBuilder {
         rb.mass_properties = self.mass_properties;
         rb.linear_damping = self.linear_damping;
         rb.angular_damping = self.angular_damping;
+        rb.gravity_scale = self.gravity_scale;
         rb.flags = self.flags;
 
         if self.can_sleep && self.sleeping {
