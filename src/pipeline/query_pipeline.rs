@@ -58,7 +58,7 @@ impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
     fn map_untyped_part_at(
         &self,
         shape_id: Self::PartId,
-        mut f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape),
+        f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape),
     ) {
         self.map_typed_part_at(shape_id, f);
     }
@@ -216,7 +216,7 @@ impl QueryPipeline {
     }
 
     /// Find up to one collider intersecting the given shape.
-    fn intersection_with_shape(
+    pub fn intersection_with_shape(
         &self,
         colliders: &ColliderSet,
         shape_pos: &Isometry<Real>,
@@ -237,7 +237,7 @@ impl QueryPipeline {
     }
 
     /// Projects a point on the scene.
-    fn project_point(
+    pub fn project_point(
         &self,
         colliders: &ColliderSet,
         point: &Point<Real>,
@@ -279,7 +279,7 @@ impl QueryPipeline {
     }
 
     /// Projects a point on the scene and get
-    fn project_point_and_get_feature(
+    pub fn project_point_and_get_feature(
         &self,
         colliders: &ColliderSet,
         point: &Point<Real>,

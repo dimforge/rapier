@@ -1,8 +1,6 @@
 use super::{PrismaticPositionConstraint, PrismaticPositionGroundConstraint};
-use crate::dynamics::{IntegrationParameters, JointIndex, PrismaticJoint, RigidBody};
-use crate::math::{AngularInertia, Isometry, Point, Real, Rotation, Vector, SIMD_WIDTH};
-use crate::utils::WAngularInertia;
-use na::Unit;
+use crate::dynamics::{IntegrationParameters, PrismaticJoint, RigidBody};
+use crate::math::{Isometry, Real, SIMD_WIDTH};
 
 // TODO: this does not uses SIMD optimizations yet.
 #[derive(Debug)]

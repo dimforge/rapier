@@ -1,15 +1,16 @@
-#[cfg(feature = "dim3")]
-use crate::objects::node::{self, GraphicsNode};
 use cdl::shape;
-use kiss3d::resource::Mesh;
 use kiss3d::window::Window;
 use na::{self, Point3};
 use rapier::geometry::{ColliderHandle, ColliderSet};
 #[cfg(feature = "dim2")]
 use rapier::math::Point;
 #[cfg(feature = "dim3")]
-use rapier::math::Vector;
-use std::cell::RefCell;
+use {
+    crate::objects::node::{self, GraphicsNode},
+    kiss3d::resource::Mesh,
+    rapier::math::Vector,
+    std::cell::RefCell,
+};
 
 pub struct HeightField {
     color: Point3<f32>,

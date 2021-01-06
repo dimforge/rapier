@@ -1,4 +1,4 @@
-use crate::math::{AngVector, Real, Vector};
+use crate::math::{AngVector, Vector};
 use na::{Scalar, SimdRealField};
 
 #[derive(Copy, Clone, Debug)]

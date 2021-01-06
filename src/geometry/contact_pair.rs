@@ -1,5 +1,5 @@
 use crate::dynamics::{BodyPair, RigidBodySet};
-use crate::geometry::{Collider, ColliderPair, ContactManifold};
+use crate::geometry::{ColliderPair, ContactManifold};
 use crate::math::{Point, Real, Vector};
 use cdl::query::ContactManifoldsWorkspace;
 

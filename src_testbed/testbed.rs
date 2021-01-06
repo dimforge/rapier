@@ -17,14 +17,14 @@ use kiss3d::planar_camera::PlanarCamera;
 use kiss3d::post_processing::PostProcessingEffect;
 use kiss3d::text::Font;
 use kiss3d::window::{State, Window};
-use na::{self, Isometry3, Point2, Point3, Vector3};
+use na::{self, Point2, Point3, Vector3};
 use rapier::dynamics::{
     ActivationStatus, IntegrationParameters, JointSet, RigidBodyHandle, RigidBodySet,
 };
 use rapier::geometry::{BroadPhase, ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
-use rapier::math::Vector;
+use rapier::math::{Isometry, Vector};
 use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
@@ -1126,8 +1126,9 @@ impl State for Testbed {
 
                 if self.state.selected_example != prev_example {
                     self.physics.integration_parameters = IntegrationParameters::default();
-                    if self.state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
-                        || self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
+                    if cfg!(feature = "dim3")
+                        && (self.state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
+                            || self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR)
                     {
                         std::mem::swap(
                             &mut self.physics.integration_parameters.max_velocity_iterations,
@@ -1534,11 +1535,11 @@ fn draw_contacts(window: &mut Window, nf: &NarrowPhase, colliders: &ColliderSet)
                 let pos1 = colliders[pair.pair.collider1].position();
                 let pos2 = colliders[pair.pair.collider2].position();
                 let start =
-                    pos1 * manifold.subshape_pos1.unwrap_or(Isometry3::identity()) * pt.local_p1;
+                    pos1 * manifold.subshape_pos1.unwrap_or(Isometry::identity()) * pt.local_p1;
                 let end =
-                    pos2 * manifold.subshape_pos2.unwrap_or(Isometry3::identity()) * pt.local_p2;
+                    pos2 * manifold.subshape_pos2.unwrap_or(Isometry::identity()) * pt.local_p2;
                 let n = pos1
-                    * manifold.subshape_pos1.unwrap_or(Isometry3::identity())
+                    * manifold.subshape_pos1.unwrap_or(Isometry::identity())
                     * manifold.local_n1;
 
                 use crate::engine::GraphicsWindow;

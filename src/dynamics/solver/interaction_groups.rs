@@ -2,7 +2,7 @@ use crate::dynamics::{BodyPair, JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 #[cfg(feature = "simd-is-enabled")]
 use {
-    crate::math::{Real, SIMD_LAST_INDEX, SIMD_WIDTH},
+    crate::math::{SIMD_LAST_INDEX, SIMD_WIDTH},
     vec_map::VecMap,
 };
 

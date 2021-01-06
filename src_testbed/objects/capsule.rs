@@ -1,20 +1,21 @@
 use crate::objects::node::{self, GraphicsNode};
 use kiss3d::window;
-use na::{Isometry3, Point3};
+use na::Point3;
 use rapier::geometry::{self, ColliderHandle, ColliderSet};
+use rapier::math::Isometry;
 
 pub struct Capsule {
     color: Point3<f32>,
     base_color: Point3<f32>,
     gfx: GraphicsNode,
     collider: ColliderHandle,
-    delta: Isometry3<f32>,
+    delta: Isometry<f32>,
 }
 
 impl Capsule {
     pub fn new(
         collider: ColliderHandle,
-        delta: Isometry3<f32>,
+        delta: Isometry<f32>,
         capsule: &geometry::Capsule,
         color: Point3<f32>,
         window: &mut window::Window,
