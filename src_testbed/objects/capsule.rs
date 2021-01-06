@@ -2,7 +2,6 @@ use crate::objects::node::{self, GraphicsNode};
 use kiss3d::window;
 use na::{Isometry3, Point3};
 use rapier::geometry::{self, ColliderHandle, ColliderSet};
-use rapier::math::Isometry;
 
 pub struct Capsule {
     color: Point3<f32>,

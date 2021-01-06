@@ -2,7 +2,6 @@ use crate::objects::node::{self, GraphicsNode};
 use kiss3d::window::Window;
 use na::{Isometry3, Point3};
 use rapier::geometry::{ColliderHandle, ColliderSet};
-use rapier::math::Isometry;
 
 pub struct Cone {
     color: Point3<f32>,

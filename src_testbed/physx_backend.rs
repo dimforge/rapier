@@ -4,13 +4,19 @@ use na::{
     Isometry3, Matrix3, Matrix4, Point3, Quaternion, Rotation3, Translation3, Unit, UnitQuaternion,
     Vector3,
 };
-use physx::cooking::PxCooking;
+use physx::cooking::{
+    ConvexMeshCookingResult, PxConvexMeshDesc, PxCooking, PxCookingParams, PxHeightFieldDesc,
+    PxTriangleMeshDesc, TriangleMeshCookingResult,
+};
 use physx::foundation::DefaultAllocator;
 use physx::prelude::*;
 use physx::scene::FrictionType;
 use physx::traits::Class;
 use physx::triangle_mesh::TriangleMesh;
-use physx_sys::{PxActor, PxRigidActor};
+use physx_sys::{
+    PxBitAndByte, PxConvexFlags, PxConvexMeshGeometryFlags, PxHeightFieldSample,
+    PxMeshGeometryFlags, PxMeshScale_new, PxRigidActor,
+};
 use rapier::counters::Counters;
 use rapier::dynamics::{
     IntegrationParameters, JointParams, JointSet, RigidBodyHandle, RigidBodySet,
@@ -167,6 +173,10 @@ impl PhysxWorld {
             let mut scene: Owner<PxScene> = physics.create(scene_desc).unwrap();
             let mut rapier2dynamic = HashMap::new();
             let mut rapier2static = HashMap::new();
+            let cooking_params =
+                PxCookingParams::new(&*physics).expect("Failed to init PhysX cooking.");
+            let mut cooking = PxCooking::new(physics.foundation_mut(), &cooking_params)
+                .expect("Failed to init PhysX cooking");
 
             /*
              *
@@ -174,9 +184,6 @@ impl PhysxWorld {
              *
              */
             for (rapier_handle, rb) in bodies.iter() {
-                use physx::rigid_dynamic::RigidDynamic;
-                use physx::rigid_static::RigidStatic;
-
                 let pos = rb.position().into_physx();
                 if rb.is_dynamic() {
                     let mut actor = physics.create_dynamic(&pos, rapier_handle).unwrap();
@@ -199,7 +206,7 @@ impl PhysxWorld {
              */
             for (_, collider) in colliders.iter() {
                 if let Some((mut px_shape, px_material, collider_pos)) =
-                    physx_collider_from_rapier_collider(&mut *physics, &collider)
+                    physx_collider_from_rapier_collider(&mut *physics, &mut cooking, &collider)
                 {
                     let parent_body = &bodies[collider.parent()];
 
@@ -454,7 +461,7 @@ impl PhysxWorld {
 
 fn physx_collider_from_rapier_collider(
     physics: &mut PxPhysicsFoundation,
-    // cooking: &PxCooking,
+    cooking: &PxCooking,
     collider: &Collider,
 ) -> Option<(Owner<PxShape>, Owner<PxMaterial>, Isometry3<f32>)> {
     let mut local_pose = *collider.position_wrt_parent();
@@ -498,26 +505,109 @@ fn physx_collider_from_rapier_collider(
             * rot.unwrap_or(UnitQuaternion::identity());
         let geometry = PxCapsuleGeometry::new(capsule.radius, capsule.half_height());
         physics.create_shape(&geometry, materials, true, shape_flags, ())
-    } else if let Some(trimesh) = shape.as_trimesh() {
-        return None;
-        /*
-        ColliderDesc::TriMesh {
-            vertices: trimesh
-                .vertices()
+    } else if let Some(heightfield) = shape.as_heightfield() {
+        let heights = heightfield.heights();
+        let scale = heightfield.scale();
+        local_pose = local_pose * Translation3::new(-scale.x / 2.0, 0.0, -scale.z / 2.0);
+        const Y_FACTOR: f32 = 1_000f32;
+        let mut heightfield_desc;
+        unsafe {
+            let samples: Vec<_> = heights
                 .iter()
-                .map(|pt| pt.into_physx())
-                .collect(),
-            indices: trimesh.flat_indices().to_vec(),
-            mesh_scale: Vector3::repeat(1.0).into_glam(),
+                .map(|h| PxHeightFieldSample {
+                    height: (*h * Y_FACTOR) as i16,
+                    materialIndex0: PxBitAndByte { mData: 0 },
+                    materialIndex1: PxBitAndByte { mData: 0 },
+                })
+                .collect();
+            heightfield_desc = physx_sys::PxHeightFieldDesc_new();
+            heightfield_desc.nbRows = heights.nrows() as u32;
+            heightfield_desc.nbColumns = heights.ncols() as u32;
+            heightfield_desc.samples.stride = std::mem::size_of::<PxHeightFieldSample>() as u32;
+            heightfield_desc.samples.data = samples.as_ptr() as *const std::ffi::c_void;
+        }
+
+        let heightfield_desc = PxHeightFieldDesc {
+            obj: heightfield_desc,
         };
-        let desc = cooking.create_triangle_mesh(physics, desc);
-        if let TriangleMeshCookingResult::Success(trimesh) = desc {
-            Some(trimesh)
+        let heightfield = cooking.create_height_field(physics, &heightfield_desc);
+
+        if let Some(mut heightfield) = heightfield {
+            let flags = PxMeshGeometryFlags {
+                mBits: physx_sys::PxMeshGeometryFlag::eDOUBLE_SIDED as u8,
+            };
+            let geometry = PxHeightFieldGeometry::new(
+                &mut *heightfield,
+                flags,
+                scale.y / Y_FACTOR,
+                scale.x / (heights.nrows() as f32 - 1.0),
+                scale.z / (heights.ncols() as f32 - 1.0),
+            );
+            physics.create_shape(&geometry, materials, true, shape_flags, ())
+        } else {
+            eprintln!("PhysX heightfield construction failed.");
+            return None;
+        }
+    } else if let Some(convex) = shape
+        .as_convex_polyhedron()
+        .or(shape.as_round_convex_polyhedron().map(|c| &c.base_shape))
+    {
+        let vertices = convex.points();
+        let mut convex_desc;
+        unsafe {
+            convex_desc = physx_sys::PxConvexMeshDesc_new();
+            convex_desc.points.count = vertices.len() as u32;
+            convex_desc.points.stride = (3 * std::mem::size_of::<f32>()) as u32;
+            convex_desc.points.data = vertices.as_ptr() as *const std::ffi::c_void;
+            convex_desc.flags = PxConvexFlags {
+                mBits: physx_sys::PxConvexFlag::eCOMPUTE_CONVEX as u16,
+            };
+        }
+
+        let convex_desc = PxConvexMeshDesc { obj: convex_desc };
+        let convex = cooking.create_convex_mesh(physics, &convex_desc);
+
+        if let ConvexMeshCookingResult::Success(mut convex) = convex {
+            let flags = PxConvexMeshGeometryFlags { mBits: 0 };
+            let scaling = unsafe { PxMeshScale_new() };
+            let geometry = PxConvexMeshGeometry::new(&mut convex, &scaling, flags);
+            physics.create_shape(&geometry, materials, true, shape_flags, ())
+        } else {
+            eprintln!("PhysX convex mesh construction failed.");
+            return None;
+        }
+    } else if let Some(trimesh) = shape.as_trimesh() {
+        let vertices = trimesh.vertices();
+        let indices = trimesh.flat_indices();
+
+        let mut mesh_desc;
+        unsafe {
+            mesh_desc = physx_sys::PxTriangleMeshDesc_new();
+
+            mesh_desc.points.count = trimesh.vertices().len() as u32;
+            mesh_desc.points.stride = (3 * std::mem::size_of::<f32>()) as u32;
+            mesh_desc.points.data = vertices.as_ptr() as *const std::ffi::c_void;
+
+            mesh_desc.triangles.count = (indices.len() as u32) / 3;
+            mesh_desc.triangles.stride = (3 * std::mem::size_of::<u32>()) as u32;
+            mesh_desc.triangles.data = indices.as_ptr() as *const std::ffi::c_void;
+        }
+
+        let mesh_desc = PxTriangleMeshDesc { obj: mesh_desc };
+        let trimesh = cooking.create_triangle_mesh(physics, &mesh_desc);
+
+        if let TriangleMeshCookingResult::Success(mut trimesh) = trimesh {
+            let flags = PxMeshGeometryFlags {
+                mBits: physx_sys::PxMeshGeometryFlag::eDOUBLE_SIDED as u8,
+            };
+
+            let scaling = unsafe { PxMeshScale_new() };
+            let geometry = PxTriangleMeshGeometry::new(&mut trimesh, &scaling, flags);
+            physics.create_shape(&geometry, materials, true, shape_flags, ())
         } else {
             eprintln!("PhysX triangle mesh construction failed.");
             return None;
         }
-         */
     } else {
         eprintln!("Creating a shape unknown to the PhysX backend.");
         return None;

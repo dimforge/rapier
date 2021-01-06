@@ -2,7 +2,7 @@ use crate::objects::node::{self, GraphicsNode};
 use kiss3d::window;
 use na::{Isometry3, Point3};
 use rapier::geometry::{ColliderHandle, ColliderSet};
-use rapier::math::{Isometry, Vector};
+use rapier::math::Vector;
 
 pub struct Box {
     color: Point3<f32>,
