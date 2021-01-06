@@ -41,6 +41,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Create the cubes
      */
     let num = 26;
+    let numy = num * 5;
     let rad = 0.5;
 
     let shift = rad * 2.0;
@@ -49,7 +50,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let centery = shift / 2.0;
 
     for i in 0..num {
-        for j in 0usize..num * 5 {
+        for j in 0usize..numy {
             let x = i as f32 * shift - centerx;
             let y = j as f32 * shifty + centery + 3.0;
 
