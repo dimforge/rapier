@@ -23,7 +23,7 @@ other-backends = [ "physx", "physx-sys", "glam", "nphysics3d" ]
 
 [dependencies]
 nalgebra   = "0.24"
-kiss3d     = { version = "0.28", features = [ "conrod" ] }
+kiss3d     = { version = "0.29", features = [ "conrod" ] }
 rand       = "0.7"
 rand_pcg   = "0.2"
 instant    = { version = "0.1", features = [ "web-sys", "now" ]}
@@ -31,8 +31,8 @@ bitflags   = "1"
 glam       = { version = "0.11", optional = true }
 num_cpus   = { version = "1", optional = true }
 cdl3d = "0.1"
-ncollide3d = "0.26"
-nphysics3d = { version = "0.18", optional = true }
+ncollide3d = "0.27"
+nphysics3d = { version = "0.19", optional = true }
 physx      = { version = "0.10", optional = true }
 physx-sys = { version = "0.4", optional = true }
 crossbeam = "0.8"
