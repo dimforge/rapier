@@ -1,4 +1,4 @@
-use crate::harness::HarnessState;
+use crate::harness::RunState;
 use crate::physics::PhysicsEvents;
 use crate::PhysicsState;
 
@@ -7,9 +7,8 @@ pub trait HarnessPlugin {
         &mut self,
         physics: &mut PhysicsState,
         events: &PhysicsEvents,
-        harness_state: &HarnessState,
-        t: f32,
+        harness_state: &RunState,
     );
-    fn step(&mut self, physics: &mut PhysicsState);
+    fn step(&mut self, physics: &mut PhysicsState, run_state: &RunState);
     fn profiling_string(&self) -> String;
 }
