@@ -410,6 +410,7 @@ impl RigidBodySet {
             }
 
             self.modified_bodies.clear();
+            self.modified_all_bodies = false;
         } else {
             for handle in self.modified_bodies.drain(..) {
                 if let Some(rb) = self.bodies.get_mut(handle) {
