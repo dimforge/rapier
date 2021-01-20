@@ -12,7 +12,6 @@ use cdl::shape::{
 };
 #[cfg(feature = "dim2")]
 use cdl::shape::{ConvexPolygon, RoundConvexPolygon};
-use na::Point3;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -123,7 +122,7 @@ impl ColliderShape {
     }
 
     /// Initializes a triangle mesh shape defined by its vertex and index buffers.
-    pub fn trimesh(vertices: Vec<Point<Real>>, indices: Vec<Point3<u32>>) -> Self {
+    pub fn trimesh(vertices: Vec<Point<Real>>, indices: Vec<[u32; 3]>) -> Self {
         ColliderShape(Arc::new(TriMesh::new(vertices, indices)))
     }
 
@@ -140,7 +139,7 @@ impl ColliderShape {
     }
 
     #[cfg(feature = "dim3")]
-    pub fn convex_mesh(points: Vec<Point<Real>>, indices: &[Point3<u32>]) -> Option<Self> {
+    pub fn convex_mesh(points: Vec<Point<Real>>, indices: &[[u32; 3]]) -> Option<Self> {
         ConvexPolyhedron::from_convex_mesh(points, indices).map(|ch| ColliderShape(Arc::new(ch)))
     }
 
@@ -174,7 +173,7 @@ impl ColliderShape {
     #[cfg(feature = "dim3")]
     pub fn round_convex_mesh(
         points: Vec<Point<Real>>,
-        indices: &[Point<u32>],
+        indices: &[[u32; 3]],
         border_radius: Real,
     ) -> Option<Self> {
         ConvexPolyhedron::from_convex_mesh(points, indices).map(|ch| {
@@ -555,7 +554,7 @@ impl ColliderBuilder {
     }
 
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers.
-    pub fn trimesh(vertices: Vec<Point<Real>>, indices: Vec<Point3<u32>>) -> Self {
+    pub fn trimesh(vertices: Vec<Point<Real>>, indices: Vec<[u32; 3]>) -> Self {
         Self::new(ColliderShape::trimesh(vertices, indices))
     }
 
@@ -578,14 +577,14 @@ impl ColliderBuilder {
     }
 
     #[cfg(feature = "dim3")]
-    pub fn convex_mesh(points: Vec<Point<Real>>, indices: &[Point3<u32>]) -> Option<Self> {
+    pub fn convex_mesh(points: Vec<Point<Real>>, indices: &[[u32; 3]]) -> Option<Self> {
         ColliderShape::convex_mesh(points, indices).map(|cp| Self::new(cp))
     }
 
     #[cfg(feature = "dim3")]
     pub fn round_convex_mesh(
         points: Vec<Point<Real>>,
-        indices: &[Point<u32>],
+        indices: &[[u32; 3]],
         border_radius: Real,
     ) -> Option<Self> {
         ColliderShape::round_convex_mesh(points, indices, border_radius).map(|cp| Self::new(cp))

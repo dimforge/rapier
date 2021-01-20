@@ -336,7 +336,7 @@ impl GraphicsManager {
             out.push(Node::Mesh(Mesh::new(
                 handle,
                 vec![triangle.a, triangle.b, triangle.c],
-                vec![Point3::new(0, 1, 2)],
+                vec![[0, 1, 2]],
                 color,
                 window,
             )))
@@ -346,11 +346,7 @@ impl GraphicsManager {
             out.push(Node::Mesh(Mesh::new(
                 handle,
                 trimesh.vertices().to_vec(),
-                trimesh
-                    .indices()
-                    .iter()
-                    .map(|idx| na::convert(*idx))
-                    .collect(),
+                trimesh.indices().to_vec(),
                 color,
                 window,
             )))

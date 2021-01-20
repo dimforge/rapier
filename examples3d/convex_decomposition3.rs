@@ -1,5 +1,5 @@
 use kiss3d::loader::obj;
-use na::{Isometry3, Point3, Translation3};
+use na::{Point3, Translation3};
 use rapier3d::cdl::bounding_volume::{self, BoundingVolume};
 use rapier3d::cdl::transformation::vhacd::{VHACDParameters, VHACD};
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
@@ -74,11 +74,16 @@ pub fn init_world(testbed: &mut Testbed) {
                 trimesh.scale_by_scalar(6.0 / diag);
 
                 let params = VHACDParameters::default();
-                let vertices = &trimesh.coords;
-                let indices = &trimesh.indices.unwrap_unified();
-                let vhacd = VHACD::decompose(&params, vertices, indices, true);
+                let vertices = trimesh.coords;
+                let indices: Vec<_> = trimesh
+                    .indices
+                    .unwrap_unified()
+                    .into_iter()
+                    .map(|idx| [idx.x, idx.y, idx.z])
+                    .collect();
+                let vhacd = VHACD::decompose(&params, &vertices, &indices, true);
 
-                for (vertices, indices) in vhacd.compute_exact_convex_hulls(vertices, indices) {
+                for (vertices, indices) in vhacd.compute_exact_convex_hulls(&vertices, &indices) {
                     if let Some(convex) = ColliderShape::convex_mesh(vertices, &indices) {
                         compound_parts.push(convex);
                     }

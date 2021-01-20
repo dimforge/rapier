@@ -17,12 +17,15 @@ impl Mesh {
     pub fn new(
         collider: ColliderHandle,
         vertices: Vec<Point<f32>>,
-        indices: Vec<Point3<u32>>,
+        indices: Vec<[u32; 3]>,
         color: Point3<f32>,
         window: &mut window::Window,
     ) -> Mesh {
         let vs = vertices;
-        let is = indices.into_iter().map(na::convert).collect();
+        let is = indices
+            .into_iter()
+            .map(|idx| Point3::new(idx[0] as u16, idx[1] as u16, idx[2] as u16))
+            .collect();
 
         let mesh;
         let gfx;

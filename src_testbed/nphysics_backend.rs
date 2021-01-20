@@ -205,7 +205,7 @@ fn nphysics_collider_from_rapier_collider(
                 trimesh
                     .indices()
                     .iter()
-                    .map(|idx| na::convert(*idx))
+                    .map(|idx| na::Point3::new(idx[0] as usize, idx[1] as usize, idx[2] as usize))
                     .collect(),
                 None,
             ))

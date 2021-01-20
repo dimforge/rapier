@@ -21,7 +21,7 @@ impl Convex {
         body: ColliderHandle,
         delta: Isometry<f32>,
         vertices: Vec<Point<f32>>,
-        #[cfg(feature = "dim3")] indices: Vec<Point<u32>>,
+        #[cfg(feature = "dim3")] indices: Vec<[u32; 3]>,
         color: Point3<f32>,
         window: &mut Window,
     ) -> Convex {
@@ -35,9 +35,9 @@ impl Convex {
             let mut mesh_indices = Vec::new();
             for idx in indices {
                 let i = mesh_vertices.len() as u16;
-                mesh_vertices.push(vertices[idx.x as usize]);
-                mesh_vertices.push(vertices[idx.y as usize]);
-                mesh_vertices.push(vertices[idx.z as usize]);
+                mesh_vertices.push(vertices[idx[0] as usize]);
+                mesh_vertices.push(vertices[idx[1] as usize]);
+                mesh_vertices.push(vertices[idx[2] as usize]);
                 mesh_indices.push(Point3::new(i, i + 1, i + 2));
             }
 

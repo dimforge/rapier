@@ -1,8 +1,6 @@
 use super::{RevolutePositionConstraint, RevolutePositionGroundConstraint};
-use crate::dynamics::{IntegrationParameters, JointIndex, RevoluteJoint, RigidBody};
-use crate::math::{AngularInertia, Isometry, Point, Real, Rotation, Vector, SIMD_WIDTH};
-use crate::utils::WAngularInertia;
-use na::Unit;
+use crate::dynamics::{IntegrationParameters, RevoluteJoint, RigidBody};
+use crate::math::{Isometry, Real, SIMD_WIDTH};
 
 // TODO: this does not uses SIMD optimizations yet.
 #[derive(Debug)]

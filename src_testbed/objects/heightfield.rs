@@ -55,7 +55,10 @@ impl HeightField {
         use std::rc::Rc;
 
         let (vertices, indices) = heightfield.to_trimesh();
-        let indices = indices.into_iter().map(|i| na::convert(i)).collect();
+        let indices = indices
+            .into_iter()
+            .map(|idx| Point3::new(idx[0] as u16, idx[1] as u16, idx[2] as u16))
+            .collect();
         let mesh = Mesh::new(vertices, indices, None, None, false);
 
         let mut res = HeightField {
