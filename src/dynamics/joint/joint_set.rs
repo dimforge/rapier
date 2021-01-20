@@ -1,11 +1,34 @@
 use super::Joint;
 use crate::geometry::{InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex};
 
-use crate::data::arena::{Arena, Index};
+use crate::data::arena::Arena;
 use crate::dynamics::{JointParams, RigidBodyHandle, RigidBodySet};
 
 /// The unique identifier of a joint added to the joint set.
-pub type JointHandle = Index;
+/// The unique identifier of a collider added to a collider set.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[repr(transparent)]
+pub struct JointHandle(pub(crate) crate::data::arena::Index);
+
+impl JointHandle {
+    pub fn into_raw_parts(self) -> (usize, u64) {
+        self.0.into_raw_parts()
+    }
+
+    pub fn from_raw_parts(id: usize, generation: u64) -> Self {
+        Self(crate::data::arena::Index::from_raw_parts(id, generation))
+    }
+
+    /// An always-invalid joint handle.
+    pub fn invalid() -> Self {
+        Self(crate::data::arena::Index::from_raw_parts(
+            crate::INVALID_USIZE,
+            crate::INVALID_U64,
+        ))
+    }
+}
+
 pub(crate) type JointIndex = usize;
 pub(crate) type JointGraphEdge = crate::data::graph::Edge<Joint>;
 
@@ -13,7 +36,7 @@ pub(crate) type JointGraphEdge = crate::data::graph::Edge<Joint>;
 /// A set of joints that can be handled by a physics `World`.
 pub struct JointSet {
     joint_ids: Arena<TemporaryInteractionIndex>, // Map joint handles to edge ids on the graph.
-    joint_graph: InteractionGraph<Joint>,
+    joint_graph: InteractionGraph<RigidBodyHandle, Joint>,
 }
 
 impl JointSet {
@@ -25,29 +48,24 @@ impl JointSet {
         }
     }
 
-    /// An always-invalid joint handle.
-    pub fn invalid_handle() -> JointHandle {
-        JointHandle::from_raw_parts(crate::INVALID_USIZE, crate::INVALID_U64)
-    }
-
     /// The number of joints on this set.
     pub fn len(&self) -> usize {
         self.joint_graph.graph.edges.len()
     }
 
     /// Retrieve the joint graph where edges are joints and nodes are rigid body handles.
-    pub fn joint_graph(&self) -> &InteractionGraph<Joint> {
+    pub fn joint_graph(&self) -> &InteractionGraph<RigidBodyHandle, Joint> {
         &self.joint_graph
     }
 
     /// Is the given joint handle valid?
     pub fn contains(&self, handle: JointHandle) -> bool {
-        self.joint_ids.contains(handle)
+        self.joint_ids.contains(handle.0)
     }
 
     /// Gets the joint with the given handle.
     pub fn get(&self, handle: JointHandle) -> Option<&Joint> {
-        let id = self.joint_ids.get(handle)?;
+        let id = self.joint_ids.get(handle.0)?;
         self.joint_graph.graph.edge_weight(*id)
     }
 
@@ -62,7 +80,10 @@ impl JointSet {
     /// suffer form the ABA problem.
     pub fn get_unknown_gen(&self, i: usize) -> Option<(&Joint, JointHandle)> {
         let (id, handle) = self.joint_ids.get_unknown_gen(i)?;
-        Some((self.joint_graph.graph.edge_weight(*id)?, handle))
+        Some((
+            self.joint_graph.graph.edge_weight(*id)?,
+            JointHandle(handle),
+        ))
     }
 
     /// Iterates through all the joint on this set.
@@ -117,7 +138,7 @@ impl JointSet {
         let joint = Joint {
             body1,
             body2,
-            handle,
+            handle: JointHandle(handle),
             #[cfg(feature = "parallel")]
             constraint_index: 0,
             #[cfg(feature = "parallel")]
@@ -133,11 +154,13 @@ impl JointSet {
 
         // NOTE: the body won't have a graph index if it does not
         // have any joint attached.
-        if !InteractionGraph::<Joint>::is_graph_index_valid(rb1.joint_graph_index) {
+        if !InteractionGraph::<RigidBodyHandle, Joint>::is_graph_index_valid(rb1.joint_graph_index)
+        {
             rb1.joint_graph_index = self.joint_graph.graph.add_node(joint.body1);
         }
 
-        if !InteractionGraph::<Joint>::is_graph_index_valid(rb2.joint_graph_index) {
+        if !InteractionGraph::<RigidBodyHandle, Joint>::is_graph_index_valid(rb2.joint_graph_index)
+        {
             rb2.joint_graph_index = self.joint_graph.graph.add_node(joint.body2);
         }
 
@@ -146,7 +169,7 @@ impl JointSet {
             .add_edge(rb1.joint_graph_index, rb2.joint_graph_index, joint);
 
         self.joint_ids[handle] = id;
-        handle
+        JointHandle(handle)
     }
 
     /// Retrieve all the joints happening between two active bodies.
@@ -191,7 +214,7 @@ impl JointSet {
         bodies: &mut RigidBodySet,
         wake_up: bool,
     ) -> Option<Joint> {
-        let id = self.joint_ids.remove(handle)?;
+        let id = self.joint_ids.remove(handle.0)?;
         let endpoints = self.joint_graph.graph.edge_endpoints(id)?;
 
         if wake_up {
@@ -207,7 +230,7 @@ impl JointSet {
         let removed_joint = self.joint_graph.graph.remove_edge(id);
 
         if let Some(edge) = self.joint_graph.graph.edge_weight(id) {
-            self.joint_ids[edge.handle] = id;
+            self.joint_ids[edge.handle.0] = id;
         }
 
         removed_joint
@@ -218,7 +241,7 @@ impl JointSet {
         deleted_id: RigidBodyGraphIndex,
         bodies: &mut RigidBodySet,
     ) {
-        if InteractionGraph::<()>::is_graph_index_valid(deleted_id) {
+        if InteractionGraph::<(), ()>::is_graph_index_valid(deleted_id) {
             // We have to delete each joint one by one in order to:
             // - Wake-up the attached bodies.
             // - Update our Handle -> graph edge mapping.
@@ -229,12 +252,12 @@ impl JointSet {
                 .map(|e| (e.0, e.1, e.2.handle))
                 .collect();
             for (h1, h2, to_delete_handle) in to_delete {
-                let to_delete_edge_id = self.joint_ids.remove(to_delete_handle).unwrap();
+                let to_delete_edge_id = self.joint_ids.remove(to_delete_handle.0).unwrap();
                 self.joint_graph.graph.remove_edge(to_delete_edge_id);
 
                 // Update the id of the edge which took the place of the deleted one.
                 if let Some(j) = self.joint_graph.graph.edge_weight_mut(to_delete_edge_id) {
-                    self.joint_ids[j.handle] = to_delete_edge_id;
+                    self.joint_ids[j.handle.0] = to_delete_edge_id;
                 }
 
                 // Wake up the attached bodies.

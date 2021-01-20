@@ -108,7 +108,7 @@ impl RigidBody {
             angular_damping: 0.0,
             colliders: Vec::new(),
             activation: ActivationStatus::new_active(),
-            joint_graph_index: InteractionGraph::<()>::invalid_graph_index(),
+            joint_graph_index: InteractionGraph::<(), ()>::invalid_graph_index(),
             active_island_id: 0,
             active_set_id: 0,
             active_set_offset: 0,
@@ -122,7 +122,7 @@ impl RigidBody {
 
     pub(crate) fn reset_internal_references(&mut self) {
         self.colliders = Vec::new();
-        self.joint_graph_index = InteractionGraph::<()>::invalid_graph_index();
+        self.joint_graph_index = InteractionGraph::<(), ()>::invalid_graph_index();
         self.active_island_id = 0;
         self.active_set_id = 0;
         self.active_set_offset = 0;

@@ -1,4 +1,4 @@
-use crate::dynamics::{BodyPair, RigidBodySet};
+use crate::dynamics::{BodyPair, RigidBodyHandle};
 use crate::geometry::{ColliderPair, ContactManifold};
 use crate::math::{Point, Real, Vector};
 use cdl::query::ContactManifoldsWorkspace;
@@ -113,10 +113,7 @@ pub struct SolverContact {
 impl Default for ContactManifoldData {
     fn default() -> Self {
         Self::new(
-            BodyPair::new(
-                RigidBodySet::invalid_handle(),
-                RigidBodySet::invalid_handle(),
-            ),
+            BodyPair::new(RigidBodyHandle::invalid(), RigidBodyHandle::invalid()),
             SolverFlags::empty(),
         )
     }

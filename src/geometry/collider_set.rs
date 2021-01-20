@@ -2,10 +2,42 @@ use crate::data::arena::Arena;
 use crate::data::pubsub::PubSub;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 use crate::geometry::Collider;
+use cdl::partitioning::IndexedData;
 use std::ops::{Index, IndexMut};
 
 /// The unique identifier of a collider added to a collider set.
-pub type ColliderHandle = crate::data::arena::Index;
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[repr(transparent)]
+pub struct ColliderHandle(pub(crate) crate::data::arena::Index);
+
+impl ColliderHandle {
+    pub fn into_raw_parts(self) -> (usize, u64) {
+        self.0.into_raw_parts()
+    }
+
+    pub fn from_raw_parts(id: usize, generation: u64) -> Self {
+        Self(crate::data::arena::Index::from_raw_parts(id, generation))
+    }
+
+    /// An always-invalid collider handle.
+    pub fn invalid() -> Self {
+        Self(crate::data::arena::Index::from_raw_parts(
+            crate::INVALID_USIZE,
+            crate::INVALID_U64,
+        ))
+    }
+}
+
+impl IndexedData for ColliderHandle {
+    fn default() -> Self {
+        Self(IndexedData::default())
+    }
+
+    fn index(&self) -> usize {
+        self.0.index()
+    }
+}
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -38,7 +70,7 @@ impl ColliderSet {
 
     /// Iterate through all the colliders on this set.
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (ColliderHandle, &Collider)> {
-        self.colliders.iter()
+        self.colliders.iter().map(|(h, c)| (ColliderHandle(h), c))
     }
 
     /// The number of colliders on this set.
@@ -48,7 +80,7 @@ impl ColliderSet {
 
     /// Is this collider handle valid?
     pub fn contains(&self, handle: ColliderHandle) -> bool {
-        self.colliders.contains(handle)
+        self.colliders.contains(handle.0)
     }
 
     /// Inserts a new collider to this set and retrieve its handle.
@@ -71,8 +103,8 @@ impl ColliderSet {
             .expect("Parent rigid body not found.");
         coll.position = parent.position * coll.delta;
         coll.predicted_position = parent.predicted_position * coll.delta;
-        let handle = self.colliders.insert(coll);
-        let coll = self.colliders.get(handle).unwrap();
+        let handle = ColliderHandle(self.colliders.insert(coll));
+        let coll = self.colliders.get(handle.0).unwrap();
         parent.add_collider(handle, &coll);
         handle
     }
@@ -87,7 +119,7 @@ impl ColliderSet {
         bodies: &mut RigidBodySet,
         wake_up: bool,
     ) -> Option<Collider> {
-        let collider = self.colliders.remove(handle)?;
+        let collider = self.colliders.remove(handle.0)?;
 
         /*
          * Delete the collider from its parent body.
@@ -125,7 +157,9 @@ impl ColliderSet {
     /// Using this is discouraged in favor of `self.get(handle)` which does not
     /// suffer form the ABA problem.
     pub fn get_unknown_gen(&self, i: usize) -> Option<(&Collider, ColliderHandle)> {
-        self.colliders.get_unknown_gen(i)
+        self.colliders
+            .get_unknown_gen(i)
+            .map(|(c, h)| (c, ColliderHandle(h)))
     }
 
     /// Gets a mutable reference to the collider with the given handle without a known generation.
@@ -138,17 +172,19 @@ impl ColliderSet {
     /// Using this is discouraged in favor of `self.get_mut(handle)` which does not
     /// suffer form the ABA problem.
     pub fn get_unknown_gen_mut(&mut self, i: usize) -> Option<(&mut Collider, ColliderHandle)> {
-        self.colliders.get_unknown_gen_mut(i)
+        self.colliders
+            .get_unknown_gen_mut(i)
+            .map(|(c, h)| (c, ColliderHandle(h)))
     }
 
     /// Get the collider with the given handle.
     pub fn get(&self, handle: ColliderHandle) -> Option<&Collider> {
-        self.colliders.get(handle)
+        self.colliders.get(handle.0)
     }
 
     /// Gets a mutable reference to the collider with the given handle.
     pub fn get_mut(&mut self, handle: ColliderHandle) -> Option<&mut Collider> {
-        self.colliders.get_mut(handle)
+        self.colliders.get_mut(handle.0)
     }
 
     // pub(crate) fn get2_mut_internal(
@@ -177,12 +213,12 @@ impl Index<ColliderHandle> for ColliderSet {
     type Output = Collider;
 
     fn index(&self, index: ColliderHandle) -> &Collider {
-        &self.colliders[index]
+        &self.colliders[index.0]
     }
 }
 
 impl IndexMut<ColliderHandle> for ColliderSet {
     fn index_mut(&mut self, index: ColliderHandle) -> &mut Collider {
-        &mut self.colliders[index]
+        &mut self.colliders[index.0]
     }
 }

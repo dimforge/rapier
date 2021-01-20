@@ -79,11 +79,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     transform.get_scale().1 as f32 * 0.2,
                 );
 
-                let indices: Vec<_> = mesh
-                    .indices
-                    .chunks(3)
-                    .map(|v| Point3::new(v[0], v[1], v[2]))
-                    .collect();
+                let indices: Vec<_> = mesh.indices.chunks(3).map(|v| [v[0], v[1], v[2]]).collect();
                 let vertices: Vec<_> = mesh
                     .vertices
                     .iter()

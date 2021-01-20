@@ -1,6 +1,5 @@
 //! Miscellaneous utilities.
 
-use crate::dynamics::RigidBodyHandle;
 use na::{Matrix3, Point2, Point3, Scalar, SimdRealField, Vector2, Vector3};
 use num::Zero;
 use simba::simd::SimdValue;
@@ -658,11 +657,8 @@ impl Drop for FlushToZeroDenormalsAreZeroFlags {
     }
 }
 
-pub(crate) fn other_handle(
-    pair: (RigidBodyHandle, RigidBodyHandle),
-    handle: RigidBodyHandle,
-) -> RigidBodyHandle {
-    if pair.0 == handle {
+pub(crate) fn select_other<T: PartialEq>(pair: (T, T), elt: T) -> T {
+    if pair.0 == elt {
         pair.1
     } else {
         pair.0

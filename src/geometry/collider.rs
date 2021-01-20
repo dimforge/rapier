@@ -1,4 +1,4 @@
-use crate::dynamics::{MassProperties, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{MassProperties, RigidBodyHandle};
 use crate::geometry::InteractionGroups;
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector};
 use cdl::bounding_volume::AABB;
@@ -333,7 +333,7 @@ pub struct Collider {
 
 impl Collider {
     pub(crate) fn reset_internal_references(&mut self) {
-        self.parent = RigidBodySet::invalid_handle();
+        self.parent = RigidBodyHandle::invalid();
         self.proxy_index = crate::INVALID_USIZE;
     }
 
@@ -708,7 +708,7 @@ impl ColliderBuilder {
             restitution: self.restitution,
             delta: self.delta,
             is_sensor: self.is_sensor,
-            parent: RigidBodySet::invalid_handle(),
+            parent: RigidBodyHandle::invalid(),
             position: Isometry::identity(),
             predicted_position: Isometry::identity(),
             proxy_index: crate::INVALID_USIZE,

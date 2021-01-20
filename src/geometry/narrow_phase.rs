@@ -27,8 +27,8 @@ struct ColliderGraphIndices {
 impl ColliderGraphIndices {
     fn invalid() -> Self {
         Self {
-            contact_graph_index: InteractionGraph::<ContactPair>::invalid_graph_index(),
-            intersection_graph_index: InteractionGraph::<bool>::invalid_graph_index(),
+            contact_graph_index: InteractionGraph::<(), ()>::invalid_graph_index(),
+            intersection_graph_index: InteractionGraph::<(), ()>::invalid_graph_index(),
         }
     }
 }
@@ -42,8 +42,8 @@ pub struct NarrowPhase {
         serde(skip, default = "crate::geometry::default_persistent_query_dispatcher")
     )]
     query_dispatcher: Arc<dyn PersistentQueryDispatcher<ContactManifoldData, ContactData>>,
-    contact_graph: InteractionGraph<ContactPair>,
-    intersection_graph: InteractionGraph<bool>,
+    contact_graph: InteractionGraph<ColliderHandle, ContactPair>,
+    intersection_graph: InteractionGraph<ColliderHandle, bool>,
     graph_indices: Coarena<ColliderGraphIndices>,
     removed_colliders: Option<Subscription<RemovedCollider>>,
 }
@@ -71,12 +71,12 @@ impl NarrowPhase {
     }
 
     /// The contact graph containing all contact pairs and their contact information.
-    pub fn contact_graph(&self) -> &InteractionGraph<ContactPair> {
+    pub fn contact_graph(&self) -> &InteractionGraph<ColliderHandle, ContactPair> {
         &self.contact_graph
     }
 
     /// The intersection graph containing all intersection pairs and their intersection information.
-    pub fn intersection_graph(&self) -> &InteractionGraph<bool> {
+    pub fn intersection_graph(&self) -> &InteractionGraph<ColliderHandle, bool> {
         &self.intersection_graph
     }
 
@@ -85,7 +85,7 @@ impl NarrowPhase {
         &self,
         collider: ColliderHandle,
     ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, &ContactPair)>> {
-        let id = self.graph_indices.get(collider)?;
+        let id = self.graph_indices.get(collider.0)?;
         Some(self.contact_graph.interactions_with(id.contact_graph_index))
     }
 
@@ -94,7 +94,7 @@ impl NarrowPhase {
         &'a self,
         collider: ColliderHandle,
     ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + 'a> {
-        let id = self.graph_indices.get(collider)?;
+        let id = self.graph_indices.get(collider.0)?;
         Some(
             self.intersection_graph
                 .interactions_with(id.intersection_graph_index)
@@ -112,8 +112,8 @@ impl NarrowPhase {
         collider1: ColliderHandle,
         collider2: ColliderHandle,
     ) -> Option<&ContactPair> {
-        let id1 = self.graph_indices.get(collider1)?;
-        let id2 = self.graph_indices.get(collider2)?;
+        let id1 = self.graph_indices.get(collider1.0)?;
+        let id2 = self.graph_indices.get(collider2.0)?;
         self.contact_graph
             .interaction_pair(id1.contact_graph_index, id2.contact_graph_index)
             .map(|c| c.2)
@@ -128,8 +128,8 @@ impl NarrowPhase {
         collider1: ColliderHandle,
         collider2: ColliderHandle,
     ) -> Option<bool> {
-        let id1 = self.graph_indices.get(collider1)?;
-        let id2 = self.graph_indices.get(collider2)?;
+        let id1 = self.graph_indices.get(collider1.0)?;
+        let id2 = self.graph_indices.get(collider2.0)?;
         self.intersection_graph
             .interaction_pair(id1.intersection_graph_index, id2.intersection_graph_index)
             .map(|c| *c.2)
@@ -173,7 +173,7 @@ impl NarrowPhase {
         while let Some(collider) = colliders.removed_colliders.read_ith(&cursor, i) {
             // NOTE: if the collider does not have any graph indices currently, there is nothing
             // to remove in the narrow-phase for this collider.
-            if let Some(graph_idx) = self.graph_indices.get(collider.handle) {
+            if let Some(graph_idx) = self.graph_indices.get(collider.handle.0) {
                 let intersection_graph_id = prox_id_remap
                     .get(&collider.handle)
                     .copied()
@@ -223,7 +223,7 @@ impl NarrowPhase {
         // We have to manage the fact that one other collider will
         // have its graph index changed because of the node's swap-remove.
         if let Some(replacement) = self.intersection_graph.remove_node(intersection_graph_id) {
-            if let Some(replacement) = self.graph_indices.get_mut(replacement) {
+            if let Some(replacement) = self.graph_indices.get_mut(replacement.0) {
                 replacement.intersection_graph_index = intersection_graph_id;
             } else {
                 prox_id_remap.insert(replacement, intersection_graph_id);
@@ -231,7 +231,7 @@ impl NarrowPhase {
         }
 
         if let Some(replacement) = self.contact_graph.remove_node(contact_graph_id) {
-            if let Some(replacement) = self.graph_indices.get_mut(replacement) {
+            if let Some(replacement) = self.graph_indices.get_mut(replacement.0) {
                 replacement.contact_graph_index = contact_graph_id;
             } else {
                 contact_id_remap.insert(replacement, contact_graph_id);
@@ -258,22 +258,22 @@ impl NarrowPhase {
                         }
 
                         let (gid1, gid2) = self.graph_indices.ensure_pair_exists(
-                            pair.collider1,
-                            pair.collider2,
+                            pair.collider1.0,
+                            pair.collider2.0,
                             ColliderGraphIndices::invalid(),
                         );
 
                         if co1.is_sensor() || co2.is_sensor() {
                             // NOTE: the collider won't have a graph index as long
                             // as it does not interact with anything.
-                            if !InteractionGraph::<bool>::is_graph_index_valid(
+                            if !InteractionGraph::<(), ()>::is_graph_index_valid(
                                 gid1.intersection_graph_index,
                             ) {
                                 gid1.intersection_graph_index =
                                     self.intersection_graph.graph.add_node(pair.collider1);
                             }
 
-                            if !InteractionGraph::<bool>::is_graph_index_valid(
+                            if !InteractionGraph::<(), ()>::is_graph_index_valid(
                                 gid2.intersection_graph_index,
                             ) {
                                 gid2.intersection_graph_index =
@@ -301,14 +301,14 @@ impl NarrowPhase {
 
                             // NOTE: the collider won't have a graph index as long
                             // as it does not interact with anything.
-                            if !InteractionGraph::<ContactPair>::is_graph_index_valid(
+                            if !InteractionGraph::<(), ()>::is_graph_index_valid(
                                 gid1.contact_graph_index,
                             ) {
                                 gid1.contact_graph_index =
                                     self.contact_graph.graph.add_node(pair.collider1);
                             }
 
-                            if !InteractionGraph::<ContactPair>::is_graph_index_valid(
+                            if !InteractionGraph::<(), ()>::is_graph_index_valid(
                                 gid2.contact_graph_index,
                             ) {
                                 gid2.contact_graph_index =
@@ -338,8 +338,8 @@ impl NarrowPhase {
                         // TODO: could we just unwrap here?
                         // Don't we have the guarantee that we will get a `AddPair` before a `DeletePair`?
                         if let (Some(gid1), Some(gid2)) = (
-                            self.graph_indices.get(pair.collider1),
-                            self.graph_indices.get(pair.collider2),
+                            self.graph_indices.get(pair.collider1.0),
+                            self.graph_indices.get(pair.collider2.0),
                         ) {
                             if co1.is_sensor() || co2.is_sensor() {
                                 let was_intersecting = self.intersection_graph.remove_edge(

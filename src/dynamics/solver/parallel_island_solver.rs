@@ -247,7 +247,7 @@ impl ParallelIslandSolver {
                 concurrent_loop! {
                     let batch_size = thread.batch_size;
                     for handle in active_bodies[thread.body_integration_index, thread.num_integrated_bodies] {
-                        let rb = &mut bodies[*handle];
+                        let rb = &mut bodies[handle.0];
                         let dvel = mj_lambdas[rb.active_set_offset];
                         rb.linvel += dvel.linear;
                         rb.angvel += rb.world_inv_inertia_sqrt.transform_vector(dvel.angular);
@@ -272,7 +272,7 @@ impl ParallelIslandSolver {
                 concurrent_loop! {
                     let batch_size = thread.batch_size;
                     for handle in active_bodies[thread.position_writeback_index] {
-                        let rb = &mut bodies[*handle];
+                        let rb = &mut bodies[handle.0];
                         rb.set_position_internal(positions[rb.active_set_offset]);
                     }
                 }
