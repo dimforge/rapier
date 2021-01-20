@@ -32,7 +32,7 @@ impl Capsule {
             base_color: color,
             gfx: node,
             collider,
-            delta,
+            delta: delta * capsule.transform_wrt_y(),
         };
 
         res.gfx.set_color(color.x, color.y, color.z);

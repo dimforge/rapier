@@ -2,7 +2,7 @@ use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
     BallJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBody,
 };
-use crate::math::{Real, SdpMatrix, Vector};
+use crate::math::{AngularInertia, Real, SdpMatrix, Vector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 
 #[derive(Debug)]
@@ -15,13 +15,16 @@ pub(crate) struct BallVelocityConstraint {
     rhs: Vector<Real>,
     pub(crate) impulse: Vector<Real>,
 
-    gcross1: Vector<Real>,
-    gcross2: Vector<Real>,
+    r1: Vector<Real>,
+    r2: Vector<Real>,
 
     inv_lhs: SdpMatrix<Real>,
 
     im1: Real,
     im2: Real,
+
+    ii1_sqrt: AngularInertia<Real>,
+    ii2_sqrt: AngularInertia<Real>,
 }
 
 impl BallVelocityConstraint {
@@ -72,9 +75,6 @@ impl BallVelocityConstraint {
             lhs = SdpMatrix::new(m11, m12, m22)
         }
 
-        let gcross1 = rb1.world_inv_inertia_sqrt.transform_lin_vector(anchor1);
-        let gcross2 = rb2.world_inv_inertia_sqrt.transform_lin_vector(anchor2);
-
         let inv_lhs = lhs.inverse_unchecked();
 
         BallVelocityConstraint {
@@ -84,10 +84,12 @@ impl BallVelocityConstraint {
             im1,
             im2,
             impulse: cparams.impulse * params.warmstart_coeff,
-            gcross1,
-            gcross2,
+            r1: anchor1,
+            r2: anchor2,
             rhs,
             inv_lhs,
+            ii1_sqrt: rb1.world_inv_inertia_sqrt,
+            ii2_sqrt: rb2.world_inv_inertia_sqrt,
         }
     }
 
@@ -96,9 +98,9 @@ impl BallVelocityConstraint {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         mj_lambda1.linear += self.im1 * self.impulse;
-        mj_lambda1.angular += self.gcross1.gcross(self.impulse);
+        mj_lambda1.angular += self.ii1_sqrt.transform_vector(self.r1.gcross(self.impulse));
         mj_lambda2.linear -= self.im2 * self.impulse;
-        mj_lambda2.angular -= self.gcross2.gcross(self.impulse);
+        mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(self.impulse));
 
         mj_lambdas[self.mj_lambda1 as usize] = mj_lambda1;
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
@@ -108,18 +110,20 @@ impl BallVelocityConstraint {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        let vel1 = mj_lambda1.linear + mj_lambda1.angular.gcross(self.gcross1);
-        let vel2 = mj_lambda2.linear + mj_lambda2.angular.gcross(self.gcross2);
+        let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel1 = mj_lambda1.linear + ang_vel1.gcross(self.r1);
+        let vel2 = mj_lambda2.linear + ang_vel2.gcross(self.r2);
         let dvel = -vel1 + vel2 + self.rhs;
 
         let impulse = self.inv_lhs * dvel;
         self.impulse += impulse;
 
         mj_lambda1.linear += self.im1 * impulse;
-        mj_lambda1.angular += self.gcross1.gcross(impulse);
+        mj_lambda1.angular += self.ii1_sqrt.transform_vector(self.r1.gcross(impulse));
 
         mj_lambda2.linear -= self.im2 * impulse;
-        mj_lambda2.angular -= self.gcross2.gcross(impulse);
+        mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
 
         mj_lambdas[self.mj_lambda1 as usize] = mj_lambda1;
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
@@ -139,9 +143,10 @@ pub(crate) struct BallVelocityGroundConstraint {
     joint_id: JointIndex,
     rhs: Vector<Real>,
     impulse: Vector<Real>,
-    gcross2: Vector<Real>,
+    r2: Vector<Real>,
     inv_lhs: SdpMatrix<Real>,
     im2: Real,
+    ii2_sqrt: AngularInertia<Real>,
 }
 
 impl BallVelocityGroundConstraint {
@@ -171,7 +176,6 @@ impl BallVelocityGroundConstraint {
         let rhs = vel2 - vel1;
 
         let cmat2 = anchor2.gcross_matrix();
-        let gcross2 = rb2.world_inv_inertia_sqrt.transform_lin_vector(anchor2);
 
         let lhs;
 
@@ -200,30 +204,32 @@ impl BallVelocityGroundConstraint {
             mj_lambda2: rb2.active_set_offset,
             im2,
             impulse: cparams.impulse * params.warmstart_coeff,
-            gcross2,
+            r2: anchor2,
             rhs,
             inv_lhs,
+            ii2_sqrt: rb2.world_inv_inertia_sqrt,
         }
     }
 
     pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
         mj_lambda2.linear -= self.im2 * self.impulse;
-        mj_lambda2.angular -= self.gcross2.gcross(self.impulse);
+        mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(self.impulse));
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        let vel2 = mj_lambda2.linear + mj_lambda2.angular.gcross(self.gcross2);
+        let angvel = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel2 = mj_lambda2.linear + angvel.gcross(self.r2);
         let dvel = vel2 + self.rhs;
 
         let impulse = self.inv_lhs * dvel;
         self.impulse += impulse;
 
         mj_lambda2.linear -= self.im2 * impulse;
-        mj_lambda2.angular -= self.gcross2.gcross(impulse);
+        mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
 
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
