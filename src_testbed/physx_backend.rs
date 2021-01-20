@@ -12,7 +12,6 @@ use physx::foundation::DefaultAllocator;
 use physx::prelude::*;
 use physx::scene::FrictionType;
 use physx::traits::Class;
-use physx::triangle_mesh::TriangleMesh;
 use physx_sys::{
     PxBitAndByte, PxConvexFlags, PxConvexMeshGeometryFlags, PxHeightFieldSample,
     PxMeshGeometryFlags, PxMeshScale_new, PxRigidActor,

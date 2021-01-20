@@ -31,8 +31,17 @@ impl Convex {
         let node = {
             use std::cell::RefCell;
             use std::rc::Rc;
-            let is = indices.into_iter().map(na::convert).collect();
-            let mesh = kiss3d::resource::Mesh::new(vertices, is, None, None, false);
+            let mut mesh_vertices = Vec::new();
+            let mut mesh_indices = Vec::new();
+            for idx in indices {
+                let i = mesh_vertices.len() as u16;
+                mesh_vertices.push(vertices[idx.x as usize]);
+                mesh_vertices.push(vertices[idx.y as usize]);
+                mesh_vertices.push(vertices[idx.z as usize]);
+                mesh_indices.push(Point3::new(i, i + 1, i + 2));
+            }
+
+            let mesh = kiss3d::resource::Mesh::new(mesh_vertices, mesh_indices, None, None, false);
             window.add_mesh(Rc::new(RefCell::new(mesh)), na::Vector3::from_element(1.0))
         };
 

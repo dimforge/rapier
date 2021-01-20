@@ -12,6 +12,7 @@ use std::cmp::Ordering;
 
 mod collision_groups3;
 mod compound3;
+mod convex_decomposition3;
 mod damping3;
 mod debug_add_remove_collider3;
 mod debug_boxes3;
@@ -74,6 +75,7 @@ pub fn main() {
         ("Primitives", primitives3::init_world),
         ("Collision groups", collision_groups3::init_world),
         ("Compound", compound3::init_world),
+        ("Convex decomposition", convex_decomposition3::init_world),
         ("Damping", damping3::init_world),
         ("Domino", domino3::init_world),
         ("Heightfield", heightfield3::init_world),

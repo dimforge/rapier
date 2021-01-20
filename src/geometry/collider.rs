@@ -140,7 +140,7 @@ impl ColliderShape {
     }
 
     #[cfg(feature = "dim3")]
-    pub fn convex_mesh(points: Vec<Point<Real>>, indices: &[usize]) -> Option<Self> {
+    pub fn convex_mesh(points: Vec<Point<Real>>, indices: &[Point3<u32>]) -> Option<Self> {
         ConvexPolyhedron::from_convex_mesh(points, indices).map(|ch| ColliderShape(Arc::new(ch)))
     }
 
@@ -174,7 +174,7 @@ impl ColliderShape {
     #[cfg(feature = "dim3")]
     pub fn round_convex_mesh(
         points: Vec<Point<Real>>,
-        indices: &[usize],
+        indices: &[Point<u32>],
         border_radius: Real,
     ) -> Option<Self> {
         ConvexPolyhedron::from_convex_mesh(points, indices).map(|ch| {
@@ -578,14 +578,14 @@ impl ColliderBuilder {
     }
 
     #[cfg(feature = "dim3")]
-    pub fn convex_mesh(points: Vec<Point<Real>>, indices: &[usize]) -> Option<Self> {
+    pub fn convex_mesh(points: Vec<Point<Real>>, indices: &[Point3<u32>]) -> Option<Self> {
         ColliderShape::convex_mesh(points, indices).map(|cp| Self::new(cp))
     }
 
     #[cfg(feature = "dim3")]
     pub fn round_convex_mesh(
         points: Vec<Point<Real>>,
-        indices: &[usize],
+        indices: &[Point<u32>],
         border_radius: Real,
     ) -> Option<Self> {
         ColliderShape::round_convex_mesh(points, indices, border_radius).map(|cp| Self::new(cp))
