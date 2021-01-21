@@ -62,8 +62,10 @@ pub struct RigidBody {
     pub(crate) mass_properties: MassProperties,
     /// The world-space center of mass of the rigid-body.
     pub world_com: Point<Real>,
+    /// The inverse mass taking into account translation locking.
     pub effective_inv_mass: Real,
-    /// The square-root of the inverse angular inertia tensor of the rigid-body.
+    /// The square-root of the world-space inverse angular inertia tensor of the rigid-body,
+    /// taking into account rotation locking.
     pub effective_world_inv_inertia_sqrt: AngularInertia<Real>,
     /// The linear velocity of the rigid-body.
     pub(crate) linvel: Vector<Real>,

@@ -1,13 +1,15 @@
 //! Structures related to geometry: colliders, shapes, etc.
 
 pub use self::broad_phase_multi_sap::BroadPhase;
-pub use self::collider::{Collider, ColliderBuilder, ColliderShape};
+pub use self::collider::{Collider, ColliderBuilder};
 pub use self::collider_set::{ColliderHandle, ColliderSet};
+pub use self::collider_shape::ColliderShape;
 pub use self::contact_pair::{ContactData, ContactManifoldData};
 pub use self::contact_pair::{ContactPair, SolverContact, SolverFlags};
 pub use self::interaction_graph::{
     ColliderGraphIndex, InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex,
 };
+pub use self::interaction_groups::InteractionGroups;
 pub use self::narrow_phase::NarrowPhase;
 pub use self::pair_filter::{ContactPairFilter, PairFilterContext, ProximityPairFilter};
 
@@ -81,7 +83,6 @@ impl IntersectionEvent {
 
 pub(crate) use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair};
 pub(crate) use self::collider_set::RemovedCollider;
-pub use self::interaction_groups::InteractionGroups;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
 pub(crate) use cdl::partitioning::SimdQuadTree;
 pub use cdl::shape::*;
@@ -98,6 +99,7 @@ pub(crate) fn default_query_dispatcher() -> std::sync::Arc<dyn cdl::query::Query
 mod broad_phase_multi_sap;
 mod collider;
 mod collider_set;
+mod collider_shape;
 mod contact_pair;
 mod interaction_graph;
 mod interaction_groups;

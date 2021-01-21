@@ -3,7 +3,7 @@ use rayon::prelude::*;
 
 use crate::data::pubsub::Subscription;
 use crate::data::Coarena;
-use crate::dynamics::{BodyPair, RigidBodySet};
+use crate::dynamics::{BodyPair, CoefficientCombineRule, RigidBodySet};
 use crate::geometry::{
     BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactData, ContactEvent,
     ContactManifoldData, ContactPairFilter, IntersectionEvent, PairFilterContext,
@@ -522,6 +522,19 @@ impl NarrowPhase {
 
             let mut has_any_active_contact = false;
 
+            let friction = CoefficientCombineRule::combine(
+                co1.friction,
+                co2.friction,
+                co1.flags.friction_combine_rule_value(),
+                co2.flags.friction_combine_rule_value(),
+            );
+            let restitution = CoefficientCombineRule::combine(
+                co1.restitution,
+                co2.restitution,
+                co1.flags.restitution_combine_rule_value(),
+                co2.flags.restitution_combine_rule_value(),
+            );
+
             for manifold in &mut pair.manifolds {
                 let world_pos1 = manifold.subshape_pos1.prepend_to(co1.position());
                 manifold.data.solver_contacts.clear();
@@ -541,8 +554,8 @@ impl NarrowPhase {
                             point: world_pos1 * contact.local_p1
                                 + manifold.data.normal * contact.dist / 2.0,
                             dist: contact.dist,
-                            friction: (co1.friction + co2.friction) / 2.0,
-                            restitution: (co1.restitution + co2.restitution) / 2.0,
+                            friction,
+                            restitution,
                             surface_velocity: Vector::zeros(),
                             data: contact.data,
                         };
