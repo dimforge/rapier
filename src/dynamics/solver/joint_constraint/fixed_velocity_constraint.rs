@@ -51,10 +51,10 @@ impl FixedVelocityConstraint {
     ) -> Self {
         let anchor1 = rb1.position * cparams.local_anchor1;
         let anchor2 = rb2.position * cparams.local_anchor2;
-        let im1 = rb1.mass_properties.inv_mass;
-        let im2 = rb2.mass_properties.inv_mass;
-        let ii1 = rb1.world_inv_inertia_sqrt.squared();
-        let ii2 = rb2.world_inv_inertia_sqrt.squared();
+        let im1 = rb1.effective_inv_mass;
+        let im2 = rb2.effective_inv_mass;
+        let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
+        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
         let r1 = anchor1.translation.vector - rb1.world_com.coords;
         let r2 = anchor2.translation.vector - rb2.world_com.coords;
         let rmat1 = r1.gcross_matrix();
@@ -118,8 +118,8 @@ impl FixedVelocityConstraint {
             im2,
             ii1,
             ii2,
-            ii1_sqrt: rb1.world_inv_inertia_sqrt,
-            ii2_sqrt: rb2.world_inv_inertia_sqrt,
+            ii1_sqrt: rb1.effective_world_inv_inertia_sqrt,
+            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse: cparams.impulse * params.warmstart_coeff,
             inv_lhs,
             r1,
@@ -248,8 +248,8 @@ impl FixedVelocityGroundConstraint {
 
         let r1 = anchor1.translation.vector - rb1.world_com.coords;
 
-        let im2 = rb2.mass_properties.inv_mass;
-        let ii2 = rb2.world_inv_inertia_sqrt.squared();
+        let im2 = rb2.effective_inv_mass;
+        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
         let r2 = anchor2.translation.vector - rb2.world_com.coords;
         let rmat2 = r2.gcross_matrix();
 
@@ -304,7 +304,7 @@ impl FixedVelocityGroundConstraint {
             mj_lambda2: rb2.active_set_offset,
             im2,
             ii2,
-            ii2_sqrt: rb2.world_inv_inertia_sqrt,
+            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse: cparams.impulse * params.warmstart_coeff,
             inv_lhs,
             r2,

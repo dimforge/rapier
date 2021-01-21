@@ -31,10 +31,10 @@ bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
     pub(crate) struct RigidBodyFlags: u8 {
-        const IGNORE_COLLIDER_MASS              = 1 << 0;
-        const IGNORE_COLLIDER_ANGULAR_INERTIA_X = 1 << 1;
-        const IGNORE_COLLIDER_ANGULAR_INERTIA_Y = 1 << 2;
-        const IGNORE_COLLIDER_ANGULAR_INERTIA_Z = 1 << 3;
+        const TRANSLATION_LOCKED = 1 << 0;
+        const ROTATION_LOCKED_X = 1 << 1;
+        const ROTATION_LOCKED_Y = 1 << 2;
+        const ROTATION_LOCKED_Z = 1 << 3;
     }
 }
 
@@ -62,8 +62,9 @@ pub struct RigidBody {
     pub(crate) mass_properties: MassProperties,
     /// The world-space center of mass of the rigid-body.
     pub world_com: Point<Real>,
+    pub effective_inv_mass: Real,
     /// The square-root of the inverse angular inertia tensor of the rigid-body.
-    pub world_inv_inertia_sqrt: AngularInertia<Real>,
+    pub effective_world_inv_inertia_sqrt: AngularInertia<Real>,
     /// The linear velocity of the rigid-body.
     pub(crate) linvel: Vector<Real>,
     /// The angular velocity of the rigid-body.
@@ -98,7 +99,8 @@ impl RigidBody {
             predicted_position: Isometry::identity(),
             mass_properties: MassProperties::zero(),
             world_com: Point::origin(),
-            world_inv_inertia_sqrt: AngularInertia::zero(),
+            effective_inv_mass: 0.0,
+            effective_world_inv_inertia_sqrt: AngularInertia::zero(),
             linvel: Vector::zeros(),
             angvel: na::zero(),
             linacc: Vector::zeros(),
@@ -130,14 +132,13 @@ impl RigidBody {
     }
 
     pub(crate) fn integrate_accelerations(&mut self, dt: Real, gravity: Vector<Real>) {
-        if self.mass_properties.inv_mass != 0.0 {
+        if self.effective_inv_mass != 0.0 {
             self.linvel += (gravity * self.gravity_scale + self.linacc) * dt;
-            self.angvel += self.angacc * dt;
-
-            // Reset the accelerations.
             self.linacc = na::zero();
-            self.angacc = na::zero();
         }
+
+        self.angvel += self.angacc * dt;
+        self.angacc = na::zero();
     }
 
     /// The mass properties of this rigid-body.
@@ -227,38 +228,8 @@ impl RigidBody {
             .mass_properties()
             .transform_by(coll.position_wrt_parent());
         self.colliders.push(handle);
-        self.mass_properties += Self::filter_collider_mass_props(mass_properties, self.flags);
+        self.mass_properties += mass_properties;
         self.update_world_mass_properties();
-    }
-
-    fn filter_collider_mass_props(
-        mut props: MassProperties,
-        flags: RigidBodyFlags,
-    ) -> MassProperties {
-        if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_MASS) {
-            props.inv_mass = 0.0;
-        }
-
-        #[cfg(feature = "dim2")]
-        {
-            if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z) {
-                props.inv_principal_inertia_sqrt = 0.0;
-            }
-        }
-        #[cfg(feature = "dim3")]
-        {
-            if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_X) {
-                props.inv_principal_inertia_sqrt.x = 0.0;
-            }
-            if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Y) {
-                props.inv_principal_inertia_sqrt.y = 0.0;
-            }
-            if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z) {
-                props.inv_principal_inertia_sqrt.z = 0.0;
-            }
-        }
-
-        props
     }
 
     pub(crate) fn update_colliders_positions(&mut self, colliders: &mut ColliderSet) {
@@ -277,7 +248,7 @@ impl RigidBody {
             let mass_properties = coll
                 .mass_properties()
                 .transform_by(coll.position_wrt_parent());
-            self.mass_properties -= Self::filter_collider_mass_props(mass_properties, self.flags);
+            self.mass_properties -= mass_properties;
             self.update_world_mass_properties();
         }
     }
@@ -458,9 +429,41 @@ impl RigidBody {
 
     pub(crate) fn update_world_mass_properties(&mut self) {
         self.world_com = self.mass_properties.world_com(&self.position);
-        self.world_inv_inertia_sqrt = self
+        self.effective_inv_mass = self.mass_properties.inv_mass;
+        self.effective_world_inv_inertia_sqrt = self
             .mass_properties
             .world_inv_inertia_sqrt(&self.position.rotation);
+
+        // Take into account translation/rotation locking.
+        if self.flags.contains(RigidBodyFlags::TRANSLATION_LOCKED) {
+            self.effective_inv_mass = 0.0;
+        }
+
+        #[cfg(feature = "dim2")]
+        {
+            if self.flags.contains(RigidBodyFlags::ROTATION_LOCKED_Z) {
+                self.effective_world_inv_inertia_sqrt = 0.0;
+            }
+        }
+        #[cfg(feature = "dim3")]
+        {
+            if self.flags.contains(RigidBodyFlags::ROTATION_LOCKED_X) {
+                self.effective_world_inv_inertia_sqrt.m11 = 0.0;
+                self.effective_world_inv_inertia_sqrt.m12 = 0.0;
+                self.effective_world_inv_inertia_sqrt.m13 = 0.0;
+            }
+
+            if self.flags.contains(RigidBodyFlags::ROTATION_LOCKED_Y) {
+                self.effective_world_inv_inertia_sqrt.m22 = 0.0;
+                self.effective_world_inv_inertia_sqrt.m12 = 0.0;
+                self.effective_world_inv_inertia_sqrt.m23 = 0.0;
+            }
+            if self.flags.contains(RigidBodyFlags::ROTATION_LOCKED_Z) {
+                self.effective_world_inv_inertia_sqrt.m33 = 0.0;
+                self.effective_world_inv_inertia_sqrt.m13 = 0.0;
+                self.effective_world_inv_inertia_sqrt.m23 = 0.0;
+            }
+        }
     }
 
     /*
@@ -469,7 +472,7 @@ impl RigidBody {
     /// Applies a force at the center-of-mass of this rigid-body.
     pub fn apply_force(&mut self, force: Vector<Real>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.linacc += force * self.mass_properties.inv_mass;
+            self.linacc += force * self.effective_inv_mass;
 
             if wake_up {
                 self.wake_up(true);
@@ -480,7 +483,7 @@ impl RigidBody {
     /// Applies an impulse at the center-of-mass of this rigid-body.
     pub fn apply_impulse(&mut self, impulse: Vector<Real>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.linvel += impulse * self.mass_properties.inv_mass;
+            self.linvel += impulse * self.effective_inv_mass;
 
             if wake_up {
                 self.wake_up(true);
@@ -492,7 +495,8 @@ impl RigidBody {
     #[cfg(feature = "dim2")]
     pub fn apply_torque(&mut self, torque: Real, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.angacc += self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque);
+            self.angacc += self.effective_world_inv_inertia_sqrt
+                * (self.effective_world_inv_inertia_sqrt * torque);
 
             if wake_up {
                 self.wake_up(true);
@@ -504,7 +508,8 @@ impl RigidBody {
     #[cfg(feature = "dim3")]
     pub fn apply_torque(&mut self, torque: Vector<Real>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.angacc += self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque);
+            self.angacc += self.effective_world_inv_inertia_sqrt
+                * (self.effective_world_inv_inertia_sqrt * torque);
 
             if wake_up {
                 self.wake_up(true);
@@ -516,8 +521,8 @@ impl RigidBody {
     #[cfg(feature = "dim2")]
     pub fn apply_torque_impulse(&mut self, torque_impulse: Real, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.angvel +=
-                self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque_impulse);
+            self.angvel += self.effective_world_inv_inertia_sqrt
+                * (self.effective_world_inv_inertia_sqrt * torque_impulse);
 
             if wake_up {
                 self.wake_up(true);
@@ -529,8 +534,8 @@ impl RigidBody {
     #[cfg(feature = "dim3")]
     pub fn apply_torque_impulse(&mut self, torque_impulse: Vector<Real>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.angvel +=
-                self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque_impulse);
+            self.angvel += self.effective_world_inv_inertia_sqrt
+                * (self.effective_world_inv_inertia_sqrt * torque_impulse);
 
             if wake_up {
                 self.wake_up(true);
@@ -679,16 +684,28 @@ impl RigidBodyBuilder {
     }
 
     /// Prevents this rigid-body from rotating because of forces.
-    ///
-    /// This is equivalent to `self.principal_inertia(0.0, false)` (in 2D) or
-    /// `self.principal_inertia(Vector3::zeros(), Vector3::repeat(false))` (in 3D).
-    ///
-    /// See the documentation of [`RigidBodyBuilder::principal_inertia`] for more details.
-    pub fn lock_rotations(self) -> Self {
-        #[cfg(feature = "dim2")]
-        return self.principal_angular_inertia(0.0, false);
-        #[cfg(feature = "dim3")]
-        return self.principal_angular_inertia(Vector::zeros(), Vector::repeat(false));
+    pub fn lock_rotations(mut self) -> Self {
+        self.flags.set(RigidBodyFlags::ROTATION_LOCKED_X, true);
+        self.flags.set(RigidBodyFlags::ROTATION_LOCKED_Y, true);
+        self.flags.set(RigidBodyFlags::ROTATION_LOCKED_Z, true);
+        self
+    }
+
+    /// Only allow rotations of this rigid-body around specific coordinate axes.
+    #[cfg(feature = "dim3")]
+    pub fn restrict_rotations(
+        mut self,
+        allow_rotations_x: bool,
+        allow_rotations_y: bool,
+        allow_rotations_z: bool,
+    ) -> Self {
+        self.flags
+            .set(RigidBodyFlags::ROTATION_LOCKED_X, !allow_rotations_x);
+        self.flags
+            .set(RigidBodyFlags::ROTATION_LOCKED_Y, !allow_rotations_y);
+        self.flags
+            .set(RigidBodyFlags::ROTATION_LOCKED_Z, !allow_rotations_z);
+        self
     }
 
     /// Sets the mass of the rigid-body being built.
@@ -705,42 +722,23 @@ impl RigidBodyBuilder {
     pub fn mass(mut self, mass: Real, colliders_contribution_enabled: bool) -> Self {
         self.mass_properties.inv_mass = utils::inv(mass);
         self.flags.set(
-            RigidBodyFlags::IGNORE_COLLIDER_MASS,
+            RigidBodyFlags::TRANSLATION_LOCKED,
             !colliders_contribution_enabled,
         );
         self
     }
     /// Sets the angular inertia of this rigid-body.
-    ///
-    /// In order to lock the rotations of this rigid-body (by
-    /// making them kinematic), call `.principal_inertia(0.0, false)`.
-    ///
-    /// If `colliders_contribution_enabled` is `false`, then the principal inertia specified here
-    /// will be the final principal inertia of the rigid-body created by this builder.
-    /// If `colliders_contribution_enabled` is `true`, then the final principal of the rigid-body
-    /// will depend on the initial principal inertia set by this method to which is added
-    /// the contributions of all the colliders with non-zero density attached to this rigid-body.
     #[cfg(feature = "dim2")]
-    pub fn principal_angular_inertia(
-        mut self,
-        inertia: Real,
-        colliders_contribution_enabled: bool,
-    ) -> Self {
+    pub fn principal_angular_inertia(mut self, inertia: Real) -> Self {
         self.mass_properties.inv_principal_inertia_sqrt = utils::inv(inertia);
-        self.flags.set(
-            RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_X
-                | RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Y
-                | RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z,
-            !colliders_contribution_enabled,
-        );
         self
     }
 
     /// Use `self.principal_angular_inertia` instead.
     #[cfg(feature = "dim2")]
     #[deprecated(note = "renamed to `principal_angular_inertia`.")]
-    pub fn principal_inertia(self, inertia: Real, colliders_contribution_enabled: bool) -> Self {
-        self.principal_angular_inertia(inertia, colliders_contribution_enabled)
+    pub fn principal_inertia(self, inertia: Real) -> Self {
+        self.principal_angular_inertia(inertia)
     }
 
     /// Sets the principal angular inertia of this rigid-body.
@@ -756,36 +754,16 @@ impl RigidBodyBuilder {
     /// to which is added the contributions of all the colliders with non-zero density
     /// attached to this rigid-body.
     #[cfg(feature = "dim3")]
-    pub fn principal_angular_inertia(
-        mut self,
-        inertia: AngVector<Real>,
-        colliders_contribution_enabled: AngVector<bool>,
-    ) -> Self {
+    pub fn principal_angular_inertia(mut self, inertia: AngVector<Real>) -> Self {
         self.mass_properties.inv_principal_inertia_sqrt = inertia.map(utils::inv);
-        self.flags.set(
-            RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_X,
-            !colliders_contribution_enabled.x,
-        );
-        self.flags.set(
-            RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Y,
-            !colliders_contribution_enabled.y,
-        );
-        self.flags.set(
-            RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z,
-            !colliders_contribution_enabled.z,
-        );
         self
     }
 
     /// Use `self.principal_angular_inertia` instead.
     #[cfg(feature = "dim3")]
     #[deprecated(note = "renamed to `principal_angular_inertia`.")]
-    pub fn principal_inertia(
-        self,
-        inertia: AngVector<Real>,
-        colliders_contribution_enabled: AngVector<bool>,
-    ) -> Self {
-        self.principal_angular_inertia(inertia, colliders_contribution_enabled)
+    pub fn principal_inertia(self, inertia: AngVector<Real>) -> Self {
+        self.principal_angular_inertia(inertia)
     }
 
     /// Sets the damping factor for the linear part of the rigid-body motion.

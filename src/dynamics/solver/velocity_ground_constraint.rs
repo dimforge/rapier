@@ -87,7 +87,7 @@ impl VelocityGroundConstraint {
             let mut constraint = VelocityGroundConstraint {
                 dir1: force_dir1,
                 elements: [VelocityGroundConstraintElement::zero(); MAX_MANIFOLD_POINTS],
-                im2: rb2.mass_properties.inv_mass,
+                im2: rb2.effective_inv_mass,
                 limit: 0.0,
                 mj_lambda2,
                 manifold_id,
@@ -128,7 +128,7 @@ impl VelocityGroundConstraint {
             #[cfg(target_arch = "wasm32")]
             {
                 constraint.dir1 = force_dir1;
-                constraint.im2 = rb2.mass_properties.inv_mass;
+                constraint.im2 = rb2.effective_inv_mass;
                 constraint.limit = manifold.data.friction;
                 constraint.mj_lambda2 = mj_lambda2;
                 constraint.manifold_id = manifold_id;
@@ -148,10 +148,10 @@ impl VelocityGroundConstraint {
                 // Normal part.
                 {
                     let gcross2 = rb2
-                        .world_inv_inertia_sqrt
+                        .effective_world_inv_inertia_sqrt
                         .transform_vector(dp2.gcross(-force_dir1));
 
-                    let r = 1.0 / (rb2.mass_properties.inv_mass + gcross2.gdot(gcross2));
+                    let r = 1.0 / (rb2.effective_inv_mass + gcross2.gdot(gcross2));
 
                     let mut rhs = (vel1 - vel2).dot(&force_dir1);
 
@@ -177,9 +177,9 @@ impl VelocityGroundConstraint {
 
                     for j in 0..DIM - 1 {
                         let gcross2 = rb2
-                            .world_inv_inertia_sqrt
+                            .effective_world_inv_inertia_sqrt
                             .transform_vector(dp2.gcross(-tangents1[j]));
-                        let r = 1.0 / (rb2.mass_properties.inv_mass + gcross2.gdot(gcross2));
+                        let r = 1.0 / (rb2.effective_inv_mass + gcross2.gdot(gcross2));
                         let rhs = -vel2.dot(&tangents1[j]) + vel1.dot(&tangents1[j]);
                         #[cfg(feature = "dim2")]
                         let impulse = manifold_points[k].data.tangent_impulse * warmstart_coeff;

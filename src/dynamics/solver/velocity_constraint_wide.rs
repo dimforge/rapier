@@ -71,18 +71,20 @@ impl WVelocityConstraint {
         let rbs1 = array![|ii| &bodies[manifolds[ii].data.body_pair.body1]; SIMD_WIDTH];
         let rbs2 = array![|ii| &bodies[manifolds[ii].data.body_pair.body2]; SIMD_WIDTH];
 
-        let im1 = SimdReal::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii1: AngularInertia<SimdReal> =
-            AngularInertia::from(array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
+        let im1 = SimdReal::from(array![|ii| rbs1[ii].effective_inv_mass; SIMD_WIDTH]);
+        let ii1: AngularInertia<SimdReal> = AngularInertia::from(
+            array![|ii| rbs1[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
+        );
 
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
         let angvel1 = AngVector::<SimdReal>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
 
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
 
-        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii2: AngularInertia<SimdReal> =
-            AngularInertia::from(array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
+        let ii2: AngularInertia<SimdReal> = AngularInertia::from(
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
+        );
 
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
         let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);

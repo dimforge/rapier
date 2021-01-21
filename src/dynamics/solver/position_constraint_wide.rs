@@ -38,12 +38,14 @@ impl WPositionConstraint {
         let rbs1 = array![|ii| bodies.get(manifolds[ii].data.body_pair.body1).unwrap(); SIMD_WIDTH];
         let rbs2 = array![|ii| bodies.get(manifolds[ii].data.body_pair.body2).unwrap(); SIMD_WIDTH];
 
-        let im1 = SimdReal::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let sqrt_ii1: AngularInertia<SimdReal> =
-            AngularInertia::from(array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
-        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let sqrt_ii2: AngularInertia<SimdReal> =
-            AngularInertia::from(array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
+        let im1 = SimdReal::from(array![|ii| rbs1[ii].effective_inv_mass; SIMD_WIDTH]);
+        let sqrt_ii1: AngularInertia<SimdReal> = AngularInertia::from(
+            array![|ii| rbs1[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
+        );
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
+        let sqrt_ii2: AngularInertia<SimdReal> = AngularInertia::from(
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
+        );
 
         let pos1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
         let pos2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);

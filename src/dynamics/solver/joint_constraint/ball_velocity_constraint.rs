@@ -40,8 +40,8 @@ impl BallVelocityConstraint {
 
         let vel1 = rb1.linvel + rb1.angvel.gcross(anchor1);
         let vel2 = rb2.linvel + rb2.angvel.gcross(anchor2);
-        let im1 = rb1.mass_properties.inv_mass;
-        let im2 = rb2.mass_properties.inv_mass;
+        let im1 = rb1.effective_inv_mass;
+        let im2 = rb2.effective_inv_mass;
 
         let rhs = -(vel1 - vel2);
         let lhs;
@@ -52,12 +52,12 @@ impl BallVelocityConstraint {
         #[cfg(feature = "dim3")]
         {
             lhs = rb2
-                .world_inv_inertia_sqrt
+                .effective_world_inv_inertia_sqrt
                 .squared()
                 .quadform(&cmat2)
                 .add_diagonal(im2)
                 + rb1
-                    .world_inv_inertia_sqrt
+                    .effective_world_inv_inertia_sqrt
                     .squared()
                     .quadform(&cmat1)
                     .add_diagonal(im1);
@@ -67,8 +67,8 @@ impl BallVelocityConstraint {
         // it's just easier that way.
         #[cfg(feature = "dim2")]
         {
-            let ii1 = rb1.world_inv_inertia_sqrt.squared();
-            let ii2 = rb2.world_inv_inertia_sqrt.squared();
+            let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
+            let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
             let m11 = im1 + im2 + cmat1.x * cmat1.x * ii1 + cmat2.x * cmat2.x * ii2;
             let m12 = cmat1.x * cmat1.y * ii1 + cmat2.x * cmat2.y * ii2;
             let m22 = im1 + im2 + cmat1.y * cmat1.y * ii1 + cmat2.y * cmat2.y * ii2;
@@ -88,8 +88,8 @@ impl BallVelocityConstraint {
             r2: anchor2,
             rhs,
             inv_lhs,
-            ii1_sqrt: rb1.world_inv_inertia_sqrt,
-            ii2_sqrt: rb2.world_inv_inertia_sqrt,
+            ii1_sqrt: rb1.effective_world_inv_inertia_sqrt,
+            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
         }
     }
 
@@ -170,7 +170,7 @@ impl BallVelocityGroundConstraint {
             )
         };
 
-        let im2 = rb2.mass_properties.inv_mass;
+        let im2 = rb2.effective_inv_mass;
         let vel1 = rb1.linvel + rb1.angvel.gcross(anchor1);
         let vel2 = rb2.linvel + rb2.angvel.gcross(anchor2);
         let rhs = vel2 - vel1;
@@ -182,7 +182,7 @@ impl BallVelocityGroundConstraint {
         #[cfg(feature = "dim3")]
         {
             lhs = rb2
-                .world_inv_inertia_sqrt
+                .effective_world_inv_inertia_sqrt
                 .squared()
                 .quadform(&cmat2)
                 .add_diagonal(im2);
@@ -190,7 +190,7 @@ impl BallVelocityGroundConstraint {
 
         #[cfg(feature = "dim2")]
         {
-            let ii2 = rb2.world_inv_inertia_sqrt.squared();
+            let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
             let m11 = im2 + cmat2.x * cmat2.x * ii2;
             let m12 = cmat2.x * cmat2.y * ii2;
             let m22 = im2 + cmat2.y * cmat2.y * ii2;
@@ -207,7 +207,7 @@ impl BallVelocityGroundConstraint {
             r2: anchor2,
             rhs,
             inv_lhs,
-            ii2_sqrt: rb2.world_inv_inertia_sqrt,
+            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
         }
     }
 

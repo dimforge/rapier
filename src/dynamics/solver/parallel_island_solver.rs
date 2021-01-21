@@ -250,7 +250,7 @@ impl ParallelIslandSolver {
                         let rb = &mut bodies[handle.0];
                         let dvel = mj_lambdas[rb.active_set_offset];
                         rb.linvel += dvel.linear;
-                        rb.angvel += rb.world_inv_inertia_sqrt.transform_vector(dvel.angular);
+                        rb.angvel += rb.effective_world_inv_inertia_sqrt.transform_vector(dvel.angular);
                         rb.integrate(params.dt());
                         positions[rb.active_set_offset] = rb.position;
                     }

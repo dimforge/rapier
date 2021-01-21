@@ -52,14 +52,14 @@ impl RevoluteVelocityConstraint {
         //        let basis2 = r21 * basis1;
         // NOTE: to simplify, we use basis2 = basis1.
         // Though we may want to test if that does not introduce any instability.
-        let im1 = rb1.mass_properties.inv_mass;
-        let im2 = rb2.mass_properties.inv_mass;
+        let im1 = rb1.effective_inv_mass;
+        let im2 = rb2.effective_inv_mass;
 
-        let ii1 = rb1.world_inv_inertia_sqrt.squared();
+        let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
         let r1 = anchor1 - rb1.world_com;
         let r1_mat = r1.gcross_matrix();
 
-        let ii2 = rb2.world_inv_inertia_sqrt.squared();
+        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
         let r2 = anchor2 - rb2.world_com;
         let r2_mat = r2.gcross_matrix();
 
@@ -87,10 +87,10 @@ impl RevoluteVelocityConstraint {
             mj_lambda1: rb1.active_set_offset,
             mj_lambda2: rb2.active_set_offset,
             im1,
-            ii1_sqrt: rb1.world_inv_inertia_sqrt,
+            ii1_sqrt: rb1.effective_world_inv_inertia_sqrt,
             basis1,
             im2,
-            ii2_sqrt: rb2.world_inv_inertia_sqrt,
+            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse: cparams.impulse * params.warmstart_coeff,
             inv_lhs,
             rhs,
@@ -212,8 +212,8 @@ impl RevoluteVelocityGroundConstraint {
         //            .to_rotation_matrix()
         //            .into_inner();
         //        let basis2 = /*r21 * */ basis1;
-        let im2 = rb2.mass_properties.inv_mass;
-        let ii2 = rb2.world_inv_inertia_sqrt.squared();
+        let im2 = rb2.effective_inv_mass;
+        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
         let r1 = anchor1 - rb1.world_com;
         let r2 = anchor2 - rb2.world_com;
         let r2_mat = r2.gcross_matrix();
@@ -240,7 +240,7 @@ impl RevoluteVelocityGroundConstraint {
             joint_id,
             mj_lambda2: rb2.active_set_offset,
             im2,
-            ii2_sqrt: rb2.world_inv_inertia_sqrt,
+            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse: cparams.impulse * params.warmstart_coeff,
             basis1,
             inv_lhs,

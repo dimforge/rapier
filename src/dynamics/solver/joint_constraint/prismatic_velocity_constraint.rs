@@ -92,13 +92,13 @@ impl PrismaticVelocityConstraint {
         // simplifications of the computation without introducing
         // much instabilities.
 
-        let im1 = rb1.mass_properties.inv_mass;
-        let ii1 = rb1.world_inv_inertia_sqrt.squared();
+        let im1 = rb1.effective_inv_mass;
+        let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
         let r1 = anchor1 - rb1.world_com;
         let r1_mat = r1.gcross_matrix();
 
-        let im2 = rb2.mass_properties.inv_mass;
-        let ii2 = rb2.world_inv_inertia_sqrt.squared();
+        let im2 = rb2.effective_inv_mass;
+        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
         let r2 = anchor2 - rb2.world_com;
         let r2_mat = r2.gcross_matrix();
 
@@ -176,9 +176,9 @@ impl PrismaticVelocityConstraint {
             mj_lambda1: rb1.active_set_offset,
             mj_lambda2: rb2.active_set_offset,
             im1,
-            ii1_sqrt: rb1.world_inv_inertia_sqrt,
+            ii1_sqrt: rb1.effective_world_inv_inertia_sqrt,
             im2,
-            ii2_sqrt: rb2.world_inv_inertia_sqrt,
+            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse: cparams.impulse * params.warmstart_coeff,
             limits_impulse: limits_impulse * params.warmstart_coeff,
             limits_forcedirs,
@@ -388,8 +388,8 @@ impl PrismaticVelocityGroundConstraint {
         // simplifications of the computation without introducing
         // much instabilities.
 
-        let im2 = rb2.mass_properties.inv_mass;
-        let ii2 = rb2.world_inv_inertia_sqrt.squared();
+        let im2 = rb2.effective_inv_mass;
+        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
         let r1 = anchor1 - rb1.world_com;
         let r2 = anchor2 - rb2.world_com;
         let r2_mat = r2.gcross_matrix();
@@ -465,7 +465,7 @@ impl PrismaticVelocityGroundConstraint {
             joint_id,
             mj_lambda2: rb2.active_set_offset,
             im2,
-            ii2_sqrt: rb2.world_inv_inertia_sqrt,
+            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse: cparams.impulse * params.warmstart_coeff,
             limits_impulse: limits_impulse * params.warmstart_coeff,
             basis1,

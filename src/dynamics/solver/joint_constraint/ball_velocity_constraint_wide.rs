@@ -42,9 +42,9 @@ impl WBallVelocityConstraint {
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
         let angvel1 = AngVector::<SimdReal>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
-        let im1 = SimdReal::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let im1 = SimdReal::from(array![|ii| rbs1[ii].effective_inv_mass; SIMD_WIDTH]);
         let ii1_sqrt = AngularInertia::<SimdReal>::from(
-            array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+            array![|ii| rbs1[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
 
@@ -52,9 +52,9 @@ impl WBallVelocityConstraint {
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
         let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
-        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
         let ii2_sqrt = AngularInertia::<SimdReal>::from(
-            array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
@@ -228,9 +228,9 @@ impl WBallVelocityGroundConstraint {
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
         let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
-        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
         let ii2_sqrt = AngularInertia::<SimdReal>::from(
-            array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 

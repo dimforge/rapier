@@ -45,9 +45,10 @@ impl WPositionGroundConstraint {
             }
         }
 
-        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let sqrt_ii2: AngularInertia<SimdReal> =
-            AngularInertia::from(array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH]);
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
+        let sqrt_ii2: AngularInertia<SimdReal> = AngularInertia::from(
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
+        );
 
         let n1 = Vector::from(
             array![|ii| if flipped[ii] { -manifolds[ii].data.normal } else { manifolds[ii].data.normal }; SIMD_WIDTH],

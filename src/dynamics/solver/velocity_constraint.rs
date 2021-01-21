@@ -161,8 +161,8 @@ impl VelocityConstraint {
             let mut constraint = VelocityConstraint {
                 dir1: force_dir1,
                 elements: [VelocityConstraintElement::zero(); MAX_MANIFOLD_POINTS],
-                im1: rb1.mass_properties.inv_mass,
-                im2: rb2.mass_properties.inv_mass,
+                im1: rb1.effective_inv_mass,
+                im2: rb2.effective_inv_mass,
                 limit: 0.0,
                 mj_lambda1,
                 mj_lambda2,
@@ -204,8 +204,8 @@ impl VelocityConstraint {
             #[cfg(target_arch = "wasm32")]
             {
                 constraint.dir1 = force_dir1;
-                constraint.im1 = rb1.mass_properties.inv_mass;
-                constraint.im2 = rb2.mass_properties.inv_mass;
+                constraint.im1 = rb1.effective_inv_mass;
+                constraint.im2 = rb2.effective_inv_mass;
                 constraint.limit = manifold.data.friction;
                 constraint.mj_lambda1 = mj_lambda1;
                 constraint.mj_lambda2 = mj_lambda2;
@@ -226,15 +226,15 @@ impl VelocityConstraint {
                 // Normal part.
                 {
                     let gcross1 = rb1
-                        .world_inv_inertia_sqrt
+                        .effective_world_inv_inertia_sqrt
                         .transform_vector(dp1.gcross(force_dir1));
                     let gcross2 = rb2
-                        .world_inv_inertia_sqrt
+                        .effective_world_inv_inertia_sqrt
                         .transform_vector(dp2.gcross(-force_dir1));
 
                     let r = 1.0
-                        / (rb1.mass_properties.inv_mass
-                            + rb2.mass_properties.inv_mass
+                        / (rb1.effective_inv_mass
+                            + rb2.effective_inv_mass
                             + gcross1.gdot(gcross1)
                             + gcross2.gdot(gcross2));
 
@@ -263,14 +263,14 @@ impl VelocityConstraint {
 
                     for j in 0..DIM - 1 {
                         let gcross1 = rb1
-                            .world_inv_inertia_sqrt
+                            .effective_world_inv_inertia_sqrt
                             .transform_vector(dp1.gcross(tangents1[j]));
                         let gcross2 = rb2
-                            .world_inv_inertia_sqrt
+                            .effective_world_inv_inertia_sqrt
                             .transform_vector(dp2.gcross(-tangents1[j]));
                         let r = 1.0
-                            / (rb1.mass_properties.inv_mass
-                                + rb2.mass_properties.inv_mass
+                            / (rb1.effective_inv_mass
+                                + rb2.effective_inv_mass
                                 + gcross1.gdot(gcross1)
                                 + gcross2.gdot(gcross2));
                         let rhs = (vel1 - vel2).dot(&tangents1[j]);

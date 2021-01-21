@@ -26,10 +26,10 @@ pub(crate) struct RevolutePositionConstraint {
 
 impl RevolutePositionConstraint {
     pub fn from_params(rb1: &RigidBody, rb2: &RigidBody, cparams: &RevoluteJoint) -> Self {
-        let ii1 = rb1.world_inv_inertia_sqrt.squared();
-        let ii2 = rb2.world_inv_inertia_sqrt.squared();
-        let im1 = rb1.mass_properties.inv_mass;
-        let im2 = rb2.mass_properties.inv_mass;
+        let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
+        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
+        let im1 = rb1.effective_inv_mass;
+        let im2 = rb2.effective_inv_mass;
         let lin_inv_lhs = 1.0 / (im1 + im2);
         let ang_inv_lhs = (ii1 + ii2).inverse();
 

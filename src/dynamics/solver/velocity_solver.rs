@@ -60,7 +60,9 @@ impl VelocitySolver {
         bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
             let dvel = self.mj_lambdas[rb.active_set_offset];
             rb.linvel += dvel.linear;
-            rb.angvel += rb.world_inv_inertia_sqrt.transform_vector(dvel.angular);
+            rb.angvel += rb
+                .effective_world_inv_inertia_sqrt
+                .transform_vector(dvel.angular);
         });
 
         // Write impulses back into the manifold structures.

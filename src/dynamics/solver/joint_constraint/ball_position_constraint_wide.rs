@@ -31,14 +31,14 @@ impl WBallPositionConstraint {
     ) -> Self {
         let local_com1 = Point::from(array![|ii| rbs1[ii].mass_properties.local_com; SIMD_WIDTH]);
         let local_com2 = Point::from(array![|ii| rbs2[ii].mass_properties.local_com; SIMD_WIDTH]);
-        let im1 = SimdReal::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let im1 = SimdReal::from(array![|ii| rbs1[ii].effective_inv_mass; SIMD_WIDTH]);
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
         let ii1 = AngularInertia::<SimdReal>::from(
-            array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+            array![|ii| rbs1[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         )
         .squared();
         let ii2 = AngularInertia::<SimdReal>::from(
-            array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         )
         .squared();
         let local_anchor1 = Point::from(array![|ii| cparams[ii].local_anchor1; SIMD_WIDTH]);
@@ -141,9 +141,9 @@ impl WBallPositionGroundConstraint {
             } else {
                 cparams[ii].local_anchor1
             }; SIMD_WIDTH]);
-        let im2 = SimdReal::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
         let ii2 = AngularInertia::<SimdReal>::from(
-            array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         )
         .squared();
         let local_anchor2 = Point::from(array![|ii| if flipped[ii] {

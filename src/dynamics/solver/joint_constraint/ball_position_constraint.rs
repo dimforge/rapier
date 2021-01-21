@@ -27,10 +27,10 @@ impl BallPositionConstraint {
         Self {
             local_com1: rb1.mass_properties.local_com,
             local_com2: rb2.mass_properties.local_com,
-            im1: rb1.mass_properties.inv_mass,
-            im2: rb2.mass_properties.inv_mass,
-            ii1: rb1.world_inv_inertia_sqrt.squared(),
-            ii2: rb2.world_inv_inertia_sqrt.squared(),
+            im1: rb1.effective_inv_mass,
+            im2: rb2.effective_inv_mass,
+            ii1: rb1.effective_world_inv_inertia_sqrt.squared(),
+            ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
             local_anchor1: cparams.local_anchor1,
             local_anchor2: cparams.local_anchor2,
             position1: rb1.active_set_offset,
@@ -115,8 +115,8 @@ impl BallPositionGroundConstraint {
             // already been flipped by the caller.
             Self {
                 anchor1: rb1.predicted_position * cparams.local_anchor2,
-                im2: rb2.mass_properties.inv_mass,
-                ii2: rb2.world_inv_inertia_sqrt.squared(),
+                im2: rb2.effective_inv_mass,
+                ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
                 local_anchor2: cparams.local_anchor1,
                 position2: rb2.active_set_offset,
                 local_com2: rb2.mass_properties.local_com,
@@ -124,8 +124,8 @@ impl BallPositionGroundConstraint {
         } else {
             Self {
                 anchor1: rb1.predicted_position * cparams.local_anchor1,
-                im2: rb2.mass_properties.inv_mass,
-                ii2: rb2.world_inv_inertia_sqrt.squared(),
+                im2: rb2.effective_inv_mass,
+                ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
                 local_anchor2: cparams.local_anchor2,
                 position2: rb2.active_set_offset,
                 local_com2: rb2.mass_properties.local_com,
