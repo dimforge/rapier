@@ -1,4 +1,5 @@
-use crate::math::{Isometry, Point, Real, Vector};
+use crate::cdl::transformation::vhacd::{VHACDParameters, VHACD};
+use crate::math::{Isometry, Point, Real, Vector, DIM};
 use cdl::shape::{
     Ball, Capsule, Compound, Cuboid, HalfSpace, HeightField, RoundCuboid, RoundShape,
     RoundTriangle, Segment, Shape, ShapeType, TriMesh, Triangle,
@@ -120,6 +121,66 @@ impl ColliderShape {
     /// Initializes a triangle mesh shape defined by its vertex and index buffers.
     pub fn trimesh(vertices: Vec<Point<Real>>, indices: Vec<[u32; 3]>) -> Self {
         ColliderShape(Arc::new(TriMesh::new(vertices, indices)))
+    }
+
+    /// Initializes a compound shape obtained from the decomposition of the given trimesh (in 3D) or
+    /// polyline (in 2D) into convex parts.
+    pub fn convex_decomposition(vertices: &[Point<Real>], indices: &[[u32; DIM]]) -> Self {
+        Self::convex_decomposition_with_params(vertices, indices, &VHACDParameters::default())
+    }
+
+    /// Initializes a compound shape obtained from the decomposition of the given trimesh (in 3D) or
+    /// polyline (in 2D) into convex parts dilated with round corners.
+    pub fn round_convex_decomposition(
+        vertices: &[Point<Real>],
+        indices: &[[u32; DIM]],
+        border_radius: Real,
+    ) -> Self {
+        Self::round_convex_decomposition_with_params(
+            vertices,
+            indices,
+            &VHACDParameters::default(),
+            border_radius,
+        )
+    }
+
+    /// Initializes a compound shape obtained from the decomposition of the given trimesh (in 3D) or
+    /// polyline (in 2D) into convex parts.
+    pub fn convex_decomposition_with_params(
+        vertices: &[Point<Real>],
+        indices: &[[u32; DIM]],
+        params: &VHACDParameters,
+    ) -> Self {
+        let mut parts = vec![];
+        let decomp = VHACD::decompose(params, &vertices, &indices, true);
+
+        for (vertices, indices) in decomp.compute_exact_convex_hulls(&vertices, &indices) {
+            if let Some(convex) = Self::convex_mesh(vertices, &indices) {
+                parts.push((Isometry::identity(), convex));
+            }
+        }
+
+        Self::compound(parts)
+    }
+
+    /// Initializes a compound shape obtained from the decomposition of the given trimesh (in 3D) or
+    /// polyline (in 2D) into convex parts dilated with round corners.
+    pub fn round_convex_decomposition_with_params(
+        vertices: &[Point<Real>],
+        indices: &[[u32; DIM]],
+        params: &VHACDParameters,
+        border_radius: Real,
+    ) -> Self {
+        let mut parts = vec![];
+        let decomp = VHACD::decompose(params, &vertices, &indices, true);
+
+        for (vertices, indices) in decomp.compute_exact_convex_hulls(&vertices, &indices) {
+            if let Some(convex) = Self::round_convex_mesh(vertices, &indices, border_radius) {
+                parts.push((Isometry::identity(), convex));
+            }
+        }
+
+        Self::compound(parts)
     }
 
     pub fn convex_hull(points: &[Point<Real>]) -> Option<Self> {

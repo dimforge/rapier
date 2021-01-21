@@ -1,6 +1,7 @@
+use crate::cdl::transformation::vhacd::VHACDParameters;
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
 use crate::geometry::{ColliderShape, InteractionGroups};
-use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector};
+use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use cdl::bounding_volume::AABB;
 use cdl::shape::Shape;
 #[cfg(feature = "dim2")]
@@ -297,6 +298,54 @@ impl ColliderBuilder {
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers.
     pub fn trimesh(vertices: Vec<Point<Real>>, indices: Vec<[u32; 3]>) -> Self {
         Self::new(ColliderShape::trimesh(vertices, indices))
+    }
+
+    /// Initializes a collider builder with a compound shape obtained from the decomposition of
+    /// the given trimesh (in 3D) or polyline (in 2D) into convex parts.
+    pub fn convex_decomposition(vertices: &[Point<Real>], indices: &[[u32; DIM]]) -> Self {
+        Self::new(ColliderShape::convex_decomposition(vertices, indices))
+    }
+
+    /// Initializes a collider builder with a compound shape obtained from the decomposition of
+    /// the given trimesh (in 3D) or polyline (in 2D) into convex parts dilated with round corners.
+    pub fn round_convex_decomposition(
+        vertices: &[Point<Real>],
+        indices: &[[u32; DIM]],
+        border_radius: Real,
+    ) -> Self {
+        Self::new(ColliderShape::round_convex_decomposition(
+            vertices,
+            indices,
+            border_radius,
+        ))
+    }
+
+    /// Initializes a collider builder with a compound shape obtained from the decomposition of
+    /// the given trimesh (in 3D) or polyline (in 2D) into convex parts.
+    pub fn convex_decomposition_with_params(
+        vertices: &[Point<Real>],
+        indices: &[[u32; DIM]],
+        params: &VHACDParameters,
+    ) -> Self {
+        Self::new(ColliderShape::convex_decomposition_with_params(
+            vertices, indices, params,
+        ))
+    }
+
+    /// Initializes a collider builder with a compound shape obtained from the decomposition of
+    /// the given trimesh (in 3D) or polyline (in 2D) into convex parts dilated with round corners.
+    pub fn round_convex_decomposition_with_params(
+        vertices: &[Point<Real>],
+        indices: &[[u32; DIM]],
+        params: &VHACDParameters,
+        border_radius: Real,
+    ) -> Self {
+        Self::new(ColliderShape::round_convex_decomposition_with_params(
+            vertices,
+            indices,
+            params,
+            border_radius,
+        ))
     }
 
     pub fn convex_hull(points: &[Point<Real>]) -> Option<Self> {

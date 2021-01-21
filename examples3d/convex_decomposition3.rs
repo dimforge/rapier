@@ -45,7 +45,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let deltas = na::one();
         let mtl_path = Path::new("");
 
-        let mut compound_parts = Vec::new();
+        let mut shapes = Vec::new();
         println!("Parsing and decomposing: {}", obj_path);
         let obj = obj::parse_file(&Path::new(&obj_path), &mtl_path, "");
 
@@ -81,13 +81,9 @@ pub fn init_world(testbed: &mut Testbed) {
                     .into_iter()
                     .map(|idx| [idx.x, idx.y, idx.z])
                     .collect();
-                let vhacd = VHACD::decompose(&params, &vertices, &indices, true);
 
-                for (vertices, indices) in vhacd.compute_exact_convex_hulls(&vertices, &indices) {
-                    if let Some(convex) = ColliderShape::convex_mesh(vertices, &indices) {
-                        compound_parts.push(convex);
-                    }
-                }
+                let decomposed_shape = ColliderShape::convex_decomposition(&vertices, &indices);
+                shapes.push(decomposed_shape);
             }
 
             // let compound = ColliderShape::compound(compound_parts);
@@ -100,8 +96,8 @@ pub fn init_world(testbed: &mut Testbed) {
                 let body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
                 let handle = bodies.insert(body);
 
-                for part in &compound_parts {
-                    let collider = ColliderBuilder::new(part.clone()).build();
+                for shape in &shapes {
+                    let collider = ColliderBuilder::new(shape.clone()).build();
                     colliders.insert(collider, handle, &mut bodies);
                 }
             }
