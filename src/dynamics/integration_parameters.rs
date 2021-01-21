@@ -4,7 +4,7 @@
 pub struct IntegrationParameters {
     /// The timestep length (default: `1.0 / 60.0`)
     dt: f32,
-    /// The inverse of `dt`.
+    /// The inverse of `dt` (default: `60.0` steps per second).
     inv_dt: f32,
     //    /// If `true` and if rapier is compiled with the `parallel` feature, this will enable rayon-based multithreading (default: `true`).
     //    ///
@@ -182,26 +182,33 @@ impl IntegrationParameters {
 
 impl Default for IntegrationParameters {
     fn default() -> Self {
-        Self::new(
-            1.0 / 60.0,
-            //            true,
-            0.2,
-            0.2,
-            1.0,
-            1.0,
-            0.005,
-            0.001,
-            0.2,
-            0.2,
-            0.002,
-            0.2,
-            4,
-            1,
-            10,
-            1,
-            false,
-            false,
-            false,
-        )
+        Self {
+            dt: 1.0 / 60.0,
+            inv_dt: 60.0,
+            //        multithreading_enabled:             true,
+            erp: 0.2,
+            joint_erp: 0.2,
+            warmstart_coeff: 1.0,
+            restitution_velocity_threshold: 1.0,
+            allowed_linear_error: 0.005,
+            allowed_angular_error: 0.001,
+            max_linear_correction: 0.2,
+            max_angular_correction: 0.2,
+            prediction_distance: 0.002,
+            max_stabilization_multiplier: 0.2,
+            max_velocity_iterations: 4,
+            max_position_iterations: 1,
+            // FIXME: what is the optimal value for min_island_size?
+            // It should not be too big so that we don't end up with
+            // huge islands that don't fit in cache.
+            // However we don't want it to be too small and end up with
+            // tons of islands, reducing SIMD parallelism opportunities.
+            min_island_size: 128,
+            max_ccd_position_iterations: 10,
+            max_ccd_substeps: 1,
+            return_after_ccd_substep: false,
+            multiple_ccd_substep_sensor_events_enabled: false,
+            ccd_on_penetration_enabled: false,
+        }
     }
 }
