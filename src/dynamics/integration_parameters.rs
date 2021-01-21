@@ -29,7 +29,7 @@ pub struct IntegrationParameters {
     /// Contacts at points where the involved bodies have a relative
     /// velocity smaller than this threshold wont be affected by the restitution force (default: `1.0`).
     pub restitution_velocity_threshold: f32,
-    /// Amount of penetration the engine wont attempt to correct (default: `0.001m`).
+    /// Amount of penetration the engine wont attempt to correct (default: `0.005m`).
     pub allowed_linear_error: f32,
     /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002`).
     pub prediction_distance: f32,
