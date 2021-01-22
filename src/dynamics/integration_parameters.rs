@@ -3,9 +3,8 @@
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct IntegrationParameters {
     /// The timestep length (default: `1.0 / 60.0`)
-    dt: f32,
-    /// The inverse of `dt` (default: `60.0` steps per second).
-    inv_dt: f32,
+    pub dt: f32,
+
     //    /// If `true` and if rapier is compiled with the `parallel` feature, this will enable rayon-based multithreading (default: `true`).
     //    ///
     //    /// This parameter is ignored if rapier is not compiled with is `parallel` feature.
@@ -110,7 +109,6 @@ impl IntegrationParameters {
     ) -> Self {
         IntegrationParameters {
             dt,
-            inv_dt: if dt == 0.0 { 0.0 } else { 1.0 / dt },
             //            multithreading_enabled,
             erp,
             joint_erp,
@@ -144,26 +142,23 @@ impl IntegrationParameters {
         self.dt
     }
 
-    /// The inverse of the time-stepping length.
+    /// The inverse of the time-stepping length, i.e. the steps per seconds (Hz).
     ///
     /// This is zero if `self.dt` is zero.
     #[inline(always)]
     pub fn inv_dt(&self) -> f32 {
-        self.inv_dt
+        if self.dt == 0.0 {
+            0.0
+        } else {
+            1.0 / self.dt
+        }
     }
 
     /// Sets the time-stepping length.
-    ///
-    /// This automatically recompute `self.inv_dt`.
     #[inline]
     pub fn set_dt(&mut self, dt: f32) {
         assert!(dt >= 0.0, "The time-stepping length cannot be negative.");
         self.dt = dt;
-        if dt == 0.0 {
-            self.inv_dt = 0.0
-        } else {
-            self.inv_dt = 1.0 / dt
-        }
     }
 
     /// Sets the inverse time-stepping length (i.e. the frequency).
@@ -171,7 +166,6 @@ impl IntegrationParameters {
     /// This automatically recompute `self.dt`.
     #[inline]
     pub fn set_inv_dt(&mut self, inv_dt: f32) {
-        self.inv_dt = inv_dt;
         if inv_dt == 0.0 {
             self.dt = 0.0
         } else {
@@ -184,7 +178,6 @@ impl Default for IntegrationParameters {
     fn default() -> Self {
         Self {
             dt: 1.0 / 60.0,
-            inv_dt: 60.0,
             //        multithreading_enabled:             true,
             return_after_ccd_substep: false,
             erp: 0.2,
