@@ -139,6 +139,7 @@ impl IntegrationParameters {
 
     /// The current time-stepping length.
     #[inline(always)]
+    #[deprecated = "You can just read the `IntegrationParams::dt` value directly"]
     pub fn dt(&self) -> f32 {
         self.dt
     }
@@ -157,6 +158,7 @@ impl IntegrationParameters {
 
     /// Sets the time-stepping length.
     #[inline]
+    #[deprecated = "You can just set the `IntegrationParams::dt` value directly"]
     pub fn set_dt(&mut self, dt: f32) {
         assert!(dt >= 0.0, "The time-stepping length cannot be negative.");
         self.dt = dt;

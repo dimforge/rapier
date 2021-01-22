@@ -396,7 +396,7 @@ impl PhysxWorld {
 
     pub fn step(&mut self, counters: &mut Counters, params: &IntegrationParameters) {
         counters.step_started();
-        self.scene.step(params.dt(), true);
+        self.scene.step(params.dt, true);
         counters.step_completed();
     }
 

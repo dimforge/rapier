@@ -238,7 +238,7 @@ impl Harness {
 
         self.events.poll_all();
 
-        self.state.time += self.physics.integration_parameters.dt();
+        self.state.time += self.physics.integration_parameters.dt;
         self.state.timestep_id += 1;
     }
 
