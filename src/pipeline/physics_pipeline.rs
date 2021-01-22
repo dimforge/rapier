@@ -336,6 +336,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn rigid_body_removal_snapshot_handle_determinism() {
         let mut colliders = ColliderSet::new();
