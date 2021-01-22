@@ -25,7 +25,6 @@ use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
 use rapier::math::{Isometry, Vector};
-use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
@@ -284,11 +283,11 @@ impl Testbed {
                 || self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
             {
                 self.physx = Some(PhysxWorld::from_rapier(
-                    physics.gravity,
-                    &physics.integration_parameters,
-                    &physics.bodies,
-                    &physics.colliders,
-                    &physics.joints,
+                    self.harness.physics.gravity,
+                    &self.harness.physics.integration_parameters,
+                    &self.harness.physics.bodies,
+                    &self.harness.physics.colliders,
+                    &self.harness.physics.joints,
                     self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR,
                     self.harness.state.num_threads,
                 ));
@@ -299,10 +298,10 @@ impl Testbed {
         {
             if self.state.selected_backend == NPHYSICS_BACKEND {
                 self.nphysics = Some(NPhysicsWorld::from_rapier(
-                    physics.gravity,
-                    &physics.bodies,
-                    &physics.colliders,
-                    &physics.joints,
+                    self.harness.physics.gravity,
+                    &self.harness.physics.bodies,
+                    &self.harness.physics.colliders,
+                    &self.harness.physics.joints,
                 ));
             }
         }
@@ -501,7 +500,7 @@ impl Testbed {
                                     //                        println!("Step");
                                     self.physx.as_mut().unwrap().step(
                                         &mut self.harness.physics.pipeline.counters,
-                                        &physics.integration_parameters,
+                                        &self.harness.physics.integration_parameters,
                                     );
                                     self.physx.as_mut().unwrap().sync(
                                         &mut self.harness.physics.bodies,
@@ -515,7 +514,7 @@ impl Testbed {
                                 if self.state.selected_backend == NPHYSICS_BACKEND {
                                     self.nphysics.as_mut().unwrap().step(
                                         &mut self.harness.physics.pipeline.counters,
-                                        &physics.integration_parameters,
+                                        &self.harness.physics.integration_parameters,
                                     );
                                     self.nphysics.as_mut().unwrap().sync(
                                         &mut self.harness.physics.bodies,
@@ -986,7 +985,7 @@ impl Testbed {
         );
 
         if let Some((handle, _)) = hit {
-            let collider = &self.physics.colliders[handle];
+            let collider = &physics.colliders[handle];
             if physics.bodies[collider.parent()].is_dynamic() {
                 self.state.highlighted_body = Some(collider.parent());
                 for node in self.graphics.body_nodes_mut(collider.parent()).unwrap() {
@@ -1073,9 +1072,28 @@ impl State for Testbed {
                     .action_flags
                     .set(TestbedActionFlags::EXAMPLE_CHANGED, false);
                 self.clear(window);
+                self.harness.clear_callbacks();
 
                 if self.state.selected_example != prev_example {
                     self.harness.physics.integration_parameters = IntegrationParameters::default();
+
+                    if cfg!(feature = "dim3")
+                        && (self.state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
+                            || self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR)
+                    {
+                        std::mem::swap(
+                            &mut self
+                                .harness
+                                .physics
+                                .integration_parameters
+                                .max_velocity_iterations,
+                            &mut self
+                                .harness
+                                .physics
+                                .integration_parameters
+                                .max_position_iterations,
+                        )
+                    }
                 }
 
                 self.builders[self.state.selected_example].1(self);
@@ -1269,13 +1287,13 @@ impl State for Testbed {
                     {
                         //                        println!("Step");
                         self.physx.as_mut().unwrap().step(
-                            &mut physics.pipeline.counters,
-                            &physics.integration_parameters,
+                            &mut self.harness.physics.pipeline.counters,
+                            &self.harness.physics.integration_parameters,
                         );
-                        self.physx
-                            .as_mut()
-                            .unwrap()
-                            .sync(&mut physics.bodies, &mut physics.colliders);
+                        self.physx.as_mut().unwrap().sync(
+                            &mut self.harness.physics.bodies,
+                            &mut self.harness.physics.colliders,
+                        );
                     }
                 }
 
@@ -1283,13 +1301,13 @@ impl State for Testbed {
                 {
                     if self.state.selected_backend == NPHYSICS_BACKEND {
                         self.nphysics.as_mut().unwrap().step(
-                            &mut physics.pipeline.counters,
-                            &physics.integration_parameters,
+                            &mut self.harness.physics.pipeline.counters,
+                            &self.harness.physics.integration_parameters,
                         );
-                        self.nphysics
-                            .as_mut()
-                            .unwrap()
-                            .sync(&mut physics.bodies, &mut physics.colliders);
+                        self.nphysics.as_mut().unwrap().sync(
+                            &mut self.harness.physics.bodies,
+                            &mut self.harness.physics.colliders,
+                        );
                     }
                 }
 

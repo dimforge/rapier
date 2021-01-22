@@ -99,7 +99,7 @@ impl TestbedUi {
         window: &mut Window,
         integration_parameters: &mut IntegrationParameters,
         state: &mut TestbedState,
-        run_state: &mut RunState,
+        _run_state: &mut RunState,
     ) {
         let ui_root = window.conrod_ui().window;
         let mut ui = window.conrod_ui_mut().set_widgets();

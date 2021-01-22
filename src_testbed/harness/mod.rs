@@ -14,7 +14,6 @@ pub mod plugin;
 pub struct RunState {
     #[cfg(feature = "parallel")]
     pub thread_pool: rapier::rayon::ThreadPool,
-    #[cfg(feature = "parallel")]
     pub num_threads: usize,
     pub timestep_id: usize,
     pub time: f32,
@@ -24,6 +23,8 @@ impl RunState {
     pub fn new() -> Self {
         #[cfg(feature = "parallel")]
         let num_threads = num_cpus::get_physical();
+        #[cfg(not(feature = "parallel"))]
+        let num_threads = 1;
 
         #[cfg(feature = "parallel")]
         let thread_pool = rapier::rayon::ThreadPoolBuilder::new()
@@ -34,7 +35,6 @@ impl RunState {
         Self {
             #[cfg(feature = "parallel")]
             thread_pool: thread_pool,
-            #[cfg(feature = "parallel")]
             num_threads,
             timestep_id: 0,
             time: 0.0,
@@ -109,6 +109,10 @@ impl Harness {
 
     pub fn integration_parameters_mut(&mut self) -> &mut IntegrationParameters {
         &mut self.physics.integration_parameters
+    }
+
+    pub fn clear_callbacks(&mut self) {
+        self.callbacks.clear();
     }
 
     pub fn physics_state_mut(&mut self) -> &mut PhysicsState {
