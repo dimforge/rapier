@@ -434,7 +434,7 @@ impl PhysxWorld {
             .as_mut()
             .unwrap()
             .step(
-                params.dt(),
+                params.dt,
                 None::<&mut physx_sys::PxBaseTask>,
                 Some(&mut scratch),
                 true,

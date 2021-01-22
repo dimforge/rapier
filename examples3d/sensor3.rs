@@ -73,7 +73,7 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.set_body_color(sensor_handle, Point3::new(0.5, 1.0, 1.0));
 
     // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |_, physics, events, graphics, _| {
+    testbed.add_callback(move |_, mut graphics, physics, events, _| {
         while let Ok(prox) = events.intersection_events.try_recv() {
             let color = if prox.intersecting {
                 Point3::new(1.0, 1.0, 0.0)
@@ -84,11 +84,13 @@ pub fn init_world(testbed: &mut Testbed) {
             let parent_handle1 = physics.colliders.get(prox.collider1).unwrap().parent();
             let parent_handle2 = physics.colliders.get(prox.collider2).unwrap().parent();
 
-            if parent_handle1 != ground_handle && parent_handle1 != sensor_handle {
-                graphics.set_body_color(parent_handle1, color);
-            }
-            if parent_handle2 != ground_handle && parent_handle2 != sensor_handle {
-                graphics.set_body_color(parent_handle2, color);
+            if let Some(graphics) = &mut graphics {
+                if parent_handle1 != ground_handle && parent_handle1 != sensor_handle {
+                    graphics.set_body_color(parent_handle1, color);
+                }
+                if parent_handle2 != ground_handle && parent_handle2 != sensor_handle {
+                    graphics.set_body_color(parent_handle2, color);
+                }
             }
         }
     });

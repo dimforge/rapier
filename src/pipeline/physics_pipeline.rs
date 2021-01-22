@@ -154,7 +154,7 @@ impl PhysicsPipeline {
         self.counters.stages.update_time.start();
         bodies.foreach_active_dynamic_body_mut_internal(|_, b| {
             b.update_world_mass_properties();
-            b.integrate_accelerations(integration_parameters.dt(), *gravity)
+            b.integrate_accelerations(integration_parameters.dt, *gravity)
         });
         self.counters.stages.update_time.pause();
 
@@ -233,7 +233,7 @@ impl PhysicsPipeline {
                 rb.linvel = na::zero();
                 rb.angvel = na::zero();
             } else {
-                rb.update_predicted_position(integration_parameters.dt());
+                rb.update_predicted_position(integration_parameters.dt);
             }
 
             rb.update_colliders_positions(colliders);
@@ -330,6 +330,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn rigid_body_removal_snapshot_handle_determinism() {
         let mut colliders = ColliderSet::new();

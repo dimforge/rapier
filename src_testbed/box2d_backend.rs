@@ -219,7 +219,7 @@ impl Box2dWorld {
 
         counters.step_started();
         self.world.step(
-            params.dt(),
+            params.dt,
             params.max_velocity_iterations as i32,
             params.max_position_iterations as i32,
         );

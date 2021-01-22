@@ -57,8 +57,7 @@ impl IslandSolver {
         }
 
         counters.solver.velocity_update_time.resume();
-        bodies
-            .foreach_active_island_body_mut_internal(island_id, |_, rb| rb.integrate(params.dt()));
+        bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| rb.integrate(params.dt));
         counters.solver.velocity_update_time.pause();
 
         if manifold_indices.len() != 0 || joint_indices.len() != 0 {

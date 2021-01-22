@@ -144,6 +144,7 @@ impl VelocityConstraint {
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         push: bool,
     ) {
+        let inv_dt = params.inv_dt();
         let rb1 = &bodies[manifold.data.body_pair.body1];
         let rb2 = &bodies[manifold.data.body_pair.body2];
         let mj_lambda1 = rb1.active_set_offset;
@@ -244,7 +245,7 @@ impl VelocityConstraint {
                         rhs += manifold_point.restitution * rhs
                     }
 
-                    rhs += manifold_point.dist.max(0.0) * params.inv_dt();
+                    rhs += manifold_point.dist.max(0.0) * inv_dt;
 
                     let impulse = manifold_point.data.impulse * warmstart_coeff;
 

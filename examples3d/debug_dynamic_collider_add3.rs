@@ -45,7 +45,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut extra_colliders = Vec::new();
     let snapped_frame = 51;
 
-    testbed.add_callback(move |window, physics, _, graphics, _| {
+    testbed.add_callback(move |mut window, mut graphics, physics, _, _| {
         step += 1;
 
         // Add a bigger ball collider
@@ -56,7 +56,11 @@ pub fn init_world(testbed: &mut Testbed) {
             physics
                 .colliders
                 .insert(collider, ball_handle, &mut physics.bodies);
-        graphics.add_collider(window, new_ball_collider_handle, &physics.colliders);
+
+        if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
+            graphics.add_collider(window, new_ball_collider_handle, &physics.colliders);
+        }
+
         extra_colliders.push(new_ball_collider_handle);
 
         // Snap the ball velocity or restore it.
@@ -95,7 +99,11 @@ pub fn init_world(testbed: &mut Testbed) {
             physics
                 .colliders
                 .insert(coll, ground_handle, &mut physics.bodies);
-        graphics.add_collider(window, new_ground_collider_handle, &physics.colliders);
+
+        if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
+            graphics.add_collider(window, new_ground_collider_handle, &physics.colliders);
+        }
+
         extra_colliders.push(new_ground_collider_handle);
     });
 
