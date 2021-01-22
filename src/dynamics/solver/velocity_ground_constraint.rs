@@ -143,8 +143,7 @@ impl VelocityGroundConstraint {
                 constraint.num_contacts = manifold_points.len() as u8;
             }
 
-            for k in 0..manifold_points.len() {
-                let manifold_point = &manifold_points[k];
+            for (k, manifold_point) in manifold_points.iter().enumerate() {
                 let (p1, p2) = if flipped {
                     // NOTE: we already swapped rb1 and rb2
                     // so we multiply by coll_pos1/coll_pos2.
@@ -179,7 +178,7 @@ impl VelocityGroundConstraint {
 
                     rhs += manifold_point.dist.max(0.0) * inv_dt;
 
-                    let impulse = manifold_points[k].impulse * warmstart_coeff;
+                    let impulse = manifold_point.impulse * warmstart_coeff;
 
                     constraint.elements[k].normal_part = VelocityGroundConstraintElementPart {
                         gcross2,
@@ -200,9 +199,9 @@ impl VelocityGroundConstraint {
                         let r = 1.0 / (rb2.mass_properties.inv_mass + gcross2.gdot(gcross2));
                         let rhs = -vel2.dot(&tangents1[j]) + vel1.dot(&tangents1[j]);
                         #[cfg(feature = "dim2")]
-                        let impulse = manifold_points[k].tangent_impulse * warmstart_coeff;
+                        let impulse = manifold_point.tangent_impulse * warmstart_coeff;
                         #[cfg(feature = "dim3")]
-                        let impulse = manifold_points[k].tangent_impulse[j] * warmstart_coeff;
+                        let impulse = manifold_point.tangent_impulse[j] * warmstart_coeff;
 
                         constraint.elements[k].tangent_part[j] =
                             VelocityGroundConstraintElementPart {

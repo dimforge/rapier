@@ -216,8 +216,7 @@ impl VelocityConstraint {
                 constraint.num_contacts = manifold_points.len() as u8;
             }
 
-            for k in 0..manifold_points.len() {
-                let manifold_point = &manifold_points[k];
+            for (k, manifold_point) in manifold_points.iter().enumerate() {
                 let dp1 = (pos_coll1 * manifold_point.local_p1) - rb1.world_com;
                 let dp2 = (pos_coll2 * manifold_point.local_p2) - rb2.world_com;
 
@@ -247,7 +246,7 @@ impl VelocityConstraint {
 
                     rhs += manifold_point.dist.max(0.0) * inv_dt;
 
-                    let impulse = manifold_points[k].impulse * warmstart_coeff;
+                    let impulse = manifold_point.impulse * warmstart_coeff;
 
                     constraint.elements[k].normal_part = VelocityConstraintElementPart {
                         gcross1,
@@ -276,9 +275,9 @@ impl VelocityConstraint {
                                 + gcross2.gdot(gcross2));
                         let rhs = (vel1 - vel2).dot(&tangents1[j]);
                         #[cfg(feature = "dim2")]
-                        let impulse = manifold_points[k].tangent_impulse * warmstart_coeff;
+                        let impulse = manifold_point.tangent_impulse * warmstart_coeff;
                         #[cfg(feature = "dim3")]
-                        let impulse = manifold_points[k].tangent_impulse[j] * warmstart_coeff;
+                        let impulse = manifold_point.tangent_impulse[j] * warmstart_coeff;
 
                         constraint.elements[k].tangent_part[j] = VelocityConstraintElementPart {
                             gcross1,
