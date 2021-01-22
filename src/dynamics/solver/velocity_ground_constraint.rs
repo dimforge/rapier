@@ -63,6 +63,7 @@ impl VelocityGroundConstraint {
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         push: bool,
     ) {
+        let inv_dt = params.inv_dt();
         let mut rb1 = &bodies[manifold.body_pair.body1];
         let mut rb2 = &bodies[manifold.body_pair.body2];
         let flipped = !rb2.is_dynamic();
@@ -176,7 +177,7 @@ impl VelocityGroundConstraint {
                         rhs += manifold.restitution * rhs
                     }
 
-                    rhs += manifold_point.dist.max(0.0) * params.inv_dt();
+                    rhs += manifold_point.dist.max(0.0) * inv_dt;
 
                     let impulse = manifold_points[k].impulse * warmstart_coeff;
 

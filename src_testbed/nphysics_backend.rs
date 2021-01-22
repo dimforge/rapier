@@ -143,7 +143,7 @@ impl NPhysicsWorld {
             .max_velocity_iterations = params.max_velocity_iterations;
         self.mechanical_world
             .integration_parameters
-            .set_dt(params.dt());
+            .set_dt(params.dt);
 
         counters.step_started();
         self.mechanical_world.step(

@@ -3,9 +3,8 @@
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct IntegrationParameters {
     /// The timestep length (default: `1.0 / 60.0`)
-    dt: f32,
-    /// The inverse of `dt`.
-    inv_dt: f32,
+    pub dt: f32,
+
     //    /// If `true` and if rapier is compiled with the `parallel` feature, this will enable rayon-based multithreading (default: `true`).
     //    ///
     //    /// This parameter is ignored if rapier is not compiled with is `parallel` feature.
@@ -29,7 +28,7 @@ pub struct IntegrationParameters {
     /// Contacts at points where the involved bodies have a relative
     /// velocity smaller than this threshold wont be affected by the restitution force (default: `1.0`).
     pub restitution_velocity_threshold: f32,
-    /// Amount of penetration the engine wont attempt to correct (default: `0.001m`).
+    /// Amount of penetration the engine wont attempt to correct (default: `0.005m`).
     pub allowed_linear_error: f32,
     /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002`).
     pub prediction_distance: f32,
@@ -87,6 +86,7 @@ pub struct IntegrationParameters {
 
 impl IntegrationParameters {
     /// Creates a set of integration parameters with the given values.
+    #[deprecated = "Use `IntegrationParameters { dt: 60.0, ..Default::default() }` instead"]
     pub fn new(
         dt: f32,
         //        multithreading_enabled: bool,
@@ -110,7 +110,6 @@ impl IntegrationParameters {
     ) -> Self {
         IntegrationParameters {
             dt,
-            inv_dt: if dt == 0.0 { 0.0 } else { 1.0 / dt },
             //            multithreading_enabled,
             erp,
             joint_erp,
@@ -140,30 +139,29 @@ impl IntegrationParameters {
 
     /// The current time-stepping length.
     #[inline(always)]
+    #[deprecated = "You can just read the `IntegrationParams::dt` value directly"]
     pub fn dt(&self) -> f32 {
         self.dt
     }
 
-    /// The inverse of the time-stepping length.
+    /// The inverse of the time-stepping length, i.e. the steps per seconds (Hz).
     ///
     /// This is zero if `self.dt` is zero.
     #[inline(always)]
     pub fn inv_dt(&self) -> f32 {
-        self.inv_dt
+        if self.dt == 0.0 {
+            0.0
+        } else {
+            1.0 / self.dt
+        }
     }
 
     /// Sets the time-stepping length.
-    ///
-    /// This automatically recompute `self.inv_dt`.
     #[inline]
+    #[deprecated = "You can just set the `IntegrationParams::dt` value directly"]
     pub fn set_dt(&mut self, dt: f32) {
         assert!(dt >= 0.0, "The time-stepping length cannot be negative.");
         self.dt = dt;
-        if dt == 0.0 {
-            self.inv_dt = 0.0
-        } else {
-            self.inv_dt = 1.0 / dt
-        }
     }
 
     /// Sets the inverse time-stepping length (i.e. the frequency).
@@ -171,7 +169,6 @@ impl IntegrationParameters {
     /// This automatically recompute `self.dt`.
     #[inline]
     pub fn set_inv_dt(&mut self, inv_dt: f32) {
-        self.inv_dt = inv_dt;
         if inv_dt == 0.0 {
             self.dt = 0.0
         } else {
@@ -182,26 +179,32 @@ impl IntegrationParameters {
 
 impl Default for IntegrationParameters {
     fn default() -> Self {
-        Self::new(
-            1.0 / 60.0,
-            //            true,
-            0.2,
-            0.2,
-            1.0,
-            1.0,
-            0.005,
-            0.001,
-            0.2,
-            0.2,
-            0.002,
-            0.2,
-            4,
-            1,
-            10,
-            1,
-            false,
-            false,
-            false,
-        )
+        Self {
+            dt: 1.0 / 60.0,
+            //        multithreading_enabled:             true,
+            return_after_ccd_substep: false,
+            erp: 0.2,
+            joint_erp: 0.2,
+            warmstart_coeff: 1.0,
+            restitution_velocity_threshold: 1.0,
+            allowed_linear_error: 0.005,
+            prediction_distance: 0.002,
+            allowed_angular_error: 0.001,
+            max_linear_correction: 0.2,
+            max_angular_correction: 0.2,
+            max_stabilization_multiplier: 0.2,
+            max_velocity_iterations: 4,
+            max_position_iterations: 1,
+            // FIXME: what is the optimal value for min_island_size?
+            // It should not be too big so that we don't end up with
+            // huge islands that don't fit in cache.
+            // However we don't want it to be too small and end up with
+            // tons of islands, reducing SIMD parallelism opportunities.
+            min_island_size: 128,
+            max_ccd_position_iterations: 10,
+            max_ccd_substeps: 1,
+            multiple_ccd_substep_sensor_events_enabled: false,
+            ccd_on_penetration_enabled: false,
+        }
     }
 }
