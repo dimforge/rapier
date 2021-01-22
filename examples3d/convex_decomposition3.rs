@@ -3,7 +3,7 @@ use na::{Point3, Translation3};
 use rapier3d::cdl::bounding_volume::{self, BoundingVolume};
 use rapier3d::cdl::transformation::vhacd::{VHACDParameters, VHACD};
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet, ColliderShape};
+use rapier3d::geometry::{ColliderBuilder, ColliderSet, SharedShape};
 use rapier_testbed3d::Testbed;
 use std::path::Path;
 
@@ -82,11 +82,11 @@ pub fn init_world(testbed: &mut Testbed) {
                     .map(|idx| [idx.x, idx.y, idx.z])
                     .collect();
 
-                let decomposed_shape = ColliderShape::convex_decomposition(&vertices, &indices);
+                let decomposed_shape = SharedShape::convex_decomposition(&vertices, &indices);
                 shapes.push(decomposed_shape);
             }
 
-            // let compound = ColliderShape::compound(compound_parts);
+            // let compound = SharedShape::compound(compound_parts);
 
             for k in 1..num_duplications + 1 {
                 let x = (igeom % width) as f32 * shift;

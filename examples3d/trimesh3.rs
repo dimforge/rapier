@@ -1,6 +1,6 @@
 use na::{ComplexField, DMatrix, Isometry3, Point3, Vector3};
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet, ColliderShape, HeightField};
+use rapier3d::geometry::{ColliderBuilder, ColliderSet, HeightField, SharedShape};
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -75,15 +75,15 @@ pub fn init_world(testbed: &mut Testbed) {
                         let shapes = vec![
                             (
                                 Isometry3::identity(),
-                                ColliderShape::cuboid(rad, rad / 2.0, rad / 2.0),
+                                SharedShape::cuboid(rad, rad / 2.0, rad / 2.0),
                             ),
                             (
                                 Isometry3::translation(rad, 0.0, 0.0),
-                                ColliderShape::cuboid(rad / 2.0, rad, rad / 2.0),
+                                SharedShape::cuboid(rad / 2.0, rad, rad / 2.0),
                             ),
                             (
                                 Isometry3::translation(-rad, 0.0, 0.0),
-                                ColliderShape::cuboid(rad / 2.0, rad, rad / 2.0),
+                                SharedShape::cuboid(rad / 2.0, rad, rad / 2.0),
                             ),
                         ];
 

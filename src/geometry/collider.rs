@@ -1,6 +1,6 @@
 use crate::cdl::transformation::vhacd::VHACDParameters;
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
-use crate::geometry::{ColliderShape, InteractionGroups};
+use crate::geometry::{InteractionGroups, SharedShape};
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use cdl::bounding_volume::AABB;
 use cdl::shape::Shape;
@@ -47,7 +47,7 @@ impl ColliderFlags {
 ///
 /// To build a new collider, use the `ColliderBuilder` structure.
 pub struct Collider {
-    shape: ColliderShape,
+    shape: SharedShape,
     density: Real,
     pub(crate) flags: ColliderFlags,
     pub(crate) parent: RigidBodyHandle,
@@ -144,7 +144,7 @@ impl Collider {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct ColliderBuilder {
     /// The shape of the collider to be built.
-    pub shape: ColliderShape,
+    pub shape: SharedShape,
     /// The density of the collider to be built.
     density: Option<Real>,
     /// The friction coefficient of the collider to be built.
@@ -169,7 +169,7 @@ pub struct ColliderBuilder {
 
 impl ColliderBuilder {
     /// Initialize a new collider builder with the given shape.
-    pub fn new(shape: ColliderShape) -> Self {
+    pub fn new(shape: SharedShape) -> Self {
         Self {
             shape,
             density: None,
@@ -191,20 +191,20 @@ impl ColliderBuilder {
         self.density.unwrap_or(default_density)
     }
 
-    pub fn compound(shapes: Vec<(Isometry<Real>, ColliderShape)>) -> Self {
-        Self::new(ColliderShape::compound(shapes))
+    pub fn compound(shapes: Vec<(Isometry<Real>, SharedShape)>) -> Self {
+        Self::new(SharedShape::compound(shapes))
     }
 
     /// Initialize a new collider builder with a ball shape defined by its radius.
     pub fn ball(radius: Real) -> Self {
-        Self::new(ColliderShape::ball(radius))
+        Self::new(SharedShape::ball(radius))
     }
 
     /// Initialize a new collider builder with a cylindrical shape defined by its half-height
     /// (along along the y axis) and its radius.
     #[cfg(feature = "dim3")]
     pub fn cylinder(half_height: Real, radius: Real) -> Self {
-        Self::new(ColliderShape::cylinder(half_height, radius))
+        Self::new(SharedShape::cylinder(half_height, radius))
     }
 
     /// Initialize a new collider builder with a rounded cylindrical shape defined by its half-height
@@ -212,7 +212,7 @@ impl ColliderBuilder {
     /// radius of the sphere used for dilating the cylinder).
     #[cfg(feature = "dim3")]
     pub fn round_cylinder(half_height: Real, radius: Real, border_radius: Real) -> Self {
-        Self::new(ColliderShape::round_cylinder(
+        Self::new(SharedShape::round_cylinder(
             half_height,
             radius,
             border_radius,
@@ -223,7 +223,7 @@ impl ColliderBuilder {
     /// (along along the y axis) and its basis radius.
     #[cfg(feature = "dim3")]
     pub fn cone(half_height: Real, radius: Real) -> Self {
-        Self::new(ColliderShape::cone(half_height, radius))
+        Self::new(SharedShape::cone(half_height, radius))
     }
 
     /// Initialize a new collider builder with a rounded cone shape defined by its half-height
@@ -231,77 +231,73 @@ impl ColliderBuilder {
     /// radius of the sphere used for dilating the cylinder).
     #[cfg(feature = "dim3")]
     pub fn round_cone(half_height: Real, radius: Real, border_radius: Real) -> Self {
-        Self::new(ColliderShape::round_cone(
-            half_height,
-            radius,
-            border_radius,
-        ))
+        Self::new(SharedShape::round_cone(half_height, radius, border_radius))
     }
 
     /// Initialize a new collider builder with a cuboid shape defined by its half-extents.
     #[cfg(feature = "dim2")]
     pub fn cuboid(hx: Real, hy: Real) -> Self {
-        Self::new(ColliderShape::cuboid(hx, hy))
+        Self::new(SharedShape::cuboid(hx, hy))
     }
 
     /// Initialize a new collider builder with a round cuboid shape defined by its half-extents
     /// and border radius.
     #[cfg(feature = "dim2")]
     pub fn round_cuboid(hx: Real, hy: Real, border_radius: Real) -> Self {
-        Self::new(ColliderShape::round_cuboid(hx, hy, border_radius))
+        Self::new(SharedShape::round_cuboid(hx, hy, border_radius))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `x` axis.
     pub fn capsule_x(half_height: Real, radius: Real) -> Self {
         let p = Point::from(Vector::x() * half_height);
-        Self::new(ColliderShape::capsule(-p, p, radius))
+        Self::new(SharedShape::capsule(-p, p, radius))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `y` axis.
     pub fn capsule_y(half_height: Real, radius: Real) -> Self {
         let p = Point::from(Vector::y() * half_height);
-        Self::new(ColliderShape::capsule(-p, p, radius))
+        Self::new(SharedShape::capsule(-p, p, radius))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `z` axis.
     #[cfg(feature = "dim3")]
     pub fn capsule_z(half_height: Real, radius: Real) -> Self {
         let p = Point::from(Vector::z() * half_height);
-        Self::new(ColliderShape::capsule(-p, p, radius))
+        Self::new(SharedShape::capsule(-p, p, radius))
     }
 
     /// Initialize a new collider builder with a cuboid shape defined by its half-extents.
     #[cfg(feature = "dim3")]
     pub fn cuboid(hx: Real, hy: Real, hz: Real) -> Self {
-        Self::new(ColliderShape::cuboid(hx, hy, hz))
+        Self::new(SharedShape::cuboid(hx, hy, hz))
     }
 
     /// Initialize a new collider builder with a round cuboid shape defined by its half-extents
     /// and border radius.
     #[cfg(feature = "dim3")]
     pub fn round_cuboid(hx: Real, hy: Real, hz: Real, border_radius: Real) -> Self {
-        Self::new(ColliderShape::round_cuboid(hx, hy, hz, border_radius))
+        Self::new(SharedShape::round_cuboid(hx, hy, hz, border_radius))
     }
 
     /// Initializes a collider builder with a segment shape.
     pub fn segment(a: Point<Real>, b: Point<Real>) -> Self {
-        Self::new(ColliderShape::segment(a, b))
+        Self::new(SharedShape::segment(a, b))
     }
 
     /// Initializes a collider builder with a triangle shape.
     pub fn triangle(a: Point<Real>, b: Point<Real>, c: Point<Real>) -> Self {
-        Self::new(ColliderShape::triangle(a, b, c))
+        Self::new(SharedShape::triangle(a, b, c))
     }
 
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers.
     pub fn trimesh(vertices: Vec<Point<Real>>, indices: Vec<[u32; 3]>) -> Self {
-        Self::new(ColliderShape::trimesh(vertices, indices))
+        Self::new(SharedShape::trimesh(vertices, indices))
     }
 
     /// Initializes a collider builder with a compound shape obtained from the decomposition of
     /// the given trimesh (in 3D) or polyline (in 2D) into convex parts.
     pub fn convex_decomposition(vertices: &[Point<Real>], indices: &[[u32; DIM]]) -> Self {
-        Self::new(ColliderShape::convex_decomposition(vertices, indices))
+        Self::new(SharedShape::convex_decomposition(vertices, indices))
     }
 
     /// Initializes a collider builder with a compound shape obtained from the decomposition of
@@ -311,7 +307,7 @@ impl ColliderBuilder {
         indices: &[[u32; DIM]],
         border_radius: Real,
     ) -> Self {
-        Self::new(ColliderShape::round_convex_decomposition(
+        Self::new(SharedShape::round_convex_decomposition(
             vertices,
             indices,
             border_radius,
@@ -325,7 +321,7 @@ impl ColliderBuilder {
         indices: &[[u32; DIM]],
         params: &VHACDParameters,
     ) -> Self {
-        Self::new(ColliderShape::convex_decomposition_with_params(
+        Self::new(SharedShape::convex_decomposition_with_params(
             vertices, indices, params,
         ))
     }
@@ -338,7 +334,7 @@ impl ColliderBuilder {
         params: &VHACDParameters,
         border_radius: Real,
     ) -> Self {
-        Self::new(ColliderShape::round_convex_decomposition_with_params(
+        Self::new(SharedShape::round_convex_decomposition_with_params(
             vertices,
             indices,
             params,
@@ -347,26 +343,26 @@ impl ColliderBuilder {
     }
 
     pub fn convex_hull(points: &[Point<Real>]) -> Option<Self> {
-        ColliderShape::convex_hull(points).map(|cp| Self::new(cp))
+        SharedShape::convex_hull(points).map(|cp| Self::new(cp))
     }
 
     pub fn round_convex_hull(points: &[Point<Real>], border_radius: Real) -> Option<Self> {
-        ColliderShape::round_convex_hull(points, border_radius).map(|cp| Self::new(cp))
+        SharedShape::round_convex_hull(points, border_radius).map(|cp| Self::new(cp))
     }
 
     #[cfg(feature = "dim2")]
     pub fn convex_polyline(points: Vec<Point<Real>>) -> Option<Self> {
-        ColliderShape::convex_polyline(points).map(|cp| Self::new(cp))
+        SharedShape::convex_polyline(points).map(|cp| Self::new(cp))
     }
 
     #[cfg(feature = "dim2")]
     pub fn round_convex_polyline(points: Vec<Point<Real>>, border_radius: Real) -> Option<Self> {
-        ColliderShape::round_convex_polyline(points, border_radius).map(|cp| Self::new(cp))
+        SharedShape::round_convex_polyline(points, border_radius).map(|cp| Self::new(cp))
     }
 
     #[cfg(feature = "dim3")]
     pub fn convex_mesh(points: Vec<Point<Real>>, indices: &[[u32; 3]]) -> Option<Self> {
-        ColliderShape::convex_mesh(points, indices).map(|cp| Self::new(cp))
+        SharedShape::convex_mesh(points, indices).map(|cp| Self::new(cp))
     }
 
     #[cfg(feature = "dim3")]
@@ -375,21 +371,21 @@ impl ColliderBuilder {
         indices: &[[u32; 3]],
         border_radius: Real,
     ) -> Option<Self> {
-        ColliderShape::round_convex_mesh(points, indices, border_radius).map(|cp| Self::new(cp))
+        SharedShape::round_convex_mesh(points, indices, border_radius).map(|cp| Self::new(cp))
     }
 
     /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
     /// factor along each coordinate axis.
     #[cfg(feature = "dim2")]
     pub fn heightfield(heights: na::DVector<Real>, scale: Vector<Real>) -> Self {
-        Self::new(ColliderShape::heightfield(heights, scale))
+        Self::new(SharedShape::heightfield(heights, scale))
     }
 
     /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
     /// factor along each coordinate axis.
     #[cfg(feature = "dim3")]
     pub fn heightfield(heights: na::DMatrix<Real>, scale: Vector<Real>) -> Self {
-        Self::new(ColliderShape::heightfield(heights, scale))
+        Self::new(SharedShape::heightfield(heights, scale))
     }
 
     /// The default friction coefficient used by the collider builder.

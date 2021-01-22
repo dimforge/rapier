@@ -3,7 +3,6 @@
 pub use self::broad_phase_multi_sap::BroadPhase;
 pub use self::collider::{Collider, ColliderBuilder};
 pub use self::collider_set::{ColliderHandle, ColliderSet};
-pub use self::collider_shape::ColliderShape;
 pub use self::contact_pair::{ContactData, ContactManifoldData};
 pub use self::contact_pair::{ContactPair, SolverContact, SolverFlags};
 pub use self::interaction_graph::{
@@ -43,6 +42,7 @@ pub type Ray = cdl::query::Ray;
 pub type RayIntersection = cdl::query::RayIntersection;
 /// The the projection of a point on a collider.
 pub type PointProjection = cdl::query::PointProjection;
+pub use cdl::shape::SharedShape;
 
 #[derive(Copy, Clone, Hash, Debug)]
 /// Events occurring when two collision objects start or stop being in contact (or penetration).
@@ -99,7 +99,6 @@ pub(crate) fn default_query_dispatcher() -> std::sync::Arc<dyn cdl::query::Query
 mod broad_phase_multi_sap;
 mod collider;
 mod collider_set;
-mod collider_shape;
 mod contact_pair;
 mod interaction_graph;
 mod interaction_groups;
