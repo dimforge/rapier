@@ -86,6 +86,7 @@ pub struct IntegrationParameters {
 
 impl IntegrationParameters {
     /// Creates a set of integration parameters with the given values.
+    #[deprecated = "Use `IntegrationParameters { dt: 60.0, ..Default::default() }` instead"]
     pub fn new(
         dt: f32,
         //        multithreading_enabled: bool,
