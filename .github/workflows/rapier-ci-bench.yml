@@ -14,21 +14,23 @@ jobs:
       BENCHBOT_AMQP_PASS: ${{ secrets.BENCHBOT_AMQP_PASS }}
       BENCHBOT_AMQP_VHOST: ${{ secrets.BENCHBOT_AMQP_VHOST }}
       BENCHBOT_AMQP_HOST: ${{ secrets.BENCHBOT_AMQP_HOST }}
-      BENCHBOT_TARGET_REPO: ${{ github.repository }}
+      BENCHBOT_TARGET_REPO: ${{ github.event.pull_request.head.repo.clone_url }}
       BENCHBOT_TARGET_COMMIT: ${{ github.event.pull_request.head.sha }}
       BENCHBOT_SHA: ${{ github.sha }}
-      BENCHBOT_HEAD_REF: ${{github.head_ref}}
+      BENCHBOT_HEAD_REF: ${{ github.head_ref }}
       BENCHBOT_OTHER_BACKENDS: false
     runs-on: ubuntu-latest
     steps:
-      - name: Find commit SHA
-        if: github.ref == 'refs/heads/master'
+      - name: Set env on master
+        if: github.head_ref == ''
         run: |
           echo "BENCHBOT_TARGET_COMMIT=$BENCHBOT_SHA" >> $GITHUB_ENV
+          echo "BENCHBOT_TARGET_REPO=https://github.com/dimforge/rapier" >> $GITHUB_ENV
+          echo "BENCHBOT_HEAD_REF=master" >> $GITHUB_ENV
           echo "BENCHBOT_OTHER_BACKENDS=true" >> $GITHUB_ENV
       - name: Send 3D bench message
         shell: bash
         run: curl -u $BENCHBOT_AMQP_USER:$BENCHBOT_AMQP_PASS
              -i -H "content-type:application/json" -X POST
              https://$BENCHBOT_AMQP_HOST/api/exchanges/$BENCHBOT_AMQP_VHOST//publish
-            -d'{"properties":{},"routing_key":"benchmark","payload":"{ \"repository\":\"https://github.com/'$BENCHBOT_TARGET_REPO'\", \"branch\":\"'$GITHUB_REF'\", \"commit\":\"'$BENCHBOT_TARGET_COMMIT'\", \"other_backends\":'$BENCHBOT_OTHER_BACKENDS' }","payload_encoding":"string"}'
+            -d'{"properties":{},"routing_key":"benchmark","payload":"{ \"repository\":\"'$BENCHBOT_TARGET_REPO'\", \"branch\":\"'$BENCHBOT_HEAD_REF'\", \"commit\":\"'$BENCHBOT_TARGET_COMMIT'\", \"other_backends\":'$BENCHBOT_OTHER_BACKENDS' }","payload_encoding":"string"}'
