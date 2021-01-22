@@ -27,7 +27,7 @@ pub fn init_world(testbed: &mut Testbed) {
             // NOTE: make sure we use the sin/cos from simba to ensure
             // cross-platform determinism of the example when the
             // enhanced_determinism feature is enabled.
-            <f32 as ComplexField>::sin(x) + <f32 as ComplexField>::cos(z)
+            ComplexField::sin(x) + ComplexField::cos(z)
         }
     });
 
