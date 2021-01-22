@@ -269,10 +269,10 @@ impl Testbed {
         {
             if self.state.selected_backend == BOX2D_BACKEND {
                 self.box2d = Some(Box2dWorld::from_rapier(
-                    physics.gravity,
-                    &physics.bodies,
-                    &physics.colliders,
-                    &physics.joints,
+                    self.harness.physics.gravity,
+                    &self.harness.physics.bodies,
+                    &self.harness.physics.colliders,
+                    &self.harness.physics.joints,
                 ));
             }
         }
@@ -483,7 +483,7 @@ impl Testbed {
                                 if self.state.selected_backend == BOX2D_BACKEND {
                                     self.box2d.as_mut().unwrap().step(
                                         &mut self.harness.physics.pipeline.counters,
-                                        &physics.integration_parameters,
+                                        &self.harness.physics.integration_parameters,
                                     );
                                     self.box2d.as_mut().unwrap().sync(
                                         &mut self.harness.physics.bodies,
@@ -1270,13 +1270,13 @@ impl State for Testbed {
                 {
                     if self.state.selected_backend == BOX2D_BACKEND {
                         self.box2d.as_mut().unwrap().step(
-                            &mut physics.pipeline.counters,
-                            &physics.integration_parameters,
+                            &mut self.harness.physics.pipeline.counters,
+                            &self.harness.physics.integration_parameters,
                         );
-                        self.box2d
-                            .as_mut()
-                            .unwrap()
-                            .sync(&mut physics.bodies, &mut physics.colliders);
+                        self.box2d.as_mut().unwrap().sync(
+                            &mut self.harness.physics.bodies,
+                            &mut self.harness.physics.colliders,
+                        );
                     }
                 }
 

@@ -256,7 +256,7 @@ impl TestbedUi {
         let curr_vel_iters = integration_parameters.max_velocity_iterations;
         let curr_pos_iters = integration_parameters.max_position_iterations;
         #[cfg(feature = "parallel")]
-        let curr_num_threads = run_state.num_threads;
+        let curr_num_threads = _run_state.num_threads;
         let curr_max_ccd_substeps = integration_parameters.max_ccd_substeps;
         let curr_min_island_size = integration_parameters.min_island_size;
         let curr_warmstart_coeff = integration_parameters.warmstart_coeff;
@@ -307,10 +307,10 @@ impl TestbedUi {
             .w_h(ELEMENT_W, ELEMENT_H)
             .set(self.ids.slider_num_threads, &mut ui)
             {
-                if run_state.num_threads != val as usize {
-                    run_state.num_threads = val as usize;
-                    run_state.thread_pool = rapier::rayon::ThreadPoolBuilder::new()
-                        .num_threads(run_state.num_threads)
+                if _run_state.num_threads != val as usize {
+                    _run_state.num_threads = val as usize;
+                    _run_state.thread_pool = rapier::rayon::ThreadPoolBuilder::new()
+                        .num_threads(_run_state.num_threads)
                         .build()
                         .unwrap();
                 }

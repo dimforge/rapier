@@ -70,12 +70,6 @@ impl Harness {
         #[cfg(feature = "parallel")]
         let num_threads = num_cpus::get_physical();
 
-        #[cfg(feature = "parallel")]
-        let thread_pool = rapier::rayon::ThreadPoolBuilder::new()
-            .num_threads(num_threads)
-            .build()
-            .unwrap();
-
         let contact_channel = crossbeam::channel::unbounded();
         let proximity_channel = crossbeam::channel::unbounded();
         let event_handler = ChannelEventCollector::new(proximity_channel.0, contact_channel.0);

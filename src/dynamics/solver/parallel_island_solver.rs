@@ -251,7 +251,7 @@ impl ParallelIslandSolver {
                         let dvel = mj_lambdas[rb.active_set_offset];
                         rb.linvel += dvel.linear;
                         rb.angvel += rb.effective_world_inv_inertia_sqrt.transform_vector(dvel.angular);
-                        rb.integrate(params.dt));
+                        rb.integrate(params.dt);
                         positions[rb.active_set_offset] = rb.position;
                     }
                 }
