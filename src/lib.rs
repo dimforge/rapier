@@ -127,6 +127,8 @@ pub(crate) const INVALID_U32: u32 = u32::MAX;
 pub(crate) const INVALID_U64: u64 = u64::MAX;
 pub(crate) const INVALID_USIZE: usize = INVALID_U32 as usize;
 
+pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 pub mod counters;
 pub mod data;
 pub mod dynamics;
