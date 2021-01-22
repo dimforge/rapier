@@ -7,6 +7,7 @@ on:
     branches: [ master ]
   workflow_dispatch:
 
+
 jobs:
   send-bench-message:
     env:
