@@ -1,4 +1,4 @@
-use na::{Point2, Point3};
+use na::Point2;
 use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier2d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed2d::Testbed;

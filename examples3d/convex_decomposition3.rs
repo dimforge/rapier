@@ -1,7 +1,6 @@
 use kiss3d::loader::obj;
 use na::{Point3, Translation3};
 use rapier3d::cdl::bounding_volume::{self, BoundingVolume};
-use rapier3d::cdl::transformation::vhacd::{VHACDParameters, VHACD};
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet, SharedShape};
 use rapier_testbed3d::Testbed;
@@ -73,7 +72,6 @@ pub fn init_world(testbed: &mut Testbed) {
                 trimesh.translate_by(&Translation3::from(-center));
                 trimesh.scale_by_scalar(6.0 / diag);
 
-                let params = VHACDParameters::default();
                 let vertices = trimesh.coords;
                 let indices: Vec<_> = trimesh
                     .indices

@@ -137,7 +137,7 @@ impl TestbedUi {
             .set(self.ids.backends_list, &mut ui)
             {
                 if selected != state.selected_backend {
-                    #[cfg(feature = "dim3")]
+                    #[cfg(all(feature = "dim3", feature = "other-backends"))]
                     fn is_physx(id: usize) -> bool {
                         id == crate::testbed::PHYSX_BACKEND_PATCH_FRICTION
                             || id == crate::testbed::PHYSX_BACKEND_TWO_FRICTION_DIR

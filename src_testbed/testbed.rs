@@ -35,8 +35,9 @@ use crate::nphysics_backend::NPhysicsWorld;
 use crate::physx_backend::PhysxWorld;
 
 const RAPIER_BACKEND: usize = 0;
+#[cfg(feature = "other-backends")]
 const NPHYSICS_BACKEND: usize = 1;
-#[cfg(feature = "dim2")]
+#[cfg(all(feature = "dim2", feature = "other-backends"))]
 const BOX2D_BACKEND: usize = 2;
 pub(crate) const PHYSX_BACKEND_PATCH_FRICTION: usize = 2;
 pub(crate) const PHYSX_BACKEND_TWO_FRICTION_DIR: usize = 3;

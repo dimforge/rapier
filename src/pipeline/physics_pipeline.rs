@@ -250,7 +250,7 @@ impl PhysicsPipeline {
 mod test {
     use crate::dynamics::{IntegrationParameters, JointSet, RigidBodyBuilder, RigidBodySet};
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
-    use crate::math::{Real, Vector};
+    use crate::math::Vector;
     use crate::pipeline::PhysicsPipeline;
 
     #[test]

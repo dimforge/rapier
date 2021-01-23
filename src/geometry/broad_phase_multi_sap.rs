@@ -762,7 +762,7 @@ impl BroadPhase {
 #[cfg(test)]
 mod test {
     use crate::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-    use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
+    use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet};
 
     #[test]
     fn test_add_update_remove() {
