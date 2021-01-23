@@ -130,7 +130,7 @@ impl VelocityGroundConstraint {
             {
                 constraint.dir1 = force_dir1;
                 constraint.im2 = rb2.effective_inv_mass;
-                constraint.limit = manifold.data.friction;
+                constraint.limit = 0.0;
                 constraint.mj_lambda2 = mj_lambda2;
                 constraint.manifold_id = manifold_id;
                 constraint.manifold_contact_id = l * MAX_MANIFOLD_POINTS;

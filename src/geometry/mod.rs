@@ -87,11 +87,13 @@ pub(crate) use self::narrow_phase::ContactManifoldIndex;
 pub(crate) use cdl::partitioning::SimdQuadTree;
 pub use cdl::shape::*;
 
+#[cfg(feature = "serde-serialize")]
 pub(crate) fn default_persistent_query_dispatcher(
 ) -> std::sync::Arc<dyn cdl::query::PersistentQueryDispatcher<ContactManifoldData, ContactData>> {
     std::sync::Arc::new(cdl::query::DefaultQueryDispatcher)
 }
 
+#[cfg(feature = "serde-serialize")]
 pub(crate) fn default_query_dispatcher() -> std::sync::Arc<dyn cdl::query::QueryDispatcher> {
     std::sync::Arc::new(cdl::query::DefaultQueryDispatcher)
 }

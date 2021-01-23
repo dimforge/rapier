@@ -207,7 +207,7 @@ impl VelocityConstraint {
                 constraint.dir1 = force_dir1;
                 constraint.im1 = rb1.effective_inv_mass;
                 constraint.im2 = rb2.effective_inv_mass;
-                constraint.limit = manifold.data.friction;
+                constraint.limit = 0.0;
                 constraint.mj_lambda1 = mj_lambda1;
                 constraint.mj_lambda2 = mj_lambda2;
                 constraint.manifold_id = manifold_id;
