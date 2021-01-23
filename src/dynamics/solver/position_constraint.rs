@@ -51,12 +51,6 @@ pub(crate) struct PositionConstraint {
 }
 
 impl PositionConstraint {
-    #[cfg(feature = "parallel")]
-    pub fn num_active_constraints(manifold: &ContactManifold) -> usize {
-        let rest = manifold.data.solver_contacts.len() % MAX_MANIFOLD_POINTS != 0;
-        manifold.data.solver_contacts.len() / MAX_MANIFOLD_POINTS + rest as usize
-    }
-
     pub fn generate(
         params: &IntegrationParameters,
         manifold: &ContactManifold,

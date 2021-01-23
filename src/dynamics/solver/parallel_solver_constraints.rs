@@ -1,17 +1,19 @@
 use super::ParallelInteractionGroups;
-use super::{AnyJointVelocityConstraint, AnyVelocityConstraint, DeltaVel, ThreadContext};
+use super::{AnyJointVelocityConstraint, AnyVelocityConstraint, ThreadContext};
 use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
 use crate::dynamics::solver::{
     AnyJointPositionConstraint, AnyPositionConstraint, InteractionGroups, PositionConstraint,
-    PositionGroundConstraint, VelocityConstraint, VelocityGroundConstraint, WPositionConstraint,
-    WPositionGroundConstraint,
+    PositionGroundConstraint, VelocityConstraint, VelocityGroundConstraint,
 };
 use crate::dynamics::{IntegrationParameters, JointGraphEdge, RigidBodySet};
 use crate::geometry::ContactManifold;
 #[cfg(feature = "simd-is-enabled")]
 use crate::{
-    dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint},
-    math::{Real, SIMD_WIDTH},
+    dynamics::solver::{
+        WPositionConstraint, WPositionGroundConstraint, WVelocityConstraint,
+        WVelocityGroundConstraint,
+    },
+    math::SIMD_WIDTH,
 };
 use std::sync::atomic::Ordering;
 

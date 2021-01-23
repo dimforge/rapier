@@ -1,28 +1,10 @@
-use super::ParallelInteractionGroups;
 use super::{AnyJointPositionConstraint, AnyPositionConstraint, ThreadContext};
-use crate::dynamics::solver::categorization::categorize_joints;
 use crate::dynamics::solver::{
-    AnyJointVelocityConstraint, AnyVelocityConstraint, InteractionGroups,
-    ParallelSolverConstraints, PositionConstraint, PositionGroundConstraint,
+    AnyJointVelocityConstraint, AnyVelocityConstraint, ParallelSolverConstraints,
 };
-use crate::dynamics::{IntegrationParameters, JointGraphEdge, RigidBodySet};
-use crate::geometry::ContactManifold;
+use crate::dynamics::IntegrationParameters;
 use crate::math::{Isometry, Real};
-#[cfg(feature = "simd-is-enabled")]
-use crate::{
-    dynamics::solver::{WPositionConstraint, WPositionGroundConstraint},
-    math::SIMD_WIDTH,
-};
 use std::sync::atomic::Ordering;
-
-pub(crate) enum PositionConstraintDesc {
-    NongroundNongrouped(usize),
-    GroundNongrouped(usize),
-    #[cfg(feature = "simd-is-enabled")]
-    NongroundGrouped([usize; SIMD_WIDTH]),
-    #[cfg(feature = "simd-is-enabled")]
-    GroundGrouped([usize; SIMD_WIDTH]),
-}
 
 pub(crate) struct ParallelPositionSolver;
 

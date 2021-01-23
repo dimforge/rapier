@@ -67,9 +67,6 @@ type Callbacks = Vec<
 #[allow(dead_code)]
 impl Harness {
     pub fn new_empty() -> Self {
-        #[cfg(feature = "parallel")]
-        let num_threads = num_cpus::get_physical();
-
         let contact_channel = crossbeam::channel::unbounded();
         let proximity_channel = crossbeam::channel::unbounded();
         let event_handler = ChannelEventCollector::new(proximity_channel.0, contact_channel.0);

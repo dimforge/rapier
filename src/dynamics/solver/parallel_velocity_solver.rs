@@ -1,18 +1,10 @@
-use super::ParallelInteractionGroups;
 use super::{AnyJointVelocityConstraint, AnyVelocityConstraint, DeltaVel, ThreadContext};
-use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
-use crate::dynamics::solver::parallel_solver_constraints::ConstraintDesc;
 use crate::dynamics::solver::{
-    AnyJointPositionConstraint, AnyPositionConstraint, InteractionGroups,
-    ParallelSolverConstraints, VelocityConstraint, VelocityGroundConstraint,
+    AnyJointPositionConstraint, AnyPositionConstraint, ParallelSolverConstraints,
 };
-use crate::dynamics::{IntegrationParameters, JointGraphEdge, RigidBodySet};
+use crate::dynamics::{IntegrationParameters, JointGraphEdge};
 use crate::geometry::ContactManifold;
-#[cfg(feature = "simd-is-enabled")]
-use crate::{
-    dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint},
-    math::{Real, SIMD_WIDTH},
-};
+use crate::math::Real;
 use std::sync::atomic::Ordering;
 
 pub(crate) struct ParallelVelocitySolver {}

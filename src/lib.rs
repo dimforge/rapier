@@ -25,8 +25,6 @@ pub extern crate nalgebra as na;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;
-#[macro_use]
-extern crate approx;
 extern crate num_traits as num;
 // #[macro_use]
 // extern crate array_macro;
@@ -51,6 +49,7 @@ macro_rules! enable_flush_to_zero(
     }
 );
 
+#[cfg(feature = "simd-is-enabled")]
 macro_rules! array(
     ($callback: expr; SIMD_WIDTH) => {
         {

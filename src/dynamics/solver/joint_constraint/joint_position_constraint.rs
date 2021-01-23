@@ -50,24 +50,6 @@ pub(crate) enum AnyJointPositionConstraint {
 }
 
 impl AnyJointPositionConstraint {
-    #[cfg(feature = "parallel")]
-    pub fn num_active_constraints(joint: &Joint, grouped: bool) -> usize {
-        #[cfg(feature = "simd-is-enabled")]
-        if !grouped {
-            1
-        } else {
-            match &joint.params {
-                JointParams::BallJoint(_) => 1,
-                _ => SIMD_WIDTH, // For joints that don't support SIMD position constraints yet.
-            }
-        }
-
-        #[cfg(not(feature = "simd-is-enabled"))]
-        {
-            1
-        }
-    }
-
     pub fn from_joint(joint: &Joint, bodies: &RigidBodySet) -> Self {
         let rb1 = &bodies[joint.body1];
         let rb2 = &bodies[joint.body2];
