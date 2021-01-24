@@ -1,7 +1,7 @@
 use crate::dynamics::{BodyPair, RigidBodyHandle};
 use crate::geometry::{ColliderPair, ContactManifold};
 use crate::math::{Point, Real, Vector};
-use cdl::query::ContactManifoldsWorkspace;
+use parry::query::ContactManifoldsWorkspace;
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]

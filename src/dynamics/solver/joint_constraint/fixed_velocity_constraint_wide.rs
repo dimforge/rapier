@@ -13,8 +13,8 @@ use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 use na::{Cholesky, Matrix6, Vector6, U3};
 #[cfg(feature = "dim2")]
 use {
-    cdl::utils::SdpMatrix3,
     na::{Matrix3, Vector3},
+    parry::utils::SdpMatrix3,
 };
 
 #[derive(Debug)]

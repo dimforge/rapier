@@ -12,13 +12,13 @@
 #![allow(missing_docs)]
 
 #[cfg(all(feature = "dim2", feature = "f32"))]
-pub extern crate cdl2d as cdl;
+pub extern crate parry2d as parry;
 #[cfg(all(feature = "dim2", feature = "f64"))]
-pub extern crate cdl2d_f64 as cdl;
+pub extern crate parry2d_f64 as parry;
 #[cfg(all(feature = "dim3", feature = "f32"))]
-pub extern crate cdl3d as cdl;
+pub extern crate parry3d as parry;
 #[cfg(all(feature = "dim3", feature = "f64"))]
-pub extern crate cdl3d_f64 as cdl;
+pub extern crate parry3d_f64 as parry;
 
 pub extern crate crossbeam;
 pub extern crate nalgebra as na;
@@ -136,7 +136,7 @@ pub mod pipeline;
 pub mod utils;
 
 pub mod math {
-    pub use cdl::math::*;
+    pub use parry::math::*;
     #[cfg(feature = "dim2")]
     pub const MAX_MANIFOLD_POINTS: usize = 2;
     #[cfg(feature = "dim3")]

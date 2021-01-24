@@ -11,17 +11,17 @@ members = [ "build/rapier2d", "build/rapier2d-f64", "build/rapier_testbed2d", "e
 #nphysics2d = { path = "../nphysics/build/nphysics2d" }
 #nphysics3d = { path = "../nphysics/build/nphysics3d" }
 #kiss3d = { path = "../kiss3d" }
-#cdl2d = { path = "../cdl/build/cdl2d" }
-#cdl3d = { path = "../cdl/build/cdl3d" }
-#cdl2d-f64 = { path = "../cdl/build/cdl2d-f64" }
-#cdl3d-f64 = { path = "../cdl/build/cdl3d-f64" }
+#parry2d = { path = "../parry/build/parry2d" }
+#parry3d = { path = "../parry/build/parry3d" }
+#parry2d-f64 = { path = "../parry/build/parry2d-f64" }
+#parry3d-f64 = { path = "../parry/build/parry3d-f64" }
 #nalgebra = { path = "../nalgebra" }
 
 #kiss3d = { git = "https://github.com/sebcrozet/kiss3d" }
-cdl2d = { git = "https://github.com/sebcrozet/cdl" }
-cdl3d = { git = "https://github.com/sebcrozet/cdl" }
-cdl2d-f64 = { git = "https://github.com/sebcrozet/cdl" }
-cdl3d-f64 = { git = "https://github.com/sebcrozet/cdl" }
+parry2d = { git = "https://github.com/sebcrozet/parry" }
+parry3d = { git = "https://github.com/sebcrozet/parry" }
+parry2d-f64 = { git = "https://github.com/sebcrozet/parry" }
+parry3d-f64 = { git = "https://github.com/sebcrozet/parry" }
 #ncollide2d = { git = "https://github.com/dimforge/ncollide" }
 #ncollide3d = { git = "https://github.com/dimforge/ncollide" }
 #nphysics2d = { git = "https://github.com/dimforge/nphysics" }

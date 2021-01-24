@@ -4,7 +4,7 @@ use rayon::prelude::*;
 use crate::data::arena::Arena;
 use crate::dynamics::{Joint, JointSet, RigidBody, RigidBodyChanges};
 use crate::geometry::{ColliderSet, InteractionGraph, NarrowPhase};
-use cdl::partitioning::IndexedData;
+use parry::partitioning::IndexedData;
 use std::ops::{Index, IndexMut};
 
 /// The unique handle of a rigid body added to a `RigidBodySet`.

@@ -678,11 +678,9 @@ impl RigidBodyBuilder {
     }
 
     /// Prevents this rigid-body from translating because of forces.
-    ///
-    /// This is equivalent to `self.mass(0.0, false)`. See the
-    /// documentation of [`RigidBodyBuilder::mass`] for more details.
-    pub fn lock_translations(self) -> Self {
-        self.mass(0.0, false)
+    pub fn lock_translations(mut self) -> Self {
+        self.flags.set(RigidBodyFlags::TRANSLATION_LOCKED, true);
+        self
     }
 
     /// Prevents this rigid-body from rotating because of forces.
@@ -711,22 +709,8 @@ impl RigidBodyBuilder {
     }
 
     /// Sets the mass of the rigid-body being built.
-    ///
-    /// In order to lock the translations of this rigid-body (by
-    /// making them kinematic), call `.mass(0.0, false)`.
-    ///
-    /// If `colliders_contribution_enabled` is `false`, then the mass specified here
-    /// will be the final mass of the rigid-body created by this builder.
-    /// If `colliders_contribution_enabled` is `true`, then the final mass of the rigid-body
-    /// will depends on the initial mass set by this method to which is added
-    /// the contributions of all the colliders with non-zero density attached to
-    /// this rigid-body.
-    pub fn mass(mut self, mass: Real, colliders_contribution_enabled: bool) -> Self {
+    pub fn mass(mut self, mass: Real) -> Self {
         self.mass_properties.inv_mass = utils::inv(mass);
-        self.flags.set(
-            RigidBodyFlags::TRANSLATION_LOCKED,
-            !colliders_contribution_enabled,
-        );
         self
     }
     /// Sets the angular inertia of this rigid-body.

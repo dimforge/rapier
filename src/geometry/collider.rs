@@ -1,9 +1,9 @@
-use crate::cdl::transformation::vhacd::VHACDParameters;
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
 use crate::geometry::{InteractionGroups, SharedShape};
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
-use cdl::bounding_volume::AABB;
-use cdl::shape::Shape;
+use crate::parry::transformation::vhacd::VHACDParameters;
+use parry::bounding_volume::AABB;
+use parry::shape::Shape;
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]

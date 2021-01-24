@@ -9,7 +9,7 @@ pub use self::joint::{
 };
 pub use self::rigid_body::{ActivationStatus, BodyStatus, RigidBody, RigidBodyBuilder};
 pub use self::rigid_body_set::{BodyPair, RigidBodyHandle, RigidBodySet};
-pub use cdl::mass_properties::MassProperties;
+pub use parry::mass_properties::MassProperties;
 // #[cfg(not(feature = "parallel"))]
 pub use self::coefficient_combine_rule::CoefficientCombineRule;
 pub(crate) use self::joint::JointGraphEdge;

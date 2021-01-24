@@ -4,7 +4,7 @@ use na::{Matrix3, Point2, Point3, Scalar, SimdRealField, Vector2, Vector3};
 use num::Zero;
 use simba::simd::SimdValue;
 
-use cdl::utils::SdpMatrix3;
+use parry::utils::SdpMatrix3;
 use {
     crate::math::{Real, SimdReal},
     na::SimdPartialOrd,

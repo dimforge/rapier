@@ -41,7 +41,7 @@ pub trait ContactPairFilter: Send + Sync {
 ///
 /// This can be used to apply custom logic in order to decide whether two colliders
 /// should have their intersection computed by the narrow-phase.
-pub trait ProximityPairFilter: Send + Sync {
+pub trait IntersectionPairFilter: Send + Sync {
     /// Applies the intersection pair filter.
     ///
     /// Note that using an intersection pair filter will replace the default intersection filtering

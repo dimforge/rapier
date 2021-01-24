@@ -1,22 +1,22 @@
-use crate::cdl::motion::RigidMotion;
 use crate::dynamics::RigidBodySet;
 use crate::geometry::{
     Collider, ColliderHandle, ColliderSet, InteractionGroups, PointProjection, Ray,
     RayIntersection, SimdQuadTree,
 };
 use crate::math::{Isometry, Point, Real, Vector};
-use cdl::query::details::{
+use crate::parry::motion::RigidMotion;
+use parry::query::details::{
     IntersectionCompositeShapeShapeBestFirstVisitor,
     NonlinearTOICompositeShapeShapeBestFirstVisitor, PointCompositeShapeProjBestFirstVisitor,
     PointCompositeShapeProjWithFeatureBestFirstVisitor,
     RayCompositeShapeToiAndNormalBestFirstVisitor, RayCompositeShapeToiBestFirstVisitor,
     TOICompositeShapeShapeBestFirstVisitor,
 };
-use cdl::query::visitors::{
+use parry::query::visitors::{
     BoundingVolumeIntersectionsVisitor, PointIntersectionsVisitor, RayIntersectionsVisitor,
 };
-use cdl::query::{DefaultQueryDispatcher, QueryDispatcher, TOI};
-use cdl::shape::{FeatureId, Shape, TypedSimdCompositeShape};
+use parry::query::{DefaultQueryDispatcher, QueryDispatcher, TOI};
+use parry::shape::{FeatureId, Shape, TypedSimdCompositeShape};
 use std::sync::Arc;
 
 /// A pipeline for performing queries on all the colliders of a scene.

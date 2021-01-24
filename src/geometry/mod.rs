@@ -10,39 +10,39 @@ pub use self::interaction_graph::{
 };
 pub use self::interaction_groups::InteractionGroups;
 pub use self::narrow_phase::NarrowPhase;
-pub use self::pair_filter::{ContactPairFilter, PairFilterContext, ProximityPairFilter};
+pub use self::pair_filter::{ContactPairFilter, IntersectionPairFilter, PairFilterContext};
 
-pub use cdl::query::TrackedContact;
+pub use parry::query::TrackedContact;
 
-pub type Contact = cdl::query::TrackedContact<ContactData>;
-pub type ContactManifold = cdl::query::ContactManifold<ContactManifoldData, ContactData>;
+pub type Contact = parry::query::TrackedContact<ContactData>;
+pub type ContactManifold = parry::query::ContactManifold<ContactManifoldData, ContactData>;
 /// A segment shape.
-pub type Segment = cdl::shape::Segment;
+pub type Segment = parry::shape::Segment;
 /// A cuboid shape.
-pub type Cuboid = cdl::shape::Cuboid;
+pub type Cuboid = parry::shape::Cuboid;
 /// A triangle shape.
-pub type Triangle = cdl::shape::Triangle;
+pub type Triangle = parry::shape::Triangle;
 /// A ball shape.
-pub type Ball = cdl::shape::Ball;
+pub type Ball = parry::shape::Ball;
 /// A capsule shape.
-pub type Capsule = cdl::shape::Capsule;
+pub type Capsule = parry::shape::Capsule;
 /// A heightfield shape.
-pub type HeightField = cdl::shape::HeightField;
+pub type HeightField = parry::shape::HeightField;
 /// A cylindrical shape.
 #[cfg(feature = "dim3")]
-pub type Cylinder = cdl::shape::Cylinder;
+pub type Cylinder = parry::shape::Cylinder;
 /// A cone shape.
 #[cfg(feature = "dim3")]
-pub type Cone = cdl::shape::Cone;
+pub type Cone = parry::shape::Cone;
 /// An axis-aligned bounding box.
-pub type AABB = cdl::bounding_volume::AABB;
+pub type AABB = parry::bounding_volume::AABB;
 /// A ray that can be cast against colliders.
-pub type Ray = cdl::query::Ray;
+pub type Ray = parry::query::Ray;
 /// The intersection between a ray and a  collider.
-pub type RayIntersection = cdl::query::RayIntersection;
+pub type RayIntersection = parry::query::RayIntersection;
 /// The the projection of a point on a collider.
-pub type PointProjection = cdl::query::PointProjection;
-pub use cdl::shape::SharedShape;
+pub type PointProjection = parry::query::PointProjection;
+pub use parry::shape::SharedShape;
 
 #[derive(Copy, Clone, Hash, Debug)]
 /// Events occurring when two collision objects start or stop being in contact (or penetration).
@@ -84,18 +84,18 @@ impl IntersectionEvent {
 pub(crate) use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair};
 pub(crate) use self::collider_set::RemovedCollider;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
-pub(crate) use cdl::partitioning::SimdQuadTree;
-pub use cdl::shape::*;
+pub(crate) use parry::partitioning::SimdQuadTree;
+pub use parry::shape::*;
 
 #[cfg(feature = "serde-serialize")]
 pub(crate) fn default_persistent_query_dispatcher(
-) -> std::sync::Arc<dyn cdl::query::PersistentQueryDispatcher<ContactManifoldData, ContactData>> {
-    std::sync::Arc::new(cdl::query::DefaultQueryDispatcher)
+) -> std::sync::Arc<dyn parry::query::PersistentQueryDispatcher<ContactManifoldData, ContactData>> {
+    std::sync::Arc::new(parry::query::DefaultQueryDispatcher)
 }
 
 #[cfg(feature = "serde-serialize")]
-pub(crate) fn default_query_dispatcher() -> std::sync::Arc<dyn cdl::query::QueryDispatcher> {
-    std::sync::Arc::new(cdl::query::DefaultQueryDispatcher)
+pub(crate) fn default_query_dispatcher() -> std::sync::Arc<dyn parry::query::QueryDispatcher> {
+    std::sync::Arc::new(parry::query::DefaultQueryDispatcher)
 }
 
 mod broad_phase_multi_sap;

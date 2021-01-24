@@ -1,8 +1,8 @@
 use kiss3d::loader::obj;
 use na::{Point3, Translation3};
-use rapier3d::cdl::bounding_volume::{self, BoundingVolume};
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet, SharedShape};
+use rapier3d::parry::bounding_volume::{self, BoundingVolume};
 use rapier_testbed3d::Testbed;
 use std::path::Path;
 

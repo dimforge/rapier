@@ -2,7 +2,7 @@ use crate::data::arena::Arena;
 use crate::data::pubsub::PubSub;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 use crate::geometry::Collider;
-use cdl::partitioning::IndexedData;
+use parry::partitioning::IndexedData;
 use std::ops::{Index, IndexMut};
 
 /// The unique identifier of a collider added to a collider set.

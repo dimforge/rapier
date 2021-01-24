@@ -1,6 +1,6 @@
-use cdl::shape;
 use kiss3d::window::Window;
 use na::{self, Point3};
+use parry::shape;
 use rapier::geometry::{ColliderHandle, ColliderSet};
 #[cfg(feature = "dim2")]
 use rapier::math::Point;

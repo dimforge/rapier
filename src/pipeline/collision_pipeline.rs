@@ -2,8 +2,8 @@
 
 use crate::dynamics::{JointSet, RigidBodySet};
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactPairFilter, NarrowPhase,
-    ProximityPairFilter,
+    BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactPairFilter,
+    IntersectionPairFilter, NarrowPhase,
 };
 use crate::math::Real;
 use crate::pipeline::EventHandler;
@@ -45,7 +45,7 @@ impl CollisionPipeline {
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
         contact_pair_filter: Option<&dyn ContactPairFilter>,
-        proximity_pair_filter: Option<&dyn ProximityPairFilter>,
+        proximity_pair_filter: Option<&dyn IntersectionPairFilter>,
         events: &dyn EventHandler,
     ) {
         bodies.maintain(colliders);

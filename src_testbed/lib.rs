@@ -1,9 +1,5 @@
 #[macro_use]
 extern crate kiss3d;
-#[cfg(feature = "dim2")]
-extern crate cdl2d as cdl;
-#[cfg(feature = "dim3")]
-extern crate cdl3d as cdl;
 extern crate nalgebra as na;
 #[cfg(feature = "dim2")]
 extern crate ncollide2d as ncollide;
@@ -13,6 +9,10 @@ extern crate ncollide3d as ncollide;
 extern crate nphysics2d as nphysics;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 extern crate nphysics3d as nphysics;
+#[cfg(feature = "dim2")]
+extern crate parry2d as parry;
+#[cfg(feature = "dim3")]
+extern crate parry3d as parry;
 #[cfg(feature = "dim2")]
 extern crate rapier2d as rapier;
 #[cfg(feature = "dim3")]

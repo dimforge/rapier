@@ -6,14 +6,14 @@ use crate::data::Coarena;
 use crate::dynamics::{BodyPair, CoefficientCombineRule, RigidBodySet};
 use crate::geometry::{
     BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactData, ContactEvent,
-    ContactManifoldData, ContactPairFilter, IntersectionEvent, PairFilterContext,
-    ProximityPairFilter, RemovedCollider, SolverContact, SolverFlags,
+    ContactManifoldData, ContactPairFilter, IntersectionEvent, IntersectionPairFilter,
+    PairFilterContext, RemovedCollider, SolverContact, SolverFlags,
 };
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 use crate::math::{Real, Vector};
 use crate::pipeline::EventHandler;
-use cdl::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
-use cdl::utils::IsometryOpt;
+use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
+use parry::utils::IsometryOpt;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -387,7 +387,7 @@ impl NarrowPhase {
         &mut self,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        pair_filter: Option<&dyn ProximityPairFilter>,
+        pair_filter: Option<&dyn IntersectionPairFilter>,
         events: &dyn EventHandler,
     ) {
         let nodes = &self.intersection_graph.graph.nodes;

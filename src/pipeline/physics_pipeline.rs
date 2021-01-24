@@ -8,7 +8,7 @@ use crate::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactManifoldIndex,
-    ContactPairFilter, NarrowPhase, ProximityPairFilter,
+    ContactPairFilter, IntersectionPairFilter, NarrowPhase,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::EventHandler;
@@ -70,7 +70,7 @@ impl PhysicsPipeline {
         colliders: &mut ColliderSet,
         joints: &mut JointSet,
         contact_pair_filter: Option<&dyn ContactPairFilter>,
-        proximity_pair_filter: Option<&dyn ProximityPairFilter>,
+        proximity_pair_filter: Option<&dyn IntersectionPairFilter>,
         events: &dyn EventHandler,
     ) {
         self.counters.step_started();
