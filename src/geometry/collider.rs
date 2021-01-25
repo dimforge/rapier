@@ -294,7 +294,7 @@ impl ColliderBuilder {
         a: Point<Real>,
         b: Point<Real>,
         c: Point<Real>,
-        border_radius: f32,
+        border_radius: Real,
     ) -> Self {
         Self::new(SharedShape::round_triangle(a, b, c, border_radius))
     }
