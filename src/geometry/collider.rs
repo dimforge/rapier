@@ -289,6 +289,16 @@ impl ColliderBuilder {
         Self::new(SharedShape::triangle(a, b, c))
     }
 
+    /// Initializes a collider builder with a triangle shape with round corners.
+    pub fn round_triangle(
+        a: Point<Real>,
+        b: Point<Real>,
+        c: Point<Real>,
+        border_radius: f32,
+    ) -> Self {
+        Self::new(SharedShape::round_triangle(a, b, c, border_radius))
+    }
+
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers.
     pub fn trimesh(vertices: Vec<Point<Real>>, indices: Vec<[u32; 3]>) -> Self {
         Self::new(SharedShape::trimesh(vertices, indices))

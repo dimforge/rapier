@@ -42,6 +42,8 @@ pub type Ray = parry::query::Ray;
 pub type RayIntersection = parry::query::RayIntersection;
 /// The the projection of a point on a collider.
 pub type PointProjection = parry::query::PointProjection;
+/// The the time of impact between two shapes.
+pub type TOI = parry::query::TOI;
 pub use parry::shape::SharedShape;
 
 #[derive(Copy, Clone, Hash, Debug)]
