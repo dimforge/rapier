@@ -299,6 +299,11 @@ impl ColliderBuilder {
         Self::new(SharedShape::round_triangle(a, b, c, border_radius))
     }
 
+    /// Initializes a collider builder with a polyline shape defined by its vertex and index buffers.
+    pub fn polyline(vertices: Vec<Point<Real>>, indices: Option<Vec<[u32; 2]>>) -> Self {
+        Self::new(SharedShape::polyline(vertices, indices))
+    }
+
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers.
     pub fn trimesh(vertices: Vec<Point<Real>>, indices: Vec<[u32; 3]>) -> Self {
         Self::new(SharedShape::trimesh(vertices, indices))

@@ -26,6 +26,7 @@ use crate::objects::cone::Cone;
 #[cfg(feature = "dim3")]
 use crate::objects::cylinder::Cylinder;
 use crate::objects::mesh::Mesh;
+use crate::objects::polyline::Polyline;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg32;
 use std::collections::HashMap;
@@ -349,6 +350,15 @@ impl GraphicsManager {
                 trimesh.indices().to_vec(),
                 color,
                 window,
+            )))
+        }
+
+        if let Some(polyline) = shape.as_polyline() {
+            out.push(Node::Polyline(Polyline::new(
+                handle,
+                polyline.vertices().to_vec(),
+                polyline.indices().to_vec(),
+                color,
             )))
         }
 
