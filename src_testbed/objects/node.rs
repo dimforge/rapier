@@ -104,8 +104,9 @@ impl Node {
             Node::Convex(ref n) => Some(n.scene_node()),
             Node::Cylinder(ref n) => Some(n.scene_node()),
             Node::Cone(ref n) => Some(n.scene_node()),
+            Node::Polyline(_) => None,
             #[cfg(feature = "dim2")]
-            _ => None,
+            Node::HeightField(_) => None,
         }
     }
 
@@ -122,8 +123,9 @@ impl Node {
             Node::Convex(ref mut n) => Some(n.scene_node_mut()),
             Node::Cylinder(ref mut n) => Some(n.scene_node_mut()),
             Node::Cone(ref mut n) => Some(n.scene_node_mut()),
+            Node::Polyline(_) => None,
             #[cfg(feature = "dim2")]
-            _ => None,
+            Node::HeightField(_) => None,
         }
     }
 
