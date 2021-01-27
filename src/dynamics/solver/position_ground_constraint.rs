@@ -28,6 +28,10 @@ impl PositionGroundConstraint {
         out_constraints: &mut Vec<AnyPositionConstraint>,
         push: bool,
     ) {
+        if manifold.is_bouncing() {
+            return; // let the bounce take care of the overlap
+        }
+
         let mut rb1 = &bodies[manifold.body_pair.body1];
         let mut rb2 = &bodies[manifold.body_pair.body2];
         let flip = !rb2.is_dynamic();

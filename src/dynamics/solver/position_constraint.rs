@@ -88,6 +88,10 @@ impl PositionConstraint {
         out_constraints: &mut Vec<AnyPositionConstraint>,
         push: bool,
     ) {
+        if manifold.is_bouncing() {
+            return; // let the bounce take care of it
+        }
+
         let rb1 = &bodies[manifold.body_pair.body1];
         let rb2 = &bodies[manifold.body_pair.body2];
         let shift1 = manifold.local_n1 * -manifold.kinematics.radius1;
