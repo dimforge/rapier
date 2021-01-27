@@ -286,6 +286,7 @@ impl VelocityGroundConstraint {
     // FIXME: duplicated code. This is exactly the same as in the non-ground velocity constraint.
     pub fn writeback_impulses(&self, manifolds_all: &mut [&mut ContactManifold]) {
         let manifold = &mut manifolds_all[self.manifold_id];
+        manifold.old = true;
         let k_base = self.manifold_contact_id;
 
         for k in 0..self.num_contacts as usize {

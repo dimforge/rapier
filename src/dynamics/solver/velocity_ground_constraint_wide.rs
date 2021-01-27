@@ -300,6 +300,7 @@ impl WVelocityGroundConstraint {
 
             for ii in 0..SIMD_WIDTH {
                 let manifold = &mut manifolds_all[self.manifold_id[ii]];
+                manifold.old = true;
                 let k_base = self.manifold_contact_id;
                 let active_contacts = manifold.active_contacts_mut();
                 active_contacts[k_base + k].impulse = impulses[ii];

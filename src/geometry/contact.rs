@@ -301,6 +301,8 @@ pub struct ContactManifold {
     pub delta2: Isometry<f32>,
     /// Flags used to control some aspects of the constraints solver for this contact manifold.
     pub solver_flags: SolverFlags,
+    /// Set to `true` after a contact has been through one velocity solve.
+    pub old: bool,
 }
 
 impl ContactManifold {
@@ -334,6 +336,7 @@ impl ContactManifold {
             constraint_index: 0,
             position_constraint_index: 0,
             solver_flags,
+            old: false,
         }
     }
 
@@ -358,6 +361,7 @@ impl ContactManifold {
             constraint_index: self.constraint_index,
             position_constraint_index: self.position_constraint_index,
             solver_flags: self.solver_flags,
+            old: self.old,
         }
     }
 
