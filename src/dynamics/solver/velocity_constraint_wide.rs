@@ -2,8 +2,8 @@ use super::{AnyVelocityConstraint, DeltaVel};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
-    AngVector, AngularInertia, Isometry, Point, SimdFloat, Vector, DIM, MAX_MANIFOLD_POINTS,
-    SIMD_WIDTH,
+    AngVector, AngularInertia, Isometry, Point, SimdBool, SimdFloat, Vector, DIM,
+    MAX_MANIFOLD_POINTS, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WBasis, WCross, WDot};
 use num::Zero;
@@ -104,9 +104,9 @@ impl WVelocityConstraint {
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
         let friction = SimdFloat::from(array![|ii| manifolds[ii].friction; SIMD_WIDTH]);
-        let restitution = SimdFloat::from(array![|ii| manifolds[ii].restitution; SIMD_WIDTH]);
-        let restitution_velocity_threshold =
-            SimdFloat::splat(params.restitution_velocity_threshold);
+        let restitution_plus_1 =
+            SimdFloat::from(array![|ii| manifolds[ii].restitution + 1.0; SIMD_WIDTH]);
+        let is_bouncing = SimdBool::from(array![|ii| manifolds[ii].is_bouncing(); SIMD_WIDTH]);
 
         let warmstart_multiplier =
             SimdFloat::from(array![|ii| manifolds[ii].warmstart_multiplier; SIMD_WIDTH]);
@@ -155,11 +155,11 @@ impl WVelocityConstraint {
 
                     let r = SimdFloat::splat(1.0)
                         / (im1 + im2 + gcross1.gdot(gcross1) + gcross2.gdot(gcross2));
-                    let mut rhs = (vel1 - vel2).dot(&force_dir1);
-                    let use_restitution = rhs.simd_le(-restitution_velocity_threshold);
-                    let rhs_with_restitution = rhs + rhs * restitution;
-                    rhs = rhs_with_restitution.select(use_restitution, rhs);
-                    rhs += dist.simd_max(SimdFloat::zero()) * inv_dt;
+                    let projected_velocity = (vel1 - vel2).dot(&force_dir1);
+                    let rhs_resting =
+                        projected_velocity + dist.simd_max(SimdFloat::zero()) * inv_dt;
+                    let rhs_bouncing = projected_velocity * restitution_plus_1;
+                    let rhs = rhs_bouncing.select(is_bouncing, rhs_resting);
 
                     constraint.elements[k].normal_part = WVelocityConstraintElementPart {
                         gcross1,

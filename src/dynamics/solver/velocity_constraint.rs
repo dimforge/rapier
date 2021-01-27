@@ -153,6 +153,7 @@ impl VelocityConstraint {
         let pos_coll2 = rb2.position * manifold.delta2;
         let force_dir1 = pos_coll1 * (-manifold.local_n1);
         let warmstart_coeff = manifold.warmstart_multiplier * params.warmstart_coeff;
+        let is_bouncing = manifold.is_bouncing();
 
         for (l, manifold_points) in manifold
             .active_contacts()
@@ -238,13 +239,11 @@ impl VelocityConstraint {
                             + gcross1.gdot(gcross1)
                             + gcross2.gdot(gcross2));
 
-                    let mut rhs = (vel1 - vel2).dot(&force_dir1);
-
-                    if rhs <= -params.restitution_velocity_threshold {
-                        rhs += manifold.restitution * rhs
-                    }
-
-                    rhs += manifold_point.dist.max(0.0) * inv_dt;
+                    let rhs = if is_bouncing {
+                        manifold.restitution * (vel1 - vel2).dot(&force_dir1)
+                    } else {
+                        (vel1 - vel2).dot(&force_dir1) + manifold_point.dist.max(0.0) * inv_dt
+                    };
 
                     let impulse = manifold_point.impulse * warmstart_coeff;
 

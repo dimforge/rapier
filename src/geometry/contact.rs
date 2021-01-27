@@ -532,4 +532,24 @@ impl ContactManifold {
             }
         }
     }
+
+    /// Should this be treated as a bouncing contact, i.e. applying restitution?
+    #[inline]
+    pub(crate) fn is_bouncing(&self) -> bool {
+        if self.is_new() {
+            // Treat new collisions as bouncing at first, unless we have zero restitution.
+            self.restitution > 0.0
+        } else {
+            // If the manifold is still here one step later, it is now a resting contact.
+            // The exception is very high restitutions, which can never rest
+            self.restitution >= 1.0
+        }
+    }
+
+    /// Is this a new contact manifold?
+    /// Returns `false` iff this contact manifold was present the previous time step.
+    #[inline]
+    pub(crate) fn is_new(&self) -> bool {
+        !self.old
+    }
 }
