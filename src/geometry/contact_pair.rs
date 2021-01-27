@@ -62,6 +62,7 @@ pub struct ContactPair {
     ///
     /// All contact manifold contain themselves contact points between the colliders.
     pub manifolds: Vec<ContactManifold>,
+    /// Is there any active contact in this contact pair?
     pub has_any_active_contact: bool,
     pub(crate) workspace: Option<ContactManifoldsWorkspace>,
 }
@@ -95,18 +96,31 @@ pub struct ContactManifoldData {
     // contact preparation method.
     /// Flags used to control some aspects of the constraints solver for this contact manifold.
     pub solver_flags: SolverFlags,
+    /// The world-space contact normal shared by all the contact in this contact manifold.
     pub normal: Vector<Real>,
+    /// The contacts that will be seen by the constraints solver for computing forces.
     pub solver_contacts: Vec<SolverContact>,
 }
 
+/// A contact seen by the constraints solver for computing forces.
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct SolverContact {
+    /// The world-space contact point.
     pub point: Point<Real>,
+    /// The distance between the two original contacts points along the contact normal.
+    /// If negative, this is measures the penetration depth.
     pub dist: Real,
+    /// The effective friction coefficient at this contact point.
     pub friction: Real,
+    /// The effective restitution coefficient at this contact point.
     pub restitution: Real,
+    /// The artificially add relative velocity at the contact point.
+    /// This is set to zero by default. Set to a non-zero value to
+    /// simulate, e.g., conveyor belts.
     pub surface_velocity: Vector<Real>,
+    /// Associated contact data used to warm-start the constraints
+    /// solver.
     pub data: ContactData,
 }
 
@@ -132,6 +146,8 @@ impl ContactManifoldData {
         }
     }
 
+    /// Number of actives contacts, i.e., contacts that will be seen by
+    /// the constraints solver.
     #[inline]
     pub fn num_active_contacts(&self) -> usize {
         self.solver_contacts.len()

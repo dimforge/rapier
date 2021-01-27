@@ -14,10 +14,12 @@ use std::ops::{Index, IndexMut};
 pub struct RigidBodyHandle(pub(crate) crate::data::arena::Index);
 
 impl RigidBodyHandle {
+    /// Converts this handle into its (index, generation) components.
     pub fn into_raw_parts(self) -> (usize, u64) {
         self.0.into_raw_parts()
     }
 
+    /// Reconstructs an handle from its (index, generation) components.
     pub fn from_raw_parts(id: usize, generation: u64) -> Self {
         Self(crate::data::arena::Index::from_raw_parts(id, generation))
     }
@@ -52,6 +54,7 @@ pub struct BodyPair {
 }
 
 impl BodyPair {
+    /// Builds a new pair of rigid-body handles.
     pub fn new(body1: RigidBodyHandle, body2: RigidBodyHandle) -> Self {
         BodyPair { body1, body2 }
     }

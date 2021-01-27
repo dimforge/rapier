@@ -8,8 +8,7 @@
 //! - The ability to run a perfectly deterministic simulation on different machine, as long as they
 //! are compliant with the IEEE 754-2008 floating point standard.
 
-// FIXME: deny that
-#![allow(missing_docs)]
+#![warn(missing_docs)]
 
 #[cfg(all(feature = "dim2", feature = "f32"))]
 pub extern crate parry2d as parry;
@@ -126,6 +125,7 @@ pub(crate) const INVALID_U32: u32 = u32::MAX;
 pub(crate) const INVALID_U64: u64 = u64::MAX;
 pub(crate) const INVALID_USIZE: usize = INVALID_U32 as usize;
 
+/// The string version of Rapier.
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 pub mod counters;
@@ -135,10 +135,17 @@ pub mod geometry;
 pub mod pipeline;
 pub mod utils;
 
+/// Elementary mathematical entities (vectors, matrices, isometries, etc).
 pub mod math {
     pub use parry::math::*;
+    /// Max number of pairs of contact points from the same
+    /// contact manifold that can be solved as part of a
+    /// single contact constraint.
     #[cfg(feature = "dim2")]
     pub const MAX_MANIFOLD_POINTS: usize = 2;
+    /// Max number of pairs of contact points from the same
+    /// contact manifold that can be solved as part of a
+    /// single contact constraint.
     #[cfg(feature = "dim3")]
     pub const MAX_MANIFOLD_POINTS: usize = 4;
 }

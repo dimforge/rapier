@@ -92,6 +92,10 @@ impl QueryPipeline {
         }
     }
 
+    /// Initializes an empty query pipeline with a custom `QueryDispatcher`.
+    ///
+    /// Use this constructor in order to use a custom `QueryDispatcher` that is
+    /// awary of your own user-defined shapes.
     pub fn with_query_dispatcher<D>(d: D) -> Self
     where
         D: 'static + QueryDispatcher,
@@ -215,7 +219,14 @@ impl QueryPipeline {
         self.quadtree.traverse_depth_first(&mut visitor);
     }
 
-    /// Find up to one collider intersecting the given shape.
+    /// Gets the handle of up to one collider intersecting the given shape.
+    ///
+    /// # Parameters
+    /// * `colliders` - The set of colliders taking part in this pipeline.
+    /// * `shape_pos` - The position of the shape used for the intersection test.
+    /// * `shape` - The shape used for the intersection test.
+    /// * `groups` - The bit groups and filter associated to the ray, in order to only
+    ///   hit the colliders with collision groups compatible with the ray's group.
     pub fn intersection_with_shape(
         &self,
         colliders: &ColliderSet,
@@ -236,7 +247,18 @@ impl QueryPipeline {
             .map(|h| (h.1 .0))
     }
 
-    /// Projects a point on the scene.
+    /// Find the projection of a point on the closest collider.
+    ///
+    /// # Parameters
+    /// * `colliders` - The set of colliders taking part in this pipeline.
+    /// * `point` - The point to project.
+    /// * `solid` - If this is set to `true` then the collider shapes are considered to
+    ///   be plain (if the point is located inside of a plain shape, its projection is the point
+    ///   itself). If it is set to `false` the collider shapes are considered to be hollow
+    ///   (if the point is located inside of an hollow shape, it is projected on the shape's
+    ///   boundary).
+    /// * `groups` - The bit groups and filter associated to the point to project, in order to only
+    ///   project on colliders with collision groups compatible with the ray's group.
     pub fn project_point(
         &self,
         colliders: &ColliderSet,
@@ -253,7 +275,15 @@ impl QueryPipeline {
             .map(|h| (h.1 .1, h.1 .0))
     }
 
-    /// Gets all the colliders containing the given point.
+    /// Find all the colliders containing the given point.
+    ///
+    /// # Parameters
+    /// * `colliders` - The set of colliders taking part in this pipeline.
+    /// * `point` - The point used for the containment test.
+    /// * `groups` - The bit groups and filter associated to the point to test, in order to only
+    ///   test on colliders with collision groups compatible with the ray's group.
+    /// * `callback` - A function called with each collider with a shape
+    ///   containing the `point`.
     pub fn intersections_with_point<'a>(
         &self,
         colliders: &'a ColliderSet,
@@ -278,7 +308,20 @@ impl QueryPipeline {
         self.quadtree.traverse_depth_first(&mut visitor);
     }
 
-    /// Projects a point on the scene and get
+    /// Find the projection of a point on the closest collider.
+    ///
+    /// The results include the ID of the feature hit by the point.
+    ///
+    /// # Parameters
+    /// * `colliders` - The set of colliders taking part in this pipeline.
+    /// * `point` - The point to project.
+    /// * `solid` - If this is set to `true` then the collider shapes are considered to
+    ///   be plain (if the point is located inside of a plain shape, its projection is the point
+    ///   itself). If it is set to `false` the collider shapes are considered to be hollow
+    ///   (if the point is located inside of an hollow shape, it is projected on the shape's
+    ///   boundary).
+    /// * `groups` - The bit groups and filter associated to the point to project, in order to only
+    ///   project on colliders with collision groups compatible with the ray's group.
     pub fn project_point_and_get_feature(
         &self,
         colliders: &ColliderSet,
@@ -293,6 +336,20 @@ impl QueryPipeline {
             .map(|h| (h.1 .1 .0, h.1 .0, h.1 .1 .1))
     }
 
+    /// Casts a shape at a constant linear velocity and retrieve the first collider it hits.
+    ///
+    /// This is similar to ray-casting except that we are casting a whole shape instead of
+    /// just a point (the ray origin).
+    ///
+    /// # Parameters
+    /// * `colliders` - The set of colliders taking part in this pipeline.
+    /// * `shape_pos` - The initial position of the shape to cast.
+    /// * `shape_vel` - The constant velocity of the shape to cast (i.e. the cast direction).
+    /// * `shape` - The shape to cast.
+    /// * `max_toi` - The maximum time-of-impact that can be reported by this cast. This effectively
+    ///   limits the distance traveled by the shape to `shapeVel.norm() * maxToi`.
+    /// * `groups` - The bit groups and filter associated to the shape to cast, in order to only
+    ///   test on colliders with collision groups compatible with this group.
     pub fn cast_shape<'a>(
         &self,
         colliders: &'a ColliderSet,
@@ -316,6 +373,16 @@ impl QueryPipeline {
         self.quadtree.traverse_best_first(&mut visitor).map(|h| h.1)
     }
 
+    /// Casts a shape with an arbitrary continuous motion and retrieve the first collider it hits.
+    ///
+    /// # Parameters
+    /// * `colliders` - The set of colliders taking part in this pipeline.
+    /// * `shape_motion` - The motion of the shape.
+    /// * `shape` - The shape to cast.
+    /// * `max_toi` - The maximum time-of-impact that can be reported by this cast. This effectively
+    ///   limits the distance traveled by the shape to `shapeVel.norm() * maxToi`.
+    /// * `groups` - The bit groups and filter associated to the shape to cast, in order to only
+    ///   test on colliders with collision groups compatible with this group.
     pub fn nonlinear_cast_shape(
         &self,
         colliders: &ColliderSet,
@@ -337,7 +404,16 @@ impl QueryPipeline {
         self.quadtree.traverse_best_first(&mut visitor).map(|h| h.1)
     }
 
-    /// Gets all the colliders containing the given shape.
+    /// Retrieve all the colliders intersecting the given shape.
+    ///
+    /// # Parameters
+    /// * `colliders` - The set of colliders taking part in this pipeline.
+    /// * `shapePos` - The position of the shape to test.
+    /// * `shapeRot` - The orientation of the shape to test.
+    /// * `shape` - The shape to test.
+    /// * `groups` - The bit groups and filter associated to the shape to test, in order to only
+    ///   test on colliders with collision groups compatible with this group.
+    /// * `callback` - A function called with the handles of each collider intersecting the `shape`.
     pub fn intersections_with_shape<'a>(
         &self,
         colliders: &'a ColliderSet,

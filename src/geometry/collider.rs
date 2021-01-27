@@ -191,6 +191,7 @@ impl ColliderBuilder {
         self.density.unwrap_or(default_density)
     }
 
+    /// Initialize a new collider builder with a compound shape.
     pub fn compound(shapes: Vec<(Isometry<Real>, SharedShape)>) -> Self {
         Self::new(SharedShape::compound(shapes))
     }
@@ -357,29 +358,46 @@ impl ColliderBuilder {
         ))
     }
 
+    /// Initializes a new collider builder with a 2D convex polygon or 3D convex polyhedron
+    /// obtained after computing the convex-hull of the given points.
     pub fn convex_hull(points: &[Point<Real>]) -> Option<Self> {
         SharedShape::convex_hull(points).map(|cp| Self::new(cp))
     }
 
+    /// Initializes a new collider builder with a round 2D convex polygon or 3D convex polyhedron
+    /// obtained after computing the convex-hull of the given points. The shape is dilated
+    /// by a sphere of radius `border_radius`.
     pub fn round_convex_hull(points: &[Point<Real>], border_radius: Real) -> Option<Self> {
         SharedShape::round_convex_hull(points, border_radius).map(|cp| Self::new(cp))
     }
 
+    /// Creates a new collider builder that is a convex polygon formed by the
+    /// given polyline assumed to be convex (no convex-hull will be automatically
+    /// computed).
     #[cfg(feature = "dim2")]
     pub fn convex_polyline(points: Vec<Point<Real>>) -> Option<Self> {
         SharedShape::convex_polyline(points).map(|cp| Self::new(cp))
     }
 
+    /// Creates a new collider builder that is a round convex polygon formed by the
+    /// given polyline assumed to be convex (no convex-hull will be automatically
+    /// computed). The polygon shape is dilated by a sphere of radius `border_radius`.
     #[cfg(feature = "dim2")]
     pub fn round_convex_polyline(points: Vec<Point<Real>>, border_radius: Real) -> Option<Self> {
         SharedShape::round_convex_polyline(points, border_radius).map(|cp| Self::new(cp))
     }
 
+    /// Creates a new collider builder that is a convex polyhedron formed by the
+    /// given triangle-mesh assumed to be convex (no convex-hull will be automatically
+    /// computed).
     #[cfg(feature = "dim3")]
     pub fn convex_mesh(points: Vec<Point<Real>>, indices: &[[u32; 3]]) -> Option<Self> {
         SharedShape::convex_mesh(points, indices).map(|cp| Self::new(cp))
     }
 
+    /// Creates a new collider builder that is a round convex polyhedron formed by the
+    /// given triangle-mesh assumed to be convex (no convex-hull will be automatically
+    /// computed). The triangle mesh shape is dilated by a sphere of radius `border_radius`.
     #[cfg(feature = "dim3")]
     pub fn round_convex_mesh(
         points: Vec<Point<Real>>,

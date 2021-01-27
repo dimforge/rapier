@@ -12,10 +12,12 @@ use std::ops::{Index, IndexMut};
 pub struct ColliderHandle(pub(crate) crate::data::arena::Index);
 
 impl ColliderHandle {
+    /// Converts this handle into its (index, generation) components.
     pub fn into_raw_parts(self) -> (usize, u64) {
         self.0.into_raw_parts()
     }
 
+    /// Reconstructs an handle from its (index, generation) components.
     pub fn from_raw_parts(id: usize, generation: u64) -> Self {
         Self(crate::data::arena::Index::from_raw_parts(id, generation))
     }

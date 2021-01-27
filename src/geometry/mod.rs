@@ -14,7 +14,9 @@ pub use self::pair_filter::{ContactPairFilter, IntersectionPairFilter, PairFilte
 
 pub use parry::query::TrackedContact;
 
+/// A contact between two colliders.
 pub type Contact = parry::query::TrackedContact<ContactData>;
+/// A contact manifold between two colliders.
 pub type ContactManifold = parry::query::ContactManifold<ContactManifoldData, ContactData>;
 /// A segment shape.
 pub type Segment = parry::shape::Segment;
