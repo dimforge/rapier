@@ -3,7 +3,7 @@ use na::{Scalar, SimdRealField};
 
 #[derive(Copy, Clone, Debug)]
 //#[repr(align(64))]
-pub(crate) struct DeltaVel<N: Scalar> {
+pub(crate) struct DeltaVel<N: Scalar + Copy> {
     pub linear: Vector<N>,
     pub angular: AngVector<N>,
 }

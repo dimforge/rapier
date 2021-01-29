@@ -3,6 +3,7 @@
 //! See  https://github.com/fitzgen/generational-arena/blob/master/src/lib.rs.
 //! This has been modified to have a fully deterministic deserialization (including for the order of
 //! Index attribution after a deserialization of the arena.
+use parry::partitioning::IndexedData;
 use std::cmp;
 use std::iter::{self, Extend, FromIterator, FusedIterator};
 use std::mem;
@@ -49,6 +50,16 @@ enum Entry<T> {
 pub struct Index {
     index: usize,
     generation: u64,
+}
+
+impl IndexedData for Index {
+    fn default() -> Self {
+        Self::from_raw_parts(crate::INVALID_USIZE, crate::INVALID_U64)
+    }
+
+    fn index(&self) -> usize {
+        self.into_raw_parts().0
+    }
 }
 
 impl Index {

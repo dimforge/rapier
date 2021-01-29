@@ -1,17 +1,17 @@
-use crate::data::hashmap::HashMap;
 use crate::data::pubsub::Subscription;
 use crate::dynamics::RigidBodySet;
 use crate::geometry::{ColliderHandle, ColliderSet, RemovedCollider};
-use crate::math::{Point, Vector, DIM};
+use crate::math::{Point, Real, Vector, DIM};
 use bit_vec::BitVec;
-use ncollide::bounding_volume::{BoundingVolume, AABB};
+use parry::bounding_volume::{BoundingVolume, AABB};
+use parry::utils::hashmap::HashMap;
 use std::cmp::Ordering;
 use std::ops::{Index, IndexMut};
 
 const NUM_SENTINELS: usize = 1;
 const NEXT_FREE_SENTINEL: u32 = u32::MAX;
-const SENTINEL_VALUE: f32 = f32::MAX;
-const CELL_WIDTH: f32 = 20.0;
+const SENTINEL_VALUE: Real = Real::MAX;
+const CELL_WIDTH: Real = 20.0;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -63,12 +63,12 @@ fn sort2(a: u32, b: u32) -> (u32, u32) {
     }
 }
 
-fn point_key(point: Point<f32>) -> Point<i32> {
+fn point_key(point: Point<Real>) -> Point<i32> {
     (point / CELL_WIDTH).coords.map(|e| e.floor() as i32).into()
 }
 
-fn region_aabb(index: Point<i32>) -> AABB<f32> {
-    let mins = index.coords.map(|i| i as f32 * CELL_WIDTH).into();
+fn region_aabb(index: Point<i32>) -> AABB {
+    let mins = index.coords.map(|i| i as Real * CELL_WIDTH).into();
     let maxs = mins + Vector::repeat(CELL_WIDTH);
     AABB::new(mins, maxs)
 }
@@ -76,7 +76,7 @@ fn region_aabb(index: Point<i32>) -> AABB<f32> {
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 struct Endpoint {
-    value: f32,
+    value: Real,
     packed_flag_proxy: u32,
 }
 
@@ -86,14 +86,14 @@ const START_SENTINEL_TAG: u32 = u32::MAX;
 const END_SENTINEL_TAG: u32 = u32::MAX ^ START_FLAG_MASK;
 
 impl Endpoint {
-    pub fn start_endpoint(value: f32, proxy: u32) -> Self {
+    pub fn start_endpoint(value: Real, proxy: u32) -> Self {
         Self {
             value,
             packed_flag_proxy: proxy | START_FLAG_MASK,
         }
     }
 
-    pub fn end_endpoint(value: f32, proxy: u32) -> Self {
+    pub fn end_endpoint(value: Real, proxy: u32) -> Self {
         Self {
             value,
             packed_flag_proxy: proxy & PROXY_MASK,
@@ -134,15 +134,15 @@ impl Endpoint {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 struct SAPAxis {
-    min_bound: f32,
-    max_bound: f32,
+    min_bound: Real,
+    max_bound: Real,
     endpoints: Vec<Endpoint>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     new_endpoints: Vec<(Endpoint, usize)>, // Workspace
 }
 
 impl SAPAxis {
-    fn new(min_bound: f32, max_bound: f32) -> Self {
+    fn new(min_bound: Real, max_bound: Real) -> Self {
         assert!(min_bound <= max_bound);
 
         Self {
@@ -345,7 +345,7 @@ struct SAPRegion {
 }
 
 impl SAPRegion {
-    pub fn new(bounds: AABB<f32>) -> Self {
+    pub fn new(bounds: AABB) -> Self {
         let axes = [
             SAPAxis::new(bounds.mins.x, bounds.maxs.x),
             SAPAxis::new(bounds.mins.y, bounds.maxs.y),
@@ -361,7 +361,7 @@ impl SAPRegion {
         }
     }
 
-    pub fn recycle(bounds: AABB<f32>, mut old: Self) -> Self {
+    pub fn recycle(bounds: AABB, mut old: Self) -> Self {
         // Correct the bounds
         for (axis, &bound) in old.axes.iter_mut().zip(bounds.mins.iter()) {
             axis.min_bound = bound;
@@ -381,7 +381,7 @@ impl SAPRegion {
         old
     }
 
-    pub fn recycle_or_new(bounds: AABB<f32>, pool: &mut Vec<Self>) -> Self {
+    pub fn recycle_or_new(bounds: AABB, pool: &mut Vec<Self>) -> Self {
         if let Some(old) = pool.pop() {
             Self::recycle(bounds, old)
         } else {
@@ -477,8 +477,8 @@ pub struct BroadPhase {
     #[cfg_attr(
         feature = "serde-serialize",
         serde(
-            serialize_with = "crate::data::hashmap::serialize_hashmap_capacity",
-            deserialize_with = "crate::data::hashmap::deserialize_hashmap_capacity"
+            serialize_with = "parry::utils::hashmap::serialize_hashmap_capacity",
+            deserialize_with = "parry::utils::hashmap::deserialize_hashmap_capacity"
         )
     )]
     reporting: HashMap<(u32, u32), bool>, // Workspace
@@ -488,7 +488,7 @@ pub struct BroadPhase {
 #[derive(Clone)]
 pub(crate) struct BroadPhaseProxy {
     handle: ColliderHandle,
-    aabb: AABB<f32>,
+    aabb: AABB,
     next_free: u32,
 }
 
@@ -620,7 +620,7 @@ impl BroadPhase {
 
     pub(crate) fn update_aabbs(
         &mut self,
-        prediction_distance: f32,
+        prediction_distance: Real,
         bodies: &RigidBodySet,
         colliders: &mut ColliderSet,
     ) {
@@ -762,7 +762,7 @@ impl BroadPhase {
 #[cfg(test)]
 mod test {
     use crate::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-    use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
+    use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet};
 
     #[test]
     fn test_add_update_remove() {

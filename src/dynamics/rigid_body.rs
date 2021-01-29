@@ -2,7 +2,9 @@ use crate::dynamics::MassProperties;
 use crate::geometry::{
     Collider, ColliderHandle, ColliderSet, InteractionGraph, RigidBodyGraphIndex,
 };
-use crate::math::{AngVector, AngularInertia, Isometry, Point, Rotation, Translation, Vector};
+use crate::math::{
+    AngVector, AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector,
+};
 use crate::utils::{self, WCross, WDot};
 use num::Zero;
 
@@ -29,10 +31,10 @@ bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
     pub(crate) struct RigidBodyFlags: u8 {
-        const IGNORE_COLLIDER_MASS              = 1 << 0;
-        const IGNORE_COLLIDER_ANGULAR_INERTIA_X = 1 << 1;
-        const IGNORE_COLLIDER_ANGULAR_INERTIA_Y = 1 << 2;
-        const IGNORE_COLLIDER_ANGULAR_INERTIA_Z = 1 << 3;
+        const TRANSLATION_LOCKED = 1 << 0;
+        const ROTATION_LOCKED_X = 1 << 1;
+        const ROTATION_LOCKED_Y = 1 << 2;
+        const ROTATION_LOCKED_Z = 1 << 3;
     }
 }
 
@@ -54,25 +56,29 @@ bitflags::bitflags! {
 #[derive(Debug, Clone)]
 pub struct RigidBody {
     /// The world-space position of the rigid-body.
-    pub(crate) position: Isometry<f32>,
-    pub(crate) predicted_position: Isometry<f32>,
+    pub(crate) position: Isometry<Real>,
+    pub(crate) predicted_position: Isometry<Real>,
     /// The local mass properties of the rigid-body.
     pub(crate) mass_properties: MassProperties,
     /// The world-space center of mass of the rigid-body.
-    pub world_com: Point<f32>,
-    /// The square-root of the inverse angular inertia tensor of the rigid-body.
-    pub world_inv_inertia_sqrt: AngularInertia<f32>,
+    pub world_com: Point<Real>,
+    /// The inverse mass taking into account translation locking.
+    pub effective_inv_mass: Real,
+    /// The square-root of the world-space inverse angular inertia tensor of the rigid-body,
+    /// taking into account rotation locking.
+    pub effective_world_inv_inertia_sqrt: AngularInertia<Real>,
     /// The linear velocity of the rigid-body.
-    pub(crate) linvel: Vector<f32>,
+    pub(crate) linvel: Vector<Real>,
     /// The angular velocity of the rigid-body.
-    pub(crate) angvel: AngVector<f32>,
+    pub(crate) angvel: AngVector<Real>,
     /// Damping factor for gradually slowing down the translational motion of the rigid-body.
-    pub linear_damping: f32,
+    pub linear_damping: Real,
     /// Damping factor for gradually slowing down the angular motion of the rigid-body.
-    pub angular_damping: f32,
-    pub(crate) linacc: Vector<f32>,
-    pub(crate) angacc: AngVector<f32>,
+    pub angular_damping: Real,
+    pub(crate) linacc: Vector<Real>,
+    pub(crate) angacc: AngVector<Real>,
     pub(crate) colliders: Vec<ColliderHandle>,
+    pub(crate) gravity_scale: Real,
     /// Whether or not this rigid-body is sleeping.
     pub activation: ActivationStatus,
     pub(crate) joint_graph_index: RigidBodyGraphIndex,
@@ -95,16 +101,18 @@ impl RigidBody {
             predicted_position: Isometry::identity(),
             mass_properties: MassProperties::zero(),
             world_com: Point::origin(),
-            world_inv_inertia_sqrt: AngularInertia::zero(),
+            effective_inv_mass: 0.0,
+            effective_world_inv_inertia_sqrt: AngularInertia::zero(),
             linvel: Vector::zeros(),
             angvel: na::zero(),
             linacc: Vector::zeros(),
             angacc: na::zero(),
+            gravity_scale: 1.0,
             linear_damping: 0.0,
             angular_damping: 0.0,
             colliders: Vec::new(),
             activation: ActivationStatus::new_active(),
-            joint_graph_index: InteractionGraph::<()>::invalid_graph_index(),
+            joint_graph_index: InteractionGraph::<(), ()>::invalid_graph_index(),
             active_island_id: 0,
             active_set_id: 0,
             active_set_offset: 0,
@@ -118,22 +126,21 @@ impl RigidBody {
 
     pub(crate) fn reset_internal_references(&mut self) {
         self.colliders = Vec::new();
-        self.joint_graph_index = InteractionGraph::<()>::invalid_graph_index();
+        self.joint_graph_index = InteractionGraph::<(), ()>::invalid_graph_index();
         self.active_island_id = 0;
         self.active_set_id = 0;
         self.active_set_offset = 0;
         self.active_set_timestamp = 0;
     }
 
-    pub(crate) fn integrate_accelerations(&mut self, dt: f32, gravity: Vector<f32>) {
-        if self.mass_properties.inv_mass != 0.0 {
-            self.linvel += (gravity + self.linacc) * dt;
-            self.angvel += self.angacc * dt;
-
-            // Reset the accelerations.
+    pub(crate) fn integrate_accelerations(&mut self, dt: Real, gravity: Vector<Real>) {
+        if self.effective_inv_mass != 0.0 {
+            self.linvel += (gravity * self.gravity_scale + self.linacc) * dt;
             self.linacc = na::zero();
-            self.angacc = na::zero();
         }
+
+        self.angvel += self.angacc * dt;
+        self.angacc = na::zero();
     }
 
     /// The mass properties of this rigid-body.
@@ -184,7 +191,7 @@ impl RigidBody {
     /// The mass of this rigid body.
     ///
     /// Returns zero if this rigid body has an infinite mass.
-    pub fn mass(&self) -> f32 {
+    pub fn mass(&self) -> Real {
         utils::inv(self.mass_properties.inv_mass)
     }
 
@@ -193,8 +200,23 @@ impl RigidBody {
     /// If this rigid-body is kinematic this value is set by the `set_next_kinematic_position`
     /// method and is used for estimating the kinematic body velocity at the next timestep.
     /// For non-kinematic bodies, this value is currently unspecified.
-    pub fn predicted_position(&self) -> &Isometry<f32> {
+    pub fn predicted_position(&self) -> &Isometry<Real> {
         &self.predicted_position
+    }
+
+    /// The scale factor applied to the gravity affecting this rigid-body.
+    pub fn gravity_scale(&self) -> Real {
+        self.gravity_scale
+    }
+
+    /// Sets the gravity scale facter for this rigid-body.
+    pub fn set_gravity_scale(&mut self, scale: Real, wake_up: bool) {
+        if wake_up && self.activation.sleeping {
+            self.changes.insert(RigidBodyChanges::SLEEP);
+            self.activation.sleeping = false;
+        }
+
+        self.gravity_scale = scale;
     }
 
     /// Adds a collider to this rigid-body.
@@ -208,38 +230,8 @@ impl RigidBody {
             .mass_properties()
             .transform_by(coll.position_wrt_parent());
         self.colliders.push(handle);
-        self.mass_properties += Self::filter_collider_mass_props(mass_properties, self.flags);
+        self.mass_properties += mass_properties;
         self.update_world_mass_properties();
-    }
-
-    fn filter_collider_mass_props(
-        mut props: MassProperties,
-        flags: RigidBodyFlags,
-    ) -> MassProperties {
-        if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_MASS) {
-            props.inv_mass = 0.0;
-        }
-
-        #[cfg(feature = "dim2")]
-        {
-            if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z) {
-                props.inv_principal_inertia_sqrt = 0.0;
-            }
-        }
-        #[cfg(feature = "dim3")]
-        {
-            if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_X) {
-                props.inv_principal_inertia_sqrt.x = 0.0;
-            }
-            if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Y) {
-                props.inv_principal_inertia_sqrt.y = 0.0;
-            }
-            if flags.contains(RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z) {
-                props.inv_principal_inertia_sqrt.z = 0.0;
-            }
-        }
-
-        props
     }
 
     pub(crate) fn update_colliders_positions(&mut self, colliders: &mut ColliderSet) {
@@ -258,7 +250,7 @@ impl RigidBody {
             let mass_properties = coll
                 .mass_properties()
                 .transform_by(coll.position_wrt_parent());
-            self.mass_properties -= Self::filter_collider_mass_props(mass_properties, self.flags);
+            self.mass_properties -= mass_properties;
             self.update_world_mass_properties();
         }
     }
@@ -311,13 +303,13 @@ impl RigidBody {
         !self.linvel.is_zero() || !self.angvel.is_zero()
     }
 
-    fn integrate_velocity(&self, dt: f32) -> Isometry<f32> {
+    fn integrate_velocity(&self, dt: Real) -> Isometry<Real> {
         let com = &self.position * self.mass_properties.local_com;
         let shift = Translation::from(com.coords);
         shift * Isometry::new(self.linvel * dt, self.angvel * dt) * shift.inverse()
     }
 
-    pub(crate) fn integrate(&mut self, dt: f32) {
+    pub(crate) fn integrate(&mut self, dt: Real) {
         // TODO: do we want to apply damping before or after the velocity integration?
         self.linvel *= 1.0 / (1.0 + dt * self.linear_damping);
         self.angvel *= 1.0 / (1.0 + dt * self.angular_damping);
@@ -326,19 +318,19 @@ impl RigidBody {
     }
 
     /// The linear velocity of this rigid-body.
-    pub fn linvel(&self) -> &Vector<f32> {
+    pub fn linvel(&self) -> &Vector<Real> {
         &self.linvel
     }
 
     /// The angular velocity of this rigid-body.
     #[cfg(feature = "dim2")]
-    pub fn angvel(&self) -> f32 {
+    pub fn angvel(&self) -> Real {
         self.angvel
     }
 
     /// The angular velocity of this rigid-body.
     #[cfg(feature = "dim3")]
-    pub fn angvel(&self) -> &Vector<f32> {
+    pub fn angvel(&self) -> &Vector<Real> {
         &self.angvel
     }
 
@@ -346,7 +338,7 @@ impl RigidBody {
     ///
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
-    pub fn set_linvel(&mut self, linvel: Vector<f32>, wake_up: bool) {
+    pub fn set_linvel(&mut self, linvel: Vector<Real>, wake_up: bool) {
         self.linvel = linvel;
 
         if self.is_dynamic() && wake_up {
@@ -359,7 +351,7 @@ impl RigidBody {
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
     #[cfg(feature = "dim2")]
-    pub fn set_angvel(&mut self, angvel: f32, wake_up: bool) {
+    pub fn set_angvel(&mut self, angvel: Real, wake_up: bool) {
         self.angvel = angvel;
 
         if self.is_dynamic() && wake_up {
@@ -372,7 +364,7 @@ impl RigidBody {
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
     #[cfg(feature = "dim3")]
-    pub fn set_angvel(&mut self, angvel: Vector<f32>, wake_up: bool) {
+    pub fn set_angvel(&mut self, angvel: Vector<Real>, wake_up: bool) {
         self.angvel = angvel;
 
         if self.is_dynamic() && wake_up {
@@ -381,7 +373,7 @@ impl RigidBody {
     }
 
     /// The world-space position of this rigid-body.
-    pub fn position(&self) -> &Isometry<f32> {
+    pub fn position(&self) -> &Isometry<Real> {
         &self.position
     }
 
@@ -394,7 +386,7 @@ impl RigidBody {
     ///
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
-    pub fn set_position(&mut self, pos: Isometry<f32>, wake_up: bool) {
+    pub fn set_position(&mut self, pos: Isometry<Real>, wake_up: bool) {
         self.changes.insert(RigidBodyChanges::POSITION);
         self.set_position_internal(pos);
 
@@ -404,7 +396,7 @@ impl RigidBody {
         }
     }
 
-    pub(crate) fn set_position_internal(&mut self, pos: Isometry<f32>) {
+    pub(crate) fn set_position_internal(&mut self, pos: Isometry<Real>) {
         self.position = pos;
 
         // TODO: update the predicted position for dynamic bodies too?
@@ -414,13 +406,13 @@ impl RigidBody {
     }
 
     /// If this rigid body is kinematic, sets its future position after the next timestep integration.
-    pub fn set_next_kinematic_position(&mut self, pos: Isometry<f32>) {
+    pub fn set_next_kinematic_position(&mut self, pos: Isometry<Real>) {
         if self.is_kinematic() {
             self.predicted_position = pos;
         }
     }
 
-    pub(crate) fn compute_velocity_from_predicted_position(&mut self, inv_dt: f32) {
+    pub(crate) fn compute_velocity_from_predicted_position(&mut self, inv_dt: Real) {
         let dpos = self.predicted_position * self.position.inverse();
         #[cfg(feature = "dim2")]
         {
@@ -433,24 +425,56 @@ impl RigidBody {
         self.linvel = dpos.translation.vector * inv_dt;
     }
 
-    pub(crate) fn update_predicted_position(&mut self, dt: f32) {
+    pub(crate) fn update_predicted_position(&mut self, dt: Real) {
         self.predicted_position = self.integrate_velocity(dt) * self.position;
     }
 
     pub(crate) fn update_world_mass_properties(&mut self) {
         self.world_com = self.mass_properties.world_com(&self.position);
-        self.world_inv_inertia_sqrt = self
+        self.effective_inv_mass = self.mass_properties.inv_mass;
+        self.effective_world_inv_inertia_sqrt = self
             .mass_properties
             .world_inv_inertia_sqrt(&self.position.rotation);
+
+        // Take into account translation/rotation locking.
+        if self.flags.contains(RigidBodyFlags::TRANSLATION_LOCKED) {
+            self.effective_inv_mass = 0.0;
+        }
+
+        #[cfg(feature = "dim2")]
+        {
+            if self.flags.contains(RigidBodyFlags::ROTATION_LOCKED_Z) {
+                self.effective_world_inv_inertia_sqrt = 0.0;
+            }
+        }
+        #[cfg(feature = "dim3")]
+        {
+            if self.flags.contains(RigidBodyFlags::ROTATION_LOCKED_X) {
+                self.effective_world_inv_inertia_sqrt.m11 = 0.0;
+                self.effective_world_inv_inertia_sqrt.m12 = 0.0;
+                self.effective_world_inv_inertia_sqrt.m13 = 0.0;
+            }
+
+            if self.flags.contains(RigidBodyFlags::ROTATION_LOCKED_Y) {
+                self.effective_world_inv_inertia_sqrt.m22 = 0.0;
+                self.effective_world_inv_inertia_sqrt.m12 = 0.0;
+                self.effective_world_inv_inertia_sqrt.m23 = 0.0;
+            }
+            if self.flags.contains(RigidBodyFlags::ROTATION_LOCKED_Z) {
+                self.effective_world_inv_inertia_sqrt.m33 = 0.0;
+                self.effective_world_inv_inertia_sqrt.m13 = 0.0;
+                self.effective_world_inv_inertia_sqrt.m23 = 0.0;
+            }
+        }
     }
 
     /*
      * Application of forces/impulses.
      */
     /// Applies a force at the center-of-mass of this rigid-body.
-    pub fn apply_force(&mut self, force: Vector<f32>, wake_up: bool) {
+    pub fn apply_force(&mut self, force: Vector<Real>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.linacc += force * self.mass_properties.inv_mass;
+            self.linacc += force * self.effective_inv_mass;
 
             if wake_up {
                 self.wake_up(true);
@@ -459,9 +483,9 @@ impl RigidBody {
     }
 
     /// Applies an impulse at the center-of-mass of this rigid-body.
-    pub fn apply_impulse(&mut self, impulse: Vector<f32>, wake_up: bool) {
+    pub fn apply_impulse(&mut self, impulse: Vector<Real>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.linvel += impulse * self.mass_properties.inv_mass;
+            self.linvel += impulse * self.effective_inv_mass;
 
             if wake_up {
                 self.wake_up(true);
@@ -471,9 +495,10 @@ impl RigidBody {
 
     /// Applies a torque at the center-of-mass of this rigid-body.
     #[cfg(feature = "dim2")]
-    pub fn apply_torque(&mut self, torque: f32, wake_up: bool) {
+    pub fn apply_torque(&mut self, torque: Real, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.angacc += self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque);
+            self.angacc += self.effective_world_inv_inertia_sqrt
+                * (self.effective_world_inv_inertia_sqrt * torque);
 
             if wake_up {
                 self.wake_up(true);
@@ -483,9 +508,10 @@ impl RigidBody {
 
     /// Applies a torque at the center-of-mass of this rigid-body.
     #[cfg(feature = "dim3")]
-    pub fn apply_torque(&mut self, torque: Vector<f32>, wake_up: bool) {
+    pub fn apply_torque(&mut self, torque: Vector<Real>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.angacc += self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque);
+            self.angacc += self.effective_world_inv_inertia_sqrt
+                * (self.effective_world_inv_inertia_sqrt * torque);
 
             if wake_up {
                 self.wake_up(true);
@@ -495,10 +521,10 @@ impl RigidBody {
 
     /// Applies an impulsive torque at the center-of-mass of this rigid-body.
     #[cfg(feature = "dim2")]
-    pub fn apply_torque_impulse(&mut self, torque_impulse: f32, wake_up: bool) {
+    pub fn apply_torque_impulse(&mut self, torque_impulse: Real, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.angvel +=
-                self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque_impulse);
+            self.angvel += self.effective_world_inv_inertia_sqrt
+                * (self.effective_world_inv_inertia_sqrt * torque_impulse);
 
             if wake_up {
                 self.wake_up(true);
@@ -508,10 +534,10 @@ impl RigidBody {
 
     /// Applies an impulsive torque at the center-of-mass of this rigid-body.
     #[cfg(feature = "dim3")]
-    pub fn apply_torque_impulse(&mut self, torque_impulse: Vector<f32>, wake_up: bool) {
+    pub fn apply_torque_impulse(&mut self, torque_impulse: Vector<Real>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.angvel +=
-                self.world_inv_inertia_sqrt * (self.world_inv_inertia_sqrt * torque_impulse);
+            self.angvel += self.effective_world_inv_inertia_sqrt
+                * (self.effective_world_inv_inertia_sqrt * torque_impulse);
 
             if wake_up {
                 self.wake_up(true);
@@ -520,7 +546,7 @@ impl RigidBody {
     }
 
     /// Applies a force at the given world-space point of this rigid-body.
-    pub fn apply_force_at_point(&mut self, force: Vector<f32>, point: Point<f32>, wake_up: bool) {
+    pub fn apply_force_at_point(&mut self, force: Vector<Real>, point: Point<Real>, wake_up: bool) {
         let torque = (point - self.world_com).gcross(force);
         self.apply_force(force, wake_up);
         self.apply_torque(torque, wake_up);
@@ -529,8 +555,8 @@ impl RigidBody {
     /// Applies an impulse at the given world-space point of this rigid-body.
     pub fn apply_impulse_at_point(
         &mut self,
-        impulse: Vector<f32>,
-        point: Point<f32>,
+        impulse: Vector<Real>,
+        point: Point<Real>,
         wake_up: bool,
     ) {
         let torque_impulse = (point - self.world_com).gcross(impulse);
@@ -539,7 +565,7 @@ impl RigidBody {
     }
 
     /// The velocity of the given world-space point on this rigid-body.
-    pub fn velocity_at_point(&self, point: &Point<f32>) -> Vector<f32> {
+    pub fn velocity_at_point(&self, point: &Point<Real>) -> Vector<Real> {
         let dpt = point - self.world_com;
         self.linvel + self.angvel.gcross(dpt)
     }
@@ -547,11 +573,12 @@ impl RigidBody {
 
 /// A builder for rigid-bodies.
 pub struct RigidBodyBuilder {
-    position: Isometry<f32>,
-    linvel: Vector<f32>,
-    angvel: AngVector<f32>,
-    linear_damping: f32,
-    angular_damping: f32,
+    position: Isometry<Real>,
+    linvel: Vector<Real>,
+    angvel: AngVector<Real>,
+    gravity_scale: Real,
+    linear_damping: Real,
+    angular_damping: Real,
     body_status: BodyStatus,
     flags: RigidBodyFlags,
     mass_properties: MassProperties,
@@ -567,6 +594,7 @@ impl RigidBodyBuilder {
             position: Isometry::identity(),
             linvel: Vector::zeros(),
             angvel: na::zero(),
+            gravity_scale: 1.0,
             linear_damping: 0.0,
             angular_damping: 0.0,
             body_status,
@@ -593,9 +621,15 @@ impl RigidBodyBuilder {
         Self::new(BodyStatus::Dynamic)
     }
 
+    /// Sets the scale applied to the gravity force affecting the rigid-body to be created.
+    pub fn gravity_scale(mut self, x: Real) -> Self {
+        self.gravity_scale = x;
+        self
+    }
+
     /// Sets the initial translation of the rigid-body to be created.
     #[cfg(feature = "dim2")]
-    pub fn translation(mut self, x: f32, y: f32) -> Self {
+    pub fn translation(mut self, x: Real, y: Real) -> Self {
         self.position.translation.x = x;
         self.position.translation.y = y;
         self
@@ -603,7 +637,7 @@ impl RigidBodyBuilder {
 
     /// Sets the initial translation of the rigid-body to be created.
     #[cfg(feature = "dim3")]
-    pub fn translation(mut self, x: f32, y: f32, z: f32) -> Self {
+    pub fn translation(mut self, x: Real, y: Real, z: Real) -> Self {
         self.position.translation.x = x;
         self.position.translation.y = y;
         self.position.translation.z = z;
@@ -611,13 +645,13 @@ impl RigidBodyBuilder {
     }
 
     /// Sets the initial orientation of the rigid-body to be created.
-    pub fn rotation(mut self, angle: AngVector<f32>) -> Self {
+    pub fn rotation(mut self, angle: AngVector<Real>) -> Self {
         self.position.rotation = Rotation::new(angle);
         self
     }
 
     /// Sets the initial position (translation and orientation) of the rigid-body to be created.
-    pub fn position(mut self, pos: Isometry<f32>) -> Self {
+    pub fn position(mut self, pos: Isometry<Real>) -> Self {
         self.position = pos;
         self
     }
@@ -644,76 +678,53 @@ impl RigidBodyBuilder {
     }
 
     /// Prevents this rigid-body from translating because of forces.
-    ///
-    /// This is equivalent to `self.mass(0.0, false)`. See the
-    /// documentation of [`RigidBodyBuilder::mass`] for more details.
-    pub fn lock_translations(self) -> Self {
-        self.mass(0.0, false)
+    pub fn lock_translations(mut self) -> Self {
+        self.flags.set(RigidBodyFlags::TRANSLATION_LOCKED, true);
+        self
     }
 
     /// Prevents this rigid-body from rotating because of forces.
-    ///
-    /// This is equivalent to `self.principal_inertia(0.0, false)` (in 2D) or
-    /// `self.principal_inertia(Vector3::zeros(), Vector3::repeat(false))` (in 3D).
-    ///
-    /// See the documentation of [`RigidBodyBuilder::principal_inertia`] for more details.
-    pub fn lock_rotations(self) -> Self {
-        #[cfg(feature = "dim2")]
-        return self.principal_angular_inertia(0.0, false);
-        #[cfg(feature = "dim3")]
-        return self.principal_angular_inertia(Vector::zeros(), Vector::repeat(false));
+    pub fn lock_rotations(mut self) -> Self {
+        self.flags.set(RigidBodyFlags::ROTATION_LOCKED_X, true);
+        self.flags.set(RigidBodyFlags::ROTATION_LOCKED_Y, true);
+        self.flags.set(RigidBodyFlags::ROTATION_LOCKED_Z, true);
+        self
+    }
+
+    /// Only allow rotations of this rigid-body around specific coordinate axes.
+    #[cfg(feature = "dim3")]
+    pub fn restrict_rotations(
+        mut self,
+        allow_rotations_x: bool,
+        allow_rotations_y: bool,
+        allow_rotations_z: bool,
+    ) -> Self {
+        self.flags
+            .set(RigidBodyFlags::ROTATION_LOCKED_X, !allow_rotations_x);
+        self.flags
+            .set(RigidBodyFlags::ROTATION_LOCKED_Y, !allow_rotations_y);
+        self.flags
+            .set(RigidBodyFlags::ROTATION_LOCKED_Z, !allow_rotations_z);
+        self
     }
 
     /// Sets the mass of the rigid-body being built.
-    ///
-    /// In order to lock the translations of this rigid-body (by
-    /// making them kinematic), call `.mass(0.0, false)`.
-    ///
-    /// If `colliders_contribution_enabled` is `false`, then the mass specified here
-    /// will be the final mass of the rigid-body created by this builder.
-    /// If `colliders_contribution_enabled` is `true`, then the final mass of the rigid-body
-    /// will depends on the initial mass set by this method to which is added
-    /// the contributions of all the colliders with non-zero density attached to
-    /// this rigid-body.
-    pub fn mass(mut self, mass: f32, colliders_contribution_enabled: bool) -> Self {
+    pub fn mass(mut self, mass: Real) -> Self {
         self.mass_properties.inv_mass = utils::inv(mass);
-        self.flags.set(
-            RigidBodyFlags::IGNORE_COLLIDER_MASS,
-            !colliders_contribution_enabled,
-        );
         self
     }
     /// Sets the angular inertia of this rigid-body.
-    ///
-    /// In order to lock the rotations of this rigid-body (by
-    /// making them kinematic), call `.principal_inertia(0.0, false)`.
-    ///
-    /// If `colliders_contribution_enabled` is `false`, then the principal inertia specified here
-    /// will be the final principal inertia of the rigid-body created by this builder.
-    /// If `colliders_contribution_enabled` is `true`, then the final principal of the rigid-body
-    /// will depend on the initial principal inertia set by this method to which is added
-    /// the contributions of all the colliders with non-zero density attached to this rigid-body.
     #[cfg(feature = "dim2")]
-    pub fn principal_angular_inertia(
-        mut self,
-        inertia: f32,
-        colliders_contribution_enabled: bool,
-    ) -> Self {
+    pub fn principal_angular_inertia(mut self, inertia: Real) -> Self {
         self.mass_properties.inv_principal_inertia_sqrt = utils::inv(inertia);
-        self.flags.set(
-            RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_X
-                | RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Y
-                | RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z,
-            !colliders_contribution_enabled,
-        );
         self
     }
 
     /// Use `self.principal_angular_inertia` instead.
     #[cfg(feature = "dim2")]
     #[deprecated(note = "renamed to `principal_angular_inertia`.")]
-    pub fn principal_inertia(self, inertia: f32, colliders_contribution_enabled: bool) -> Self {
-        self.principal_angular_inertia(inertia, colliders_contribution_enabled)
+    pub fn principal_inertia(self, inertia: Real) -> Self {
+        self.principal_angular_inertia(inertia)
     }
 
     /// Sets the principal angular inertia of this rigid-body.
@@ -729,43 +740,23 @@ impl RigidBodyBuilder {
     /// to which is added the contributions of all the colliders with non-zero density
     /// attached to this rigid-body.
     #[cfg(feature = "dim3")]
-    pub fn principal_angular_inertia(
-        mut self,
-        inertia: AngVector<f32>,
-        colliders_contribution_enabled: AngVector<bool>,
-    ) -> Self {
+    pub fn principal_angular_inertia(mut self, inertia: AngVector<Real>) -> Self {
         self.mass_properties.inv_principal_inertia_sqrt = inertia.map(utils::inv);
-        self.flags.set(
-            RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_X,
-            !colliders_contribution_enabled.x,
-        );
-        self.flags.set(
-            RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Y,
-            !colliders_contribution_enabled.y,
-        );
-        self.flags.set(
-            RigidBodyFlags::IGNORE_COLLIDER_ANGULAR_INERTIA_Z,
-            !colliders_contribution_enabled.z,
-        );
         self
     }
 
     /// Use `self.principal_angular_inertia` instead.
     #[cfg(feature = "dim3")]
     #[deprecated(note = "renamed to `principal_angular_inertia`.")]
-    pub fn principal_inertia(
-        self,
-        inertia: AngVector<f32>,
-        colliders_contribution_enabled: AngVector<bool>,
-    ) -> Self {
-        self.principal_angular_inertia(inertia, colliders_contribution_enabled)
+    pub fn principal_inertia(self, inertia: AngVector<Real>) -> Self {
+        self.principal_angular_inertia(inertia)
     }
 
     /// Sets the damping factor for the linear part of the rigid-body motion.
     ///
     /// The higher the linear damping factor is, the more quickly the rigid-body
     /// will slow-down its translational movement.
-    pub fn linear_damping(mut self, factor: f32) -> Self {
+    pub fn linear_damping(mut self, factor: Real) -> Self {
         self.linear_damping = factor;
         self
     }
@@ -774,27 +765,27 @@ impl RigidBodyBuilder {
     ///
     /// The higher the angular damping factor is, the more quickly the rigid-body
     /// will slow-down its rotational movement.
-    pub fn angular_damping(mut self, factor: f32) -> Self {
+    pub fn angular_damping(mut self, factor: Real) -> Self {
         self.angular_damping = factor;
         self
     }
 
     /// Sets the initial linear velocity of the rigid-body to be created.
     #[cfg(feature = "dim2")]
-    pub fn linvel(mut self, x: f32, y: f32) -> Self {
+    pub fn linvel(mut self, x: Real, y: Real) -> Self {
         self.linvel = Vector::new(x, y);
         self
     }
 
     /// Sets the initial linear velocity of the rigid-body to be created.
     #[cfg(feature = "dim3")]
-    pub fn linvel(mut self, x: f32, y: f32, z: f32) -> Self {
+    pub fn linvel(mut self, x: Real, y: Real, z: Real) -> Self {
         self.linvel = Vector::new(x, y, z);
         self
     }
 
     /// Sets the initial angular velocity of the rigid-body to be created.
-    pub fn angvel(mut self, angvel: AngVector<f32>) -> Self {
+    pub fn angvel(mut self, angvel: AngVector<Real>) -> Self {
         self.angvel = angvel;
         self
     }
@@ -823,6 +814,7 @@ impl RigidBodyBuilder {
         rb.mass_properties = self.mass_properties;
         rb.linear_damping = self.linear_damping;
         rb.angular_damping = self.angular_damping;
+        rb.gravity_scale = self.gravity_scale;
         rb.flags = self.flags;
 
         if self.can_sleep && self.sleeping {
@@ -845,16 +837,16 @@ impl RigidBodyBuilder {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct ActivationStatus {
     /// The threshold pseudo-kinetic energy bellow which the body can fall asleep.
-    pub threshold: f32,
+    pub threshold: Real,
     /// The current pseudo-kinetic energy of the body.
-    pub energy: f32,
+    pub energy: Real,
     /// Is this body already sleeping?
     pub sleeping: bool,
 }
 
 impl ActivationStatus {
     /// The default amount of energy bellow which a body can be put to sleep by nphysics.
-    pub fn default_threshold() -> f32 {
+    pub fn default_threshold() -> Real {
         0.01
     }
 

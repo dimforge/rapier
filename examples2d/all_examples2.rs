@@ -12,15 +12,18 @@ use std::cmp::Ordering;
 
 mod add_remove2;
 mod collision_groups2;
+mod convex_polygons2;
 mod damping2;
 mod debug_box_ball2;
 mod heightfield2;
 mod joints2;
 mod locked_rotations2;
 mod platform2;
+mod polyline2;
 mod pyramid2;
 mod restitution2;
 mod sensor2;
+mod trimesh2;
 
 fn demo_name_from_command_line() -> Option<String> {
     let mut args = std::env::args();
@@ -57,14 +60,17 @@ pub fn main() {
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Add remove", add_remove2::init_world),
         ("Collision groups", collision_groups2::init_world),
+        ("Convex polygons", convex_polygons2::init_world),
         ("Damping", damping2::init_world),
         ("Heightfield", heightfield2::init_world),
         ("Joints", joints2::init_world),
         ("Locked rotations", locked_rotations2::init_world),
         ("Platform", platform2::init_world),
+        ("Polyline", polyline2::init_world),
         ("Pyramid", pyramid2::init_world),
         ("Restitution", restitution2::init_world),
         ("Sensor", sensor2::init_world),
+        ("Trimesh", trimesh2::init_world),
         ("(Debug) box ball", debug_box_ball2::init_world),
     ];
 

@@ -14,7 +14,9 @@ enhanced-determinism = [ "rapier2d/enhanced-determinism" ]
 [dependencies]
 rand       = "0.7"
 Inflector  = "0.11"
-nalgebra = "0.23"
+nalgebra   = "0.24"
+lyon       = "0.17"
+usvg       = "0.13"
 
 [dependencies.rapier_testbed2d]
 path = "../build/rapier_testbed2d"

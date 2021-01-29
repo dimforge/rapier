@@ -1,45 +1,34 @@
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
-use crate::dynamics::RigidBodySet;
-use crate::geometry::contact_generator::{
-    ContactDispatcher, ContactGenerationContext, DefaultContactDispatcher,
-};
-use crate::geometry::proximity_detector::{
-    DefaultProximityDispatcher, ProximityDetectionContext, ProximityDispatcher,
-};
-//#[cfg(feature = "simd-is-enabled")]
-//use crate::geometry::{
-//    contact_generator::ContactGenerationContextSimd,
-//    proximity_detector::ProximityDetectionContextSimd, WBall,
-//};
-use crate::geometry::{
-    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactEvent, ContactPairFilter,
-    PairFilterContext, ProximityEvent, ProximityPair, ProximityPairFilter, RemovedCollider,
-    SolverFlags,
-};
-use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
-//#[cfg(feature = "simd-is-enabled")]
-//use crate::math::{SimdFloat, SIMD_WIDTH};
 use crate::data::pubsub::Subscription;
 use crate::data::Coarena;
-use crate::ncollide::query::Proximity;
+use crate::dynamics::{BodyPair, CoefficientCombineRule, RigidBodySet};
+use crate::geometry::{
+    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactData, ContactEvent,
+    ContactManifoldData, ContactPairFilter, IntersectionEvent, IntersectionPairFilter,
+    PairFilterContext, RemovedCollider, SolverContact, SolverFlags,
+};
+use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
+use crate::math::{Real, Vector};
 use crate::pipeline::EventHandler;
+use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
+use parry::utils::IsometryOpt;
 use std::collections::HashMap;
-//use simba::simd::SimdValue;
+use std::sync::Arc;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 struct ColliderGraphIndices {
     contact_graph_index: ColliderGraphIndex,
-    proximity_graph_index: ColliderGraphIndex,
+    intersection_graph_index: ColliderGraphIndex,
 }
 
 impl ColliderGraphIndices {
     fn invalid() -> Self {
         Self {
-            contact_graph_index: InteractionGraph::<ContactPair>::invalid_graph_index(),
-            proximity_graph_index: InteractionGraph::<ProximityPair>::invalid_graph_index(),
+            contact_graph_index: InteractionGraph::<(), ()>::invalid_graph_index(),
+            intersection_graph_index: InteractionGraph::<(), ()>::invalid_graph_index(),
         }
     }
 }
@@ -48,14 +37,15 @@ impl ColliderGraphIndices {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 pub struct NarrowPhase {
-    contact_graph: InteractionGraph<ContactPair>,
-    proximity_graph: InteractionGraph<ProximityPair>,
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(skip, default = "crate::geometry::default_persistent_query_dispatcher")
+    )]
+    query_dispatcher: Arc<dyn PersistentQueryDispatcher<ContactManifoldData, ContactData>>,
+    contact_graph: InteractionGraph<ColliderHandle, ContactPair>,
+    intersection_graph: InteractionGraph<ColliderHandle, bool>,
     graph_indices: Coarena<ColliderGraphIndices>,
     removed_colliders: Option<Subscription<RemovedCollider>>,
-    //    ball_ball: Vec<usize>,        // Workspace: Vec<*mut ContactPair>,
-    //    shape_shape: Vec<usize>,      // Workspace: Vec<*mut ContactPair>,
-    //    ball_ball_prox: Vec<usize>,   // Workspace: Vec<*mut ProximityPair>,
-    //    shape_shape_prox: Vec<usize>, // Workspace: Vec<*mut ProximityPair>,
 }
 
 pub(crate) type ContactManifoldIndex = usize;
@@ -63,26 +53,31 @@ pub(crate) type ContactManifoldIndex = usize;
 impl NarrowPhase {
     /// Creates a new empty narrow-phase.
     pub fn new() -> Self {
+        Self::with_query_dispatcher(DefaultQueryDispatcher)
+    }
+
+    /// Creates a new empty narrow-phase with a custom query dispatcher.
+    pub fn with_query_dispatcher<D>(d: D) -> Self
+    where
+        D: 'static + PersistentQueryDispatcher<ContactManifoldData, ContactData>,
+    {
         Self {
+            query_dispatcher: Arc::new(d),
             contact_graph: InteractionGraph::new(),
-            proximity_graph: InteractionGraph::new(),
+            intersection_graph: InteractionGraph::new(),
             graph_indices: Coarena::new(),
             removed_colliders: None,
-            //            ball_ball: Vec::new(),
-            //            shape_shape: Vec::new(),
-            //            ball_ball_prox: Vec::new(),
-            //            shape_shape_prox: Vec::new(),
         }
     }
 
     /// The contact graph containing all contact pairs and their contact information.
-    pub fn contact_graph(&self) -> &InteractionGraph<ContactPair> {
+    pub fn contact_graph(&self) -> &InteractionGraph<ColliderHandle, ContactPair> {
         &self.contact_graph
     }
 
-    /// The proximity graph containing all proximity pairs and their proximity information.
-    pub fn proximity_graph(&self) -> &InteractionGraph<ProximityPair> {
-        &self.proximity_graph
+    /// The intersection graph containing all intersection pairs and their intersection information.
+    pub fn intersection_graph(&self) -> &InteractionGraph<ColliderHandle, bool> {
+        &self.intersection_graph
     }
 
     /// All the contacts involving the given collider.
@@ -90,19 +85,20 @@ impl NarrowPhase {
         &self,
         collider: ColliderHandle,
     ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, &ContactPair)>> {
-        let id = self.graph_indices.get(collider)?;
+        let id = self.graph_indices.get(collider.0)?;
         Some(self.contact_graph.interactions_with(id.contact_graph_index))
     }
 
-    /// All the proximities involving the given collider.
-    pub fn proximities_with(
-        &self,
+    /// All the intersections involving the given collider.
+    pub fn intersections_with<'a>(
+        &'a self,
         collider: ColliderHandle,
-    ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, &ProximityPair)>> {
-        let id = self.graph_indices.get(collider)?;
+    ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + 'a> {
+        let id = self.graph_indices.get(collider.0)?;
         Some(
-            self.proximity_graph
-                .interactions_with(id.proximity_graph_index),
+            self.intersection_graph
+                .interactions_with(id.intersection_graph_index)
+                .map(|e| (e.0, e.1, *e.2)),
         )
     }
 
@@ -116,28 +112,27 @@ impl NarrowPhase {
         collider1: ColliderHandle,
         collider2: ColliderHandle,
     ) -> Option<&ContactPair> {
-        let id1 = self.graph_indices.get(collider1)?;
-        let id2 = self.graph_indices.get(collider2)?;
+        let id1 = self.graph_indices.get(collider1.0)?;
+        let id2 = self.graph_indices.get(collider2.0)?;
         self.contact_graph
             .interaction_pair(id1.contact_graph_index, id2.contact_graph_index)
             .map(|c| c.2)
     }
 
-    /// The proximity pair involving two specific colliders.
+    /// The intersection pair involving two specific colliders.
     ///
-    /// If this returns `None`, there is no intersection between the two colliders.
-    /// If this returns `Some`, then there may be an intersection between the two colliders. Check the
-    /// value of [`ProximityPair::proximity`] method to see if there is an actual intersection.
-    pub fn proximity_pair(
+    /// If this returns `None` or `Some(false)`, then there is no intersection between the two colliders.
+    /// If this returns `Some(true)`, then there may be an intersection between the two colliders.
+    pub fn intersection_pair(
         &self,
         collider1: ColliderHandle,
         collider2: ColliderHandle,
-    ) -> Option<&ProximityPair> {
-        let id1 = self.graph_indices.get(collider1)?;
-        let id2 = self.graph_indices.get(collider2)?;
-        self.proximity_graph
-            .interaction_pair(id1.proximity_graph_index, id2.proximity_graph_index)
-            .map(|c| c.2)
+    ) -> Option<bool> {
+        let id1 = self.graph_indices.get(collider1.0)?;
+        let id2 = self.graph_indices.get(collider2.0)?;
+        self.intersection_graph
+            .interaction_pair(id1.intersection_graph_index, id2.intersection_graph_index)
+            .map(|c| *c.2)
     }
 
     /// All the contact pairs maintained by this narrow-phase.
@@ -145,9 +140,13 @@ impl NarrowPhase {
         self.contact_graph.interactions()
     }
 
-    /// All the proximity pairs maintained by this narrow-phase.
-    pub fn proximity_pairs(&self) -> impl Iterator<Item = &ProximityPair> {
-        self.proximity_graph.interactions()
+    /// All the intersection pairs maintained by this narrow-phase.
+    pub fn intersection_pairs<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + 'a {
+        self.intersection_graph
+            .interactions_with_endpoints()
+            .map(|e| (e.0, e.1, *e.2))
     }
 
     // #[cfg(feature = "parallel")]
@@ -166,7 +165,7 @@ impl NarrowPhase {
 
         // TODO: avoid these hash-maps.
         // They are necessary to handle the swap-remove done internally
-        // by the contact/proximity graphs when a node is removed.
+        // by the contact/intersection graphs when a node is removed.
         let mut prox_id_remap = HashMap::new();
         let mut contact_id_remap = HashMap::new();
         let mut i = 0;
@@ -174,18 +173,18 @@ impl NarrowPhase {
         while let Some(collider) = colliders.removed_colliders.read_ith(&cursor, i) {
             // NOTE: if the collider does not have any graph indices currently, there is nothing
             // to remove in the narrow-phase for this collider.
-            if let Some(graph_idx) = self.graph_indices.get(collider.handle) {
-                let proximity_graph_id = prox_id_remap
+            if let Some(graph_idx) = self.graph_indices.get(collider.handle.0) {
+                let intersection_graph_id = prox_id_remap
                     .get(&collider.handle)
                     .copied()
-                    .unwrap_or(graph_idx.proximity_graph_index);
+                    .unwrap_or(graph_idx.intersection_graph_index);
                 let contact_graph_id = contact_id_remap
                     .get(&collider.handle)
                     .copied()
                     .unwrap_or(graph_idx.contact_graph_index);
 
                 self.remove_collider(
-                    proximity_graph_id,
+                    intersection_graph_id,
                     contact_graph_id,
                     colliders,
                     bodies,
@@ -203,7 +202,7 @@ impl NarrowPhase {
 
     pub(crate) fn remove_collider<'a>(
         &mut self,
-        proximity_graph_id: ColliderGraphIndex,
+        intersection_graph_id: ColliderGraphIndex,
         contact_graph_id: ColliderGraphIndex,
         colliders: &mut ColliderSet,
         bodies: &mut RigidBodySet,
@@ -223,16 +222,16 @@ impl NarrowPhase {
 
         // We have to manage the fact that one other collider will
         // have its graph index changed because of the node's swap-remove.
-        if let Some(replacement) = self.proximity_graph.remove_node(proximity_graph_id) {
-            if let Some(replacement) = self.graph_indices.get_mut(replacement) {
-                replacement.proximity_graph_index = proximity_graph_id;
+        if let Some(replacement) = self.intersection_graph.remove_node(intersection_graph_id) {
+            if let Some(replacement) = self.graph_indices.get_mut(replacement.0) {
+                replacement.intersection_graph_index = intersection_graph_id;
             } else {
-                prox_id_remap.insert(replacement, proximity_graph_id);
+                prox_id_remap.insert(replacement, intersection_graph_id);
             }
         }
 
         if let Some(replacement) = self.contact_graph.remove_node(contact_graph_id) {
-            if let Some(replacement) = self.graph_indices.get_mut(replacement) {
+            if let Some(replacement) = self.graph_indices.get_mut(replacement.0) {
                 replacement.contact_graph_index = contact_graph_id;
             } else {
                 contact_id_remap.insert(replacement, contact_graph_id);
@@ -259,43 +258,41 @@ impl NarrowPhase {
                         }
 
                         let (gid1, gid2) = self.graph_indices.ensure_pair_exists(
-                            pair.collider1,
-                            pair.collider2,
+                            pair.collider1.0,
+                            pair.collider2.0,
                             ColliderGraphIndices::invalid(),
                         );
 
                         if co1.is_sensor() || co2.is_sensor() {
                             // NOTE: the collider won't have a graph index as long
                             // as it does not interact with anything.
-                            if !InteractionGraph::<ProximityPair>::is_graph_index_valid(
-                                gid1.proximity_graph_index,
+                            if !InteractionGraph::<(), ()>::is_graph_index_valid(
+                                gid1.intersection_graph_index,
                             ) {
-                                gid1.proximity_graph_index =
-                                    self.proximity_graph.graph.add_node(pair.collider1);
+                                gid1.intersection_graph_index =
+                                    self.intersection_graph.graph.add_node(pair.collider1);
                             }
 
-                            if !InteractionGraph::<ProximityPair>::is_graph_index_valid(
-                                gid2.proximity_graph_index,
+                            if !InteractionGraph::<(), ()>::is_graph_index_valid(
+                                gid2.intersection_graph_index,
                             ) {
-                                gid2.proximity_graph_index =
-                                    self.proximity_graph.graph.add_node(pair.collider2);
+                                gid2.intersection_graph_index =
+                                    self.intersection_graph.graph.add_node(pair.collider2);
                             }
 
                             if self
-                                .proximity_graph
+                                .intersection_graph
                                 .graph
-                                .find_edge(gid1.proximity_graph_index, gid2.proximity_graph_index)
+                                .find_edge(
+                                    gid1.intersection_graph_index,
+                                    gid2.intersection_graph_index,
+                                )
                                 .is_none()
                             {
-                                let dispatcher = DefaultProximityDispatcher;
-                                let generator = dispatcher
-                                    .dispatch(co1.shape().shape_type(), co2.shape().shape_type());
-                                let interaction =
-                                    ProximityPair::new(*pair, generator.0, generator.1);
-                                let _ = self.proximity_graph.add_edge(
-                                    gid1.proximity_graph_index,
-                                    gid2.proximity_graph_index,
-                                    interaction,
+                                let _ = self.intersection_graph.add_edge(
+                                    gid1.intersection_graph_index,
+                                    gid2.intersection_graph_index,
+                                    false,
                                 );
                             }
                         } else {
@@ -304,14 +301,14 @@ impl NarrowPhase {
 
                             // NOTE: the collider won't have a graph index as long
                             // as it does not interact with anything.
-                            if !InteractionGraph::<ContactPair>::is_graph_index_valid(
+                            if !InteractionGraph::<(), ()>::is_graph_index_valid(
                                 gid1.contact_graph_index,
                             ) {
                                 gid1.contact_graph_index =
                                     self.contact_graph.graph.add_node(pair.collider1);
                             }
 
-                            if !InteractionGraph::<ContactPair>::is_graph_index_valid(
+                            if !InteractionGraph::<(), ()>::is_graph_index_valid(
                                 gid2.contact_graph_index,
                             ) {
                                 gid2.contact_graph_index =
@@ -324,10 +321,7 @@ impl NarrowPhase {
                                 .find_edge(gid1.contact_graph_index, gid2.contact_graph_index)
                                 .is_none()
                             {
-                                let dispatcher = DefaultContactDispatcher;
-                                let generator = dispatcher
-                                    .dispatch(co1.shape().shape_type(), co2.shape().shape_type());
-                                let interaction = ContactPair::new(*pair, generator.0, generator.1);
+                                let interaction = ContactPair::new(*pair);
                                 let _ = self.contact_graph.add_edge(
                                     gid1.contact_graph_index,
                                     gid2.contact_graph_index,
@@ -344,26 +338,23 @@ impl NarrowPhase {
                         // TODO: could we just unwrap here?
                         // Don't we have the guarantee that we will get a `AddPair` before a `DeletePair`?
                         if let (Some(gid1), Some(gid2)) = (
-                            self.graph_indices.get(pair.collider1),
-                            self.graph_indices.get(pair.collider2),
+                            self.graph_indices.get(pair.collider1.0),
+                            self.graph_indices.get(pair.collider2.0),
                         ) {
                             if co1.is_sensor() || co2.is_sensor() {
-                                let prox_pair = self.proximity_graph.remove_edge(
-                                    gid1.proximity_graph_index,
-                                    gid2.proximity_graph_index,
+                                let was_intersecting = self.intersection_graph.remove_edge(
+                                    gid1.intersection_graph_index,
+                                    gid2.intersection_graph_index,
                                 );
 
-                                // Emit a proximity lost event if we had a proximity before removing the edge.
-                                if let Some(prox) = prox_pair {
-                                    if prox.proximity != Proximity::Disjoint {
-                                        let prox_event = ProximityEvent::new(
-                                            pair.collider1,
-                                            pair.collider2,
-                                            prox.proximity,
-                                            Proximity::Disjoint,
-                                        );
-                                        events.handle_proximity_event(prox_event)
-                                    }
+                                // Emit an intersection lost event if we had an intersection before removing the edge.
+                                if Some(true) == was_intersecting {
+                                    let prox_event = IntersectionEvent::new(
+                                        pair.collider1,
+                                        pair.collider2,
+                                        false,
+                                    );
+                                    events.handle_intersection_event(prox_event)
                                 }
                             } else {
                                 let contact_pair = self.contact_graph.remove_edge(
@@ -374,7 +365,7 @@ impl NarrowPhase {
                                 // Emit a contact stopped event if we had a contact before removing the edge.
                                 // Also wake up the dynamic bodies that were in contact.
                                 if let Some(ctct) = contact_pair {
-                                    if ctct.has_any_active_contact() {
+                                    if ctct.has_any_active_contact {
                                         bodies.wake_up(co1.parent, true);
                                         bodies.wake_up(co2.parent, true);
 
@@ -392,18 +383,20 @@ impl NarrowPhase {
         }
     }
 
-    pub(crate) fn compute_proximities(
+    pub(crate) fn compute_intersections(
         &mut self,
-        prediction_distance: f32,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        pair_filter: Option<&dyn ProximityPairFilter>,
+        pair_filter: Option<&dyn IntersectionPairFilter>,
         events: &dyn EventHandler,
     ) {
-        par_iter_mut!(&mut self.proximity_graph.graph.edges).for_each(|edge| {
-            let pair = &mut edge.weight;
-            let co1 = &colliders[pair.pair.collider1];
-            let co2 = &colliders[pair.pair.collider2];
+        let nodes = &self.intersection_graph.graph.nodes;
+        let query_dispatcher = &*self.query_dispatcher;
+        par_iter_mut!(&mut self.intersection_graph.graph.edges).for_each(|edge| {
+            let handle1 = nodes[edge.source().index()].weight;
+            let handle2 = nodes[edge.target().index()].weight;
+            let co1 = &colliders[handle1];
+            let co2 = &colliders[handle2];
 
             // FIXME: avoid lookup into bodies.
             let rb1 = &bodies[co1.parent];
@@ -413,17 +406,17 @@ impl NarrowPhase {
                 || (rb2.is_sleeping() && rb1.is_static())
                 || (rb1.is_sleeping() && rb2.is_sleeping())
             {
-                // No need to update this proximity because nothing moved.
+                // No need to update this intersection because nothing moved.
                 return;
             }
 
             if !co1.collision_groups.test(co2.collision_groups) {
-                // The proximity is not allowed.
+                // The intersection is not allowed.
                 return;
             }
 
             if pair_filter.is_none() && !rb1.is_dynamic() && !rb2.is_dynamic() {
-                // Default filtering rule: no proximity between two non-dynamic bodies.
+                // Default filtering rule: no intersection between two non-dynamic bodies.
                 return;
             }
 
@@ -435,45 +428,39 @@ impl NarrowPhase {
                     collider2: co2,
                 };
 
-                if !filter.filter_proximity_pair(&context) {
-                    // No proximity allowed.
+                if !filter.filter_intersection_pair(&context) {
+                    // No intersection allowed.
                     return;
                 }
             }
 
-            let dispatcher = DefaultProximityDispatcher;
-            if pair.detector.is_none() {
-                // We need a redispatch for this detector.
-                // This can happen, e.g., after restoring a snapshot of the narrow-phase.
-                let (detector, workspace) =
-                    dispatcher.dispatch(co1.shape().shape_type(), co2.shape().shape_type());
-                pair.detector = Some(detector);
-                pair.detector_workspace = workspace;
+            let pos12 = co1.position().inv_mul(co2.position());
+
+            if let Ok(intersection) =
+                query_dispatcher.intersection_test(&pos12, co1.shape(), co2.shape())
+            {
+                if intersection != edge.weight {
+                    edge.weight = intersection;
+                    events.handle_intersection_event(IntersectionEvent::new(
+                        handle1,
+                        handle2,
+                        intersection,
+                    ));
+                }
             }
-
-            let context = ProximityDetectionContext {
-                dispatcher: &dispatcher,
-                prediction_distance,
-                colliders,
-                pair,
-            };
-
-            context
-                .pair
-                .detector
-                .unwrap()
-                .detect_proximity(context, events);
         });
     }
 
     pub(crate) fn compute_contacts(
         &mut self,
-        prediction_distance: f32,
+        prediction_distance: Real,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
         pair_filter: Option<&dyn ContactPairFilter>,
         events: &dyn EventHandler,
     ) {
+        let query_dispatcher = &*self.query_dispatcher;
+
         par_iter_mut!(&mut self.contact_graph.graph.edges).for_each(|edge| {
             let pair = &mut edge.weight;
             let co1 = &colliders[pair.pair.collider1];
@@ -523,33 +510,88 @@ impl NarrowPhase {
                 solver_flags.remove(SolverFlags::COMPUTE_IMPULSES);
             }
 
-            let dispatcher = DefaultContactDispatcher;
-            if pair.generator.is_none() {
-                // We need a redispatch for this generator.
-                // This can happen, e.g., after restoring a snapshot of the narrow-phase.
-                let (generator, workspace) =
-                    dispatcher.dispatch(co1.shape().shape_type(), co2.shape().shape_type());
-                pair.generator = Some(generator);
+            let pos12 = co1.position().inv_mul(co2.position());
+            let _ = query_dispatcher.contact_manifolds(
+                &pos12,
+                co1.shape(),
+                co2.shape(),
+                prediction_distance,
+                &mut pair.manifolds,
+                &mut pair.workspace,
+            );
 
-                // Keep the workspace if one already exists.
-                if pair.generator_workspace.is_none() {
-                    pair.generator_workspace = workspace;
+            let mut has_any_active_contact = false;
+
+            let friction = CoefficientCombineRule::combine(
+                co1.friction,
+                co2.friction,
+                co1.flags.friction_combine_rule_value(),
+                co2.flags.friction_combine_rule_value(),
+            );
+            let restitution = CoefficientCombineRule::combine(
+                co1.restitution,
+                co2.restitution,
+                co1.flags.restitution_combine_rule_value(),
+                co2.flags.restitution_combine_rule_value(),
+            );
+
+            for manifold in &mut pair.manifolds {
+                let world_pos1 = manifold.subshape_pos1.prepend_to(co1.position());
+                manifold.data.solver_contacts.clear();
+                manifold.data.body_pair = BodyPair::new(co1.parent(), co2.parent());
+                manifold.data.solver_flags = solver_flags;
+                manifold.data.normal = world_pos1 * manifold.local_n1;
+
+                // Sort contacts to keep only these with distances bellow
+                // the prediction, and generate solver contacts.
+                let mut first_inactive_index = manifold.points.len();
+
+                while manifold.data.num_active_contacts() != first_inactive_index {
+                    let contact = &manifold.points[manifold.data.num_active_contacts()];
+                    if contact.dist < prediction_distance {
+                        // Generate the solver contact.
+                        let solver_contact = SolverContact {
+                            point: world_pos1 * contact.local_p1
+                                + manifold.data.normal * contact.dist / 2.0,
+                            dist: contact.dist,
+                            friction,
+                            restitution,
+                            surface_velocity: Vector::zeros(),
+                            data: contact.data,
+                        };
+
+                        // TODO: apply the user-defined contact modification/removal, if needed.
+
+                        manifold.data.solver_contacts.push(solver_contact);
+                        has_any_active_contact = true;
+                        continue;
+                    }
+
+                    // If we reach this code, then the contact must be ignored by the constraints solver.
+                    // Swap with the last contact.
+                    manifold.points.swap(
+                        manifold.data.num_active_contacts(),
+                        first_inactive_index - 1,
+                    );
+                    first_inactive_index -= 1;
                 }
             }
 
-            let context = ContactGenerationContext {
-                dispatcher: &dispatcher,
-                prediction_distance,
-                colliders,
-                pair,
-                solver_flags,
-            };
+            if has_any_active_contact != pair.has_any_active_contact {
+                if has_any_active_contact {
+                    events.handle_contact_event(ContactEvent::Started(
+                        pair.pair.collider1,
+                        pair.pair.collider2,
+                    ));
+                } else {
+                    events.handle_contact_event(ContactEvent::Stopped(
+                        pair.pair.collider1,
+                        pair.pair.collider2,
+                    ));
+                }
 
-            context
-                .pair
-                .generator
-                .unwrap()
-                .generate_contacts(context, events);
+                pair.has_any_active_contact = has_any_active_contact;
+            }
         });
     }
 
@@ -568,12 +610,13 @@ impl NarrowPhase {
         // FIXME: don't iterate through all the interactions.
         for inter in self.contact_graph.graph.edges.iter_mut() {
             for manifold in &mut inter.weight.manifolds {
-                let rb1 = &bodies[manifold.body_pair.body1];
-                let rb2 = &bodies[manifold.body_pair.body2];
+                let rb1 = &bodies[manifold.data.body_pair.body1];
+                let rb2 = &bodies[manifold.data.body_pair.body2];
                 if manifold
+                    .data
                     .solver_flags
                     .contains(SolverFlags::COMPUTE_IMPULSES)
-                    && manifold.num_active_contacts() != 0
+                    && manifold.data.num_active_contacts() != 0
                     && (rb1.is_dynamic() || rb2.is_dynamic())
                     && (!rb1.is_dynamic() || !rb1.is_sleeping())
                     && (!rb2.is_dynamic() || !rb2.is_sleeping())

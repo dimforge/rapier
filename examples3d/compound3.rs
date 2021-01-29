@@ -1,6 +1,6 @@
-use na::Point3;
+use na::{Isometry3, Point3};
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::geometry::{ColliderBuilder, ColliderSet, SharedShape};
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -28,6 +28,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Create the cubes
      */
     let num = 8;
+    let numy = 15;
     let rad = 0.2;
 
     let shift = rad * 4.0 + rad;
@@ -37,7 +38,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let mut offset = -(num as f32) * (rad * 2.0 + rad) * 0.5;
 
-    for j in 0usize..15 {
+    for j in 0usize..numy {
         for i in 0..num {
             for k in 0usize..num {
                 let x = i as f32 * shift * 5.0 - centerx + offset;
@@ -47,16 +48,39 @@ pub fn init_world(testbed: &mut Testbed) {
                 // Build the rigid body.
                 let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
                 let handle = bodies.insert(rigid_body);
-                let collider1 = ColliderBuilder::cuboid(rad * 10.0, rad, rad).build();
-                let collider2 = ColliderBuilder::cuboid(rad, rad * 10.0, rad)
-                    .translation(rad * 10.0, rad * 10.0, 0.0)
-                    .build();
-                let collider3 = ColliderBuilder::cuboid(rad, rad * 10.0, rad)
-                    .translation(-rad * 10.0, rad * 10.0, 0.0)
-                    .build();
-                colliders.insert(collider1, handle, &mut bodies);
-                colliders.insert(collider2, handle, &mut bodies);
-                colliders.insert(collider3, handle, &mut bodies);
+
+                // First option: attach several colliders to a single rigid-body.
+                if j < numy / 2 {
+                    let collider1 = ColliderBuilder::cuboid(rad * 10.0, rad, rad).build();
+                    let collider2 = ColliderBuilder::cuboid(rad, rad * 10.0, rad)
+                        .translation(rad * 10.0, rad * 10.0, 0.0)
+                        .build();
+                    let collider3 = ColliderBuilder::cuboid(rad, rad * 10.0, rad)
+                        .translation(-rad * 10.0, rad * 10.0, 0.0)
+                        .build();
+                    colliders.insert(collider1, handle, &mut bodies);
+                    colliders.insert(collider2, handle, &mut bodies);
+                    colliders.insert(collider3, handle, &mut bodies);
+                } else {
+                    // Second option: create a compound shape and attach it to a single collider.
+                    let shapes = vec![
+                        (
+                            Isometry3::identity(),
+                            SharedShape::cuboid(rad * 10.0, rad, rad),
+                        ),
+                        (
+                            Isometry3::translation(rad * 10.0, rad * 10.0, 0.0),
+                            SharedShape::cuboid(rad, rad * 10.0, rad),
+                        ),
+                        (
+                            Isometry3::translation(-rad * 10.0, rad * 10.0, 0.0),
+                            SharedShape::cuboid(rad, rad * 10.0, rad),
+                        ),
+                    ];
+
+                    let collider = ColliderBuilder::compound(shapes).build();
+                    colliders.insert(collider, handle, &mut bodies);
+                }
             }
         }
 

@@ -3,7 +3,7 @@ use crate::dynamics::{
     BallJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBody,
 };
 use crate::math::{
-    AngVector, AngularInertia, Isometry, Point, SdpMatrix, SimdFloat, Vector, SIMD_WIDTH,
+    AngVector, AngularInertia, Isometry, Point, Real, SdpMatrix, SimdReal, Vector, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 use simba::simd::SimdValue;
@@ -15,16 +15,19 @@ pub(crate) struct WBallVelocityConstraint {
 
     joint_id: [JointIndex; SIMD_WIDTH],
 
-    rhs: Vector<SimdFloat>,
-    pub(crate) impulse: Vector<SimdFloat>,
+    rhs: Vector<SimdReal>,
+    pub(crate) impulse: Vector<SimdReal>,
 
-    gcross1: Vector<SimdFloat>,
-    gcross2: Vector<SimdFloat>,
+    r1: Vector<SimdReal>,
+    r2: Vector<SimdReal>,
 
-    inv_lhs: SdpMatrix<SimdFloat>,
+    inv_lhs: SdpMatrix<SimdReal>,
 
-    im1: SimdFloat,
-    im2: SimdFloat,
+    im1: SimdReal,
+    im2: SimdReal,
+
+    ii1_sqrt: AngularInertia<SimdReal>,
+    ii2_sqrt: AngularInertia<SimdReal>,
 }
 
 impl WBallVelocityConstraint {
@@ -37,21 +40,21 @@ impl WBallVelocityConstraint {
     ) -> Self {
         let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
-        let angvel1 = AngVector::<SimdFloat>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
+        let angvel1 = AngVector::<SimdReal>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
-        let im1 = SimdFloat::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii1_sqrt = AngularInertia::<SimdFloat>::from(
-            array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+        let im1 = SimdReal::from(array![|ii| rbs1[ii].effective_inv_mass; SIMD_WIDTH]);
+        let ii1_sqrt = AngularInertia::<SimdReal>::from(
+            array![|ii| rbs1[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
 
         let position2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
-        let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
+        let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii2_sqrt = AngularInertia::<SimdFloat>::from(
-            array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
+        let ii2_sqrt = AngularInertia::<SimdReal>::from(
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
@@ -62,8 +65,8 @@ impl WBallVelocityConstraint {
         let anchor1 = position1 * local_anchor1 - world_com1;
         let anchor2 = position2 * local_anchor2 - world_com2;
 
-        let vel1: Vector<SimdFloat> = linvel1 + angvel1.gcross(anchor1);
-        let vel2: Vector<SimdFloat> = linvel2 + angvel2.gcross(anchor2);
+        let vel1: Vector<SimdReal> = linvel1 + angvel1.gcross(anchor1);
+        let vel2: Vector<SimdReal> = linvel2 + angvel2.gcross(anchor2);
         let rhs = -(vel1 - vel2);
         let lhs;
 
@@ -88,9 +91,6 @@ impl WBallVelocityConstraint {
             lhs = SdpMatrix::new(m11, m12, m22)
         }
 
-        let gcross1 = ii1_sqrt.transform_lin_vector(anchor1);
-        let gcross2 = ii2_sqrt.transform_lin_vector(anchor2);
-
         let inv_lhs = lhs.inverse_unchecked();
 
         WBallVelocityConstraint {
@@ -99,15 +99,17 @@ impl WBallVelocityConstraint {
             mj_lambda2,
             im1,
             im2,
-            impulse: impulse * SimdFloat::splat(params.warmstart_coeff),
-            gcross1,
-            gcross2,
+            impulse: impulse * SimdReal::splat(params.warmstart_coeff),
+            r1: anchor1,
+            r2: anchor2,
             rhs,
             inv_lhs,
+            ii1_sqrt,
+            ii2_sqrt,
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
@@ -126,9 +128,9 @@ impl WBallVelocityConstraint {
         };
 
         mj_lambda1.linear += self.impulse * self.im1;
-        mj_lambda1.angular += self.gcross1.gcross(self.impulse);
+        mj_lambda1.angular += self.ii1_sqrt.transform_vector(self.r1.gcross(self.impulse));
         mj_lambda2.linear -= self.impulse * self.im2;
-        mj_lambda2.angular -= self.gcross2.gcross(self.impulse);
+        mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(self.impulse));
 
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda1[ii] as usize].linear = mj_lambda1.linear.extract(ii);
@@ -140,8 +142,8 @@ impl WBallVelocityConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
-        let mut mj_lambda1: DeltaVel<SimdFloat> = DeltaVel {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+        let mut mj_lambda1: DeltaVel<SimdReal> = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
             ),
@@ -149,7 +151,7 @@ impl WBallVelocityConstraint {
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].angular; SIMD_WIDTH],
             ),
         };
-        let mut mj_lambda2: DeltaVel<SimdFloat> = DeltaVel {
+        let mut mj_lambda2: DeltaVel<SimdReal> = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
             ),
@@ -158,18 +160,20 @@ impl WBallVelocityConstraint {
             ),
         };
 
-        let vel1 = mj_lambda1.linear + mj_lambda1.angular.gcross(self.gcross1);
-        let vel2 = mj_lambda2.linear + mj_lambda2.angular.gcross(self.gcross2);
+        let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel1 = mj_lambda1.linear + ang_vel1.gcross(self.r1);
+        let vel2 = mj_lambda2.linear + ang_vel2.gcross(self.r2);
         let dvel = -vel1 + vel2 + self.rhs;
 
         let impulse = self.inv_lhs * dvel;
         self.impulse += impulse;
 
         mj_lambda1.linear += impulse * self.im1;
-        mj_lambda1.angular += self.gcross1.gcross(impulse);
+        mj_lambda1.angular += self.ii1_sqrt.transform_vector(self.r1.gcross(impulse));
 
         mj_lambda2.linear -= impulse * self.im2;
-        mj_lambda2.angular -= self.gcross2.gcross(impulse);
+        mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
 
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda1[ii] as usize].linear = mj_lambda1.linear.extract(ii);
@@ -195,11 +199,12 @@ impl WBallVelocityConstraint {
 pub(crate) struct WBallVelocityGroundConstraint {
     mj_lambda2: [usize; SIMD_WIDTH],
     joint_id: [JointIndex; SIMD_WIDTH],
-    rhs: Vector<SimdFloat>,
-    pub(crate) impulse: Vector<SimdFloat>,
-    gcross2: Vector<SimdFloat>,
-    inv_lhs: SdpMatrix<SimdFloat>,
-    im2: SimdFloat,
+    rhs: Vector<SimdReal>,
+    pub(crate) impulse: Vector<SimdReal>,
+    r2: Vector<SimdReal>,
+    inv_lhs: SdpMatrix<SimdReal>,
+    im2: SimdReal,
+    ii2_sqrt: AngularInertia<SimdReal>,
 }
 
 impl WBallVelocityGroundConstraint {
@@ -213,7 +218,7 @@ impl WBallVelocityGroundConstraint {
     ) -> Self {
         let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
-        let angvel1 = AngVector::<SimdFloat>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
+        let angvel1 = AngVector::<SimdReal>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
         let local_anchor1 = Point::from(
             array![|ii| if flipped[ii] { cparams[ii].local_anchor2 } else { cparams[ii].local_anchor1 }; SIMD_WIDTH],
@@ -221,11 +226,11 @@ impl WBallVelocityGroundConstraint {
 
         let position2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
-        let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
+        let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii2_sqrt = AngularInertia::<SimdFloat>::from(
-            array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
+        let ii2_sqrt = AngularInertia::<SimdReal>::from(
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
@@ -237,13 +242,12 @@ impl WBallVelocityGroundConstraint {
         let anchor1 = position1 * local_anchor1 - world_com1;
         let anchor2 = position2 * local_anchor2 - world_com2;
 
-        let vel1: Vector<SimdFloat> = linvel1 + angvel1.gcross(anchor1);
-        let vel2: Vector<SimdFloat> = linvel2 + angvel2.gcross(anchor2);
+        let vel1: Vector<SimdReal> = linvel1 + angvel1.gcross(anchor1);
+        let vel2: Vector<SimdReal> = linvel2 + angvel2.gcross(anchor2);
         let rhs = vel2 - vel1;
         let lhs;
 
         let cmat2 = anchor2.gcross_matrix();
-        let gcross2 = ii2_sqrt.transform_lin_vector(anchor2);
 
         #[cfg(feature = "dim3")]
         {
@@ -267,14 +271,15 @@ impl WBallVelocityGroundConstraint {
             joint_id,
             mj_lambda2,
             im2,
-            impulse: impulse * SimdFloat::splat(params.warmstart_coeff),
-            gcross2,
+            impulse: impulse * SimdReal::splat(params.warmstart_coeff),
+            r2: anchor2,
             rhs,
             inv_lhs,
+            ii2_sqrt,
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
@@ -285,7 +290,7 @@ impl WBallVelocityGroundConstraint {
         };
 
         mj_lambda2.linear -= self.impulse * self.im2;
-        mj_lambda2.angular -= self.gcross2.gcross(self.impulse);
+        mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(self.impulse));
 
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda2[ii] as usize].linear = mj_lambda2.linear.extract(ii);
@@ -293,8 +298,8 @@ impl WBallVelocityGroundConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
-        let mut mj_lambda2: DeltaVel<SimdFloat> = DeltaVel {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+        let mut mj_lambda2: DeltaVel<SimdReal> = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
             ),
@@ -303,14 +308,15 @@ impl WBallVelocityGroundConstraint {
             ),
         };
 
-        let vel2 = mj_lambda2.linear + mj_lambda2.angular.gcross(self.gcross2);
+        let angvel = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel2 = mj_lambda2.linear + angvel.gcross(self.r2);
         let dvel = vel2 + self.rhs;
 
         let impulse = self.inv_lhs * dvel;
         self.impulse += impulse;
 
         mj_lambda2.linear -= impulse * self.im2;
-        mj_lambda2.angular -= self.gcross2.gcross(impulse);
+        mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
 
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda2[ii] as usize].linear = mj_lambda2.linear.extract(ii);

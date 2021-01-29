@@ -1,7 +1,7 @@
 use crate::dynamics::{BallJoint, IntegrationParameters, RigidBody};
 #[cfg(feature = "dim2")]
 use crate::math::SdpMatrix;
-use crate::math::{AngularInertia, Isometry, Point, Rotation, SimdFloat, SIMD_WIDTH};
+use crate::math::{AngularInertia, Isometry, Point, Real, Rotation, SimdReal, SIMD_WIDTH};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 use simba::simd::SimdValue;
 
@@ -10,17 +10,17 @@ pub(crate) struct WBallPositionConstraint {
     position1: [usize; SIMD_WIDTH],
     position2: [usize; SIMD_WIDTH],
 
-    local_com1: Point<SimdFloat>,
-    local_com2: Point<SimdFloat>,
+    local_com1: Point<SimdReal>,
+    local_com2: Point<SimdReal>,
 
-    im1: SimdFloat,
-    im2: SimdFloat,
+    im1: SimdReal,
+    im2: SimdReal,
 
-    ii1: AngularInertia<SimdFloat>,
-    ii2: AngularInertia<SimdFloat>,
+    ii1: AngularInertia<SimdReal>,
+    ii2: AngularInertia<SimdReal>,
 
-    local_anchor1: Point<SimdFloat>,
-    local_anchor2: Point<SimdFloat>,
+    local_anchor1: Point<SimdReal>,
+    local_anchor2: Point<SimdReal>,
 }
 
 impl WBallPositionConstraint {
@@ -31,14 +31,14 @@ impl WBallPositionConstraint {
     ) -> Self {
         let local_com1 = Point::from(array![|ii| rbs1[ii].mass_properties.local_com; SIMD_WIDTH]);
         let local_com2 = Point::from(array![|ii| rbs2[ii].mass_properties.local_com; SIMD_WIDTH]);
-        let im1 = SimdFloat::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii1 = AngularInertia::<SimdFloat>::from(
-            array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+        let im1 = SimdReal::from(array![|ii| rbs1[ii].effective_inv_mass; SIMD_WIDTH]);
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
+        let ii1 = AngularInertia::<SimdReal>::from(
+            array![|ii| rbs1[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         )
         .squared();
-        let ii2 = AngularInertia::<SimdFloat>::from(
-            array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+        let ii2 = AngularInertia::<SimdReal>::from(
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         )
         .squared();
         let local_anchor1 = Point::from(array![|ii| cparams[ii].local_anchor1; SIMD_WIDTH]);
@@ -60,7 +60,7 @@ impl WBallPositionConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position1 = Isometry::from(array![|ii| positions[self.position1[ii]]; SIMD_WIDTH]);
         let mut position2 = Isometry::from(array![|ii| positions[self.position2[ii]]; SIMD_WIDTH]);
 
@@ -97,7 +97,7 @@ impl WBallPositionConstraint {
         };
 
         let inv_lhs = lhs.inverse_unchecked();
-        let impulse = inv_lhs * -(err * SimdFloat::splat(params.joint_erp));
+        let impulse = inv_lhs * -(err * SimdReal::splat(params.joint_erp));
 
         position1.translation.vector += impulse * self.im1;
         position2.translation.vector -= impulse * self.im2;
@@ -120,11 +120,11 @@ impl WBallPositionConstraint {
 #[derive(Debug)]
 pub(crate) struct WBallPositionGroundConstraint {
     position2: [usize; SIMD_WIDTH],
-    anchor1: Point<SimdFloat>,
-    im2: SimdFloat,
-    ii2: AngularInertia<SimdFloat>,
-    local_anchor2: Point<SimdFloat>,
-    local_com2: Point<SimdFloat>,
+    anchor1: Point<SimdReal>,
+    im2: SimdReal,
+    ii2: AngularInertia<SimdReal>,
+    local_anchor2: Point<SimdReal>,
+    local_com2: Point<SimdReal>,
 }
 
 impl WBallPositionGroundConstraint {
@@ -141,9 +141,9 @@ impl WBallPositionGroundConstraint {
             } else {
                 cparams[ii].local_anchor1
             }; SIMD_WIDTH]);
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii2 = AngularInertia::<SimdFloat>::from(
-            array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
+        let ii2 = AngularInertia::<SimdReal>::from(
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         )
         .squared();
         let local_anchor2 = Point::from(array![|ii| if flipped[ii] {
@@ -164,7 +164,7 @@ impl WBallPositionGroundConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position2 = Isometry::from(array![|ii| positions[self.position2[ii]]; SIMD_WIDTH]);
 
         let anchor2 = position2 * self.local_anchor2;
@@ -186,7 +186,7 @@ impl WBallPositionGroundConstraint {
         };
 
         let inv_lhs = lhs.inverse_unchecked();
-        let impulse = inv_lhs * -(err * SimdFloat::splat(params.joint_erp));
+        let impulse = inv_lhs * -(err * SimdReal::splat(params.joint_erp));
         position2.translation.vector -= impulse * self.im2;
 
         let angle2 = self.ii2.transform_vector(centered_anchor2.gcross(-impulse));

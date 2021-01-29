@@ -1,7 +1,21 @@
 #![allow(dead_code)]
 
-use na::{Isometry3, Matrix3, Matrix4, Point3, Rotation3, Translation3, UnitQuaternion, Vector3};
+use na::{
+    Isometry3, Matrix3, Matrix4, Point3, Quaternion, Rotation3, Translation3, Unit, UnitQuaternion,
+    Vector3,
+};
+use physx::cooking::{
+    ConvexMeshCookingResult, PxConvexMeshDesc, PxCooking, PxCookingParams, PxHeightFieldDesc,
+    PxTriangleMeshDesc, TriangleMeshCookingResult,
+};
+use physx::foundation::DefaultAllocator;
 use physx::prelude::*;
+use physx::scene::FrictionType;
+use physx::traits::Class;
+use physx_sys::{
+    PxBitAndByte, PxConvexFlags, PxConvexMeshGeometryFlags, PxHeightFieldSample,
+    PxMeshGeometryFlags, PxMeshScale_new, PxRigidActor,
+};
 use rapier::counters::Counters;
 use rapier::dynamics::{
     IntegrationParameters, JointParams, JointSet, RigidBodyHandle, RigidBodySet,
@@ -9,8 +23,6 @@ use rapier::dynamics::{
 use rapier::geometry::{Collider, ColliderSet};
 use rapier::utils::WBasis;
 use std::collections::HashMap;
-
-const PX_PHYSICS_VERSION: u32 = physx::version(4, 1, 1);
 
 trait IntoNa {
     type Output;
@@ -24,37 +36,53 @@ impl IntoNa for glam::Mat4 {
     }
 }
 
+impl IntoNa for PxVec3 {
+    type Output = Vector3<f32>;
+    fn into_na(self) -> Self::Output {
+        Vector3::new(self.x(), self.y(), self.z())
+    }
+}
+
+impl IntoNa for PxQuat {
+    type Output = Quaternion<f32>;
+    fn into_na(self) -> Self::Output {
+        Quaternion::new(self.w(), self.x(), self.y(), self.z())
+    }
+}
+
+impl IntoNa for PxTransform {
+    type Output = Isometry3<f32>;
+    fn into_na(self) -> Self::Output {
+        let tra = self.translation().into_na();
+        let quat = self.rotation().into_na();
+        let unit_quat = Unit::new_unchecked(quat);
+        Isometry3::from_parts(tra.into(), unit_quat)
+    }
+}
+
 trait IntoPhysx {
     type Output;
     fn into_physx(self) -> Self::Output;
 }
 
 impl IntoPhysx for Vector3<f32> {
-    type Output = physx_sys::PxVec3;
+    type Output = PxVec3;
     fn into_physx(self) -> Self::Output {
-        physx_sys::PxVec3 {
-            x: self.x,
-            y: self.y,
-            z: self.z,
-        }
+        PxVec3::new(self.x, self.y, self.z)
     }
 }
 
 impl IntoPhysx for Point3<f32> {
-    type Output = physx_sys::PxVec3;
+    type Output = PxVec3;
     fn into_physx(self) -> Self::Output {
-        physx_sys::PxVec3 {
-            x: self.x,
-            y: self.y,
-            z: self.z,
-        }
+        PxVec3::new(self.x, self.y, self.z)
     }
 }
 
 impl IntoPhysx for Isometry3<f32> {
-    type Output = physx_sys::PxTransform;
+    type Output = PxTransform;
     fn into_physx(self) -> Self::Output {
-        physx::transform::gl_to_px_tf(self.into_glam())
+        self.into_glam().into()
     }
 }
 
@@ -92,14 +120,23 @@ impl IntoGlam for Isometry3<f32> {
 }
 
 thread_local! {
-pub static FOUNDATION: std::cell::RefCell<Foundation> = std::cell::RefCell::new(Foundation::new(PX_PHYSICS_VERSION));
+pub static FOUNDATION: std::cell::RefCell<PxPhysicsFoundation> = std::cell::RefCell::new(PhysicsFoundation::default());
 }
 
 pub struct PhysxWorld {
-    physics: Physics,
-    cooking: Cooking,
-    scene: Scene,
-    rapier2physx: HashMap<RigidBodyHandle, BodyHandle>,
+    // physics: Physics,
+    // cooking: Cooking,
+    materials: Vec<Owner<PxMaterial>>,
+    shapes: Vec<Owner<PxShape>>,
+    scene: Option<Owner<PxScene>>,
+}
+
+impl Drop for PhysxWorld {
+    fn drop(&mut self) {
+        let scene = self.scene.take();
+        // FIXME: we get a segfault if we don't forget the scene.
+        std::mem::forget(scene);
+    }
 }
 
 impl PhysxWorld {
@@ -112,123 +149,87 @@ impl PhysxWorld {
         use_two_friction_directions: bool,
         num_threads: usize,
     ) -> Self {
-        let mut rapier2physx = HashMap::new();
-        let mut physics = FOUNDATION.with(|f| {
-            PhysicsBuilder::default()
-                .load_extensions(false)
-                .build(&mut *f.borrow_mut())
-        });
-        let mut cooking = FOUNDATION.with(|f| unsafe {
-            let sc = physx_sys::PxTolerancesScale_new();
-            let params = physx_sys::PxCookingParams_new(&sc);
-            Cooking::new(PX_PHYSICS_VERSION, &mut *f.borrow_mut(), params)
-        });
+        FOUNDATION.with(|physics| {
+            let mut physics = physics.borrow_mut();
+            let mut shapes = Vec::new();
+            let mut materials = Vec::new();
 
-        let scene_desc = MySceneBuilder::default()
-            .set_gravity(gravity.into_glam())
-            .set_simulation_threading(SimulationThreadType::Dedicated(num_threads as u32))
-            // .set_broad_phase_type(BroadPhaseType::SweepAndPrune)
-            // .set_solver_type(physx_sys::PxSolverType::eTGS)
-            .build_desc(&mut physics);
+            let friction_type = if use_two_friction_directions {
+                FrictionType::TwoDirectional
+            } else {
+                FrictionType::Patch
+            };
 
-        let raw_scene =
-            unsafe { physx_sys::PxPhysics_createScene_mut(physics.get_raw_mut(), &scene_desc) };
+            let scene_desc = SceneDescriptor {
+                gravity: gravity.into_physx(),
+                thread_count: num_threads as u32,
+                broad_phase_type: BroadPhaseType::AutomaticBoxPruning,
+                solver_type: SolverType::PGS,
+                friction_type,
+                ..SceneDescriptor::new(())
+            };
 
-        // FIXME: we do this because we are also using two
-        // friction directions. We should add to rapier the option to use
-        // one friction direction too, and perhaps an equivalent of physX
-        // ePATCH friction type.
-        if use_two_friction_directions {
-            unsafe {
-                physx_sys::PxScene_setFrictionType_mut(
-                    raw_scene,
-                    physx_sys::PxFrictionType::eTWO_DIRECTIONAL,
-                );
-            }
-        }
+            let mut scene: Owner<PxScene> = physics.create(scene_desc).unwrap();
+            let mut rapier2dynamic = HashMap::new();
+            let mut rapier2static = HashMap::new();
+            let cooking_params =
+                PxCookingParams::new(&*physics).expect("Failed to init PhysX cooking.");
+            let mut cooking = PxCooking::new(physics.foundation_mut(), &cooking_params)
+                .expect("Failed to init PhysX cooking");
 
-        let mut scene = Scene::new(raw_scene);
-
-        for (rapier_handle, rb) in bodies.iter() {
-            use physx::rigid_dynamic::RigidDynamic;
-            use physx::rigid_static::RigidStatic;
-            use physx::transform;
-
-            let pos = transform::gl_to_px_tf(rb.position().to_homogeneous().into_glam());
-            if rb.is_dynamic() {
-                let actor = unsafe {
-                    physx_sys::PxPhysics_createRigidDynamic_mut(physics.get_raw_mut(), &pos)
-                };
-
-                unsafe {
-                    physx_sys::PxRigidDynamic_setSolverIterationCounts_mut(
-                        actor,
+            /*
+             *
+             * Rigid bodies
+             *
+             */
+            for (rapier_handle, rb) in bodies.iter() {
+                let pos = rb.position().into_physx();
+                if rb.is_dynamic() {
+                    let mut actor = physics.create_dynamic(&pos, rapier_handle).unwrap();
+                    actor.set_solver_iteration_counts(
                         integration_parameters.max_position_iterations as u32,
                         integration_parameters.max_velocity_iterations as u32,
                     );
+
+                    rapier2dynamic.insert(rapier_handle, actor);
+                } else {
+                    let actor = physics.create_static(pos, ()).unwrap();
+                    rapier2static.insert(rapier_handle, actor);
                 }
-
-                let physx_handle = scene.add_dynamic(RigidDynamic::new(actor));
-                rapier2physx.insert(rapier_handle, physx_handle);
-            } else {
-                let actor = unsafe {
-                    physx_sys::PxPhysics_createRigidStatic_mut(physics.get_raw_mut(), &pos)
-                };
-
-                let physx_handle = scene.add_actor(RigidStatic::new(actor));
-                rapier2physx.insert(rapier_handle, physx_handle);
             }
-        }
 
-        for (_, collider) in colliders.iter() {
-            if let Some((px_collider, collider_pos)) =
-                physx_collider_from_rapier_collider(&collider)
-            {
-                let material = physics.create_material(
-                    collider.friction,
-                    collider.friction,
-                    collider.restitution,
-                );
-                let geometry = cooking.make_geometry(px_collider);
-                let flags = if collider.is_sensor() {
-                    physx_sys::PxShapeFlags {
-                        mBits: physx_sys::PxShapeFlag::eTRIGGER_SHAPE as u8,
+            /*
+             *
+             * Colliders
+             *
+             */
+            for (_, collider) in colliders.iter() {
+                if let Some((mut px_shape, px_material, collider_pos)) =
+                    physx_collider_from_rapier_collider(&mut *physics, &mut cooking, &collider)
+                {
+                    let parent_body = &bodies[collider.parent()];
+
+                    if !parent_body.is_dynamic() {
+                        let actor = rapier2static.get_mut(&collider.parent()).unwrap();
+                        actor.attach_shape(&mut px_shape);
+                    } else {
+                        let actor = rapier2dynamic.get_mut(&collider.parent()).unwrap();
+                        actor.attach_shape(&mut px_shape);
                     }
-                } else {
-                    physx_sys::PxShapeFlags {
-                        mBits: physx_sys::PxShapeFlag::eSIMULATION_SHAPE as u8, // | physx_sys::PxShapeFlag::eSCENE_QUERY_SHAPE as u8,
+
+                    unsafe {
+                        let pose = collider_pos.into_physx();
+                        physx_sys::PxShape_setLocalPose_mut(px_shape.as_mut_ptr(), &pose.into());
                     }
-                };
 
-                let handle = rapier2physx[&collider.parent()];
-                let parent_body = &bodies[collider.parent()];
-                let parent = if !parent_body.is_dynamic() {
-                    scene.get_static_mut(handle).unwrap().as_ptr_mut().ptr
-                        as *mut physx_sys::PxRigidActor
-                } else {
-                    scene.get_dynamic_mut(handle).unwrap().as_ptr_mut().ptr
-                        as *mut physx_sys::PxRigidActor
-                };
-
-                unsafe {
-                    let shape = physx_sys::PxPhysics_createShape_mut(
-                        physics.get_raw_mut(),
-                        geometry.as_raw(),
-                        material,
-                        true,
-                        flags.into(),
-                    );
-                    let pose = collider_pos.into_physx();
-                    physx_sys::PxShape_setLocalPose_mut(shape, &pose);
-                    physx_sys::PxRigidActor_attachShape_mut(parent, shape);
-                };
+                    shapes.push(px_shape);
+                    materials.push(px_material);
+                }
             }
-        }
 
-        // Update mass properties.
-        for (rapier_handle, physx_handle) in rapier2physx.iter() {
-            let rb = &bodies[*rapier_handle];
-            if let Some(rp) = scene.get_dynamic_mut(*physx_handle) {
+            // Update mass properties.
+            for (rapier_handle, actor) in rapier2dynamic.iter_mut() {
+                let rb = &bodies[*rapier_handle];
                 let densities: Vec<_> = rb
                     .colliders()
                     .iter()
@@ -237,7 +238,7 @@ impl PhysxWorld {
 
                 unsafe {
                     physx_sys::PxRigidBodyExt_updateMassAndInertia_mut(
-                        rp.as_ptr_mut().ptr as *mut physx_sys::PxRigidBody,
+                        std::mem::transmute(actor.as_mut()),
                         densities.as_ptr(),
                         densities.len() as u32,
                         std::ptr::null(),
@@ -245,39 +246,72 @@ impl PhysxWorld {
                     );
                 }
             }
-        }
 
-        let mut res = Self {
-            physics,
-            cooking,
-            scene,
-            rapier2physx,
-        };
+            /*
+             *
+             * Joints
+             *
+             */
+            Self::setup_joints(
+                &mut physics,
+                joints,
+                &mut rapier2static,
+                &mut rapier2dynamic,
+            );
 
-        res.setup_joints(joints);
-        res
+            for (_, actor) in rapier2static {
+                scene.add_static_actor(actor);
+            }
+
+            for (_, actor) in rapier2dynamic {
+                scene.add_dynamic_actor(actor);
+            }
+
+            Self {
+                scene: Some(scene),
+                shapes,
+                materials,
+            }
+        })
     }
 
-    fn setup_joints(&mut self, joints: &JointSet) {
+    fn setup_joints(
+        physics: &mut PxPhysicsFoundation,
+        joints: &JointSet,
+        rapier2static: &mut HashMap<RigidBodyHandle, Owner<PxRigidStatic>>,
+        rapier2dynamic: &mut HashMap<RigidBodyHandle, Owner<PxRigidDynamic>>,
+    ) {
         unsafe {
             for joint in joints.iter() {
-                let actor1 = self.rapier2physx[&joint.1.body1];
-                let actor2 = self.rapier2physx[&joint.1.body2];
+                let actor1 = rapier2static
+                    .get_mut(&joint.1.body1)
+                    .map(|act| &mut **act as *mut PxRigidStatic as *mut PxRigidActor)
+                    .or(rapier2dynamic
+                        .get_mut(&joint.1.body1)
+                        .map(|act| &mut **act as *mut PxRigidDynamic as *mut PxRigidActor))
+                    .unwrap();
+                let actor2 = rapier2static
+                    .get_mut(&joint.1.body2)
+                    .map(|act| &mut **act as *mut PxRigidStatic as *mut PxRigidActor)
+                    .or(rapier2dynamic
+                        .get_mut(&joint.1.body2)
+                        .map(|act| &mut **act as *mut PxRigidDynamic as *mut PxRigidActor))
+                    .unwrap();
 
                 match &joint.1.params {
                     JointParams::BallJoint(params) => {
-                        let frame1 = physx::transform::gl_to_px_tf(
-                            Isometry3::new(params.local_anchor1.coords, na::zero()).into_glam(),
-                        );
-                        let frame2 = physx::transform::gl_to_px_tf(
-                            Isometry3::new(params.local_anchor2.coords, na::zero()).into_glam(),
-                        );
+                        let frame1 = Isometry3::new(params.local_anchor1.coords, na::zero())
+                            .into_physx()
+                            .into();
+                        let frame2 = Isometry3::new(params.local_anchor2.coords, na::zero())
+                            .into_physx()
+                            .into();
 
                         physx_sys::phys_PxSphericalJointCreate(
-                            self.physics.get_raw_mut(),
-                            actor1.0 as *mut _,
+                            physics.as_mut_ptr(),
+                            actor1,
                             &frame1 as *const _,
-                            actor2.0 as *mut _,
+                            actor2,
                             &frame2 as *const _,
                         );
                     }
@@ -303,18 +337,18 @@ impl PhysxWorld {
                         let axisangle1 = rotmat1.scaled_axis();
                         let axisangle2 = rotmat2.scaled_axis();
 
-                        let frame1 = physx::transform::gl_to_px_tf(
-                            Isometry3::new(params.local_anchor1.coords, axisangle1).into_glam(),
-                        );
-                        let frame2 = physx::transform::gl_to_px_tf(
-                            Isometry3::new(params.local_anchor2.coords, axisangle2).into_glam(),
-                        );
+                        let frame1 = Isometry3::new(params.local_anchor1.coords, axisangle1)
+                            .into_physx()
+                            .into();
+                        let frame2 = Isometry3::new(params.local_anchor2.coords, axisangle2)
+                            .into_physx()
+                            .into();
 
                         physx_sys::phys_PxRevoluteJointCreate(
-                            self.physics.get_raw_mut(),
-                            actor1.0 as *mut _,
+                            physics.as_mut_ptr(),
+                            actor1,
                             &frame1 as *const _,
-                            actor2.0 as *mut _,
+                            actor2,
                             &frame2 as *const _,
                         );
                     }
@@ -342,18 +376,18 @@ impl PhysxWorld {
                         let axisangle1 = rotmat1.scaled_axis();
                         let axisangle2 = rotmat2.scaled_axis();
 
-                        let frame1 = physx::transform::gl_to_px_tf(
-                            Isometry3::new(params.local_anchor1.coords, axisangle1).into_glam(),
-                        );
-                        let frame2 = physx::transform::gl_to_px_tf(
-                            Isometry3::new(params.local_anchor2.coords, axisangle2).into_glam(),
-                        );
+                        let frame1 = Isometry3::new(params.local_anchor1.coords, axisangle1)
+                            .into_physx()
+                            .into();
+                        let frame2 = Isometry3::new(params.local_anchor2.coords, axisangle2)
+                            .into_physx()
+                            .into();
 
                         let joint = physx_sys::phys_PxPrismaticJointCreate(
-                            self.physics.get_raw_mut(),
-                            actor1.0 as *mut _,
+                            physics.as_mut_ptr(),
+                            actor1,
                             &frame1 as *const _,
-                            actor2.0 as *mut _,
+                            actor2,
                             &frame2 as *const _,
                         );
 
@@ -376,16 +410,14 @@ impl PhysxWorld {
                         }
                     }
                     JointParams::FixedJoint(params) => {
-                        let frame1 =
-                            physx::transform::gl_to_px_tf(params.local_anchor1.into_glam());
-                        let frame2 =
-                            physx::transform::gl_to_px_tf(params.local_anchor2.into_glam());
+                        let frame1 = params.local_anchor1.into_physx().into();
+                        let frame2 = params.local_anchor2.into_physx().into();
 
                         physx_sys::phys_PxFixedJointCreate(
-                            self.physics.get_raw_mut(),
-                            actor1.0 as *mut _,
+                            physics.as_mut_ptr(),
+                            actor1,
                             &frame1 as *const _,
-                            actor2.0 as *mut _,
+                            actor2,
                             &frame2 as *const _,
                         );
                     }
@@ -395,43 +427,69 @@ impl PhysxWorld {
     }
 
     pub fn step(&mut self, counters: &mut Counters, params: &IntegrationParameters) {
+        let mut scratch = unsafe { ScratchBuffer::new(4) };
+
         counters.step_started();
-        self.scene.step(params.dt, true);
+        self.scene
+            .as_mut()
+            .unwrap()
+            .step(
+                params.dt,
+                None::<&mut physx_sys::PxBaseTask>,
+                Some(&mut scratch),
+                true,
+            )
+            .expect("error occurred during PhysX simulation");
         counters.step_completed();
     }
 
-    pub fn sync(&self, bodies: &mut RigidBodySet, colliders: &mut ColliderSet) {
-        for (rapier_handle, physx_handle) in self.rapier2physx.iter() {
-            let rb = bodies.get_mut(*rapier_handle).unwrap();
-            let ra = self.scene.get_rigid_actor(*physx_handle).unwrap();
-            let pos = ra.get_global_pose().into_na();
-            let iso = na::convert_unchecked(pos);
-            rb.set_position(iso, false);
-
-            if rb.is_kinematic() {}
+    pub fn sync(&mut self, bodies: &mut RigidBodySet, colliders: &mut ColliderSet) {
+        for actor in self.scene.as_mut().unwrap().get_dynamic_actors() {
+            let handle = actor.get_user_data();
+            let pos = actor.get_global_pose().into_na();
+            let rb = &mut bodies[*handle];
+            rb.set_position(pos, false);
 
             for coll_handle in rb.colliders() {
                 let collider = &mut colliders[*coll_handle];
-                collider.set_position_debug(iso * collider.position_wrt_parent());
+                collider.set_position_debug(pos * collider.position_wrt_parent());
             }
         }
     }
 }
 
 fn physx_collider_from_rapier_collider(
+    physics: &mut PxPhysicsFoundation,
+    cooking: &PxCooking,
     collider: &Collider,
-) -> Option<(ColliderDesc, Isometry3<f32>)> {
+) -> Option<(Owner<PxShape>, Owner<PxMaterial>, Isometry3<f32>)> {
     let mut local_pose = *collider.position_wrt_parent();
     let shape = collider.shape();
+    let shape_flags = if collider.is_sensor() {
+        ShapeFlag::TriggerShape.into()
+    } else {
+        ShapeFlag::SimulationShape.into()
+    };
+    let mut material = physics
+        .create_material(
+            collider.friction,
+            collider.friction,
+            collider.restitution,
+            (),
+        )
+        .unwrap();
+    let materials = &mut [material.as_mut()][..];
 
-    let desc = if let Some(cuboid) = shape.as_cuboid() {
-        ColliderDesc::Box(
+    let shape = if let Some(cuboid) = shape.as_cuboid() {
+        let geometry = PxBoxGeometry::new(
             cuboid.half_extents.x,
             cuboid.half_extents.y,
             cuboid.half_extents.z,
-        )
+        );
+        physics.create_shape(&geometry, materials, true, shape_flags, ())
     } else if let Some(ball) = shape.as_ball() {
-        ColliderDesc::Sphere(ball.radius)
+        let geometry = PxSphereGeometry::new(ball.radius);
+        physics.create_shape(&geometry, materials, true, shape_flags, ())
     } else if let Some(capsule) = shape.as_capsule() {
         let center = capsule.center();
         let mut dir = capsule.segment.b - capsule.segment.a;
@@ -441,187 +499,181 @@ fn physx_collider_from_rapier_collider(
         }
 
         let rot = UnitQuaternion::rotation_between(&Vector3::x(), &dir);
-        local_pose *= Translation3::from(center.coords) * rot.unwrap_or(UnitQuaternion::identity());
-        ColliderDesc::Capsule(capsule.radius, capsule.height())
-    } else if let Some(trimesh) = shape.as_trimesh() {
-        ColliderDesc::TriMesh {
-            vertices: trimesh
-                .vertices()
+        local_pose = local_pose
+            * Translation3::from(center.coords)
+            * rot.unwrap_or(UnitQuaternion::identity());
+        let geometry = PxCapsuleGeometry::new(capsule.radius, capsule.half_height());
+        physics.create_shape(&geometry, materials, true, shape_flags, ())
+    } else if let Some(heightfield) = shape.as_heightfield() {
+        let heights = heightfield.heights();
+        let scale = heightfield.scale();
+        local_pose = local_pose * Translation3::new(-scale.x / 2.0, 0.0, -scale.z / 2.0);
+        const Y_FACTOR: f32 = 1_000f32;
+        let mut heightfield_desc;
+        unsafe {
+            let samples: Vec<_> = heights
                 .iter()
-                .map(|pt| pt.into_physx())
-                .collect(),
-            indices: trimesh.flat_indices().to_vec(),
-            mesh_scale: Vector3::repeat(1.0).into_glam(),
+                .map(|h| PxHeightFieldSample {
+                    height: (*h * Y_FACTOR) as i16,
+                    materialIndex0: PxBitAndByte { mData: 0 },
+                    materialIndex1: PxBitAndByte { mData: 0 },
+                })
+                .collect();
+            heightfield_desc = physx_sys::PxHeightFieldDesc_new();
+            heightfield_desc.nbRows = heights.nrows() as u32;
+            heightfield_desc.nbColumns = heights.ncols() as u32;
+            heightfield_desc.samples.stride = std::mem::size_of::<PxHeightFieldSample>() as u32;
+            heightfield_desc.samples.data = samples.as_ptr() as *const std::ffi::c_void;
+        }
+
+        let heightfield_desc = PxHeightFieldDesc {
+            obj: heightfield_desc,
+        };
+        let heightfield = cooking.create_height_field(physics, &heightfield_desc);
+
+        if let Some(mut heightfield) = heightfield {
+            let flags = PxMeshGeometryFlags {
+                mBits: physx_sys::PxMeshGeometryFlag::eDOUBLE_SIDED as u8,
+            };
+            let geometry = PxHeightFieldGeometry::new(
+                &mut *heightfield,
+                flags,
+                scale.y / Y_FACTOR,
+                scale.x / (heights.nrows() as f32 - 1.0),
+                scale.z / (heights.ncols() as f32 - 1.0),
+            );
+            physics.create_shape(&geometry, materials, true, shape_flags, ())
+        } else {
+            eprintln!("PhysX heightfield construction failed.");
+            return None;
+        }
+    } else if let Some(convex) = shape
+        .as_convex_polyhedron()
+        .or(shape.as_round_convex_polyhedron().map(|c| &c.base_shape))
+    {
+        let vertices = convex.points();
+        let mut convex_desc;
+        unsafe {
+            convex_desc = physx_sys::PxConvexMeshDesc_new();
+            convex_desc.points.count = vertices.len() as u32;
+            convex_desc.points.stride = (3 * std::mem::size_of::<f32>()) as u32;
+            convex_desc.points.data = vertices.as_ptr() as *const std::ffi::c_void;
+            convex_desc.flags = PxConvexFlags {
+                mBits: physx_sys::PxConvexFlag::eCOMPUTE_CONVEX as u16,
+            };
+        }
+
+        let convex_desc = PxConvexMeshDesc { obj: convex_desc };
+        let convex = cooking.create_convex_mesh(physics, &convex_desc);
+
+        if let ConvexMeshCookingResult::Success(mut convex) = convex {
+            let flags = PxConvexMeshGeometryFlags { mBits: 0 };
+            let scaling = unsafe { PxMeshScale_new() };
+            let geometry = PxConvexMeshGeometry::new(&mut convex, &scaling, flags);
+            physics.create_shape(&geometry, materials, true, shape_flags, ())
+        } else {
+            eprintln!("PhysX convex mesh construction failed.");
+            return None;
+        }
+    } else if let Some(trimesh) = shape.as_trimesh() {
+        let vertices = trimesh.vertices();
+        let indices = trimesh.flat_indices();
+
+        let mut mesh_desc;
+        unsafe {
+            mesh_desc = physx_sys::PxTriangleMeshDesc_new();
+
+            mesh_desc.points.count = trimesh.vertices().len() as u32;
+            mesh_desc.points.stride = (3 * std::mem::size_of::<f32>()) as u32;
+            mesh_desc.points.data = vertices.as_ptr() as *const std::ffi::c_void;
+
+            mesh_desc.triangles.count = (indices.len() as u32) / 3;
+            mesh_desc.triangles.stride = (3 * std::mem::size_of::<u32>()) as u32;
+            mesh_desc.triangles.data = indices.as_ptr() as *const std::ffi::c_void;
+        }
+
+        let mesh_desc = PxTriangleMeshDesc { obj: mesh_desc };
+        let trimesh = cooking.create_triangle_mesh(physics, &mesh_desc);
+
+        if let TriangleMeshCookingResult::Success(mut trimesh) = trimesh {
+            let flags = PxMeshGeometryFlags {
+                mBits: physx_sys::PxMeshGeometryFlag::eDOUBLE_SIDED as u8,
+            };
+
+            let scaling = unsafe { PxMeshScale_new() };
+            let geometry = PxTriangleMeshGeometry::new(&mut trimesh, &scaling, flags);
+            physics.create_shape(&geometry, materials, true, shape_flags, ())
+        } else {
+            eprintln!("PhysX triangle mesh construction failed.");
+            return None;
         }
     } else {
         eprintln!("Creating a shape unknown to the PhysX backend.");
         return None;
     };
 
-    Some((desc, local_pose))
+    shape.map(|s| (s, material, local_pose))
 }
 
-/*
- *
- * XXX: All the remaining code is a duplicate from physx-rs to allow more customizations.
- *
- */
-use physx::scene::SimulationThreadType;
+type PxPhysicsFoundation = PhysicsFoundation<DefaultAllocator, PxShape>;
+type PxMaterial = physx::material::PxMaterial<()>;
+type PxShape = physx::shape::PxShape<(), PxMaterial>;
+type PxArticulationLink = physx::articulation_link::PxArticulationLink<(), PxShape>;
+type PxRigidStatic = physx::rigid_static::PxRigidStatic<(), PxShape>;
+type PxRigidDynamic = physx::rigid_dynamic::PxRigidDynamic<RigidBodyHandle, PxShape>;
+type PxArticulation = physx::articulation::PxArticulation<(), PxArticulationLink>;
+type PxArticulationReducedCoordinate =
+    physx::articulation_reduced_coordinate::PxArticulationReducedCoordinate<(), PxArticulationLink>;
+type PxScene = physx::scene::PxScene<
+    (),
+    PxArticulationLink,
+    PxRigidStatic,
+    PxRigidDynamic,
+    PxArticulation,
+    PxArticulationReducedCoordinate,
+    OnCollision,
+    OnTrigger,
+    OnConstraintBreak,
+    OnWakeSleep,
+    OnAdvance,
+>;
 
-pub struct MySceneBuilder {
-    gravity: glam::Vec3,
-    simulation_filter_shader: Option<physx_sys::SimulationFilterShader>,
-    simulation_threading: Option<SimulationThreadType>,
-    broad_phase_type: BroadPhaseType,
-    use_controller_manager: bool,
-    controller_manager_locking: bool,
-    call_default_filter_shader_first: bool,
-    use_ccd: bool,
-    enable_ccd_resweep: bool,
-    solver_type: u32,
-}
-
-impl Default for MySceneBuilder {
-    fn default() -> Self {
-        Self {
-            gravity: glam::Vec3::new(0.0, -9.80665, 0.0), // standard gravity value
-            call_default_filter_shader_first: true,
-            simulation_filter_shader: None,
-            simulation_threading: None,
-            broad_phase_type: BroadPhaseType::SweepAndPrune,
-            use_controller_manager: false,
-            controller_manager_locking: false,
-            use_ccd: false,
-            enable_ccd_resweep: false,
-            solver_type: physx_sys::PxSolverType::ePGS,
-        }
+/// Next up, the simulation event callbacks need to be defined, and possibly an
+/// allocator callback as well.
+struct OnCollision;
+impl CollisionCallback for OnCollision {
+    fn on_collision(
+        &mut self,
+        _header: &physx_sys::PxContactPairHeader,
+        _pairs: &[physx_sys::PxContactPair],
+    ) {
     }
 }
+struct OnTrigger;
+impl TriggerCallback for OnTrigger {
+    fn on_trigger(&mut self, _pairs: &[physx_sys::PxTriggerPair]) {}
+}
 
-impl MySceneBuilder {
-    /// Set the gravity for the scene.
-    ///
-    /// Default: [0.0, -9.80665, 0.0] (standard gravity)
-    pub fn set_gravity(&mut self, gravity: glam::Vec3) -> &mut Self {
-        self.gravity = gravity;
-        self
-    }
-
-    /// Set a callback to be invoked on various simulation events. Note:
-    /// Currently only handles collision events
-    ///
-    /// Default: not set
-    pub fn set_simulation_filter_shader(
+struct OnConstraintBreak;
+impl ConstraintBreakCallback for OnConstraintBreak {
+    fn on_constraint_break(&mut self, _constraints: &[physx_sys::PxConstraintInfo]) {}
+}
+struct OnWakeSleep;
+impl WakeSleepCallback<PxArticulationLink, PxRigidStatic, PxRigidDynamic> for OnWakeSleep {
+    fn on_wake_sleep(
         &mut self,
-        simulation_filter_shader: physx_sys::SimulationFilterShader,
-    ) -> &mut Self {
-        self.simulation_filter_shader = Some(simulation_filter_shader);
-        self
+        _actors: &[&physx::actor::ActorMap<PxArticulationLink, PxRigidStatic, PxRigidDynamic>],
+        _is_waking: bool,
+    ) {
     }
+}
 
-    /// Enable the controller manager on the scene.
-    ///
-    /// Default: false, false
-    pub fn use_controller_manager(
-        &mut self,
-        use_controller_manager: bool,
-        locking_enabled: bool,
-    ) -> &mut Self {
-        self.use_controller_manager = use_controller_manager;
-        self.controller_manager_locking = locking_enabled;
-        self
-    }
-
-    pub fn set_solver_type(&mut self, solver_type: u32) -> &mut Self {
-        self.solver_type = solver_type;
-        self
-    }
-
-    /// Sets whether the filter should begin by calling the default filter shader
-    /// PxDefaultSimulationFilterShader that emulates the PhysX 2.8 rules.
-    ///
-    /// Default: true
-    pub fn set_call_default_filter_shader_first(
-        &mut self,
-        call_default_filter_shader_first: bool,
-    ) -> &mut Self {
-        self.call_default_filter_shader_first = call_default_filter_shader_first;
-        self
-    }
-
-    /// Set the number of threads to use for simulation
-    ///
-    /// Default: not set
-    pub fn set_simulation_threading(
-        &mut self,
-        simulation_threading: SimulationThreadType,
-    ) -> &mut Self {
-        self.simulation_threading = Some(simulation_threading);
-        self
-    }
-
-    /// Set collision detection type
-    ///
-    /// Default: Sweep and prune
-    pub fn set_broad_phase_type(&mut self, broad_phase_type: BroadPhaseType) -> &mut Self {
-        self.broad_phase_type = broad_phase_type;
-        self
-    }
-
-    /// Set if CCD (continuous collision detection) should be available for use in the scene.
-    /// Doesn't automatically enable it for all rigid bodies, they still need to be flagged.
-    ///
-    /// If you don't set enable_ccd_resweep to true, eDISABLE_CCD_RESWEEP is set, which improves performance
-    /// at the cost of accuracy right after bounces.
-    ///
-    /// Default: false, false
-    pub fn set_use_ccd(&mut self, use_ccd: bool, enable_ccd_resweep: bool) -> &mut Self {
-        self.use_ccd = use_ccd;
-        self.enable_ccd_resweep = enable_ccd_resweep;
-        self
-    }
-
-    pub(super) fn build_desc(&self, physics: &mut Physics) -> physx_sys::PxSceneDesc {
-        unsafe {
-            let tolerances = physics.get_tolerances_scale();
-            let mut scene_desc = physx_sys::PxSceneDesc_new(tolerances);
-
-            let dispatcher = match self.simulation_threading.as_ref().expect("foo") {
-                SimulationThreadType::Default => {
-                    physx_sys::phys_PxDefaultCpuDispatcherCreate(1, std::ptr::null_mut()) as *mut _
-                }
-                SimulationThreadType::Dedicated(count) => {
-                    physx_sys::phys_PxDefaultCpuDispatcherCreate(*count, std::ptr::null_mut())
-                        as *mut _
-                }
-                SimulationThreadType::Shared(dispatcher) => *dispatcher as *mut _,
-            };
-
-            scene_desc.cpuDispatcher = dispatcher;
-            scene_desc.gravity = physx::transform::gl_to_px_v3(self.gravity);
-            if self.use_ccd {
-                scene_desc.flags.mBits |= physx_sys::PxSceneFlag::eENABLE_CCD;
-                if !self.enable_ccd_resweep {
-                    scene_desc.flags.mBits |= physx_sys::PxSceneFlag::eDISABLE_CCD_RESWEEP;
-                }
-            }
-            if let Some(filter_shader) = self.simulation_filter_shader {
-                physx_sys::enable_custom_filter_shader(
-                    &mut scene_desc as *mut physx_sys::PxSceneDesc,
-                    filter_shader,
-                    if self.call_default_filter_shader_first {
-                        1
-                    } else {
-                        0
-                    },
-                );
-            } else {
-                scene_desc.filterShader = physx_sys::get_default_simulation_filter_shader();
-            }
-
-            scene_desc.broadPhaseType = self.broad_phase_type.into();
-            scene_desc.solverType = self.solver_type;
-            scene_desc
-        }
+struct OnAdvance;
+impl AdvanceCallback<PxArticulationLink, PxRigidDynamic> for OnAdvance {
+    fn on_advance(
+        &self,
+        _actors: &[&physx::rigid_body::RigidBodyMap<PxArticulationLink, PxRigidDynamic>],
+        _transforms: &[PxTransform],
+    ) {
     }
 }

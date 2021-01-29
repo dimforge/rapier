@@ -7,10 +7,11 @@ pub use self::joint::RevoluteJoint;
 pub use self::joint::{
     BallJoint, FixedJoint, Joint, JointHandle, JointParams, JointSet, PrismaticJoint,
 };
-pub use self::mass_properties::MassProperties;
 pub use self::rigid_body::{ActivationStatus, BodyStatus, RigidBody, RigidBodyBuilder};
 pub use self::rigid_body_set::{BodyPair, RigidBodyHandle, RigidBodySet};
+pub use parry::mass_properties::MassProperties;
 // #[cfg(not(feature = "parallel"))]
+pub use self::coefficient_combine_rule::CoefficientCombineRule;
 pub(crate) use self::joint::JointGraphEdge;
 pub(crate) use self::rigid_body::RigidBodyChanges;
 #[cfg(not(feature = "parallel"))]
@@ -18,17 +19,9 @@ pub(crate) use self::solver::IslandSolver;
 #[cfg(feature = "parallel")]
 pub(crate) use self::solver::ParallelIslandSolver;
 
+mod coefficient_combine_rule;
 mod integration_parameters;
 mod joint;
-mod mass_properties;
-mod mass_properties_ball;
-mod mass_properties_capsule;
-#[cfg(feature = "dim3")]
-mod mass_properties_cone;
-mod mass_properties_cuboid;
-mod mass_properties_cylinder;
-#[cfg(feature = "dim2")]
-mod mass_properties_polygon;
 mod rigid_body;
 mod rigid_body_set;
 mod solver;

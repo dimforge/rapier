@@ -1,108 +1,112 @@
 //! Structures related to geometry: colliders, shapes, etc.
 
 pub use self::broad_phase_multi_sap::BroadPhase;
-pub use self::capsule::Capsule;
-pub use self::collider::{Collider, ColliderBuilder, ColliderShape};
+pub use self::collider::{Collider, ColliderBuilder};
 pub use self::collider_set::{ColliderHandle, ColliderSet};
-pub use self::contact::{
-    Contact, ContactKinematics, ContactManifold, ContactPair, KinematicsCategory, SolverFlags,
-};
-pub use self::contact_generator::{ContactDispatcher, DefaultContactDispatcher};
-#[cfg(feature = "dim2")]
-pub(crate) use self::cuboid_feature2d::{CuboidFeature, CuboidFeatureFace};
-#[cfg(feature = "dim3")]
-pub(crate) use self::cuboid_feature3d::{CuboidFeature, CuboidFeatureFace};
+pub use self::contact_pair::{ContactData, ContactManifoldData};
+pub use self::contact_pair::{ContactPair, SolverContact, SolverFlags};
 pub use self::interaction_graph::{
     ColliderGraphIndex, InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex,
 };
+pub use self::interaction_groups::InteractionGroups;
 pub use self::narrow_phase::NarrowPhase;
-pub use self::polygon::Polygon;
-pub use self::proximity::ProximityPair;
-pub use self::proximity_detector::{DefaultProximityDispatcher, ProximityDispatcher};
-#[cfg(feature = "dim3")]
-pub use self::round_cylinder::RoundCylinder;
-pub use self::trimesh::Trimesh;
-pub use self::user_callbacks::{ContactPairFilter, PairFilterContext, ProximityPairFilter};
-pub use ncollide::query::Proximity;
+pub use self::pair_filter::{ContactPairFilter, IntersectionPairFilter, PairFilterContext};
 
+pub use parry::query::TrackedContact;
+
+/// A contact between two colliders.
+pub type Contact = parry::query::TrackedContact<ContactData>;
+/// A contact manifold between two colliders.
+pub type ContactManifold = parry::query::ContactManifold<ContactManifoldData, ContactData>;
 /// A segment shape.
-pub type Segment = ncollide::shape::Segment<f32>;
+pub type Segment = parry::shape::Segment;
 /// A cuboid shape.
-pub type Cuboid = ncollide::shape::Cuboid<f32>;
+pub type Cuboid = parry::shape::Cuboid;
 /// A triangle shape.
-pub type Triangle = ncollide::shape::Triangle<f32>;
+pub type Triangle = parry::shape::Triangle;
 /// A ball shape.
-pub type Ball = ncollide::shape::Ball<f32>;
+pub type Ball = parry::shape::Ball;
+/// A capsule shape.
+pub type Capsule = parry::shape::Capsule;
 /// A heightfield shape.
-pub type HeightField = ncollide::shape::HeightField<f32>;
+pub type HeightField = parry::shape::HeightField;
 /// A cylindrical shape.
 #[cfg(feature = "dim3")]
-pub type Cylinder = ncollide::shape::Cylinder<f32>;
+pub type Cylinder = parry::shape::Cylinder;
 /// A cone shape.
 #[cfg(feature = "dim3")]
-pub type Cone = ncollide::shape::Cone<f32>;
+pub type Cone = parry::shape::Cone;
 /// An axis-aligned bounding box.
-pub type AABB = ncollide::bounding_volume::AABB<f32>;
-/// Event triggered when two non-sensor colliders start or stop being in contact.
-pub type ContactEvent = ncollide::pipeline::ContactEvent<ColliderHandle>;
-/// Event triggered when a sensor collider starts or stop being in proximity with another collider (sensor or not).
-pub type ProximityEvent = ncollide::pipeline::ProximityEvent<ColliderHandle>;
+pub type AABB = parry::bounding_volume::AABB;
 /// A ray that can be cast against colliders.
-pub type Ray = ncollide::query::Ray<f32>;
+pub type Ray = parry::query::Ray;
 /// The intersection between a ray and a  collider.
-pub type RayIntersection = ncollide::query::RayIntersection<f32>;
+pub type RayIntersection = parry::query::RayIntersection;
 /// The the projection of a point on a collider.
-pub type PointProjection = ncollide::query::PointProjection<f32>;
+pub type PointProjection = parry::query::PointProjection;
+/// The the time of impact between two shapes.
+pub type TOI = parry::query::TOI;
+pub use parry::shape::SharedShape;
 
-#[cfg(feature = "simd-is-enabled")]
-pub(crate) use self::ball::WBall;
+#[derive(Copy, Clone, Hash, Debug)]
+/// Events occurring when two collision objects start or stop being in contact (or penetration).
+pub enum ContactEvent {
+    /// Event occurring when two collision objects start being in contact.
+    ///
+    /// This event is generated whenever the narrow-phase finds a contact between two collision objects that did not have any contact at the last update.
+    Started(ColliderHandle, ColliderHandle),
+    /// Event occurring when two collision objects stop being in contact.
+    ///
+    /// This event is generated whenever the narrow-phase fails to find any contact between two collision objects that did have at least one contact at the last update.
+    Stopped(ColliderHandle, ColliderHandle),
+}
+
+#[derive(Copy, Clone, Debug)]
+/// Events occurring when two collision objects start or stop being in close proximity, contact, or disjoint.
+pub struct IntersectionEvent {
+    /// The first collider to which the proximity event applies.
+    pub collider1: ColliderHandle,
+    /// The second collider to which the proximity event applies.
+    pub collider2: ColliderHandle,
+    /// Are the two colliders intersecting?
+    pub intersecting: bool,
+}
+
+impl IntersectionEvent {
+    /// Instantiates a new proximity event.
+    ///
+    /// Panics if `prev_status` is equal to `new_status`.
+    pub fn new(collider1: ColliderHandle, collider2: ColliderHandle, intersecting: bool) -> Self {
+        Self {
+            collider1,
+            collider2,
+            intersecting,
+        }
+    }
+}
+
 pub(crate) use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair};
 pub(crate) use self::collider_set::RemovedCollider;
-#[cfg(feature = "simd-is-enabled")]
-pub(crate) use self::contact::WContact;
-pub(crate) use self::contact_generator::clip_segments;
-#[cfg(feature = "dim2")]
-pub(crate) use self::contact_generator::clip_segments_with_normal;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
-#[cfg(feature = "dim3")]
-pub(crate) use self::polygonal_feature_map::PolygonalFeatureMap;
-#[cfg(feature = "dim3")]
-pub(crate) use self::polyhedron_feature3d::PolyhedronFace;
-pub(crate) use self::waabb::{WRay, WAABB};
-pub(crate) use self::wquadtree::WQuadtree;
-//pub(crate) use self::z_order::z_cmp_floats;
-pub use self::interaction_groups::InteractionGroups;
-pub use self::shape::{Shape, ShapeType};
+pub(crate) use parry::partitioning::SimdQuadTree;
+pub use parry::shape::*;
 
-mod ball;
+#[cfg(feature = "serde-serialize")]
+pub(crate) fn default_persistent_query_dispatcher(
+) -> std::sync::Arc<dyn parry::query::PersistentQueryDispatcher<ContactManifoldData, ContactData>> {
+    std::sync::Arc::new(parry::query::DefaultQueryDispatcher)
+}
+
+#[cfg(feature = "serde-serialize")]
+pub(crate) fn default_query_dispatcher() -> std::sync::Arc<dyn parry::query::QueryDispatcher> {
+    std::sync::Arc::new(parry::query::DefaultQueryDispatcher)
+}
+
 mod broad_phase_multi_sap;
 mod collider;
 mod collider_set;
-mod contact;
-mod contact_generator;
-pub(crate) mod cuboid;
-#[cfg(feature = "dim2")]
-mod cuboid_feature2d;
-#[cfg(feature = "dim3")]
-mod cuboid_feature3d;
+mod contact_pair;
 mod interaction_graph;
-mod narrow_phase;
-mod polygon;
-#[cfg(feature = "dim3")]
-mod polyhedron_feature3d;
-mod proximity;
-mod proximity_detector;
-pub(crate) mod sat;
-pub(crate) mod triangle;
-mod trimesh;
-mod waabb;
-mod wquadtree;
-//mod z_order;
-mod capsule;
 mod interaction_groups;
-#[cfg(feature = "dim3")]
-mod polygonal_feature_map;
-#[cfg(feature = "dim3")]
-mod round_cylinder;
-mod shape;
-mod user_callbacks;
+mod narrow_phase;
+mod pair_filter;

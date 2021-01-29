@@ -1,6 +1,6 @@
-use na::{ComplexField, DMatrix, Point3, Vector3};
+use na::{ComplexField, DMatrix, Isometry3, Point3, Vector3};
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::geometry::{ColliderBuilder, ColliderSet, SharedShape};
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -27,7 +27,7 @@ pub fn init_world(testbed: &mut Testbed) {
             // NOTE: make sure we use the sin/cos from simba to ensure
             // cross-platform determinism of the example when the
             // enhanced_determinism feature is enabled.
-            <f32 as ComplexField>::sin(x) + <f32 as ComplexField>::cos(z)
+            ComplexField::sin(x) + ComplexField::cos(z)
         }
     });
 
@@ -58,14 +58,32 @@ pub fn init_world(testbed: &mut Testbed) {
                 let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
                 let handle = bodies.insert(rigid_body);
 
-                let collider = match j % 5 {
+                let collider = match j % 6 {
                     0 => ColliderBuilder::cuboid(rad, rad, rad).build(),
                     1 => ColliderBuilder::ball(rad).build(),
                     // Rounded cylinders are much more efficient that cylinder, even if the
                     // rounding margin is small.
                     2 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0).build(),
                     3 => ColliderBuilder::cone(rad, rad).build(),
-                    _ => ColliderBuilder::capsule_y(rad, rad).build(),
+                    4 => ColliderBuilder::capsule_y(rad, rad).build(),
+                    _ => {
+                        let shapes = vec![
+                            (
+                                Isometry3::identity(),
+                                SharedShape::cuboid(rad, rad / 2.0, rad / 2.0),
+                            ),
+                            (
+                                Isometry3::translation(rad, 0.0, 0.0),
+                                SharedShape::cuboid(rad / 2.0, rad, rad / 2.0),
+                            ),
+                            (
+                                Isometry3::translation(-rad, 0.0, 0.0),
+                                SharedShape::cuboid(rad / 2.0, rad, rad / 2.0),
+                            ),
+                        ];
+
+                        ColliderBuilder::compound(shapes).build()
+                    }
                 };
 
                 colliders.insert(collider, handle, &mut bodies);

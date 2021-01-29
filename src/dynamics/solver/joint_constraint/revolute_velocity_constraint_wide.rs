@@ -4,7 +4,7 @@ use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
     IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RevoluteJoint, RigidBody,
 };
-use crate::math::{AngVector, AngularInertia, Isometry, Point, SimdFloat, Vector, SIMD_WIDTH};
+use crate::math::{AngVector, AngularInertia, Isometry, Point, Real, SimdReal, Vector, SIMD_WIDTH};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
 
@@ -15,20 +15,20 @@ pub(crate) struct WRevoluteVelocityConstraint {
 
     joint_id: [JointIndex; SIMD_WIDTH],
 
-    r1: Vector<SimdFloat>,
-    r2: Vector<SimdFloat>,
+    r1: Vector<SimdReal>,
+    r2: Vector<SimdReal>,
 
-    inv_lhs: Matrix5<SimdFloat>,
-    rhs: Vector5<SimdFloat>,
-    impulse: Vector5<SimdFloat>,
+    inv_lhs: Matrix5<SimdReal>,
+    rhs: Vector5<SimdReal>,
+    impulse: Vector5<SimdReal>,
 
-    basis1: Matrix3x2<SimdFloat>,
+    basis1: Matrix3x2<SimdReal>,
 
-    im1: SimdFloat,
-    im2: SimdFloat,
+    im1: SimdReal,
+    im2: SimdReal,
 
-    ii1_sqrt: AngularInertia<SimdFloat>,
-    ii2_sqrt: AngularInertia<SimdFloat>,
+    ii1_sqrt: AngularInertia<SimdReal>,
+    ii2_sqrt: AngularInertia<SimdReal>,
 }
 
 impl WRevoluteVelocityConstraint {
@@ -41,21 +41,21 @@ impl WRevoluteVelocityConstraint {
     ) -> Self {
         let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
-        let angvel1 = AngVector::<SimdFloat>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
+        let angvel1 = AngVector::<SimdReal>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
-        let im1 = SimdFloat::from(array![|ii| rbs1[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii1_sqrt = AngularInertia::<SimdFloat>::from(
-            array![|ii| rbs1[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+        let im1 = SimdReal::from(array![|ii| rbs1[ii].effective_inv_mass; SIMD_WIDTH]);
+        let ii1_sqrt = AngularInertia::<SimdReal>::from(
+            array![|ii| rbs1[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
 
         let position2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
-        let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
+        let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii2_sqrt = AngularInertia::<SimdFloat>::from(
-            array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
+        let ii2_sqrt = AngularInertia::<SimdReal>::from(
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
@@ -115,7 +115,7 @@ impl WRevoluteVelocityConstraint {
             basis1,
             im2,
             ii2_sqrt,
-            impulse: impulse * SimdFloat::splat(params.warmstart_coeff),
+            impulse: impulse * SimdReal::splat(params.warmstart_coeff),
             inv_lhs,
             rhs,
             r1,
@@ -123,7 +123,7 @@ impl WRevoluteVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
@@ -164,7 +164,7 @@ impl WRevoluteVelocityConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
@@ -231,17 +231,17 @@ pub(crate) struct WRevoluteVelocityGroundConstraint {
 
     joint_id: [JointIndex; SIMD_WIDTH],
 
-    r2: Vector<SimdFloat>,
+    r2: Vector<SimdReal>,
 
-    inv_lhs: Matrix5<SimdFloat>,
-    rhs: Vector5<SimdFloat>,
-    impulse: Vector5<SimdFloat>,
+    inv_lhs: Matrix5<SimdReal>,
+    rhs: Vector5<SimdReal>,
+    impulse: Vector5<SimdReal>,
 
-    basis1: Matrix3x2<SimdFloat>,
+    basis1: Matrix3x2<SimdReal>,
 
-    im2: SimdFloat,
+    im2: SimdReal,
 
-    ii2_sqrt: AngularInertia<SimdFloat>,
+    ii2_sqrt: AngularInertia<SimdReal>,
 }
 
 impl WRevoluteVelocityGroundConstraint {
@@ -255,16 +255,16 @@ impl WRevoluteVelocityGroundConstraint {
     ) -> Self {
         let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
-        let angvel1 = AngVector::<SimdFloat>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
+        let angvel1 = AngVector::<SimdReal>::from(array![|ii| rbs1[ii].angvel; SIMD_WIDTH]);
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
 
         let position2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
-        let angvel2 = AngVector::<SimdFloat>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
+        let angvel2 = AngVector::<SimdReal>::from(array![|ii| rbs2[ii].angvel; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
-        let im2 = SimdFloat::from(array![|ii| rbs2[ii].mass_properties.inv_mass; SIMD_WIDTH]);
-        let ii2_sqrt = AngularInertia::<SimdFloat>::from(
-            array![|ii| rbs2[ii].world_inv_inertia_sqrt; SIMD_WIDTH],
+        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
+        let ii2_sqrt = AngularInertia::<SimdReal>::from(
+            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
         let impulse = Vector5::from(array![|ii| cparams[ii].impulse; SIMD_WIDTH]);
@@ -322,7 +322,7 @@ impl WRevoluteVelocityGroundConstraint {
             mj_lambda2,
             im2,
             ii2_sqrt,
-            impulse: impulse * SimdFloat::splat(params.warmstart_coeff),
+            impulse: impulse * SimdReal::splat(params.warmstart_coeff),
             basis1,
             inv_lhs,
             rhs,
@@ -330,7 +330,7 @@ impl WRevoluteVelocityGroundConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
@@ -354,7 +354,7 @@ impl WRevoluteVelocityGroundConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],

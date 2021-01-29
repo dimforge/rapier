@@ -14,7 +14,8 @@ enhanced-determinism = [ "rapier3d/enhanced-determinism" ]
 [dependencies]
 rand       = "0.7"
 Inflector  = "0.11"
-nalgebra = "0.23"
+nalgebra   = "0.24"
+kiss3d     = "0.29"
 
 [dependencies.rapier_testbed3d]
 path = "../build/rapier_testbed3d"
@@ -25,3 +26,7 @@ path = "../build/rapier3d"
 [[bin]]
 name = "all_examples3"
 path = "./all_examples3.rs"
+
+[[bin]]
+name = "harness_capsules3"
+path = "./harness_capsules3.rs"

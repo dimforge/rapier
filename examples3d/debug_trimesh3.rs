@@ -24,18 +24,18 @@ pub fn init_world(testbed: &mut Testbed) {
         Point3::new(-width, -width, width),
     ];
     let idx = vec![
-        Point3::new(0, 1, 2),
-        Point3::new(0, 2, 3),
-        Point3::new(4, 5, 6),
-        Point3::new(4, 6, 7),
-        Point3::new(0, 4, 7),
-        Point3::new(0, 7, 3),
-        Point3::new(1, 5, 6),
-        Point3::new(1, 6, 2),
-        Point3::new(3, 2, 7),
-        Point3::new(2, 6, 7),
-        Point3::new(0, 1, 5),
-        Point3::new(0, 5, 4),
+        [0, 1, 2],
+        [0, 2, 3],
+        [4, 5, 6],
+        [4, 6, 7],
+        [0, 4, 7],
+        [0, 7, 3],
+        [1, 5, 6],
+        [1, 6, 2],
+        [3, 2, 7],
+        [2, 6, 7],
+        [0, 1, 5],
+        [0, 5, 4],
     ];
 
     // Dynamic box rigid body.

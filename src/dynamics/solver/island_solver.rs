@@ -1,9 +1,15 @@
 use super::{PositionSolver, VelocitySolver};
 use crate::counters::Counters;
+use crate::dynamics::solver::{
+    AnyJointPositionConstraint, AnyJointVelocityConstraint, AnyPositionConstraint,
+    AnyVelocityConstraint, SolverConstraints,
+};
 use crate::dynamics::{IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
 pub struct IslandSolver {
+    contact_constraints: SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint>,
+    joint_constraints: SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint>,
     velocity_solver: VelocitySolver,
     position_solver: PositionSolver,
 }
@@ -11,6 +17,8 @@ pub struct IslandSolver {
 impl IslandSolver {
     pub fn new() -> Self {
         Self {
+            contact_constraints: SolverConstraints::new(),
+            joint_constraints: SolverConstraints::new(),
             velocity_solver: VelocitySolver::new(),
             position_solver: PositionSolver::new(),
         }
@@ -29,33 +37,23 @@ impl IslandSolver {
     ) {
         if manifold_indices.len() != 0 || joint_indices.len() != 0 {
             counters.solver.velocity_assembly_time.resume();
-            self.velocity_solver.init_constraints(
-                island_id,
-                params,
-                bodies,
-                manifolds,
-                &manifold_indices,
-                joints,
-                &joint_indices,
-            );
+            self.contact_constraints
+                .init(island_id, params, bodies, manifolds, manifold_indices);
+            self.joint_constraints
+                .init(island_id, params, bodies, joints, joint_indices);
             counters.solver.velocity_assembly_time.pause();
 
             counters.solver.velocity_resolution_time.resume();
-            self.velocity_solver
-                .solve_constraints(island_id, params, bodies, manifolds, joints);
-            counters.solver.velocity_resolution_time.pause();
-
-            counters.solver.position_assembly_time.resume();
-            self.position_solver.init_constraints(
+            self.velocity_solver.solve(
                 island_id,
                 params,
                 bodies,
                 manifolds,
-                &manifold_indices,
                 joints,
-                &joint_indices,
+                &mut self.contact_constraints.velocity_constraints,
+                &mut self.joint_constraints.velocity_constraints,
             );
-            counters.solver.position_assembly_time.pause();
+            counters.solver.velocity_resolution_time.pause();
         }
 
         counters.solver.velocity_update_time.resume();
@@ -64,8 +62,13 @@ impl IslandSolver {
 
         if manifold_indices.len() != 0 || joint_indices.len() != 0 {
             counters.solver.position_resolution_time.resume();
-            self.position_solver
-                .solve_constraints(island_id, params, bodies);
+            self.position_solver.solve(
+                island_id,
+                params,
+                bodies,
+                &self.contact_constraints.position_constraints,
+                &self.joint_constraints.position_constraints,
+            );
             counters.solver.position_resolution_time.pause();
         }
     }

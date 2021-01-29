@@ -7,6 +7,7 @@ pub mod cylinder;
 pub mod heightfield;
 pub mod mesh;
 pub mod node;
+pub mod polyline;
 //pub mod plane;
 //#[cfg(feature = "dim2")]
 //pub mod polyline;

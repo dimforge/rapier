@@ -9,11 +9,13 @@ pub struct Capsule {
     base_color: Point3<f32>,
     gfx: GraphicsNode,
     collider: ColliderHandle,
+    delta: Isometry<f32>,
 }
 
 impl Capsule {
     pub fn new(
         collider: ColliderHandle,
+        delta: Isometry<f32>,
         capsule: &geometry::Capsule,
         color: Point3<f32>,
         window: &mut window::Window,
@@ -30,6 +32,7 @@ impl Capsule {
             base_color: color,
             gfx: node,
             collider,
+            delta: delta * capsule.transform_wrt_y(),
         };
 
         res.gfx.set_color(color.x, color.y, color.z);
@@ -50,7 +53,7 @@ impl Capsule {
             colliders,
             self.collider,
             &self.color,
-            &Isometry::identity(),
+            &self.delta,
         );
     }
 

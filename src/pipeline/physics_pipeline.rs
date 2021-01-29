@@ -8,9 +8,9 @@ use crate::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactManifoldIndex,
-    ContactPairFilter, NarrowPhase, ProximityPairFilter,
+    ContactPairFilter, IntersectionPairFilter, NarrowPhase,
 };
-use crate::math::Vector;
+use crate::math::{Real, Vector};
 use crate::pipeline::EventHandler;
 
 /// The physics pipeline, responsible for stepping the whole physics simulation.
@@ -62,7 +62,7 @@ impl PhysicsPipeline {
     /// Executes one timestep of the physics simulation.
     pub fn step(
         &mut self,
-        gravity: &Vector<f32>,
+        gravity: &Vector<Real>,
         integration_parameters: &IntegrationParameters,
         broad_phase: &mut BroadPhase,
         narrow_phase: &mut NarrowPhase,
@@ -70,7 +70,7 @@ impl PhysicsPipeline {
         colliders: &mut ColliderSet,
         joints: &mut JointSet,
         contact_pair_filter: Option<&dyn ContactPairFilter>,
-        proximity_pair_filter: Option<&dyn ProximityPairFilter>,
+        proximity_pair_filter: Option<&dyn IntersectionPairFilter>,
         events: &dyn EventHandler,
     ) {
         self.counters.step_started();
@@ -118,13 +118,7 @@ impl PhysicsPipeline {
             contact_pair_filter,
             events,
         );
-        narrow_phase.compute_proximities(
-            integration_parameters.prediction_distance,
-            bodies,
-            colliders,
-            proximity_pair_filter,
-            events,
-        );
+        narrow_phase.compute_intersections(bodies, colliders, proximity_pair_filter, events);
         //        println!("Compute contact time: {}", instant::now() - t);
 
         self.counters.stages.island_construction_time.start();

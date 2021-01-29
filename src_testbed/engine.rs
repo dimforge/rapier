@@ -6,15 +6,15 @@ use kiss3d::window::Window;
 
 use na::Point3;
 
-use crate::math::Point;
+use crate::math::{Isometry, Point};
 use crate::objects::ball::Ball;
 use crate::objects::box_node::Box as BoxNode;
 use crate::objects::heightfield::HeightField;
 use crate::objects::node::{GraphicsNode, Node};
 use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
-use rapier::geometry::{Collider, ColliderHandle, ColliderSet};
+use rapier::geometry::{ColliderHandle, ColliderSet, Shape};
 //use crate::objects::capsule::Capsule;
-//use crate::objects::convex::Convex;
+use crate::objects::convex::Convex;
 //#[cfg(feature = "dim3")]
 //use crate::objects::mesh::Mesh;
 //use crate::objects::plane::Plane;
@@ -26,6 +26,7 @@ use crate::objects::cone::Cone;
 #[cfg(feature = "dim3")]
 use crate::objects::cylinder::Cylinder;
 use crate::objects::mesh::Mesh;
+use crate::objects::polyline::Polyline;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg32;
 use std::collections::HashMap;
@@ -237,7 +238,14 @@ impl GraphicsManager {
         for collider_handle in bodies[handle].colliders() {
             let color = self.c2color.get(collider_handle).copied().unwrap_or(color);
             let collider = &colliders[*collider_handle];
-            self.do_add_collider(window, *collider_handle, collider, color, &mut new_nodes);
+            self.do_add_shape(
+                window,
+                *collider_handle,
+                collider.shape(),
+                &Isometry::identity(),
+                color,
+                &mut new_nodes,
+            );
         }
 
         new_nodes.iter_mut().for_each(|n| n.update(colliders));
@@ -267,34 +275,49 @@ impl GraphicsManager {
         let color = self.c2color.get(&handle).copied().unwrap_or(color);
         let mut nodes =
             std::mem::replace(self.b2sn.get_mut(&collider.parent()).unwrap(), Vec::new());
-        self.do_add_collider(window, handle, collider, color, &mut nodes);
+        self.do_add_shape(
+            window,
+            handle,
+            collider.shape(),
+            &Isometry::identity(),
+            color,
+            &mut nodes,
+        );
         self.b2sn.insert(collider.parent(), nodes);
     }
 
-    fn do_add_collider(
+    fn do_add_shape(
         &mut self,
         window: &mut Window,
         handle: ColliderHandle,
-        collider: &Collider,
+        shape: &dyn Shape,
+        delta: &Isometry<f32>,
         color: Point3<f32>,
         out: &mut Vec<Node>,
     ) {
-        let shape = collider.shape();
-
-        if let Some(ball) = shape.as_ball() {
-            out.push(Node::Ball(Ball::new(handle, ball.radius, color, window)))
+        if let Some(compound) = shape.as_compound() {
+            for (shape_pos, shape) in compound.shapes() {
+                self.do_add_shape(window, handle, &**shape, shape_pos, color, out)
+            }
         }
 
-        // Shape::Polygon(poly) => out.push(Node::Convex(Convex::new(
-        //     handle,
-        //     poly.vertices().to_vec(),
-        //     color,
-        //     window,
-        // ))),
+        if let Some(ball) = shape.as_ball() {
+            out.push(Node::Ball(Ball::new(
+                handle,
+                *delta,
+                ball.radius,
+                color,
+                window,
+            )))
+        }
 
-        if let Some(cuboid) = shape.as_cuboid() {
+        if let Some(cuboid) = shape
+            .as_cuboid()
+            .or(shape.as_round_cuboid().map(|r| &r.base_shape))
+        {
             out.push(Node::Box(BoxNode::new(
                 handle,
+                *delta,
                 cuboid.half_extents,
                 color,
                 window,
@@ -302,14 +325,19 @@ impl GraphicsManager {
         }
 
         if let Some(capsule) = shape.as_capsule() {
-            out.push(Node::Capsule(Capsule::new(handle, capsule, color, window)))
+            out.push(Node::Capsule(Capsule::new(
+                handle, *delta, capsule, color, window,
+            )))
         }
 
-        if let Some(triangle) = shape.as_triangle() {
+        if let Some(triangle) = shape
+            .as_triangle()
+            .or(shape.as_round_triangle().map(|r| &r.base_shape))
+        {
             out.push(Node::Mesh(Mesh::new(
                 handle,
                 vec![triangle.a, triangle.b, triangle.c],
-                vec![Point3::new(0, 1, 2)],
+                vec![[0, 1, 2]],
                 color,
                 window,
             )))
@@ -319,13 +347,18 @@ impl GraphicsManager {
             out.push(Node::Mesh(Mesh::new(
                 handle,
                 trimesh.vertices().to_vec(),
-                trimesh
-                    .indices()
-                    .iter()
-                    .map(|idx| na::convert(*idx))
-                    .collect(),
+                trimesh.indices().to_vec(),
                 color,
                 window,
+            )))
+        }
+
+        if let Some(polyline) = shape.as_polyline() {
+            out.push(Node::Polyline(Polyline::new(
+                handle,
+                polyline.vertices().to_vec(),
+                polyline.indices().to_vec(),
+                color,
             )))
         }
 
@@ -338,13 +371,36 @@ impl GraphicsManager {
             )))
         }
 
+        #[cfg(feature = "dim2")]
+        if let Some(convex_polygon) = shape
+            .as_convex_polygon()
+            .or(shape.as_round_convex_polygon().map(|r| &r.base_shape))
+        {
+            let vertices = convex_polygon.points().to_vec();
+            out.push(Node::Convex(Convex::new(
+                handle, *delta, vertices, color, window,
+            )))
+        }
+
+        #[cfg(feature = "dim3")]
+        if let Some(convex_polyhedron) = shape
+            .as_convex_polyhedron()
+            .or(shape.as_round_convex_polyhedron().map(|r| &r.base_shape))
+        {
+            let (vertices, indices) = convex_polyhedron.to_trimesh();
+            out.push(Node::Convex(Convex::new(
+                handle, *delta, vertices, indices, color, window,
+            )))
+        }
+
         #[cfg(feature = "dim3")]
         if let Some(cylinder) = shape
             .as_cylinder()
-            .or(shape.as_round_cylinder().map(|r| &r.cylinder))
+            .or(shape.as_round_cylinder().map(|r| &r.base_shape))
         {
             out.push(Node::Cylinder(Cylinder::new(
                 handle,
+                *delta,
                 cylinder.half_height,
                 cylinder.radius,
                 color,
@@ -353,9 +409,13 @@ impl GraphicsManager {
         }
 
         #[cfg(feature = "dim3")]
-        if let Some(cone) = shape.as_cone() {
+        if let Some(cone) = shape
+            .as_cone()
+            .or(shape.as_round_cone().map(|r| &r.base_shape))
+        {
             out.push(Node::Cone(Cone::new(
                 handle,
+                *delta,
                 cone.half_height,
                 cone.radius,
                 color,
@@ -501,7 +561,7 @@ impl GraphicsManager {
         object: DefaultColliderHandle,
         colliders: &DefaultColliderSet<f32>,
         delta: Isometry<f32>,
-        shape: &Cuboid<f32>,
+        shape: &Cuboid,
         color: Point3<f32>,
         out: &mut Vec<Node>,
     ) {

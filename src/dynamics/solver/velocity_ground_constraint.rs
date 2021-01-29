@@ -1,5 +1,5 @@
 use super::{AnyVelocityConstraint, DeltaVel};
-use crate::math::{AngVector, Vector, DIM, MAX_MANIFOLD_POINTS};
+use crate::math::{AngVector, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{WAngularInertia, WBasis, WCross, WDot};
 
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
@@ -8,10 +8,10 @@ use simba::simd::SimdPartialOrd;
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct VelocityGroundConstraintElementPart {
-    pub gcross2: AngVector<f32>,
-    pub rhs: f32,
-    pub impulse: f32,
-    pub r: f32,
+    pub gcross2: AngVector<Real>,
+    pub rhs: Real,
+    pub impulse: Real,
+    pub r: Real,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -44,9 +44,9 @@ impl VelocityGroundConstraintElement {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct VelocityGroundConstraint {
-    pub dir1: Vector<f32>, // Non-penetration force direction for the first body.
-    pub im2: f32,
-    pub limit: f32,
+    pub dir1: Vector<Real>, // Non-penetration force direction for the first body.
+    pub im2: Real,
+    pub limit: Real,
     pub mj_lambda2: usize,
     pub manifold_id: ContactManifoldIndex,
     pub manifold_contact_id: usize,
@@ -64,29 +64,23 @@ impl VelocityGroundConstraint {
         push: bool,
     ) {
         let inv_dt = params.inv_dt();
-        let mut rb1 = &bodies[manifold.body_pair.body1];
-        let mut rb2 = &bodies[manifold.body_pair.body2];
+        let mut rb1 = &bodies[manifold.data.body_pair.body1];
+        let mut rb2 = &bodies[manifold.data.body_pair.body2];
         let flipped = !rb2.is_dynamic();
-        let force_dir1;
-        let coll_pos1;
-        let coll_pos2;
 
-        if flipped {
-            coll_pos1 = rb2.position * manifold.delta2;
-            coll_pos2 = rb1.position * manifold.delta1;
-            force_dir1 = coll_pos1 * (-manifold.local_n2);
+        let force_dir1 = if flipped {
             std::mem::swap(&mut rb1, &mut rb2);
+            manifold.data.normal
         } else {
-            coll_pos1 = rb1.position * manifold.delta1;
-            coll_pos2 = rb2.position * manifold.delta2;
-            force_dir1 = coll_pos1 * (-manifold.local_n1);
-        }
+            -manifold.data.normal
+        };
 
         let mj_lambda2 = rb2.active_set_offset;
-        let warmstart_coeff = manifold.warmstart_multiplier * params.warmstart_coeff;
+        let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
 
         for (l, manifold_points) in manifold
-            .active_contacts()
+            .data
+            .solver_contacts
             .chunks(MAX_MANIFOLD_POINTS)
             .enumerate()
         {
@@ -94,8 +88,8 @@ impl VelocityGroundConstraint {
             let mut constraint = VelocityGroundConstraint {
                 dir1: force_dir1,
                 elements: [VelocityGroundConstraintElement::zero(); MAX_MANIFOLD_POINTS],
-                im2: rb2.mass_properties.inv_mass,
-                limit: manifold.friction,
+                im2: rb2.effective_inv_mass,
+                limit: 0.0,
                 mj_lambda2,
                 manifold_id,
                 manifold_contact_id: l * MAX_MANIFOLD_POINTS,
@@ -135,8 +129,8 @@ impl VelocityGroundConstraint {
             #[cfg(target_arch = "wasm32")]
             {
                 constraint.dir1 = force_dir1;
-                constraint.im2 = rb2.mass_properties.inv_mass;
-                constraint.limit = manifold.friction;
+                constraint.im2 = rb2.effective_inv_mass;
+                constraint.limit = 0.0;
                 constraint.mj_lambda2 = mj_lambda2;
                 constraint.manifold_id = manifold_id;
                 constraint.manifold_contact_id = l * MAX_MANIFOLD_POINTS;
@@ -145,41 +139,30 @@ impl VelocityGroundConstraint {
 
             for k in 0..manifold_points.len() {
                 let manifold_point = &manifold_points[k];
-                let (p1, p2) = if flipped {
-                    // NOTE: we already swapped rb1 and rb2
-                    // so we multiply by coll_pos1/coll_pos2.
-                    (
-                        coll_pos1 * manifold_point.local_p2,
-                        coll_pos2 * manifold_point.local_p1,
-                    )
-                } else {
-                    (
-                        coll_pos1 * manifold_point.local_p1,
-                        coll_pos2 * manifold_point.local_p2,
-                    )
-                };
-                let dp2 = p2 - rb2.world_com;
-                let dp1 = p1 - rb1.world_com;
+                let dp2 = manifold_point.point - rb2.world_com;
+                let dp1 = manifold_point.point - rb1.world_com;
                 let vel1 = rb1.linvel + rb1.angvel.gcross(dp1);
                 let vel2 = rb2.linvel + rb2.angvel.gcross(dp2);
+
+                constraint.limit = manifold_point.friction;
 
                 // Normal part.
                 {
                     let gcross2 = rb2
-                        .world_inv_inertia_sqrt
+                        .effective_world_inv_inertia_sqrt
                         .transform_vector(dp2.gcross(-force_dir1));
 
-                    let r = 1.0 / (rb2.mass_properties.inv_mass + gcross2.gdot(gcross2));
+                    let r = 1.0 / (rb2.effective_inv_mass + gcross2.gdot(gcross2));
 
                     let mut rhs = (vel1 - vel2).dot(&force_dir1);
 
                     if rhs <= -params.restitution_velocity_threshold {
-                        rhs += manifold.restitution * rhs
+                        rhs += manifold_point.restitution * rhs
                     }
 
                     rhs += manifold_point.dist.max(0.0) * inv_dt;
 
-                    let impulse = manifold_points[k].impulse * warmstart_coeff;
+                    let impulse = manifold_points[k].data.impulse * warmstart_coeff;
 
                     constraint.elements[k].normal_part = VelocityGroundConstraintElementPart {
                         gcross2,
@@ -195,14 +178,14 @@ impl VelocityGroundConstraint {
 
                     for j in 0..DIM - 1 {
                         let gcross2 = rb2
-                            .world_inv_inertia_sqrt
+                            .effective_world_inv_inertia_sqrt
                             .transform_vector(dp2.gcross(-tangents1[j]));
-                        let r = 1.0 / (rb2.mass_properties.inv_mass + gcross2.gdot(gcross2));
+                        let r = 1.0 / (rb2.effective_inv_mass + gcross2.gdot(gcross2));
                         let rhs = -vel2.dot(&tangents1[j]) + vel1.dot(&tangents1[j]);
                         #[cfg(feature = "dim2")]
-                        let impulse = manifold_points[k].tangent_impulse * warmstart_coeff;
+                        let impulse = manifold_points[k].data.tangent_impulse * warmstart_coeff;
                         #[cfg(feature = "dim3")]
-                        let impulse = manifold_points[k].tangent_impulse[j] * warmstart_coeff;
+                        let impulse = manifold_points[k].data.tangent_impulse[j] * warmstart_coeff;
 
                         constraint.elements[k].tangent_part[j] =
                             VelocityGroundConstraintElementPart {
@@ -219,13 +202,13 @@ impl VelocityGroundConstraint {
             if push {
                 out_constraints.push(AnyVelocityConstraint::NongroupedGround(constraint));
             } else {
-                out_constraints[manifold.constraint_index + l] =
+                out_constraints[manifold.data.constraint_index + l] =
                     AnyVelocityConstraint::NongroupedGround(constraint);
             }
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = DeltaVel::zero();
         let tangents1 = self.dir1.orthonormal_basis();
 
@@ -245,7 +228,7 @@ impl VelocityGroundConstraint {
         mj_lambdas[self.mj_lambda2 as usize].angular += mj_lambda2.angular;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         // Solve friction.
@@ -290,16 +273,16 @@ impl VelocityGroundConstraint {
         let k_base = self.manifold_contact_id;
 
         for k in 0..self.num_contacts as usize {
-            let active_contacts = manifold.active_contacts_mut();
-            active_contacts[k_base + k].impulse = self.elements[k].normal_part.impulse;
+            let active_contacts = &mut manifold.points[..manifold.data.num_active_contacts()];
+            active_contacts[k_base + k].data.impulse = self.elements[k].normal_part.impulse;
             #[cfg(feature = "dim2")]
             {
-                active_contacts[k_base + k].tangent_impulse =
+                active_contacts[k_base + k].data.tangent_impulse =
                     self.elements[k].tangent_part[0].impulse;
             }
             #[cfg(feature = "dim3")]
             {
-                active_contacts[k_base + k].tangent_impulse = [
+                active_contacts[k_base + k].data.tangent_impulse = [
                     self.elements[k].tangent_part[0].impulse,
                     self.elements[k].tangent_part[1].impulse,
                 ];

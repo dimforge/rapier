@@ -10,6 +10,10 @@ extern crate nphysics2d as nphysics;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 extern crate nphysics3d as nphysics;
 #[cfg(feature = "dim2")]
+extern crate parry2d as parry;
+#[cfg(feature = "dim3")]
+extern crate parry3d as parry;
+#[cfg(feature = "dim2")]
 extern crate rapier2d as rapier;
 #[cfg(feature = "dim3")]
 extern crate rapier3d as rapier;

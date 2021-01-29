@@ -1,7 +1,7 @@
 use crate::dynamics::{BallJoint, IntegrationParameters, RigidBody};
 #[cfg(feature = "dim2")]
 use crate::math::SdpMatrix;
-use crate::math::{AngularInertia, Isometry, Point, Rotation};
+use crate::math::{AngularInertia, Isometry, Point, Real, Rotation};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 
 #[derive(Debug)]
@@ -9,17 +9,17 @@ pub(crate) struct BallPositionConstraint {
     position1: usize,
     position2: usize,
 
-    local_com1: Point<f32>,
-    local_com2: Point<f32>,
+    local_com1: Point<Real>,
+    local_com2: Point<Real>,
 
-    im1: f32,
-    im2: f32,
+    im1: Real,
+    im2: Real,
 
-    ii1: AngularInertia<f32>,
-    ii2: AngularInertia<f32>,
+    ii1: AngularInertia<Real>,
+    ii2: AngularInertia<Real>,
 
-    local_anchor1: Point<f32>,
-    local_anchor2: Point<f32>,
+    local_anchor1: Point<Real>,
+    local_anchor2: Point<Real>,
 }
 
 impl BallPositionConstraint {
@@ -27,10 +27,10 @@ impl BallPositionConstraint {
         Self {
             local_com1: rb1.mass_properties.local_com,
             local_com2: rb2.mass_properties.local_com,
-            im1: rb1.mass_properties.inv_mass,
-            im2: rb2.mass_properties.inv_mass,
-            ii1: rb1.world_inv_inertia_sqrt.squared(),
-            ii2: rb2.world_inv_inertia_sqrt.squared(),
+            im1: rb1.effective_inv_mass,
+            im2: rb2.effective_inv_mass,
+            ii1: rb1.effective_world_inv_inertia_sqrt.squared(),
+            ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
             local_anchor1: cparams.local_anchor1,
             local_anchor2: cparams.local_anchor2,
             position1: rb1.active_set_offset,
@@ -38,7 +38,7 @@ impl BallPositionConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position1 = positions[self.position1 as usize];
         let mut position2 = positions[self.position2 as usize];
 
@@ -95,11 +95,11 @@ impl BallPositionConstraint {
 #[derive(Debug)]
 pub(crate) struct BallPositionGroundConstraint {
     position2: usize,
-    anchor1: Point<f32>,
-    im2: f32,
-    ii2: AngularInertia<f32>,
-    local_anchor2: Point<f32>,
-    local_com2: Point<f32>,
+    anchor1: Point<Real>,
+    im2: Real,
+    ii2: AngularInertia<Real>,
+    local_anchor2: Point<Real>,
+    local_com2: Point<Real>,
 }
 
 impl BallPositionGroundConstraint {
@@ -115,8 +115,8 @@ impl BallPositionGroundConstraint {
             // already been flipped by the caller.
             Self {
                 anchor1: rb1.predicted_position * cparams.local_anchor2,
-                im2: rb2.mass_properties.inv_mass,
-                ii2: rb2.world_inv_inertia_sqrt.squared(),
+                im2: rb2.effective_inv_mass,
+                ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
                 local_anchor2: cparams.local_anchor1,
                 position2: rb2.active_set_offset,
                 local_com2: rb2.mass_properties.local_com,
@@ -124,8 +124,8 @@ impl BallPositionGroundConstraint {
         } else {
             Self {
                 anchor1: rb1.predicted_position * cparams.local_anchor1,
-                im2: rb2.mass_properties.inv_mass,
-                ii2: rb2.world_inv_inertia_sqrt.squared(),
+                im2: rb2.effective_inv_mass,
+                ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
                 local_anchor2: cparams.local_anchor2,
                 position2: rb2.active_set_offset,
                 local_com2: rb2.mass_properties.local_com,
@@ -133,7 +133,7 @@ impl BallPositionGroundConstraint {
         }
     }
 
-    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<f32>]) {
+    pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position2 = positions[self.position2 as usize];
 
         let anchor2 = position2 * self.local_anchor2;

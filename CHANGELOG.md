@@ -1,3 +1,63 @@
+## v0.5.0
+In this release we are dropping `ncollide` and use our new crate [`parry`](https://parry.rs)
+instead! This comes with a lot of new features, as well as two new crates: `rapier2d-f64` and
+`rapier3d-f64` for physics simulation with 64-bits floats.
+
+### Added
+- Added a `RAPIER.version()` function at the root of the package to retrieve the version of Rapier
+  as a string.
+
+Several geometric queries have been added to the `QueryPipeline`:
+- `QueryPipeline::intersections_with_ray`: get all colliders intersecting a ray.
+- `QueryPipeline::intersection_with_shape`: get one collider intersecting a shape.
+- `QueryPipeline::project_point`: get the projection of a point on the closest collider.
+- `QueryPipeline::intersections_with_point`: get all the colliders containing a point.
+- `QueryPipeline::cast_shape`: get the first collider intersecting a shape moving linearly
+  (aka. sweep test).
+- `QueryPipeline::intersections_with_shape`: get all the colliders intersecting a shape.
+
+Several new shape types are now supported:
+- `RoundCuboid`, `Segment`, `Triangle`, `RoundTriangle`, `Polyline`, `ConvexPolygon` (2D only),
+  `RoundConvexPolygon` (2D only), `ConvexPolyhedron` (3D only), `RoundConvexPolyhedron` (3D only),
+  `RoundCone` (3D only).
+
+It is possible to build `ColliderDesc` using these new shapes:
+- `ColliderBuilder::round_cuboid`, `ColliderBuilder::segment`, `ColliderBuilder::triangle`, `ColliderBuilder::round_triangle`,
+  `ColliderBuilder::convex_hull`, `ColliderBuilder::round_convex_hull`, `ColliderBuilder::polyline`,
+  `ColliderBuilder::convex_polyline` (2D only), `ColliderBuilder::round_convex_polyline` (2D only),
+  `ColliderBuilder::convex_mesh` (3D only),`ColliderBuilder::round_convex_mesh` (3D only), `ColliderBuilder::round_cone` (3D only).
+
+It is possible to specify different rules for combining friction and restitution coefficients
+of the two colliders involved in a contact with:
+- `ColliderDesc::friction_combine_rule`, and `ColliderDesc::restitution_combine_rule`.
+
+Various RigidBody-related getter and setters have been added:
+- `RigidBodyBuilder::gravity_scale`, `RigidBody::gravity_scale`, `RigidBody::set_gravity_scale` to get/set the scale
+  factor applied to the gravity affecting a rigid-body. Setting this to 0.0 will make the rigid-body ignore gravity.
+- `RigidBody::set_linear_damping` and `RigidBody::set_angular_damping` to set the linear and angular damping of
+  the rigid-body.
+- `RigidBodyBuilder::restrict_rotations` to prevent rotations along specific coordinate axes. This replaces the three
+  boolean arguments previously passed to `.set_principal_angular_inertia`.
+  
+### Breaking changes
+Breaking changes related to contacts:
+- The way contacts are represented changed. Refer to the documentation of `parry::query::ContactManifold`, `parry::query::TrackedContact`
+  and `rapier::geometry::ContactManifoldData` and `rapier::geometry::ContactData` for details.
+
+Breaking changes related to rigid-bodies:
+- The `RigidBodyDesc.setMass` takes only one argument now. Use `RigidBodyDesc.lockTranslations` to lock the translational
+  motion of the rigid-body.
+- The `RigidBodyDesc.setPrincipalAngularInertia` no longer have boolean parameters to lock rotations.
+  Use `RigidBodyDesc.lockRotations` or `RigidBodyDesc.restrictRotations` to lock the rotational motion of the rigid-body.
+
+Breaking changes related to colliders:
+- The `Polygon` shape no longer exists. For a 2D convex polygon, use a `ConvexPolygon` instead.
+- All occurrences of `Trimesh` have been replaced by `TriMesh` (note the change in case).
+
+Breaking changes related to events:
+- Rename all occurrences of `Proximity` to `Intersection`.
+- The `Proximity` enum has been removed, it's replaced by a boolean.
+
 ## v0.4.2
 - Fix a bug in angular inertia tensor computation that could cause rotations not to
   work properly.

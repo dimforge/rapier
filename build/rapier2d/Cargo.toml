@@ -7,13 +7,18 @@ documentation = "http://docs.rs/rapier2d"
 homepage = "http://rapier.rs"
 repository = "https://github.com/dimforge/rapier"
 readme = "README.md"
+categories = [ "science", "game-development", "mathematics", "simulation", "wasm"]
 keywords = [ "physics", "dynamics", "rigid", "real-time", "joints" ]
 license = "Apache-2.0"
 edition = "2018"
 
+[badges]
+maintenance = { status = "actively-developed" }
+
 [features]
-default = [ "dim2" ]
+default = [ "dim2", "f32" ]
 dim2    = [ ]
+f32     = [ ]
 parallel = [ "rayon" ]
 simd-stable = [ "simba/wide", "simd-is-enabled" ]
 simd-nightly = [ "simba/packed_simd", "simd-is-enabled" ]
@@ -21,21 +26,21 @@ simd-nightly = [ "simba/packed_simd", "simd-is-enabled" ]
 # enabled with the "simd-stable" or "simd-nightly" feature.
 simd-is-enabled = [ ]
 wasm-bindgen = [ "instant/wasm-bindgen" ]
-serde-serialize = [ "erased-serde", "nalgebra/serde-serialize", "ncollide2d/serde-serialize", "serde", "generational-arena/serde", "bit-vec/serde", "arrayvec/serde" ]
-enhanced-determinism = [ "simba/libm_force", "indexmap" ]
+serde-serialize = [ "erased-serde", "nalgebra/serde-serialize", "parry2d/serde-serialize", "serde", "generational-arena/serde", "bit-vec/serde", "arrayvec/serde" ]
+enhanced-determinism = [ "simba/libm_force", "parry2d/enhanced-determinism", "indexmap" ]
 
 [lib]
 name = "rapier2d"
 path = "../../src/lib.rs"
-required-features = [ "dim2" ]
+required-features = [ "dim2", "f32" ]
 
 
 [dependencies]
 vec_map = "0.8"
 instant = { version = "0.1", features = [ "now" ]}
 num-traits = "0.2"
-nalgebra = "0.23"
-ncollide2d = "0.26"
+nalgebra = "0.24"
+parry2d = "0.1"
 simba = "0.3"
 approx = "0.4"
 rayon = { version = "1", optional = true }

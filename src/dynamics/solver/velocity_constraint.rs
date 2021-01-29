@@ -4,7 +4,7 @@ use crate::dynamics::solver::VelocityGroundConstraint;
 use crate::dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{AngVector, Vector, DIM, MAX_MANIFOLD_POINTS};
+use crate::math::{AngVector, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{WAngularInertia, WBasis, WCross, WDot};
 use simba::simd::SimdPartialOrd;
 
@@ -40,7 +40,7 @@ impl AnyVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         match self {
             AnyVelocityConstraint::NongroupedGround(c) => c.warmstart(mj_lambdas),
             AnyVelocityConstraint::Nongrouped(c) => c.warmstart(mj_lambdas),
@@ -52,7 +52,7 @@ impl AnyVelocityConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         match self {
             AnyVelocityConstraint::NongroupedGround(c) => c.solve(mj_lambdas),
             AnyVelocityConstraint::Nongrouped(c) => c.solve(mj_lambdas),
@@ -79,11 +79,11 @@ impl AnyVelocityConstraint {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct VelocityConstraintElementPart {
-    pub gcross1: AngVector<f32>,
-    pub gcross2: AngVector<f32>,
-    pub rhs: f32,
-    pub impulse: f32,
-    pub r: f32,
+    pub gcross1: AngVector<Real>,
+    pub gcross2: AngVector<Real>,
+    pub rhs: Real,
+    pub impulse: Real,
+    pub r: Real,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -117,10 +117,10 @@ impl VelocityConstraintElement {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct VelocityConstraint {
-    pub dir1: Vector<f32>, // Non-penetration force direction for the first body.
-    pub im1: f32,
-    pub im2: f32,
-    pub limit: f32,
+    pub dir1: Vector<Real>, // Non-penetration force direction for the first body.
+    pub im1: Real,
+    pub im2: Real,
+    pub limit: Real,
     pub mj_lambda1: usize,
     pub mj_lambda2: usize,
     pub manifold_id: ContactManifoldIndex,
@@ -132,8 +132,8 @@ pub(crate) struct VelocityConstraint {
 impl VelocityConstraint {
     #[cfg(feature = "parallel")]
     pub fn num_active_constraints(manifold: &ContactManifold) -> usize {
-        let rest = manifold.num_active_contacts() % MAX_MANIFOLD_POINTS != 0;
-        manifold.num_active_contacts() / MAX_MANIFOLD_POINTS + rest as usize
+        let rest = manifold.data.solver_contacts.len() % MAX_MANIFOLD_POINTS != 0;
+        manifold.data.solver_contacts.len() / MAX_MANIFOLD_POINTS + rest as usize
     }
 
     pub fn generate(
@@ -145,17 +145,16 @@ impl VelocityConstraint {
         push: bool,
     ) {
         let inv_dt = params.inv_dt();
-        let rb1 = &bodies[manifold.body_pair.body1];
-        let rb2 = &bodies[manifold.body_pair.body2];
+        let rb1 = &bodies[manifold.data.body_pair.body1];
+        let rb2 = &bodies[manifold.data.body_pair.body2];
         let mj_lambda1 = rb1.active_set_offset;
         let mj_lambda2 = rb2.active_set_offset;
-        let pos_coll1 = rb1.position * manifold.delta1;
-        let pos_coll2 = rb2.position * manifold.delta2;
-        let force_dir1 = pos_coll1 * (-manifold.local_n1);
-        let warmstart_coeff = manifold.warmstart_multiplier * params.warmstart_coeff;
+        let force_dir1 = -manifold.data.normal;
+        let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
 
         for (l, manifold_points) in manifold
-            .active_contacts()
+            .data
+            .solver_contacts
             .chunks(MAX_MANIFOLD_POINTS)
             .enumerate()
         {
@@ -163,9 +162,9 @@ impl VelocityConstraint {
             let mut constraint = VelocityConstraint {
                 dir1: force_dir1,
                 elements: [VelocityConstraintElement::zero(); MAX_MANIFOLD_POINTS],
-                im1: rb1.mass_properties.inv_mass,
-                im2: rb2.mass_properties.inv_mass,
-                limit: manifold.friction,
+                im1: rb1.effective_inv_mass,
+                im2: rb2.effective_inv_mass,
+                limit: 0.0,
                 mj_lambda1,
                 mj_lambda2,
                 manifold_id,
@@ -206,9 +205,9 @@ impl VelocityConstraint {
             #[cfg(target_arch = "wasm32")]
             {
                 constraint.dir1 = force_dir1;
-                constraint.im1 = rb1.mass_properties.inv_mass;
-                constraint.im2 = rb2.mass_properties.inv_mass;
-                constraint.limit = manifold.friction;
+                constraint.im1 = rb1.effective_inv_mass;
+                constraint.im2 = rb2.effective_inv_mass;
+                constraint.limit = 0.0;
                 constraint.mj_lambda1 = mj_lambda1;
                 constraint.mj_lambda2 = mj_lambda2;
                 constraint.manifold_id = manifold_id;
@@ -218,36 +217,37 @@ impl VelocityConstraint {
 
             for k in 0..manifold_points.len() {
                 let manifold_point = &manifold_points[k];
-                let dp1 = (pos_coll1 * manifold_point.local_p1) - rb1.world_com;
-                let dp2 = (pos_coll2 * manifold_point.local_p2) - rb2.world_com;
+                let dp1 = manifold_point.point - rb1.world_com;
+                let dp2 = manifold_point.point - rb2.world_com;
 
                 let vel1 = rb1.linvel + rb1.angvel.gcross(dp1);
                 let vel2 = rb2.linvel + rb2.angvel.gcross(dp2);
 
+                constraint.limit = manifold_point.friction;
                 // Normal part.
                 {
                     let gcross1 = rb1
-                        .world_inv_inertia_sqrt
+                        .effective_world_inv_inertia_sqrt
                         .transform_vector(dp1.gcross(force_dir1));
                     let gcross2 = rb2
-                        .world_inv_inertia_sqrt
+                        .effective_world_inv_inertia_sqrt
                         .transform_vector(dp2.gcross(-force_dir1));
 
                     let r = 1.0
-                        / (rb1.mass_properties.inv_mass
-                            + rb2.mass_properties.inv_mass
+                        / (rb1.effective_inv_mass
+                            + rb2.effective_inv_mass
                             + gcross1.gdot(gcross1)
                             + gcross2.gdot(gcross2));
 
                     let mut rhs = (vel1 - vel2).dot(&force_dir1);
 
                     if rhs <= -params.restitution_velocity_threshold {
-                        rhs += manifold.restitution * rhs
+                        rhs += manifold_point.restitution * rhs
                     }
 
                     rhs += manifold_point.dist.max(0.0) * inv_dt;
 
-                    let impulse = manifold_points[k].impulse * warmstart_coeff;
+                    let impulse = manifold_point.data.impulse * warmstart_coeff;
 
                     constraint.elements[k].normal_part = VelocityConstraintElementPart {
                         gcross1,
@@ -264,21 +264,21 @@ impl VelocityConstraint {
 
                     for j in 0..DIM - 1 {
                         let gcross1 = rb1
-                            .world_inv_inertia_sqrt
+                            .effective_world_inv_inertia_sqrt
                             .transform_vector(dp1.gcross(tangents1[j]));
                         let gcross2 = rb2
-                            .world_inv_inertia_sqrt
+                            .effective_world_inv_inertia_sqrt
                             .transform_vector(dp2.gcross(-tangents1[j]));
                         let r = 1.0
-                            / (rb1.mass_properties.inv_mass
-                                + rb2.mass_properties.inv_mass
+                            / (rb1.effective_inv_mass
+                                + rb2.effective_inv_mass
                                 + gcross1.gdot(gcross1)
                                 + gcross2.gdot(gcross2));
                         let rhs = (vel1 - vel2).dot(&tangents1[j]);
                         #[cfg(feature = "dim2")]
-                        let impulse = manifold_points[k].tangent_impulse * warmstart_coeff;
+                        let impulse = manifold_point.data.tangent_impulse * warmstart_coeff;
                         #[cfg(feature = "dim3")]
-                        let impulse = manifold_points[k].tangent_impulse[j] * warmstart_coeff;
+                        let impulse = manifold_point.data.tangent_impulse[j] * warmstart_coeff;
 
                         constraint.elements[k].tangent_part[j] = VelocityConstraintElementPart {
                             gcross1,
@@ -295,13 +295,13 @@ impl VelocityConstraint {
             if push {
                 out_constraints.push(AnyVelocityConstraint::Nongrouped(constraint));
             } else {
-                out_constraints[manifold.constraint_index + l] =
+                out_constraints[manifold.data.constraint_index + l] =
                     AnyVelocityConstraint::Nongrouped(constraint);
             }
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = DeltaVel::zero();
         let mut mj_lambda2 = DeltaVel::zero();
 
@@ -332,7 +332,7 @@ impl VelocityConstraint {
         mj_lambdas[self.mj_lambda2 as usize].angular += mj_lambda2.angular;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
@@ -388,16 +388,16 @@ impl VelocityConstraint {
         let k_base = self.manifold_contact_id;
 
         for k in 0..self.num_contacts as usize {
-            let active_contacts = manifold.active_contacts_mut();
-            active_contacts[k_base + k].impulse = self.elements[k].normal_part.impulse;
+            let active_contacts = &mut manifold.points[..manifold.data.num_active_contacts()];
+            active_contacts[k_base + k].data.impulse = self.elements[k].normal_part.impulse;
             #[cfg(feature = "dim2")]
             {
-                active_contacts[k_base + k].tangent_impulse =
+                active_contacts[k_base + k].data.tangent_impulse =
                     self.elements[k].tangent_part[0].impulse;
             }
             #[cfg(feature = "dim3")]
             {
-                active_contacts[k_base + k].tangent_impulse = [
+                active_contacts[k_base + k].data.tangent_impulse = [
                     self.elements[k].tangent_part[0].impulse,
                     self.elements[k].tangent_part[1].impulse,
                 ];

@@ -1,5 +1,4 @@
 use crate::data::graph::{Direction, EdgeIndex, Graph, NodeIndex};
-use crate::geometry::ColliderHandle;
 
 /// Index of a node of the interaction graph.
 pub type ColliderGraphIndex = NodeIndex;
@@ -11,11 +10,11 @@ pub type TemporaryInteractionIndex = EdgeIndex;
 /// A graph where nodes are collision objects and edges are contact or proximity algorithms.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
-pub struct InteractionGraph<T> {
-    pub(crate) graph: Graph<ColliderHandle, T>,
+pub struct InteractionGraph<N, E> {
+    pub(crate) graph: Graph<N, E>,
 }
 
-impl<T> InteractionGraph<T> {
+impl<N: Copy, E> InteractionGraph<N, E> {
     /// Creates a new empty collection of collision objects.
     pub fn new() -> Self {
         InteractionGraph {
@@ -24,7 +23,7 @@ impl<T> InteractionGraph<T> {
     }
 
     /// The underlying raw graph structure of this interaction graph.
-    pub fn raw_graph(&self) -> &Graph<ColliderHandle, T> {
+    pub fn raw_graph(&self) -> &Graph<N, E> {
         &self.graph
     }
 
@@ -40,7 +39,7 @@ impl<T> InteractionGraph<T> {
         &mut self,
         index1: ColliderGraphIndex,
         index2: ColliderGraphIndex,
-        interaction: T,
+        interaction: E,
     ) -> TemporaryInteractionIndex {
         self.graph.add_edge(index1, index2, interaction)
     }
@@ -49,7 +48,7 @@ impl<T> InteractionGraph<T> {
         &mut self,
         index1: ColliderGraphIndex,
         index2: ColliderGraphIndex,
-    ) -> Option<T> {
+    ) -> Option<E> {
         let id = self.graph.find_edge(index1, index2)?;
         self.graph.remove_edge(id)
     }
@@ -69,14 +68,25 @@ impl<T> InteractionGraph<T> {
     /// }
     /// ```
     #[must_use = "The graph index of the collision object returned by this method has been changed to `id`."]
-    pub(crate) fn remove_node(&mut self, id: ColliderGraphIndex) -> Option<ColliderHandle> {
+    pub(crate) fn remove_node(&mut self, id: ColliderGraphIndex) -> Option<N> {
         let _ = self.graph.remove_node(id);
         self.graph.node_weight(id).cloned()
     }
 
     /// All the interactions on this graph.
-    pub fn interactions(&self) -> impl Iterator<Item = &T> {
+    pub fn interactions(&self) -> impl Iterator<Item = &E> {
         self.graph.raw_edges().iter().map(move |edge| &edge.weight)
+    }
+
+    /// All the interactions on this graph with the corresponding endpoint weights.
+    pub fn interactions_with_endpoints(&self) -> impl Iterator<Item = (N, N, &E)> {
+        self.graph.raw_edges().iter().map(move |edge| {
+            (
+                self.graph.raw_nodes()[edge.source().index()].weight,
+                self.graph.raw_nodes()[edge.target().index()].weight,
+                &edge.weight,
+            )
+        })
     }
 
     /// The interaction between the two collision objects identified by their graph index.
@@ -84,7 +94,7 @@ impl<T> InteractionGraph<T> {
         &self,
         id1: ColliderGraphIndex,
         id2: ColliderGraphIndex,
-    ) -> Option<(ColliderHandle, ColliderHandle, &T)> {
+    ) -> Option<(N, N, &E)> {
         self.graph.find_edge(id1, id2).and_then(|edge| {
             let endpoints = self.graph.edge_endpoints(edge)?;
             let h1 = self.graph.node_weight(endpoints.0)?;
@@ -99,7 +109,7 @@ impl<T> InteractionGraph<T> {
         &mut self,
         id1: ColliderGraphIndex,
         id2: ColliderGraphIndex,
-    ) -> Option<(ColliderHandle, ColliderHandle, &mut T)> {
+    ) -> Option<(N, N, &mut E)> {
         let edge = self.graph.find_edge(id1, id2)?;
         let endpoints = self.graph.edge_endpoints(edge)?;
         let h1 = *self.graph.node_weight(endpoints.0)?;
@@ -109,10 +119,7 @@ impl<T> InteractionGraph<T> {
     }
 
     /// All the interaction involving the collision object with graph index `id`.
-    pub fn interactions_with(
-        &self,
-        id: ColliderGraphIndex,
-    ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, &T)> {
+    pub fn interactions_with(&self, id: ColliderGraphIndex) -> impl Iterator<Item = (N, N, &E)> {
         self.graph.edges(id).filter_map(move |e| {
             let endpoints = self.graph.edge_endpoints(e.id()).unwrap();
             Some((self.graph[endpoints.0], self.graph[endpoints.1], e.weight()))
@@ -120,10 +127,7 @@ impl<T> InteractionGraph<T> {
     }
 
     /// Gets the interaction with the given index.
-    pub fn index_interaction(
-        &self,
-        id: TemporaryInteractionIndex,
-    ) -> Option<(ColliderHandle, ColliderHandle, &T)> {
+    pub fn index_interaction(&self, id: TemporaryInteractionIndex) -> Option<(N, N, &E)> {
         if let (Some(e), Some(endpoints)) =
             (self.graph.edge_weight(id), self.graph.edge_endpoints(id))
         {
@@ -137,14 +141,7 @@ impl<T> InteractionGraph<T> {
     pub fn interactions_with_mut(
         &mut self,
         id: ColliderGraphIndex,
-    ) -> impl Iterator<
-        Item = (
-            ColliderHandle,
-            ColliderHandle,
-            TemporaryInteractionIndex,
-            &mut T,
-        ),
-    > {
+    ) -> impl Iterator<Item = (N, N, TemporaryInteractionIndex, &mut E)> {
         let incoming_edge = self.graph.first_edge(id, Direction::Incoming);
         let outgoing_edge = self.graph.first_edge(id, Direction::Outgoing);
 
@@ -159,7 +156,7 @@ impl<T> InteractionGraph<T> {
     // pub fn colliders_interacting_with<'a>(
     //     &'a self,
     //     id: ColliderGraphIndex,
-    // ) -> impl Iterator<Item = ColliderHandle> + 'a {
+    // ) -> impl Iterator<Item = N> + 'a {
     //     self.graph.edges(id).filter_map(move |e| {
     //         let inter = e.weight();
     //
@@ -175,7 +172,7 @@ impl<T> InteractionGraph<T> {
     // pub fn colliders_in_contact_with<'a>(
     //     &'a self,
     //     id: ColliderGraphIndex,
-    // ) -> impl Iterator<Item = ColliderHandle> + 'a {
+    // ) -> impl Iterator<Item = N> + 'a {
     //     self.graph.edges(id).filter_map(move |e| {
     //         let inter = e.weight();
     //
@@ -196,7 +193,7 @@ impl<T> InteractionGraph<T> {
     // pub fn colliders_in_proximity_of<'a>(
     //     &'a self,
     //     id: ColliderGraphIndex,
-    // ) -> impl Iterator<Item = ColliderHandle> + 'a {
+    // ) -> impl Iterator<Item = N> + 'a {
     //     self.graph.edges(id).filter_map(move |e| {
     //         if let Interaction::Proximity(_, prox) = e.weight() {
     //             if *prox == Proximity::Intersecting {
@@ -213,29 +210,17 @@ impl<T> InteractionGraph<T> {
     // }
 }
 
-pub struct InteractionsWithMut<'a, T> {
-    graph: &'a mut Graph<ColliderHandle, T>,
+pub struct InteractionsWithMut<'a, N, E> {
+    graph: &'a mut Graph<N, E>,
     incoming_edge: Option<EdgeIndex>,
     outgoing_edge: Option<EdgeIndex>,
 }
 
-impl<'a, T> Iterator for InteractionsWithMut<'a, T> {
-    type Item = (
-        ColliderHandle,
-        ColliderHandle,
-        TemporaryInteractionIndex,
-        &'a mut T,
-    );
+impl<'a, N: Copy, E> Iterator for InteractionsWithMut<'a, N, E> {
+    type Item = (N, N, TemporaryInteractionIndex, &'a mut E);
 
     #[inline]
-    fn next(
-        &mut self,
-    ) -> Option<(
-        ColliderHandle,
-        ColliderHandle,
-        TemporaryInteractionIndex,
-        &'a mut T,
-    )> {
+    fn next(&mut self) -> Option<(N, N, TemporaryInteractionIndex, &'a mut E)> {
         if let Some(edge) = self.incoming_edge {
             self.incoming_edge = self.graph.next_edge(edge, Direction::Incoming);
             let endpoints = self.graph.edge_endpoints(edge).unwrap();

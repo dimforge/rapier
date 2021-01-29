@@ -9,11 +9,13 @@ pub struct Cylinder {
     base_color: Point3<f32>,
     gfx: GraphicsNode,
     collider: ColliderHandle,
+    delta: Isometry<f32>,
 }
 
 impl Cylinder {
     pub fn new(
         collider: ColliderHandle,
+        delta: Isometry<f32>,
         half_height: f32,
         radius: f32,
         color: Point3<f32>,
@@ -29,6 +31,7 @@ impl Cylinder {
             base_color: color,
             gfx: node,
             collider,
+            delta,
         };
 
         // res.gfx.set_texture_from_file(&Path::new("media/kitten.png"), "kitten");
@@ -56,7 +59,7 @@ impl Cylinder {
             colliders,
             self.collider,
             &self.color,
-            &Isometry::identity(),
+            &self.delta,
         );
     }
 

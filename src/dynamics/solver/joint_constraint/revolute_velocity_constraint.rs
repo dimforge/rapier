@@ -2,7 +2,7 @@ use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
     IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RevoluteJoint, RigidBody,
 };
-use crate::math::{AngularInertia, Vector};
+use crate::math::{AngularInertia, Real, Vector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
 
@@ -13,20 +13,20 @@ pub(crate) struct RevoluteVelocityConstraint {
 
     joint_id: JointIndex,
 
-    r1: Vector<f32>,
-    r2: Vector<f32>,
+    r1: Vector<Real>,
+    r2: Vector<Real>,
 
-    inv_lhs: Matrix5<f32>,
-    rhs: Vector5<f32>,
-    impulse: Vector5<f32>,
+    inv_lhs: Matrix5<Real>,
+    rhs: Vector5<Real>,
+    impulse: Vector5<Real>,
 
-    basis1: Matrix3x2<f32>,
+    basis1: Matrix3x2<Real>,
 
-    im1: f32,
-    im2: f32,
+    im1: Real,
+    im2: Real,
 
-    ii1_sqrt: AngularInertia<f32>,
-    ii2_sqrt: AngularInertia<f32>,
+    ii1_sqrt: AngularInertia<Real>,
+    ii2_sqrt: AngularInertia<Real>,
 }
 
 impl RevoluteVelocityConstraint {
@@ -52,14 +52,14 @@ impl RevoluteVelocityConstraint {
         //        let basis2 = r21 * basis1;
         // NOTE: to simplify, we use basis2 = basis1.
         // Though we may want to test if that does not introduce any instability.
-        let im1 = rb1.mass_properties.inv_mass;
-        let im2 = rb2.mass_properties.inv_mass;
+        let im1 = rb1.effective_inv_mass;
+        let im2 = rb2.effective_inv_mass;
 
-        let ii1 = rb1.world_inv_inertia_sqrt.squared();
+        let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
         let r1 = anchor1 - rb1.world_com;
         let r1_mat = r1.gcross_matrix();
 
-        let ii2 = rb2.world_inv_inertia_sqrt.squared();
+        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
         let r2 = anchor2 - rb2.world_com;
         let r2_mat = r2.gcross_matrix();
 
@@ -87,10 +87,10 @@ impl RevoluteVelocityConstraint {
             mj_lambda1: rb1.active_set_offset,
             mj_lambda2: rb2.active_set_offset,
             im1,
-            ii1_sqrt: rb1.world_inv_inertia_sqrt,
+            ii1_sqrt: rb1.effective_world_inv_inertia_sqrt,
             basis1,
             im2,
-            ii2_sqrt: rb2.world_inv_inertia_sqrt,
+            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse: cparams.impulse * params.warmstart_coeff,
             inv_lhs,
             rhs,
@@ -99,7 +99,7 @@ impl RevoluteVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
@@ -120,7 +120,7 @@ impl RevoluteVelocityConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
@@ -165,17 +165,17 @@ pub(crate) struct RevoluteVelocityGroundConstraint {
 
     joint_id: JointIndex,
 
-    r2: Vector<f32>,
+    r2: Vector<Real>,
 
-    inv_lhs: Matrix5<f32>,
-    rhs: Vector5<f32>,
-    impulse: Vector5<f32>,
+    inv_lhs: Matrix5<Real>,
+    rhs: Vector5<Real>,
+    impulse: Vector5<Real>,
 
-    basis1: Matrix3x2<f32>,
+    basis1: Matrix3x2<Real>,
 
-    im2: f32,
+    im2: Real,
 
-    ii2_sqrt: AngularInertia<f32>,
+    ii2_sqrt: AngularInertia<Real>,
 }
 
 impl RevoluteVelocityGroundConstraint {
@@ -212,8 +212,8 @@ impl RevoluteVelocityGroundConstraint {
         //            .to_rotation_matrix()
         //            .into_inner();
         //        let basis2 = /*r21 * */ basis1;
-        let im2 = rb2.mass_properties.inv_mass;
-        let ii2 = rb2.world_inv_inertia_sqrt.squared();
+        let im2 = rb2.effective_inv_mass;
+        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
         let r1 = anchor1 - rb1.world_com;
         let r2 = anchor2 - rb2.world_com;
         let r2_mat = r2.gcross_matrix();
@@ -240,7 +240,7 @@ impl RevoluteVelocityGroundConstraint {
             joint_id,
             mj_lambda2: rb2.active_set_offset,
             im2,
-            ii2_sqrt: rb2.world_inv_inertia_sqrt,
+            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse: cparams.impulse * params.warmstart_coeff,
             basis1,
             inv_lhs,
@@ -249,7 +249,7 @@ impl RevoluteVelocityGroundConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         let lin_impulse = self.impulse.fixed_rows::<U3>(0).into_owned();
@@ -263,7 +263,7 @@ impl RevoluteVelocityGroundConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<f32>]) {
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);

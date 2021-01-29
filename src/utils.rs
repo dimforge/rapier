@@ -1,45 +1,22 @@
 //! Miscellaneous utilities.
 
-use crate::dynamics::RigidBodyHandle;
-use na::{Matrix2, Matrix3, Matrix3x2, Point2, Point3, Scalar, SimdRealField, Vector2, Vector3};
+use na::{Matrix3, Point2, Point3, Scalar, SimdRealField, Vector2, Vector3};
 use num::Zero;
 use simba::simd::SimdValue;
 
-use std::ops::{Add, Mul};
+use parry::utils::SdpMatrix3;
 use {
-    crate::simd::{SimdBool, SimdFloat},
+    crate::math::{Real, SimdReal},
     na::SimdPartialOrd,
     num::One,
 };
 
-// pub(crate) const SIN_10_DEGREES: f32 = 0.17364817766;
-// pub(crate) const COS_10_DEGREES: f32 = 0.98480775301;
-// pub(crate) const COS_45_DEGREES: f32 = 0.70710678118;
-// pub(crate) const SIN_45_DEGREES: f32 = COS_45_DEGREES;
-#[cfg(feature = "dim3")]
-pub(crate) const COS_1_DEGREES: f32 = 0.99984769515;
-pub(crate) const COS_5_DEGREES: f32 = 0.99619469809;
-// #[cfg(feature = "dim2")]
-pub(crate) const COS_FRAC_PI_8: f32 = 0.92387953251;
-#[cfg(feature = "dim2")]
-pub(crate) const SIN_FRAC_PI_8: f32 = 0.38268343236;
-
-pub(crate) fn inv(val: f32) -> f32 {
+pub(crate) fn inv(val: Real) -> Real {
     if val == 0.0 {
         0.0
     } else {
         1.0 / val
     }
-}
-
-/// Conditionally swaps each lanes of `a` with those of `b`.
-///
-/// For each `i in [0..SIMD_WIDTH[`, if `do_swap.extract(i)` is `true` then
-/// `a.extract(i)` is swapped with `b.extract(i)`.
-pub fn simd_swap(do_swap: SimdBool, a: &mut SimdFloat, b: &mut SimdFloat) {
-    let _a = *a;
-    *a = b.select(do_swap, *a);
-    *b = _a.select(do_swap, *b);
 }
 
 /// Trait to copy the sign of each component of one scalar/vector/matrix to another.
@@ -49,10 +26,11 @@ pub trait WSign<Rhs>: Sized {
     fn copy_sign_to(self, to: Rhs) -> Rhs;
 }
 
-impl WSign<f32> for f32 {
+impl WSign<Real> for Real {
     fn copy_sign_to(self, to: Self) -> Self {
-        let signbit: u32 = (-0.0f32).to_bits();
-        f32::from_bits((signbit & self.to_bits()) | ((!signbit) & to.to_bits()))
+        const MINUS_ZERO: Real = -0.0;
+        let signbit = MINUS_ZERO.to_bits();
+        Real::from_bits((signbit & self.to_bits()) | ((!signbit) & to.to_bits()))
     }
 }
 
@@ -88,8 +66,8 @@ impl<N: Scalar + Copy + WSign<N>> WSign<Vector3<N>> for Vector3<N> {
     }
 }
 
-impl WSign<SimdFloat> for SimdFloat {
-    fn copy_sign_to(self, to: SimdFloat) -> SimdFloat {
+impl WSign<SimdReal> for SimdReal {
+    fn copy_sign_to(self, to: SimdReal) -> SimdReal {
         to.simd_copysign(self)
     }
 }
@@ -101,8 +79,8 @@ pub(crate) trait WComponent: Sized {
     fn max_component(self) -> Self::Element;
 }
 
-impl WComponent for f32 {
-    type Element = f32;
+impl WComponent for Real {
+    type Element = Real;
 
     fn min_component(self) -> Self::Element {
         self
@@ -112,8 +90,8 @@ impl WComponent for f32 {
     }
 }
 
-impl WComponent for SimdFloat {
-    type Element = f32;
+impl WComponent for SimdReal {
+    type Element = Real;
 
     fn min_component(self) -> Self::Element {
         self.simd_horizontal_min()
@@ -247,8 +225,8 @@ pub(crate) trait WCrossMatrix: Sized {
     fn gcross_matrix(self) -> Self::CrossMat;
 }
 
-impl WCrossMatrix for Vector3<f32> {
-    type CrossMat = Matrix3<f32>;
+impl WCrossMatrix for Vector3<Real> {
+    type CrossMat = Matrix3<Real>;
 
     #[inline]
     #[rustfmt::skip]
@@ -261,8 +239,8 @@ impl WCrossMatrix for Vector3<f32> {
     }
 }
 
-impl WCrossMatrix for Vector2<f32> {
-    type CrossMat = Vector2<f32>;
+impl WCrossMatrix for Vector2<Real> {
+    type CrossMat = Vector2<Real>;
 
     #[inline]
     fn gcross_matrix(self) -> Self::CrossMat {
@@ -275,26 +253,26 @@ pub(crate) trait WCross<Rhs>: Sized {
     fn gcross(&self, rhs: Rhs) -> Self::Result;
 }
 
-impl WCross<Vector3<f32>> for Vector3<f32> {
+impl WCross<Vector3<Real>> for Vector3<Real> {
     type Result = Self;
 
-    fn gcross(&self, rhs: Vector3<f32>) -> Self::Result {
+    fn gcross(&self, rhs: Vector3<Real>) -> Self::Result {
         self.cross(&rhs)
     }
 }
 
-impl WCross<Vector2<f32>> for Vector2<f32> {
-    type Result = f32;
+impl WCross<Vector2<Real>> for Vector2<Real> {
+    type Result = Real;
 
-    fn gcross(&self, rhs: Vector2<f32>) -> Self::Result {
+    fn gcross(&self, rhs: Vector2<Real>) -> Self::Result {
         self.x * rhs.y - self.y * rhs.x
     }
 }
 
-impl WCross<Vector2<f32>> for f32 {
-    type Result = Vector2<f32>;
+impl WCross<Vector2<Real>> for Real {
+    type Result = Vector2<Real>;
 
-    fn gcross(&self, rhs: Vector2<f32>) -> Self::Result {
+    fn gcross(&self, rhs: Vector2<Real>) -> Self::Result {
         Vector2::new(-rhs.y * *self, rhs.x * *self)
     }
 }
@@ -304,46 +282,46 @@ pub(crate) trait WDot<Rhs>: Sized {
     fn gdot(&self, rhs: Rhs) -> Self::Result;
 }
 
-impl WDot<Vector3<f32>> for Vector3<f32> {
-    type Result = f32;
+impl WDot<Vector3<Real>> for Vector3<Real> {
+    type Result = Real;
 
-    fn gdot(&self, rhs: Vector3<f32>) -> Self::Result {
+    fn gdot(&self, rhs: Vector3<Real>) -> Self::Result {
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
     }
 }
 
-impl WDot<Vector2<f32>> for Vector2<f32> {
-    type Result = f32;
+impl WDot<Vector2<Real>> for Vector2<Real> {
+    type Result = Real;
 
-    fn gdot(&self, rhs: Vector2<f32>) -> Self::Result {
+    fn gdot(&self, rhs: Vector2<Real>) -> Self::Result {
         self.x * rhs.x + self.y * rhs.y
     }
 }
 
-impl WDot<f32> for f32 {
-    type Result = f32;
+impl WDot<Real> for Real {
+    type Result = Real;
 
-    fn gdot(&self, rhs: f32) -> Self::Result {
+    fn gdot(&self, rhs: Real) -> Self::Result {
         *self * rhs
     }
 }
 
-impl WCrossMatrix for Vector3<SimdFloat> {
-    type CrossMat = Matrix3<SimdFloat>;
+impl WCrossMatrix for Vector3<SimdReal> {
+    type CrossMat = Matrix3<SimdReal>;
 
     #[inline]
     #[rustfmt::skip]
     fn gcross_matrix(self) -> Self::CrossMat {
         Matrix3::new(
-            SimdFloat::zero(), -self.z, self.y,
-            self.z, SimdFloat::zero(), -self.x,
-            -self.y, self.x, SimdFloat::zero(),
+            SimdReal::zero(), -self.z, self.y,
+            self.z, SimdReal::zero(), -self.x,
+            -self.y, self.x, SimdReal::zero(),
         )
     }
 }
 
-impl WCrossMatrix for Vector2<SimdFloat> {
-    type CrossMat = Vector2<SimdFloat>;
+impl WCrossMatrix for Vector2<SimdReal> {
+    type CrossMat = Vector2<SimdReal>;
 
     #[inline]
     fn gcross_matrix(self) -> Self::CrossMat {
@@ -351,24 +329,24 @@ impl WCrossMatrix for Vector2<SimdFloat> {
     }
 }
 
-impl WCross<Vector3<SimdFloat>> for Vector3<SimdFloat> {
-    type Result = Vector3<SimdFloat>;
+impl WCross<Vector3<SimdReal>> for Vector3<SimdReal> {
+    type Result = Vector3<SimdReal>;
 
     fn gcross(&self, rhs: Self) -> Self::Result {
         self.cross(&rhs)
     }
 }
 
-impl WCross<Vector2<SimdFloat>> for SimdFloat {
-    type Result = Vector2<SimdFloat>;
+impl WCross<Vector2<SimdReal>> for SimdReal {
+    type Result = Vector2<SimdReal>;
 
-    fn gcross(&self, rhs: Vector2<SimdFloat>) -> Self::Result {
+    fn gcross(&self, rhs: Vector2<SimdReal>) -> Self::Result {
         Vector2::new(-rhs.y * *self, rhs.x * *self)
     }
 }
 
-impl WCross<Vector2<SimdFloat>> for Vector2<SimdFloat> {
-    type Result = SimdFloat;
+impl WCross<Vector2<SimdReal>> for Vector2<SimdReal> {
+    type Result = SimdReal;
 
     fn gcross(&self, rhs: Self) -> Self::Result {
         let yx = Vector2::new(rhs.y, rhs.x);
@@ -377,26 +355,26 @@ impl WCross<Vector2<SimdFloat>> for Vector2<SimdFloat> {
     }
 }
 
-impl WDot<Vector3<SimdFloat>> for Vector3<SimdFloat> {
-    type Result = SimdFloat;
+impl WDot<Vector3<SimdReal>> for Vector3<SimdReal> {
+    type Result = SimdReal;
 
-    fn gdot(&self, rhs: Vector3<SimdFloat>) -> Self::Result {
+    fn gdot(&self, rhs: Vector3<SimdReal>) -> Self::Result {
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
     }
 }
 
-impl WDot<Vector2<SimdFloat>> for Vector2<SimdFloat> {
-    type Result = SimdFloat;
+impl WDot<Vector2<SimdReal>> for Vector2<SimdReal> {
+    type Result = SimdReal;
 
-    fn gdot(&self, rhs: Vector2<SimdFloat>) -> Self::Result {
+    fn gdot(&self, rhs: Vector2<SimdReal>) -> Self::Result {
         self.x * rhs.x + self.y * rhs.y
     }
 }
 
-impl WDot<SimdFloat> for SimdFloat {
-    type Result = SimdFloat;
+impl WDot<SimdReal> for SimdReal {
+    type Result = SimdReal;
 
-    fn gdot(&self, rhs: SimdFloat) -> Self::Result {
+    fn gdot(&self, rhs: SimdReal) -> Self::Result {
         *self * rhs
     }
 }
@@ -413,10 +391,10 @@ pub(crate) trait WAngularInertia<N> {
     fn into_matrix(self) -> Self::AngMatrix;
 }
 
-impl WAngularInertia<f32> for f32 {
-    type AngVector = f32;
-    type LinVector = Vector2<f32>;
-    type AngMatrix = f32;
+impl WAngularInertia<Real> for Real {
+    type AngVector = Real;
+    type LinVector = Vector2<Real>;
+    type AngMatrix = Real;
 
     fn inverse(&self) -> Self {
         if *self != 0.0 {
@@ -426,14 +404,14 @@ impl WAngularInertia<f32> for f32 {
         }
     }
 
-    fn transform_lin_vector(&self, pt: Vector2<f32>) -> Vector2<f32> {
+    fn transform_lin_vector(&self, pt: Vector2<Real>) -> Vector2<Real> {
         *self * pt
     }
-    fn transform_vector(&self, pt: f32) -> f32 {
+    fn transform_vector(&self, pt: Real) -> Real {
         *self * pt
     }
 
-    fn squared(&self) -> f32 {
+    fn squared(&self) -> Real {
         *self * *self
     }
 
@@ -446,26 +424,26 @@ impl WAngularInertia<f32> for f32 {
     }
 }
 
-impl WAngularInertia<SimdFloat> for SimdFloat {
-    type AngVector = SimdFloat;
-    type LinVector = Vector2<SimdFloat>;
-    type AngMatrix = SimdFloat;
+impl WAngularInertia<SimdReal> for SimdReal {
+    type AngVector = SimdReal;
+    type LinVector = Vector2<SimdReal>;
+    type AngMatrix = SimdReal;
 
     fn inverse(&self) -> Self {
-        let zero = <SimdFloat>::zero();
+        let zero = <SimdReal>::zero();
         let is_zero = self.simd_eq(zero);
-        (<SimdFloat>::one() / *self).select(is_zero, zero)
+        (<SimdReal>::one() / *self).select(is_zero, zero)
     }
 
-    fn transform_lin_vector(&self, pt: Vector2<SimdFloat>) -> Vector2<SimdFloat> {
+    fn transform_lin_vector(&self, pt: Vector2<SimdReal>) -> Vector2<SimdReal> {
         pt * *self
     }
 
-    fn transform_vector(&self, pt: SimdFloat) -> SimdFloat {
+    fn transform_vector(&self, pt: SimdReal) -> SimdReal {
         *self * pt
     }
 
-    fn squared(&self) -> SimdFloat {
+    fn squared(&self) -> SimdReal {
         *self * *self
     }
 
@@ -478,328 +456,10 @@ impl WAngularInertia<SimdFloat> for SimdFloat {
     }
 }
 
-/// A 2x2 symmetric-definite-positive matrix.
-#[derive(Copy, Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-pub struct SdpMatrix2<N> {
-    /// The component at the first row and first column of this matrix.
-    pub m11: N,
-    /// The component at the first row and second column of this matrix.
-    pub m12: N,
-    /// The component at the second row and second column of this matrix.
-    pub m22: N,
-}
-
-impl<N: SimdRealField> SdpMatrix2<N> {
-    /// A new SDP 2x2 matrix with the given components.
-    ///
-    /// Because the matrix is symmetric, only the lower off-diagonal component is required.
-    pub fn new(m11: N, m12: N, m22: N) -> Self {
-        Self { m11, m12, m22 }
-    }
-
-    /// Build an `SdpMatrix2` structure from a plain matrix, assuming it is SDP.
-    ///
-    /// No check is performed to ensure `mat` is actually SDP.
-    pub fn from_sdp_matrix(mat: na::Matrix2<N>) -> Self {
-        Self {
-            m11: mat.m11,
-            m12: mat.m12,
-            m22: mat.m22,
-        }
-    }
-
-    /// Create a new SDP matrix filled with zeros.
-    pub fn zero() -> Self {
-        Self {
-            m11: N::zero(),
-            m12: N::zero(),
-            m22: N::zero(),
-        }
-    }
-
-    /// Create a new SDP matrix with its diagonal filled with `val`, and its off-diagonal elements set to zero.
-    pub fn diagonal(val: N) -> Self {
-        Self {
-            m11: val,
-            m12: N::zero(),
-            m22: val,
-        }
-    }
-
-    /// Adds `val` to the diagonal components of `self`.
-    pub fn add_diagonal(&mut self, elt: N) -> Self {
-        Self {
-            m11: self.m11 + elt,
-            m12: self.m12,
-            m22: self.m22 + elt,
-        }
-    }
-
-    /// Compute the inverse of this SDP matrix without performing any inversibility check.
-    pub fn inverse_unchecked(&self) -> Self {
-        let determinant = self.m11 * self.m22 - self.m12 * self.m12;
-        let m11 = self.m22 / determinant;
-        let m12 = -self.m12 / determinant;
-        let m22 = self.m11 / determinant;
-
-        Self { m11, m12, m22 }
-    }
-
-    /// Convert this SDP matrix to a regular matrix representation.
-    pub fn into_matrix(self) -> Matrix2<N> {
-        Matrix2::new(self.m11, self.m12, self.m12, self.m22)
-    }
-}
-
-impl<N: SimdRealField> Add<SdpMatrix2<N>> for SdpMatrix2<N> {
-    type Output = Self;
-
-    fn add(self, rhs: SdpMatrix2<N>) -> Self {
-        Self::new(self.m11 + rhs.m11, self.m12 + rhs.m12, self.m22 + rhs.m22)
-    }
-}
-
-impl<N: SimdRealField> Mul<Vector2<N>> for SdpMatrix2<N> {
-    type Output = Vector2<N>;
-
-    fn mul(self, rhs: Vector2<N>) -> Self::Output {
-        Vector2::new(
-            self.m11 * rhs.x + self.m12 * rhs.y,
-            self.m12 * rhs.x + self.m22 * rhs.y,
-        )
-    }
-}
-
-/// A 3x3 symmetric-definite-positive matrix.
-#[derive(Copy, Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-pub struct SdpMatrix3<N> {
-    /// The component at the first row and first column of this matrix.
-    pub m11: N,
-    /// The component at the first row and second column of this matrix.
-    pub m12: N,
-    /// The component at the first row and third column of this matrix.
-    pub m13: N,
-    /// The component at the second row and second column of this matrix.
-    pub m22: N,
-    /// The component at the second row and third column of this matrix.
-    pub m23: N,
-    /// The component at the third row and third column of this matrix.
-    pub m33: N,
-}
-
-impl<N: SimdRealField> SdpMatrix3<N> {
-    /// A new SDP 3x3 matrix with the given components.
-    ///
-    /// Because the matrix is symmetric, only the lower off-diagonal components is required.
-    pub fn new(m11: N, m12: N, m13: N, m22: N, m23: N, m33: N) -> Self {
-        Self {
-            m11,
-            m12,
-            m13,
-            m22,
-            m23,
-            m33,
-        }
-    }
-
-    /// Build an `SdpMatrix3` structure from a plain matrix, assuming it is SDP.
-    ///
-    /// No check is performed to ensure `mat` is actually SDP.
-    pub fn from_sdp_matrix(mat: na::Matrix3<N>) -> Self {
-        Self {
-            m11: mat.m11,
-            m12: mat.m12,
-            m13: mat.m13,
-            m22: mat.m22,
-            m23: mat.m23,
-            m33: mat.m33,
-        }
-    }
-
-    /// Create a new SDP matrix filled with zeros.
-    pub fn zero() -> Self {
-        Self {
-            m11: N::zero(),
-            m12: N::zero(),
-            m13: N::zero(),
-            m22: N::zero(),
-            m23: N::zero(),
-            m33: N::zero(),
-        }
-    }
-
-    /// Create a new SDP matrix with its diagonal filled with `val`, and its off-diagonal elements set to zero.
-    pub fn diagonal(val: N) -> Self {
-        Self {
-            m11: val,
-            m12: N::zero(),
-            m13: N::zero(),
-            m22: val,
-            m23: N::zero(),
-            m33: val,
-        }
-    }
-
-    /// Are all components of this matrix equal to zero?
-    pub fn is_zero(&self) -> bool {
-        self.m11.is_zero()
-            && self.m12.is_zero()
-            && self.m13.is_zero()
-            && self.m22.is_zero()
-            && self.m23.is_zero()
-            && self.m33.is_zero()
-    }
-
-    /// Compute the inverse of this SDP matrix without performing any inversibility check.
-    pub fn inverse_unchecked(&self) -> Self {
-        let minor_m12_m23 = self.m22 * self.m33 - self.m23 * self.m23;
-        let minor_m11_m23 = self.m12 * self.m33 - self.m13 * self.m23;
-        let minor_m11_m22 = self.m12 * self.m23 - self.m13 * self.m22;
-
-        let determinant =
-            self.m11 * minor_m12_m23 - self.m12 * minor_m11_m23 + self.m13 * minor_m11_m22;
-        let inv_det = N::one() / determinant;
-
-        SdpMatrix3 {
-            m11: minor_m12_m23 * inv_det,
-            m12: -minor_m11_m23 * inv_det,
-            m13: minor_m11_m22 * inv_det,
-            m22: (self.m11 * self.m33 - self.m13 * self.m13) * inv_det,
-            m23: (self.m13 * self.m12 - self.m23 * self.m11) * inv_det,
-            m33: (self.m11 * self.m22 - self.m12 * self.m12) * inv_det,
-        }
-    }
-
-    /// Compute the quadratic form `m.transpose() * self * m`.
-    pub fn quadform3x2(&self, m: &Matrix3x2<N>) -> SdpMatrix2<N> {
-        let x0 = self.m11 * m.m11 + self.m12 * m.m21 + self.m13 * m.m31;
-        let y0 = self.m12 * m.m11 + self.m22 * m.m21 + self.m23 * m.m31;
-        let z0 = self.m13 * m.m11 + self.m23 * m.m21 + self.m33 * m.m31;
-
-        let x1 = self.m11 * m.m12 + self.m12 * m.m22 + self.m13 * m.m32;
-        let y1 = self.m12 * m.m12 + self.m22 * m.m22 + self.m23 * m.m32;
-        let z1 = self.m13 * m.m12 + self.m23 * m.m22 + self.m33 * m.m32;
-
-        let m11 = m.m11 * x0 + m.m21 * y0 + m.m31 * z0;
-        let m12 = m.m11 * x1 + m.m21 * y1 + m.m31 * z1;
-        let m22 = m.m12 * x1 + m.m22 * y1 + m.m32 * z1;
-
-        SdpMatrix2 { m11, m12, m22 }
-    }
-
-    /// Compute the quadratic form `m.transpose() * self * m`.
-    pub fn quadform(&self, m: &Matrix3<N>) -> Self {
-        let x0 = self.m11 * m.m11 + self.m12 * m.m21 + self.m13 * m.m31;
-        let y0 = self.m12 * m.m11 + self.m22 * m.m21 + self.m23 * m.m31;
-        let z0 = self.m13 * m.m11 + self.m23 * m.m21 + self.m33 * m.m31;
-
-        let x1 = self.m11 * m.m12 + self.m12 * m.m22 + self.m13 * m.m32;
-        let y1 = self.m12 * m.m12 + self.m22 * m.m22 + self.m23 * m.m32;
-        let z1 = self.m13 * m.m12 + self.m23 * m.m22 + self.m33 * m.m32;
-
-        let x2 = self.m11 * m.m13 + self.m12 * m.m23 + self.m13 * m.m33;
-        let y2 = self.m12 * m.m13 + self.m22 * m.m23 + self.m23 * m.m33;
-        let z2 = self.m13 * m.m13 + self.m23 * m.m23 + self.m33 * m.m33;
-
-        let m11 = m.m11 * x0 + m.m21 * y0 + m.m31 * z0;
-        let m12 = m.m11 * x1 + m.m21 * y1 + m.m31 * z1;
-        let m13 = m.m11 * x2 + m.m21 * y2 + m.m31 * z2;
-
-        let m22 = m.m12 * x1 + m.m22 * y1 + m.m32 * z1;
-        let m23 = m.m12 * x2 + m.m22 * y2 + m.m32 * z2;
-        let m33 = m.m13 * x2 + m.m23 * y2 + m.m33 * z2;
-
-        Self {
-            m11,
-            m12,
-            m13,
-            m22,
-            m23,
-            m33,
-        }
-    }
-
-    /// Adds `elt` to the diagonal components of `self`.
-    pub fn add_diagonal(&self, elt: N) -> Self {
-        Self {
-            m11: self.m11 + elt,
-            m12: self.m12,
-            m13: self.m13,
-            m22: self.m22 + elt,
-            m23: self.m23,
-            m33: self.m33 + elt,
-        }
-    }
-}
-
-impl<N: Add<N>> Add<SdpMatrix3<N>> for SdpMatrix3<N> {
-    type Output = SdpMatrix3<N::Output>;
-
-    fn add(self, rhs: SdpMatrix3<N>) -> Self::Output {
-        SdpMatrix3 {
-            m11: self.m11 + rhs.m11,
-            m12: self.m12 + rhs.m12,
-            m13: self.m13 + rhs.m13,
-            m22: self.m22 + rhs.m22,
-            m23: self.m23 + rhs.m23,
-            m33: self.m33 + rhs.m33,
-        }
-    }
-}
-
-impl<N: SimdRealField> Mul<Vector3<N>> for SdpMatrix3<N> {
-    type Output = Vector3<N>;
-
-    fn mul(self, rhs: Vector3<N>) -> Self::Output {
-        let x = self.m11 * rhs.x + self.m12 * rhs.y + self.m13 * rhs.z;
-        let y = self.m12 * rhs.x + self.m22 * rhs.y + self.m23 * rhs.z;
-        let z = self.m13 * rhs.x + self.m23 * rhs.y + self.m33 * rhs.z;
-        Vector3::new(x, y, z)
-    }
-}
-
-impl<N: SimdRealField> Mul<Matrix3<N>> for SdpMatrix3<N> {
-    type Output = Matrix3<N>;
-
-    fn mul(self, rhs: Matrix3<N>) -> Self::Output {
-        let x0 = self.m11 * rhs.m11 + self.m12 * rhs.m21 + self.m13 * rhs.m31;
-        let y0 = self.m12 * rhs.m11 + self.m22 * rhs.m21 + self.m23 * rhs.m31;
-        let z0 = self.m13 * rhs.m11 + self.m23 * rhs.m21 + self.m33 * rhs.m31;
-
-        let x1 = self.m11 * rhs.m12 + self.m12 * rhs.m22 + self.m13 * rhs.m32;
-        let y1 = self.m12 * rhs.m12 + self.m22 * rhs.m22 + self.m23 * rhs.m32;
-        let z1 = self.m13 * rhs.m12 + self.m23 * rhs.m22 + self.m33 * rhs.m32;
-
-        let x2 = self.m11 * rhs.m13 + self.m12 * rhs.m23 + self.m13 * rhs.m33;
-        let y2 = self.m12 * rhs.m13 + self.m22 * rhs.m23 + self.m23 * rhs.m33;
-        let z2 = self.m13 * rhs.m13 + self.m23 * rhs.m23 + self.m33 * rhs.m33;
-
-        Matrix3::new(x0, x1, x2, y0, y1, y2, z0, z1, z2)
-    }
-}
-
-impl<N: SimdRealField> Mul<Matrix3x2<N>> for SdpMatrix3<N> {
-    type Output = Matrix3x2<N>;
-
-    fn mul(self, rhs: Matrix3x2<N>) -> Self::Output {
-        let x0 = self.m11 * rhs.m11 + self.m12 * rhs.m21 + self.m13 * rhs.m31;
-        let y0 = self.m12 * rhs.m11 + self.m22 * rhs.m21 + self.m23 * rhs.m31;
-        let z0 = self.m13 * rhs.m11 + self.m23 * rhs.m21 + self.m33 * rhs.m31;
-
-        let x1 = self.m11 * rhs.m12 + self.m12 * rhs.m22 + self.m13 * rhs.m32;
-        let y1 = self.m12 * rhs.m12 + self.m22 * rhs.m22 + self.m23 * rhs.m32;
-        let z1 = self.m13 * rhs.m12 + self.m23 * rhs.m22 + self.m33 * rhs.m32;
-
-        Matrix3x2::new(x0, x1, y0, y1, z0, z1)
-    }
-}
-
-impl WAngularInertia<f32> for SdpMatrix3<f32> {
-    type AngVector = Vector3<f32>;
-    type LinVector = Vector3<f32>;
-    type AngMatrix = Matrix3<f32>;
+impl WAngularInertia<Real> for SdpMatrix3<Real> {
+    type AngVector = Vector3<Real>;
+    type LinVector = Vector3<Real>;
+    type AngMatrix = Matrix3<Real>;
 
     fn inverse(&self) -> Self {
         let minor_m12_m23 = self.m22 * self.m33 - self.m23 * self.m23;
@@ -834,11 +494,11 @@ impl WAngularInertia<f32> for SdpMatrix3<f32> {
         }
     }
 
-    fn transform_lin_vector(&self, v: Vector3<f32>) -> Vector3<f32> {
+    fn transform_lin_vector(&self, v: Vector3<Real>) -> Vector3<Real> {
         self.transform_vector(v)
     }
 
-    fn transform_vector(&self, v: Vector3<f32>) -> Vector3<f32> {
+    fn transform_vector(&self, v: Vector3<Real>) -> Vector3<Real> {
         let x = self.m11 * v.x + self.m12 * v.y + self.m13 * v.z;
         let y = self.m12 * v.x + self.m22 * v.y + self.m23 * v.z;
         let z = self.m13 * v.x + self.m23 * v.y + self.m33 * v.z;
@@ -846,7 +506,7 @@ impl WAngularInertia<f32> for SdpMatrix3<f32> {
     }
 
     #[rustfmt::skip]
-    fn into_matrix(self) -> Matrix3<f32> {
+    fn into_matrix(self) -> Matrix3<Real> {
         Matrix3::new(
             self.m11, self.m12, self.m13,
             self.m12, self.m22, self.m23,
@@ -855,15 +515,15 @@ impl WAngularInertia<f32> for SdpMatrix3<f32> {
     }
 
     #[rustfmt::skip]
-    fn transform_matrix(&self, m: &Matrix3<f32>) -> Matrix3<f32> {
+    fn transform_matrix(&self, m: &Matrix3<Real>) -> Matrix3<Real> {
         *self * *m
     }
 }
 
-impl WAngularInertia<SimdFloat> for SdpMatrix3<SimdFloat> {
-    type AngVector = Vector3<SimdFloat>;
-    type LinVector = Vector3<SimdFloat>;
-    type AngMatrix = Matrix3<SimdFloat>;
+impl WAngularInertia<SimdReal> for SdpMatrix3<SimdReal> {
+    type AngVector = Vector3<SimdReal>;
+    type LinVector = Vector3<SimdReal>;
+    type AngMatrix = Matrix3<SimdReal>;
 
     fn inverse(&self) -> Self {
         let minor_m12_m23 = self.m22 * self.m33 - self.m23 * self.m23;
@@ -873,9 +533,9 @@ impl WAngularInertia<SimdFloat> for SdpMatrix3<SimdFloat> {
         let determinant =
             self.m11 * minor_m12_m23 - self.m12 * minor_m11_m23 + self.m13 * minor_m11_m22;
 
-        let zero = <SimdFloat>::zero();
+        let zero = <SimdReal>::zero();
         let is_zero = determinant.simd_eq(zero);
-        let inv_det = (<SimdFloat>::one() / determinant).select(is_zero, zero);
+        let inv_det = (<SimdReal>::one() / determinant).select(is_zero, zero);
 
         SdpMatrix3 {
             m11: minor_m12_m23 * inv_det,
@@ -887,11 +547,11 @@ impl WAngularInertia<SimdFloat> for SdpMatrix3<SimdFloat> {
         }
     }
 
-    fn transform_lin_vector(&self, v: Vector3<SimdFloat>) -> Vector3<SimdFloat> {
+    fn transform_lin_vector(&self, v: Vector3<SimdReal>) -> Vector3<SimdReal> {
         self.transform_vector(v)
     }
 
-    fn transform_vector(&self, v: Vector3<SimdFloat>) -> Vector3<SimdFloat> {
+    fn transform_vector(&self, v: Vector3<SimdReal>) -> Vector3<SimdReal> {
         let x = self.m11 * v.x + self.m12 * v.y + self.m13 * v.z;
         let y = self.m12 * v.x + self.m22 * v.y + self.m23 * v.z;
         let z = self.m13 * v.x + self.m23 * v.y + self.m33 * v.z;
@@ -910,7 +570,7 @@ impl WAngularInertia<SimdFloat> for SdpMatrix3<SimdFloat> {
     }
 
     #[rustfmt::skip]
-    fn into_matrix(self) -> Matrix3<SimdFloat> {
+    fn into_matrix(self) -> Matrix3<SimdReal> {
         Matrix3::new(
             self.m11, self.m12, self.m13,
             self.m12, self.m22, self.m23,
@@ -919,7 +579,7 @@ impl WAngularInertia<SimdFloat> for SdpMatrix3<SimdFloat> {
     }
 
     #[rustfmt::skip]
-    fn transform_matrix(&self, m: &Matrix3<SimdFloat>) -> Matrix3<SimdFloat> {
+    fn transform_matrix(&self, m: &Matrix3<SimdReal>) -> Matrix3<SimdReal> {
         let x0 = self.m11 * m.m11 + self.m12 * m.m21 + self.m13 * m.m31;
         let y0 = self.m12 * m.m11 + self.m22 * m.m21 + self.m23 * m.m31;
         let z0 = self.m13 * m.m11 + self.m23 * m.m21 + self.m33 * m.m31;
@@ -937,206 +597,6 @@ impl WAngularInertia<SimdFloat> for SdpMatrix3<SimdFloat> {
             y0, y1, y2,
             z0, z1, z2,
         )
-    }
-}
-
-impl<T> From<[SdpMatrix3<f32>; 4]> for SdpMatrix3<T>
-where
-    T: From<[f32; 4]>,
-{
-    fn from(data: [SdpMatrix3<f32>; 4]) -> Self {
-        SdpMatrix3 {
-            m11: T::from([data[0].m11, data[1].m11, data[2].m11, data[3].m11]),
-            m12: T::from([data[0].m12, data[1].m12, data[2].m12, data[3].m12]),
-            m13: T::from([data[0].m13, data[1].m13, data[2].m13, data[3].m13]),
-            m22: T::from([data[0].m22, data[1].m22, data[2].m22, data[3].m22]),
-            m23: T::from([data[0].m23, data[1].m23, data[2].m23, data[3].m23]),
-            m33: T::from([data[0].m33, data[1].m33, data[2].m33, data[3].m33]),
-        }
-    }
-}
-
-#[cfg(feature = "simd-nightly")]
-impl From<[SdpMatrix3<f32>; 8]> for SdpMatrix3<simba::simd::f32x8> {
-    fn from(data: [SdpMatrix3<f32>; 8]) -> Self {
-        SdpMatrix3 {
-            m11: simba::simd::f32x8::from([
-                data[0].m11,
-                data[1].m11,
-                data[2].m11,
-                data[3].m11,
-                data[4].m11,
-                data[5].m11,
-                data[6].m11,
-                data[7].m11,
-            ]),
-            m12: simba::simd::f32x8::from([
-                data[0].m12,
-                data[1].m12,
-                data[2].m12,
-                data[3].m12,
-                data[4].m12,
-                data[5].m12,
-                data[6].m12,
-                data[7].m12,
-            ]),
-            m13: simba::simd::f32x8::from([
-                data[0].m13,
-                data[1].m13,
-                data[2].m13,
-                data[3].m13,
-                data[4].m13,
-                data[5].m13,
-                data[6].m13,
-                data[7].m13,
-            ]),
-            m22: simba::simd::f32x8::from([
-                data[0].m22,
-                data[1].m22,
-                data[2].m22,
-                data[3].m22,
-                data[4].m22,
-                data[5].m22,
-                data[6].m22,
-                data[7].m22,
-            ]),
-            m23: simba::simd::f32x8::from([
-                data[0].m23,
-                data[1].m23,
-                data[2].m23,
-                data[3].m23,
-                data[4].m23,
-                data[5].m23,
-                data[6].m23,
-                data[7].m23,
-            ]),
-            m33: simba::simd::f32x8::from([
-                data[0].m33,
-                data[1].m33,
-                data[2].m33,
-                data[3].m33,
-                data[4].m33,
-                data[5].m33,
-                data[6].m33,
-                data[7].m33,
-            ]),
-        }
-    }
-}
-
-#[cfg(feature = "simd-nightly")]
-impl From<[SdpMatrix3<f32>; 16]> for SdpMatrix3<simba::simd::f32x16> {
-    fn from(data: [SdpMatrix3<f32>; 16]) -> Self {
-        SdpMatrix3 {
-            m11: simba::simd::f32x16::from([
-                data[0].m11,
-                data[1].m11,
-                data[2].m11,
-                data[3].m11,
-                data[4].m11,
-                data[5].m11,
-                data[6].m11,
-                data[7].m11,
-                data[8].m11,
-                data[9].m11,
-                data[10].m11,
-                data[11].m11,
-                data[12].m11,
-                data[13].m11,
-                data[14].m11,
-                data[15].m11,
-            ]),
-            m12: simba::simd::f32x16::from([
-                data[0].m12,
-                data[1].m12,
-                data[2].m12,
-                data[3].m12,
-                data[4].m12,
-                data[5].m12,
-                data[6].m12,
-                data[7].m12,
-                data[8].m12,
-                data[9].m12,
-                data[10].m12,
-                data[11].m12,
-                data[12].m12,
-                data[13].m12,
-                data[14].m12,
-                data[15].m12,
-            ]),
-            m13: simba::simd::f32x16::from([
-                data[0].m13,
-                data[1].m13,
-                data[2].m13,
-                data[3].m13,
-                data[4].m13,
-                data[5].m13,
-                data[6].m13,
-                data[7].m13,
-                data[8].m13,
-                data[9].m13,
-                data[10].m13,
-                data[11].m13,
-                data[12].m13,
-                data[13].m13,
-                data[14].m13,
-                data[15].m13,
-            ]),
-            m22: simba::simd::f32x16::from([
-                data[0].m22,
-                data[1].m22,
-                data[2].m22,
-                data[3].m22,
-                data[4].m22,
-                data[5].m22,
-                data[6].m22,
-                data[7].m22,
-                data[8].m22,
-                data[9].m22,
-                data[10].m22,
-                data[11].m22,
-                data[12].m22,
-                data[13].m22,
-                data[14].m22,
-                data[15].m22,
-            ]),
-            m23: simba::simd::f32x16::from([
-                data[0].m23,
-                data[1].m23,
-                data[2].m23,
-                data[3].m23,
-                data[4].m23,
-                data[5].m23,
-                data[6].m23,
-                data[7].m23,
-                data[8].m23,
-                data[9].m23,
-                data[10].m23,
-                data[11].m23,
-                data[12].m23,
-                data[13].m23,
-                data[14].m23,
-                data[15].m23,
-            ]),
-            m33: simba::simd::f32x16::from([
-                data[0].m33,
-                data[1].m33,
-                data[2].m33,
-                data[3].m33,
-                data[4].m33,
-                data[5].m33,
-                data[6].m33,
-                data[7].m33,
-                data[8].m33,
-                data[9].m33,
-                data[10].m33,
-                data[11].m33,
-                data[12].m33,
-                data[13].m33,
-                data[14].m33,
-                data[15].m33,
-            ]),
-        }
     }
 }
 
@@ -1197,11 +657,8 @@ impl Drop for FlushToZeroDenormalsAreZeroFlags {
     }
 }
 
-pub(crate) fn other_handle(
-    pair: (RigidBodyHandle, RigidBodyHandle),
-    handle: RigidBodyHandle,
-) -> RigidBodyHandle {
-    if pair.0 == handle {
+pub(crate) fn select_other<T: PartialEq>(pair: (T, T), elt: T) -> T {
+    if pair.0 == elt {
         pair.1
     } else {
         pair.0

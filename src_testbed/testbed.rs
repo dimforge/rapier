@@ -24,7 +24,7 @@ use rapier::dynamics::{
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
-use rapier::math::Vector;
+use rapier::math::{Isometry, Vector};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
@@ -35,8 +35,9 @@ use crate::nphysics_backend::NPhysicsWorld;
 use crate::physx_backend::PhysxWorld;
 
 const RAPIER_BACKEND: usize = 0;
+#[cfg(feature = "other-backends")]
 const NPHYSICS_BACKEND: usize = 1;
-#[cfg(feature = "dim2")]
+#[cfg(all(feature = "dim2", feature = "other-backends"))]
 const BOX2D_BACKEND: usize = 2;
 pub(crate) const PHYSX_BACKEND_PATCH_FRICTION: usize = 2;
 pub(crate) const PHYSX_BACKEND_TWO_FRICTION_DIR: usize = 3;
@@ -269,10 +270,10 @@ impl Testbed {
         {
             if self.state.selected_backend == BOX2D_BACKEND {
                 self.box2d = Some(Box2dWorld::from_rapier(
-                    physics.gravity,
-                    &physics.bodies,
-                    &physics.colliders,
-                    &physics.joints,
+                    self.harness.physics.gravity,
+                    &self.harness.physics.bodies,
+                    &self.harness.physics.colliders,
+                    &self.harness.physics.joints,
                 ));
             }
         }
@@ -283,11 +284,11 @@ impl Testbed {
                 || self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
             {
                 self.physx = Some(PhysxWorld::from_rapier(
-                    physics.gravity,
-                    &physics.integration_parameters,
-                    &physics.bodies,
-                    &physics.colliders,
-                    &physics.joints,
+                    self.harness.physics.gravity,
+                    &self.harness.physics.integration_parameters,
+                    &self.harness.physics.bodies,
+                    &self.harness.physics.colliders,
+                    &self.harness.physics.joints,
                     self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR,
                     self.harness.state.num_threads,
                 ));
@@ -298,10 +299,10 @@ impl Testbed {
         {
             if self.state.selected_backend == NPHYSICS_BACKEND {
                 self.nphysics = Some(NPhysicsWorld::from_rapier(
-                    physics.gravity,
-                    &physics.bodies,
-                    &physics.colliders,
-                    &physics.joints,
+                    self.harness.physics.gravity,
+                    &self.harness.physics.bodies,
+                    &self.harness.physics.colliders,
+                    &self.harness.physics.joints,
                 ));
             }
         }
@@ -483,7 +484,7 @@ impl Testbed {
                                 if self.state.selected_backend == BOX2D_BACKEND {
                                     self.box2d.as_mut().unwrap().step(
                                         &mut self.harness.physics.pipeline.counters,
-                                        &physics.integration_parameters,
+                                        &self.harness.physics.integration_parameters,
                                     );
                                     self.box2d.as_mut().unwrap().sync(
                                         &mut self.harness.physics.bodies,
@@ -500,7 +501,7 @@ impl Testbed {
                                     //                        println!("Step");
                                     self.physx.as_mut().unwrap().step(
                                         &mut self.harness.physics.pipeline.counters,
-                                        &physics.integration_parameters,
+                                        &self.harness.physics.integration_parameters,
                                     );
                                     self.physx.as_mut().unwrap().sync(
                                         &mut self.harness.physics.bodies,
@@ -514,7 +515,7 @@ impl Testbed {
                                 if self.state.selected_backend == NPHYSICS_BACKEND {
                                     self.nphysics.as_mut().unwrap().step(
                                         &mut self.harness.physics.pipeline.counters,
-                                        &physics.integration_parameters,
+                                        &self.harness.physics.integration_parameters,
                                     );
                                     self.nphysics.as_mut().unwrap().sync(
                                         &mut self.harness.physics.bodies,
@@ -692,7 +693,7 @@ impl Testbed {
                             .unwrap()
                             .position();
                         let attach1 = self.cursor_pos;
-                        let attach2 = body_pos.inverse() * attach1;
+                        let attach2 = body_pos.inv_mul(&attach1);
 
                         if let Some(ground) = self.ground_handle {
                             let joint = MouseConstraint::new(
@@ -980,10 +981,12 @@ impl Testbed {
             &physics.colliders,
             &ray,
             f32::MAX,
+            true,
             InteractionGroups::all(),
         );
 
-        if let Some((_, collider, _)) = hit {
+        if let Some((handle, _)) = hit {
+            let collider = &physics.colliders[handle];
             if physics.bodies[collider.parent()].is_dynamic() {
                 self.state.highlighted_body = Some(collider.parent());
                 for node in self.graphics.body_nodes_mut(collider.parent()).unwrap() {
@@ -1070,9 +1073,28 @@ impl State for Testbed {
                     .action_flags
                     .set(TestbedActionFlags::EXAMPLE_CHANGED, false);
                 self.clear(window);
+                self.harness.clear_callbacks();
 
                 if self.state.selected_example != prev_example {
                     self.harness.physics.integration_parameters = IntegrationParameters::default();
+
+                    if cfg!(feature = "dim3")
+                        && (self.state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
+                            || self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR)
+                    {
+                        std::mem::swap(
+                            &mut self
+                                .harness
+                                .physics
+                                .integration_parameters
+                                .max_velocity_iterations,
+                            &mut self
+                                .harness
+                                .physics
+                                .integration_parameters
+                                .max_position_iterations,
+                        )
+                    }
                 }
 
                 self.builders[self.state.selected_example].1(self);
@@ -1249,13 +1271,13 @@ impl State for Testbed {
                 {
                     if self.state.selected_backend == BOX2D_BACKEND {
                         self.box2d.as_mut().unwrap().step(
-                            &mut physics.pipeline.counters,
-                            &physics.integration_parameters,
+                            &mut self.harness.physics.pipeline.counters,
+                            &self.harness.physics.integration_parameters,
                         );
-                        self.box2d
-                            .as_mut()
-                            .unwrap()
-                            .sync(&mut physics.bodies, &mut physics.colliders);
+                        self.box2d.as_mut().unwrap().sync(
+                            &mut self.harness.physics.bodies,
+                            &mut self.harness.physics.colliders,
+                        );
                     }
                 }
 
@@ -1266,13 +1288,13 @@ impl State for Testbed {
                     {
                         //                        println!("Step");
                         self.physx.as_mut().unwrap().step(
-                            &mut physics.pipeline.counters,
-                            &physics.integration_parameters,
+                            &mut self.harness.physics.pipeline.counters,
+                            &self.harness.physics.integration_parameters,
                         );
-                        self.physx
-                            .as_mut()
-                            .unwrap()
-                            .sync(&mut physics.bodies, &mut physics.colliders);
+                        self.physx.as_mut().unwrap().sync(
+                            &mut self.harness.physics.bodies,
+                            &mut self.harness.physics.colliders,
+                        );
                     }
                 }
 
@@ -1280,13 +1302,13 @@ impl State for Testbed {
                 {
                     if self.state.selected_backend == NPHYSICS_BACKEND {
                         self.nphysics.as_mut().unwrap().step(
-                            &mut physics.pipeline.counters,
-                            &physics.integration_parameters,
+                            &mut self.harness.physics.pipeline.counters,
+                            &self.harness.physics.integration_parameters,
                         );
-                        self.nphysics
-                            .as_mut()
-                            .unwrap()
-                            .sync(&mut physics.bodies, &mut physics.colliders);
+                        self.nphysics.as_mut().unwrap().sync(
+                            &mut self.harness.physics.bodies,
+                            &mut self.harness.physics.colliders,
+                        );
                     }
                 }
 
@@ -1422,17 +1444,21 @@ Hashes at frame: {}
 fn draw_contacts(window: &mut Window, nf: &NarrowPhase, colliders: &ColliderSet) {
     for pair in nf.contact_pairs() {
         for manifold in &pair.manifolds {
-            for pt in manifold.all_contacts() {
+            for pt in manifold.contacts() {
                 let color = if pt.dist > 0.0 {
                     Point3::new(0.0, 0.0, 1.0)
                 } else {
                     Point3::new(1.0, 0.0, 0.0)
                 };
-                let pos1 = colliders[manifold.pair.collider1].position();
-                let pos2 = colliders[manifold.pair.collider2].position();
-                let start = pos1 * pt.local_p1;
-                let end = pos2 * pt.local_p2;
-                let n = pos1 * manifold.local_n1;
+                let pos1 = colliders[pair.pair.collider1].position();
+                let pos2 = colliders[pair.pair.collider2].position();
+                let start =
+                    pos1 * manifold.subshape_pos1.unwrap_or(Isometry::identity()) * pt.local_p1;
+                let end =
+                    pos2 * manifold.subshape_pos2.unwrap_or(Isometry::identity()) * pt.local_p2;
+                let n = pos1
+                    * manifold.subshape_pos1.unwrap_or(Isometry::identity())
+                    * manifold.local_n1;
 
                 use crate::engine::GraphicsWindow;
                 window.draw_graphics_line(&start, &(start + n * 0.4), &Point3::new(0.5, 1.0, 0.5));

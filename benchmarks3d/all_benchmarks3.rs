@@ -14,6 +14,7 @@ mod balls3;
 mod boxes3;
 mod capsules3;
 mod compound3;
+mod convex_polyhedron3;
 mod heightfield3;
 mod joint_ball3;
 mod joint_fixed3;
@@ -52,6 +53,7 @@ pub fn main() {
         ("Boxes", boxes3::init_world),
         ("Capsules", capsules3::init_world),
         ("Compound", compound3::init_world),
+        ("Convex polyhedron", convex_polyhedron3::init_world),
         ("Heightfield", heightfield3::init_world),
         ("Stacks", stacks3::init_world),
         ("Pyramid", pyramid3::init_world),

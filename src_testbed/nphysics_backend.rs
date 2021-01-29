@@ -1,4 +1,6 @@
-use ncollide::shape::{Ball, Capsule, Cuboid, ShapeHandle};
+#[cfg(feature = "dim2")]
+use ncollide::shape::ConvexPolygon;
+use ncollide::shape::{Ball, Capsule, Cuboid, HeightField, ShapeHandle};
 use nphysics::force_generator::DefaultForceGeneratorSet;
 use nphysics::joint::{
     DefaultJointConstraintSet, FixedConstraint, PrismaticConstraint, RevoluteConstraint,
@@ -144,6 +146,7 @@ impl NPhysicsWorld {
         self.mechanical_world
             .integration_parameters
             .set_dt(params.dt);
+        self.mechanical_world.integration_parameters.warmstart_coeff = params.warmstart_coeff;
 
         counters.step_started();
         self.mechanical_world.step(
@@ -175,19 +178,25 @@ fn nphysics_collider_from_rapier_collider(
     collider: &Collider,
     is_dynamic: bool,
 ) -> Option<ColliderDesc<f32>> {
-    let margin = ColliderDesc::<f32>::default_margin();
+    let mut margin = ColliderDesc::<f32>::default_margin();
     let mut pos = *collider.position_wrt_parent();
     let shape = collider.shape();
 
     let shape = if let Some(cuboid) = shape.as_cuboid() {
         ShapeHandle::new(Cuboid::new(cuboid.half_extents.map(|e| e - margin)))
+    } else if let Some(cuboid) = shape.as_round_cuboid() {
+        margin = cuboid.border_radius;
+        ShapeHandle::new(Cuboid::new(cuboid.base_shape.half_extents))
     } else if let Some(ball) = shape.as_ball() {
         ShapeHandle::new(Ball::new(ball.radius - margin))
     } else if let Some(capsule) = shape.as_capsule() {
         pos *= capsule.transform_wrt_y();
         ShapeHandle::new(Capsule::new(capsule.half_height(), capsule.radius))
     } else if let Some(heightfield) = shape.as_heightfield() {
-        ShapeHandle::new(heightfield.clone())
+        let heights = heightfield.heights();
+        let scale = heightfield.scale();
+        let heightfield = HeightField::new(heights.clone(), *scale);
+        ShapeHandle::new(heightfield)
     } else {
         #[cfg(feature = "dim3")]
         if let Some(trimesh) = shape.as_trimesh() {
@@ -196,7 +205,7 @@ fn nphysics_collider_from_rapier_collider(
                 trimesh
                     .indices()
                     .iter()
-                    .map(|idx| na::convert(*idx))
+                    .map(|idx| na::Point3::new(idx[0] as usize, idx[1] as usize, idx[2] as usize))
                     .collect(),
                 None,
             ))
@@ -205,7 +214,12 @@ fn nphysics_collider_from_rapier_collider(
         }
 
         #[cfg(feature = "dim2")]
-        {
+        if let Some(polygon) = shape.as_round_convex_polygon() {
+            margin = polygon.border_radius;
+            ShapeHandle::new(ConvexPolygon::try_from_points(polygon.base_shape.points()).unwrap())
+        } else if let Some(polygon) = shape.as_convex_polygon() {
+            ShapeHandle::new(ConvexPolygon::try_from_points(polygon.points()).unwrap())
+        } else {
             return None;
         }
     };
@@ -216,6 +230,7 @@ fn nphysics_collider_from_rapier_collider(
         ColliderDesc::new(shape)
             .position(pos)
             .density(density)
-            .sensor(collider.is_sensor()),
+            .sensor(collider.is_sensor())
+            .margin(margin),
     )
 }

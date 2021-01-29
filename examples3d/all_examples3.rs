@@ -12,6 +12,8 @@ use std::cmp::Ordering;
 
 mod collision_groups3;
 mod compound3;
+mod convex_decomposition3;
+mod convex_polyhedron3;
 mod damping3;
 mod debug_add_remove_collider3;
 mod debug_boxes3;
@@ -31,7 +33,6 @@ mod platform3;
 mod primitives3;
 mod restitution3;
 mod sensor3;
-mod stacks3;
 mod trimesh3;
 
 fn demo_name_from_command_line() -> Option<String> {
@@ -75,6 +76,8 @@ pub fn main() {
         ("Primitives", primitives3::init_world),
         ("Collision groups", collision_groups3::init_world),
         ("Compound", compound3::init_world),
+        ("Convex decomposition", convex_decomposition3::init_world),
+        ("Convex polyhedron", convex_polyhedron3::init_world),
         ("Damping", damping3::init_world),
         ("Domino", domino3::init_world),
         ("Heightfield", heightfield3::init_world),
@@ -82,9 +85,8 @@ pub fn main() {
         ("Locked rotations", locked_rotations3::init_world),
         ("Platform", platform3::init_world),
         ("Restitution", restitution3::init_world),
-        ("Stacks", stacks3::init_world),
         ("Sensor", sensor3::init_world),
-        ("Trimesh", trimesh3::init_world),
+        ("TriMesh", trimesh3::init_world),
         ("Keva tower", keva3::init_world),
         (
             "(Debug) add/rm collider",

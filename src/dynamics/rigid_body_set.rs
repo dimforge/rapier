@@ -3,11 +3,45 @@ use rayon::prelude::*;
 
 use crate::data::arena::Arena;
 use crate::dynamics::{Joint, JointSet, RigidBody, RigidBodyChanges};
-use crate::geometry::{ColliderHandle, ColliderSet, InteractionGraph, NarrowPhase};
+use crate::geometry::{ColliderSet, InteractionGraph, NarrowPhase};
+use parry::partitioning::IndexedData;
 use std::ops::{Index, IndexMut};
 
 /// The unique handle of a rigid body added to a `RigidBodySet`.
-pub type RigidBodyHandle = crate::data::arena::Index;
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[repr(transparent)]
+pub struct RigidBodyHandle(pub(crate) crate::data::arena::Index);
+
+impl RigidBodyHandle {
+    /// Converts this handle into its (index, generation) components.
+    pub fn into_raw_parts(self) -> (usize, u64) {
+        self.0.into_raw_parts()
+    }
+
+    /// Reconstructs an handle from its (index, generation) components.
+    pub fn from_raw_parts(id: usize, generation: u64) -> Self {
+        Self(crate::data::arena::Index::from_raw_parts(id, generation))
+    }
+
+    /// An always-invalid rigid-body handle.
+    pub fn invalid() -> Self {
+        Self(crate::data::arena::Index::from_raw_parts(
+            crate::INVALID_USIZE,
+            crate::INVALID_U64,
+        ))
+    }
+}
+
+impl IndexedData for RigidBodyHandle {
+    fn default() -> Self {
+        Self(IndexedData::default())
+    }
+
+    fn index(&self) -> usize {
+        self.0.index()
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -20,12 +54,9 @@ pub struct BodyPair {
 }
 
 impl BodyPair {
-    pub(crate) fn new(body1: RigidBodyHandle, body2: RigidBodyHandle) -> Self {
+    /// Builds a new pair of rigid-body handles.
+    pub fn new(body1: RigidBodyHandle, body2: RigidBodyHandle) -> Self {
         BodyPair { body1, body2 }
-    }
-
-    pub(crate) fn swap(self) -> Self {
-        Self::new(self.body2, self.body1)
     }
 }
 
@@ -70,11 +101,6 @@ impl RigidBodySet {
         }
     }
 
-    /// An always-invalid rigid-body handle.
-    pub fn invalid_handle() -> RigidBodyHandle {
-        RigidBodyHandle::from_raw_parts(crate::INVALID_USIZE, crate::INVALID_U64)
-    }
-
     /// The number of rigid bodies on this set.
     pub fn len(&self) -> usize {
         self.bodies.len()
@@ -82,7 +108,7 @@ impl RigidBodySet {
 
     /// Is the given body handle valid?
     pub fn contains(&self, handle: RigidBodyHandle) -> bool {
-        self.bodies.contains(handle)
+        self.bodies.contains(handle.0)
     }
 
     /// Insert a rigid body into this set and retrieve its handle.
@@ -92,10 +118,10 @@ impl RigidBodySet {
         rb.reset_internal_references();
         rb.changes.set(RigidBodyChanges::all(), true);
 
-        let handle = self.bodies.insert(rb);
+        let handle = RigidBodyHandle(self.bodies.insert(rb));
         self.modified_bodies.push(handle);
 
-        let rb = &mut self.bodies[handle];
+        let rb = &mut self.bodies[handle.0];
 
         if rb.is_kinematic() {
             rb.active_set_id = self.active_kinematic_set.len();
@@ -112,7 +138,7 @@ impl RigidBodySet {
         colliders: &mut ColliderSet,
         joints: &mut JointSet,
     ) -> Option<RigidBody> {
-        let rb = self.bodies.remove(handle)?;
+        let rb = self.bodies.remove(handle.0)?;
         /*
          * Update active sets.
          */
@@ -123,7 +149,7 @@ impl RigidBodySet {
                 active_set.swap_remove(rb.active_set_id);
 
                 if let Some(replacement) = active_set.get(rb.active_set_id) {
-                    self.bodies[*replacement].active_set_id = rb.active_set_id;
+                    self.bodies[replacement.0].active_set_id = rb.active_set_id;
                 }
             }
         }
@@ -152,7 +178,7 @@ impl RigidBodySet {
     /// If `strong` is `true` then it is assured that the rigid-body will
     /// remain awake during multiple subsequent timesteps.
     pub fn wake_up(&mut self, handle: RigidBodyHandle, strong: bool) {
-        if let Some(rb) = self.bodies.get_mut(handle) {
+        if let Some(rb) = self.bodies.get_mut(handle.0) {
             // TODO: what about kinematic bodies?
             if rb.is_dynamic() {
                 rb.wake_up(strong);
@@ -175,7 +201,9 @@ impl RigidBodySet {
     /// Using this is discouraged in favor of `self.get(handle)` which does not
     /// suffer form the ABA problem.
     pub fn get_unknown_gen(&self, i: usize) -> Option<(&RigidBody, RigidBodyHandle)> {
-        self.bodies.get_unknown_gen(i)
+        self.bodies
+            .get_unknown_gen(i)
+            .map(|(b, h)| (b, RigidBodyHandle(h)))
     }
 
     /// Gets a mutable reference to the rigid-body with the given handle without a known generation.
@@ -191,19 +219,19 @@ impl RigidBodySet {
         let result = self.bodies.get_unknown_gen_mut(i)?;
         if !self.modified_all_bodies && !result.0.changes.contains(RigidBodyChanges::MODIFIED) {
             result.0.changes = RigidBodyChanges::MODIFIED;
-            self.modified_bodies.push(result.1);
+            self.modified_bodies.push(RigidBodyHandle(result.1));
         }
-        Some(result)
+        Some((result.0, RigidBodyHandle(result.1)))
     }
 
     /// Gets the rigid-body with the given handle.
     pub fn get(&self, handle: RigidBodyHandle) -> Option<&RigidBody> {
-        self.bodies.get(handle)
+        self.bodies.get(handle.0)
     }
 
     /// Gets a mutable reference to the rigid-body with the given handle.
     pub fn get_mut(&mut self, handle: RigidBodyHandle) -> Option<&mut RigidBody> {
-        let result = self.bodies.get_mut(handle)?;
+        let result = self.bodies.get_mut(handle.0)?;
         if !self.modified_all_bodies && !result.changes.contains(RigidBodyChanges::MODIFIED) {
             result.changes = RigidBodyChanges::MODIFIED;
             self.modified_bodies.push(handle);
@@ -212,7 +240,7 @@ impl RigidBodySet {
     }
 
     pub(crate) fn get_mut_internal(&mut self, handle: RigidBodyHandle) -> Option<&mut RigidBody> {
-        self.bodies.get_mut(handle)
+        self.bodies.get_mut(handle.0)
     }
 
     pub(crate) fn get2_mut_internal(
@@ -220,19 +248,19 @@ impl RigidBodySet {
         h1: RigidBodyHandle,
         h2: RigidBodyHandle,
     ) -> (Option<&mut RigidBody>, Option<&mut RigidBody>) {
-        self.bodies.get2_mut(h1, h2)
+        self.bodies.get2_mut(h1.0, h2.0)
     }
 
     /// Iterates through all the rigid-bodies on this set.
     pub fn iter(&self) -> impl Iterator<Item = (RigidBodyHandle, &RigidBody)> {
-        self.bodies.iter()
+        self.bodies.iter().map(|(h, b)| (RigidBodyHandle(h), b))
     }
 
     /// Iterates mutably through all the rigid-bodies on this set.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (RigidBodyHandle, &mut RigidBody)> {
         self.modified_bodies.clear();
         self.modified_all_bodies = true;
-        self.bodies.iter_mut()
+        self.bodies.iter_mut().map(|(h, b)| (RigidBodyHandle(h), b))
     }
 
     /// Iter through all the active kinematic rigid-bodies on this set.
@@ -242,7 +270,7 @@ impl RigidBodySet {
         let bodies: &'a _ = &self.bodies;
         self.active_kinematic_set
             .iter()
-            .filter_map(move |h| Some((*h, bodies.get(*h)?)))
+            .filter_map(move |h| Some((*h, bodies.get(h.0)?)))
     }
 
     /// Iter through all the active dynamic rigid-bodies on this set.
@@ -252,7 +280,7 @@ impl RigidBodySet {
         let bodies: &'a _ = &self.bodies;
         self.active_dynamic_set
             .iter()
-            .filter_map(move |h| Some((*h, bodies.get(*h)?)))
+            .filter_map(move |h| Some((*h, bodies.get(h.0)?)))
     }
 
     #[cfg(not(feature = "parallel"))]
@@ -264,7 +292,7 @@ impl RigidBodySet {
         let bodies: &'a _ = &self.bodies;
         self.active_dynamic_set[island_range]
             .iter()
-            .filter_map(move |h| Some((*h, bodies.get(*h)?)))
+            .filter_map(move |h| Some((*h, bodies.get(h.0)?)))
     }
 
     #[inline(always)]
@@ -273,13 +301,13 @@ impl RigidBodySet {
         mut f: impl FnMut(RigidBodyHandle, &mut RigidBody),
     ) {
         for handle in &self.active_dynamic_set {
-            if let Some(rb) = self.bodies.get_mut(*handle) {
+            if let Some(rb) = self.bodies.get_mut(handle.0) {
                 f(*handle, rb)
             }
         }
 
         for handle in &self.active_kinematic_set {
-            if let Some(rb) = self.bodies.get_mut(*handle) {
+            if let Some(rb) = self.bodies.get_mut(handle.0) {
                 f(*handle, rb)
             }
         }
@@ -291,7 +319,7 @@ impl RigidBodySet {
         mut f: impl FnMut(RigidBodyHandle, &mut RigidBody),
     ) {
         for handle in &self.active_dynamic_set {
-            if let Some(rb) = self.bodies.get_mut(*handle) {
+            if let Some(rb) = self.bodies.get_mut(handle.0) {
                 f(*handle, rb)
             }
         }
@@ -303,7 +331,7 @@ impl RigidBodySet {
         mut f: impl FnMut(RigidBodyHandle, &mut RigidBody),
     ) {
         for handle in &self.active_kinematic_set {
-            if let Some(rb) = self.bodies.get_mut(*handle) {
+            if let Some(rb) = self.bodies.get_mut(handle.0) {
                 f(*handle, rb)
             }
         }
@@ -318,7 +346,7 @@ impl RigidBodySet {
     ) {
         let island_range = self.active_islands[island_id]..self.active_islands[island_id + 1];
         for handle in &self.active_dynamic_set[island_range] {
-            if let Some(rb) = self.bodies.get_mut(*handle) {
+            if let Some(rb) = self.bodies.get_mut(handle.0) {
                 f(*handle, rb)
             }
         }
@@ -342,7 +370,7 @@ impl RigidBodySet {
                 || bodies.load(Ordering::Relaxed),
                 |bodies, handle| {
                     let bodies: &mut Arena<RigidBody> = unsafe { std::mem::transmute(*bodies) };
-                    if let Some(rb) = bodies.get_mut(*handle) {
+                    if let Some(rb) = bodies.get_mut(handle.0) {
                         f(*handle, rb)
                     }
                 },
@@ -405,7 +433,7 @@ impl RigidBodySet {
             for (handle, rb) in self.bodies.iter_mut() {
                 Self::maintain_one(
                     colliders,
-                    handle,
+                    RigidBodyHandle(handle),
                     rb,
                     &mut self.modified_inactive_set,
                     &mut self.active_kinematic_set,
@@ -414,9 +442,10 @@ impl RigidBodySet {
             }
 
             self.modified_bodies.clear();
+            self.modified_all_bodies = false;
         } else {
             for handle in self.modified_bodies.drain(..) {
-                if let Some(rb) = self.bodies.get_mut(handle) {
+                if let Some(rb) = self.bodies.get_mut(handle.0) {
                     Self::maintain_one(
                         colliders,
                         handle,
@@ -434,7 +463,7 @@ impl RigidBodySet {
         &mut self,
         colliders: &ColliderSet,
         narrow_phase: &NarrowPhase,
-        joint_graph: &InteractionGraph<Joint>,
+        joint_graph: &InteractionGraph<RigidBodyHandle, Joint>,
         min_island_size: usize,
     ) {
         assert!(
@@ -454,7 +483,7 @@ impl RigidBodySet {
         // does not seem to affect performances nor stability. However it makes
         // debugging slightly nicer so we keep this rev.
         for h in self.active_dynamic_set.drain(..).rev() {
-            let rb = &mut self.bodies[h];
+            let rb = &mut self.bodies[h.0];
             rb.update_energy();
             if rb.activation.energy <= rb.activation.threshold {
                 // Mark them as sleeping for now. This will
@@ -469,18 +498,18 @@ impl RigidBodySet {
 
         // Read all the contacts and push objects touching touching this rigid-body.
         #[inline(always)]
-        fn push_contacting_colliders(
+        fn push_contacting_bodies(
             rb: &RigidBody,
             colliders: &ColliderSet,
             narrow_phase: &NarrowPhase,
-            stack: &mut Vec<ColliderHandle>,
+            stack: &mut Vec<RigidBodyHandle>,
         ) {
             for collider_handle in &rb.colliders {
                 if let Some(contacts) = narrow_phase.contacts_with(*collider_handle) {
                     for inter in contacts {
                         for manifold in &inter.2.manifolds {
-                            if manifold.num_active_contacts() > 0 {
-                                let other = crate::utils::other_handle(
+                            if !manifold.data.solver_contacts.is_empty() {
+                                let other = crate::utils::select_other(
                                     (inter.0, inter.1),
                                     *collider_handle,
                                 );
@@ -497,7 +526,7 @@ impl RigidBodySet {
         // Now iterate on all active kinematic bodies and push all the bodies
         // touching them to the stack so they can be woken up.
         for h in self.active_kinematic_set.iter() {
-            let rb = &self.bodies[*h];
+            let rb = &self.bodies[h.0];
 
             if !rb.is_moving() {
                 // If the kinematic body does not move, it does not have
@@ -505,7 +534,7 @@ impl RigidBodySet {
                 continue;
             }
 
-            push_contacting_colliders(rb, colliders, narrow_phase, &mut self.stack);
+            push_contacting_bodies(rb, colliders, narrow_phase, &mut self.stack);
         }
 
         //        println!("Selection: {}", instant::now() - t);
@@ -520,7 +549,7 @@ impl RigidBodySet {
         let mut island_marker = self.stack.len().max(1) - 1;
 
         while let Some(handle) = self.stack.pop() {
-            let rb = &mut self.bodies[handle];
+            let rb = &mut self.bodies[handle.0];
 
             if rb.active_set_timestamp == self.active_set_timestamp || !rb.is_dynamic() {
                 // We already visited this body and its neighbors.
@@ -548,10 +577,10 @@ impl RigidBodySet {
 
             // Transmit the active state to all the rigid-bodies with colliders
             // in contact or joined with this collider.
-            push_contacting_colliders(rb, colliders, narrow_phase, &mut self.stack);
+            push_contacting_bodies(rb, colliders, narrow_phase, &mut self.stack);
 
             for inter in joint_graph.interactions_with(rb.joint_graph_index) {
-                let other = crate::utils::other_handle((inter.0, inter.1), handle);
+                let other = crate::utils::select_other((inter.0, inter.1), handle);
                 self.stack.push(other);
             }
         }
@@ -566,7 +595,7 @@ impl RigidBodySet {
         // Actually put to sleep bodies which have not been detected as awake.
         //        let t = instant::now();
         for h in &self.can_sleep {
-            let b = &mut self.bodies[*h];
+            let b = &mut self.bodies[h.0];
             if b.activation.sleeping {
                 b.sleep();
             }
@@ -579,12 +608,12 @@ impl Index<RigidBodyHandle> for RigidBodySet {
     type Output = RigidBody;
 
     fn index(&self, index: RigidBodyHandle) -> &RigidBody {
-        &self.bodies[index]
+        &self.bodies[index.0]
     }
 }
 
 impl IndexMut<RigidBodyHandle> for RigidBodySet {
     fn index_mut(&mut self, index: RigidBodyHandle) -> &mut RigidBody {
-        &mut self.bodies[index]
+        &mut self.bodies[index.0]
     }
 }

@@ -1,9 +1,11 @@
+use crate::math::Real;
+
 /// Parameters for a time-step of the physics engine.
 #[derive(Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct IntegrationParameters {
     /// The timestep length (default: `1.0 / 60.0`)
-    pub dt: f32,
+    pub dt: Real,
 
     //    /// If `true` and if rapier is compiled with the `parallel` feature, this will enable rayon-based multithreading (default: `true`).
     //    ///
@@ -18,31 +20,31 @@ pub struct IntegrationParameters {
     pub return_after_ccd_substep: bool,
     /// The Error Reduction Parameter in `[0, 1]` is the proportion of
     /// the positional error to be corrected at each time step (default: `0.2`).
-    pub erp: f32,
+    pub erp: Real,
     /// The Error Reduction Parameter for joints in `[0, 1]` is the proportion of
     /// the positional error to be corrected at each time step (default: `0.2`).
-    pub joint_erp: f32,
+    pub joint_erp: Real,
     /// Each cached impulse are multiplied by this coefficient in `[0, 1]`
     /// when they are re-used to initialize the solver (default `1.0`).
-    pub warmstart_coeff: f32,
+    pub warmstart_coeff: Real,
     /// Contacts at points where the involved bodies have a relative
     /// velocity smaller than this threshold wont be affected by the restitution force (default: `1.0`).
-    pub restitution_velocity_threshold: f32,
+    pub restitution_velocity_threshold: Real,
     /// Amount of penetration the engine wont attempt to correct (default: `0.005m`).
-    pub allowed_linear_error: f32,
+    pub allowed_linear_error: Real,
     /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002`).
-    pub prediction_distance: f32,
+    pub prediction_distance: Real,
     /// Amount of angular drift of joint limits the engine wont
     /// attempt to correct (default: `0.001rad`).
-    pub allowed_angular_error: f32,
+    pub allowed_angular_error: Real,
     /// Maximum linear correction during one step of the non-linear position solver (default: `0.2`).
-    pub max_linear_correction: f32,
+    pub max_linear_correction: Real,
     /// Maximum angular correction during one step of the non-linear position solver (default: `0.2`).
-    pub max_angular_correction: f32,
+    pub max_angular_correction: Real,
     /// Maximum nonlinear SOR-prox scaling parameter when the constraint
     /// correction direction is close to the kernel of the involved multibody's
     /// jacobian (default: `0.2`).
-    pub max_stabilization_multiplier: f32,
+    pub max_stabilization_multiplier: Real,
     /// Maximum number of iterations performed by the velocity constraints solver (default: `4`).
     pub max_velocity_iterations: usize,
     /// Maximum number of iterations performed by the position-based constraints solver (default: `1`).
@@ -88,18 +90,18 @@ impl IntegrationParameters {
     /// Creates a set of integration parameters with the given values.
     #[deprecated = "Use `IntegrationParameters { dt: 60.0, ..Default::default() }` instead"]
     pub fn new(
-        dt: f32,
+        dt: Real,
         //        multithreading_enabled: bool,
-        erp: f32,
-        joint_erp: f32,
-        warmstart_coeff: f32,
-        restitution_velocity_threshold: f32,
-        allowed_linear_error: f32,
-        allowed_angular_error: f32,
-        max_linear_correction: f32,
-        max_angular_correction: f32,
-        prediction_distance: f32,
-        max_stabilization_multiplier: f32,
+        erp: Real,
+        joint_erp: Real,
+        warmstart_coeff: Real,
+        restitution_velocity_threshold: Real,
+        allowed_linear_error: Real,
+        allowed_angular_error: Real,
+        max_linear_correction: Real,
+        max_angular_correction: Real,
+        prediction_distance: Real,
+        max_stabilization_multiplier: Real,
         max_velocity_iterations: usize,
         max_position_iterations: usize,
         max_ccd_position_iterations: usize,
@@ -140,7 +142,7 @@ impl IntegrationParameters {
     /// The current time-stepping length.
     #[inline(always)]
     #[deprecated = "You can just read the `IntegrationParams::dt` value directly"]
-    pub fn dt(&self) -> f32 {
+    pub fn dt(&self) -> Real {
         self.dt
     }
 
@@ -148,7 +150,7 @@ impl IntegrationParameters {
     ///
     /// This is zero if `self.dt` is zero.
     #[inline(always)]
-    pub fn inv_dt(&self) -> f32 {
+    pub fn inv_dt(&self) -> Real {
         if self.dt == 0.0 {
             0.0
         } else {
@@ -159,7 +161,7 @@ impl IntegrationParameters {
     /// Sets the time-stepping length.
     #[inline]
     #[deprecated = "You can just set the `IntegrationParams::dt` value directly"]
-    pub fn set_dt(&mut self, dt: f32) {
+    pub fn set_dt(&mut self, dt: Real) {
         assert!(dt >= 0.0, "The time-stepping length cannot be negative.");
         self.dt = dt;
     }
@@ -168,7 +170,7 @@ impl IntegrationParameters {
     ///
     /// This automatically recompute `self.dt`.
     #[inline]
-    pub fn set_inv_dt(&mut self, inv_dt: f32) {
+    pub fn set_inv_dt(&mut self, inv_dt: Real) {
         if inv_dt == 0.0 {
             self.dt = 0.0
         } else {

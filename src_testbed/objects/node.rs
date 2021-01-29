@@ -5,8 +5,7 @@ use crate::objects::convex::Convex;
 use crate::objects::heightfield::HeightField;
 use crate::objects::mesh::Mesh;
 //use crate::objects::plane::Plane;
-//#[cfg(feature = "dim2")]
-//use crate::objects::polyline::Polyline;
+use crate::objects::polyline::Polyline;
 use kiss3d::window::Window;
 use na::Point3;
 
@@ -26,8 +25,7 @@ pub enum Node {
     Box(Box),
     HeightField(HeightField),
     Capsule(Capsule),
-    //    #[cfg(feature = "dim2")]
-    //    Polyline(Polyline),
+    Polyline(Polyline),
     Mesh(Mesh),
     Convex(Convex),
     Cylinder(Cylinder),
@@ -42,8 +40,7 @@ impl Node {
             Node::Box(ref mut n) => n.select(),
             Node::Capsule(ref mut n) => n.select(),
             Node::HeightField(ref mut n) => n.select(),
-            //            #[cfg(feature = "dim2")]
-            //            Node::Polyline(ref mut n) => n.select(),
+            Node::Polyline(ref mut n) => n.select(),
             Node::Mesh(ref mut n) => n.select(),
             Node::Convex(ref mut n) => n.select(),
             Node::Cylinder(ref mut n) => n.select(),
@@ -58,8 +55,7 @@ impl Node {
             Node::Box(ref mut n) => n.unselect(),
             Node::Capsule(ref mut n) => n.unselect(),
             Node::HeightField(ref mut n) => n.unselect(),
-            //            #[cfg(feature = "dim2")]
-            //            Node::Polyline(ref mut n) => n.unselect(),
+            Node::Polyline(ref mut n) => n.unselect(),
             Node::Mesh(ref mut n) => n.unselect(),
             Node::Convex(ref mut n) => n.unselect(),
             Node::Cylinder(ref mut n) => n.unselect(),
@@ -74,8 +70,7 @@ impl Node {
             Node::Box(ref mut n) => n.update(colliders),
             Node::Capsule(ref mut n) => n.update(colliders),
             Node::HeightField(ref mut n) => n.update(colliders),
-            //            #[cfg(feature = "dim2")]
-            //            Node::Polyline(ref mut n) => n.update(colliders),
+            Node::Polyline(ref mut n) => n.update(colliders),
             Node::Mesh(ref mut n) => n.update(colliders),
             Node::Convex(ref mut n) => n.update(colliders),
             Node::Cylinder(ref mut n) => n.update(colliders),
@@ -86,7 +81,7 @@ impl Node {
     #[cfg(feature = "dim2")]
     pub fn draw(&mut self, window: &mut Window) {
         match *self {
-            //                    Node::Polyline(ref mut n) => n.draw(_window),
+            Node::Polyline(ref mut n) => n.draw(window),
             Node::HeightField(ref mut n) => n.draw(window),
             //            Node::Plane(ref mut n) => n.draw(_window),
             _ => {}
@@ -109,8 +104,9 @@ impl Node {
             Node::Convex(ref n) => Some(n.scene_node()),
             Node::Cylinder(ref n) => Some(n.scene_node()),
             Node::Cone(ref n) => Some(n.scene_node()),
+            Node::Polyline(_) => None,
             #[cfg(feature = "dim2")]
-            _ => None,
+            Node::HeightField(_) => None,
         }
     }
 
@@ -127,8 +123,9 @@ impl Node {
             Node::Convex(ref mut n) => Some(n.scene_node_mut()),
             Node::Cylinder(ref mut n) => Some(n.scene_node_mut()),
             Node::Cone(ref mut n) => Some(n.scene_node_mut()),
+            Node::Polyline(_) => None,
             #[cfg(feature = "dim2")]
-            _ => None,
+            Node::HeightField(_) => None,
         }
     }
 
@@ -139,8 +136,7 @@ impl Node {
             Node::Box(ref n) => n.object(),
             Node::Capsule(ref n) => n.object(),
             Node::HeightField(ref n) => n.object(),
-            //            #[cfg(feature = "dim2")]
-            //            Node::Polyline(ref n) => n.object(),
+            Node::Polyline(ref n) => n.object(),
             Node::Mesh(ref n) => n.object(),
             Node::Convex(ref n) => n.object(),
             Node::Cylinder(ref n) => n.object(),
@@ -155,8 +151,7 @@ impl Node {
             Node::Box(ref mut n) => n.set_color(color),
             Node::Capsule(ref mut n) => n.set_color(color),
             Node::HeightField(ref mut n) => n.set_color(color),
-            //            #[cfg(feature = "dim2")]
-            //            Node::Polyline(ref mut n) => n.set_color(color),
+            Node::Polyline(ref mut n) => n.set_color(color),
             Node::Mesh(ref mut n) => n.set_color(color),
             Node::Convex(ref mut n) => n.set_color(color),
             Node::Cylinder(ref mut n) => n.set_color(color),
