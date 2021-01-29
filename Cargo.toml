@@ -11,10 +11,10 @@ members = [ "build/rapier2d", "build/rapier2d-f64", "build/rapier_testbed2d", "e
 #nphysics2d = { path = "../nphysics/build/nphysics2d" }
 #nphysics3d = { path = "../nphysics/build/nphysics3d" }
 #kiss3d = { path = "../kiss3d" }
-parry2d = { path = "../parry/build/parry2d" }
-parry3d = { path = "../parry/build/parry3d" }
-parry2d-f64 = { path = "../parry/build/parry2d-f64" }
-parry3d-f64 = { path = "../parry/build/parry3d-f64" }
+#parry2d = { path = "../parry/build/parry2d" }
+#parry3d = { path = "../parry/build/parry3d" }
+#parry2d-f64 = { path = "../parry/build/parry2d-f64" }
+#parry3d-f64 = { path = "../parry/build/parry3d-f64" }
 #nalgebra = { path = "../nalgebra" }
 
 #kiss3d = { git = "https://github.com/sebcrozet/kiss3d" }
