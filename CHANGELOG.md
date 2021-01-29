@@ -51,6 +51,7 @@ Breaking changes related to rigid-bodies:
   Use `RigidBodyDesc.lockRotations` or `RigidBodyDesc.restrictRotations` to lock the rotational motion of the rigid-body.
 
 Breaking changes related to colliders:
+- The collider shape type has been renamed from `ColliderShape` to `SharedShape` (now part of the Parry crate).
 - The `Polygon` shape no longer exists. For a 2D convex polygon, use a `ConvexPolygon` instead.
 - All occurrences of `Trimesh` have been replaced by `TriMesh` (note the change in case).
 
