@@ -24,6 +24,7 @@ Several new shape types are now supported:
 It is possible to build `ColliderDesc` using these new shapes:
 - `ColliderBuilder::round_cuboid`, `ColliderBuilder::segment`, `ColliderBuilder::triangle`, `ColliderBuilder::round_triangle`,
   `ColliderBuilder::convex_hull`, `ColliderBuilder::round_convex_hull`, `ColliderBuilder::polyline`,
+  `ColliderBuilder::convex_decomposition`, `ColliderBuilder::round_convex_decomposition`,
   `ColliderBuilder::convex_polyline` (2D only), `ColliderBuilder::round_convex_polyline` (2D only),
   `ColliderBuilder::convex_mesh` (3D only),`ColliderBuilder::round_convex_mesh` (3D only), `ColliderBuilder::round_cone` (3D only).
 
