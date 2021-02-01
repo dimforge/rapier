@@ -93,7 +93,7 @@ impl PositionConstraint {
                 ii1: rb1.effective_world_inv_inertia_sqrt.squared(),
                 ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
                 num_contacts: manifold_points.len() as u8,
-                erp: params.erp,
+                erp: params.positionErp,
                 max_linear_correction: params.max_linear_correction,
             };
 

@@ -3,11 +3,15 @@ use super::{
 };
 #[cfg(feature = "simd-is-enabled")]
 use super::{
-    WPositionConstraint, WPositionGroundConstraint, WVelocityConstraint, WVelocityGroundConstraint,
+    WPositionConstraint, WPositionGroundConstraint, WVelocityConstraint,
+    WVelocityConstraintWithManifoldFriction, WVelocityGroundConstraint,
+    WVelocityGroundConstraintWithManifoldFriction,
 };
 use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
 use crate::dynamics::solver::{
-    AnyJointPositionConstraint, AnyPositionConstraint, PositionConstraint, PositionGroundConstraint,
+    AnyJointPositionConstraint, AnyPositionConstraint, PositionConstraint,
+    PositionGroundConstraint, VelocityConstraintWithManifoldFriction,
+    VelocityGroundConstraintWithManifoldFriction,
 };
 use crate::dynamics::{
     solver::AnyVelocityConstraint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet,
@@ -122,7 +126,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
         {
             let manifold_id = array![|ii| manifolds_i[ii]; SIMD_WIDTH];
             let manifolds = array![|ii| &*manifolds_all[manifolds_i[ii]]; SIMD_WIDTH];
-            WVelocityConstraint::generate(
+            WVelocityConstraintWithManifoldFriction::generate(
                 params,
                 manifold_id,
                 manifolds,
@@ -130,13 +134,16 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                 &mut self.velocity_constraints,
                 true,
             );
-            WPositionConstraint::generate(
-                params,
-                manifolds,
-                bodies,
-                &mut self.position_constraints,
-                true,
-            );
+
+            if params.positionErp != 0.0 {
+                WPositionConstraint::generate(
+                    params,
+                    manifolds,
+                    bodies,
+                    &mut self.position_constraints,
+                    true,
+                );
+            }
         }
     }
 
@@ -148,7 +155,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
     ) {
         for manifold_i in &self.interaction_groups.nongrouped_interactions {
             let manifold = &manifolds_all[*manifold_i];
-            VelocityConstraint::generate(
+            VelocityConstraintWithManifoldFriction::generate(
                 params,
                 *manifold_i,
                 manifold,
@@ -156,13 +163,16 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                 &mut self.velocity_constraints,
                 true,
             );
-            PositionConstraint::generate(
-                params,
-                manifold,
-                bodies,
-                &mut self.position_constraints,
-                true,
-            );
+
+            if params.positionErp != 0.0 {
+                PositionConstraint::generate(
+                    params,
+                    manifold,
+                    bodies,
+                    &mut self.position_constraints,
+                    true,
+                );
+            }
         }
     }
 
@@ -180,7 +190,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
         {
             let manifold_id = array![|ii| manifolds_i[ii]; SIMD_WIDTH];
             let manifolds = array![|ii| &*manifolds_all[manifolds_i[ii]]; SIMD_WIDTH];
-            WVelocityGroundConstraint::generate(
+            WVelocityGroundConstraintWithManifoldFriction::generate(
                 params,
                 manifold_id,
                 manifolds,
@@ -188,13 +198,16 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                 &mut self.velocity_constraints,
                 true,
             );
-            WPositionGroundConstraint::generate(
-                params,
-                manifolds,
-                bodies,
-                &mut self.position_constraints,
-                true,
-            );
+
+            if params.positionErp != 0.0 {
+                WPositionGroundConstraint::generate(
+                    params,
+                    manifolds,
+                    bodies,
+                    &mut self.position_constraints,
+                    true,
+                );
+            }
         }
     }
 
@@ -206,7 +219,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
     ) {
         for manifold_i in &self.ground_interaction_groups.nongrouped_interactions {
             let manifold = &manifolds_all[*manifold_i];
-            VelocityGroundConstraint::generate(
+            VelocityGroundConstraintWithManifoldFriction::generate(
                 params,
                 *manifold_i,
                 manifold,
@@ -214,13 +227,16 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                 &mut self.velocity_constraints,
                 true,
             );
-            PositionGroundConstraint::generate(
-                params,
-                manifold,
-                bodies,
-                &mut self.position_constraints,
-                true,
-            )
+
+            if params.positionErp != 0.0 {
+                PositionGroundConstraint::generate(
+                    params,
+                    manifold,
+                    bodies,
+                    &mut self.position_constraints,
+                    true,
+                )
+            }
         }
     }
 }

@@ -66,7 +66,7 @@ impl PositionGroundConstraint {
                 im2: rb2.effective_inv_mass,
                 ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
                 num_contacts: manifold_contacts.len() as u8,
-                erp: params.erp,
+                erp: params.positionErp,
                 max_linear_correction: params.max_linear_correction,
             };
 

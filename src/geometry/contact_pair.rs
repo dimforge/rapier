@@ -100,6 +100,8 @@ pub struct ContactManifoldData {
     pub normal: Vector<Real>,
     /// The contacts that will be seen by the constraints solver for computing forces.
     pub solver_contacts: Vec<SolverContact>,
+    /// Twist impulse, if the twist friction model is select.d
+    pub twist_impulse: Real,
 }
 
 /// A contact seen by the constraints solver for computing forces.
@@ -143,6 +145,7 @@ impl ContactManifoldData {
             solver_flags,
             normal: Vector::zeros(),
             solver_contacts: Vec::new(),
+            twist_impulse: 0.0,
         }
     }
 

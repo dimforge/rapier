@@ -1,7 +1,13 @@
 use super::DeltaVel;
-use crate::dynamics::solver::VelocityGroundConstraint;
+use crate::dynamics::solver::{
+    VelocityConstraintWithManifoldFriction, VelocityGroundConstraint,
+    VelocityGroundConstraintWithManifoldFriction,
+};
 #[cfg(feature = "simd-is-enabled")]
-use crate::dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint};
+use crate::dynamics::solver::{
+    WVelocityConstraint, WVelocityConstraintWithManifoldFriction, WVelocityGroundConstraint,
+    WVelocityGroundConstraintWithManifoldFriction,
+};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{AngVector, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
@@ -13,10 +19,16 @@ use simba::simd::SimdPartialOrd;
 pub(crate) enum AnyVelocityConstraint {
     NongroupedGround(VelocityGroundConstraint),
     Nongrouped(VelocityConstraint),
+    Nongrouped2(VelocityConstraintWithManifoldFriction),
+    NongroupedGround2(VelocityGroundConstraintWithManifoldFriction),
     #[cfg(feature = "simd-is-enabled")]
     GroupedGround(WVelocityGroundConstraint),
     #[cfg(feature = "simd-is-enabled")]
     Grouped(WVelocityConstraint),
+    #[cfg(feature = "simd-is-enabled")]
+    Grouped2(WVelocityConstraintWithManifoldFriction),
+    #[cfg(feature = "simd-is-enabled")]
+    GroupedGround2(WVelocityGroundConstraintWithManifoldFriction),
     #[allow(dead_code)] // The Empty variant is only used with parallel code.
     Empty,
 }
@@ -44,10 +56,16 @@ impl AnyVelocityConstraint {
         match self {
             AnyVelocityConstraint::NongroupedGround(c) => c.warmstart(mj_lambdas),
             AnyVelocityConstraint::Nongrouped(c) => c.warmstart(mj_lambdas),
+            AnyVelocityConstraint::Nongrouped2(c) => c.warmstart(mj_lambdas),
+            AnyVelocityConstraint::NongroupedGround2(c) => c.warmstart(mj_lambdas),
             #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::GroupedGround(c) => c.warmstart(mj_lambdas),
             #[cfg(feature = "simd-is-enabled")]
+            AnyVelocityConstraint::GroupedGround2(c) => c.warmstart(mj_lambdas),
+            #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::Grouped(c) => c.warmstart(mj_lambdas),
+            #[cfg(feature = "simd-is-enabled")]
+            AnyVelocityConstraint::Grouped2(c) => c.warmstart(mj_lambdas),
             AnyVelocityConstraint::Empty => unreachable!(),
         }
     }
@@ -56,10 +74,16 @@ impl AnyVelocityConstraint {
         match self {
             AnyVelocityConstraint::NongroupedGround(c) => c.solve(mj_lambdas),
             AnyVelocityConstraint::Nongrouped(c) => c.solve(mj_lambdas),
+            AnyVelocityConstraint::Nongrouped2(c) => c.solve(mj_lambdas),
+            AnyVelocityConstraint::NongroupedGround2(c) => c.solve(mj_lambdas),
             #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::GroupedGround(c) => c.solve(mj_lambdas),
             #[cfg(feature = "simd-is-enabled")]
+            AnyVelocityConstraint::GroupedGround2(c) => c.solve(mj_lambdas),
+            #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::Grouped(c) => c.solve(mj_lambdas),
+            #[cfg(feature = "simd-is-enabled")]
+            AnyVelocityConstraint::Grouped2(c) => c.solve(mj_lambdas),
             AnyVelocityConstraint::Empty => unreachable!(),
         }
     }
@@ -68,10 +92,16 @@ impl AnyVelocityConstraint {
         match self {
             AnyVelocityConstraint::NongroupedGround(c) => c.writeback_impulses(manifold_all),
             AnyVelocityConstraint::Nongrouped(c) => c.writeback_impulses(manifold_all),
+            AnyVelocityConstraint::Nongrouped2(c) => c.writeback_impulses(manifold_all),
+            AnyVelocityConstraint::NongroupedGround2(c) => c.writeback_impulses(manifold_all),
             #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::GroupedGround(c) => c.writeback_impulses(manifold_all),
             #[cfg(feature = "simd-is-enabled")]
+            AnyVelocityConstraint::GroupedGround2(c) => c.writeback_impulses(manifold_all),
+            #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::Grouped(c) => c.writeback_impulses(manifold_all),
+            #[cfg(feature = "simd-is-enabled")]
+            AnyVelocityConstraint::Grouped2(c) => c.writeback_impulses(manifold_all),
             AnyVelocityConstraint::Empty => unreachable!(),
         }
     }

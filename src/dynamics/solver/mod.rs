@@ -26,9 +26,15 @@ pub(self) use position_ground_constraint_wide::*;
 pub(self) use velocity_constraint::*;
 #[cfg(feature = "simd-is-enabled")]
 pub(self) use velocity_constraint_wide::*;
+#[cfg(feature = "simd-is-enabled")]
+pub(self) use velocity_constraint_wide_with_manifold_friction::*;
+pub(self) use velocity_constraint_with_manifold_friction::*;
 pub(self) use velocity_ground_constraint::*;
 #[cfg(feature = "simd-is-enabled")]
 pub(self) use velocity_ground_constraint_wide::*;
+#[cfg(feature = "simd-is-enabled")]
+pub(self) use velocity_ground_constraint_wide_with_manifold_friction::*;
+pub(self) use velocity_ground_constraint_with_manifold_friction::*;
 
 mod categorization;
 mod delta_vel;
@@ -57,8 +63,14 @@ mod solver_constraints;
 mod velocity_constraint;
 #[cfg(feature = "simd-is-enabled")]
 mod velocity_constraint_wide;
+#[cfg(feature = "simd-is-enabled")]
+mod velocity_constraint_wide_with_manifold_friction;
+mod velocity_constraint_with_manifold_friction;
 mod velocity_ground_constraint;
 #[cfg(feature = "simd-is-enabled")]
 mod velocity_ground_constraint_wide;
+#[cfg(feature = "simd-is-enabled")]
+mod velocity_ground_constraint_wide_with_manifold_friction;
+mod velocity_ground_constraint_with_manifold_friction;
 #[cfg(not(feature = "parallel"))]
 mod velocity_solver;

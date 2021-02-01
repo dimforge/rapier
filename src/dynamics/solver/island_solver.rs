@@ -60,16 +60,18 @@ impl IslandSolver {
         bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| rb.integrate(params.dt));
         counters.solver.velocity_update_time.pause();
 
-        if manifold_indices.len() != 0 || joint_indices.len() != 0 {
-            counters.solver.position_resolution_time.resume();
-            self.position_solver.solve(
-                island_id,
-                params,
-                bodies,
-                &self.contact_constraints.position_constraints,
-                &self.joint_constraints.position_constraints,
-            );
-            counters.solver.position_resolution_time.pause();
+        if params.positionErp != 0.0 {
+            if manifold_indices.len() != 0 || joint_indices.len() != 0 {
+                counters.solver.position_resolution_time.resume();
+                self.position_solver.solve(
+                    island_id,
+                    params,
+                    bodies,
+                    &self.contact_constraints.position_constraints,
+                    &self.joint_constraints.position_constraints,
+                );
+                counters.solver.position_resolution_time.pause();
+            }
         }
     }
 }

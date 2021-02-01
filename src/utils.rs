@@ -19,6 +19,12 @@ pub(crate) fn inv(val: Real) -> Real {
     }
 }
 
+pub(crate) fn simd_inv(val: SimdReal) -> SimdReal {
+    let zero = SimdReal::splat(0.0);
+    let is_zero = val.simd_eq(zero);
+    zero.select(is_zero, SimdReal::splat(1.0) / val)
+}
+
 /// Trait to copy the sign of each component of one scalar/vector/matrix to another.
 pub trait WSign<Rhs>: Sized {
     // See SIMD implementations of copy_sign there: https://stackoverflow.com/a/57872652
