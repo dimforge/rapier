@@ -61,6 +61,17 @@ impl VelocitySolver {
         self.mj_lambdas
             .resize(bodies.active_island(island_id).len(), DeltaVel::zero());
 
+        // Initialize delta-velocities (`mj_lambdas`) with external forces (gravity etc):
+        bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
+            // eprintln!("initial rb.linvel: {}", rb.linvel);
+            let dvel = &mut self.mj_lambdas[rb.active_set_offset];
+            dvel.linear += rb.linacc * params.dt;
+            dvel.angular += rb.angacc * params.dt;
+            // eprintln!("initial dvel.linear: {}", dvel.linear);
+            rb.linacc = na::zero();
+            rb.angacc = na::zero();
+        });
+
         /*
          * Warmstart constraints.
          */

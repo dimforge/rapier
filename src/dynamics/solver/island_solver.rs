@@ -27,7 +27,10 @@ impl IslandSolver {
         joints: &mut [JointGraphEdge],
         joint_indices: &[JointIndex],
     ) {
-        if manifold_indices.len() != 0 || joint_indices.len() != 0 {
+        let has_constraints = !manifold_indices.is_empty() || !joint_indices.is_empty();
+
+        if has_constraints {
+            // initialize constraints with old velocities:
             counters.solver.velocity_assembly_time.resume();
             self.velocity_solver.init_constraints(
                 island_id,
@@ -40,6 +43,20 @@ impl IslandSolver {
             );
             counters.solver.velocity_assembly_time.pause();
 
+            // run position solver
+            counters.solver.position_resolution_time.resume();
+            self.position_solver
+                .solve_constraints(island_id, params, bodies);
+            counters.solver.position_resolution_time.pause();
+
+            // update positions with old velocity (symplectic euler):
+            counters.solver.velocity_update_time.resume();
+            bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
+                rb.integrate(params.dt)
+            });
+            counters.solver.velocity_update_time.pause();
+
+            // calculate new velocities:
             counters.solver.velocity_resolution_time.resume();
             self.velocity_solver
                 .solve_constraints(island_id, params, bodies, manifolds, joints);
@@ -56,17 +73,13 @@ impl IslandSolver {
                 &joint_indices,
             );
             counters.solver.position_assembly_time.pause();
-        }
-
-        counters.solver.velocity_update_time.resume();
-        bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| rb.integrate(params.dt));
-        counters.solver.velocity_update_time.pause();
-
-        if manifold_indices.len() != 0 || joint_indices.len() != 0 {
-            counters.solver.position_resolution_time.resume();
-            self.position_solver
-                .solve_constraints(island_id, params, bodies);
-            counters.solver.position_resolution_time.pause();
+        } else {
+            counters.solver.velocity_update_time.resume();
+            bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
+                rb.integrate(params.dt);
+                rb.integrate_accelerations(params.dt);
+            });
+            counters.solver.velocity_update_time.pause();
         }
     }
 }

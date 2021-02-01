@@ -125,12 +125,27 @@ impl RigidBody {
         self.active_set_timestamp = 0;
     }
 
-    pub(crate) fn integrate_accelerations(&mut self, dt: f32, gravity: Vector<f32>) {
-        if self.mass_properties.inv_mass != 0.0 {
-            self.linvel += (gravity + self.linacc) * dt;
-            self.angvel += self.angacc * dt;
+    // pub(crate) fn integrate_accelerations(&mut self, dt: f32, gravity: Vector<f32>) {
+    //     if self.mass_properties.inv_mass != 0.0 {
+    //         self.linvel += (gravity + self.linacc) * dt;
+    //         self.angvel += self.angacc * dt;
 
-            // Reset the accelerations.
+    //         // Reset the accelerations.
+    //         self.linacc = na::zero();
+    //         self.angacc = na::zero();
+    //     }
+    // }
+
+    pub(crate) fn add_gravity(&mut self, gravity: Vector<f32>) {
+        if self.mass_properties.inv_mass != 0.0 {
+            self.linacc += gravity;
+        }
+    }
+
+    pub(crate) fn integrate_accelerations(&mut self, dt: f32) {
+        if self.mass_properties.inv_mass != 0.0 {
+            self.linvel += self.linacc * dt;
+            self.angvel += self.angacc * dt;
             self.linacc = na::zero();
             self.angacc = na::zero();
         }
