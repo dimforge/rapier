@@ -1,4 +1,4 @@
-use super::{AnyVelocityConstraint, DeltaVel};
+use super::{AnyVelocityConstraint, DeltaVel, SpringRegularization};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
@@ -40,6 +40,7 @@ pub(crate) struct WVelocityGroundConstraintWithManifoldFriction {
     mj_lambda2: [usize; SIMD_WIDTH],
     manifold_id: [ContactManifoldIndex; SIMD_WIDTH],
     manifold_contact_id: usize,
+    impulse_scale: SimdReal,
 }
 
 impl WVelocityGroundConstraintWithManifoldFriction {
@@ -51,6 +52,9 @@ impl WVelocityGroundConstraintWithManifoldFriction {
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         push: bool,
     ) {
+        let (erp, cfm, impulse_scale) =
+            SpringRegularization::default().erp_cfm_impulse_scale(params.dt);
+
         let inv_dt = SimdReal::splat(params.inv_dt());
         let mut rbs1 = array![|ii| &bodies[manifolds[ii].data.body_pair.body1]; SIMD_WIDTH];
         let mut rbs2 = array![|ii| &bodies[manifolds[ii].data.body_pair.body2]; SIMD_WIDTH];
@@ -109,6 +113,7 @@ impl WVelocityGroundConstraintWithManifoldFriction {
                 manifold_id,
                 manifold_contact_id: l,
                 num_contacts: num_points as u8,
+                impulse_scale: SimdReal::splat(impulse_scale),
             };
 
             let mut manifold_center = Point::origin();
@@ -146,17 +151,15 @@ impl WVelocityGroundConstraintWithManifoldFriction {
                 {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-force_dir1));
 
-                    let r = SimdReal::splat(1.0) / (im2 + gcross2.gdot(gcross2));
+                    let r =
+                        SimdReal::splat(1.0) / (SimdReal::splat(cfm) + im2 + gcross2.gdot(gcross2));
                     let mut rhs = (vel1 - vel2).dot(&force_dir1);
                     let use_restitution = rhs.simd_le(-restitution_velocity_threshold);
                     let rhs_with_restitution = rhs + rhs * restitution;
                     rhs = rhs_with_restitution.select(use_restitution, rhs);
 
-                    rhs += ((dist.simd_min(SimdReal::splat(0.0))
-                        * SimdReal::splat(params.velocityErp))
-                        + dist.simd_max(SimdReal::splat(0.0)))
-                        * inv_dt;
-                    // rhs += dist.simd_max(SimdReal::splat(-0.1)) * inv_dt;
+                    rhs += dist.simd_min(SimdReal::splat(0.0)) * SimdReal::splat(erp)
+                        + dist.simd_max(SimdReal::splat(0.0)) * inv_dt;
 
                     constraint.normal_parts[k] = WVelocityConstraintPart {
                         gcross2,
@@ -295,7 +298,8 @@ impl WVelocityGroundConstraintWithManifoldFriction {
             let elt = &mut self.normal_parts[i];
             let dimpulse =
                 -self.dir1.dot(&mj_lambda2.linear) + elt.gcross2.gdot(mj_lambda2.angular) + elt.rhs;
-            let new_impulse = (elt.impulse - elt.r * dimpulse).simd_max(SimdReal::zero());
+            let new_impulse =
+                (elt.impulse * self.impulse_scale - elt.r * dimpulse).simd_max(SimdReal::zero());
             let dlambda = new_impulse - elt.impulse;
             elt.impulse = new_impulse;
 

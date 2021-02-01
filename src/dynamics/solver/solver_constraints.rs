@@ -135,7 +135,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                 true,
             );
 
-            if params.positionErp != 0.0 {
+            if params.position_erp != 0.0 {
                 WPositionConstraint::generate(
                     params,
                     manifolds,
@@ -164,7 +164,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                 true,
             );
 
-            if params.positionErp != 0.0 {
+            if params.position_erp != 0.0 {
                 PositionConstraint::generate(
                     params,
                     manifold,
@@ -199,7 +199,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                 true,
             );
 
-            if params.positionErp != 0.0 {
+            if params.position_erp != 0.0 {
                 WPositionGroundConstraint::generate(
                     params,
                     manifolds,
@@ -228,7 +228,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                 true,
             );
 
-            if params.positionErp != 0.0 {
+            if params.position_erp != 0.0 {
                 PositionGroundConstraint::generate(
                     params,
                     manifold,

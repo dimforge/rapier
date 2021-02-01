@@ -144,7 +144,11 @@ impl WVelocityGroundConstraint {
                     let use_restitution = rhs.simd_le(-restitution_velocity_threshold);
                     let rhs_with_restitution = rhs + rhs * restitution;
                     rhs = rhs_with_restitution.select(use_restitution, rhs);
-                    rhs += dist.simd_max(SimdReal::zero()) * inv_dt;
+
+                    rhs += ((dist.simd_min(SimdReal::splat(0.0))
+                        * SimdReal::splat(params.velocity_erp))
+                        + dist.simd_max(SimdReal::splat(0.0)))
+                        * inv_dt;
 
                     constraint.elements[k].normal_part = WVelocityGroundConstraintElementPart {
                         gcross2,

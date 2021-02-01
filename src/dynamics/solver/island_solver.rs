@@ -60,7 +60,7 @@ impl IslandSolver {
         bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| rb.integrate(params.dt));
         counters.solver.velocity_update_time.pause();
 
-        if params.positionErp != 0.0 {
+        if params.position_erp != 0.0 {
             if manifold_indices.len() != 0 || joint_indices.len() != 0 {
                 counters.solver.position_resolution_time.resume();
                 self.position_solver.solve(

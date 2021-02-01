@@ -20,10 +20,10 @@ pub struct IntegrationParameters {
     pub return_after_ccd_substep: bool,
     /// The Error Reduction Parameter in `[0, 1]` is the proportion of
     /// the positional error to be corrected at the position level each time step (default: `0.0`).
-    pub positionErp: Real,
+    pub position_erp: Real,
     /// The Error Reduction Parameter in `[0, 1]` is the proportion of
     /// the positional error to be corrected at the velocity level at each time step (default: `0.005`).
-    pub velocityErp: Real,
+    pub velocity_erp: Real,
     /// The Error Reduction Parameter for joints in `[0, 1]` is the proportion of
     /// the positional error to be corrected at each time step (default: `0.2`).
     pub joint_erp: Real,
@@ -116,7 +116,7 @@ impl IntegrationParameters {
         IntegrationParameters {
             dt,
             //            multithreading_enabled,
-            positionErp: erp,
+            position_erp: erp,
             joint_erp,
             warmstart_coeff,
             restitution_velocity_threshold,
@@ -139,7 +139,7 @@ impl IntegrationParameters {
             return_after_ccd_substep,
             multiple_ccd_substep_sensor_events_enabled,
             ccd_on_penetration_enabled,
-            velocityErp: 0.005,
+            velocity_erp: 0.005,
         }
     }
 
@@ -189,8 +189,8 @@ impl Default for IntegrationParameters {
             dt: 1.0 / 60.0,
             //        multithreading_enabled:             true,
             return_after_ccd_substep: false,
-            positionErp: 0.0,
-            velocityErp: 0.005,
+            position_erp: 0.0,
+            velocity_erp: 0.005,
             joint_erp: 0.2,
             warmstart_coeff: 1.0,
             restitution_velocity_threshold: 1.0,

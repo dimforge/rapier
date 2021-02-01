@@ -160,7 +160,11 @@ impl VelocityGroundConstraint {
                         rhs += manifold_point.restitution * rhs
                     }
 
-                    rhs += manifold_point.dist.max(0.0) * inv_dt;
+                    if manifold_point.dist < 0.0 {
+                        rhs += manifold_point.dist * params.velocity_erp * inv_dt;
+                    } else {
+                        rhs += manifold_point.dist * inv_dt;
+                    }
 
                     let impulse = manifold_points[k].data.impulse * warmstart_coeff;
 

@@ -1,4 +1,4 @@
-use super::DeltaVel;
+use super::{DeltaVel, SpringRegularization};
 use crate::dynamics::solver::{AnyVelocityConstraint, VelocityGroundConstraint};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
@@ -39,6 +39,7 @@ pub(crate) struct VelocityGroundConstraintWithManifoldFriction {
     tangent_parts: [VelocityConstraintElementPart; DIM - 1],
     twist_part: VelocityConstraintElementPart,
     twist_weights: [Real; MAX_MANIFOLD_POINTS],
+    impulse_scale: Real,
 }
 
 impl VelocityGroundConstraintWithManifoldFriction {
@@ -56,6 +57,9 @@ impl VelocityGroundConstraintWithManifoldFriction {
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         push: bool,
     ) {
+        let (erp, cfm, impulse_scale) =
+            SpringRegularization::default().erp_cfm_impulse_scale(params.dt);
+
         let inv_dt = params.inv_dt();
         let mut rb1 = &bodies[manifold.data.body_pair.body1];
         let mut rb2 = &bodies[manifold.data.body_pair.body2];
@@ -90,6 +94,7 @@ impl VelocityGroundConstraintWithManifoldFriction {
                 tangent_parts: [VelocityConstraintElementPart::zero(); DIM - 1],
                 twist_part: VelocityConstraintElementPart::zero(),
                 twist_weights: [0.0; MAX_MANIFOLD_POINTS],
+                impulse_scale,
             };
 
             let mut manifold_center = Point::origin();
@@ -112,7 +117,7 @@ impl VelocityGroundConstraintWithManifoldFriction {
                     .effective_world_inv_inertia_sqrt
                     .transform_vector(dp2.gcross(-force_dir1));
 
-                let r = 1.0 / (rb2.effective_inv_mass + gcross2.gdot(gcross2));
+                let r = 1.0 / (cfm + rb2.effective_inv_mass + gcross2.gdot(gcross2));
 
                 let mut rhs = (vel1 - vel2).dot(&force_dir1);
 
@@ -120,7 +125,11 @@ impl VelocityGroundConstraintWithManifoldFriction {
                     rhs += manifold_point.restitution * rhs
                 }
 
-                rhs += manifold_point.dist.max(0.0) * inv_dt;
+                if manifold_point.dist < 0.0 {
+                    rhs += manifold_point.dist * erp;
+                } else {
+                    rhs += manifold_point.dist * inv_dt;
+                }
 
                 let impulse = manifold_point.data.impulse * warmstart_coeff;
                 tangent_impulses[0] += manifold_point.data.tangent_impulse[0];
@@ -247,7 +256,7 @@ impl VelocityGroundConstraintWithManifoldFriction {
             let elt = &mut self.normal_parts[i];
             let dimpulse =
                 -self.dir1.dot(&mj_lambda2.linear) + elt.gcross2.gdot(mj_lambda2.angular) + elt.rhs;
-            let new_impulse = (elt.impulse - elt.r * dimpulse).max(0.0);
+            let new_impulse = (elt.impulse * self.impulse_scale - elt.r * dimpulse).max(0.0);
             let dlambda = new_impulse - elt.impulse;
             elt.impulse = new_impulse;
 

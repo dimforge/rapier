@@ -14,6 +14,7 @@ pub(self) use self::position_solver::PositionSolver;
 pub(self) use self::solver_constraints::SolverConstraints;
 #[cfg(not(feature = "parallel"))]
 pub(self) use self::velocity_solver::VelocitySolver;
+pub(self) use constraint_regularization::*;
 pub(self) use delta_vel::DeltaVel;
 pub(self) use interaction_groups::*;
 pub(self) use joint_constraint::*;
@@ -37,6 +38,7 @@ pub(self) use velocity_ground_constraint_wide_with_manifold_friction::*;
 pub(self) use velocity_ground_constraint_with_manifold_friction::*;
 
 mod categorization;
+mod constraint_regularization;
 mod delta_vel;
 mod interaction_groups;
 #[cfg(not(feature = "parallel"))]

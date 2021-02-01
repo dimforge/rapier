@@ -74,7 +74,7 @@ impl WPositionConstraint {
                 im2,
                 ii1: sqrt_ii1.squared(),
                 ii2: sqrt_ii2.squared(),
-                erp: SimdReal::splat(params.positionErp),
+                erp: SimdReal::splat(params.position_erp),
                 max_linear_correction: SimdReal::splat(params.max_linear_correction),
                 num_contacts: num_points as u8,
             };
