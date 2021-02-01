@@ -165,10 +165,28 @@ impl BallVelocityGroundConstraint {
             )
         };
 
+        let (anchor_world1, anchor_world2) = if flipped {
+            (
+                rb1.position * cparams.local_anchor2,
+                rb2.position * cparams.local_anchor1,
+            )
+        } else {
+            (
+                rb1.position * cparams.local_anchor1,
+                rb2.position * cparams.local_anchor2,
+            )
+        };
+
+        eprintln!("anchor_world1: {:?}", anchor_world1);
+        eprintln!("anchor_world2: {:?}", anchor_world2);
+
         let im2 = rb2.mass_properties.inv_mass;
         let vel1 = rb1.linvel + rb1.angvel.gcross(anchor1);
         let vel2 = rb2.linvel + rb2.angvel.gcross(anchor2);
         let rhs = vel2 - vel1;
+
+        // rhs *= 0.05;
+        rhs += 0.2 * params.inv_dt() * (anchor_world2 - anchor_world1);
 
         let cmat2 = anchor2.gcross_matrix();
         let gcross2 = rb2.world_inv_inertia_sqrt.transform_lin_vector(anchor2);
