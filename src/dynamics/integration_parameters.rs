@@ -57,7 +57,7 @@ pub struct IntegrationParameters {
     /// objects to stutter, that may be because the number of CCD position iterations is too low, causing
     /// them to remain stuck in a penetration configuration for a few frames.
     ///
-    /// The highest this number, the highest its computational cost.
+    /// The higher this number, the higher its computational cost.
     pub max_ccd_position_iterations: usize,
     /// Maximum number of substeps performed by the  solver (default: `1`).
     pub max_ccd_substeps: usize,
