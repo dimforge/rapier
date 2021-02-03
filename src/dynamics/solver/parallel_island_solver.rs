@@ -217,6 +217,7 @@ impl ParallelIslandSolver {
                     std::mem::transmute(parallel_joint_constraints.load(Ordering::Relaxed))
                 };
 
+                // Symplectic Euler: initialize contraints with the *old* positions.
                 enable_flush_to_zero!(); // Ensure this is enabled on each thread.
                 parallel_contact_constraints.fill_constraints(&thread, params, bodies, manifolds);
                 parallel_joint_constraints.fill_constraints(&thread, params, bodies, joints);
@@ -229,6 +230,16 @@ impl ParallelIslandSolver {
                     parallel_joint_constraints.constraint_descs.len(),
                 );
 
+                // Symplectic Euler: move bodies using the *old* velocities.
+                concurrent_loop! {
+                    let batch_size = thread.batch_size;
+                    for handle in active_bodies[thread.body_integration_index, thread.num_integrated_bodies] {
+                        let rb = &mut bodies[handle.0];
+                        rb.integrate(params.dt);
+                        positions[rb.active_set_offset] = rb.position;
+                    }
+                }
+
                 ParallelVelocitySolver::solve(
                         &thread,
                         params,
@@ -239,7 +250,7 @@ impl ParallelIslandSolver {
                         parallel_joint_constraints
                 );
 
-                // Write results back to rigid bodies and integrate velocities.
+                // Write results back to rigid bodies:
                 let island_range = bodies.active_island_range(island_id);
                 let active_bodies = &bodies.active_dynamic_set[island_range];
                 let bodies = &mut bodies.bodies;
@@ -251,8 +262,6 @@ impl ParallelIslandSolver {
                         let dvel = mj_lambdas[rb.active_set_offset];
                         rb.linvel += dvel.linear;
                         rb.angvel += rb.effective_world_inv_inertia_sqrt.transform_vector(dvel.angular);
-                        rb.integrate(params.dt);
-                        positions[rb.active_set_offset] = rb.position;
                     }
                 }
 

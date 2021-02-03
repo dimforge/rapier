@@ -35,13 +35,23 @@ impl IslandSolver {
         joints: &mut [JointGraphEdge],
         joint_indices: &[JointIndex],
     ) {
-        if manifold_indices.len() != 0 || joint_indices.len() != 0 {
+        let has_constraints = manifold_indices.len() != 0 || joint_indices.len() != 0;
+
+        if has_constraints {
+            // Symplectic Euler: initialize contraints with the *old* positions.
             counters.solver.velocity_assembly_time.resume();
             self.contact_constraints
                 .init(island_id, params, bodies, manifolds, manifold_indices);
             self.joint_constraints
                 .init(island_id, params, bodies, joints, joint_indices);
             counters.solver.velocity_assembly_time.pause();
+
+            // Symplectic Euler: move bodies using the *old* velocities.
+            counters.solver.velocity_update_time.resume();
+            bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
+                rb.integrate(params.dt)
+            });
+            counters.solver.velocity_update_time.pause();
 
             counters.solver.velocity_resolution_time.resume();
             self.velocity_solver.solve(
@@ -54,13 +64,7 @@ impl IslandSolver {
                 &mut self.joint_constraints.velocity_constraints,
             );
             counters.solver.velocity_resolution_time.pause();
-        }
 
-        counters.solver.velocity_update_time.resume();
-        bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| rb.integrate(params.dt));
-        counters.solver.velocity_update_time.pause();
-
-        if manifold_indices.len() != 0 || joint_indices.len() != 0 {
             counters.solver.position_resolution_time.resume();
             self.position_solver.solve(
                 island_id,
@@ -70,6 +74,12 @@ impl IslandSolver {
                 &self.joint_constraints.position_constraints,
             );
             counters.solver.position_resolution_time.pause();
+        } else {
+            counters.solver.velocity_update_time.resume();
+            bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
+                rb.integrate(params.dt)
+            });
+            counters.solver.velocity_update_time.pause();
         }
     }
 }

@@ -1,3 +1,6 @@
+## Unreleased
+- Switch from explicit euler integration to symplectic euler to get better energy conservation.
+
 ## v0.5.0
 In this release we are dropping `ncollide` and use our new crate [`parry`](https://parry.rs)
 instead! This comes with a lot of new features, as well as two new crates: `rapier2d-f64` and
@@ -39,7 +42,7 @@ Various RigidBody-related getter and setters have been added:
   the rigid-body.
 - `RigidBodyBuilder::restrict_rotations` to prevent rotations along specific coordinate axes. This replaces the three
   boolean arguments previously passed to `.set_principal_angular_inertia`.
-  
+
 ### Breaking changes
 Breaking changes related to contacts:
 - The way contacts are represented changed. Refer to the documentation of `parry::query::ContactManifold`, `parry::query::TrackedContact`
