@@ -135,16 +135,20 @@ impl RigidBody {
         self.active_set_timestamp = 0;
     }
 
-    pub(crate) fn integrate_accelerations(&mut self, dt: Real, gravity: Vector<Real>) {
+    pub(crate) fn add_gravity(&mut self, gravity: Vector<Real>) {
         if self.effective_inv_mass != 0.0 {
-            let acceleration = self.force * self.effective_inv_mass;
-            self.linvel += (gravity * self.gravity_scale + acceleration) * dt;
-            self.force = na::zero();
+            self.force += gravity * self.gravity_scale * self.mass();
         }
+    }
 
-        let angular_acceleration = self.effective_world_inv_inertia_sqrt
+    pub(crate) fn integrate_accelerations(&mut self, dt: Real) {
+        let linear_acc = self.force * self.effective_inv_mass;
+        let angular_acc = self.effective_world_inv_inertia_sqrt
             * (self.effective_world_inv_inertia_sqrt * self.torque);
-        self.angvel += angular_acceleration * dt;
+
+        self.linvel += linear_acc * dt;
+        self.angvel += angular_acc * dt;
+        self.force = na::zero();
         self.torque = na::zero();
     }
 
