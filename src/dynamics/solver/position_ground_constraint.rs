@@ -58,7 +58,7 @@ impl PositionGroundConstraint {
             }
 
             let constraint = PositionGroundConstraint {
-                rb2: rb2.active_set_offset,
+                rb2: rb2.island_offset,
                 p1,
                 local_p2,
                 n1,

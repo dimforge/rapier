@@ -72,7 +72,7 @@ impl VelocityGroundConstraintWithManifoldFriction {
             -manifold.data.normal
         };
 
-        let mj_lambda2 = rb2.active_set_offset;
+        let mj_lambda2 = rb2.island_offset;
         let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
 
         for (l, manifold_points) in manifold

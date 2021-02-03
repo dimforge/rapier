@@ -47,7 +47,7 @@ impl WRevoluteVelocityConstraint {
         let ii1_sqrt = AngularInertia::<SimdReal>::from(
             array![|ii| rbs1[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
-        let mj_lambda1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
+        let mj_lambda1 = array![|ii| rbs1[ii].island_offset; SIMD_WIDTH];
 
         let position2 = Isometry::from(array![|ii| rbs2[ii].position; SIMD_WIDTH]);
         let linvel2 = Vector::from(array![|ii| rbs2[ii].linvel; SIMD_WIDTH]);
@@ -57,7 +57,7 @@ impl WRevoluteVelocityConstraint {
         let ii2_sqrt = AngularInertia::<SimdReal>::from(
             array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
-        let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
+        let mj_lambda2 = array![|ii| rbs2[ii].island_offset; SIMD_WIDTH];
 
         let local_anchor1 = Point::from(array![|ii| cparams[ii].local_anchor1; SIMD_WIDTH]);
         let local_anchor2 = Point::from(array![|ii| cparams[ii].local_anchor2; SIMD_WIDTH]);
@@ -266,7 +266,7 @@ impl WRevoluteVelocityGroundConstraint {
         let ii2_sqrt = AngularInertia::<SimdReal>::from(
             array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
-        let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
+        let mj_lambda2 = array![|ii| rbs2[ii].island_offset; SIMD_WIDTH];
         let impulse = Vector5::from(array![|ii| cparams[ii].impulse; SIMD_WIDTH]);
 
         let local_anchor1 = Point::from(

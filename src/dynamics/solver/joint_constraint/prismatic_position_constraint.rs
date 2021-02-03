@@ -46,8 +46,8 @@ impl PrismaticPositionConstraint {
             local_frame2: cparams.local_frame2(),
             local_axis1: cparams.local_axis1,
             local_axis2: cparams.local_axis2,
-            position1: rb1.active_set_offset,
-            position2: rb2.active_set_offset,
+            position1: rb1.island_offset,
+            position2: rb2.island_offset,
             limits: cparams.limits,
         }
     }
@@ -135,7 +135,7 @@ impl PrismaticPositionGroundConstraint {
             local_frame2,
             axis1,
             local_axis2,
-            position2: rb2.active_set_offset,
+            position2: rb2.island_offset,
             limits: cparams.limits,
         }
     }

@@ -3,7 +3,7 @@ use rayon::prelude::*;
 
 use crate::data::pubsub::Subscription;
 use crate::data::Coarena;
-use crate::dynamics::{BodyPair, CoefficientCombineRule, RigidBodySet};
+use crate::dynamics::{BodyPair, CoefficientCombineRule, IslandSet, RigidBodySet};
 use crate::geometry::{
     BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactData, ContactEvent,
     ContactManifoldData, ContactPairFilter, IntersectionEvent, IntersectionPairFilter,
@@ -241,6 +241,7 @@ impl NarrowPhase {
 
     pub(crate) fn register_pairs(
         &mut self,
+        islands: &mut IslandSet,
         colliders: &mut ColliderSet,
         bodies: &mut RigidBodySet,
         broad_phase_events: &[BroadPhasePairEvent],
@@ -327,6 +328,8 @@ impl NarrowPhase {
                                     gid2.contact_graph_index,
                                     interaction,
                                 );
+
+                                islands.contact_started(bodies, co1.parent, co2.parent);
                             }
                         }
                     }
@@ -385,6 +388,7 @@ impl NarrowPhase {
 
     pub(crate) fn compute_intersections(
         &mut self,
+        islands: &IslandSet,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
         pair_filter: Option<&dyn IntersectionPairFilter>,
@@ -402,9 +406,8 @@ impl NarrowPhase {
             let rb1 = &bodies[co1.parent];
             let rb2 = &bodies[co2.parent];
 
-            if (rb1.is_sleeping() && rb2.is_static())
-                || (rb2.is_sleeping() && rb1.is_static())
-                || (rb1.is_sleeping() && rb2.is_sleeping())
+            if (rb1.is_dynamic() && islands.is_island_sleeping(rb1.island_id))
+                || (rb2.is_dynamic() && islands.is_island_sleeping(rb2.island_id))
             {
                 // No need to update this intersection because nothing moved.
                 return;
@@ -454,6 +457,7 @@ impl NarrowPhase {
     pub(crate) fn compute_contacts(
         &mut self,
         prediction_distance: Real,
+        islands: &IslandSet,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
         pair_filter: Option<&dyn ContactPairFilter>,
@@ -470,9 +474,8 @@ impl NarrowPhase {
             let rb1 = &bodies[co1.parent];
             let rb2 = &bodies[co2.parent];
 
-            if (rb1.is_sleeping() && rb2.is_static())
-                || (rb2.is_sleeping() && rb1.is_static())
-                || (rb1.is_sleeping() && rb2.is_sleeping())
+            if (rb1.is_dynamic() && islands.is_island_sleeping(rb1.island_id))
+                || (rb2.is_dynamic() && islands.is_island_sleeping(rb2.island_id))
             {
                 // No need to update this contact because nothing moved.
                 return;
@@ -599,11 +602,12 @@ impl NarrowPhase {
     // NOTE: this is very similar to the code from JointSet::select_active_interactions.
     pub(crate) fn sort_and_select_active_contacts<'a>(
         &'a mut self,
+        islands: &IslandSet,
         bodies: &RigidBodySet,
         out_manifolds: &mut Vec<&'a mut ContactManifold>,
         out: &mut Vec<Vec<ContactManifoldIndex>>,
     ) {
-        for out_island in &mut out[..bodies.num_islands()] {
+        for out_island in &mut out[..islands.num_active_islands()] {
             out_island.clear();
         }
 
@@ -618,13 +622,13 @@ impl NarrowPhase {
                     .contains(SolverFlags::COMPUTE_IMPULSES)
                     && manifold.data.num_active_contacts() != 0
                     && (rb1.is_dynamic() || rb2.is_dynamic())
-                    && (!rb1.is_dynamic() || !rb1.is_sleeping())
-                    && (!rb2.is_dynamic() || !rb2.is_sleeping())
+                    && (!rb1.is_dynamic() || !islands.is_island_sleeping(rb1.island_id))
+                    && (!rb2.is_dynamic() || !islands.is_island_sleeping(rb2.island_id))
                 {
                     let island_index = if !rb1.is_dynamic() {
-                        rb2.active_island_id
+                        islands.islands()[rb2.island_id].active_island_id()
                     } else {
-                        rb1.active_island_id
+                        islands.islands()[rb1.island_id].active_island_id()
                     };
 
                     out[island_index].push(out_manifolds.len());

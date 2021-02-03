@@ -1,4 +1,4 @@
-use crate::dynamics::RigidBodySet;
+use crate::dynamics::{IslandSet, RigidBodySet};
 use crate::geometry::{
     Collider, ColliderHandle, ColliderSet, InteractionGroups, PointProjection, Ray,
     RayIntersection, SimdQuadTree,
@@ -109,7 +109,7 @@ impl QueryPipeline {
     }
 
     /// Update the acceleration structure on the query pipeline.
-    pub fn update(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet) {
+    pub fn update(&mut self, islands: &IslandSet, bodies: &RigidBodySet, colliders: &ColliderSet) {
         if !self.tree_built {
             let data = colliders.iter().map(|(h, c)| (h, c.compute_aabb()));
             self.quadtree.clear_and_rebuild(data, self.dilation_factor);
@@ -118,10 +118,14 @@ impl QueryPipeline {
             return;
         }
 
-        for (_, body) in bodies
-            .iter_active_dynamic()
-            .chain(bodies.iter_active_kinematic())
-        {
+        for handle in islands.active_bodies() {
+            if let Some(body) = bodies.get(handle) {
+                for handle in &body.colliders {
+                    self.quadtree.pre_update(*handle)
+                }
+            }
+        }
+        for (_, body) in bodies.iter_active_kinematic() {
             for handle in &body.colliders {
                 self.quadtree.pre_update(*handle)
             }

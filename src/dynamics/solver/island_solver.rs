@@ -4,7 +4,7 @@ use crate::dynamics::solver::{
     AnyJointPositionConstraint, AnyJointVelocityConstraint, AnyPositionConstraint,
     AnyVelocityConstraint, SolverConstraints,
 };
-use crate::dynamics::{IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet};
+use crate::dynamics::{IntegrationParameters, IslandSet, JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
 pub struct IslandSolver {
@@ -29,6 +29,7 @@ impl IslandSolver {
         island_id: usize,
         counters: &mut Counters,
         params: &IntegrationParameters,
+        islands: &IslandSet,
         bodies: &mut RigidBodySet,
         manifolds: &mut [&mut ContactManifold],
         manifold_indices: &[ContactManifoldIndex],
@@ -37,15 +38,22 @@ impl IslandSolver {
     ) {
         if manifold_indices.len() != 0 || joint_indices.len() != 0 {
             counters.solver.velocity_assembly_time.resume();
-            self.contact_constraints
-                .init(island_id, params, bodies, manifolds, manifold_indices);
+            self.contact_constraints.init(
+                island_id,
+                islands,
+                params,
+                bodies,
+                manifolds,
+                manifold_indices,
+            );
             self.joint_constraints
-                .init(island_id, params, bodies, joints, joint_indices);
+                .init(island_id, islands, params, bodies, joints, joint_indices);
             counters.solver.velocity_assembly_time.pause();
 
             counters.solver.velocity_resolution_time.resume();
             self.velocity_solver.solve(
                 island_id,
+                islands,
                 params,
                 bodies,
                 manifolds,
@@ -57,7 +65,11 @@ impl IslandSolver {
         }
 
         counters.solver.velocity_update_time.resume();
-        bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| rb.integrate(params.dt));
+        for handle in islands.active_island(island_id).bodies() {
+            if let Some(rb) = bodies.get_mut_internal(*handle) {
+                rb.integrate(params.dt)
+            }
+        }
         counters.solver.velocity_update_time.pause();
 
         if params.position_erp != 0.0 {
@@ -66,6 +78,7 @@ impl IslandSolver {
                 self.position_solver.solve(
                     island_id,
                     params,
+                    islands,
                     bodies,
                     &self.contact_constraints.position_constraints,
                     &self.joint_constraints.position_constraints,

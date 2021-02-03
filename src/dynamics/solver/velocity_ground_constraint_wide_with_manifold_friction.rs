@@ -86,7 +86,7 @@ impl WVelocityGroundConstraintWithManifoldFriction {
 
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
 
-        let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
+        let mj_lambda2 = array![|ii| rbs2[ii].island_offset; SIMD_WIDTH];
 
         let restitution_velocity_threshold = SimdReal::splat(params.restitution_velocity_threshold);
 

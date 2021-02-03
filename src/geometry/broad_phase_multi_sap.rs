@@ -1,5 +1,5 @@
 use crate::data::pubsub::Subscription;
-use crate::dynamics::RigidBodySet;
+use crate::dynamics::{IslandSet, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, RemovedCollider};
 use crate::math::{Point, Real, Vector, DIM};
 use bit_vec::BitVec;
@@ -621,6 +621,7 @@ impl BroadPhase {
     pub(crate) fn update_aabbs(
         &mut self,
         prediction_distance: Real,
+        islands: &IslandSet,
         bodies: &RigidBodySet,
         colliders: &mut ColliderSet,
     ) {
@@ -633,10 +634,11 @@ impl BroadPhase {
         for body_handle in bodies
             .modified_inactive_set
             .iter()
-            .chain(bodies.active_dynamic_set.iter())
-            .chain(bodies.active_kinematic_set.iter())
+            .copied()
+            .chain(islands.active_bodies())
+            .chain(bodies.active_kinematic_set.iter().copied())
         {
-            for handle in &bodies[*body_handle].colliders {
+            for handle in &bodies[body_handle].colliders {
                 let collider = &mut colliders[*handle];
                 let aabb = collider.compute_aabb().loosened(prediction_distance / 2.0);
 

@@ -79,8 +79,8 @@ impl BallVelocityConstraint {
 
         BallVelocityConstraint {
             joint_id,
-            mj_lambda1: rb1.active_set_offset,
-            mj_lambda2: rb2.active_set_offset,
+            mj_lambda1: rb1.island_offset,
+            mj_lambda2: rb2.island_offset,
             im1,
             im2,
             impulse: cparams.impulse * params.warmstart_coeff,
@@ -201,7 +201,7 @@ impl BallVelocityGroundConstraint {
 
         BallVelocityGroundConstraint {
             joint_id,
-            mj_lambda2: rb2.active_set_offset,
+            mj_lambda2: rb2.island_offset,
             im2,
             impulse: cparams.impulse * params.warmstart_coeff,
             r2: anchor2,

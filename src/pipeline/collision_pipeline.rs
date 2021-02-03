@@ -1,6 +1,6 @@
 //! Physics pipeline structures.
 
-use crate::dynamics::{JointSet, RigidBodySet};
+use crate::dynamics::{IslandSet, JointSet, RigidBodySet};
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactPairFilter,
     IntersectionPairFilter, NarrowPhase,
@@ -42,13 +42,14 @@ impl CollisionPipeline {
         prediction_distance: Real,
         broad_phase: &mut BroadPhase,
         narrow_phase: &mut NarrowPhase,
+        islands: &mut IslandSet,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
         contact_pair_filter: Option<&dyn ContactPairFilter>,
         proximity_pair_filter: Option<&dyn IntersectionPairFilter>,
         events: &dyn EventHandler,
     ) {
-        bodies.maintain(colliders);
+        bodies.maintain(islands, colliders);
         self.broadphase_collider_pairs.clear();
 
         broad_phase.update_aabbs(prediction_distance, bodies, colliders);
@@ -56,7 +57,7 @@ impl CollisionPipeline {
         self.broad_phase_events.clear();
         broad_phase.find_pairs(&mut self.broad_phase_events);
 
-        narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
+        narrow_phase.register_pairs(islands, colliders, bodies, &self.broad_phase_events, events);
 
         narrow_phase.compute_contacts(
             prediction_distance,

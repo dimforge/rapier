@@ -1,7 +1,7 @@
 use super::AnyJointVelocityConstraint;
 use crate::dynamics::{
     solver::{AnyVelocityConstraint, DeltaVel},
-    IntegrationParameters, JointGraphEdge, RigidBodySet,
+    IntegrationParameters, IslandSet, JointGraphEdge, RigidBodySet,
 };
 use crate::geometry::ContactManifold;
 use crate::math::Real;
@@ -21,6 +21,7 @@ impl VelocitySolver {
     pub fn solve(
         &mut self,
         island_id: usize,
+        islands: &IslandSet,
         params: &IntegrationParameters,
         bodies: &mut RigidBodySet,
         manifolds_all: &mut [&mut ContactManifold],
@@ -30,7 +31,7 @@ impl VelocitySolver {
     ) {
         self.mj_lambdas.clear();
         self.mj_lambdas
-            .resize(bodies.active_island(island_id).len(), DeltaVel::zero());
+            .resize(islands.active_island(island_id).len(), DeltaVel::zero());
 
         /*
          * Warmstart constraints.
@@ -57,13 +58,15 @@ impl VelocitySolver {
         }
 
         // Update velocities.
-        bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
-            let dvel = self.mj_lambdas[rb.active_set_offset];
-            rb.linvel += dvel.linear;
-            rb.angvel += rb
-                .effective_world_inv_inertia_sqrt
-                .transform_vector(dvel.angular);
-        });
+        for handle in islands.active_island(island_id).bodies() {
+            if let Some(rb) = bodies.get_mut(*handle) {
+                let dvel = self.mj_lambdas[rb.island_offset];
+                rb.linvel += dvel.linear;
+                rb.angvel += rb
+                    .effective_world_inv_inertia_sqrt
+                    .transform_vector(dvel.angular);
+            }
+        }
 
         // Write impulses back into the manifold structures.
         for constraint in &*joint_constraints {

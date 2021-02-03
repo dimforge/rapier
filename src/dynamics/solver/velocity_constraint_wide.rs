@@ -93,8 +93,8 @@ impl WVelocityConstraint {
 
         let force_dir1 = -Vector::from(array![|ii| manifolds[ii].data.normal; SIMD_WIDTH]);
 
-        let mj_lambda1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
-        let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
+        let mj_lambda1 = array![|ii| rbs1[ii].island_offset; SIMD_WIDTH];
+        let mj_lambda2 = array![|ii| rbs2[ii].island_offset; SIMD_WIDTH];
 
         let restitution_velocity_threshold = SimdReal::splat(params.restitution_velocity_threshold);
 

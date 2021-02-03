@@ -67,8 +67,8 @@ impl VelocityConstraintWithManifoldFriction {
         let inv_dt = params.inv_dt();
         let rb1 = &bodies[manifold.data.body_pair.body1];
         let rb2 = &bodies[manifold.data.body_pair.body2];
-        let mj_lambda1 = rb1.active_set_offset;
-        let mj_lambda2 = rb2.active_set_offset;
+        let mj_lambda1 = rb1.island_offset;
+        let mj_lambda2 = rb2.island_offset;
         let force_dir1 = -manifold.data.normal;
         let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
 

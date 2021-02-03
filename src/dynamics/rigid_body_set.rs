@@ -2,6 +2,7 @@
 use rayon::prelude::*;
 
 use crate::data::arena::Arena;
+use crate::dynamics::island_set::IslandSet;
 use crate::dynamics::{Joint, JointSet, RigidBody, RigidBodyChanges};
 use crate::geometry::{ColliderSet, InteractionGraph, NarrowPhase};
 use parry::partitioning::IndexedData;
@@ -169,9 +170,9 @@ impl RigidBodySet {
         Some(rb)
     }
 
-    pub(crate) fn num_islands(&self) -> usize {
-        self.active_islands.len() - 1
-    }
+    // pub(crate) fn num_islands(&self) -> usize {
+    //     self.active_islands.len() - 1
+    // }
 
     /// Forces the specified rigid-body to wake up if it is dynamic.
     ///
@@ -273,57 +274,57 @@ impl RigidBodySet {
             .filter_map(move |h| Some((*h, bodies.get(h.0)?)))
     }
 
-    /// Iter through all the active dynamic rigid-bodies on this set.
-    pub fn iter_active_dynamic<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = (RigidBodyHandle, &'a RigidBody)> {
-        let bodies: &'a _ = &self.bodies;
-        self.active_dynamic_set
-            .iter()
-            .filter_map(move |h| Some((*h, bodies.get(h.0)?)))
-    }
+    // /// Iter through all the active dynamic rigid-bodies on this set.
+    // pub fn iter_active_dynamic<'a>(
+    //     &'a self,
+    // ) -> impl Iterator<Item = (RigidBodyHandle, &'a RigidBody)> {
+    //     let bodies: &'a _ = &self.bodies;
+    //     self.active_dynamic_set
+    //         .iter()
+    //         .filter_map(move |h| Some((*h, bodies.get(h.0)?)))
+    // }
+    //
+    // #[cfg(not(feature = "parallel"))]
+    // pub(crate) fn iter_active_island<'a>(
+    //     &'a self,
+    //     island_id: usize,
+    // ) -> impl Iterator<Item = (RigidBodyHandle, &'a RigidBody)> {
+    //     let island_range = self.active_islands[island_id]..self.active_islands[island_id + 1];
+    //     let bodies: &'a _ = &self.bodies;
+    //     self.active_dynamic_set[island_range]
+    //         .iter()
+    //         .filter_map(move |h| Some((*h, bodies.get(h.0)?)))
+    // }
 
-    #[cfg(not(feature = "parallel"))]
-    pub(crate) fn iter_active_island<'a>(
-        &'a self,
-        island_id: usize,
-    ) -> impl Iterator<Item = (RigidBodyHandle, &'a RigidBody)> {
-        let island_range = self.active_islands[island_id]..self.active_islands[island_id + 1];
-        let bodies: &'a _ = &self.bodies;
-        self.active_dynamic_set[island_range]
-            .iter()
-            .filter_map(move |h| Some((*h, bodies.get(h.0)?)))
-    }
+    // #[inline(always)]
+    // pub(crate) fn foreach_active_body_mut_internal(
+    //     &mut self,
+    //     mut f: impl FnMut(RigidBodyHandle, &mut RigidBody),
+    // ) {
+    //     for handle in &self.active_dynamic_set {
+    //         if let Some(rb) = self.bodies.get_mut(handle.0) {
+    //             f(*handle, rb)
+    //         }
+    //     }
+    //
+    //     for handle in &self.active_kinematic_set {
+    //         if let Some(rb) = self.bodies.get_mut(handle.0) {
+    //             f(*handle, rb)
+    //         }
+    //     }
+    // }
 
-    #[inline(always)]
-    pub(crate) fn foreach_active_body_mut_internal(
-        &mut self,
-        mut f: impl FnMut(RigidBodyHandle, &mut RigidBody),
-    ) {
-        for handle in &self.active_dynamic_set {
-            if let Some(rb) = self.bodies.get_mut(handle.0) {
-                f(*handle, rb)
-            }
-        }
-
-        for handle in &self.active_kinematic_set {
-            if let Some(rb) = self.bodies.get_mut(handle.0) {
-                f(*handle, rb)
-            }
-        }
-    }
-
-    #[inline(always)]
-    pub(crate) fn foreach_active_dynamic_body_mut_internal(
-        &mut self,
-        mut f: impl FnMut(RigidBodyHandle, &mut RigidBody),
-    ) {
-        for handle in &self.active_dynamic_set {
-            if let Some(rb) = self.bodies.get_mut(handle.0) {
-                f(*handle, rb)
-            }
-        }
-    }
+    // #[inline(always)]
+    // pub(crate) fn foreach_active_dynamic_body_mut_internal(
+    //     &mut self,
+    //     mut f: impl FnMut(RigidBodyHandle, &mut RigidBody),
+    // ) {
+    //     for handle in &self.active_dynamic_set {
+    //         if let Some(rb) = self.bodies.get_mut(handle.0) {
+    //             f(*handle, rb)
+    //         }
+    //     }
+    // }
 
     #[inline(always)]
     pub(crate) fn foreach_active_kinematic_body_mut_internal(
@@ -337,60 +338,36 @@ impl RigidBodySet {
         }
     }
 
-    #[inline(always)]
-    #[cfg(not(feature = "parallel"))]
-    pub(crate) fn foreach_active_island_body_mut_internal(
-        &mut self,
-        island_id: usize,
-        mut f: impl FnMut(RigidBodyHandle, &mut RigidBody),
-    ) {
-        let island_range = self.active_islands[island_id]..self.active_islands[island_id + 1];
-        for handle in &self.active_dynamic_set[island_range] {
-            if let Some(rb) = self.bodies.get_mut(handle.0) {
-                f(*handle, rb)
-            }
-        }
-    }
-
-    #[cfg(feature = "parallel")]
-    #[inline(always)]
-    #[allow(dead_code)]
-    pub(crate) fn foreach_active_island_body_mut_internal_parallel(
-        &mut self,
-        island_id: usize,
-        f: impl Fn(RigidBodyHandle, &mut RigidBody) + Send + Sync,
-    ) {
-        use std::sync::atomic::Ordering;
-
-        let island_range = self.active_islands[island_id]..self.active_islands[island_id + 1];
-        let bodies = std::sync::atomic::AtomicPtr::new(&mut self.bodies as *mut _);
-        self.active_dynamic_set[island_range]
-            .par_iter()
-            .for_each_init(
-                || bodies.load(Ordering::Relaxed),
-                |bodies, handle| {
-                    let bodies: &mut Arena<RigidBody> = unsafe { std::mem::transmute(*bodies) };
-                    if let Some(rb) = bodies.get_mut(handle.0) {
-                        f(*handle, rb)
-                    }
-                },
-            );
-    }
+    // #[inline(always)]
+    // #[cfg(not(feature = "parallel"))]
+    // pub(crate) fn foreach_active_island_body_mut_internal(
+    //     &mut self,
+    //     island_id: usize,
+    //     mut f: impl FnMut(RigidBodyHandle, &mut RigidBody),
+    // ) {
+    //     let island_range = self.active_islands[island_id]..self.active_islands[island_id + 1];
+    //     for handle in &self.active_dynamic_set[island_range] {
+    //         if let Some(rb) = self.bodies.get_mut(handle.0) {
+    //             f(*handle, rb)
+    //         }
+    //     }
+    // }
 
     // pub(crate) fn active_dynamic_set(&self) -> &[RigidBodyHandle] {
     //     &self.active_dynamic_set
     // }
 
-    pub(crate) fn active_island_range(&self, island_id: usize) -> std::ops::Range<usize> {
-        self.active_islands[island_id]..self.active_islands[island_id + 1]
-    }
-
-    pub(crate) fn active_island(&self, island_id: usize) -> &[RigidBodyHandle] {
-        &self.active_dynamic_set[self.active_island_range(island_id)]
-    }
+    // pub(crate) fn active_island_range(&self, island_id: usize) -> std::ops::Range<usize> {
+    //     self.active_islands[island_id]..self.active_islands[island_id + 1]
+    // }
+    //
+    // pub(crate) fn active_island(&self, island_id: usize) -> &[RigidBodyHandle] {
+    //     &self.active_dynamic_set[self.active_island_range(island_id)]
+    // }
 
     // Utility function to avoid some borrowing issue in the `maintain` method.
     fn maintain_one(
+        islands: &mut IslandSet,
         colliders: &mut ColliderSet,
         handle: RigidBodyHandle,
         rb: &mut RigidBody,
@@ -425,13 +402,22 @@ impl RigidBodySet {
             active_dynamic_set.push(handle);
         }
 
+        if rb.changes.contains(RigidBodyChanges::SLEEP) {
+            if rb.island_id == crate::INVALID_USIZE {
+                islands.add_rigid_body(handle, rb);
+            }
+
+            islands.body_sleep_state_changed(rb);
+        }
+
         rb.changes = RigidBodyChanges::empty();
     }
 
-    pub(crate) fn maintain(&mut self, colliders: &mut ColliderSet) {
+    pub(crate) fn maintain(&mut self, islands: &mut IslandSet, colliders: &mut ColliderSet) {
         if self.modified_all_bodies {
             for (handle, rb) in self.bodies.iter_mut() {
                 Self::maintain_one(
+                    islands,
                     colliders,
                     RigidBodyHandle(handle),
                     rb,
@@ -447,6 +433,7 @@ impl RigidBodySet {
             for handle in self.modified_bodies.drain(..) {
                 if let Some(rb) = self.bodies.get_mut(handle.0) {
                     Self::maintain_one(
+                        islands,
                         colliders,
                         handle,
                         rb,

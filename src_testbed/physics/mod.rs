@@ -1,5 +1,5 @@
 use crossbeam::channel::Receiver;
-use rapier::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
+use rapier::dynamics::{IntegrationParameters, IslandSet, JointSet, RigidBodySet};
 use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, IntersectionEvent, NarrowPhase};
 use rapier::math::Vector;
 use rapier::pipeline::{PhysicsPipeline, QueryPipeline};
@@ -70,6 +70,7 @@ impl PhysicsSnapshot {
 pub struct PhysicsState {
     pub broad_phase: BroadPhase,
     pub narrow_phase: NarrowPhase,
+    pub islands: IslandSet,
     pub bodies: RigidBodySet,
     pub colliders: ColliderSet,
     pub joints: JointSet,
@@ -84,6 +85,7 @@ impl PhysicsState {
         Self {
             broad_phase: BroadPhase::new(),
             narrow_phase: NarrowPhase::new(),
+            islands: IslandSet::new(),
             bodies: RigidBodySet::new(),
             colliders: ColliderSet::new(),
             joints: JointSet::new(),

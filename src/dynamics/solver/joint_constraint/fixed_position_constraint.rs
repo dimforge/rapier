@@ -31,8 +31,8 @@ impl FixedPositionConstraint {
         Self {
             local_anchor1: cparams.local_anchor1,
             local_anchor2: cparams.local_anchor2,
-            position1: rb1.active_set_offset,
-            position2: rb2.active_set_offset,
+            position1: rb1.island_offset,
+            position2: rb2.island_offset,
             im1,
             im2,
             ii1,
@@ -110,7 +110,7 @@ impl FixedPositionGroundConstraint {
         Self {
             anchor1,
             local_anchor2,
-            position2: rb2.active_set_offset,
+            position2: rb2.island_offset,
             im2: rb2.effective_inv_mass,
             ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
             local_com2: rb2.mass_properties.local_com,

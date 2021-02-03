@@ -3,7 +3,7 @@
 use crate::counters::Counters;
 #[cfg(not(feature = "parallel"))]
 use crate::dynamics::IslandSolver;
-use crate::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
+use crate::dynamics::{IntegrationParameters, IslandSet, JointSet, RigidBodyHandle, RigidBodySet};
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
@@ -31,6 +31,7 @@ pub struct PhysicsPipeline {
     joint_constraint_indices: Vec<Vec<ContactManifoldIndex>>,
     broadphase_collider_pairs: Vec<ColliderPair>,
     broad_phase_events: Vec<BroadPhasePairEvent>,
+    bodies_with_changed_sleep_state: Vec<RigidBodyHandle>,
     solvers: Vec<IslandSolver>,
 }
 
@@ -56,6 +57,7 @@ impl PhysicsPipeline {
             joint_constraint_indices: Vec::new(),
             broadphase_collider_pairs: Vec::new(),
             broad_phase_events: Vec::new(),
+            bodies_with_changed_sleep_state: Vec::new(),
         }
     }
 
@@ -66,6 +68,7 @@ impl PhysicsPipeline {
         integration_parameters: &IntegrationParameters,
         broad_phase: &mut BroadPhase,
         narrow_phase: &mut NarrowPhase,
+        islands: &mut IslandSet,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
         joints: &mut JointSet,
@@ -74,7 +77,7 @@ impl PhysicsPipeline {
         events: &dyn EventHandler,
     ) {
         self.counters.step_started();
-        bodies.maintain(colliders);
+        bodies.maintain(islands, colliders);
         broad_phase.maintain(colliders);
         narrow_phase.maintain(colliders, bodies);
 
@@ -93,6 +96,7 @@ impl PhysicsPipeline {
         //        let t = instant::now();
         broad_phase.update_aabbs(
             integration_parameters.prediction_distance,
+            islands,
             bodies,
             colliders,
         );
@@ -103,7 +107,7 @@ impl PhysicsPipeline {
         broad_phase.find_pairs(&mut self.broad_phase_events);
         //        println!("Find pairs time: {}", instant::now() - t);
 
-        narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
+        narrow_phase.register_pairs(islands, colliders, bodies, &self.broad_phase_events, events);
         self.counters.cd.broad_phase_time.pause();
 
         //        println!("Num contact pairs: {}", pairs.len());
@@ -113,67 +117,78 @@ impl PhysicsPipeline {
         //        let t = instant::now();
         narrow_phase.compute_contacts(
             integration_parameters.prediction_distance,
+            islands,
             bodies,
             colliders,
             contact_pair_filter,
             events,
         );
-        narrow_phase.compute_intersections(bodies, colliders, proximity_pair_filter, events);
+        narrow_phase.compute_intersections(
+            islands,
+            bodies,
+            colliders,
+            proximity_pair_filter,
+            events,
+        );
         //        println!("Compute contact time: {}", instant::now() - t);
 
         self.counters.stages.island_construction_time.start();
-        bodies.update_active_set_with_contacts(
-            colliders,
-            narrow_phase,
-            joints.joint_graph(),
-            integration_parameters.min_island_size,
-        );
+        // bodies.update_active_set_with_contacts(
+        //     colliders,
+        //     narrow_phase,
+        //     joints.joint_graph(),
+        //     integration_parameters.min_island_size,
+        // );
         self.counters.stages.island_construction_time.pause();
 
-        if self.manifold_indices.len() < bodies.num_islands() {
+        if self.manifold_indices.len() < islands.num_active_islands() {
             self.manifold_indices
-                .resize(bodies.num_islands(), Vec::new());
+                .resize(islands.num_active_islands(), Vec::new());
         }
 
-        if self.joint_constraint_indices.len() < bodies.num_islands() {
+        if self.joint_constraint_indices.len() < islands.num_active_islands() {
             self.joint_constraint_indices
-                .resize(bodies.num_islands(), Vec::new());
+                .resize(islands.num_active_islands(), Vec::new());
         }
 
         let mut manifolds = Vec::new();
         narrow_phase.sort_and_select_active_contacts(
+            islands,
             bodies,
             &mut manifolds,
             &mut self.manifold_indices,
         );
-        joints.select_active_interactions(bodies, &mut self.joint_constraint_indices);
+        joints.select_active_interactions(islands, bodies, &mut self.joint_constraint_indices);
 
         self.counters.cd.narrow_phase_time.pause();
         self.counters.stages.collision_detection_time.pause();
 
         self.counters.stages.update_time.start();
-        bodies.foreach_active_dynamic_body_mut_internal(|_, b| {
-            b.update_world_mass_properties();
-            b.integrate_accelerations(integration_parameters.dt, *gravity)
-        });
+        for handle in islands.active_bodies() {
+            if let Some(rb) = bodies.get_mut(handle) {
+                rb.update_world_mass_properties();
+                rb.integrate_accelerations(integration_parameters.dt, *gravity)
+            }
+        }
         self.counters.stages.update_time.pause();
 
         self.counters.solver.reset();
         self.counters.stages.solver_time.start();
-        if self.solvers.len() < bodies.num_islands() {
+        if self.solvers.len() < islands.num_active_islands() {
             self.solvers
-                .resize_with(bodies.num_islands(), || IslandSolver::new());
+                .resize_with(islands.num_active_islands(), || IslandSolver::new());
         }
 
         #[cfg(not(feature = "parallel"))]
         {
             enable_flush_to_zero!();
 
-            for island_id in 0..bodies.num_islands() {
+            for island_id in 0..islands.num_active_islands() {
                 self.solvers[island_id].solve_island(
                     island_id,
                     &mut self.counters,
                     integration_parameters,
+                    islands,
                     bodies,
                     &mut manifolds[..],
                     &self.manifold_indices[island_id],
@@ -189,7 +204,7 @@ impl PhysicsPipeline {
             use rayon::prelude::*;
             use std::sync::atomic::Ordering;
 
-            let num_islands = bodies.num_islands();
+            let num_islands = islands.num_active_islands();
             let solvers = &mut self.solvers[..num_islands];
             let bodies = &std::sync::atomic::AtomicPtr::new(bodies as *mut _);
             let manifolds = &std::sync::atomic::AtomicPtr::new(&mut manifolds as *mut _);
@@ -227,15 +242,29 @@ impl PhysicsPipeline {
 
         // Update colliders positions and kinematic bodies positions.
         // FIXME: do this in the solver?
-        bodies.foreach_active_body_mut_internal(|_, rb| {
-            if rb.is_kinematic() {
-                rb.position = rb.predicted_position;
-                rb.linvel = na::zero();
-                rb.angvel = na::zero();
-            } else {
+        for handle in islands.active_bodies() {
+            if let Some(rb) = bodies.get_mut(handle) {
                 rb.update_predicted_position(integration_parameters.dt);
-            }
+                rb.update_colliders_positions(colliders);
 
+                // TODO: do this in the solver?
+                let prev_sleep_state = rb.can_sleep();
+                rb.update_energy();
+
+                if prev_sleep_state != rb.can_sleep() {
+                    self.bodies_with_changed_sleep_state.push(handle);
+                }
+            }
+        }
+
+        for handle in self.bodies_with_changed_sleep_state.drain(..) {
+            islands.body_sleep_state_changed(&bodies[handle]);
+        }
+
+        bodies.foreach_active_kinematic_body_mut_internal(|_, rb| {
+            rb.position = rb.predicted_position;
+            rb.linvel = na::zero();
+            rb.angvel = na::zero();
             rb.update_colliders_positions(colliders);
         });
 

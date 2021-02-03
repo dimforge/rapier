@@ -2,7 +2,7 @@ use super::Joint;
 use crate::geometry::{InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex};
 
 use crate::data::arena::Arena;
-use crate::dynamics::{JointParams, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{IslandSet, JointParams, RigidBodyHandle, RigidBodySet};
 
 /// The unique identifier of a joint added to the joint set.
 /// The unique identifier of a collider added to a collider set.
@@ -178,10 +178,11 @@ impl JointSet {
     // NOTE: this is very similar to the code from NarrowPhase::select_active_interactions.
     pub(crate) fn select_active_interactions(
         &self,
+        islands: &IslandSet,
         bodies: &RigidBodySet,
         out: &mut Vec<Vec<JointIndex>>,
     ) {
-        for out_island in &mut out[..bodies.num_islands()] {
+        for out_island in &mut out[..islands.num_active_islands()] {
             out_island.clear();
         }
 
@@ -196,9 +197,9 @@ impl JointSet {
                 && (!rb2.is_dynamic() || !rb2.is_sleeping())
             {
                 let island_index = if !rb1.is_dynamic() {
-                    rb2.active_island_id
+                    islands.islands()[rb2.island_id].active_island_id()
                 } else {
-                    rb1.active_island_id
+                    islands.islands()[rb1.island_id].active_island_id()
                 };
 
                 out[island_index].push(i);

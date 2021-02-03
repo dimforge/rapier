@@ -14,7 +14,8 @@ use crate::dynamics::solver::{
     VelocityGroundConstraintWithManifoldFriction,
 };
 use crate::dynamics::{
-    solver::AnyVelocityConstraint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet,
+    solver::AnyVelocityConstraint, IntegrationParameters, IslandSet, JointGraphEdge, JointIndex,
+    RigidBodySet,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 #[cfg(feature = "simd-is-enabled")]
@@ -48,6 +49,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
     pub fn init_constraint_groups(
         &mut self,
         island_id: usize,
+        islands: &IslandSet,
         bodies: &RigidBodySet,
         manifolds: &[&mut ContactManifold],
         manifold_indices: &[ContactManifoldIndex],
@@ -65,6 +67,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
         self.interaction_groups.clear_groups();
         self.interaction_groups.group_manifolds(
             island_id,
+            islands,
             bodies,
             manifolds,
             &self.not_ground_interactions,
@@ -73,6 +76,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
         self.ground_interaction_groups.clear_groups();
         self.ground_interaction_groups.group_manifolds(
             island_id,
+            islands,
             bodies,
             manifolds,
             &self.ground_interactions,
@@ -90,6 +94,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
     pub fn init(
         &mut self,
         island_id: usize,
+        islands: &IslandSet,
         params: &IntegrationParameters,
         bodies: &RigidBodySet,
         manifolds: &[&mut ContactManifold],
@@ -98,7 +103,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
         self.velocity_constraints.clear();
         self.position_constraints.clear();
 
-        self.init_constraint_groups(island_id, bodies, manifolds, manifold_indices);
+        self.init_constraint_groups(island_id, islands, bodies, manifolds, manifold_indices);
 
         #[cfg(feature = "simd-is-enabled")]
         {
@@ -245,6 +250,7 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
     pub fn init(
         &mut self,
         island_id: usize,
+        islands: &IslandSet,
         params: &IntegrationParameters,
         bodies: &RigidBodySet,
         joints: &[JointGraphEdge],
@@ -267,6 +273,7 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
         self.interaction_groups.clear_groups();
         self.interaction_groups.group_joints(
             island_id,
+            islands,
             bodies,
             joints,
             &self.not_ground_interactions,
@@ -275,6 +282,7 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
         self.ground_interaction_groups.clear_groups();
         self.ground_interaction_groups.group_joints(
             island_id,
+            islands,
             bodies,
             joints,
             &self.ground_interactions,

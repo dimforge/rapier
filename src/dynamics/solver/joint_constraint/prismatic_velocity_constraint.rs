@@ -173,8 +173,8 @@ impl PrismaticVelocityConstraint {
 
         PrismaticVelocityConstraint {
             joint_id,
-            mj_lambda1: rb1.active_set_offset,
-            mj_lambda2: rb2.active_set_offset,
+            mj_lambda1: rb1.island_offset,
+            mj_lambda2: rb2.island_offset,
             im1,
             ii1_sqrt: rb1.effective_world_inv_inertia_sqrt,
             im2,
@@ -463,7 +463,7 @@ impl PrismaticVelocityGroundConstraint {
 
         PrismaticVelocityGroundConstraint {
             joint_id,
-            mj_lambda2: rb2.active_set_offset,
+            mj_lambda2: rb2.island_offset,
             im2,
             ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse: cparams.impulse * params.warmstart_coeff,

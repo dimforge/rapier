@@ -83,6 +83,8 @@ pub struct RigidBody {
     pub activation: ActivationStatus,
     pub(crate) joint_graph_index: RigidBodyGraphIndex,
     pub(crate) active_island_id: usize,
+    pub(crate) island_offset: usize,
+    pub(crate) island_id: usize,
     pub(crate) active_set_id: usize,
     pub(crate) active_set_offset: usize,
     pub(crate) active_set_timestamp: u32,
@@ -113,6 +115,8 @@ impl RigidBody {
             colliders: Vec::new(),
             activation: ActivationStatus::new_active(),
             joint_graph_index: InteractionGraph::<(), ()>::invalid_graph_index(),
+            island_id: crate::INVALID_USIZE,
+            island_offset: crate::INVALID_USIZE,
             active_island_id: 0,
             active_set_id: 0,
             active_set_offset: 0,
@@ -127,6 +131,8 @@ impl RigidBody {
     pub(crate) fn reset_internal_references(&mut self) {
         self.colliders = Vec::new();
         self.joint_graph_index = InteractionGraph::<(), ()>::invalid_graph_index();
+        self.island_id = crate::INVALID_USIZE;
+        self.island_offset = 0; // crate::INVALID_USIZE;
         self.active_island_id = 0;
         self.active_set_id = 0;
         self.active_set_offset = 0;
@@ -296,6 +302,10 @@ impl RigidBody {
         // - return true for non-sleeping dynamic bodies.
         // - return true only for kinematic bodies with non-zero velocity?
         self.activation.sleeping
+    }
+
+    pub fn can_sleep(&self) -> bool {
+        self.activation.can_sleep()
     }
 
     /// Is the velocity of this body not zero?
@@ -872,5 +882,9 @@ impl ActivationStatus {
     #[inline]
     pub fn is_active(&self) -> bool {
         self.energy != 0.0
+    }
+
+    pub fn can_sleep(&self) -> bool {
+        self.energy <= Self::default_threshold()
     }
 }

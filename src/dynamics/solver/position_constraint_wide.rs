@@ -54,8 +54,8 @@ impl WPositionConstraint {
             array![|ii| manifolds[ii].data.normal; SIMD_WIDTH],
         ));
 
-        let rb1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
-        let rb2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
+        let rb1 = array![|ii| rbs1[ii].island_offset; SIMD_WIDTH];
+        let rb2 = array![|ii| rbs2[ii].island_offset; SIMD_WIDTH];
 
         let num_active_contacts = manifolds[0].data.num_active_contacts();
 

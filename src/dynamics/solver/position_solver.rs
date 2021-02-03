@@ -1,5 +1,7 @@
 use super::AnyJointPositionConstraint;
-use crate::dynamics::{solver::AnyPositionConstraint, IntegrationParameters, RigidBodySet};
+use crate::dynamics::{
+    solver::AnyPositionConstraint, IntegrationParameters, IslandSet, RigidBodySet,
+};
 use crate::math::{Isometry, Real};
 
 pub(crate) struct PositionSolver {
@@ -17,15 +19,19 @@ impl PositionSolver {
         &mut self,
         island_id: usize,
         params: &IntegrationParameters,
+        islands: &IslandSet,
         bodies: &mut RigidBodySet,
         contact_constraints: &[AnyPositionConstraint],
         joint_constraints: &[AnyJointPositionConstraint],
     ) {
         self.positions.clear();
         self.positions.extend(
-            bodies
-                .iter_active_island(island_id)
-                .map(|(_, b)| b.position),
+            islands
+                .active_island(island_id)
+                .bodies()
+                .iter()
+                .filter_map(|h| bodies.get(*h))
+                .map(|b| b.position),
         );
 
         for _ in 0..params.max_position_iterations {
@@ -38,8 +44,10 @@ impl PositionSolver {
             }
         }
 
-        bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
-            rb.set_position_internal(self.positions[rb.active_set_offset])
-        });
+        for handle in islands.active_island(island_id).bodies() {
+            if let Some(rb) = bodies.get_mut(*handle) {
+                rb.set_position_internal(self.positions[rb.island_offset])
+            }
+        }
     }
 }

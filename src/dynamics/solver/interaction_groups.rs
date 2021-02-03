@@ -1,4 +1,4 @@
-use crate::dynamics::{BodyPair, JointGraphEdge, JointIndex, RigidBodySet};
+use crate::dynamics::{BodyPair, IslandSet, JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 #[cfg(feature = "simd-is-enabled")]
 use {
@@ -83,24 +83,23 @@ impl ParallelInteractionGroups {
 
             match (rb1.is_static(), rb2.is_static()) {
                 (false, false) => {
-                    let color_mask =
-                        bcolors[rb1.active_set_offset] | bcolors[rb2.active_set_offset];
+                    let color_mask = bcolors[rb1.island_offset] | bcolors[rb2.island_offset];
                     *color = (!color_mask).trailing_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb1.active_set_offset] |= 1 << *color;
-                    bcolors[rb2.active_set_offset] |= 1 << *color;
+                    bcolors[rb1.island_offset] |= 1 << *color;
+                    bcolors[rb2.island_offset] |= 1 << *color;
                 }
                 (true, false) => {
-                    let color_mask = bcolors[rb2.active_set_offset];
+                    let color_mask = bcolors[rb2.island_offset];
                     *color = (!color_mask).trailing_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb2.active_set_offset] |= 1 << *color;
+                    bcolors[rb2.island_offset] |= 1 << *color;
                 }
                 (false, true) => {
-                    let color_mask = bcolors[rb1.active_set_offset];
+                    let color_mask = bcolors[rb1.island_offset];
                     *color = (!color_mask).trailing_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb1.active_set_offset] |= 1 << *color;
+                    bcolors[rb1.island_offset] |= 1 << *color;
                 }
                 (true, true) => unreachable!(),
             }
@@ -176,6 +175,7 @@ impl InteractionGroups {
     pub fn group_joints(
         &mut self,
         island_id: usize,
+        islands: &IslandSet,
         bodies: &RigidBodySet,
         interactions: &[JointGraphEdge],
         interaction_indices: &[JointIndex],
@@ -197,7 +197,7 @@ impl InteractionGroups {
         // is full, we don't clear the corresponding body mask bit. This may result
         // in less grouped constraints.
         self.body_masks
-            .resize(bodies.active_island(island_id).len(), 0u128);
+            .resize(islands.active_island(island_id).len(), 0u128);
 
         // NOTE: each bit of the occupied mask indicates what bucket already
         // contains at least one constraint.
@@ -215,8 +215,8 @@ impl InteractionGroups {
             }
 
             let ijoint = interaction.params.type_id();
-            let i1 = body1.active_set_offset;
-            let i2 = body2.active_set_offset;
+            let i1 = body1.island_offset;
+            let i2 = body2.island_offset;
             let conflicts =
                 self.body_masks[i1] | self.body_masks[i2] | joint_type_conflicts[ijoint];
             let conflictfree_targets = !(conflicts & occupied_mask); // The & is because we consider empty buckets as free of conflicts.
@@ -320,6 +320,7 @@ impl InteractionGroups {
     pub fn group_manifolds(
         &mut self,
         island_id: usize,
+        islands: &IslandSet,
         bodies: &RigidBodySet,
         interactions: &[&mut ContactManifold],
         interaction_indices: &[ContactManifoldIndex],
@@ -331,7 +332,7 @@ impl InteractionGroups {
         // in less grouped contacts.
         // NOTE: body_masks and buckets are already cleared/zeroed at the end of each sort loop.
         self.body_masks
-            .resize(bodies.active_island(island_id).len(), 0u128);
+            .resize(islands.active_island(island_id).len(), 0u128);
 
         // NOTE: each bit of the occupied mask indicates what bucket already
         // contains at least one constraint.
@@ -365,8 +366,8 @@ impl InteractionGroups {
                     continue;
                 }
 
-                let i1 = body1.active_set_offset;
-                let i2 = body2.active_set_offset;
+                let i1 = body1.island_offset;
+                let i2 = body2.island_offset;
                 let conflicts = self.body_masks[i1] | self.body_masks[i2];
                 let conflictfree_targets = !(conflicts & occupied_mask); // The & is because we consider empty buckets as free of conflicts.
                 let conflictfree_occupied_targets = conflictfree_targets & occupied_mask;

@@ -82,8 +82,8 @@ impl PositionConstraint {
             }
 
             let constraint = PositionConstraint {
-                rb1: rb1.active_set_offset,
-                rb2: rb2.active_set_offset,
+                rb1: rb1.island_offset,
+                rb2: rb2.island_offset,
                 local_p1,
                 local_p2,
                 local_n1: rb1.position.inverse_transform_vector(&manifold.data.normal),

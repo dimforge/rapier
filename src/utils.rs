@@ -670,3 +670,17 @@ pub(crate) fn select_other<T: PartialEq>(pair: (T, T), elt: T) -> T {
         pair.0
     }
 }
+
+/// Gets mutable references to two distinct elements from a slice.
+#[inline(always)]
+pub fn get2_mut<T>(vec: &mut [T], i1: usize, i2: usize) -> (&mut T, &mut T) {
+    assert_ne!(i1, i2, "Cannot mutably index the same index twice.");
+
+    if i1 < i2 {
+        let (xs, ys) = vec.split_at_mut(i2);
+        (&mut xs[i1], &mut ys[0])
+    } else {
+        let (xs, ys) = vec.split_at_mut(i1);
+        (&mut ys[0], &mut xs[i2])
+    }
+}
