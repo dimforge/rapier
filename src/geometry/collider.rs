@@ -361,14 +361,14 @@ impl ColliderBuilder {
     /// Initializes a new collider builder with a 2D convex polygon or 3D convex polyhedron
     /// obtained after computing the convex-hull of the given points.
     pub fn convex_hull(points: &[Point<Real>]) -> Option<Self> {
-        SharedShape::convex_hull(points).map(|cp| Self::new(cp))
+        SharedShape::convex_hull(points).map(Self::new)
     }
 
     /// Initializes a new collider builder with a round 2D convex polygon or 3D convex polyhedron
     /// obtained after computing the convex-hull of the given points. The shape is dilated
     /// by a sphere of radius `border_radius`.
     pub fn round_convex_hull(points: &[Point<Real>], border_radius: Real) -> Option<Self> {
-        SharedShape::round_convex_hull(points, border_radius).map(|cp| Self::new(cp))
+        SharedShape::round_convex_hull(points, border_radius).map(Self::new)
     }
 
     /// Creates a new collider builder that is a convex polygon formed by the
@@ -376,7 +376,7 @@ impl ColliderBuilder {
     /// computed).
     #[cfg(feature = "dim2")]
     pub fn convex_polyline(points: Vec<Point<Real>>) -> Option<Self> {
-        SharedShape::convex_polyline(points).map(|cp| Self::new(cp))
+        SharedShape::convex_polyline(points).map(Self::new)
     }
 
     /// Creates a new collider builder that is a round convex polygon formed by the
@@ -384,7 +384,7 @@ impl ColliderBuilder {
     /// computed). The polygon shape is dilated by a sphere of radius `border_radius`.
     #[cfg(feature = "dim2")]
     pub fn round_convex_polyline(points: Vec<Point<Real>>, border_radius: Real) -> Option<Self> {
-        SharedShape::round_convex_polyline(points, border_radius).map(|cp| Self::new(cp))
+        SharedShape::round_convex_polyline(points, border_radius).map(Self::new)
     }
 
     /// Creates a new collider builder that is a convex polyhedron formed by the
@@ -392,7 +392,7 @@ impl ColliderBuilder {
     /// computed).
     #[cfg(feature = "dim3")]
     pub fn convex_mesh(points: Vec<Point<Real>>, indices: &[[u32; 3]]) -> Option<Self> {
-        SharedShape::convex_mesh(points, indices).map(|cp| Self::new(cp))
+        SharedShape::convex_mesh(points, indices).map(Self::new)
     }
 
     /// Creates a new collider builder that is a round convex polyhedron formed by the
@@ -404,7 +404,7 @@ impl ColliderBuilder {
         indices: &[[u32; 3]],
         border_radius: Real,
     ) -> Option<Self> {
-        SharedShape::round_convex_mesh(points, indices, border_radius).map(|cp| Self::new(cp))
+        SharedShape::round_convex_mesh(points, indices, border_radius).map(Self::new)
     }
 
     /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale

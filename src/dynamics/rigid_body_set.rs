@@ -106,6 +106,11 @@ impl RigidBodySet {
         self.bodies.len()
     }
 
+    /// `true` if there are no rigid bodies in this set.
+    pub fn is_empty(&self) -> bool {
+        self.bodies.is_empty()
+    }
+
     /// Is the given body handle valid?
     pub fn contains(&self, handle: RigidBodyHandle) -> bool {
         self.bodies.contains(handle.0)

@@ -46,7 +46,7 @@ impl RevoluteVelocityConstraint {
         ]);
 
         //        let r21 = Rotation::rotation_between_axis(&axis1, &axis2)
-        //            .unwrap_or(Rotation::identity())
+        //            .unwrap_or_else(Rotation::identity)
         //            .to_rotation_matrix()
         //            .into_inner();
         //        let basis2 = r21 * basis1;
@@ -208,7 +208,7 @@ impl RevoluteVelocityGroundConstraint {
         };
 
         //        let r21 = Rotation::rotation_between_axis(&axis1, &axis2)
-        //            .unwrap_or(Rotation::identity())
+        //            .unwrap_or_else(Rotation::identity)
         //            .to_rotation_matrix()
         //            .into_inner();
         //        let basis2 = /*r21 * */ basis1;

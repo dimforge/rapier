@@ -120,9 +120,9 @@ impl<N: Copy, E> InteractionGraph<N, E> {
 
     /// All the interaction involving the collision object with graph index `id`.
     pub fn interactions_with(&self, id: ColliderGraphIndex) -> impl Iterator<Item = (N, N, &E)> {
-        self.graph.edges(id).filter_map(move |e| {
+        self.graph.edges(id).map(move |e| {
             let endpoints = self.graph.edge_endpoints(e.id()).unwrap();
-            Some((self.graph[endpoints.0], self.graph[endpoints.1], e.weight()))
+            (self.graph[endpoints.0], self.graph[endpoints.1], e.weight())
         })
     }
 

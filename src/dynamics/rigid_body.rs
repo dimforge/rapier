@@ -304,7 +304,7 @@ impl RigidBody {
     }
 
     fn integrate_velocity(&self, dt: Real) -> Isometry<Real> {
-        let com = &self.position * self.mass_properties.local_com;
+        let com = self.position * self.mass_properties.local_com;
         let shift = Translation::from(com.coords);
         shift * Isometry::new(self.linvel * dt, self.angvel * dt) * shift.inverse()
     }
