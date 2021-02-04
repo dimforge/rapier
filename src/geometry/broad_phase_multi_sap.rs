@@ -634,11 +634,10 @@ impl BroadPhase {
         for body_handle in bodies
             .modified_inactive_set
             .iter()
-            .copied()
-            .chain(islands.active_bodies())
-            .chain(bodies.active_kinematic_set.iter().copied())
+            .chain(islands.active_bodies().iter())
+            .chain(bodies.active_kinematic_set.iter())
         {
-            for handle in &bodies[body_handle].colliders {
+            for handle in &bodies[*body_handle].colliders {
                 let collider = &mut colliders[*handle];
                 let aabb = collider.compute_aabb().loosened(prediction_distance / 2.0);
 

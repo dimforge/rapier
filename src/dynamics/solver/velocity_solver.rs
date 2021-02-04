@@ -31,7 +31,7 @@ impl VelocitySolver {
     ) {
         self.mj_lambdas.clear();
         self.mj_lambdas
-            .resize(islands.active_island(island_id).len(), DeltaVel::zero());
+            .resize(islands.active_bodies().len(), DeltaVel::zero());
 
         /*
          * Warmstart constraints.
@@ -58,7 +58,7 @@ impl VelocitySolver {
         }
 
         // Update velocities.
-        for handle in islands.active_island(island_id).bodies() {
+        for handle in islands.active_bodies() {
             if let Some(rb) = bodies.get_mut(*handle) {
                 let dvel = self.mj_lambdas[rb.island_offset];
                 rb.linvel += dvel.linear;

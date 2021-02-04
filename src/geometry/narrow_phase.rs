@@ -626,9 +626,9 @@ impl NarrowPhase {
                     && (!rb2.is_dynamic() || !islands.is_island_sleeping(rb2.island_id))
                 {
                     let island_index = if !rb1.is_dynamic() {
-                        islands.islands()[rb2.island_id].active_island_id()
+                        0 // islands.islands()[rb2.island_id].active_island_id()
                     } else {
-                        islands.islands()[rb1.island_id].active_island_id()
+                        0 // islands.islands()[rb1.island_id].active_island_id()
                     };
 
                     out[island_index].push(out_manifolds.len());

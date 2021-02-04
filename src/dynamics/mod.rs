@@ -12,7 +12,8 @@ pub use self::rigid_body_set::{BodyPair, RigidBodyHandle, RigidBodySet};
 pub use parry::mass_properties::MassProperties;
 // #[cfg(not(feature = "parallel"))]
 pub use self::coefficient_combine_rule::CoefficientCombineRule;
-pub use self::island_set::{Island, IslandSet};
+// pub use self::island_set::{Island, IslandSet};
+pub use self::island_set2::{Island, IslandSet};
 
 pub(crate) use self::joint::JointGraphEdge;
 pub(crate) use self::rigid_body::RigidBodyChanges;
@@ -23,8 +24,8 @@ pub(crate) use self::solver::ParallelIslandSolver;
 
 mod coefficient_combine_rule;
 mod integration_parameters;
-mod island_set;
-// mod island_set2;
+// mod island_set;
+mod island_set2;
 mod joint;
 mod rigid_body;
 mod rigid_body_set;

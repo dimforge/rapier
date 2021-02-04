@@ -88,6 +88,7 @@ pub struct RigidBody {
     pub(crate) active_set_id: usize,
     pub(crate) active_set_offset: usize,
     pub(crate) active_set_timestamp: u32,
+    pub(crate) traversal_timestamp: u64,
     flags: RigidBodyFlags,
     pub(crate) changes: RigidBodyChanges,
     /// The status of the body, governing how it is affected by external forces.
@@ -121,6 +122,7 @@ impl RigidBody {
             active_set_id: 0,
             active_set_offset: 0,
             active_set_timestamp: 0,
+            traversal_timestamp: 0,
             flags: RigidBodyFlags::empty(),
             changes: RigidBodyChanges::all(),
             body_status: BodyStatus::Dynamic,

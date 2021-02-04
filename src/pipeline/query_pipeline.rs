@@ -119,7 +119,7 @@ impl QueryPipeline {
         }
 
         for handle in islands.active_bodies() {
-            if let Some(body) = bodies.get(handle) {
+            if let Some(body) = bodies.get(*handle) {
                 for handle in &body.colliders {
                     self.quadtree.pre_update(*handle)
                 }

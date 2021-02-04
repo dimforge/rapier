@@ -2,8 +2,7 @@
 use rayon::prelude::*;
 
 use crate::data::arena::Arena;
-use crate::dynamics::island_set::IslandSet;
-use crate::dynamics::{Joint, JointSet, RigidBody, RigidBodyChanges};
+use crate::dynamics::{IslandSet, Joint, JointSet, RigidBody, RigidBodyChanges};
 use crate::geometry::{ColliderSet, InteractionGraph, NarrowPhase};
 use parry::partitioning::IndexedData;
 use std::ops::{Index, IndexMut};
@@ -264,6 +263,12 @@ impl RigidBodySet {
         self.bodies.iter_mut().map(|(h, b)| (RigidBodyHandle(h), b))
     }
 
+    pub(crate) fn iter_mut_internal(
+        &mut self,
+    ) -> impl Iterator<Item = (RigidBodyHandle, &mut RigidBody)> {
+        self.bodies.iter_mut().map(|(h, b)| (RigidBodyHandle(h), b))
+    }
+
     /// Iter through all the active kinematic rigid-bodies on this set.
     pub fn iter_active_kinematic<'a>(
         &'a self,
@@ -374,6 +379,7 @@ impl RigidBodySet {
         modified_inactive_set: &mut Vec<RigidBodyHandle>,
         active_kinematic_set: &mut Vec<RigidBodyHandle>,
         active_dynamic_set: &mut Vec<RigidBodyHandle>,
+        out_changed_sleep: &mut Vec<RigidBodyHandle>,
     ) {
         // Update the positions of the colliders.
         if rb.changes.contains(RigidBodyChanges::POSITION)
@@ -403,17 +409,18 @@ impl RigidBodySet {
         }
 
         if rb.changes.contains(RigidBodyChanges::SLEEP) {
-            if rb.island_id == crate::INVALID_USIZE {
-                islands.add_rigid_body(handle, rb);
-            }
-
-            islands.body_sleep_state_changed(rb);
+            out_changed_sleep.push(handle);
         }
 
         rb.changes = RigidBodyChanges::empty();
     }
 
-    pub(crate) fn maintain(&mut self, islands: &mut IslandSet, colliders: &mut ColliderSet) {
+    pub(crate) fn maintain(
+        &mut self,
+        islands: &mut IslandSet,
+        colliders: &mut ColliderSet,
+        out_changed_sleep: &mut Vec<RigidBodyHandle>,
+    ) {
         if self.modified_all_bodies {
             for (handle, rb) in self.bodies.iter_mut() {
                 Self::maintain_one(
@@ -424,6 +431,7 @@ impl RigidBodySet {
                     &mut self.modified_inactive_set,
                     &mut self.active_kinematic_set,
                     &mut self.active_dynamic_set,
+                    out_changed_sleep,
                 )
             }
 
@@ -440,6 +448,7 @@ impl RigidBodySet {
                         &mut self.modified_inactive_set,
                         &mut self.active_kinematic_set,
                         &mut self.active_dynamic_set,
+                        out_changed_sleep,
                     )
                 }
             }

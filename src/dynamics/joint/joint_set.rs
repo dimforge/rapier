@@ -197,9 +197,9 @@ impl JointSet {
                 && (!rb2.is_dynamic() || !rb2.is_sleeping())
             {
                 let island_index = if !rb1.is_dynamic() {
-                    islands.islands()[rb2.island_id].active_island_id()
+                    0 // islands.islands()[rb2.island_id].active_island_id()
                 } else {
-                    islands.islands()[rb1.island_id].active_island_id()
+                    0 // islands.islands()[rb1.island_id].active_island_id()
                 };
 
                 out[island_index].push(i);

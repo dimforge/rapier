@@ -65,7 +65,7 @@ impl IslandSolver {
         }
 
         counters.solver.velocity_update_time.resume();
-        for handle in islands.active_island(island_id).bodies() {
+        for handle in islands.active_bodies() {
             if let Some(rb) = bodies.get_mut_internal(*handle) {
                 rb.integrate(params.dt)
             }

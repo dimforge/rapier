@@ -77,9 +77,17 @@ impl PhysicsPipeline {
         events: &dyn EventHandler,
     ) {
         self.counters.step_started();
-        bodies.maintain(islands, colliders);
+        bodies.maintain(
+            islands,
+            colliders,
+            &mut self.bodies_with_changed_sleep_state,
+        );
         broad_phase.maintain(colliders);
         narrow_phase.maintain(colliders, bodies);
+
+        for handle in self.bodies_with_changed_sleep_state.drain(..) {
+            islands.body_sleep_state_changed(bodies, handle);
+        }
 
         // Update kinematic bodies velocities.
         // TODO: what is the best place for this? It should at least be
@@ -165,7 +173,7 @@ impl PhysicsPipeline {
 
         self.counters.stages.update_time.start();
         for handle in islands.active_bodies() {
-            if let Some(rb) = bodies.get_mut(handle) {
+            if let Some(rb) = bodies.get_mut(*handle) {
                 rb.update_world_mass_properties();
                 rb.integrate_accelerations(integration_parameters.dt, *gravity)
             }
@@ -243,7 +251,7 @@ impl PhysicsPipeline {
         // Update colliders positions and kinematic bodies positions.
         // FIXME: do this in the solver?
         for handle in islands.active_bodies() {
-            if let Some(rb) = bodies.get_mut(handle) {
+            if let Some(rb) = bodies.get_mut(*handle) {
                 rb.update_predicted_position(integration_parameters.dt);
                 rb.update_colliders_positions(colliders);
 
@@ -252,14 +260,16 @@ impl PhysicsPipeline {
                 rb.update_energy();
 
                 if prev_sleep_state != rb.can_sleep() {
-                    self.bodies_with_changed_sleep_state.push(handle);
+                    self.bodies_with_changed_sleep_state.push(*handle);
                 }
             }
         }
 
         for handle in self.bodies_with_changed_sleep_state.drain(..) {
-            islands.body_sleep_state_changed(&bodies[handle]);
+            islands.body_sleep_state_changed(bodies, handle);
         }
+
+        islands.update_sleeping_islands(bodies, colliders, narrow_phase);
 
         bodies.foreach_active_kinematic_body_mut_internal(|_, rb| {
             rb.position = rb.predicted_position;

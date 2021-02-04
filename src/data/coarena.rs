@@ -29,6 +29,27 @@ impl<T> Coarena<T> {
             .and_then(|(gg, t)| if g == *gg { Some(t) } else { None })
     }
 
+    pub fn ensure_element_exists(&mut self, index: Index, default: T) -> &mut T
+    where
+        T: Clone,
+    {
+        let (i1, g1) = index.into_raw_parts();
+
+        let elt1 = {
+            if self.data.len() <= i1 {
+                self.data.resize(i1 + 1, (u32::MAX as u64, default.clone()));
+            }
+
+            &mut self.data[i1]
+        };
+
+        if elt1.0 != g1 {
+            *elt1 = (g1, default);
+        }
+
+        &mut elt1.1
+    }
+
     /// Ensure that elements at the two given indices exist in this coarena, and return their reference.
     ///
     /// Missing elements are created automatically and initialized with the `default` value.
@@ -67,5 +88,18 @@ impl<T> Coarena<T> {
         }
 
         (&mut elt1.1, &mut elt2.1)
+    }
+}
+
+impl<T> std::ops::Index<Index> for Coarena<T> {
+    type Output = T;
+    fn index(&self, id: Index) -> &T {
+        self.get(id).expect("Index out of bounds.")
+    }
+}
+
+impl<T> std::ops::IndexMut<Index> for Coarena<T> {
+    fn index_mut(&mut self, id: Index) -> &mut T {
+        self.get_mut(id).expect("Index out of bounds.")
     }
 }

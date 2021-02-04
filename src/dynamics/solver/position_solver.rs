@@ -27,8 +27,7 @@ impl PositionSolver {
         self.positions.clear();
         self.positions.extend(
             islands
-                .active_island(island_id)
-                .bodies()
+                .active_bodies()
                 .iter()
                 .filter_map(|h| bodies.get(*h))
                 .map(|b| b.position),
@@ -44,7 +43,7 @@ impl PositionSolver {
             }
         }
 
-        for handle in islands.active_island(island_id).bodies() {
+        for handle in islands.active_bodies() {
             if let Some(rb) = bodies.get_mut(*handle) {
                 rb.set_position_internal(self.positions[rb.island_offset])
             }

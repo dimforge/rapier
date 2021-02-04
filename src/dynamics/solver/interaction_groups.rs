@@ -196,8 +196,7 @@ impl InteractionGroups {
         // FIXME: currently, this is a bit overconservative because when a bucket
         // is full, we don't clear the corresponding body mask bit. This may result
         // in less grouped constraints.
-        self.body_masks
-            .resize(islands.active_island(island_id).len(), 0u128);
+        self.body_masks.resize(islands.active_bodies().len(), 0u128);
 
         // NOTE: each bit of the occupied mask indicates what bucket already
         // contains at least one constraint.
@@ -331,8 +330,7 @@ impl InteractionGroups {
         // is full, we don't clear the corresponding body mask bit. This may result
         // in less grouped contacts.
         // NOTE: body_masks and buckets are already cleared/zeroed at the end of each sort loop.
-        self.body_masks
-            .resize(islands.active_island(island_id).len(), 0u128);
+        self.body_masks.resize(islands.active_bodies().len(), 0u128);
 
         // NOTE: each bit of the occupied mask indicates what bucket already
         // contains at least one constraint.
