@@ -56,7 +56,7 @@ impl RevolutePositionConstraint {
         let axis1 = position1 * self.local_axis1;
         let axis2 = position2 * self.local_axis2;
         let delta_rot =
-            Rotation::rotation_between_axis(&axis1, &axis2).unwrap_or(Rotation::identity());
+            Rotation::rotation_between_axis(&axis1, &axis2).unwrap_or_else(Rotation::identity);
         let ang_error = delta_rot.scaled_axis() * params.joint_erp;
         let ang_impulse = self.ang_inv_lhs.transform_vector(ang_error);
 
@@ -129,7 +129,7 @@ impl RevolutePositionGroundConstraint {
 
         let delta_rot =
             Rotation::scaled_rotation_between_axis(&axis2, &self.axis1, params.joint_erp)
-                .unwrap_or(Rotation::identity());
+                .unwrap_or_else(Rotation::identity);
         position2.rotation = delta_rot * position2.rotation;
 
         let anchor2 = position2 * self.local_anchor2;

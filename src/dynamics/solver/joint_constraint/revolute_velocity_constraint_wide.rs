@@ -73,7 +73,7 @@ impl WRevoluteVelocityConstraint {
             Matrix3x2::from_columns(&[position1 * local_basis1[0], position1 * local_basis1[1]]);
 
         //        let r21 = Rotation::rotation_between_axis(&axis1, &axis2)
-        //            .unwrap_or(Rotation::identity())
+        //            .unwrap_or_else(Rotation::identity)
         //            .to_rotation_matrix()
         //            .into_inner();
         //        let basis2 = r21 * basis1;
@@ -290,7 +290,7 @@ impl WRevoluteVelocityGroundConstraint {
         let anchor2 = position2 * local_anchor2;
 
         //        let r21 = Rotation::rotation_between_axis(&axis1, &axis2)
-        //            .unwrap_or(Rotation::identity())
+        //            .unwrap_or_else(Rotation::identity)
         //            .to_rotation_matrix()
         //            .into_inner();
         //        let basis2 = /*r21 * */ basis1;

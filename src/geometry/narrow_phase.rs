@@ -90,10 +90,10 @@ impl NarrowPhase {
     }
 
     /// All the intersections involving the given collider.
-    pub fn intersections_with<'a>(
-        &'a self,
+    pub fn intersections_with(
+        &self,
         collider: ColliderHandle,
-    ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + 'a> {
+    ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_> {
         let id = self.graph_indices.get(collider.0)?;
         Some(
             self.intersection_graph
@@ -141,9 +141,9 @@ impl NarrowPhase {
     }
 
     /// All the intersection pairs maintained by this narrow-phase.
-    pub fn intersection_pairs<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + 'a {
+    pub fn intersection_pairs(
+        &self,
+    ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_ {
         self.intersection_graph
             .interactions_with_endpoints()
             .map(|e| (e.0, e.1, *e.2))
@@ -161,7 +161,7 @@ impl NarrowPhase {
             self.removed_colliders = Some(colliders.removed_colliders.subscribe());
         }
 
-        let mut cursor = self.removed_colliders.take().unwrap();
+        let cursor = self.removed_colliders.take().unwrap();
 
         // TODO: avoid these hash-maps.
         // They are necessary to handle the swap-remove done internally
@@ -196,11 +196,11 @@ impl NarrowPhase {
             i += 1;
         }
 
-        colliders.removed_colliders.ack(&mut cursor);
+        colliders.removed_colliders.ack(&cursor);
         self.removed_colliders = Some(cursor);
     }
 
-    pub(crate) fn remove_collider<'a>(
+    pub(crate) fn remove_collider(
         &mut self,
         intersection_graph_id: ColliderGraphIndex,
         contact_graph_id: ColliderGraphIndex,

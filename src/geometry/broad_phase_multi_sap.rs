@@ -569,16 +569,16 @@ impl BroadPhase {
             self.removed_colliders = Some(colliders.removed_colliders.subscribe());
         }
 
-        let mut cursor = self.removed_colliders.take().unwrap();
+        let cursor = self.removed_colliders.take().unwrap();
         for collider in colliders.removed_colliders.read(&cursor) {
             self.remove_collider(collider.proxy_index);
         }
 
-        colliders.removed_colliders.ack(&mut cursor);
+        colliders.removed_colliders.ack(&cursor);
         self.removed_colliders = Some(cursor);
     }
 
-    fn remove_collider<'a>(&mut self, proxy_index: usize) {
+    fn remove_collider(&mut self, proxy_index: usize) {
         if proxy_index == crate::INVALID_USIZE {
             // This collider has not been added to the broad-phase yet.
             return;

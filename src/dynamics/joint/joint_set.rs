@@ -55,6 +55,11 @@ impl JointSet {
         self.joint_graph.graph.edges.len()
     }
 
+    /// `true` if there are no joints in this set.
+    pub fn is_empty(&self) -> bool {
+        self.joint_graph.graph.edges.is_empty()
+    }
+
     /// Retrieve the joint graph where edges are joints and nodes are rigid body handles.
     pub fn joint_graph(&self) -> &InteractionGraph<RigidBodyHandle, Joint> {
         &self.joint_graph

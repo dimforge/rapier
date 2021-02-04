@@ -162,7 +162,7 @@ impl PhysicsPipeline {
         self.counters.stages.solver_time.start();
         if self.solvers.len() < bodies.num_islands() {
             self.solvers
-                .resize_with(bodies.num_islands(), || IslandSolver::new());
+                .resize_with(bodies.num_islands(), IslandSolver::new);
         }
 
         #[cfg(not(feature = "parallel"))]

@@ -80,6 +80,11 @@ impl ColliderSet {
         self.colliders.len()
     }
 
+    /// `true` if there are no colliders in this set.
+    pub fn is_empty(&self) -> bool {
+        self.colliders.is_empty()
+    }
+
     /// Is this collider handle valid?
     pub fn contains(&self, handle: ColliderHandle) -> bool {
         self.colliders.contains(handle.0)
