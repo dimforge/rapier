@@ -569,6 +569,36 @@ impl RigidBody {
         let dpt = point - self.world_com;
         self.linvel + self.angvel.gcross(dpt)
     }
+
+    /// The kinetic energy of this body.
+    pub fn kinetic_energy(&self) -> Real {
+        let mut energy = (self.mass() * self.linvel().norm_squared()) / 2.0;
+
+        #[cfg(feature = "dim2")]
+        if !self.effective_world_inv_inertia_sqrt.is_zero() {
+            let inertia_sqrt = 1.0 / self.effective_world_inv_inertia_sqrt;
+            energy += (inertia_sqrt * self.angvel).powi(2) / 2.0;
+        }
+
+        #[cfg(feature = "dim3")]
+        if !self.effective_world_inv_inertia_sqrt.is_zero() {
+            let inertia_sqrt = self.effective_world_inv_inertia_sqrt.inverse_unchecked();
+            energy += (inertia_sqrt * self.angvel).norm_squared() / 2.0;
+        }
+
+        energy
+    }
+
+    /// The potential energy of this body in a gravity field.
+    pub fn gravitational_potential_energy(&self, dt: Real, gravity: Vector<Real>) -> Real {
+        let world_com = self.mass_properties().world_com(&self.position).coords;
+
+        // Project position back along velocity vector one half-step (leap-frog)
+        // to sync up the potential energy with the kinetic energy:
+        let world_com = world_com - self.linvel() * (dt / 2.0);
+
+        -self.mass() * self.gravity_scale() * gravity.dot(&world_com)
+    }
 }
 
 /// A builder for rigid-bodies.
