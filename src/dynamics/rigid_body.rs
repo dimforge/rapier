@@ -141,6 +141,7 @@ impl RigidBody {
         }
     }
 
+    #[cfg(not(feature = "parallel"))] // in parallel solver this is not needed
     pub(crate) fn integrate_accelerations(&mut self, dt: Real) {
         let linear_acc = self.force * self.effective_inv_mass;
         let angular_acc = self.effective_world_inv_inertia_sqrt
