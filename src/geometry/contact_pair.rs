@@ -90,15 +90,19 @@ pub struct ContactManifoldData {
     pub body_pair: BodyPair,
     pub(crate) warmstart_multiplier: Real,
     // The two following are set by the constraints solver.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) constraint_index: usize,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) position_constraint_index: usize,
     // We put the following fields here to avoids reading the colliders inside of the
     // contact preparation method.
     /// Flags used to control some aspects of the constraints solver for this contact manifold.
     pub solver_flags: SolverFlags,
     /// The world-space contact normal shared by all the contact in this contact manifold.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub normal: Vector<Real>,
     /// The contacts that will be seen by the constraints solver for computing forces.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub solver_contacts: Vec<SolverContact>,
 }
 

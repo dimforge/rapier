@@ -1401,11 +1401,21 @@ CCD: {:.2}ms
         if self.state.flags.contains(TestbedStateFlags::DEBUG) {
             let t = instant::now();
             let physics = &self.harness.physics;
+            // let t = instant::now();
             let bf = bincode::serialize(&physics.broad_phase).unwrap();
+            // println!("bf: {}", instant::now() - t);
+            // let t = instant::now();
             let nf = bincode::serialize(&physics.narrow_phase).unwrap();
+            // println!("nf: {}", instant::now() - t);
+            // let t = instant::now();
             let bs = bincode::serialize(&physics.bodies).unwrap();
+            // println!("bs: {}", instant::now() - t);
+            // let t = instant::now();
             let cs = bincode::serialize(&physics.colliders).unwrap();
+            // println!("cs: {}", instant::now() - t);
+            // let t = instant::now();
             let js = bincode::serialize(&physics.joints).unwrap();
+            // println!("js: {}", instant::now() - t);
             let serialization_time = instant::now() - t;
             let hash_bf = md5::compute(&bf);
             let hash_nf = md5::compute(&nf);
