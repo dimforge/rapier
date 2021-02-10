@@ -1,6 +1,8 @@
 #[cfg(feature = "dim3")]
 use crate::dynamics::RevoluteJoint;
-use crate::dynamics::{BallJoint, FixedJoint, JointHandle, PrismaticJoint, RigidBodyHandle};
+use crate::dynamics::{
+    BallJoint, FixedJoint, GenericJoint, JointHandle, PrismaticJoint, RigidBodyHandle,
+};
 
 #[derive(Copy, Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -17,6 +19,7 @@ pub enum JointParams {
     /// A revolute joint that removes all degrees of degrees of freedom between the affected
     /// bodies except for the translation along one axis.
     RevoluteJoint(RevoluteJoint),
+    GenericJoint(GenericJoint),
 }
 
 impl JointParams {
@@ -26,8 +29,9 @@ impl JointParams {
             JointParams::BallJoint(_) => 0,
             JointParams::FixedJoint(_) => 1,
             JointParams::PrismaticJoint(_) => 2,
+            JointParams::GenericJoint(_) => 3,
             #[cfg(feature = "dim3")]
-            JointParams::RevoluteJoint(_) => 3,
+            JointParams::RevoluteJoint(_) => 4,
         }
     }
 
@@ -43,6 +47,15 @@ impl JointParams {
     /// Gets a reference to the underlying fixed joint, if `self` is one.
     pub fn as_fixed_joint(&self) -> Option<&FixedJoint> {
         if let JointParams::FixedJoint(j) = self {
+            Some(j)
+        } else {
+            None
+        }
+    }
+
+    /// Gets a reference to the underlying generic joint, if `self` is one.
+    pub fn as_generic_joint(&self) -> Option<&GenericJoint> {
+        if let JointParams::GenericJoint(j) = self {
             Some(j)
         } else {
             None
@@ -78,6 +91,12 @@ impl From<BallJoint> for JointParams {
 impl From<FixedJoint> for JointParams {
     fn from(j: FixedJoint) -> Self {
         JointParams::FixedJoint(j)
+    }
+}
+
+impl From<GenericJoint> for JointParams {
+    fn from(j: GenericJoint) -> Self {
+        JointParams::GenericJoint(j)
     }
 }
 

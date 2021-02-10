@@ -5,7 +5,7 @@ pub(crate) use self::joint::JointIndex;
 #[cfg(feature = "dim3")]
 pub use self::joint::RevoluteJoint;
 pub use self::joint::{
-    BallJoint, FixedJoint, Joint, JointHandle, JointParams, JointSet, PrismaticJoint,
+    BallJoint, FixedJoint, GenericJoint, Joint, JointHandle, JointParams, JointSet, PrismaticJoint,
 };
 pub use self::rigid_body::{ActivationStatus, BodyStatus, RigidBody, RigidBodyBuilder};
 pub use self::rigid_body_set::{BodyPair, RigidBodyHandle, RigidBodySet};

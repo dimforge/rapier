@@ -421,6 +421,11 @@ impl PhysxWorld {
                             &frame2 as *const _,
                         );
                     }
+                    JointParams::GenericJoint(_) => {
+                        eprintln!(
+                            "Joint type currently unsupported by the nphysics backend: GenericJoint."
+                        )
+                    }
                 }
             }
         }
