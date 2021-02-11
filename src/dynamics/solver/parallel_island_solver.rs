@@ -184,6 +184,31 @@ impl ParallelIslandSolver {
         self.positions
             .resize(bodies.active_island(island_id).len(), Isometry::identity());
 
+        {
+            // Initialize `mj_lambdas` (per-body velocity deltas) with external accelerations (gravity etc):
+
+            let island_range = bodies.active_island_range(island_id);
+            let active_bodies = &bodies.active_dynamic_set[island_range];
+            let bodies = &mut bodies.bodies;
+
+            let thread = &self.thread;
+
+            concurrent_loop! {
+                let batch_size = thread.batch_size;
+                for handle in active_bodies[thread.body_integration_index, thread.num_integrated_bodies] {
+                    let rb = &mut bodies[handle.0];
+                    let dvel = &mut self.mj_lambdas[rb.active_set_offset];
+
+                    dvel.linear += rb.force * (rb.effective_inv_mass * params.dt);
+                    rb.force = na::zero();
+
+                    // dvel.angular is actually storing angular velocity delta multiplied by the square root of the inertia tensor:
+                    dvel.angular += rb.effective_world_inv_inertia_sqrt * rb.torque * params.dt;
+                    rb.torque = na::zero();
+                }
+            }
+        }
+
         for _ in 0..num_task_per_island {
             // We use AtomicPtr because it is Send+Sync while *mut is not.
             // See https://internals.rust-lang.org/t/shouldnt-pointers-be-send-sync-or/8818

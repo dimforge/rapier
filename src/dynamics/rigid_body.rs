@@ -75,8 +75,10 @@ pub struct RigidBody {
     pub linear_damping: Real,
     /// Damping factor for gradually slowing down the angular motion of the rigid-body.
     pub angular_damping: Real,
-    pub(crate) linacc: Vector<Real>,
-    pub(crate) angacc: AngVector<Real>,
+    /// Accumulation of external forces (only for dynamic bodies).
+    pub(crate) force: Vector<Real>,
+    /// Accumulation of external torques (only for dynamic bodies).
+    pub(crate) torque: AngVector<Real>,
     pub(crate) colliders: Vec<ColliderHandle>,
     pub(crate) gravity_scale: Real,
     /// Whether or not this rigid-body is sleeping.
@@ -105,8 +107,8 @@ impl RigidBody {
             effective_world_inv_inertia_sqrt: AngularInertia::zero(),
             linvel: Vector::zeros(),
             angvel: na::zero(),
-            linacc: Vector::zeros(),
-            angacc: na::zero(),
+            force: Vector::zeros(),
+            torque: na::zero(),
             gravity_scale: 1.0,
             linear_damping: 0.0,
             angular_damping: 0.0,
@@ -133,14 +135,22 @@ impl RigidBody {
         self.active_set_timestamp = 0;
     }
 
-    pub(crate) fn integrate_accelerations(&mut self, dt: Real, gravity: Vector<Real>) {
+    pub(crate) fn add_gravity(&mut self, gravity: Vector<Real>) {
         if self.effective_inv_mass != 0.0 {
-            self.linvel += (gravity * self.gravity_scale + self.linacc) * dt;
-            self.linacc = na::zero();
+            self.force += gravity * self.gravity_scale * self.mass();
         }
+    }
 
-        self.angvel += self.angacc * dt;
-        self.angacc = na::zero();
+    #[cfg(not(feature = "parallel"))] // in parallel solver this is not needed
+    pub(crate) fn integrate_accelerations(&mut self, dt: Real) {
+        let linear_acc = self.force * self.effective_inv_mass;
+        let angular_acc = self.effective_world_inv_inertia_sqrt
+            * (self.effective_world_inv_inertia_sqrt * self.torque);
+
+        self.linvel += linear_acc * dt;
+        self.angvel += angular_acc * dt;
+        self.force = na::zero();
+        self.torque = na::zero();
     }
 
     /// The mass properties of this rigid-body.
@@ -467,14 +477,16 @@ impl RigidBody {
             }
         }
     }
+}
 
-    /*
-     * Application of forces/impulses.
-     */
+/// ## Applying forces and torques
+impl RigidBody {
     /// Applies a force at the center-of-mass of this rigid-body.
+    /// The force will be applied in the next simulation step.
+    /// This does nothing on non-dynamic bodies.
     pub fn apply_force(&mut self, force: Vector<Real>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
-            self.linacc += force * self.effective_inv_mass;
+            self.force += force;
 
             if wake_up {
                 self.wake_up(true);
@@ -482,7 +494,54 @@ impl RigidBody {
         }
     }
 
+    /// Applies a torque at the center-of-mass of this rigid-body.
+    /// The torque will be applied in the next simulation step.
+    /// This does nothing on non-dynamic bodies.
+    #[cfg(feature = "dim2")]
+    pub fn apply_torque(&mut self, torque: Real, wake_up: bool) {
+        if self.body_status == BodyStatus::Dynamic {
+            self.torque += torque;
+
+            if wake_up {
+                self.wake_up(true);
+            }
+        }
+    }
+
+    /// Applies a torque at the center-of-mass of this rigid-body.
+    /// The torque will be applied in the next simulation step.
+    /// This does nothing on non-dynamic bodies.
+    #[cfg(feature = "dim3")]
+    pub fn apply_torque(&mut self, torque: Vector<Real>, wake_up: bool) {
+        if self.body_status == BodyStatus::Dynamic {
+            self.torque += torque;
+
+            if wake_up {
+                self.wake_up(true);
+            }
+        }
+    }
+
+    /// Applies a force at the given world-space point of this rigid-body.
+    /// The force will be applied in the next simulation step.
+    /// This does nothing on non-dynamic bodies.
+    pub fn apply_force_at_point(&mut self, force: Vector<Real>, point: Point<Real>, wake_up: bool) {
+        if self.body_status == BodyStatus::Dynamic {
+            self.force += force;
+            self.torque += (point - self.world_com).gcross(force);
+
+            if wake_up {
+                self.wake_up(true);
+            }
+        }
+    }
+}
+
+/// ## Applying impulses and angular impulses
+impl RigidBody {
     /// Applies an impulse at the center-of-mass of this rigid-body.
+    /// The impulse is applied right away, changing the linear velocity.
+    /// This does nothing on non-dynamic bodies.
     pub fn apply_impulse(&mut self, impulse: Vector<Real>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
             self.linvel += impulse * self.effective_inv_mass;
@@ -493,33 +552,9 @@ impl RigidBody {
         }
     }
 
-    /// Applies a torque at the center-of-mass of this rigid-body.
-    #[cfg(feature = "dim2")]
-    pub fn apply_torque(&mut self, torque: Real, wake_up: bool) {
-        if self.body_status == BodyStatus::Dynamic {
-            self.angacc += self.effective_world_inv_inertia_sqrt
-                * (self.effective_world_inv_inertia_sqrt * torque);
-
-            if wake_up {
-                self.wake_up(true);
-            }
-        }
-    }
-
-    /// Applies a torque at the center-of-mass of this rigid-body.
-    #[cfg(feature = "dim3")]
-    pub fn apply_torque(&mut self, torque: Vector<Real>, wake_up: bool) {
-        if self.body_status == BodyStatus::Dynamic {
-            self.angacc += self.effective_world_inv_inertia_sqrt
-                * (self.effective_world_inv_inertia_sqrt * torque);
-
-            if wake_up {
-                self.wake_up(true);
-            }
-        }
-    }
-
-    /// Applies an impulsive torque at the center-of-mass of this rigid-body.
+    /// Applies an angular impulse at the center-of-mass of this rigid-body.
+    /// The impulse is applied right away, changing the angular velocity.
+    /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim2")]
     pub fn apply_torque_impulse(&mut self, torque_impulse: Real, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
@@ -532,7 +567,9 @@ impl RigidBody {
         }
     }
 
-    /// Applies an impulsive torque at the center-of-mass of this rigid-body.
+    /// Applies an angular impulse at the center-of-mass of this rigid-body.
+    /// The impulse is applied right away, changing the angular velocity.
+    /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim3")]
     pub fn apply_torque_impulse(&mut self, torque_impulse: Vector<Real>, wake_up: bool) {
         if self.body_status == BodyStatus::Dynamic {
@@ -545,14 +582,9 @@ impl RigidBody {
         }
     }
 
-    /// Applies a force at the given world-space point of this rigid-body.
-    pub fn apply_force_at_point(&mut self, force: Vector<Real>, point: Point<Real>, wake_up: bool) {
-        let torque = (point - self.world_com).gcross(force);
-        self.apply_force(force, wake_up);
-        self.apply_torque(torque, wake_up);
-    }
-
     /// Applies an impulse at the given world-space point of this rigid-body.
+    /// The impulse is applied right away, changing the linear and/or angular velocities.
+    /// This does nothing on non-dynamic bodies.
     pub fn apply_impulse_at_point(
         &mut self,
         impulse: Vector<Real>,
@@ -563,7 +595,9 @@ impl RigidBody {
         self.apply_impulse(impulse, wake_up);
         self.apply_torque_impulse(torque_impulse, wake_up);
     }
+}
 
+impl RigidBody {
     /// The velocity of the given world-space point on this rigid-body.
     pub fn velocity_at_point(&self, point: &Point<Real>) -> Vector<Real> {
         let dpt = point - self.world_com;

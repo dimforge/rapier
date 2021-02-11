@@ -154,7 +154,7 @@ impl PhysicsPipeline {
         self.counters.stages.update_time.start();
         bodies.foreach_active_dynamic_body_mut_internal(|_, b| {
             b.update_world_mass_properties();
-            b.integrate_accelerations(integration_parameters.dt, *gravity)
+            b.add_gravity(*gravity)
         });
         self.counters.stages.update_time.pause();
 

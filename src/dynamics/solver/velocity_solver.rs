@@ -32,6 +32,18 @@ impl VelocitySolver {
         self.mj_lambdas
             .resize(bodies.active_island(island_id).len(), DeltaVel::zero());
 
+        // Initialize delta-velocities (`mj_lambdas`) with external forces (gravity etc):
+        bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
+            let dvel = &mut self.mj_lambdas[rb.active_set_offset];
+
+            dvel.linear += rb.force * (rb.effective_inv_mass * params.dt);
+            rb.force = na::zero();
+
+            // dvel.angular is actually storing angular velocity delta multiplied by the square root of the inertia tensor:
+            dvel.angular += rb.effective_world_inv_inertia_sqrt * rb.torque * params.dt;
+            rb.torque = na::zero();
+        });
+
         /*
          * Warmstart constraints.
          */
