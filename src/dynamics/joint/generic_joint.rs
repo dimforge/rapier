@@ -1,4 +1,6 @@
+use crate::dynamics::RevoluteJoint;
 use crate::math::{Isometry, Real, SpacialVector, SPATIAL_DIM};
+use crate::na::{Rotation3, UnitQuaternion};
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -42,5 +44,21 @@ impl GenericJoint {
             max_negative_impulse: SpacialVector::repeat(-Real::MAX),
             max_positive_impulse: SpacialVector::repeat(Real::MAX),
         }
+    }
+}
+
+impl From<RevoluteJoint> for GenericJoint {
+    fn from(joint: RevoluteJoint) -> Self {
+        let basis1 = [joint.local_axis1, joint.basis1[0], joint.basis1[1]];
+        let basis2 = [joint.local_axis2, joint.basis2[0], joint.basis2[1]];
+        let quat1 = UnitQuaternion::from_basis_unchecked(&basis1[..]);
+        let quat2 = UnitQuaternion::from_basis_unchecked(&basis2[..]);
+        let local_anchor1 = Isometry::from_parts(joint.local_anchor1.coords.into(), quat1);
+        let local_anchor2 = Isometry::from_parts(joint.local_anchor2.coords.into(), quat2);
+
+        let mut result = Self::new(local_anchor1, local_anchor2);
+        result.min_position[3] = -Real::MAX;
+        result.max_position[3] = Real::MAX;
+        result
     }
 }

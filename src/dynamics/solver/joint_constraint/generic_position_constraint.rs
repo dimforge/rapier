@@ -1,4 +1,5 @@
 use super::{GenericVelocityConstraint, GenericVelocityGroundConstraint};
+use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{GenericJoint, IntegrationParameters, RigidBody};
 use crate::math::{
     AngDim, AngVector, AngularInertia, Dim, Isometry, Point, Real, Rotation, SpatialVector, Vector,
@@ -22,9 +23,6 @@ pub(crate) struct GenericPositionConstraint {
     ii2: AngularInertia<Real>,
 
     joint: GenericJoint,
-
-    lin_impulse: Cell<Vector3<Real>>,
-    ang_impulse: Cell<Vector3<Real>>,
 }
 
 impl GenericPositionConstraint {
@@ -58,7 +56,11 @@ impl GenericPositionConstraint {
         let r1 = Point::from(anchor1.translation.vector) - position1 * self.local_com1;
         let r2 = Point::from(anchor2.translation.vector) - position2 * self.local_com2;
 
-        let delta_pos = anchor1.inverse() * anchor2;
+        let delta_pos = Isometry::from_parts(
+            anchor2.translation * anchor1.translation.inverse(),
+            anchor2.rotation * anchor1.rotation.inverse(),
+        );
+
         let mass_matrix = GenericVelocityConstraint::compute_mass_matrix(
             &self.joint,
             self.im1,
@@ -70,11 +72,15 @@ impl GenericPositionConstraint {
             false,
         );
 
-        let lin_err = delta_pos.translation.vector * params.joint_erp;
-        let ang_err = delta_pos.rotation.scaled_axis() * params.joint_erp;
-        let err = Vector6::new(
-            lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y, ang_err.z,
+        let lin_dpos = delta_pos.translation.vector;
+        let ang_dpos = delta_pos.rotation.scaled_axis();
+        let dpos = Vector6::new(
+            lin_dpos.x, lin_dpos.y, lin_dpos.z, ang_dpos.x, ang_dpos.y, ang_dpos.z,
         );
+        let err = dpos
+            - dpos
+                .sup(&self.joint.min_position)
+                .inf(&self.joint.max_position);
         let impulse = mass_matrix * err;
         let lin_impulse = impulse.xyz();
         let ang_impulse = Vector3::new(impulse[3], impulse[4], impulse[5]);
@@ -93,6 +99,15 @@ impl GenericPositionConstraint {
 
         positions[self.position1 as usize] = position1;
         positions[self.position2 as usize] = position2;
+    }
+
+    pub fn solve2(
+        &self,
+        params: &IntegrationParameters,
+        positions: &mut [Isometry<Real>],
+        dpos: &mut [DeltaVel<Real>],
+    ) {
+        return;
     }
 }
 
@@ -142,7 +157,10 @@ impl GenericPositionGroundConstraint {
         let anchor2 = position2 * self.local_anchor2;
         let r2 = Point::from(anchor2.translation.vector) - position2 * self.local_com2;
 
-        let delta_pos = self.anchor1.inverse() * anchor2;
+        let delta_pos = Isometry::from_parts(
+            anchor2.translation * self.anchor1.translation.inverse(),
+            anchor2.rotation * self.anchor1.rotation.inverse(),
+        );
         let mass_matrix = GenericVelocityGroundConstraint::compute_mass_matrix(
             &self.joint,
             self.im2,
@@ -151,11 +169,15 @@ impl GenericPositionGroundConstraint {
             false,
         );
 
-        let lin_err = delta_pos.translation.vector * params.joint_erp;
-        let ang_err = Vector3::zeros(); // delta_pos.rotation.scaled_axis() * params.joint_erp;
-        let err = Vector6::new(
-            lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y, ang_err.z,
+        let lin_dpos = delta_pos.translation.vector;
+        let ang_dpos = delta_pos.rotation.scaled_axis();
+        let dpos = Vector6::new(
+            lin_dpos.x, lin_dpos.y, lin_dpos.z, ang_dpos.x, ang_dpos.y, ang_dpos.z,
         );
+        let err = dpos
+            - dpos
+                .sup(&self.joint.min_position)
+                .inf(&self.joint.max_position);
         let impulse = mass_matrix * err;
         let lin_impulse = impulse.xyz();
         let ang_impulse = Vector3::new(impulse[3], impulse[4], impulse[5]);
@@ -167,5 +189,14 @@ impl GenericPositionGroundConstraint {
         position2.translation.vector -= self.im2 * lin_impulse;
 
         positions[self.position2 as usize] = position2;
+    }
+
+    pub fn solve2(
+        &self,
+        params: &IntegrationParameters,
+        positions: &mut [Isometry<Real>],
+        dpos: &mut [DeltaVel<Real>],
+    ) {
+        return;
     }
 }

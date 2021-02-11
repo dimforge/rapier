@@ -2,8 +2,8 @@ use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
     GenericJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBody,
 };
-use crate::math::{AngularInertia, Dim, Real, SpacialVector, Vector};
-use crate::parry::math::SpatialVector;
+use crate::math::{AngularInertia, Dim, Isometry, Real, SpacialVector, Vector, DIM};
+use crate::parry::math::{AngDim, SpatialVector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 #[cfg(feature = "dim2")]
 use na::{Matrix3, Vector3};
@@ -18,6 +18,8 @@ pub(crate) struct GenericVelocityConstraint {
     joint_id: JointIndex,
 
     impulse: SpacialVector<Real>,
+    pos_impulse: SpacialVector<Real>,
+
     max_positive_impulse: SpatialVector<Real>,
     max_negative_impulse: SpatialVector<Real>,
 
@@ -30,6 +32,8 @@ pub(crate) struct GenericVelocityConstraint {
     inv_lhs: Matrix3<Real>, // FIXME: replace by Cholesky.
     #[cfg(feature = "dim2")]
     rhs: Vector3<Real>,
+
+    pos_rhs: Vector6<Real>,
 
     im1: Real,
     im2: Real,
@@ -88,15 +92,10 @@ impl GenericVelocityConstraint {
                         || joint.max_positive_impulse[i] < Real::MAX
                     {
                         let diag = lhs[(i, i)];
+                        lhs.column_mut(i).fill(0.0);
                         lhs.row_mut(i).fill(0.0);
                         lhs[(i, i)] = diag;
                     }
-                }
-            } else {
-                for i in 0..6 {
-                    let diag = lhs[(i, i)];
-                    lhs.row_mut(i).fill(0.0);
-                    lhs[(i, i)] = diag;
                 }
             }
         }
@@ -144,12 +143,37 @@ impl GenericVelocityConstraint {
         let inv_lhs = Self::compute_mass_matrix(joint, im1, im2, ii1, ii2, r1, r2, true);
 
         #[cfg(feature = "dim2")]
-        let rhs = Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
+        let dvel = Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
 
         #[cfg(feature = "dim3")]
-        let rhs = Vector6::new(
+        let dvel = Vector6::new(
             lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
         );
+
+        let target_linvel = anchor2 * joint.target_velocity.xyz();
+        let target_angvel = anchor2 * joint.target_velocity.fixed_rows::<AngDim>(DIM).into_owned();
+        let target_vel = Vector6::new(
+            target_linvel.x,
+            target_linvel.y,
+            target_linvel.z,
+            target_angvel.x,
+            target_angvel.y,
+            target_angvel.z,
+        );
+
+        let rhs = dvel - dvel.sup(&target_vel).inf(&target_vel);
+
+        let delta_pos = Isometry::from_parts(
+            anchor2.translation * anchor1.translation.inverse(),
+            anchor2.rotation * anchor1.rotation.inverse(),
+        );
+        let lin_dpos = delta_pos.translation.vector;
+        let ang_dpos = delta_pos.rotation.scaled_axis();
+        let dpos = Vector6::new(
+            lin_dpos.x, lin_dpos.y, lin_dpos.z, ang_dpos.x, ang_dpos.y, ang_dpos.z,
+        );
+        let err = dpos - dpos.sup(&joint.min_position).inf(&joint.max_position);
+        let pos_rhs = err * params.inv_dt() * params.joint_erp;
 
         let impulse = (joint.impulse * params.warmstart_coeff)
             .inf(&joint.max_positive_impulse)
@@ -166,12 +190,14 @@ impl GenericVelocityConstraint {
             ii1_sqrt: rb1.effective_world_inv_inertia_sqrt,
             ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse,
+            pos_impulse: na::zero(),
             max_positive_impulse: joint.max_positive_impulse,
             max_negative_impulse: joint.max_negative_impulse,
             inv_lhs,
             r1,
             r2,
             rhs,
+            pos_rhs,
         }
     }
 
@@ -200,6 +226,7 @@ impl GenericVelocityConstraint {
     }
 
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+        return;
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
@@ -244,6 +271,99 @@ impl GenericVelocityConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
+    pub fn solve2(
+        &mut self,
+        mj_lambdas: &mut [DeltaVel<Real>],
+        mj_lambdas_pos: &mut [DeltaVel<Real>],
+    ) {
+        let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
+        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
+        let mut mj_lambda_pos1 = mj_lambdas_pos[self.mj_lambda1 as usize];
+        let mut mj_lambda_pos2 = mj_lambdas_pos[self.mj_lambda2 as usize];
+
+        /*
+         * Solve velocity.
+         */
+        let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+
+        let dlinvel = -mj_lambda1.linear - ang_vel1.gcross(self.r1)
+            + mj_lambda2.linear
+            + ang_vel2.gcross(self.r2);
+        let dangvel = -ang_vel1 + ang_vel2;
+
+        #[cfg(feature = "dim2")]
+        let rhs = Vector3::new(dlinvel.x, dlinvel.y, dangvel) + self.rhs;
+        #[cfg(feature = "dim3")]
+        let dvel = Vector6::new(
+            dlinvel.x, dlinvel.y, dlinvel.z, dangvel.x, dangvel.y, dangvel.z,
+        ) + self.rhs;
+
+        let new_impulse = (self.impulse + self.inv_lhs * dvel)
+            .sup(&self.max_negative_impulse)
+            .inf(&self.max_positive_impulse);
+        let effective_impulse = new_impulse - self.impulse;
+        self.impulse = new_impulse;
+
+        let lin_impulse = effective_impulse.fixed_rows::<Dim>(0).into_owned();
+        #[cfg(feature = "dim2")]
+        let ang_impulse = effective_impulse[2];
+        #[cfg(feature = "dim3")]
+        let ang_impulse = effective_impulse.fixed_rows::<U3>(3).into_owned();
+
+        mj_lambda1.linear += self.im1 * lin_impulse;
+        mj_lambda1.angular += self
+            .ii1_sqrt
+            .transform_vector(ang_impulse + self.r1.gcross(lin_impulse));
+
+        mj_lambda2.linear -= self.im2 * lin_impulse;
+        mj_lambda2.angular -= self
+            .ii2_sqrt
+            .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
+
+        /*
+         * Solve positions.
+         */
+
+        let ang_pos1 = self.ii1_sqrt.transform_vector(mj_lambda_pos1.angular);
+        let ang_pos2 = self.ii2_sqrt.transform_vector(mj_lambda_pos2.angular);
+
+        let dlinpos = -mj_lambda_pos1.linear - ang_pos1.gcross(self.r1)
+            + mj_lambda_pos2.linear
+            + ang_pos2.gcross(self.r2);
+        let dangpos = -ang_pos1 + ang_pos2;
+
+        #[cfg(feature = "dim3")]
+        let dpos = Vector6::new(
+            dlinpos.x, dlinpos.y, dlinpos.z, dangpos.x, dangpos.y, dangpos.z,
+        ) + self.pos_rhs;
+
+        let new_impulse = self.pos_impulse + self.inv_lhs * dpos;
+        let effective_impulse = new_impulse - self.pos_impulse;
+        self.pos_impulse = new_impulse;
+
+        let lin_impulse = effective_impulse.fixed_rows::<Dim>(0).into_owned();
+        #[cfg(feature = "dim2")]
+        let ang_impulse = effective_impulse[2];
+        #[cfg(feature = "dim3")]
+        let ang_impulse = effective_impulse.fixed_rows::<U3>(3).into_owned();
+
+        mj_lambda_pos1.linear += self.im1 * lin_impulse;
+        mj_lambda_pos1.angular += self
+            .ii1_sqrt
+            .transform_vector(ang_impulse + self.r1.gcross(lin_impulse));
+
+        mj_lambda_pos2.linear -= self.im2 * lin_impulse;
+        mj_lambda_pos2.angular -= self
+            .ii2_sqrt
+            .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
+
+        mj_lambdas[self.mj_lambda1 as usize] = mj_lambda1;
+        mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
+        mj_lambdas_pos[self.mj_lambda1 as usize] = mj_lambda_pos1;
+        mj_lambdas_pos[self.mj_lambda2 as usize] = mj_lambda_pos2;
+    }
+
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
         let joint = &mut joints_all[self.joint_id].weight;
         if let JointParams::GenericJoint(fixed) = &mut joint.params {
@@ -259,6 +379,8 @@ pub(crate) struct GenericVelocityGroundConstraint {
     joint_id: JointIndex,
 
     impulse: SpacialVector<Real>,
+    pos_impulse: SpacialVector<Real>,
+
     max_positive_impulse: SpatialVector<Real>,
     max_negative_impulse: SpatialVector<Real>,
 
@@ -271,6 +393,8 @@ pub(crate) struct GenericVelocityGroundConstraint {
     inv_lhs: Matrix3<Real>, // FIXME: replace by Cholesky.
     #[cfg(feature = "dim2")]
     rhs: Vector3<Real>,
+
+    pos_rhs: Vector6<Real>,
 
     im2: Real,
     ii2: AngularInertia<Real>,
@@ -317,6 +441,7 @@ impl GenericVelocityGroundConstraint {
                         || joint.max_positive_impulse[i] < Real::MAX
                     {
                         let diag = lhs[(i, i)];
+                        lhs.column_mut(i).fill(0.0);
                         lhs.row_mut(i).fill(0.0);
                         lhs[(i, i)] = diag;
                     }
@@ -374,11 +499,35 @@ impl GenericVelocityGroundConstraint {
         let ang_dvel = rb2.angvel - rb1.angvel;
 
         #[cfg(feature = "dim2")]
-        let rhs = Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
+        let dvel = Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
         #[cfg(feature = "dim3")]
-        let rhs = Vector6::new(
+        let dvel = Vector6::new(
             lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
         );
+        let target_linvel = anchor2 * joint.target_velocity.xyz();
+        let target_angvel = anchor2 * joint.target_velocity.fixed_rows::<AngDim>(DIM).into_owned();
+        let target_vel = Vector6::new(
+            target_linvel.x,
+            target_linvel.y,
+            target_linvel.z,
+            target_angvel.x,
+            target_angvel.y,
+            target_angvel.z,
+        );
+
+        let mut rhs = dvel - dvel.sup(&target_vel).inf(&target_vel);
+
+        let delta_pos = Isometry::from_parts(
+            anchor2.translation * anchor1.translation.inverse(),
+            anchor2.rotation * anchor1.rotation.inverse(),
+        );
+        let lin_dpos = delta_pos.translation.vector;
+        let ang_dpos = delta_pos.rotation.scaled_axis();
+        let dpos = Vector6::new(
+            lin_dpos.x, lin_dpos.y, lin_dpos.z, ang_dpos.x, ang_dpos.y, ang_dpos.z,
+        );
+        let err = dpos - dpos.sup(&joint.min_position).inf(&joint.max_position);
+        let pos_rhs = err * params.inv_dt() * params.joint_erp;
 
         let impulse = (joint.impulse * params.warmstart_coeff)
             .inf(&joint.max_positive_impulse)
@@ -391,11 +540,13 @@ impl GenericVelocityGroundConstraint {
             ii2,
             ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse,
+            pos_impulse: na::zero(),
             max_positive_impulse: joint.max_positive_impulse,
             max_negative_impulse: joint.max_negative_impulse,
             inv_lhs,
             r2,
             rhs,
+            pos_rhs,
         }
     }
 
@@ -417,6 +568,7 @@ impl GenericVelocityGroundConstraint {
     }
 
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+        return;
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
@@ -448,6 +600,78 @@ impl GenericVelocityGroundConstraint {
             .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
 
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
+    }
+
+    pub fn solve2(
+        &mut self,
+        mj_lambdas: &mut [DeltaVel<Real>],
+        mj_lambdas_pos: &mut [DeltaVel<Real>],
+    ) {
+        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
+        let mut mj_lambda_pos2 = mj_lambdas_pos[self.mj_lambda2 as usize];
+
+        /*
+         * Solve velocities.
+         */
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+
+        let dlinvel = mj_lambda2.linear + ang_vel2.gcross(self.r2);
+        let dangvel = ang_vel2;
+        #[cfg(feature = "dim2")]
+        let rhs = Vector3::new(dlinvel.x, dlinvel.y, dangvel) + self.rhs;
+        #[cfg(feature = "dim3")]
+        let dvel = Vector6::new(
+            dlinvel.x, dlinvel.y, dlinvel.z, dangvel.x, dangvel.y, dangvel.z,
+        ) + self.rhs;
+
+        let new_impulse = (self.impulse + self.inv_lhs * dvel)
+            .sup(&self.max_negative_impulse)
+            .inf(&self.max_positive_impulse);
+        let effective_impulse = new_impulse - self.impulse;
+        self.impulse = new_impulse;
+
+        let lin_impulse = effective_impulse.fixed_rows::<Dim>(0).into_owned();
+        #[cfg(feature = "dim2")]
+        let ang_impulse = effective_impulse[2];
+        #[cfg(feature = "dim3")]
+        let ang_impulse = effective_impulse.fixed_rows::<U3>(3).into_owned();
+
+        mj_lambda2.linear -= self.im2 * lin_impulse;
+        mj_lambda2.angular -= self
+            .ii2_sqrt
+            .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
+
+        /*
+         * Solve positions.
+         */
+        let ang_pos2 = self.ii2_sqrt.transform_vector(mj_lambda_pos2.angular);
+
+        let dlinpos = mj_lambda_pos2.linear + ang_pos2.gcross(self.r2);
+        let dangpos = ang_pos2;
+        #[cfg(feature = "dim2")]
+        let rhs = Vector3::new(dlinpos.x, dlinpos.y, dangpos) + self.rhs;
+        #[cfg(feature = "dim3")]
+        let dpos = Vector6::new(
+            dlinpos.x, dlinpos.y, dlinpos.z, dangpos.x, dangpos.y, dangpos.z,
+        ) + self.pos_rhs;
+
+        let new_impulse = self.pos_impulse + self.inv_lhs * dpos;
+        let effective_impulse = new_impulse - self.pos_impulse;
+        self.pos_impulse = new_impulse;
+
+        let lin_impulse = effective_impulse.fixed_rows::<Dim>(0).into_owned();
+        #[cfg(feature = "dim2")]
+        let ang_impulse = effective_impulse[2];
+        #[cfg(feature = "dim3")]
+        let ang_impulse = effective_impulse.fixed_rows::<U3>(3).into_owned();
+
+        mj_lambda_pos2.linear -= self.im2 * lin_impulse;
+        mj_lambda_pos2.angular -= self
+            .ii2_sqrt
+            .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
+
+        mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
+        mj_lambdas_pos[self.mj_lambda2 as usize] = mj_lambda_pos2;
     }
 
     // FIXME: duplicated code with the non-ground constraint.

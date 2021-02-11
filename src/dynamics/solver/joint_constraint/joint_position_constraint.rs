@@ -14,6 +14,7 @@ use super::{
     WFixedPositionGroundConstraint, WGenericPositionConstraint, WGenericPositionGroundConstraint,
     WPrismaticPositionConstraint, WPrismaticPositionGroundConstraint,
 };
+use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{IntegrationParameters, Joint, JointParams, RigidBodySet};
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SIMD_WIDTH;
@@ -238,6 +239,22 @@ impl AnyJointPositionConstraint {
             AnyJointPositionConstraint::WRevoluteJoint(c) => c.solve(params, positions),
             #[cfg(all(feature = "dim3", feature = "simd-is-enabled"))]
             AnyJointPositionConstraint::WRevoluteGroundConstraint(c) => c.solve(params, positions),
+            AnyJointPositionConstraint::Empty => unreachable!(),
+        }
+    }
+
+    pub fn solve2(
+        &self,
+        params: &IntegrationParameters,
+        positions: &mut [Isometry<Real>],
+        dpos: &mut [DeltaVel<Real>],
+    ) {
+        match self {
+            AnyJointPositionConstraint::GenericJoint(c) => c.solve2(params, positions, dpos),
+            AnyJointPositionConstraint::GenericGroundConstraint(c) => {
+                c.solve2(params, positions, dpos)
+            }
+            _ => {}
             AnyJointPositionConstraint::Empty => unreachable!(),
         }
     }
