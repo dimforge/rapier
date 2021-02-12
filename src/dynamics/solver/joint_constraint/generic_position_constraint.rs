@@ -48,57 +48,7 @@ impl GenericPositionConstraint {
     }
 
     pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
-        let mut position1 = positions[self.position1 as usize];
-        let mut position2 = positions[self.position2 as usize];
-
-        let anchor1 = position1 * self.local_anchor1;
-        let anchor2 = position2 * self.local_anchor2;
-        let r1 = Point::from(anchor1.translation.vector) - position1 * self.local_com1;
-        let r2 = Point::from(anchor2.translation.vector) - position2 * self.local_com2;
-
-        let delta_pos = Isometry::from_parts(
-            anchor2.translation * anchor1.translation.inverse(),
-            anchor2.rotation * anchor1.rotation.inverse(),
-        );
-
-        let mass_matrix = GenericVelocityConstraint::compute_mass_matrix(
-            &self.joint,
-            self.im1,
-            self.im2,
-            self.ii1,
-            self.ii2,
-            r1,
-            r2,
-            false,
-        );
-
-        let lin_dpos = delta_pos.translation.vector;
-        let ang_dpos = delta_pos.rotation.scaled_axis();
-        let dpos = Vector6::new(
-            lin_dpos.x, lin_dpos.y, lin_dpos.z, ang_dpos.x, ang_dpos.y, ang_dpos.z,
-        );
-        let err = dpos
-            - dpos
-                .sup(&self.joint.min_position)
-                .inf(&self.joint.max_position);
-        let impulse = mass_matrix * err;
-        let lin_impulse = impulse.xyz();
-        let ang_impulse = Vector3::new(impulse[3], impulse[4], impulse[5]);
-
-        position1.rotation = Rotation::new(
-            self.ii1
-                .transform_vector(ang_impulse + r1.gcross(lin_impulse)),
-        ) * position1.rotation;
-        position2.rotation = Rotation::new(
-            self.ii2
-                .transform_vector(-ang_impulse - r2.gcross(lin_impulse)),
-        ) * position2.rotation;
-
-        position1.translation.vector += self.im1 * lin_impulse;
-        position2.translation.vector -= self.im2 * lin_impulse;
-
-        positions[self.position1 as usize] = position1;
-        positions[self.position2 as usize] = position2;
+        return;
     }
 
     pub fn solve2(
@@ -152,43 +102,7 @@ impl GenericPositionGroundConstraint {
     }
 
     pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
-        let mut position2 = positions[self.position2 as usize];
-
-        let anchor2 = position2 * self.local_anchor2;
-        let r2 = Point::from(anchor2.translation.vector) - position2 * self.local_com2;
-
-        let delta_pos = Isometry::from_parts(
-            anchor2.translation * self.anchor1.translation.inverse(),
-            anchor2.rotation * self.anchor1.rotation.inverse(),
-        );
-        let mass_matrix = GenericVelocityGroundConstraint::compute_mass_matrix(
-            &self.joint,
-            self.im2,
-            self.ii2,
-            r2,
-            false,
-        );
-
-        let lin_dpos = delta_pos.translation.vector;
-        let ang_dpos = delta_pos.rotation.scaled_axis();
-        let dpos = Vector6::new(
-            lin_dpos.x, lin_dpos.y, lin_dpos.z, ang_dpos.x, ang_dpos.y, ang_dpos.z,
-        );
-        let err = dpos
-            - dpos
-                .sup(&self.joint.min_position)
-                .inf(&self.joint.max_position);
-        let impulse = mass_matrix * err;
-        let lin_impulse = impulse.xyz();
-        let ang_impulse = Vector3::new(impulse[3], impulse[4], impulse[5]);
-
-        position2.rotation = Rotation::new(
-            self.ii2
-                .transform_vector(-ang_impulse - r2.gcross(lin_impulse)),
-        ) * position2.rotation;
-        position2.translation.vector -= self.im2 * lin_impulse;
-
-        positions[self.position2 as usize] = position2;
+        return;
     }
 
     pub fn solve2(
