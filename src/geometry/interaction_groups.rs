@@ -7,10 +7,11 @@
 /// - The interaction groups (the 16 left-most bits of `self.0`).
 /// - The interaction mask (the 16 right-most bits of `self.0`).
 ///
-/// An interaction is allowed between two filters `a` and `b` two conditions
+/// An interaction is allowed between two filters `a` and `b` when two conditions
 /// are met simultaneously:
 /// - The interaction groups of `a` has at least one bit set to `1` in common with the interaction mask of `b`.
 /// - The interaction groups of `b` has at least one bit set to `1` in common with the interaction mask of `a`.
+///
 /// In other words, interactions are allowed between two filter iff. the following condition is met:
 /// ```ignore
 /// ((self.0 >> 16) & rhs.0) != 0 && ((rhs.0 >> 16) & self.0) != 0
