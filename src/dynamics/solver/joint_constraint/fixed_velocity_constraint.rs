@@ -103,12 +103,37 @@ impl FixedVelocityConstraint {
         let ang_dvel = -rb1.angvel + rb2.angvel;
 
         #[cfg(feature = "dim2")]
-        let rhs = Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
+        let mut rhs =
+            params.velocity_solve_fraction * Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
 
         #[cfg(feature = "dim3")]
-        let rhs = Vector6::new(
-            lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
-        );
+        let mut rhs = params.velocity_solve_fraction
+            * Vector6::new(
+                lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
+            );
+
+        if params.velocity_based_erp != 0.0 {
+            let error = anchor2 * anchor1.inverse();
+            let lin_err = error.translation.vector;
+
+            #[cfg(feature = "dim2")]
+            {
+                let ang_err = error.rotation.angle();
+                rhs += params.velocity_based_erp
+                    * params.inv_dt()
+                    * Vector3::new(lin_err.x, lin_err.y, ang_err);
+            }
+
+            #[cfg(feature = "dim3")]
+            {
+                let ang_err = error.rotation.scaled_axis();
+                rhs += params.velocity_based_erp
+                    * params.inv_dt()
+                    * Vector6::new(
+                        lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y, ang_err.z,
+                    );
+            }
+        }
 
         FixedVelocityConstraint {
             joint_id,
@@ -293,11 +318,48 @@ impl FixedVelocityGroundConstraint {
         let ang_dvel = rb2.angvel - rb1.angvel;
 
         #[cfg(feature = "dim2")]
-        let rhs = Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
+        let mut rhs =
+            params.velocity_solve_fraction * Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
         #[cfg(feature = "dim3")]
-        let rhs = Vector6::new(
-            lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
-        );
+        let mut rhs = params.velocity_solve_fraction
+            * Vector6::new(
+                lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
+            );
+
+        if params.velocity_based_erp != 0.0 {
+            // let error = anchor2 * anchor1.inverse();
+            // let lin_err = error.translation.vector;
+            // let ang_err = error.rotation;
+
+            // Doesn't quite do what it should
+            // let target_pos = anchor1.lerp_slerp(
+            //     &anchor2,
+            //     params.velocity_based_erp * params.inv_dt(),
+            // );
+            // let error = target_pos * anchor1.inverse();
+            // let lin_err = error.translation.vector;
+
+            let lin_err = anchor2.translation.vector - anchor1.translation.vector;
+            let ang_err = anchor2.rotation * anchor1.rotation.inverse();
+
+            #[cfg(feature = "dim2")]
+            {
+                let ang_err = ang_err.angle();
+                rhs += params.velocity_based_erp
+                    * params.inv_dt()
+                    * Vector3::new(lin_err.x, lin_err.y, ang_err);
+            }
+
+            #[cfg(feature = "dim3")]
+            {
+                let ang_err = ang_err.scaled_axis();
+                rhs += params.velocity_based_erp
+                    * params.inv_dt()
+                    * Vector6::new(
+                        lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y, ang_err.z,
+                    );
+            }
+        }
 
         FixedVelocityGroundConstraint {
             joint_id,
