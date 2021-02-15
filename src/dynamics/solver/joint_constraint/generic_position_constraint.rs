@@ -152,7 +152,6 @@ impl GenericPositionConstraint {
                 }
             }
 
-            // Will be actually inverted right after.
             // TODO: we should keep the SdpMatrix3 type.
             let rotmat = basis.to_rotation_matrix().into_inner();
             let delassus = (self.ii1.quadform(&rotmat) + self.ii2.quadform(&rotmat)).into_matrix();
@@ -259,7 +258,6 @@ impl GenericPositionGroundConstraint {
             let rotmat = basis.to_rotation_matrix().into_inner();
             let rmat2 = r2.gcross_matrix() * rotmat;
 
-            // Will be actually inverted right after.
             // TODO: we should keep the SdpMatrix3 type.
             let delassus = self
                 .ii2

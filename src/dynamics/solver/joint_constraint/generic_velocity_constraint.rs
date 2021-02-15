@@ -341,16 +341,24 @@ impl GenericVelocityConstraint {
 
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
         let joint = &mut joints_all[self.joint_id].weight;
-        if let JointParams::GenericJoint(fixed) = &mut joint.params {
-            let impulse = Vector6::new(
-                self.vel.lin_impulse.x,
-                self.vel.lin_impulse.y,
-                self.vel.lin_impulse.z,
-                self.vel.ang_impulse.x,
-                self.vel.ang_impulse.y,
-                self.vel.ang_impulse.z,
-            );
-            fixed.impulse = impulse;
+        match &mut joint.params {
+            JointParams::GenericJoint(out) => {
+                out.impulse[0] = self.vel.lin_impulse.x;
+                out.impulse[1] = self.vel.lin_impulse.y;
+                out.impulse[2] = self.vel.lin_impulse.z;
+                out.impulse[3] = self.vel.ang_impulse.x;
+                out.impulse[4] = self.vel.ang_impulse.y;
+                out.impulse[5] = self.vel.ang_impulse.z;
+            }
+            JointParams::RevoluteJoint(out) => {
+                out.impulse[0] = self.vel.lin_impulse.x;
+                out.impulse[1] = self.vel.lin_impulse.y;
+                out.impulse[2] = self.vel.lin_impulse.z;
+                out.motor_impulse = self.vel.ang_impulse.x;
+                out.impulse[3] = self.vel.ang_impulse.y;
+                out.impulse[4] = self.vel.ang_impulse.z;
+            }
+            _ => unimplemented!(),
         }
     }
 }
@@ -376,47 +384,6 @@ pub(crate) struct GenericVelocityGroundConstraint {
 }
 
 impl GenericVelocityGroundConstraint {
-    #[inline(always)]
-    pub fn compute_delassus_matrix(
-        im2: Real,
-        ii2: AngularInertia<Real>,
-        r2: Vector<Real>,
-        basis: Rotation<Real>,
-    ) -> Matrix6<Real> {
-        let rotmat2 = basis.to_rotation_matrix().into_inner();
-        let rmat2 = r2.gcross_matrix() * rotmat2;
-
-        #[cfg(feature = "dim3")]
-        {
-            let del00 = ii2.quadform(&rmat2).add_diagonal(im2);
-            let del10 = rotmat2.transpose() * ii2.transform_matrix(&rmat2);
-            let del11 = ii2.quadform(&rotmat2).into_matrix();
-
-            // Note that Cholesky only reads the lower-triangular part of the matrix
-            // so we don't need to fill lhs01.
-            let mut del = Matrix6::zeros();
-            del.fixed_slice_mut::<U3, U3>(0, 0)
-                .copy_from(&del00.into_matrix());
-            del.fixed_slice_mut::<U3, U3>(3, 0).copy_from(&del10);
-            del.fixed_slice_mut::<U3, U3>(3, 3).copy_from(&del11);
-            del
-        }
-
-        // In 2D we just unroll the computation because
-        // it's just easier that way.
-        #[cfg(feature = "dim2")]
-        {
-            panic!("Properly handle the rotmat2");
-            let m11 = im2 + rmat2.x * rmat2.x * ii2;
-            let m12 = rmat2.x * rmat2.y * ii2;
-            let m22 = im2 + rmat2.y * rmat2.y * ii2;
-            let m13 = rmat2.x * ii2;
-            let m23 = rmat2.y * ii2;
-            let m33 = ii2;
-            Matrix3::new(m11, m12, m13, m12, m22, m23, m13, m23, m33)
-        }
-    }
-
     pub fn from_params(
         params: &IntegrationParameters,
         joint_id: JointIndex,
@@ -564,16 +531,24 @@ impl GenericVelocityGroundConstraint {
     // TODO: duplicated code with the non-ground constraint.
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
         let joint = &mut joints_all[self.joint_id].weight;
-        if let JointParams::GenericJoint(fixed) = &mut joint.params {
-            let impulse = Vector6::new(
-                self.vel.lin_impulse.x,
-                self.vel.lin_impulse.y,
-                self.vel.lin_impulse.z,
-                self.vel.ang_impulse.x,
-                self.vel.ang_impulse.y,
-                self.vel.ang_impulse.z,
-            );
-            fixed.impulse = impulse;
+        match &mut joint.params {
+            JointParams::GenericJoint(out) => {
+                out.impulse[0] = self.vel.lin_impulse.x;
+                out.impulse[1] = self.vel.lin_impulse.y;
+                out.impulse[2] = self.vel.lin_impulse.z;
+                out.impulse[3] = self.vel.ang_impulse.x;
+                out.impulse[4] = self.vel.ang_impulse.y;
+                out.impulse[5] = self.vel.ang_impulse.z;
+            }
+            JointParams::RevoluteJoint(out) => {
+                out.impulse[0] = self.vel.lin_impulse.x;
+                out.impulse[1] = self.vel.lin_impulse.y;
+                out.impulse[2] = self.vel.lin_impulse.z;
+                out.motor_impulse = self.vel.ang_impulse.x;
+                out.impulse[3] = self.vel.ang_impulse.y;
+                out.impulse[4] = self.vel.ang_impulse.z;
+            }
+            _ => unimplemented!(),
         }
     }
 }
