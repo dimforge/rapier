@@ -89,8 +89,8 @@ impl PrismaticJoint {
             Unit::try_new(local_axis1.cross(&local_tangent1), 1.0e-3)
         {
             [
-                local_bitangent1.into_inner(),
                 local_bitangent1.cross(&local_axis1),
+                local_bitangent1.into_inner(),
             ]
         } else {
             local_axis1.orthonormal_basis()
@@ -100,8 +100,8 @@ impl PrismaticJoint {
             Unit::try_new(local_axis2.cross(&local_tangent2), 2.0e-3)
         {
             [
-                local_bitangent2.into_inner(),
                 local_bitangent2.cross(&local_axis2),
+                local_bitangent2.into_inner(),
             ]
         } else {
             local_axis2.orthonormal_basis()

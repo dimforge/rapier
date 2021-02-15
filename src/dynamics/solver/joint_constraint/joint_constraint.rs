@@ -333,23 +333,6 @@ impl AnyJointVelocityConstraint {
         }
     }
 
-    pub fn solve2(
-        &mut self,
-        mj_lambdas: &mut [DeltaVel<Real>],
-        mj_lambdas_pos: &mut [DeltaVel<Real>],
-    ) {
-        match self {
-            AnyJointVelocityConstraint::GenericConstraint(c) => {
-                c.solve2(mj_lambdas, mj_lambdas_pos)
-            }
-            AnyJointVelocityConstraint::GenericGroundConstraint(c) => {
-                c.solve2(mj_lambdas, mj_lambdas_pos)
-            }
-            AnyJointVelocityConstraint::Empty => unreachable!(),
-            _ => {}
-        }
-    }
-
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
         match self {
             AnyJointVelocityConstraint::BallConstraint(c) => c.writeback_impulses(joints_all),

@@ -1,7 +1,7 @@
 use crate::math::Real;
 
 /// Parameters for a time-step of the physics engine.
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct IntegrationParameters {
     /// The timestep length (default: `1.0 / 60.0`)
