@@ -128,6 +128,22 @@ pub struct SolverContact {
     pub data: ContactData,
 }
 
+impl SolverContact {
+    /// Should we treat this contact as a bouncy contact?
+    /// If `true`, use [`Self::restitution`].
+    pub fn is_bouncy(&self) -> bool {
+        let is_new = self.data.impulse == 0.0;
+        if is_new {
+            // Treat new collisions as bouncing at first, unless we have zero restitution.
+            self.restitution > 0.0
+        } else {
+            // If the contact is still here one step later, it is now a resting contact.
+            // The exception is very high restitutions, which can never rest
+            self.restitution >= 1.0
+        }
+    }
+}
+
 impl Default for ContactManifoldData {
     fn default() -> Self {
         Self::new(

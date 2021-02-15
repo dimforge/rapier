@@ -2,7 +2,8 @@ use super::{AnyVelocityConstraint, DeltaVel};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
-    AngVector, AngularInertia, Point, Real, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS, SIMD_WIDTH,
+    AngVector, AngularInertia, Point, Real, SimdBool, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS,
+    SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WBasis, WCross, WDot};
 use num::Zero;
@@ -96,8 +97,6 @@ impl WVelocityConstraint {
         let mj_lambda1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
-        let restitution_velocity_threshold = SimdReal::splat(params.restitution_velocity_threshold);
-
         let warmstart_multiplier =
             SimdReal::from(array![|ii| manifolds[ii].data.warmstart_multiplier; SIMD_WIDTH]);
         let warmstart_coeff = warmstart_multiplier * SimdReal::splat(params.warmstart_coeff);
@@ -125,8 +124,11 @@ impl WVelocityConstraint {
             for k in 0..num_points {
                 let friction =
                     SimdReal::from(array![|ii| manifold_points[ii][k].friction; SIMD_WIDTH]);
-                let restitution =
-                    SimdReal::from(array![|ii| manifold_points[ii][k].restitution; SIMD_WIDTH]);
+                let restitution_plus_1 = SimdReal::from(
+                    array![|ii| manifold_points[ii][k].restitution + 1.0; SIMD_WIDTH],
+                );
+                let is_bouncy =
+                    SimdBool::from(array![|ii| manifold_points[ii][k].is_bouncy(); SIMD_WIDTH]);
                 let point = Point::from(array![|ii| manifold_points[ii][k].point; SIMD_WIDTH]);
                 let dist = SimdReal::from(array![|ii| manifold_points[ii][k].dist; SIMD_WIDTH]);
 
@@ -148,11 +150,10 @@ impl WVelocityConstraint {
 
                     let r = SimdReal::splat(1.0)
                         / (im1 + im2 + gcross1.gdot(gcross1) + gcross2.gdot(gcross2));
-                    let mut rhs = (vel1 - vel2).dot(&force_dir1);
-                    let use_restitution = rhs.simd_le(-restitution_velocity_threshold);
-                    let rhs_with_restitution = rhs + rhs * restitution;
-                    rhs = rhs_with_restitution.select(use_restitution, rhs);
-                    rhs += dist.simd_max(SimdReal::zero()) * inv_dt;
+                    let projected_velocity = (vel1 - vel2).dot(&force_dir1);
+                    let rhs_resting = projected_velocity + dist.simd_max(SimdReal::zero()) * inv_dt;
+                    let rhs_bouncing = projected_velocity * restitution_plus_1;
+                    let rhs = rhs_bouncing.select(is_bouncy, rhs_resting);
 
                     constraint.elements[k].normal_part = WVelocityConstraintElementPart {
                         gcross1,
