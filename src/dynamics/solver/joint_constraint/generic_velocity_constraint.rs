@@ -6,10 +6,10 @@ use crate::math::{AngularInertia, Dim, Isometry, Real, Rotation, SpacialVector, 
 use crate::na::UnitQuaternion;
 use crate::parry::math::{AngDim, SpatialVector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
+#[cfg(feature = "dim3")]
+use na::{Matrix3, Matrix6, Vector3, Vector6, U3};
 #[cfg(feature = "dim2")]
 use na::{Matrix3, Vector3};
-#[cfg(feature = "dim3")]
-use na::{Matrix6, Vector6, U3};
 
 #[derive(Debug)]
 pub(crate) struct GenericVelocityConstraint {
@@ -18,10 +18,8 @@ pub(crate) struct GenericVelocityConstraint {
 
     joint_id: JointIndex,
 
-    #[cfg(feature = "dim3")]
-    inv_lhs: Matrix6<Real>, // TODO: replace by Cholesky?
-    #[cfg(feature = "dim2")]
-    inv_lhs: Matrix3<Real>,
+    inv_lhs_lin: Matrix3<Real>,
+    inv_lhs_ang: Matrix3<Real>,
 
     im1: Real,
     im2: Real,
@@ -41,53 +39,6 @@ pub(crate) struct GenericVelocityConstraint {
 }
 
 impl GenericVelocityConstraint {
-    #[inline(always)]
-    pub fn compute_delassus_matrix(
-        im1: Real,
-        im2: Real,
-        ii1: AngularInertia<Real>,
-        ii2: AngularInertia<Real>,
-        r1: Vector<Real>,
-        r2: Vector<Real>,
-        basis: Rotation<Real>,
-    ) -> Matrix6<Real> {
-        let rotmat = basis.to_rotation_matrix().into_inner();
-        let rmat1 = r1.gcross_matrix() * rotmat;
-        let rmat2 = r2.gcross_matrix() * rotmat;
-
-        #[cfg(feature = "dim3")]
-        {
-            let del00 =
-                ii1.quadform(&rmat1).add_diagonal(im1) + ii2.quadform(&rmat2).add_diagonal(im2);
-            let del10 =
-                rotmat.transpose() * (ii1.transform_matrix(&rmat1) + ii2.transform_matrix(&rmat2));
-            let del11 = (ii1 + ii2).quadform(&rotmat).into_matrix();
-
-            // Note that Cholesky only reads the lower-triangular part of the matrix
-            // so we don't need to fill del01.
-            let mut del = Matrix6::zeros();
-            del.fixed_slice_mut::<U3, U3>(0, 0)
-                .copy_from(&del00.into_matrix());
-            del.fixed_slice_mut::<U3, U3>(3, 0).copy_from(&del10);
-            del.fixed_slice_mut::<U3, U3>(3, 3).copy_from(&del11);
-            del
-        }
-
-        // In 2D we just unroll the computation because
-        // it's just easier that way.
-        #[cfg(feature = "dim2")]
-        {
-            panic!("Take the rotmat into account.");
-            let m11 = im1 + im2 + rmat1.x * rmat1.x * ii1 + rmat2.x * rmat2.x * ii2;
-            let m12 = rmat1.x * rmat1.y * ii1 + rmat2.x * rmat2.y * ii2;
-            let m22 = im1 + im2 + rmat1.y * rmat1.y * ii1 + rmat2.y * rmat2.y * ii2;
-            let m13 = rmat1.x * ii1 + rmat2.x * ii2;
-            let m23 = rmat1.y * ii1 + rmat2.y * ii2;
-            let m33 = ii1 + ii2;
-            Matrix3::new(m11, m12, m13, m12, m22, m23, m13, m23, m33)
-        }
-    }
-
     pub fn compute_velocity_error(
         min_velocity: &SpatialVector<Real>,
         max_velocity: &SpatialVector<Real>,
@@ -244,36 +195,6 @@ impl GenericVelocityConstraint {
         delassus.try_inverse().unwrap()
     }
 
-    pub fn invert_delassus_matrix(
-        min_impulse: &Vector6<Real>,
-        max_impulse: &Vector6<Real>,
-        dependant_set_mask: &mut Vector6<Real>,
-        mut delassus: Matrix6<Real>,
-    ) -> Matrix6<Real> {
-        // Adjust the Delassus matrix to take force limits into account.
-        // If a DoF has a force limit, then we need to make its
-        // constraint independent from the others because otherwise
-        // the force clamping will cause errors to propagate in the
-        // other constraints.
-        dependant_set_mask.fill(1.0);
-
-        for i in 0..6 {
-            if min_impulse[i] > -Real::MAX || max_impulse[i] < Real::MAX {
-                let diag = delassus[(i, i)];
-                delassus.column_mut(i).fill(0.0);
-                delassus.row_mut(i).fill(0.0);
-                delassus[(i, i)] = diag;
-                dependant_set_mask[i] = 0.0;
-            }
-        }
-
-        // NOTE: we don't use Cholesky in 2D because we only have a 3x3 matrix.
-        #[cfg(feature = "dim2")]
-        return delassus.try_inverse().expect("Singular system.");
-        #[cfg(feature = "dim3")]
-        return delassus.cholesky().expect("Singular system.").inverse();
-    }
-
     pub fn from_params(
         params: &IntegrationParameters,
         joint_id: JointIndex,
@@ -317,18 +238,41 @@ impl GenericVelocityConstraint {
 
         let rhs =
             Self::compute_velocity_error(&min_velocity, &max_velocity, &r1, &r2, &basis, rb1, rb2);
+        let rhs_lin = rhs.xyz();
+        let rhs_ang = rhs.fixed_rows::<Dim>(DIM).into();
 
-        let mut delassus = Self::compute_delassus_matrix(im1, im2, ii1, ii2, r1, r2, basis);
-        let inv_lhs = Self::invert_delassus_matrix(
-            &min_impulse,
-            &max_impulse,
-            &mut dependant_set_mask,
-            delassus,
+        // TODO: we should keep the SdpMatrix3 type.
+        let rotmat = basis.to_rotation_matrix().into_inner();
+        let rmat1 = r1.gcross_matrix() * rotmat;
+        let rmat2 = r2.gcross_matrix() * rotmat;
+        let delassus00 = (ii1.quadform(&rmat1).add_diagonal(im1)
+            + ii2.quadform(&rmat2).add_diagonal(im2))
+        .into_matrix();
+        let delassus11 = (ii1.quadform(&rotmat) + ii2.quadform(&rotmat)).into_matrix();
+
+        let inv_lhs_lin = GenericVelocityConstraint::invert_partial_delassus_matrix(
+            &min_pos_impulse.xyz(),
+            &max_pos_impulse.xyz(),
+            &mut Vector3::zeros(),
+            delassus00,
+        );
+        let inv_lhs_ang = GenericVelocityConstraint::invert_partial_delassus_matrix(
+            &min_pos_impulse.fixed_rows::<Dim>(DIM).into_owned(),
+            &max_pos_impulse.fixed_rows::<Dim>(DIM).into_owned(),
+            &mut Vector3::zeros(),
+            delassus11,
         );
 
         let impulse = (joint.impulse * params.warmstart_coeff)
             .inf(&max_impulse)
             .sup(&min_impulse);
+
+        let lin_impulse = impulse.xyz();
+        let ang_impulse = impulse.fixed_rows::<Dim>(DIM).into_owned();
+        let min_lin_impulse = min_impulse.xyz();
+        let min_ang_impulse = min_impulse.fixed_rows::<Dim>(DIM).into_owned();
+        let max_lin_impulse = max_impulse.xyz();
+        let max_ang_impulse = max_impulse.fixed_rows::<Dim>(DIM).into_owned();
 
         GenericVelocityConstraint {
             joint_id,
@@ -340,16 +284,21 @@ impl GenericVelocityConstraint {
             ii2,
             ii1_sqrt: rb1.effective_world_inv_inertia_sqrt,
             ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
-            inv_lhs,
+            inv_lhs_lin,
+            inv_lhs_ang,
             r1,
             r2,
             basis,
             dependant_set_mask,
             vel: GenericConstraintPart {
-                impulse,
-                min_impulse,
-                max_impulse,
-                rhs,
+                lin_impulse,
+                ang_impulse,
+                min_lin_impulse,
+                min_ang_impulse,
+                max_lin_impulse,
+                max_ang_impulse,
+                rhs_lin,
+                rhs_ang,
             },
         }
     }
@@ -358,11 +307,11 @@ impl GenericVelocityConstraint {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        let lin_impulse = self.basis * self.vel.impulse.fixed_rows::<Dim>(0).into_owned();
+        let lin_impulse = self.basis * self.vel.lin_impulse;
         #[cfg(feature = "dim2")]
         let ang_impulse = self.basis * self.vel.impulse[2];
         #[cfg(feature = "dim3")]
-        let ang_impulse = self.basis * self.vel.impulse.fixed_rows::<U3>(3).into_owned();
+        let ang_impulse = self.basis * self.vel.ang_impulse;
 
         mj_lambda1.linear += self.im1 * lin_impulse;
         mj_lambda1.angular += self
@@ -382,7 +331,9 @@ impl GenericVelocityConstraint {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        self.vel.impulse = self.vel.solve(self, &mut mj_lambda1, &mut mj_lambda2);
+        let (lin_imp, ang_imp) = self.vel.solve(self, &mut mj_lambda1, &mut mj_lambda2);
+        self.vel.lin_impulse = lin_imp;
+        self.vel.ang_impulse = ang_imp;
 
         mj_lambdas[self.mj_lambda1 as usize] = mj_lambda1;
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
@@ -391,7 +342,15 @@ impl GenericVelocityConstraint {
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
         let joint = &mut joints_all[self.joint_id].weight;
         if let JointParams::GenericJoint(fixed) = &mut joint.params {
-            fixed.impulse = self.vel.impulse;
+            let impulse = Vector6::new(
+                self.vel.lin_impulse.x,
+                self.vel.lin_impulse.y,
+                self.vel.lin_impulse.z,
+                self.vel.ang_impulse.x,
+                self.vel.ang_impulse.y,
+                self.vel.ang_impulse.z,
+            );
+            fixed.impulse = impulse;
         }
     }
 }
@@ -402,10 +361,8 @@ pub(crate) struct GenericVelocityGroundConstraint {
 
     joint_id: JointIndex,
 
-    #[cfg(feature = "dim3")]
-    inv_lhs: Matrix6<Real>, // TODO: replace by Cholesky?
-    #[cfg(feature = "dim2")]
-    inv_lhs: Matrix3<Real>,
+    inv_lhs_lin: Matrix3<Real>,
+    inv_lhs_ang: Matrix3<Real>,
 
     im2: Real,
     ii2: AngularInertia<Real>,
@@ -520,18 +477,38 @@ impl GenericVelocityGroundConstraint {
             rb1,
             rb2,
         );
+        let rhs_lin = rhs.xyz();
+        let rhs_ang = rhs.fixed_rows::<Dim>(DIM).into_owned();
 
-        let delassus = Self::compute_delassus_matrix(im2, ii2, r2, basis);
-        let inv_lhs = GenericVelocityConstraint::invert_delassus_matrix(
-            &min_impulse,
-            &max_impulse,
-            &mut dependant_set_mask,
-            delassus,
+        // TODO: we should keep the SdpMatrix3 type.
+        let rotmat = basis.to_rotation_matrix().into_inner();
+        let rmat2 = r2.gcross_matrix() * rotmat;
+        let delassus00 = ii2.quadform(&rmat2).add_diagonal(im2).into_matrix();
+        let delassus11 = ii2.quadform(&rotmat).into_matrix();
+
+        let inv_lhs_lin = GenericVelocityConstraint::invert_partial_delassus_matrix(
+            &min_pos_impulse.xyz(),
+            &max_pos_impulse.xyz(),
+            &mut Vector3::zeros(),
+            delassus00,
+        );
+        let inv_lhs_ang = GenericVelocityConstraint::invert_partial_delassus_matrix(
+            &min_pos_impulse.fixed_rows::<Dim>(DIM).into_owned(),
+            &max_pos_impulse.fixed_rows::<Dim>(DIM).into_owned(),
+            &mut Vector3::zeros(),
+            delassus11,
         );
 
         let impulse = (joint.impulse * params.warmstart_coeff)
             .inf(&max_impulse)
             .sup(&min_impulse);
+
+        let lin_impulse = impulse.xyz();
+        let ang_impulse = impulse.fixed_rows::<Dim>(DIM).into_owned();
+        let min_lin_impulse = min_impulse.xyz();
+        let min_ang_impulse = min_impulse.fixed_rows::<Dim>(DIM).into_owned();
+        let max_lin_impulse = max_impulse.xyz();
+        let max_ang_impulse = max_impulse.fixed_rows::<Dim>(DIM).into_owned();
 
         GenericVelocityGroundConstraint {
             joint_id,
@@ -539,14 +516,19 @@ impl GenericVelocityGroundConstraint {
             im2,
             ii2,
             ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
-            inv_lhs,
+            inv_lhs_lin,
+            inv_lhs_ang,
             r2,
             basis,
             vel: GenericConstraintPart {
-                impulse,
-                min_impulse,
-                max_impulse,
-                rhs,
+                lin_impulse,
+                ang_impulse,
+                min_lin_impulse,
+                min_ang_impulse,
+                max_lin_impulse,
+                max_ang_impulse,
+                rhs_lin,
+                rhs_ang,
             },
             dependant_set_mask,
         }
@@ -555,11 +537,11 @@ impl GenericVelocityGroundConstraint {
     pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        let lin_impulse = self.basis * self.vel.impulse.fixed_rows::<Dim>(0).into_owned();
+        let lin_impulse = self.basis * self.vel.lin_impulse;
         #[cfg(feature = "dim2")]
         let ang_impulse = self.basis * self.vel.impulse[2];
         #[cfg(feature = "dim3")]
-        let ang_impulse = self.basis * self.vel.impulse.fixed_rows::<U3>(3).into_owned();
+        let ang_impulse = self.basis * self.vel.ang_impulse;
 
         mj_lambda2.linear -= self.im2 * lin_impulse;
         mj_lambda2.angular -= self
@@ -571,7 +553,11 @@ impl GenericVelocityGroundConstraint {
 
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
-        self.vel.impulse = self.vel.solve_ground(self, &mut mj_lambda2);
+
+        let (lin_imp, ang_imp) = self.vel.solve_ground(self, &mut mj_lambda2);
+        self.vel.lin_impulse = lin_imp;
+        self.vel.ang_impulse = ang_imp;
+
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
@@ -579,268 +565,153 @@ impl GenericVelocityGroundConstraint {
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
         let joint = &mut joints_all[self.joint_id].weight;
         if let JointParams::GenericJoint(fixed) = &mut joint.params {
-            fixed.impulse = self.vel.impulse;
+            let impulse = Vector6::new(
+                self.vel.lin_impulse.x,
+                self.vel.lin_impulse.y,
+                self.vel.lin_impulse.z,
+                self.vel.ang_impulse.x,
+                self.vel.ang_impulse.y,
+                self.vel.ang_impulse.z,
+            );
+            fixed.impulse = impulse;
         }
     }
 }
 
 #[derive(Debug)]
 struct GenericConstraintPart {
-    impulse: SpacialVector<Real>,
-    max_impulse: SpatialVector<Real>,
-    min_impulse: SpatialVector<Real>,
+    lin_impulse: Vector3<Real>,
+    max_lin_impulse: Vector3<Real>,
+    min_lin_impulse: Vector3<Real>,
+    rhs_lin: Vector3<Real>,
 
-    #[cfg(feature = "dim3")]
-    rhs: Vector6<Real>,
-    #[cfg(feature = "dim2")]
-    rhs: Vector3<Real>,
+    ang_impulse: Vector3<Real>,
+    max_ang_impulse: Vector3<Real>,
+    min_ang_impulse: Vector3<Real>,
+    rhs_ang: Vector3<Real>,
 }
 
 impl GenericConstraintPart {
-    fn solve_ground(
-        &self,
-        parent: &GenericVelocityGroundConstraint,
-        mj_lambda2: &mut DeltaVel<Real>,
-    ) -> SpatialVector<Real> {
-        let mut new_impulse = SpacialVector::zeros();
-
-        for i in 0..3 {
-            // Solve the independent 1D constraints.
-            if parent.dependant_set_mask[i] == 0.0
-                && (self.min_impulse[i] != 0.0 || self.max_impulse[i] != 0.0)
-            {
-                let constraint_axis = parent.basis * Vector::ith(i % 3, 1.0);
-                let ang_vel2 = parent.ii2_sqrt.transform_vector(mj_lambda2.angular);
-
-                let dvel = if i < 3 {
-                    (mj_lambda2.linear + ang_vel2.gcross(parent.r2)).dot(&constraint_axis)
-                        + self.rhs[i]
-                } else {
-                    ang_vel2.dot(&constraint_axis) + self.rhs[i]
-                };
-
-                new_impulse[i] = na::clamp(
-                    self.impulse[i] + parent.inv_lhs[(i, i)] * dvel,
-                    self.min_impulse[i],
-                    self.max_impulse[i],
-                );
-
-                let effective_impulse = new_impulse[i] - self.impulse[i];
-                let impulse = constraint_axis * effective_impulse;
-
-                if i < 3 {
-                    mj_lambda2.linear -= parent.im2 * impulse;
-                    mj_lambda2.angular -=
-                        parent.ii2_sqrt.transform_vector(parent.r2.gcross(impulse));
-                } else {
-                    mj_lambda2.angular -= parent.ii2_sqrt.transform_vector(impulse);
-                }
-            }
-        }
-
-        let ang_vel2 = parent.ii2_sqrt.transform_vector(mj_lambda2.angular);
-
-        let dlinvel = parent
-            .basis
-            .inverse_transform_vector(&(mj_lambda2.linear + ang_vel2.gcross(parent.r2)));
-        let dangvel = parent.basis.inverse_transform_vector(&ang_vel2);
-
-        #[cfg(feature = "dim2")]
-        let rhs = Vector3::new(dlinvel.x, dlinvel.y, dangvel) + self.rhs;
-        #[cfg(feature = "dim3")]
-        let dvel = Vector6::new(
-            dlinvel.x, dlinvel.y, dlinvel.z, dangvel.x, dangvel.y, dangvel.z,
-        ) + self.rhs;
-
-        new_impulse +=
-            (self.impulse + parent.inv_lhs * dvel).component_mul(&parent.dependant_set_mask);
-        let effective_impulse =
-            (new_impulse - self.impulse).component_mul(&parent.dependant_set_mask);
-
-        let lin_impulse = parent.basis * effective_impulse.fixed_rows::<Dim>(0).into_owned();
-        #[cfg(feature = "dim2")]
-        let ang_impulse = parent.basis * effective_impulse[2];
-        #[cfg(feature = "dim3")]
-        let ang_impulse = parent.basis * effective_impulse.fixed_rows::<U3>(3).into_owned();
-
-        mj_lambda2.linear -= parent.im2 * lin_impulse;
-        mj_lambda2.angular -= parent
-            .ii2_sqrt
-            .transform_vector(ang_impulse + parent.r2.gcross(lin_impulse));
-
-        for i in 3..6 {
-            // Solve the independent 1D constraints.
-            if parent.dependant_set_mask[i] == 0.0
-                && (self.min_impulse[i] != 0.0 || self.max_impulse[i] != 0.0)
-            {
-                let constraint_axis = parent.basis * Vector::ith(i % 3, 1.0);
-                let ang_vel2 = parent.ii2_sqrt.transform_vector(mj_lambda2.angular);
-
-                let dvel = if i < 3 {
-                    (mj_lambda2.linear + ang_vel2.gcross(parent.r2)).dot(&constraint_axis)
-                        + self.rhs[i]
-                } else {
-                    ang_vel2.dot(&constraint_axis) + self.rhs[i]
-                };
-
-                let inv_lhs = parent.inv_lhs[(i, i)];
-
-                new_impulse[i] = na::clamp(
-                    self.impulse[i] + inv_lhs * dvel,
-                    self.min_impulse[i],
-                    self.max_impulse[i],
-                );
-
-                let effective_impulse = new_impulse[i] - self.impulse[i];
-                let impulse = constraint_axis * effective_impulse;
-
-                if i < 3 {
-                    mj_lambda2.linear -= parent.im2 * impulse;
-                    mj_lambda2.angular -=
-                        parent.ii2_sqrt.transform_vector(parent.r2.gcross(impulse));
-                } else {
-                    mj_lambda2.angular -= parent.ii2_sqrt.transform_vector(impulse);
-                }
-            }
-        }
-
-        new_impulse
-    }
-
     fn solve(
         &self,
         parent: &GenericVelocityConstraint,
         mj_lambda1: &mut DeltaVel<Real>,
         mj_lambda2: &mut DeltaVel<Real>,
-    ) -> SpatialVector<Real> {
-        let mut new_impulse = SpacialVector::zeros();
+    ) -> (Vector3<Real>, Vector3<Real>) {
+        let new_lin_impulse;
+        let new_ang_impulse;
 
-        for i in 0..3 {
-            // Solve the independent 1D constraints.
-            if parent.dependant_set_mask[i] == 0.0
-                && (self.min_impulse[i] != 0.0 || self.max_impulse[i] != 0.0)
-            {
-                let constraint_axis = parent.basis * Vector::ith(i % 3, 1.0);
-                let ang_vel2 = parent.ii2_sqrt.transform_vector(mj_lambda2.angular);
-                let ang_vel1 = parent.ii1_sqrt.transform_vector(mj_lambda1.angular);
+        /*
+         *
+         * Solve translations.
+         *
+         */
+        {
+            let ang_vel1 = parent.ii1_sqrt.transform_vector(mj_lambda1.angular);
+            let ang_vel2 = parent.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
-                let dvel = if i < 3 {
-                    (mj_lambda2.linear + ang_vel2.gcross(parent.r2)
-                        - mj_lambda1.linear
-                        - ang_vel1.gcross(parent.r1))
-                    .dot(&constraint_axis)
-                        + self.rhs[i]
-                } else {
-                    (ang_vel2 - ang_vel1).dot(&constraint_axis) + self.rhs[i]
-                };
+            let dvel = parent.basis.inverse_transform_vector(
+                &(-mj_lambda1.linear - ang_vel1.gcross(parent.r1)
+                    + mj_lambda2.linear
+                    + ang_vel2.gcross(parent.r2)),
+            );
 
-                new_impulse[i] = na::clamp(
-                    self.impulse[i] + parent.inv_lhs[(i, i)] * dvel,
-                    self.min_impulse[i],
-                    self.max_impulse[i],
-                );
+            let err = dvel + self.rhs_lin;
 
-                let effective_impulse = new_impulse[i] - self.impulse[i];
-                let impulse = constraint_axis * effective_impulse;
+            new_lin_impulse = (self.lin_impulse + parent.inv_lhs_lin * err)
+                .sup(&self.min_lin_impulse)
+                .inf(&self.max_lin_impulse);
+            let effective_impulse = parent.basis * (new_lin_impulse - self.lin_impulse);
 
-                if i < 3 {
-                    mj_lambda1.linear += parent.im1 * impulse;
-                    mj_lambda1.angular +=
-                        parent.ii1_sqrt.transform_vector(parent.r1.gcross(impulse));
-                    mj_lambda2.linear -= parent.im2 * impulse;
-                    mj_lambda2.angular -=
-                        parent.ii2_sqrt.transform_vector(parent.r2.gcross(impulse));
-                } else {
-                    mj_lambda1.angular += parent.ii1_sqrt.transform_vector(impulse);
-                    mj_lambda2.angular -= parent.ii2_sqrt.transform_vector(impulse);
-                }
-            }
+            mj_lambda1.linear += parent.im1 * effective_impulse;
+            mj_lambda1.angular += parent
+                .ii1_sqrt
+                .transform_vector(parent.r1.gcross(effective_impulse));
+
+            mj_lambda2.linear -= parent.im2 * effective_impulse;
+            mj_lambda2.angular -= parent
+                .ii2_sqrt
+                .transform_vector(parent.r2.gcross(effective_impulse));
         }
 
-        let ang_vel1 = parent.ii1_sqrt.transform_vector(mj_lambda1.angular);
-        let ang_vel2 = parent.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        /*
+         *
+         * Solve rotations.
+         *
+         */
+        {
+            let ang_vel1 = parent.ii1_sqrt.transform_vector(mj_lambda1.angular);
+            let ang_vel2 = parent.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
-        let dlinvel = parent.basis.inverse_transform_vector(
-            &(-mj_lambda1.linear - ang_vel1.gcross(parent.r1)
-                + mj_lambda2.linear
-                + ang_vel2.gcross(parent.r2)),
-        );
-        let dangvel = parent
-            .basis
-            .inverse_transform_vector(&(-ang_vel1 + ang_vel2));
+            let dvel = parent
+                .basis
+                .inverse_transform_vector(&(ang_vel2 - ang_vel1));
+            let err = dvel + self.rhs_ang;
 
-        #[cfg(feature = "dim2")]
-        let rhs = Vector3::new(dlinvel.x, dlinvel.y, dangvel) + self.rhs;
-        #[cfg(feature = "dim3")]
-        let dvel = Vector6::new(
-            dlinvel.x, dlinvel.y, dlinvel.z, dangvel.x, dangvel.y, dangvel.z,
-        ) + self.rhs;
+            new_ang_impulse = (self.ang_impulse + parent.inv_lhs_ang * err)
+                .sup(&self.min_ang_impulse)
+                .inf(&self.max_ang_impulse);
+            let effective_impulse = parent.basis * (new_ang_impulse - self.ang_impulse);
 
-        new_impulse +=
-            (self.impulse + parent.inv_lhs * dvel).component_mul(&parent.dependant_set_mask);
-        let effective_impulse =
-            (new_impulse - self.impulse).component_mul(&parent.dependant_set_mask);
-
-        let lin_impulse = parent.basis * effective_impulse.fixed_rows::<Dim>(0).into_owned();
-        #[cfg(feature = "dim2")]
-        let ang_impulse = parent.basis * effective_impulse[2];
-        #[cfg(feature = "dim3")]
-        let ang_impulse = parent.basis * effective_impulse.fixed_rows::<U3>(3).into_owned();
-
-        mj_lambda1.linear += parent.im1 * lin_impulse;
-        mj_lambda1.angular += parent
-            .ii1_sqrt
-            .transform_vector(ang_impulse + parent.r1.gcross(lin_impulse));
-
-        mj_lambda2.linear -= parent.im2 * lin_impulse;
-        mj_lambda2.angular -= parent
-            .ii2_sqrt
-            .transform_vector(ang_impulse + parent.r2.gcross(lin_impulse));
-
-        for i in 3..6 {
-            // Solve the independent 1D constraints.
-            if parent.dependant_set_mask[i] == 0.0
-                && (self.min_impulse[i] != 0.0 || self.max_impulse[i] != 0.0)
-            {
-                let constraint_axis = parent.basis * Vector::ith(i % 3, 1.0);
-                let ang_vel2 = parent.ii2_sqrt.transform_vector(mj_lambda2.angular);
-                let ang_vel1 = parent.ii1_sqrt.transform_vector(mj_lambda1.angular);
-
-                let dvel = if i < 3 {
-                    (mj_lambda2.linear + ang_vel2.gcross(parent.r2)
-                        - mj_lambda1.linear
-                        - ang_vel1.gcross(parent.r1))
-                    .dot(&constraint_axis)
-                        + self.rhs[i]
-                } else {
-                    (ang_vel2 - ang_vel1).dot(&constraint_axis) + self.rhs[i]
-                };
-
-                let inv_lhs = parent.inv_lhs[(i, i)];
-
-                new_impulse[i] = na::clamp(
-                    self.impulse[i] + inv_lhs * dvel,
-                    self.min_impulse[i],
-                    self.max_impulse[i],
-                );
-
-                let effective_impulse = new_impulse[i] - self.impulse[i];
-                let impulse = constraint_axis * effective_impulse;
-
-                if i < 3 {
-                    mj_lambda1.linear += parent.im1 * impulse;
-                    mj_lambda1.angular +=
-                        parent.ii1_sqrt.transform_vector(parent.r1.gcross(impulse));
-                    mj_lambda2.linear -= parent.im2 * impulse;
-                    mj_lambda2.angular -=
-                        parent.ii2_sqrt.transform_vector(parent.r2.gcross(impulse));
-                } else {
-                    mj_lambda1.angular += parent.ii1_sqrt.transform_vector(impulse);
-                    mj_lambda2.angular -= parent.ii2_sqrt.transform_vector(impulse);
-                }
-            }
+            mj_lambda1.angular += parent.ii1_sqrt.transform_vector(effective_impulse);
+            mj_lambda2.angular -= parent.ii2_sqrt.transform_vector(effective_impulse);
         }
 
-        new_impulse
+        (new_lin_impulse, new_ang_impulse)
+    }
+
+    fn solve_ground(
+        &self,
+        parent: &GenericVelocityGroundConstraint,
+        mj_lambda2: &mut DeltaVel<Real>,
+    ) -> (Vector3<Real>, Vector3<Real>) {
+        let new_lin_impulse;
+        let new_ang_impulse;
+
+        /*
+         *
+         * Solve translations.
+         *
+         */
+        {
+            let ang_vel2 = parent.ii2_sqrt.transform_vector(mj_lambda2.angular);
+
+            let dvel = parent
+                .basis
+                .inverse_transform_vector(&(mj_lambda2.linear + ang_vel2.gcross(parent.r2)));
+
+            let err = dvel + self.rhs_lin;
+
+            new_lin_impulse = (self.lin_impulse + parent.inv_lhs_lin * err)
+                .sup(&self.min_lin_impulse)
+                .inf(&self.max_lin_impulse);
+            let effective_impulse = parent.basis * (new_lin_impulse - self.lin_impulse);
+
+            mj_lambda2.linear -= parent.im2 * effective_impulse;
+            mj_lambda2.angular -= parent
+                .ii2_sqrt
+                .transform_vector(parent.r2.gcross(effective_impulse));
+        }
+
+        /*
+         *
+         * Solve rotations.
+         *
+         */
+        {
+            let ang_vel2 = parent.ii2_sqrt.transform_vector(mj_lambda2.angular);
+
+            let dvel = parent.basis.inverse_transform_vector(&ang_vel2);
+            let err = dvel + self.rhs_ang;
+
+            new_ang_impulse = (self.ang_impulse + parent.inv_lhs_ang * err)
+                .sup(&self.min_ang_impulse)
+                .inf(&self.max_ang_impulse);
+            let effective_impulse = parent.basis * (new_ang_impulse - self.ang_impulse);
+
+            mj_lambda2.angular -= parent.ii2_sqrt.transform_vector(effective_impulse);
+        }
+
+        (new_lin_impulse, new_ang_impulse)
     }
 }
