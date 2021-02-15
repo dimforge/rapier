@@ -27,9 +27,6 @@ pub struct IntegrationParameters {
     /// Each cached impulse are multiplied by this coefficient in `[0, 1]`
     /// when they are re-used to initialize the solver (default `1.0`).
     pub warmstart_coeff: Real,
-    /// Contacts at points where the involved bodies have a relative
-    /// velocity smaller than this threshold wont be affected by the restitution force (default: `1.0`).
-    pub restitution_velocity_threshold: Real,
     /// Amount of penetration the engine wont attempt to correct (default: `0.005m`).
     pub allowed_linear_error: Real,
     /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002`).
@@ -95,7 +92,7 @@ impl IntegrationParameters {
         erp: Real,
         joint_erp: Real,
         warmstart_coeff: Real,
-        restitution_velocity_threshold: Real,
+        _restitution_velocity_threshold: Real,
         allowed_linear_error: Real,
         allowed_angular_error: Real,
         max_linear_correction: Real,
@@ -116,7 +113,6 @@ impl IntegrationParameters {
             erp,
             joint_erp,
             warmstart_coeff,
-            restitution_velocity_threshold,
             allowed_linear_error,
             allowed_angular_error,
             max_linear_correction,
@@ -188,7 +184,6 @@ impl Default for IntegrationParameters {
             erp: 0.2,
             joint_erp: 0.2,
             warmstart_coeff: 1.0,
-            restitution_velocity_threshold: 1.0,
             allowed_linear_error: 0.005,
             prediction_distance: 0.002,
             allowed_angular_error: 0.001,
