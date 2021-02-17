@@ -62,12 +62,15 @@ impl WBallVelocityConstraint {
         let local_anchor2 = Point::from(array![|ii| cparams[ii].local_anchor2; SIMD_WIDTH]);
         let impulse = Vector::from(array![|ii| cparams[ii].impulse; SIMD_WIDTH]);
 
-        let anchor1 = position1 * local_anchor1 - world_com1;
-        let anchor2 = position2 * local_anchor2 - world_com2;
+        let anchor_world1 = position1 * local_anchor1;
+        let anchor_world2 = position2 * local_anchor2;
+        let anchor1 = anchor_world1 - world_com1;
+        let anchor2 = anchor_world2 - world_com2;
 
         let vel1: Vector<SimdReal> = linvel1 + angvel1.gcross(anchor1);
         let vel2: Vector<SimdReal> = linvel2 + angvel2.gcross(anchor2);
-        let rhs = -(vel1 - vel2);
+        let rhs = (vel2 - vel1) * SimdReal::splat(params.velocity_solve_fraction)
+            + (anchor_world2 - anchor_world1) * SimdReal::splat(params.velocity_based_erp_inv_dt());
         let lhs;
 
         let cmat1 = anchor1.gcross_matrix();
@@ -239,12 +242,15 @@ impl WBallVelocityGroundConstraint {
         );
         let impulse = Vector::from(array![|ii| cparams[ii].impulse; SIMD_WIDTH]);
 
-        let anchor1 = position1 * local_anchor1 - world_com1;
-        let anchor2 = position2 * local_anchor2 - world_com2;
+        let anchor_world1 = position1 * local_anchor1;
+        let anchor_world2 = position2 * local_anchor2;
+        let anchor1 = anchor_world1 - world_com1;
+        let anchor2 = anchor_world2 - world_com2;
 
         let vel1: Vector<SimdReal> = linvel1 + angvel1.gcross(anchor1);
         let vel2: Vector<SimdReal> = linvel2 + angvel2.gcross(anchor2);
-        let rhs = vel2 - vel1;
+        let rhs = (vel2 - vel1) * SimdReal::splat(params.velocity_solve_fraction)
+            + (anchor_world2 - anchor_world1) * SimdReal::splat(params.velocity_based_erp_inv_dt());
         let lhs;
 
         let cmat2 = anchor2.gcross_matrix();
