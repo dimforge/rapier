@@ -104,13 +104,12 @@ impl FixedVelocityConstraint {
 
         #[cfg(feature = "dim2")]
         let mut rhs =
-            params.velocity_solve_fraction * Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
+            Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel) * params.velocity_solve_fraction;
 
         #[cfg(feature = "dim3")]
-        let mut rhs = params.velocity_solve_fraction
-            * Vector6::new(
-                lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
-            );
+        let mut rhs = Vector6::new(
+            lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
+        ) * params.velocity_solve_fraction;
 
         let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
         if velocity_based_erp_inv_dt != 0.0 {
@@ -316,12 +315,11 @@ impl FixedVelocityGroundConstraint {
 
         #[cfg(feature = "dim2")]
         let mut rhs =
-            params.velocity_solve_fraction * Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
+            Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel) * params.velocity_solve_fraction;
         #[cfg(feature = "dim3")]
-        let mut rhs = params.velocity_solve_fraction
-            * Vector6::new(
-                lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
-            );
+        let mut rhs = Vector6::new(
+            lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
+        ) * params.velocity_solve_fraction;
 
         let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
         if velocity_based_erp_inv_dt != 0.0 {

@@ -251,7 +251,7 @@ impl VelocityConstraint {
                     let mut rhs = (1.0 + is_bouncy * manifold_point.restitution)
                         * (vel1 - vel2).dot(&force_dir1);
                     rhs += manifold_point.dist.max(0.0) * inv_dt;
-                    rhs *= params.velocity_solve_fraction;
+                    rhs *= is_bouncy + is_resting * params.velocity_solve_fraction;
                     rhs += is_resting * velocity_based_erp_inv_dt * manifold_point.dist.min(0.0);
 
                     constraint.elements[k].normal_part = VelocityConstraintElementPart {
