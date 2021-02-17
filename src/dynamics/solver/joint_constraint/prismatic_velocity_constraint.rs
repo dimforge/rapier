@@ -135,13 +135,47 @@ impl PrismaticVelocityConstraint {
         #[cfg(feature = "dim3")]
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
-        let ang_rhs = rb2.angvel - rb1.angvel;
+        let linvel_err = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
+        let angvel_err = rb2.angvel - rb1.angvel;
 
         #[cfg(feature = "dim2")]
-        let rhs = Vector2::new(lin_rhs.x, ang_rhs);
+        let mut rhs = Vector2::new(linvel_err.x, angvel_err) * params.velocity_solve_fraction;
         #[cfg(feature = "dim3")]
-        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, ang_rhs.x, ang_rhs.y, ang_rhs.z);
+        let mut rhs = Vector5::new(
+            linvel_err.x,
+            linvel_err.y,
+            angvel_err.x,
+            angvel_err.y,
+            angvel_err.z,
+        ) * params.velocity_solve_fraction;
+
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        if velocity_based_erp_inv_dt != 0.0 {
+            let dpos = anchor2 - anchor1;
+            let limit_err = dpos.dot(&axis1);
+            let mut linear_err = dpos - *axis1 * limit_err;
+
+            let frame1 = rb1.position * cparams.local_frame1();
+            let frame2 = rb2.position * cparams.local_frame2();
+            let ang_err = frame2.rotation * frame1.rotation.inverse();
+
+            if limit_err < cparams.limits[0] {
+                linear_err += *axis1 * (limit_err - cparams.limits[0]);
+            } else if limit_err > cparams.limits[1] {
+                linear_err += *axis1 * (limit_err - cparams.limits[1]);
+            }
+
+            #[cfg(feature = "dim2")]
+            {
+                rhs += Vector2::new(linear_err.x, ang_err.angle()) * velocity_based_erp_inv_dt;
+            }
+            #[cfg(feature = "dim3")]
+            {
+                let ang_err = ang_err.scaled_axis();
+                rhs += Vector5::new(linear_err.x, linear_err.y, ang_err.x, ang_err.y, ang_err.z)
+                    * velocity_based_erp_inv_dt;
+            }
+        }
 
         /*
          * Setup motor.
@@ -520,13 +554,54 @@ impl PrismaticVelocityGroundConstraint {
         #[cfg(feature = "dim3")]
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
-        let ang_rhs = rb2.angvel - rb1.angvel;
+        let linvel_err = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
+        let angvel_err = rb2.angvel - rb1.angvel;
 
         #[cfg(feature = "dim2")]
-        let rhs = Vector2::new(lin_rhs.x, ang_rhs);
+        let mut rhs = Vector2::new(linvel_err.x, angvel_err) * params.velocity_solve_fraction;
         #[cfg(feature = "dim3")]
-        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, ang_rhs.x, ang_rhs.y, ang_rhs.z);
+        let mut rhs = Vector5::new(
+            linvel_err.x,
+            linvel_err.y,
+            angvel_err.x,
+            angvel_err.y,
+            angvel_err.z,
+        ) * params.velocity_solve_fraction;
+
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        if velocity_based_erp_inv_dt != 0.0 {
+            let (frame1, frame2);
+            if flipped {
+                frame1 = rb1.position * cparams.local_frame2();
+                frame2 = rb2.position * cparams.local_frame1();
+            } else {
+                frame1 = rb1.position * cparams.local_frame1();
+                frame2 = rb2.position * cparams.local_frame2();
+            }
+
+            let dpos = anchor2 - anchor1;
+            let limit_err = dpos.dot(&axis1);
+            let mut linear_err = dpos - *axis1 * limit_err;
+
+            let ang_err = frame2.rotation * frame1.rotation.inverse();
+
+            if limit_err < cparams.limits[0] {
+                linear_err += *axis1 * (limit_err - cparams.limits[0]);
+            } else if limit_err > cparams.limits[1] {
+                linear_err += *axis1 * (limit_err - cparams.limits[1]);
+            }
+
+            #[cfg(feature = "dim2")]
+            {
+                rhs += Vector2::new(linear_err.x, ang_err.angle()) * velocity_based_erp_inv_dt;
+            }
+            #[cfg(feature = "dim3")]
+            {
+                let ang_err = ang_err.scaled_axis();
+                rhs += Vector5::new(linear_err.x, linear_err.y, ang_err.x, ang_err.y, ang_err.z)
+                    * velocity_based_erp_inv_dt;
+            }
+        }
 
         /*
          * Setup motor.
