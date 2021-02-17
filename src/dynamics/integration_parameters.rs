@@ -181,6 +181,12 @@ impl IntegrationParameters {
             self.dt = 1.0 / inv_dt
         }
     }
+
+    /// Convenience: `velocity_based_erp / dt`
+    #[inline]
+    pub(crate) fn velocity_based_erp_inv_dt(&self) -> Real {
+        self.velocity_based_erp * self.inv_dt()
+    }
 }
 
 impl Default for IntegrationParameters {

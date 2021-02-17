@@ -147,6 +147,8 @@ impl VelocityConstraint {
         assert_eq!(manifold.data.relative_dominance, 0);
 
         let inv_dt = params.inv_dt();
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+
         let rb1 = &bodies[manifold.data.body_pair.body1];
         let rb2 = &bodies[manifold.data.body_pair.body2];
         let mj_lambda1 = rb1.active_set_offset;
@@ -250,10 +252,7 @@ impl VelocityConstraint {
                         * (vel1 - vel2).dot(&force_dir1);
                     rhs += manifold_point.dist.max(0.0) * inv_dt;
                     rhs *= params.velocity_solve_fraction;
-                    rhs += is_resting
-                        * params.velocity_based_erp
-                        * inv_dt
-                        * manifold_point.dist.min(0.0);
+                    rhs += is_resting * velocity_based_erp_inv_dt * manifold_point.dist.min(0.0);
 
                     constraint.elements[k].normal_part = VelocityConstraintElementPart {
                         gcross1,

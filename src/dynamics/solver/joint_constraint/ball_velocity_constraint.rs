@@ -50,9 +50,8 @@ impl BallVelocityConstraint {
         let im1 = rb1.effective_inv_mass;
         let im2 = rb2.effective_inv_mass;
 
-        let mut rhs = params.velocity_solve_fraction * (vel2 - vel1);
-
-        rhs += params.velocity_based_erp * params.inv_dt() * (anchor_world2 - anchor_world1);
+        let rhs = (vel2 - vel1) * params.velocity_solve_fraction
+            + (anchor_world2 - anchor_world1) * params.velocity_based_erp_inv_dt();
 
         let lhs;
         let cmat1 = anchor1.gcross_matrix();
@@ -293,9 +292,9 @@ impl BallVelocityGroundConstraint {
         let im2 = rb2.effective_inv_mass;
         let vel1 = rb1.linvel + rb1.angvel.gcross(anchor1);
         let vel2 = rb2.linvel + rb2.angvel.gcross(anchor2);
-        let mut rhs = params.velocity_solve_fraction * (vel2 - vel1);
 
-        rhs += params.velocity_based_erp * params.inv_dt() * (anchor_world2 - anchor_world1);
+        let rhs = (vel2 - vel1) * params.velocity_solve_fraction
+            + (anchor_world2 - anchor_world1) * params.velocity_based_erp_inv_dt();
 
         let cmat2 = anchor2.gcross_matrix();
 
