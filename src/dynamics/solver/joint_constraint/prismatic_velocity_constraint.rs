@@ -155,14 +155,14 @@ impl PrismaticVelocityConstraint {
             let limit_err = dpos.dot(&axis1);
             let mut linear_err = dpos - *axis1 * limit_err;
 
-            let frame1 = rb1.position * cparams.local_frame1();
-            let frame2 = rb2.position * cparams.local_frame2();
+            let frame1 = rb1.position * joint.local_frame1();
+            let frame2 = rb2.position * joint.local_frame2();
             let ang_err = frame2.rotation * frame1.rotation.inverse();
 
-            if limit_err < cparams.limits[0] {
-                linear_err += *axis1 * (limit_err - cparams.limits[0]);
-            } else if limit_err > cparams.limits[1] {
-                linear_err += *axis1 * (limit_err - cparams.limits[1]);
+            if limit_err < joint.limits[0] {
+                linear_err += *axis1 * (limit_err - joint.limits[0]);
+            } else if limit_err > joint.limits[1] {
+                linear_err += *axis1 * (limit_err - joint.limits[1]);
             }
 
             #[cfg(feature = "dim2")]
@@ -572,11 +572,11 @@ impl PrismaticVelocityGroundConstraint {
         if velocity_based_erp_inv_dt != 0.0 {
             let (frame1, frame2);
             if flipped {
-                frame1 = rb1.position * cparams.local_frame2();
-                frame2 = rb2.position * cparams.local_frame1();
+                frame1 = rb1.position * joint.local_frame2();
+                frame2 = rb2.position * joint.local_frame1();
             } else {
-                frame1 = rb1.position * cparams.local_frame1();
-                frame2 = rb2.position * cparams.local_frame2();
+                frame1 = rb1.position * joint.local_frame1();
+                frame2 = rb2.position * joint.local_frame2();
             }
 
             let dpos = anchor2 - anchor1;
@@ -585,10 +585,10 @@ impl PrismaticVelocityGroundConstraint {
 
             let ang_err = frame2.rotation * frame1.rotation.inverse();
 
-            if limit_err < cparams.limits[0] {
-                linear_err += *axis1 * (limit_err - cparams.limits[0]);
-            } else if limit_err > cparams.limits[1] {
-                linear_err += *axis1 * (limit_err - cparams.limits[1]);
+            if limit_err < joint.limits[0] {
+                linear_err += *axis1 * (limit_err - joint.limits[0]);
+            } else if limit_err > joint.limits[1] {
+                linear_err += *axis1 * (limit_err - joint.limits[1]);
             }
 
             #[cfg(feature = "dim2")]
