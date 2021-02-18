@@ -8,8 +8,10 @@ use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, SimdBool, SimdReal, Vector, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix, WDot};
+
 #[cfg(feature = "dim3")]
-use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
+use na::{Cholesky, Matrix3x2, Matrix5, Vector3, Vector5, U2, U3};
+
 #[cfg(feature = "dim2")]
 use {
     na::{Matrix2, Vector2},
@@ -18,6 +20,7 @@ use {
 
 #[cfg(feature = "dim2")]
 type LinImpulseDim = na::U1;
+
 #[cfg(feature = "dim3")]
 type LinImpulseDim = na::U2;
 
@@ -180,13 +183,63 @@ impl WPrismaticVelocityConstraint {
         #[cfg(feature = "dim3")]
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
-        let ang_rhs = angvel2 - angvel1;
+        let linvel_err = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
+        let angvel_err = angvel2 - angvel1;
+
+        let velocity_solve_fraction = SimdReal::splat(params.velocity_solve_fraction);
 
         #[cfg(feature = "dim2")]
-        let rhs = Vector2::new(lin_rhs.x, ang_rhs);
+        let mut rhs = Vector2::new(linvel_err.x, angvel_err) * velocity_solve_fraction;
         #[cfg(feature = "dim3")]
-        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, ang_rhs.x, ang_rhs.y, ang_rhs.z);
+        let mut rhs = Vector5::new(
+            linvel_err.x,
+            linvel_err.y,
+            angvel_err.x,
+            angvel_err.y,
+            angvel_err.z,
+        ) * velocity_solve_fraction;
+
+        let limits_enabled =
+            SimdBool::from(array![|ii| cparams[ii].limits_enabled; SIMD_WIDTH]).any();
+
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        if velocity_based_erp_inv_dt != 0.0 {
+            let velocity_based_erp_inv_dt = SimdReal::splat(velocity_based_erp_inv_dt);
+
+            let dpos = anchor2 - anchor1;
+            let limit_err = dpos.dot(&axis1);
+            let mut linear_err = dpos - axis1 * limit_err;
+
+            let local_frame1 = Isometry::from(array![|ii| cparams[ii].local_frame1(); SIMD_WIDTH]);
+            let local_frame2 = Isometry::from(array![|ii| cparams[ii].local_frame2(); SIMD_WIDTH]);
+
+            let frame1 = position1 * local_frame1;
+            let frame2 = position2 * local_frame2;
+            let ang_err = frame2.rotation * frame1.rotation.inverse();
+
+            if limits_enabled {
+                let min_limit = SimdReal::from(array![|ii| cparams[ii].limits[0]; SIMD_WIDTH]);
+                let max_limit = SimdReal::from(array![|ii| cparams[ii].limits[1]; SIMD_WIDTH]);
+
+                let zero: SimdReal = na::zero();
+                linear_err += axis1
+                    * ((limit_err - max_limit).simd_max(zero)
+                        - (min_limit - limit_err).simd_max(zero));
+            }
+
+            #[cfg(feature = "dim2")]
+            {
+                rhs += Vector2::new(linear_err.x, ang_err.angle()) * velocity_based_erp_inv_dt;
+            }
+
+            #[cfg(feature = "dim3")]
+            {
+                let ang_err =
+                    Vector3::from(array![|ii| ang_err.extract(ii).scaled_axis(); SIMD_WIDTH]);
+                rhs += Vector5::new(linear_err.x, linear_err.y, ang_err.x, ang_err.y, ang_err.z)
+                    * velocity_based_erp_inv_dt;
+            }
+        }
 
         /*
          * Setup limit constraint.
@@ -197,7 +250,7 @@ impl WPrismaticVelocityConstraint {
         let mut limits_inv_lhs = na::zero();
         let limits_enabled = SimdBool::from(array![|ii| cparams[ii].limits_enabled; SIMD_WIDTH]);
 
-        if limits_enabled.any() {
+        if limits_enabled {
             let danchor = anchor2 - anchor1;
             let dist = danchor.dot(&axis1);
 
@@ -553,21 +606,74 @@ impl WPrismaticVelocityGroundConstraint {
         #[cfg(feature = "dim3")]
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
-        let ang_rhs = angvel2 - angvel1;
+        let linvel_err = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
+        let angvel_err = angvel2 - angvel1;
+
+        let velocity_solve_fraction = SimdReal::splat(params.velocity_solve_fraction);
 
         #[cfg(feature = "dim2")]
-        let rhs = Vector2::new(lin_rhs.x, ang_rhs);
+        let mut rhs = Vector2::new(linvel_err.x, angvel_err) * velocity_solve_fraction;
         #[cfg(feature = "dim3")]
-        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, ang_rhs.x, ang_rhs.y, ang_rhs.z);
+        let mut rhs = Vector5::new(
+            linvel_err.x,
+            linvel_err.y,
+            angvel_err.x,
+            angvel_err.y,
+            angvel_err.z,
+        ) * velocity_solve_fraction;
+
+        let limits_enabled =
+            SimdBool::from(array![|ii| cparams[ii].limits_enabled; SIMD_WIDTH]).any();
+
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        if velocity_based_erp_inv_dt != 0.0 {
+            let velocity_based_erp_inv_dt = SimdReal::splat(velocity_based_erp_inv_dt);
+
+            let dpos = anchor2 - anchor1;
+            let limit_err = dpos.dot(&axis1);
+            let mut linear_err = dpos - axis1 * limit_err;
+
+            let frame1 = position1
+                * Isometry::from(
+                    array![|ii| if flipped[ii] { cparams[ii].local_frame2() } else { cparams[ii].local_frame1() }; SIMD_WIDTH],
+                );
+            let frame2 = position2
+                * Isometry::from(
+                    array![|ii| if flipped[ii] { cparams[ii].local_frame1() } else { cparams[ii].local_frame2() }; SIMD_WIDTH],
+                );
+
+            let ang_err = frame2.rotation * frame1.rotation.inverse();
+
+            if limits_enabled {
+                let min_limit = SimdReal::from(array![|ii| cparams[ii].limits[0]; SIMD_WIDTH]);
+                let max_limit = SimdReal::from(array![|ii| cparams[ii].limits[1]; SIMD_WIDTH]);
+
+                let zero: SimdReal = na::zero();
+                linear_err += axis1
+                    * ((limit_err - max_limit).simd_max(zero)
+                        - (min_limit - limit_err).simd_max(zero));
+            }
+
+            #[cfg(feature = "dim2")]
+            {
+                rhs += Vector2::new(linear_err.x, ang_err.angle()) * velocity_based_erp_inv_dt;
+            }
+
+            #[cfg(feature = "dim3")]
+            {
+                let ang_err =
+                    Vector3::from(array![|ii| ang_err.extract(ii).scaled_axis(); SIMD_WIDTH]);
+                rhs += Vector5::new(linear_err.x, linear_err.y, ang_err.x, ang_err.y, ang_err.z)
+                    * velocity_based_erp_inv_dt;
+            }
+        }
 
         // Setup limit constraint.
         let mut limits_forcedir2 = None;
         let mut limits_rhs = na::zero();
         let mut limits_impulse = na::zero();
-        let limits_enabled = SimdBool::from(array![|ii| cparams[ii].limits_enabled; SIMD_WIDTH]);
 
-        if limits_enabled.any() {
+        if limits_enabled {
             let danchor = anchor2 - anchor1;
             let dist = danchor.dot(&axis1);
 

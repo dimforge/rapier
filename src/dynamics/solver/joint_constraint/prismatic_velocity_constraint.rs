@@ -159,11 +159,9 @@ impl PrismaticVelocityConstraint {
             let frame2 = rb2.position * joint.local_frame2();
             let ang_err = frame2.rotation * frame1.rotation.inverse();
 
-            if limit_err < joint.limits[0] {
-                linear_err += *axis1 * (limit_err - joint.limits[0]);
-            } else if limit_err > joint.limits[1] {
-                linear_err += *axis1 * (limit_err - joint.limits[1]);
-            }
+            let (min_limit, max_limit) = (joint.limits[0], joint.limits[1]);
+            linear_err +=
+                *axis1 * ((limit_err - max_limit).max(0.0) - (min_limit - limit_err).max(0.0));
 
             #[cfg(feature = "dim2")]
             {
@@ -585,11 +583,9 @@ impl PrismaticVelocityGroundConstraint {
 
             let ang_err = frame2.rotation * frame1.rotation.inverse();
 
-            if limit_err < joint.limits[0] {
-                linear_err += *axis1 * (limit_err - joint.limits[0]);
-            } else if limit_err > joint.limits[1] {
-                linear_err += *axis1 * (limit_err - joint.limits[1]);
-            }
+            let (min_limit, max_limit) = (joint.limits[0], joint.limits[1]);
+            linear_err +=
+                *axis1 * ((limit_err - max_limit).max(0.0) - (min_limit - limit_err).max(0.0));
 
             #[cfg(feature = "dim2")]
             {
