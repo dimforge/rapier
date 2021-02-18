@@ -424,6 +424,8 @@ impl NarrowPhase {
                 let context = PairFilterContext {
                     rigid_body1: rb1,
                     rigid_body2: rb2,
+                    collider_handle1: handle1,
+                    collider_handle2: handle2,
                     collider1: co1,
                     collider2: co2,
                 };
@@ -492,6 +494,8 @@ impl NarrowPhase {
                 let context = PairFilterContext {
                     rigid_body1: rb1,
                     rigid_body2: rb2,
+                    collider_handle1: pair.pair.collider1,
+                    collider_handle2: pair.pair.collider2,
                     collider1: co1,
                     collider2: co2,
                 };

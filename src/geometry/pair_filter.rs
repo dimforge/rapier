@@ -1,5 +1,5 @@
 use crate::dynamics::RigidBody;
-use crate::geometry::{Collider, SolverFlags};
+use crate::geometry::{Collider, ColliderHandle, SolverFlags};
 
 /// Context given to custom collision filters to filter-out collisions.
 pub struct PairFilterContext<'a> {
@@ -7,6 +7,10 @@ pub struct PairFilterContext<'a> {
     pub rigid_body1: &'a RigidBody,
     /// The first collider involved in the potential collision.
     pub rigid_body2: &'a RigidBody,
+    /// The first collider involved in the potential collision.
+    pub collider_handle1: ColliderHandle,
+    /// The first collider involved in the potential collision.
+    pub collider_handle2: ColliderHandle,
     /// The first collider involved in the potential collision.
     pub collider1: &'a Collider,
     /// The first collider involved in the potential collision.
