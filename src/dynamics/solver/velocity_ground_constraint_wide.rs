@@ -95,8 +95,6 @@ impl WVelocityGroundConstraint {
 
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
-        let restitution_velocity_threshold = SimdReal::splat(params.restitution_velocity_threshold);
-
         let warmstart_multiplier =
             SimdReal::from(array![|ii| manifolds[ii].data.warmstart_multiplier; SIMD_WIDTH]);
         let warmstart_coeff = warmstart_multiplier * SimdReal::splat(params.warmstart_coeff);
@@ -122,6 +120,9 @@ impl WVelocityGroundConstraint {
                     SimdReal::from(array![|ii| manifold_points[ii][k].friction; SIMD_WIDTH]);
                 let restitution =
                     SimdReal::from(array![|ii| manifold_points[ii][k].restitution; SIMD_WIDTH]);
+                let is_bouncy = SimdReal::from(
+                    array![|ii| manifold_points[ii][k].is_bouncy() as u32 as Real; SIMD_WIDTH],
+                );
                 let point = Point::from(array![|ii| manifold_points[ii][k].point; SIMD_WIDTH]);
                 let dist = SimdReal::from(array![|ii| manifold_points[ii][k].dist; SIMD_WIDTH]);
 
@@ -140,11 +141,9 @@ impl WVelocityGroundConstraint {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-force_dir1));
 
                     let r = SimdReal::splat(1.0) / (im2 + gcross2.gdot(gcross2));
-                    let mut rhs = (vel1 - vel2).dot(&force_dir1);
-                    let use_restitution = rhs.simd_le(-restitution_velocity_threshold);
-                    let rhs_with_restitution = rhs + rhs * restitution;
-                    rhs = rhs_with_restitution.select(use_restitution, rhs);
-                    rhs += dist.simd_max(SimdReal::zero()) * inv_dt;
+                    let projected_velocity = (vel1 - vel2).dot(&force_dir1);
+                    let rhs = (SimdReal::splat(1.0) + is_bouncy * restitution) * projected_velocity
+                        + dist.simd_max(SimdReal::zero()) * inv_dt;
 
                     constraint.elements[k].normal_part = WVelocityGroundConstraintElementPart {
                         gcross2,

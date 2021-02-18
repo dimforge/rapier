@@ -154,15 +154,12 @@ impl VelocityGroundConstraint {
 
                     let r = 1.0 / (rb2.effective_inv_mass + gcross2.gdot(gcross2));
 
-                    let mut rhs = (vel1 - vel2).dot(&force_dir1);
+                    let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
+                    let rhs = (1.0 + is_bouncy * manifold_point.restitution)
+                        * (vel1 - vel2).dot(&force_dir1)
+                        + manifold_point.dist.max(0.0) * inv_dt;
 
-                    if rhs <= -params.restitution_velocity_threshold {
-                        rhs += manifold_point.restitution * rhs
-                    }
-
-                    rhs += manifold_point.dist.max(0.0) * inv_dt;
-
-                    let impulse = manifold_points[k].data.impulse * warmstart_coeff;
+                    let impulse = manifold_point.data.impulse * warmstart_coeff;
 
                     constraint.elements[k].normal_part = VelocityGroundConstraintElementPart {
                         gcross2,
