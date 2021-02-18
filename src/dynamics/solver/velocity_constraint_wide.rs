@@ -2,8 +2,7 @@ use super::{AnyVelocityConstraint, DeltaVel};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
-    AngVector, AngularInertia, Point, Real, SimdBool, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS,
-    SIMD_WIDTH,
+    AngVector, AngularInertia, Point, Real, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WBasis, WCross, WDot};
 use num::Zero;
@@ -124,11 +123,11 @@ impl WVelocityConstraint {
             for k in 0..num_points {
                 let friction =
                     SimdReal::from(array![|ii| manifold_points[ii][k].friction; SIMD_WIDTH]);
-                let restitution_plus_1 = SimdReal::from(
-                    array![|ii| manifold_points[ii][k].restitution + 1.0; SIMD_WIDTH],
+                let restitution =
+                    SimdReal::from(array![|ii| manifold_points[ii][k].restitution; SIMD_WIDTH]);
+                let is_bouncy = SimdReal::from(
+                    array![|ii| manifold_points[ii][k].is_bouncy() as u32 as Real; SIMD_WIDTH],
                 );
-                let is_bouncy =
-                    SimdBool::from(array![|ii| manifold_points[ii][k].is_bouncy(); SIMD_WIDTH]);
                 let point = Point::from(array![|ii| manifold_points[ii][k].point; SIMD_WIDTH]);
                 let dist = SimdReal::from(array![|ii| manifold_points[ii][k].dist; SIMD_WIDTH]);
 
@@ -151,9 +150,8 @@ impl WVelocityConstraint {
                     let r = SimdReal::splat(1.0)
                         / (im1 + im2 + gcross1.gdot(gcross1) + gcross2.gdot(gcross2));
                     let projected_velocity = (vel1 - vel2).dot(&force_dir1);
-                    let rhs_resting = projected_velocity + dist.simd_max(SimdReal::zero()) * inv_dt;
-                    let rhs_bouncing = projected_velocity * restitution_plus_1;
-                    let rhs = rhs_bouncing.select(is_bouncy, rhs_resting);
+                    let rhs = (SimdReal::splat(1.0) + is_bouncy * restitution) * projected_velocity
+                        + dist.simd_max(SimdReal::zero()) * inv_dt;
 
                     constraint.elements[k].normal_part = WVelocityConstraintElementPart {
                         gcross1,
