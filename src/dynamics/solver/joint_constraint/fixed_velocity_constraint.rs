@@ -323,15 +323,6 @@ impl FixedVelocityGroundConstraint {
 
         let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
         if velocity_based_erp_inv_dt != 0.0 {
-            // let error = anchor2 * anchor1.inverse();
-            // let lin_err = error.translation.vector;
-            // let ang_err = error.rotation;
-
-            // Doesn't quite do what it should
-            // let target_pos = anchor1.lerp_slerp(&anchor2, velocity_based_erp_inv_dt);
-            // let error = target_pos * anchor1.inverse();
-            // let lin_err = error.translation.vector;
-
             let lin_err = anchor2.translation.vector - anchor1.translation.vector;
             let ang_err = anchor2.rotation * anchor1.rotation.inverse();
 

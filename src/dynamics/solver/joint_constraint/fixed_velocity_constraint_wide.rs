@@ -10,7 +10,7 @@ use crate::math::{
 };
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 #[cfg(feature = "dim3")]
-use na::{Cholesky, Matrix6, Vector6, U3};
+use na::{Cholesky, Matrix6, Vector3, Vector6, U3};
 #[cfg(feature = "dim2")]
 use {
     na::{Matrix3, Vector3},
@@ -132,13 +132,38 @@ impl WFixedVelocityConstraint {
         let lin_dvel = -linvel1 - angvel1.gcross(r1) + linvel2 + angvel2.gcross(r2);
         let ang_dvel = -angvel1 + angvel2;
 
+        let velocity_solve_fraction = SimdReal::splat(params.velocity_solve_fraction);
+
         #[cfg(feature = "dim2")]
-        let rhs = Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
+        let mut rhs = Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel) * velocity_solve_fraction;
 
         #[cfg(feature = "dim3")]
-        let rhs = Vector6::new(
+        let mut rhs = Vector6::new(
             lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
-        );
+        ) * velocity_solve_fraction;
+
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        if velocity_based_erp_inv_dt != 0.0 {
+            let velocity_based_erp_inv_dt = SimdReal::splat(velocity_based_erp_inv_dt);
+
+            let lin_err = anchor2.translation.vector - anchor1.translation.vector;
+            let ang_err = anchor2.rotation * anchor1.rotation.inverse();
+
+            #[cfg(feature = "dim2")]
+            {
+                let ang_err = ang_err.angle();
+                rhs += Vector3::new(lin_err.x, lin_err.y, ang_err) * velocity_based_erp_inv_dt;
+            }
+
+            #[cfg(feature = "dim3")]
+            {
+                let ang_err =
+                    Vector3::from(array![|ii| ang_err.extract(ii).scaled_axis(); SIMD_WIDTH]);
+                rhs += Vector6::new(
+                    lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y, ang_err.z,
+                ) * velocity_based_erp_inv_dt;
+            }
+        }
 
         WFixedVelocityConstraint {
             joint_id,
@@ -373,12 +398,38 @@ impl WFixedVelocityGroundConstraint {
         let lin_dvel = linvel2 + angvel2.gcross(r2) - linvel1 - angvel1.gcross(r1);
         let ang_dvel = angvel2 - angvel1;
 
+        let velocity_solve_fraction = SimdReal::splat(params.velocity_solve_fraction);
+
         #[cfg(feature = "dim2")]
-        let rhs = Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
+        let mut rhs = Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel) * velocity_solve_fraction;
+
         #[cfg(feature = "dim3")]
-        let rhs = Vector6::new(
+        let mut rhs = Vector6::new(
             lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
-        );
+        ) * velocity_solve_fraction;
+
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        if velocity_based_erp_inv_dt != 0.0 {
+            let velocity_based_erp_inv_dt = SimdReal::splat(velocity_based_erp_inv_dt);
+
+            let lin_err = anchor2.translation.vector - anchor1.translation.vector;
+            let ang_err = anchor2.rotation * anchor1.rotation.inverse();
+
+            #[cfg(feature = "dim2")]
+            {
+                let ang_err = ang_err.angle();
+                rhs += Vector3::new(lin_err.x, lin_err.y, ang_err) * velocity_based_erp_inv_dt;
+            }
+
+            #[cfg(feature = "dim3")]
+            {
+                let ang_err =
+                    Vector3::from(array![|ii| ang_err.extract(ii).scaled_axis(); SIMD_WIDTH]);
+                rhs += Vector6::new(
+                    lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y, ang_err.z,
+                ) * velocity_based_erp_inv_dt;
+            }
+        }
 
         WFixedVelocityGroundConstraint {
             joint_id,
