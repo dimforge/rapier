@@ -107,6 +107,7 @@ impl RevoluteVelocityConstraint {
 
             let axis1 = rb1.position * joint.local_axis1;
             let axis2 = rb2.position * joint.local_axis2;
+
             let ang_err =
                 Rotation::rotation_between_axis(&axis1, &axis2).unwrap_or_else(Rotation::identity);
             let ang_err = ang_err.scaled_axis();

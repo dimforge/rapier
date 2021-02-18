@@ -8,7 +8,7 @@ use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, Rotation, SimdReal, Vector, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
-use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
+use na::{Cholesky, Matrix3x2, Matrix5, Vector3, Vector5, U2, U3};
 
 #[derive(Debug)]
 pub(crate) struct WRevoluteVelocityConstraint {
@@ -107,9 +107,32 @@ impl WRevoluteVelocityConstraint {
 
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = linvel2 + angvel2.gcross(r2) - linvel1 - angvel1.gcross(r1);
-        let ang_rhs = basis2.tr_mul(&angvel2) - basis1.tr_mul(&angvel1);
-        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, lin_rhs.z, ang_rhs.x, ang_rhs.y);
+        let linvel_err = linvel2 + angvel2.gcross(r2) - linvel1 - angvel1.gcross(r1);
+        let angvel_err = basis2.tr_mul(&angvel2) - basis1.tr_mul(&angvel1);
+
+        let mut rhs = Vector5::new(
+            linvel_err.x,
+            linvel_err.y,
+            linvel_err.z,
+            angvel_err.x,
+            angvel_err.y,
+        ) * SimdReal::splat(params.velocity_solve_fraction);
+
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        if velocity_based_erp_inv_dt != 0.0 {
+            let velocity_based_erp_inv_dt = SimdReal::splat(velocity_based_erp_inv_dt);
+
+            let lin_err = anchor2 - anchor1;
+
+            let ang_err = Vector3::<SimdReal>::from(array![|ii| {
+                    let axis1 = rbs1[ii].position * joints[ii].local_axis1;
+                    let axis2 = rbs2[ii].position * joints[ii].local_axis2;
+                    Rotation::rotation_between_axis(&axis1, &axis2).unwrap_or_else(Rotation::identity).scaled_axis()
+                }; SIMD_WIDTH]);
+
+            rhs += Vector5::new(lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y)
+                * velocity_based_erp_inv_dt;
+        }
 
         /*
          * Adjust the warmstart impulse.
@@ -357,9 +380,32 @@ impl WRevoluteVelocityGroundConstraint {
 
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = (linvel2 + angvel2.gcross(r2)) - (linvel1 + angvel1.gcross(r1));
-        let ang_rhs = basis2.tr_mul(&angvel2) - basis1.tr_mul(&angvel1);
-        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, lin_rhs.z, ang_rhs.x, ang_rhs.y);
+        let linvel_err = (linvel2 + angvel2.gcross(r2)) - (linvel1 + angvel1.gcross(r1));
+        let angvel_err = basis2.tr_mul(&angvel2) - basis1.tr_mul(&angvel1);
+
+        let mut rhs = Vector5::new(
+            linvel_err.x,
+            linvel_err.y,
+            linvel_err.z,
+            angvel_err.x,
+            angvel_err.y,
+        ) * SimdReal::splat(params.velocity_solve_fraction);
+
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        if velocity_based_erp_inv_dt != 0.0 {
+            let velocity_based_erp_inv_dt = SimdReal::splat(velocity_based_erp_inv_dt);
+
+            let lin_err = anchor2 - anchor1;
+
+            let ang_err = Vector3::<SimdReal>::from(array![|ii| {
+                    let axis1 = rbs1[ii].position * if flipped[ii] { joints[ii].local_axis2 } else { joints[ii].local_axis1 };
+                    let axis2 = rbs2[ii].position * if flipped[ii] { joints[ii].local_axis1 } else { joints[ii].local_axis2 };
+                    Rotation::rotation_between_axis(&axis1, &axis2).unwrap_or_else(Rotation::identity).scaled_axis()
+                }; SIMD_WIDTH]);
+
+            rhs += Vector5::new(lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y)
+                * velocity_based_erp_inv_dt;
+        }
 
         WRevoluteVelocityGroundConstraint {
             joint_id,

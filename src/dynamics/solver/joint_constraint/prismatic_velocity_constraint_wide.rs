@@ -248,7 +248,6 @@ impl WPrismaticVelocityConstraint {
         let mut limits_rhs = na::zero();
         let mut limits_impulse = na::zero();
         let mut limits_inv_lhs = na::zero();
-        let limits_enabled = SimdBool::from(array![|ii| cparams[ii].limits_enabled; SIMD_WIDTH]);
 
         if limits_enabled {
             let danchor = anchor2 - anchor1;
