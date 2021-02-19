@@ -7,8 +7,7 @@ use super::{RevoluteVelocityConstraint, RevoluteVelocityGroundConstraint};
 #[cfg(feature = "simd-is-enabled")]
 use super::{
     WBallVelocityConstraint, WBallVelocityGroundConstraint, WFixedVelocityConstraint,
-    WFixedVelocityGroundConstraint, WGenericPositionConstraint, WGenericPositionGroundConstraint,
-    WGenericVelocityConstraint, WGenericVelocityGroundConstraint, WPrismaticVelocityConstraint,
+    WFixedVelocityGroundConstraint, WPrismaticVelocityConstraint,
     WPrismaticVelocityGroundConstraint,
 };
 #[cfg(feature = "dim3")]
@@ -122,12 +121,12 @@ impl AnyJointVelocityConstraint {
                     params, joint_id, rbs1, rbs2, joints,
                 ))
             }
-            JointParams::GenericJoint(_) => {
-                let joints = array![|ii| joints[ii].params.as_generic_joint().unwrap(); SIMD_WIDTH];
-                AnyJointVelocityConstraint::WGenericConstraint(
-                    WGenericVelocityConstraint::from_params(params, joint_id, rbs1, rbs2, joints),
-                )
-            }
+            // JointParams::GenericJoint(_) => {
+            //     let joints = array![|ii| joints[ii].params.as_generic_joint().unwrap(); SIMD_WIDTH];
+            //     AnyJointVelocityConstraint::WGenericConstraint(
+            //         WGenericVelocityConstraint::from_params(params, joint_id, rbs1, rbs2, joints),
+            //     )
+            // }
             JointParams::PrismaticJoint(_) => {
                 let joints =
                     array![|ii| joints[ii].params.as_prismatic_joint().unwrap(); SIMD_WIDTH];
@@ -221,14 +220,14 @@ impl AnyJointVelocityConstraint {
                     ),
                 )
             }
-            JointParams::GenericJoint(_) => {
-                let joints = array![|ii| joints[ii].params.as_generic_joint().unwrap(); SIMD_WIDTH];
-                AnyJointVelocityConstraint::WGenericGroundConstraint(
-                    WGenericVelocityGroundConstraint::from_params(
-                        params, joint_id, rbs1, rbs2, joints, flipped,
-                    ),
-                )
-            }
+            // JointParams::GenericJoint(_) => {
+            //     let joints = array![|ii| joints[ii].params.as_generic_joint().unwrap(); SIMD_WIDTH];
+            //     AnyJointVelocityConstraint::WGenericGroundConstraint(
+            //         WGenericVelocityGroundConstraint::from_params(
+            //             params, joint_id, rbs1, rbs2, joints, flipped,
+            //         ),
+            //     )
+            // }
             JointParams::PrismaticJoint(_) => {
                 let joints =
                     array![|ii| joints[ii].params.as_prismatic_joint().unwrap(); SIMD_WIDTH];

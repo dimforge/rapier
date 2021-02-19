@@ -10,8 +10,8 @@ use super::{WRevolutePositionConstraint, WRevolutePositionGroundConstraint};
 #[cfg(feature = "simd-is-enabled")]
 use super::{
     WBallPositionConstraint, WBallPositionGroundConstraint, WFixedPositionConstraint,
-    WFixedPositionGroundConstraint, WGenericPositionConstraint, WGenericPositionGroundConstraint,
-    WPrismaticPositionConstraint, WPrismaticPositionGroundConstraint,
+    WFixedPositionGroundConstraint, WPrismaticPositionConstraint,
+    WPrismaticPositionGroundConstraint,
 };
 use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{IntegrationParameters, Joint, JointParams, RigidBodySet};
@@ -99,12 +99,12 @@ impl AnyJointPositionConstraint {
                     rbs1, rbs2, joints,
                 ))
             }
-            JointParams::GenericJoint(_) => {
-                let joints = array![|ii| joints[ii].params.as_generic_joint().unwrap(); SIMD_WIDTH];
-                AnyJointPositionConstraint::WGenericJoint(WGenericPositionConstraint::from_params(
-                    rbs1, rbs2, joints,
-                ))
-            }
+            // JointParams::GenericJoint(_) => {
+            //     let joints = array![|ii| joints[ii].params.as_generic_joint().unwrap(); SIMD_WIDTH];
+            //     AnyJointPositionConstraint::WGenericJoint(WGenericPositionConstraint::from_params(
+            //         rbs1, rbs2, joints,
+            //     ))
+            // }
             JointParams::PrismaticJoint(_) => {
                 let joints =
                     array![|ii| joints[ii].params.as_prismatic_joint().unwrap(); SIMD_WIDTH];
@@ -180,12 +180,12 @@ impl AnyJointPositionConstraint {
                     WFixedPositionGroundConstraint::from_params(rbs1, rbs2, joints, flipped),
                 )
             }
-            JointParams::GenericJoint(_) => {
-                let joints = array![|ii| joints[ii].params.as_generic_joint().unwrap(); SIMD_WIDTH];
-                AnyJointPositionConstraint::WGenericGroundConstraint(
-                    WGenericPositionGroundConstraint::from_params(rbs1, rbs2, joints, flipped),
-                )
-            }
+            // JointParams::GenericJoint(_) => {
+            //     let joints = array![|ii| joints[ii].params.as_generic_joint().unwrap(); SIMD_WIDTH];
+            //     AnyJointPositionConstraint::WGenericGroundConstraint(
+            //         WGenericPositionGroundConstraint::from_params(rbs1, rbs2, joints, flipped),
+            //     )
+            // }
             JointParams::PrismaticJoint(_) => {
                 let joints =
                     array![|ii| joints[ii].params.as_prismatic_joint().unwrap(); SIMD_WIDTH];

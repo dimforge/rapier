@@ -135,6 +135,11 @@ impl PrismaticJoint {
         self.local_axis2
     }
 
+    /// Can a SIMD constraint be used for resolving this joint?
+    pub fn supports_simd_constraints(&self) -> bool {
+        true
+    }
+
     // FIXME: precompute this?
     #[cfg(feature = "dim2")]
     pub(crate) fn local_frame1(&self) -> Isometry<Real> {

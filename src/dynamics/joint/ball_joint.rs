@@ -31,4 +31,9 @@ impl BallJoint {
             impulse,
         }
     }
+
+    /// Can a SIMD constraint be used for resolving this joint?
+    pub fn supports_simd_constraints(&self) -> bool {
+        true
+    }
 }

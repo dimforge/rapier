@@ -56,24 +56,25 @@ impl RevoluteVelocityConstraint {
             rb1.position * joint.basis1[0],
             rb1.position * joint.basis1[1],
         ]);
-        let basis_filter1 = basis1 * basis1.transpose();
-        let basis2 = Matrix3x2::from_columns(&[
+        let basis_projection1 = basis1 * basis1.transpose();
+
+        let basis_projection_half2 = Matrix3x2::from_columns(&[
             rb2.position * joint.basis2[0],
             rb2.position * joint.basis2[1],
         ]);
-        let basis_filter2 = basis2 * basis2.transpose();
-        let basis2 = basis_filter2 * basis1;
+        let basis_projection2 = basis_projection_half2 * basis_projection_half2.transpose();
+        let basis2 = basis_projection2 * basis1;
 
         let im1 = rb1.effective_inv_mass;
         let im2 = rb2.effective_inv_mass;
 
         let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
         let r1 = anchor1 - rb1.world_com;
-        let r1_mat = basis_filter1 * r1.gcross_matrix();
+        let r1_mat = basis_projection1 * r1.gcross_matrix();
 
         let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
         let r2 = anchor2 - rb2.world_com;
-        let r2_mat = basis_filter2 * r2.gcross_matrix();
+        let r2_mat = basis_projection2 * r2.gcross_matrix();
 
         let mut lhs = Matrix5::zeros();
         let lhs00 =
@@ -318,15 +319,15 @@ impl RevoluteVelocityGroundConstraint {
             anchor1 = rb1.position * joint.local_anchor2;
             anchor2 = rb2.position * joint.local_anchor1;
             basis2 = Matrix3x2::from_columns(&[
-                rb2.position * joint.basis2[0],
-                rb2.position * joint.basis2[1],
+                rb2.position * joint.basis1[0],
+                rb2.position * joint.basis1[1],
             ]);
         } else {
             anchor1 = rb1.position * joint.local_anchor1;
             anchor2 = rb2.position * joint.local_anchor2;
             basis2 = Matrix3x2::from_columns(&[
-                rb2.position * joint.basis1[0],
-                rb2.position * joint.basis1[1],
+                rb2.position * joint.basis2[0],
+                rb2.position * joint.basis2[1],
             ]);
         };
 

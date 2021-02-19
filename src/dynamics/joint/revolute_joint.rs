@@ -77,6 +77,12 @@ impl RevoluteJoint {
         }
     }
 
+    /// Can a SIMD constraint be used for resolving this joint?
+    pub fn supports_simd_constraints(&self) -> bool {
+        // SIMD revolute constraints don't support motors right now.
+        self.motor_max_impulse == 0.0 || (self.motor_stiffness == 0.0 && self.motor_damping == 0.0)
+    }
+
     pub fn configure_motor_model(&mut self, model: SpringModel) {
         self.motor_model = model;
     }
