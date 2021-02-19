@@ -72,6 +72,9 @@ impl WVelocityConstraint {
         }
 
         let inv_dt = SimdReal::splat(params.inv_dt());
+        let velocity_solve_fraction = SimdReal::splat(params.velocity_solve_fraction);
+        let velocity_based_erp_inv_dt = SimdReal::splat(params.velocity_based_erp_inv_dt());
+
         let rbs1 = array![|ii| &bodies[manifolds[ii].data.body_pair.body1]; SIMD_WIDTH];
         let rbs2 = array![|ii| &bodies[manifolds[ii].data.body_pair.body2]; SIMD_WIDTH];
 
@@ -132,6 +135,7 @@ impl WVelocityConstraint {
                 let is_bouncy = SimdReal::from(
                     array![|ii| manifold_points[ii][k].is_bouncy() as u32 as Real; SIMD_WIDTH],
                 );
+                let is_resting = SimdReal::splat(1.0) - is_bouncy;
                 let point = Point::from(array![|ii| manifold_points[ii][k].point; SIMD_WIDTH]);
                 let dist = SimdReal::from(array![|ii| manifold_points[ii][k].dist; SIMD_WIDTH]);
                 let tangent_velocity =
@@ -158,8 +162,12 @@ impl WVelocityConstraint {
                     let r = SimdReal::splat(1.0)
                         / (im1 + im2 + gcross1.gdot(gcross1) + gcross2.gdot(gcross2));
                     let projected_velocity = (vel1 - vel2).dot(&force_dir1);
-                    let rhs = (SimdReal::splat(1.0) + is_bouncy * restitution) * projected_velocity
-                        + dist.simd_max(SimdReal::zero()) * inv_dt;
+                    let mut rhs =
+                        (SimdReal::splat(1.0) + is_bouncy * restitution) * projected_velocity;
+                    rhs += dist.simd_max(SimdReal::zero()) * inv_dt;
+                    rhs *= is_bouncy + is_resting * velocity_solve_fraction;
+                    rhs +=
+                        dist.simd_min(SimdReal::zero()) * (velocity_based_erp_inv_dt * is_resting);
 
                     constraint.elements[k].normal_part = WVelocityConstraintElementPart {
                         gcross1,
