@@ -59,72 +59,6 @@ impl RevolutePositionConstraint {
         let mut position1 = positions[self.position1 as usize];
         let mut position2 = positions[self.position2 as usize];
 
-        let anchor1 = position1 * self.local_anchor1;
-        let anchor2 = position2 * self.local_anchor2;
-        let axis1 = position1 * self.local_axis1;
-        let axis2 = position2 * self.local_axis2;
-
-        let basis1 = Matrix3x2::from_columns(&[
-            position1 * self.local_basis1[0],
-            position1 * self.local_basis1[1],
-        ]);
-        let basis2 = Matrix3x2::from_columns(&[
-            position2 * self.local_basis2[0],
-            position2 * self.local_basis2[1],
-        ]);
-
-        let basis_filter1 = basis1 * basis1.transpose();
-        let basis_filter2 = basis2 * basis2.transpose();
-        let basis2 = basis_filter2 * basis1;
-
-        let r1 = anchor1 - position1 * self.local_com1;
-        let r2 = anchor2 - position2 * self.local_com2;
-        let r1_mat = basis_filter1 * r1.gcross_matrix();
-        let r2_mat = basis_filter2 * r2.gcross_matrix();
-
-        let mut lhs = Matrix5::zeros();
-        let lhs00 = self.ii2.quadform(&r2_mat).add_diagonal(self.im2)
-            + self.ii1.quadform(&r1_mat).add_diagonal(self.im1);
-        let lhs10 = basis2.tr_mul(&(self.ii2 * r2_mat)) + basis1.tr_mul(&(self.ii1 * r1_mat));
-        let lhs11 = (self.ii1.quadform3x2(&basis1) + self.ii2.quadform3x2(&basis2)).into_matrix();
-
-        // Note that cholesky won't read the upper-right part
-        // of lhs so we don't have to fill it.
-        lhs.fixed_slice_mut::<na::U3, na::U3>(0, 0)
-            .copy_from(&lhs00.into_matrix());
-        lhs.fixed_slice_mut::<na::U2, na::U3>(3, 0)
-            .copy_from(&lhs10);
-        lhs.fixed_slice_mut::<na::U2, na::U2>(3, 3)
-            .copy_from(&lhs11);
-
-        let inv_lhs = na::Cholesky::new_unchecked(lhs).inverse();
-
-        let delta_tra = anchor2 - anchor1;
-        let lin_error = delta_tra * params.joint_erp;
-        let delta_rot =
-            Rotation::rotation_between_axis(&axis1, &axis2).unwrap_or_else(Rotation::identity);
-
-        let ang_error = basis1.tr_mul(&delta_rot.scaled_axis()) * params.joint_erp;
-        let error = na::Vector5::new(
-            lin_error.x,
-            lin_error.y,
-            lin_error.z,
-            ang_error.x,
-            ang_error.y,
-        );
-        let impulse = inv_lhs * error;
-        let lin_impulse = impulse.fixed_rows::<na::U3>(0).into_owned();
-        let ang_impulse1 = basis1 * impulse.fixed_rows::<na::U2>(3).into_owned();
-        let ang_impulse2 = basis2 * impulse.fixed_rows::<na::U2>(3).into_owned();
-
-        let rot1 = self.ii1 * (r1_mat * lin_impulse + ang_impulse1);
-        let rot2 = self.ii2 * (r2_mat * lin_impulse + ang_impulse2);
-        position1.rotation = Rotation::new(rot1) * position1.rotation;
-        position2.rotation = Rotation::new(-rot2) * position2.rotation;
-        position1.translation.vector += self.im1 * lin_impulse;
-        position2.translation.vector -= self.im2 * lin_impulse;
-
-        /*
         /*
          * Linear part.
          */
@@ -134,7 +68,8 @@ impl RevolutePositionConstraint {
 
             let r1 = anchor1 - position1 * self.local_com1;
             let r2 = anchor2 - position2 * self.local_com2;
-            // TODO: don't the the "to_matrix".
+
+            // TODO: don't do the "to_matrix".
             let lhs = (self
                 .ii2
                 .quadform(&r2.gcross_matrix())
@@ -174,7 +109,6 @@ impl RevolutePositionConstraint {
             position2.rotation =
                 Rotation::new(self.ii2.transform_vector(-ang_impulse)) * position2.rotation;
         }
-         */
 
         positions[self.position1 as usize] = position1;
         positions[self.position2 as usize] = position2;
@@ -249,61 +183,6 @@ impl RevolutePositionGroundConstraint {
     pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
         let mut position2 = positions[self.position2 as usize];
 
-        let anchor1 = self.anchor1;
-        let anchor2 = position2 * self.local_anchor2;
-        let axis1 = self.axis1;
-        let axis2 = position2 * self.local_axis2;
-
-        let basis1 = Matrix3x2::from_columns(&self.basis1[..]);
-        let basis2 = Matrix3x2::from_columns(&[
-            position2 * self.local_basis2[0],
-            position2 * self.local_basis2[1],
-        ]);
-
-        let basis_filter2 = basis2 * basis2.transpose();
-        let basis2 = basis_filter2 * basis1;
-
-        let r2 = anchor2 - position2 * self.local_com2;
-        let r2_mat = basis_filter2 * r2.gcross_matrix();
-
-        let mut lhs = Matrix5::zeros();
-        let lhs00 = self.ii2.quadform(&r2_mat).add_diagonal(self.im2);
-        let lhs10 = basis2.tr_mul(&(self.ii2 * r2_mat));
-        let lhs11 = self.ii2.quadform3x2(&basis2).into_matrix();
-
-        // Note that cholesky won't read the upper-right part
-        // of lhs so we don't have to fill it.
-        lhs.fixed_slice_mut::<na::U3, na::U3>(0, 0)
-            .copy_from(&lhs00.into_matrix());
-        lhs.fixed_slice_mut::<na::U2, na::U3>(3, 0)
-            .copy_from(&lhs10);
-        lhs.fixed_slice_mut::<na::U2, na::U2>(3, 3)
-            .copy_from(&lhs11);
-
-        let inv_lhs = na::Cholesky::new_unchecked(lhs).inverse();
-
-        let delta_tra = anchor2 - anchor1;
-        let lin_error = delta_tra * params.joint_erp;
-        let delta_rot =
-            Rotation::rotation_between_axis(&axis1, &axis2).unwrap_or_else(Rotation::identity);
-
-        let ang_error = basis1.tr_mul(&delta_rot.scaled_axis()) * params.joint_erp;
-        let error = na::Vector5::new(
-            lin_error.x,
-            lin_error.y,
-            lin_error.z,
-            ang_error.x,
-            ang_error.y,
-        );
-        let impulse = inv_lhs * error;
-        let lin_impulse = impulse.fixed_rows::<na::U3>(0).into_owned();
-        let ang_impulse2 = basis2 * impulse.fixed_rows::<na::U2>(3).into_owned();
-
-        let rot2 = self.ii2 * (r2_mat * lin_impulse + ang_impulse2);
-        position2.rotation = Rotation::new(-rot2) * position2.rotation;
-        position2.translation.vector -= self.im2 * lin_impulse;
-
-        /*
         /*
          * Linear part.
          */
@@ -338,7 +217,6 @@ impl RevolutePositionGroundConstraint {
             let ang_error = delta_rot.scaled_axis() * params.joint_erp;
             position2.rotation = Rotation::new(-ang_error) * position2.rotation;
         }
-        */
 
         positions[self.position2 as usize] = position2;
     }

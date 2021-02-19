@@ -344,13 +344,27 @@ impl PhysxWorld {
                             .into_physx()
                             .into();
 
-                        physx_sys::phys_PxRevoluteJointCreate(
+                        let revolute_joint = physx_sys::phys_PxRevoluteJointCreate(
                             physics.as_mut_ptr(),
                             actor1,
                             &frame1 as *const _,
                             actor2,
                             &frame2 as *const _,
                         );
+
+                        physx_sys::PxRevoluteJoint_setDriveVelocity_mut(
+                            revolute_joint,
+                            params.motor_target_vel,
+                            true,
+                        );
+
+                        if params.motor_damping != 0.0 {
+                            physx_sys::PxRevoluteJoint_setRevoluteJointFlag_mut(
+                                revolute_joint,
+                                physx_sys::PxRevoluteJointFlag::eDRIVE_ENABLED,
+                                true,
+                            );
+                        }
                     }
 
                     JointParams::PrismaticJoint(params) => {
@@ -420,12 +434,11 @@ impl PhysxWorld {
                             actor2,
                             &frame2 as *const _,
                         );
-                    }
-                    JointParams::GenericJoint(_) => {
-                        eprintln!(
-                            "Joint type currently unsupported by the nphysics backend: GenericJoint."
-                        )
-                    }
+                    } // JointParams::GenericJoint(_) => {
+                      //     eprintln!(
+                      //         "Joint type currently unsupported by the PhysX backend: GenericJoint."
+                      //     )
+                      // }
                 }
             }
         }

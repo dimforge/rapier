@@ -32,7 +32,8 @@ pub(crate) struct GenericVelocityConstraint {
 
     r1: Vector<Real>,
     r2: Vector<Real>,
-    basis: Rotation<Real>,
+    basis1: Rotation<Real>,
+    basis2: Rotation<Real>,
     dependant_set_mask: SpacialVector<Real>,
 
     vel: GenericConstraintPart,
@@ -44,22 +45,22 @@ impl GenericVelocityConstraint {
         max_velocity: &SpatialVector<Real>,
         r1: &Vector<Real>,
         r2: &Vector<Real>,
-        basis: &Rotation<Real>,
+        basis1: &Rotation<Real>,
+        basis2: &Rotation<Real>,
         rb1: &RigidBody,
         rb2: &RigidBody,
     ) -> SpatialVector<Real> {
-        let lin_dvel = -rb1.linvel - rb1.angvel.gcross(*r1) + rb2.linvel + rb2.angvel.gcross(*r2);
-        let ang_dvel = -rb1.angvel + rb2.angvel;
-
-        let lin_dvel2 = basis.inverse_transform_vector(&lin_dvel);
-        let ang_dvel2 = basis.inverse_transform_vector(&ang_dvel);
+        let lin_dvel = basis1.inverse_transform_vector(&(-rb1.linvel - rb1.angvel.gcross(*r1)))
+            + basis2.inverse_transform_vector(&(rb2.linvel + rb2.angvel.gcross(*r2)));
+        let ang_dvel = basis1.inverse_transform_vector(&-rb1.angvel)
+            + basis2.inverse_transform_vector(&rb2.angvel);
 
         let min_linvel = min_velocity.xyz();
         let min_angvel = min_velocity.fixed_rows::<AngDim>(DIM).into_owned();
         let max_linvel = max_velocity.xyz();
         let max_angvel = max_velocity.fixed_rows::<AngDim>(DIM).into_owned();
-        let lin_rhs = lin_dvel2 - lin_dvel2.sup(&min_linvel).inf(&max_linvel);
-        let ang_rhs = ang_dvel2 - ang_dvel2.sup(&min_angvel).inf(&max_angvel);
+        let lin_rhs = lin_dvel - lin_dvel.sup(&min_linvel).inf(&max_linvel);
+        let ang_rhs = ang_dvel - ang_dvel.sup(&min_angvel).inf(&max_angvel);
 
         #[cfg(feature = "dim2")]
         return Vector3::new(lin_rhs.x, lin_rhs.y, ang_rhs);
@@ -120,6 +121,32 @@ impl GenericVelocityConstraint {
         }
     }
 
+    pub fn invert_partial_delassus_matrix(
+        min_impulse: &Vector<Real>,
+        max_impulse: &Vector<Real>,
+        dependant_set_mask: &mut Vector<Real>,
+        mut delassus: na::Matrix3<Real>,
+    ) -> na::Matrix3<Real> {
+        // Adjust the Delassus matrix to take force limits into account.
+        // If a DoF has a force limit, then we need to make its
+        // constraint independent from the others because otherwise
+        // the force clamping will cause errors to propagate in the
+        // other constraints.
+        for i in 0..3 {
+            if min_impulse[i] > -Real::MAX || max_impulse[i] < Real::MAX {
+                let diag = delassus[(i, i)];
+                delassus.column_mut(i).fill(0.0);
+                delassus.row_mut(i).fill(0.0);
+                delassus[(i, i)] = diag;
+                dependant_set_mask[i] = 0.0;
+            } else {
+                dependant_set_mask[i] = 1.0;
+            }
+        }
+
+        delassus.try_inverse().unwrap()
+    }
+
     pub fn compute_position_error(
         joint: &GenericJoint,
         anchor1: &Isometry<Real>,
@@ -169,32 +196,6 @@ impl GenericVelocityConstraint {
         }
     }
 
-    pub fn invert_partial_delassus_matrix(
-        min_impulse: &Vector<Real>,
-        max_impulse: &Vector<Real>,
-        dependant_set_mask: &mut Vector<Real>,
-        mut delassus: na::Matrix3<Real>,
-    ) -> na::Matrix3<Real> {
-        // Adjust the Delassus matrix to take force limits into account.
-        // If a DoF has a force limit, then we need to make its
-        // constraint independent from the others because otherwise
-        // the force clamping will cause errors to propagate in the
-        // other constraints.
-        for i in 0..3 {
-            if min_impulse[i] > -Real::MAX || max_impulse[i] < Real::MAX {
-                let diag = delassus[(i, i)];
-                delassus.column_mut(i).fill(0.0);
-                delassus.row_mut(i).fill(0.0);
-                delassus[(i, i)] = diag;
-                dependant_set_mask[i] = 0.0;
-            } else {
-                dependant_set_mask[i] = 1.0;
-            }
-        }
-
-        delassus.try_inverse().unwrap()
-    }
-
     pub fn from_params(
         params: &IntegrationParameters,
         joint_id: JointIndex,
@@ -204,7 +205,8 @@ impl GenericVelocityConstraint {
     ) -> Self {
         let anchor1 = rb1.position * joint.local_anchor1;
         let anchor2 = rb2.position * joint.local_anchor2;
-        let basis = anchor1.rotation;
+        let basis1 = anchor1.rotation;
+        let basis2 = anchor2.rotation;
         let im1 = rb1.effective_inv_mass;
         let im2 = rb2.effective_inv_mass;
         let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
@@ -219,7 +221,7 @@ impl GenericVelocityConstraint {
         let mut max_velocity = joint.max_velocity;
         let mut dependant_set_mask = SpacialVector::repeat(1.0);
 
-        let pos_rhs = Self::compute_position_error(joint, &anchor1, &anchor2, &basis)
+        let pos_rhs = Self::compute_position_error(joint, &anchor1, &anchor2, &basis1)
             * params.inv_dt()
             * params.joint_erp;
 
@@ -236,19 +238,28 @@ impl GenericVelocityConstraint {
             }
         }
 
-        let rhs =
-            Self::compute_velocity_error(&min_velocity, &max_velocity, &r1, &r2, &basis, rb1, rb2);
+        let rhs = Self::compute_velocity_error(
+            &min_velocity,
+            &max_velocity,
+            &r1,
+            &r2,
+            &basis1,
+            &basis2,
+            rb1,
+            rb2,
+        );
         let rhs_lin = rhs.xyz();
         let rhs_ang = rhs.fixed_rows::<Dim>(DIM).into();
 
         // TODO: we should keep the SdpMatrix3 type.
-        let rotmat = basis.to_rotation_matrix().into_inner();
-        let rmat1 = r1.gcross_matrix() * rotmat;
-        let rmat2 = r2.gcross_matrix() * rotmat;
+        let rotmat1 = basis1.to_rotation_matrix().into_inner();
+        let rotmat2 = basis2.to_rotation_matrix().into_inner();
+        let rmat1 = r1.gcross_matrix() * rotmat1;
+        let rmat2 = r2.gcross_matrix() * rotmat2;
         let delassus00 = (ii1.quadform(&rmat1).add_diagonal(im1)
             + ii2.quadform(&rmat2).add_diagonal(im2))
         .into_matrix();
-        let delassus11 = (ii1.quadform(&rotmat) + ii2.quadform(&rotmat)).into_matrix();
+        let delassus11 = (ii1.quadform(&rotmat1) + ii2.quadform(&rotmat2)).into_matrix();
 
         let inv_lhs_lin = GenericVelocityConstraint::invert_partial_delassus_matrix(
             &min_pos_impulse.xyz(),
@@ -288,7 +299,8 @@ impl GenericVelocityConstraint {
             inv_lhs_ang,
             r1,
             r2,
-            basis,
+            basis1,
+            basis2,
             dependant_set_mask,
             vel: GenericConstraintPart {
                 lin_impulse,
@@ -307,21 +319,20 @@ impl GenericVelocityConstraint {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        let lin_impulse = self.basis * self.vel.lin_impulse;
-        #[cfg(feature = "dim2")]
-        let ang_impulse = self.basis * self.vel.impulse[2];
-        #[cfg(feature = "dim3")]
-        let ang_impulse = self.basis * self.vel.ang_impulse;
+        let lin_impulse1 = self.basis1 * self.vel.lin_impulse;
+        let ang_impulse1 = self.basis1 * self.vel.ang_impulse;
+        let lin_impulse2 = self.basis2 * self.vel.lin_impulse;
+        let ang_impulse2 = self.basis2 * self.vel.ang_impulse;
 
-        mj_lambda1.linear += self.im1 * lin_impulse;
+        mj_lambda1.linear += self.im1 * lin_impulse1;
         mj_lambda1.angular += self
             .ii1_sqrt
-            .transform_vector(ang_impulse + self.r1.gcross(lin_impulse));
+            .transform_vector(ang_impulse1 + self.r1.gcross(lin_impulse1));
 
-        mj_lambda2.linear -= self.im2 * lin_impulse;
+        mj_lambda2.linear -= self.im2 * lin_impulse2;
         mj_lambda2.angular -= self
             .ii2_sqrt
-            .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
+            .transform_vector(ang_impulse2 + self.r2.gcross(lin_impulse2));
 
         mj_lambdas[self.mj_lambda1 as usize] = mj_lambda1;
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
@@ -440,6 +451,7 @@ impl GenericVelocityGroundConstraint {
             &max_velocity,
             &r1,
             &r2,
+            &basis,
             &basis,
             rb1,
             rb2,
@@ -585,28 +597,30 @@ impl GenericConstraintPart {
             let ang_vel1 = parent.ii1_sqrt.transform_vector(mj_lambda1.angular);
             let ang_vel2 = parent.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
-            let dvel = parent.basis.inverse_transform_vector(
-                &(-mj_lambda1.linear - ang_vel1.gcross(parent.r1)
-                    + mj_lambda2.linear
-                    + ang_vel2.gcross(parent.r2)),
-            );
+            let dvel = parent
+                .basis1
+                .inverse_transform_vector(&(-mj_lambda1.linear - ang_vel1.gcross(parent.r1)))
+                + parent
+                    .basis2
+                    .inverse_transform_vector(&(mj_lambda2.linear + ang_vel2.gcross(parent.r2)));
 
             let err = dvel + self.rhs_lin;
 
             new_lin_impulse = (self.lin_impulse + parent.inv_lhs_lin * err)
                 .sup(&self.min_lin_impulse)
                 .inf(&self.max_lin_impulse);
-            let effective_impulse = parent.basis * (new_lin_impulse - self.lin_impulse);
+            let effective_impulse1 = parent.basis1 * (new_lin_impulse - self.lin_impulse);
+            let effective_impulse2 = parent.basis2 * (new_lin_impulse - self.lin_impulse);
 
-            mj_lambda1.linear += parent.im1 * effective_impulse;
+            mj_lambda1.linear += parent.im1 * effective_impulse1;
             mj_lambda1.angular += parent
                 .ii1_sqrt
-                .transform_vector(parent.r1.gcross(effective_impulse));
+                .transform_vector(parent.r1.gcross(effective_impulse1));
 
-            mj_lambda2.linear -= parent.im2 * effective_impulse;
+            mj_lambda2.linear -= parent.im2 * effective_impulse2;
             mj_lambda2.angular -= parent
                 .ii2_sqrt
-                .transform_vector(parent.r2.gcross(effective_impulse));
+                .transform_vector(parent.r2.gcross(effective_impulse2));
         }
 
         /*
@@ -618,18 +632,18 @@ impl GenericConstraintPart {
             let ang_vel1 = parent.ii1_sqrt.transform_vector(mj_lambda1.angular);
             let ang_vel2 = parent.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
-            let dvel = parent
-                .basis
-                .inverse_transform_vector(&(ang_vel2 - ang_vel1));
+            let dvel = parent.basis2.inverse_transform_vector(&ang_vel2)
+                - parent.basis1.inverse_transform_vector(&ang_vel1);
             let err = dvel + self.rhs_ang;
 
             new_ang_impulse = (self.ang_impulse + parent.inv_lhs_ang * err)
                 .sup(&self.min_ang_impulse)
                 .inf(&self.max_ang_impulse);
-            let effective_impulse = parent.basis * (new_ang_impulse - self.ang_impulse);
+            let effective_impulse1 = parent.basis1 * (new_ang_impulse - self.ang_impulse);
+            let effective_impulse2 = parent.basis2 * (new_ang_impulse - self.ang_impulse);
 
-            mj_lambda1.angular += parent.ii1_sqrt.transform_vector(effective_impulse);
-            mj_lambda2.angular -= parent.ii2_sqrt.transform_vector(effective_impulse);
+            mj_lambda1.angular += parent.ii1_sqrt.transform_vector(effective_impulse1);
+            mj_lambda2.angular -= parent.ii2_sqrt.transform_vector(effective_impulse2);
         }
 
         (new_lin_impulse, new_ang_impulse)

@@ -1,11 +1,11 @@
 use crate::dynamics::solver::{AnyJointVelocityConstraint, AnyVelocityConstraint, DeltaVel};
 use crate::dynamics::{
-    GenericJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RevoluteJoint,
-    RigidBody,
+    IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RevoluteJoint, RigidBody,
 };
 use crate::math::{AngularInertia, Real, Rotation, Vector};
 use crate::na::UnitQuaternion;
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
+use downcast_rs::Downcast;
 use na::{Cholesky, Matrix3, Matrix3x2, Matrix5, RealField, Vector5, U2, U3};
 
 #[derive(Debug)]
@@ -26,6 +26,7 @@ pub(crate) struct RevoluteVelocityConstraint {
     motor_rhs: Real,
     motor_impulse: Real,
     motor_max_impulse: Real,
+    motor_angle: Real, // Exists only to write it back into the joint.
 
     motor_axis1: Vector<Real>,
     motor_axis2: Vector<Real>,
@@ -47,7 +48,7 @@ impl RevoluteVelocityConstraint {
         rb1: &RigidBody,
         rb2: &RigidBody,
         joint: &RevoluteJoint,
-    ) -> AnyJointVelocityConstraint {
+    ) -> Self {
         // Linear part.
         let anchor1 = rb1.position * joint.local_anchor1;
         let anchor2 = rb2.position * joint.local_anchor2;
@@ -100,16 +101,35 @@ impl RevoluteVelocityConstraint {
         let motor_axis2 = rb2.position * *joint.local_axis2;
         let mut motor_rhs = 0.0;
         let mut motor_inv_lhs = 0.0;
-        let mut motor_max_impulse = 0.0;
+        let mut motor_max_impulse = joint.motor_max_impulse;
+        let mut motor_angle = 0.0;
 
-        if let Some(motor_target_vel) = joint.motor_target_vel {
-            motor_rhs =
-                rb2.angvel.dot(&motor_axis1) - rb1.angvel.dot(&motor_axis1) - motor_target_vel;
-            motor_inv_lhs = crate::utils::inv(
-                motor_axis2.dot(&ii2.transform_vector(motor_axis2))
-                    + motor_axis1.dot(&ii1.transform_vector(motor_axis1)),
-            );
-            motor_max_impulse = joint.motor_max_torque;
+        let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
+            params.dt,
+            joint.motor_stiffness,
+            joint.motor_damping,
+        );
+
+        if stiffness != 0.0 {
+            motor_angle = joint.estimate_motor_angle(&rb1.position, &rb2.position);
+            motor_rhs += (motor_angle - joint.motor_target_pos) * stiffness;
+        }
+
+        if damping != 0.0 {
+            let curr_vel = rb2.angvel.dot(&motor_axis2) - rb1.angvel.dot(&motor_axis1);
+            motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
+        }
+
+        if stiffness != 0.0 || damping != 0.0 {
+            motor_inv_lhs = if keep_lhs {
+                crate::utils::inv(
+                    motor_axis2.dot(&ii2.transform_vector(motor_axis2))
+                        + motor_axis1.dot(&ii1.transform_vector(motor_axis1)),
+                ) * gamma
+            } else {
+                gamma
+            };
+            motor_rhs /= gamma;
         }
 
         /*
@@ -125,8 +145,10 @@ impl RevoluteVelocityConstraint {
         let rotated_impulse = basis1.tr_mul(&(axis_rot * joint.world_ang_impulse));
         impulse[3] = rotated_impulse.x * params.warmstart_coeff;
         impulse[4] = rotated_impulse.y * params.warmstart_coeff;
+        let motor_impulse = na::clamp(joint.motor_impulse, -motor_max_impulse, motor_max_impulse)
+            * params.warmstart_coeff;
 
-        let result = RevoluteVelocityConstraint {
+        RevoluteVelocityConstraint {
             joint_id,
             mj_lambda1: rb1.active_set_offset,
             mj_lambda2: rb2.active_set_offset,
@@ -146,10 +168,9 @@ impl RevoluteVelocityConstraint {
             motor_max_impulse,
             motor_axis1,
             motor_axis2,
-            motor_impulse: joint.motor_impulse * params.warmstart_coeff,
-        };
-
-        AnyJointVelocityConstraint::RevoluteConstraint(result)
+            motor_impulse,
+            motor_angle,
+        }
     }
 
     pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
@@ -174,7 +195,7 @@ impl RevoluteVelocityConstraint {
         /*
          * Motor
          */
-        {
+        if self.motor_inv_lhs != 0.0 {
             mj_lambda1.angular += self
                 .ii1_sqrt
                 .transform_vector(self.motor_axis1 * self.motor_impulse);
@@ -224,8 +245,14 @@ impl RevoluteVelocityConstraint {
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
             let ang_dvel = ang_vel2.dot(&self.motor_axis2) - ang_vel1.dot(&self.motor_axis1);
             let rhs = ang_dvel + self.motor_rhs;
-            let impulse = self.motor_inv_lhs * rhs;
-            self.motor_impulse += impulse;
+
+            let new_motor_impulse = na::clamp(
+                self.motor_impulse + self.motor_inv_lhs * rhs,
+                -self.motor_max_impulse,
+                self.motor_max_impulse,
+            );
+            let impulse = new_motor_impulse - self.motor_impulse;
+            self.motor_impulse = new_motor_impulse;
 
             mj_lambda1.angular += self.ii1_sqrt.transform_vector(self.motor_axis1 * impulse);
             mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.motor_axis2 * impulse);
@@ -242,6 +269,7 @@ impl RevoluteVelocityConstraint {
             let rot_part = self.impulse.fixed_rows::<U2>(3).into_owned();
             revolute.world_ang_impulse = self.basis1 * rot_part;
             revolute.prev_axis1 = self.motor_axis1;
+            revolute.motor_last_angle = self.motor_angle;
             revolute.motor_impulse = self.motor_impulse;
         }
     }
@@ -264,6 +292,7 @@ pub(crate) struct RevoluteVelocityGroundConstraint {
     motor_rhs: Real,
     motor_impulse: Real,
     motor_max_impulse: Real,
+    motor_angle: Real, // Exists just for writing it into the joint.
 
     basis2: Matrix3x2<Real>,
 
@@ -328,17 +357,40 @@ impl RevoluteVelocityGroundConstraint {
         /*
          * Motor part.
          */
+        let motor_axis1 = rb1.position * *joint.local_axis1;
+        let motor_axis2 = rb2.position * *joint.local_axis2;
         let mut motor_rhs = 0.0;
         let mut motor_inv_lhs = 0.0;
-        let mut motor_max_impulse = 0.0;
-        let mut motor_axis2 = Vector::zeros();
+        let mut motor_max_impulse = joint.motor_max_impulse;
+        let mut motor_angle = 0.0;
 
-        if let Some(motor_target_vel) = joint.motor_target_vel {
-            motor_axis2 = rb2.position * *joint.local_axis2;
-            motor_rhs = rb2.angvel.dot(&motor_axis2) - motor_target_vel;
-            motor_inv_lhs = crate::utils::inv(motor_axis2.dot(&ii2.transform_vector(motor_axis2)));
-            motor_max_impulse = joint.motor_max_torque;
+        let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
+            params.dt,
+            joint.motor_stiffness,
+            joint.motor_damping,
+        );
+
+        if stiffness != 0.0 {
+            motor_angle = joint.estimate_motor_angle(&rb1.position, &rb2.position);
+            motor_rhs += (motor_angle - joint.motor_target_pos) * stiffness;
         }
+
+        if damping != 0.0 {
+            let curr_vel = rb2.angvel.dot(&motor_axis2) - rb1.angvel.dot(&motor_axis1);
+            motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
+        }
+
+        if stiffness != 0.0 || damping != 0.0 {
+            motor_inv_lhs = if keep_lhs {
+                crate::utils::inv(motor_axis2.dot(&ii2.transform_vector(motor_axis2))) * gamma
+            } else {
+                gamma
+            };
+            motor_rhs /= gamma;
+        }
+
+        let motor_impulse = na::clamp(joint.motor_impulse, -motor_max_impulse, motor_max_impulse)
+            * params.warmstart_coeff;
 
         let result = RevoluteVelocityGroundConstraint {
             joint_id,
@@ -351,10 +403,11 @@ impl RevoluteVelocityGroundConstraint {
             rhs,
             r2,
             motor_inv_lhs,
-            motor_impulse: joint.motor_impulse,
+            motor_impulse,
             motor_axis2,
             motor_max_impulse,
             motor_rhs,
+            motor_angle,
         };
 
         AnyJointVelocityConstraint::RevoluteGroundConstraint(result)
@@ -374,7 +427,7 @@ impl RevoluteVelocityGroundConstraint {
         /*
          * Motor
          */
-        {
+        if self.motor_inv_lhs != 0.0 {
             mj_lambda2.angular -= self
                 .ii2_sqrt
                 .transform_vector(self.motor_axis2 * self.motor_impulse);
@@ -410,8 +463,14 @@ impl RevoluteVelocityGroundConstraint {
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
             let ang_dvel = ang_vel2.dot(&self.motor_axis2);
             let rhs = ang_dvel + self.motor_rhs;
-            let impulse = self.motor_inv_lhs * rhs;
-            self.motor_impulse += impulse;
+
+            let new_motor_impulse = na::clamp(
+                self.motor_impulse + self.motor_inv_lhs * rhs,
+                -self.motor_max_impulse,
+                self.motor_max_impulse,
+            );
+            let impulse = new_motor_impulse - self.motor_impulse;
+            self.motor_impulse = new_motor_impulse;
 
             mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.motor_axis2 * impulse);
         }
@@ -425,6 +484,7 @@ impl RevoluteVelocityGroundConstraint {
         if let JointParams::RevoluteJoint(revolute) = &mut joint.params {
             revolute.impulse = self.impulse;
             revolute.motor_impulse = self.motor_impulse;
+            revolute.motor_last_angle = self.motor_angle;
         }
     }
 }

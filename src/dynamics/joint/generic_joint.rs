@@ -54,6 +54,13 @@ impl GenericJoint {
         }
     }
 
+    pub fn set_dof_vel(&mut self, dof: u8, target_vel: Real, max_force: Real) {
+        self.min_velocity[dof as usize] = target_vel;
+        self.max_velocity[dof as usize] = target_vel;
+        self.min_impulse[dof as usize] = -max_force;
+        self.max_impulse[dof as usize] = max_force;
+    }
+
     pub fn free_dof(&mut self, dof: u8) {
         self.min_position[dof as usize] = -Real::MAX;
         self.max_position[dof as usize] = Real::MAX;
@@ -82,6 +89,18 @@ impl From<RevoluteJoint> for GenericJoint {
 
         let mut result = Self::new(local_anchor1, local_anchor2);
         result.free_dof(3);
+
+        if joint.motor_damping != 0.0 {
+            result.set_dof_vel(3, joint.motor_target_vel, joint.motor_max_impulse);
+        }
+
+        result.impulse[0] = joint.impulse[0];
+        result.impulse[1] = joint.impulse[1];
+        result.impulse[2] = joint.impulse[2];
+        result.impulse[3] = joint.motor_impulse;
+        result.impulse[4] = joint.impulse[3];
+        result.impulse[5] = joint.impulse[4];
+
         result
     }
 }
@@ -92,6 +111,9 @@ impl From<BallJoint> for GenericJoint {
         let local_anchor2 = Isometry::new(joint.local_anchor2.coords, na::zero());
 
         let mut result = Self::new(local_anchor1, local_anchor2);
+        result.impulse[0] = joint.impulse[0];
+        result.impulse[1] = joint.impulse[1];
+        result.impulse[2] = joint.impulse[2];
         result.free_dof(3);
         result.free_dof(4);
         result.free_dof(5);

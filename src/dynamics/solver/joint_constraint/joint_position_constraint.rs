@@ -1,7 +1,6 @@
 use super::{
     BallPositionConstraint, BallPositionGroundConstraint, FixedPositionConstraint,
-    FixedPositionGroundConstraint, GenericPositionConstraint, GenericPositionGroundConstraint,
-    PrismaticPositionConstraint, PrismaticPositionGroundConstraint,
+    FixedPositionGroundConstraint, PrismaticPositionConstraint, PrismaticPositionGroundConstraint,
 };
 #[cfg(feature = "dim3")]
 use super::{RevolutePositionConstraint, RevolutePositionGroundConstraint};
@@ -33,12 +32,12 @@ pub(crate) enum AnyJointPositionConstraint {
     WFixedJoint(WFixedPositionConstraint),
     #[cfg(feature = "simd-is-enabled")]
     WFixedGroundConstraint(WFixedPositionGroundConstraint),
-    GenericJoint(GenericPositionConstraint),
-    GenericGroundConstraint(GenericPositionGroundConstraint),
-    #[cfg(feature = "simd-is-enabled")]
-    WGenericJoint(WGenericPositionConstraint),
-    #[cfg(feature = "simd-is-enabled")]
-    WGenericGroundConstraint(WGenericPositionGroundConstraint),
+    // GenericJoint(GenericPositionConstraint),
+    // GenericGroundConstraint(GenericPositionGroundConstraint),
+    // #[cfg(feature = "simd-is-enabled")]
+    // WGenericJoint(WGenericPositionConstraint),
+    // #[cfg(feature = "simd-is-enabled")]
+    // WGenericGroundConstraint(WGenericPositionGroundConstraint),
     PrismaticJoint(PrismaticPositionConstraint),
     PrismaticGroundConstraint(PrismaticPositionGroundConstraint),
     #[cfg(feature = "simd-is-enabled")]
@@ -69,9 +68,9 @@ impl AnyJointPositionConstraint {
             JointParams::FixedJoint(p) => AnyJointPositionConstraint::FixedJoint(
                 FixedPositionConstraint::from_params(rb1, rb2, p),
             ),
-            JointParams::GenericJoint(p) => AnyJointPositionConstraint::GenericJoint(
-                GenericPositionConstraint::from_params(rb1, rb2, p),
-            ),
+            // JointParams::GenericJoint(p) => AnyJointPositionConstraint::GenericJoint(
+            //     GenericPositionConstraint::from_params(rb1, rb2, p),
+            // ),
             JointParams::PrismaticJoint(p) => AnyJointPositionConstraint::PrismaticJoint(
                 PrismaticPositionConstraint::from_params(rb1, rb2, p),
             ),
@@ -140,9 +139,9 @@ impl AnyJointPositionConstraint {
             JointParams::FixedJoint(p) => AnyJointPositionConstraint::FixedGroundConstraint(
                 FixedPositionGroundConstraint::from_params(rb1, rb2, p, flipped),
             ),
-            JointParams::GenericJoint(p) => AnyJointPositionConstraint::GenericGroundConstraint(
-                GenericPositionGroundConstraint::from_params(rb1, rb2, p, flipped),
-            ),
+            // JointParams::GenericJoint(p) => AnyJointPositionConstraint::GenericGroundConstraint(
+            //     GenericPositionGroundConstraint::from_params(rb1, rb2, p, flipped),
+            // ),
             JointParams::PrismaticJoint(p) => {
                 AnyJointPositionConstraint::PrismaticGroundConstraint(
                     PrismaticPositionGroundConstraint::from_params(rb1, rb2, p, flipped),
@@ -219,12 +218,12 @@ impl AnyJointPositionConstraint {
             AnyJointPositionConstraint::WFixedJoint(c) => c.solve(params, positions),
             #[cfg(feature = "simd-is-enabled")]
             AnyJointPositionConstraint::WFixedGroundConstraint(c) => c.solve(params, positions),
-            AnyJointPositionConstraint::GenericJoint(c) => c.solve(params, positions),
-            AnyJointPositionConstraint::GenericGroundConstraint(c) => c.solve(params, positions),
-            #[cfg(feature = "simd-is-enabled")]
-            AnyJointPositionConstraint::WGenericJoint(c) => c.solve(params, positions),
-            #[cfg(feature = "simd-is-enabled")]
-            AnyJointPositionConstraint::WGenericGroundConstraint(c) => c.solve(params, positions),
+            // AnyJointPositionConstraint::GenericJoint(c) => c.solve(params, positions),
+            // AnyJointPositionConstraint::GenericGroundConstraint(c) => c.solve(params, positions),
+            // #[cfg(feature = "simd-is-enabled")]
+            // AnyJointPositionConstraint::WGenericJoint(c) => c.solve(params, positions),
+            // #[cfg(feature = "simd-is-enabled")]
+            // AnyJointPositionConstraint::WGenericGroundConstraint(c) => c.solve(params, positions),
             AnyJointPositionConstraint::PrismaticJoint(c) => c.solve(params, positions),
             AnyJointPositionConstraint::PrismaticGroundConstraint(c) => c.solve(params, positions),
             #[cfg(feature = "simd-is-enabled")]
