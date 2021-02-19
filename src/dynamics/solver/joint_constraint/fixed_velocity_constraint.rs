@@ -113,18 +113,18 @@ impl FixedVelocityConstraint {
 
         let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
         if velocity_based_erp_inv_dt != 0.0 {
-            let error = anchor2 * anchor1.inverse();
-            let lin_err = error.translation.vector;
+            let lin_err = anchor2.translation.vector - anchor1.translation.vector;
+            let ang_err = anchor2.rotation * anchor1.rotation.inverse();
 
             #[cfg(feature = "dim2")]
             {
-                let ang_err = error.rotation.angle();
+                let ang_err = ang_err.angle();
                 rhs += Vector3::new(lin_err.x, lin_err.y, ang_err) * velocity_based_erp_inv_dt;
             }
 
             #[cfg(feature = "dim3")]
             {
-                let ang_err = error.rotation.scaled_axis();
+                let ang_err = ang_err.scaled_axis();
                 rhs += Vector6::new(
                     lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y, ang_err.z,
                 ) * velocity_based_erp_inv_dt;
