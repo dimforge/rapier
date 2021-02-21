@@ -132,10 +132,11 @@ pub struct Joint {
 impl Joint {
     pub fn supports_simd_constraints(&self) -> bool {
         match &self.params {
-            JointParams::RevoluteJoint(joint) => joint.supports_simd_constraints(),
             JointParams::PrismaticJoint(joint) => joint.supports_simd_constraints(),
             JointParams::FixedJoint(joint) => joint.supports_simd_constraints(),
             JointParams::BallJoint(joint) => joint.supports_simd_constraints(),
+            #[cfg(feature = "dim3")]
+            JointParams::RevoluteJoint(joint) => joint.supports_simd_constraints(),
         }
     }
 }
