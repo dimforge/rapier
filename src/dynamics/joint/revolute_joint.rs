@@ -72,7 +72,7 @@ impl RevoluteJoint {
             motor_max_impulse: Real::MAX,
             motor_impulse: 0.0,
             prev_axis1: *local_axis1,
-            motor_model: SpringModel::VelocityBased,
+            motor_model: SpringModel::default(),
             motor_last_angle: 0.0,
         }
     }

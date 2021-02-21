@@ -21,6 +21,12 @@ pub enum SpringModel {
     ForceBased,
 }
 
+impl Default for SpringModel {
+    fn default() -> Self {
+        SpringModel::VelocityBased
+    }
+}
+
 impl SpringModel {
     /// Combines the coefficients used for solving the spring equation.
     ///

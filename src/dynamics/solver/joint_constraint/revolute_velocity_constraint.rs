@@ -15,8 +15,8 @@ pub(crate) struct RevoluteVelocityConstraint {
 
     joint_id: JointIndex,
 
-    r1_mat: Matrix3<Real>,
-    r2_mat: Matrix3<Real>,
+    r1: Vector<Real>,
+    r2: Vector<Real>,
 
     inv_lhs: Matrix5<Real>,
     rhs: Vector5<Real>,
@@ -56,13 +56,12 @@ impl RevoluteVelocityConstraint {
             rb1.position * joint.basis1[0],
             rb1.position * joint.basis1[1],
         ]);
-        let basis_projection1 = basis1 * basis1.transpose();
 
-        let basis_projection_half2 = Matrix3x2::from_columns(&[
+        let basis2 = Matrix3x2::from_columns(&[
             rb2.position * joint.basis2[0],
             rb2.position * joint.basis2[1],
         ]);
-        let basis_projection2 = basis_projection_half2 * basis_projection_half2.transpose();
+        let basis_projection2 = basis2 * basis2.transpose();
         let basis2 = basis_projection2 * basis1;
 
         let im1 = rb1.effective_inv_mass;
@@ -70,13 +69,14 @@ impl RevoluteVelocityConstraint {
 
         let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
         let r1 = anchor1 - rb1.world_com;
-        let r1_mat = basis_projection1 * r1.gcross_matrix();
+        let r1_mat = r1.gcross_matrix();
 
         let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
         let r2 = anchor2 - rb2.world_com;
-        let r2_mat = basis_projection2 * r2.gcross_matrix();
+        let r2_mat = r2.gcross_matrix();
 
         let mut lhs = Matrix5::zeros();
+
         let lhs00 =
             ii2.quadform(&r2_mat).add_diagonal(im2) + ii1.quadform(&r1_mat).add_diagonal(im1);
         let lhs10 = basis2.tr_mul(&(ii2 * r2_mat)) + basis1.tr_mul(&(ii1 * r1_mat));
@@ -91,7 +91,7 @@ impl RevoluteVelocityConstraint {
 
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = (rb2.linvel - r2_mat * rb2.angvel) - (rb1.linvel - r1_mat * rb1.angvel);
+        let lin_rhs = (rb2.linvel + rb2.angvel.gcross(r2)) - (rb1.linvel + rb1.angvel.gcross(r1));
         let ang_rhs = basis2.tr_mul(&rb2.angvel) - basis1.tr_mul(&rb1.angvel);
         let mut rhs = Vector5::new(lin_rhs.x, lin_rhs.y, lin_rhs.z, ang_rhs.x, ang_rhs.y);
 
@@ -162,8 +162,8 @@ impl RevoluteVelocityConstraint {
             impulse,
             inv_lhs,
             rhs,
-            r1_mat,
-            r2_mat,
+            r1,
+            r2,
             motor_rhs,
             motor_inv_lhs,
             motor_max_impulse,
@@ -186,12 +186,12 @@ impl RevoluteVelocityConstraint {
         mj_lambda1.linear += self.im1 * lin_impulse1;
         mj_lambda1.angular += self
             .ii1_sqrt
-            .transform_vector(ang_impulse1 + self.r1_mat * lin_impulse1);
+            .transform_vector(ang_impulse1 + self.r1.gcross(lin_impulse1));
 
         mj_lambda2.linear -= self.im2 * lin_impulse2;
         mj_lambda2.angular -= self
             .ii2_sqrt
-            .transform_vector(ang_impulse2 + self.r2_mat * lin_impulse2);
+            .transform_vector(ang_impulse2 + self.r2.gcross(lin_impulse2));
 
         /*
          * Motor
@@ -216,8 +216,8 @@ impl RevoluteVelocityConstraint {
         let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
-        let lin_dvel = (mj_lambda2.linear - self.r2_mat * ang_vel2)
-            - (mj_lambda1.linear - self.r1_mat * ang_vel1);
+        let lin_dvel = (mj_lambda2.linear + ang_vel2.gcross(self.r2))
+            - (mj_lambda1.linear + ang_vel1.gcross(self.r1));
         let ang_dvel = self.basis2.tr_mul(&ang_vel2) - self.basis1.tr_mul(&ang_vel1);
         let rhs =
             Vector5::new(lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y) + self.rhs;
@@ -231,12 +231,12 @@ impl RevoluteVelocityConstraint {
         mj_lambda1.linear += self.im1 * lin_impulse1;
         mj_lambda1.angular += self
             .ii1_sqrt
-            .transform_vector(ang_impulse1 + self.r1_mat * lin_impulse1);
+            .transform_vector(ang_impulse1 + self.r1.gcross(lin_impulse1));
 
         mj_lambda2.linear -= self.im2 * lin_impulse2;
         mj_lambda2.angular -= self
             .ii2_sqrt
-            .transform_vector(ang_impulse2 + self.r2_mat * lin_impulse2);
+            .transform_vector(ang_impulse2 + self.r2.gcross(lin_impulse2));
 
         /*
          * Motor.
@@ -313,24 +313,41 @@ impl RevoluteVelocityGroundConstraint {
     ) -> AnyJointVelocityConstraint {
         let anchor2;
         let anchor1;
+        let axis1;
+        let axis2;
+        let basis1;
         let basis2;
 
         if flipped {
+            axis1 = rb1.position * *joint.local_axis2;
+            axis2 = rb2.position * *joint.local_axis1;
             anchor1 = rb1.position * joint.local_anchor2;
             anchor2 = rb2.position * joint.local_anchor1;
+            basis1 = Matrix3x2::from_columns(&[
+                rb1.position * joint.basis2[0],
+                rb1.position * joint.basis2[1],
+            ]);
             basis2 = Matrix3x2::from_columns(&[
                 rb2.position * joint.basis1[0],
                 rb2.position * joint.basis1[1],
             ]);
         } else {
+            axis1 = rb1.position * *joint.local_axis1;
+            axis2 = rb2.position * *joint.local_axis2;
             anchor1 = rb1.position * joint.local_anchor1;
             anchor2 = rb2.position * joint.local_anchor2;
+            basis1 = Matrix3x2::from_columns(&[
+                rb1.position * joint.basis1[0],
+                rb1.position * joint.basis1[1],
+            ]);
             basis2 = Matrix3x2::from_columns(&[
                 rb2.position * joint.basis2[0],
                 rb2.position * joint.basis2[1],
             ]);
         };
 
+        let basis_projection2 = basis2 * basis2.transpose();
+        let basis2 = basis_projection2 * basis1;
         let im2 = rb2.effective_inv_mass;
         let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
         let r1 = anchor1 - rb1.world_com;
@@ -351,15 +368,13 @@ impl RevoluteVelocityGroundConstraint {
 
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = rb2.linvel + rb2.angvel.gcross(r2) - rb1.linvel - rb1.angvel.gcross(r1);
-        let ang_rhs = basis2.tr_mul(&(rb2.angvel - rb1.angvel));
+        let lin_rhs = (rb2.linvel + rb2.angvel.gcross(r2)) - (rb1.linvel + rb1.angvel.gcross(r1));
+        let ang_rhs = basis2.tr_mul(&rb2.angvel) - basis1.tr_mul(&rb1.angvel);
         let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, lin_rhs.z, ang_rhs.x, ang_rhs.y);
 
         /*
          * Motor part.
          */
-        let motor_axis1 = rb1.position * *joint.local_axis1;
-        let motor_axis2 = rb2.position * *joint.local_axis2;
         let mut motor_rhs = 0.0;
         let mut motor_inv_lhs = 0.0;
         let mut motor_max_impulse = joint.motor_max_impulse;
@@ -377,13 +392,13 @@ impl RevoluteVelocityGroundConstraint {
         }
 
         if damping != 0.0 {
-            let curr_vel = rb2.angvel.dot(&motor_axis2) - rb1.angvel.dot(&motor_axis1);
+            let curr_vel = rb2.angvel.dot(&axis2) - rb1.angvel.dot(&axis1);
             motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
         }
 
         if stiffness != 0.0 || damping != 0.0 {
             motor_inv_lhs = if keep_lhs {
-                crate::utils::inv(motor_axis2.dot(&ii2.transform_vector(motor_axis2))) * gamma
+                crate::utils::inv(axis2.dot(&ii2.transform_vector(axis2))) * gamma
             } else {
                 gamma
             };
@@ -405,7 +420,7 @@ impl RevoluteVelocityGroundConstraint {
             r2,
             motor_inv_lhs,
             motor_impulse,
-            motor_axis2,
+            motor_axis2: axis2,
             motor_max_impulse,
             motor_rhs,
             motor_angle,
@@ -441,7 +456,6 @@ impl RevoluteVelocityGroundConstraint {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
-        let ang_vel2 = ang_vel2 - self.motor_axis2 * ang_vel2.dot(&self.motor_axis2);
 
         let lin_dvel = mj_lambda2.linear + ang_vel2.gcross(self.r2);
         let ang_dvel = self.basis2.tr_mul(&ang_vel2);
