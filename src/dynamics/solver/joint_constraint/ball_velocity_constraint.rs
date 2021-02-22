@@ -23,6 +23,7 @@ pub(crate) struct BallVelocityConstraint {
     motor_rhs: AngVector<Real>,
     motor_impulse: AngVector<Real>,
     motor_inv_lhs: Option<AngularInertia<Real>>,
+    motor_max_impulse: Real,
 
     im1: Real,
     im2: Real,
@@ -88,64 +89,62 @@ impl BallVelocityConstraint {
         let mut motor_inv_lhs = None;
         let motor_max_impulse = joint.motor_max_impulse;
 
-        let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
-            params.dt,
-            joint.motor_stiffness,
-            joint.motor_damping,
-        );
+        if motor_max_impulse > 0.0 {
+            let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
+                params.dt,
+                joint.motor_stiffness,
+                joint.motor_damping,
+            );
 
-        if stiffness != 0.0 {
-            let dpos =
-                rb2.position.rotation * (rb1.position.rotation * joint.motor_target_pos).inverse();
+            if stiffness != 0.0 {
+                let dpos = rb2.position.rotation
+                    * (rb1.position.rotation * joint.motor_target_pos).inverse();
+                #[cfg(feature = "dim2")]
+                {
+                    motor_rhs += dpos.angle() * stiffness;
+                }
+                #[cfg(feature = "dim3")]
+                {
+                    motor_rhs += dpos.scaled_axis() * stiffness;
+                }
+            }
+
+            if damping != 0.0 {
+                let curr_vel = rb2.angvel - rb1.angvel;
+                motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
+            }
+
             #[cfg(feature = "dim2")]
-            {
-                motor_rhs += dpos.angle() * stiffness;
+            if stiffness != 0.0 || damping != 0.0 {
+                motor_inv_lhs = if keep_lhs {
+                    let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
+                    let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
+                    Some(gamma / (ii1 + ii2))
+                } else {
+                    Some(gamma)
+                };
+                motor_rhs /= gamma;
             }
+
             #[cfg(feature = "dim3")]
-            {
-                motor_rhs += dpos.scaled_axis() * stiffness;
+            if stiffness != 0.0 || damping != 0.0 {
+                motor_inv_lhs = if keep_lhs {
+                    let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
+                    let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
+                    Some((ii1 + ii2).inverse_unchecked() * gamma)
+                } else {
+                    Some(SdpMatrix::diagonal(gamma))
+                };
+                motor_rhs /= gamma;
             }
-        }
-
-        if damping != 0.0 {
-            let curr_vel = rb2.angvel - rb1.angvel;
-            motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
-        }
-
-        #[cfg(feature = "dim2")]
-        if stiffness != 0.0 || damping != 0.0 {
-            motor_inv_lhs = if keep_lhs {
-                let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
-                let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
-                Some(gamma / (ii1 + ii2))
-            } else {
-                Some(gamma)
-            };
-            motor_rhs /= gamma;
-        }
-
-        #[cfg(feature = "dim3")]
-        if stiffness != 0.0 || damping != 0.0 {
-            motor_inv_lhs = if keep_lhs {
-                let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
-                let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
-                Some((ii1 + ii2).inverse_unchecked() * gamma)
-            } else {
-                Some(SdpMatrix::diagonal(gamma))
-            };
-            motor_rhs /= gamma;
         }
 
         #[cfg(feature = "dim2")]
         let motor_impulse = na::clamp(joint.motor_impulse, -motor_max_impulse, motor_max_impulse)
             * params.warmstart_coeff;
-
         #[cfg(feature = "dim3")]
-        let motor_impulse = joint
-            .motor_impulse
-            .try_clamp_magnitude(-motor_max_impulse, motor_max_impulse, 1.0e-6)
-            .unwrap_or_else(na::zero)
-            * params.warmstart_coeff;
+        let motor_impulse =
+            joint.motor_impulse.cap_magnitude(motor_max_impulse) * params.warmstart_coeff;
 
         BallVelocityConstraint {
             joint_id,
@@ -161,6 +160,7 @@ impl BallVelocityConstraint {
             motor_rhs,
             motor_impulse,
             motor_inv_lhs,
+            motor_max_impulse: joint.motor_max_impulse,
             ii1_sqrt: rb1.effective_world_inv_inertia_sqrt,
             ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
         }
@@ -210,11 +210,19 @@ impl BallVelocityConstraint {
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
             let dangvel = (ang_vel2 - ang_vel1) + self.motor_rhs;
-            let impulse = motor_inv_lhs.transform_vector(dangvel);
-            self.motor_impulse += impulse;
 
-            mj_lambda1.angular += self.ii1_sqrt.transform_vector(impulse);
-            mj_lambda2.angular -= self.ii2_sqrt.transform_vector(impulse);
+            let new_impulse = self.motor_impulse + motor_inv_lhs.transform_vector(dangvel);
+
+            #[cfg(feature = "dim2")]
+            let clamped_impulse = na::clamp(new_impulse, -motor_max_impulse, motor_max_impulse);
+            #[cfg(feature = "dim3")]
+            let clamped_impulse = new_impulse.cap_magnitude(self.motor_max_impulse);
+
+            let effective_impulse = clamped_impulse - self.motor_impulse;
+            self.motor_impulse = clamped_impulse;
+
+            mj_lambda1.angular += self.ii1_sqrt.transform_vector(effective_impulse);
+            mj_lambda2.angular -= self.ii2_sqrt.transform_vector(effective_impulse);
         }
 
         mj_lambdas[self.mj_lambda1 as usize] = mj_lambda1;
@@ -242,6 +250,7 @@ pub(crate) struct BallVelocityGroundConstraint {
     motor_rhs: AngVector<Real>,
     motor_impulse: AngVector<Real>,
     motor_inv_lhs: Option<AngularInertia<Real>>,
+    motor_max_impulse: Real,
 
     im2: Real,
     ii2_sqrt: AngularInertia<Real>,
@@ -304,62 +313,60 @@ impl BallVelocityGroundConstraint {
         let mut motor_inv_lhs = None;
         let motor_max_impulse = joint.motor_max_impulse;
 
-        let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
-            params.dt,
-            joint.motor_stiffness,
-            joint.motor_damping,
-        );
+        if motor_max_impulse > 0.0 {
+            let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
+                params.dt,
+                joint.motor_stiffness,
+                joint.motor_damping,
+            );
 
-        if stiffness != 0.0 {
-            let dpos =
-                rb2.position.rotation * (rb1.position.rotation * joint.motor_target_pos).inverse();
+            if stiffness != 0.0 {
+                let dpos = rb2.position.rotation
+                    * (rb1.position.rotation * joint.motor_target_pos).inverse();
+                #[cfg(feature = "dim2")]
+                {
+                    motor_rhs += dpos.angle() * stiffness;
+                }
+                #[cfg(feature = "dim3")]
+                {
+                    motor_rhs += dpos.scaled_axis() * stiffness;
+                }
+            }
+
+            if damping != 0.0 {
+                let curr_vel = rb2.angvel - rb1.angvel;
+                motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
+            }
+
             #[cfg(feature = "dim2")]
-            {
-                motor_rhs += dpos.angle() * stiffness;
+            if stiffness != 0.0 || damping != 0.0 {
+                motor_inv_lhs = if keep_lhs {
+                    let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
+                    Some(gamma / ii2)
+                } else {
+                    Some(gamma)
+                };
+                motor_rhs /= gamma;
             }
+
             #[cfg(feature = "dim3")]
-            {
-                motor_rhs += dpos.scaled_axis() * stiffness;
+            if stiffness != 0.0 || damping != 0.0 {
+                motor_inv_lhs = if keep_lhs {
+                    let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
+                    Some(ii2.inverse_unchecked() * gamma)
+                } else {
+                    Some(SdpMatrix::diagonal(gamma))
+                };
+                motor_rhs /= gamma;
             }
-        }
-
-        if damping != 0.0 {
-            let curr_vel = rb2.angvel - rb1.angvel;
-            motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
-        }
-
-        #[cfg(feature = "dim2")]
-        if stiffness != 0.0 || damping != 0.0 {
-            motor_inv_lhs = if keep_lhs {
-                let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
-                Some(gamma / ii2)
-            } else {
-                Some(gamma)
-            };
-            motor_rhs /= gamma;
-        }
-
-        #[cfg(feature = "dim3")]
-        if stiffness != 0.0 || damping != 0.0 {
-            motor_inv_lhs = if keep_lhs {
-                let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
-                Some(ii2.inverse_unchecked() * gamma)
-            } else {
-                Some(SdpMatrix::diagonal(gamma))
-            };
-            motor_rhs /= gamma;
         }
 
         #[cfg(feature = "dim2")]
         let motor_impulse = na::clamp(joint.motor_impulse, -motor_max_impulse, motor_max_impulse)
             * params.warmstart_coeff;
-
         #[cfg(feature = "dim3")]
-        let motor_impulse = joint
-            .motor_impulse
-            .try_clamp_magnitude(-motor_max_impulse, motor_max_impulse, 1.0e-6)
-            .unwrap_or_else(na::zero)
-            * params.warmstart_coeff;
+        let motor_impulse =
+            joint.motor_impulse.cap_magnitude(motor_max_impulse) * params.warmstart_coeff;
 
         BallVelocityGroundConstraint {
             joint_id,
@@ -372,6 +379,7 @@ impl BallVelocityGroundConstraint {
             motor_rhs,
             motor_impulse,
             motor_inv_lhs,
+            motor_max_impulse: joint.motor_max_impulse,
             ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
         }
     }
@@ -405,10 +413,17 @@ impl BallVelocityGroundConstraint {
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
             let dangvel = ang_vel2 + self.motor_rhs;
-            let impulse = motor_inv_lhs.transform_vector(dangvel);
-            self.motor_impulse += impulse;
+            let new_impulse = self.motor_impulse + motor_inv_lhs.transform_vector(dangvel);
 
-            mj_lambda2.angular -= self.ii2_sqrt.transform_vector(impulse);
+            #[cfg(feature = "dim2")]
+            let clamped_impulse = na::clamp(new_impulse, -motor_max_impulse, motor_max_impulse);
+            #[cfg(feature = "dim3")]
+            let clamped_impulse = new_impulse.cap_magnitude(self.motor_max_impulse);
+
+            let effective_impulse = clamped_impulse - self.motor_impulse;
+            self.motor_impulse = clamped_impulse;
+
+            mj_lambda2.angular -= self.ii2_sqrt.transform_vector(effective_impulse);
         }
 
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
