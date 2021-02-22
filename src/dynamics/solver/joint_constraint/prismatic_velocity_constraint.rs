@@ -3,7 +3,7 @@ use crate::dynamics::{
     IntegrationParameters, JointGraphEdge, JointIndex, JointParams, PrismaticJoint, RigidBody,
 };
 use crate::math::{AngularInertia, Real, Vector};
-use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
+use crate::utils::{WAngularInertia, WCross, WCrossMatrix, WDot};
 #[cfg(feature = "dim3")]
 use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
 #[cfg(feature = "dim2")]
@@ -148,7 +148,6 @@ impl PrismaticVelocityConstraint {
          */
         let mut motor_rhs = 0.0;
         let mut motor_inv_lhs = 0.0;
-        let mut motor_max_impulse = joint.motor_max_impulse;
 
         let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
             params.dt,
@@ -171,7 +170,11 @@ impl PrismaticVelocityConstraint {
             motor_rhs /= gamma;
         }
 
-        let motor_impulse = na::clamp(joint.motor_impulse, -motor_max_impulse, motor_max_impulse);
+        let motor_impulse = na::clamp(
+            joint.motor_impulse,
+            -joint.motor_max_impulse,
+            joint.motor_max_impulse,
+        );
 
         /*
          * Setup limit constraint.
@@ -202,8 +205,8 @@ impl PrismaticVelocityConstraint {
                 let gcross2 = r2.gcross(*axis2);
                 limits_inv_lhs = crate::utils::inv(
                     im1 + im2
-                        + gcross1.dot(&ii1.transform_vector(gcross1))
-                        + gcross2.dot(&ii2.transform_vector(gcross2)),
+                        + gcross1.gdot(ii1.transform_vector(gcross1))
+                        + gcross2.gdot(ii2.transform_vector(gcross2)),
                 );
             }
         }
@@ -226,7 +229,7 @@ impl PrismaticVelocityConstraint {
             motor_impulse,
             motor_axis1: *axis1,
             motor_axis2: *axis2,
-            motor_max_impulse,
+            motor_max_impulse: joint.motor_max_impulse,
             basis1,
             inv_lhs,
             rhs,
@@ -530,7 +533,6 @@ impl PrismaticVelocityGroundConstraint {
          */
         let mut motor_rhs = 0.0;
         let mut motor_inv_lhs = 0.0;
-        let mut motor_max_impulse = joint.motor_max_impulse;
 
         let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
             params.dt,
@@ -553,7 +555,11 @@ impl PrismaticVelocityGroundConstraint {
             motor_rhs /= gamma;
         }
 
-        let motor_impulse = na::clamp(joint.motor_impulse, -motor_max_impulse, motor_max_impulse);
+        let motor_impulse = na::clamp(
+            joint.motor_impulse,
+            -joint.motor_max_impulse,
+            joint.motor_max_impulse,
+        );
 
         /*
          * Setup limit constraint.
@@ -590,7 +596,7 @@ impl PrismaticVelocityGroundConstraint {
             motor_rhs,
             motor_inv_lhs,
             motor_impulse,
-            motor_max_impulse,
+            motor_max_impulse: joint.motor_max_impulse,
             basis1,
             inv_lhs,
             rhs,

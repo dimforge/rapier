@@ -1,7 +1,7 @@
 use crate::dynamics::{IntegrationParameters, RevoluteJoint, RigidBody};
 use crate::math::{AngularInertia, Isometry, Point, Real, Rotation, Vector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
-use na::{Matrix3x2, Matrix5, Unit};
+use na::Unit;
 
 #[derive(Debug)]
 pub(crate) struct RevolutePositionConstraint {

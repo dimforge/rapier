@@ -1,5 +1,5 @@
 use crate::dynamics::{BallJoint, FixedJoint, PrismaticJoint, RevoluteJoint};
-use crate::math::{Isometry, Real, SpacialVector, SPATIAL_DIM};
+use crate::math::{Isometry, Real, SpacialVector};
 use crate::na::{Rotation3, UnitQuaternion};
 
 #[derive(Copy, Clone, Debug)]

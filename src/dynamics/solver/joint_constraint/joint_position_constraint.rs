@@ -13,7 +13,6 @@ use super::{
     WFixedPositionGroundConstraint, WPrismaticPositionConstraint,
     WPrismaticPositionGroundConstraint,
 };
-use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{IntegrationParameters, Joint, JointParams, RigidBodySet};
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SIMD_WIDTH;

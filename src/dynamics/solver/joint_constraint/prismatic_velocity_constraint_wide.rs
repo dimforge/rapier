@@ -7,7 +7,7 @@ use crate::dynamics::{
 use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, SimdBool, SimdReal, Vector, SIMD_WIDTH,
 };
-use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
+use crate::utils::{WAngularInertia, WCross, WCrossMatrix, WDot};
 #[cfg(feature = "dim3")]
 use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
 #[cfg(feature = "dim2")]
@@ -223,8 +223,8 @@ impl WPrismaticVelocityConstraint {
                 limits_inv_lhs = SimdReal::splat(1.0)
                     / (im1
                         + im2
-                        + gcross1.dot(&ii1.transform_vector(gcross1))
-                        + gcross2.dot(&ii2.transform_vector(gcross2)));
+                        + gcross1.gdot(ii1.transform_vector(gcross1))
+                        + gcross2.gdot(ii2.transform_vector(gcross2)));
             }
         }
 

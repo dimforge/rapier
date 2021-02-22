@@ -8,7 +8,7 @@ use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, Rotation, SimdReal, Vector, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
-use na::{Cholesky, Matrix3, Matrix3x2, Matrix5, Vector5, U2, U3};
+use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
 
 #[derive(Debug)]
 pub(crate) struct WRevoluteVelocityConstraint {

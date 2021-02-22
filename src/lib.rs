@@ -148,10 +148,4 @@ pub mod math {
     /// single contact constraint.
     #[cfg(feature = "dim3")]
     pub const MAX_MANIFOLD_POINTS: usize = 4;
-
-    #[cfg(feature = "dim2")]
-    pub const SPATIAL_DIM: usize = 3;
-
-    #[cfg(feature = "dim3")]
-    pub const SPATIAL_DIM: usize = 6;
 }

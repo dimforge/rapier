@@ -74,20 +74,24 @@ impl BallJoint {
         self.motor_max_impulse == 0.0 || (self.motor_stiffness == 0.0 && self.motor_damping == 0.0)
     }
 
+    /// Set the spring-like model used by the motor to reach the desired target velocity and position.
     pub fn configure_motor_model(&mut self, model: SpringModel) {
         self.motor_model = model;
     }
 
+    /// Sets the target velocity and velocity correction factor this motor.
     #[cfg(feature = "dim2")]
     pub fn configure_motor_velocity(&mut self, target_vel: Real, factor: Real) {
         self.configure_motor(self.motor_target_pos, target_vel, 0.0, factor)
     }
 
+    /// Sets the target velocity and velocity correction factor this motor.
     #[cfg(feature = "dim3")]
     pub fn configure_motor_velocity(&mut self, target_vel: Vector<Real>, factor: Real) {
         self.configure_motor(self.motor_target_pos, target_vel, 0.0, factor)
     }
 
+    /// Sets the target orientation this motor needs to reach.
     pub fn configure_motor_position(
         &mut self,
         target_pos: Rotation<Real>,
@@ -97,6 +101,7 @@ impl BallJoint {
         self.configure_motor(target_pos, na::zero(), stiffness, damping)
     }
 
+    /// Sets the target orientation this motor needs to reach.
     #[cfg(feature = "dim2")]
     pub fn configure_motor(
         &mut self,
@@ -111,6 +116,7 @@ impl BallJoint {
         self.motor_damping = damping;
     }
 
+    /// Configure both the target orientation and target velocity of the motor.
     #[cfg(feature = "dim3")]
     pub fn configure_motor(
         &mut self,

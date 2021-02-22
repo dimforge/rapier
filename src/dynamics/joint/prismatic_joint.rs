@@ -217,18 +217,22 @@ impl PrismaticJoint {
         Isometry::from_parts(translation, rotation)
     }
 
+    /// Set the spring-like model used by the motor to reach the desired target velocity and position.
     pub fn configure_motor_model(&mut self, model: SpringModel) {
         self.motor_model = model;
     }
 
+    /// Sets the target velocity this motor needs to reach.
     pub fn configure_motor_velocity(&mut self, target_vel: Real, factor: Real) {
         self.configure_motor(self.motor_target_pos, target_vel, 0.0, factor)
     }
 
+    /// Sets the target position this motor needs to reach.
     pub fn configure_motor_position(&mut self, target_pos: Real, stiffness: Real, damping: Real) {
         self.configure_motor(target_pos, 0.0, stiffness, damping)
     }
 
+    /// Configure both the target position and target velocity of the motor.
     pub fn configure_motor(
         &mut self,
         target_pos: Real,

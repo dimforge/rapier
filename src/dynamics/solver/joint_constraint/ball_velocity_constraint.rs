@@ -210,7 +210,8 @@ impl BallVelocityConstraint {
             let new_impulse = self.motor_impulse + motor_inv_lhs.transform_vector(dangvel);
 
             #[cfg(feature = "dim2")]
-            let clamped_impulse = na::clamp(new_impulse, -motor_max_impulse, motor_max_impulse);
+            let clamped_impulse =
+                na::clamp(new_impulse, -self.motor_max_impulse, self.motor_max_impulse);
             #[cfg(feature = "dim3")]
             let clamped_impulse = new_impulse.cap_magnitude(self.motor_max_impulse);
 
@@ -418,7 +419,8 @@ impl BallVelocityGroundConstraint {
             let new_impulse = self.motor_impulse + motor_inv_lhs.transform_vector(dangvel);
 
             #[cfg(feature = "dim2")]
-            let clamped_impulse = na::clamp(new_impulse, -motor_max_impulse, motor_max_impulse);
+            let clamped_impulse =
+                na::clamp(new_impulse, -self.motor_max_impulse, self.motor_max_impulse);
             #[cfg(feature = "dim3")]
             let clamped_impulse = new_impulse.cap_magnitude(self.motor_max_impulse);
 

@@ -130,6 +130,7 @@ pub struct Joint {
 }
 
 impl Joint {
+    /// Can this joint use SIMD-accelerated constraint formulations?
     pub fn supports_simd_constraints(&self) -> bool {
         match &self.params {
             JointParams::PrismaticJoint(joint) => joint.supports_simd_constraints(),

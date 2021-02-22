@@ -1,12 +1,11 @@
-use crate::dynamics::solver::{AnyJointVelocityConstraint, AnyVelocityConstraint, DeltaVel};
+use crate::dynamics::solver::{AnyJointVelocityConstraint, DeltaVel};
 use crate::dynamics::{
     IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RevoluteJoint, RigidBody,
 };
 use crate::math::{AngularInertia, Real, Rotation, Vector};
 use crate::na::UnitQuaternion;
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
-use downcast_rs::Downcast;
-use na::{Cholesky, Matrix3, Matrix3x2, Matrix5, RealField, Vector5, U2, U3};
+use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
 
 #[derive(Debug)]
 pub(crate) struct RevoluteVelocityConstraint {
@@ -93,7 +92,7 @@ impl RevoluteVelocityConstraint {
 
         let lin_rhs = (rb2.linvel + rb2.angvel.gcross(r2)) - (rb1.linvel + rb1.angvel.gcross(r1));
         let ang_rhs = basis2.tr_mul(&rb2.angvel) - basis1.tr_mul(&rb1.angvel);
-        let mut rhs = Vector5::new(lin_rhs.x, lin_rhs.y, lin_rhs.z, ang_rhs.x, ang_rhs.y);
+        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, lin_rhs.z, ang_rhs.x, ang_rhs.y);
 
         /*
          * Motor.
@@ -102,8 +101,8 @@ impl RevoluteVelocityConstraint {
         let motor_axis2 = rb2.position * *joint.local_axis2;
         let mut motor_rhs = 0.0;
         let mut motor_inv_lhs = 0.0;
-        let mut motor_max_impulse = joint.motor_max_impulse;
         let mut motor_angle = 0.0;
+        let motor_max_impulse = joint.motor_max_impulse;
 
         let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
             params.dt,
@@ -381,8 +380,8 @@ impl RevoluteVelocityGroundConstraint {
          */
         let mut motor_rhs = 0.0;
         let mut motor_inv_lhs = 0.0;
-        let mut motor_max_impulse = joint.motor_max_impulse;
         let mut motor_angle = 0.0;
+        let motor_max_impulse = joint.motor_max_impulse;
 
         let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
             params.dt,
