@@ -214,6 +214,12 @@ impl InteractionGroups {
                 continue;
             }
 
+            if !interaction.supports_simd_constraints() {
+                // This joint does not support simd constraints yet.
+                self.nongrouped_interactions.push(*interaction_i);
+                continue;
+            }
+
             let ijoint = interaction.params.type_id();
             let i1 = body1.active_set_offset;
             let i2 = body2.active_set_offset;

@@ -17,6 +17,7 @@ pub enum JointParams {
     /// A revolute joint that removes all degrees of degrees of freedom between the affected
     /// bodies except for the translation along one axis.
     RevoluteJoint(RevoluteJoint),
+    // GenericJoint(GenericJoint),
 }
 
 impl JointParams {
@@ -26,8 +27,9 @@ impl JointParams {
             JointParams::BallJoint(_) => 0,
             JointParams::FixedJoint(_) => 1,
             JointParams::PrismaticJoint(_) => 2,
+            // JointParams::GenericJoint(_) => 3,
             #[cfg(feature = "dim3")]
-            JointParams::RevoluteJoint(_) => 3,
+            JointParams::RevoluteJoint(_) => 4,
         }
     }
 
@@ -48,6 +50,15 @@ impl JointParams {
             None
         }
     }
+
+    // /// Gets a reference to the underlying generic joint, if `self` is one.
+    // pub fn as_generic_joint(&self) -> Option<&GenericJoint> {
+    //     if let JointParams::GenericJoint(j) = self {
+    //         Some(j)
+    //     } else {
+    //         None
+    //     }
+    // }
 
     /// Gets a reference to the underlying prismatic joint, if `self` is one.
     pub fn as_prismatic_joint(&self) -> Option<&PrismaticJoint> {
@@ -81,6 +92,12 @@ impl From<FixedJoint> for JointParams {
     }
 }
 
+// impl From<GenericJoint> for JointParams {
+//     fn from(j: GenericJoint) -> Self {
+//         JointParams::GenericJoint(j)
+//     }
+// }
+
 #[cfg(feature = "dim3")]
 impl From<RevoluteJoint> for JointParams {
     fn from(j: RevoluteJoint) -> Self {
@@ -110,4 +127,17 @@ pub struct Joint {
     pub(crate) position_constraint_index: usize,
     /// The joint geometric parameters and impulse.
     pub params: JointParams,
+}
+
+impl Joint {
+    /// Can this joint use SIMD-accelerated constraint formulations?
+    pub fn supports_simd_constraints(&self) -> bool {
+        match &self.params {
+            JointParams::PrismaticJoint(joint) => joint.supports_simd_constraints(),
+            JointParams::FixedJoint(joint) => joint.supports_simd_constraints(),
+            JointParams::BallJoint(joint) => joint.supports_simd_constraints(),
+            #[cfg(feature = "dim3")]
+            JointParams::RevoluteJoint(joint) => joint.supports_simd_constraints(),
+        }
+    }
 }

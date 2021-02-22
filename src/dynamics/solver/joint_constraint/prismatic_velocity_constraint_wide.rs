@@ -7,7 +7,7 @@ use crate::dynamics::{
 use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, SimdBool, SimdReal, Vector, SIMD_WIDTH,
 };
-use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
+use crate::utils::{WAngularInertia, WCross, WCrossMatrix, WDot};
 #[cfg(feature = "dim3")]
 use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
 #[cfg(feature = "dim2")]
@@ -48,6 +48,7 @@ pub(crate) struct WPrismaticVelocityConstraint {
     limits_impulse: SimdReal,
     limits_forcedirs: Option<(Vector<SimdReal>, Vector<SimdReal>)>,
     limits_rhs: SimdReal,
+    limits_inv_lhs: SimdReal,
 
     #[cfg(feature = "dim2")]
     basis1: Vector2<SimdReal>,
@@ -187,10 +188,13 @@ impl WPrismaticVelocityConstraint {
         #[cfg(feature = "dim3")]
         let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, ang_rhs.x, ang_rhs.y, ang_rhs.z);
 
-        // Setup limit constraint.
+        /*
+         * Setup limit constraint.
+         */
         let mut limits_forcedirs = None;
         let mut limits_rhs = na::zero();
         let mut limits_impulse = na::zero();
+        let mut limits_inv_lhs = na::zero();
         let limits_enabled = SimdBool::from(array![|ii| cparams[ii].limits_enabled; SIMD_WIDTH]);
 
         if limits_enabled.any() {
@@ -210,9 +214,17 @@ impl WPrismaticVelocityConstraint {
             let sign = _1.select(min_enabled, (-_1).select(max_enabled, _0));
 
             if sign != _0 {
+                let gcross1 = r1.gcross(axis1);
+                let gcross2 = r2.gcross(axis2);
+
                 limits_forcedirs = Some((axis1 * -sign, axis2 * sign));
                 limits_rhs = (anchor_linvel2.dot(&axis2) - anchor_linvel1.dot(&axis1)) * sign;
                 limits_impulse = lim_impulse.select(min_enabled | max_enabled, _0);
+                limits_inv_lhs = SimdReal::splat(1.0)
+                    / (im1
+                        + im2
+                        + gcross1.gdot(ii1.transform_vector(gcross1))
+                        + gcross2.gdot(ii2.transform_vector(gcross2)));
             }
         }
 
@@ -228,6 +240,7 @@ impl WPrismaticVelocityConstraint {
             limits_impulse: limits_impulse * SimdReal::splat(params.warmstart_coeff),
             limits_forcedirs,
             limits_rhs,
+            limits_inv_lhs,
             basis1,
             inv_lhs,
             rhs,
@@ -270,9 +283,19 @@ impl WPrismaticVelocityConstraint {
             .ii2_sqrt
             .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
 
+        // Warmstart limits.
         if let Some((limits_forcedir1, limits_forcedir2)) = self.limits_forcedirs {
-            mj_lambda1.linear += limits_forcedir1 * (self.im1 * self.limits_impulse);
-            mj_lambda2.linear += limits_forcedir2 * (self.im2 * self.limits_impulse);
+            let limit_impulse1 = limits_forcedir1 * self.limits_impulse;
+            let limit_impulse2 = limits_forcedir2 * self.limits_impulse;
+
+            mj_lambda1.linear += limit_impulse1 * self.im1;
+            mj_lambda1.angular += self
+                .ii1_sqrt
+                .transform_vector(self.r1.gcross(limit_impulse1));
+            mj_lambda2.linear += limit_impulse2 * self.im2;
+            mj_lambda2.angular += self
+                .ii2_sqrt
+                .transform_vector(self.r2.gcross(limit_impulse2));
         }
 
         for ii in 0..SIMD_WIDTH {
@@ -285,27 +308,11 @@ impl WPrismaticVelocityConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda1 = DeltaVel {
-            linear: Vector::from(
-                array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
-            ),
-            angular: AngVector::from(
-                array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].angular; SIMD_WIDTH],
-            ),
-        };
-        let mut mj_lambda2 = DeltaVel {
-            linear: Vector::from(
-                array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
-            ),
-            angular: AngVector::from(
-                array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].angular; SIMD_WIDTH],
-            ),
-        };
-
-        /*
-         * Joint consraint.
-         */
+    fn solve_dofs(
+        &mut self,
+        mj_lambda1: &mut DeltaVel<SimdReal>,
+        mj_lambda2: &mut DeltaVel<SimdReal>,
+    ) {
         let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
         let lin_vel1 = mj_lambda1.linear + ang_vel1.gcross(self.r1);
@@ -334,13 +341,14 @@ impl WPrismaticVelocityConstraint {
         mj_lambda2.angular -= self
             .ii2_sqrt
             .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
+    }
 
-        /*
-         * Joint limits.
-         */
+    fn solve_limits(
+        &mut self,
+        mj_lambda1: &mut DeltaVel<SimdReal>,
+        mj_lambda2: &mut DeltaVel<SimdReal>,
+    ) {
         if let Some((limits_forcedir1, limits_forcedir2)) = self.limits_forcedirs {
-            // FIXME: the transformation by ii2_sqrt could be avoided by
-            // reusing some computations above.
             let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
@@ -348,13 +356,40 @@ impl WPrismaticVelocityConstraint {
                 + limits_forcedir1.dot(&(mj_lambda1.linear + ang_vel1.gcross(self.r1)))
                 + self.limits_rhs;
             let new_impulse =
-                (self.limits_impulse - lin_dvel / (self.im1 + self.im2)).simd_max(na::zero());
+                (self.limits_impulse - lin_dvel * self.limits_inv_lhs).simd_max(na::zero());
             let dimpulse = new_impulse - self.limits_impulse;
             self.limits_impulse = new_impulse;
 
-            mj_lambda1.linear += limits_forcedir1 * (self.im1 * dimpulse);
-            mj_lambda2.linear += limits_forcedir2 * (self.im2 * dimpulse);
+            let lin_impulse1 = limits_forcedir1 * dimpulse;
+            let lin_impulse2 = limits_forcedir2 * dimpulse;
+
+            mj_lambda1.linear += lin_impulse1 * self.im1;
+            mj_lambda1.angular += self.ii1_sqrt.transform_vector(self.r1.gcross(lin_impulse1));
+            mj_lambda2.linear += lin_impulse2 * self.im2;
+            mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(lin_impulse2));
         }
+    }
+
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+        let mut mj_lambda1 = DeltaVel {
+            linear: Vector::from(
+                array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
+            ),
+            angular: AngVector::from(
+                array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].angular; SIMD_WIDTH],
+            ),
+        };
+        let mut mj_lambda2 = DeltaVel {
+            linear: Vector::from(
+                array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
+            ),
+            angular: AngVector::from(
+                array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].angular; SIMD_WIDTH],
+            ),
+        };
+
+        self.solve_dofs(&mut mj_lambda1, &mut mj_lambda2);
+        self.solve_limits(&mut mj_lambda1, &mut mj_lambda2);
 
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda1[ii] as usize].linear = mj_lambda1.linear.extract(ii);
@@ -477,19 +512,6 @@ impl WPrismaticVelocityGroundConstraint {
         let axis1 = position1 * local_axis1;
         let axis2 = position2 * local_axis2;
 
-        // #[cfg(feature = "dim2")]
-        // let r21 = Rotation::rotation_between_axis(&axis1, &axis2)
-        //     .to_rotation_matrix()
-        //     .into_inner();
-        // #[cfg(feature = "dim3")]
-        // let r21 = Rotation::rotation_between_axis(&axis1, &axis2)
-        //     .unwrap_or_else(Rotation::identity)
-        //     .to_rotation_matrix()
-        //     .into_inner();
-        // let basis2 = r21 * basis1;
-        // NOTE: we use basis2 := basis1 for now is that allows
-        // simplifications of the computation without introducing
-        // much instabilities.
         let ii2 = ii2_sqrt.squared();
         let r1 = anchor1 - world_com1;
         let r2 = anchor2 - world_com2;
@@ -616,19 +638,7 @@ impl WPrismaticVelocityGroundConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda2 = DeltaVel {
-            linear: Vector::from(
-                array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
-            ),
-            angular: AngVector::from(
-                array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].angular; SIMD_WIDTH],
-            ),
-        };
-
-        /*
-         * Joint consraint.
-         */
+    fn solve_dofs(&mut self, mj_lambda2: &mut DeltaVel<SimdReal>) {
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
         let lin_vel2 = mj_lambda2.linear + ang_vel2.gcross(self.r2);
         let lin_dvel = self.basis1.tr_mul(&lin_vel2);
@@ -650,10 +660,9 @@ impl WPrismaticVelocityGroundConstraint {
         mj_lambda2.angular -= self
             .ii2_sqrt
             .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
+    }
 
-        /*
-         * Joint limits.
-         */
+    fn solve_limits(&mut self, mj_lambda2: &mut DeltaVel<SimdReal>) {
         if let Some(limits_forcedir2) = self.limits_forcedir2 {
             // FIXME: the transformation by ii2_sqrt could be avoided by
             // reusing some computations above.
@@ -667,6 +676,20 @@ impl WPrismaticVelocityGroundConstraint {
 
             mj_lambda2.linear += limits_forcedir2 * (self.im2 * dimpulse);
         }
+    }
+
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+        let mut mj_lambda2 = DeltaVel {
+            linear: Vector::from(
+                array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
+            ),
+            angular: AngVector::from(
+                array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].angular; SIMD_WIDTH],
+            ),
+        };
+
+        self.solve_dofs(&mut mj_lambda2);
+        self.solve_limits(&mut mj_lambda2);
 
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda2[ii] as usize].linear = mj_lambda2.linear.extract(ii);
@@ -674,7 +697,6 @@ impl WPrismaticVelocityGroundConstraint {
         }
     }
 
-    // FIXME: duplicated code with the non-ground constraint.
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
         for ii in 0..SIMD_WIDTH {
             let joint = &mut joints_all[self.joint_id[ii]].weight;

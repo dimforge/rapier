@@ -1,7 +1,7 @@
-use na::{Isometry3, Point3, Unit, Vector3};
+use na::{Isometry3, Point3, Unit, UnitQuaternion, Vector3};
 use rapier3d::dynamics::{
     BallJoint, BodyStatus, FixedJoint, JointSet, PrismaticJoint, RevoluteJoint, RigidBodyBuilder,
-    RigidBodySet,
+    RigidBodyHandle, RigidBodySet,
 };
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
@@ -14,7 +14,7 @@ fn create_prismatic_joints(
     num: usize,
 ) {
     let rad = 0.4;
-    let shift = 1.0;
+    let shift = 2.0;
 
     let ground = RigidBodyBuilder::new_static()
         .translation(origin.x, origin.y, origin.z)
@@ -40,7 +40,7 @@ fn create_prismatic_joints(
 
         let z = Vector3::z();
         let mut prism = PrismaticJoint::new(
-            Point3::origin(),
+            Point3::new(0.0, 0.0, 0.0),
             axis,
             z,
             Point3::new(0.0, 0.0, -shift),
@@ -50,6 +50,74 @@ fn create_prismatic_joints(
         prism.limits_enabled = true;
         prism.limits[0] = -2.0;
         prism.limits[1] = 2.0;
+
+        joints.insert(bodies, curr_parent, curr_child, prism);
+
+        curr_parent = curr_child;
+    }
+}
+
+fn create_actuated_prismatic_joints(
+    bodies: &mut RigidBodySet,
+    colliders: &mut ColliderSet,
+    joints: &mut JointSet,
+    origin: Point3<f32>,
+    num: usize,
+) {
+    let rad = 0.4;
+    let shift = 2.0;
+
+    let ground = RigidBodyBuilder::new_static()
+        .translation(origin.x, origin.y, origin.z)
+        .build();
+    let mut curr_parent = bodies.insert(ground);
+    let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
+    colliders.insert(collider, curr_parent, bodies);
+
+    for i in 0..num {
+        let z = origin.z + (i + 1) as f32 * shift;
+        let rigid_body = RigidBodyBuilder::new_dynamic()
+            .translation(origin.x, origin.y, z)
+            .build();
+        let curr_child = bodies.insert(rigid_body);
+        let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
+        colliders.insert(collider, curr_child, bodies);
+
+        let axis = if i % 2 == 0 {
+            Unit::new_normalize(Vector3::new(1.0, 1.0, 0.0))
+        } else {
+            Unit::new_normalize(Vector3::new(-1.0, 1.0, 0.0))
+        };
+
+        let z = Vector3::z();
+        let mut prism = PrismaticJoint::new(
+            Point3::new(0.0, 0.0, 0.0),
+            axis,
+            z,
+            Point3::new(0.0, 0.0, -shift),
+            axis,
+            z,
+        );
+
+        if i == 1 {
+            prism.configure_motor_velocity(1.0, 1.0);
+            prism.limits_enabled = true;
+            prism.limits[1] = 5.0;
+            // We set a max impulse so that the motor doesn't fight
+            // the limits with large forces.
+            prism.motor_max_impulse = 1.0;
+        } else if i > 1 {
+            prism.configure_motor_position(2.0, 0.2, 1.0);
+        } else {
+            prism.configure_motor_velocity(1.0, 1.0);
+            // We set a max impulse so that the motor doesn't fight
+            // the limits with large forces.
+            prism.motor_max_impulse = 1.0;
+            prism.limits_enabled = true;
+            prism.limits[0] = -2.0;
+            prism.limits[1] = 5.0;
+        }
+
         joints.insert(bodies, curr_parent, curr_child, prism);
 
         curr_parent = curr_child;
@@ -222,6 +290,130 @@ fn create_ball_joints(
     }
 }
 
+fn create_actuated_revolute_joints(
+    bodies: &mut RigidBodySet,
+    colliders: &mut ColliderSet,
+    joints: &mut JointSet,
+    origin: Point3<f32>,
+    num: usize,
+) {
+    let rad = 0.4;
+    let shift = 2.0;
+
+    // We will reuse this base configuration for all the joints here.
+    let joint_template = RevoluteJoint::new(
+        Point3::origin(),
+        Vector3::z_axis(),
+        Point3::new(0.0, 0.0, -shift),
+        Vector3::z_axis(),
+    );
+
+    let mut parent_handle = RigidBodyHandle::invalid();
+
+    for i in 0..num {
+        let fi = i as f32;
+
+        // NOTE: the num - 2 test is to avoid two consecutive
+        // fixed bodies. Because physx will crash if we add
+        // a joint between these.
+        let status = if i == 0 {
+            BodyStatus::Static
+        } else {
+            BodyStatus::Dynamic
+        };
+
+        let shifty = (i >= 1) as u32 as f32 * -2.0;
+
+        let rigid_body = RigidBodyBuilder::new(status)
+            .translation(origin.x, origin.y + shifty, origin.z + fi * shift)
+            // .rotation(Vector3::new(0.0, fi * 1.1, 0.0))
+            .build();
+
+        let child_handle = bodies.insert(rigid_body);
+        let collider = ColliderBuilder::cuboid(rad * 2.0, rad * 6.0 / (fi + 1.0), rad).build();
+        colliders.insert(collider, child_handle, bodies);
+
+        if i > 0 {
+            let mut joint = joint_template.clone();
+
+            if i % 3 == 1 {
+                joint.configure_motor_velocity(-20.0, 0.1);
+            } else if i == num - 1 {
+                let stiffness = 0.2;
+                let damping = 1.0;
+                joint.configure_motor_position(3.14 / 2.0, stiffness, damping);
+            }
+
+            if i == 1 {
+                joint.local_anchor2.y = 2.0;
+                joint.configure_motor_velocity(-2.0, 0.1);
+            }
+
+            joints.insert(bodies, parent_handle, child_handle, joint);
+        }
+
+        parent_handle = child_handle;
+    }
+}
+
+fn create_actuated_ball_joints(
+    bodies: &mut RigidBodySet,
+    colliders: &mut ColliderSet,
+    joints: &mut JointSet,
+    origin: Point3<f32>,
+    num: usize,
+) {
+    let rad = 0.4;
+    let shift = 2.0;
+
+    // We will reuse this base configuration for all the joints here.
+    let joint_template = BallJoint::new(Point3::new(0.0, 0.0, shift), Point3::origin());
+
+    let mut parent_handle = RigidBodyHandle::invalid();
+
+    for i in 0..num {
+        let fi = i as f32;
+
+        // NOTE: the num - 2 test is to avoid two consecutive
+        // fixed bodies. Because physx will crash if we add
+        // a joint between these.
+        let status = if i == 0 {
+            BodyStatus::Static
+        } else {
+            BodyStatus::Dynamic
+        };
+
+        let rigid_body = RigidBodyBuilder::new(status)
+            .translation(origin.x, origin.y, origin.z + fi * shift)
+            // .rotation(Vector3::new(0.0, fi * 1.1, 0.0))
+            .build();
+
+        let child_handle = bodies.insert(rigid_body);
+        let collider = ColliderBuilder::capsule_y(rad * 2.0 / (fi + 1.0), rad).build();
+        colliders.insert(collider, child_handle, bodies);
+
+        if i > 0 {
+            let mut joint = joint_template.clone();
+
+            if i == 1 {
+                joint.configure_motor_velocity(Vector3::new(0.0, 0.5, -2.0), 0.1);
+            } else if i == num - 1 {
+                let stiffness = 0.2;
+                let damping = 1.0;
+                joint.configure_motor_position(
+                    UnitQuaternion::new(Vector3::new(0.0, 1.0, 3.14 / 2.0)),
+                    stiffness,
+                    damping,
+                );
+            }
+
+            joints.insert(bodies, parent_handle, child_handle, joint);
+        }
+
+        parent_handle = child_handle;
+    }
+}
+
 pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
@@ -234,8 +426,15 @@ pub fn init_world(testbed: &mut Testbed) {
         &mut bodies,
         &mut colliders,
         &mut joints,
-        Point3::new(20.0, 10.0, 0.0),
-        5,
+        Point3::new(20.0, 5.0, 0.0),
+        4,
+    );
+    create_actuated_prismatic_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut joints,
+        Point3::new(25.0, 5.0, 0.0),
+        4,
     );
     create_revolute_joints(
         &mut bodies,
@@ -249,7 +448,21 @@ pub fn init_world(testbed: &mut Testbed) {
         &mut colliders,
         &mut joints,
         Point3::new(0.0, 10.0, 0.0),
-        5,
+        10,
+    );
+    create_actuated_revolute_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut joints,
+        Point3::new(20.0, 10.0, 0.0),
+        6,
+    );
+    create_actuated_ball_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut joints,
+        Point3::new(13.0, 10.0, 0.0),
+        3,
     );
     create_ball_joints(&mut bodies, &mut colliders, &mut joints, 15);
 

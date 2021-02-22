@@ -1,3 +1,4 @@
+use crate::dynamics::SpringModel;
 use crate::math::{Isometry, Point, Real, Vector, DIM};
 use crate::utils::WBasis;
 use na::Unit;
@@ -36,10 +37,23 @@ pub struct PrismaticJoint {
     ///
     /// The impulse applied to the second body is given by `-impulse`.
     pub limits_impulse: Real,
-    // pub motor_enabled: bool,
-    // pub target_motor_vel: Real,
-    // pub max_motor_impulse: Real,
-    // pub motor_impulse: Real,
+
+    /// The target relative angular velocity the motor will attempt to reach.
+    pub motor_target_vel: Real,
+    /// The target relative angle along the joint axis the motor will attempt to reach.
+    pub motor_target_pos: Real,
+    /// The motor's stiffness.
+    /// See the documentation of `SpringModel` for more information on this parameter.
+    pub motor_stiffness: Real,
+    /// The motor's damping.
+    /// See the documentation of `SpringModel` for more information on this parameter.
+    pub motor_damping: Real,
+    /// The maximal impulse the motor is able to deliver.
+    pub motor_max_impulse: Real,
+    /// The angular impulse applied by the motor.
+    pub motor_impulse: Real,
+    /// The spring-like model used by the motor to reach the target velocity and .
+    pub motor_model: SpringModel,
 }
 
 impl PrismaticJoint {
@@ -63,10 +77,13 @@ impl PrismaticJoint {
             limits_enabled: false,
             limits: [-Real::MAX, Real::MAX],
             limits_impulse: 0.0,
-            // motor_enabled: false,
-            // target_motor_vel: 0.0,
-            // max_motor_impulse: Real::MAX,
-            // motor_impulse: 0.0,
+            motor_target_vel: 0.0,
+            motor_target_pos: 0.0,
+            motor_stiffness: 0.0,
+            motor_damping: 0.0,
+            motor_max_impulse: Real::MAX,
+            motor_impulse: 0.0,
+            motor_model: SpringModel::VelocityBased,
         }
     }
 
@@ -89,8 +106,8 @@ impl PrismaticJoint {
             Unit::try_new(local_axis1.cross(&local_tangent1), 1.0e-3)
         {
             [
-                local_bitangent1.into_inner(),
                 local_bitangent1.cross(&local_axis1),
+                local_bitangent1.into_inner(),
             ]
         } else {
             local_axis1.orthonormal_basis()
@@ -100,8 +117,8 @@ impl PrismaticJoint {
             Unit::try_new(local_axis2.cross(&local_tangent2), 2.0e-3)
         {
             [
-                local_bitangent2.into_inner(),
                 local_bitangent2.cross(&local_axis2),
+                local_bitangent2.into_inner(),
             ]
         } else {
             local_axis2.orthonormal_basis()
@@ -118,10 +135,13 @@ impl PrismaticJoint {
             limits_enabled: false,
             limits: [-Real::MAX, Real::MAX],
             limits_impulse: 0.0,
-            // motor_enabled: false,
-            // target_motor_vel: 0.0,
-            // max_motor_impulse: Real::MAX,
-            // motor_impulse: 0.0,
+            motor_target_vel: 0.0,
+            motor_target_pos: 0.0,
+            motor_stiffness: 0.0,
+            motor_damping: 0.0,
+            motor_max_impulse: Real::MAX,
+            motor_impulse: 0.0,
+            motor_model: SpringModel::VelocityBased,
         }
     }
 
@@ -133,6 +153,12 @@ impl PrismaticJoint {
     /// The local axis of this joint, expressed in the local-space of the second attached body.
     pub fn local_axis2(&self) -> Unit<Vector<Real>> {
         self.local_axis2
+    }
+
+    /// Can a SIMD constraint be used for resolving this joint?
+    pub fn supports_simd_constraints(&self) -> bool {
+        // SIMD revolute constraints don't support motors right now.
+        self.motor_max_impulse == 0.0 || (self.motor_stiffness == 0.0 && self.motor_damping == 0.0)
     }
 
     // FIXME: precompute this?
@@ -189,5 +215,34 @@ impl PrismaticJoint {
         let rotation = UnitQuaternion::from_rotation_matrix(&rotmat);
         let translation = self.local_anchor2.coords.into();
         Isometry::from_parts(translation, rotation)
+    }
+
+    /// Set the spring-like model used by the motor to reach the desired target velocity and position.
+    pub fn configure_motor_model(&mut self, model: SpringModel) {
+        self.motor_model = model;
+    }
+
+    /// Sets the target velocity this motor needs to reach.
+    pub fn configure_motor_velocity(&mut self, target_vel: Real, factor: Real) {
+        self.configure_motor(self.motor_target_pos, target_vel, 0.0, factor)
+    }
+
+    /// Sets the target position this motor needs to reach.
+    pub fn configure_motor_position(&mut self, target_pos: Real, stiffness: Real, damping: Real) {
+        self.configure_motor(target_pos, 0.0, stiffness, damping)
+    }
+
+    /// Configure both the target position and target velocity of the motor.
+    pub fn configure_motor(
+        &mut self,
+        target_pos: Real,
+        target_vel: Real,
+        stiffness: Real,
+        damping: Real,
+    ) {
+        self.motor_target_vel = target_vel;
+        self.motor_target_pos = target_pos;
+        self.motor_stiffness = stiffness;
+        self.motor_damping = damping;
     }
 }

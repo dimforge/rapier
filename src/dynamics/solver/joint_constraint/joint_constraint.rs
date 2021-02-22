@@ -13,6 +13,9 @@ use super::{
 #[cfg(feature = "dim3")]
 #[cfg(feature = "simd-is-enabled")]
 use super::{WRevoluteVelocityConstraint, WRevoluteVelocityGroundConstraint};
+// use crate::dynamics::solver::joint_constraint::generic_velocity_constraint::{
+//     GenericVelocityConstraint, GenericVelocityGroundConstraint,
+// };
 use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
     IntegrationParameters, Joint, JointGraphEdge, JointIndex, JointParams, RigidBodySet,
@@ -34,6 +37,12 @@ pub(crate) enum AnyJointVelocityConstraint {
     WFixedConstraint(WFixedVelocityConstraint),
     #[cfg(feature = "simd-is-enabled")]
     WFixedGroundConstraint(WFixedVelocityGroundConstraint),
+    // GenericConstraint(GenericVelocityConstraint),
+    // GenericGroundConstraint(GenericVelocityGroundConstraint),
+    // #[cfg(feature = "simd-is-enabled")]
+    // WGenericConstraint(WGenericVelocityConstraint),
+    // #[cfg(feature = "simd-is-enabled")]
+    // WGenericGroundConstraint(WGenericVelocityGroundConstraint),
     PrismaticConstraint(PrismaticVelocityConstraint),
     PrismaticGroundConstraint(PrismaticVelocityGroundConstraint),
     #[cfg(feature = "simd-is-enabled")]
@@ -79,6 +88,9 @@ impl AnyJointVelocityConstraint {
             JointParams::PrismaticJoint(p) => AnyJointVelocityConstraint::PrismaticConstraint(
                 PrismaticVelocityConstraint::from_params(params, joint_id, rb1, rb2, p),
             ),
+            // JointParams::GenericJoint(p) => AnyJointVelocityConstraint::GenericConstraint(
+            //     GenericVelocityConstraint::from_params(params, joint_id, rb1, rb2, p),
+            // ),
             #[cfg(feature = "dim3")]
             JointParams::RevoluteJoint(p) => AnyJointVelocityConstraint::RevoluteConstraint(
                 RevoluteVelocityConstraint::from_params(params, joint_id, rb1, rb2, p),
@@ -109,6 +121,12 @@ impl AnyJointVelocityConstraint {
                     params, joint_id, rbs1, rbs2, joints,
                 ))
             }
+            // JointParams::GenericJoint(_) => {
+            //     let joints = array![|ii| joints[ii].params.as_generic_joint().unwrap(); SIMD_WIDTH];
+            //     AnyJointVelocityConstraint::WGenericConstraint(
+            //         WGenericVelocityConstraint::from_params(params, joint_id, rbs1, rbs2, joints),
+            //     )
+            // }
             JointParams::PrismaticJoint(_) => {
                 let joints =
                     array![|ii| joints[ii].params.as_prismatic_joint().unwrap(); SIMD_WIDTH];
@@ -148,6 +166,11 @@ impl AnyJointVelocityConstraint {
             JointParams::FixedJoint(p) => AnyJointVelocityConstraint::FixedGroundConstraint(
                 FixedVelocityGroundConstraint::from_params(params, joint_id, rb1, rb2, p, flipped),
             ),
+            // JointParams::GenericJoint(p) => AnyJointVelocityConstraint::GenericGroundConstraint(
+            //     GenericVelocityGroundConstraint::from_params(
+            //         params, joint_id, rb1, rb2, p, flipped,
+            //     ),
+            // ),
             JointParams::PrismaticJoint(p) => {
                 AnyJointVelocityConstraint::PrismaticGroundConstraint(
                     PrismaticVelocityGroundConstraint::from_params(
@@ -156,10 +179,8 @@ impl AnyJointVelocityConstraint {
                 )
             }
             #[cfg(feature = "dim3")]
-            JointParams::RevoluteJoint(p) => AnyJointVelocityConstraint::RevoluteGroundConstraint(
-                RevoluteVelocityGroundConstraint::from_params(
-                    params, joint_id, rb1, rb2, p, flipped,
-                ),
+            JointParams::RevoluteJoint(p) => RevoluteVelocityGroundConstraint::from_params(
+                params, joint_id, rb1, rb2, p, flipped,
             ),
         }
     }
@@ -199,6 +220,14 @@ impl AnyJointVelocityConstraint {
                     ),
                 )
             }
+            // JointParams::GenericJoint(_) => {
+            //     let joints = array![|ii| joints[ii].params.as_generic_joint().unwrap(); SIMD_WIDTH];
+            //     AnyJointVelocityConstraint::WGenericGroundConstraint(
+            //         WGenericVelocityGroundConstraint::from_params(
+            //             params, joint_id, rbs1, rbs2, joints, flipped,
+            //         ),
+            //     )
+            // }
             JointParams::PrismaticJoint(_) => {
                 let joints =
                     array![|ii| joints[ii].params.as_prismatic_joint().unwrap(); SIMD_WIDTH];
@@ -235,6 +264,12 @@ impl AnyJointVelocityConstraint {
             AnyJointVelocityConstraint::WFixedConstraint(c) => c.warmstart(mj_lambdas),
             #[cfg(feature = "simd-is-enabled")]
             AnyJointVelocityConstraint::WFixedGroundConstraint(c) => c.warmstart(mj_lambdas),
+            // AnyJointVelocityConstraint::GenericConstraint(c) => c.warmstart(mj_lambdas),
+            // AnyJointVelocityConstraint::GenericGroundConstraint(c) => c.warmstart(mj_lambdas),
+            // #[cfg(feature = "simd-is-enabled")]
+            // AnyJointVelocityConstraint::WGenericConstraint(c) => c.warmstart(mj_lambdas),
+            // #[cfg(feature = "simd-is-enabled")]
+            // AnyJointVelocityConstraint::WGenericGroundConstraint(c) => c.warmstart(mj_lambdas),
             AnyJointVelocityConstraint::PrismaticConstraint(c) => c.warmstart(mj_lambdas),
             AnyJointVelocityConstraint::PrismaticGroundConstraint(c) => c.warmstart(mj_lambdas),
             #[cfg(feature = "simd-is-enabled")]
@@ -269,6 +304,12 @@ impl AnyJointVelocityConstraint {
             AnyJointVelocityConstraint::WFixedConstraint(c) => c.solve(mj_lambdas),
             #[cfg(feature = "simd-is-enabled")]
             AnyJointVelocityConstraint::WFixedGroundConstraint(c) => c.solve(mj_lambdas),
+            // AnyJointVelocityConstraint::GenericConstraint(c) => c.solve(mj_lambdas),
+            // AnyJointVelocityConstraint::GenericGroundConstraint(c) => c.solve(mj_lambdas),
+            // #[cfg(feature = "simd-is-enabled")]
+            // AnyJointVelocityConstraint::WGenericConstraint(c) => c.solve(mj_lambdas),
+            // #[cfg(feature = "simd-is-enabled")]
+            // AnyJointVelocityConstraint::WGenericGroundConstraint(c) => c.solve(mj_lambdas),
             AnyJointVelocityConstraint::PrismaticConstraint(c) => c.solve(mj_lambdas),
             AnyJointVelocityConstraint::PrismaticGroundConstraint(c) => c.solve(mj_lambdas),
             #[cfg(feature = "simd-is-enabled")]
@@ -311,6 +352,16 @@ impl AnyJointVelocityConstraint {
             AnyJointVelocityConstraint::WFixedGroundConstraint(c) => {
                 c.writeback_impulses(joints_all)
             }
+            // AnyJointVelocityConstraint::GenericConstraint(c) => c.writeback_impulses(joints_all),
+            // AnyJointVelocityConstraint::GenericGroundConstraint(c) => {
+            //     c.writeback_impulses(joints_all)
+            // }
+            // #[cfg(feature = "simd-is-enabled")]
+            // AnyJointVelocityConstraint::WGenericConstraint(c) => c.writeback_impulses(joints_all),
+            // #[cfg(feature = "simd-is-enabled")]
+            // AnyJointVelocityConstraint::WGenericGroundConstraint(c) => {
+            //     c.writeback_impulses(joints_all)
+            // }
             AnyJointVelocityConstraint::PrismaticConstraint(c) => c.writeback_impulses(joints_all),
             AnyJointVelocityConstraint::PrismaticGroundConstraint(c) => {
                 c.writeback_impulses(joints_all)

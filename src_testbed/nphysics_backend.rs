@@ -121,7 +121,11 @@ impl NPhysicsWorld {
                     }
 
                     nphysics_joints.insert(c);
-                }
+                } // JointParams::GenericJoint(_) => {
+                  //     eprintln!(
+                  //         "Joint type currently unsupported by the nphysics backend: GenericJoint."
+                  //     )
+                  // }
             }
         }
 

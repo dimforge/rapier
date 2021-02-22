@@ -2,46 +2,60 @@ use simba::simd::SimdValue;
 
 use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
-    IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RevoluteJoint, RigidBody,
+    GenericJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBody,
 };
 use crate::math::{
-    AngVector, AngularInertia, Isometry, Point, Real, Rotation, SimdReal, Vector, SIMD_WIDTH,
+    AngVector, AngularInertia, CrossMatrix, Dim, Isometry, Point, Real, SimdReal, SpacialVector,
+    Vector, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
-use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
+#[cfg(feature = "dim3")]
+use na::{Cholesky, Matrix6, Vector6, U3};
+#[cfg(feature = "dim2")]
+use {
+    na::{Matrix3, Vector3},
+    parry::utils::SdpMatrix3,
+};
 
 #[derive(Debug)]
-pub(crate) struct WRevoluteVelocityConstraint {
+pub(crate) struct WGenericVelocityConstraint {
     mj_lambda1: [usize; SIMD_WIDTH],
     mj_lambda2: [usize; SIMD_WIDTH],
 
     joint_id: [JointIndex; SIMD_WIDTH],
 
-    r1: Vector<SimdReal>,
-    r2: Vector<SimdReal>,
+    impulse: SpacialVector<SimdReal>,
 
-    inv_lhs: Matrix5<SimdReal>,
-    rhs: Vector5<SimdReal>,
-    impulse: Vector5<SimdReal>,
+    #[cfg(feature = "dim3")]
+    inv_lhs: Matrix6<SimdReal>, // FIXME: replace by Cholesky.
+    #[cfg(feature = "dim3")]
+    rhs: Vector6<SimdReal>,
 
-    axis1: [Vector<Real>; SIMD_WIDTH],
-    basis1: Matrix3x2<SimdReal>,
-    basis2: Matrix3x2<SimdReal>,
+    #[cfg(feature = "dim2")]
+    inv_lhs: Matrix3<SimdReal>,
+    #[cfg(feature = "dim2")]
+    rhs: Vector3<SimdReal>,
 
     im1: SimdReal,
     im2: SimdReal,
 
+    ii1: AngularInertia<SimdReal>,
+    ii2: AngularInertia<SimdReal>,
+
     ii1_sqrt: AngularInertia<SimdReal>,
     ii2_sqrt: AngularInertia<SimdReal>,
+
+    r1: Vector<SimdReal>,
+    r2: Vector<SimdReal>,
 }
 
-impl WRevoluteVelocityConstraint {
+impl WGenericVelocityConstraint {
     pub fn from_params(
         params: &IntegrationParameters,
         joint_id: [JointIndex; SIMD_WIDTH],
         rbs1: [&RigidBody; SIMD_WIDTH],
         rbs2: [&RigidBody; SIMD_WIDTH],
-        joints: [&RevoluteJoint; SIMD_WIDTH],
+        cparams: [&GenericJoint; SIMD_WIDTH],
     ) -> Self {
         let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
         let linvel1 = Vector::from(array![|ii| rbs1[ii].linvel; SIMD_WIDTH]);
@@ -63,91 +77,84 @@ impl WRevoluteVelocityConstraint {
         );
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
-        let local_anchor1 = Point::from(array![|ii| joints[ii].local_anchor1; SIMD_WIDTH]);
-        let local_anchor2 = Point::from(array![|ii| joints[ii].local_anchor2; SIMD_WIDTH]);
-        let local_basis1 = [
-            Vector::from(array![|ii| joints[ii].basis1[0]; SIMD_WIDTH]),
-            Vector::from(array![|ii| joints[ii].basis1[1]; SIMD_WIDTH]),
-        ];
-        let local_basis2 = [
-            Vector::from(array![|ii| joints[ii].basis2[0]; SIMD_WIDTH]),
-            Vector::from(array![|ii| joints[ii].basis2[1]; SIMD_WIDTH]),
-        ];
-        let impulse = Vector5::from(array![|ii| joints[ii].impulse; SIMD_WIDTH]);
+        let local_anchor1 = Isometry::from(array![|ii| cparams[ii].local_anchor1; SIMD_WIDTH]);
+        let local_anchor2 = Isometry::from(array![|ii| cparams[ii].local_anchor2; SIMD_WIDTH]);
+        let impulse = SpacialVector::from(array![|ii| cparams[ii].impulse; SIMD_WIDTH]);
 
         let anchor1 = position1 * local_anchor1;
         let anchor2 = position2 * local_anchor2;
-        let basis1 =
-            Matrix3x2::from_columns(&[position1 * local_basis1[0], position1 * local_basis1[1]]);
-        let basis2 =
-            Matrix3x2::from_columns(&[position2 * local_basis2[0], position2 * local_basis2[1]]);
-        let basis_projection2 = basis2 * basis2.transpose();
-        let basis2 = basis_projection2 * basis1;
-
         let ii1 = ii1_sqrt.squared();
-        let r1 = anchor1 - world_com1;
-        let r1_mat = r1.gcross_matrix();
-
         let ii2 = ii2_sqrt.squared();
-        let r2 = anchor2 - world_com2;
-        let r2_mat = r2.gcross_matrix();
+        let r1 = anchor1.translation.vector - world_com1.coords;
+        let r2 = anchor2.translation.vector - world_com2.coords;
+        let rmat1: CrossMatrix<_> = r1.gcross_matrix();
+        let rmat2: CrossMatrix<_> = r2.gcross_matrix();
 
-        let mut lhs = Matrix5::zeros();
-        let lhs00 =
-            ii2.quadform(&r2_mat).add_diagonal(im2) + ii1.quadform(&r1_mat).add_diagonal(im1);
-        let lhs10 = basis1.tr_mul(&(ii2 * r2_mat)) + basis2.tr_mul(&(ii1 * r1_mat));
-        let lhs11 = (ii1.quadform3x2(&basis1) + ii2.quadform3x2(&basis2)).into_matrix();
+        #[allow(unused_mut)] // For 2D.
+        let mut lhs;
 
-        // Note that Cholesky won't read the upper-right part
-        // of lhs so we don't have to fill it.
-        lhs.fixed_slice_mut::<U3, U3>(0, 0)
-            .copy_from(&lhs00.into_matrix());
-        lhs.fixed_slice_mut::<U2, U3>(3, 0).copy_from(&lhs10);
-        lhs.fixed_slice_mut::<U2, U2>(3, 3).copy_from(&lhs11);
+        #[cfg(feature = "dim3")]
+        {
+            let lhs00 =
+                ii1.quadform(&rmat1).add_diagonal(im1) + ii2.quadform(&rmat2).add_diagonal(im2);
+            let lhs10 = ii1.transform_matrix(&rmat1) + ii2.transform_matrix(&rmat2);
+            let lhs11 = (ii1 + ii2).into_matrix();
 
+            // Note that Cholesky only reads the lower-triangular part of the matrix
+            // so we don't need to fill lhs01.
+            lhs = Matrix6::zeros();
+            lhs.fixed_slice_mut::<U3, U3>(0, 0)
+                .copy_from(&lhs00.into_matrix());
+            lhs.fixed_slice_mut::<U3, U3>(3, 0).copy_from(&lhs10);
+            lhs.fixed_slice_mut::<U3, U3>(3, 3).copy_from(&lhs11);
+        }
+
+        // In 2D we just unroll the computation because
+        // it's just easier that way.
+        #[cfg(feature = "dim2")]
+        {
+            let m11 = im1 + im2 + rmat1.x * rmat1.x * ii1 + rmat2.x * rmat2.x * ii2;
+            let m12 = rmat1.x * rmat1.y * ii1 + rmat2.x * rmat2.y * ii2;
+            let m22 = im1 + im2 + rmat1.y * rmat1.y * ii1 + rmat2.y * rmat2.y * ii2;
+            let m13 = rmat1.x * ii1 + rmat2.x * ii2;
+            let m23 = rmat1.y * ii1 + rmat2.y * ii2;
+            let m33 = ii1 + ii2;
+            lhs = SdpMatrix3::new(m11, m12, m13, m22, m23, m33)
+        }
+
+        // NOTE: we don't use cholesky in 2D because we only have a 3x3 matrix
+        // for which a textbook inverse is still efficient.
+        #[cfg(feature = "dim2")]
+        let inv_lhs = lhs.inverse_unchecked().into_matrix(); // FIXME: don't extract the matrix?
+        #[cfg(feature = "dim3")]
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = linvel2 + angvel2.gcross(r2) - linvel1 - angvel1.gcross(r1);
-        let ang_rhs = basis2.tr_mul(&angvel2) - basis1.tr_mul(&angvel1);
-        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, lin_rhs.z, ang_rhs.x, ang_rhs.y);
+        let lin_dvel = -linvel1 - angvel1.gcross(r1) + linvel2 + angvel2.gcross(r2);
+        let ang_dvel = -angvel1 + angvel2;
 
-        /*
-         * Adjust the warmstart impulse.
-         * If the velocity along the free axis is somewhat high,
-         * we need to adjust the angular warmstart impulse because it
-         * may have a direction that is too different than last frame,
-         * making it counter-productive.
-         */
-        let warmstart_coeff = SimdReal::splat(params.warmstart_coeff);
-        let mut impulse = impulse * warmstart_coeff;
+        #[cfg(feature = "dim2")]
+        let rhs = Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
 
-        let axis1 = array![|ii| rbs1[ii].position * *joints[ii].local_axis1; SIMD_WIDTH];
-        let rotated_impulse = Vector::from(array![|ii| {
-            let axis_rot = Rotation::rotation_between(&joints[ii].prev_axis1, &axis1[ii])
-                .unwrap_or_else(Rotation::identity);
-            axis_rot * joints[ii].world_ang_impulse
-        }; SIMD_WIDTH]);
+        #[cfg(feature = "dim3")]
+        let rhs = Vector6::new(
+            lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
+        );
 
-        let rotated_basis_impulse = basis1.tr_mul(&rotated_impulse);
-        impulse[3] = rotated_basis_impulse.x * warmstart_coeff;
-        impulse[4] = rotated_basis_impulse.y * warmstart_coeff;
-
-        WRevoluteVelocityConstraint {
+        WGenericVelocityConstraint {
             joint_id,
             mj_lambda1,
             mj_lambda2,
             im1,
-            ii1_sqrt,
-            axis1,
-            basis1,
-            basis2,
             im2,
+            ii1,
+            ii2,
+            ii1_sqrt,
             ii2_sqrt,
-            impulse,
+            impulse: impulse * SimdReal::splat(params.warmstart_coeff),
             inv_lhs,
-            rhs,
             r1,
             r2,
+            rhs,
         }
     }
 
@@ -169,20 +176,21 @@ impl WRevoluteVelocityConstraint {
             ),
         };
 
-        let lin_impulse1 = self.impulse.fixed_rows::<U3>(0).into_owned();
-        let lin_impulse2 = self.impulse.fixed_rows::<U3>(0).into_owned();
-        let ang_impulse1 = self.basis1 * self.impulse.fixed_rows::<U2>(3).into_owned();
-        let ang_impulse2 = self.basis2 * self.impulse.fixed_rows::<U2>(3).into_owned();
+        let lin_impulse = self.impulse.fixed_rows::<Dim>(0).into_owned();
+        #[cfg(feature = "dim2")]
+        let ang_impulse = self.impulse[2];
+        #[cfg(feature = "dim3")]
+        let ang_impulse = self.impulse.fixed_rows::<U3>(3).into_owned();
 
-        mj_lambda1.linear += lin_impulse1 * self.im1;
+        mj_lambda1.linear += lin_impulse * self.im1;
         mj_lambda1.angular += self
             .ii1_sqrt
-            .transform_vector(ang_impulse1 + self.r1.gcross(lin_impulse1));
+            .transform_vector(ang_impulse + self.r1.gcross(lin_impulse));
 
-        mj_lambda2.linear -= lin_impulse2 * self.im2;
+        mj_lambda2.linear -= lin_impulse * self.im2;
         mj_lambda2.angular -= self
             .ii2_sqrt
-            .transform_vector(ang_impulse2 + self.r2.gcross(lin_impulse2));
+            .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
 
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda1[ii] as usize].linear = mj_lambda1.linear.extract(ii);
@@ -195,7 +203,7 @@ impl WRevoluteVelocityConstraint {
     }
 
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda1 = DeltaVel {
+        let mut mj_lambda1: DeltaVel<SimdReal> = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear; SIMD_WIDTH],
             ),
@@ -203,7 +211,7 @@ impl WRevoluteVelocityConstraint {
                 array![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].angular; SIMD_WIDTH],
             ),
         };
-        let mut mj_lambda2 = DeltaVel {
+        let mut mj_lambda2: DeltaVel<SimdReal> = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
             ),
@@ -215,27 +223,35 @@ impl WRevoluteVelocityConstraint {
         let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
-        let lin_dvel = (mj_lambda2.linear + ang_vel2.gcross(self.r2))
-            - (mj_lambda1.linear + ang_vel1.gcross(self.r1));
-        let ang_dvel = self.basis2.tr_mul(&ang_vel2) - self.basis1.tr_mul(&ang_vel1);
-        let rhs =
-            Vector5::new(lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y) + self.rhs;
+        let dlinvel = -mj_lambda1.linear - ang_vel1.gcross(self.r1)
+            + mj_lambda2.linear
+            + ang_vel2.gcross(self.r2);
+        let dangvel = -ang_vel1 + ang_vel2;
+
+        #[cfg(feature = "dim2")]
+        let rhs = Vector3::new(dlinvel.x, dlinvel.y, dangvel) + self.rhs;
+        #[cfg(feature = "dim3")]
+        let rhs = Vector6::new(
+            dlinvel.x, dlinvel.y, dlinvel.z, dangvel.x, dangvel.y, dangvel.z,
+        ) + self.rhs;
+
         let impulse = self.inv_lhs * rhs;
         self.impulse += impulse;
-        let lin_impulse1 = impulse.fixed_rows::<U3>(0).into_owned();
-        let lin_impulse2 = impulse.fixed_rows::<U3>(0).into_owned();
-        let ang_impulse1 = self.basis1 * impulse.fixed_rows::<U2>(3).into_owned();
-        let ang_impulse2 = self.basis2 * impulse.fixed_rows::<U2>(3).into_owned();
+        let lin_impulse = impulse.fixed_rows::<Dim>(0).into_owned();
+        #[cfg(feature = "dim2")]
+        let ang_impulse = impulse[2];
+        #[cfg(feature = "dim3")]
+        let ang_impulse = impulse.fixed_rows::<U3>(3).into_owned();
 
-        mj_lambda1.linear += lin_impulse1 * self.im1;
+        mj_lambda1.linear += lin_impulse * self.im1;
         mj_lambda1.angular += self
             .ii1_sqrt
-            .transform_vector(ang_impulse1 + self.r1.gcross(lin_impulse1));
+            .transform_vector(ang_impulse + self.r1.gcross(lin_impulse));
 
-        mj_lambda2.linear -= lin_impulse2 * self.im2;
+        mj_lambda2.linear -= lin_impulse * self.im2;
         mj_lambda2.angular -= self
             .ii2_sqrt
-            .transform_vector(ang_impulse2 + self.r2.gcross(lin_impulse2));
+            .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
 
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda1[ii] as usize].linear = mj_lambda1.linear.extract(ii);
@@ -248,46 +264,46 @@ impl WRevoluteVelocityConstraint {
     }
 
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
-        let rot_part = self.impulse.fixed_rows::<U2>(3).into_owned();
-        let world_ang_impulse = self.basis1 * rot_part;
-
         for ii in 0..SIMD_WIDTH {
             let joint = &mut joints_all[self.joint_id[ii]].weight;
-            if let JointParams::RevoluteJoint(rev) = &mut joint.params {
-                rev.impulse = self.impulse.extract(ii);
-                rev.world_ang_impulse = world_ang_impulse.extract(ii);
-                rev.prev_axis1 = self.axis1[ii];
+            if let JointParams::GenericJoint(fixed) = &mut joint.params {
+                fixed.impulse = self.impulse.extract(ii)
             }
         }
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct WRevoluteVelocityGroundConstraint {
+pub(crate) struct WGenericVelocityGroundConstraint {
     mj_lambda2: [usize; SIMD_WIDTH],
 
     joint_id: [JointIndex; SIMD_WIDTH],
 
-    r2: Vector<SimdReal>,
+    impulse: SpacialVector<SimdReal>,
 
-    inv_lhs: Matrix5<SimdReal>,
-    rhs: Vector5<SimdReal>,
-    impulse: Vector5<SimdReal>,
+    #[cfg(feature = "dim3")]
+    inv_lhs: Matrix6<SimdReal>, // FIXME: replace by Cholesky.
+    #[cfg(feature = "dim3")]
+    rhs: Vector6<SimdReal>,
 
-    basis2: Matrix3x2<SimdReal>,
+    #[cfg(feature = "dim2")]
+    inv_lhs: Matrix3<SimdReal>,
+    #[cfg(feature = "dim2")]
+    rhs: Vector3<SimdReal>,
 
     im2: SimdReal,
-
+    ii2: AngularInertia<SimdReal>,
     ii2_sqrt: AngularInertia<SimdReal>,
+    r2: Vector<SimdReal>,
 }
 
-impl WRevoluteVelocityGroundConstraint {
+impl WGenericVelocityGroundConstraint {
     pub fn from_params(
         params: &IntegrationParameters,
         joint_id: [JointIndex; SIMD_WIDTH],
         rbs1: [&RigidBody; SIMD_WIDTH],
         rbs2: [&RigidBody; SIMD_WIDTH],
-        joints: [&RevoluteJoint; SIMD_WIDTH],
+        cparams: [&GenericJoint; SIMD_WIDTH],
         flipped: [bool; SIMD_WIDTH],
     ) -> Self {
         let position1 = Isometry::from(array![|ii| rbs1[ii].position; SIMD_WIDTH]);
@@ -304,73 +320,76 @@ impl WRevoluteVelocityGroundConstraint {
             array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
         );
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
-        let impulse = Vector5::from(array![|ii| joints[ii].impulse; SIMD_WIDTH]);
 
-        let local_anchor1 = Point::from(
-            array![|ii| if flipped[ii] { joints[ii].local_anchor2 } else { joints[ii].local_anchor1 }; SIMD_WIDTH],
+        let local_anchor1 = Isometry::from(
+            array![|ii| if flipped[ii] { cparams[ii].local_anchor2 } else { cparams[ii].local_anchor1 }; SIMD_WIDTH],
         );
-        let local_anchor2 = Point::from(
-            array![|ii| if flipped[ii] { joints[ii].local_anchor1 } else { joints[ii].local_anchor2 }; SIMD_WIDTH],
+        let local_anchor2 = Isometry::from(
+            array![|ii| if flipped[ii] { cparams[ii].local_anchor1 } else { cparams[ii].local_anchor2 }; SIMD_WIDTH],
         );
-        let basis1 = Matrix3x2::from_columns(&[
-            position1
-                * Vector::from(
-                    array![|ii| if flipped[ii] { joints[ii].basis2[0] } else { joints[ii].basis1[0] }; SIMD_WIDTH],
-                ),
-            position1
-                * Vector::from(
-                    array![|ii| if flipped[ii] { joints[ii].basis2[1] } else { joints[ii].basis1[1] }; SIMD_WIDTH],
-                ),
-        ]);
-        let basis2 = Matrix3x2::from_columns(&[
-            position2
-                * Vector::from(
-                    array![|ii| if flipped[ii] { joints[ii].basis1[0] } else { joints[ii].basis2[0] }; SIMD_WIDTH],
-                ),
-            position2
-                * Vector::from(
-                    array![|ii| if flipped[ii] { joints[ii].basis1[1] } else { joints[ii].basis2[1] }; SIMD_WIDTH],
-                ),
-        ]);
-        let basis_projection2 = basis2 * basis2.transpose();
-        let basis2 = basis_projection2 * basis1;
+        let impulse = SpacialVector::from(array![|ii| cparams[ii].impulse; SIMD_WIDTH]);
 
         let anchor1 = position1 * local_anchor1;
         let anchor2 = position2 * local_anchor2;
-
         let ii2 = ii2_sqrt.squared();
-        let r1 = anchor1 - world_com1;
-        let r2 = anchor2 - world_com2;
-        let r2_mat = r2.gcross_matrix();
+        let r1 = anchor1.translation.vector - world_com1.coords;
+        let r2 = anchor2.translation.vector - world_com2.coords;
+        let rmat2: CrossMatrix<_> = r2.gcross_matrix();
 
-        let mut lhs = Matrix5::zeros();
-        let lhs00 = ii2.quadform(&r2_mat).add_diagonal(im2);
-        let lhs10 = basis2.tr_mul(&(ii2 * r2_mat));
-        let lhs11 = ii2.quadform3x2(&basis2).into_matrix();
+        #[allow(unused_mut)] // For 2D.
+        let mut lhs;
 
-        // Note that cholesky won't read the upper-right part
-        // of lhs so we don't have to fill it.
-        lhs.fixed_slice_mut::<U3, U3>(0, 0)
-            .copy_from(&lhs00.into_matrix());
-        lhs.fixed_slice_mut::<U2, U3>(3, 0).copy_from(&lhs10);
-        lhs.fixed_slice_mut::<U2, U2>(3, 3).copy_from(&lhs11);
+        #[cfg(feature = "dim3")]
+        {
+            let lhs00 = ii2.quadform(&rmat2).add_diagonal(im2);
+            let lhs10 = ii2.transform_matrix(&rmat2);
+            let lhs11 = ii2.into_matrix();
 
+            lhs = Matrix6::zeros();
+            lhs.fixed_slice_mut::<U3, U3>(0, 0)
+                .copy_from(&lhs00.into_matrix());
+            lhs.fixed_slice_mut::<U3, U3>(3, 0).copy_from(&lhs10);
+            lhs.fixed_slice_mut::<U3, U3>(3, 3).copy_from(&lhs11);
+        }
+
+        // In 2D we just unroll the computation because
+        // it's just easier that way.
+        #[cfg(feature = "dim2")]
+        {
+            let m11 = im2 + rmat2.x * rmat2.x * ii2;
+            let m12 = rmat2.x * rmat2.y * ii2;
+            let m22 = im2 + rmat2.y * rmat2.y * ii2;
+            let m13 = rmat2.x * ii2;
+            let m23 = rmat2.y * ii2;
+            let m33 = ii2;
+            lhs = SdpMatrix3::new(m11, m12, m13, m22, m23, m33)
+        }
+
+        #[cfg(feature = "dim2")]
+        let inv_lhs = lhs.inverse_unchecked().into_matrix(); // FIXME: don't do into_matrix?
+        #[cfg(feature = "dim3")]
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = (linvel2 + angvel2.gcross(r2)) - (linvel1 + angvel1.gcross(r1));
-        let ang_rhs = basis2.tr_mul(&angvel2) - basis1.tr_mul(&angvel1);
-        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, lin_rhs.z, ang_rhs.x, ang_rhs.y);
+        let lin_dvel = linvel2 + angvel2.gcross(r2) - linvel1 - angvel1.gcross(r1);
+        let ang_dvel = angvel2 - angvel1;
 
-        WRevoluteVelocityGroundConstraint {
+        #[cfg(feature = "dim2")]
+        let rhs = Vector3::new(lin_dvel.x, lin_dvel.y, ang_dvel);
+        #[cfg(feature = "dim3")]
+        let rhs = Vector6::new(
+            lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y, ang_dvel.z,
+        );
+
+        WGenericVelocityGroundConstraint {
             joint_id,
             mj_lambda2,
             im2,
+            ii2,
             ii2_sqrt,
             impulse: impulse * SimdReal::splat(params.warmstart_coeff),
-            basis2,
             inv_lhs,
-            rhs,
             r2,
+            rhs,
         }
     }
 
@@ -384,8 +403,11 @@ impl WRevoluteVelocityGroundConstraint {
             ),
         };
 
-        let lin_impulse = self.impulse.fixed_rows::<U3>(0).into_owned();
-        let ang_impulse = self.basis2 * self.impulse.fixed_rows::<U2>(3).into_owned();
+        let lin_impulse = self.impulse.fixed_rows::<Dim>(0).into_owned();
+        #[cfg(feature = "dim2")]
+        let ang_impulse = self.impulse[2];
+        #[cfg(feature = "dim3")]
+        let ang_impulse = self.impulse.fixed_rows::<U3>(3).into_owned();
 
         mj_lambda2.linear -= lin_impulse * self.im2;
         mj_lambda2.angular -= self
@@ -399,7 +421,7 @@ impl WRevoluteVelocityGroundConstraint {
     }
 
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda2 = DeltaVel {
+        let mut mj_lambda2: DeltaVel<SimdReal> = DeltaVel {
             linear: Vector::from(
                 array![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
             ),
@@ -409,14 +431,23 @@ impl WRevoluteVelocityGroundConstraint {
         };
 
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
-        let lin_dvel = mj_lambda2.linear + ang_vel2.gcross(self.r2);
-        let ang_dvel = self.basis2.tr_mul(&ang_vel2);
-        let rhs =
-            Vector5::new(lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y) + self.rhs;
+        let dlinvel = mj_lambda2.linear + ang_vel2.gcross(self.r2);
+        let dangvel = ang_vel2;
+        #[cfg(feature = "dim2")]
+        let rhs = Vector3::new(dlinvel.x, dlinvel.y, dangvel) + self.rhs;
+        #[cfg(feature = "dim3")]
+        let rhs = Vector6::new(
+            dlinvel.x, dlinvel.y, dlinvel.z, dangvel.x, dangvel.y, dangvel.z,
+        ) + self.rhs;
+
         let impulse = self.inv_lhs * rhs;
+
         self.impulse += impulse;
-        let lin_impulse = impulse.fixed_rows::<U3>(0).into_owned();
-        let ang_impulse = self.basis2 * impulse.fixed_rows::<U2>(3).into_owned();
+        let lin_impulse = impulse.fixed_rows::<Dim>(0).into_owned();
+        #[cfg(feature = "dim2")]
+        let ang_impulse = impulse[2];
+        #[cfg(feature = "dim3")]
+        let ang_impulse = impulse.fixed_rows::<U3>(3).into_owned();
 
         mj_lambda2.linear -= lin_impulse * self.im2;
         mj_lambda2.angular -= self
@@ -433,8 +464,8 @@ impl WRevoluteVelocityGroundConstraint {
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
         for ii in 0..SIMD_WIDTH {
             let joint = &mut joints_all[self.joint_id[ii]].weight;
-            if let JointParams::RevoluteJoint(rev) = &mut joint.params {
-                rev.impulse = self.impulse.extract(ii)
+            if let JointParams::GenericJoint(fixed) = &mut joint.params {
+                fixed.impulse = self.impulse.extract(ii)
             }
         }
     }
