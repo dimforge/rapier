@@ -183,10 +183,7 @@ impl BallVelocityConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
-        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
-
+    fn solve_dofs(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
         let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
         let vel1 = mj_lambda1.linear + ang_vel1.gcross(self.r1);
@@ -201,10 +198,9 @@ impl BallVelocityConstraint {
 
         mj_lambda2.linear -= self.im2 * impulse;
         mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
 
-        /*
-         * Motor part.
-         */
+    fn solve_motors(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
         if let Some(motor_inv_lhs) = &self.motor_inv_lhs {
             let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
@@ -224,6 +220,14 @@ impl BallVelocityConstraint {
             mj_lambda1.angular += self.ii1_sqrt.transform_vector(effective_impulse);
             mj_lambda2.angular -= self.ii2_sqrt.transform_vector(effective_impulse);
         }
+    }
+
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+        let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
+        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
+
+        self.solve_dofs(&mut mj_lambda1, &mut mj_lambda2);
+        self.solve_motors(&mut mj_lambda1, &mut mj_lambda2);
 
         mj_lambdas[self.mj_lambda1 as usize] = mj_lambda1;
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
@@ -232,7 +236,8 @@ impl BallVelocityConstraint {
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
         let joint = &mut joints_all[self.joint_id].weight;
         if let JointParams::BallJoint(ball) = &mut joint.params {
-            ball.impulse = self.impulse
+            ball.impulse = self.impulse;
+            ball.motor_impulse = self.motor_impulse;
         }
     }
 }
@@ -393,9 +398,7 @@ impl BallVelocityGroundConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
-
+    fn solve_dofs(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
         let angvel = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
         let vel2 = mj_lambda2.linear + angvel.gcross(self.r2);
         let dvel = vel2 + self.rhs;
@@ -405,10 +408,9 @@ impl BallVelocityGroundConstraint {
 
         mj_lambda2.linear -= self.im2 * impulse;
         mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
 
-        /*
-         * Motor part.
-         */
+    fn solve_motors(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
         if let Some(motor_inv_lhs) = &self.motor_inv_lhs {
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
@@ -425,6 +427,13 @@ impl BallVelocityGroundConstraint {
 
             mj_lambda2.angular -= self.ii2_sqrt.transform_vector(effective_impulse);
         }
+    }
+
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
+
+        self.solve_dofs(&mut mj_lambda2);
+        self.solve_motors(&mut mj_lambda2);
 
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
@@ -433,7 +442,8 @@ impl BallVelocityGroundConstraint {
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
         let joint = &mut joints_all[self.joint_id].weight;
         if let JointParams::BallJoint(ball) = &mut joint.params {
-            ball.impulse = self.impulse
+            ball.impulse = self.impulse;
+            ball.motor_impulse = self.motor_impulse;
         }
     }
 }

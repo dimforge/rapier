@@ -209,10 +209,7 @@ impl RevoluteVelocityConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
-        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
-
+    fn solve_dofs(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
         let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
@@ -237,10 +234,9 @@ impl RevoluteVelocityConstraint {
         mj_lambda2.angular -= self
             .ii2_sqrt
             .transform_vector(ang_impulse2 + self.r2.gcross(lin_impulse2));
+    }
 
-        /*
-         * Motor.
-         */
+    fn solve_motors(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
         if self.motor_inv_lhs != 0.0 {
             let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
@@ -258,6 +254,14 @@ impl RevoluteVelocityConstraint {
             mj_lambda1.angular += self.ii1_sqrt.transform_vector(self.motor_axis1 * impulse);
             mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.motor_axis2 * impulse);
         }
+    }
+
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+        let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
+        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
+
+        self.solve_dofs(&mut mj_lambda1, &mut mj_lambda2);
+        self.solve_motors(&mut mj_lambda1, &mut mj_lambda2);
 
         mj_lambdas[self.mj_lambda1 as usize] = mj_lambda1;
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
@@ -452,9 +456,7 @@ impl RevoluteVelocityGroundConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
-
+    fn solve_dofs(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
         let lin_dvel = mj_lambda2.linear + ang_vel2.gcross(self.r2);
@@ -470,10 +472,8 @@ impl RevoluteVelocityGroundConstraint {
         mj_lambda2.angular -= self
             .ii2_sqrt
             .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
-
-        /*
-         * Motor.
-         */
+    }
+    fn solve_motors(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
         if self.motor_inv_lhs != 0.0 {
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
             let ang_dvel = ang_vel2.dot(&self.motor_axis2);
@@ -489,6 +489,13 @@ impl RevoluteVelocityGroundConstraint {
 
             mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.motor_axis2 * impulse);
         }
+    }
+
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
+
+        self.solve_dofs(&mut mj_lambda2);
+        self.solve_motors(&mut mj_lambda2);
 
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }

@@ -57,6 +57,73 @@ fn create_prismatic_joints(
     }
 }
 
+fn create_actuated_prismatic_joints(
+    bodies: &mut RigidBodySet,
+    colliders: &mut ColliderSet,
+    joints: &mut JointSet,
+    origin: Point3<f32>,
+    num: usize,
+) {
+    let rad = 0.4;
+    let shift = 2.0;
+
+    let ground = RigidBodyBuilder::new_static()
+        .translation(origin.x, origin.y, origin.z)
+        .build();
+    let mut curr_parent = bodies.insert(ground);
+    let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
+    colliders.insert(collider, curr_parent, bodies);
+
+    for i in 0..num {
+        let z = origin.z + (i + 1) as f32 * shift;
+        let rigid_body = RigidBodyBuilder::new_dynamic()
+            .translation(origin.x, origin.y, z)
+            .build();
+        let curr_child = bodies.insert(rigid_body);
+        let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
+        colliders.insert(collider, curr_child, bodies);
+
+        let axis = if i % 2 == 0 {
+            Unit::new_normalize(Vector3::new(1.0, 1.0, 0.0))
+        } else {
+            Unit::new_normalize(Vector3::new(-1.0, 1.0, 0.0))
+        };
+
+        let z = Vector3::z();
+        let mut prism = PrismaticJoint::new(
+            Point3::new(0.0, 0.0, 0.0),
+            axis,
+            z,
+            Point3::new(0.0, 0.0, -shift),
+            axis,
+            z,
+        );
+
+        if i == 1 {
+            prism.configure_motor_velocity(1.0, 1.0);
+            prism.limits_enabled = true;
+            prism.limits[1] = 5.0;
+            // We set a max impulse so that the motor doesn't fight
+            // the limits with large forces.
+            prism.motor_max_impulse = 1.0;
+        } else if i > 1 {
+            prism.configure_motor_position(2.0, 0.2, 1.0);
+        } else {
+            prism.configure_motor_velocity(1.0, 1.0);
+            // We set a max impulse so that the motor doesn't fight
+            // the limits with large forces.
+            prism.motor_max_impulse = 1.0;
+            prism.limits_enabled = true;
+            prism.limits[0] = -2.0;
+            prism.limits[1] = 5.0;
+        }
+
+        joints.insert(bodies, curr_parent, curr_child, prism);
+
+        curr_parent = curr_child;
+    }
+}
+
 fn create_revolute_joints(
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
@@ -360,6 +427,13 @@ pub fn init_world(testbed: &mut Testbed) {
         &mut colliders,
         &mut joints,
         Point3::new(20.0, 5.0, 0.0),
+        4,
+    );
+    create_actuated_prismatic_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut joints,
+        Point3::new(25.0, 5.0, 0.0),
         4,
     );
     create_revolute_joints(
