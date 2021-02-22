@@ -49,7 +49,7 @@ pub(crate) struct VelocityGroundConstraint {
     pub limit: Real,
     pub mj_lambda2: usize,
     pub manifold_id: ContactManifoldIndex,
-    pub manifold_contact_id: usize,
+    pub manifold_contact_id: [u8; MAX_MANIFOLD_POINTS],
     pub num_contacts: u8,
     pub elements: [VelocityGroundConstraintElement; MAX_MANIFOLD_POINTS],
 }
@@ -92,7 +92,7 @@ impl VelocityGroundConstraint {
                 limit: 0.0,
                 mj_lambda2,
                 manifold_id,
-                manifold_contact_id: l * MAX_MANIFOLD_POINTS,
+                manifold_contact_id: [0; MAX_MANIFOLD_POINTS],
                 num_contacts: manifold_points.len() as u8,
             };
 
@@ -133,7 +133,7 @@ impl VelocityGroundConstraint {
                 constraint.limit = 0.0;
                 constraint.mj_lambda2 = mj_lambda2;
                 constraint.manifold_id = manifold_id;
-                constraint.manifold_contact_id = l * MAX_MANIFOLD_POINTS;
+                constraint.manifold_contact_id = [0; MAX_MANIFOLD_POINTS];
                 constraint.num_contacts = manifold_points.len() as u8;
             }
 
@@ -145,6 +145,7 @@ impl VelocityGroundConstraint {
                 let vel2 = rb2.linvel + rb2.angvel.gcross(dp2);
 
                 constraint.limit = manifold_point.friction;
+                constraint.manifold_contact_id[k] = manifold_point.contact_id;
 
                 // Normal part.
                 {
@@ -267,19 +268,18 @@ impl VelocityGroundConstraint {
     // FIXME: duplicated code. This is exactly the same as in the non-ground velocity constraint.
     pub fn writeback_impulses(&self, manifolds_all: &mut [&mut ContactManifold]) {
         let manifold = &mut manifolds_all[self.manifold_id];
-        let k_base = self.manifold_contact_id;
 
         for k in 0..self.num_contacts as usize {
-            let active_contacts = &mut manifold.points[..manifold.data.num_active_contacts()];
-            active_contacts[k_base + k].data.impulse = self.elements[k].normal_part.impulse;
+            let contact_id = self.manifold_contact_id[k];
+            let active_contact = &mut manifold.points[contact_id as usize];
+            active_contact.data.impulse = self.elements[k].normal_part.impulse;
             #[cfg(feature = "dim2")]
             {
-                active_contacts[k_base + k].data.tangent_impulse =
-                    self.elements[k].tangent_part[0].impulse;
+                active_contact.data.tangent_impulse = self.elements[k].tangent_part[0].impulse;
             }
             #[cfg(feature = "dim3")]
             {
-                active_contacts[k_base + k].data.tangent_impulse = [
+                active_contact.data.tangent_impulse = [
                     self.elements[k].tangent_part[0].impulse,
                     self.elements[k].tangent_part[1].impulse,
                 ];

@@ -51,7 +51,7 @@ pub(crate) struct WVelocityGroundConstraint {
     pub limit: SimdReal,
     pub mj_lambda2: [usize; SIMD_WIDTH],
     pub manifold_id: [ContactManifoldIndex; SIMD_WIDTH],
-    pub manifold_contact_id: usize,
+    pub manifold_contact_id: [[u8; SIMD_WIDTH]; MAX_MANIFOLD_POINTS],
 }
 
 impl WVelocityGroundConstraint {
@@ -111,7 +111,7 @@ impl WVelocityGroundConstraint {
                 limit: SimdReal::splat(0.0),
                 mj_lambda2,
                 manifold_id,
-                manifold_contact_id: l,
+                manifold_contact_id: [[0; SIMD_WIDTH]; MAX_MANIFOLD_POINTS],
                 num_contacts: num_points as u8,
             };
 
@@ -135,6 +135,8 @@ impl WVelocityGroundConstraint {
                 let vel2 = linvel2 + angvel2.gcross(dp2);
 
                 constraint.limit = friction;
+                constraint.manifold_contact_id[k] =
+                    array![|ii| manifold_points[ii][k].contact_id; SIMD_WIDTH];
 
                 // Normal part.
                 {
@@ -281,17 +283,17 @@ impl WVelocityGroundConstraint {
 
             for ii in 0..SIMD_WIDTH {
                 let manifold = &mut manifolds_all[self.manifold_id[ii]];
-                let k_base = self.manifold_contact_id;
-                let active_contacts = &mut manifold.points[..manifold.data.num_active_contacts()];
-                active_contacts[k_base + k].data.impulse = impulses[ii];
+                let contact_id = self.manifold_contact_id[k][ii];
+                let active_contact = &mut manifold.points[contact_id as usize];
+                active_contact.data.impulse = impulses[ii];
 
                 #[cfg(feature = "dim2")]
                 {
-                    active_contacts[k_base + k].data.tangent_impulse = tangent_impulses[ii];
+                    active_contact.data.tangent_impulse = tangent_impulses[ii];
                 }
                 #[cfg(feature = "dim3")]
                 {
-                    active_contacts[k_base + k].data.tangent_impulse =
+                    active_contact.data.tangent_impulse =
                         [tangent_impulses[ii], bitangent_impulses[ii]];
                 }
             }

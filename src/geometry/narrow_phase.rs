@@ -546,15 +546,17 @@ impl NarrowPhase {
                 manifold.data.solver_flags = solver_flags;
                 manifold.data.normal = world_pos1 * manifold.local_n1;
 
-                // Sort contacts to keep only these with distances bellow
-                // the prediction, and generate solver contacts.
-                let mut first_inactive_index = manifold.points.len();
+                // Generate solver contacts.
+                for (contact_id, contact) in manifold.points.iter().enumerate() {
+                    assert!(
+                        contact_id <= u8::MAX as usize,
+                        "A contact manifold cannot contain more than 255 contacts currently."
+                    );
 
-                while manifold.data.num_active_contacts() != first_inactive_index {
-                    let contact = &manifold.points[manifold.data.num_active_contacts()];
                     if contact.dist < prediction_distance {
                         // Generate the solver contact.
                         let solver_contact = SolverContact {
+                            contact_id: contact_id as u8,
                             point: world_pos1 * contact.local_p1
                                 + manifold.data.normal * contact.dist / 2.0,
                             dist: contact.dist,
@@ -570,14 +572,6 @@ impl NarrowPhase {
                         has_any_active_contact = true;
                         continue;
                     }
-
-                    // If we reach this code, then the contact must be ignored by the constraints solver.
-                    // Swap with the last contact.
-                    manifold.points.swap(
-                        manifold.data.num_active_contacts(),
-                        first_inactive_index - 1,
-                    );
-                    first_inactive_index -= 1;
                 }
             }
 

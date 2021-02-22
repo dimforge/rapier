@@ -110,6 +110,8 @@ pub struct ContactManifoldData {
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct SolverContact {
+    /// The index of the manifold contact used to generate this solver contact.
+    pub contact_id: u8,
     /// The world-space contact point.
     pub point: Point<Real>,
     /// The distance between the two original contacts points along the contact normal.
@@ -202,4 +204,10 @@ impl ContactManifoldData {
     //     // Reset the multiplier.
     //     manifold.data.warmstart_multiplier = Self::min_warmstart_multiplier()
     // }
+}
+
+/// A contact manifold that can be modified by the user.
+pub struct ModifiableContactManifold<'a> {
+    manifold: &'a super::ContactManifold,
+    solver_contacts: &'a mut Vec<SolverContact>,
 }
