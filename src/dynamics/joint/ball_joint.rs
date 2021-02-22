@@ -38,8 +38,6 @@ pub struct BallJoint {
     pub motor_impulse: Vector<Real>,
     /// The spring-like model used by the motor to reach the target velocity and .
     pub motor_model: SpringModel,
-    // Used to handle cases where the position target ends up being more than pi radians away.
-    pub(crate) motor_last_angle: Real,
 }
 
 impl BallJoint {
@@ -64,7 +62,6 @@ impl BallJoint {
             motor_impulse: na::zero(),
             motor_max_impulse: Real::MAX,
             motor_model: SpringModel::default(),
-            motor_last_angle: 0.0,
         }
     }
 
