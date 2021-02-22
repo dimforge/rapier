@@ -23,6 +23,7 @@ pub struct RevoluteJoint {
     ///
     /// The impulse applied to the second body is given by `-impulse`.
     pub impulse: Vector5<Real>,
+
     /// The target relative angular velocity the motor will attempt to reach.
     pub motor_target_vel: Real,
     /// The target relative angle along the joint axis the motor will attempt to reach.
@@ -39,6 +40,7 @@ pub struct RevoluteJoint {
     pub motor_impulse: Real,
     /// The spring-like model used by the motor to reach the target velocity and .
     pub motor_model: SpringModel,
+
     // Used to handle cases where the position target ends up being more than pi radians away.
     pub(crate) motor_last_angle: Real,
     // The angular impulse expressed in world-space.
