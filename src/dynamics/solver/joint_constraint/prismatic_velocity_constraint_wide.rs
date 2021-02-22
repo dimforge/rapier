@@ -48,6 +48,7 @@ pub(crate) struct WPrismaticVelocityConstraint {
     limits_impulse: SimdReal,
     limits_forcedirs: Option<(Vector<SimdReal>, Vector<SimdReal>)>,
     limits_rhs: SimdReal,
+    limits_inv_lhs: SimdReal,
 
     #[cfg(feature = "dim2")]
     basis1: Vector2<SimdReal>,
@@ -187,10 +188,13 @@ impl WPrismaticVelocityConstraint {
         #[cfg(feature = "dim3")]
         let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, ang_rhs.x, ang_rhs.y, ang_rhs.z);
 
-        // Setup limit constraint.
+        /*
+         * Setup limit constraint.
+         */
         let mut limits_forcedirs = None;
         let mut limits_rhs = na::zero();
         let mut limits_impulse = na::zero();
+        let mut limits_inv_lhs = na::zero();
         let limits_enabled = SimdBool::from(array![|ii| cparams[ii].limits_enabled; SIMD_WIDTH]);
 
         if limits_enabled.any() {
@@ -210,9 +214,17 @@ impl WPrismaticVelocityConstraint {
             let sign = _1.select(min_enabled, (-_1).select(max_enabled, _0));
 
             if sign != _0 {
+                let gcross1 = r1.gcross(axis1);
+                let gcross2 = r2.gcross(axis2);
+
                 limits_forcedirs = Some((axis1 * -sign, axis2 * sign));
                 limits_rhs = (anchor_linvel2.dot(&axis2) - anchor_linvel1.dot(&axis1)) * sign;
                 limits_impulse = lim_impulse.select(min_enabled | max_enabled, _0);
+                limits_inv_lhs = SimdReal::splat(1.0)
+                    / (im1
+                        + im2
+                        + gcross1.dot(&ii1.transform_vector(gcross1))
+                        + gcross2.dot(&ii2.transform_vector(gcross2)));
             }
         }
 
@@ -228,6 +240,7 @@ impl WPrismaticVelocityConstraint {
             limits_impulse: limits_impulse * SimdReal::splat(params.warmstart_coeff),
             limits_forcedirs,
             limits_rhs,
+            limits_inv_lhs,
             basis1,
             inv_lhs,
             rhs,
@@ -270,9 +283,19 @@ impl WPrismaticVelocityConstraint {
             .ii2_sqrt
             .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
 
+        // Warmstart limits.
         if let Some((limits_forcedir1, limits_forcedir2)) = self.limits_forcedirs {
-            mj_lambda1.linear += limits_forcedir1 * (self.im1 * self.limits_impulse);
-            mj_lambda2.linear += limits_forcedir2 * (self.im2 * self.limits_impulse);
+            let limit_impulse1 = limits_forcedir1 * self.limits_impulse;
+            let limit_impulse2 = limits_forcedir2 * self.limits_impulse;
+
+            mj_lambda1.linear += limit_impulse1 * self.im1;
+            mj_lambda1.angular += self
+                .ii1_sqrt
+                .transform_vector(self.r1.gcross(limit_impulse1));
+            mj_lambda2.linear += limit_impulse2 * self.im2;
+            mj_lambda2.angular += self
+                .ii2_sqrt
+                .transform_vector(self.r2.gcross(limit_impulse2));
         }
 
         for ii in 0..SIMD_WIDTH {
@@ -339,8 +362,6 @@ impl WPrismaticVelocityConstraint {
          * Joint limits.
          */
         if let Some((limits_forcedir1, limits_forcedir2)) = self.limits_forcedirs {
-            // FIXME: the transformation by ii2_sqrt could be avoided by
-            // reusing some computations above.
             let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
@@ -348,12 +369,17 @@ impl WPrismaticVelocityConstraint {
                 + limits_forcedir1.dot(&(mj_lambda1.linear + ang_vel1.gcross(self.r1)))
                 + self.limits_rhs;
             let new_impulse =
-                (self.limits_impulse - lin_dvel / (self.im1 + self.im2)).simd_max(na::zero());
+                (self.limits_impulse - lin_dvel * self.limits_inv_lhs).simd_max(na::zero());
             let dimpulse = new_impulse - self.limits_impulse;
             self.limits_impulse = new_impulse;
 
-            mj_lambda1.linear += limits_forcedir1 * (self.im1 * dimpulse);
-            mj_lambda2.linear += limits_forcedir2 * (self.im2 * dimpulse);
+            let lin_impulse1 = limits_forcedir1 * dimpulse;
+            let lin_impulse2 = limits_forcedir2 * dimpulse;
+
+            mj_lambda1.linear += lin_impulse1 * self.im1;
+            mj_lambda1.angular += self.ii1_sqrt.transform_vector(self.r1.gcross(lin_impulse1));
+            mj_lambda2.linear += lin_impulse2 * self.im2;
+            mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(lin_impulse2));
         }
 
         for ii in 0..SIMD_WIDTH {
