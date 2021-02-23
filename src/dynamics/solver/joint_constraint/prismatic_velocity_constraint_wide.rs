@@ -48,10 +48,11 @@ pub(crate) struct WPrismaticVelocityConstraint {
     #[cfg(feature = "dim2")]
     impulse: Vector2<SimdReal>,
 
+    limits_active: bool,
     limits_impulse: SimdReal,
     limits_forcedir2: Vector<SimdReal>,
     limits_rhs: SimdReal,
-    limits_inv_lhs: Option<SimdReal>,
+    limits_inv_lhs: SimdReal,
     limits_impulse_limits: (SimdReal, SimdReal),
 
     #[cfg(feature = "dim2")]
@@ -231,9 +232,10 @@ impl WPrismaticVelocityConstraint {
         // Setup limit constraint.
         let zero: SimdReal = na::zero();
         let limits_forcedir2 = axis2; // hopefully axis1 is colinear with axis2
+        let mut limits_active = false;
         let mut limits_rhs = zero;
         let mut limits_impulse = zero;
-        let mut limits_inv_lhs = None;
+        let mut limits_inv_lhs = zero;
         let mut limits_impulse_limits = (zero, zero);
 
         let limits_enabled = SimdBool::from(array![|ii| cparams[ii].limits_enabled; SIMD_WIDTH]);
@@ -252,7 +254,8 @@ impl WPrismaticVelocityConstraint {
             limits_impulse_limits.1 = SimdReal::splat(Real::INFINITY).select(min_enabled, zero);
             limits_impulse_limits.0 = SimdReal::splat(-Real::INFINITY).select(max_enabled, zero);
 
-            if (min_enabled | max_enabled).any() {
+            limits_active = (min_enabled | max_enabled).any();
+            if limits_active {
                 let gcross1 = r1.gcross(axis1);
                 let gcross2 = r2.gcross(axis2);
 
@@ -268,13 +271,11 @@ impl WPrismaticVelocityConstraint {
                         .simd_max(limits_impulse_limits.0)
                         .simd_min(limits_impulse_limits.1);
 
-                limits_inv_lhs = Some(
-                    SimdReal::splat(1.0)
-                        / (im1
-                            + im2
-                            + gcross1.gdot(ii1.transform_vector(gcross1))
-                            + gcross2.gdot(ii2.transform_vector(gcross2))),
-                );
+                limits_inv_lhs = SimdReal::splat(1.0)
+                    / (im1
+                        + im2
+                        + gcross1.gdot(ii1.transform_vector(gcross1))
+                        + gcross2.gdot(ii2.transform_vector(gcross2)));
             }
         }
 
@@ -286,6 +287,7 @@ impl WPrismaticVelocityConstraint {
             ii1_sqrt,
             im2,
             ii2_sqrt,
+            limits_active,
             impulse: impulse * SimdReal::splat(params.warmstart_coeff),
             limits_impulse: limits_impulse * SimdReal::splat(params.warmstart_coeff),
             limits_forcedir2,
@@ -335,7 +337,7 @@ impl WPrismaticVelocityConstraint {
             .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
 
         // Warmstart limits.
-        if self.limits_inv_lhs.is_some() {
+        if self.limits_active {
             let limit_impulse1 = -self.limits_forcedir2 * self.limits_impulse;
             let limit_impulse2 = self.limits_forcedir2 * self.limits_impulse;
 
@@ -399,7 +401,7 @@ impl WPrismaticVelocityConstraint {
         mj_lambda1: &mut DeltaVel<SimdReal>,
         mj_lambda2: &mut DeltaVel<SimdReal>,
     ) {
-        if let Some(limits_inv_lhs) = self.limits_inv_lhs {
+        if self.limits_active {
             let limits_forcedir1 = -self.limits_forcedir2;
             let limits_forcedir2 = self.limits_forcedir2;
 
@@ -409,8 +411,9 @@ impl WPrismaticVelocityConstraint {
             let lin_dvel = limits_forcedir2.dot(&(mj_lambda2.linear + ang_vel2.gcross(self.r2)))
                 + limits_forcedir1.dot(&(mj_lambda1.linear + ang_vel1.gcross(self.r1)))
                 + self.limits_rhs;
-            let new_impulse =
-                (self.limits_impulse - lin_dvel * limits_inv_lhs).simd_max(na::zero());
+            let new_impulse = (self.limits_impulse - lin_dvel * self.limits_inv_lhs)
+                .simd_max(self.limits_impulse_limits.0)
+                .simd_min(self.limits_impulse_limits.1);
             let dimpulse = new_impulse - self.limits_impulse;
             self.limits_impulse = new_impulse;
 
@@ -488,7 +491,7 @@ pub(crate) struct WPrismaticVelocityGroundConstraint {
     #[cfg(feature = "dim3")]
     impulse: Vector5<SimdReal>,
 
-    limits_enabled: bool,
+    limits_active: bool,
     limits_forcedir2: Vector<SimdReal>,
     limits_impulse: SimdReal,
     limits_rhs: SimdReal,
@@ -660,13 +663,13 @@ impl WPrismaticVelocityGroundConstraint {
         // Setup limit constraint.
         let zero: SimdReal = na::zero();
         let limits_forcedir2 = axis2; // hopefully axis1 is colinear with axis2
+        let mut limits_active = false;
         let mut limits_rhs = zero;
         let mut limits_impulse = zero;
         let mut limits_impulse_limits = (zero, zero);
 
-        let limits_enabled =
-            SimdBool::from(array![|ii| cparams[ii].limits_enabled; SIMD_WIDTH]).any();
-        if limits_enabled {
+        let limits_enabled = SimdBool::from(array![|ii| cparams[ii].limits_enabled; SIMD_WIDTH]);
+        if limits_enabled.any() {
             let danchor = anchor2 - anchor1;
             let dist = danchor.dot(&axis1);
 
@@ -680,7 +683,8 @@ impl WPrismaticVelocityGroundConstraint {
             limits_impulse_limits.1 = SimdReal::splat(Real::INFINITY).select(min_enabled, zero);
             limits_impulse_limits.0 = SimdReal::splat(-Real::INFINITY).select(max_enabled, zero);
 
-            if (min_enabled | max_enabled).any() {
+            limits_active = (min_enabled | max_enabled).any();
+            if limits_active {
                 limits_rhs = (anchor_linvel2.dot(&axis2) - anchor_linvel1.dot(&axis1))
                     * velocity_solve_fraction;
 
@@ -701,7 +705,7 @@ impl WPrismaticVelocityGroundConstraint {
             im2,
             ii2_sqrt,
             impulse: impulse * SimdReal::splat(params.warmstart_coeff),
-            limits_enabled,
+            limits_active,
             limits_forcedir2,
             limits_rhs,
             limits_impulse: limits_impulse * SimdReal::splat(params.warmstart_coeff),
@@ -768,7 +772,7 @@ impl WPrismaticVelocityGroundConstraint {
     }
 
     fn solve_limits(&mut self, mj_lambda2: &mut DeltaVel<SimdReal>) {
-        if self.limits_enabled {
+        if self.limits_active {
             // FIXME: the transformation by ii2_sqrt could be avoided by
             // reusing some computations above.
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
@@ -777,7 +781,9 @@ impl WPrismaticVelocityGroundConstraint {
                 .limits_forcedir2
                 .dot(&(mj_lambda2.linear + ang_vel2.gcross(self.r2)))
                 + self.limits_rhs;
-            let new_impulse = (self.limits_impulse - lin_dvel / self.im2).simd_max(na::zero());
+            let new_impulse = (self.limits_impulse - lin_dvel / self.im2)
+                .simd_max(self.limits_impulse_limits.0)
+                .simd_min(self.limits_impulse_limits.1);
             let dimpulse = new_impulse - self.limits_impulse;
             self.limits_impulse = new_impulse;
 
