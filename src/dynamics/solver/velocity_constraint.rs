@@ -152,7 +152,7 @@ impl VelocityConstraint {
         let force_dir1 = -manifold.data.normal;
         let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
 
-        for (l, manifold_points) in manifold
+        for (_l, manifold_points) in manifold
             .data
             .solver_contacts
             .chunks(MAX_MANIFOLD_POINTS)
@@ -295,7 +295,7 @@ impl VelocityConstraint {
             if push {
                 out_constraints.push(AnyVelocityConstraint::Nongrouped(constraint));
             } else {
-                out_constraints[manifold.data.constraint_index + l] =
+                out_constraints[manifold.data.constraint_index + _l] =
                     AnyVelocityConstraint::Nongrouped(constraint);
             }
         }

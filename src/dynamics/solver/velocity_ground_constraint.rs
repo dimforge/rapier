@@ -78,7 +78,7 @@ impl VelocityGroundConstraint {
         let mj_lambda2 = rb2.active_set_offset;
         let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
 
-        for (l, manifold_points) in manifold
+        for (_l, manifold_points) in manifold
             .data
             .solver_contacts
             .chunks(MAX_MANIFOLD_POINTS)
@@ -202,7 +202,7 @@ impl VelocityGroundConstraint {
             if push {
                 out_constraints.push(AnyVelocityConstraint::NongroupedGround(constraint));
             } else {
-                out_constraints[manifold.data.constraint_index + l] =
+                out_constraints[manifold.data.constraint_index + _l] =
                     AnyVelocityConstraint::NongroupedGround(constraint);
             }
         }
