@@ -25,6 +25,7 @@ use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
 use rapier::math::{Isometry, Vector};
+use rapier::pipeline::PhysicsHooks;
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
@@ -245,20 +246,19 @@ impl Testbed {
     }
 
     pub fn set_world(&mut self, bodies: RigidBodySet, colliders: ColliderSet, joints: JointSet) {
-        self.set_world_with_gravity(bodies, colliders, joints, Vector::y() * -9.81)
+        self.set_world_with_params(bodies, colliders, joints, Vector::y() * -9.81, ())
     }
 
-    pub fn set_world_with_gravity(
+    pub fn set_world_with_params(
         &mut self,
         bodies: RigidBodySet,
         colliders: ColliderSet,
         joints: JointSet,
         gravity: Vector<f32>,
+        hooks: impl PhysicsHooks + 'static,
     ) {
-        println!("Num bodies: {}", bodies.len());
-        println!("Num joints: {}", joints.len());
         self.harness
-            .set_world_with_gravity(bodies, colliders, joints, gravity);
+            .set_world_with_params(bodies, colliders, joints, gravity, hooks);
 
         self.state
             .action_flags

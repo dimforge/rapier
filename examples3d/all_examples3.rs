@@ -29,6 +29,7 @@ mod heightfield3;
 mod joints3;
 mod keva3;
 mod locked_rotations3;
+mod one_way_platforms3;
 mod platform3;
 mod primitives3;
 mod restitution3;
@@ -83,6 +84,7 @@ pub fn main() {
         ("Heightfield", heightfield3::init_world),
         ("Joints", joints3::init_world),
         ("Locked rotations", locked_rotations3::init_world),
+        ("One-way platforms", one_way_platforms3::init_world),
         ("Platform", platform3::init_world),
         ("Restitution", restitution3::init_world),
         ("Sensor", sensor3::init_world),

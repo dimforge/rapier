@@ -1,11 +1,9 @@
 //! Physics pipeline structures.
 
 use crate::dynamics::{JointSet, RigidBodySet};
-use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, NarrowPhase, PhysicsHooks,
-};
+use crate::geometry::{BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, NarrowPhase};
 use crate::math::Real;
-use crate::pipeline::EventHandler;
+use crate::pipeline::{EventHandler, PhysicsHooks};
 
 /// The collision pipeline, responsible for performing collision detection between colliders.
 ///

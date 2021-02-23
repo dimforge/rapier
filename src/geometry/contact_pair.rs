@@ -16,6 +16,12 @@ bitflags::bitflags! {
     }
 }
 
+impl Default for SolverFlags {
+    fn default() -> Self {
+        SolverFlags::COMPUTE_IMPULSES
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A single contact between two collider.
@@ -126,10 +132,11 @@ pub struct SolverContact {
     pub friction: Real,
     /// The effective restitution coefficient at this contact point.
     pub restitution: Real,
-    /// The artificially add relative velocity at the contact point.
+    /// The desired tangent relative velocity at the contact point.
+    ///
     /// This is set to zero by default. Set to a non-zero value to
     /// simulate, e.g., conveyor belts.
-    pub surface_velocity: Vector<Real>,
+    pub tangent_velocity: Vector<Real>,
     /// Associated contact data used to warm-start the constraints
     /// solver.
     pub data: ContactData,

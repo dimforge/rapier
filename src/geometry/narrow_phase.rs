@@ -4,15 +4,15 @@ use rayon::prelude::*;
 use crate::data::pubsub::Subscription;
 use crate::data::Coarena;
 use crate::dynamics::{BodyPair, CoefficientCombineRule, RigidBodySet};
-use crate::geometry::pair_filter::{ContactModificationContext, PhysicsHooksFlags};
 use crate::geometry::{
-    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactData, ContactEvent,
-    ContactManifoldData, IntersectionEvent, PairFilterContext, PhysicsHooks, RemovedCollider,
-    SolverContact, SolverFlags,
+    BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ColliderSet, ContactData,
+    ContactEvent, ContactManifold, ContactManifoldData, ContactPair, InteractionGraph,
+    IntersectionEvent, RemovedCollider, SolverContact, SolverFlags,
 };
-use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 use crate::math::{Real, Vector};
-use crate::pipeline::EventHandler;
+use crate::pipeline::{
+    ContactModificationContext, EventHandler, PairFilterContext, PhysicsHooks, PhysicsHooksFlags,
+};
 use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
 use parry::utils::IsometryOpt;
 use std::collections::HashMap;
@@ -518,7 +518,7 @@ impl NarrowPhase {
                     return;
                 }
             } else {
-                SolverFlags::COMPUTE_IMPULSES
+                co1.solver_flags | co2.solver_flags
             };
 
             if !co1.solver_groups.test(co2.solver_groups) {
@@ -573,7 +573,7 @@ impl NarrowPhase {
                             dist: contact.dist,
                             friction,
                             restitution,
-                            surface_velocity: Vector::zeros(),
+                            tangent_velocity: Vector::zeros(),
                             data: contact.data,
                         };
 

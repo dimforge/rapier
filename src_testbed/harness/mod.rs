@@ -7,7 +7,7 @@ use plugin::HarnessPlugin;
 use rapier::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
 use rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
 use rapier::math::Vector;
-use rapier::pipeline::{ChannelEventCollector, PhysicsPipeline, QueryPipeline};
+use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
 
 pub mod plugin;
 
@@ -111,15 +111,16 @@ impl Harness {
     }
 
     pub fn set_world(&mut self, bodies: RigidBodySet, colliders: ColliderSet, joints: JointSet) {
-        self.set_world_with_gravity(bodies, colliders, joints, Vector::y() * -9.81)
+        self.set_world_with_params(bodies, colliders, joints, Vector::y() * -9.81, ())
     }
 
-    pub fn set_world_with_gravity(
+    pub fn set_world_with_params(
         &mut self,
         bodies: RigidBodySet,
         colliders: ColliderSet,
         joints: JointSet,
         gravity: Vector<f32>,
+        hooks: impl PhysicsHooks + 'static,
     ) {
         // println!("Num bodies: {}", bodies.len());
         // println!("Num joints: {}", joints.len());
@@ -127,6 +128,8 @@ impl Harness {
         self.physics.bodies = bodies;
         self.physics.colliders = colliders;
         self.physics.joints = joints;
+        self.physics.hooks = Box::new(hooks);
+
         self.physics.broad_phase = BroadPhase::new();
         self.physics.narrow_phase = NarrowPhase::new();
         self.state.timestep_id = 0;
@@ -176,8 +179,7 @@ impl Harness {
                     &mut physics.bodies,
                     &mut physics.colliders,
                     &mut physics.joints,
-                    None,
-                    None,
+                    &*physics.hooks,
                     event_handler,
                 );
             });
@@ -192,7 +194,7 @@ impl Harness {
             &mut self.physics.bodies,
             &mut self.physics.colliders,
             &mut self.physics.joints,
-            &(),
+            &*self.physics.hooks,
             &self.event_handler,
         );
 

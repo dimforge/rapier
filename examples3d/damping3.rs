@@ -40,6 +40,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world_with_gravity(bodies, colliders, joints, Vector3::zeros());
+    testbed.set_world_with_params(bodies, colliders, joints, Vector3::zeros(), ());
     testbed.look_at(Point3::new(2.0, 2.5, 20.0), Point3::new(2.0, 2.5, 0.0));
 }
