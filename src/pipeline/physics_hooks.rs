@@ -1,5 +1,7 @@
 use crate::dynamics::RigidBody;
 use crate::geometry::{Collider, ColliderHandle, ContactManifold, SolverContact, SolverFlags};
+use crate::math::{Real, Vector};
+use na::ComplexField;
 
 /// Context given to custom collision filters to filter-out collisions.
 pub struct PairFilterContext<'a> {
@@ -17,6 +19,7 @@ pub struct PairFilterContext<'a> {
     pub collider2: &'a Collider,
 }
 
+/// Context given to custom contact modifiers to modify the contacts seen by the constrainst solver.
 pub struct ContactModificationContext<'a> {
     /// The first collider involved in the potential collision.
     pub rigid_body1: &'a RigidBody,
@@ -38,6 +41,68 @@ pub struct ContactModificationContext<'a> {
     // NOTE: we keep this a &'a mut u32 to emphasize the
     // fact that this can be modified.
     pub user_data: &'a mut u32,
+}
+
+impl<'a> ContactModificationContext<'a> {
+    /// Helper function to update `self` to emulate a oneway-platform.
+    ///
+    /// The "oneway" behavior will only allow contacts between two colliders
+    /// if the local contact normal of the first collider involved in the contact
+    /// is almost aligned with the provided `allowed_local_n1` direction.
+    ///
+    /// To make this method work properly it must be called as part of the
+    /// `PhysicsHooks::modify_solver_contacts` method at each timestep, for each
+    /// contact manifold involving a one-way platform. The `self.user_data` field
+    /// must not be modified from the outside of this method.
+    pub fn update_as_oneway_platform(
+        &mut self,
+        allowed_local_n1: &Vector<Real>,
+        allowed_angle: Real,
+    ) {
+        const CONTACT_CONFIGURATION_UNKNOWN: u32 = 0;
+        const CONTACT_CURRENTLY_ALLOWED: u32 = 1;
+        const CONTACT_CURRENTLY_FORBIDDEN: u32 = 2;
+
+        let cang = ComplexField::cos(allowed_angle);
+
+        // Test the allowed normal with the local-space contact normal that
+        // points towards the exterior of context.collider1.
+        let contact_is_ok = self.manifold.local_n1.dot(&allowed_local_n1) >= cang;
+
+        match *self.user_data {
+            CONTACT_CONFIGURATION_UNKNOWN => {
+                if contact_is_ok {
+                    // The contact is close enough to the allowed normal.
+                    *self.user_data = CONTACT_CURRENTLY_ALLOWED;
+                } else {
+                    // The contact normal isn't close enough to the allowed
+                    // normal, so remove all the contacts and mark further contacts
+                    // as forbidden.
+                    self.solver_contacts.clear();
+                    *self.user_data = CONTACT_CURRENTLY_FORBIDDEN;
+                }
+            }
+            CONTACT_CURRENTLY_FORBIDDEN => {
+                // Contacts are forbidden so we need to continue forbidding contacts
+                // until all the contacts are non-penetrating again. In that case, if
+                // the contacts are OK wrt. the contact normal, then we can mark them as allowed.
+                if contact_is_ok && self.solver_contacts.iter().all(|c| c.dist > 0.0) {
+                    *self.user_data = CONTACT_CURRENTLY_ALLOWED;
+                } else {
+                    // Discard all the contacts.
+                    self.solver_contacts.clear();
+                }
+            }
+            CONTACT_CURRENTLY_ALLOWED => {
+                // We allow all the contacts right now. The configuration becomes
+                // uncertain again when the contact manifold no longer contains any contact.
+                if self.solver_contacts.is_empty() {
+                    *self.user_data = CONTACT_CONFIGURATION_UNKNOWN;
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
 }
 
 bitflags::bitflags! {
@@ -81,7 +146,9 @@ pub trait PhysicsHooks: Send + Sync {
     /// will be taken into account by the constraints solver. If this returns
     /// `Some(SolverFlags::empty())` then the constraints solver will ignore these
     /// contacts.
-    fn filter_contact_pair(&self, context: &PairFilterContext) -> Option<SolverFlags>;
+    fn filter_contact_pair(&self, _context: &PairFilterContext) -> Option<SolverFlags> {
+        None
+    }
 
     /// Applies the intersection pair filter.
     ///
@@ -102,7 +169,9 @@ pub trait PhysicsHooks: Send + Sync {
     /// not compute any intersection information for it.
     /// If this return `true` then the narrow-phase will compute intersection
     /// information for this pair.
-    fn filter_intersection_pair(&self, context: &PairFilterContext) -> bool;
+    fn filter_intersection_pair(&self, _context: &PairFilterContext) -> bool {
+        false
+    }
 
     /// Modifies the set of contacts seen by the constraints solver.
     ///
@@ -126,7 +195,7 @@ pub trait PhysicsHooks: Send + Sync {
     /// Each contact manifold is given a `u32` user-defined data that is persistent between
     /// timesteps (as long as the contact manifold exists). This user-defined data is initialized
     /// as 0 and can be modified in `context.user_data`.
-    fn modify_solver_contacts(&self, context: &mut ContactModificationContext);
+    fn modify_solver_contacts(&self, _context: &mut ContactModificationContext) {}
 }
 
 impl PhysicsHooks for () {

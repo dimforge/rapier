@@ -8,10 +8,9 @@ use crate::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactManifoldIndex, NarrowPhase,
-    PhysicsHooks,
 };
 use crate::math::{Real, Vector};
-use crate::pipeline::EventHandler;
+use crate::pipeline::{EventHandler, PhysicsHooks};
 
 /// The physics pipeline, responsible for stepping the whole physics simulation.
 ///
