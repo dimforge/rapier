@@ -60,6 +60,9 @@ pub trait PhysicsHooks: Send + Sync {
 
     /// Applies the contact pair filter.
     ///
+    /// Note that this method will only be called if `self.active_hooks()`
+    /// contains the `PhysicsHooksFlags::FILTER_CONTACT_PAIR` flags.
+    ///
     /// User-defined filter for potential contact pairs detected by the broad-phase.
     /// This can be used to apply custom logic in order to decide whether two colliders
     /// should have their contact computed by the narrow-phase, and if these contact
@@ -82,6 +85,9 @@ pub trait PhysicsHooks: Send + Sync {
 
     /// Applies the intersection pair filter.
     ///
+    /// Note that this method will only be called if `self.active_hooks()`
+    /// contains the `PhysicsHooksFlags::FILTER_INTERSECTION_PAIR` flags.
+    ///
     /// User-defined filter for potential intersection pairs detected by the broad-phase.
     ///
     /// This can be used to apply custom logic in order to decide whether two colliders
@@ -99,6 +105,9 @@ pub trait PhysicsHooks: Send + Sync {
     fn filter_intersection_pair(&self, context: &PairFilterContext) -> bool;
 
     /// Modifies the set of contacts seen by the constraints solver.
+    ///
+    /// Note that this method will only be called if `self.active_hooks()`
+    /// contains the `PhysicsHooksFlags::MODIFY_SOLVER_CONTACTS` flags.
     ///
     /// By default, the content of `solver_contacts` is computed from `manifold.points`.
     /// This method will be called on each contact manifold which have the flag `SolverFlags::MODIFY_CONTACTS` set.
@@ -121,7 +130,6 @@ pub trait PhysicsHooks: Send + Sync {
 }
 
 impl PhysicsHooks for () {
-    /// The sets of hooks that must be taken into account.
     fn active_hooks(&self) -> PhysicsHooksFlags {
         PhysicsHooksFlags::empty()
     }
