@@ -234,13 +234,27 @@ impl RigidBodySet {
         self.bodies.get(handle.0)
     }
 
+    fn mark_as_modified(
+        handle: RigidBodyHandle,
+        rb: &mut RigidBody,
+        modified_bodies: &mut Vec<RigidBodyHandle>,
+        modified_all_bodies: bool,
+    ) {
+        if !modified_all_bodies && !rb.changes.contains(RigidBodyChanges::MODIFIED) {
+            rb.changes = RigidBodyChanges::MODIFIED;
+            modified_bodies.push(handle);
+        }
+    }
+
     /// Gets a mutable reference to the rigid-body with the given handle.
     pub fn get_mut(&mut self, handle: RigidBodyHandle) -> Option<&mut RigidBody> {
         let result = self.bodies.get_mut(handle.0)?;
-        if !self.modified_all_bodies && !result.changes.contains(RigidBodyChanges::MODIFIED) {
-            result.changes = RigidBodyChanges::MODIFIED;
-            self.modified_bodies.push(handle);
-        }
+        Self::mark_as_modified(
+            handle,
+            result,
+            &mut self.modified_bodies,
+            self.modified_all_bodies,
+        );
         Some(result)
     }
 
@@ -298,6 +312,26 @@ impl RigidBodySet {
         self.active_dynamic_set[island_range]
             .iter()
             .filter_map(move |h| Some((*h, bodies.get(h.0)?)))
+    }
+
+    /// Applies the given function on all the active dynamic rigid-bodies
+    /// contained by this set.
+    #[inline(always)]
+    pub fn foreach_active_dynamic_body_mut(
+        &mut self,
+        mut f: impl FnMut(RigidBodyHandle, &mut RigidBody),
+    ) {
+        for handle in &self.active_dynamic_set {
+            if let Some(rb) = self.bodies.get_mut(handle.0) {
+                Self::mark_as_modified(
+                    *handle,
+                    rb,
+                    &mut self.modified_bodies,
+                    self.modified_all_bodies,
+                );
+                f(*handle, rb)
+            }
+        }
     }
 
     #[inline(always)]
