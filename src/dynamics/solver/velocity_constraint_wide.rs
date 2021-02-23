@@ -130,6 +130,8 @@ impl WVelocityConstraint {
                 );
                 let point = Point::from(array![|ii| manifold_points[ii][k].point; SIMD_WIDTH]);
                 let dist = SimdReal::from(array![|ii| manifold_points[ii][k].dist; SIMD_WIDTH]);
+                let tangent_velocity =
+                    Vector::from(array![|ii| manifold_points[ii][k].tangent_velocity; SIMD_WIDTH]);
 
                 let impulse =
                     SimdReal::from(array![|ii| manifold_points[ii][k].data.impulse; SIMD_WIDTH]);
@@ -181,7 +183,7 @@ impl WVelocityConstraint {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-tangents1[j]));
                     let r = SimdReal::splat(1.0)
                         / (im1 + im2 + gcross1.gdot(gcross1) + gcross2.gdot(gcross2));
-                    let rhs = (vel1 - vel2).dot(&tangents1[j]);
+                    let rhs = (vel1 - vel2 + tangent_velocity).dot(&tangents1[j]);
 
                     constraint.elements[k].tangent_parts[j] = WVelocityConstraintElementPart {
                         gcross1,

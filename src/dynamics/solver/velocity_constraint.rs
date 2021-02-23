@@ -273,7 +273,8 @@ impl VelocityConstraint {
                                 + rb2.effective_inv_mass
                                 + gcross1.gdot(gcross1)
                                 + gcross2.gdot(gcross2));
-                        let rhs = (vel1 - vel2).dot(&tangents1[j]);
+                        let rhs =
+                            (vel1 - vel2 + manifold_point.tangent_velocity).dot(&tangents1[j]);
                         #[cfg(feature = "dim2")]
                         let impulse = manifold_point.data.tangent_impulse * warmstart_coeff;
                         #[cfg(feature = "dim3")]
@@ -391,7 +392,7 @@ impl VelocityConstraint {
             active_contact.data.impulse = self.elements[k].normal_part.impulse;
             #[cfg(feature = "dim2")]
             {
-                active_contacts.data.tangent_impulse = self.elements[k].tangent_part[0].impulse;
+                active_contact.data.tangent_impulse = self.elements[k].tangent_part[0].impulse;
             }
             #[cfg(feature = "dim3")]
             {
