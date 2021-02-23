@@ -108,9 +108,8 @@ impl RevoluteVelocityConstraint {
             let axis1 = rb1.position * joint.local_axis1;
             let axis2 = rb2.position * joint.local_axis2;
 
-            let ang_err =
-                Rotation::rotation_between_axis(&axis1, &axis2).unwrap_or_else(Rotation::identity);
-            let ang_err = ang_err.scaled_axis();
+            let axis_error = axis1.cross(&axis2);
+            let ang_err = basis2.tr_mul(&axis_error) - basis1.tr_mul(&axis_error);
 
             rhs += Vector5::new(lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y)
                 * velocity_based_erp_inv_dt;
@@ -416,9 +415,8 @@ impl RevoluteVelocityGroundConstraint {
                 axis1 = rb1.position * joint.local_axis1;
                 axis2 = rb2.position * joint.local_axis2;
             }
-            let ang_err =
-                Rotation::rotation_between_axis(&axis1, &axis2).unwrap_or_else(Rotation::identity);
-            let ang_err = ang_err.scaled_axis();
+            let axis_error = axis1.cross(&axis2);
+            let ang_err = basis2.tr_mul(&axis_error);
 
             rhs += Vector5::new(lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y)
                 * velocity_based_erp_inv_dt;
@@ -521,6 +519,7 @@ impl RevoluteVelocityGroundConstraint {
             .ii2_sqrt
             .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
     }
+
     fn solve_motors(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
         if self.motor_inv_lhs != 0.0 {
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
