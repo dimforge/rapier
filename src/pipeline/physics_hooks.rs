@@ -179,7 +179,7 @@ pub trait PhysicsHooks: Send + Sync {
     /// contains the `PhysicsHooksFlags::MODIFY_SOLVER_CONTACTS` flags.
     ///
     /// By default, the content of `solver_contacts` is computed from `manifold.points`.
-    /// This method will be called on each contact manifold which have the flag `SolverFlags::MODIFY_CONTACTS` set.
+    /// This method will be called on each contact manifold which have the flag `SolverFlags::modify_solver_contacts` set.
     /// This method can be used to modify the set of solver contacts seen by the constraints solver: contacts
     /// can be removed and modified.
     ///

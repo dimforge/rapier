@@ -162,7 +162,7 @@ pub struct ColliderBuilder {
     pub is_sensor: bool,
     /// Do we have to always call the contact modifier
     /// on this collider?
-    pub modify_contacts: bool,
+    pub modify_solver_contacts: bool,
     /// The user-data of the collider being built.
     pub user_data: u128,
     /// The collision groups for the collider being built.
@@ -186,7 +186,7 @@ impl ColliderBuilder {
             solver_groups: InteractionGroups::all(),
             friction_combine_rule: CoefficientCombineRule::Average,
             restitution_combine_rule: CoefficientCombineRule::Average,
-            modify_contacts: false,
+            modify_solver_contacts: false,
         }
     }
 
@@ -463,8 +463,8 @@ impl ColliderBuilder {
 
     /// If set to `true` then the physics hooks will always run to modify
     /// contacts involving this collider.
-    pub fn modify_contacts(mut self, modify_contacts: bool) -> Self {
-        self.modify_contacts = modify_contacts;
+    pub fn modify_solver_contacts(mut self, modify_solver_contacts: bool) -> Self {
+        self.modify_solver_contacts = modify_solver_contacts;
         self
     }
 
@@ -547,7 +547,10 @@ impl ColliderBuilder {
             .with_friction_combine_rule(self.friction_combine_rule)
             .with_restitution_combine_rule(self.restitution_combine_rule);
         let mut solver_flags = SolverFlags::default();
-        solver_flags.set(SolverFlags::MODIFY_SOLVER_CONTACTS, self.modify_contacts);
+        solver_flags.set(
+            SolverFlags::MODIFY_SOLVER_CONTACTS,
+            self.modify_solver_contacts,
+        );
 
         Collider {
             shape: self.shape.clone(),

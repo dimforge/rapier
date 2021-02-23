@@ -77,12 +77,12 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let collider = ColliderBuilder::cuboid(9.0, 0.5, 25.0)
         .translation(0.0, 2.0, 30.0)
-        .modify_contacts(true)
+        .modify_solver_contacts(true)
         .build();
     let platform1 = colliders.insert(collider, handle, &mut bodies);
     let collider = ColliderBuilder::cuboid(9.0, 0.5, 25.0)
         .translation(0.0, -2.0, -30.0)
-        .modify_contacts(true)
+        .modify_solver_contacts(true)
         .build();
     let platform2 = colliders.insert(collider, handle, &mut bodies);
 
