@@ -2,8 +2,7 @@
 
 use crate::dynamics::{JointSet, RigidBodySet};
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactPairFilter,
-    IntersectionPairFilter, NarrowPhase,
+    BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, NarrowPhase, PhysicsHooks,
 };
 use crate::math::Real;
 use crate::pipeline::EventHandler;
@@ -44,8 +43,7 @@ impl CollisionPipeline {
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
-        contact_pair_filter: Option<&dyn ContactPairFilter>,
-        proximity_pair_filter: Option<&dyn IntersectionPairFilter>,
+        hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
         bodies.maintain(colliders);
@@ -58,14 +56,8 @@ impl CollisionPipeline {
 
         narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
 
-        narrow_phase.compute_contacts(
-            prediction_distance,
-            bodies,
-            colliders,
-            contact_pair_filter,
-            events,
-        );
-        narrow_phase.compute_intersections(bodies, colliders, proximity_pair_filter, events);
+        narrow_phase.compute_contacts(prediction_distance, bodies, colliders, hooks, events);
+        narrow_phase.compute_intersections(bodies, colliders, hooks, events);
 
         bodies.update_active_set_with_contacts(
             colliders,

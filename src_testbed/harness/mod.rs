@@ -192,8 +192,7 @@ impl Harness {
             &mut self.physics.bodies,
             &mut self.physics.colliders,
             &mut self.physics.joints,
-            None,
-            None,
+            &(),
             &self.event_handler,
         );
 

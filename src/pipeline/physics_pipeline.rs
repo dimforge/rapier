@@ -7,8 +7,8 @@ use crate::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactManifoldIndex,
-    ContactPairFilter, IntersectionPairFilter, NarrowPhase,
+    BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, ContactManifoldIndex, NarrowPhase,
+    PhysicsHooks,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::EventHandler;
@@ -69,8 +69,7 @@ impl PhysicsPipeline {
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
         joints: &mut JointSet,
-        contact_pair_filter: Option<&dyn ContactPairFilter>,
-        proximity_pair_filter: Option<&dyn IntersectionPairFilter>,
+        hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
         self.counters.step_started();
@@ -115,10 +114,10 @@ impl PhysicsPipeline {
             integration_parameters.prediction_distance,
             bodies,
             colliders,
-            contact_pair_filter,
+            hooks,
             events,
         );
-        narrow_phase.compute_intersections(bodies, colliders, proximity_pair_filter, events);
+        narrow_phase.compute_intersections(bodies, colliders, hooks, events);
         //        println!("Compute contact time: {}", instant::now() - t);
 
         self.counters.stages.island_construction_time.start();

@@ -4,10 +4,11 @@ use rayon::prelude::*;
 use crate::data::pubsub::Subscription;
 use crate::data::Coarena;
 use crate::dynamics::{BodyPair, CoefficientCombineRule, RigidBodySet};
+use crate::geometry::pair_filter::{ContactModificationContext, PhysicsHooksFlags};
 use crate::geometry::{
     BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ContactData, ContactEvent,
-    ContactManifoldData, ContactPairFilter, IntersectionEvent, IntersectionPairFilter,
-    PairFilterContext, RemovedCollider, SolverContact, SolverFlags,
+    ContactManifoldData, IntersectionEvent, PairFilterContext, PhysicsHooks, RemovedCollider,
+    SolverContact, SolverFlags,
 };
 use crate::geometry::{ColliderSet, ContactManifold, ContactPair, InteractionGraph};
 use crate::math::{Real, Vector};
@@ -387,11 +388,13 @@ impl NarrowPhase {
         &mut self,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        pair_filter: Option<&dyn IntersectionPairFilter>,
+        hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
         let nodes = &self.intersection_graph.graph.nodes;
         let query_dispatcher = &*self.query_dispatcher;
+        let active_hooks = hooks.active_hooks();
+
         par_iter_mut!(&mut self.intersection_graph.graph.edges).for_each(|edge| {
             let handle1 = nodes[edge.source().index()].weight;
             let handle2 = nodes[edge.target().index()].weight;
@@ -415,12 +418,15 @@ impl NarrowPhase {
                 return;
             }
 
-            if pair_filter.is_none() && !rb1.is_dynamic() && !rb2.is_dynamic() {
+            if !active_hooks.contains(PhysicsHooksFlags::FILTER_INTERSECTION_PAIR)
+                && !rb1.is_dynamic()
+                && !rb2.is_dynamic()
+            {
                 // Default filtering rule: no intersection between two non-dynamic bodies.
                 return;
             }
 
-            if let Some(filter) = pair_filter {
+            if active_hooks.contains(PhysicsHooksFlags::FILTER_INTERSECTION_PAIR) {
                 let context = PairFilterContext {
                     rigid_body1: rb1,
                     rigid_body2: rb2,
@@ -430,7 +436,7 @@ impl NarrowPhase {
                     collider2: co2,
                 };
 
-                if !filter.filter_intersection_pair(&context) {
+                if !hooks.filter_intersection_pair(&context) {
                     // No intersection allowed.
                     return;
                 }
@@ -458,10 +464,11 @@ impl NarrowPhase {
         prediction_distance: Real,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        pair_filter: Option<&dyn ContactPairFilter>,
+        hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
         let query_dispatcher = &*self.query_dispatcher;
+        let active_hooks = hooks.active_hooks();
 
         par_iter_mut!(&mut self.contact_graph.graph.edges).for_each(|edge| {
             let pair = &mut edge.weight;
@@ -485,12 +492,16 @@ impl NarrowPhase {
                 return;
             }
 
-            if pair_filter.is_none() && !rb1.is_dynamic() && !rb2.is_dynamic() {
+            if !active_hooks.contains(PhysicsHooksFlags::FILTER_CONTACT_PAIR)
+                && !rb1.is_dynamic()
+                && !rb2.is_dynamic()
+            {
                 // Default filtering rule: no contact between two non-dynamic bodies.
                 return;
             }
 
-            let mut solver_flags = if let Some(filter) = pair_filter {
+            let mut solver_flags = if active_hooks.contains(PhysicsHooksFlags::FILTER_CONTACT_PAIR)
+            {
                 let context = PairFilterContext {
                     rigid_body1: rb1,
                     rigid_body2: rb2,
@@ -500,7 +511,7 @@ impl NarrowPhase {
                     collider2: co2,
                 };
 
-                if let Some(solver_flags) = filter.filter_contact_pair(&context) {
+                if let Some(solver_flags) = hooks.filter_contact_pair(&context) {
                     solver_flags
                 } else {
                     // No contact allowed.
@@ -566,12 +577,38 @@ impl NarrowPhase {
                             data: contact.data,
                         };
 
-                        // TODO: apply the user-defined contact modification/removal, if needed.
-
                         manifold.data.solver_contacts.push(solver_contact);
                         has_any_active_contact = true;
-                        continue;
                     }
+                }
+
+                // Apply the user-defined contact modification.
+                if active_hooks.contains(PhysicsHooksFlags::MODIFY_SOLVER_CONTACTS)
+                    && manifold
+                        .data
+                        .solver_flags
+                        .contains(SolverFlags::MODIFY_SOLVER_CONTACTS)
+                {
+                    let mut modifiable_solver_contacts =
+                        std::mem::replace(&mut manifold.data.solver_contacts, Vec::new());
+                    let mut modifiable_user_data = manifold.data.user_data;
+
+                    let mut context = ContactModificationContext {
+                        rigid_body1: rb1,
+                        rigid_body2: rb2,
+                        collider_handle1: pair.pair.collider1,
+                        collider_handle2: pair.pair.collider2,
+                        collider1: co1,
+                        collider2: co2,
+                        manifold,
+                        solver_contacts: &mut modifiable_solver_contacts,
+                        user_data: &mut modifiable_user_data,
+                    };
+
+                    hooks.modify_solver_contacts(&mut context);
+
+                    manifold.data.solver_contacts = modifiable_solver_contacts;
+                    manifold.data.user_data = modifiable_user_data;
                 }
             }
 
