@@ -223,27 +223,22 @@ impl PrismaticVelocityConstraint {
             // TODO: we should allow predictive constraint activation.
 
             let (min_limit, max_limit) = (joint.limits[0], joint.limits[1]);
-            let below_min = dist < min_limit;
-            let above_max = max_limit < dist;
+            let min_enabled = dist < min_limit;
+            let max_enabled = max_limit < dist;
 
-            if below_min {
+            if min_enabled {
                 limits_impulse_limits.1 = Real::INFINITY;
             }
-            if above_max {
+            if max_enabled {
                 limits_impulse_limits.0 = -Real::INFINITY;
             }
 
-            if below_min || above_max {
-                limits_impulse = joint
-                    .limits_impulse
-                    .max(limits_impulse_limits.0)
-                    .min(limits_impulse_limits.1);
-
+            if min_enabled || max_enabled {
                 limits_rhs = (anchor_linvel2.dot(&axis2) - anchor_linvel1.dot(&axis1))
                     * params.velocity_solve_fraction;
 
-                limits_rhs += velocity_based_erp_inv_dt
-                    * ((dist - max_limit).max(0.0) - (min_limit - dist).max(0.0));
+                limits_rhs += ((dist - max_limit).max(0.0) - (min_limit - dist).max(0.0))
+                    * velocity_based_erp_inv_dt;
 
                 let gcross1 = r1.gcross(*axis1);
                 let gcross2 = r2.gcross(*axis2);
@@ -252,6 +247,11 @@ impl PrismaticVelocityConstraint {
                         + gcross1.gdot(ii1.transform_vector(gcross1))
                         + gcross2.gdot(ii2.transform_vector(gcross2)),
                 ));
+
+                limits_impulse = joint
+                    .limits_impulse
+                    .max(limits_impulse_limits.0)
+                    .min(limits_impulse_limits.1);
             }
         }
 
@@ -589,6 +589,9 @@ impl PrismaticVelocityGroundConstraint {
 
         let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
         if velocity_based_erp_inv_dt != 0.0 {
+            let dpos = anchor2 - anchor1;
+            let linear_err = basis1.tr_mul(&dpos);
+
             let (frame1, frame2);
             if flipped {
                 frame1 = rb1.position * joint.local_frame2();
@@ -597,9 +600,6 @@ impl PrismaticVelocityGroundConstraint {
                 frame1 = rb1.position * joint.local_frame1();
                 frame2 = rb2.position * joint.local_frame2();
             }
-
-            let dpos = anchor2 - anchor1;
-            let linear_err = basis1.tr_mul(&dpos);
 
             let ang_err = frame2.rotation * frame1.rotation.inverse();
             #[cfg(feature = "dim2")]
@@ -662,27 +662,27 @@ impl PrismaticVelocityGroundConstraint {
             // TODO: we should allow predictive constraint activation.
 
             let (min_limit, max_limit) = (joint.limits[0], joint.limits[1]);
-            let below_min = dist < min_limit;
-            let above_max = max_limit < dist;
+            let min_enabled = dist < min_limit;
+            let max_enabled = max_limit < dist;
 
-            if below_min {
+            if min_enabled {
                 limits_impulse_limits.1 = Real::INFINITY;
             }
-            if above_max {
+            if max_enabled {
                 limits_impulse_limits.0 = -Real::INFINITY;
             }
 
-            if below_min || above_max {
+            if min_enabled || max_enabled {
+                limits_rhs = (anchor_linvel2.dot(&axis2) - anchor_linvel1.dot(&axis1))
+                    * params.velocity_solve_fraction;
+
+                limits_rhs += ((dist - max_limit).max(0.0) - (min_limit - dist).max(0.0))
+                    * velocity_based_erp_inv_dt;
+
                 limits_impulse = joint
                     .limits_impulse
                     .max(limits_impulse_limits.0)
                     .min(limits_impulse_limits.1);
-
-                limits_rhs = (anchor_linvel2.dot(&axis2) - anchor_linvel1.dot(&axis1))
-                    * params.velocity_solve_fraction;
-
-                limits_rhs += velocity_based_erp_inv_dt
-                    * ((dist - max_limit).max(0.0) - (min_limit - dist).max(0.0));
             }
         }
 
