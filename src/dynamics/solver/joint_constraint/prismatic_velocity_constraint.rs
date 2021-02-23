@@ -156,8 +156,7 @@ impl PrismaticVelocityConstraint {
 
         let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
         if velocity_based_erp_inv_dt != 0.0 {
-            let dpos = anchor2 - anchor1;
-            let linear_err = basis1.tr_mul(&dpos);
+            let linear_err = basis1.tr_mul(&(anchor2 - anchor1));
 
             let frame1 = rb1.position * joint.local_frame1();
             let frame2 = rb2.position * joint.local_frame2();
@@ -226,12 +225,8 @@ impl PrismaticVelocityConstraint {
             let min_enabled = dist < min_limit;
             let max_enabled = max_limit < dist;
 
-            if min_enabled {
-                limits_impulse_limits.1 = Real::INFINITY;
-            }
-            if max_enabled {
-                limits_impulse_limits.0 = -Real::INFINITY;
-            }
+            limits_impulse_limits.0 = if max_enabled { -Real::INFINITY } else { 0.0 };
+            limits_impulse_limits.1 = if min_enabled { Real::INFINITY } else { 0.0 };
 
             limits_active = min_enabled || max_enabled;
             if limits_active {
@@ -311,10 +306,8 @@ impl PrismaticVelocityConstraint {
 
         // Warmstart limits.
         if self.limits_active {
-            let limits_forcedir1 = -self.limits_forcedir2;
-            let limits_forcedir2 = self.limits_forcedir2;
-            let limit_impulse1 = limits_forcedir1 * self.limits_impulse;
-            let limit_impulse2 = limits_forcedir2 * self.limits_impulse;
+            let limit_impulse1 = -self.limits_forcedir2 * self.limits_impulse;
+            let limit_impulse2 = self.limits_forcedir2 * self.limits_impulse;
             mj_lambda1.linear += self.im1 * limit_impulse1;
             mj_lambda1.angular += self
                 .ii1_sqrt
@@ -592,8 +585,7 @@ impl PrismaticVelocityGroundConstraint {
 
         let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
         if velocity_based_erp_inv_dt != 0.0 {
-            let dpos = anchor2 - anchor1;
-            let linear_err = basis1.tr_mul(&dpos);
+            let linear_err = basis1.tr_mul(&(anchor2 - anchor1));
 
             let (frame1, frame2);
             if flipped {
@@ -669,12 +661,8 @@ impl PrismaticVelocityGroundConstraint {
             let min_enabled = dist < min_limit;
             let max_enabled = max_limit < dist;
 
-            if min_enabled {
-                limits_impulse_limits.1 = Real::INFINITY;
-            }
-            if max_enabled {
-                limits_impulse_limits.0 = -Real::INFINITY;
-            }
+            limits_impulse_limits.0 = if max_enabled { -Real::INFINITY } else { 0.0 };
+            limits_impulse_limits.1 = if min_enabled { Real::INFINITY } else { 0.0 };
 
             limits_active = min_enabled || max_enabled;
             if limits_active {

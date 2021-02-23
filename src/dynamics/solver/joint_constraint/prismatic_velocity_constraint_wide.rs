@@ -205,8 +205,7 @@ impl WPrismaticVelocityConstraint {
         if velocity_based_erp_inv_dt != 0.0 {
             let velocity_based_erp_inv_dt = SimdReal::splat(velocity_based_erp_inv_dt);
 
-            let dpos = anchor2 - anchor1;
-            let linear_err = basis1.tr_mul(&dpos);
+            let linear_err = basis1.tr_mul(&(anchor2 - anchor1));
 
             let local_frame1 = Isometry::from(array![|ii| cparams[ii].local_frame1(); SIMD_WIDTH]);
             let local_frame2 = Isometry::from(array![|ii| cparams[ii].local_frame2(); SIMD_WIDTH]);
@@ -251,8 +250,8 @@ impl WPrismaticVelocityConstraint {
             let min_enabled = dist.simd_lt(min_limit);
             let max_enabled = dist.simd_gt(max_limit);
 
-            limits_impulse_limits.1 = SimdReal::splat(Real::INFINITY).select(min_enabled, zero);
             limits_impulse_limits.0 = SimdReal::splat(-Real::INFINITY).select(max_enabled, zero);
+            limits_impulse_limits.1 = SimdReal::splat(Real::INFINITY).select(min_enabled, zero);
 
             limits_active = (min_enabled | max_enabled).any();
             if limits_active {
@@ -632,8 +631,7 @@ impl WPrismaticVelocityGroundConstraint {
         if velocity_based_erp_inv_dt != 0.0 {
             let velocity_based_erp_inv_dt = SimdReal::splat(velocity_based_erp_inv_dt);
 
-            let dpos = anchor2 - anchor1;
-            let linear_err = basis1.tr_mul(&dpos);
+            let linear_err = basis1.tr_mul(&(anchor2 - anchor1));
 
             let frame1 = position1
                 * Isometry::from(
@@ -680,8 +678,8 @@ impl WPrismaticVelocityGroundConstraint {
             let min_enabled = dist.simd_lt(min_limit);
             let max_enabled = dist.simd_gt(max_limit);
 
-            limits_impulse_limits.1 = SimdReal::splat(Real::INFINITY).select(min_enabled, zero);
             limits_impulse_limits.0 = SimdReal::splat(-Real::INFINITY).select(max_enabled, zero);
+            limits_impulse_limits.1 = SimdReal::splat(Real::INFINITY).select(min_enabled, zero);
 
             limits_active = (min_enabled | max_enabled).any();
             if limits_active {
