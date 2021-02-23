@@ -278,8 +278,7 @@ mod test {
             &mut bodies,
             &mut colliders,
             &mut joints,
-            None,
-            None,
+            &(),
             &(),
         );
     }
@@ -322,8 +321,7 @@ mod test {
             &mut bodies,
             &mut colliders,
             &mut joints,
-            None,
-            None,
+            &(),
             &(),
         );
     }

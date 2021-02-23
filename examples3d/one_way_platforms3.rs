@@ -47,7 +47,7 @@ impl PhysicsHooks for OneWayPlatformHook {
         context.update_as_oneway_platform(&allowed_local_n1, 0.1);
 
         // Set the surface velocity of the accepted contacts.
-        let surface_velocity = if context.collider_handle1 == self.platform1
+        let tangent_velocity = if context.collider_handle1 == self.platform1
             || context.collider_handle2 == self.platform2
         {
             -12.0
@@ -56,7 +56,7 @@ impl PhysicsHooks for OneWayPlatformHook {
         };
 
         for contact in context.solver_contacts.iter_mut() {
-            contact.surface_velocity.z = surface_velocity;
+            contact.tangent_velocity.z = tangent_velocity;
         }
     }
 }
