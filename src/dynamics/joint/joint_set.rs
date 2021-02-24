@@ -76,6 +76,12 @@ impl JointSet {
         self.joint_graph.graph.edge_weight(*id)
     }
 
+    /// Gets a mutable reference to the joint with the given handle.
+    pub fn get_mut(&mut self, handle: JointHandle) -> Option<&mut Joint> {
+        let id = self.joint_ids.get_mut(handle.0)?;
+        self.joint_graph.graph.edge_weight_mut(*id)
+    }
+
     /// Gets the joint with the given handle without a known generation.
     ///
     /// This is useful when you know you want the joint at position `i` but
@@ -89,6 +95,23 @@ impl JointSet {
         let (id, handle) = self.joint_ids.get_unknown_gen(i)?;
         Some((
             self.joint_graph.graph.edge_weight(*id)?,
+            JointHandle(handle),
+        ))
+    }
+
+    /// Gets a mutable reference to the joint with the given handle without a known generation.
+    ///
+    /// This is useful when you know you want the joint at position `i` but
+    /// don't know what is its current generation number. Generation numbers are
+    /// used to protect from the ABA problem because the joint position `i`
+    /// are recycled between two insertion and a removal.
+    ///
+    /// Using this is discouraged in favor of `self.get_mut(handle)` which does not
+    /// suffer form the ABA problem.
+    pub fn get_unknown_gen_mut(&mut self, i: usize) -> Option<(&mut Joint, JointHandle)> {
+        let (id, handle) = self.joint_ids.get_unknown_gen_mut(i)?;
+        Some((
+            self.joint_graph.graph.edge_weight_mut(*id)?,
             JointHandle(handle),
         ))
     }
