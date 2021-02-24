@@ -109,7 +109,7 @@ impl JointSet {
     /// Using this is discouraged in favor of `self.get_mut(handle)` which does not
     /// suffer form the ABA problem.
     pub fn get_unknown_gen_mut(&mut self, i: usize) -> Option<(&mut Joint, JointHandle)> {
-        let (id, handle) = self.joint_ids.get_unknown_gen_mut(i)?;
+        let (id, handle) = self.joint_ids.get_unknown_gen(i)?;
         Some((
             self.joint_graph.graph.edge_weight_mut(*id)?,
             JointHandle(handle),
