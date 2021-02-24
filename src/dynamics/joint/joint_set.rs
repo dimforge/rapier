@@ -78,7 +78,7 @@ impl JointSet {
 
     /// Gets a mutable reference to the joint with the given handle.
     pub fn get_mut(&mut self, handle: JointHandle) -> Option<&mut Joint> {
-        let id = self.joint_ids.get_mut(handle.0)?;
+        let id = self.joint_ids.get(handle.0)?;
         self.joint_graph.graph.edge_weight_mut(*id)
     }
 
