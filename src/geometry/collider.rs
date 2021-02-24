@@ -1,5 +1,5 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
-use crate::geometry::{InteractionGroups, SharedShape};
+use crate::geometry::{InteractionGroups, SharedShape, SolverFlags};
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
 use parry::bounding_volume::AABB;
@@ -50,6 +50,7 @@ pub struct Collider {
     shape: SharedShape,
     density: Real,
     pub(crate) flags: ColliderFlags,
+    pub(crate) solver_flags: SolverFlags,
     pub(crate) parent: RigidBodyHandle,
     pub(crate) delta: Isometry<Real>,
     pub(crate) position: Isometry<Real>,
@@ -159,6 +160,9 @@ pub struct ColliderBuilder {
     pub delta: Isometry<Real>,
     /// Is this collider a sensor?
     pub is_sensor: bool,
+    /// Do we have to always call the contact modifier
+    /// on this collider?
+    pub modify_solver_contacts: bool,
     /// The user-data of the collider being built.
     pub user_data: u128,
     /// The collision groups for the collider being built.
@@ -182,6 +186,7 @@ impl ColliderBuilder {
             solver_groups: InteractionGroups::all(),
             friction_combine_rule: CoefficientCombineRule::Average,
             restitution_combine_rule: CoefficientCombineRule::Average,
+            modify_solver_contacts: false,
         }
     }
 
@@ -456,6 +461,13 @@ impl ColliderBuilder {
         self
     }
 
+    /// If set to `true` then the physics hooks will always run to modify
+    /// contacts involving this collider.
+    pub fn modify_solver_contacts(mut self, modify_solver_contacts: bool) -> Self {
+        self.modify_solver_contacts = modify_solver_contacts;
+        self
+    }
+
     /// Sets the friction coefficient of the collider this builder will build.
     pub fn friction(mut self, friction: Real) -> Self {
         self.friction = friction;
@@ -534,6 +546,11 @@ impl ColliderBuilder {
         flags = flags
             .with_friction_combine_rule(self.friction_combine_rule)
             .with_restitution_combine_rule(self.restitution_combine_rule);
+        let mut solver_flags = SolverFlags::default();
+        solver_flags.set(
+            SolverFlags::MODIFY_SOLVER_CONTACTS,
+            self.modify_solver_contacts,
+        );
 
         Collider {
             shape: self.shape.clone(),
@@ -542,6 +559,7 @@ impl ColliderBuilder {
             restitution: self.restitution,
             delta: self.delta,
             flags,
+            solver_flags,
             parent: RigidBodyHandle::invalid(),
             position: Isometry::identity(),
             predicted_position: Isometry::identity(),

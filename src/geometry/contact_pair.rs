@@ -9,7 +9,16 @@ bitflags::bitflags! {
     pub struct SolverFlags: u32 {
         /// The constraint solver will take this contact manifold into
         /// account for force computation.
-        const COMPUTE_IMPULSES = 0b01;
+        const COMPUTE_IMPULSES = 0b001;
+        /// The user-defined physics hooks will be used to
+        /// modify the solver contacts of this contact manifold.
+        const MODIFY_SOLVER_CONTACTS = 0b010;
+    }
+}
+
+impl Default for SolverFlags {
+    fn default() -> Self {
+        SolverFlags::COMPUTE_IMPULSES
     }
 }
 
@@ -104,12 +113,16 @@ pub struct ContactManifoldData {
     /// The contacts that will be seen by the constraints solver for computing forces.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub solver_contacts: Vec<SolverContact>,
+    /// A user-defined piece of data.
+    pub user_data: u32,
 }
 
 /// A contact seen by the constraints solver for computing forces.
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct SolverContact {
+    /// The index of the manifold contact used to generate this solver contact.
+    pub contact_id: u8,
     /// The world-space contact point.
     pub point: Point<Real>,
     /// The distance between the two original contacts points along the contact normal.
@@ -119,10 +132,11 @@ pub struct SolverContact {
     pub friction: Real,
     /// The effective restitution coefficient at this contact point.
     pub restitution: Real,
-    /// The artificially add relative velocity at the contact point.
+    /// The desired tangent relative velocity at the contact point.
+    ///
     /// This is set to zero by default. Set to a non-zero value to
     /// simulate, e.g., conveyor belts.
-    pub surface_velocity: Vector<Real>,
+    pub tangent_velocity: Vector<Real>,
     /// Associated contact data used to warm-start the constraints
     /// solver.
     pub data: ContactData,
@@ -163,6 +177,7 @@ impl ContactManifoldData {
             solver_flags,
             normal: Vector::zeros(),
             solver_contacts: Vec::new(),
+            user_data: 0,
         }
     }
 

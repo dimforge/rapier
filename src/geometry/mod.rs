@@ -10,7 +10,6 @@ pub use self::interaction_graph::{
 };
 pub use self::interaction_groups::InteractionGroups;
 pub use self::narrow_phase::NarrowPhase;
-pub use self::pair_filter::{ContactPairFilter, IntersectionPairFilter, PairFilterContext};
 
 pub use parry::query::TrackedContact;
 
@@ -109,4 +108,3 @@ mod contact_pair;
 mod interaction_graph;
 mod interaction_groups;
 mod narrow_phase;
-mod pair_filter;

@@ -49,7 +49,7 @@ pub(crate) struct VelocityGroundConstraint {
     pub limit: Real,
     pub mj_lambda2: usize,
     pub manifold_id: ContactManifoldIndex,
-    pub manifold_contact_id: usize,
+    pub manifold_contact_id: [u8; MAX_MANIFOLD_POINTS],
     pub num_contacts: u8,
     pub elements: [VelocityGroundConstraintElement; MAX_MANIFOLD_POINTS],
 }
@@ -68,17 +68,17 @@ impl VelocityGroundConstraint {
         let mut rb2 = &bodies[manifold.data.body_pair.body2];
         let flipped = !rb2.is_dynamic();
 
-        let force_dir1 = if flipped {
+        let (force_dir1, flipped_multiplier) = if flipped {
             std::mem::swap(&mut rb1, &mut rb2);
-            manifold.data.normal
+            (manifold.data.normal, -1.0)
         } else {
-            -manifold.data.normal
+            (-manifold.data.normal, 1.0)
         };
 
         let mj_lambda2 = rb2.active_set_offset;
         let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
 
-        for (l, manifold_points) in manifold
+        for (_l, manifold_points) in manifold
             .data
             .solver_contacts
             .chunks(MAX_MANIFOLD_POINTS)
@@ -92,7 +92,7 @@ impl VelocityGroundConstraint {
                 limit: 0.0,
                 mj_lambda2,
                 manifold_id,
-                manifold_contact_id: l * MAX_MANIFOLD_POINTS,
+                manifold_contact_id: [0; MAX_MANIFOLD_POINTS],
                 num_contacts: manifold_points.len() as u8,
             };
 
@@ -123,7 +123,7 @@ impl VelocityGroundConstraint {
                     .as_nongrouped_ground_mut()
                     .unwrap()
             } else {
-                unreachable!(); // We don't have parallelization on WASM yet, so this is unreachable.
+                unreachable!(); // We don't have parallelization on WASM yet, so this is unreachable.
             };
 
             #[cfg(target_arch = "wasm32")]
@@ -133,7 +133,7 @@ impl VelocityGroundConstraint {
                 constraint.limit = 0.0;
                 constraint.mj_lambda2 = mj_lambda2;
                 constraint.manifold_id = manifold_id;
-                constraint.manifold_contact_id = l * MAX_MANIFOLD_POINTS;
+                constraint.manifold_contact_id = [0; MAX_MANIFOLD_POINTS];
                 constraint.num_contacts = manifold_points.len() as u8;
             }
 
@@ -145,6 +145,7 @@ impl VelocityGroundConstraint {
                 let vel2 = rb2.linvel + rb2.angvel.gcross(dp2);
 
                 constraint.limit = manifold_point.friction;
+                constraint.manifold_contact_id[k] = manifold_point.contact_id;
 
                 // Normal part.
                 {
@@ -178,7 +179,9 @@ impl VelocityGroundConstraint {
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(dp2.gcross(-tangents1[j]));
                         let r = 1.0 / (rb2.effective_inv_mass + gcross2.gdot(gcross2));
-                        let rhs = -vel2.dot(&tangents1[j]) + vel1.dot(&tangents1[j]);
+                        let rhs = (vel1 - vel2
+                            + flipped_multiplier * manifold_point.tangent_velocity)
+                            .dot(&tangents1[j]);
                         #[cfg(feature = "dim2")]
                         let impulse = manifold_points[k].data.tangent_impulse * warmstart_coeff;
                         #[cfg(feature = "dim3")]
@@ -199,7 +202,7 @@ impl VelocityGroundConstraint {
             if push {
                 out_constraints.push(AnyVelocityConstraint::NongroupedGround(constraint));
             } else {
-                out_constraints[manifold.data.constraint_index + l] =
+                out_constraints[manifold.data.constraint_index + _l] =
                     AnyVelocityConstraint::NongroupedGround(constraint);
             }
         }
@@ -267,19 +270,18 @@ impl VelocityGroundConstraint {
     // FIXME: duplicated code. This is exactly the same as in the non-ground velocity constraint.
     pub fn writeback_impulses(&self, manifolds_all: &mut [&mut ContactManifold]) {
         let manifold = &mut manifolds_all[self.manifold_id];
-        let k_base = self.manifold_contact_id;
 
         for k in 0..self.num_contacts as usize {
-            let active_contacts = &mut manifold.points[..manifold.data.num_active_contacts()];
-            active_contacts[k_base + k].data.impulse = self.elements[k].normal_part.impulse;
+            let contact_id = self.manifold_contact_id[k];
+            let active_contact = &mut manifold.points[contact_id as usize];
+            active_contact.data.impulse = self.elements[k].normal_part.impulse;
             #[cfg(feature = "dim2")]
             {
-                active_contacts[k_base + k].data.tangent_impulse =
-                    self.elements[k].tangent_part[0].impulse;
+                active_contact.data.tangent_impulse = self.elements[k].tangent_part[0].impulse;
             }
             #[cfg(feature = "dim3")]
             {
-                active_contacts[k_base + k].data.tangent_impulse = [
+                active_contact.data.tangent_impulse = [
                     self.elements[k].tangent_part[0].impulse,
                     self.elements[k].tangent_part[1].impulse,
                 ];

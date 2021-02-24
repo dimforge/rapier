@@ -23,16 +23,14 @@ pub fn init_world(testbed: &mut Testbed) {
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
     colliders.insert(collider, handle, &mut bodies);
-    let mut k = 0;
 
     // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |mut window, mut graphics, physics, _, _| {
-        k += 1;
+    testbed.add_callback(move |mut window, mut graphics, physics, _, run_state| {
         let rigid_body = RigidBodyBuilder::new_dynamic()
             .translation(0.0, 10.0, 0.0)
             .build();
         let handle = physics.bodies.insert(rigid_body);
-        let collider = match k % 3 {
+        let collider = match run_state.timestep_id % 3 {
             0 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0).build(),
             1 => ColliderBuilder::cone(rad, rad).build(),
             _ => ColliderBuilder::cuboid(rad, rad, rad).build(),

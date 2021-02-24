@@ -2,7 +2,7 @@ use crossbeam::channel::Receiver;
 use rapier::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
 use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, IntersectionEvent, NarrowPhase};
 use rapier::math::Vector;
-use rapier::pipeline::{PhysicsPipeline, QueryPipeline};
+use rapier::pipeline::{PhysicsHooks, PhysicsPipeline, QueryPipeline};
 
 pub struct PhysicsSnapshot {
     timestep_id: usize,
@@ -77,6 +77,7 @@ pub struct PhysicsState {
     pub query_pipeline: QueryPipeline,
     pub integration_parameters: IntegrationParameters,
     pub gravity: Vector<f32>,
+    pub hooks: Box<dyn PhysicsHooks>,
 }
 
 impl PhysicsState {
@@ -91,6 +92,7 @@ impl PhysicsState {
             query_pipeline: QueryPipeline::new(),
             integration_parameters: IntegrationParameters::default(),
             gravity: Vector::y() * -9.81,
+            hooks: Box::new(()),
         }
     }
 }

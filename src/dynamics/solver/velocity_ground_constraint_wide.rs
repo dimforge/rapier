@@ -51,7 +51,7 @@ pub(crate) struct WVelocityGroundConstraint {
     pub limit: SimdReal,
     pub mj_lambda2: [usize; SIMD_WIDTH],
     pub manifold_id: [ContactManifoldIndex; SIMD_WIDTH],
-    pub manifold_contact_id: usize,
+    pub manifold_contact_id: [[u8; SIMD_WIDTH]; MAX_MANIFOLD_POINTS],
 }
 
 impl WVelocityGroundConstraint {
@@ -66,14 +66,16 @@ impl WVelocityGroundConstraint {
         let inv_dt = SimdReal::splat(params.inv_dt());
         let mut rbs1 = array![|ii| &bodies[manifolds[ii].data.body_pair.body1]; SIMD_WIDTH];
         let mut rbs2 = array![|ii| &bodies[manifolds[ii].data.body_pair.body2]; SIMD_WIDTH];
-        let mut flipped = [false; SIMD_WIDTH];
+        let mut flipped = [1.0; SIMD_WIDTH];
 
         for ii in 0..SIMD_WIDTH {
             if !rbs2[ii].is_dynamic() {
                 std::mem::swap(&mut rbs1[ii], &mut rbs2[ii]);
-                flipped[ii] = true;
+                flipped[ii] = -1.0;
             }
         }
+
+        let flipped_sign = SimdReal::from(flipped);
 
         let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
         let ii2: AngularInertia<SimdReal> = AngularInertia::from(
@@ -89,9 +91,8 @@ impl WVelocityGroundConstraint {
         let world_com1 = Point::from(array![|ii| rbs1[ii].world_com; SIMD_WIDTH]);
         let world_com2 = Point::from(array![|ii| rbs2[ii].world_com; SIMD_WIDTH]);
 
-        let force_dir1 = Vector::from(
-            array![|ii| if flipped[ii] { manifolds[ii].data.normal } else { -manifolds[ii].data.normal }; SIMD_WIDTH],
-        );
+        let normal1 = Vector::from(array![|ii| manifolds[ii].data.normal; SIMD_WIDTH]);
+        let force_dir1 = normal1 * -flipped_sign;
 
         let mj_lambda2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
 
@@ -111,7 +112,7 @@ impl WVelocityGroundConstraint {
                 limit: SimdReal::splat(0.0),
                 mj_lambda2,
                 manifold_id,
-                manifold_contact_id: l,
+                manifold_contact_id: [[0; SIMD_WIDTH]; MAX_MANIFOLD_POINTS],
                 num_contacts: num_points as u8,
             };
 
@@ -125,6 +126,8 @@ impl WVelocityGroundConstraint {
                 );
                 let point = Point::from(array![|ii| manifold_points[ii][k].point; SIMD_WIDTH]);
                 let dist = SimdReal::from(array![|ii| manifold_points[ii][k].dist; SIMD_WIDTH]);
+                let tangent_velocity =
+                    Vector::from(array![|ii| manifold_points[ii][k].tangent_velocity; SIMD_WIDTH]);
 
                 let impulse =
                     SimdReal::from(array![|ii| manifold_points[ii][k].data.impulse; SIMD_WIDTH]);
@@ -135,6 +138,8 @@ impl WVelocityGroundConstraint {
                 let vel2 = linvel2 + angvel2.gcross(dp2);
 
                 constraint.limit = friction;
+                constraint.manifold_contact_id[k] =
+                    array![|ii| manifold_points[ii][k].contact_id; SIMD_WIDTH];
 
                 // Normal part.
                 {
@@ -168,7 +173,7 @@ impl WVelocityGroundConstraint {
 
                     let gcross2 = ii2.transform_vector(dp2.gcross(-tangents1[j]));
                     let r = SimdReal::splat(1.0) / (im2 + gcross2.gdot(gcross2));
-                    let rhs = -vel2.dot(&tangents1[j]) + vel1.dot(&tangents1[j]);
+                    let rhs = (vel1 - vel2 + tangent_velocity * flipped_sign).dot(&tangents1[j]);
 
                     constraint.elements[k].tangent_parts[j] =
                         WVelocityGroundConstraintElementPart {
@@ -281,17 +286,17 @@ impl WVelocityGroundConstraint {
 
             for ii in 0..SIMD_WIDTH {
                 let manifold = &mut manifolds_all[self.manifold_id[ii]];
-                let k_base = self.manifold_contact_id;
-                let active_contacts = &mut manifold.points[..manifold.data.num_active_contacts()];
-                active_contacts[k_base + k].data.impulse = impulses[ii];
+                let contact_id = self.manifold_contact_id[k][ii];
+                let active_contact = &mut manifold.points[contact_id as usize];
+                active_contact.data.impulse = impulses[ii];
 
                 #[cfg(feature = "dim2")]
                 {
-                    active_contacts[k_base + k].data.tangent_impulse = tangent_impulses[ii];
+                    active_contact.data.tangent_impulse = tangent_impulses[ii];
                 }
                 #[cfg(feature = "dim3")]
                 {
-                    active_contacts[k_base + k].data.tangent_impulse =
+                    active_contact.data.tangent_impulse =
                         [tangent_impulses[ii], bitangent_impulses[ii]];
                 }
             }
