@@ -92,6 +92,8 @@ pub struct RigidBody {
     pub(crate) changes: RigidBodyChanges,
     /// The status of the body, governing how it is affected by external forces.
     pub body_status: BodyStatus,
+    /// The dominance group this rigid-body is part of.
+    dominance_group: i8,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
 }
@@ -122,6 +124,7 @@ impl RigidBody {
             flags: RigidBodyFlags::empty(),
             changes: RigidBodyChanges::all(),
             body_status: BodyStatus::Dynamic,
+            dominance_group: 0,
             user_data: 0,
         }
     }
@@ -157,6 +160,19 @@ impl RigidBody {
     #[inline]
     pub fn mass_properties(&self) -> &MassProperties {
         &self.mass_properties
+    }
+
+    /// The dominance group of this rigid-body.
+    ///
+    /// This method always returns `i8::MAX + 1` for non-dynamic
+    /// rigid-bodies.
+    #[inline]
+    pub fn effective_dominance_group(&self) -> i16 {
+        if self.is_dynamic() {
+            self.dominance_group as i16
+        } else {
+            i8::MAX as i16 + 1
+        }
     }
 
     /// Sets the rigid-body's mass properties.
@@ -648,6 +664,7 @@ pub struct RigidBodyBuilder {
     mass_properties: MassProperties,
     can_sleep: bool,
     sleeping: bool,
+    dominance_group: i8,
     user_data: u128,
 }
 
@@ -666,6 +683,7 @@ impl RigidBodyBuilder {
             mass_properties: MassProperties::zero(),
             can_sleep: true,
             sleeping: false,
+            dominance_group: 0,
             user_data: 0,
         }
     }
@@ -688,6 +706,12 @@ impl RigidBodyBuilder {
     /// Sets the scale applied to the gravity force affecting the rigid-body to be created.
     pub fn gravity_scale(mut self, x: Real) -> Self {
         self.gravity_scale = x;
+        self
+    }
+
+    /// Sets the dominance group of this rigid-body.
+    pub fn dominance_group(mut self, group: i8) -> Self {
+        self.dominance_group = group;
         self
     }
 
@@ -880,6 +904,7 @@ impl RigidBodyBuilder {
         rb.angular_damping = self.angular_damping;
         rb.gravity_scale = self.gravity_scale;
         rb.flags = self.flags;
+        rb.dominance_group = self.dominance_group;
 
         if self.can_sleep && self.sleeping {
             rb.sleep();

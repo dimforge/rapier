@@ -144,6 +144,8 @@ impl VelocityConstraint {
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         push: bool,
     ) {
+        assert_eq!(manifold.data.relative_dominance, 0);
+
         let inv_dt = params.inv_dt();
         let rb1 = &bodies[manifold.data.body_pair.body1];
         let rb2 = &bodies[manifold.data.body_pair.body2];

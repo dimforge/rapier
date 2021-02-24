@@ -66,7 +66,7 @@ impl VelocityGroundConstraint {
         let inv_dt = params.inv_dt();
         let mut rb1 = &bodies[manifold.data.body_pair.body1];
         let mut rb2 = &bodies[manifold.data.body_pair.body2];
-        let flipped = !rb2.is_dynamic();
+        let flipped = manifold.data.relative_dominance < 0;
 
         let (force_dir1, flipped_multiplier) = if flipped {
             std::mem::swap(&mut rb1, &mut rb2);

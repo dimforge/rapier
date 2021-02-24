@@ -67,6 +67,10 @@ impl WVelocityConstraint {
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         push: bool,
     ) {
+        for ii in 0..SIMD_WIDTH {
+            assert_eq!(manifolds[ii].data.relative_dominance, 0);
+        }
+
         let inv_dt = SimdReal::splat(params.inv_dt());
         let rbs1 = array![|ii| &bodies[manifolds[ii].data.body_pair.body1]; SIMD_WIDTH];
         let rbs2 = array![|ii| &bodies[manifolds[ii].data.body_pair.body2]; SIMD_WIDTH];

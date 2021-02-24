@@ -30,7 +30,7 @@ impl PositionGroundConstraint {
     ) {
         let mut rb1 = &bodies[manifold.data.body_pair.body1];
         let mut rb2 = &bodies[manifold.data.body_pair.body2];
-        let flip = !rb2.is_dynamic();
+        let flip = manifold.data.relative_dominance < 0;
 
         let n1 = if flip {
             std::mem::swap(&mut rb1, &mut rb2);
