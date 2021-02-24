@@ -2,6 +2,7 @@ use crate::dynamics::{JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
 pub(crate) fn categorize_contacts(
+    _bodies: &RigidBodySet, // Unused but useful to simplify the parallel code.
     manifolds: &[&mut ContactManifold],
     manifold_indices: &[ContactManifoldIndex],
     out_ground: &mut Vec<ContactManifoldIndex>,

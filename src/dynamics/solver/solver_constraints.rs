@@ -51,6 +51,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
         self.not_ground_interactions.clear();
         self.ground_interactions.clear();
         categorize_contacts(
+            bodies,
             manifolds,
             manifold_indices,
             &mut self.ground_interactions,
