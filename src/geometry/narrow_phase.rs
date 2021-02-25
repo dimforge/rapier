@@ -594,6 +594,7 @@ impl NarrowPhase {
                     let mut modifiable_solver_contacts =
                         std::mem::replace(&mut manifold.data.solver_contacts, Vec::new());
                     let mut modifiable_user_data = manifold.data.user_data;
+                    let mut modifiable_normal = manifold.data.normal;
 
                     let mut context = ContactModificationContext {
                         rigid_body1: rb1,
@@ -604,12 +605,14 @@ impl NarrowPhase {
                         collider2: co2,
                         manifold,
                         solver_contacts: &mut modifiable_solver_contacts,
+                        normal: &mut modifiable_normal,
                         user_data: &mut modifiable_user_data,
                     };
 
                     hooks.modify_solver_contacts(&mut context);
 
                     manifold.data.solver_contacts = modifiable_solver_contacts;
+                    manifold.data.normal = modifiable_normal;
                     manifold.data.user_data = modifiable_user_data;
                 }
             }

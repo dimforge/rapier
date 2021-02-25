@@ -19,7 +19,7 @@ pub struct PairFilterContext<'a> {
     pub collider2: &'a Collider,
 }
 
-/// Context given to custom contact modifiers to modify the contacts seen by the constrainst solver.
+/// Context given to custom contact modifiers to modify the contacts seen by the constraints solver.
 pub struct ContactModificationContext<'a> {
     /// The first collider involved in the potential collision.
     pub rigid_body1: &'a RigidBody,
@@ -37,6 +37,8 @@ pub struct ContactModificationContext<'a> {
     pub manifold: &'a ContactManifold,
     /// The solver contacts that can be modified.
     pub solver_contacts: &'a mut Vec<SolverContact>,
+    /// The contact normal that can be modified.
+    pub normal: &'a mut Vector<Real>,
     /// User-defined data attached to the manifold.
     // NOTE: we keep this a &'a mut u32 to emphasize the
     // fact that this can be modified.
@@ -195,6 +197,8 @@ pub trait PhysicsHooks: Send + Sync {
     /// Each contact manifold is given a `u32` user-defined data that is persistent between
     /// timesteps (as long as the contact manifold exists). This user-defined data is initialized
     /// as 0 and can be modified in `context.user_data`.
+    ///
+    /// The world-space contact normal can be modified in `context.normal`.
     fn modify_solver_contacts(&self, _context: &mut ContactModificationContext) {}
 }
 
