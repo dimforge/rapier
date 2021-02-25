@@ -133,7 +133,8 @@ impl WRevoluteVelocityConstraint {
             let axis2 = position2 * local_axis2;
 
             let axis_error = axis1.cross(&axis2);
-            let ang_err = basis2.tr_mul(&axis_error) - basis1.tr_mul(&axis_error);
+            let ang_err =
+                (basis2.tr_mul(&axis_error) + basis1.tr_mul(&axis_error)) * SimdReal::splat(0.5);
 
             rhs += Vector5::new(lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y)
                 * velocity_based_erp_inv_dt;
