@@ -2,7 +2,7 @@ use crate::dynamics::{JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
 pub(crate) fn categorize_contacts(
-    bodies: &RigidBodySet,
+    _bodies: &RigidBodySet, // Unused but useful to simplify the parallel code.
     manifolds: &[&mut ContactManifold],
     manifold_indices: &[ContactManifoldIndex],
     out_ground: &mut Vec<ContactManifoldIndex>,
@@ -10,10 +10,8 @@ pub(crate) fn categorize_contacts(
 ) {
     for manifold_i in manifold_indices {
         let manifold = &manifolds[*manifold_i];
-        let rb1 = &bodies[manifold.data.body_pair.body1];
-        let rb2 = &bodies[manifold.data.body_pair.body2];
 
-        if !rb1.is_dynamic() || !rb2.is_dynamic() {
+        if manifold.data.relative_dominance != 0 {
             out_ground.push(*manifold_i)
         } else {
             out_not_ground.push(*manifold_i)

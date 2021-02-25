@@ -555,6 +555,8 @@ impl NarrowPhase {
                 manifold.data.solver_contacts.clear();
                 manifold.data.body_pair = BodyPair::new(co1.parent(), co2.parent());
                 manifold.data.solver_flags = solver_flags;
+                manifold.data.relative_dominance =
+                    rb1.effective_dominance_group() - rb2.effective_dominance_group();
                 manifold.data.normal = world_pos1 * manifold.local_n1;
 
                 // Generate solver contacts.

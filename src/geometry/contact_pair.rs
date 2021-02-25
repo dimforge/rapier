@@ -113,6 +113,8 @@ pub struct ContactManifoldData {
     /// The contacts that will be seen by the constraints solver for computing forces.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub solver_contacts: Vec<SolverContact>,
+    /// The relative dominance of the bodies involved in this contact manifold.
+    pub relative_dominance: i16,
     /// A user-defined piece of data.
     pub user_data: u32,
 }
@@ -122,7 +124,7 @@ pub struct ContactManifoldData {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct SolverContact {
     /// The index of the manifold contact used to generate this solver contact.
-    pub contact_id: u8,
+    pub(crate) contact_id: u8,
     /// The world-space contact point.
     pub point: Point<Real>,
     /// The distance between the two original contacts points along the contact normal.
@@ -177,6 +179,7 @@ impl ContactManifoldData {
             solver_flags,
             normal: Vector::zeros(),
             solver_contacts: Vec::new(),
+            relative_dominance: 0,
             user_data: 0,
         }
     }
