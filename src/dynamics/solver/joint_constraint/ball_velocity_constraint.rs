@@ -91,7 +91,7 @@ impl BallVelocityConstraint {
 
         if motor_max_impulse > 0.0 {
             let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
-                params.dt,
+                params,
                 joint.motor_stiffness,
                 joint.motor_damping,
             );
@@ -321,7 +321,7 @@ impl BallVelocityGroundConstraint {
 
         if motor_max_impulse > 0.0 {
             let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
-                params.dt,
+                params,
                 joint.motor_stiffness,
                 joint.motor_damping,
             );

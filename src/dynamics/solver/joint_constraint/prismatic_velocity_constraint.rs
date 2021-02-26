@@ -150,7 +150,7 @@ impl PrismaticVelocityConstraint {
         let mut motor_inv_lhs = 0.0;
 
         let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
-            params.dt,
+            params,
             joint.motor_stiffness,
             joint.motor_damping,
         );
@@ -535,7 +535,7 @@ impl PrismaticVelocityGroundConstraint {
         let mut motor_inv_lhs = 0.0;
 
         let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
-            params.dt,
+            params,
             joint.motor_stiffness,
             joint.motor_damping,
         );

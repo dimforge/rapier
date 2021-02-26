@@ -1,4 +1,4 @@
-use crate::math::Real;
+use crate::{dynamics::IntegrationParameters, math::Real};
 
 /// The spring-like model used for constraints resolution.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -30,7 +30,7 @@ impl Default for SpringModel {
 impl SpringModel {
     /// Combines the coefficients used for solving the spring equation.
     ///
-    /// Returns the new coefficients (stiffness, damping, inv_lhs_scale, keep_inv_lhs)
+    /// Returns the new coefficients (stiffness, damping, gamma, keep_inv_lhs)
     /// coefficients for the equivalent impulse-based equation. These new
     /// coefficients must be used in the following way:
     /// - `rhs = (stiffness * pos_err + damping * vel_err) / gamma`.
@@ -38,12 +38,14 @@ impl SpringModel {
     /// Note that the returned `gamma` will be zero if both `stiffness` and `damping` are zero.
     pub fn combine_coefficients(
         self,
-        dt: Real,
+        params: &IntegrationParameters,
         stiffness: Real,
         damping: Real,
     ) -> (Real, Real, Real, bool) {
-        match self {
-            SpringModel::VelocityBased => (stiffness * crate::utils::inv(dt), damping, 1.0, true),
+        let (dt, inv_dt) = (params.dt, params.inv_dt());
+
+        let (stiffness, damping, gamma, keep_inv_lhs) = match self {
+            SpringModel::VelocityBased => (stiffness * inv_dt, damping, 1.0, true),
             SpringModel::AccelerationBased => {
                 let effective_stiffness = stiffness * dt;
                 let effective_damping = damping * dt;
@@ -60,6 +62,12 @@ impl SpringModel {
                 (effective_stiffness, effective_damping, gamma, false)
             }
             SpringModel::Disabled => return (0.0, 0.0, 0.0, false),
-        }
+        };
+
+        // prevent instabilities due to overshooting:
+        let stiffness = na::clamp(stiffness, 0.0, inv_dt);
+        let damping = na::clamp(damping, 0.0, 1.0);
+
+        (stiffness, damping, gamma, keep_inv_lhs)
     }
 }

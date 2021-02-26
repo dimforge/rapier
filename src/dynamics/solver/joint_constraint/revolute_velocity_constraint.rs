@@ -105,7 +105,7 @@ impl RevoluteVelocityConstraint {
         let motor_max_impulse = joint.motor_max_impulse;
 
         let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
-            params.dt,
+            params,
             joint.motor_stiffness,
             joint.motor_damping,
         );
@@ -384,7 +384,7 @@ impl RevoluteVelocityGroundConstraint {
         let motor_max_impulse = joint.motor_max_impulse;
 
         let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
-            params.dt,
+            params,
             joint.motor_stiffness,
             joint.motor_damping,
         );
