@@ -2,7 +2,7 @@
 name    = "rapier_testbed3d"
 version = "0.6.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
-description = "Testbed for the Rapier3-dimensional physics engine in Rust."
+description = "Testbed for the Rapier 3-dimensional physics engine in Rust."
 homepage = "http://rapier.org"
 repository = "https://github.com/dimforge/rapier"
 categories = [ "science", "game-development", "mathematics", "simulation", "wasm"]

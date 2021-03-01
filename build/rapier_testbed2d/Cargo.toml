@@ -1,6 +1,6 @@
 [package]
 name    = "rapier_testbed2d"
-version = "0.5.0"
+version = "0.6.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "Testbed for the Rapier 2-dimensional physics engine in Rust."
 homepage = "http://rapier.org"
