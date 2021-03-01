@@ -1,3 +1,23 @@
+## v0.6.0
+### Added
+The support of **dominance groups** have been added. Each rigid-body is part of a dominance group in [-127; 127]
+(the default is 0). If two rigid-body are in contact, the one with the highest dominance will act as if it has
+an infinite mass, making it immune to the forces the other body would apply on it. See [#122](https://github.com/dimforge/rapier/pull/122)
+for further details.
+
+The support for **contact modification** has been added. This can bee used to simulate conveyor belts,
+one-way platforms and other non-physical effects. It can also be used to simulate materials with
+variable friction and restitution coefficient on a single collider. See [#120](https://github.com/dimforge/rapier/pull/120)
+for further details.
+
+The support for **joint motors** have been added. This can be used to control the position and/or
+velocity of a joint based on a spring-like equation. See [#119](https://github.com/dimforge/rapier/pull/119)
+for further details.
+
+### Removed
+- The `ContactPairFilter` and `IntersectionPairFilter` traits have been removed. They are both
+  combined in a single new trait: `PhysicsHooks`.
+
 ## v0.5.0
 In this release we are dropping `ncollide` and use our new crate [`parry`](https://parry.rs)
 instead! This comes with a lot of new features, as well as two new crates: `rapier2d-f64` and
