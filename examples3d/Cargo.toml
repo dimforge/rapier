@@ -12,10 +12,10 @@ other-backends = [ "rapier_testbed3d/other-backends" ]
 enhanced-determinism = [ "rapier3d/enhanced-determinism" ]
 
 [dependencies]
-rand       = "0.7"
+rand       = "0.8"
 Inflector  = "0.11"
-nalgebra   = "0.24"
-kiss3d     = "0.29"
+nalgebra   = "0.25"
+kiss3d     = "0.30"
 
 [dependencies.rapier_testbed3d]
 path = "../build/rapier_testbed3d"

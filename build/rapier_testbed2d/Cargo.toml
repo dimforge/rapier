@@ -26,17 +26,17 @@ other-backends = [ "wrapped2d", "nphysics2d" ]
 
 
 [dependencies]
-nalgebra   = "0.24"
-kiss3d     = { version = "0.29", features = [ "conrod" ] }
-rand       = "0.7"
-rand_pcg   = "0.2"
+nalgebra   = "0.25"
+kiss3d     = { version = "0.30", features = [ "conrod" ] }
+rand       = "0.8"
+rand_pcg   = "0.3"
 instant    = { version = "0.1", features = [ "web-sys", "now" ]}
 bitflags   = "1"
 num_cpus   = { version = "1", optional = true }
 wrapped2d  = { version = "0.4", optional = true }
-parry2d = "0.1"
-ncollide2d = "0.27"
-nphysics2d = { version = "0.19", optional = true }
+parry2d = "0.2"
+ncollide2d = "0.28"
+nphysics2d = { version = "0.20", optional = true }
 crossbeam = "0.8"
 bincode = "1"
 Inflector  = "0.11"
@@ -44,5 +44,5 @@ md5 = "0.7"
 
 [dependencies.rapier2d]
 path = "../rapier2d"
-version = "0.5"
+version = "0.6"
 features = [ "serde-serialize" ]
