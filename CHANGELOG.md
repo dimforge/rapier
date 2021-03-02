@@ -1,3 +1,8 @@
+## v0.6.1
+### Fixed
+- Fix a determinism problem that may happen after snapshot restoration, if a rigid-body is sleeping at
+  the time the snapshot is taken.
+
 ## v0.6.0
 ### Added
 The support of **dominance groups** have been added. Each rigid-body is part of a dominance group in [-127; 127]
