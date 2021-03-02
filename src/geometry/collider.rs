@@ -49,6 +49,7 @@ impl ColliderFlags {
 pub struct Collider {
     shape: SharedShape,
     density: Real,
+    mass_properties: MassProperties,
     pub(crate) flags: ColliderFlags,
     pub(crate) solver_flags: SolverFlags,
     pub(crate) parent: RigidBodyHandle,
@@ -134,9 +135,9 @@ impl Collider {
     //     aabb1.merged(&aabb2)
     // }
 
-    /// Compute the local-space mass properties of this collider.
-    pub fn mass_properties(&self) -> MassProperties {
-        self.shape.mass_properties(self.density)
+    /// Read the local-space mass properties of this collider.
+    pub fn mass_properties(&self) -> &MassProperties {
+        &self.mass_properties
     }
 }
 
@@ -146,8 +147,11 @@ impl Collider {
 pub struct ColliderBuilder {
     /// The shape of the collider to be built.
     pub shape: SharedShape,
-    /// The density of the collider to be built.
+    /// The uniform density of the collider to be built.
     density: Option<Real>,
+    /// Overrides automatic computation of `MassProperties`.
+    /// If None, it will be computed based on shape and desnity.
+    mass_properties: Option<MassProperties>,
     /// The friction coefficient of the collider to be built.
     pub friction: Real,
     /// The rule used to combine two friction coefficients.
@@ -177,6 +181,7 @@ impl ColliderBuilder {
         Self {
             shape,
             density: None,
+            mass_properties: None,
             friction: Self::default_friction(),
             restitution: 0.0,
             delta: Isometry::identity(),
@@ -456,6 +461,8 @@ impl ColliderBuilder {
     }
 
     /// Sets whether or not the collider built by this builder is a sensor.
+    /// Sensors will have a default density of zero,
+    /// but if you call [`Self::mass_properties`] you can assigna a mass to a sensor.
     pub fn sensor(mut self, is_sensor: bool) -> Self {
         self.is_sensor = is_sensor;
         self
@@ -492,9 +499,19 @@ impl ColliderBuilder {
         self
     }
 
-    /// Sets the density of the collider this builder will build.
+    /// Sets the uniform density of the collider this builder will build.
+    /// This will be overridden by a call to [`Self::mass_properties`] so it only makes sense to call
+    /// either [`Self::density`] or [`Self::mass_properties`].
     pub fn density(mut self, density: Real) -> Self {
         self.density = Some(density);
+        self
+    }
+
+    /// Sets the mass properties of the collider this builder will build.
+    /// If this is set, [`Self::density`] will be ignored, so it only makes sense to call
+    /// either [`Self::density`] or [`Self::mass_properties`].
+    pub fn mass_properties(mut self, mass_properties: MassProperties) -> Self {
+        self.mass_properties = Some(mass_properties);
         self
     }
 
@@ -540,7 +557,21 @@ impl ColliderBuilder {
 
     /// Builds a new collider attached to the given rigid-body.
     pub fn build(&self) -> Collider {
-        let density = self.get_density();
+        let (density, mass_properties);
+        if let Some(mp) = self.mass_properties {
+            mass_properties = mp;
+
+            let volume = volume(&self.shape);
+            density = if volume == 0.0 || mp.inv_mass == 0.0 {
+                Real::INFINITY
+            } else {
+                mass(&mp) / volume
+            };
+        } else {
+            density = self.get_density();
+            mass_properties = self.shape.mass_properties(density);
+        }
+
         let mut flags = ColliderFlags::empty();
         flags.set(ColliderFlags::SENSOR, self.is_sensor);
         flags = flags
@@ -555,6 +586,7 @@ impl ColliderBuilder {
         Collider {
             shape: self.shape.clone(),
             density,
+            mass_properties,
             friction: self.friction,
             restitution: self.restitution,
             delta: self.delta,
@@ -569,4 +601,12 @@ impl ColliderBuilder {
             user_data: self.user_data,
         }
     }
+}
+
+fn volume(shape: &SharedShape) -> Real {
+    mass(&shape.mass_properties(1.0)) // TODO: add SharedShape::volume to parry
+}
+
+fn mass(mp: &MassProperties) -> Real {
+    crate::utils::inv(mp.inv_mass) // TODO: add MassProperties::mass() to parry
 }
