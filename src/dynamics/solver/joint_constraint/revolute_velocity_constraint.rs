@@ -3,9 +3,8 @@ use crate::dynamics::{
     IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RevoluteJoint, RigidBody,
 };
 use crate::math::{AngularInertia, Real, Rotation, Vector};
-use crate::na::UnitQuaternion;
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
-use na::{Cholesky, Matrix3x2, Matrix5, Vector5, U2, U3};
+use na::{Cholesky, Matrix3x2, Matrix5, UnitQuaternion, Vector5, U2, U3};
 
 #[derive(Debug)]
 pub(crate) struct RevoluteVelocityConstraint {
@@ -90,9 +89,31 @@ impl RevoluteVelocityConstraint {
 
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = (rb2.linvel + rb2.angvel.gcross(r2)) - (rb1.linvel + rb1.angvel.gcross(r1));
-        let ang_rhs = basis2.tr_mul(&rb2.angvel) - basis1.tr_mul(&rb1.angvel);
-        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, lin_rhs.z, ang_rhs.x, ang_rhs.y);
+        let linvel_err =
+            (rb2.linvel + rb2.angvel.gcross(r2)) - (rb1.linvel + rb1.angvel.gcross(r1));
+        let angvel_err = basis2.tr_mul(&rb2.angvel) - basis1.tr_mul(&rb1.angvel);
+
+        let mut rhs = Vector5::new(
+            linvel_err.x,
+            linvel_err.y,
+            linvel_err.z,
+            angvel_err.x,
+            angvel_err.y,
+        ) * params.velocity_solve_fraction;
+
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        if velocity_based_erp_inv_dt != 0.0 {
+            let lin_err = anchor2 - anchor1;
+
+            let axis1 = rb1.position * joint.local_axis1;
+            let axis2 = rb2.position * joint.local_axis2;
+
+            let axis_error = axis1.cross(&axis2);
+            let ang_err = (basis2.tr_mul(&axis_error) + basis1.tr_mul(&axis_error)) * 0.5;
+
+            rhs += Vector5::new(lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y)
+                * velocity_based_erp_inv_dt;
+        }
 
         /*
          * Motor.
@@ -371,9 +392,35 @@ impl RevoluteVelocityGroundConstraint {
 
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = (rb2.linvel + rb2.angvel.gcross(r2)) - (rb1.linvel + rb1.angvel.gcross(r1));
-        let ang_rhs = basis2.tr_mul(&rb2.angvel) - basis1.tr_mul(&rb1.angvel);
-        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, lin_rhs.z, ang_rhs.x, ang_rhs.y);
+        let linvel_err =
+            (rb2.linvel + rb2.angvel.gcross(r2)) - (rb1.linvel + rb1.angvel.gcross(r1));
+        let angvel_err = basis2.tr_mul(&rb2.angvel) - basis1.tr_mul(&rb1.angvel);
+        let mut rhs = Vector5::new(
+            linvel_err.x,
+            linvel_err.y,
+            linvel_err.z,
+            angvel_err.x,
+            angvel_err.y,
+        ) * params.velocity_solve_fraction;
+
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        if velocity_based_erp_inv_dt != 0.0 {
+            let lin_err = anchor2 - anchor1;
+
+            let (axis1, axis2);
+            if flipped {
+                axis1 = rb1.position * joint.local_axis2;
+                axis2 = rb2.position * joint.local_axis1;
+            } else {
+                axis1 = rb1.position * joint.local_axis1;
+                axis2 = rb2.position * joint.local_axis2;
+            }
+            let axis_error = axis1.cross(&axis2);
+            let ang_err = basis2.tr_mul(&axis_error);
+
+            rhs += Vector5::new(lin_err.x, lin_err.y, lin_err.z, ang_err.x, ang_err.y)
+                * velocity_based_erp_inv_dt;
+        }
 
         /*
          * Motor part.
@@ -472,6 +519,7 @@ impl RevoluteVelocityGroundConstraint {
             .ii2_sqrt
             .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
     }
+
     fn solve_motors(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
         if self.motor_inv_lhs != 0.0 {
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);

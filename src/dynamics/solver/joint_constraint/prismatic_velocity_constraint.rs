@@ -48,10 +48,15 @@ pub(crate) struct PrismaticVelocityConstraint {
     motor_inv_lhs: Real,
     motor_max_impulse: Real,
 
+    limits_active: bool,
     limits_impulse: Real,
-    limits_forcedirs: Option<(Vector<Real>, Vector<Real>)>,
+    /// World-coordinate direction of the limit force on rb2.
+    /// The force direction on rb1 is opposite (Newton's third law)..
+    limits_forcedir2: Vector<Real>,
     limits_rhs: Real,
     limits_inv_lhs: Real,
+    /// min/max applied impulse due to limits
+    limits_impulse_limits: (Real, Real),
 
     #[cfg(feature = "dim2")]
     basis1: Vector2<Real>,
@@ -135,13 +140,39 @@ impl PrismaticVelocityConstraint {
         #[cfg(feature = "dim3")]
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
-        let ang_rhs = rb2.angvel - rb1.angvel;
+        let linvel_err = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
+        let angvel_err = rb2.angvel - rb1.angvel;
 
         #[cfg(feature = "dim2")]
-        let rhs = Vector2::new(lin_rhs.x, ang_rhs);
+        let mut rhs = Vector2::new(linvel_err.x, angvel_err) * params.velocity_solve_fraction;
         #[cfg(feature = "dim3")]
-        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, ang_rhs.x, ang_rhs.y, ang_rhs.z);
+        let mut rhs = Vector5::new(
+            linvel_err.x,
+            linvel_err.y,
+            angvel_err.x,
+            angvel_err.y,
+            angvel_err.z,
+        ) * params.velocity_solve_fraction;
+
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        if velocity_based_erp_inv_dt != 0.0 {
+            let linear_err = basis1.tr_mul(&(anchor2 - anchor1));
+
+            let frame1 = rb1.position * joint.local_frame1();
+            let frame2 = rb2.position * joint.local_frame2();
+            let ang_err = frame2.rotation * frame1.rotation.inverse();
+
+            #[cfg(feature = "dim2")]
+            {
+                rhs += Vector2::new(linear_err.x, ang_err.angle()) * velocity_based_erp_inv_dt;
+            }
+            #[cfg(feature = "dim3")]
+            {
+                let ang_err = ang_err.scaled_axis();
+                rhs += Vector5::new(linear_err.x, linear_err.y, ang_err.x, ang_err.y, ang_err.z)
+                    * velocity_based_erp_inv_dt;
+            }
+        }
 
         /*
          * Setup motor.
@@ -176,31 +207,35 @@ impl PrismaticVelocityConstraint {
             joint.motor_max_impulse,
         );
 
-        /*
-         * Setup limit constraint.
-         */
-        let mut limits_forcedirs = None;
+        // Setup limit constraint.
+        let mut limits_active = false;
+        let limits_forcedir2 = axis2.into_inner(); // hopefully axis1 is colinear with axis2
         let mut limits_rhs = 0.0;
         let mut limits_impulse = 0.0;
         let mut limits_inv_lhs = 0.0;
+        let mut limits_impulse_limits = (0.0, 0.0);
 
         if joint.limits_enabled {
             let danchor = anchor2 - anchor1;
             let dist = danchor.dot(&axis1);
 
-            // TODO: we should allow both limits to be active at
-            // the same time, and allow predictive constraint activation.
-            if dist < joint.limits[0] {
-                limits_forcedirs = Some((-axis1.into_inner(), axis2.into_inner()));
-                limits_rhs = anchor_linvel2.dot(&axis2) - anchor_linvel1.dot(&axis1);
-                limits_impulse = joint.limits_impulse;
-            } else if dist > joint.limits[1] {
-                limits_forcedirs = Some((axis1.into_inner(), -axis2.into_inner()));
-                limits_rhs = -anchor_linvel2.dot(&axis2) + anchor_linvel1.dot(&axis1);
-                limits_impulse = joint.limits_impulse;
-            }
+            // TODO: we should allow predictive constraint activation.
 
-            if dist < joint.limits[0] || dist > joint.limits[1] {
+            let (min_limit, max_limit) = (joint.limits[0], joint.limits[1]);
+            let min_enabled = dist < min_limit;
+            let max_enabled = max_limit < dist;
+
+            limits_impulse_limits.0 = if max_enabled { -Real::INFINITY } else { 0.0 };
+            limits_impulse_limits.1 = if min_enabled { Real::INFINITY } else { 0.0 };
+
+            limits_active = min_enabled || max_enabled;
+            if limits_active {
+                limits_rhs = (anchor_linvel2.dot(&axis2) - anchor_linvel1.dot(&axis1))
+                    * params.velocity_solve_fraction;
+
+                limits_rhs += ((dist - max_limit).max(0.0) - (min_limit - dist).max(0.0))
+                    * velocity_based_erp_inv_dt;
+
                 let gcross1 = r1.gcross(*axis1);
                 let gcross2 = r2.gcross(*axis2);
                 limits_inv_lhs = crate::utils::inv(
@@ -208,6 +243,11 @@ impl PrismaticVelocityConstraint {
                         + gcross1.gdot(ii1.transform_vector(gcross1))
                         + gcross2.gdot(ii2.transform_vector(gcross2)),
                 );
+
+                limits_impulse = joint
+                    .limits_impulse
+                    .max(limits_impulse_limits.0)
+                    .min(limits_impulse_limits.1);
             }
         }
 
@@ -220,10 +260,12 @@ impl PrismaticVelocityConstraint {
             im2,
             ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse: joint.impulse * params.warmstart_coeff,
+            limits_active,
             limits_impulse: limits_impulse * params.warmstart_coeff,
-            limits_forcedirs,
+            limits_forcedir2,
             limits_rhs,
             limits_inv_lhs,
+            limits_impulse_limits,
             motor_rhs,
             motor_inv_lhs,
             motor_impulse,
@@ -263,10 +305,9 @@ impl PrismaticVelocityConstraint {
         mj_lambda2.linear -= self.motor_axis2 * (self.im2 * self.motor_impulse);
 
         // Warmstart limits.
-        if let Some((limits_forcedir1, limits_forcedir2)) = self.limits_forcedirs {
-            let limit_impulse1 = limits_forcedir1 * self.limits_impulse;
-            let limit_impulse2 = limits_forcedir2 * self.limits_impulse;
-
+        if self.limits_active {
+            let limit_impulse1 = -self.limits_forcedir2 * self.limits_impulse;
+            let limit_impulse2 = self.limits_forcedir2 * self.limits_impulse;
             mj_lambda1.linear += self.im1 * limit_impulse1;
             mj_lambda1.angular += self
                 .ii1_sqrt
@@ -313,14 +354,19 @@ impl PrismaticVelocityConstraint {
     }
 
     fn solve_limits(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
-        if let Some((limits_forcedir1, limits_forcedir2)) = self.limits_forcedirs {
+        if self.limits_active {
+            let limits_forcedir1 = -self.limits_forcedir2;
+            let limits_forcedir2 = self.limits_forcedir2;
+
             let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
             let lin_dvel = limits_forcedir2.dot(&(mj_lambda2.linear + ang_vel2.gcross(self.r2)))
                 + limits_forcedir1.dot(&(mj_lambda1.linear + ang_vel1.gcross(self.r1)))
                 + self.limits_rhs;
-            let new_impulse = (self.limits_impulse - lin_dvel * self.limits_inv_lhs).max(0.0);
+            let new_impulse = (self.limits_impulse - lin_dvel * self.limits_inv_lhs)
+                .max(self.limits_impulse_limits.0)
+                .min(self.limits_impulse_limits.1);
             let dimpulse = new_impulse - self.limits_impulse;
             self.limits_impulse = new_impulse;
 
@@ -396,8 +442,12 @@ pub(crate) struct PrismaticVelocityGroundConstraint {
     #[cfg(feature = "dim3")]
     impulse: Vector5<Real>,
 
+    limits_active: bool,
+    limits_forcedir2: Vector<Real>,
     limits_impulse: Real,
     limits_rhs: Real,
+    /// min/max applied impulse due to limits
+    limits_impulse_limits: (Real, Real),
 
     axis2: Vector<Real>,
     motor_impulse: Real,
@@ -409,7 +459,6 @@ pub(crate) struct PrismaticVelocityGroundConstraint {
     basis1: Vector2<Real>,
     #[cfg(feature = "dim3")]
     basis1: Matrix3x2<Real>,
-    limits_forcedir2: Option<Vector<Real>>,
 
     im2: Real,
     ii2_sqrt: AngularInertia<Real>,
@@ -520,13 +569,45 @@ impl PrismaticVelocityGroundConstraint {
         #[cfg(feature = "dim3")]
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
-        let lin_rhs = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
-        let ang_rhs = rb2.angvel - rb1.angvel;
+        let linvel_err = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
+        let angvel_err = rb2.angvel - rb1.angvel;
 
         #[cfg(feature = "dim2")]
-        let rhs = Vector2::new(lin_rhs.x, ang_rhs);
+        let mut rhs = Vector2::new(linvel_err.x, angvel_err) * params.velocity_solve_fraction;
         #[cfg(feature = "dim3")]
-        let rhs = Vector5::new(lin_rhs.x, lin_rhs.y, ang_rhs.x, ang_rhs.y, ang_rhs.z);
+        let mut rhs = Vector5::new(
+            linvel_err.x,
+            linvel_err.y,
+            angvel_err.x,
+            angvel_err.y,
+            angvel_err.z,
+        ) * params.velocity_solve_fraction;
+
+        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        if velocity_based_erp_inv_dt != 0.0 {
+            let linear_err = basis1.tr_mul(&(anchor2 - anchor1));
+
+            let (frame1, frame2);
+            if flipped {
+                frame1 = rb1.position * joint.local_frame2();
+                frame2 = rb2.position * joint.local_frame1();
+            } else {
+                frame1 = rb1.position * joint.local_frame1();
+                frame2 = rb2.position * joint.local_frame2();
+            }
+
+            let ang_err = frame2.rotation * frame1.rotation.inverse();
+            #[cfg(feature = "dim2")]
+            {
+                rhs += Vector2::new(linear_err.x, ang_err.angle()) * velocity_based_erp_inv_dt;
+            }
+            #[cfg(feature = "dim3")]
+            {
+                let ang_err = ang_err.scaled_axis();
+                rhs += Vector5::new(linear_err.x, linear_err.y, ang_err.x, ang_err.y, ang_err.z)
+                    * velocity_based_erp_inv_dt;
+            }
+        }
 
         /*
          * Setup motor.
@@ -564,25 +645,37 @@ impl PrismaticVelocityGroundConstraint {
         /*
          * Setup limit constraint.
          */
-        let mut limits_forcedir2 = None;
+        let mut limits_active = false;
+        let limits_forcedir2 = axis2.into_inner();
         let mut limits_rhs = 0.0;
         let mut limits_impulse = 0.0;
+        let mut limits_impulse_limits = (0.0, 0.0);
 
         if joint.limits_enabled {
             let danchor = anchor2 - anchor1;
             let dist = danchor.dot(&axis1);
 
-            // TODO: we should allow both limits to be active at
-            // the same time.
-            // TODO: allow predictive constraint activation.
-            if dist < joint.limits[0] {
-                limits_forcedir2 = Some(axis2.into_inner());
-                limits_rhs = anchor_linvel2.dot(&axis2) - anchor_linvel1.dot(&axis1);
-                limits_impulse = joint.limits_impulse;
-            } else if dist > joint.limits[1] {
-                limits_forcedir2 = Some(-axis2.into_inner());
-                limits_rhs = -anchor_linvel2.dot(&axis2) + anchor_linvel1.dot(&axis1);
-                limits_impulse = joint.limits_impulse;
+            // TODO: we should allow predictive constraint activation.
+
+            let (min_limit, max_limit) = (joint.limits[0], joint.limits[1]);
+            let min_enabled = dist < min_limit;
+            let max_enabled = max_limit < dist;
+
+            limits_impulse_limits.0 = if max_enabled { -Real::INFINITY } else { 0.0 };
+            limits_impulse_limits.1 = if min_enabled { Real::INFINITY } else { 0.0 };
+
+            limits_active = min_enabled || max_enabled;
+            if limits_active {
+                limits_rhs = (anchor_linvel2.dot(&axis2) - anchor_linvel1.dot(&axis1))
+                    * params.velocity_solve_fraction;
+
+                limits_rhs += ((dist - max_limit).max(0.0) - (min_limit - dist).max(0.0))
+                    * velocity_based_erp_inv_dt;
+
+                limits_impulse = joint
+                    .limits_impulse
+                    .max(limits_impulse_limits.0)
+                    .min(limits_impulse_limits.1);
             }
         }
 
@@ -592,7 +685,11 @@ impl PrismaticVelocityGroundConstraint {
             im2,
             ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
             impulse: joint.impulse * params.warmstart_coeff,
+            limits_active,
+            limits_forcedir2,
             limits_impulse: limits_impulse * params.warmstart_coeff,
+            limits_rhs,
+            limits_impulse_limits,
             motor_rhs,
             motor_inv_lhs,
             motor_impulse,
@@ -602,8 +699,6 @@ impl PrismaticVelocityGroundConstraint {
             rhs,
             r2,
             axis2: axis2.into_inner(),
-            limits_forcedir2,
-            limits_rhs,
         }
     }
 
@@ -625,9 +720,7 @@ impl PrismaticVelocityGroundConstraint {
         mj_lambda2.linear -= self.axis2 * (self.im2 * self.motor_impulse);
 
         // Warmstart limits.
-        if let Some(limits_forcedir2) = self.limits_forcedir2 {
-            mj_lambda2.linear += limits_forcedir2 * (self.im2 * self.limits_impulse);
-        }
+        mj_lambda2.linear += self.limits_forcedir2 * (self.im2 * self.limits_impulse);
 
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
@@ -657,16 +750,20 @@ impl PrismaticVelocityGroundConstraint {
     }
 
     fn solve_limits(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
-        if let Some(limits_forcedir2) = self.limits_forcedir2 {
+        if self.limits_active {
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
-            let lin_dvel = limits_forcedir2.dot(&(mj_lambda2.linear + ang_vel2.gcross(self.r2)))
+            let lin_dvel = self
+                .limits_forcedir2
+                .dot(&(mj_lambda2.linear + ang_vel2.gcross(self.r2)))
                 + self.limits_rhs;
-            let new_impulse = (self.limits_impulse - lin_dvel / self.im2).max(0.0);
+            let new_impulse = (self.limits_impulse - lin_dvel / self.im2)
+                .max(self.limits_impulse_limits.0)
+                .min(self.limits_impulse_limits.1);
             let dimpulse = new_impulse - self.limits_impulse;
             self.limits_impulse = new_impulse;
 
-            mj_lambda2.linear += limits_forcedir2 * (self.im2 * dimpulse);
+            mj_lambda2.linear += self.limits_forcedir2 * (self.im2 * dimpulse);
         }
     }
 

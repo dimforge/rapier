@@ -27,6 +27,19 @@ pub struct IntegrationParameters {
     /// Each cached impulse are multiplied by this coefficient in `[0, 1]`
     /// when they are re-used to initialize the solver (default `1.0`).
     pub warmstart_coeff: Real,
+
+    /// 0-1: how much of the velocity to dampen out in the constraint solver?
+    /// (default `1.0`).
+    pub velocity_solve_fraction: Real,
+
+    /// 0-1: multiplier for how much of the constraint violation (e.g. contact penetration)
+    /// will be compensated for during the velocity solve.
+    /// If zero, you need to enable the positional solver.
+    /// If non-zero, you do not need the positional solver.
+    /// A good non-zero value is around `0.2`.
+    /// (default `0.0`).
+    pub velocity_based_erp: Real,
+
     /// Amount of penetration the engine wont attempt to correct (default: `0.005m`).
     pub allowed_linear_error: Real,
     /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002`).
@@ -121,17 +134,12 @@ impl IntegrationParameters {
             max_stabilization_multiplier,
             max_velocity_iterations,
             max_position_iterations,
-            // FIXME: what is the optimal value for min_island_size?
-            // It should not be too big so that we don't end up with
-            // huge islands that don't fit in cache.
-            // However we don't want it to be too small and end up with
-            // tons of islands, reducing SIMD parallelism opportunities.
-            min_island_size: 128,
             max_ccd_position_iterations,
             max_ccd_substeps,
             return_after_ccd_substep,
             multiple_ccd_substep_sensor_events_enabled,
             ccd_on_penetration_enabled,
+            ..Default::default()
         }
     }
 
@@ -173,6 +181,12 @@ impl IntegrationParameters {
             self.dt = 1.0 / inv_dt
         }
     }
+
+    /// Convenience: `velocity_based_erp / dt`
+    #[inline]
+    pub(crate) fn velocity_based_erp_inv_dt(&self) -> Real {
+        self.velocity_based_erp * self.inv_dt()
+    }
 }
 
 impl Default for IntegrationParameters {
@@ -183,6 +197,8 @@ impl Default for IntegrationParameters {
             return_after_ccd_substep: false,
             erp: 0.2,
             joint_erp: 0.2,
+            velocity_solve_fraction: 1.0,
+            velocity_based_erp: 0.0,
             warmstart_coeff: 1.0,
             allowed_linear_error: 0.005,
             prediction_distance: 0.002,

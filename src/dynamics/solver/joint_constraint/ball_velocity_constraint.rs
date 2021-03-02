@@ -40,17 +40,20 @@ impl BallVelocityConstraint {
         rb2: &RigidBody,
         joint: &BallJoint,
     ) -> Self {
-        let anchor1 = rb1.position * joint.local_anchor1 - rb1.world_com;
-        let anchor2 = rb2.position * joint.local_anchor2 - rb2.world_com;
+        let anchor_world1 = rb1.position * joint.local_anchor1;
+        let anchor_world2 = rb2.position * joint.local_anchor2;
+        let anchor1 = anchor_world1 - rb1.world_com;
+        let anchor2 = anchor_world2 - rb2.world_com;
 
         let vel1 = rb1.linvel + rb1.angvel.gcross(anchor1);
         let vel2 = rb2.linvel + rb2.angvel.gcross(anchor2);
         let im1 = rb1.effective_inv_mass;
         let im2 = rb2.effective_inv_mass;
 
-        let rhs = -(vel1 - vel2);
-        let lhs;
+        let rhs = (vel2 - vel1) * params.velocity_solve_fraction
+            + (anchor_world2 - anchor_world1) * params.velocity_based_erp_inv_dt();
 
+        let lhs;
         let cmat1 = anchor1.gcross_matrix();
         let cmat2 = anchor2.gcross_matrix();
 
@@ -271,22 +274,27 @@ impl BallVelocityGroundConstraint {
         joint: &BallJoint,
         flipped: bool,
     ) -> Self {
-        let (anchor1, anchor2) = if flipped {
+        let (anchor_world1, anchor_world2) = if flipped {
             (
-                rb1.position * joint.local_anchor2 - rb1.world_com,
-                rb2.position * joint.local_anchor1 - rb2.world_com,
+                rb1.position * joint.local_anchor2,
+                rb2.position * joint.local_anchor1,
             )
         } else {
             (
-                rb1.position * joint.local_anchor1 - rb1.world_com,
-                rb2.position * joint.local_anchor2 - rb2.world_com,
+                rb1.position * joint.local_anchor1,
+                rb2.position * joint.local_anchor2,
             )
         };
+
+        let anchor1 = anchor_world1 - rb1.world_com;
+        let anchor2 = anchor_world2 - rb2.world_com;
 
         let im2 = rb2.effective_inv_mass;
         let vel1 = rb1.linvel + rb1.angvel.gcross(anchor1);
         let vel2 = rb2.linvel + rb2.angvel.gcross(anchor2);
-        let rhs = vel2 - vel1;
+
+        let rhs = (vel2 - vel1) * params.velocity_solve_fraction
+            + (anchor_world2 - anchor_world1) * params.velocity_based_erp_inv_dt();
 
         let cmat2 = anchor2.gcross_matrix();
 
