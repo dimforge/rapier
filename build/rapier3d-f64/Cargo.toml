@@ -26,7 +26,7 @@ simd-nightly = [ "parry3d-f64/simd-nightly", "simba/packed_simd", "simd-is-enabl
 # enabled with the "simd-stable" or "simd-nightly" feature.
 simd-is-enabled = [ ]
 wasm-bindgen = [ "instant/wasm-bindgen" ]
-serde-serialize = [ "nalgebra/serde-serialize", "parry3d-f64/serde-serialize", "serde", "generational-arena/serde", "bit-vec/serde" ]
+serde-serialize = [ "nalgebra/serde-serialize", "parry3d-f64/serde-serialize", "serde", "bit-vec/serde" ]
 enhanced-determinism = [ "simba/libm_force", "parry3d-f64/enhanced-determinism" ]
 
 [lib]
@@ -45,7 +45,6 @@ simba = "0.4"
 approx = "0.4"
 rayon = { version = "1", optional = true }
 crossbeam = "0.8"
-generational-arena = "0.2"
 arrayvec = "0.5"
 bit-vec = "0.6"
 rustc-hash = "1"
