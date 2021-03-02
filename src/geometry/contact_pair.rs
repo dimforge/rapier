@@ -108,10 +108,26 @@ pub struct ContactManifoldData {
     /// Flags used to control some aspects of the constraints solver for this contact manifold.
     pub solver_flags: SolverFlags,
     /// The world-space contact normal shared by all the contact in this contact manifold.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    // NOTE: read the comment of `solver_contacts` regarding serialization. It applies
+    // to this field as well.
     pub normal: Vector<Real>,
     /// The contacts that will be seen by the constraints solver for computing forces.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    // NOTE: unfortunately, we can't ignore this field when serialize
+    // the contact manifold data. The reason is that the solver contacts
+    // won't be updated for sleeping bodies. So it means that for one
+    // frame, we won't have any solver contacts when waking up an island
+    // after a deserialization. Not only does this break post-snapshot
+    // determinism, but it will also skip constraint resolution for these
+    // contacts during one frame.
+    //
+    // An alternative would be to skip the serialization of `solver_contacts` and
+    // find a way to recompute them right after the deserialization process completes.
+    // However, this would be an expensive operation. And doing this efficiently as part
+    // of the narrow-phase update or the contact manifold collect will likely lead to tricky
+    // bugs too.
+    //
+    // So right now it is best to just serialize this field and keep it that way until it
+    // is proven to be actually problematic in real applications (in terms of snapshot size for example).
     pub solver_contacts: Vec<SolverContact>,
     /// The relative dominance of the bodies involved in this contact manifold.
     pub relative_dominance: i16,
