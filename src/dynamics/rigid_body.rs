@@ -6,6 +6,7 @@ use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector,
 };
 use crate::utils::{self, WCross, WDot};
+use na::ComplexField;
 use num::Zero;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -804,7 +805,8 @@ impl RigidBodyBuilder {
     /// Sets the angular inertia of this rigid-body.
     #[cfg(feature = "dim2")]
     pub fn principal_angular_inertia(mut self, inertia: Real) -> Self {
-        self.mass_properties.inv_principal_inertia_sqrt = utils::inv(inertia);
+        self.mass_properties.inv_principal_inertia_sqrt =
+            utils::inv(ComplexField::sqrt(inertia.max(0.0)));
         self
     }
 
@@ -829,7 +831,8 @@ impl RigidBodyBuilder {
     /// attached to this rigid-body.
     #[cfg(feature = "dim3")]
     pub fn principal_angular_inertia(mut self, inertia: AngVector<Real>) -> Self {
-        self.mass_properties.inv_principal_inertia_sqrt = inertia.map(utils::inv);
+        self.mass_properties.inv_principal_inertia_sqrt =
+            inertia.map(|e| utils::inv(ComplexField::sqrt(e.max(0.0))));
         self
     }
 
