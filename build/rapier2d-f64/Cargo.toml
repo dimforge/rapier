@@ -24,7 +24,7 @@ simd-stable = [ "simba/wide", "simd-is-enabled" ]
 simd-nightly = [ "simba/packed_simd", "simd-is-enabled" ]
 # Do not enable this feature directly. It is automatically
 # enabled with the "simd-stable" or "simd-nightly" feature.
-simd-is-enabled = [ ]
+simd-is-enabled = [ "vec_map" ]
 wasm-bindgen = [ "instant/wasm-bindgen" ]
 serde-serialize = [ "nalgebra/serde-serialize", "parry2d-f64/serde-serialize", "serde", "bit-vec/serde", "arrayvec/serde" ]
 enhanced-determinism = [ "simba/libm_force", "parry2d-f64/enhanced-determinism", "indexmap" ]
@@ -36,7 +36,7 @@ required-features = [ "dim2", "f64" ]
 
 
 [dependencies]
-vec_map = "0.8"
+vec_map = { version = "0.8", optional = true }
 instant = { version = "0.1", features = [ "now" ]}
 num-traits = "0.2"
 nalgebra = "0.25"
