@@ -187,6 +187,7 @@ impl RigidBody {
         }
 
         self.mass_properties = props;
+        self.update_world_mass_properties();
     }
 
     /// The handles of colliders attached to this rigid body.
