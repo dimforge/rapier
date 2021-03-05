@@ -35,6 +35,7 @@ pub(crate) type JointIndex = usize;
 pub(crate) type JointGraphEdge = crate::data::graph::Edge<Joint>;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 /// A set of joints that can be handled by a physics `World`.
 pub struct JointSet {
     joint_ids: Arena<TemporaryInteractionIndex>, // Map joint handles to edge ids on the graph.
