@@ -43,6 +43,7 @@ impl CollisionPipeline {
         colliders: &mut ColliderSet,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
+        min_island_size: usize,
     ) {
         bodies.maintain(colliders);
         self.broadphase_collider_pairs.clear();
@@ -61,7 +62,7 @@ impl CollisionPipeline {
             colliders,
             narrow_phase,
             self.empty_joints.joint_graph(),
-            0,
+            min_island_size,
         );
 
         // // Update kinematic bodies velocities.
