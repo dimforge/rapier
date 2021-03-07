@@ -30,6 +30,7 @@ impl<N: SimdRealField> VelocityConstraintTangentPart<N> {
         }
     }
 
+    #[inline]
     pub fn warmstart(
         &self,
         tangents1: [&Vector<N>; DIM - 1],
@@ -50,6 +51,7 @@ impl<N: SimdRealField> VelocityConstraintTangentPart<N> {
         }
     }
 
+    #[inline]
     pub fn solve(
         &mut self,
         tangents1: [&Vector<N>; DIM - 1],
@@ -193,6 +195,7 @@ impl<N: SimdRealField> VelocityConstraintElement<N> {
         }
     }
 
+    #[inline]
     pub fn warmstart_group(
         elements: &[Self],
         dir1: &Vector<N>,
@@ -221,6 +224,7 @@ impl<N: SimdRealField> VelocityConstraintElement<N> {
         }
     }
 
+    #[inline]
     pub fn solve_group(
         elements: &mut [Self],
         dir1: &Vector<N>,

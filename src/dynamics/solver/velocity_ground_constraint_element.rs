@@ -28,6 +28,7 @@ impl<N: SimdRealField> VelocityGroundConstraintTangentPart<N> {
         }
     }
 
+    #[inline]
     pub fn warmstart(
         &self,
         tangents1: [&Vector<N>; DIM - 1],
@@ -40,6 +41,7 @@ impl<N: SimdRealField> VelocityGroundConstraintTangentPart<N> {
         }
     }
 
+    #[inline]
     pub fn solve(
         &mut self,
         tangents1: [&Vector<N>; DIM - 1],

@@ -217,7 +217,7 @@ impl WVelocityConstraint {
         };
 
         VelocityConstraintElement::warmstart_group(
-            &self.elements,
+            &self.elements[..self.num_contacts as usize],
             &self.dir1,
             #[cfg(feature = "dim3")]
             &self.tangent1,
@@ -257,7 +257,7 @@ impl WVelocityConstraint {
         };
 
         VelocityConstraintElement::solve_group(
-            &mut self.elements,
+            &mut self.elements[..self.num_contacts as usize],
             &self.dir1,
             #[cfg(feature = "dim3")]
             &self.tangent1,
