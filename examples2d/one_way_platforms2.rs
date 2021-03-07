@@ -40,7 +40,7 @@ impl PhysicsHooks for OneWayPlatformHook {
             allowed_local_n1 = -Vector2::y();
         } else if context.collider_handle2 == self.platform2 {
             // Flip the allowed direction.
-            allowed_local_n1 = -Vector2::y();
+            allowed_local_n1 = Vector2::y();
         }
 
         // Call the helper function that simulates one-way platforms.

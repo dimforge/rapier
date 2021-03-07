@@ -186,6 +186,10 @@ impl PhysxWorld {
                 let pos = rb.position().into_physx();
                 if rb.is_dynamic() {
                     let mut actor = physics.create_dynamic(&pos, rapier_handle).unwrap();
+                    let linvel = rb.linvel().into_physx();
+                    let angvel = rb.angvel().into_physx();
+                    actor.set_linear_velocity(&linvel, true);
+                    actor.set_angular_velocity(&angvel, true);
                     actor.set_solver_iteration_counts(
                         integration_parameters.max_position_iterations as u32,
                         integration_parameters.max_velocity_iterations as u32,
