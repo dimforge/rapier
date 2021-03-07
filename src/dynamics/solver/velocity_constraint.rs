@@ -90,6 +90,7 @@ pub(crate) struct VelocityConstraintTangentPart {
     pub r: [Real; DIM - 1],
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl VelocityConstraintTangentPart {
     fn zero() -> Self {
         Self {
