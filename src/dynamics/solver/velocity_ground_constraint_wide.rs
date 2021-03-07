@@ -1,4 +1,7 @@
-use super::{AnyVelocityConstraint, DeltaVel};
+use super::{
+    AnyVelocityConstraint, DeltaVel, VelocityGroundConstraintElement,
+    VelocityGroundConstraintNormalPart,
+};
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
@@ -11,72 +14,13 @@ use num::Zero;
 use simba::simd::{SimdPartialOrd, SimdValue};
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct WVelocityGroundConstraintTangentPart {
-    pub gcross2: [AngVector<SimdReal>; DIM - 1],
-    pub rhs: [SimdReal; DIM - 1],
-    #[cfg(feature = "dim2")]
-    pub impulse: [SimdReal; DIM - 1],
-    #[cfg(feature = "dim3")]
-    pub impulse: na::Vector2<SimdReal>,
-    pub r: [SimdReal; DIM - 1],
-}
-
-impl WVelocityGroundConstraintTangentPart {
-    pub fn zero() -> Self {
-        Self {
-            gcross2: [AngVector::zero(); DIM - 1],
-            rhs: [SimdReal::zero(); DIM - 1],
-            #[cfg(feature = "dim2")]
-            impulse: [SimdReal::zero(); DIM - 1],
-            #[cfg(feature = "dim3")]
-            impulse: na::zero(),
-            r: [SimdReal::zero(); DIM - 1],
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub(crate) struct WVelocityGroundConstraintNormalPart {
-    pub gcross2: AngVector<SimdReal>,
-    pub rhs: SimdReal,
-    pub impulse: SimdReal,
-    pub r: SimdReal,
-}
-
-impl WVelocityGroundConstraintNormalPart {
-    pub fn zero() -> Self {
-        Self {
-            gcross2: AngVector::zero(),
-            rhs: SimdReal::zero(),
-            impulse: SimdReal::zero(),
-            r: SimdReal::zero(),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub(crate) struct WVelocityGroundConstraintElement {
-    pub normal_part: WVelocityGroundConstraintNormalPart,
-    pub tangent_part: WVelocityGroundConstraintTangentPart,
-}
-
-impl WVelocityGroundConstraintElement {
-    pub fn zero() -> Self {
-        Self {
-            normal_part: WVelocityGroundConstraintNormalPart::zero(),
-            tangent_part: WVelocityGroundConstraintTangentPart::zero(),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
 pub(crate) struct WVelocityGroundConstraint {
     pub dir1: Vector<SimdReal>, // Non-penetration force direction for the first body.
     #[cfg(feature = "dim3")]
     pub tangent1: Vector<SimdReal>, // One of the friction force directions.
     #[cfg(feature = "dim3")]
     pub tangent_rot1: na::UnitComplex<SimdReal>, // Orientation of the tangent basis wrt. the reference basis.
-    pub elements: [WVelocityGroundConstraintElement; MAX_MANIFOLD_POINTS],
+    pub elements: [VelocityGroundConstraintElement<SimdReal>; MAX_MANIFOLD_POINTS],
     pub num_contacts: u8,
     pub im2: SimdReal,
     pub limit: SimdReal,
@@ -151,7 +95,7 @@ impl WVelocityGroundConstraint {
                 tangent1: tangents1[0],
                 #[cfg(feature = "dim3")]
                 tangent_rot1,
-                elements: [WVelocityGroundConstraintElement::zero(); MAX_MANIFOLD_POINTS],
+                elements: [VelocityGroundConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im2,
                 limit: SimdReal::splat(0.0),
                 mj_lambda2,
@@ -199,7 +143,7 @@ impl WVelocityGroundConstraint {
                     rhs +=
                         dist.simd_min(SimdReal::zero()) * (velocity_based_erp_inv_dt * is_resting);
 
-                    constraint.elements[k].normal_part = WVelocityGroundConstraintNormalPart {
+                    constraint.elements[k].normal_part = VelocityGroundConstraintNormalPart {
                         gcross2,
                         rhs,
                         impulse: impulse * warmstart_coeff,
@@ -249,22 +193,14 @@ impl WVelocityGroundConstraint {
             ),
         };
 
-        #[cfg(feature = "dim3")]
-        let tangents1 = [self.tangent1, self.dir1.cross(&self.tangent1)];
-        #[cfg(feature = "dim2")]
-        let tangents1 = self.dir1.orthonormal_basis();
-
-        for i in 0..self.num_contacts as usize {
-            let elt = &self.elements[i].normal_part;
-            mj_lambda2.linear += self.dir1 * (-self.im2 * elt.impulse);
-            mj_lambda2.angular += elt.gcross2 * elt.impulse;
-
-            for j in 0..DIM - 1 {
-                let elt = &self.elements[i].tangent_part;
-                mj_lambda2.linear += tangents1[j] * (-self.im2 * elt.impulse[j]);
-                mj_lambda2.angular += elt.gcross2[j] * elt.impulse[j];
-            }
-        }
+        VelocityGroundConstraintElement::warmstart_group(
+            &self.elements,
+            &self.dir1,
+            #[cfg(feature = "dim3")]
+            &self.tangent1,
+            self.im2,
+            &mut mj_lambda2,
+        );
 
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda2[ii] as usize].linear = mj_lambda2.linear.extract(ii);
@@ -275,73 +211,22 @@ impl WVelocityGroundConstraint {
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = DeltaVel {
             linear: Vector::from(
-                array![ |ii| mj_lambdas[ self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
+                array![|ii| mj_lambdas[ self.mj_lambda2[ii] as usize].linear; SIMD_WIDTH],
             ),
             angular: AngVector::from(
-                array![ |ii| mj_lambdas[ self.mj_lambda2[ii] as usize].angular; SIMD_WIDTH],
+                array![|ii| mj_lambdas[ self.mj_lambda2[ii] as usize].angular; SIMD_WIDTH],
             ),
         };
 
-        // Solve friction.
-        #[cfg(feature = "dim3")]
-        let bitangent1 = self.dir1.cross(&self.tangent1);
-        #[cfg(feature = "dim2")]
-        let tangents1 = self.dir1.orthonormal_basis();
-
-        #[cfg(feature = "dim2")]
-        for i in 0..self.num_contacts as usize {
-            let normal_elt = &self.elements[i].normal_part;
-
-            let elt = &mut self.elements[i].tangent_part;
-            let dimpulse = -tangents1[0].dot(&mj_lambda2.linear)
-                + elt.gcross2[0].gdot(mj_lambda2.angular)
-                + elt.rhs[0];
-            let limit = self.limit * normal_elt.impulse;
-            let new_impulse = (elt.impulse[0] - elt.r[0] * dimpulse).simd_clamp(-limit, limit);
-            let dlambda = new_impulse - elt.impulse[0];
-            elt.impulse[0] = new_impulse;
-
-            mj_lambda2.linear += tangents1[0] * (-self.im2 * dlambda);
-            mj_lambda2.angular += elt.gcross2[0] * dlambda;
-        }
-
-        #[cfg(feature = "dim3")]
-        for i in 0..self.num_contacts as usize {
-            let limit = self.limit * self.elements[i].normal_part.impulse;
-            let elts = &mut self.elements[i].tangent_part;
-
-            let dimpulse_0 = -self.tangent1.dot(&mj_lambda2.linear)
-                + elts.gcross2[0].gdot(mj_lambda2.angular)
-                + elts.rhs[0];
-            let dimpulse_1 = -bitangent1.dot(&mj_lambda2.linear)
-                + elts.gcross2[1].gdot(mj_lambda2.angular)
-                + elts.rhs[1];
-
-            let new_impulse = na::Vector2::new(
-                elts.impulse[0] - elts.r[0] * dimpulse_0,
-                elts.impulse[1] - elts.r[1] * dimpulse_1,
-            );
-            let new_impulse = new_impulse.simd_cap_magnitude(limit);
-            let dlambda = new_impulse - elts.impulse;
-            elts.impulse = new_impulse;
-
-            mj_lambda2.linear +=
-                self.tangent1 * (-self.im2 * dlambda[0]) + bitangent1 * (-self.im2 * dlambda[1]);
-            mj_lambda2.angular += elts.gcross2[0] * dlambda[0] + elts.gcross2[1] * dlambda[1];
-        }
-
-        // Solve non-penetration after friction.
-        for i in 0..self.num_contacts as usize {
-            let elt = &mut self.elements[i].normal_part;
-            let dimpulse =
-                -self.dir1.dot(&mj_lambda2.linear) + elt.gcross2.gdot(mj_lambda2.angular) + elt.rhs;
-            let new_impulse = (elt.impulse - elt.r * dimpulse).simd_max(SimdReal::zero());
-            let dlambda = new_impulse - elt.impulse;
-            elt.impulse = new_impulse;
-
-            mj_lambda2.linear += self.dir1 * (-self.im2 * dlambda);
-            mj_lambda2.angular += elt.gcross2 * dlambda;
-        }
+        VelocityGroundConstraintElement::solve_group(
+            &mut self.elements,
+            &self.dir1,
+            #[cfg(feature = "dim3")]
+            &self.tangent1,
+            self.im2,
+            self.limit,
+            &mut mj_lambda2,
+        );
 
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda2[ii] as usize].linear = mj_lambda2.linear.extract(ii);
