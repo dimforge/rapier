@@ -1,15 +1,32 @@
 use super::NEXT_FREE_SENTINEL;
 use crate::geometry::ColliderHandle;
+use crate::math::Point;
 use parry::bounding_volume::AABB;
 use std::ops::{Index, IndexMut};
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum BroadPhaseProxyData {
+    Collider(ColliderHandle),
+    Subregion(Point<i32>),
+}
+
+impl BroadPhaseProxyData {
+    pub fn is_subregion(&self) -> bool {
+        match self {
+            BroadPhaseProxyData::Subregion(_) => true,
+            _ => false,
+        }
+    }
+}
+
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 pub(crate) struct BroadPhaseProxy {
-    pub handle: ColliderHandle,
+    pub data: BroadPhaseProxyData,
     pub aabb: AABB,
     pub next_free: u32,
-    pub layer: u8,
+    pub layer_id: u8,
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -43,11 +60,6 @@ impl BroadPhaseProxies {
         self.elements[proxy_id].next_free = self.first_free;
         self.first_free = proxy_id as u32;
     }
-
-    // // FIXME: take holes into account?
-    // pub fn get(&self, i: usize) -> Option<&BroadPhaseProxy> {
-    //     self.elements.get(i)
-    // }
 
     // FIXME: take holes into account?
     pub fn get_mut(&mut self, i: usize) -> Option<&mut BroadPhaseProxy> {

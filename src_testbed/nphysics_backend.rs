@@ -228,7 +228,11 @@ fn nphysics_collider_from_rapier_collider(
         }
     };
 
-    let density = if is_dynamic { collider.density() } else { 0.0 };
+    let density = if is_dynamic {
+        collider.density().unwrap_or(0.0)
+    } else {
+        0.0
+    };
 
     Some(
         ColliderDesc::new(shape)

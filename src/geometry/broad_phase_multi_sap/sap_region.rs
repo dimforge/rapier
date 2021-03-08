@@ -60,6 +60,19 @@ impl SAPRegion {
         }
     }
 
+    pub fn delete_all_region_endpoints(&mut self, proxies: &BroadPhaseProxies) {
+        for axis in &mut self.axes {
+            axis.endpoints.retain(|e| {
+                if let Some(proxy) = proxies.get(e.proxy() as usize) {
+                    self.existing_proxies.set(e.proxy() as usize, false);
+                    !proxy.data.is_subregion()
+                } else {
+                    true
+                }
+            });
+        }
+    }
+
     pub fn predelete_proxy(&mut self, _proxy_id: usize) {
         // We keep the proxy_id as argument for uniformity with the "preupdate"
         // method. However we don't actually need it because the deletion will be
