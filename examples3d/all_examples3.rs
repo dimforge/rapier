@@ -19,6 +19,7 @@ mod debug_add_remove_collider3;
 mod debug_boxes3;
 mod debug_cylinder3;
 mod debug_dynamic_collider_add3;
+mod debug_friction3;
 mod debug_infinite_fall3;
 mod debug_rollback3;
 mod debug_triangle3;
@@ -99,6 +100,7 @@ pub fn main() {
             "(Debug) dyn. coll. add",
             debug_dynamic_collider_add3::init_world,
         ),
+        ("(Debug) friction", debug_friction3::init_world),
         ("(Debug) triangle", debug_triangle3::init_world),
         ("(Debug) trimesh", debug_trimesh3::init_world),
         ("(Debug) cylinder", debug_cylinder3::init_world),

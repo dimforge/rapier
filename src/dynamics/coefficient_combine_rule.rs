@@ -25,7 +25,7 @@ impl CoefficientCombineRule {
         let effective_rule = rule_value1.max(rule_value2);
 
         match effective_rule {
-            0 => (coeff1 + coeff1) / 2.0,
+            0 => (coeff1 + coeff2) / 2.0,
             1 => coeff1.min(coeff2),
             2 => coeff1 * coeff2,
             _ => coeff1.max(coeff2),

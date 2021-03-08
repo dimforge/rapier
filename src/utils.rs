@@ -107,12 +107,17 @@ pub trait WBasis: Sized {
     type Basis;
     /// Computes the vectors which, when combined with `self`, form an orthonormal basis.
     fn orthonormal_basis(self) -> Self::Basis;
+    /// Computes a vector orthogonal to `self` with a unit length (if `self` has a unit length).
+    fn orthonormal_vector(self) -> Self;
 }
 
 impl<N: SimdRealField> WBasis for Vector2<N> {
     type Basis = [Vector2<N>; 1];
     fn orthonormal_basis(self) -> [Vector2<N>; 1] {
         [Vector2::new(-self.y, self.x)]
+    }
+    fn orthonormal_vector(self) -> Vector2<N> {
+        Vector2::new(-self.y, self.x)
     }
 }
 
@@ -133,6 +138,13 @@ impl<N: SimdRealField + WSign<N>> WBasis for Vector3<N> {
             ),
             Vector3::new(b, sign + self.y * self.y * a, -self.y),
         ]
+    }
+
+    fn orthonormal_vector(self) -> Vector3<N> {
+        let sign = self.z.copy_sign_to(N::one());
+        let a = -N::one() / (sign + self.z);
+        let b = self.x * self.y * a;
+        Vector3::new(b, sign + self.y * self.y * a, -self.y)
     }
 }
 

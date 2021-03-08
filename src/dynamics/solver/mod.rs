@@ -24,9 +24,11 @@ pub(self) use position_ground_constraint::*;
 #[cfg(feature = "simd-is-enabled")]
 pub(self) use position_ground_constraint_wide::*;
 pub(self) use velocity_constraint::*;
+pub(self) use velocity_constraint_element::*;
 #[cfg(feature = "simd-is-enabled")]
 pub(self) use velocity_constraint_wide::*;
 pub(self) use velocity_ground_constraint::*;
+pub(self) use velocity_ground_constraint_element::*;
 #[cfg(feature = "simd-is-enabled")]
 pub(self) use velocity_ground_constraint_wide::*;
 
@@ -55,9 +57,11 @@ mod position_solver;
 #[cfg(not(feature = "parallel"))]
 mod solver_constraints;
 mod velocity_constraint;
+mod velocity_constraint_element;
 #[cfg(feature = "simd-is-enabled")]
 mod velocity_constraint_wide;
 mod velocity_ground_constraint;
+mod velocity_ground_constraint_element;
 #[cfg(feature = "simd-is-enabled")]
 mod velocity_ground_constraint_wide;
 #[cfg(not(feature = "parallel"))]

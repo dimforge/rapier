@@ -1,5 +1,6 @@
 use crate::math::{AngVector, Vector};
 use na::{Scalar, SimdRealField};
+use std::ops::AddAssign;
 
 #[derive(Copy, Clone, Debug)]
 //#[repr(align(64))]
@@ -14,5 +15,12 @@ impl<N: SimdRealField> DeltaVel<N> {
             linear: na::zero(),
             angular: na::zero(),
         }
+    }
+}
+
+impl<N: SimdRealField> AddAssign for DeltaVel<N> {
+    fn add_assign(&mut self, rhs: Self) {
+        self.linear += rhs.linear;
+        self.angular += rhs.angular;
     }
 }

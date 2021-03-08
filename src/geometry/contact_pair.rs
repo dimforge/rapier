@@ -37,26 +37,14 @@ pub struct ContactData {
     /// The friction impulses along the basis orthonormal to the contact normal, applied to the first
     /// collider's rigid-body.
     #[cfg(feature = "dim3")]
-    pub tangent_impulse: [Real; 2],
-}
-
-impl ContactData {
-    #[cfg(feature = "dim2")]
-    pub(crate) fn zero_tangent_impulse() -> Real {
-        0.0
-    }
-
-    #[cfg(feature = "dim3")]
-    pub(crate) fn zero_tangent_impulse() -> [Real; 2] {
-        [0.0, 0.0]
-    }
+    pub tangent_impulse: na::Vector2<Real>,
 }
 
 impl Default for ContactData {
     fn default() -> Self {
         Self {
             impulse: 0.0,
-            tangent_impulse: Self::zero_tangent_impulse(),
+            tangent_impulse: na::zero(),
         }
     }
 }

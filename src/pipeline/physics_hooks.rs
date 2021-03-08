@@ -81,7 +81,15 @@ impl<'a> ContactModificationContext<'a> {
                     // normal, so remove all the contacts and mark further contacts
                     // as forbidden.
                     self.solver_contacts.clear();
-                    *self.user_data = CONTACT_CURRENTLY_FORBIDDEN;
+
+                    // NOTE: in some very rare cases `local_n1` will be
+                    // zero if the objects are exactly touching at one point.
+                    // So in this case we can't really conclude.
+                    // If the norm is non-zero, then we can tell we need to forbid
+                    // further contacts. Otherwise we have to wait for the next frame.
+                    if self.manifold.local_n1.norm_squared() > 0.1 {
+                        *self.user_data = CONTACT_CURRENTLY_FORBIDDEN;
+                    }
                 }
             }
             CONTACT_CURRENTLY_FORBIDDEN => {
