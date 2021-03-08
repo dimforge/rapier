@@ -13,6 +13,11 @@ const NEXT_FREE_SENTINEL: u32 = u32::MAX;
 const SENTINEL_VALUE: Real = Real::MAX;
 const CELL_WIDTH: Real = 20.0;
 
+#[cfg(feature = "f32")]
+type RegionKey = i32;
+#[cfg(feature = "f64")]
+type RegionKey = i64;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct ColliderPair {
@@ -63,11 +68,27 @@ fn sort2(a: u32, b: u32) -> (u32, u32) {
     }
 }
 
-fn point_key(point: Point<Real>) -> Point<i32> {
-    (point / CELL_WIDTH).coords.map(|e| e.floor() as i32).into()
+fn point_key(point: Point<Real>) -> Point<RegionKey> {
+    (point / CELL_WIDTH)
+        .coords
+        .map(|e| {
+            #[cfg(feature = "f32")]
+            {
+                // If the region is outside this range, the region keys will overlap
+                assert!(e.floor() < RegionKey::MAX as f32);
+                assert!(e.floor() > RegionKey::MIN as f32);
+            }
+            #[cfg(feature = "f64")]
+            {
+                assert!(e.floor() < RegionKey::MAX as f64);
+                assert!(e.floor() > RegionKey::MIN as f64);
+            }
+            e.floor() as RegionKey
+        })
+        .into()
 }
 
-fn region_aabb(index: Point<i32>) -> AABB {
+fn region_aabb(index: Point<RegionKey>) -> AABB {
     let mins = index.coords.map(|i| i as Real * CELL_WIDTH).into();
     let maxs = mins + Vector::repeat(CELL_WIDTH);
     AABB::new(mins, maxs)
@@ -456,13 +477,13 @@ impl SAPRegion {
 #[derive(Clone)]
 pub struct BroadPhase {
     proxies: Proxies,
-    regions: HashMap<Point<i32>, SAPRegion>,
+    regions: HashMap<Point<RegionKey>, SAPRegion>,
     removed_colliders: Option<Subscription<RemovedCollider>>,
     deleted_any: bool,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     region_pool: Vec<SAPRegion>, // To avoid repeated allocations.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    regions_to_remove: Vec<Point<i32>>, // Workspace
+    regions_to_remove: Vec<Point<RegionKey>>, // Workspace
     // We could think serializing this workspace is useless.
     // It turns out is is important to serialize at least its capacity
     // and restore this capacity when deserializing the hashmap.
