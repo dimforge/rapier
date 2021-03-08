@@ -114,6 +114,11 @@ impl VelocityGroundConstraint {
             #[cfg(target_arch = "wasm32")]
             {
                 constraint.dir1 = force_dir1;
+                #[cfg(feature = "dim3")]
+                {
+                    constraint.tangent1 = tangents1[0];
+                    constraint.tangent_rot1 = tangent_rot1;
+                }
                 constraint.im2 = rb2.effective_inv_mass;
                 constraint.limit = 0.0;
                 constraint.mj_lambda2 = mj_lambda2;
