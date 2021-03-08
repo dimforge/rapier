@@ -41,6 +41,14 @@ impl ColliderFlags {
     }
 }
 
+#[derive(Clone)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+enum MassInfo {
+    /// `MassProperties` are computed with the help of [`SharedShape::mass_properties`].
+    Density(Real),
+    MassProperties(Box<MassProperties>),
+}
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 /// A geometric entity that can be attached to a body so it can be affected by contacts and proximity queries.
@@ -48,9 +56,7 @@ impl ColliderFlags {
 /// To build a new collider, use the `ColliderBuilder` structure.
 pub struct Collider {
     shape: SharedShape,
-    density: Real,
-    /// If None, use [`Self::density`] and [`SharedShape::mass_properties`].
-    mass_properties: Option<Box<MassProperties>>,
+    mass_info: MassInfo,
     pub(crate) flags: ColliderFlags,
     pub(crate) solver_flags: SolverFlags,
     pub(crate) parent: RigidBodyHandle,
@@ -115,9 +121,12 @@ impl Collider {
         self.solver_groups
     }
 
-    /// The density of this collider.
-    pub fn density(&self) -> Real {
-        self.density
+    /// The density of this collider, if set.
+    pub fn density(&self) -> Option<Real> {
+        match &self.mass_info {
+            MassInfo::Density(density) => Some(*density),
+            MassInfo::MassProperties(_) => None,
+        }
     }
 
     /// The geometric shape of this collider.
@@ -138,9 +147,9 @@ impl Collider {
 
     /// Compute the local-space mass properties of this collider.
     pub fn mass_properties(&self) -> MassProperties {
-        match &self.mass_properties {
-            Some(mass_properties) => **mass_properties,
-            None => self.shape.mass_properties(self.density),
+        match &self.mass_info {
+            MassInfo::Density(density) => self.shape.mass_properties(*density),
+            MassInfo::MassProperties(mass_properties) => **mass_properties,
         }
     }
 }
@@ -197,12 +206,6 @@ impl ColliderBuilder {
             restitution_combine_rule: CoefficientCombineRule::Average,
             modify_solver_contacts: false,
         }
-    }
-
-    /// The density of the collider being built.
-    pub fn get_density(&self) -> Real {
-        let default_density = if self.is_sensor { 0.0 } else { 1.0 };
-        self.density.unwrap_or(default_density)
     }
 
     /// Initialize a new collider builder with a compound shape.
@@ -564,20 +567,13 @@ impl ColliderBuilder {
 
     /// Builds a new collider attached to the given rigid-body.
     pub fn build(&self) -> Collider {
-        let (density, mass_properties);
-        if let Some(mp) = self.mass_properties {
-            mass_properties = Some(Box::new(mp));
-
-            let volume = volume(&self.shape);
-            density = if volume == 0.0 || mp.inv_mass == 0.0 {
-                Real::INFINITY
-            } else {
-                mass(&mp) / volume
-            };
+        let mass_info = if let Some(mp) = self.mass_properties {
+            MassInfo::MassProperties(Box::new(mp))
         } else {
-            density = self.get_density();
-            mass_properties = None;
-        }
+            let default_density = if self.is_sensor { 0.0 } else { 1.0 };
+            let density = self.density.unwrap_or(default_density);
+            MassInfo::Density(density)
+        };
 
         let mut flags = ColliderFlags::empty();
         flags.set(ColliderFlags::SENSOR, self.is_sensor);
@@ -592,8 +588,7 @@ impl ColliderBuilder {
 
         Collider {
             shape: self.shape.clone(),
-            density,
-            mass_properties,
+            mass_info,
             friction: self.friction,
             restitution: self.restitution,
             delta: self.delta,
@@ -608,12 +603,4 @@ impl ColliderBuilder {
             user_data: self.user_data,
         }
     }
-}
-
-fn volume(shape: &SharedShape) -> Real {
-    mass(&shape.mass_properties(1.0)) // TODO: add SharedShape::volume to parry
-}
-
-fn mass(mp: &MassProperties) -> Real {
-    crate::utils::inv(mp.inv_mass) // TODO: add MassProperties::mass() to parry
 }
