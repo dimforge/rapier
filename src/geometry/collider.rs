@@ -465,8 +465,9 @@ impl ColliderBuilder {
     }
 
     /// Sets whether or not the collider built by this builder is a sensor.
+    ///
     /// Sensors will have a default density of zero,
-    /// but if you call [`Self::mass_properties`] you can assigna a mass to a sensor.
+    /// but if you call [`Self::mass_properties`] you can assign a mass to a sensor.
     pub fn sensor(mut self, is_sensor: bool) -> Self {
         self.is_sensor = is_sensor;
         self
