@@ -505,6 +505,7 @@ impl ColliderBuilder {
     }
 
     /// Sets the uniform density of the collider this builder will build.
+    ///
     /// This will be overridden by a call to [`Self::mass_properties`] so it only makes sense to call
     /// either [`Self::density`] or [`Self::mass_properties`].
     pub fn density(mut self, density: Real) -> Self {
