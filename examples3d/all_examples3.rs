@@ -16,6 +16,7 @@ mod convex_decomposition3;
 mod convex_polyhedron3;
 mod damping3;
 mod debug_add_remove_collider3;
+mod debug_big_colliders3;
 mod debug_boxes3;
 mod debug_cylinder3;
 mod debug_dynamic_collider_add3;
@@ -95,6 +96,7 @@ pub fn main() {
             "(Debug) add/rm collider",
             debug_add_remove_collider3::init_world,
         ),
+        ("(Debug) big colliders", debug_big_colliders3::init_world),
         ("(Debug) boxes", debug_boxes3::init_world),
         (
             "(Debug) dyn. coll. add",

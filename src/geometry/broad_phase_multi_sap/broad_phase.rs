@@ -1,11 +1,11 @@
 use super::{
-    BroadPhasePairEvent, BroadPhaseProxies, BroadPhaseProxy, ColliderPair, SAPRegion,
+    BroadPhasePairEvent, BroadPhaseProxies, BroadPhaseProxy, ColliderPair, SAPLayer, SAPRegion,
     NEXT_FREE_SENTINEL, SENTINEL_VALUE,
 };
 use crate::data::pubsub::Subscription;
 use crate::dynamics::RigidBodySet;
 use crate::geometry::{ColliderSet, RemovedCollider};
-use crate::math::{Point, Real};
+use crate::math::Real;
 use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::HashMap;
 
@@ -14,13 +14,11 @@ use parry::utils::hashmap::HashMap;
 #[derive(Clone)]
 pub struct BroadPhase {
     proxies: BroadPhaseProxies,
-    regions: HashMap<Point<i32>, SAPRegion>,
+    layers: Vec<SAPLayer>,
     removed_colliders: Option<Subscription<RemovedCollider>>,
     deleted_any: bool,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     region_pool: Vec<SAPRegion>, // To avoid repeated allocations.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    regions_to_remove: Vec<Point<i32>>, // Workspace
     // We could think serializing this workspace is useless.
     // It turns out is is important to serialize at least its capacity
     // and restore this capacity when deserializing the hashmap.
@@ -48,9 +46,8 @@ impl BroadPhase {
         BroadPhase {
             removed_colliders: None,
             proxies: BroadPhaseProxies::new(),
-            regions: HashMap::default(),
+            layers: vec![SAPLayer::new(0)],
             region_pool: Vec::new(),
-            regions_to_remove: Vec::new(),
             reporting: HashMap::default(),
             deleted_any: false,
         }
@@ -80,31 +77,8 @@ impl BroadPhase {
 
         let proxy = &mut self.proxies[proxy_index];
 
-        // Discretize the AABB to find the regions that need to be invalidated.
-        let start = super::point_key(proxy.aabb.mins);
-        let end = super::point_key(proxy.aabb.maxs);
-
-        #[cfg(feature = "dim2")]
-        for i in start.x..=end.x {
-            for j in start.y..=end.y {
-                if let Some(region) = self.regions.get_mut(&Point::new(i, j)) {
-                    region.predelete_proxy(proxy_index);
-                    self.deleted_any = true;
-                }
-            }
-        }
-
-        #[cfg(feature = "dim3")]
-        for i in start.x..=end.x {
-            for j in start.y..=end.y {
-                for k in start.z..=end.z {
-                    if let Some(region) = self.regions.get_mut(&Point::new(i, j, k)) {
-                        region.predelete_proxy(proxy_index);
-                        self.deleted_any = true;
-                    }
-                }
-            }
-        }
+        let layer = &mut self.layers[proxy.layer as usize];
+        layer.remove_collider(proxy, proxy_index);
 
         // Push the proxy to infinity, but not beyond the sentinels.
         proxy.aabb.mins.coords.fill(SENTINEL_VALUE / 2.0);
@@ -134,93 +108,41 @@ impl BroadPhase {
                 let collider = &mut colliders[*handle];
                 let aabb = collider.compute_aabb().loosened(prediction_distance / 2.0);
 
-                if let Some(proxy) = self.proxies.get_mut(collider.proxy_index) {
+                let layer = if let Some(proxy) = self.proxies.get_mut(collider.proxy_index) {
                     proxy.aabb = aabb;
+                    proxy.layer
                 } else {
+                    let layer = 0; // FIXME: compute the actual layer.
                     let proxy = BroadPhaseProxy {
                         handle: *handle,
                         aabb,
                         next_free: NEXT_FREE_SENTINEL,
+                        layer,
                     };
                     collider.proxy_index = self.proxies.insert(proxy);
-                }
+                    layer
+                };
 
-                // Discretize the aabb.
-                let proxy_id = collider.proxy_index;
-                // let start = Point::origin();
-                // let end = Point::origin();
-                let start = super::point_key(aabb.mins);
-                let end = super::point_key(aabb.maxs);
-
-                let regions = &mut self.regions;
-                let pool = &mut self.region_pool;
-
-                #[cfg(feature = "dim2")]
-                for i in start.x..=end.x {
-                    for j in start.y..=end.y {
-                        let region_key = Point::new(i, j);
-                        let region_bounds = region_aabb(region_key);
-                        let region = regions
-                            .entry(region_key)
-                            .or_insert_with(|| SAPRegion::recycle_or_new(region_bounds, pool));
-                        let _ = region.preupdate_proxy(proxy_id);
-                    }
-                }
-
-                #[cfg(feature = "dim3")]
-                for i in start.x..=end.x {
-                    for j in start.y..=end.y {
-                        for k in start.z..=end.z {
-                            let region_key = Point::new(i, j, k);
-                            let region_bounds = super::region_aabb(region_key);
-                            let region = regions
-                                .entry(region_key)
-                                .or_insert_with(|| SAPRegion::recycle_or_new(region_bounds, pool));
-                            let _ = region.preupdate_proxy(proxy_id);
-                        }
-                    }
-                }
+                let layer = &mut self.layers[layer as usize];
+                layer.preupdate_collider(collider, &aabb, &mut self.region_pool);
             }
         }
-    }
-
-    fn update_regions(&mut self) {
-        for (point, region) in &mut self.regions {
-            region.update(&self.proxies, &mut self.reporting);
-            if region.proxy_count == 0 {
-                self.regions_to_remove.push(*point);
-            }
-        }
-
-        // Remove all the empty regions and store them in the region pool
-        let regions = &mut self.regions;
-        self.region_pool.extend(
-            self.regions_to_remove
-                .drain(..)
-                .map(|p| regions.remove(&p).unwrap()),
-        );
     }
 
     pub(crate) fn complete_removals(&mut self) {
-        if self.deleted_any {
-            self.update_regions();
-
+        for layer in &mut self.layers {
+            layer.complete_removals(&self.proxies, &mut self.reporting, &mut self.region_pool);
             // NOTE: we don't care about reporting pairs.
             self.reporting.clear();
-            self.deleted_any = false;
         }
     }
 
     pub(crate) fn find_pairs(&mut self, out_events: &mut Vec<BroadPhasePairEvent>) {
-        // println!("num regions: {}", self.regions.len());
-
         self.reporting.clear();
-        self.update_regions();
 
-        // Convert reports to broad phase events.
-        // let t = instant::now();
-        // let mut num_add_events = 0;
-        // let mut num_delete_events = 0;
+        for layer in &mut self.layers {
+            layer.update_regions(&self.proxies, &mut self.reporting, &mut self.region_pool);
+        }
 
         for ((proxy1, proxy2), colliding) in &self.reporting {
             let proxy1 = &self.proxies[*proxy1 as usize];
@@ -233,23 +155,12 @@ impl BroadPhase {
                 out_events.push(BroadPhasePairEvent::AddPair(ColliderPair::new(
                     handle1, handle2,
                 )));
-                // num_add_events += 1;
             } else {
                 out_events.push(BroadPhasePairEvent::DeletePair(ColliderPair::new(
                     handle1, handle2,
                 )));
-                // num_delete_events += 1;
             }
         }
-
-        // println!(
-        //     "Event conversion time: {}, add: {}/{}, delete: {}/{}",
-        //     instant::now() - t,
-        //     num_add_events,
-        //     out_events.len(),
-        //     num_delete_events,
-        //     out_events.len()
-        // );
     }
 }
 

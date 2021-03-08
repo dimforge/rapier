@@ -9,6 +9,7 @@ pub(crate) struct BroadPhaseProxy {
     pub handle: ColliderHandle,
     pub aabb: AABB,
     pub next_free: u32,
+    pub layer: u8,
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
