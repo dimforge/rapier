@@ -41,6 +41,14 @@ impl ColliderFlags {
     }
 }
 
+#[derive(Clone)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+enum MassInfo {
+    /// `MassProperties` are computed with the help of [`SharedShape::mass_properties`].
+    Density(Real),
+    MassProperties(Box<MassProperties>),
+}
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 /// A geometric entity that can be attached to a body so it can be affected by contacts and proximity queries.
@@ -48,7 +56,7 @@ impl ColliderFlags {
 /// To build a new collider, use the `ColliderBuilder` structure.
 pub struct Collider {
     shape: SharedShape,
-    density: Real,
+    mass_info: MassInfo,
     pub(crate) flags: ColliderFlags,
     pub(crate) solver_flags: SolverFlags,
     pub(crate) parent: RigidBodyHandle,
@@ -113,9 +121,12 @@ impl Collider {
         self.solver_groups
     }
 
-    /// The density of this collider.
-    pub fn density(&self) -> Real {
-        self.density
+    /// The density of this collider, if set.
+    pub fn density(&self) -> Option<Real> {
+        match &self.mass_info {
+            MassInfo::Density(density) => Some(*density),
+            MassInfo::MassProperties(_) => None,
+        }
     }
 
     /// The geometric shape of this collider.
@@ -136,7 +147,10 @@ impl Collider {
 
     /// Compute the local-space mass properties of this collider.
     pub fn mass_properties(&self) -> MassProperties {
-        self.shape.mass_properties(self.density)
+        match &self.mass_info {
+            MassInfo::Density(density) => self.shape.mass_properties(*density),
+            MassInfo::MassProperties(mass_properties) => **mass_properties,
+        }
     }
 }
 
@@ -146,8 +160,11 @@ impl Collider {
 pub struct ColliderBuilder {
     /// The shape of the collider to be built.
     pub shape: SharedShape,
-    /// The density of the collider to be built.
+    /// The uniform density of the collider to be built.
     density: Option<Real>,
+    /// Overrides automatic computation of `MassProperties`.
+    /// If None, it will be computed based on shape and density.
+    mass_properties: Option<MassProperties>,
     /// The friction coefficient of the collider to be built.
     pub friction: Real,
     /// The rule used to combine two friction coefficients.
@@ -177,6 +194,7 @@ impl ColliderBuilder {
         Self {
             shape,
             density: None,
+            mass_properties: None,
             friction: Self::default_friction(),
             restitution: 0.0,
             delta: Isometry::identity(),
@@ -188,12 +206,6 @@ impl ColliderBuilder {
             restitution_combine_rule: CoefficientCombineRule::Average,
             modify_solver_contacts: false,
         }
-    }
-
-    /// The density of the collider being built.
-    pub fn get_density(&self) -> Real {
-        let default_density = if self.is_sensor { 0.0 } else { 1.0 };
-        self.density.unwrap_or(default_density)
     }
 
     /// Initialize a new collider builder with a compound shape.
@@ -456,6 +468,9 @@ impl ColliderBuilder {
     }
 
     /// Sets whether or not the collider built by this builder is a sensor.
+    ///
+    /// Sensors will have a default density of zero,
+    /// but if you call [`Self::mass_properties`] you can assign a mass to a sensor.
     pub fn sensor(mut self, is_sensor: bool) -> Self {
         self.is_sensor = is_sensor;
         self
@@ -492,9 +507,21 @@ impl ColliderBuilder {
         self
     }
 
-    /// Sets the density of the collider this builder will build.
+    /// Sets the uniform density of the collider this builder will build.
+    ///
+    /// This will be overridden by a call to [`Self::mass_properties`] so it only makes sense to call
+    /// either [`Self::density`] or [`Self::mass_properties`].
     pub fn density(mut self, density: Real) -> Self {
         self.density = Some(density);
+        self
+    }
+
+    /// Sets the mass properties of the collider this builder will build.
+    ///
+    /// If this is set, [`Self::density`] will be ignored, so it only makes sense to call
+    /// either [`Self::density`] or [`Self::mass_properties`].
+    pub fn mass_properties(mut self, mass_properties: MassProperties) -> Self {
+        self.mass_properties = Some(mass_properties);
         self
     }
 
@@ -540,7 +567,14 @@ impl ColliderBuilder {
 
     /// Builds a new collider attached to the given rigid-body.
     pub fn build(&self) -> Collider {
-        let density = self.get_density();
+        let mass_info = if let Some(mp) = self.mass_properties {
+            MassInfo::MassProperties(Box::new(mp))
+        } else {
+            let default_density = if self.is_sensor { 0.0 } else { 1.0 };
+            let density = self.density.unwrap_or(default_density);
+            MassInfo::Density(density)
+        };
+
         let mut flags = ColliderFlags::empty();
         flags.set(ColliderFlags::SENSOR, self.is_sensor);
         flags = flags
@@ -554,7 +588,7 @@ impl ColliderBuilder {
 
         Collider {
             shape: self.shape.clone(),
-            density,
+            mass_info,
             friction: self.friction,
             restitution: self.restitution,
             delta: self.delta,
