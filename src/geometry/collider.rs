@@ -154,7 +154,7 @@ pub struct ColliderBuilder {
     /// The uniform density of the collider to be built.
     density: Option<Real>,
     /// Overrides automatic computation of `MassProperties`.
-    /// If None, it will be computed based on shape and desnity.
+    /// If None, it will be computed based on shape and density.
     mass_properties: Option<MassProperties>,
     /// The friction coefficient of the collider to be built.
     pub friction: Real,
