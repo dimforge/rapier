@@ -513,6 +513,7 @@ impl ColliderBuilder {
     }
 
     /// Sets the mass properties of the collider this builder will build.
+    ///
     /// If this is set, [`Self::density`] will be ignored, so it only makes sense to call
     /// either [`Self::density`] or [`Self::mass_properties`].
     pub fn mass_properties(mut self, mass_properties: MassProperties) -> Self {
