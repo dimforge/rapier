@@ -3,7 +3,7 @@ use crate::math::Real;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-pub(crate) struct SAPEndpoint {
+pub struct SAPEndpoint {
     pub value: Real,
     pub packed_flag_proxy: u32,
 }

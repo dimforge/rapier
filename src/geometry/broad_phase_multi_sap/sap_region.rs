@@ -1,17 +1,23 @@
-use super::{BroadPhaseProxies, SAPAxis};
+use super::{SAPAxis, SAPProxies};
+use crate::geometry::SAPProxyIndex;
 use crate::math::DIM;
 use bit_vec::BitVec;
 use parry::bounding_volume::AABB;
 use parry::utils::hashmap::HashMap;
 
+pub type SAPRegionPool = Vec<Box<SAPRegion>>;
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
-pub(crate) struct SAPRegion {
+pub struct SAPRegion {
     pub axes: [SAPAxis; DIM],
     pub existing_proxies: BitVec,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    pub to_insert: Vec<usize>, // Workspace
+    pub to_insert: Vec<SAPProxyIndex>, // Workspace
+    pub subregions: Vec<SAPProxyIndex>,
+    pub id_in_parent_subregion: u32,
     pub update_count: u8,
+    pub needs_update_after_subregion_removal: bool,
     pub proxy_count: usize,
 }
 
@@ -27,12 +33,15 @@ impl SAPRegion {
             axes,
             existing_proxies: BitVec::new(),
             to_insert: Vec::new(),
+            subregions: Vec::new(),
+            id_in_parent_subregion: crate::INVALID_U32,
             update_count: 0,
+            needs_update_after_subregion_removal: false,
             proxy_count: 0,
         }
     }
 
-    pub fn recycle(bounds: AABB, mut old: Self) -> Self {
+    pub fn recycle(bounds: AABB, mut old: Box<Self>) -> Box<Self> {
         // Correct the bounds
         for (axis, &bound) in old.axes.iter_mut().zip(bounds.mins.iter()) {
             axis.min_bound = bound;
@@ -52,19 +61,20 @@ impl SAPRegion {
         old
     }
 
-    pub fn recycle_or_new(bounds: AABB, pool: &mut Vec<Self>) -> Self {
+    pub fn recycle_or_new(bounds: AABB, pool: &mut Vec<Box<Self>>) -> Box<Self> {
         if let Some(old) = pool.pop() {
             Self::recycle(bounds, old)
         } else {
-            Self::new(bounds)
+            Box::new(Self::new(bounds))
         }
     }
 
-    pub fn delete_all_region_endpoints(&mut self, proxies: &BroadPhaseProxies) {
+    pub fn delete_all_region_endpoints(&mut self, proxies: &SAPProxies) {
         for axis in &mut self.axes {
+            let existing_proxies = &mut self.existing_proxies;
             axis.endpoints.retain(|e| {
-                if let Some(proxy) = proxies.get(e.proxy() as usize) {
-                    self.existing_proxies.set(e.proxy() as usize, false);
+                if let Some(proxy) = proxies.get(e.proxy()) {
+                    existing_proxies.set(e.proxy() as usize, false);
                     !proxy.data.is_subregion()
                 } else {
                     true
@@ -73,22 +83,34 @@ impl SAPRegion {
         }
     }
 
-    pub fn predelete_proxy(&mut self, _proxy_id: usize) {
+    pub fn predelete_proxy(&mut self, _proxy_id: SAPProxyIndex) {
         // We keep the proxy_id as argument for uniformity with the "preupdate"
         // method. However we don't actually need it because the deletion will be
         // handled transparently during the next update.
-        self.update_count = 1;
+        self.update_count = self.update_count.max(1);
     }
 
-    pub fn preupdate_proxy(&mut self, proxy_id: usize) -> bool {
+    pub fn mark_as_dirty(&mut self) {
+        self.update_count = self.update_count.max(1);
+    }
+
+    pub fn register_subregion(&mut self, proxy_id: SAPProxyIndex) -> usize {
+        let subregion_index = self.subregions.len();
+        self.subregions.push(proxy_id);
+        self.preupdate_proxy(proxy_id);
+        subregion_index
+    }
+
+    pub fn preupdate_proxy(&mut self, proxy_id: SAPProxyIndex) -> bool {
         let mask_len = self.existing_proxies.len();
-        if proxy_id >= mask_len {
-            self.existing_proxies.grow(proxy_id + 1 - mask_len, false);
+        if proxy_id as usize >= mask_len {
+            self.existing_proxies
+                .grow(proxy_id as usize + 1 - mask_len, false);
         }
 
-        if !self.existing_proxies[proxy_id] {
+        if !self.existing_proxies[proxy_id as usize] {
             self.to_insert.push(proxy_id);
-            self.existing_proxies.set(proxy_id, true);
+            self.existing_proxies.set(proxy_id as usize, true);
             self.proxy_count += 1;
             false
         } else {
@@ -100,11 +122,20 @@ impl SAPRegion {
         }
     }
 
-    pub fn update(
-        &mut self,
-        proxies: &BroadPhaseProxies,
-        reporting: &mut HashMap<(u32, u32), bool>,
-    ) {
+    pub fn update_after_subregion_removal(&mut self, proxies: &SAPProxies) {
+        if self.needs_update_after_subregion_removal {
+            for axis in &mut self.axes {
+                self.proxy_count -= axis
+                    .delete_deleted_proxies_and_endpoints_after_subregion_removal(
+                        proxies,
+                        &mut self.existing_proxies,
+                    );
+            }
+            self.needs_update_after_subregion_removal = false;
+        }
+    }
+
+    pub fn update(&mut self, proxies: &SAPProxies, reporting: &mut HashMap<(u32, u32), bool>) {
         if self.update_count > 0 {
             // Update endpoints.
             let mut deleted = 0;

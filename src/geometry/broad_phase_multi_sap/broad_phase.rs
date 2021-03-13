@@ -1,26 +1,87 @@
 use super::{
-    BroadPhasePairEvent, BroadPhaseProxies, BroadPhaseProxy, BroadPhaseProxyData, ColliderPair,
-    SAPLayer, SAPRegion, NEXT_FREE_SENTINEL, SENTINEL_VALUE,
+    BroadPhasePairEvent, ColliderPair, SAPLayer, SAPProxies, SAPProxy, SAPProxyData, SAPRegionPool,
 };
 use crate::data::pubsub::Subscription;
 use crate::dynamics::RigidBodySet;
+use crate::geometry::broad_phase_multi_sap::SAPProxyIndex;
 use crate::geometry::{ColliderSet, RemovedCollider};
 use crate::math::Real;
+use crate::utils::IndexMut2;
 use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::HashMap;
 
-/// A broad-phase based on multiple Sweep-and-Prune instances running of disjoint region of the 3D world.
+/// A broad-phase combining a Hierarchical Grid and Sweep-and-Prune.
+///
+/// The basic Sweep-and-Prune (SAP) algorithm has one significant flaws:
+/// the interactions between far-away objects. This means that objects
+/// that are very far away will still have some of their endpoints swapped
+/// within the SAP data-structure. This results in poor scaling because this
+/// results in lots of swapping between endpoints of AABBs that won't ever
+/// actually interact.
+///
+/// The first optimization to address this problem is to use the Multi-SAP
+/// method. This basically combines an SAP with a grid. The grid subdivides
+/// the spaces into equally-sized subspaces (grid cells). Each subspace, which we call
+/// a "region" contains an SAP instance (i.e. there SAP axes responsible for
+/// collecting endpoints and swapping them when they move to detect interaction pairs).
+/// Each AABB is inserted in all the regions it intersects.
+/// This prevents the far-away problem because two objects that are far away will
+/// be located on different regions. So their endpoints will never meed.
+///
+/// However, the Multi-SAP approach has one notable problem: the region size must
+/// be chosen wisely. It could be user-defined, but that's makes it more difficult
+/// to use (for the end-user). Or it can be given a fixed value. Using a fixed
+/// value may result in large objects intersecting lots of regions, resulting in
+/// poor performances and very high memory usage.
+///
+/// So a solution to that large-objects problem is the Multi-SAP approach is to
+/// replace the grid by a hierarchical grid. A hierarchical grid is composed of
+/// several layers. And each layer have different region sizes. For example all
+/// the regions on layer 0 will have the size 1x1x1. All the regions on the layer
+/// 1 will have the size 10x10x10, etc. That way, a given AABB will be inserted
+/// on the layer that has regions big enough to avoid the large-object problem.
+/// For example a 20x20x20 object will be inserted in the layer with region
+/// of size 10x10x10, resulting in only 8 regions being intersect by the AABB.
+/// (If it was inserted in the layer with regions of size 1x1x1, it would have intersected
+/// 8000 regions, which is a problem performancewise.)
+///
+/// We call this new method the Hierarchical-SAP.
+///
+/// Now with the Hierarchical-SAP, we can update each layer independently from one another.
+/// However, objects belonging to different layers will never be detected as intersecting that
+/// way. So we need a way to do inter-layer interference detection. There is a lot ways of doing
+/// this: performing inter-layer Multi-Box-Pruning passes is one example (but this is not what we do).
+/// In our implementation, we do the following:
+/// - The AABB bounds of each region of the layer `n` are inserted into the corresponding larger region
+///   of the layer `n + 1`.
+/// - When an AABB in the region of the layer `n + 1` intersects the AABB corresponding to one of the
+///   regions at the smaller layer `n`, we add that AABB to that smaller region.
+/// So in the end it means that a given AABB will be inserted into all the region it intersects at
+/// the layer `n`. And it will also be inserted into all the regions it intersects at the smaller layers
+/// (the layers `< n`), but only for the regions that already exist (so we don't have to discretize
+/// our AABB into the layers `< n`). This involves a fair amount of bookkeeping unfortunately, but
+/// this has the benefit of keep the overall complexity of the algorithm O(1) in the typical specially
+/// coherent scenario.
+///
+/// From an implementation point-of-view, our hierarchical SAP is implemented with the following structures:
+/// - There is one `SAPLayer` per layer of the hierarchical grid.
+/// - Each `SAPLayer` contains multiple `SAPRegion` (each being a region of the grid represented by that layer).
+/// - Each `SAPRegion` contains three `SAPAxis`, representing the "classical" SAP algorithm running on this region.
+/// - Each `SAPAxis` maintains a sorted list of `SAPEndpoints` representing the endpoints of the AABBs intersecting
+///   the bounds on the `SAPRegion` containing this `SAPAxis`.
+/// - A set of `SAPProxy` are maintained separately. It contains the AABBs of all the colliders managed by this
+///   broad-phase, as well as the AABBs of all the regions part of this broad-phase.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 pub struct BroadPhase {
-    proxies: BroadPhaseProxies,
+    proxies: SAPProxies,
     layers: Vec<SAPLayer>,
     smallest_layer: u8,
     largest_layer: u8,
     removed_colliders: Option<Subscription<RemovedCollider>>,
     deleted_any: bool,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    region_pool: Vec<SAPRegion>, // To avoid repeated allocations.
+    region_pool: SAPRegionPool, // To avoid repeated allocations.
     // We could think serializing this workspace is useless.
     // It turns out is is important to serialize at least its capacity
     // and restore this capacity when deserializing the hashmap.
@@ -47,7 +108,7 @@ impl BroadPhase {
     pub fn new() -> Self {
         BroadPhase {
             removed_colliders: None,
-            proxies: BroadPhaseProxies::new(),
+            proxies: SAPProxies::new(),
             layers: Vec::new(),
             smallest_layer: 0,
             largest_layer: 0,
@@ -58,42 +119,110 @@ impl BroadPhase {
     }
 
     /// Maintain the broad-phase internal state by taking collider removal into account.
-    pub fn maintain(&mut self, colliders: &mut ColliderSet) {
-        // Ensure we already subscribed.
+    fn handle_removed_colliders(&mut self, colliders: &mut ColliderSet) {
+        // Ensure we already subscribed the collider-removed events.
         if self.removed_colliders.is_none() {
             self.removed_colliders = Some(colliders.removed_colliders.subscribe());
         }
 
+        // Extract the cursor to avoid borrowing issues.
         let cursor = self.removed_colliders.take().unwrap();
+
+        // Read all the collider-removed events, and remove the corresponding proxy.
         for collider in colliders.removed_colliders.read(&cursor) {
-            self.remove_proxy(collider.proxy_index);
+            self.predelete_proxy(collider.proxy_index);
         }
 
-        colliders.removed_colliders.ack(&cursor);
+        // NOTE: We don't acknowledge the cursor just yet because we need
+        // to traverse the set of removed colliders one more time after
+        // the broad-phase update.
+
+        // Re-insert the cursor we extracted to avoid borrowing issues.
         self.removed_colliders = Some(cursor);
     }
 
-    fn remove_proxy(&mut self, proxy_index: usize) {
-        if proxy_index == crate::INVALID_USIZE {
+    /// Removes a proxy from this broad-phase.
+    ///
+    /// The removal of a proxy is a semi-lazy process. It will mark
+    /// the proxy as predeleted, and will set its AABB as +infinity.
+    /// After this method has been called with all the proxies to
+    /// remove, the `complete_removal` method MUST be called to
+    /// complete the removal of these proxies, by removing them
+    /// from all the relevant layers/regions/axes.
+    fn predelete_proxy(&mut self, proxy_index: SAPProxyIndex) {
+        if proxy_index == crate::INVALID_U32 {
             // This collider has not been added to the broad-phase yet.
             return;
         }
 
         let proxy = &mut self.proxies[proxy_index];
         let layer = &mut self.layers[proxy.layer_id as usize];
-        layer.remove_proxy(proxy, proxy_index);
+        // Let the layer know that the proxy is being deleted.
+        layer.predelete_proxy(&mut self.proxies, proxy_index);
+    }
 
-        // Push the proxy to infinity, but not beyond the sentinels.
-        proxy.aabb.mins.coords.fill(SENTINEL_VALUE / 2.0);
-        proxy.aabb.maxs.coords.fill(SENTINEL_VALUE / 2.0);
-        self.proxies.remove(proxy_index);
+    /// Completes the removal of the deleted proxies.
+    ///
+    /// If `self.predelete_proxy` was called, then this `complete_removals`
+    /// method must be called to complete the removals.
+    ///
+    /// This method will actually remove from the proxy list all the proxies
+    /// marked as deletable by `self.predelete_proxy`, making their proxy
+    /// handles re-usable by new proxies.
+    fn complete_removals(&mut self, colliders: &mut ColliderSet) {
+        // If there is no layer, there is nothing to remove.
+        if self.layers.is_empty() {
+            return;
+        }
+
+        // This is a bottom-up pass:
+        // - Complete the removal on the layer `n`. This may cause so regions to be deleted.
+        // - Continue with the layer `n + 1`. This will delete from `n + 1` all the proxies
+        //   of the regions originating from `n`.
+        // This bottom-up approach will propagate region removal from the smallest layer up
+        // to the largest layer.
+        let mut curr_layer_id = self.smallest_layer;
+
+        loop {
+            let curr_layer = &mut self.layers[curr_layer_id as usize];
+
+            if let Some(larger_layer_id) = curr_layer.larger_layer {
+                let (curr_layer, larger_layer) = self
+                    .layers
+                    .index_mut2(curr_layer_id as usize, larger_layer_id as usize);
+                curr_layer.complete_removals(
+                    Some(larger_layer),
+                    &mut self.proxies,
+                    &mut self.region_pool,
+                );
+
+                // NOTE: we don't care about reporting pairs.
+                self.reporting.clear();
+                curr_layer_id = larger_layer_id;
+            } else {
+                curr_layer.complete_removals(None, &mut self.proxies, &mut self.region_pool);
+
+                // NOTE: we don't care about reporting pairs.
+                self.reporting.clear();
+                break;
+            }
+        }
+
+        /*
+         * Actually remove the colliders proxies.
+         */
+        let cursor = self.removed_colliders.as_ref().unwrap();
+        for collider in colliders.removed_colliders.read(&cursor) {
+            self.proxies.remove(collider.proxy_index);
+        }
+        colliders.removed_colliders.ack(&cursor);
     }
 
     fn finalize_layer_insertion(&mut self, layer_id: u8) {
         if let Some(larger_layer) = self.layers[layer_id as usize].larger_layer {
             // Remove all the region endpoints from the larger layer.
-            // They will be automatically replaced by the new layer's region.
-            self.layers[larger_layer as usize].delete_all_region_endpoints();
+            // They will be automatically replaced by the new layer's regions.
+            self.layers[larger_layer as usize].delete_all_region_endpoints(&mut self.proxies);
         }
 
         if let Some(smaller_layer) = self.layers[layer_id as usize].smaller_layer {
@@ -103,17 +232,20 @@ impl BroadPhase {
 
             // Add all the regions from the smaller layer to the new layer.
             // This will propagate to the bigger layers automatically.
-            for smaller_region in smaller_layer.regions.iter() {
-                let smaller_region_key = ???;
-                new_layer.preupdate_proxy_in_region(smaller_region.proxy_id, smaller_region_key);
-            }
+            smaller_layer.propagate_existing_regions(
+                new_layer,
+                &mut self.proxies,
+                &mut self.region_pool,
+            );
         }
     }
 
     fn ensure_layer_exists(&mut self, new_depth: i8) -> u8 {
         // Special case: we don't have any layers yet.
         if self.layers.is_empty() {
-            self.layers.push(SAPLayer::new(new_depth));
+            let layer_id = self.layers.len() as u8; // TODO: check overflow.
+            self.layers
+                .push(SAPLayer::new(new_depth, layer_id, None, None));
             return 0;
         }
 
@@ -125,21 +257,26 @@ impl BroadPhase {
                 break;
             }
 
-            larger_layer_id = self.layers[layer as usize].larger_layer;
+            larger_layer_id = self.layers[curr_layer_id as usize].larger_layer;
         }
 
         match larger_layer_id {
             None => {
+                assert_ne!(self.layers.len() as u8, u8::MAX, "Not yet implemented.");
                 let new_layer_id = self.layers.len() as u8;
                 self.layers[self.largest_layer as usize].larger_layer = Some(new_layer_id);
+                self.layers.push(SAPLayer::new(
+                    new_depth,
+                    new_layer_id,
+                    Some(self.largest_layer),
+                    None,
+                ));
                 self.largest_layer = new_layer_id;
-                self.layers
-                    .push(SAPLayer::new(new_depth, Some(self.largest_layer), None));
                 self.finalize_layer_insertion(new_layer_id);
                 new_layer_id
             }
             Some(larger_layer_id) => {
-                if self.layers[larger_layer_id].depth == new_depth {
+                if self.layers[larger_layer_id as usize].depth == new_depth {
                     // Found it! The layer already exists.
                     larger_layer_id
                 } else {
@@ -150,10 +287,13 @@ impl BroadPhase {
 
                     if let Some(smaller_layer_id) = smaller_layer_id {
                         self.layers[smaller_layer_id as usize].larger_layer = Some(new_layer_id);
+                    } else {
+                        self.smallest_layer = new_layer_id;
                     }
 
                     self.layers.push(SAPLayer::new(
                         new_depth,
+                        new_layer_id,
                         smaller_layer_id,
                         Some(larger_layer_id),
                     ));
@@ -165,17 +305,16 @@ impl BroadPhase {
         }
     }
 
-    pub(crate) fn update_aabbs(
+    pub fn update(
         &mut self,
         prediction_distance: Real,
         bodies: &RigidBodySet,
         colliders: &mut ColliderSet,
+        events: &mut Vec<BroadPhasePairEvent>,
     ) {
-        // First, if we have any pending removals we have
-        // to deal with them now because otherwise we will
-        // end up with an ABA problems when reusing proxy
-        // ids.
-        self.complete_removals();
+        self.handle_removed_colliders(colliders);
+
+        let mut need_region_propagation = false;
 
         for body_handle in bodies
             .modified_inactive_set
@@ -195,12 +334,7 @@ impl BroadPhase {
                     let layer_id = self.ensure_layer_exists(layer_depth);
 
                     // Create the proxy.
-                    let proxy = BroadPhaseProxy {
-                        data: BroadPhaseProxyData::Collider(*handle),
-                        aabb,
-                        next_free: NEXT_FREE_SENTINEL,
-                        layer_id,
-                    };
+                    let proxy = SAPProxy::collider(*handle, aabb, layer_id);
                     collider.proxy_index = self.proxies.insert(proxy);
                     layer_id
                 };
@@ -208,38 +342,94 @@ impl BroadPhase {
                 let layer = &mut self.layers[layer_id as usize];
 
                 // Preupdate the collider in the layer.
-                layer.preupdate_collider(collider, &aabb, &mut self.region_pool);
+                layer.preupdate_collider(collider, &aabb, &mut self.proxies, &mut self.region_pool);
+                need_region_propagation =
+                    need_region_propagation || !layer.created_regions.is_empty();
             }
         }
+
+        // Bottom-up pass to propagate regions from smaller layers to larger layers.
+        if need_region_propagation {
+            self.propagate_created_regions();
+        }
+
+        // Top-down pass to propagate proxies from larger layers to smaller layers.
+        self.update_layers_and_find_pairs(events);
+
+        // Bottom-up pass to remove proxies, and propagate region removed from smaller layers to
+        // possible remove regions from larger layers that would become empty that way.
+        self.complete_removals(colliders);
     }
 
-    pub(crate) fn complete_removals(&mut self) {
-        for layer in &mut self.layers {
-            layer.complete_removals(&self.proxies, &mut self.reporting, &mut self.region_pool);
-            // NOTE: we don't care about reporting pairs.
-            self.reporting.clear();
+    /// Propagate regions from the smaller layers up to the larger layers.
+    ///
+    /// Whenever a region is created on a layer `n`, then its AABB must be
+    /// added to all the larger layers so we can detect whaen a object
+    /// in a larger layer may start interacting with objects in a smaller
+    /// layer.
+    fn propagate_created_regions(&mut self) {
+        let mut curr_layer = Some(self.smallest_layer);
+
+        while let Some(curr_layer_id) = curr_layer {
+            let layer = &mut self.layers[curr_layer_id as usize];
+            let larger_layer = layer.larger_layer;
+
+            if !layer.created_regions.is_empty() {
+                if let Some(larger_layer) = larger_layer {
+                    let (layer, larger_layer) = self
+                        .layers
+                        .index_mut2(curr_layer_id as usize, larger_layer as usize);
+                    layer.propagate_created_regions(
+                        larger_layer,
+                        &mut self.proxies,
+                        &mut self.region_pool,
+                    );
+                } else {
+                    // Always clear the set of created regions, even else if
+                    // there is no larger layer.
+                    layer.created_regions.clear();
+                }
+            }
+
+            curr_layer = larger_layer;
         }
     }
 
-    pub(crate) fn find_pairs(&mut self, out_events: &mut Vec<BroadPhasePairEvent>) {
-        let mut layer_id = 0;
+    fn update_layers_and_find_pairs(&mut self, out_events: &mut Vec<BroadPhasePairEvent>) {
+        if self.layers.is_empty() {
+            return;
+        }
 
-        while let Some(layer) = self.layers.get_mut(layer_id as usize) {
-            layer.update_regions(&self.proxies, &mut self.reporting, &mut self.region_pool);
-            layer_id = layer.prev_layer; // this MUST be done before the `for` loop because we use the prev_layer index there.
+        // This is a top-down operation: we start by updating the largest
+        // layer, and continue down to the smallest layer.
+        //
+        // This must be top-down because:
+        // 1. If a non-region proxy from the layer `n` interacts with one of
+        //    the regions from the layer `n - 1`, it must be added to that
+        //    smaller layer before that smaller layer is updated.
+        // 2. If a region has been updated, then all its subregions at the
+        //    layer `n - 1` must be marked as "needs-to-be-updated" too, in
+        //    order to account for the fact that a big proxy moved.
+        // NOTE: this 2nd point could probably be improved: instead of updating
+        //       all the subregions, we could perhaps just update the subregions
+        //       that crosses the boundary of the AABB of the big proxies that
+        //       moved in they layer `n`.
+        let mut layer_id = Some(self.largest_layer);
+
+        while let Some(curr_layer_id) = layer_id {
+            self.layers[curr_layer_id as usize]
+                .update_regions(&mut self.proxies, &mut self.reporting);
+
+            layer_id = self.layers[curr_layer_id as usize].smaller_layer;
 
             for ((proxy_id1, proxy_id2), colliding) in &self.reporting {
-                let proxy1 = &self.proxies[*proxy_id1 as usize];
-                let proxy2 = &self.proxies[*proxy_id2 as usize];
+                let (proxy1, proxy2) = self
+                    .proxies
+                    .elements
+                    .index_mut2(*proxy_id1 as usize, *proxy_id2 as usize);
 
-                let handle1 = proxy1.handle;
-                let handle2 = proxy2.handle;
-
-                match (&handle1, &handle2) {
-                    (
-                        BroadPhaseProxyData::Collider(handle1),
-                        BroadPhaseProxyData::Collider(handle2),
-                    ) => {
+                match (&mut proxy1.data, &mut proxy2.data) {
+                    (SAPProxyData::Collider(handle1), SAPProxyData::Collider(handle2)) => {
                         if *colliding {
                             out_events.push(BroadPhasePairEvent::AddPair(ColliderPair::new(
                                 *handle1, *handle2,
@@ -250,29 +440,21 @@ impl BroadPhase {
                             )));
                         }
                     }
-                    (
-                        BroadPhaseProxyData::Collider(_),
-                        BroadPhaseProxyData::Subregion(region_key),
-                    ) => {
+                    (SAPProxyData::Collider(_), SAPProxyData::Region(_)) => {
                         if *colliding {
                             // Add the collider to the subregion.
-                            let sublayer = &mut self.layers[layer_id as usize];
-                            sublayer.preupdate_proxy_in_region(*proxy_id1, region_key);
+                            proxy2.data.as_region_mut().preupdate_proxy(*proxy_id1);
                         }
                     }
-                    (
-                        BroadPhaseProxyData::Subregion(region_key),
-                        BroadPhaseProxyData::Collider(_),
-                    ) => {
+                    (SAPProxyData::Region(_), SAPProxyData::Collider(_)) => {
                         if *colliding {
                             // Add the collider to the subregion.
-                            let sublayer = &mut self.layers[layer_id as usize];
-                            sublayer.preupdate_proxy_in_region(*proxy_id2, region_key);
+                            proxy1.data.as_region_mut().preupdate_proxy(*proxy_id2);
                         }
                     }
-                    (BroadPhaseProxyData::Subregion(_), BroadPhaseProxyData::Subregion(_)) => {
+                    (SAPProxyData::Region(_), SAPProxyData::Region(_)) => {
                         // This will only happen between two adjacent subregions because
-                        // they share some of the same bounds. So this case does not matter.
+                        // they share some identical bounds. So this case does not matter.
                     }
                 }
             }

@@ -4,6 +4,7 @@ use parry::bounding_volume::AABB;
 pub(crate) const NUM_SENTINELS: usize = 1;
 pub(crate) const NEXT_FREE_SENTINEL: u32 = u32::MAX;
 pub(crate) const SENTINEL_VALUE: Real = Real::MAX;
+pub(crate) const DELETED_AABB_VALUE: Real = SENTINEL_VALUE / 2.0;
 pub(crate) const REGION_WIDTH_BASE: Real = 20.0;
 pub(crate) const REGION_WIDTH_POWER_BASIS: Real = 8.0;
 

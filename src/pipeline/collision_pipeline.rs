@@ -47,10 +47,13 @@ impl CollisionPipeline {
         bodies.maintain(colliders);
         self.broadphase_collider_pairs.clear();
 
-        broad_phase.update_aabbs(prediction_distance, bodies, colliders);
-
         self.broad_phase_events.clear();
-        broad_phase.find_pairs(&mut self.broad_phase_events);
+        broad_phase.update(
+            prediction_distance,
+            bodies,
+            colliders,
+            &mut self.broad_phase_events,
+        );
 
         narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
 

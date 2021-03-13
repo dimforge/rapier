@@ -73,7 +73,6 @@ impl PhysicsPipeline {
     ) {
         self.counters.step_started();
         bodies.maintain(colliders);
-        broad_phase.maintain(colliders);
         narrow_phase.maintain(colliders, bodies);
 
         // Update kinematic bodies velocities.
@@ -87,19 +86,15 @@ impl PhysicsPipeline {
 
         self.counters.stages.collision_detection_time.start();
         self.counters.cd.broad_phase_time.start();
+        self.broad_phase_events.clear();
         self.broadphase_collider_pairs.clear();
-        //        let t = instant::now();
-        broad_phase.update_aabbs(
+
+        broad_phase.update(
             integration_parameters.prediction_distance,
             bodies,
             colliders,
+            &mut self.broad_phase_events,
         );
-        //        println!("Update AABBs time: {}", instant::now() - t);
-
-        //        let t = instant::now();
-        self.broad_phase_events.clear();
-        broad_phase.find_pairs(&mut self.broad_phase_events);
-        //        println!("Find pairs time: {}", instant::now() - t);
 
         narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
         self.counters.cd.broad_phase_time.pause();

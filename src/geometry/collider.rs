@@ -1,5 +1,5 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
-use crate::geometry::{InteractionGroups, SharedShape, SolverFlags};
+use crate::geometry::{InteractionGroups, SAPProxyIndex, SharedShape, SolverFlags};
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
 use parry::bounding_volume::AABB;
@@ -69,7 +69,7 @@ pub struct Collider {
     pub restitution: Real,
     pub(crate) collision_groups: InteractionGroups,
     pub(crate) solver_groups: InteractionGroups,
-    pub(crate) proxy_index: usize,
+    pub(crate) proxy_index: SAPProxyIndex,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
 }
@@ -77,7 +77,7 @@ pub struct Collider {
 impl Collider {
     pub(crate) fn reset_internal_references(&mut self) {
         self.parent = RigidBodyHandle::invalid();
-        self.proxy_index = crate::INVALID_USIZE;
+        self.proxy_index = crate::INVALID_U32;
     }
 
     /// The rigid body this collider is attached to.
@@ -597,7 +597,7 @@ impl ColliderBuilder {
             parent: RigidBodyHandle::invalid(),
             position: Isometry::identity(),
             predicted_position: Isometry::identity(),
-            proxy_index: crate::INVALID_USIZE,
+            proxy_index: crate::INVALID_U32,
             collision_groups: self.collision_groups,
             solver_groups: self.solver_groups,
             user_data: self.user_data,

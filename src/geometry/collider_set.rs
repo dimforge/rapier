@@ -1,7 +1,7 @@
 use crate::data::arena::Arena;
 use crate::data::pubsub::PubSub;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
-use crate::geometry::Collider;
+use crate::geometry::{Collider, SAPProxyIndex};
 use parry::partitioning::IndexedData;
 use std::ops::{Index, IndexMut};
 
@@ -45,7 +45,7 @@ impl IndexedData for ColliderHandle {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub(crate) struct RemovedCollider {
     pub handle: ColliderHandle,
-    pub(crate) proxy_index: usize,
+    pub(crate) proxy_index: SAPProxyIndex,
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]

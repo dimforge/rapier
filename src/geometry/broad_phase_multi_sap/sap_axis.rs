@@ -1,4 +1,6 @@
-use super::{BroadPhaseProxies, SAPEndpoint, NUM_SENTINELS};
+use super::{SAPEndpoint, SAPProxies, NUM_SENTINELS};
+use crate::geometry::broad_phase_multi_sap::DELETED_AABB_VALUE;
+use crate::geometry::SAPProxyIndex;
 use crate::math::Real;
 use bit_vec::BitVec;
 use parry::bounding_volume::BoundingVolume;
@@ -6,8 +8,8 @@ use parry::utils::hashmap::HashMap;
 use std::cmp::Ordering;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone)]
-pub(crate) struct SAPAxis {
+#[derive(Clone, Debug)]
+pub struct SAPAxis {
     pub min_bound: Real,
     pub max_bound: Real,
     pub endpoints: Vec<SAPEndpoint>,
@@ -30,8 +32,8 @@ impl SAPAxis {
     pub fn batch_insert(
         &mut self,
         dim: usize,
-        new_proxies: &[usize],
-        proxies: &BroadPhaseProxies,
+        new_proxies: &[SAPProxyIndex],
+        proxies: &SAPProxies,
         reporting: Option<&mut HashMap<(u32, u32), bool>>,
     ) {
         if new_proxies.is_empty() {
@@ -86,7 +88,7 @@ impl SAPAxis {
         let endpoints_wo_last_sentinel = &self.endpoints[..self.endpoints.len() - 1];
         if let Some(reporting) = reporting {
             for (endpoint, endpoint_id) in self.new_endpoints.drain(..).filter(|e| e.0.is_start()) {
-                let proxy1 = &proxies[endpoint.proxy() as usize];
+                let proxy1 = &proxies[endpoint.proxy()];
                 let min = endpoint.value;
                 let max = proxy1.aabb.maxs[dim];
 
@@ -95,7 +97,7 @@ impl SAPAxis {
                         continue;
                     }
 
-                    let proxy2 = &proxies[endpoint2.proxy() as usize];
+                    let proxy2 = &proxies[endpoint2.proxy()];
 
                     // NOTE: some pairs with equal aabb.mins[dim] may end up being reported twice.
                     if (endpoint2.is_start() && endpoint2.value < max)
@@ -147,16 +149,38 @@ impl SAPAxis {
             .retain(|endpt| endpt.is_sentinel() || existing_proxies[endpt.proxy() as usize])
     }
 
+    pub fn delete_deleted_proxies_and_endpoints_after_subregion_removal(
+        &mut self,
+        proxies: &SAPProxies,
+        existing_proxies: &mut BitVec,
+    ) -> usize {
+        let mut num_deleted = 0;
+
+        self.endpoints.retain(|endpt| {
+            if !endpt.is_sentinel() && proxies[endpt.proxy()].aabb.mins.x == DELETED_AABB_VALUE {
+                if existing_proxies.get(endpt.proxy() as usize) == Some(true) {
+                    existing_proxies.set(endpt.proxy() as usize, false);
+                    num_deleted += 1;
+                }
+                false
+            } else {
+                true
+            }
+        });
+
+        num_deleted
+    }
+
     pub fn update_endpoints(
         &mut self,
         dim: usize,
-        proxies: &BroadPhaseProxies,
+        proxies: &SAPProxies,
         reporting: &mut HashMap<(u32, u32), bool>,
     ) {
         let last_endpoint = self.endpoints.len() - NUM_SENTINELS;
         for i in NUM_SENTINELS..last_endpoint {
             let mut endpoint_i = self.endpoints[i];
-            let aabb_i = proxies[endpoint_i.proxy() as usize].aabb;
+            let aabb_i = proxies[endpoint_i.proxy()].aabb;
 
             if endpoint_i.is_start() {
                 endpoint_i.value = aabb_i.mins[dim];
@@ -173,7 +197,7 @@ impl SAPAxis {
 
                     if endpoint_j.is_end() {
                         // Report start collision.
-                        if aabb_i.intersects(&proxies[endpoint_j.proxy() as usize].aabb) {
+                        if aabb_i.intersects(&proxies[endpoint_j.proxy()].aabb) {
                             let pair = super::sort2(endpoint_i.proxy(), endpoint_j.proxy());
                             reporting.insert(pair, true);
                         }
@@ -188,7 +212,7 @@ impl SAPAxis {
 
                     if endpoint_j.is_start() {
                         // Report end collision.
-                        if !aabb_i.intersects(&proxies[endpoint_j.proxy() as usize].aabb) {
+                        if !aabb_i.intersects(&proxies[endpoint_j.proxy()].aabb) {
                             let pair = super::sort2(endpoint_i.proxy(), endpoint_j.proxy());
                             reporting.insert(pair, false);
                         }

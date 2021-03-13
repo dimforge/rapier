@@ -84,7 +84,7 @@ impl IntersectionEvent {
     }
 }
 
-pub(crate) use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair};
+pub(crate) use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair, SAPProxyIndex};
 pub(crate) use self::collider_set::RemovedCollider;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
 pub(crate) use parry::partitioning::SimdQuadTree;

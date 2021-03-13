@@ -80,6 +80,10 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
+    testbed
+        .physics_state_mut()
+        .integration_parameters
+        .velocity_based_erp = 0.2;
     testbed.look_at(Point3::new(-30.0, 4.0, -30.0), Point3::new(0.0, 1.0, 0.0));
 }
 
