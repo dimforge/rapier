@@ -5,8 +5,8 @@ pub(crate) const NUM_SENTINELS: usize = 1;
 pub(crate) const NEXT_FREE_SENTINEL: u32 = u32::MAX;
 pub(crate) const SENTINEL_VALUE: Real = Real::MAX;
 pub(crate) const DELETED_AABB_VALUE: Real = SENTINEL_VALUE / 2.0;
-pub(crate) const REGION_WIDTH_BASE: Real = 20.0;
-pub(crate) const REGION_WIDTH_POWER_BASIS: Real = 8.0;
+pub(crate) const REGION_WIDTH_BASE: Real = 1.0;
+pub(crate) const REGION_WIDTH_POWER_BASIS: Real = 10.0;
 
 pub(crate) fn sort2(a: u32, b: u32) -> (u32, u32) {
     assert_ne!(a, b);
@@ -36,7 +36,12 @@ pub(crate) fn region_width(depth: i8) -> Real {
 }
 
 pub(crate) fn layer_containing_aabb(aabb: &AABB) -> i8 {
-    let width = 2.0 * aabb.half_extents().norm();
+    // Max number of elements of this size we would like one region to be able to contain.
+    const NUM_ELEMENTS_PER_DIMENSION: Real = 10.0;
+
+    let width = 2.0 * aabb.half_extents().norm() * NUM_ELEMENTS_PER_DIMENSION;
     // TODO: handle overflows in the f32 -> i8 conversion.
-    (width / REGION_WIDTH_BASE).log(REGION_WIDTH_POWER_BASIS) as i8
+    (width / REGION_WIDTH_BASE)
+        .log(REGION_WIDTH_POWER_BASIS)
+        .round() as i8
 }
