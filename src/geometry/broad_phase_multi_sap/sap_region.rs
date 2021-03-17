@@ -18,7 +18,10 @@ pub struct SAPRegion {
     pub id_in_parent_subregion: u32,
     pub update_count: u8,
     pub needs_update_after_subregion_removal: bool,
-    pub proxy_count: usize,
+    // Number of proxies (added to this region) that originates
+    // from the layer at depth <= the depth of the layer containing
+    // this region.
+    pub subproper_proxy_count: usize,
 }
 
 impl SAPRegion {
@@ -37,26 +40,27 @@ impl SAPRegion {
             id_in_parent_subregion: crate::INVALID_U32,
             update_count: 0,
             needs_update_after_subregion_removal: false,
-            proxy_count: 0,
+            subproper_proxy_count: 0,
         }
     }
 
     pub fn recycle(bounds: AABB, mut old: Box<Self>) -> Box<Self> {
         // Correct the bounds
-        for (axis, &bound) in old.axes.iter_mut().zip(bounds.mins.iter()) {
-            axis.min_bound = bound;
-        }
-        for (axis, &bound) in old.axes.iter_mut().zip(bounds.maxs.iter()) {
-            axis.max_bound = bound;
+        for i in 0..DIM {
+            // Make sure the axis is empty (it may still contain
+            // some old endpoints from non-proper proxies.
+            old.axes[i].clear();
+            old.axes[i].min_bound = bounds.mins[i];
+            old.axes[i].max_bound = bounds.maxs[i];
         }
 
         old.update_count = 0;
+        old.existing_proxies.clear();
+        old.id_in_parent_subregion = crate::INVALID_U32;
 
         // The rest of the fields should be "empty"
-        assert_eq!(old.proxy_count, 0);
+        assert_eq!(old.subproper_proxy_count, 0);
         assert!(old.to_insert.is_empty());
-        debug_assert!(!old.existing_proxies.any());
-        assert!(old.axes.iter().all(|ax| ax.endpoints.len() == 2));
 
         old
     }
@@ -75,7 +79,7 @@ impl SAPRegion {
             axis.endpoints.retain(|e| {
                 if let Some(proxy) = proxies.get(e.proxy()) {
                     existing_proxies.set(e.proxy() as usize, false);
-                    !proxy.data.is_subregion()
+                    !proxy.data.is_region()
                 } else {
                     true
                 }
@@ -97,11 +101,11 @@ impl SAPRegion {
     pub fn register_subregion(&mut self, proxy_id: SAPProxyIndex) -> usize {
         let subregion_index = self.subregions.len();
         self.subregions.push(proxy_id);
-        self.preupdate_proxy(proxy_id);
+        self.preupdate_proxy(proxy_id, true);
         subregion_index
     }
 
-    pub fn preupdate_proxy(&mut self, proxy_id: SAPProxyIndex) -> bool {
+    pub fn preupdate_proxy(&mut self, proxy_id: SAPProxyIndex, is_subproper_proxy: bool) -> bool {
         let mask_len = self.existing_proxies.len();
         if proxy_id as usize >= mask_len {
             self.existing_proxies
@@ -111,7 +115,11 @@ impl SAPRegion {
         if !self.existing_proxies[proxy_id as usize] {
             self.to_insert.push(proxy_id);
             self.existing_proxies.set(proxy_id as usize, true);
-            self.proxy_count += 1;
+
+            if is_subproper_proxy {
+                self.subproper_proxy_count += 1;
+            }
+
             false
         } else {
             // Here we need a second update if all proxies exit this region. In this case, we need
@@ -122,31 +130,41 @@ impl SAPRegion {
         }
     }
 
-    pub fn update_after_subregion_removal(&mut self, proxies: &SAPProxies) {
+    pub fn update_after_subregion_removal(&mut self, proxies: &SAPProxies, layer_depth: i8) {
         if self.needs_update_after_subregion_removal {
             for axis in &mut self.axes {
-                self.proxy_count -= axis
+                self.subproper_proxy_count -= axis
                     .delete_deleted_proxies_and_endpoints_after_subregion_removal(
                         proxies,
                         &mut self.existing_proxies,
+                        layer_depth,
                     );
             }
             self.needs_update_after_subregion_removal = false;
         }
     }
 
-    pub fn update(&mut self, proxies: &SAPProxies, reporting: &mut HashMap<(u32, u32), bool>) {
+    pub fn update(
+        &mut self,
+        proxies: &SAPProxies,
+        layer_depth: i8,
+        reporting: &mut HashMap<(u32, u32), bool>,
+    ) {
         if self.update_count > 0 {
             // Update endpoints.
-            let mut deleted = 0;
+            let mut total_deleted = 0;
+            let mut total_deleted_subproper = 0;
 
             for dim in 0..DIM {
                 self.axes[dim].update_endpoints(dim, proxies, reporting);
-                deleted += self.axes[dim].delete_out_of_bounds_proxies(&mut self.existing_proxies);
+                let (num_deleted, num_deleted_subproper) = self.axes[dim]
+                    .delete_out_of_bounds_proxies(proxies, &mut self.existing_proxies, layer_depth);
+                total_deleted += num_deleted;
+                total_deleted_subproper += num_deleted_subproper;
             }
 
-            if deleted > 0 {
-                self.proxy_count -= deleted;
+            if total_deleted > 0 {
+                self.subproper_proxy_count -= total_deleted_subproper;
                 for dim in 0..DIM {
                     self.axes[dim].delete_out_of_bounds_endpoints(&self.existing_proxies);
                 }

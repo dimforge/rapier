@@ -5,6 +5,7 @@ pub(crate) const NUM_SENTINELS: usize = 1;
 pub(crate) const NEXT_FREE_SENTINEL: u32 = u32::MAX;
 pub(crate) const SENTINEL_VALUE: Real = Real::MAX;
 pub(crate) const DELETED_AABB_VALUE: Real = SENTINEL_VALUE / 2.0;
+pub(crate) const MAX_AABB_EXTENT: Real = SENTINEL_VALUE / 4.0;
 pub(crate) const REGION_WIDTH_BASE: Real = 1.0;
 pub(crate) const REGION_WIDTH_POWER_BASIS: Real = 5.0;
 
@@ -16,6 +17,10 @@ pub(crate) fn sort2(a: u32, b: u32) -> (u32, u32) {
     } else {
         (b, a)
     }
+}
+
+pub(crate) fn clamp_point(point: Point<Real>) -> Point<Real> {
+    point.map(|e| na::clamp(e, -MAX_AABB_EXTENT, MAX_AABB_EXTENT))
 }
 
 pub(crate) fn point_key(point: Point<Real>, region_width: Real) -> Point<i32> {
@@ -32,7 +37,7 @@ pub(crate) fn region_aabb(index: Point<i32>, region_width: Real) -> AABB {
 }
 
 pub(crate) fn region_width(depth: i8) -> Real {
-    REGION_WIDTH_BASE * REGION_WIDTH_POWER_BASIS.powi(depth as i32)
+    (REGION_WIDTH_BASE * REGION_WIDTH_POWER_BASIS.powi(depth as i32)).min(MAX_AABB_EXTENT)
 }
 
 /// Computes the depth of the layer the given AABB should be part of.
@@ -49,8 +54,9 @@ pub(crate) fn layer_containing_aabb(aabb: &AABB) -> i8 {
     const NUM_ELEMENTS_PER_DIMENSION: Real = 10.0;
 
     let width = 2.0 * aabb.half_extents().norm() * NUM_ELEMENTS_PER_DIMENSION;
-    // TODO: handle overflows in the f32 -> i8 conversion.
     (width / REGION_WIDTH_BASE)
         .log(REGION_WIDTH_POWER_BASIS)
-        .round() as i8
+        .round()
+        .max(i8::MIN as Real)
+        .min(i8::MAX as Real) as i8
 }

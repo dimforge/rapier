@@ -38,10 +38,18 @@ impl SAPLayer {
         }
     }
 
-    pub fn delete_all_region_endpoints(&mut self, proxies: &mut SAPProxies) {
+    pub fn unregister_all_subregions(&mut self, proxies: &mut SAPProxies) {
         for region_id in self.regions.values() {
             if let Some(mut region) = proxies[*region_id].data.take_region() {
                 region.delete_all_region_endpoints(proxies);
+
+                for subregion in region.subregions.drain(..) {
+                    proxies[subregion]
+                        .data
+                        .as_region_mut()
+                        .id_in_parent_subregion = crate::INVALID_U32;
+                }
+
                 proxies[*region_id].data.set_region(region);
             }
         }
@@ -77,14 +85,17 @@ impl SAPLayer {
         pool: &mut SAPRegionPool,
     ) {
         if let Some(proxy) = proxies.get(proxy_id) {
-            let region_key = super::point_key(proxy.aabb.center(), self.region_width);
-            let region_id = self.ensure_region_exists(region_key, proxies, pool);
-            let region = proxies[region_id].data.as_region_mut();
-            let id_in_parent_subregion = region.register_subregion(proxy_id);
-            proxies[proxy_id]
-                .data
-                .as_region_mut()
-                .id_in_parent_subregion = id_in_parent_subregion as u32;
+            if proxy.data.as_region().id_in_parent_subregion == crate::INVALID_U32 {
+                let region_key = super::point_key(proxy.aabb.center(), self.region_width);
+                let region_id = self.ensure_region_exists(region_key, proxies, pool);
+                let region = proxies[region_id].data.as_region_mut();
+
+                let id_in_parent_subregion = region.register_subregion(proxy_id);
+                proxies[proxy_id]
+                    .data
+                    .as_region_mut()
+                    .id_in_parent_subregion = id_in_parent_subregion as u32;
+            }
         }
     }
 
@@ -106,9 +117,10 @@ impl SAPLayer {
                     region.needs_update_after_subregion_removal = true;
                 }
 
-                region
+                let removed = region
                     .subregions
                     .swap_remove(id_in_parent_subregion as usize); // Remove the subregion index from the subregion list.
+                assert_eq!(removed, proxy_id);
 
                 // Re-adjust the id_in_parent_subregion of the subregion that was swapped in place
                 // of the deleted one.
@@ -137,7 +149,8 @@ impl SAPLayer {
             Entry::Vacant(vacant) => {
                 let region_bounds = super::region_aabb(region_key, self.region_width);
                 let region = SAPRegion::recycle_or_new(region_bounds, pool);
-                let region_proxy = SAPProxy::subregion(region, region_bounds, self.layer_id);
+                let region_proxy =
+                    SAPProxy::subregion(region, region_bounds, self.layer_id, self.depth);
                 let region_proxy_id = proxies.insert(region_proxy);
                 self.created_regions.push(region_proxy_id as u32);
                 let _ = vacant.insert(region_proxy_id);
@@ -172,7 +185,7 @@ impl SAPLayer {
                     let region_key = Point::new(i, j, _k);
                     let region_id = self.ensure_region_exists(region_key, proxies, pool);
                     let region = proxies[region_id].data.as_region_mut();
-                    region.preupdate_proxy(proxy_id);
+                    region.preupdate_proxy(proxy_id, true);
                 }
             }
         }
@@ -222,14 +235,14 @@ impl SAPLayer {
         for (point, region_id) in &self.regions {
             if let Some(mut region) = proxies[*region_id].data.take_region() {
                 // Update the region.
-                region.update(proxies, reporting);
+                region.update(proxies, self.depth, reporting);
 
                 // Mark all subregions as to-be-updated.
                 for subregion_id in &region.subregions {
                     proxies[*subregion_id].data.as_region_mut().mark_as_dirty();
                 }
 
-                if region.proxy_count == 0 {
+                if region.subproper_proxy_count == 0 {
                     self.regions_to_potentially_remove.push(*point);
                 }
 
@@ -257,10 +270,10 @@ impl SAPLayer {
                 if let Some(proxy) = proxies.get_mut(*region_id.get()) {
                     // First, we need to remove the endpoints of the deleted subregions.
                     let mut region = proxy.data.take_region().unwrap();
-                    region.update_after_subregion_removal(proxies);
+                    region.update_after_subregion_removal(proxies, self.depth);
 
-                    // Check if we actually can delete this region.
-                    if region.proxy_count == 0 {
+                    // Check if we can actually delete this region.
+                    if region.subproper_proxy_count == 0 {
                         let region_id = region_id.remove();
 
                         // We can delete this region. So we need to tell the larger

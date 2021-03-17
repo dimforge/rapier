@@ -14,19 +14,19 @@ pub enum SAPProxyData {
 }
 
 impl SAPProxyData {
-    pub fn is_subregion(&self) -> bool {
+    pub fn is_region(&self) -> bool {
         match self {
             SAPProxyData::Region(_) => true,
             _ => false,
         }
     }
 
-    // pub fn as_region(&self) -> &SAPRegion {
-    //     match self {
-    //         SAPProxyData::Region(r) => r.as_ref().unwrap(),
-    //         _ => panic!("Invalid proxy type."),
-    //     }
-    // }
+    pub fn as_region(&self) -> &SAPRegion {
+        match self {
+            SAPProxyData::Region(r) => r.as_ref().unwrap(),
+            _ => panic!("Invalid proxy type."),
+        }
+    }
 
     pub fn as_region_mut(&mut self) -> &mut SAPRegion {
         match self {
@@ -53,25 +53,29 @@ pub struct SAPProxy {
     pub data: SAPProxyData,
     pub aabb: AABB,
     pub next_free: SAPProxyIndex,
+    // TODO: pack the layer_id and layer_depth into a single u16?
     pub layer_id: u8,
+    pub layer_depth: i8,
 }
 
 impl SAPProxy {
-    pub fn collider(handle: ColliderHandle, aabb: AABB, layer_id: u8) -> Self {
+    pub fn collider(handle: ColliderHandle, aabb: AABB, layer_id: u8, layer_depth: i8) -> Self {
         Self {
             data: SAPProxyData::Collider(handle),
             aabb,
             next_free: NEXT_FREE_SENTINEL,
             layer_id,
+            layer_depth,
         }
     }
 
-    pub fn subregion(subregion: Box<SAPRegion>, aabb: AABB, layer_id: u8) -> Self {
+    pub fn subregion(subregion: Box<SAPRegion>, aabb: AABB, layer_id: u8, layer_depth: i8) -> Self {
         Self {
             data: SAPProxyData::Region(Some(subregion)),
             aabb,
             next_free: NEXT_FREE_SENTINEL,
             layer_id,
+            layer_depth,
         }
     }
 }
@@ -92,7 +96,7 @@ impl SAPProxies {
     }
 
     pub fn insert(&mut self, proxy: SAPProxy) -> SAPProxyIndex {
-        if self.first_free != NEXT_FREE_SENTINEL {
+        let result = if self.first_free != NEXT_FREE_SENTINEL {
             let proxy_id = self.first_free;
             self.first_free = self.elements[proxy_id as usize].next_free;
             self.elements[proxy_id as usize] = proxy;
@@ -100,7 +104,9 @@ impl SAPProxies {
         } else {
             self.elements.push(proxy);
             self.elements.len() as u32 - 1
-        }
+        };
+
+        result
     }
 
     pub fn remove(&mut self, proxy_id: SAPProxyIndex) {

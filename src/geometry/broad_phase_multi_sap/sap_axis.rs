@@ -29,6 +29,13 @@ impl SAPAxis {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.new_endpoints.clear();
+        self.endpoints.clear();
+        self.endpoints.push(SAPEndpoint::start_sentinel());
+        self.endpoints.push(SAPEndpoint::end_sentinel());
+    }
+
     pub fn batch_insert(
         &mut self,
         dim: usize,
@@ -115,14 +122,29 @@ impl SAPAxis {
         }
     }
 
-    pub fn delete_out_of_bounds_proxies(&self, existing_proxies: &mut BitVec) -> usize {
-        let mut deleted = 0;
+    /// Removes from this axis all the endpoints that are out of bounds from this axis.
+    ///
+    /// Returns the number of deleted proxies as well as the number of proxies deleted
+    /// such that `proxy.layer_depth <= layer_depth`.
+    pub fn delete_out_of_bounds_proxies(
+        &self,
+        proxies: &SAPProxies,
+        existing_proxies: &mut BitVec,
+        layer_depth: i8,
+    ) -> (usize, usize) {
+        let mut num_subproper_proxies_deleted = 0;
+        let mut num_proxies_deleted = 0;
         for endpoint in &self.endpoints {
             if endpoint.value < self.min_bound {
-                let proxy_idx = endpoint.proxy() as usize;
-                if endpoint.is_end() && existing_proxies[proxy_idx] {
-                    existing_proxies.set(proxy_idx, false);
-                    deleted += 1;
+                let proxy_id = endpoint.proxy();
+                if endpoint.is_end() && existing_proxies[proxy_id as usize] {
+                    existing_proxies.set(proxy_id as usize, false);
+
+                    if proxies[proxy_id].layer_depth <= layer_depth {
+                        num_subproper_proxies_deleted += 1;
+                    }
+
+                    num_proxies_deleted += 1;
                 }
             } else {
                 break;
@@ -131,17 +153,22 @@ impl SAPAxis {
 
         for endpoint in self.endpoints.iter().rev() {
             if endpoint.value > self.max_bound {
-                let proxy_idx = endpoint.proxy() as usize;
-                if endpoint.is_start() && existing_proxies[proxy_idx] {
-                    existing_proxies.set(endpoint.proxy() as usize, false);
-                    deleted += 1;
+                let proxy_id = endpoint.proxy();
+                if endpoint.is_start() && existing_proxies[proxy_id as usize] {
+                    existing_proxies.set(proxy_id as usize, false);
+
+                    if proxies[proxy_id].layer_depth <= layer_depth {
+                        num_subproper_proxies_deleted += 1;
+                    }
+
+                    num_proxies_deleted += 1;
                 }
             } else {
                 break;
             }
         }
 
-        deleted
+        (num_proxies_deleted, num_subproper_proxies_deleted)
     }
 
     pub fn delete_out_of_bounds_endpoints(&mut self, existing_proxies: &BitVec) {
@@ -149,26 +176,39 @@ impl SAPAxis {
             .retain(|endpt| endpt.is_sentinel() || existing_proxies[endpt.proxy() as usize])
     }
 
+    /// Removes from this axis all the endpoints corresponding to a proxy with an AABB mins/maxs values
+    /// equal to DELETED_AABB_VALUE, indicating that the endpoints should be deleted.
+    ///
+    /// Returns the number of deleted proxies such that `proxy.layer_depth <= layer_depth`.
     pub fn delete_deleted_proxies_and_endpoints_after_subregion_removal(
         &mut self,
         proxies: &SAPProxies,
         existing_proxies: &mut BitVec,
+        layer_depth: i8,
     ) -> usize {
-        let mut num_deleted = 0;
+        let mut num_subproper_proxies_deleted = 0;
 
         self.endpoints.retain(|endpt| {
-            if !endpt.is_sentinel() && proxies[endpt.proxy()].aabb.mins.x == DELETED_AABB_VALUE {
-                if existing_proxies.get(endpt.proxy() as usize) == Some(true) {
-                    existing_proxies.set(endpt.proxy() as usize, false);
-                    num_deleted += 1;
+            if !endpt.is_sentinel() {
+                let proxy = &proxies[endpt.proxy()];
+
+                if proxy.aabb.mins.x == DELETED_AABB_VALUE {
+                    if existing_proxies.get(endpt.proxy() as usize) == Some(true) {
+                        existing_proxies.set(endpt.proxy() as usize, false);
+
+                        if proxy.layer_depth <= layer_depth {
+                            num_subproper_proxies_deleted += 1;
+                        }
+                    }
+
+                    return false;
                 }
-                false
-            } else {
-                true
             }
+
+            true
         });
 
-        num_deleted
+        num_subproper_proxies_deleted
     }
 
     pub fn update_endpoints(
@@ -197,7 +237,8 @@ impl SAPAxis {
 
                     if endpoint_j.is_end() {
                         // Report start collision.
-                        if aabb_i.intersects(&proxies[endpoint_j.proxy()].aabb) {
+                        let proxy_j = &proxies[endpoint_j.proxy()];
+                        if aabb_i.intersects(&proxy_j.aabb) {
                             let pair = super::sort2(endpoint_i.proxy(), endpoint_j.proxy());
                             reporting.insert(pair, true);
                         }

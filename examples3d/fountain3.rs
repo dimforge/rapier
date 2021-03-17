@@ -15,7 +15,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Ground
      */
     let ground_size = 100.1;
-    let ground_height = 2.1;
+    let ground_height = 2.1; // 16.0;
 
     let rigid_body = RigidBodyBuilder::new_static()
         .translation(0.0, -ground_height, 0.0)
@@ -64,10 +64,6 @@ pub fn init_world(testbed: &mut Testbed) {
                 physics
                     .bodies
                     .remove(*handle, &mut physics.colliders, &mut physics.joints);
-                physics.broad_phase.maintain(&mut physics.colliders);
-                physics
-                    .narrow_phase
-                    .maintain(&mut physics.colliders, &mut physics.bodies);
 
                 if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
                     graphics.remove_body_nodes(window, *handle);
@@ -80,10 +76,10 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed
-        .physics_state_mut()
-        .integration_parameters
-        .velocity_based_erp = 0.2;
+    // testbed
+    //     .physics_state_mut()
+    //     .integration_parameters
+    //     .velocity_based_erp = 0.2;
     testbed.look_at(Point3::new(-30.0, 4.0, -30.0), Point3::new(0.0, 1.0, 0.0));
 }
 

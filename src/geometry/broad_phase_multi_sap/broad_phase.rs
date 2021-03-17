@@ -213,7 +213,9 @@ impl BroadPhase {
          */
         let cursor = self.removed_colliders.as_ref().unwrap();
         for collider in colliders.removed_colliders.read(&cursor) {
-            self.proxies.remove(collider.proxy_index);
+            if collider.proxy_index != crate::INVALID_U32 {
+                self.proxies.remove(collider.proxy_index);
+            }
         }
         colliders.removed_colliders.ack(&cursor);
     }
@@ -222,7 +224,7 @@ impl BroadPhase {
         if let Some(larger_layer) = self.layers[layer_id as usize].larger_layer {
             // Remove all the region endpoints from the larger layer.
             // They will be automatically replaced by the new layer's regions.
-            self.layers[larger_layer as usize].delete_all_region_endpoints(&mut self.proxies);
+            self.layers[larger_layer as usize].unregister_all_subregions(&mut self.proxies);
         }
 
         if let Some(smaller_layer) = self.layers[layer_id as usize].smaller_layer {
@@ -305,6 +307,7 @@ impl BroadPhase {
         }
     }
 
+    /// Updates the broad-phase, taking into account the new collider positions.
     pub fn update(
         &mut self,
         prediction_distance: Real,
@@ -324,7 +327,9 @@ impl BroadPhase {
         {
             for handle in &bodies[*body_handle].colliders {
                 let collider = &mut colliders[*handle];
-                let aabb = collider.compute_aabb().loosened(prediction_distance / 2.0);
+                let mut aabb = collider.compute_aabb().loosened(prediction_distance / 2.0);
+                aabb.mins = super::clamp_point(aabb.mins);
+                aabb.maxs = super::clamp_point(aabb.maxs);
 
                 let layer_id = if let Some(proxy) = self.proxies.get_mut(collider.proxy_index) {
                     proxy.aabb = aabb;
@@ -334,7 +339,7 @@ impl BroadPhase {
                     let layer_id = self.ensure_layer_exists(layer_depth);
 
                     // Create the proxy.
-                    let proxy = SAPProxy::collider(*handle, aabb, layer_id);
+                    let proxy = SAPProxy::collider(*handle, aabb, layer_id, layer_depth);
                     collider.proxy_index = self.proxies.insert(proxy);
                     layer_id
                 };
@@ -443,13 +448,19 @@ impl BroadPhase {
                     (SAPProxyData::Collider(_), SAPProxyData::Region(_)) => {
                         if *colliding {
                             // Add the collider to the subregion.
-                            proxy2.data.as_region_mut().preupdate_proxy(*proxy_id1);
+                            proxy2
+                                .data
+                                .as_region_mut()
+                                .preupdate_proxy(*proxy_id1, false);
                         }
                     }
                     (SAPProxyData::Region(_), SAPProxyData::Collider(_)) => {
                         if *colliding {
                             // Add the collider to the subregion.
-                            proxy1.data.as_region_mut().preupdate_proxy(*proxy_id2);
+                            proxy1
+                                .data
+                                .as_region_mut()
+                                .preupdate_proxy(*proxy_id2, false);
                         }
                     }
                     (SAPProxyData::Region(_), SAPProxyData::Region(_)) => {
