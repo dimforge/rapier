@@ -31,7 +31,7 @@ pub enum BodyStatus {
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
-    pub(crate) struct RigidBodyFlags: u8 {
+    pub struct RigidBodyFlags: u8 {
         const TRANSLATION_LOCKED = 1 << 0;
         const ROTATION_LOCKED_X = 1 << 1;
         const ROTATION_LOCKED_Y = 1 << 2;
@@ -438,6 +438,11 @@ impl RigidBody {
         if self.is_kinematic() {
             self.predicted_position = pos;
         }
+    }
+
+    /// The set of flags of the rigid body.
+    pub fn flags(&self) -> RigidBodyFlags {
+        self.flags
     }
 
     pub(crate) fn compute_velocity_from_predicted_position(&mut self, inv_dt: Real) {
