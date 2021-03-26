@@ -73,18 +73,43 @@ impl SAPRegion {
         }
     }
 
+    /// Deletes from the axes of this region all the endpoints that point
+    /// to a region.
     pub fn delete_all_region_endpoints(&mut self, proxies: &SAPProxies) {
-        for axis in &mut self.axes {
+        let mut num_deleted_subregion_endpoints = [0; DIM];
+
+        for (i, axis) in self.axes.iter_mut().enumerate() {
             let existing_proxies = &mut self.existing_proxies;
             axis.endpoints.retain(|e| {
+                // NOTE: we use `if let` instead of `unwrap` because no
+                // proxy will be found for the sentinels.
                 if let Some(proxy) = proxies.get(e.proxy()) {
-                    existing_proxies.set(e.proxy() as usize, false);
-                    !proxy.data.is_region()
-                } else {
-                    true
+                    if proxy.data.is_region() {
+                        existing_proxies.set(e.proxy() as usize, false);
+                        num_deleted_subregion_endpoints[i] += 1;
+                        return false;
+                    }
                 }
+
+                true
             });
         }
+
+        // All axes should have deleted the same number of region endpoints.
+        for k in 1..DIM {
+            assert_eq!(
+                num_deleted_subregion_endpoints[0],
+                num_deleted_subregion_endpoints[k]
+            );
+        }
+
+        // The number of deleted endpoints should be even because there
+        // are two endpoints per proxy on each axes.
+        assert_eq!(num_deleted_subregion_endpoints[0] % 2, 0);
+
+        // All the region endpoints are subproper proxies.
+        // So update the subproper proxy count accordingly.
+        self.subproper_proxy_count -= num_deleted_subregion_endpoints[0] / 2;
     }
 
     pub fn predelete_proxy(&mut self, _proxy_id: SAPProxyIndex) {

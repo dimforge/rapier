@@ -38,23 +38,39 @@ impl SAPLayer {
         }
     }
 
+    /// Deletes from all the regions of this layer, all the endpoints corresponding
+    /// to subregions. Clears the arrays of subregions indices from all the regions of
+    /// this layer.
     pub fn unregister_all_subregions(&mut self, proxies: &mut SAPProxies) {
         for region_id in self.regions.values() {
-            if let Some(mut region) = proxies[*region_id].data.take_region() {
-                region.delete_all_region_endpoints(proxies);
+            // Extract the region to make the borrow-checker happy.
+            let mut region = proxies[*region_id]
+                .data
+                .take_region()
+                .expect("Should be a region proxy.");
 
-                for subregion in region.subregions.drain(..) {
-                    proxies[subregion]
-                        .data
-                        .as_region_mut()
-                        .id_in_parent_subregion = crate::INVALID_U32;
-                }
+            // Delete the endpoints.
+            region.delete_all_region_endpoints(proxies);
 
-                proxies[*region_id].data.set_region(region);
+            // Clear the subregions vec and reset the subregions parent ids.
+            for subregion in region.subregions.drain(..) {
+                proxies[subregion]
+                    .data
+                    .as_region_mut()
+                    .id_in_parent_subregion = crate::INVALID_U32;
             }
+
+            // Re set the region to make the borrow-checker happy.
+            proxies[*region_id].data.set_region(region);
         }
     }
 
+    /// Register into `larger_layer` all the region proxies of the recently-created regions
+    /// contained by `self`.
+    ///
+    /// This method must be called in a bottom-up loop, propagating new regions from the
+    /// smallest layer, up to the largest layer. That loop is done by the Phase 3 of the
+    /// BroadPhase::update.
     pub fn propagate_created_regions(
         &mut self,
         larger_layer: &mut Self,
@@ -66,6 +82,7 @@ impl SAPLayer {
         }
     }
 
+    /// Register into `larger_layer` all the region proxies of the region contained in `self`.
     pub fn propagate_existing_regions(
         &mut self,
         larger_layer: &mut Self,
@@ -77,7 +94,12 @@ impl SAPLayer {
         }
     }
 
-    // Preupdates the proxy of a subregion.
+    /// Registers a subregion of this layer.
+    ///
+    /// The subregion proxy will be added to the region of `self` that contains
+    /// that subregion center. Because the hierarchical grid cells have aligned boundaries
+    /// at each depth, we have the guarantee that a given subregion will only be part of
+    /// one region on its parent "larger" layer.
     fn register_subregion(
         &mut self,
         proxy_id: SAPProxyIndex,
@@ -85,7 +107,9 @@ impl SAPLayer {
         pool: &mut SAPRegionPool,
     ) {
         if let Some(proxy) = proxies.get(proxy_id) {
-            if proxy.data.as_region().id_in_parent_subregion == crate::INVALID_U32 {
+            let curr_id_in_parent_subregion = proxy.data.as_region().id_in_parent_subregion;
+
+            if curr_id_in_parent_subregion == crate::INVALID_U32 {
                 let region_key = super::point_key(proxy.aabb.center(), self.region_width);
                 let region_id = self.ensure_region_exists(region_key, proxies, pool);
                 let region = proxies[region_id].data.as_region_mut();
@@ -95,6 +119,20 @@ impl SAPLayer {
                     .data
                     .as_region_mut()
                     .id_in_parent_subregion = id_in_parent_subregion as u32;
+            } else {
+                // NOTE: all the following are just assertions to make sure the
+                // region ids are correctly wired. If this piece of code causes
+                // any performance problem, it can be deleted completely without
+                // hesitation.
+                if curr_id_in_parent_subregion != crate::INVALID_U32 {
+                    let region_key = super::point_key(proxy.aabb.center(), self.region_width);
+                    let region_id = self.regions.get(&region_key).unwrap();
+                    let region = proxies[*region_id].data.as_region_mut();
+                    assert_eq!(
+                        region.subregions[curr_id_in_parent_subregion as usize],
+                        proxy_id
+                    );
+                }
             }
         }
     }
@@ -138,6 +176,15 @@ impl SAPLayer {
         }
     }
 
+    /// Ensures a given region exists in this layer.
+    ///
+    /// If the region with the given region key does not exist yet, it is created.
+    /// When a region is created, it creates a new proxy for that region, and its
+    /// proxy ID is added to `self.created_region` so it can be propagated during
+    /// the Phase 3 of `BroadPhase::update`.
+    ///
+    /// This returns the proxy ID of the already existing region if it existed, or
+    /// of the new region if it did not exist and has been created by this method.
     pub fn ensure_region_exists(
         &mut self,
         region_key: Point<i32>,
@@ -145,14 +192,19 @@ impl SAPLayer {
         pool: &mut SAPRegionPool,
     ) -> SAPProxyIndex {
         match self.regions.entry(region_key) {
+            // Yay, the region already exists!
             Entry::Occupied(occupied) => *occupied.get(),
+            // The region does not exist, create it.
             Entry::Vacant(vacant) => {
                 let region_bounds = super::region_aabb(region_key, self.region_width);
                 let region = SAPRegion::recycle_or_new(region_bounds, pool);
+                // Create a new proxy for that region.
                 let region_proxy =
                     SAPProxy::subregion(region, region_bounds, self.layer_id, self.depth);
                 let region_proxy_id = proxies.insert(region_proxy);
+                // Push this region's proxy ID to the set of created regions.
                 self.created_regions.push(region_proxy_id as u32);
+                // Insert the new region to this layer's region hashmap.
                 let _ = vacant.insert(region_proxy_id);
                 region_proxy_id
             }

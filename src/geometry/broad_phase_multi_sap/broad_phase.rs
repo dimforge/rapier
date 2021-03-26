@@ -119,6 +119,10 @@ impl BroadPhase {
     }
 
     /// Maintain the broad-phase internal state by taking collider removal into account.
+    ///
+    /// For each colliders marked as removed, we make their containing layer mark
+    /// its proxy as pre-deleted. The actual proxy removal will happen at the end
+    /// of the `BroadPhase::update`.
     fn handle_removed_colliders(&mut self, colliders: &mut ColliderSet) {
         // Ensure we already subscribed the collider-removed events.
         if self.removed_colliders.is_none() {
@@ -141,13 +145,13 @@ impl BroadPhase {
         self.removed_colliders = Some(cursor);
     }
 
-    /// Removes a proxy from this broad-phase.
+    /// Pre-deletes a proxy from this broad-phase.
     ///
     /// The removal of a proxy is a semi-lazy process. It will mark
     /// the proxy as predeleted, and will set its AABB as +infinity.
     /// After this method has been called with all the proxies to
     /// remove, the `complete_removal` method MUST be called to
-    /// complete the removal of these proxies, by removing them
+    /// complete the removal of these proxies, by actually removing them
     /// from all the relevant layers/regions/axes.
     fn predelete_proxy(&mut self, proxy_index: SAPProxyIndex) {
         if proxy_index == crate::INVALID_U32 {
@@ -220,20 +224,27 @@ impl BroadPhase {
         colliders.removed_colliders.ack(&cursor);
     }
 
+    /// Finalize the insertion of the layer identified by `layer_id`.
+    ///
+    /// This will:
+    /// - Remove all the subregion proxies from the larger layer.
+    /// - Pre-insert all the smaller layer's region proxies into this layer.
     fn finalize_layer_insertion(&mut self, layer_id: u8) {
+        // Remove all the region endpoints from the larger layer.
+        // They will be automatically replaced by the new layer's regions.
         if let Some(larger_layer) = self.layers[layer_id as usize].larger_layer {
-            // Remove all the region endpoints from the larger layer.
-            // They will be automatically replaced by the new layer's regions.
             self.layers[larger_layer as usize].unregister_all_subregions(&mut self.proxies);
         }
 
+        // Add all the regions from the smaller layer to the new layer.
+        // This will result in new regions to be created in the new layer.
+        // These new regions will automatically propagate to the larger layers in
+        // the Phase 3 of `Self::update`.
         if let Some(smaller_layer) = self.layers[layer_id as usize].smaller_layer {
             let (smaller_layer, new_layer) = self
                 .layers
                 .index_mut2(smaller_layer as usize, layer_id as usize);
 
-            // Add all the regions from the smaller layer to the new layer.
-            // This will propagate to the bigger layers automatically.
             smaller_layer.propagate_existing_regions(
                 new_layer,
                 &mut self.proxies,
@@ -242,6 +253,17 @@ impl BroadPhase {
         }
     }
 
+    /// Ensures that a given layer exists.
+    ///
+    /// If the layer does not exist then:
+    /// 1. It is created and added to `self.layers`.
+    /// 2. The smaller/larger layer indices are updated to order them
+    ///    properly depending on their depth.
+    /// 3. All the subregion proxies from the larger layer are deleted:
+    ///    they will be replaced by this new layer's regions later in
+    ///    the `update` function.
+    /// 4. All the regions from the smaller layer are added to that new
+    ///    layer.
     fn ensure_layer_exists(&mut self, new_depth: i8) -> u8 {
         // Special case: we don't have any layers yet.
         if self.layers.is_empty() {
@@ -264,6 +286,9 @@ impl BroadPhase {
 
         match larger_layer_id {
             None => {
+                // The layer we are currently creating is the new largest layer. So
+                // we need to update `self.largest_layer` accordingly then call
+                // `self.finalize_layer_insertion.
                 assert_ne!(self.layers.len() as u8, u8::MAX, "Not yet implemented.");
                 let new_layer_id = self.layers.len() as u8;
                 self.layers[self.largest_layer as usize].larger_layer = Some(new_layer_id);
@@ -283,6 +308,10 @@ impl BroadPhase {
                     larger_layer_id
                 } else {
                     // The layer does not exist yet. Create it.
+                    // And we found another layer that is larger than this one.
+                    // So we need to adjust the smaller/larger layer indices too
+                    // keep the list sorted, and then call `self.finalize_layer_insertion`
+                    // to deal with region propagation.
                     let new_layer_id = self.layers.len() as u8;
                     let smaller_layer_id = self.layers[larger_layer_id as usize].smaller_layer;
                     self.layers[larger_layer_id as usize].smaller_layer = Some(new_layer_id);
@@ -315,10 +344,12 @@ impl BroadPhase {
         colliders: &mut ColliderSet,
         events: &mut Vec<BroadPhasePairEvent>,
     ) {
+        // Phase 1: pre-delete the collisions that have been deleted.
         self.handle_removed_colliders(colliders);
 
         let mut need_region_propagation = false;
 
+        // Phase 2: pre-delete the collisions that have been deleted.
         for body_handle in bodies
             .modified_inactive_set
             .iter()
@@ -353,23 +384,23 @@ impl BroadPhase {
             }
         }
 
-        // Bottom-up pass to propagate regions from smaller layers to larger layers.
+        // Phase 3: bottom-up pass to propagate new regions from smaller layers to larger layers.
         if need_region_propagation {
             self.propagate_created_regions();
         }
 
-        // Top-down pass to propagate proxies from larger layers to smaller layers.
+        // Phase 4: top-down pass to propagate proxies from larger layers to smaller layers.
         self.update_layers_and_find_pairs(events);
 
-        // Bottom-up pass to remove proxies, and propagate region removed from smaller layers to
-        // possible remove regions from larger layers that would become empty that way.
+        // Phase 5: bottom-up pass to remove proxies, and propagate region removed from smaller
+        // layers to possible remove regions from larger layers that would become empty that way.
         self.complete_removals(colliders);
     }
 
-    /// Propagate regions from the smaller layers up to the larger layers.
+    /// Propagate regions from the smallest layers up to the larger layers.
     ///
     /// Whenever a region is created on a layer `n`, then its AABB must be
-    /// added to all the larger layers so we can detect whaen a object
+    /// added to its larger layer so we can detect when an object
     /// in a larger layer may start interacting with objects in a smaller
     /// layer.
     fn propagate_created_regions(&mut self) {
@@ -389,8 +420,9 @@ impl BroadPhase {
                         &mut self.proxies,
                         &mut self.region_pool,
                     );
+                    layer.created_regions.clear();
                 } else {
-                    // Always clear the set of created regions, even else if
+                    // Always clear the set of created regions, even if
                     // there is no larger layer.
                     layer.created_regions.clear();
                 }

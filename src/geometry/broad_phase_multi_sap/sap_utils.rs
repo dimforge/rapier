@@ -44,7 +44,7 @@ pub(crate) fn region_width(depth: i8) -> Real {
 ///
 /// The idea here is that an AABB should be part of a layer which has
 /// regions large enough so that one AABB doesn't crosses too many
-/// regions. But the regions must also not bee too large, otherwise
+/// regions. But the regions must also not be too large, otherwise
 /// we are loosing the benefits of Multi-SAP.
 ///
 /// If the code bellow, we select a layer such that each region can
