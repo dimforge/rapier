@@ -19,10 +19,10 @@ members = [ "build/rapier2d", "build/rapier2d-f64", "build/rapier_testbed2d", "e
 
 #kiss3d = { git = "https://github.com/sebcrozet/kiss3d" }
 #nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "dev" }
-#parry2d = { git = "https://github.com/dimforge/parry" }
-#parry3d = { git = "https://github.com/dimforge/parry" }
-#parry2d-f64 = { git = "https://github.com/dimforge/parry" }
-#parry3d-f64 = { git = "https://github.com/dimforge/parry" }
+parry2d = { git = "https://github.com/dimforge/parry", branch = "special_cases" }
+parry3d = { git = "https://github.com/dimforge/parry", branch = "special_cases" }
+parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "special_cases" }
+parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "special_cases" }
 #ncollide2d = { git = "https://github.com/dimforge/ncollide" }
 #ncollide3d = { git = "https://github.com/dimforge/ncollide" }
 #nphysics2d = { git = "https://github.com/dimforge/nphysics" }

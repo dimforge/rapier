@@ -1,10 +1,9 @@
 use crate::dynamics::RigidBodySet;
 use crate::geometry::{
     Collider, ColliderHandle, ColliderSet, InteractionGroups, PointProjection, Ray,
-    RayIntersection, SimdQuadTree,
+    RayIntersection, SimdQuadTree, AABB,
 };
 use crate::math::{Isometry, Point, Real, Vector};
-use crate::parry::motion::RigidMotion;
 use parry::query::details::{
     IntersectionCompositeShapeShapeBestFirstVisitor,
     NonlinearTOICompositeShapeShapeBestFirstVisitor, PointCompositeShapeProjBestFirstVisitor,
@@ -15,7 +14,7 @@ use parry::query::details::{
 use parry::query::visitors::{
     BoundingVolumeIntersectionsVisitor, PointIntersectionsVisitor, RayIntersectionsVisitor,
 };
-use parry::query::{DefaultQueryDispatcher, QueryDispatcher, TOI};
+use parry::query::{DefaultQueryDispatcher, NonlinearRigidMotion, QueryDispatcher, TOI};
 use parry::shape::{FeatureId, Shape, TypedSimdCompositeShape};
 use std::sync::Arc;
 
@@ -95,7 +94,7 @@ impl QueryPipeline {
     /// Initializes an empty query pipeline with a custom `QueryDispatcher`.
     ///
     /// Use this constructor in order to use a custom `QueryDispatcher` that is
-    /// awary of your own user-defined shapes.
+    /// aware of your own user-defined shapes.
     pub fn with_query_dispatcher<D>(d: D) -> Self
     where
         D: 'static + QueryDispatcher,
@@ -108,11 +107,26 @@ impl QueryPipeline {
         }
     }
 
+    /// The query dispatcher used by this query pipeline for running scene queries.
+    pub fn query_dispatcher(&self) -> &dyn QueryDispatcher {
+        &*self.query_dispatcher
+    }
+
     /// Update the acceleration structure on the query pipeline.
-    pub fn update(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet) {
+    pub fn update(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet, use_swept_aabb: bool) {
         if !self.tree_built {
-            let data = colliders.iter().map(|(h, c)| (h, c.compute_aabb()));
-            self.quadtree.clear_and_rebuild(data, self.dilation_factor);
+            if !use_swept_aabb {
+                let data = colliders.iter().map(|(h, c)| (h, c.compute_aabb()));
+                self.quadtree.clear_and_rebuild(data, self.dilation_factor);
+            } else {
+                let data = colliders.iter().map(|(h, co)| {
+                    let next_position =
+                        bodies[co.parent()].next_position * co.position_wrt_parent();
+                    (h, co.compute_swept_aabb(&next_position))
+                });
+                self.quadtree.clear_and_rebuild(data, self.dilation_factor);
+            }
+
             // FIXME: uncomment this once we handle insertion/removals properly.
             // self.tree_built = true;
             return;
@@ -127,10 +141,22 @@ impl QueryPipeline {
             }
         }
 
-        self.quadtree.update(
-            |handle| colliders[*handle].compute_aabb(),
-            self.dilation_factor,
-        );
+        if !use_swept_aabb {
+            self.quadtree.update(
+                |handle| colliders[*handle].compute_aabb(),
+                self.dilation_factor,
+            );
+        } else {
+            self.quadtree.update(
+                |handle| {
+                    let co = &colliders[*handle];
+                    let next_position =
+                        bodies[co.parent()].next_position * co.position_wrt_parent();
+                    co.compute_swept_aabb(&next_position)
+                },
+                self.dilation_factor,
+            );
+        }
     }
 
     /// Find the closest intersection between a ray and a set of collider.
@@ -336,6 +362,16 @@ impl QueryPipeline {
             .map(|h| (h.1 .1 .0, h.1 .0, h.1 .1 .1))
     }
 
+    /// Finds all handles of all the colliders with an AABB intersecting the given AABB.
+    pub fn colliders_with_aabb_intersecting_aabb(
+        &self,
+        aabb: &AABB,
+        mut callback: impl FnMut(&ColliderHandle) -> bool,
+    ) {
+        let mut visitor = BoundingVolumeIntersectionsVisitor::new(aabb, &mut callback);
+        self.quadtree.traverse_depth_first(&mut visitor);
+    }
+
     /// Casts a shape at a constant linear velocity and retrieve the first collider it hits.
     ///
     /// This is similar to ray-casting except that we are casting a whole shape instead of
@@ -386,20 +422,24 @@ impl QueryPipeline {
     pub fn nonlinear_cast_shape(
         &self,
         colliders: &ColliderSet,
-        shape_motion: &dyn RigidMotion,
+        shape_motion: &NonlinearRigidMotion,
         shape: &dyn Shape,
-        max_toi: Real,
-        target_distance: Real,
+        start_time: Real,
+        end_time: Real,
+        stop_at_penetration: bool,
         groups: InteractionGroups,
     ) -> Option<(ColliderHandle, TOI)> {
         let pipeline_shape = self.as_composite_shape(colliders, groups);
+        let pipeline_motion = NonlinearRigidMotion::identity();
         let mut visitor = NonlinearTOICompositeShapeShapeBestFirstVisitor::new(
             &*self.query_dispatcher,
-            shape_motion,
+            &pipeline_motion,
             &pipeline_shape,
+            shape_motion,
             shape,
-            max_toi,
-            target_distance,
+            start_time,
+            end_time,
+            stop_at_penetration,
         );
         self.quadtree.traverse_best_first(&mut visitor).map(|h| h.1)
     }

@@ -108,8 +108,8 @@ impl ColliderSet {
         let parent = bodies
             .get_mut(parent_handle)
             .expect("Parent rigid body not found.");
+        coll.prev_position = parent.position * coll.delta;
         coll.position = parent.position * coll.delta;
-        coll.predicted_position = parent.predicted_position * coll.delta;
         let handle = ColliderHandle(self.colliders.insert(coll));
         let coll = self.colliders.get(handle.0).unwrap();
         parent.add_collider(handle, &coll);

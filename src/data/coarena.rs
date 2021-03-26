@@ -29,6 +29,20 @@ impl<T> Coarena<T> {
             .and_then(|(gg, t)| if g == *gg { Some(t) } else { None })
     }
 
+    /// Inserts an element into this coarena.
+    pub fn insert(&mut self, a: Index, value: T)
+    where
+        T: Clone + Default,
+    {
+        let (i1, g1) = a.into_raw_parts();
+
+        if self.data.len() <= i1 {
+            self.data.resize(i1 + 1, (u32::MAX as u64, T::default()));
+        }
+
+        self.data[i1] = (g1, value);
+    }
+
     /// Ensure that elements at the two given indices exist in this coarena, and return their reference.
     ///
     /// Missing elements are created automatically and initialized with the `default` value.

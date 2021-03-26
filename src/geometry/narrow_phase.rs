@@ -71,6 +71,14 @@ impl NarrowPhase {
         }
     }
 
+    /// The query dispatcher used by this narrow-phase to select the right collision-detection
+    /// algorithms depending of the shape types.
+    pub fn query_dispatcher(
+        &self,
+    ) -> &dyn PersistentQueryDispatcher<ContactManifoldData, ContactData> {
+        &*self.query_dispatcher
+    }
+
     /// The contact graph containing all contact pairs and their contact information.
     pub fn contact_graph(&self) -> &InteractionGraph<ColliderHandle, ContactPair> {
         &self.contact_graph

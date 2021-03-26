@@ -4,7 +4,7 @@ use crate::{
 };
 use kiss3d::window::Window;
 use plugin::HarnessPlugin;
-use rapier::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
+use rapier::dynamics::{CCDSolver, IntegrationParameters, JointSet, RigidBodySet};
 use rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
 use rapier::math::Vector;
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
@@ -133,6 +133,7 @@ impl Harness {
         self.physics.broad_phase = BroadPhase::new();
         self.physics.narrow_phase = NarrowPhase::new();
         self.state.timestep_id = 0;
+        self.physics.ccd_solver = CCDSolver::new();
         self.physics.query_pipeline = QueryPipeline::new();
         self.physics.pipeline = PhysicsPipeline::new();
         self.physics.pipeline.counters.enable();
@@ -194,13 +195,14 @@ impl Harness {
             &mut self.physics.bodies,
             &mut self.physics.colliders,
             &mut self.physics.joints,
+            Some(&mut self.physics.ccd_solver),
             &*self.physics.hooks,
             &self.event_handler,
         );
 
         self.physics
             .query_pipeline
-            .update(&self.physics.bodies, &self.physics.colliders);
+            .update(&self.physics.bodies, &self.physics.colliders, false);
 
         for plugin in &mut self.plugins {
             plugin.step(&mut self.physics, &self.state)

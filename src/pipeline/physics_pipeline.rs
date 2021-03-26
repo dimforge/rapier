@@ -3,7 +3,7 @@
 use crate::counters::Counters;
 #[cfg(not(feature = "parallel"))]
 use crate::dynamics::IslandSolver;
-use crate::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
+use crate::dynamics::{CCDSolver, IntegrationParameters, JointSet, RigidBodySet};
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
@@ -68,6 +68,7 @@ impl PhysicsPipeline {
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
         joints: &mut JointSet,
+        ccd_solver: Option<&mut CCDSolver>,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
@@ -81,7 +82,7 @@ impl PhysicsPipeline {
         // there to determine if this kinematic body should wake-up dynamic
         // bodies it is touching.
         bodies.foreach_active_kinematic_body_mut_internal(|_, body| {
-            body.compute_velocity_from_predicted_position(integration_parameters.inv_dt());
+            body.compute_velocity_from_next_position(integration_parameters.inv_dt());
         });
 
         self.counters.stages.collision_detection_time.start();
@@ -218,23 +219,33 @@ impl PhysicsPipeline {
             });
         }
 
-        // Update colliders positions and kinematic bodies positions.
-        // FIXME: do this in the solver?
+        // Handle CCD
+        if let Some(ccd_solver) = ccd_solver {
+            let impacts = ccd_solver.predict_next_impacts(
+                integration_parameters,
+                bodies,
+                colliders,
+                integration_parameters.dt,
+                events,
+            );
+            ccd_solver.clamp_motions(integration_parameters.dt, bodies, &impacts);
+        }
+
+        // Set the rigid-bodies and kinematic bodies to their final position.
         bodies.foreach_active_body_mut_internal(|_, rb| {
             if rb.is_kinematic() {
-                rb.position = rb.predicted_position;
                 rb.linvel = na::zero();
                 rb.angvel = na::zero();
-            } else {
-                rb.update_predicted_position(integration_parameters.dt);
             }
 
+            rb.position = rb.next_position;
             rb.update_colliders_positions(colliders);
         });
 
         self.counters.stages.solver_time.pause();
 
         bodies.modified_inactive_set.clear();
+
         self.counters.step_completed();
     }
 }

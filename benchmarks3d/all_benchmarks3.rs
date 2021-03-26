@@ -13,6 +13,7 @@ use std::cmp::Ordering;
 mod balls3;
 mod boxes3;
 mod capsules3;
+mod ccd3;
 mod compound3;
 mod convex_polyhedron3;
 mod heightfield3;
@@ -52,6 +53,7 @@ pub fn main() {
         ("Balls", balls3::init_world),
         ("Boxes", boxes3::init_world),
         ("Capsules", capsules3::init_world),
+        ("CCD", ccd3::init_world),
         ("Compound", compound3::init_world),
         ("Convex polyhedron", convex_polyhedron3::init_world),
         ("Heightfield", heightfield3::init_world),

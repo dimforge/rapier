@@ -277,7 +277,7 @@ impl ParallelIslandSolver {
                         rb.linvel += dvel.linear;
                         rb.angvel += rb.effective_world_inv_inertia_sqrt.transform_vector(dvel.angular);
                         rb.integrate(params.dt);
-                        positions[rb.active_set_offset] = rb.position;
+                        positions[rb.active_set_offset] = rb.next_position;
                     }
                 }
 
@@ -298,7 +298,7 @@ impl ParallelIslandSolver {
                     let batch_size = thread.batch_size;
                     for handle in active_bodies[thread.position_writeback_index] {
                         let rb = &mut bodies[handle.0];
-                        rb.set_position_internal(positions[rb.active_set_offset]);
+                        rb.set_next_position(positions[rb.active_set_offset]);
                     }
                 }
             })

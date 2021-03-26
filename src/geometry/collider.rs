@@ -2,7 +2,7 @@ use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
 use crate::geometry::{InteractionGroups, SAPProxyIndex, SharedShape, SolverFlags};
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
-use parry::bounding_volume::AABB;
+use parry::bounding_volume::{BoundingVolume, AABB};
 use parry::shape::Shape;
 
 bitflags::bitflags! {
@@ -62,7 +62,7 @@ pub struct Collider {
     pub(crate) parent: RigidBodyHandle,
     pub(crate) delta: Isometry<Real>,
     pub(crate) position: Isometry<Real>,
-    pub(crate) predicted_position: Isometry<Real>,
+    pub(crate) prev_position: Isometry<Real>,
     /// The friction coefficient of this collider.
     pub friction: Real,
     /// The restitution coefficient of this collider.
@@ -139,11 +139,12 @@ impl Collider {
         self.shape.compute_aabb(&self.position)
     }
 
-    // pub(crate) fn compute_aabb_with_prediction(&self) -> AABB {
-    //     let aabb1 = self.shape.compute_aabb(&self.position);
-    //     let aabb2 = self.shape.compute_aabb(&self.predicted_position);
-    //     aabb1.merged(&aabb2)
-    // }
+    /// Compute the axis-aligned bounding box of this collider.
+    pub fn compute_swept_aabb(&self, next_position: &Isometry<Real>) -> AABB {
+        let aabb1 = self.shape.compute_aabb(&self.position);
+        let aabb2 = self.shape.compute_aabb(next_position);
+        aabb1.merged(&aabb2)
+    }
 
     /// Compute the local-space mass properties of this collider.
     pub fn mass_properties(&self) -> MassProperties {
@@ -595,8 +596,8 @@ impl ColliderBuilder {
             flags,
             solver_flags,
             parent: RigidBodyHandle::invalid(),
+            prev_position: Isometry::identity(),
             position: Isometry::identity(),
-            predicted_position: Isometry::identity(),
             proxy_index: crate::INVALID_U32,
             collision_groups: self.collision_groups,
             solver_groups: self.solver_groups,

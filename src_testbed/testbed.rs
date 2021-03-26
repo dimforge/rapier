@@ -769,9 +769,36 @@ impl Testbed {
     }
 
     #[cfg(feature = "dim3")]
-    fn handle_special_event(&mut self, window: &mut Window, _event: Event) {
+    fn handle_special_event(&mut self, window: &mut Window, event: Event) {
+        use rapier::dynamics::RigidBodyBuilder;
+        use rapier::geometry::ColliderBuilder;
+
         if window.is_conrod_ui_capturing_mouse() {
             return;
+        }
+
+        match event.value {
+            WindowEvent::Key(Key::Space, Action::Release, _) => {
+                let cam_pos = self.graphics.camera().view_transform().inverse();
+                let forward = cam_pos * -Vector::z();
+                let vel = forward * 1000.0;
+
+                let bodies = &mut self.harness.physics.bodies;
+                let colliders = &mut self.harness.physics.colliders;
+
+                let collider = ColliderBuilder::cuboid(4.0, 2.0, 0.4).density(20.0).build();
+                // let collider = ColliderBuilder::ball(2.0).density(1.0).build();
+                let body = RigidBodyBuilder::new_dynamic()
+                    .position(cam_pos)
+                    .linvel(vel.x, vel.y, vel.z)
+                    .ccd_enabled(true)
+                    .build();
+
+                let body_handle = bodies.insert(body);
+                colliders.insert(collider, body_handle, bodies);
+                self.graphics.add(window, body_handle, bodies, colliders);
+            }
+            _ => {}
         }
 
         /*
@@ -1454,6 +1481,20 @@ Hashes at frame: {}
 fn draw_contacts(window: &mut Window, nf: &NarrowPhase, colliders: &ColliderSet) {
     for pair in nf.contact_pairs() {
         for manifold in &pair.manifolds {
+            for contact in &manifold.data.solver_contacts {
+                let color = if contact.dist > 0.0 {
+                    Point3::new(0.0, 0.0, 1.0)
+                } else {
+                    Point3::new(1.0, 0.0, 0.0)
+                };
+
+                let p = contact.point;
+                let n = manifold.data.normal;
+
+                use crate::engine::GraphicsWindow;
+                window.draw_graphics_line(&p, &(p + n * 0.4), &Point3::new(0.5, 1.0, 0.5));
+            }
+            /*
             for pt in manifold.contacts() {
                 let color = if pt.dist > 0.0 {
                     Point3::new(0.0, 0.0, 1.0)
@@ -1474,6 +1515,7 @@ fn draw_contacts(window: &mut Window, nf: &NarrowPhase, colliders: &ColliderSet)
                 window.draw_graphics_line(&start, &(start + n * 0.4), &Point3::new(0.5, 1.0, 0.5));
                 window.draw_graphics_line(&start, &end, &color);
             }
+             */
         }
     }
 }

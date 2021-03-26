@@ -37,7 +37,7 @@ impl Box2dWorld {
         joints: &JointSet,
     ) -> Self {
         let mut world = b2::World::new(&na_vec_to_b2_vec(gravity));
-        world.set_continuous_physics(false);
+        world.set_continuous_physics(bodies.iter().any(|b| b.1.is_ccd_enabled()));
 
         let mut res = Box2dWorld {
             world,
@@ -77,14 +77,11 @@ impl Box2dWorld {
                 angular_velocity: body.angvel(),
                 linear_damping,
                 angular_damping,
+                bullet: body.is_ccd_enabled(),
                 ..b2::BodyDef::new()
             };
             let b2_handle = self.world.create_body(&def);
             self.rapier2box2d.insert(handle, b2_handle);
-
-            // Collider.
-            let mut b2_body = self.world.body_mut(b2_handle);
-            b2_body.set_bullet(false /* collider.is_ccd_enabled() */);
         }
     }
 
@@ -163,7 +160,7 @@ impl Box2dWorld {
 
         fixture_def.restitution = collider.restitution;
         fixture_def.friction = collider.friction;
-        fixture_def.density = collider.density();
+        fixture_def.density = collider.density().unwrap_or(1.0);
         fixture_def.is_sensor = collider.is_sensor();
         fixture_def.filter = b2::Filter::new();
 
@@ -215,8 +212,6 @@ impl Box2dWorld {
     }
 
     pub fn step(&mut self, counters: &mut Counters, params: &IntegrationParameters) {
-        //        self.world.set_continuous_physics(world.integration_parameters.max_ccd_substeps != 0);
-
         counters.step_started();
         self.world.step(
             params.dt,

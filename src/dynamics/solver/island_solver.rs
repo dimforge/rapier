@@ -59,7 +59,7 @@ impl IslandSolver {
 
             counters.solver.velocity_update_time.resume();
             bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
-                rb.integrate(params.dt)
+                rb.integrate_next_position(params.dt, true)
             });
             counters.solver.velocity_update_time.pause();
 
@@ -77,7 +77,7 @@ impl IslandSolver {
             bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
                 // Since we didn't run the velocity solver we need to integrate the accelerations here
                 rb.integrate_accelerations(params.dt);
-                rb.integrate(params.dt);
+                rb.integrate_next_position(params.dt, true);
             });
             counters.solver.velocity_update_time.pause();
         }

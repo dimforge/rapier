@@ -69,21 +69,18 @@ impl CollisionPipeline {
 
         // // Update kinematic bodies velocities.
         // bodies.foreach_active_kinematic_body_mut_internal(|_, body| {
-        //     body.compute_velocity_from_predicted_position(integration_parameters.inv_dt());
+        //     body.compute_velocity_from_next_position(integration_parameters.inv_dt());
         // });
 
         // Update colliders positions and kinematic bodies positions.
         bodies.foreach_active_body_mut_internal(|_, rb| {
-            if rb.is_kinematic() {
-                rb.position = rb.predicted_position;
-            } else {
-                rb.update_predicted_position(0.0);
-            }
+            rb.position = rb.next_position;
+            rb.update_colliders_positions(colliders);
 
             for handle in &rb.colliders {
                 let collider = &mut colliders[*handle];
+                collider.prev_position = collider.position;
                 collider.position = rb.position * collider.delta;
-                collider.predicted_position = rb.predicted_position * collider.delta;
             }
         });
 

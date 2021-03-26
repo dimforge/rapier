@@ -100,10 +100,10 @@ impl FixedPositionGroundConstraint {
         let local_anchor2;
 
         if flipped {
-            anchor1 = rb1.predicted_position * cparams.local_anchor2;
+            anchor1 = rb1.next_position * cparams.local_anchor2;
             local_anchor2 = cparams.local_anchor1;
         } else {
-            anchor1 = rb1.predicted_position * cparams.local_anchor1;
+            anchor1 = rb1.next_position * cparams.local_anchor1;
             local_anchor2 = cparams.local_anchor2;
         };
 

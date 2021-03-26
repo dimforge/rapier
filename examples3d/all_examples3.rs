@@ -10,6 +10,7 @@ use inflector::Inflector;
 use rapier_testbed3d::Testbed;
 use std::cmp::Ordering;
 
+mod ccd3;
 mod collision_groups3;
 mod compound3;
 mod convex_decomposition3;
@@ -77,6 +78,7 @@ pub fn main() {
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Fountain", fountain3::init_world),
         ("Primitives", primitives3::init_world),
+        ("CCD", ccd3::init_world),
         ("Collision groups", collision_groups3::init_world),
         ("Compound", compound3::init_world),
         ("Convex decomposition", convex_decomposition3::init_world),
