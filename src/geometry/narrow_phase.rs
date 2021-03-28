@@ -647,7 +647,7 @@ impl NarrowPhase {
 
     /// Retrieve all the interactions with at least one contact point, happening between two active bodies.
     // NOTE: this is very similar to the code from JointSet::select_active_interactions.
-    pub(crate) fn sort_and_select_active_contacts<'a>(
+    pub(crate) fn select_active_contacts<'a>(
         &'a mut self,
         bodies: &RigidBodySet,
         out_manifolds: &mut Vec<&'a mut ContactManifold>,

@@ -58,33 +58,16 @@ impl PhysicsPipeline {
         }
     }
 
-    /// Executes one timestep of the physics simulation.
-    pub fn step(
+    fn detect_collisions(
         &mut self,
-        gravity: &Vector<Real>,
         integration_parameters: &IntegrationParameters,
         broad_phase: &mut BroadPhase,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
-        joints: &mut JointSet,
-        ccd_solver: Option<&mut CCDSolver>,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
-        self.counters.step_started();
-        bodies.maintain(colliders);
-        narrow_phase.maintain(colliders, bodies);
-
-        // Update kinematic bodies velocities.
-        // TODO: what is the best place for this? It should at least be
-        // located before the island computation because we test the velocity
-        // there to determine if this kinematic body should wake-up dynamic
-        // bodies it is touching.
-        bodies.foreach_active_kinematic_body_mut_internal(|_, body| {
-            body.compute_velocity_from_next_position(integration_parameters.inv_dt());
-        });
-
         self.counters.stages.collision_detection_time.start();
         self.counters.cd.broad_phase_time.start();
         self.broad_phase_events.clear();
@@ -96,15 +79,14 @@ impl PhysicsPipeline {
             colliders,
             &mut self.broad_phase_events,
         );
-
-        narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
         self.counters.cd.broad_phase_time.pause();
 
         //        println!("Num contact pairs: {}", pairs.len());
 
         self.counters.cd.narrow_phase_time.start();
+        narrow_phase.maintain(colliders, bodies);
+        narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
 
-        //        let t = instant::now();
         narrow_phase.compute_contacts(
             integration_parameters.prediction_distance,
             bodies,
@@ -113,8 +95,19 @@ impl PhysicsPipeline {
             events,
         );
         narrow_phase.compute_intersections(bodies, colliders, hooks, events);
-        //        println!("Compute contact time: {}", instant::now() - t);
+        self.counters.cd.narrow_phase_time.pause();
+        self.counters.stages.collision_detection_time.pause();
+    }
 
+    fn build_islands_and_solve_constraints(
+        &mut self,
+        gravity: &Vector<Real>,
+        integration_parameters: &IntegrationParameters,
+        narrow_phase: &mut NarrowPhase,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+        joints: &mut JointSet,
+    ) {
         self.counters.stages.island_construction_time.start();
         bodies.update_active_set_with_contacts(
             colliders,
@@ -135,15 +128,8 @@ impl PhysicsPipeline {
         }
 
         let mut manifolds = Vec::new();
-        narrow_phase.sort_and_select_active_contacts(
-            bodies,
-            &mut manifolds,
-            &mut self.manifold_indices,
-        );
+        narrow_phase.select_active_contacts(bodies, &mut manifolds, &mut self.manifold_indices);
         joints.select_active_interactions(bodies, &mut self.joint_constraint_indices);
-
-        self.counters.cd.narrow_phase_time.pause();
-        self.counters.stages.collision_detection_time.pause();
 
         self.counters.stages.update_time.start();
         bodies.foreach_active_dynamic_body_mut_internal(|_, b| {
@@ -218,7 +204,17 @@ impl PhysicsPipeline {
                     });
             });
         }
+        self.counters.stages.solver_time.pause();
+    }
 
+    fn run_ccd_motion_clamping(
+        &mut self,
+        integration_parameters: &IntegrationParameters,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+        ccd_solver: Option<&mut CCDSolver>,
+        events: &dyn EventHandler,
+    ) {
         // Handle CCD
         if let Some(ccd_solver) = ccd_solver {
             let impacts = ccd_solver.predict_next_impacts(
@@ -230,7 +226,13 @@ impl PhysicsPipeline {
             );
             ccd_solver.clamp_motions(integration_parameters.dt, bodies, &impacts);
         }
+    }
 
+    fn advance_to_final_positions(
+        &mut self,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+    ) {
         // Set the rigid-bodies and kinematic bodies to their final position.
         bodies.foreach_active_body_mut_internal(|_, rb| {
             if rb.is_kinematic() {
@@ -241,11 +243,68 @@ impl PhysicsPipeline {
             rb.position = rb.next_position;
             rb.update_colliders_positions(colliders);
         });
+    }
 
-        self.counters.stages.solver_time.pause();
+    fn interpolate_kinematic_velocities(
+        &mut self,
+        integration_parameters: &IntegrationParameters,
+        bodies: &mut RigidBodySet,
+    ) {
+        // Update kinematic bodies velocities.
+        // TODO: what is the best place for this? It should at least be
+        // located before the island computation because we test the velocity
+        // there to determine if this kinematic body should wake-up dynamic
+        // bodies it is touching.
+        bodies.foreach_active_kinematic_body_mut_internal(|_, body| {
+            body.compute_velocity_from_next_position(integration_parameters.inv_dt());
+        });
+    }
+
+    /// Executes one timestep of the physics simulation.
+    pub fn step(
+        &mut self,
+        gravity: &Vector<Real>,
+        integration_parameters: &IntegrationParameters,
+        broad_phase: &mut BroadPhase,
+        narrow_phase: &mut NarrowPhase,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+        joints: &mut JointSet,
+        ccd_solver: Option<&mut CCDSolver>,
+        hooks: &dyn PhysicsHooks,
+        events: &dyn EventHandler,
+    ) {
+        self.counters.step_started();
+        bodies.maintain(colliders);
+
+        self.interpolate_kinematic_velocities(integration_parameters, bodies);
+        self.detect_collisions(
+            integration_parameters,
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            hooks,
+            events,
+        );
+        self.build_islands_and_solve_constraints(
+            gravity,
+            integration_parameters,
+            narrow_phase,
+            bodies,
+            colliders,
+            joints,
+        );
+        self.run_ccd_motion_clamping(
+            integration_parameters,
+            bodies,
+            colliders,
+            ccd_solver,
+            events,
+        );
+        self.advance_to_final_positions(bodies, colliders);
 
         bodies.modified_inactive_set.clear();
-
         self.counters.step_completed();
     }
 }
