@@ -584,7 +584,9 @@ impl NarrowPhase {
                             friction,
                             restitution,
                             tangent_velocity: Vector::zeros(),
-                            data: contact.data,
+                            warmstart_impulse: contact.data.impulse,
+                            warmstart_tangent_impulse: contact.data.tangent_impulse,
+                            prev_rhs: contact.data.rhs,
                         };
 
                         manifold.data.solver_contacts.push(solver_contact);

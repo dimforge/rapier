@@ -24,7 +24,7 @@ use rapier::dynamics::{
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
-use rapier::math::{Isometry, Vector};
+use rapier::math::Vector;
 use rapier::pipeline::PhysicsHooks;
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
@@ -1478,16 +1478,10 @@ Hashes at frame: {}
     }
 }
 
-fn draw_contacts(window: &mut Window, nf: &NarrowPhase, colliders: &ColliderSet) {
+fn draw_contacts(window: &mut Window, nf: &NarrowPhase, _colliders: &ColliderSet) {
     for pair in nf.contact_pairs() {
         for manifold in &pair.manifolds {
             for contact in &manifold.data.solver_contacts {
-                let color = if contact.dist > 0.0 {
-                    Point3::new(0.0, 0.0, 1.0)
-                } else {
-                    Point3::new(1.0, 0.0, 0.0)
-                };
-
                 let p = contact.point;
                 let n = manifold.data.normal;
 

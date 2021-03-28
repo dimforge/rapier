@@ -38,6 +38,8 @@ pub struct ContactData {
     /// collider's rigid-body.
     #[cfg(feature = "dim3")]
     pub tangent_impulse: na::Vector2<Real>,
+    /// The target velocity correction at the contact point.
+    pub rhs: Real,
 }
 
 impl Default for ContactData {
@@ -45,6 +47,7 @@ impl Default for ContactData {
         Self {
             impulse: 0.0,
             tangent_impulse: na::zero(),
+            rhs: 0.0,
         }
     }
 }
@@ -143,16 +146,25 @@ pub struct SolverContact {
     /// This is set to zero by default. Set to a non-zero value to
     /// simulate, e.g., conveyor belts.
     pub tangent_velocity: Vector<Real>,
-    /// Associated contact data used to warm-start the constraints
-    /// solver.
-    pub data: ContactData,
+    /// The warmstart impulse, along the contact normal, applied by this contact to the first collider's rigid-body.
+    pub warmstart_impulse: Real,
+    /// The warmstart friction impulse along the vector orthonormal to the contact normal, applied to the first
+    /// collider's rigid-body.
+    #[cfg(feature = "dim2")]
+    pub warmstart_tangent_impulse: Real,
+    /// The warmstart friction impulses along the basis orthonormal to the contact normal, applied to the first
+    /// collider's rigid-body.
+    #[cfg(feature = "dim3")]
+    pub warmstart_tangent_impulse: na::Vector2<Real>,
+    /// The last velocity correction targeted by this contact.
+    pub prev_rhs: Real,
 }
 
 impl SolverContact {
     /// Should we treat this contact as a bouncy contact?
     /// If `true`, use [`Self::restitution`].
     pub fn is_bouncy(&self) -> bool {
-        let is_new = self.data.impulse == 0.0;
+        let is_new = self.warmstart_impulse == 0.0;
         if is_new {
             // Treat new collisions as bouncing at first, unless we have zero restitution.
             self.restitution > 0.0

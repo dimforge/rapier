@@ -27,6 +27,8 @@ pub struct IntegrationParameters {
     /// Each cached impulse are multiplied by this coefficient in `[0, 1]`
     /// when they are re-used to initialize the solver (default `1.0`).
     pub warmstart_coeff: Real,
+    /// Correction factor to avoid large warmstart impulse after a strong impact.
+    pub warmstart_correction_slope: Real,
 
     /// 0-1: how much of the velocity to dampen out in the constraint solver?
     /// (default `1.0`).
@@ -200,6 +202,7 @@ impl Default for IntegrationParameters {
             velocity_solve_fraction: 1.0,
             velocity_based_erp: 0.0,
             warmstart_coeff: 1.0,
+            warmstart_correction_slope: 1.0,
             allowed_linear_error: 0.005,
             prediction_distance: 0.002,
             allowed_angular_error: 0.001,

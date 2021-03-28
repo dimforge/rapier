@@ -204,8 +204,12 @@ impl RigidBody {
         self.flags.contains(RigidBodyFlags::CCD_ENABLED)
     }
 
+    pub fn is_moving_fast(&self, dt: Real) -> bool {
+        self.is_dynamic() && self.linvel.norm() * dt > self.ccd_thickness
+    }
+
     pub(crate) fn should_resolve_ccd(&self, dt: Real) -> bool {
-        self.is_ccd_enabled() && self.is_dynamic() && self.linvel.norm() * dt > self.ccd_thickness
+        self.is_ccd_enabled() && self.is_moving_fast(dt)
     }
 
     /// Sets the rigid-body's mass properties.
@@ -371,10 +375,6 @@ impl RigidBody {
         shift * Isometry::new(self.linvel * dt, self.angvel * dt) * shift.inverse()
     }
 
-    pub(crate) fn position_at_time(&self, dt: Real) -> Isometry<Real> {
-        self.integrate_velocity(dt) * self.position
-    }
-
     pub(crate) fn integrate_next_position(&mut self, dt: Real, apply_damping: bool) {
         // TODO: do we want to apply damping before or after the velocity integration?
         if apply_damping {
@@ -502,10 +502,6 @@ impl RigidBody {
             self.angvel = dpos.rotation.scaled_axis() * inv_dt;
         }
         self.linvel = dpos.translation.vector * inv_dt;
-    }
-
-    pub(crate) fn update_next_position(&mut self, dt: Real) {
-        self.next_position = self.integrate_velocity(dt) * self.position;
     }
 
     pub(crate) fn update_world_mass_properties(&mut self) {

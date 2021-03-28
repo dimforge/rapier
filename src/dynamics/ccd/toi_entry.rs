@@ -1,13 +1,7 @@
-use crate::data::Coarena;
-use crate::dynamics::ccd::ccd_solver::CCDContact;
-use crate::dynamics::ccd::CCDData;
 use crate::dynamics::{IntegrationParameters, RigidBody, RigidBodyHandle};
 use crate::geometry::{Collider, ColliderHandle};
-use crate::math::{Isometry, Real};
-use crate::parry::query::PersistentQueryDispatcher;
-use crate::utils::WCross;
-use na::{RealField, Unit};
-use parry::query::{NonlinearRigidMotion, QueryDispatcher, TOI};
+use crate::math::Real;
+use parry::query::{NonlinearRigidMotion, QueryDispatcher};
 
 #[derive(Copy, Clone, Debug)]
 pub struct TOIEntry {
@@ -41,7 +35,7 @@ impl TOIEntry {
         }
     }
 
-    pub fn try_from_colliders<QD: ?Sized + PersistentQueryDispatcher<(), ()>>(
+    pub fn try_from_colliders<QD: ?Sized + QueryDispatcher>(
         params: &IntegrationParameters,
         query_dispatcher: &QD,
         ch1: ColliderHandle,
@@ -54,7 +48,6 @@ impl TOIEntry {
         frozen2: Option<Real>,
         start_time: Real,
         end_time: Real,
-        body_params: &Coarena<CCDData>,
     ) -> Option<Self> {
         assert!(start_time <= end_time);
 
@@ -62,7 +55,7 @@ impl TOIEntry {
         let linvel2 = frozen2.is_none() as u32 as Real * b2.linvel;
 
         let vel12 = linvel2 - linvel1;
-        let thickness = (c1.shape().ccd_thickness() + c2.shape().ccd_thickness());
+        let thickness = c1.shape().ccd_thickness() + c2.shape().ccd_thickness();
 
         if params.dt * vel12.norm() < thickness {
             return None;
@@ -70,12 +63,9 @@ impl TOIEntry {
 
         let is_intersection_test = c1.is_sensor() || c2.is_sensor();
 
-        let body_params1 = body_params.get(c1.parent.0)?;
-        let body_params2 = body_params.get(c2.parent.0)?;
-
         // Compute the TOI.
-        let mut motion1 = body_params1.motion(params.dt, b1, 0.0);
-        let mut motion2 = body_params2.motion(params.dt, b2, 0.0);
+        let mut motion1 = Self::body_motion(params.dt, b1);
+        let mut motion2 = Self::body_motion(params.dt, b2);
 
         if let Some(t) = frozen1 {
             motion1.freeze(t);
@@ -85,7 +75,6 @@ impl TOIEntry {
             motion2.freeze(t);
         }
 
-        let mut toi;
         let motion_c1 = motion1.prepend(*c1.position_wrt_parent());
         let motion_c2 = motion2.prepend(*c2.position_wrt_parent());
 
@@ -112,7 +101,7 @@ impl TOIEntry {
             )
             .ok();
 
-        toi = res_toi??;
+        let toi = res_toi??;
 
         Some(Self::new(
             toi.toi,
@@ -123,6 +112,20 @@ impl TOIEntry {
             is_intersection_test,
             0,
         ))
+    }
+
+    fn body_motion(dt: Real, body: &RigidBody) -> NonlinearRigidMotion {
+        if body.should_resolve_ccd(dt) {
+            NonlinearRigidMotion::new(
+                0.0,
+                body.position,
+                body.mass_properties.local_com,
+                body.linvel,
+                body.angvel,
+            )
+        } else {
+            NonlinearRigidMotion::constant_position(body.next_position)
+        }
     }
 }
 

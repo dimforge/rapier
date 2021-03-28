@@ -9,6 +9,7 @@ use crate::math::{
 #[cfg(feature = "dim2")]
 use crate::utils::WBasis;
 use crate::utils::{WAngularInertia, WCross, WDot};
+use na::SimdComplexField;
 use num::Zero;
 use simba::simd::{SimdPartialOrd, SimdValue};
 
@@ -44,6 +45,7 @@ impl WVelocityConstraint {
         }
 
         let inv_dt = SimdReal::splat(params.inv_dt());
+        let warmstart_correction_slope = SimdReal::splat(params.warmstart_correction_slope);
         let velocity_solve_fraction = SimdReal::splat(params.velocity_solve_fraction);
         let velocity_based_erp_inv_dt = SimdReal::splat(params.velocity_based_erp_inv_dt());
 
@@ -123,14 +125,19 @@ impl WVelocityConstraint {
                 let tangent_velocity =
                     Vector::from(array![|ii| manifold_points[ii][k].tangent_velocity; SIMD_WIDTH]);
 
-                let impulse =
-                    SimdReal::from(array![|ii| manifold_points[ii][k].data.impulse; SIMD_WIDTH]);
+                let impulse = SimdReal::from(
+                    array![|ii| manifold_points[ii][k].warmstart_impulse; SIMD_WIDTH],
+                );
+                let prev_rhs =
+                    SimdReal::from(array![|ii| manifold_points[ii][k].prev_rhs; SIMD_WIDTH]);
 
                 let dp1 = point - world_com1;
                 let dp2 = point - world_com2;
 
                 let vel1 = linvel1 + angvel1.gcross(dp1);
                 let vel2 = linvel2 + angvel2.gcross(dp2);
+
+                let warmstart_correction;
 
                 constraint.limit = friction;
                 constraint.manifold_contact_id[k] =
@@ -150,12 +157,15 @@ impl WVelocityConstraint {
                     rhs *= is_bouncy + is_resting * velocity_solve_fraction;
                     rhs +=
                         dist.simd_min(SimdReal::zero()) * (velocity_based_erp_inv_dt * is_resting);
+                    warmstart_correction = (warmstart_correction_slope
+                        / (rhs - prev_rhs).simd_abs())
+                    .simd_min(warmstart_coeff);
 
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
                         gcross1,
                         gcross2,
                         rhs,
-                        impulse: impulse * warmstart_coeff,
+                        impulse: impulse * warmstart_correction,
                         r,
                     };
                 }
@@ -163,14 +173,15 @@ impl WVelocityConstraint {
                 // tangent parts.
                 #[cfg(feature = "dim2")]
                 let impulse = [SimdReal::from(
-                    array![|ii| manifold_points[ii][k].data.tangent_impulse; SIMD_WIDTH],
-                )];
+                    array![|ii| manifold_points[ii][k].warmstart_tangent_impulse; SIMD_WIDTH],
+                ) * warmstart_correction];
 
                 #[cfg(feature = "dim3")]
                 let impulse = tangent_rot1
                     * na::Vector2::from(
-                        array![|ii| manifold_points[ii][k].data.tangent_impulse; SIMD_WIDTH],
-                    );
+                        array![|ii| manifold_points[ii][k].warmstart_tangent_impulse; SIMD_WIDTH],
+                    )
+                    * warmstart_correction;
 
                 constraint.elements[k].tangent_part.impulse = impulse;
 
@@ -281,6 +292,7 @@ impl WVelocityConstraint {
     pub fn writeback_impulses(&self, manifolds_all: &mut [&mut ContactManifold]) {
         for k in 0..self.num_contacts as usize {
             let impulses: [_; SIMD_WIDTH] = self.elements[k].normal_part.impulse.into();
+            let rhs: [_; SIMD_WIDTH] = self.elements[k].normal_part.rhs.into();
             #[cfg(feature = "dim2")]
             let tangent_impulses: [_; SIMD_WIDTH] = self.elements[k].tangent_part.impulse[0].into();
             #[cfg(feature = "dim3")]
@@ -292,6 +304,7 @@ impl WVelocityConstraint {
                 let manifold = &mut manifolds_all[self.manifold_id[ii]];
                 let contact_id = self.manifold_contact_id[k][ii];
                 let active_contact = &mut manifold.points[contact_id as usize];
+                active_contact.data.rhs = rhs[ii];
                 active_contact.data.impulse = impulses[ii];
 
                 #[cfg(feature = "dim2")]
