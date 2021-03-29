@@ -220,13 +220,17 @@ impl RigidBodySet {
     ///
     /// Using this is discouraged in favor of `self.get_mut(handle)` which does not
     /// suffer form the ABA problem.
+    #[cfg(not(feature = "dev-remove-slow-accessors"))]
     pub fn get_unknown_gen_mut(&mut self, i: usize) -> Option<(&mut RigidBody, RigidBodyHandle)> {
-        let result = self.bodies.get_unknown_gen_mut(i)?;
-        if !self.modified_all_bodies && !result.0.changes.contains(RigidBodyChanges::MODIFIED) {
-            result.0.changes = RigidBodyChanges::MODIFIED;
-            self.modified_bodies.push(RigidBodyHandle(result.1));
-        }
-        Some((result.0, RigidBodyHandle(result.1)))
+        let (rb, handle) = self.bodies.get_unknown_gen_mut(i)?;
+        let handle = RigidBodyHandle(handle);
+        Self::mark_as_modified(
+            handle,
+            rb,
+            &mut self.modified_bodies,
+            self.modified_all_bodies,
+        );
+        Some((rb, handle))
     }
 
     /// Gets the rigid-body with the given handle.
@@ -247,6 +251,7 @@ impl RigidBodySet {
     }
 
     /// Gets a mutable reference to the rigid-body with the given handle.
+    #[cfg(not(feature = "dev-remove-slow-accessors"))]
     pub fn get_mut(&mut self, handle: RigidBodyHandle) -> Option<&mut RigidBody> {
         let result = self.bodies.get_mut(handle.0)?;
         Self::mark_as_modified(
@@ -260,6 +265,22 @@ impl RigidBodySet {
 
     pub(crate) fn get_mut_internal(&mut self, handle: RigidBodyHandle) -> Option<&mut RigidBody> {
         self.bodies.get_mut(handle.0)
+    }
+
+    // Just a very long name instead of `.get_mut` to make sure
+    // this is really the method we wanted to use instead of `get_mut_internal`.
+    pub(crate) fn get_mut_internal_with_modification_tracking(
+        &mut self,
+        handle: RigidBodyHandle,
+    ) -> Option<&mut RigidBody> {
+        let result = self.bodies.get_mut(handle.0)?;
+        Self::mark_as_modified(
+            handle,
+            result,
+            &mut self.modified_bodies,
+            self.modified_all_bodies,
+        );
+        Some(result)
     }
 
     pub(crate) fn get2_mut_internal(
@@ -276,6 +297,7 @@ impl RigidBodySet {
     }
 
     /// Iterates mutably through all the rigid-bodies on this set.
+    #[cfg(not(feature = "dev-remove-slow-accessors"))]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (RigidBodyHandle, &mut RigidBody)> {
         self.modified_bodies.clear();
         self.modified_all_bodies = true;
@@ -317,6 +339,7 @@ impl RigidBodySet {
     /// Applies the given function on all the active dynamic rigid-bodies
     /// contained by this set.
     #[inline(always)]
+    #[cfg(not(feature = "dev-remove-slow-accessors"))]
     pub fn foreach_active_dynamic_body_mut(
         &mut self,
         mut f: impl FnMut(RigidBodyHandle, &mut RigidBody),
@@ -467,7 +490,7 @@ impl RigidBodySet {
         rb.changes = RigidBodyChanges::empty();
     }
 
-    pub(crate) fn maintain(&mut self, colliders: &mut ColliderSet) {
+    pub(crate) fn handle_user_changes(&mut self, colliders: &mut ColliderSet) {
         if self.modified_all_bodies {
             for (handle, rb) in self.bodies.iter_mut() {
                 Self::maintain_one(
@@ -651,8 +674,16 @@ impl Index<RigidBodyHandle> for RigidBodySet {
     }
 }
 
+#[cfg(not(feature = "dev-remove-slow-accessors"))]
 impl IndexMut<RigidBodyHandle> for RigidBodySet {
-    fn index_mut(&mut self, index: RigidBodyHandle) -> &mut RigidBody {
-        &mut self.bodies[index.0]
+    fn index_mut(&mut self, handle: RigidBodyHandle) -> &mut RigidBody {
+        let rb = &mut self.bodies[handle.0];
+        Self::mark_as_modified(
+            handle,
+            rb,
+            &mut self.modified_bodies,
+            self.modified_all_bodies,
+        );
+        rb
     }
 }

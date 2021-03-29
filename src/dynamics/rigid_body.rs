@@ -42,7 +42,7 @@ bitflags::bitflags! {
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-    /// Flags affecting the behavior of the constraints solver for a given contact manifold.
+    /// Flags describing how the rigid-body has been modified by the user.
     pub(crate) struct RigidBodyChanges: u32 {
         const MODIFIED  = 1 << 0;
         const POSITION  = 1 << 1;
@@ -204,7 +204,7 @@ impl RigidBody {
         self.flags.contains(RigidBodyFlags::CCD_ENABLED)
     }
 
-    pub fn is_moving_fast(&self, dt: Real) -> bool {
+    pub(crate) fn is_moving_fast(&self, dt: Real) -> bool {
         self.is_dynamic() && self.linvel.norm() * dt > self.ccd_thickness
     }
 
@@ -302,9 +302,13 @@ impl RigidBody {
 
     pub(crate) fn update_colliders_positions(&mut self, colliders: &mut ColliderSet) {
         for handle in &self.colliders {
-            let collider = &mut colliders[*handle];
-            collider.prev_position = self.position;
-            collider.position = self.position * collider.delta;
+            // NOTE: we don't use `get_mut_internal` here because we want to
+            //       benefit from the modification tracking to know the colliders
+            //       we need to update the broad-phase and narrow-phase for.
+            let collider = colliders
+                .get_mut_internal_with_modification_tracking(*handle)
+                .unwrap();
+            collider.set_position(self.position * collider.delta);
         }
     }
 

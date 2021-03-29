@@ -2,8 +2,8 @@ use super::{
     BroadPhasePairEvent, ColliderPair, SAPLayer, SAPProxies, SAPProxy, SAPProxyData, SAPRegionPool,
 };
 use crate::data::pubsub::Subscription;
-use crate::dynamics::RigidBodySet;
 use crate::geometry::broad_phase_multi_sap::SAPProxyIndex;
+use crate::geometry::collider::ColliderChanges;
 use crate::geometry::{ColliderSet, RemovedCollider};
 use crate::math::Real;
 use crate::utils::IndexMut2;
@@ -340,7 +340,6 @@ impl BroadPhase {
     pub fn update(
         &mut self,
         prediction_distance: Real,
-        bodies: &RigidBodySet,
         colliders: &mut ColliderSet,
         events: &mut Vec<BroadPhasePairEvent>,
     ) {
@@ -350,39 +349,54 @@ impl BroadPhase {
         let mut need_region_propagation = false;
 
         // Phase 2: pre-delete the collisions that have been deleted.
-        for body_handle in bodies
-            .modified_inactive_set
-            .iter()
-            .chain(bodies.active_dynamic_set.iter())
-            .chain(bodies.active_kinematic_set.iter())
-        {
-            for handle in &bodies[*body_handle].colliders {
-                let collider = &mut colliders[*handle];
-                let mut aabb = collider.compute_aabb().loosened(prediction_distance / 2.0);
-                aabb.mins = super::clamp_point(aabb.mins);
-                aabb.maxs = super::clamp_point(aabb.maxs);
-
-                let layer_id = if let Some(proxy) = self.proxies.get_mut(collider.proxy_index) {
-                    proxy.aabb = aabb;
-                    proxy.layer_id
-                } else {
-                    let layer_depth = super::layer_containing_aabb(&aabb);
-                    let layer_id = self.ensure_layer_exists(layer_depth);
-
-                    // Create the proxy.
-                    let proxy = SAPProxy::collider(*handle, aabb, layer_id, layer_depth);
-                    collider.proxy_index = self.proxies.insert(proxy);
-                    layer_id
-                };
-
-                let layer = &mut self.layers[layer_id as usize];
-
-                // Preupdate the collider in the layer.
-                layer.preupdate_collider(collider, &aabb, &mut self.proxies, &mut self.region_pool);
-                need_region_propagation =
-                    need_region_propagation || !layer.created_regions.is_empty();
+        colliders.foreach_modified_colliders_mut_internal(|handle, collider| {
+            if !collider.changes.needs_broad_phase_update() {
+                return;
             }
-        }
+
+            let mut aabb = collider.compute_aabb().loosened(prediction_distance / 2.0);
+            aabb.mins = super::clamp_point(aabb.mins);
+            aabb.maxs = super::clamp_point(aabb.maxs);
+
+            let layer_id = if let Some(proxy) = self.proxies.get_mut(collider.proxy_index) {
+                let mut layer_id = proxy.layer_id;
+                proxy.aabb = aabb;
+
+                if collider.changes.contains(ColliderChanges::SHAPE) {
+                    // If the shape was changed, then we need to see if this proxy should be
+                    // migrated to a larger layer. Indeed, if the shape was replaced by
+                    // a much larger shape, we need to promote the proxy to a bigger layer
+                    // to avoid the O(n²) discretization problem.
+                    let new_layer_depth = super::layer_containing_aabb(&aabb);
+                    if new_layer_depth > proxy.layer_depth {
+                        self.layers[proxy.layer_id as usize].proper_proxy_moved_to_bigger_layer(
+                            &mut self.proxies,
+                            collider.proxy_index,
+                        );
+
+                        // We need to promote the proxy to the bigger layer.
+                        layer_id = self.ensure_layer_exists(new_layer_depth);
+                        self.proxies[collider.proxy_index].layer_id = layer_id;
+                    }
+                }
+
+                layer_id
+            } else {
+                let layer_depth = super::layer_containing_aabb(&aabb);
+                let layer_id = self.ensure_layer_exists(layer_depth);
+
+                // Create the proxy.
+                let proxy = SAPProxy::collider(handle, aabb, layer_id, layer_depth);
+                collider.proxy_index = self.proxies.insert(proxy);
+                layer_id
+            };
+
+            let layer = &mut self.layers[layer_id as usize];
+
+            // Preupdate the collider in the layer.
+            layer.preupdate_collider(collider, &aabb, &mut self.proxies, &mut self.region_pool);
+            need_region_propagation = need_region_propagation || !layer.created_regions.is_empty();
+        });
 
         // Phase 3: bottom-up pass to propagate new regions from smaller layers to larger layers.
         if need_region_propagation {
@@ -527,7 +541,7 @@ mod test {
         broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
 
         bodies.remove(hrb, &mut colliders, &mut joints);
-        broad_phase.maintain(&mut colliders);
+        broad_phase.handle_user_changes(&mut colliders);
         broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
 
         // Create another body.

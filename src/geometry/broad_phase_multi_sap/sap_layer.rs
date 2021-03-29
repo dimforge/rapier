@@ -294,7 +294,7 @@ impl SAPLayer {
                     proxies[*subregion_id].data.as_region_mut().mark_as_dirty();
                 }
 
-                if region.subproper_proxy_count == 0 {
+                if !region.contains_subproper_proxies() {
                     self.regions_to_potentially_remove.push(*point);
                 }
 
@@ -325,7 +325,7 @@ impl SAPLayer {
                     region.update_after_subregion_removal(proxies, self.depth);
 
                     // Check if we can actually delete this region.
-                    if region.subproper_proxy_count == 0 {
+                    if !region.contains_subproper_proxies() {
                         let region_id = region_id.remove();
 
                         // We can delete this region. So we need to tell the larger
@@ -349,6 +349,23 @@ impl SAPLayer {
                         proxies[*region_id.get()].data.set_region(region);
                     }
                 }
+            }
+        }
+    }
+
+    pub fn proper_proxy_moved_to_bigger_layer(
+        &mut self,
+        proxies: &mut SAPProxies,
+        proxy_id: SAPProxyIndex,
+    ) {
+        for (point, region_id) in &self.regions {
+            let region = &mut proxies[*region_id].data.as_region_mut();
+            let region_contains_proxy = region.proper_proxy_moved_to_a_bigger_layer(proxy_id);
+
+            // If that proper proxy was the last one keeping that region
+            // alive, mark the region as potentially removable.
+            if region_contains_proxy && !region.contains_subproper_proxies() {
+                self.regions_to_potentially_remove.push(*point);
             }
         }
     }

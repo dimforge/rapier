@@ -15,14 +15,6 @@ impl ColliderPair {
         }
     }
 
-    pub fn new_sorted(collider1: ColliderHandle, collider2: ColliderHandle) -> Self {
-        if collider1.into_raw_parts().0 <= collider2.into_raw_parts().0 {
-            Self::new(collider1, collider2)
-        } else {
-            Self::new(collider2, collider1)
-        }
-    }
-
     pub fn swap(self) -> Self {
         Self::new(self.collider2, self.collider1)
     }

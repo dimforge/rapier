@@ -29,6 +29,10 @@ wasm-bindgen = [ "instant/wasm-bindgen" ]
 serde-serialize = [ "nalgebra/serde-serialize", "parry3d/serde-serialize", "serde", "bit-vec/serde" ]
 enhanced-determinism = [ "simba/libm_force", "parry3d/enhanced-determinism" ]
 
+# Feature used for development and debugging only.
+# Do not enable this unless you are working on the engine internals.
+dev-remove-slow-accessors = []
+
 [lib]
 name = "rapier3d"
 path = "../../src/lib.rs"

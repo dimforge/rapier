@@ -58,7 +58,7 @@ impl PhysicsPipeline {
         }
     }
 
-    fn detect_collisions(
+    fn detect_collisions_after_user_modifications(
         &mut self,
         integration_parameters: &IntegrationParameters,
         broad_phase: &mut BroadPhase,
@@ -70,23 +70,22 @@ impl PhysicsPipeline {
     ) {
         self.counters.stages.collision_detection_time.start();
         self.counters.cd.broad_phase_time.start();
+
+        // Update broad-phase.
         self.broad_phase_events.clear();
         self.broadphase_collider_pairs.clear();
-
         broad_phase.update(
             integration_parameters.prediction_distance,
-            bodies,
             colliders,
             &mut self.broad_phase_events,
         );
+
         self.counters.cd.broad_phase_time.pause();
-
-        //        println!("Num contact pairs: {}", pairs.len());
-
         self.counters.cd.narrow_phase_time.start();
-        narrow_phase.maintain(colliders, bodies);
-        narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
 
+        // Update narrow-phase.
+        narrow_phase.handle_user_changes(colliders, bodies, events);
+        narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
         narrow_phase.compute_contacts(
             integration_parameters.prediction_distance,
             bodies,
@@ -95,6 +94,54 @@ impl PhysicsPipeline {
             events,
         );
         narrow_phase.compute_intersections(bodies, colliders, hooks, events);
+
+        // Clear colliders modification flags.
+        colliders.clear_modified_colliders();
+
+        self.counters.cd.narrow_phase_time.pause();
+        self.counters.stages.collision_detection_time.pause();
+    }
+
+    fn detect_collisions_after_integration(
+        &mut self,
+        integration_parameters: &IntegrationParameters,
+        broad_phase: &mut BroadPhase,
+        narrow_phase: &mut NarrowPhase,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+        hooks: &dyn PhysicsHooks,
+        events: &dyn EventHandler,
+    ) {
+        self.counters.stages.collision_detection_time.resume();
+        self.counters.cd.broad_phase_time.resume();
+
+        // Update broad-phase.
+        self.broad_phase_events.clear();
+        self.broadphase_collider_pairs.clear();
+        broad_phase.update(
+            integration_parameters.prediction_distance,
+            colliders,
+            &mut self.broad_phase_events,
+        );
+
+        self.counters.cd.broad_phase_time.pause();
+        self.counters.cd.narrow_phase_time.resume();
+
+        // Update narrow-phase.
+        // NOTE: we don't need to call `narrow_phase.handle_user_changes` because this
+        //       has already been done at the beginning of the timestep.
+        narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
+        narrow_phase.compute_contacts(
+            integration_parameters.prediction_distance,
+            bodies,
+            colliders,
+            hooks,
+            events,
+        );
+        narrow_phase.compute_intersections(bodies, colliders, hooks, events);
+        // Clear colliders modification flags.
+        colliders.clear_modified_colliders();
+
         self.counters.cd.narrow_phase_time.pause();
         self.counters.stages.collision_detection_time.pause();
     }
@@ -275,10 +322,11 @@ impl PhysicsPipeline {
         events: &dyn EventHandler,
     ) {
         self.counters.step_started();
-        bodies.maintain(colliders);
+        colliders.handle_user_changes(bodies);
+        bodies.handle_user_changes(colliders);
 
         self.interpolate_kinematic_velocities(integration_parameters, bodies);
-        self.detect_collisions(
+        self.detect_collisions_after_user_modifications(
             integration_parameters,
             broad_phase,
             narrow_phase,
@@ -303,6 +351,15 @@ impl PhysicsPipeline {
             events,
         );
         self.advance_to_final_positions(bodies, colliders);
+        self.detect_collisions_after_integration(
+            integration_parameters,
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            hooks,
+            events,
+        );
 
         bodies.modified_inactive_set.clear();
         self.counters.step_completed();

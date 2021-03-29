@@ -21,7 +21,7 @@ pub struct SAPRegion {
     // Number of proxies (added to this region) that originates
     // from the layer at depth <= the depth of the layer containing
     // this region.
-    pub subproper_proxy_count: usize,
+    subproper_proxy_count: usize,
 }
 
 impl SAPRegion {
@@ -70,6 +70,23 @@ impl SAPRegion {
             Self::recycle(bounds, old)
         } else {
             Box::new(Self::new(bounds))
+        }
+    }
+
+    /// Does this region still contain endpoints of subproper proxies?
+    pub fn contains_subproper_proxies(&self) -> bool {
+        self.subproper_proxy_count > 0
+    }
+
+    /// If this region contains the given proxy, this will decrement this region's proxy count.
+    ///
+    /// Returns `true` if this region contained the proxy. Returns `false` otherwise.
+    pub fn proper_proxy_moved_to_a_bigger_layer(&mut self, proxy_id: SAPProxyIndex) -> bool {
+        if self.existing_proxies[proxy_id as usize] {
+            self.subproper_proxy_count -= 1;
+            true
+        } else {
+            false
         }
     }
 
