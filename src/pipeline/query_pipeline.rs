@@ -38,6 +38,12 @@ struct QueryPipelineAsCompositeShape<'a> {
     groups: InteractionGroups,
 }
 
+pub enum QueryPipelineMode {
+    CurrentPosition,
+    SweepTestWithNextPosition,
+    SweepTestWithPredictedPosition { dt: Real },
+}
+
 impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
     type PartShape = dyn Shape;
     type PartId = ColliderHandle;
@@ -113,18 +119,40 @@ impl QueryPipeline {
     }
 
     /// Update the acceleration structure on the query pipeline.
-    pub fn update(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet, use_swept_aabb: bool) {
+    pub fn update(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet) {
+        self.update_with_mode(bodies, colliders, QueryPipelineMode::CurrentPosition)
+    }
+
+    /// Update the acceleration structure on the query pipeline.
+    pub fn update_with_mode(
+        &mut self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        mode: QueryPipelineMode,
+    ) {
         if !self.tree_built {
-            if !use_swept_aabb {
-                let data = colliders.iter().map(|(h, c)| (h, c.compute_aabb()));
-                self.quadtree.clear_and_rebuild(data, self.dilation_factor);
-            } else {
-                let data = colliders.iter().map(|(h, co)| {
-                    let next_position =
-                        bodies[co.parent()].next_position * co.position_wrt_parent();
-                    (h, co.compute_swept_aabb(&next_position))
-                });
-                self.quadtree.clear_and_rebuild(data, self.dilation_factor);
+            match mode {
+                QueryPipelineMode::CurrentPosition => {
+                    let data = colliders.iter().map(|(h, c)| (h, c.compute_aabb()));
+                    self.quadtree.clear_and_rebuild(data, self.dilation_factor);
+                }
+                QueryPipelineMode::SweepTestWithNextPosition => {
+                    let data = colliders.iter().map(|(h, co)| {
+                        let next_position =
+                            bodies[co.parent()].next_position * co.position_wrt_parent();
+                        (h, co.compute_swept_aabb(&next_position))
+                    });
+                    self.quadtree.clear_and_rebuild(data, self.dilation_factor);
+                }
+                QueryPipelineMode::SweepTestWithPredictedPosition { dt } => {
+                    let data = colliders.iter().map(|(h, co)| {
+                        let next_position = bodies[co.parent()]
+                            .predict_position_using_velocity_and_forces(dt)
+                            * co.position_wrt_parent();
+                        (h, co.compute_swept_aabb(&next_position))
+                    });
+                    self.quadtree.clear_and_rebuild(data, self.dilation_factor);
+                }
             }
 
             // FIXME: uncomment this once we handle insertion/removals properly.
@@ -141,21 +169,36 @@ impl QueryPipeline {
             }
         }
 
-        if !use_swept_aabb {
-            self.quadtree.update(
-                |handle| colliders[*handle].compute_aabb(),
-                self.dilation_factor,
-            );
-        } else {
-            self.quadtree.update(
-                |handle| {
-                    let co = &colliders[*handle];
-                    let next_position =
-                        bodies[co.parent()].next_position * co.position_wrt_parent();
-                    co.compute_swept_aabb(&next_position)
-                },
-                self.dilation_factor,
-            );
+        match mode {
+            QueryPipelineMode::CurrentPosition => {
+                self.quadtree.update(
+                    |handle| colliders[*handle].compute_aabb(),
+                    self.dilation_factor,
+                );
+            }
+            QueryPipelineMode::SweepTestWithNextPosition => {
+                self.quadtree.update(
+                    |handle| {
+                        let co = &colliders[*handle];
+                        let next_position =
+                            bodies[co.parent()].next_position * co.position_wrt_parent();
+                        co.compute_swept_aabb(&next_position)
+                    },
+                    self.dilation_factor,
+                );
+            }
+            QueryPipelineMode::SweepTestWithPredictedPosition { dt } => {
+                self.quadtree.update(
+                    |handle| {
+                        let co = &colliders[*handle];
+                        let next_position = bodies[co.parent()]
+                            .predict_position_using_velocity_and_forces(dt)
+                            * co.position_wrt_parent();
+                        co.compute_swept_aabb(&next_position)
+                    },
+                    self.dilation_factor,
+                );
+            }
         }
     }
 

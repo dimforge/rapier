@@ -68,8 +68,8 @@ impl PhysicsPipeline {
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
-        self.counters.stages.collision_detection_time.start();
-        self.counters.cd.broad_phase_time.start();
+        self.counters.stages.collision_detection_time.resume();
+        self.counters.cd.broad_phase_time.resume();
 
         // Update broad-phase.
         self.broad_phase_events.clear();
@@ -81,7 +81,7 @@ impl PhysicsPipeline {
         );
 
         self.counters.cd.broad_phase_time.pause();
-        self.counters.cd.narrow_phase_time.start();
+        self.counters.cd.narrow_phase_time.resume();
 
         // Update narrow-phase.
         narrow_phase.handle_user_changes(colliders, bodies, events);
@@ -155,7 +155,7 @@ impl PhysicsPipeline {
         colliders: &mut ColliderSet,
         joints: &mut JointSet,
     ) {
-        self.counters.stages.island_construction_time.start();
+        self.counters.stages.island_construction_time.resume();
         bodies.update_active_set_with_contacts(
             colliders,
             narrow_phase,
@@ -178,15 +178,14 @@ impl PhysicsPipeline {
         narrow_phase.select_active_contacts(bodies, &mut manifolds, &mut self.manifold_indices);
         joints.select_active_interactions(bodies, &mut self.joint_constraint_indices);
 
-        self.counters.stages.update_time.start();
+        self.counters.stages.update_time.resume();
         bodies.foreach_active_dynamic_body_mut_internal(|_, b| {
             b.update_world_mass_properties();
             b.add_gravity(*gravity)
         });
         self.counters.stages.update_time.pause();
 
-        self.counters.solver.reset();
-        self.counters.stages.solver_time.start();
+        self.counters.stages.solver_time.resume();
         if self.solvers.len() < bodies.num_islands() {
             self.solvers
                 .resize_with(bodies.num_islands(), IslandSolver::new);
@@ -259,20 +258,17 @@ impl PhysicsPipeline {
         integration_parameters: &IntegrationParameters,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
-        ccd_solver: Option<&mut CCDSolver>,
+        ccd_solver: &mut CCDSolver,
         events: &dyn EventHandler,
     ) {
         // Handle CCD
-        if let Some(ccd_solver) = ccd_solver {
-            let impacts = ccd_solver.predict_next_impacts(
-                integration_parameters,
-                bodies,
-                colliders,
-                integration_parameters.dt,
-                events,
-            );
-            ccd_solver.clamp_motions(integration_parameters.dt, bodies, &impacts);
-        }
+        let impacts = ccd_solver.predict_impacts_at_next_positions(
+            integration_parameters.dt,
+            bodies,
+            colliders,
+            events,
+        );
+        ccd_solver.clamp_motions(integration_parameters.dt, bodies, &impacts);
     }
 
     fn advance_to_final_positions(
@@ -317,15 +313,15 @@ impl PhysicsPipeline {
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
         joints: &mut JointSet,
-        ccd_solver: Option<&mut CCDSolver>,
+        ccd_solver: &mut CCDSolver,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
+        self.counters.reset();
         self.counters.step_started();
         colliders.handle_user_changes(bodies);
         bodies.handle_user_changes(colliders);
 
-        self.interpolate_kinematic_velocities(integration_parameters, bodies);
         self.detect_collisions_after_user_modifications(
             integration_parameters,
             broad_phase,
@@ -335,33 +331,90 @@ impl PhysicsPipeline {
             hooks,
             events,
         );
-        self.build_islands_and_solve_constraints(
-            gravity,
-            integration_parameters,
-            narrow_phase,
-            bodies,
-            colliders,
-            joints,
-        );
-        self.run_ccd_motion_clamping(
-            integration_parameters,
-            bodies,
-            colliders,
-            ccd_solver,
-            events,
-        );
-        self.advance_to_final_positions(bodies, colliders);
-        self.detect_collisions_after_integration(
-            integration_parameters,
-            broad_phase,
-            narrow_phase,
-            bodies,
-            colliders,
-            hooks,
-            events,
-        );
 
-        bodies.modified_inactive_set.clear();
+        let mut remaining_time = integration_parameters.dt;
+        let mut remaining_substeps = integration_parameters.max_ccd_substeps;
+        let mut integration_parameters = *integration_parameters;
+
+        let ccd_active = ccd_solver.update_ccd_active_flags(bodies, integration_parameters.dt);
+
+        loop {
+            if ccd_active && remaining_substeps > 1 {
+                // If there are more than one CCD substep, we need to split
+                // the timestep into multiple intervals. First, estimate the
+                // size of the time slice we will integrate for this substep.
+                //
+                // If there is only one or zero CCD substep, there is no need
+                // to split the timetsep interval. So we can just skip this part.
+                if let Some(toi) = ccd_solver.find_first_impact(remaining_time, bodies, colliders) {
+                    let original_interval = remaining_time / (remaining_substeps as Real);
+
+                    if toi < original_interval {
+                        integration_parameters.dt = original_interval;
+                    } else {
+                        integration_parameters.dt =
+                            toi + (remaining_time - toi) / (remaining_substeps as Real);
+                    }
+
+                    remaining_substeps -= 1;
+                } else {
+                    // No impact, don't do any other substep after this one.
+                    integration_parameters.dt = remaining_time;
+                    remaining_substeps = 1;
+                }
+
+                remaining_time -= integration_parameters.dt;
+
+                // Avoid substep length that are too small.
+                if remaining_time <= integration_parameters.min_ccd_dt {
+                    integration_parameters.dt += remaining_time;
+                    remaining_substeps = 1;
+                }
+            } else {
+                integration_parameters.dt = remaining_time;
+                remaining_time = 0.0;
+                remaining_substeps = 1;
+            }
+
+            self.interpolate_kinematic_velocities(&integration_parameters, bodies);
+            self.build_islands_and_solve_constraints(
+                gravity,
+                &integration_parameters,
+                narrow_phase,
+                bodies,
+                colliders,
+                joints,
+            );
+
+            // If CCD is enabled, execute the CCD motion clamping.
+            if ccd_active && remaining_substeps > 0 {
+                self.run_ccd_motion_clamping(
+                    &integration_parameters,
+                    bodies,
+                    colliders,
+                    ccd_solver,
+                    events,
+                );
+            }
+
+            self.advance_to_final_positions(bodies, colliders);
+            self.detect_collisions_after_integration(
+                &integration_parameters,
+                broad_phase,
+                narrow_phase,
+                bodies,
+                colliders,
+                hooks,
+                events,
+            );
+
+            bodies.modified_inactive_set.clear();
+
+            if !ccd_active || remaining_substeps <= 1 {
+                // We executed all the substeps.
+                break;
+            }
+        }
         self.counters.step_completed();
     }
 }

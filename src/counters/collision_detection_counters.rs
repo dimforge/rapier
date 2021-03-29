@@ -21,6 +21,13 @@ impl CollisionDetectionCounters {
             narrow_phase_time: Timer::new(),
         }
     }
+
+    /// Resets all the coounters and timers.
+    pub fn reset(&mut self) {
+        self.ncontact_pairs = 0;
+        self.broad_phase_time.reset();
+        self.narrow_phase_time.reset();
+    }
 }
 
 impl Display for CollisionDetectionCounters {

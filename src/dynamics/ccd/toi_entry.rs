@@ -1,4 +1,4 @@
-use crate::dynamics::{IntegrationParameters, RigidBody, RigidBodyHandle};
+use crate::dynamics::{RigidBody, RigidBodyHandle};
 use crate::geometry::{Collider, ColliderHandle};
 use crate::math::Real;
 use parry::query::{NonlinearRigidMotion, QueryDispatcher};
@@ -36,7 +36,6 @@ impl TOIEntry {
     }
 
     pub fn try_from_colliders<QD: ?Sized + QueryDispatcher>(
-        params: &IntegrationParameters,
         query_dispatcher: &QD,
         ch1: ColliderHandle,
         ch2: ColliderHandle,
@@ -56,16 +55,11 @@ impl TOIEntry {
 
         let vel12 = linvel2 - linvel1;
         let thickness = c1.shape().ccd_thickness() + c2.shape().ccd_thickness();
-
-        if params.dt * vel12.norm() < thickness {
-            return None;
-        }
-
         let is_intersection_test = c1.is_sensor() || c2.is_sensor();
 
         // Compute the TOI.
-        let mut motion1 = Self::body_motion(params.dt, b1);
-        let mut motion2 = Self::body_motion(params.dt, b2);
+        let mut motion1 = Self::body_motion(b1);
+        let mut motion2 = Self::body_motion(b2);
 
         if let Some(t) = frozen1 {
             motion1.freeze(t);
@@ -114,8 +108,8 @@ impl TOIEntry {
         ))
     }
 
-    fn body_motion(dt: Real, body: &RigidBody) -> NonlinearRigidMotion {
-        if body.should_resolve_ccd(dt) {
+    fn body_motion(body: &RigidBody) -> NonlinearRigidMotion {
+        if body.is_ccd_active() {
             NonlinearRigidMotion::new(
                 0.0,
                 body.position,

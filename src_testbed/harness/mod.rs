@@ -195,14 +195,14 @@ impl Harness {
             &mut self.physics.bodies,
             &mut self.physics.colliders,
             &mut self.physics.joints,
-            Some(&mut self.physics.ccd_solver),
+            &mut self.physics.ccd_solver,
             &*self.physics.hooks,
             &self.event_handler,
         );
 
         self.physics
             .query_pipeline
-            .update(&self.physics.bodies, &self.physics.colliders, false);
+            .update(&self.physics.bodies, &self.physics.colliders);
 
         for plugin in &mut self.plugins {
             plugin.step(&mut self.physics, &self.state)

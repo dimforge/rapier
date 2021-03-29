@@ -6,6 +6,17 @@ use crate::math::Real;
 pub struct IntegrationParameters {
     /// The timestep length (default: `1.0 / 60.0`)
     pub dt: Real,
+    /// Minimum timestep size when using CCD with multiple substeps (default `1.0 / 60.0 / 100.0`)
+    ///
+    /// When CCD with multiple substeps is enabled, the timestep is subdivided
+    /// into smaller pieces. This timestep subdivision won't generate timestep
+    /// lengths smaller than `min_dt`.
+    ///
+    /// Setting this to a large value will reduce the opportunity to performing
+    /// CCD substepping, resulting in potentially more time dropped by the
+    /// motion-clamping mechanism. Setting this to an very small value may lead
+    /// to numerical instabilities.
+    pub min_ccd_dt: Real,
 
     //    /// If `true` and if rapier is compiled with the `parallel` feature, this will enable rayon-based multithreading (default: `true`).
     //    ///
@@ -195,6 +206,7 @@ impl Default for IntegrationParameters {
     fn default() -> Self {
         Self {
             dt: 1.0 / 60.0,
+            min_ccd_dt: 1.0 / 60.0 / 100.0,
             //        multithreading_enabled:             true,
             return_after_ccd_substep: false,
             erp: 0.2,

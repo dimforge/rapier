@@ -6,7 +6,7 @@ pub use physics_hooks::{
     ContactModificationContext, PairFilterContext, PhysicsHooks, PhysicsHooksFlags,
 };
 pub use physics_pipeline::PhysicsPipeline;
-pub use query_pipeline::QueryPipeline;
+pub use query_pipeline::{QueryPipeline, QueryPipelineMode};
 
 mod collision_pipeline;
 mod event_handler;

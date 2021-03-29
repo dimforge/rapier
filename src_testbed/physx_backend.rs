@@ -166,6 +166,7 @@ impl PhysxWorld {
                 broad_phase_type: BroadPhaseType::AutomaticBoxPruning,
                 solver_type: SolverType::PGS,
                 friction_type,
+                ccd_max_passes: integration_parameters.max_ccd_substeps as u32,
                 ..SceneDescriptor::new(())
             };
 

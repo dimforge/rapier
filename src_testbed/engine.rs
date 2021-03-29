@@ -60,7 +60,6 @@ pub struct GraphicsManager {
     b2wireframe: HashMap<RigidBodyHandle, bool>,
     ground_color: Point3<f32>,
     camera: Camera,
-    ground_handle: Option<RigidBodyHandle>,
 }
 
 impl GraphicsManager {
@@ -87,12 +86,7 @@ impl GraphicsManager {
             c2color: HashMap::new(),
             ground_color: Point3::new(0.5, 0.5, 0.5),
             b2wireframe: HashMap::new(),
-            ground_handle: None,
         }
-    }
-
-    pub fn set_ground_handle(&mut self, handle: Option<RigidBodyHandle>) {
-        self.ground_handle = handle
     }
 
     pub fn clear(&mut self, window: &mut Window) {

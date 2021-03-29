@@ -5,7 +5,7 @@ use crate::geometry::{
 use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector,
 };
-use crate::utils::{self, WCross, WDot};
+use crate::utils::{self, WAngularInertia, WCross, WDot};
 use na::ComplexField;
 use num::Zero;
 
@@ -37,6 +37,7 @@ bitflags::bitflags! {
         const ROTATION_LOCKED_Y = 1 << 2;
         const ROTATION_LOCKED_Z = 1 << 3;
         const CCD_ENABLED = 1 << 4;
+        const CCD_ACTIVE = 1 << 5;
     }
 }
 
@@ -204,12 +205,20 @@ impl RigidBody {
         self.flags.contains(RigidBodyFlags::CCD_ENABLED)
     }
 
-    pub(crate) fn is_moving_fast(&self, dt: Real) -> bool {
-        self.is_dynamic() && self.linvel.norm() * dt > self.ccd_thickness
+    // This is different from `is_ccd_enabled`. This checks that CCD
+    // is active for this rigid-body, i.e., if it was seen to move fast
+    // enough to justify a CCD run.
+    pub(crate) fn is_ccd_active(&self) -> bool {
+        self.flags.contains(RigidBodyFlags::CCD_ACTIVE)
     }
 
-    pub(crate) fn should_resolve_ccd(&self, dt: Real) -> bool {
-        self.is_ccd_enabled() && self.is_moving_fast(dt)
+    pub(crate) fn update_ccd_active_flag(&mut self, dt: Real) {
+        let ccd_active = self.is_ccd_enabled() && self.is_moving_fast(dt);
+        self.flags.set(RigidBodyFlags::CCD_ACTIVE, ccd_active);
+    }
+
+    pub(crate) fn is_moving_fast(&self, dt: Real) -> bool {
+        self.is_dynamic() && self.linvel.norm() * dt > self.ccd_thickness
     }
 
     /// Sets the rigid-body's mass properties.
@@ -371,6 +380,19 @@ impl RigidBody {
     /// Is the velocity of this body not zero?
     pub fn is_moving(&self) -> bool {
         !self.linvel.is_zero() || !self.angvel.is_zero()
+    }
+
+    pub(crate) fn predict_position_using_velocity_and_forces(&self, dt: Real) -> Isometry<Real> {
+        let dlinvel = self.force * (self.effective_inv_mass * dt);
+        let dangvel = self
+            .effective_world_inv_inertia_sqrt
+            .transform_vector(self.torque * dt);
+        let linvel = self.linvel + dlinvel;
+        let angvel = self.angvel + dangvel;
+
+        let com = self.position * self.mass_properties.local_com;
+        let shift = Translation::from(com.coords);
+        shift * Isometry::new(linvel * dt, angvel * dt) * shift.inverse() * self.position
     }
 
     pub(crate) fn integrate_velocity(&self, dt: Real) -> Isometry<Real> {

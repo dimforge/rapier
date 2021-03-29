@@ -27,6 +27,15 @@ impl StagesCounters {
             ccd_time: Timer::new(),
         }
     }
+
+    /// Resets all the counters and timers.
+    pub fn reset(&mut self) {
+        self.update_time.reset();
+        self.collision_detection_time.reset();
+        self.island_construction_time.reset();
+        self.solver_time.reset();
+        self.ccd_time.reset();
+    }
 }
 
 impl Display for StagesCounters {

@@ -114,6 +114,18 @@ impl Counters {
     pub fn set_ncontact_pairs(&mut self, n: usize) {
         self.cd.ncontact_pairs = n;
     }
+
+    /// Resets all the counters and timers.
+    pub fn reset(&mut self) {
+        if self.enabled {
+            self.step_time.reset();
+            self.custom.reset();
+            self.stages.reset();
+            self.cd.reset();
+            self.solver.reset();
+            self.ccd.reset();
+        }
+    }
 }
 
 macro_rules! measure_method {
