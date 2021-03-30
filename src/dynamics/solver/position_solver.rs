@@ -21,6 +21,11 @@ impl PositionSolver {
         contact_constraints: &[AnyPositionConstraint],
         joint_constraints: &[AnyJointPositionConstraint],
     ) {
+        if contact_constraints.is_empty() && joint_constraints.is_empty() {
+            // Nothing to do.
+            return;
+        }
+
         self.positions.clear();
         self.positions.extend(
             bodies

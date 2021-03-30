@@ -24,7 +24,25 @@ impl IslandSolver {
         }
     }
 
-    pub fn solve_island(
+    pub fn solve_position_constraints(
+        &mut self,
+        island_id: usize,
+        counters: &mut Counters,
+        params: &IntegrationParameters,
+        bodies: &mut RigidBodySet,
+    ) {
+        counters.solver.position_resolution_time.resume();
+        self.position_solver.solve(
+            island_id,
+            params,
+            bodies,
+            &self.contact_constraints.position_constraints,
+            &self.joint_constraints.position_constraints,
+        );
+        counters.solver.position_resolution_time.pause();
+    }
+
+    pub fn init_constraints_and_solve_velocity_constraints(
         &mut self,
         island_id: usize,
         counters: &mut Counters,
@@ -62,17 +80,9 @@ impl IslandSolver {
                 rb.integrate_next_position(params.dt, true)
             });
             counters.solver.velocity_update_time.pause();
-
-            counters.solver.position_resolution_time.resume();
-            self.position_solver.solve(
-                island_id,
-                params,
-                bodies,
-                &self.contact_constraints.position_constraints,
-                &self.joint_constraints.position_constraints,
-            );
-            counters.solver.position_resolution_time.pause();
         } else {
+            self.contact_constraints.clear();
+            self.joint_constraints.clear();
             counters.solver.velocity_update_time.resume();
             bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
                 // Since we didn't run the velocity solver we need to integrate the accelerations here

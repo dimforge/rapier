@@ -200,11 +200,9 @@ impl ParallelIslandSolver {
                     let dvel = &mut self.mj_lambdas[rb.active_set_offset];
 
                     dvel.linear += rb.force * (rb.effective_inv_mass * params.dt);
-                    rb.force = na::zero();
 
                     // dvel.angular is actually storing angular velocity delta multiplied by the square root of the inertia tensor:
                     dvel.angular += rb.effective_world_inv_inertia_sqrt * rb.torque * params.dt;
-                    rb.torque = na::zero();
                 }
             }
         }

@@ -624,19 +624,17 @@ impl GraphicsManager {
         // );
         for (_, ns) in self.b2sn.iter_mut() {
             for n in ns.iter_mut() {
-                /*
-                if let Some(co) = colliders.get(n.collider()) {
-                    let bo = &bodies[co.parent()];
-
-                    if bo.is_dynamic() {
-                        if bo.is_sleeping() {
-                            n.set_color(Point3::new(1.0, 0.0, 0.0));
-                        } else {
-                            n.set_color(Point3::new(0.0, 1.0, 0.0));
-                        }
-                    }
-                }
-                 */
+                // if let Some(co) = colliders.get(n.collider()) {
+                //     let bo = &_bodies[co.parent()];
+                //
+                //     if bo.is_dynamic() {
+                //         if bo.is_ccd_active() {
+                //             n.set_color(Point3::new(1.0, 0.0, 0.0));
+                //         } else {
+                //             n.set_color(Point3::new(0.0, 1.0, 0.0));
+                //         }
+                //     }
+                // }
 
                 n.update(colliders);
                 n.draw(window);

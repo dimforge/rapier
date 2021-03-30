@@ -38,6 +38,15 @@ impl<VelocityConstraint, PositionConstraint>
             position_constraints: Vec::new(),
         }
     }
+
+    pub fn clear(&mut self) {
+        self.not_ground_interactions.clear();
+        self.ground_interactions.clear();
+        self.interaction_groups.clear();
+        self.ground_interaction_groups.clear();
+        self.velocity_constraints.clear();
+        self.position_constraints.clear();
+    }
 }
 
 impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
