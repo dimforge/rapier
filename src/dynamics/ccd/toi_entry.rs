@@ -47,15 +47,34 @@ impl TOIEntry {
         frozen2: Option<Real>,
         start_time: Real,
         end_time: Real,
+        smallest_contact_dist: Real,
     ) -> Option<Self> {
         assert!(start_time <= end_time);
 
-        let linvel1 = frozen1.is_none() as u32 as Real * b1.linvel;
-        let linvel2 = frozen2.is_none() as u32 as Real * b2.linvel;
+        let linvel1 = frozen1.is_none() as u32 as Real * b1.linvel();
+        let linvel2 = frozen2.is_none() as u32 as Real * b2.linvel();
+        let angvel1 = frozen1.is_none() as u32 as Real * b1.angvel();
+        let angvel2 = frozen2.is_none() as u32 as Real * b2.angvel();
 
-        let vel12 = linvel2 - linvel1;
-        let thickness = c1.shape().ccd_thickness() + c2.shape().ccd_thickness();
+        #[cfg(feature = "dim2")]
+        let vel12 = (linvel2 - linvel1).norm()
+            + angvel1.abs() * b1.ccd_max_dist
+            + angvel2.abs() * b2.ccd_max_dist;
+        #[cfg(feature = "dim3")]
+        let vel12 = (linvel2 - linvel1).norm()
+            + angvel1.norm() * b1.ccd_max_dist
+            + angvel2.norm() * b2.ccd_max_dist;
+
+        // We may be slightly over-conservative by taking the `max(0.0)` here.
+        // But removing the `max` doesn't really affect performances so let's
+        // keep it since more conservatism is good at this stage.
+        let thickness = (c1.shape().ccd_thickness() + c2.shape().ccd_thickness())
+            + smallest_contact_dist.max(0.0);
         let is_intersection_test = c1.is_sensor() || c2.is_sensor();
+
+        if (end_time - start_time) * vel12 < thickness {
+            return None;
+        }
 
         // Compute the TOI.
         let mut motion1 = Self::body_motion(b1);

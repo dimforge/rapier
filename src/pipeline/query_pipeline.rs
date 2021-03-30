@@ -38,10 +38,20 @@ struct QueryPipelineAsCompositeShape<'a> {
     groups: InteractionGroups,
 }
 
+/// Indicates how the colliders position should be taken into account when
+/// updating the query pipeline.
 pub enum QueryPipelineMode {
+    /// The `Collider::position` is taken into account.
     CurrentPosition,
+    /// The `RigidBody::next_position * Collider::position_wrt_parent` is taken into account for
+    /// the colliders positions.
     SweepTestWithNextPosition,
-    SweepTestWithPredictedPosition { dt: Real },
+    /// The `RigidBody::predict_position_using_velocity_and_forces * Collider::position_wrt_parent`
+    /// is taken into account for the colliders position.
+    SweepTestWithPredictedPosition {
+        /// The time used to integrate the rigid-body's velocity and acceleration.
+        dt: Real,
+    },
 }
 
 impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
@@ -137,19 +147,19 @@ impl QueryPipeline {
                     self.quadtree.clear_and_rebuild(data, self.dilation_factor);
                 }
                 QueryPipelineMode::SweepTestWithNextPosition => {
-                    let data = colliders.iter().map(|(h, co)| {
+                    let data = colliders.iter().map(|(h, c)| {
                         let next_position =
-                            bodies[co.parent()].next_position * co.position_wrt_parent();
-                        (h, co.compute_swept_aabb(&next_position))
+                            bodies[c.parent()].next_position * c.position_wrt_parent();
+                        (h, c.compute_swept_aabb(&next_position))
                     });
                     self.quadtree.clear_and_rebuild(data, self.dilation_factor);
                 }
                 QueryPipelineMode::SweepTestWithPredictedPosition { dt } => {
-                    let data = colliders.iter().map(|(h, co)| {
-                        let next_position = bodies[co.parent()]
+                    let data = colliders.iter().map(|(h, c)| {
+                        let next_position = bodies[c.parent()]
                             .predict_position_using_velocity_and_forces(dt)
-                            * co.position_wrt_parent();
-                        (h, co.compute_swept_aabb(&next_position))
+                            * c.position_wrt_parent();
+                        (h, c.compute_swept_aabb(&next_position))
                     });
                     self.quadtree.clear_and_rebuild(data, self.dilation_factor);
                 }

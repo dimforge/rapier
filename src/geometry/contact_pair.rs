@@ -1,5 +1,5 @@
 use crate::dynamics::{BodyPair, RigidBodyHandle};
-use crate::geometry::{ColliderPair, ContactManifold};
+use crate::geometry::{ColliderPair, Contact, ContactManifold};
 use crate::math::{Point, Real, Vector};
 use parry::query::ContactManifoldsWorkspace;
 
@@ -75,6 +75,35 @@ impl ContactPair {
             manifolds: Vec::new(),
             workspace: None,
         }
+    }
+
+    /// Finds the contact with the smallest signed distance.
+    ///
+    /// If the colliders involved in this contact pair are penetrating, then
+    /// this returns the contact with the largest penetration depth.
+    ///
+    /// Returns a reference to the contact, as well as the contact manifold
+    /// it is part of.
+    pub fn find_deepest_contact(&self) -> Option<(&ContactManifold, &Contact)> {
+        let mut deepest = None;
+
+        for m2 in &self.manifolds {
+            let deepest_candidate = m2.find_deepest_contact();
+
+            deepest = match (deepest, deepest_candidate) {
+                (_, None) => deepest,
+                (None, Some(c2)) => Some((m2, c2)),
+                (Some((m1, c1)), Some(c2)) => {
+                    if c1.dist <= c2.dist {
+                        Some((m1, c1))
+                    } else {
+                        Some((m2, c2))
+                    }
+                }
+            }
+        }
+
+        deepest
     }
 }
 

@@ -125,7 +125,6 @@ pub struct Testbed {
     nsteps: usize,
     camera_locked: bool, // Used so that the camera can remain the same before and after we change backend or press the restart button.
     plugins: Vec<Box<dyn TestbedPlugin>>,
-    hide_counters: bool,
     //    persistant_contacts: HashMap<ContactId, bool>,
     font: Rc<Font>,
     cursor_pos: Point2<f32>,
@@ -185,7 +184,6 @@ impl Testbed {
             graphics,
             nsteps: 1,
             camera_locked: false,
-            hide_counters: true,
             //            persistant_contacts: HashMap::new(),
             font: Font::default(),
             cursor_pos: Point2::new(0.0f32, 0.0),
@@ -223,14 +221,6 @@ impl Testbed {
 
     pub fn allow_grabbing_behind_ground(&mut self, allow: bool) {
         self.state.can_grab_behind_ground = allow;
-    }
-
-    pub fn hide_performance_counters(&mut self) {
-        self.hide_counters = true;
-    }
-
-    pub fn show_performance_counters(&mut self) {
-        self.hide_counters = false;
     }
 
     pub fn integration_parameters_mut(&mut self) -> &mut IntegrationParameters {
@@ -1342,14 +1332,6 @@ impl State for Testbed {
                 for plugin in &mut self.plugins {
                     plugin.run_callbacks(window, &mut self.harness.physics, &self.harness.state);
                 }
-
-                //                if true {
-                //                    // !self.hide_counters {
-                //                    #[cfg(not(feature = "log"))]
-                //                    println!("{}", self.world.counters);
-                //                    #[cfg(feature = "log")]
-                //                    debug!("{}", self.world.counters);
-                //                }
             }
         }
 
@@ -1478,9 +1460,12 @@ Hashes at frame: {}
     }
 }
 
-fn draw_contacts(window: &mut Window, nf: &NarrowPhase, _colliders: &ColliderSet) {
+fn draw_contacts(window: &mut Window, nf: &NarrowPhase, colliders: &ColliderSet) {
+    use rapier::math::Isometry;
+
     for pair in nf.contact_pairs() {
         for manifold in &pair.manifolds {
+            /*
             for contact in &manifold.data.solver_contacts {
                 let p = contact.point;
                 let n = manifold.data.normal;
@@ -1488,7 +1473,7 @@ fn draw_contacts(window: &mut Window, nf: &NarrowPhase, _colliders: &ColliderSet
                 use crate::engine::GraphicsWindow;
                 window.draw_graphics_line(&p, &(p + n * 0.4), &Point3::new(0.5, 1.0, 0.5));
             }
-            /*
+            */
             for pt in manifold.contacts() {
                 let color = if pt.dist > 0.0 {
                     Point3::new(0.0, 0.0, 1.0)
@@ -1509,7 +1494,6 @@ fn draw_contacts(window: &mut Window, nf: &NarrowPhase, _colliders: &ColliderSet
                 window.draw_graphics_line(&start, &(start + n * 0.4), &Point3::new(0.5, 1.0, 0.5));
                 window.draw_graphics_line(&start, &end, &color);
             }
-             */
         }
     }
 }

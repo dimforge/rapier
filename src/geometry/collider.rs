@@ -660,6 +660,14 @@ impl ColliderBuilder {
 
     /// Sets the initial position (translation and orientation) of the collider to be created,
     /// relative to the rigid-body it is attached to.
+    pub fn position_wrt_parent(mut self, pos: Isometry<Real>) -> Self {
+        self.delta = pos;
+        self
+    }
+
+    /// Sets the initial position (translation and orientation) of the collider to be created,
+    /// relative to the rigid-body it is attached to.
+    #[deprecated(note = "Use `.position_wrt_parent` instead.")]
     pub fn position(mut self, pos: Isometry<Real>) -> Self {
         self.delta = pos;
         self

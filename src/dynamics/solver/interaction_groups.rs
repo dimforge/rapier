@@ -157,6 +157,13 @@ impl InteractionGroups {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.buckets.clear();
+        self.body_masks.clear();
+        self.grouped_interactions.clear();
+        self.nongrouped_interactions.clear();
+    }
+
     // FIXME: there is a lot of duplicated code with group_manifolds here.
     // But we don't refactor just now because we may end up with distinct
     // grouping strategies in the future.

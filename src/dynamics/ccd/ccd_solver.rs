@@ -1,6 +1,6 @@
 use super::TOIEntry;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
-use crate::geometry::{ColliderSet, IntersectionEvent};
+use crate::geometry::{ColliderSet, IntersectionEvent, NarrowPhase};
 use crate::math::Real;
 use crate::parry::utils::SortedPair;
 use crate::pipeline::{EventHandler, QueryPipeline, QueryPipelineMode};
@@ -44,11 +44,13 @@ impl CCDSolver {
     pub fn clamp_motions(&self, dt: Real, bodies: &mut RigidBodySet, impacts: &PredictedImpacts) {
         match impacts {
             PredictedImpacts::Impacts(tois) => {
+                // println!("Num to clamp: {}", tois.len());
                 for (handle, toi) in tois {
                     if let Some(body) = bodies.get_mut_internal(*handle) {
-                        let min_toi =
-                            (body.ccd_thickness * 0.15 * crate::utils::inv(body.linvel.norm()))
-                                .min(dt);
+                        let min_toi = (body.ccd_thickness
+                            * 0.15
+                            * crate::utils::inv(body.max_point_velocity()))
+                        .min(dt);
                         // println!("Min toi: {}, Toi: {}", min_toi, toi);
                         body.integrate_next_position(toi.max(min_toi), false);
                     }
@@ -61,11 +63,18 @@ impl CCDSolver {
     /// Updates the set of bodies that needs CCD to be resolved.
     ///
     /// Returns `true` if any rigid-body must have CCD resolved.
-    pub fn update_ccd_active_flags(&self, bodies: &mut RigidBodySet, dt: Real) -> bool {
+    pub fn update_ccd_active_flags(
+        &self,
+        bodies: &mut RigidBodySet,
+        dt: Real,
+        include_forces: bool,
+    ) -> bool {
         let mut ccd_active = false;
 
+        // println!("Checking CCD activation");
         bodies.foreach_active_dynamic_body_mut_internal(|_, body| {
-            body.update_ccd_active_flag(dt);
+            body.update_ccd_active_flag(dt, include_forces);
+            // println!("CCD is active: {}, for {:?}", ccd_active, handle);
             ccd_active = ccd_active || body.is_ccd_active();
         });
 
@@ -78,6 +87,7 @@ impl CCDSolver {
         dt: Real,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
+        narrow_phase: &NarrowPhase,
     ) -> Option<Real> {
         // Update the query pipeline.
         self.query_pipeline.update_with_mode(
@@ -127,6 +137,12 @@ impl CCDSolver {
                                     return true;
                                 }
 
+                                let smallest_dist = narrow_phase
+                                    .contact_pair(*ch1, *ch2)
+                                    .and_then(|p| p.find_deepest_contact())
+                                    .map(|c| c.1.dist)
+                                    .unwrap_or(0.0);
+
                                 let b1 = bodies.get(bh1).unwrap();
                                 let b2 = bodies.get(bh2).unwrap();
 
@@ -142,6 +158,7 @@ impl CCDSolver {
                                     None,
                                     0.0,
                                     min_toi,
+                                    smallest_dist,
                                 ) {
                                     min_toi = min_toi.min(toi.toi);
                                 }
@@ -166,6 +183,7 @@ impl CCDSolver {
         dt: Real,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
+        narrow_phase: &NarrowPhase,
         events: &dyn EventHandler,
     ) -> PredictedImpacts {
         let mut frozen = HashMap::<_, Real>::default();
@@ -218,6 +236,12 @@ impl CCDSolver {
                             let b1 = bodies.get(bh1).unwrap();
                             let b2 = bodies.get(bh2).unwrap();
 
+                            let smallest_dist = narrow_phase
+                                .contact_pair(ch1, *ch2)
+                                .and_then(|p| p.find_deepest_contact())
+                                .map(|c| c.1.dist)
+                                .unwrap_or(0.0);
+
                             if let Some(toi) = TOIEntry::try_from_colliders(
                                 self.query_pipeline.query_dispatcher(),
                                 ch1,
@@ -232,6 +256,7 @@ impl CCDSolver {
                                 // NOTE: we use dt here only once we know that
                                 // there is at least one TOI before dt.
                                 min_overstep,
+                                smallest_dist,
                             ) {
                                 if toi.toi > dt {
                                     min_overstep = min_overstep.min(toi.toi);
@@ -331,6 +356,12 @@ impl CCDSolver {
                             return true;
                         }
 
+                        let smallest_dist = narrow_phase
+                            .contact_pair(*ch1, *ch2)
+                            .and_then(|p| p.find_deepest_contact())
+                            .map(|c| c.1.dist)
+                            .unwrap_or(0.0);
+
                         if let Some(toi) = TOIEntry::try_from_colliders(
                             self.query_pipeline.query_dispatcher(),
                             *ch1,
@@ -343,6 +374,7 @@ impl CCDSolver {
                             frozen2.copied(),
                             start_time,
                             dt,
+                            smallest_dist,
                         ) {
                             all_toi.push(toi);
                         }

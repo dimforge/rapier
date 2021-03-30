@@ -21,7 +21,7 @@ pub enum CoefficientCombineRule {
 }
 
 impl CoefficientCombineRule {
-    pub fn from_value(val: u8) -> Self {
+    pub(crate) fn from_value(val: u8) -> Self {
         match val {
             0 => CoefficientCombineRule::Average,
             1 => CoefficientCombineRule::Min,

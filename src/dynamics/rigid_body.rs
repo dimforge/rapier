@@ -113,6 +113,7 @@ pub struct RigidBody {
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
     pub(crate) ccd_thickness: Real,
+    pub(crate) ccd_max_dist: Real,
 }
 
 impl RigidBody {
@@ -146,6 +147,7 @@ impl RigidBody {
             dominance_group: 0,
             user_data: 0,
             ccd_thickness: Real::MAX,
+            ccd_max_dist: 0.0,
         }
     }
 
@@ -172,8 +174,6 @@ impl RigidBody {
 
         self.linvel += linear_acc * dt;
         self.angvel += angular_acc * dt;
-        self.force = na::zero();
-        self.torque = na::zero();
     }
 
     /// The mass properties of this rigid-body.
@@ -208,17 +208,56 @@ impl RigidBody {
     // This is different from `is_ccd_enabled`. This checks that CCD
     // is active for this rigid-body, i.e., if it was seen to move fast
     // enough to justify a CCD run.
-    pub(crate) fn is_ccd_active(&self) -> bool {
+    /// Is CCD active for this rigid-body?
+    ///
+    /// The CCD is considered active if the rigid-body is moving at
+    /// a velocity greater than an automatically-computed threshold.
+    ///
+    /// This is not the same as `self.is_ccd_enabled` which only
+    /// checks if CCD is allowed to run for this rigid-body or if
+    /// it is completely disabled (independently from its velocity).
+    pub fn is_ccd_active(&self) -> bool {
         self.flags.contains(RigidBodyFlags::CCD_ACTIVE)
     }
 
-    pub(crate) fn update_ccd_active_flag(&mut self, dt: Real) {
-        let ccd_active = self.is_ccd_enabled() && self.is_moving_fast(dt);
+    pub(crate) fn update_ccd_active_flag(&mut self, dt: Real, include_forces: bool) {
+        let ccd_active = self.is_ccd_enabled() && self.is_moving_fast(dt, include_forces);
         self.flags.set(RigidBodyFlags::CCD_ACTIVE, ccd_active);
     }
 
-    pub(crate) fn is_moving_fast(&self, dt: Real) -> bool {
-        self.is_dynamic() && self.linvel.norm() * dt > self.ccd_thickness
+    pub(crate) fn is_moving_fast(&self, dt: Real, include_forces: bool) -> bool {
+        if self.is_dynamic() {
+            // NOTE: for the threshold we don't use the exact CCD thickness. Theoretically, we
+            //       should use `self.ccd_thickness - smallest_contact_dist` where `smallest_contact_dist`
+            //       is the deepest contact (the contact with the largest penetration depth, i.e., the
+            //       negative `dist` with the largest absolute value.
+            //       However, getting this penetration depth assumes querying the contact graph from
+            //       the narrow-phase, which can be pretty expensive. So we use the CCD thickness
+            //       divided by 10 right now. We will see in practice if this value is OK or if we
+            //       should use a smaller (to be less conservative) or larger divisor (to be more conservative).
+            let threshold = self.ccd_thickness / 10.0;
+
+            if include_forces {
+                let linear_part = (self.linvel + self.force * dt).norm();
+                #[cfg(feature = "dim2")]
+                let angular_part = (self.angvel + self.torque * dt).abs() * self.ccd_max_dist;
+                #[cfg(feature = "dim3")]
+                let angular_part = (self.angvel + self.torque * dt).norm() * self.ccd_max_dist;
+                let vel_with_forces = linear_part + angular_part;
+                vel_with_forces > threshold
+            } else {
+                self.max_point_velocity() * dt > threshold
+            }
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn max_point_velocity(&self) -> Real {
+        #[cfg(feature = "dim2")]
+        return self.linvel.norm() + self.angvel.abs() * self.ccd_max_dist;
+        #[cfg(feature = "dim3")]
+        return self.linvel.norm() + self.angvel.norm() * self.ccd_max_dist;
     }
 
     /// Sets the rigid-body's mass properties.
@@ -301,6 +340,13 @@ impl RigidBody {
 
         self.ccd_thickness = self.ccd_thickness.min(coll.shape().ccd_thickness());
 
+        let shape_bsphere = coll
+            .shape()
+            .compute_bounding_sphere(coll.position_wrt_parent());
+        self.ccd_max_dist = self
+            .ccd_max_dist
+            .max(shape_bsphere.center.coords.norm() + shape_bsphere.radius);
+
         let mass_properties = coll
             .mass_properties()
             .transform_by(coll.position_wrt_parent());
@@ -311,7 +357,7 @@ impl RigidBody {
 
     pub(crate) fn update_colliders_positions(&mut self, colliders: &mut ColliderSet) {
         for handle in &self.colliders {
-            // NOTE: we don't use `get_mut_internal` here because we want to
+            // NOTE: we use `get_mut_internal_with_modification_tracking` here because we want to
             //       benefit from the modification tracking to know the colliders
             //       we need to update the broad-phase and narrow-phase for.
             let collider = colliders
@@ -382,7 +428,9 @@ impl RigidBody {
         !self.linvel.is_zero() || !self.angvel.is_zero()
     }
 
-    pub(crate) fn predict_position_using_velocity_and_forces(&self, dt: Real) -> Isometry<Real> {
+    /// Computes the predict position of this rigid-body after `dt` seconds, taking
+    /// into account its velocities and external forces applied to it.
+    pub fn predict_position_using_velocity_and_forces(&self, dt: Real) -> Isometry<Real> {
         let dlinvel = self.force * (self.effective_inv_mass * dt);
         let dangvel = self
             .effective_world_inv_inertia_sqrt
