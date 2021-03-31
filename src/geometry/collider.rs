@@ -228,6 +228,15 @@ impl Collider {
         &*self.shape.0
     }
 
+    /// A mutable reference to the geometric shape of this collider.
+    ///
+    /// If that shape is shared by multiple colliders, it will be
+    /// cloned first so that `self` contains a unique copy of that
+    /// shape that you can modify.
+    pub fn shape_mut(&mut self) -> &mut dyn Shape {
+        self.shape.make_mut()
+    }
+
     /// Sets the shape of this collider.
     pub fn set_shape(&mut self, shape: SharedShape) {
         self.changes.insert(ColliderChanges::SHAPE);
