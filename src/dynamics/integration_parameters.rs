@@ -214,7 +214,7 @@ impl Default for IntegrationParameters {
             velocity_solve_fraction: 1.0,
             velocity_based_erp: 0.0,
             warmstart_coeff: 1.0,
-            warmstart_correction_slope: 1.0e7,
+            warmstart_correction_slope: 1.0,
             allowed_linear_error: 0.005,
             prediction_distance: 0.002,
             allowed_angular_error: 0.001,
