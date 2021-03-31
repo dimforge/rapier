@@ -24,7 +24,7 @@ pub enum BodyStatus {
     /// cannot be pushed by anything. In other words, the trajectory of a kinematic body can only be
     /// modified by the user and is independent from any contact or joint it is involved in.
     Kinematic,
-    // Semikinematic, // A kinematic that performs automatic CCD with the static environment toi avoid traversing it?
+    // Semikinematic, // A kinematic that performs automatic CCD with the static environment to avoid traversing it?
     // Disabled,
 }
 
@@ -45,10 +45,11 @@ bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     /// Flags describing how the rigid-body has been modified by the user.
     pub(crate) struct RigidBodyChanges: u32 {
-        const MODIFIED  = 1 << 0;
-        const POSITION  = 1 << 1;
-        const SLEEP     = 1 << 2;
-        const COLLIDERS = 1 << 3;
+        const MODIFIED    = 1 << 0;
+        const POSITION    = 1 << 1;
+        const SLEEP       = 1 << 2;
+        const COLLIDERS   = 1 << 3;
+        const BODY_STATUS = 1 << 4;
     }
 }
 
@@ -107,7 +108,7 @@ pub struct RigidBody {
     flags: RigidBodyFlags,
     pub(crate) changes: RigidBodyChanges,
     /// The status of the body, governing how it is affected by external forces.
-    pub body_status: BodyStatus,
+    body_status: BodyStatus,
     /// The dominance group this rigid-body is part of.
     dominance_group: i8,
     /// User-defined data associated to this rigid-body.
@@ -175,6 +176,16 @@ impl RigidBody {
         self.linvel += linear_acc * dt;
         self.angvel += angular_acc * dt;
     }
+
+    /// The status of this rigid-body.
+    pub fn body_status(&self) -> BodyStatus {
+        self.body_status
+    }
+
+    // pub fn set_body_status(&mut self, status: BodyStatus) {
+    //     self.changes.insert(RigidBodyChanges::BODY_STATUS);
+    //     self.body_status = status;
+    // }
 
     /// The mass properties of this rigid-body.
     #[inline]
@@ -260,7 +271,7 @@ impl RigidBody {
         return self.linvel.norm() + self.angvel.norm() * self.ccd_max_dist;
     }
 
-    /// Sets the rigid-body's mass properties.
+    /// Sets the rigid-body's initial mass properties.
     ///
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
@@ -875,9 +886,9 @@ impl RigidBodyBuilder {
         self
     }
 
-    /// Sets the mass properties of the rigid-body being built.
+    /// Sets the additional mass properties of the rigid-body being built.
     ///
-    /// Note that the final mass properties of the rigid-bodies depends
+    /// Note that "additional" means that the final mass properties of the rigid-bodies depends
     /// on the initial mass-properties of the rigid-body (set by this method)
     /// to which is added the contributions of all the colliders with non-zero density
     /// attached to this rigid-body.
@@ -885,7 +896,7 @@ impl RigidBodyBuilder {
     /// Therefore, if you want your provided mass properties to be the final
     /// mass properties of your rigid-body, don't attach colliders to it, or
     /// only attach colliders with densities equal to zero.
-    pub fn mass_properties(mut self, props: MassProperties) -> Self {
+    pub fn additional_mass_properties(mut self, props: MassProperties) -> Self {
         self.mass_properties = props;
         self
     }
@@ -921,50 +932,76 @@ impl RigidBodyBuilder {
         self
     }
 
-    /// Sets the mass of the rigid-body being built.
-    pub fn mass(mut self, mass: Real) -> Self {
-        self.mass_properties.inv_mass = utils::inv(mass);
+    /// Sets the additional mass of the rigid-body being built.
+    ///
+    /// This is only the "additional" mass because the total mass of the  rigid-body is
+    /// equal to the sum of this additional mass and the mass computed from the colliders
+    /// (with non-zero densities) attached to this rigid-body.
+    pub fn additional_mass(mut self, mass: Real) -> Self {
+        self.mass_properties.set_mass(mass, false);
         self
     }
-    /// Sets the angular inertia of this rigid-body.
+
+    /// Sets the additional mass of the rigid-body being built.
+    ///
+    /// This is only the "additional" mass because the total mass of the  rigid-body is
+    /// equal to the sum of this additional mass and the mass computed from the colliders
+    /// (with non-zero densities) attached to this rigid-body.
+    #[deprecated(note = "renamed to `additional_mass`.")]
+    pub fn mass(mut self, mass: Real) -> Self {
+        self.additional_mass(mass)
+    }
+
+    /// Sets the additional angular inertia of this rigid-body.
+    ///
+    /// This is only the "additional" angular inertia because the total angular inertia of
+    /// the rigid-body is equal to the sum of this additional value and the angular inertia
+    /// computed from the colliders (with non-zero densities) attached to this rigid-body.
     #[cfg(feature = "dim2")]
-    pub fn principal_angular_inertia(mut self, inertia: Real) -> Self {
+    pub fn additional_principal_angular_inertia(mut self, inertia: Real) -> Self {
         self.mass_properties.inv_principal_inertia_sqrt =
             utils::inv(ComplexField::sqrt(inertia.max(0.0)));
         self
     }
 
-    /// Use `self.principal_angular_inertia` instead.
+    /// Sets the angular inertia of this rigid-body.
     #[cfg(feature = "dim2")]
-    #[deprecated(note = "renamed to `principal_angular_inertia`.")]
-    pub fn principal_inertia(self, inertia: Real) -> Self {
-        self.principal_angular_inertia(inertia)
+    #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
+    pub fn principal_angular_inertia(mut self, inertia: Real) -> Self {
+        self.additional_principal_angular_inertia(inertia)
     }
 
-    /// Sets the principal angular inertia of this rigid-body.
+    /// Use `self.principal_angular_inertia` instead.
+    #[cfg(feature = "dim2")]
+    #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
+    pub fn principal_inertia(self, inertia: Real) -> Self {
+        self.additional_principal_angular_inertia(inertia)
+    }
+
+    /// Sets the additional principal angular inertia of this rigid-body.
     ///
-    /// In order to lock the rotations of this rigid-body (by
-    /// making them kinematic), call `.principal_inertia(Vector3::zeros(), Vector3::repeat(false))`.
-    ///
-    /// If `colliders_contribution_enabled[i]` is `false`, then the principal inertia specified here
-    /// along the `i`-th local axis of the rigid-body, will be the final principal inertia along
-    /// the `i`-th local axis of the rigid-body created by this builder.
-    /// If `colliders_contribution_enabled[i]` is `true`, then the final principal of the rigid-body
-    /// along its `i`-th local axis will depend on the initial principal inertia set by this method
-    /// to which is added the contributions of all the colliders with non-zero density
-    /// attached to this rigid-body.
+    /// This is only the "additional" angular inertia because the total angular inertia of
+    /// the rigid-body is equal to the sum of this additional value and the angular inertia
+    /// computed from the colliders (with non-zero densities) attached to this rigid-body.
     #[cfg(feature = "dim3")]
-    pub fn principal_angular_inertia(mut self, inertia: AngVector<Real>) -> Self {
+    pub fn additional_principal_angular_inertia(mut self, inertia: AngVector<Real>) -> Self {
         self.mass_properties.inv_principal_inertia_sqrt =
             inertia.map(|e| utils::inv(ComplexField::sqrt(e.max(0.0))));
         self
     }
 
+    /// Sets the principal angular inertia of this rigid-body.
+    #[cfg(feature = "dim3")]
+    #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
+    pub fn principal_angular_inertia(mut self, inertia: AngVector<Real>) -> Self {
+        self.additional_principal_angular_inertia(inertia)
+    }
+
     /// Use `self.principal_angular_inertia` instead.
     #[cfg(feature = "dim3")]
-    #[deprecated(note = "renamed to `principal_angular_inertia`.")]
+    #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
     pub fn principal_inertia(self, inertia: AngVector<Real>) -> Self {
-        self.principal_angular_inertia(inertia)
+        self.additional_principal_angular_inertia(inertia)
     }
 
     /// Sets the damping factor for the linear part of the rigid-body motion.
