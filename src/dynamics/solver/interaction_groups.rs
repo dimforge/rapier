@@ -158,9 +158,12 @@ impl InteractionGroups {
     }
 
     pub fn clear(&mut self) {
-        self.buckets.clear();
-        self.body_masks.clear();
-        self.grouped_interactions.clear();
+        #[cfg(feature = "simd-is-enabled")]
+        {
+            self.buckets.clear();
+            self.body_masks.clear();
+            self.grouped_interactions.clear();
+        }
         self.nongrouped_interactions.clear();
     }
 

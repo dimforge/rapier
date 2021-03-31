@@ -180,6 +180,7 @@ impl Harness {
                     &mut physics.bodies,
                     &mut physics.colliders,
                     &mut physics.joints,
+                    &mut physics.ccd_solver,
                     &*physics.hooks,
                     event_handler,
                 );

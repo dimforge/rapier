@@ -123,6 +123,36 @@ impl PhysicsPipeline {
                 )
             }
         }
+
+        #[cfg(feature = "parallel")]
+        {
+            use crate::geometry::ContactManifold;
+            use rayon::prelude::*;
+            use std::sync::atomic::Ordering;
+
+            let num_islands = bodies.num_islands();
+            let solvers = &mut self.solvers[..num_islands];
+            let bodies = &std::sync::atomic::AtomicPtr::new(bodies as *mut _);
+
+            rayon::scope(|scope| {
+                enable_flush_to_zero!();
+
+                solvers
+                    .par_iter_mut()
+                    .enumerate()
+                    .for_each(|(island_id, solver)| {
+                        let bodies: &mut RigidBodySet =
+                            unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };
+
+                        solver.solve_position_constraints(
+                            scope,
+                            island_id,
+                            integration_parameters,
+                            bodies,
+                        )
+                    });
+            });
+        }
     }
 
     fn build_islands_and_solve_velocity_constraints(
@@ -216,7 +246,7 @@ impl PhysicsPipeline {
                         let joints: &mut Vec<JointGraphEdge> =
                             unsafe { std::mem::transmute(joints.load(Ordering::Relaxed)) };
 
-                        solver.solve_island(
+                        solver.init_constraints_and_solve_velocity_constraints(
                             scope,
                             island_id,
                             integration_parameters,
@@ -225,7 +255,6 @@ impl PhysicsPipeline {
                             &manifold_indices[island_id],
                             joints,
                             &joint_constraint_indices[island_id],
-                            is_last_substep,
                         )
                     });
             });
