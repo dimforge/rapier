@@ -268,7 +268,6 @@ impl ParallelIslandSolver {
             // See https://internals.rust-lang.org/t/shouldnt-pointers-be-send-sync-or/8818
             let thread = &self.thread;
             let mj_lambdas = std::sync::atomic::AtomicPtr::new(&mut self.mj_lambdas as *mut _);
-            let positions = std::sync::atomic::AtomicPtr::new(&mut self.positions as *mut _);
             let bodies = std::sync::atomic::AtomicPtr::new(bodies as *mut _);
             let manifolds = std::sync::atomic::AtomicPtr::new(manifolds as *mut _);
             let joints = std::sync::atomic::AtomicPtr::new(joints as *mut _);
@@ -281,8 +280,6 @@ impl ParallelIslandSolver {
                 // Transmute *mut -> &mut
                 let mj_lambdas: &mut Vec<DeltaVel<Real>> =
                     unsafe { std::mem::transmute(mj_lambdas.load(Ordering::Relaxed)) };
-                let positions: &mut Vec<Isometry<Real>> =
-                    unsafe { std::mem::transmute(positions.load(Ordering::Relaxed)) };
                 let bodies: &mut RigidBodySet =
                     unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };
                 let manifolds: &mut Vec<&mut ContactManifold> =

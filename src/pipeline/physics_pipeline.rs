@@ -126,7 +126,6 @@ impl PhysicsPipeline {
 
         #[cfg(feature = "parallel")]
         {
-            use crate::geometry::ContactManifold;
             use rayon::prelude::*;
             use std::sync::atomic::Ordering;
 

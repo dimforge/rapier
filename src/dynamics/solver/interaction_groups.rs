@@ -157,6 +157,7 @@ impl InteractionGroups {
         }
     }
 
+    #[cfg(not(feature = "parallel"))]
     pub fn clear(&mut self) {
         #[cfg(feature = "simd-is-enabled")]
         {
