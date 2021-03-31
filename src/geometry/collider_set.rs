@@ -317,7 +317,7 @@ impl ColliderSet {
                 Self::maintain_one(bodies, rb)
             }
         } else {
-            for handle in self.modified_colliders.drain(..) {
+            for handle in self.modified_colliders.iter() {
                 if let Some(rb) = self.colliders.get_mut(handle.0) {
                     Self::maintain_one(bodies, rb)
                 }
