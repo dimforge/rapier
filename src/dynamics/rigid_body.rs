@@ -182,10 +182,13 @@ impl RigidBody {
         self.body_status
     }
 
-    // pub fn set_body_status(&mut self, status: BodyStatus) {
-    //     self.changes.insert(RigidBodyChanges::BODY_STATUS);
-    //     self.body_status = status;
-    // }
+    /// Sets the status of this rigid-body.
+    pub fn set_body_status(&mut self, status: BodyStatus) {
+        if status != self.body_status {
+            self.changes.insert(RigidBodyChanges::BODY_STATUS);
+            self.body_status = status;
+        }
+    }
 
     /// The mass properties of this rigid-body.
     #[inline]
@@ -948,7 +951,7 @@ impl RigidBodyBuilder {
     /// equal to the sum of this additional mass and the mass computed from the colliders
     /// (with non-zero densities) attached to this rigid-body.
     #[deprecated(note = "renamed to `additional_mass`.")]
-    pub fn mass(mut self, mass: Real) -> Self {
+    pub fn mass(self, mass: Real) -> Self {
         self.additional_mass(mass)
     }
 
@@ -993,7 +996,7 @@ impl RigidBodyBuilder {
     /// Sets the principal angular inertia of this rigid-body.
     #[cfg(feature = "dim3")]
     #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
-    pub fn principal_angular_inertia(mut self, inertia: AngVector<Real>) -> Self {
+    pub fn principal_angular_inertia(self, inertia: AngVector<Real>) -> Self {
         self.additional_principal_angular_inertia(inertia)
     }
 
