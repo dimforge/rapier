@@ -473,7 +473,9 @@ impl PhysicsPipeline {
 
 #[cfg(test)]
 mod test {
-    use crate::dynamics::{IntegrationParameters, JointSet, RigidBodyBuilder, RigidBodySet};
+    use crate::dynamics::{
+        CCDSolver, IntegrationParameters, JointSet, RigidBodyBuilder, RigidBodySet,
+    };
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
     use crate::math::Vector;
     use crate::pipeline::PhysicsPipeline;
@@ -505,6 +507,7 @@ mod test {
             &mut bodies,
             &mut colliders,
             &mut joints,
+            &mut CCDSolver::new(),
             &(),
             &(),
         );
@@ -548,6 +551,7 @@ mod test {
             &mut bodies,
             &mut colliders,
             &mut joints,
+            &mut CCDSolver::new(),
             &(),
             &(),
         );

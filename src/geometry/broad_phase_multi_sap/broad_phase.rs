@@ -538,11 +538,11 @@ mod test {
         let hrb = bodies.insert(rb);
         colliders.insert(co, hrb, &mut bodies);
 
-        broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
+        let mut events = Vec::new();
+        broad_phase.update(0.0, &mut colliders, &mut events);
 
         bodies.remove(hrb, &mut colliders, &mut joints);
-        broad_phase.handle_user_changes(&mut colliders);
-        broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
+        broad_phase.update(0.0, &mut colliders, &mut events);
 
         // Create another body.
         let rb = RigidBodyBuilder::new_dynamic().build();
@@ -551,6 +551,6 @@ mod test {
         colliders.insert(co, hrb, &mut bodies);
 
         // Make sure the proxy handles is recycled properly.
-        broad_phase.update_aabbs(0.0, &bodies, &mut colliders);
+        broad_phase.update(0.0, &mut colliders, &mut events);
     }
 }
