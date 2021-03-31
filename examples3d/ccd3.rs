@@ -1,4 +1,4 @@
-use na::{Isometry3, Point3, Vector3};
+use na::{Point3, Vector3};
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
@@ -91,7 +91,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .density(10.0)
         .sensor(true)
         .build();
-    let mut rigid_body = RigidBodyBuilder::new_dynamic()
+    let rigid_body = RigidBodyBuilder::new_dynamic()
         .linvel(1000.0, 0.0, 0.0)
         .translation(-20.0, shift_y + 2.0, 0.0)
         .ccd_enabled(true)
@@ -101,7 +101,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Second rigid-body with CCD enabled.
     let collider = ColliderBuilder::ball(1.0).density(10.0).build();
-    let mut rigid_body = RigidBodyBuilder::new_dynamic()
+    let rigid_body = RigidBodyBuilder::new_dynamic()
         .linvel(1000.0, 0.0, 0.0)
         .translation(-20.0, shift_y + 2.0, shift_z)
         .ccd_enabled(true)

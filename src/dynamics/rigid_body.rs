@@ -970,7 +970,7 @@ impl RigidBodyBuilder {
     /// Sets the angular inertia of this rigid-body.
     #[cfg(feature = "dim2")]
     #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
-    pub fn principal_angular_inertia(mut self, inertia: Real) -> Self {
+    pub fn principal_angular_inertia(self, inertia: Real) -> Self {
         self.additional_principal_angular_inertia(inertia)
     }
 
