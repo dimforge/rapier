@@ -35,7 +35,8 @@ pub struct QueryPipeline {
 struct QueryPipelineAsCompositeShape<'a> {
     query_pipeline: &'a QueryPipeline,
     colliders: &'a ColliderSet,
-    groups: InteractionGroups,
+    query_groups: InteractionGroups,
+    filter: Option<&'a dyn Fn(ColliderHandle, &Collider) -> bool>,
 }
 
 /// Indicates how the colliders position should be taken into account when
@@ -64,7 +65,9 @@ impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
         mut f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape),
     ) {
         if let Some(collider) = self.colliders.get(shape_id) {
-            if collider.collision_groups.test(self.groups) {
+            if collider.collision_groups.test(self.query_groups)
+                && self.filter.map(|f| f(shape_id, collider)).unwrap_or(true)
+            {
                 f(Some(collider.position()), collider.shape())
             }
         }
@@ -98,12 +101,14 @@ impl QueryPipeline {
     fn as_composite_shape<'a>(
         &'a self,
         colliders: &'a ColliderSet,
-        groups: InteractionGroups,
+        query_groups: InteractionGroups,
+        filter: Option<&'a dyn Fn(ColliderHandle, &Collider) -> bool>,
     ) -> QueryPipelineAsCompositeShape<'a> {
         QueryPipelineAsCompositeShape {
             query_pipeline: self,
             colliders,
-            groups,
+            query_groups,
+            filter,
         }
     }
 
@@ -219,15 +224,24 @@ impl QueryPipeline {
     /// - `ray`: the ray to cast.
     /// - `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
     ///   limits the length of the ray to `ray.dir.norm() * max_toi`. Use `Real::MAX` for an unbounded ray.
+    /// - `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
+    ///            it starts inside of a shape. If this `false` then the ray will hit the shape's boundary
+    ///            even if its starts inside of it.
+    /// - `query_groups`: the interaction groups which will be tested against the collider's `contact_group`
+    ///                   to determine if it should be taken into account by this query.
+    /// - `filter`: a more fine-grained filter. A collider is taken into account by this query if
+    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
+    ///             is either `None` or returns `true`.
     pub fn cast_ray(
         &self,
         colliders: &ColliderSet,
         ray: &Ray,
         max_toi: Real,
         solid: bool,
-        groups: InteractionGroups,
+        query_groups: InteractionGroups,
+        filter: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
     ) -> Option<(ColliderHandle, Real)> {
-        let pipeline_shape = self.as_composite_shape(colliders, groups);
+        let pipeline_shape = self.as_composite_shape(colliders, query_groups, filter);
         let mut visitor =
             RayCompositeShapeToiBestFirstVisitor::new(&pipeline_shape, ray, max_toi, solid);
 
@@ -241,15 +255,24 @@ impl QueryPipeline {
     /// - `ray`: the ray to cast.
     /// - `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
     ///   limits the length of the ray to `ray.dir.norm() * max_toi`. Use `Real::MAX` for an unbounded ray.
+    /// - `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
+    ///            it starts inside of a shape. If this `false` then the ray will hit the shape's boundary
+    ///            even if its starts inside of it.
+    /// - `query_groups`: the interaction groups which will be tested against the collider's `contact_group`
+    ///                   to determine if it should be taken into account by this query.
+    /// - `filter`: a more fine-grained filter. A collider is taken into account by this query if
+    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
+    ///             is either `None` or returns `true`.
     pub fn cast_ray_and_get_normal(
         &self,
         colliders: &ColliderSet,
         ray: &Ray,
         max_toi: Real,
         solid: bool,
-        groups: InteractionGroups,
+        query_groups: InteractionGroups,
+        filter: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
     ) -> Option<(ColliderHandle, RayIntersection)> {
-        let pipeline_shape = self.as_composite_shape(colliders, groups);
+        let pipeline_shape = self.as_composite_shape(colliders, query_groups, filter);
         let mut visitor = RayCompositeShapeToiAndNormalBestFirstVisitor::new(
             &pipeline_shape,
             ray,
@@ -267,21 +290,32 @@ impl QueryPipeline {
     /// - `ray`: the ray to cast.
     /// - `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
     ///   limits the length of the ray to `ray.dir.norm() * max_toi`. Use `Real::MAX` for an unbounded ray.
+    /// - `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
+    ///            it starts inside of a shape. If this `false` then the ray will hit the shape's boundary
+    ///            even if its starts inside of it.
+    /// - `query_groups`: the interaction groups which will be tested against the collider's `contact_group`
+    ///                   to determine if it should be taken into account by this query.
+    /// - `filter`: a more fine-grained filter. A collider is taken into account by this query if
+    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
+    ///             is either `None` or returns `true`.
     /// - `callback`: function executed on each collider for which a ray intersection has been found.
-    ///   There is no guarantees on the order the results will be yielded. If this callback returns `false`,
-    ///   this method will exit early, ignore any further raycast.
+    ///               There is no guarantees on the order the results will be yielded. If this callback returns `false`,
+    ///               this method will exit early, ignore any further raycast.
     pub fn intersections_with_ray<'a>(
         &self,
         colliders: &'a ColliderSet,
         ray: &Ray,
         max_toi: Real,
         solid: bool,
-        groups: InteractionGroups,
+        query_groups: InteractionGroups,
+        filter: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
         mut callback: impl FnMut(ColliderHandle, &'a Collider, RayIntersection) -> bool,
     ) {
         let mut leaf_callback = &mut |handle: &ColliderHandle| {
             if let Some(coll) = colliders.get(*handle) {
-                if coll.collision_groups.test(groups) {
+                if coll.collision_groups.test(query_groups)
+                    && filter.map(|f| f(*handle, coll)).unwrap_or(true)
+                {
                     if let Some(hit) =
                         coll.shape()
                             .cast_ray_and_get_normal(coll.position(), ray, max_toi, solid)
@@ -304,16 +338,20 @@ impl QueryPipeline {
     /// * `colliders` - The set of colliders taking part in this pipeline.
     /// * `shape_pos` - The position of the shape used for the intersection test.
     /// * `shape` - The shape used for the intersection test.
-    /// * `groups` - The bit groups and filter associated to the ray, in order to only
-    ///   hit the colliders with collision groups compatible with the ray's group.
+    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
+    ///                   to determine if it should be taken into account by this query.
+    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
+    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
+    ///             is either `None` or returns `true`.
     pub fn intersection_with_shape(
         &self,
         colliders: &ColliderSet,
         shape_pos: &Isometry<Real>,
         shape: &dyn Shape,
-        groups: InteractionGroups,
+        query_groups: InteractionGroups,
+        filter: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
     ) -> Option<ColliderHandle> {
-        let pipeline_shape = self.as_composite_shape(colliders, groups);
+        let pipeline_shape = self.as_composite_shape(colliders, query_groups, filter);
         let mut visitor = IntersectionCompositeShapeShapeBestFirstVisitor::new(
             &*self.query_dispatcher,
             shape_pos,
@@ -336,16 +374,20 @@ impl QueryPipeline {
     ///   itself). If it is set to `false` the collider shapes are considered to be hollow
     ///   (if the point is located inside of an hollow shape, it is projected on the shape's
     ///   boundary).
-    /// * `groups` - The bit groups and filter associated to the point to project, in order to only
-    ///   project on colliders with collision groups compatible with the ray's group.
+    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
+    ///                   to determine if it should be taken into account by this query.
+    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
+    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
+    ///             is either `None` or returns `true`.
     pub fn project_point(
         &self,
         colliders: &ColliderSet,
         point: &Point<Real>,
         solid: bool,
-        groups: InteractionGroups,
+        query_groups: InteractionGroups,
+        filter: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
     ) -> Option<(ColliderHandle, PointProjection)> {
-        let pipeline_shape = self.as_composite_shape(colliders, groups);
+        let pipeline_shape = self.as_composite_shape(colliders, query_groups, filter);
         let mut visitor =
             PointCompositeShapeProjBestFirstVisitor::new(&pipeline_shape, point, solid);
 
@@ -359,20 +401,25 @@ impl QueryPipeline {
     /// # Parameters
     /// * `colliders` - The set of colliders taking part in this pipeline.
     /// * `point` - The point used for the containment test.
-    /// * `groups` - The bit groups and filter associated to the point to test, in order to only
-    ///   test on colliders with collision groups compatible with the ray's group.
+    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
+    ///                   to determine if it should be taken into account by this query.
+    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
+    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
+    ///             is either `None` or returns `true`.
     /// * `callback` - A function called with each collider with a shape
-    ///   containing the `point`.
+    ///                containing the `point`.
     pub fn intersections_with_point<'a>(
         &self,
         colliders: &'a ColliderSet,
         point: &Point<Real>,
-        groups: InteractionGroups,
+        query_groups: InteractionGroups,
+        filter: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
         mut callback: impl FnMut(ColliderHandle, &'a Collider) -> bool,
     ) {
         let mut leaf_callback = &mut |handle: &ColliderHandle| {
             if let Some(coll) = colliders.get(*handle) {
-                if coll.collision_groups.test(groups)
+                if coll.collision_groups.test(query_groups)
+                    && filter.map(|f| f(*handle, coll)).unwrap_or(true)
                     && coll.shape().contains_point(coll.position(), point)
                 {
                     return callback(*handle, coll);
@@ -399,15 +446,19 @@ impl QueryPipeline {
     ///   itself). If it is set to `false` the collider shapes are considered to be hollow
     ///   (if the point is located inside of an hollow shape, it is projected on the shape's
     ///   boundary).
-    /// * `groups` - The bit groups and filter associated to the point to project, in order to only
-    ///   project on colliders with collision groups compatible with the ray's group.
+    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
+    ///                   to determine if it should be taken into account by this query.
+    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
+    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
+    ///             is either `None` or returns `true`.
     pub fn project_point_and_get_feature(
         &self,
         colliders: &ColliderSet,
         point: &Point<Real>,
-        groups: InteractionGroups,
+        query_groups: InteractionGroups,
+        filter: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
     ) -> Option<(ColliderHandle, PointProjection, FeatureId)> {
-        let pipeline_shape = self.as_composite_shape(colliders, groups);
+        let pipeline_shape = self.as_composite_shape(colliders, query_groups, filter);
         let mut visitor =
             PointCompositeShapeProjWithFeatureBestFirstVisitor::new(&pipeline_shape, point, false);
         self.quadtree
@@ -437,8 +488,11 @@ impl QueryPipeline {
     /// * `shape` - The shape to cast.
     /// * `max_toi` - The maximum time-of-impact that can be reported by this cast. This effectively
     ///   limits the distance traveled by the shape to `shapeVel.norm() * maxToi`.
-    /// * `groups` - The bit groups and filter associated to the shape to cast, in order to only
-    ///   test on colliders with collision groups compatible with this group.
+    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
+    ///                   to determine if it should be taken into account by this query.
+    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
+    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
+    ///             is either `None` or returns `true`.
     pub fn cast_shape<'a>(
         &self,
         colliders: &'a ColliderSet,
@@ -447,9 +501,10 @@ impl QueryPipeline {
         shape: &dyn Shape,
         max_toi: Real,
         target_distance: Real,
-        groups: InteractionGroups,
+        query_groups: InteractionGroups,
+        filter: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
     ) -> Option<(ColliderHandle, TOI)> {
-        let pipeline_shape = self.as_composite_shape(colliders, groups);
+        let pipeline_shape = self.as_composite_shape(colliders, query_groups, filter);
         let mut visitor = TOICompositeShapeShapeBestFirstVisitor::new(
             &*self.query_dispatcher,
             shape_pos,
@@ -468,10 +523,20 @@ impl QueryPipeline {
     /// * `colliders` - The set of colliders taking part in this pipeline.
     /// * `shape_motion` - The motion of the shape.
     /// * `shape` - The shape to cast.
-    /// * `max_toi` - The maximum time-of-impact that can be reported by this cast. This effectively
-    ///   limits the distance traveled by the shape to `shapeVel.norm() * maxToi`.
-    /// * `groups` - The bit groups and filter associated to the shape to cast, in order to only
-    ///   test on colliders with collision groups compatible with this group.
+    /// * `start_time` - The starting time of the interval where the motion takes place.
+    /// * `end_time` - The end time of the interval where the motion takes place.
+    /// * `stop_at_penetration` - If the casted shape starts in a penetration state with any
+    ///    collider, two results are possible. If `stop_at_penetration` is `true` then, the
+    ///    result will have a `toi` equal to `start_time`. If `stop_at_penetration` is `false`
+    ///    then the nonlinear shape-casting will see if further motion wrt. the penetration normal
+    ///    would result in tunnelling. If it does not (i.e. we have a separating velocity along
+    ///    that normal) then the nonlinear shape-casting will attempt to find another impact,
+    ///    at a time `> start_time` that could result in tunnelling.
+    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
+    ///                   to determine if it should be taken into account by this query.
+    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
+    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
+    ///             is either `None` or returns `true`.
     pub fn nonlinear_cast_shape(
         &self,
         colliders: &ColliderSet,
@@ -480,9 +545,10 @@ impl QueryPipeline {
         start_time: Real,
         end_time: Real,
         stop_at_penetration: bool,
-        groups: InteractionGroups,
+        query_groups: InteractionGroups,
+        filter: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
     ) -> Option<(ColliderHandle, TOI)> {
-        let pipeline_shape = self.as_composite_shape(colliders, groups);
+        let pipeline_shape = self.as_composite_shape(colliders, query_groups, filter);
         let pipeline_motion = NonlinearRigidMotion::identity();
         let mut visitor = NonlinearTOICompositeShapeShapeBestFirstVisitor::new(
             &*self.query_dispatcher,
@@ -504,15 +570,19 @@ impl QueryPipeline {
     /// * `shapePos` - The position of the shape to test.
     /// * `shapeRot` - The orientation of the shape to test.
     /// * `shape` - The shape to test.
-    /// * `groups` - The bit groups and filter associated to the shape to test, in order to only
-    ///   test on colliders with collision groups compatible with this group.
+    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
+    ///                   to determine if it should be taken into account by this query.
+    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
+    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
+    ///             is either `None` or returns `true`.
     /// * `callback` - A function called with the handles of each collider intersecting the `shape`.
     pub fn intersections_with_shape<'a>(
         &self,
         colliders: &'a ColliderSet,
         shape_pos: &Isometry<Real>,
         shape: &dyn Shape,
-        groups: InteractionGroups,
+        query_groups: InteractionGroups,
+        filter: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
         mut callback: impl FnMut(ColliderHandle, &'a Collider) -> bool,
     ) {
         let dispatcher = &*self.query_dispatcher;
@@ -520,7 +590,9 @@ impl QueryPipeline {
 
         let mut leaf_callback = &mut |handle: &ColliderHandle| {
             if let Some(coll) = colliders.get(*handle) {
-                if coll.collision_groups.test(groups) {
+                if coll.collision_groups.test(query_groups)
+                    && filter.map(|f| f(*handle, coll)).unwrap_or(true)
+                {
                     let pos12 = inv_shape_pos * coll.position();
 
                     if dispatcher.intersection_test(&pos12, shape, coll.shape()) == Ok(true) {

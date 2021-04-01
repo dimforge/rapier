@@ -1000,6 +1000,7 @@ impl Testbed {
             f32::MAX,
             true,
             InteractionGroups::all(),
+            None,
         );
 
         if let Some((handle, _)) = hit {
