@@ -203,6 +203,27 @@ impl RigidBody {
         }
     }
 
+    /// Are the translations of this rigid-body locked?
+    pub fn is_translation_locked(&self) -> bool {
+        self.flags.contains(RigidBodyFlags::TRANSLATION_LOCKED)
+    }
+
+    /// Are the rotations of this rigid-body locked?
+    #[cfg(feature = "dim2")]
+    pub fn is_rotation_locked(&self) -> bool {
+        self.flags.contains(RigidBodyFlags::ROTATION_LOCKED_Z)
+    }
+
+    /// Returns `true` for each rotational degrees of freedom locked on this rigid-body.
+    #[cfg(feature = "dim3")]
+    pub fn is_rotation_locked(&self) -> [bool; 3] {
+        [
+            self.flags.contains(RigidBodyFlags::ROTATION_LOCKED_X),
+            self.flags.contains(RigidBodyFlags::ROTATION_LOCKED_Y),
+            self.flags.contains(RigidBodyFlags::ROTATION_LOCKED_Z),
+        ]
+    }
+
     /// Enables of disable CCD (continuous collision-detection) for this rigid-body.
     pub fn enable_ccd(&mut self, enabled: bool) {
         self.flags.set(RigidBodyFlags::CCD_ENABLED, enabled)
