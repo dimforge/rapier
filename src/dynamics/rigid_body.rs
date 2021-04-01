@@ -88,10 +88,6 @@ pub struct RigidBody {
     pub linear_damping: Real,
     /// Damping factor for gradually slowing down the angular motion of the rigid-body.
     pub angular_damping: Real,
-    /// The maximum linear velocity this rigid-body can reach.
-    pub max_linear_velocity: Real,
-    /// The maximum angular velocity this rigid-body can reach.
-    pub max_angular_velocity: Real,
     /// Accumulation of external forces (only for dynamic bodies).
     pub(crate) force: Vector<Real>,
     /// Accumulation of external torques (only for dynamic bodies).
@@ -133,8 +129,6 @@ impl RigidBody {
             gravity_scale: 1.0,
             linear_damping: 0.0,
             angular_damping: 0.0,
-            max_linear_velocity: Real::MAX,
-            max_angular_velocity: 100.0,
             colliders: Vec::new(),
             activation: ActivationStatus::new_active(),
             joint_graph_index: InteractionGraph::<(), ()>::invalid_graph_index(),
@@ -468,20 +462,6 @@ impl RigidBody {
         if apply_damping {
             self.linvel *= 1.0 / (1.0 + dt * self.linear_damping);
             self.angvel *= 1.0 / (1.0 + dt * self.angular_damping);
-
-            // self.linvel = self.linvel.cap_magnitude(self.max_linear_velocity);
-            // #[cfg(feature = "dim2")]
-            // {
-            //     self.angvel = na::clamp(
-            //         self.angvel,
-            //         -self.max_angular_velocity,
-            //         self.max_angular_velocity,
-            //     );
-            // }
-            // #[cfg(feature = "dim3")]
-            // {
-            //     self.angvel = self.angvel.cap_magnitude(self.max_angular_velocity);
-            // }
         }
 
         self.next_position = self.integrate_velocity(dt) * self.position;
