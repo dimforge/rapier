@@ -52,7 +52,7 @@ impl CCDSolver {
                             * crate::utils::inv(body.max_point_velocity()))
                         .min(dt);
                         // println!("Min toi: {}, Toi: {}", min_toi, toi);
-                        body.integrate_next_position(toi.max(min_toi), false);
+                        body.integrate_next_position(toi.max(min_toi));
                     }
                 }
             }

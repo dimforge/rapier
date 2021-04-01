@@ -457,15 +457,14 @@ impl RigidBody {
         shift * Isometry::new(self.linvel * dt, self.angvel * dt) * shift.inverse()
     }
 
-    pub(crate) fn integrate_next_position(&mut self, dt: Real, apply_damping: bool) {
-        // TODO: do we want to apply damping before or after the velocity integration?
-        if apply_damping {
-            self.linvel *= 1.0 / (1.0 + dt * self.linear_damping);
-            self.angvel *= 1.0 / (1.0 + dt * self.angular_damping);
-        }
+    pub(crate) fn apply_damping(&mut self, dt: Real) {
+        self.linvel *= 1.0 / (1.0 + dt * self.linear_damping);
+        self.angvel *= 1.0 / (1.0 + dt * self.angular_damping);
+    }
 
+    pub(crate) fn integrate_next_position(&mut self, dt: Real) {
         self.next_position = self.integrate_velocity(dt) * self.position;
-        let _ = self.next_position.rotation.renormalize();
+        let _ = self.next_position.rotation.renormalize_fast();
     }
 
     /// The linear velocity of this rigid-body.
