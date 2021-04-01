@@ -353,7 +353,8 @@ impl ParallelIslandSolver {
                         let dvel = mj_lambdas[rb.active_set_offset];
                         rb.linvel += dvel.linear;
                         rb.angvel += rb.effective_world_inv_inertia_sqrt.transform_vector(dvel.angular);
-                        rb.integrate_next_position(params.dt, true);
+                        rb.apply_damping(params.dt);
+                        rb.integrate_next_position(params.dt);
                     }
                 }
             })
