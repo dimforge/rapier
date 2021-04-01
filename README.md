@@ -21,6 +21,7 @@
 <p align = "center">
     <strong>
         <a href="https://rapier.rs">Website</a> | <a href="https://rapier.rs/docs/">Documentation</a>
+    </strong>
 </p>
 
 -----
