@@ -145,23 +145,23 @@ impl RevolutePositionGroundConstraint {
         let local_basis2;
 
         if flipped {
-            anchor1 = rb1.predicted_position * cparams.local_anchor2;
+            anchor1 = rb1.next_position * cparams.local_anchor2;
             local_anchor2 = cparams.local_anchor1;
-            axis1 = rb1.predicted_position * cparams.local_axis2;
+            axis1 = rb1.next_position * cparams.local_axis2;
             local_axis2 = cparams.local_axis1;
             basis1 = [
-                rb1.predicted_position * cparams.basis2[0],
-                rb1.predicted_position * cparams.basis2[1],
+                rb1.next_position * cparams.basis2[0],
+                rb1.next_position * cparams.basis2[1],
             ];
             local_basis2 = cparams.basis1;
         } else {
-            anchor1 = rb1.predicted_position * cparams.local_anchor1;
+            anchor1 = rb1.next_position * cparams.local_anchor1;
             local_anchor2 = cparams.local_anchor2;
-            axis1 = rb1.predicted_position * cparams.local_axis1;
+            axis1 = rb1.next_position * cparams.local_axis1;
             local_axis2 = cparams.local_axis2;
             basis1 = [
-                rb1.predicted_position * cparams.basis1[0],
-                rb1.predicted_position * cparams.basis1[1],
+                rb1.next_position * cparams.basis1[0],
+                rb1.next_position * cparams.basis1[1],
             ];
             local_basis2 = cparams.basis2;
         };

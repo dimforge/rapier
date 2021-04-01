@@ -208,6 +208,8 @@ impl VelocityConstraint {
                 let vel1 = rb1.linvel + rb1.angvel.gcross(dp1);
                 let vel2 = rb2.linvel + rb2.angvel.gcross(dp2);
 
+                let warmstart_correction;
+
                 constraint.limit = manifold_point.friction;
                 constraint.manifold_contact_id[k] = manifold_point.contact_id;
 
@@ -234,12 +236,15 @@ impl VelocityConstraint {
                     rhs += manifold_point.dist.max(0.0) * inv_dt;
                     rhs *= is_bouncy + is_resting * params.velocity_solve_fraction;
                     rhs += is_resting * velocity_based_erp_inv_dt * manifold_point.dist.min(0.0);
+                    warmstart_correction = (params.warmstart_correction_slope
+                        / (rhs - manifold_point.prev_rhs).abs())
+                    .min(warmstart_coeff);
 
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
                         gcross1,
                         gcross2,
                         rhs,
-                        impulse: manifold_point.data.impulse * warmstart_coeff,
+                        impulse: manifold_point.warmstart_impulse * warmstart_correction,
                         r,
                     };
                 }
@@ -247,10 +252,12 @@ impl VelocityConstraint {
                 // Tangent parts.
                 {
                     #[cfg(feature = "dim3")]
-                    let impulse =
-                        tangent_rot1 * manifold_points[k].data.tangent_impulse * warmstart_coeff;
+                    let impulse = tangent_rot1
+                        * manifold_points[k].warmstart_tangent_impulse
+                        * warmstart_correction;
                     #[cfg(feature = "dim2")]
-                    let impulse = [manifold_points[k].data.tangent_impulse * warmstart_coeff];
+                    let impulse =
+                        [manifold_points[k].warmstart_tangent_impulse * warmstart_correction];
                     constraint.elements[k].tangent_part.impulse = impulse;
 
                     for j in 0..DIM - 1 {
@@ -332,6 +339,8 @@ impl VelocityConstraint {
             let contact_id = self.manifold_contact_id[k];
             let active_contact = &mut manifold.points[contact_id as usize];
             active_contact.data.impulse = self.elements[k].normal_part.impulse;
+            active_contact.data.rhs = self.elements[k].normal_part.rhs;
+
             #[cfg(feature = "dim2")]
             {
                 active_contact.data.tangent_impulse = self.elements[k].tangent_part.impulse[0];

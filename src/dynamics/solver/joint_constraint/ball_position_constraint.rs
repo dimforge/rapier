@@ -114,7 +114,7 @@ impl BallPositionGroundConstraint {
             // are the local_anchors. The rb1 and rb2 have
             // already been flipped by the caller.
             Self {
-                anchor1: rb1.predicted_position * cparams.local_anchor2,
+                anchor1: rb1.next_position * cparams.local_anchor2,
                 im2: rb2.effective_inv_mass,
                 ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
                 local_anchor2: cparams.local_anchor1,
@@ -123,7 +123,7 @@ impl BallPositionGroundConstraint {
             }
         } else {
             Self {
-                anchor1: rb1.predicted_position * cparams.local_anchor1,
+                anchor1: rb1.next_position * cparams.local_anchor1,
                 im2: rb2.effective_inv_mass,
                 ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
                 local_anchor2: cparams.local_anchor2,

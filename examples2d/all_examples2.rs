@@ -11,6 +11,7 @@ use rapier_testbed2d::Testbed;
 use std::cmp::Ordering;
 
 mod add_remove2;
+mod ccd2;
 mod collision_groups2;
 mod convex_polygons2;
 mod damping2;
@@ -60,6 +61,7 @@ pub fn main() {
 
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Add remove", add_remove2::init_world),
+        ("CCD", ccd2::init_world),
         ("Collision groups", collision_groups2::init_world),
         ("Convex polygons", convex_polygons2::init_world),
         ("Damping", damping2::init_world),

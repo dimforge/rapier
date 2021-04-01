@@ -13,8 +13,8 @@ use physx::prelude::*;
 use physx::scene::FrictionType;
 use physx::traits::Class;
 use physx_sys::{
-    PxBitAndByte, PxConvexFlags, PxConvexMeshGeometryFlags, PxHeightFieldSample,
-    PxMeshGeometryFlags, PxMeshScale_new, PxRigidActor,
+    FilterShaderCallbackInfo, PxBitAndByte, PxConvexFlags, PxConvexMeshGeometryFlags,
+    PxHeightFieldSample, PxMeshGeometryFlags, PxMeshScale_new, PxRigidActor,
 };
 use rapier::counters::Counters;
 use rapier::dynamics::{
@@ -160,14 +160,23 @@ impl PhysxWorld {
                 FrictionType::Patch
             };
 
-            let scene_desc = SceneDescriptor {
+            let mut scene_desc = SceneDescriptor {
                 gravity: gravity.into_physx(),
                 thread_count: num_threads as u32,
                 broad_phase_type: BroadPhaseType::AutomaticBoxPruning,
                 solver_type: SolverType::PGS,
                 friction_type,
+                ccd_max_passes: integration_parameters.max_ccd_substeps as u32,
                 ..SceneDescriptor::new(())
             };
+
+            let ccd_enabled = bodies.iter().any(|(_, rb)| rb.is_ccd_enabled());
+
+            if ccd_enabled {
+                scene_desc.simulation_filter_shader =
+                    FilterShaderDescriptor::CallDefaultFirst(ccd_filter_shader);
+                scene_desc.flags.insert(SceneFlag::EnableCcd);
+            }
 
             let mut scene: Owner<PxScene> = physics.create(scene_desc).unwrap();
             let mut rapier2dynamic = HashMap::new();
@@ -231,13 +240,13 @@ impl PhysxWorld {
                 }
             }
 
-            // Update mass properties.
+            // Update mass properties and CCD flags.
             for (rapier_handle, actor) in rapier2dynamic.iter_mut() {
                 let rb = &bodies[*rapier_handle];
                 let densities: Vec<_> = rb
                     .colliders()
                     .iter()
-                    .map(|h| colliders[*h].density())
+                    .map(|h| colliders[*h].density().unwrap_or(0.0))
                     .collect();
 
                 unsafe {
@@ -248,6 +257,23 @@ impl PhysxWorld {
                         std::ptr::null(),
                         false,
                     );
+
+                    if rb.is_ccd_enabled() {
+                        physx_sys::PxRigidBody_setRigidBodyFlag_mut(
+                            std::mem::transmute(actor.as_mut()),
+                            RigidBodyFlag::EnableCCD as u32,
+                            true,
+                        );
+                        // physx_sys::PxRigidBody_setMinCCDAdvanceCoefficient_mut(
+                        //     std::mem::transmute(actor.as_mut()),
+                        //     0.0,
+                        // );
+                        // physx_sys::PxRigidBody_setRigidBodyFlag_mut(
+                        //     std::mem::transmute(actor.as_mut()),
+                        //     RigidBodyFlag::EnableCCDFriction as u32,
+                        //     true,
+                        // );
+                    }
                 }
             }
 
@@ -698,4 +724,9 @@ impl AdvanceCallback<PxArticulationLink, PxRigidDynamic> for OnAdvance {
         _transforms: &[PxTransform],
     ) {
     }
+}
+
+unsafe extern "C" fn ccd_filter_shader(data: *mut FilterShaderCallbackInfo) -> u16 {
+    (*(*data).pairFlags).mBits |= physx_sys::PxPairFlag::eDETECT_CCD_CONTACT as u16;
+    0
 }

@@ -70,6 +70,8 @@ pub(crate) struct ThreadContext {
     pub impulse_writeback_index: AtomicUsize,
     pub joint_writeback_index: AtomicUsize,
     pub body_integration_index: AtomicUsize,
+    pub body_force_integration_index: AtomicUsize,
+    pub num_force_integrated_bodies: AtomicUsize,
     pub num_integrated_bodies: AtomicUsize,
     // Position solver.
     pub position_constraint_initialization_index: AtomicUsize,
@@ -97,6 +99,8 @@ impl ThreadContext {
             num_solved_interactions: AtomicUsize::new(0),
             impulse_writeback_index: AtomicUsize::new(0),
             joint_writeback_index: AtomicUsize::new(0),
+            body_force_integration_index: AtomicUsize::new(0),
+            num_force_integrated_bodies: AtomicUsize::new(0),
             body_integration_index: AtomicUsize::new(0),
             num_integrated_bodies: AtomicUsize::new(0),
             position_constraint_initialization_index: AtomicUsize::new(0),
@@ -146,7 +150,82 @@ impl ParallelIslandSolver {
         }
     }
 
-    pub fn solve_island<'s>(
+    pub fn solve_position_constraints<'s>(
+        &'s mut self,
+        scope: &Scope<'s>,
+        island_id: usize,
+        params: &'s IntegrationParameters,
+        bodies: &'s mut RigidBodySet,
+    ) {
+        let num_threads = rayon::current_num_threads();
+        let num_task_per_island = num_threads; // (num_threads / num_islands).max(1); // TODO: not sure this is the best value. Also, perhaps it is better to interleave tasks of each island?
+        self.thread = ThreadContext::new(8); // TODO: could we compute some kind of optimal value here?
+        self.positions.clear();
+        self.positions
+            .resize(bodies.active_island(island_id).len(), Isometry::identity());
+
+        for _ in 0..num_task_per_island {
+            // We use AtomicPtr because it is Send+Sync while *mut is not.
+            // See https://internals.rust-lang.org/t/shouldnt-pointers-be-send-sync-or/8818
+            let thread = &self.thread;
+            let positions = std::sync::atomic::AtomicPtr::new(&mut self.positions as *mut _);
+            let bodies = std::sync::atomic::AtomicPtr::new(bodies as *mut _);
+            let parallel_contact_constraints =
+                std::sync::atomic::AtomicPtr::new(&mut self.parallel_contact_constraints as *mut _);
+            let parallel_joint_constraints =
+                std::sync::atomic::AtomicPtr::new(&mut self.parallel_joint_constraints as *mut _);
+
+            scope.spawn(move |_| {
+                // Transmute *mut -> &mut
+                let positions: &mut Vec<Isometry<Real>> =
+                    unsafe { std::mem::transmute(positions.load(Ordering::Relaxed)) };
+                let bodies: &mut RigidBodySet =
+                    unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };
+                let parallel_contact_constraints: &mut ParallelSolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> = unsafe {
+                    std::mem::transmute(parallel_contact_constraints.load(Ordering::Relaxed))
+                };
+                let parallel_joint_constraints: &mut ParallelSolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> = unsafe {
+                    std::mem::transmute(parallel_joint_constraints.load(Ordering::Relaxed))
+                };
+
+                enable_flush_to_zero!(); // Ensure this is enabled on each thread.
+
+                // Write results back to rigid bodies and integrate velocities.
+                let island_range = bodies.active_island_range(island_id);
+                let active_bodies = &bodies.active_dynamic_set[island_range];
+                let bodies = &mut bodies.bodies;
+
+                concurrent_loop! {
+                    let batch_size = thread.batch_size;
+                    for handle in active_bodies[thread.body_integration_index, thread.num_integrated_bodies] {
+                        let rb = &mut bodies[handle.0];
+                        positions[rb.active_set_offset] = rb.next_position;
+                    }
+                }
+
+                ThreadContext::lock_until_ge(&thread.num_integrated_bodies, active_bodies.len());
+
+                ParallelPositionSolver::solve(
+                    &thread,
+                    params,
+                    positions,
+                    parallel_contact_constraints,
+                    parallel_joint_constraints
+                );
+
+                // Write results back to rigid bodies.
+                concurrent_loop! {
+                    let batch_size = thread.batch_size;
+                    for handle in active_bodies[thread.position_writeback_index] {
+                        let rb = &mut bodies[handle.0];
+                        rb.set_next_position(positions[rb.active_set_offset]);
+                    }
+                }
+            })
+        }
+    }
+
+    pub fn init_constraints_and_solve_velocity_constraints<'s>(
         &'s mut self,
         scope: &Scope<'s>,
         island_id: usize,
@@ -184,37 +263,11 @@ impl ParallelIslandSolver {
         self.positions
             .resize(bodies.active_island(island_id).len(), Isometry::identity());
 
-        {
-            // Initialize `mj_lambdas` (per-body velocity deltas) with external accelerations (gravity etc):
-
-            let island_range = bodies.active_island_range(island_id);
-            let active_bodies = &bodies.active_dynamic_set[island_range];
-            let bodies = &mut bodies.bodies;
-
-            let thread = &self.thread;
-
-            concurrent_loop! {
-                let batch_size = thread.batch_size;
-                for handle in active_bodies[thread.body_integration_index, thread.num_integrated_bodies] {
-                    let rb = &mut bodies[handle.0];
-                    let dvel = &mut self.mj_lambdas[rb.active_set_offset];
-
-                    dvel.linear += rb.force * (rb.effective_inv_mass * params.dt);
-                    rb.force = na::zero();
-
-                    // dvel.angular is actually storing angular velocity delta multiplied by the square root of the inertia tensor:
-                    dvel.angular += rb.effective_world_inv_inertia_sqrt * rb.torque * params.dt;
-                    rb.torque = na::zero();
-                }
-            }
-        }
-
         for _ in 0..num_task_per_island {
             // We use AtomicPtr because it is Send+Sync while *mut is not.
             // See https://internals.rust-lang.org/t/shouldnt-pointers-be-send-sync-or/8818
             let thread = &self.thread;
             let mj_lambdas = std::sync::atomic::AtomicPtr::new(&mut self.mj_lambdas as *mut _);
-            let positions = std::sync::atomic::AtomicPtr::new(&mut self.positions as *mut _);
             let bodies = std::sync::atomic::AtomicPtr::new(bodies as *mut _);
             let manifolds = std::sync::atomic::AtomicPtr::new(manifolds as *mut _);
             let joints = std::sync::atomic::AtomicPtr::new(joints as *mut _);
@@ -227,8 +280,6 @@ impl ParallelIslandSolver {
                 // Transmute *mut -> &mut
                 let mj_lambdas: &mut Vec<DeltaVel<Real>> =
                     unsafe { std::mem::transmute(mj_lambdas.load(Ordering::Relaxed)) };
-                let positions: &mut Vec<Isometry<Real>> =
-                    unsafe { std::mem::transmute(positions.load(Ordering::Relaxed)) };
                 let bodies: &mut RigidBodySet =
                     unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };
                 let manifolds: &mut Vec<&mut ContactManifold> =
@@ -243,6 +294,32 @@ impl ParallelIslandSolver {
                 };
 
                 enable_flush_to_zero!(); // Ensure this is enabled on each thread.
+
+                // Initialize `mj_lambdas` (per-body velocity deltas) with external accelerations (gravity etc):
+                {
+                    let island_range = bodies.active_island_range(island_id);
+                    let active_bodies = &bodies.active_dynamic_set[island_range];
+                    let bodies = &mut bodies.bodies;
+
+                    concurrent_loop! {
+                        let batch_size = thread.batch_size;
+                        for handle in active_bodies[thread.body_force_integration_index, thread.num_force_integrated_bodies] {
+                            let rb = &mut bodies[handle.0];
+                            let dvel = &mut mj_lambdas[rb.active_set_offset];
+
+                            // NOTE: `dvel.angular` is actually storing angular velocity delta multiplied
+                            //       by the square root of the inertia tensor:
+                            dvel.angular += rb.effective_world_inv_inertia_sqrt * rb.torque * params.dt;
+                            dvel.linear += rb.force * (rb.effective_inv_mass * params.dt);
+                        }
+                    }
+
+                    // We need to wait for every body to be force-integrated because their
+                    // angular and linear velocities are needed by the constraints initialization.
+                    ThreadContext::lock_until_ge(&thread.num_force_integrated_bodies, active_bodies.len());
+                }
+
+
                 parallel_contact_constraints.fill_constraints(&thread, params, bodies, manifolds);
                 parallel_joint_constraints.fill_constraints(&thread, params, bodies, joints);
                 ThreadContext::lock_until_ge(
@@ -276,29 +353,8 @@ impl ParallelIslandSolver {
                         let dvel = mj_lambdas[rb.active_set_offset];
                         rb.linvel += dvel.linear;
                         rb.angvel += rb.effective_world_inv_inertia_sqrt.transform_vector(dvel.angular);
-                        rb.integrate(params.dt);
-                        positions[rb.active_set_offset] = rb.position;
-                    }
-                }
-
-                // We need to way for every body to be integrated because it also
-                // initialized `positions` to the updated values.
-                ThreadContext::lock_until_ge(&thread.num_integrated_bodies, active_bodies.len());
-
-                ParallelPositionSolver::solve(
-                    &thread,
-                    params,
-                    positions,
-                    parallel_contact_constraints,
-                    parallel_joint_constraints
-                );
-
-                // Write results back to rigid bodies.
-                concurrent_loop! {
-                    let batch_size = thread.batch_size;
-                    for handle in active_bodies[thread.position_writeback_index] {
-                        let rb = &mut bodies[handle.0];
-                        rb.set_position_internal(positions[rb.active_set_offset]);
+                        rb.apply_damping(params.dt);
+                        rb.integrate_next_position(params.dt);
                     }
                 }
             })

@@ -21,11 +21,16 @@ impl PositionSolver {
         contact_constraints: &[AnyPositionConstraint],
         joint_constraints: &[AnyJointPositionConstraint],
     ) {
+        if contact_constraints.is_empty() && joint_constraints.is_empty() {
+            // Nothing to do.
+            return;
+        }
+
         self.positions.clear();
         self.positions.extend(
             bodies
                 .iter_active_island(island_id)
-                .map(|(_, b)| b.position),
+                .map(|(_, b)| b.next_position),
         );
 
         for _ in 0..params.max_position_iterations {
@@ -39,7 +44,7 @@ impl PositionSolver {
         }
 
         bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
-            rb.set_position_internal(self.positions[rb.active_set_offset])
+            rb.set_next_position(self.positions[rb.active_set_offset])
         });
     }
 }

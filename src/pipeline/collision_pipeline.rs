@@ -44,16 +44,15 @@ impl CollisionPipeline {
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
-        bodies.maintain(colliders);
+        colliders.handle_user_changes(bodies);
+        bodies.handle_user_changes(colliders);
         self.broadphase_collider_pairs.clear();
 
-        broad_phase.update_aabbs(prediction_distance, bodies, colliders);
-
         self.broad_phase_events.clear();
-        broad_phase.find_pairs(&mut self.broad_phase_events);
+        broad_phase.update(prediction_distance, colliders, &mut self.broad_phase_events);
 
+        narrow_phase.handle_user_changes(colliders, bodies, events);
         narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
-
         narrow_phase.compute_contacts(prediction_distance, bodies, colliders, hooks, events);
         narrow_phase.compute_intersections(bodies, colliders, hooks, events);
 
@@ -61,26 +60,17 @@ impl CollisionPipeline {
             colliders,
             narrow_phase,
             self.empty_joints.joint_graph(),
-            0,
+            128,
         );
-
-        // // Update kinematic bodies velocities.
-        // bodies.foreach_active_kinematic_body_mut_internal(|_, body| {
-        //     body.compute_velocity_from_predicted_position(integration_parameters.inv_dt());
-        // });
 
         // Update colliders positions and kinematic bodies positions.
         bodies.foreach_active_body_mut_internal(|_, rb| {
-            if rb.is_kinematic() {
-                rb.position = rb.predicted_position;
-            } else {
-                rb.update_predicted_position(0.0);
-            }
+            rb.position = rb.next_position;
+            rb.update_colliders_positions(colliders);
 
             for handle in &rb.colliders {
-                let collider = &mut colliders[*handle];
+                let collider = colliders.get_mut_internal(*handle).unwrap();
                 collider.position = rb.position * collider.delta;
-                collider.predicted_position = rb.predicted_position * collider.delta;
             }
         });
 

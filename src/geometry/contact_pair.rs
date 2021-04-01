@@ -1,5 +1,5 @@
 use crate::dynamics::{BodyPair, RigidBodyHandle};
-use crate::geometry::{ColliderPair, ContactManifold};
+use crate::geometry::{ColliderPair, Contact, ContactManifold};
 use crate::math::{Point, Real, Vector};
 use parry::query::ContactManifoldsWorkspace;
 
@@ -38,6 +38,8 @@ pub struct ContactData {
     /// collider's rigid-body.
     #[cfg(feature = "dim3")]
     pub tangent_impulse: na::Vector2<Real>,
+    /// The target velocity correction at the contact point.
+    pub rhs: Real,
 }
 
 impl Default for ContactData {
@@ -45,6 +47,7 @@ impl Default for ContactData {
         Self {
             impulse: 0.0,
             tangent_impulse: na::zero(),
+            rhs: 0.0,
         }
     }
 }
@@ -72,6 +75,35 @@ impl ContactPair {
             manifolds: Vec::new(),
             workspace: None,
         }
+    }
+
+    /// Finds the contact with the smallest signed distance.
+    ///
+    /// If the colliders involved in this contact pair are penetrating, then
+    /// this returns the contact with the largest penetration depth.
+    ///
+    /// Returns a reference to the contact, as well as the contact manifold
+    /// it is part of.
+    pub fn find_deepest_contact(&self) -> Option<(&ContactManifold, &Contact)> {
+        let mut deepest = None;
+
+        for m2 in &self.manifolds {
+            let deepest_candidate = m2.find_deepest_contact();
+
+            deepest = match (deepest, deepest_candidate) {
+                (_, None) => deepest,
+                (None, Some(c2)) => Some((m2, c2)),
+                (Some((m1, c1)), Some(c2)) => {
+                    if c1.dist <= c2.dist {
+                        Some((m1, c1))
+                    } else {
+                        Some((m2, c2))
+                    }
+                }
+            }
+        }
+
+        deepest
     }
 }
 
@@ -143,16 +175,25 @@ pub struct SolverContact {
     /// This is set to zero by default. Set to a non-zero value to
     /// simulate, e.g., conveyor belts.
     pub tangent_velocity: Vector<Real>,
-    /// Associated contact data used to warm-start the constraints
-    /// solver.
-    pub data: ContactData,
+    /// The warmstart impulse, along the contact normal, applied by this contact to the first collider's rigid-body.
+    pub warmstart_impulse: Real,
+    /// The warmstart friction impulse along the vector orthonormal to the contact normal, applied to the first
+    /// collider's rigid-body.
+    #[cfg(feature = "dim2")]
+    pub warmstart_tangent_impulse: Real,
+    /// The warmstart friction impulses along the basis orthonormal to the contact normal, applied to the first
+    /// collider's rigid-body.
+    #[cfg(feature = "dim3")]
+    pub warmstart_tangent_impulse: na::Vector2<Real>,
+    /// The last velocity correction targeted by this contact.
+    pub prev_rhs: Real,
 }
 
 impl SolverContact {
     /// Should we treat this contact as a bouncy contact?
     /// If `true`, use [`Self::restitution`].
     pub fn is_bouncy(&self) -> bool {
-        let is_new = self.data.impulse == 0.0;
+        let is_new = self.warmstart_impulse == 0.0;
         if is_new {
             // Treat new collisions as bouncing at first, unless we have zero restitution.
             self.restitution > 0.0

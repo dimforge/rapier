@@ -134,7 +134,7 @@ impl WBallPositionGroundConstraint {
         cparams: [&BallJoint; SIMD_WIDTH],
         flipped: [bool; SIMD_WIDTH],
     ) -> Self {
-        let position1 = Isometry::from(array![|ii| rbs1[ii].predicted_position; SIMD_WIDTH]);
+        let position1 = Isometry::from(array![|ii| rbs1[ii].next_position; SIMD_WIDTH]);
         let anchor1 = position1
             * Point::from(array![|ii| if flipped[ii] {
                 cparams[ii].local_anchor2

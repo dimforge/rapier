@@ -10,12 +10,14 @@ use inflector::Inflector;
 use rapier_testbed3d::Testbed;
 use std::cmp::Ordering;
 
+mod ccd3;
 mod collision_groups3;
 mod compound3;
 mod convex_decomposition3;
 mod convex_polyhedron3;
 mod damping3;
 mod debug_add_remove_collider3;
+mod debug_big_colliders3;
 mod debug_boxes3;
 mod debug_cylinder3;
 mod debug_dynamic_collider_add3;
@@ -76,6 +78,7 @@ pub fn main() {
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Fountain", fountain3::init_world),
         ("Primitives", primitives3::init_world),
+        ("CCD", ccd3::init_world),
         ("Collision groups", collision_groups3::init_world),
         ("Compound", compound3::init_world),
         ("Convex decomposition", convex_decomposition3::init_world),
@@ -95,6 +98,7 @@ pub fn main() {
             "(Debug) add/rm collider",
             debug_add_remove_collider3::init_world,
         ),
+        ("(Debug) big colliders", debug_big_colliders3::init_world),
         ("(Debug) boxes", debug_boxes3::init_world),
         (
             "(Debug) dyn. coll. add",

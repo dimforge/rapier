@@ -60,7 +60,6 @@ pub struct GraphicsManager {
     b2wireframe: HashMap<RigidBodyHandle, bool>,
     ground_color: Point3<f32>,
     camera: Camera,
-    ground_handle: Option<RigidBodyHandle>,
 }
 
 impl GraphicsManager {
@@ -87,12 +86,7 @@ impl GraphicsManager {
             c2color: HashMap::new(),
             ground_color: Point3::new(0.5, 0.5, 0.5),
             b2wireframe: HashMap::new(),
-            ground_handle: None,
         }
-    }
-
-    pub fn set_ground_handle(&mut self, handle: Option<RigidBodyHandle>) {
-        self.ground_handle = handle
     }
 
     pub fn clear(&mut self, window: &mut Window) {
@@ -630,19 +624,17 @@ impl GraphicsManager {
         // );
         for (_, ns) in self.b2sn.iter_mut() {
             for n in ns.iter_mut() {
-                /*
-                if let Some(co) = colliders.get(n.collider()) {
-                    let bo = &bodies[co.parent()];
-
-                    if bo.is_dynamic() {
-                        if bo.is_sleeping() {
-                            n.set_color(Point3::new(1.0, 0.0, 0.0));
-                        } else {
-                            n.set_color(Point3::new(0.0, 1.0, 0.0));
-                        }
-                    }
-                }
-                 */
+                // if let Some(co) = colliders.get(n.collider()) {
+                //     let bo = &_bodies[co.parent()];
+                //
+                //     if bo.is_dynamic() {
+                //         if bo.is_ccd_active() {
+                //             n.set_color(Point3::new(1.0, 0.0, 0.0));
+                //         } else {
+                //             n.set_color(Point3::new(0.0, 1.0, 0.0));
+                //         }
+                //     }
+                // }
 
                 n.update(colliders);
                 n.draw(window);

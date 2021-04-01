@@ -5,7 +5,7 @@ use crate::geometry::{
 use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector,
 };
-use crate::utils::{self, WCross, WDot};
+use crate::utils::{self, WAngularInertia, WCross, WDot};
 use na::ComplexField;
 use num::Zero;
 
@@ -24,7 +24,7 @@ pub enum BodyStatus {
     /// cannot be pushed by anything. In other words, the trajectory of a kinematic body can only be
     /// modified by the user and is independent from any contact or joint it is involved in.
     Kinematic,
-    // Semikinematic, // A kinematic that performs automatic CCD with the static environment toi avoid traversing it?
+    // Semikinematic, // A kinematic that performs automatic CCD with the static environment to avoid traversing it?
     // Disabled,
 }
 
@@ -36,17 +36,20 @@ bitflags::bitflags! {
         const ROTATION_LOCKED_X = 1 << 1;
         const ROTATION_LOCKED_Y = 1 << 2;
         const ROTATION_LOCKED_Z = 1 << 3;
+        const CCD_ENABLED = 1 << 4;
+        const CCD_ACTIVE = 1 << 5;
     }
 }
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-    /// Flags affecting the behavior of the constraints solver for a given contact manifold.
+    /// Flags describing how the rigid-body has been modified by the user.
     pub(crate) struct RigidBodyChanges: u32 {
-        const MODIFIED  = 1 << 0;
-        const POSITION  = 1 << 1;
-        const SLEEP     = 1 << 2;
-        const COLLIDERS = 1 << 3;
+        const MODIFIED    = 1 << 0;
+        const POSITION    = 1 << 1;
+        const SLEEP       = 1 << 2;
+        const COLLIDERS   = 1 << 3;
+        const BODY_STATUS = 1 << 4;
     }
 }
 
@@ -58,7 +61,16 @@ bitflags::bitflags! {
 pub struct RigidBody {
     /// The world-space position of the rigid-body.
     pub(crate) position: Isometry<Real>,
-    pub(crate) predicted_position: Isometry<Real>,
+    /// The next position of the rigid-body.
+    ///
+    /// At the beginning of the timestep, and when the
+    /// timestep is complete we must have position == next_position
+    /// except for kinematic bodies.
+    ///
+    /// The next_position is updated after the velocity and position
+    /// resolution. Then it is either validated (ie. we set position := set_position)
+    /// or clamped by CCD.
+    pub(crate) next_position: Isometry<Real>,
     /// The local mass properties of the rigid-body.
     pub(crate) mass_properties: MassProperties,
     /// The world-space center of mass of the rigid-body.
@@ -92,18 +104,20 @@ pub struct RigidBody {
     flags: RigidBodyFlags,
     pub(crate) changes: RigidBodyChanges,
     /// The status of the body, governing how it is affected by external forces.
-    pub body_status: BodyStatus,
+    body_status: BodyStatus,
     /// The dominance group this rigid-body is part of.
     dominance_group: i8,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
+    pub(crate) ccd_thickness: Real,
+    pub(crate) ccd_max_dist: Real,
 }
 
 impl RigidBody {
     fn new() -> Self {
         Self {
             position: Isometry::identity(),
-            predicted_position: Isometry::identity(),
+            next_position: Isometry::identity(),
             mass_properties: MassProperties::zero(),
             world_com: Point::origin(),
             effective_inv_mass: 0.0,
@@ -127,6 +141,8 @@ impl RigidBody {
             body_status: BodyStatus::Dynamic,
             dominance_group: 0,
             user_data: 0,
+            ccd_thickness: Real::MAX,
+            ccd_max_dist: 0.0,
         }
     }
 
@@ -153,8 +169,19 @@ impl RigidBody {
 
         self.linvel += linear_acc * dt;
         self.angvel += angular_acc * dt;
-        self.force = na::zero();
-        self.torque = na::zero();
+    }
+
+    /// The status of this rigid-body.
+    pub fn body_status(&self) -> BodyStatus {
+        self.body_status
+    }
+
+    /// Sets the status of this rigid-body.
+    pub fn set_body_status(&mut self, status: BodyStatus) {
+        if status != self.body_status {
+            self.changes.insert(RigidBodyChanges::BODY_STATUS);
+            self.body_status = status;
+        }
     }
 
     /// The mass properties of this rigid-body.
@@ -176,7 +203,72 @@ impl RigidBody {
         }
     }
 
-    /// Sets the rigid-body's mass properties.
+    /// Enables of disable CCD (continuous collision-detection) for this rigid-body.
+    pub fn enable_ccd(&mut self, enabled: bool) {
+        self.flags.set(RigidBodyFlags::CCD_ENABLED, enabled)
+    }
+
+    /// Is CCD (continous collision-detection) enabled for this rigid-body?
+    pub fn is_ccd_enabled(&self) -> bool {
+        self.flags.contains(RigidBodyFlags::CCD_ENABLED)
+    }
+
+    // This is different from `is_ccd_enabled`. This checks that CCD
+    // is active for this rigid-body, i.e., if it was seen to move fast
+    // enough to justify a CCD run.
+    /// Is CCD active for this rigid-body?
+    ///
+    /// The CCD is considered active if the rigid-body is moving at
+    /// a velocity greater than an automatically-computed threshold.
+    ///
+    /// This is not the same as `self.is_ccd_enabled` which only
+    /// checks if CCD is allowed to run for this rigid-body or if
+    /// it is completely disabled (independently from its velocity).
+    pub fn is_ccd_active(&self) -> bool {
+        self.flags.contains(RigidBodyFlags::CCD_ACTIVE)
+    }
+
+    pub(crate) fn update_ccd_active_flag(&mut self, dt: Real, include_forces: bool) {
+        let ccd_active = self.is_ccd_enabled() && self.is_moving_fast(dt, include_forces);
+        self.flags.set(RigidBodyFlags::CCD_ACTIVE, ccd_active);
+    }
+
+    pub(crate) fn is_moving_fast(&self, dt: Real, include_forces: bool) -> bool {
+        if self.is_dynamic() {
+            // NOTE: for the threshold we don't use the exact CCD thickness. Theoretically, we
+            //       should use `self.ccd_thickness - smallest_contact_dist` where `smallest_contact_dist`
+            //       is the deepest contact (the contact with the largest penetration depth, i.e., the
+            //       negative `dist` with the largest absolute value.
+            //       However, getting this penetration depth assumes querying the contact graph from
+            //       the narrow-phase, which can be pretty expensive. So we use the CCD thickness
+            //       divided by 10 right now. We will see in practice if this value is OK or if we
+            //       should use a smaller (to be less conservative) or larger divisor (to be more conservative).
+            let threshold = self.ccd_thickness / 10.0;
+
+            if include_forces {
+                let linear_part = (self.linvel + self.force * dt).norm();
+                #[cfg(feature = "dim2")]
+                let angular_part = (self.angvel + self.torque * dt).abs() * self.ccd_max_dist;
+                #[cfg(feature = "dim3")]
+                let angular_part = (self.angvel + self.torque * dt).norm() * self.ccd_max_dist;
+                let vel_with_forces = linear_part + angular_part;
+                vel_with_forces > threshold
+            } else {
+                self.max_point_velocity() * dt > threshold
+            }
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn max_point_velocity(&self) -> Real {
+        #[cfg(feature = "dim2")]
+        return self.linvel.norm() + self.angvel.abs() * self.ccd_max_dist;
+        #[cfg(feature = "dim3")]
+        return self.linvel.norm() + self.angvel.norm() * self.ccd_max_dist;
+    }
+
+    /// Sets the rigid-body's initial mass properties.
     ///
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
@@ -228,8 +320,8 @@ impl RigidBody {
     /// If this rigid-body is kinematic this value is set by the `set_next_kinematic_position`
     /// method and is used for estimating the kinematic body velocity at the next timestep.
     /// For non-kinematic bodies, this value is currently unspecified.
-    pub fn predicted_position(&self) -> &Isometry<Real> {
-        &self.predicted_position
+    pub fn next_position(&self) -> &Isometry<Real> {
+        &self.next_position
     }
 
     /// The scale factor applied to the gravity affecting this rigid-body.
@@ -254,6 +346,15 @@ impl RigidBody {
             true,
         );
 
+        self.ccd_thickness = self.ccd_thickness.min(coll.shape().ccd_thickness());
+
+        let shape_bsphere = coll
+            .shape()
+            .compute_bounding_sphere(coll.position_wrt_parent());
+        self.ccd_max_dist = self
+            .ccd_max_dist
+            .max(shape_bsphere.center.coords.norm() + shape_bsphere.radius);
+
         let mass_properties = coll
             .mass_properties()
             .transform_by(coll.position_wrt_parent());
@@ -264,9 +365,13 @@ impl RigidBody {
 
     pub(crate) fn update_colliders_positions(&mut self, colliders: &mut ColliderSet) {
         for handle in &self.colliders {
-            let collider = &mut colliders[*handle];
-            collider.position = self.position * collider.delta;
-            collider.predicted_position = self.predicted_position * collider.delta;
+            // NOTE: we use `get_mut_internal_with_modification_tracking` here because we want to
+            //       benefit from the modification tracking to know the colliders
+            //       we need to update the broad-phase and narrow-phase for.
+            let collider = colliders
+                .get_mut_internal_with_modification_tracking(*handle)
+                .unwrap();
+            collider.set_position(self.position * collider.delta);
         }
     }
 
@@ -331,18 +436,35 @@ impl RigidBody {
         !self.linvel.is_zero() || !self.angvel.is_zero()
     }
 
-    fn integrate_velocity(&self, dt: Real) -> Isometry<Real> {
+    /// Computes the predict position of this rigid-body after `dt` seconds, taking
+    /// into account its velocities and external forces applied to it.
+    pub fn predict_position_using_velocity_and_forces(&self, dt: Real) -> Isometry<Real> {
+        let dlinvel = self.force * (self.effective_inv_mass * dt);
+        let dangvel = self
+            .effective_world_inv_inertia_sqrt
+            .transform_vector(self.torque * dt);
+        let linvel = self.linvel + dlinvel;
+        let angvel = self.angvel + dangvel;
+
+        let com = self.position * self.mass_properties.local_com;
+        let shift = Translation::from(com.coords);
+        shift * Isometry::new(linvel * dt, angvel * dt) * shift.inverse() * self.position
+    }
+
+    pub(crate) fn integrate_velocity(&self, dt: Real) -> Isometry<Real> {
         let com = self.position * self.mass_properties.local_com;
         let shift = Translation::from(com.coords);
         shift * Isometry::new(self.linvel * dt, self.angvel * dt) * shift.inverse()
     }
 
-    pub(crate) fn integrate(&mut self, dt: Real) {
-        // TODO: do we want to apply damping before or after the velocity integration?
+    pub(crate) fn apply_damping(&mut self, dt: Real) {
         self.linvel *= 1.0 / (1.0 + dt * self.linear_damping);
         self.angvel *= 1.0 / (1.0 + dt * self.angular_damping);
+    }
 
-        self.position = self.integrate_velocity(dt) * self.position;
+    pub(crate) fn integrate_next_position(&mut self, dt: Real) {
+        self.next_position = self.integrate_velocity(dt) * self.position;
+        let _ = self.next_position.rotation.renormalize_fast();
     }
 
     /// The linear velocity of this rigid-body.
@@ -416,7 +538,8 @@ impl RigidBody {
     /// put to sleep because it did not move for a while.
     pub fn set_position(&mut self, pos: Isometry<Real>, wake_up: bool) {
         self.changes.insert(RigidBodyChanges::POSITION);
-        self.set_position_internal(pos);
+        self.position = pos;
+        self.next_position = pos;
 
         // TODO: Do we really need to check that the body isn't dynamic?
         if wake_up && self.is_dynamic() {
@@ -424,24 +547,19 @@ impl RigidBody {
         }
     }
 
-    pub(crate) fn set_position_internal(&mut self, pos: Isometry<Real>) {
-        self.position = pos;
-
-        // TODO: update the predicted position for dynamic bodies too?
-        if self.is_static() || self.is_kinematic() {
-            self.predicted_position = pos;
-        }
+    pub(crate) fn set_next_position(&mut self, pos: Isometry<Real>) {
+        self.next_position = pos;
     }
 
     /// If this rigid body is kinematic, sets its future position after the next timestep integration.
     pub fn set_next_kinematic_position(&mut self, pos: Isometry<Real>) {
         if self.is_kinematic() {
-            self.predicted_position = pos;
+            self.next_position = pos;
         }
     }
 
-    pub(crate) fn compute_velocity_from_predicted_position(&mut self, inv_dt: Real) {
-        let dpos = self.predicted_position * self.position.inverse();
+    pub(crate) fn compute_velocity_from_next_position(&mut self, inv_dt: Real) {
+        let dpos = self.next_position * self.position.inverse();
         #[cfg(feature = "dim2")]
         {
             self.angvel = dpos.rotation.angle() * inv_dt;
@@ -451,10 +569,6 @@ impl RigidBody {
             self.angvel = dpos.rotation.scaled_axis() * inv_dt;
         }
         self.linvel = dpos.translation.vector * inv_dt;
-    }
-
-    pub(crate) fn update_predicted_position(&mut self, dt: Real) {
-        self.predicted_position = self.integrate_velocity(dt) * self.position;
     }
 
     pub(crate) fn update_world_mass_properties(&mut self) {
@@ -666,6 +780,7 @@ pub struct RigidBodyBuilder {
     mass_properties: MassProperties,
     can_sleep: bool,
     sleeping: bool,
+    ccd_enabled: bool,
     dominance_group: i8,
     user_data: u128,
 }
@@ -685,6 +800,7 @@ impl RigidBodyBuilder {
             mass_properties: MassProperties::zero(),
             can_sleep: true,
             sleeping: false,
+            ccd_enabled: false,
             dominance_group: 0,
             user_data: 0,
         }
@@ -752,9 +868,9 @@ impl RigidBodyBuilder {
         self
     }
 
-    /// Sets the mass properties of the rigid-body being built.
+    /// Sets the additional mass properties of the rigid-body being built.
     ///
-    /// Note that the final mass properties of the rigid-bodies depends
+    /// Note that "additional" means that the final mass properties of the rigid-bodies depends
     /// on the initial mass-properties of the rigid-body (set by this method)
     /// to which is added the contributions of all the colliders with non-zero density
     /// attached to this rigid-body.
@@ -762,7 +878,7 @@ impl RigidBodyBuilder {
     /// Therefore, if you want your provided mass properties to be the final
     /// mass properties of your rigid-body, don't attach colliders to it, or
     /// only attach colliders with densities equal to zero.
-    pub fn mass_properties(mut self, props: MassProperties) -> Self {
+    pub fn additional_mass_properties(mut self, props: MassProperties) -> Self {
         self.mass_properties = props;
         self
     }
@@ -798,50 +914,76 @@ impl RigidBodyBuilder {
         self
     }
 
-    /// Sets the mass of the rigid-body being built.
-    pub fn mass(mut self, mass: Real) -> Self {
-        self.mass_properties.inv_mass = utils::inv(mass);
+    /// Sets the additional mass of the rigid-body being built.
+    ///
+    /// This is only the "additional" mass because the total mass of the  rigid-body is
+    /// equal to the sum of this additional mass and the mass computed from the colliders
+    /// (with non-zero densities) attached to this rigid-body.
+    pub fn additional_mass(mut self, mass: Real) -> Self {
+        self.mass_properties.set_mass(mass, false);
         self
     }
-    /// Sets the angular inertia of this rigid-body.
+
+    /// Sets the additional mass of the rigid-body being built.
+    ///
+    /// This is only the "additional" mass because the total mass of the  rigid-body is
+    /// equal to the sum of this additional mass and the mass computed from the colliders
+    /// (with non-zero densities) attached to this rigid-body.
+    #[deprecated(note = "renamed to `additional_mass`.")]
+    pub fn mass(self, mass: Real) -> Self {
+        self.additional_mass(mass)
+    }
+
+    /// Sets the additional angular inertia of this rigid-body.
+    ///
+    /// This is only the "additional" angular inertia because the total angular inertia of
+    /// the rigid-body is equal to the sum of this additional value and the angular inertia
+    /// computed from the colliders (with non-zero densities) attached to this rigid-body.
     #[cfg(feature = "dim2")]
-    pub fn principal_angular_inertia(mut self, inertia: Real) -> Self {
+    pub fn additional_principal_angular_inertia(mut self, inertia: Real) -> Self {
         self.mass_properties.inv_principal_inertia_sqrt =
             utils::inv(ComplexField::sqrt(inertia.max(0.0)));
         self
     }
 
-    /// Use `self.principal_angular_inertia` instead.
+    /// Sets the angular inertia of this rigid-body.
     #[cfg(feature = "dim2")]
-    #[deprecated(note = "renamed to `principal_angular_inertia`.")]
-    pub fn principal_inertia(self, inertia: Real) -> Self {
-        self.principal_angular_inertia(inertia)
+    #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
+    pub fn principal_angular_inertia(self, inertia: Real) -> Self {
+        self.additional_principal_angular_inertia(inertia)
     }
 
-    /// Sets the principal angular inertia of this rigid-body.
+    /// Use `self.principal_angular_inertia` instead.
+    #[cfg(feature = "dim2")]
+    #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
+    pub fn principal_inertia(self, inertia: Real) -> Self {
+        self.additional_principal_angular_inertia(inertia)
+    }
+
+    /// Sets the additional principal angular inertia of this rigid-body.
     ///
-    /// In order to lock the rotations of this rigid-body (by
-    /// making them kinematic), call `.principal_inertia(Vector3::zeros(), Vector3::repeat(false))`.
-    ///
-    /// If `colliders_contribution_enabled[i]` is `false`, then the principal inertia specified here
-    /// along the `i`-th local axis of the rigid-body, will be the final principal inertia along
-    /// the `i`-th local axis of the rigid-body created by this builder.
-    /// If `colliders_contribution_enabled[i]` is `true`, then the final principal of the rigid-body
-    /// along its `i`-th local axis will depend on the initial principal inertia set by this method
-    /// to which is added the contributions of all the colliders with non-zero density
-    /// attached to this rigid-body.
+    /// This is only the "additional" angular inertia because the total angular inertia of
+    /// the rigid-body is equal to the sum of this additional value and the angular inertia
+    /// computed from the colliders (with non-zero densities) attached to this rigid-body.
     #[cfg(feature = "dim3")]
-    pub fn principal_angular_inertia(mut self, inertia: AngVector<Real>) -> Self {
+    pub fn additional_principal_angular_inertia(mut self, inertia: AngVector<Real>) -> Self {
         self.mass_properties.inv_principal_inertia_sqrt =
             inertia.map(|e| utils::inv(ComplexField::sqrt(e.max(0.0))));
         self
     }
 
+    /// Sets the principal angular inertia of this rigid-body.
+    #[cfg(feature = "dim3")]
+    #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
+    pub fn principal_angular_inertia(self, inertia: AngVector<Real>) -> Self {
+        self.additional_principal_angular_inertia(inertia)
+    }
+
     /// Use `self.principal_angular_inertia` instead.
     #[cfg(feature = "dim3")]
-    #[deprecated(note = "renamed to `principal_angular_inertia`.")]
+    #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
     pub fn principal_inertia(self, inertia: AngVector<Real>) -> Self {
-        self.principal_angular_inertia(inertia)
+        self.additional_principal_angular_inertia(inertia)
     }
 
     /// Sets the damping factor for the linear part of the rigid-body motion.
@@ -888,6 +1030,12 @@ impl RigidBodyBuilder {
         self
     }
 
+    /// Enabled continuous collision-detection for this rigid-body.
+    pub fn ccd_enabled(mut self, enabled: bool) -> Self {
+        self.ccd_enabled = enabled;
+        self
+    }
+
     /// Sets whether or not the rigid-body is to be created asleep.
     pub fn sleeping(mut self, sleeping: bool) -> Self {
         self.sleeping = sleeping;
@@ -897,8 +1045,8 @@ impl RigidBodyBuilder {
     /// Build a new rigid-body with the parameters configured with this builder.
     pub fn build(&self) -> RigidBody {
         let mut rb = RigidBody::new();
-        rb.predicted_position = self.position; // FIXME: compute the correct value?
-        rb.set_position_internal(self.position);
+        rb.next_position = self.position; // FIXME: compute the correct value?
+        rb.position = self.position;
         rb.linvel = self.linvel;
         rb.angvel = self.angvel;
         rb.body_status = self.body_status;
@@ -909,6 +1057,7 @@ impl RigidBodyBuilder {
         rb.gravity_scale = self.gravity_scale;
         rb.flags = self.flags;
         rb.dominance_group = self.dominance_group;
+        rb.enable_ccd(self.ccd_enabled);
 
         if self.can_sleep && self.sleeping {
             rb.sleep();
