@@ -8,13 +8,13 @@
 - Respect that people have differences of opinion and that every design or implementation choice carries a trade-off and numerous costs. There is seldom a right answer.
 - Please keep unstructured critique to a minimum. If you have solid ideas you want to experiment with, make a fork and see how it works.
 - We will exclude you from interaction if you insult, demean or harass anyone. That is not welcome behavior; we strive to be inclusive. In particular, we don't tolerate behavior that excludes people in socially marginalized groups.
-- Private harassment is also unacceptable. No matter who you are, if you feel you have been or are being harassed or made uncomfortable by a community member, please contact one of the channel ops or any of the [Dimforge moderation team][mods@dimforge.com] immediately. Whether you're a regular contributor or a newcomer, we care about making this community a safe place for you and we've got your back.
+- Private harassment is also unacceptable. No matter who you are, if you feel you have been or are being harassed or made uncomfortable by a community member, please contact one of the channel ops or any of the [Dimforge moderation team][mods] immediately. Whether you're a regular contributor or a newcomer, we care about making this community a safe place for you and we've got your back.
 - Likewise any spamming, trolling, flaming, baiting or other attention-stealing behavior is not welcome.
 - Keep political and religious discussions out of the public Dimforge spaces.
 
 ## Moderation
 
-These are the policies for upholding our community's standards of conduct. If you feel that a thread needs moderation, please contact the [Dimforge moderation team][mods@dimforge.com].
+These are the policies for upholding our community's standards of conduct. If you feel that a thread needs moderation, please contact the [Dimforge moderation team][mods].
 
 1. Remarks that violate the Dimforge standards of conduct, including hateful, hurtful, oppressive, or exclusionary remarks, are not allowed. (Cursing in general is discouraged, and never tolerated if targeting another user, and never in a hateful manner.)
 1. Remarks that moderators find inappropriate, whether listed in the code of conduct or not, are also not allowed.
@@ -32,3 +32,5 @@ And if someone takes issue with something you said or d resist the urge to be de
 The enforcement policies listed above apply to all official Dimforge venues; including all Dimforge Discord channels; GitHub repositories under Dimforge.
 
 _This Code of Conduct is based on the Rust Code of Conduct, available here: https://www.rust-lang.org/conduct.html_
+
+[mods]: mailto:mods@dimforge.com

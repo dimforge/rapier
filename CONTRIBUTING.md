@@ -8,7 +8,7 @@ Thank you for wanting to contribute! Contribution can take many forms, including
 - [Donations on GitHub Sponsors](https://github.com/sponsors/dimforge).
 
 It is strongly recommended to [open an issue](https://github.com/dimforge/rapier/issues) or to discuss
-with us [on Discord](discord) before fixing complicated issues, or implementing new
+with us [on Discord][discord] before fixing complicated issues, or implementing new
 features.
 
 
@@ -26,7 +26,7 @@ The Rust source code of the Rapier physics engines is available  on our `rapier`
    - Run the 3D examples with the `parallel` and `simd-stable` features enabled: `cd all_examples3; cargo run --release --features parallel,simd-stable`
 4. Once you are satisfied with your changes, submit them by [opening a Pull Request](https://github.com/dimforge/rapier/pulls) on GitHub.
 5. If that Pull Request does something you need urgently, or if you think it has been forgotten, don't hesitate
-   to ask **@sebcrozet** directly [on Discord](discord) for a review.
+   to ask **@sebcrozet** directly [on Discord][discord] for a review.
 6. Iterate with the reviewer until the PR gets merged.
 
 ## Contributing to the user-guide [rapier](https://rapier.rs)
@@ -44,7 +44,7 @@ If you would like to fix it yourself, here is the procedure:
       The default local address is http://localhost:3000 .
 4. Once you are satisfied with your changes, submit them by [opening a Pull Request](https://github.com/dimforge/rapier.rs/pulls) on GitHub.
 5. If that Pull Request does something you need urgently, or if you think it has been forgotten, don't hesitate
-   to ask **@sebcrozet** directly [on Discord](discord) for a review.
+   to ask **@sebcrozet** directly [on Discord][discord] for a review.
 6. Iterate with the reviewer until the PR gets merged.
 
 ## Contributing to the JavaScript/TypeScript bindings
@@ -66,10 +66,10 @@ changes you may:
    - To test your changes, go back to the repository's root directory, and do: `cd testbed3d; npm install; npm link ../rapier3d/pkg; npm run start`.
      This will open the 3D examples on your browser.
    - Our build system for these JS bindings is still a bit messy right now. If you have any trouble, don't
-     hesitate to contact us [on Discord](discord).
+     hesitate to contact us [on Discord][discord].
 4. Once you are satisfied with your changes, submit them by [opening a Pull Request](https://github.com/dimforge/rapier.js/pulls) on GitHub.
 5. If that Pull Request does something you need urgently, or if you think it has been forgotten, don't hesitate
-   to ask **@sebcrozet** directly [on Discord](discord) for a review.
+   to ask **@sebcrozet** directly [on Discord][discord] for a review.
 6. Iterate with the reviewer until the PR gets merged.
 
 [discord]: https://discord.gg/vt9DJSW

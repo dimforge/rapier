@@ -35,12 +35,15 @@
 
 ## What is Rapier?
 
-Rapier is a set of 2D and 3D physics engines for games, animation, and robotics. It is built in Rust
-by the [Dimforge](https://dimforge.com) organization. It is forever free and open-source!
+Rapier is a set of 2D and 3D physics engines for games, animation, and robotics. These crates 
+are `rapier2d`, `rapier3d`, `rapier2d-f64`, and `rapier3d-f64`. They are written with the Rust
+programming language, by the [Dimforge](https://dimforge.com) organization. It is forever free
+and open-source!
 
 ## Roadmap
 We update our roadmap at the beginning of each year. Our 2021 roadmap can be seen
 [there](https://www.dimforge.com/blog/2021/01/01/physics-simulation-with-rapier-2021-roadmap/#rapier-roadmap-for-2021).
+We regularly give updates about our progress on [our blog](https://www.dimforge.com/blog).
 
 ## Getting started
 The easiest way to get started with Rapier is to:
@@ -50,7 +53,7 @@ The easiest way to get started with Rapier is to:
 3. Don't hesitate to ask for help on [Discord](https://discord.gg/vt9DJSW), or by opening an issue on GitHub.
   
 ## Resources and discussions
-- [Dimforge](https://dimforge.com): See all the open-source projects we are working on. Follow our announcements
+- [Dimforge](https://dimforge.com): See all the open-source projects we are working on! Follow our announcements
   on our [blog](https://www.dimforge.com/blog).
 - [User guide](https://www.rapier.rs/docs/): Learn to use Rapier in your project by reading the official User Guides.
 - [Discord](https://discord.gg/vt9DJSW): Come chat with us, get help, suggest features, on Discord!
