@@ -55,8 +55,16 @@ impl SAPRegion {
         }
 
         old.update_count = 0;
-        old.existing_proxies.clear();
+
+        if cfg!(feature = "enhanced-determinism") {
+            old.existing_proxies = BitVec::new();
+        } else {
+            old.existing_proxies.clear();
+        }
+
         old.id_in_parent_subregion = crate::INVALID_U32;
+        old.subregions.clear();
+        old.needs_update_after_subregion_removal = false;
 
         // The rest of the fields should be "empty"
         assert_eq!(old.subproper_proxy_count, 0);
