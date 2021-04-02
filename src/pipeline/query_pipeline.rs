@@ -500,7 +500,6 @@ impl QueryPipeline {
         shape_vel: &Vector<Real>,
         shape: &dyn Shape,
         max_toi: Real,
-        target_distance: Real,
         query_groups: InteractionGroups,
         filter: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
     ) -> Option<(ColliderHandle, TOI)> {
@@ -512,7 +511,6 @@ impl QueryPipeline {
             &pipeline_shape,
             shape,
             max_toi,
-            target_distance,
         );
         self.quadtree.traverse_best_first(&mut visitor).map(|h| h.1)
     }

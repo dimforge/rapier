@@ -130,7 +130,6 @@ impl TOIEntry {
     fn body_motion(body: &RigidBody) -> NonlinearRigidMotion {
         if body.is_ccd_active() {
             NonlinearRigidMotion::new(
-                0.0,
                 body.position,
                 body.mass_properties.local_com,
                 body.linvel,

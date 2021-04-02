@@ -1,3 +1,43 @@
+## v0.7.0
+### Added
+- Add the support of **Continuous Collision Detection** (CCD) to
+make sure that some fast-moving objects (chosen by the user) don't miss any contacts.
+This is done by using motion-clamping, i.e., each fast-moving rigid-body with CCD enabled will
+be stopped at the time where their first contact happen. This will result in some "time loss" for that
+rigid-body. This loss of time can be reduced by increasing the maximum number  of CCD substeps executed
+(the default being 1).
+- Add the support of **collider modification**. Now, most of the characteristics of a collider can be
+modified after the collider has been created.
+- We now use an **implicit friction cone** for handling friction, instead of a pyramidal approximation
+of the friction cone. This means that friction will now  behave in a more isotropic way (i.e. more realistic
+Coulomb friction).
+- Add the support of **custom filters** for the `QueryPipeline`. So far, interaction groups (bit masks)
+had to be used to exclude from colliders from a query made with the `QueryPipeline`. Now it is also
+possible to provide a custom closures to apply arbitrary user-defined filters.
+- It is now possible to solve penetrations using the velocity solver instead of (or alongside) the
+position solver (this is disabled by default, set `IntegrationParameters::velocity_based_erp` to
+  a value `> 0.0` to enable.).
+
+Added the methods:
+- `ColliderBuilder::halfspace` to create a collider with an unbounded plane shape.
+- `Collider::shape_mut` to get a mutable reference to its shape.
+- `Collider::set_shape`, `::set_restitution_combine_rule`, `::set_position_wrt_parent`, `::set_collision_groups`
+`::set_solver_groups` to change various properties of a collider after its creation.
+- `RigidBodyBuilder::ccd_enabled` to enable CCD for a rigid-body.
+
+### Modified
+- The `target_dist` argument of `QueryPipeline::cast_shape` was removed.
+- `RigidBodyBuilder::mass_properties` has been deprecated, replaced by `::additional_mass_properties`.
+- `RigidBodyBuilder::mass` has been deprecated, replaced by `::additional_mass`.
+- `RigidBodyBuilder::principal_angular_inertia` has been deprecated, replaced by `::additional_principal_angular_inertia`.
+- The field `SolveContact::data` has been replaced by the fields `SolverContact::warmstart_impulse`, 
+  `SolverContact::warmstart_tangent_impulse`, and `SolverContact::prev_rhs`.
+- All the fields of `IntegrationParameters` that we don't use have been removed.
+
+### Fixed
+- The Broad-Phase algorithm has been completely reworked to support large colliders properly (until now
+they could result in very large memory and CPU usage).
+
 ## v0.6.1
 ### Fixed
 - Fix a determinism problem that may happen after snapshot restoration, if a rigid-body is sleeping at
@@ -5,17 +45,15 @@
 
 ## v0.6.0
 ### Added
-The support of **dominance groups** have been added. Each rigid-body is part of a dominance group in [-127; 127]
+- The support of **dominance groups** have been added. Each rigid-body is part of a dominance group in [-127; 127]
 (the default is 0). If two rigid-body are in contact, the one with the highest dominance will act as if it has
 an infinite mass, making it immune to the forces the other body would apply on it. See [#122](https://github.com/dimforge/rapier/pull/122)
 for further details.
-
-The support for **contact modification** has been added. This can bee used to simulate conveyor belts,
+- The support for **contact modification** has been added. This can bee used to simulate conveyor belts,
 one-way platforms and other non-physical effects. It can also be used to simulate materials with
 variable friction and restitution coefficient on a single collider. See [#120](https://github.com/dimforge/rapier/pull/120)
 for further details.
-
-The support for **joint motors** have been added. This can be used to control the position and/or
+- The support for **joint motors** have been added. This can be used to control the position and/or
 velocity of a joint based on a spring-like equation. See [#119](https://github.com/dimforge/rapier/pull/119)
 for further details.
 
