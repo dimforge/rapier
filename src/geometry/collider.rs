@@ -234,6 +234,7 @@ impl Collider {
     /// cloned first so that `self` contains a unique copy of that
     /// shape that you can modify.
     pub fn shape_mut(&mut self) -> &mut dyn Shape {
+        self.changes.insert(ColliderChanges::SHAPE);
         self.shape.make_mut()
     }
 

@@ -1,6 +1,6 @@
 [package]
 name    = "rapier_testbed3d"
-version = "0.6.1"
+version = "0.7.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "Testbed for the Rapier 3-dimensional physics engine in Rust."
 homepage = "http://rapier.org"
@@ -33,7 +33,7 @@ instant    = { version = "0.1", features = [ "web-sys", "now" ]}
 bitflags   = "1"
 glam       = { version = "0.12", optional = true }
 num_cpus   = { version = "1", optional = true }
-parry3d = "0.2"
+parry3d = "0.3"
 ncollide3d = "0.28"
 nphysics3d = { version = "0.20", optional = true }
 physx      = { version = "0.11", optional = true }
@@ -46,5 +46,5 @@ serde = { version = "1", features = [ "derive" ] }
 
 [dependencies.rapier3d]
 path = "../rapier3d"
-version = "0.6"
+version = "0.7"
 features = [ "serde-serialize" ]

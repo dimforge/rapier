@@ -1,6 +1,6 @@
 [package]
 name    = "rapier3d"
-version = "0.6.1"
+version = "0.7.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "3-dimensional physics engine in Rust."
 documentation = "http://docs.rs/rapier3d"
@@ -44,12 +44,12 @@ vec_map = { version = "0.8", optional = true }
 instant = { version = "0.1", features = [ "now" ]}
 num-traits = "0.2"
 nalgebra = "^0.25.3"
-parry3d = "0.2"
+parry3d = "0.3"
 simba = "0.4"
 approx = "0.4"
 rayon = { version = "1", optional = true }
 crossbeam = "0.8"
-arrayvec = "0.5"
+arrayvec = "0.6"
 bit-vec = "0.6"
 rustc-hash = "1"
 serde = { version = "1", features = [ "derive" ], optional = true }
