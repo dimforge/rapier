@@ -1,3 +1,7 @@
+## v0.7.1
+### Fixed
+- Fixed a bug in the broad-phase that could cause non-determinism after snapshot restoration.
+
 ## v0.7.0
 ### Added
 - Add the support of **Continuous Collision Detection** (CCD) to
