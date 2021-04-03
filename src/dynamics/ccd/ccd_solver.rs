@@ -15,7 +15,10 @@ pub enum PredictedImpacts {
 }
 
 /// Solver responsible for performing motion-clamping on fast-moving bodies.
+#[derive(Clone)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct CCDSolver {
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     query_pipeline: QueryPipeline,
 }
 

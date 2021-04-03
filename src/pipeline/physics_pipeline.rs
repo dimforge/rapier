@@ -588,4 +588,41 @@ mod test {
         assert_eq!(h2a, h2b);
         assert_eq!(h3a, h3b);
     }
+
+    #[test]
+    fn collider_removal_before_step() {
+        let mut pipeline = PhysicsPipeline::new();
+        let gravity = Vector::y() * -9.81;
+        let integration_parameters = IntegrationParameters::default();
+        let mut broad_phase = BroadPhase::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut bodies = RigidBodySet::new();
+        let mut colliders = ColliderSet::new();
+        let mut ccd = CCDSolver::new();
+        let mut joints = JointSet::new();
+        let physics_hooks = ();
+        let event_handler = ();
+
+        let body = RigidBodyBuilder::new_dynamic().build();
+        let b_handle = bodies.insert(body);
+        let collider = ColliderBuilder::ball(1.0).build();
+        let c_handle = colliders.insert(collider, b_handle, &mut bodies);
+        colliders.remove(c_handle, &mut bodies, true);
+        bodies.remove(b_handle, &mut colliders, &mut joints);
+
+        for _ in 0..10 {
+            pipeline.step(
+                &gravity,
+                &integration_parameters,
+                &mut broad_phase,
+                &mut narrow_phase,
+                &mut bodies,
+                &mut colliders,
+                &mut joints,
+                &mut ccd,
+                &physics_hooks,
+                &event_handler,
+            );
+        }
+    }
 }
