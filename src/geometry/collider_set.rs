@@ -139,7 +139,9 @@ impl ColliderSet {
             self.modified_all_colliders = false;
         } else {
             for handle in self.modified_colliders.drain(..) {
-                self.colliders[handle.0].changes = ColliderChanges::empty();
+                if let Some(co) = self.colliders.get_mut(handle.0) {
+                    co.changes = ColliderChanges::empty();
+                }
             }
         }
     }
