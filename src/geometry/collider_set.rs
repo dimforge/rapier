@@ -139,6 +139,9 @@ impl ColliderSet {
             self.modified_all_colliders = false;
         } else {
             for handle in self.modified_colliders.drain(..) {
+                // NOTE: if the collider was added, then removed from this set before
+                //       a an update, then it will no longer exist in `self.colliders`
+                //       so we need to do this `if let`.
                 if let Some(co) = self.colliders.get_mut(handle.0) {
                     co.changes = ColliderChanges::empty();
                 }
