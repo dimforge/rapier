@@ -608,7 +608,7 @@ mod test {
         let collider = ColliderBuilder::ball(1.0).build();
         let c_handle = colliders.insert(collider, b_handle, &mut bodies);
         colliders.remove(c_handle, &mut bodies, true);
-        bodies.remove(b_handle, &mut colliders, &mut joints); // Happens with and without this line
+        bodies.remove(b_handle, &mut colliders, &mut joints);
 
         for _ in 0..10 {
             pipeline.step(
