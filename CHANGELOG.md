@@ -1,3 +1,11 @@
+## v0.7.2
+### Added
+- Implement `Serialize` and `Deserialize` for the `CCDSolver`.
+
+### Fixed
+- Fix a crash that could happen after adding and then removing a collider right away,
+before stepping the simulation.
+
 ## v0.7.1
 ### Fixed
 - Fixed a bug in the broad-phase that could cause non-determinism after snapshot restoration.
