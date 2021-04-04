@@ -45,6 +45,8 @@ Added the methods:
 - The field `SolveContact::data` has been replaced by the fields `SolverContact::warmstart_impulse`, 
   `SolverContact::warmstart_tangent_impulse`, and `SolverContact::prev_rhs`.
 - All the fields of `IntegrationParameters` that we don't use have been removed.
+- `NarrowPhase::maintain` has been renamed to `NarrowPhase::handle_user_changes`.
+- `BroadPhase::maintain` has been removed. Use ` BroadPhase::update` directly.
 
 ### Fixed
 - The Broad-Phase algorithm has been completely reworked to support large colliders properly (until now
