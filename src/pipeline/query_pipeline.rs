@@ -1,7 +1,7 @@
 use crate::dynamics::RigidBodySet;
 use crate::geometry::{
-    Collider, ColliderHandle, ColliderSet, InteractionGroups, PointProjection, Ray,
-    RayIntersection, SimdQuadTree, AABB,
+    Collider, ColliderHandle, ColliderSet, InteractionGroups, InteractionTestMode, PointProjection,
+    Ray, RayIntersection, SimdQuadTree, AABB,
 };
 use crate::math::{Isometry, Point, Real, Vector};
 use parry::query::details::{
@@ -30,6 +30,7 @@ pub struct QueryPipeline {
     quadtree: SimdQuadTree<ColliderHandle>,
     tree_built: bool,
     dilation_factor: Real,
+    interaction_test_mode: InteractionTestMode,
 }
 
 struct QueryPipelineAsCompositeShape<'a> {
@@ -65,7 +66,9 @@ impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
         mut f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape),
     ) {
         if let Some(collider) = self.colliders.get(shape_id) {
-            if collider.collision_groups.test(self.query_groups)
+            if collider
+                .collision_groups
+                .test(self.query_groups, self.query_pipeline.interaction_test_mode)
                 && self.filter.map(|f| f(shape_id, collider)).unwrap_or(true)
             {
                 f(Some(collider.position()), collider.shape())
@@ -125,6 +128,7 @@ impl QueryPipeline {
             quadtree: SimdQuadTree::new(),
             tree_built: false,
             dilation_factor: 0.01,
+            interaction_test_mode: InteractionTestMode::AND,
         }
     }
 
@@ -313,7 +317,9 @@ impl QueryPipeline {
     ) {
         let mut leaf_callback = &mut |handle: &ColliderHandle| {
             if let Some(coll) = colliders.get(*handle) {
-                if coll.collision_groups.test(query_groups)
+                if coll
+                    .collision_groups
+                    .test(query_groups, self.interaction_test_mode)
                     && filter.map(|f| f(*handle, coll)).unwrap_or(true)
                 {
                     if let Some(hit) =
@@ -418,7 +424,9 @@ impl QueryPipeline {
     ) {
         let mut leaf_callback = &mut |handle: &ColliderHandle| {
             if let Some(coll) = colliders.get(*handle) {
-                if coll.collision_groups.test(query_groups)
+                if coll
+                    .collision_groups
+                    .test(query_groups, self.interaction_test_mode)
                     && filter.map(|f| f(*handle, coll)).unwrap_or(true)
                     && coll.shape().contains_point(coll.position(), point)
                 {
@@ -588,7 +596,9 @@ impl QueryPipeline {
 
         let mut leaf_callback = &mut |handle: &ColliderHandle| {
             if let Some(coll) = colliders.get(*handle) {
-                if coll.collision_groups.test(query_groups)
+                if coll
+                    .collision_groups
+                    .test(query_groups, self.interaction_test_mode)
                     && filter.map(|f| f(*handle, coll)).unwrap_or(true)
                 {
                     let pos12 = inv_shape_pos * coll.position();
@@ -606,5 +616,15 @@ impl QueryPipeline {
         let mut visitor = BoundingVolumeIntersectionsVisitor::new(&shape_aabb, &mut leaf_callback);
 
         self.quadtree.traverse_depth_first(&mut visitor);
+    }
+
+    /// The test mode used to test for intersection
+    pub fn interaction_test_mode(&self) -> InteractionTestMode {
+        self.interaction_test_mode
+    }
+
+    /// Sets the test mode used to test for intersections
+    pub fn set_interaction_test_mode(&mut self, mode: InteractionTestMode) {
+        self.interaction_test_mode = mode;
     }
 }

@@ -8,7 +8,7 @@ use crate::geometry::collider::ColliderChanges;
 use crate::geometry::{
     BroadPhasePairEvent, ColliderGraphIndex, ColliderHandle, ColliderPair, ColliderSet,
     ContactData, ContactEvent, ContactManifold, ContactManifoldData, ContactPair, InteractionGraph,
-    IntersectionEvent, RemovedCollider, SolverContact, SolverFlags,
+    InteractionTestMode, IntersectionEvent, RemovedCollider, SolverContact, SolverFlags,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{
@@ -55,6 +55,8 @@ pub struct NarrowPhase {
     intersection_graph: InteractionGraph<ColliderHandle, bool>,
     graph_indices: Coarena<ColliderGraphIndices>,
     removed_colliders: Option<Subscription<RemovedCollider>>,
+    collision_interaction_test_mode: InteractionTestMode,
+    solver_interaction_test_mode: InteractionTestMode,
 }
 
 pub(crate) type ContactManifoldIndex = usize;
@@ -76,6 +78,8 @@ impl NarrowPhase {
             intersection_graph: InteractionGraph::new(),
             graph_indices: Coarena::new(),
             removed_colliders: None,
+            collision_interaction_test_mode: InteractionTestMode::AND,
+            solver_interaction_test_mode: InteractionTestMode::OR,
         }
     }
 
@@ -502,6 +506,7 @@ impl NarrowPhase {
         let nodes = &self.intersection_graph.graph.nodes;
         let query_dispatcher = &*self.query_dispatcher;
         let active_hooks = hooks.active_hooks();
+        let collision_interaction_test_mode = self.collision_interaction_test_mode;
 
         // TODO: don't iterate on all the edges.
         par_iter_mut!(&mut self.intersection_graph.graph.edges).for_each(|edge| {
@@ -528,7 +533,10 @@ impl NarrowPhase {
                 return;
             }
 
-            if !co1.collision_groups.test(co2.collision_groups) {
+            if !co1
+                .collision_groups
+                .test(co2.collision_groups, collision_interaction_test_mode)
+            {
                 // The intersection is not allowed.
                 return;
             }
@@ -588,6 +596,8 @@ impl NarrowPhase {
 
         let query_dispatcher = &*self.query_dispatcher;
         let active_hooks = hooks.active_hooks();
+        let collision_interaction_test_mode = self.collision_interaction_test_mode;
+        let solver_interaction_test_mode = self.solver_interaction_test_mode;
 
         // TODO: don't iterate on all the edges.
         par_iter_mut!(&mut self.contact_graph.graph.edges).for_each(|edge| {
@@ -613,7 +623,10 @@ impl NarrowPhase {
                 return;
             }
 
-            if !co1.collision_groups.test(co2.collision_groups) {
+            if !co1
+                .collision_groups
+                .test(co2.collision_groups, collision_interaction_test_mode)
+            {
                 // The collision is not allowed.
                 return;
             }
@@ -647,7 +660,10 @@ impl NarrowPhase {
                 co1.solver_flags | co2.solver_flags
             };
 
-            if !co1.solver_groups.test(co2.solver_groups) {
+            if !co1
+                .collision_groups
+                .test(co2.solver_groups, solver_interaction_test_mode)
+            {
                 solver_flags.remove(SolverFlags::COMPUTE_IMPULSES);
             }
 
@@ -807,5 +823,25 @@ impl NarrowPhase {
                 }
             }
         }
+    }
+
+    /// The test mode used to test the solver groups
+    pub fn solver_interaction_test_mode(&self) -> InteractionTestMode {
+        self.solver_interaction_test_mode
+    }
+
+    /// The test mode used to test the collision groups
+    pub fn collision_interaction_test_mode(&self) -> InteractionTestMode {
+        self.collision_interaction_test_mode
+    }
+
+    /// Sets the test mode used to test the solver groups
+    pub fn set_solver_interaction_test_mode(&mut self, mode: InteractionTestMode) {
+        self.solver_interaction_test_mode = mode;
+    }
+
+    /// Sets the test mode used to test the collision groups
+    pub fn set_collision_interaction_test_mode(&mut self, mode: InteractionTestMode) {
+        self.collision_interaction_test_mode = mode;
     }
 }

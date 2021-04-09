@@ -8,7 +8,7 @@ pub use self::contact_pair::{ContactPair, SolverContact, SolverFlags};
 pub use self::interaction_graph::{
     ColliderGraphIndex, InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex,
 };
-pub use self::interaction_groups::InteractionGroups;
+pub use self::interaction_groups::{InteractionGroups, InteractionTestMode};
 pub use self::narrow_phase::NarrowPhase;
 
 pub use parry::query::TrackedContact;
