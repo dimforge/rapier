@@ -10,7 +10,7 @@ use crate::math::{
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix, WDot};
 
 #[cfg(feature = "dim3")]
-use na::{Cholesky, Matrix3x2, Matrix5, Vector3, Vector5, U2, U3};
+use na::{Cholesky, Matrix3x2, Matrix5, Vector3, Vector5};
 
 #[cfg(feature = "dim2")]
 use {
@@ -19,10 +19,10 @@ use {
 };
 
 #[cfg(feature = "dim2")]
-type LinImpulseDim = na::U1;
+const LIN_IMPULSE_DIM: usize = 1;
 
 #[cfg(feature = "dim3")]
-type LinImpulseDim = na::U2;
+const LIN_IMPULSE_DIM: usize = 2;
 
 #[derive(Debug)]
 pub(crate) struct WPrismaticVelocityConstraint {
@@ -159,10 +159,10 @@ impl WPrismaticVelocityConstraint {
                 + ii2.quadform3x2(&r2_mat_b1).add_diagonal(im2);
             let lhs10 = ii1 * r1_mat_b1 + ii2 * r2_mat_b1;
             let lhs11 = (ii1 + ii2).into_matrix();
-            lhs.fixed_slice_mut::<U2, U2>(0, 0)
+            lhs.fixed_slice_mut::<2, 2>(0, 0)
                 .copy_from(&lhs00.into_matrix());
-            lhs.fixed_slice_mut::<U3, U2>(2, 0).copy_from(&lhs10);
-            lhs.fixed_slice_mut::<U3, U3>(2, 2).copy_from(&lhs11);
+            lhs.fixed_slice_mut::<3, 2>(2, 0).copy_from(&lhs10);
+            lhs.fixed_slice_mut::<3, 3>(2, 2).copy_from(&lhs11);
         }
 
         #[cfg(feature = "dim2")]
@@ -319,11 +319,11 @@ impl WPrismaticVelocityConstraint {
             ),
         };
 
-        let lin_impulse = self.basis1 * self.impulse.fixed_rows::<LinImpulseDim>(0).into_owned();
+        let lin_impulse = self.basis1 * self.impulse.fixed_rows::<LIN_IMPULSE_DIM>(0).into_owned();
         #[cfg(feature = "dim2")]
         let ang_impulse = self.impulse.y;
         #[cfg(feature = "dim3")]
-        let ang_impulse = self.impulse.fixed_rows::<U3>(2).into_owned();
+        let ang_impulse = self.impulse.fixed_rows::<3>(2).into_owned();
 
         mj_lambda1.linear += lin_impulse * self.im1;
         mj_lambda1.angular += self
@@ -378,11 +378,11 @@ impl WPrismaticVelocityConstraint {
             Vector5::new(lin_dvel.x, lin_dvel.y, ang_dvel.x, ang_dvel.y, ang_dvel.z) + self.rhs;
         let impulse = self.inv_lhs * rhs;
         self.impulse += impulse;
-        let lin_impulse = self.basis1 * impulse.fixed_rows::<LinImpulseDim>(0).into_owned();
+        let lin_impulse = self.basis1 * impulse.fixed_rows::<LIN_IMPULSE_DIM>(0).into_owned();
         #[cfg(feature = "dim2")]
         let ang_impulse = impulse.y;
         #[cfg(feature = "dim3")]
-        let ang_impulse = impulse.fixed_rows::<U3>(2).into_owned();
+        let ang_impulse = impulse.fixed_rows::<3>(2).into_owned();
 
         mj_lambda1.linear += lin_impulse * self.im1;
         mj_lambda1.angular += self
@@ -586,10 +586,10 @@ impl WPrismaticVelocityGroundConstraint {
             let lhs00 = ii2.quadform3x2(&r2_mat_b1).add_diagonal(im2);
             let lhs10 = ii2 * r2_mat_b1;
             let lhs11 = ii2.into_matrix();
-            lhs.fixed_slice_mut::<U2, U2>(0, 0)
+            lhs.fixed_slice_mut::<2, 2>(0, 0)
                 .copy_from(&lhs00.into_matrix());
-            lhs.fixed_slice_mut::<U3, U2>(2, 0).copy_from(&lhs10);
-            lhs.fixed_slice_mut::<U3, U3>(2, 2).copy_from(&lhs11);
+            lhs.fixed_slice_mut::<3, 2>(2, 0).copy_from(&lhs10);
+            lhs.fixed_slice_mut::<3, 3>(2, 2).copy_from(&lhs11);
         }
 
         #[cfg(feature = "dim2")]
@@ -726,11 +726,11 @@ impl WPrismaticVelocityGroundConstraint {
             ),
         };
 
-        let lin_impulse = self.basis1 * self.impulse.fixed_rows::<LinImpulseDim>(0).into_owned();
+        let lin_impulse = self.basis1 * self.impulse.fixed_rows::<LIN_IMPULSE_DIM>(0).into_owned();
         #[cfg(feature = "dim2")]
         let ang_impulse = self.impulse.y;
         #[cfg(feature = "dim3")]
-        let ang_impulse = self.impulse.fixed_rows::<U3>(2).into_owned();
+        let ang_impulse = self.impulse.fixed_rows::<3>(2).into_owned();
 
         mj_lambda2.linear -= lin_impulse * self.im2;
         mj_lambda2.angular -= self
@@ -757,11 +757,11 @@ impl WPrismaticVelocityGroundConstraint {
             Vector5::new(lin_dvel.x, lin_dvel.y, ang_dvel.x, ang_dvel.y, ang_dvel.z) + self.rhs;
         let impulse = self.inv_lhs * rhs;
         self.impulse += impulse;
-        let lin_impulse = self.basis1 * impulse.fixed_rows::<LinImpulseDim>(0).into_owned();
+        let lin_impulse = self.basis1 * impulse.fixed_rows::<LIN_IMPULSE_DIM>(0).into_owned();
         #[cfg(feature = "dim2")]
         let ang_impulse = impulse.y;
         #[cfg(feature = "dim3")]
-        let ang_impulse = impulse.fixed_rows::<U3>(2).into_owned();
+        let ang_impulse = impulse.fixed_rows::<3>(2).into_owned();
 
         mj_lambda2.linear -= lin_impulse * self.im2;
         mj_lambda2.angular -= self

@@ -2,12 +2,12 @@ use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
     FixedJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBody,
 };
-use crate::math::{AngularInertia, Dim, Real, SpacialVector, Vector};
+use crate::math::{AngularInertia, Real, SpacialVector, Vector, DIM};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 #[cfg(feature = "dim2")]
 use na::{Matrix3, Vector3};
 #[cfg(feature = "dim3")]
-use na::{Matrix6, Vector6, U3};
+use na::{Matrix6, Vector6};
 
 #[derive(Debug)]
 pub(crate) struct FixedVelocityConstraint {
@@ -73,10 +73,10 @@ impl FixedVelocityConstraint {
             // Note that Cholesky only reads the lower-triangular part of the matrix
             // so we don't need to fill lhs01.
             lhs = Matrix6::zeros();
-            lhs.fixed_slice_mut::<U3, U3>(0, 0)
+            lhs.fixed_slice_mut::<3, 3>(0, 0)
                 .copy_from(&lhs00.into_matrix());
-            lhs.fixed_slice_mut::<U3, U3>(3, 0).copy_from(&lhs10);
-            lhs.fixed_slice_mut::<U3, U3>(3, 3).copy_from(&lhs11);
+            lhs.fixed_slice_mut::<3, 3>(3, 0).copy_from(&lhs10);
+            lhs.fixed_slice_mut::<3, 3>(3, 3).copy_from(&lhs11);
         }
 
         // In 2D we just unroll the computation because
@@ -153,11 +153,11 @@ impl FixedVelocityConstraint {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        let lin_impulse = self.impulse.fixed_rows::<Dim>(0).into_owned();
+        let lin_impulse = self.impulse.fixed_rows::<DIM>(0).into_owned();
         #[cfg(feature = "dim2")]
         let ang_impulse = self.impulse[2];
         #[cfg(feature = "dim3")]
-        let ang_impulse = self.impulse.fixed_rows::<U3>(3).into_owned();
+        let ang_impulse = self.impulse.fixed_rows::<3>(3).into_owned();
 
         mj_lambda1.linear += self.im1 * lin_impulse;
         mj_lambda1.angular += self
@@ -194,11 +194,11 @@ impl FixedVelocityConstraint {
 
         let impulse = self.inv_lhs * rhs;
         self.impulse += impulse;
-        let lin_impulse = impulse.fixed_rows::<Dim>(0).into_owned();
+        let lin_impulse = impulse.fixed_rows::<DIM>(0).into_owned();
         #[cfg(feature = "dim2")]
         let ang_impulse = impulse[2];
         #[cfg(feature = "dim3")]
-        let ang_impulse = impulse.fixed_rows::<U3>(3).into_owned();
+        let ang_impulse = impulse.fixed_rows::<3>(3).into_owned();
 
         mj_lambda1.linear += self.im1 * lin_impulse;
         mj_lambda1.angular += self
@@ -286,10 +286,10 @@ impl FixedVelocityGroundConstraint {
             // Note that Cholesky only reads the lower-triangular part of the matrix
             // so we don't need to fill lhs01.
             lhs = Matrix6::zeros();
-            lhs.fixed_slice_mut::<U3, U3>(0, 0)
+            lhs.fixed_slice_mut::<3, 3>(0, 0)
                 .copy_from(&lhs00.into_matrix());
-            lhs.fixed_slice_mut::<U3, U3>(3, 0).copy_from(&lhs10);
-            lhs.fixed_slice_mut::<U3, U3>(3, 3).copy_from(&lhs11);
+            lhs.fixed_slice_mut::<3, 3>(3, 0).copy_from(&lhs10);
+            lhs.fixed_slice_mut::<3, 3>(3, 3).copy_from(&lhs11);
         }
 
         // In 2D we just unroll the computation because
@@ -357,11 +357,11 @@ impl FixedVelocityGroundConstraint {
     pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        let lin_impulse = self.impulse.fixed_rows::<Dim>(0).into_owned();
+        let lin_impulse = self.impulse.fixed_rows::<DIM>(0).into_owned();
         #[cfg(feature = "dim2")]
         let ang_impulse = self.impulse[2];
         #[cfg(feature = "dim3")]
-        let ang_impulse = self.impulse.fixed_rows::<U3>(3).into_owned();
+        let ang_impulse = self.impulse.fixed_rows::<3>(3).into_owned();
 
         mj_lambda2.linear -= self.im2 * lin_impulse;
         mj_lambda2.angular -= self
@@ -388,11 +388,11 @@ impl FixedVelocityGroundConstraint {
         let impulse = self.inv_lhs * rhs;
 
         self.impulse += impulse;
-        let lin_impulse = impulse.fixed_rows::<Dim>(0).into_owned();
+        let lin_impulse = impulse.fixed_rows::<DIM>(0).into_owned();
         #[cfg(feature = "dim2")]
         let ang_impulse = impulse[2];
         #[cfg(feature = "dim3")]
-        let ang_impulse = impulse.fixed_rows::<U3>(3).into_owned();
+        let ang_impulse = impulse.fixed_rows::<3>(3).into_owned();
 
         mj_lambda2.linear -= self.im2 * lin_impulse;
         mj_lambda2.angular -= self

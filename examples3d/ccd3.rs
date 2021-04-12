@@ -12,6 +12,7 @@ fn create_wall(
     half_extents: Vector3<f32>,
 ) {
     let shift = half_extents * 2.0;
+    let mut k = 0;
     for i in 0usize..stack_height {
         for j in i..stack_height {
             let fj = j as f32;
@@ -27,7 +28,12 @@ fn create_wall(
             let collider =
                 ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z).build();
             colliders.insert(collider, handle, bodies);
-            testbed.set_body_color(handle, Point3::new(218. / 255., 201. / 255., 1.0));
+            k += 1;
+            if k % 2 == 0 {
+                testbed.set_body_color(handle, Point3::new(255. / 255., 131. / 255., 244.0 / 255.));
+            } else {
+                testbed.set_body_color(handle, Point3::new(131. / 255., 255. / 255., 244.0 / 255.));
+            }
         }
     }
 }
@@ -108,6 +114,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .build();
     let handle = bodies.insert(rigid_body);
     colliders.insert(collider.clone(), handle, &mut bodies);
+    testbed.set_body_color(handle, Point3::new(0.2, 0.2, 1.0));
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |_, mut graphics, physics, events, _| {
