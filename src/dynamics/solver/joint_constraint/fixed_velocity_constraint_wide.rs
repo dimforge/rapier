@@ -5,12 +5,12 @@ use crate::dynamics::{
     FixedJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBody,
 };
 use crate::math::{
-    AngVector, AngularInertia, CrossMatrix, Dim, Isometry, Point, Real, SimdReal, SpacialVector,
-    Vector, SIMD_WIDTH,
+    AngVector, AngularInertia, CrossMatrix, Isometry, Point, Real, SimdReal, SpacialVector, Vector,
+    DIM, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 #[cfg(feature = "dim3")]
-use na::{Cholesky, Matrix6, Vector3, Vector6, U3};
+use na::{Cholesky, Matrix6, Vector3, Vector6};
 #[cfg(feature = "dim2")]
 use {
     na::{Matrix3, Vector3},
@@ -103,10 +103,10 @@ impl WFixedVelocityConstraint {
             // Note that Cholesky only reads the lower-triangular part of the matrix
             // so we don't need to fill lhs01.
             lhs = Matrix6::zeros();
-            lhs.fixed_slice_mut::<U3, U3>(0, 0)
+            lhs.fixed_slice_mut::<3, 3>(0, 0)
                 .copy_from(&lhs00.into_matrix());
-            lhs.fixed_slice_mut::<U3, U3>(3, 0).copy_from(&lhs10);
-            lhs.fixed_slice_mut::<U3, U3>(3, 3).copy_from(&lhs11);
+            lhs.fixed_slice_mut::<3, 3>(3, 0).copy_from(&lhs10);
+            lhs.fixed_slice_mut::<3, 3>(3, 3).copy_from(&lhs11);
         }
 
         // In 2D we just unroll the computation because
@@ -201,11 +201,11 @@ impl WFixedVelocityConstraint {
             ),
         };
 
-        let lin_impulse = self.impulse.fixed_rows::<Dim>(0).into_owned();
+        let lin_impulse = self.impulse.fixed_rows::<DIM>(0).into_owned();
         #[cfg(feature = "dim2")]
         let ang_impulse = self.impulse[2];
         #[cfg(feature = "dim3")]
-        let ang_impulse = self.impulse.fixed_rows::<U3>(3).into_owned();
+        let ang_impulse = self.impulse.fixed_rows::<3>(3).into_owned();
 
         mj_lambda1.linear += lin_impulse * self.im1;
         mj_lambda1.angular += self
@@ -262,11 +262,11 @@ impl WFixedVelocityConstraint {
 
         let impulse = self.inv_lhs * rhs;
         self.impulse += impulse;
-        let lin_impulse = impulse.fixed_rows::<Dim>(0).into_owned();
+        let lin_impulse = impulse.fixed_rows::<DIM>(0).into_owned();
         #[cfg(feature = "dim2")]
         let ang_impulse = impulse[2];
         #[cfg(feature = "dim3")]
-        let ang_impulse = impulse.fixed_rows::<U3>(3).into_owned();
+        let ang_impulse = impulse.fixed_rows::<3>(3).into_owned();
 
         mj_lambda1.linear += lin_impulse * self.im1;
         mj_lambda1.angular += self
@@ -371,10 +371,10 @@ impl WFixedVelocityGroundConstraint {
             let lhs11 = ii2.into_matrix();
 
             lhs = Matrix6::zeros();
-            lhs.fixed_slice_mut::<U3, U3>(0, 0)
+            lhs.fixed_slice_mut::<3, 3>(0, 0)
                 .copy_from(&lhs00.into_matrix());
-            lhs.fixed_slice_mut::<U3, U3>(3, 0).copy_from(&lhs10);
-            lhs.fixed_slice_mut::<U3, U3>(3, 3).copy_from(&lhs11);
+            lhs.fixed_slice_mut::<3, 3>(3, 0).copy_from(&lhs10);
+            lhs.fixed_slice_mut::<3, 3>(3, 3).copy_from(&lhs11);
         }
 
         // In 2D we just unroll the computation because
@@ -454,11 +454,11 @@ impl WFixedVelocityGroundConstraint {
             ),
         };
 
-        let lin_impulse = self.impulse.fixed_rows::<Dim>(0).into_owned();
+        let lin_impulse = self.impulse.fixed_rows::<DIM>(0).into_owned();
         #[cfg(feature = "dim2")]
         let ang_impulse = self.impulse[2];
         #[cfg(feature = "dim3")]
-        let ang_impulse = self.impulse.fixed_rows::<U3>(3).into_owned();
+        let ang_impulse = self.impulse.fixed_rows::<3>(3).into_owned();
 
         mj_lambda2.linear -= lin_impulse * self.im2;
         mj_lambda2.angular -= self
@@ -494,11 +494,11 @@ impl WFixedVelocityGroundConstraint {
         let impulse = self.inv_lhs * rhs;
 
         self.impulse += impulse;
-        let lin_impulse = impulse.fixed_rows::<Dim>(0).into_owned();
+        let lin_impulse = impulse.fixed_rows::<DIM>(0).into_owned();
         #[cfg(feature = "dim2")]
         let ang_impulse = impulse[2];
         #[cfg(feature = "dim3")]
-        let ang_impulse = impulse.fixed_rows::<U3>(3).into_owned();
+        let ang_impulse = impulse.fixed_rows::<3>(3).into_owned();
 
         mj_lambda2.linear -= lin_impulse * self.im2;
         mj_lambda2.angular -= self

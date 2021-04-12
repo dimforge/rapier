@@ -1,3 +1,7 @@
+## v0.8.0
+### Modified
+- Switch to nalgebra 0.26.
+
 ## v0.7.2
 ### Added
 - Implement `Serialize` and `Deserialize` for the `CCDSolver`.

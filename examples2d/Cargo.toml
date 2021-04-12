@@ -15,7 +15,7 @@ enhanced-determinism = [ "rapier2d/enhanced-determinism" ]
 [dependencies]
 rand       = "0.8"
 Inflector  = "0.11"
-nalgebra   = "0.25"
+nalgebra   = "0.26"
 lyon       = "0.17"
 usvg       = "0.13"
 

@@ -8,7 +8,7 @@ use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, Rotation, SimdReal, Vector, SIMD_WIDTH,
 };
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
-use na::{Cholesky, Matrix3x2, Matrix5, Unit, Vector5, U2, U3};
+use na::{Cholesky, Matrix3x2, Matrix5, Unit, Vector5};
 
 #[derive(Debug)]
 pub(crate) struct WRevoluteVelocityConstraint {
@@ -100,10 +100,10 @@ impl WRevoluteVelocityConstraint {
 
         // Note that Cholesky won't read the upper-right part
         // of lhs so we don't have to fill it.
-        lhs.fixed_slice_mut::<U3, U3>(0, 0)
+        lhs.fixed_slice_mut::<3, 3>(0, 0)
             .copy_from(&lhs00.into_matrix());
-        lhs.fixed_slice_mut::<U2, U3>(3, 0).copy_from(&lhs10);
-        lhs.fixed_slice_mut::<U2, U2>(3, 3).copy_from(&lhs11);
+        lhs.fixed_slice_mut::<2, 3>(3, 0).copy_from(&lhs10);
+        lhs.fixed_slice_mut::<2, 2>(3, 3).copy_from(&lhs11);
 
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
@@ -198,10 +198,10 @@ impl WRevoluteVelocityConstraint {
             ),
         };
 
-        let lin_impulse1 = self.impulse.fixed_rows::<U3>(0).into_owned();
-        let lin_impulse2 = self.impulse.fixed_rows::<U3>(0).into_owned();
-        let ang_impulse1 = self.basis1 * self.impulse.fixed_rows::<U2>(3).into_owned();
-        let ang_impulse2 = self.basis2 * self.impulse.fixed_rows::<U2>(3).into_owned();
+        let lin_impulse1 = self.impulse.fixed_rows::<3>(0).into_owned();
+        let lin_impulse2 = self.impulse.fixed_rows::<3>(0).into_owned();
+        let ang_impulse1 = self.basis1 * self.impulse.fixed_rows::<2>(3).into_owned();
+        let ang_impulse2 = self.basis2 * self.impulse.fixed_rows::<2>(3).into_owned();
 
         mj_lambda1.linear += lin_impulse1 * self.im1;
         mj_lambda1.angular += self
@@ -251,10 +251,10 @@ impl WRevoluteVelocityConstraint {
             Vector5::new(lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y) + self.rhs;
         let impulse = self.inv_lhs * rhs;
         self.impulse += impulse;
-        let lin_impulse1 = impulse.fixed_rows::<U3>(0).into_owned();
-        let lin_impulse2 = impulse.fixed_rows::<U3>(0).into_owned();
-        let ang_impulse1 = self.basis1 * impulse.fixed_rows::<U2>(3).into_owned();
-        let ang_impulse2 = self.basis2 * impulse.fixed_rows::<U2>(3).into_owned();
+        let lin_impulse1 = impulse.fixed_rows::<3>(0).into_owned();
+        let lin_impulse2 = impulse.fixed_rows::<3>(0).into_owned();
+        let ang_impulse1 = self.basis1 * impulse.fixed_rows::<2>(3).into_owned();
+        let ang_impulse2 = self.basis2 * impulse.fixed_rows::<2>(3).into_owned();
 
         mj_lambda1.linear += lin_impulse1 * self.im1;
         mj_lambda1.angular += self
@@ -277,7 +277,7 @@ impl WRevoluteVelocityConstraint {
     }
 
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
-        let rot_part = self.impulse.fixed_rows::<U2>(3).into_owned();
+        let rot_part = self.impulse.fixed_rows::<2>(3).into_owned();
         let world_ang_impulse = self.basis1 * rot_part;
 
         for ii in 0..SIMD_WIDTH {
@@ -379,10 +379,10 @@ impl WRevoluteVelocityGroundConstraint {
 
         // Note that cholesky won't read the upper-right part
         // of lhs so we don't have to fill it.
-        lhs.fixed_slice_mut::<U3, U3>(0, 0)
+        lhs.fixed_slice_mut::<3, 3>(0, 0)
             .copy_from(&lhs00.into_matrix());
-        lhs.fixed_slice_mut::<U2, U3>(3, 0).copy_from(&lhs10);
-        lhs.fixed_slice_mut::<U2, U2>(3, 3).copy_from(&lhs11);
+        lhs.fixed_slice_mut::<2, 3>(3, 0).copy_from(&lhs10);
+        lhs.fixed_slice_mut::<2, 2>(3, 3).copy_from(&lhs11);
 
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
@@ -442,8 +442,8 @@ impl WRevoluteVelocityGroundConstraint {
             ),
         };
 
-        let lin_impulse = self.impulse.fixed_rows::<U3>(0).into_owned();
-        let ang_impulse = self.basis2 * self.impulse.fixed_rows::<U2>(3).into_owned();
+        let lin_impulse = self.impulse.fixed_rows::<3>(0).into_owned();
+        let ang_impulse = self.basis2 * self.impulse.fixed_rows::<2>(3).into_owned();
 
         mj_lambda2.linear -= lin_impulse * self.im2;
         mj_lambda2.angular -= self
@@ -473,8 +473,8 @@ impl WRevoluteVelocityGroundConstraint {
             Vector5::new(lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y) + self.rhs;
         let impulse = self.inv_lhs * rhs;
         self.impulse += impulse;
-        let lin_impulse = impulse.fixed_rows::<U3>(0).into_owned();
-        let ang_impulse = self.basis2 * impulse.fixed_rows::<U2>(3).into_owned();
+        let lin_impulse = impulse.fixed_rows::<3>(0).into_owned();
+        let ang_impulse = self.basis2 * impulse.fixed_rows::<2>(3).into_owned();
 
         mj_lambda2.linear -= lin_impulse * self.im2;
         mj_lambda2.angular -= self

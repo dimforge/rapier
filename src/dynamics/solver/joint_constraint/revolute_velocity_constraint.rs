@@ -4,7 +4,7 @@ use crate::dynamics::{
 };
 use crate::math::{AngularInertia, Real, Rotation, Vector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
-use na::{Cholesky, Matrix3x2, Matrix5, UnitQuaternion, Vector5, U2, U3};
+use na::{Cholesky, Matrix3x2, Matrix5, UnitQuaternion, Vector5};
 
 #[derive(Debug)]
 pub(crate) struct RevoluteVelocityConstraint {
@@ -82,10 +82,10 @@ impl RevoluteVelocityConstraint {
 
         // Note that Cholesky won't read the upper-right part
         // of lhs so we don't have to fill it.
-        lhs.fixed_slice_mut::<U3, U3>(0, 0)
+        lhs.fixed_slice_mut::<3, 3>(0, 0)
             .copy_from(&lhs00.into_matrix());
-        lhs.fixed_slice_mut::<U2, U3>(3, 0).copy_from(&lhs10);
-        lhs.fixed_slice_mut::<U2, U2>(3, 3).copy_from(&lhs11);
+        lhs.fixed_slice_mut::<2, 3>(3, 0).copy_from(&lhs10);
+        lhs.fixed_slice_mut::<2, 2>(3, 3).copy_from(&lhs11);
 
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
@@ -198,10 +198,10 @@ impl RevoluteVelocityConstraint {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        let lin_impulse1 = self.impulse.fixed_rows::<U3>(0).into_owned();
-        let lin_impulse2 = self.impulse.fixed_rows::<U3>(0).into_owned();
-        let ang_impulse1 = self.basis1 * self.impulse.fixed_rows::<U2>(3).into_owned();
-        let ang_impulse2 = self.basis2 * self.impulse.fixed_rows::<U2>(3).into_owned();
+        let lin_impulse1 = self.impulse.fixed_rows::<3>(0).into_owned();
+        let lin_impulse2 = self.impulse.fixed_rows::<3>(0).into_owned();
+        let ang_impulse1 = self.basis1 * self.impulse.fixed_rows::<2>(3).into_owned();
+        let ang_impulse2 = self.basis2 * self.impulse.fixed_rows::<2>(3).into_owned();
 
         mj_lambda1.linear += self.im1 * lin_impulse1;
         mj_lambda1.angular += self
@@ -240,10 +240,10 @@ impl RevoluteVelocityConstraint {
             Vector5::new(lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y) + self.rhs;
         let impulse = self.inv_lhs * rhs;
         self.impulse += impulse;
-        let lin_impulse1 = impulse.fixed_rows::<U3>(0).into_owned();
-        let lin_impulse2 = impulse.fixed_rows::<U3>(0).into_owned();
-        let ang_impulse1 = self.basis1 * impulse.fixed_rows::<U2>(3).into_owned();
-        let ang_impulse2 = self.basis2 * impulse.fixed_rows::<U2>(3).into_owned();
+        let lin_impulse1 = impulse.fixed_rows::<3>(0).into_owned();
+        let lin_impulse2 = impulse.fixed_rows::<3>(0).into_owned();
+        let ang_impulse1 = self.basis1 * impulse.fixed_rows::<2>(3).into_owned();
+        let ang_impulse2 = self.basis2 * impulse.fixed_rows::<2>(3).into_owned();
 
         mj_lambda1.linear += self.im1 * lin_impulse1;
         mj_lambda1.angular += self
@@ -291,7 +291,7 @@ impl RevoluteVelocityConstraint {
         let joint = &mut joints_all[self.joint_id].weight;
         if let JointParams::RevoluteJoint(revolute) = &mut joint.params {
             revolute.impulse = self.impulse;
-            let rot_part = self.impulse.fixed_rows::<U2>(3).into_owned();
+            let rot_part = self.impulse.fixed_rows::<2>(3).into_owned();
             revolute.world_ang_impulse = self.basis1 * rot_part;
             revolute.prev_axis1 = self.motor_axis1;
             revolute.motor_last_angle = self.motor_angle;
@@ -385,10 +385,10 @@ impl RevoluteVelocityGroundConstraint {
 
         // Note that cholesky won't read the upper-right part
         // of lhs so we don't have to fill it.
-        lhs.fixed_slice_mut::<U3, U3>(0, 0)
+        lhs.fixed_slice_mut::<3, 3>(0, 0)
             .copy_from(&lhs00.into_matrix());
-        lhs.fixed_slice_mut::<U2, U3>(3, 0).copy_from(&lhs10);
-        lhs.fixed_slice_mut::<U2, U2>(3, 3).copy_from(&lhs11);
+        lhs.fixed_slice_mut::<2, 3>(3, 0).copy_from(&lhs10);
+        lhs.fixed_slice_mut::<2, 2>(3, 3).copy_from(&lhs11);
 
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
@@ -482,8 +482,8 @@ impl RevoluteVelocityGroundConstraint {
     pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        let lin_impulse = self.impulse.fixed_rows::<U3>(0).into_owned();
-        let ang_impulse = self.basis2 * self.impulse.fixed_rows::<U2>(3).into_owned();
+        let lin_impulse = self.impulse.fixed_rows::<3>(0).into_owned();
+        let ang_impulse = self.basis2 * self.impulse.fixed_rows::<2>(3).into_owned();
 
         mj_lambda2.linear -= self.im2 * lin_impulse;
         mj_lambda2.angular -= self
@@ -511,8 +511,8 @@ impl RevoluteVelocityGroundConstraint {
             Vector5::new(lin_dvel.x, lin_dvel.y, lin_dvel.z, ang_dvel.x, ang_dvel.y) + self.rhs;
         let impulse = self.inv_lhs * rhs;
         self.impulse += impulse;
-        let lin_impulse = impulse.fixed_rows::<U3>(0).into_owned();
-        let ang_impulse = self.basis2 * impulse.fixed_rows::<U2>(3).into_owned();
+        let lin_impulse = impulse.fixed_rows::<3>(0).into_owned();
+        let ang_impulse = self.basis2 * impulse.fixed_rows::<2>(3).into_owned();
 
         mj_lambda2.linear -= self.im2 * lin_impulse;
         mj_lambda2.angular -= self
