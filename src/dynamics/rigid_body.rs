@@ -564,21 +564,23 @@ impl RigidBody {
 }
 
 /// A builder for rigid-bodies.
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[must_use = "Builder functions return the updated builder"]
 pub struct RigidBodyBuilder {
-    position: Isometry<Real>,
-    linvel: Vector<Real>,
-    angvel: AngVector<Real>,
-    gravity_scale: Real,
-    linear_damping: Real,
-    angular_damping: Real,
-    rb_type: RigidBodyType,
-    mprops_flags: RigidBodyMassPropsFlags,
-    mass_properties: MassProperties,
-    can_sleep: bool,
-    sleeping: bool,
-    ccd_enabled: bool,
-    dominance_group: i8,
-    user_data: u128,
+    pub position: Isometry<Real>,
+    pub linvel: Vector<Real>,
+    pub angvel: AngVector<Real>,
+    pub gravity_scale: Real,
+    pub linear_damping: Real,
+    pub angular_damping: Real,
+    pub rb_type: RigidBodyType,
+    pub mprops_flags: RigidBodyMassPropsFlags,
+    pub mass_properties: MassProperties,
+    pub can_sleep: bool,
+    pub sleeping: bool,
+    pub ccd_enabled: bool,
+    pub dominance_group: i8,
+    pub user_data: u128,
 }
 
 impl RigidBodyBuilder {
