@@ -1,6 +1,6 @@
 [package]
 name    = "rapier_testbed3d"
-version = "0.7.0"
+version = "0.8.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "Testbed for the Rapier 3-dimensional physics engine in Rust."
 homepage = "http://rapier.org"
@@ -46,5 +46,5 @@ serde = { version = "1", features = [ "derive" ] }
 
 [dependencies.rapier3d]
 path = "../rapier3d"
-version = "0.7"
+version = "0.8"
 features = [ "serde-serialize" ]
