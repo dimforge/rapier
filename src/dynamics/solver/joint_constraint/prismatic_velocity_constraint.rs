@@ -195,9 +195,9 @@ impl PrismaticVelocityConstraint {
         }
 
         if damping != 0.0 {
-            let curr_vel = rb2.linvel.dot(&axis2) + rb2.angvel.dot(&gcross2)
+            let curr_vel = rb2.linvel.dot(&axis2) + rb2.angvel.gdot(gcross2)
                 - rb1.linvel.dot(&axis1)
-                - rb1.angvel.dot(&gcross1);
+                - rb1.angvel.gdot(gcross1);
             motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
         }
 
