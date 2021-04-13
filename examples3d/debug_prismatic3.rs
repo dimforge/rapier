@@ -9,7 +9,6 @@ fn prismatic_repro(
     joints: &mut JointSet,
     box_center: Point3<f32>,
 ) {
-    use rapier3d::{dynamics::RigidBodyBuilder, geometry::ColliderBuilder};
     let box_rb = bodies.insert(
         RigidBodyBuilder::new_dynamic()
             .translation(box_center.x, box_center.y, box_center.z)
