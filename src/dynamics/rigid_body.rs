@@ -567,19 +567,31 @@ impl RigidBody {
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[must_use = "Builder functions return the updated builder"]
 pub struct RigidBodyBuilder {
+    /// The initial position of the rigid-body to be built.
     pub position: Isometry<Real>,
+    /// The linear velocity of the rigid-body to be built.
     pub linvel: Vector<Real>,
+    /// The angular velocity of the rigid-body to be built.
     pub angvel: AngVector<Real>,
+    /// The scale factor applied to the gravity affecting the rigid-body to be built, `1.0` by default.
     pub gravity_scale: Real,
+    /// Damping factor for gradually slowing down the translational motion of the rigid-body, `0.0` by default.
     pub linear_damping: Real,
+    /// Damping factor for gradually slowing down the angular motion of the rigid-body, `0.0` by default.
     pub angular_damping: Real,
-    pub rb_type: RigidBodyType,
-    pub mprops_flags: RigidBodyMassPropsFlags,
+    rb_type: RigidBodyType,
+    mprops_flags: RigidBodyMassPropsFlags,
+    /// The additional mass properties of the rigid-body being built. See [`RigidBodyBuilder::additional_mass_properties`] for more information.
     pub mass_properties: MassProperties,
+    /// Whether or not the rigid-body to be created can sleep if it reaches a dynamic equilibrium.
     pub can_sleep: bool,
+    /// Whether or not the rigid-body is to be created asleep.
     pub sleeping: bool,
+    /// Whether continuous collision-detection is enabled for the rigid-body to be built.
     pub ccd_enabled: bool,
+    /// The dominance group of the rigid-body to be built.
     pub dominance_group: i8,
+    /// An arbitrary user-defined 128-bit integer associated to the rigid-bodies built by this builder.
     pub user_data: u128,
 }
 
@@ -838,7 +850,7 @@ impl RigidBodyBuilder {
         self
     }
 
-    /// Enabled continuous collision-detection for this rigid-body.
+    /// Sets whether or not continuous collision-detection is enabled for this rigid-body.
     pub fn ccd_enabled(mut self, enabled: bool) -> Self {
         self.ccd_enabled = enabled;
         self
