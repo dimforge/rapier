@@ -23,6 +23,7 @@ mod debug_cylinder3;
 mod debug_dynamic_collider_add3;
 mod debug_friction3;
 mod debug_infinite_fall3;
+mod debug_prismatic3;
 mod debug_rollback3;
 mod debug_triangle3;
 mod debug_trimesh3;
@@ -109,6 +110,7 @@ pub fn main() {
         ("(Debug) trimesh", debug_trimesh3::init_world),
         ("(Debug) cylinder", debug_cylinder3::init_world),
         ("(Debug) infinite fall", debug_infinite_fall3::init_world),
+        ("(Debug) prismatic", debug_prismatic3::init_world),
         ("(Debug) rollback", debug_rollback3::init_world),
     ];
 

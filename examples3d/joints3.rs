@@ -107,12 +107,12 @@ fn create_actuated_prismatic_joints(
             // the limits with large forces.
             prism.motor_max_impulse = 1.0;
         } else if i > 1 {
-            prism.configure_motor_position(2.0, 0.2, 1.0);
+            prism.configure_motor_position(2.0, 0.01, 1.0);
         } else {
             prism.configure_motor_velocity(1.0, 1.0);
             // We set a max impulse so that the motor doesn't fight
             // the limits with large forces.
-            prism.motor_max_impulse = 1.0;
+            prism.motor_max_impulse = 0.7;
             prism.limits_enabled = true;
             prism.limits[0] = -2.0;
             prism.limits[1] = 5.0;

@@ -83,6 +83,7 @@ impl PrismaticVelocityConstraint {
         let anchor2 = rb2.position * joint.local_anchor2;
         let axis1 = rb1.position * joint.local_axis1;
         let axis2 = rb2.position * joint.local_axis2;
+
         #[cfg(feature = "dim2")]
         let basis1 = rb1.position * joint.basis1[0];
         #[cfg(feature = "dim3")]
@@ -179,6 +180,8 @@ impl PrismaticVelocityConstraint {
          */
         let mut motor_rhs = 0.0;
         let mut motor_inv_lhs = 0.0;
+        let gcross1 = r1.gcross(*axis1);
+        let gcross2 = r2.gcross(*axis2);
 
         let (stiffness, damping, gamma, keep_lhs) = joint.motor_model.combine_coefficients(
             params.dt,
@@ -192,12 +195,24 @@ impl PrismaticVelocityConstraint {
         }
 
         if damping != 0.0 {
-            let curr_vel = rb2.linvel.dot(&axis2) - rb1.linvel.dot(&axis1);
+            let curr_vel = rb2.linvel.dot(&axis2) + rb2.angvel.gdot(gcross2)
+                - rb1.linvel.dot(&axis1)
+                - rb1.angvel.gdot(gcross1);
             motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
         }
 
         if stiffness != 0.0 || damping != 0.0 {
-            motor_inv_lhs = if keep_lhs { gamma / (im1 + im2) } else { gamma };
+            motor_inv_lhs = if keep_lhs {
+                let inv_projected_mass = crate::utils::inv(
+                    im1 + im2
+                        + gcross1.gdot(ii1.transform_vector(gcross1))
+                        + gcross2.gdot(ii2.transform_vector(gcross2)),
+                );
+
+                gamma * inv_projected_mass
+            } else {
+                gamma
+            };
             motor_rhs /= gamma;
         }
 
@@ -236,8 +251,6 @@ impl PrismaticVelocityConstraint {
                 limits_rhs += ((dist - max_limit).max(0.0) - (min_limit - dist).max(0.0))
                     * velocity_based_erp_inv_dt;
 
-                let gcross1 = r1.gcross(*axis1);
-                let gcross2 = r2.gcross(*axis2);
                 limits_inv_lhs = crate::utils::inv(
                     im1 + im2
                         + gcross1.gdot(ii1.transform_vector(gcross1))
@@ -301,8 +314,16 @@ impl PrismaticVelocityConstraint {
             .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
 
         // Warmstart motors.
-        mj_lambda1.linear += self.motor_axis1 * (self.im1 * self.motor_impulse);
-        mj_lambda2.linear -= self.motor_axis2 * (self.im2 * self.motor_impulse);
+        if self.motor_impulse != 0.0 {
+            let lin_impulse1 = self.motor_axis1 * self.motor_impulse;
+            let lin_impulse2 = self.motor_axis2 * self.motor_impulse;
+
+            mj_lambda1.linear += lin_impulse1 * self.im1;
+            mj_lambda1.angular += self.ii1_sqrt.transform_vector(self.r1.gcross(lin_impulse1));
+
+            mj_lambda2.linear -= lin_impulse2 * self.im2;
+            mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(lin_impulse2));
+        }
 
         // Warmstart limits.
         if self.limits_active {
@@ -382,19 +403,31 @@ impl PrismaticVelocityConstraint {
 
     fn solve_motors(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
         if self.motor_inv_lhs != 0.0 {
-            let lin_dvel = self.motor_axis2.dot(&mj_lambda2.linear)
-                - self.motor_axis1.dot(&mj_lambda1.linear)
+            let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
+            let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+
+            let dvel = self
+                .motor_axis2
+                .dot(&(mj_lambda2.linear + ang_vel2.gcross(self.r2)))
+                - self
+                    .motor_axis1
+                    .dot(&(mj_lambda1.linear + ang_vel1.gcross(self.r1)))
                 + self.motor_rhs;
             let new_impulse = na::clamp(
-                self.motor_impulse + lin_dvel * self.motor_inv_lhs,
+                self.motor_impulse + dvel * self.motor_inv_lhs,
                 -self.motor_max_impulse,
                 self.motor_max_impulse,
             );
             let dimpulse = new_impulse - self.motor_impulse;
             self.motor_impulse = new_impulse;
 
-            mj_lambda1.linear += self.motor_axis1 * (self.im1 * dimpulse);
-            mj_lambda2.linear -= self.motor_axis2 * (self.im2 * dimpulse);
+            let lin_impulse1 = self.motor_axis1 * dimpulse;
+            let lin_impulse2 = self.motor_axis2 * dimpulse;
+
+            mj_lambda1.linear += lin_impulse1 * self.im1;
+            mj_lambda1.angular += self.ii1_sqrt.transform_vector(self.r1.gcross(lin_impulse1));
+            mj_lambda2.linear -= lin_impulse2 * self.im2;
+            mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(lin_impulse2));
         }
     }
 
