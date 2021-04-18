@@ -244,6 +244,11 @@ impl Collider {
         self.shape = shape;
     }
 
+    /// Retrieve the SharedShape. Also see the `shape()` function
+    pub fn shared_shape(&self) -> &SharedShape {
+        &self.shape
+    }
+
     /// Compute the axis-aligned bounding box of this collider.
     pub fn compute_aabb(&self) -> AABB {
         self.shape.compute_aabb(&self.position)
