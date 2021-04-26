@@ -38,7 +38,12 @@ pub fn init_world(testbed: &mut Testbed) {
         // Remove then re-add the ground collider.
         let coll = physics
             .colliders
-            .remove(ground_collider_handle, &mut physics.bodies, true)
+            .remove(
+                ground_collider_handle,
+                &mut physics.islands,
+                &mut physics.bodies,
+                true,
+            )
             .unwrap();
         ground_collider_handle = physics
             .colliders

@@ -1,7 +1,8 @@
+use crate::data::ComponentSet;
 use crate::dynamics::solver::PositionGroundConstraint;
 #[cfg(feature = "simd-is-enabled")]
 use crate::dynamics::solver::{WPositionConstraint, WPositionGroundConstraint};
-use crate::dynamics::{IntegrationParameters, RigidBodySet};
+use crate::dynamics::{IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition};
 use crate::geometry::ContactManifold;
 use crate::math::{
     AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector, MAX_MANIFOLD_POINTS,
@@ -51,15 +52,26 @@ pub(crate) struct PositionConstraint {
 }
 
 impl PositionConstraint {
-    pub fn generate(
+    pub fn generate<Bodies>(
         params: &IntegrationParameters,
         manifold: &ContactManifold,
-        bodies: &RigidBodySet,
+        bodies: &Bodies,
         out_constraints: &mut Vec<AnyPositionConstraint>,
         push: bool,
-    ) {
-        let rb1 = &bodies[manifold.data.body_pair.body1];
-        let rb2 = &bodies[manifold.data.body_pair.body2];
+    ) where
+        Bodies: ComponentSet<RigidBodyPosition>
+            + ComponentSet<RigidBodyMassProps>
+            + ComponentSet<RigidBodyIds>,
+    {
+        let handle1 = manifold.data.rigid_body1.unwrap();
+        let handle2 = manifold.data.rigid_body2.unwrap();
+
+        let ids1: &RigidBodyIds = bodies.index(handle1.0);
+        let ids2: &RigidBodyIds = bodies.index(handle2.0);
+        let poss1: &RigidBodyPosition = bodies.index(handle1.0);
+        let poss2: &RigidBodyPosition = bodies.index(handle2.0);
+        let mprops1: &RigidBodyMassProps = bodies.index(handle1.0);
+        let mprops2: &RigidBodyMassProps = bodies.index(handle2.0);
 
         for (l, manifold_points) in manifold
             .data
@@ -72,26 +84,28 @@ impl PositionConstraint {
             let mut dists = [0.0; MAX_MANIFOLD_POINTS];
 
             for l in 0..manifold_points.len() {
-                local_p1[l] = rb1
+                local_p1[l] = poss1
                     .position
                     .inverse_transform_point(&manifold_points[l].point);
-                local_p2[l] = rb2
+                local_p2[l] = poss2
                     .position
                     .inverse_transform_point(&manifold_points[l].point);
                 dists[l] = manifold_points[l].dist;
             }
 
             let constraint = PositionConstraint {
-                rb1: rb1.active_set_offset,
-                rb2: rb2.active_set_offset,
+                rb1: ids1.active_set_offset,
+                rb2: ids2.active_set_offset,
                 local_p1,
                 local_p2,
-                local_n1: rb1.position.inverse_transform_vector(&manifold.data.normal),
+                local_n1: poss1
+                    .position
+                    .inverse_transform_vector(&manifold.data.normal),
                 dists,
-                im1: rb1.effective_inv_mass,
-                im2: rb2.effective_inv_mass,
-                ii1: rb1.effective_world_inv_inertia_sqrt.squared(),
-                ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
+                im1: mprops1.effective_inv_mass,
+                im2: mprops2.effective_inv_mass,
+                ii1: mprops1.effective_world_inv_inertia_sqrt.squared(),
+                ii2: mprops2.effective_world_inv_inertia_sqrt.squared(),
                 num_contacts: manifold_points.len() as u8,
                 erp: params.erp,
                 max_linear_correction: params.max_linear_correction,

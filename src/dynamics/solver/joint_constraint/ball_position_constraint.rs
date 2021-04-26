@@ -1,4 +1,6 @@
-use crate::dynamics::{BallJoint, IntegrationParameters, RigidBody};
+use crate::dynamics::{
+    BallJoint, IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition,
+};
 #[cfg(feature = "dim2")]
 use crate::math::SdpMatrix;
 use crate::math::{AngularInertia, Isometry, Point, Real, Rotation};
@@ -23,18 +25,25 @@ pub(crate) struct BallPositionConstraint {
 }
 
 impl BallPositionConstraint {
-    pub fn from_params(rb1: &RigidBody, rb2: &RigidBody, cparams: &BallJoint) -> Self {
+    pub fn from_params(
+        rb1: (&RigidBodyMassProps, &RigidBodyIds),
+        rb2: (&RigidBodyMassProps, &RigidBodyIds),
+        cparams: &BallJoint,
+    ) -> Self {
+        let (mprops1, ids1) = rb1;
+        let (mprops2, ids2) = rb2;
+
         Self {
-            local_com1: rb1.mass_properties.local_com,
-            local_com2: rb2.mass_properties.local_com,
-            im1: rb1.effective_inv_mass,
-            im2: rb2.effective_inv_mass,
-            ii1: rb1.effective_world_inv_inertia_sqrt.squared(),
-            ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
+            local_com1: mprops1.mass_properties.local_com,
+            local_com2: mprops2.mass_properties.local_com,
+            im1: mprops1.effective_inv_mass,
+            im2: mprops2.effective_inv_mass,
+            ii1: mprops1.effective_world_inv_inertia_sqrt.squared(),
+            ii2: mprops2.effective_world_inv_inertia_sqrt.squared(),
             local_anchor1: cparams.local_anchor1,
             local_anchor2: cparams.local_anchor2,
-            position1: rb1.active_set_offset,
-            position2: rb2.active_set_offset,
+            position1: ids1.active_set_offset,
+            position2: ids2.active_set_offset,
         }
     }
 
@@ -104,31 +113,34 @@ pub(crate) struct BallPositionGroundConstraint {
 
 impl BallPositionGroundConstraint {
     pub fn from_params(
-        rb1: &RigidBody,
-        rb2: &RigidBody,
+        rb1: &RigidBodyPosition,
+        rb2: (&RigidBodyMassProps, &RigidBodyIds),
         cparams: &BallJoint,
         flipped: bool,
     ) -> Self {
+        let poss1 = rb1;
+        let (mprops2, ids2) = rb2;
+
         if flipped {
             // Note the only thing that is flipped here
             // are the local_anchors. The rb1 and rb2 have
             // already been flipped by the caller.
             Self {
-                anchor1: rb1.next_position * cparams.local_anchor2,
-                im2: rb2.effective_inv_mass,
-                ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
+                anchor1: poss1.next_position * cparams.local_anchor2,
+                im2: mprops2.effective_inv_mass,
+                ii2: mprops2.effective_world_inv_inertia_sqrt.squared(),
                 local_anchor2: cparams.local_anchor1,
-                position2: rb2.active_set_offset,
-                local_com2: rb2.mass_properties.local_com,
+                position2: ids2.active_set_offset,
+                local_com2: mprops2.mass_properties.local_com,
             }
         } else {
             Self {
-                anchor1: rb1.next_position * cparams.local_anchor1,
-                im2: rb2.effective_inv_mass,
-                ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
+                anchor1: poss1.next_position * cparams.local_anchor1,
+                im2: mprops2.effective_inv_mass,
+                ii2: mprops2.effective_world_inv_inertia_sqrt.squared(),
                 local_anchor2: cparams.local_anchor2,
-                position2: rb2.active_set_offset,
-                local_com2: rb2.mass_properties.local_com,
+                position2: ids2.active_set_offset,
+                local_com2: mprops2.mass_properties.local_com,
             }
         }
     }

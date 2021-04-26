@@ -1,4 +1,6 @@
-use crate::dynamics::{BallJoint, IntegrationParameters, RigidBody};
+use crate::dynamics::{
+    BallJoint, IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition,
+};
 #[cfg(feature = "dim2")]
 use crate::math::SdpMatrix;
 use crate::math::{AngularInertia, Isometry, Point, Real, Rotation, SimdReal, SIMD_WIDTH};
@@ -25,26 +27,35 @@ pub(crate) struct WBallPositionConstraint {
 
 impl WBallPositionConstraint {
     pub fn from_params(
-        rbs1: [&RigidBody; SIMD_WIDTH],
-        rbs2: [&RigidBody; SIMD_WIDTH],
+        rbs1: (
+            [&RigidBodyMassProps; SIMD_WIDTH],
+            [&RigidBodyIds; SIMD_WIDTH],
+        ),
+        rbs2: (
+            [&RigidBodyMassProps; SIMD_WIDTH],
+            [&RigidBodyIds; SIMD_WIDTH],
+        ),
         cparams: [&BallJoint; SIMD_WIDTH],
     ) -> Self {
-        let local_com1 = Point::from(array![|ii| rbs1[ii].mass_properties.local_com; SIMD_WIDTH]);
-        let local_com2 = Point::from(array![|ii| rbs2[ii].mass_properties.local_com; SIMD_WIDTH]);
-        let im1 = SimdReal::from(array![|ii| rbs1[ii].effective_inv_mass; SIMD_WIDTH]);
-        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
-        let ii1 = AngularInertia::<SimdReal>::from(
-            array![|ii| rbs1[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
-        )
+        let (mprops1, ids1) = rbs1;
+        let (mprops2, ids2) = rbs2;
+
+        let local_com1 = Point::from(gather![|ii| mprops1[ii].mass_properties.local_com]);
+        let local_com2 = Point::from(gather![|ii| mprops2[ii].mass_properties.local_com]);
+        let im1 = SimdReal::from(gather![|ii| mprops1[ii].effective_inv_mass]);
+        let im2 = SimdReal::from(gather![|ii| mprops2[ii].effective_inv_mass]);
+        let ii1 = AngularInertia::<SimdReal>::from(gather![
+            |ii| mprops1[ii].effective_world_inv_inertia_sqrt
+        ])
         .squared();
-        let ii2 = AngularInertia::<SimdReal>::from(
-            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
-        )
+        let ii2 = AngularInertia::<SimdReal>::from(gather![
+            |ii| mprops2[ii].effective_world_inv_inertia_sqrt
+        ])
         .squared();
-        let local_anchor1 = Point::from(array![|ii| cparams[ii].local_anchor1; SIMD_WIDTH]);
-        let local_anchor2 = Point::from(array![|ii| cparams[ii].local_anchor2; SIMD_WIDTH]);
-        let position1 = array![|ii| rbs1[ii].active_set_offset; SIMD_WIDTH];
-        let position2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
+        let local_anchor1 = Point::from(gather![|ii| cparams[ii].local_anchor1]);
+        let local_anchor2 = Point::from(gather![|ii| cparams[ii].local_anchor2]);
+        let position1 = gather![|ii| ids1[ii].active_set_offset];
+        let position2 = gather![|ii| ids2[ii].active_set_offset];
 
         Self {
             local_com1,
@@ -61,8 +72,8 @@ impl WBallPositionConstraint {
     }
 
     pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
-        let mut position1 = Isometry::from(array![|ii| positions[self.position1[ii]]; SIMD_WIDTH]);
-        let mut position2 = Isometry::from(array![|ii| positions[self.position2[ii]]; SIMD_WIDTH]);
+        let mut position1 = Isometry::from(gather![|ii| positions[self.position1[ii]]]);
+        let mut position2 = Isometry::from(gather![|ii| positions[self.position2[ii]]]);
 
         let anchor1 = position1 * self.local_anchor1;
         let anchor2 = position2 * self.local_anchor2;
@@ -129,30 +140,36 @@ pub(crate) struct WBallPositionGroundConstraint {
 
 impl WBallPositionGroundConstraint {
     pub fn from_params(
-        rbs1: [&RigidBody; SIMD_WIDTH],
-        rbs2: [&RigidBody; SIMD_WIDTH],
+        rbs1: [&RigidBodyPosition; SIMD_WIDTH],
+        rbs2: (
+            [&RigidBodyMassProps; SIMD_WIDTH],
+            [&RigidBodyIds; SIMD_WIDTH],
+        ),
         cparams: [&BallJoint; SIMD_WIDTH],
         flipped: [bool; SIMD_WIDTH],
     ) -> Self {
-        let position1 = Isometry::from(array![|ii| rbs1[ii].next_position; SIMD_WIDTH]);
+        let poss1 = rbs1;
+        let (mprops2, ids2) = rbs2;
+
+        let position1 = Isometry::from(gather![|ii| poss1[ii].next_position]);
         let anchor1 = position1
-            * Point::from(array![|ii| if flipped[ii] {
+            * Point::from(gather![|ii| if flipped[ii] {
                 cparams[ii].local_anchor2
             } else {
                 cparams[ii].local_anchor1
-            }; SIMD_WIDTH]);
-        let im2 = SimdReal::from(array![|ii| rbs2[ii].effective_inv_mass; SIMD_WIDTH]);
-        let ii2 = AngularInertia::<SimdReal>::from(
-            array![|ii| rbs2[ii].effective_world_inv_inertia_sqrt; SIMD_WIDTH],
-        )
+            }]);
+        let im2 = SimdReal::from(gather![|ii| mprops2[ii].effective_inv_mass]);
+        let ii2 = AngularInertia::<SimdReal>::from(gather![
+            |ii| mprops2[ii].effective_world_inv_inertia_sqrt
+        ])
         .squared();
-        let local_anchor2 = Point::from(array![|ii| if flipped[ii] {
+        let local_anchor2 = Point::from(gather![|ii| if flipped[ii] {
             cparams[ii].local_anchor1
         } else {
             cparams[ii].local_anchor2
-        }; SIMD_WIDTH]);
-        let position2 = array![|ii| rbs2[ii].active_set_offset; SIMD_WIDTH];
-        let local_com2 = Point::from(array![|ii| rbs2[ii].mass_properties.local_com; SIMD_WIDTH]);
+        }]);
+        let position2 = gather![|ii| ids2[ii].active_set_offset];
+        let local_com2 = Point::from(gather![|ii| mprops2[ii].mass_properties.local_com]);
 
         Self {
             anchor1,
@@ -165,7 +182,7 @@ impl WBallPositionGroundConstraint {
     }
 
     pub fn solve(&self, params: &IntegrationParameters, positions: &mut [Isometry<Real>]) {
-        let mut position2 = Isometry::from(array![|ii| positions[self.position2[ii]]; SIMD_WIDTH]);
+        let mut position2 = Isometry::from(gather![|ii| positions[self.position2[ii]]]);
 
         let anchor2 = position2 * self.local_anchor2;
         let com2 = position2 * self.local_com2;

@@ -1,3 +1,8 @@
+## v0.9.0
+
+### Modified
+- Renamed `BodyStatus` to `RigidBodyType`.
+
 ## v0.8.0
 ### Modified
 - Switch to nalgebra 0.26.

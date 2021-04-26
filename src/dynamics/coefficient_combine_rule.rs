@@ -20,17 +20,13 @@ pub enum CoefficientCombineRule {
     Max,
 }
 
-impl CoefficientCombineRule {
-    pub(crate) fn from_value(val: u8) -> Self {
-        match val {
-            0 => CoefficientCombineRule::Average,
-            1 => CoefficientCombineRule::Min,
-            2 => CoefficientCombineRule::Multiply,
-            3 => CoefficientCombineRule::Max,
-            _ => panic!("Invalid coefficient combine rule."),
-        }
+impl Default for CoefficientCombineRule {
+    fn default() -> Self {
+        CoefficientCombineRule::Average
     }
+}
 
+impl CoefficientCombineRule {
     pub(crate) fn combine(coeff1: Real, coeff2: Real, rule_value1: u8, rule_value2: u8) -> Real {
         let effective_rule = rule_value1.max(rule_value2);
 

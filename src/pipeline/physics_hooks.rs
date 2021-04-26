@@ -1,38 +1,38 @@
-use crate::dynamics::RigidBody;
-use crate::geometry::{Collider, ColliderHandle, ContactManifold, SolverContact, SolverFlags};
+use crate::dynamics::RigidBodyHandle;
+use crate::geometry::{ColliderHandle, ContactManifold, SolverContact, SolverFlags};
 use crate::math::{Real, Vector};
 use na::ComplexField;
 
 /// Context given to custom collision filters to filter-out collisions.
-pub struct PairFilterContext<'a> {
-    /// The first collider involved in the potential collision.
-    pub rigid_body1: &'a RigidBody,
-    /// The first collider involved in the potential collision.
-    pub rigid_body2: &'a RigidBody,
-    /// The first collider involved in the potential collision.
-    pub collider_handle1: ColliderHandle,
-    /// The first collider involved in the potential collision.
-    pub collider_handle2: ColliderHandle,
-    /// The first collider involved in the potential collision.
-    pub collider1: &'a Collider,
-    /// The first collider involved in the potential collision.
-    pub collider2: &'a Collider,
+pub struct PairFilterContext<'a, Bodies, Colliders> {
+    /// The set of rigid-bodies.
+    pub bodies: &'a Bodies,
+    /// The set of colliders.
+    pub colliders: &'a Colliders,
+    /// The handle of the first collider involved in the potential collision.
+    pub collider1: ColliderHandle,
+    /// The handle of the first collider involved in the potential collision.
+    pub collider2: ColliderHandle,
+    /// The handle of the first body involved in the potential collision.
+    pub rigid_body1: Option<RigidBodyHandle>,
+    /// The handle of the first body involved in the potential collision.
+    pub rigid_body2: Option<RigidBodyHandle>,
 }
 
 /// Context given to custom contact modifiers to modify the contacts seen by the constraints solver.
-pub struct ContactModificationContext<'a> {
-    /// The first collider involved in the potential collision.
-    pub rigid_body1: &'a RigidBody,
-    /// The first collider involved in the potential collision.
-    pub rigid_body2: &'a RigidBody,
-    /// The first collider involved in the potential collision.
-    pub collider_handle1: ColliderHandle,
-    /// The first collider involved in the potential collision.
-    pub collider_handle2: ColliderHandle,
-    /// The first collider involved in the potential collision.
-    pub collider1: &'a Collider,
-    /// The first collider involved in the potential collision.
-    pub collider2: &'a Collider,
+pub struct ContactModificationContext<'a, Bodies, Colliders> {
+    /// The set of rigid-bodies.
+    pub bodies: &'a Bodies,
+    /// The set of colliders.
+    pub colliders: &'a Colliders,
+    /// The handle of the first collider involved in the potential collision.
+    pub collider1: ColliderHandle,
+    /// The handle of the first collider involved in the potential collision.
+    pub collider2: ColliderHandle,
+    /// The handle of the first body involved in the potential collision.
+    pub rigid_body1: Option<RigidBodyHandle>,
+    /// The handle of the first body involved in the potential collision.
+    pub rigid_body2: Option<RigidBodyHandle>,
     /// The contact manifold.
     pub manifold: &'a ContactManifold,
     /// The solver contacts that can be modified.
@@ -45,7 +45,7 @@ pub struct ContactModificationContext<'a> {
     pub user_data: &'a mut u32,
 }
 
-impl<'a> ContactModificationContext<'a> {
+impl<'a, Bodies, Colliders> ContactModificationContext<'a, Bodies, Colliders> {
     /// Helper function to update `self` to emulate a oneway-platform.
     ///
     /// The "oneway" behavior will only allow contacts between two colliders
@@ -127,9 +127,14 @@ bitflags::bitflags! {
         const MODIFY_SOLVER_CONTACTS = 0b0100;
     }
 }
+impl Default for PhysicsHooksFlags {
+    fn default() -> Self {
+        PhysicsHooksFlags::empty()
+    }
+}
 
 /// User-defined functions called by the physics engines during one timestep in order to customize its behavior.
-pub trait PhysicsHooks: Send + Sync {
+pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
     /// The sets of hooks that must be taken into account.
     fn active_hooks(&self) -> PhysicsHooksFlags;
 
@@ -156,7 +161,10 @@ pub trait PhysicsHooks: Send + Sync {
     /// will be taken into account by the constraints solver. If this returns
     /// `Some(SolverFlags::empty())` then the constraints solver will ignore these
     /// contacts.
-    fn filter_contact_pair(&self, _context: &PairFilterContext) -> Option<SolverFlags> {
+    fn filter_contact_pair(
+        &self,
+        _context: &PairFilterContext<Bodies, Colliders>,
+    ) -> Option<SolverFlags> {
         None
     }
 
@@ -179,7 +187,7 @@ pub trait PhysicsHooks: Send + Sync {
     /// not compute any intersection information for it.
     /// If this return `true` then the narrow-phase will compute intersection
     /// information for this pair.
-    fn filter_intersection_pair(&self, _context: &PairFilterContext) -> bool {
+    fn filter_intersection_pair(&self, _context: &PairFilterContext<Bodies, Colliders>) -> bool {
         false
     }
 
@@ -207,21 +215,22 @@ pub trait PhysicsHooks: Send + Sync {
     /// as 0 and can be modified in `context.user_data`.
     ///
     /// The world-space contact normal can be modified in `context.normal`.
-    fn modify_solver_contacts(&self, _context: &mut ContactModificationContext) {}
+    fn modify_solver_contacts(&self, _context: &mut ContactModificationContext<Bodies, Colliders>) {
+    }
 }
 
-impl PhysicsHooks for () {
+impl<Bodies, Colliders> PhysicsHooks<Bodies, Colliders> for () {
     fn active_hooks(&self) -> PhysicsHooksFlags {
         PhysicsHooksFlags::empty()
     }
 
-    fn filter_contact_pair(&self, _: &PairFilterContext) -> Option<SolverFlags> {
+    fn filter_contact_pair(&self, _: &PairFilterContext<Bodies, Colliders>) -> Option<SolverFlags> {
         None
     }
 
-    fn filter_intersection_pair(&self, _: &PairFilterContext) -> bool {
+    fn filter_intersection_pair(&self, _: &PairFilterContext<Bodies, Colliders>) -> bool {
         false
     }
 
-    fn modify_solver_contacts(&self, _: &mut ContactModificationContext) {}
+    fn modify_solver_contacts(&self, _: &mut ContactModificationContext<Bodies, Colliders>) {}
 }

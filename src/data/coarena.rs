@@ -4,7 +4,7 @@ use crate::data::arena::Index;
 #[derive(Clone, Debug)]
 /// A container for data associated to item existing into another Arena.
 pub struct Coarena<T> {
-    data: Vec<(u64, T)>,
+    data: Vec<(u32, T)>,
 }
 
 impl<T> Coarena<T> {
@@ -17,7 +17,7 @@ impl<T> Coarena<T> {
     pub fn get(&self, index: Index) -> Option<&T> {
         let (i, g) = index.into_raw_parts();
         self.data
-            .get(i)
+            .get(i as usize)
             .and_then(|(gg, t)| if g == *gg { Some(t) } else { None })
     }
 
@@ -25,7 +25,7 @@ impl<T> Coarena<T> {
     pub fn get_mut(&mut self, index: Index) -> Option<&mut T> {
         let (i, g) = index.into_raw_parts();
         self.data
-            .get_mut(i)
+            .get_mut(i as usize)
             .and_then(|(gg, t)| if g == *gg { Some(t) } else { None })
     }
 
@@ -36,11 +36,11 @@ impl<T> Coarena<T> {
     {
         let (i1, g1) = a.into_raw_parts();
 
-        if self.data.len() <= i1 {
-            self.data.resize(i1 + 1, (u32::MAX as u64, T::default()));
+        if self.data.len() <= i1 as usize {
+            self.data.resize(i1 as usize + 1, (u32::MAX, T::default()));
         }
 
-        self.data[i1] = (g1, value);
+        self.data[i1 as usize] = (g1, value);
     }
 
     /// Ensure that elements at the two given indices exist in this coarena, and return their reference.
@@ -56,20 +56,22 @@ impl<T> Coarena<T> {
         assert_ne!(i1, i2, "Cannot index the same object twice.");
 
         let (elt1, elt2) = if i1 > i2 {
-            if self.data.len() <= i1 {
-                self.data.resize(i1 + 1, (u32::MAX as u64, default.clone()));
+            if self.data.len() <= i1 as usize {
+                self.data
+                    .resize(i1 as usize + 1, (u32::MAX, default.clone()));
             }
 
-            let (left, right) = self.data.split_at_mut(i1);
-            (&mut right[0], &mut left[i2])
+            let (left, right) = self.data.split_at_mut(i1 as usize);
+            (&mut right[0], &mut left[i2 as usize])
         } else {
             // i2 > i1
-            if self.data.len() <= i2 {
-                self.data.resize(i2 + 1, (u32::MAX as u64, default.clone()));
+            if self.data.len() <= i2 as usize {
+                self.data
+                    .resize(i2 as usize + 1, (u32::MAX, default.clone()));
             }
 
-            let (left, right) = self.data.split_at_mut(i2);
-            (&mut left[i1], &mut right[0])
+            let (left, right) = self.data.split_at_mut(i2 as usize);
+            (&mut left[i1 as usize], &mut right[0])
         };
 
         if elt1.0 != g1 {

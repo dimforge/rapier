@@ -50,8 +50,8 @@ impl GenericVelocityConstraint {
         rb1: &RigidBody,
         rb2: &RigidBody,
     ) -> SpatialVector<Real> {
-        let lin_dvel = basis1.inverse_transform_vector(&(-rb1.linvel - rb1.angvel.gcross(*r1)))
-            + basis2.inverse_transform_vector(&(rb2.linvel + rb2.angvel.gcross(*r2)));
+        let lin_dvel = basis1.inverse_transform_vector(&(-rb1.linvel() - rb1.angvel().gcross(*r1)))
+            + basis2.inverse_transform_vector(&(rb2.linvel() + rb2.angvel().gcross(*r2)));
         let ang_dvel = basis1.inverse_transform_vector(&-rb1.angvel)
             + basis2.inverse_transform_vector(&rb2.angvel);
 
@@ -203,8 +203,8 @@ impl GenericVelocityConstraint {
         rb2: &RigidBody,
         joint: &GenericJoint,
     ) -> Self {
-        let anchor1 = rb1.position * joint.local_anchor1;
-        let anchor2 = rb2.position * joint.local_anchor2;
+        let anchor1 = rb1.position() * joint.local_anchor1;
+        let anchor2 = rb2.position() * joint.local_anchor2;
         let basis1 = anchor1.rotation;
         let basis2 = anchor2.rotation;
         let im1 = rb1.effective_inv_mass;
@@ -405,13 +405,13 @@ impl GenericVelocityGroundConstraint {
     ) -> Self {
         let (anchor1, anchor2) = if flipped {
             (
-                rb1.position * joint.local_anchor2,
-                rb2.position * joint.local_anchor1,
+                rb1.position() * joint.local_anchor2,
+                rb2.position() * joint.local_anchor1,
             )
         } else {
             (
-                rb1.position * joint.local_anchor1,
-                rb2.position * joint.local_anchor2,
+                rb1.position() * joint.local_anchor1,
+                rb2.position() * joint.local_anchor2,
             )
         };
 

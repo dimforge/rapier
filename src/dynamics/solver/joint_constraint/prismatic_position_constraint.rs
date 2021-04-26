@@ -1,4 +1,6 @@
-use crate::dynamics::{IntegrationParameters, PrismaticJoint, RigidBody};
+use crate::dynamics::{
+    IntegrationParameters, PrismaticJoint, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition,
+};
 use crate::math::{AngularInertia, Isometry, Point, Real, Rotation, Vector};
 use crate::utils::WAngularInertia;
 use na::Unit;
@@ -27,11 +29,18 @@ pub(crate) struct PrismaticPositionConstraint {
 }
 
 impl PrismaticPositionConstraint {
-    pub fn from_params(rb1: &RigidBody, rb2: &RigidBody, cparams: &PrismaticJoint) -> Self {
-        let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
-        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
-        let im1 = rb1.effective_inv_mass;
-        let im2 = rb2.effective_inv_mass;
+    pub fn from_params(
+        rb1: (&RigidBodyMassProps, &RigidBodyIds),
+        rb2: (&RigidBodyMassProps, &RigidBodyIds),
+        cparams: &PrismaticJoint,
+    ) -> Self {
+        let (mprops1, ids1) = rb1;
+        let (mprops2, ids2) = rb2;
+
+        let ii1 = mprops1.effective_world_inv_inertia_sqrt.squared();
+        let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
+        let im1 = mprops1.effective_inv_mass;
+        let im2 = mprops2.effective_inv_mass;
         let lin_inv_lhs = 1.0 / (im1 + im2);
         let ang_inv_lhs = (ii1 + ii2).inverse();
 
@@ -46,8 +55,8 @@ impl PrismaticPositionConstraint {
             local_frame2: cparams.local_frame2(),
             local_axis1: cparams.local_axis1,
             local_axis2: cparams.local_axis2,
-            position1: rb1.active_set_offset,
-            position2: rb2.active_set_offset,
+            position1: ids1.active_set_offset,
+            position2: ids2.active_set_offset,
             limits: cparams.limits,
         }
     }
@@ -108,25 +117,28 @@ pub(crate) struct PrismaticPositionGroundConstraint {
 
 impl PrismaticPositionGroundConstraint {
     pub fn from_params(
-        rb1: &RigidBody,
-        rb2: &RigidBody,
+        rb1: &RigidBodyPosition,
+        rb2: (&RigidBodyMassProps, &RigidBodyIds),
         cparams: &PrismaticJoint,
         flipped: bool,
     ) -> Self {
+        let poss1 = rb1;
+        let (_, ids2) = rb2;
+
         let frame1;
         let local_frame2;
         let axis1;
         let local_axis2;
 
         if flipped {
-            frame1 = rb1.next_position * cparams.local_frame2();
+            frame1 = poss1.next_position * cparams.local_frame2();
             local_frame2 = cparams.local_frame1();
-            axis1 = rb1.next_position * cparams.local_axis2;
+            axis1 = poss1.next_position * cparams.local_axis2;
             local_axis2 = cparams.local_axis1;
         } else {
-            frame1 = rb1.next_position * cparams.local_frame1();
+            frame1 = poss1.next_position * cparams.local_frame1();
             local_frame2 = cparams.local_frame2();
-            axis1 = rb1.next_position * cparams.local_axis1;
+            axis1 = poss1.next_position * cparams.local_axis1;
             local_axis2 = cparams.local_axis2;
         };
 
@@ -135,7 +147,7 @@ impl PrismaticPositionGroundConstraint {
             local_frame2,
             axis1,
             local_axis2,
-            position2: rb2.active_set_offset,
+            position2: ids2.active_set_offset,
             limits: cparams.limits,
         }
     }

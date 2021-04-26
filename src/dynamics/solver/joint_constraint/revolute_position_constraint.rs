@@ -1,4 +1,6 @@
-use crate::dynamics::{IntegrationParameters, RevoluteJoint, RigidBody};
+use crate::dynamics::{
+    IntegrationParameters, RevoluteJoint, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition,
+};
 use crate::math::{AngularInertia, Isometry, Point, Real, Rotation, Vector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 use na::Unit;
@@ -29,11 +31,18 @@ pub(crate) struct RevolutePositionConstraint {
 }
 
 impl RevolutePositionConstraint {
-    pub fn from_params(rb1: &RigidBody, rb2: &RigidBody, cparams: &RevoluteJoint) -> Self {
-        let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
-        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
-        let im1 = rb1.effective_inv_mass;
-        let im2 = rb2.effective_inv_mass;
+    pub fn from_params(
+        rb1: (&RigidBodyMassProps, &RigidBodyIds),
+        rb2: (&RigidBodyMassProps, &RigidBodyIds),
+        cparams: &RevoluteJoint,
+    ) -> Self {
+        let (mprops1, ids1) = rb1;
+        let (mprops2, ids2) = rb2;
+
+        let ii1 = mprops1.effective_world_inv_inertia_sqrt.squared();
+        let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
+        let im1 = mprops1.effective_inv_mass;
+        let im2 = mprops2.effective_inv_mass;
         let ang_inv_lhs = (ii1 + ii2).inverse();
 
         Self {
@@ -42,14 +51,14 @@ impl RevolutePositionConstraint {
             ii1,
             ii2,
             ang_inv_lhs,
-            local_com1: rb1.mass_properties.local_com,
-            local_com2: rb2.mass_properties.local_com,
+            local_com1: mprops1.mass_properties.local_com,
+            local_com2: mprops2.mass_properties.local_com,
             local_anchor1: cparams.local_anchor1,
             local_anchor2: cparams.local_anchor2,
             local_axis1: cparams.local_axis1,
             local_axis2: cparams.local_axis2,
-            position1: rb1.active_set_offset,
-            position2: rb2.active_set_offset,
+            position1: ids1.active_set_offset,
+            position2: ids2.active_set_offset,
             local_basis1: cparams.basis1,
             local_basis2: cparams.basis2,
         }
@@ -132,11 +141,14 @@ pub(crate) struct RevolutePositionGroundConstraint {
 
 impl RevolutePositionGroundConstraint {
     pub fn from_params(
-        rb1: &RigidBody,
-        rb2: &RigidBody,
+        rb1: &RigidBodyPosition,
+        rb2: (&RigidBodyMassProps, &RigidBodyIds),
         cparams: &RevoluteJoint,
         flipped: bool,
     ) -> Self {
+        let poss1 = rb1;
+        let (mprops2, ids2) = rb2;
+
         let anchor1;
         let local_anchor2;
         let axis1;
@@ -145,23 +157,23 @@ impl RevolutePositionGroundConstraint {
         let local_basis2;
 
         if flipped {
-            anchor1 = rb1.next_position * cparams.local_anchor2;
+            anchor1 = poss1.next_position * cparams.local_anchor2;
             local_anchor2 = cparams.local_anchor1;
-            axis1 = rb1.next_position * cparams.local_axis2;
+            axis1 = poss1.next_position * cparams.local_axis2;
             local_axis2 = cparams.local_axis1;
             basis1 = [
-                rb1.next_position * cparams.basis2[0],
-                rb1.next_position * cparams.basis2[1],
+                poss1.next_position * cparams.basis2[0],
+                poss1.next_position * cparams.basis2[1],
             ];
             local_basis2 = cparams.basis1;
         } else {
-            anchor1 = rb1.next_position * cparams.local_anchor1;
+            anchor1 = poss1.next_position * cparams.local_anchor1;
             local_anchor2 = cparams.local_anchor2;
-            axis1 = rb1.next_position * cparams.local_axis1;
+            axis1 = poss1.next_position * cparams.local_axis1;
             local_axis2 = cparams.local_axis2;
             basis1 = [
-                rb1.next_position * cparams.basis1[0],
-                rb1.next_position * cparams.basis1[1],
+                poss1.next_position * cparams.basis1[0],
+                poss1.next_position * cparams.basis1[1],
             ];
             local_basis2 = cparams.basis2;
         };
@@ -169,12 +181,12 @@ impl RevolutePositionGroundConstraint {
         Self {
             anchor1,
             local_anchor2,
-            im2: rb2.effective_inv_mass,
-            ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
-            local_com2: rb2.mass_properties.local_com,
+            im2: mprops2.effective_inv_mass,
+            ii2: mprops2.effective_world_inv_inertia_sqrt.squared(),
+            local_com2: mprops2.mass_properties.local_com,
             axis1,
             local_axis2,
-            position2: rb2.active_set_offset,
+            position2: ids2.active_set_offset,
             basis1,
             local_basis2,
         }

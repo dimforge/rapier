@@ -1,5 +1,5 @@
 use na::Point2;
-use rapier2d::dynamics::{BodyStatus, JointSet, RigidBodyBuilder, RigidBodySet};
+use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet, RigidBodyType};
 use rapier2d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed2d::Testbed;
 
@@ -42,9 +42,9 @@ pub fn init_world(testbed: &mut Testbed) {
             let y = j as f32 * shifty + centery;
 
             let status = if j == 0 {
-                BodyStatus::Static
+                RigidBodyType::Static
             } else {
-                BodyStatus::Dynamic
+                RigidBodyType::Dynamic
             };
 
             // Build the rigid body.

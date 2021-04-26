@@ -79,7 +79,9 @@ pub fn init_world(testbed: &mut Testbed) {
             step = snapped_frame;
 
             for handle in &extra_colliders {
-                physics.colliders.remove(*handle, &mut physics.bodies, true);
+                physics
+                    .colliders
+                    .remove(*handle, &mut physics.islands, &mut physics.bodies, true);
             }
 
             extra_colliders.clear();

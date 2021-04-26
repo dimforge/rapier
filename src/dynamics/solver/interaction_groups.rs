@@ -1,4 +1,8 @@
-use crate::dynamics::{BodyPair, JointGraphEdge, JointIndex, RigidBodySet};
+use crate::data::{BundleSet, ComponentSet};
+#[cfg(feature = "parallel")]
+use crate::dynamics::BodyPair;
+use crate::dynamics::{IslandManager, RigidBodyIds, RigidBodyType};
+use crate::dynamics::{JointGraphEdge, JointIndex};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 #[cfg(feature = "simd-is-enabled")]
 use {
@@ -6,16 +10,19 @@ use {
     vec_map::VecMap,
 };
 
+#[cfg(feature = "parallel")]
 pub(crate) trait PairInteraction {
     fn body_pair(&self) -> BodyPair;
 }
 
+#[cfg(feature = "parallel")]
 impl<'a> PairInteraction for &'a mut ContactManifold {
     fn body_pair(&self) -> BodyPair {
         self.data.body_pair
     }
 }
 
+#[cfg(feature = "parallel")]
 impl<'a> PairInteraction for JointGraphEdge {
     fn body_pair(&self) -> BodyPair {
         BodyPair::new(self.weight.body1, self.weight.body2)
@@ -54,7 +61,7 @@ impl ParallelInteractionGroups {
     pub fn group_interactions<Interaction: PairInteraction>(
         &mut self,
         island_id: usize,
-        bodies: &RigidBodySet,
+        bodies: &impl ComponentSet<RigidBody>,
         interactions: &[Interaction],
         interaction_indices: &[usize],
     ) {
@@ -78,8 +85,8 @@ impl ParallelInteractionGroups {
             .zip(self.interaction_colors.iter_mut())
         {
             let body_pair = interactions[*interaction_id].body_pair();
-            let rb1 = &bodies[body_pair.body1];
-            let rb2 = &bodies[body_pair.body2];
+            let rb1 = bodies.index(body_pair.body1);
+            let rb2 = bodies.index(body_pair.body2);
 
             match (rb1.is_static(), rb2.is_static()) {
                 (false, false) => {
@@ -168,14 +175,15 @@ impl InteractionGroups {
         self.nongrouped_interactions.clear();
     }
 
-    // FIXME: there is a lot of duplicated code with group_manifolds here.
+    // TODO: there is a lot of duplicated code with group_manifolds here.
     // But we don't refactor just now because we may end up with distinct
     // grouping strategies in the future.
     #[cfg(not(feature = "simd-is-enabled"))]
     pub fn group_joints(
         &mut self,
         _island_id: usize,
-        _bodies: &RigidBodySet,
+        _islands: &IslandManager,
+        _bodies: &impl ComponentSet<RigidBodyIds>,
         _interactions: &[JointGraphEdge],
         interaction_indices: &[JointIndex],
     ) {
@@ -184,13 +192,16 @@ impl InteractionGroups {
     }
 
     #[cfg(feature = "simd-is-enabled")]
-    pub fn group_joints(
+    pub fn group_joints<Bodies>(
         &mut self,
         island_id: usize,
-        bodies: &RigidBodySet,
+        islands: &IslandManager,
+        bodies: &Bodies,
         interactions: &[JointGraphEdge],
         interaction_indices: &[JointIndex],
-    ) {
+    ) where
+        Bodies: ComponentSet<RigidBodyType> + ComponentSet<RigidBodyIds>,
+    {
         // NOTE: in 3D we have up to 10 different joint types.
         // In 2D we only have 5 joint types.
         #[cfg(feature = "dim3")]
@@ -204,11 +215,11 @@ impl InteractionGroups {
 
         // Note: each bit of a body mask indicates what bucket already contains
         // a constraints involving this body.
-        // FIXME: currently, this is a bit overconservative because when a bucket
+        // TODO: currently, this is a bit overconservative because when a bucket
         // is full, we don't clear the corresponding body mask bit. This may result
         // in less grouped constraints.
         self.body_masks
-            .resize(bodies.active_island(island_id).len(), 0u128);
+            .resize(islands.active_island(island_id).len(), 0u128);
 
         // NOTE: each bit of the occupied mask indicates what bucket already
         // contains at least one constraint.
@@ -216,10 +227,14 @@ impl InteractionGroups {
 
         for interaction_i in interaction_indices {
             let interaction = &interactions[*interaction_i].weight;
-            let body1 = &bodies[interaction.body1];
-            let body2 = &bodies[interaction.body2];
-            let is_static1 = !body1.is_dynamic();
-            let is_static2 = !body2.is_dynamic();
+
+            let (status1, ids1): (&RigidBodyType, &RigidBodyIds) =
+                bodies.index_bundle(interaction.body1.0);
+            let (status2, ids2): (&RigidBodyType, &RigidBodyIds) =
+                bodies.index_bundle(interaction.body2.0);
+
+            let is_static1 = !status1.is_dynamic();
+            let is_static2 = !status2.is_dynamic();
 
             if is_static1 && is_static2 {
                 continue;
@@ -232,8 +247,8 @@ impl InteractionGroups {
             }
 
             let ijoint = interaction.params.type_id();
-            let i1 = body1.active_set_offset;
-            let i2 = body2.active_set_offset;
+            let i1 = ids1.active_set_offset;
+            let i2 = ids2.active_set_offset;
             let conflicts =
                 self.body_masks[i1] | self.body_masks[i2] | joint_type_conflicts[ijoint];
             let conflictfree_targets = !(conflicts & occupied_mask); // The & is because we consider empty buckets as free of conflicts.
@@ -325,7 +340,8 @@ impl InteractionGroups {
     pub fn group_manifolds(
         &mut self,
         _island_id: usize,
-        _bodies: &RigidBodySet,
+        _islands: &IslandManager,
+        _bodies: &impl ComponentSet<RigidBodyIds>,
         _interactions: &[&mut ContactManifold],
         interaction_indices: &[ContactManifoldIndex],
     ) {
@@ -334,21 +350,24 @@ impl InteractionGroups {
     }
 
     #[cfg(feature = "simd-is-enabled")]
-    pub fn group_manifolds(
+    pub fn group_manifolds<Bodies>(
         &mut self,
         island_id: usize,
-        bodies: &RigidBodySet,
+        islands: &IslandManager,
+        bodies: &Bodies,
         interactions: &[&mut ContactManifold],
         interaction_indices: &[ContactManifoldIndex],
-    ) {
+    ) where
+        Bodies: ComponentSet<RigidBodyType> + ComponentSet<RigidBodyIds>,
+    {
         // Note: each bit of a body mask indicates what bucket already contains
         // a constraints involving this body.
-        // FIXME: currently, this is a bit overconservative because when a bucket
+        // TODO: currently, this is a bit overconservative because when a bucket
         // is full, we don't clear the corresponding body mask bit. This may result
         // in less grouped contacts.
         // NOTE: body_masks and buckets are already cleared/zeroed at the end of each sort loop.
         self.body_masks
-            .resize(bodies.active_island(island_id).len(), 0u128);
+            .resize(islands.active_island(island_id).len(), 0u128);
 
         // NOTE: each bit of the occupied mask indicates what bucket already
         // contains at least one constraint.
@@ -359,31 +378,44 @@ impl InteractionGroups {
             .max()
             .unwrap_or(1);
 
-        // FIXME: find a way to reduce the number of iteration.
+        // TODO: find a way to reduce the number of iteration.
         // There must be a way to iterate just once on every interaction indices
         // instead of MAX_MANIFOLD_POINTS times.
         for k in 1..=max_interaction_points {
             for interaction_i in interaction_indices {
                 let interaction = &interactions[*interaction_i];
 
-                // FIXME: how could we avoid iterating
+                // TODO: how could we avoid iterating
                 // on each interaction at every iteration on k?
                 if interaction.data.num_active_contacts() != k {
                     continue;
                 }
 
-                let body1 = &bodies[interaction.data.body_pair.body1];
-                let body2 = &bodies[interaction.data.body_pair.body2];
-                let is_static1 = !body1.is_dynamic();
-                let is_static2 = !body2.is_dynamic();
+                let (status1, active_set_offset1) = if let Some(rb1) = interaction.data.rigid_body1
+                {
+                    let data: (_, &RigidBodyIds) = bodies.index_bundle(rb1.0);
+                    (*data.0, data.1.active_set_offset)
+                } else {
+                    (RigidBodyType::Static, 0)
+                };
+                let (status2, active_set_offset2) = if let Some(rb2) = interaction.data.rigid_body2
+                {
+                    let data: (_, &RigidBodyIds) = bodies.index_bundle(rb2.0);
+                    (*data.0, data.1.active_set_offset)
+                } else {
+                    (RigidBodyType::Static, 0)
+                };
 
-                // FIXME: don't generate interactions between static bodies in the first place.
+                let is_static1 = !status1.is_dynamic();
+                let is_static2 = !status2.is_dynamic();
+
+                // TODO: don't generate interactions between static bodies in the first place.
                 if is_static1 && is_static2 {
                     continue;
                 }
 
-                let i1 = body1.active_set_offset;
-                let i2 = body2.active_set_offset;
+                let i1 = active_set_offset1;
+                let i2 = active_set_offset2;
                 let conflicts = self.body_masks[i1] | self.body_masks[i2];
                 let conflictfree_targets = !(conflicts & occupied_mask); // The & is because we consider empty buckets as free of conflicts.
                 let conflictfree_occupied_targets = conflictfree_targets & occupied_mask;
