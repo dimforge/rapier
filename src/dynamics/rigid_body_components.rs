@@ -144,7 +144,7 @@ impl RigidBodyPosition {
     }
 
     #[must_use]
-    pub fn integrate_force_and_velocity(
+    pub fn integrate_forces_and_velocities(
         &self,
         dt: Real,
         forces: &RigidBodyForces,

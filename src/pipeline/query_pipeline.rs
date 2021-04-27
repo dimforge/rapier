@@ -248,8 +248,8 @@ impl QueryPipeline {
                                     &RigidBodyForces,
                                     &RigidBodyMassProps,
                                 ) = self.bodies.index_bundle(co_parent.handle.0);
-                                let predicted_pos =
-                                    rb_pos.integrate_force_and_velocity(dt, forces, vels, mprops);
+                                let predicted_pos = rb_pos
+                                    .integrate_forces_and_velocities(dt, forces, vels, mprops);
 
                                 let next_position = predicted_pos * co_parent.pos_wrt_parent;
                                 f(
@@ -331,7 +331,7 @@ impl QueryPipeline {
                             ) = bodies.index_bundle(co_parent.handle.0);
 
                             let predicted_pos =
-                                rb_pos.integrate_force_and_velocity(dt, forces, vels, mprops);
+                                rb_pos.integrate_forces_and_velocities(dt, forces, vels, mprops);
 
                             let next_position = predicted_pos * co_parent.pos_wrt_parent;
                             co_shape.compute_swept_aabb(&co_pos, &next_position)

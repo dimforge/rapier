@@ -59,7 +59,6 @@ impl CCDSolver {
     {
         match impacts {
             PredictedImpacts::Impacts(tois) => {
-                // println!("Num to clamp: {}", tois.len());
                 for (handle, toi) in tois {
                     let (rb_poss, vels, ccd, mprops): (
                         &RigidBodyPosition,
@@ -166,7 +165,7 @@ impl CCDSolver {
                 ) = bodies.index_bundle(handle.0);
 
                 let predicted_body_pos1 =
-                    rb_pos1.integrate_force_and_velocity(dt, forces1, rb_vels1, rb_mprops1);
+                    rb_pos1.integrate_forces_and_velocities(dt, forces1, rb_vels1, rb_mprops1);
 
                 for ch1 in &rb_colliders1.0 {
                     let co_parent1: &ColliderParent = colliders
@@ -307,7 +306,7 @@ impl CCDSolver {
                 ) = bodies.index_bundle(handle.0);
 
                 let predicted_body_pos1 =
-                    rb_pos1.integrate_force_and_velocity(dt, forces1, rb_vels1, rb_mprops1);
+                    rb_pos1.integrate_forces_and_velocities(dt, forces1, rb_vels1, rb_mprops1);
 
                 for ch1 in &rb_colliders1.0 {
                     let co_parent1: &ColliderParent = colliders
@@ -352,6 +351,7 @@ impl CCDSolver {
                                     .map(|c| c.1.dist)
                                     .unwrap_or(0.0);
 
+                                let b1 = bh1.map(|h| bodies.index_bundle(h.0));
                                 let b2 = bh2.map(|h| bodies.index_bundle(h.0));
 
                                 if let Some(toi) = TOIEntry::try_from_colliders(
@@ -360,7 +360,7 @@ impl CCDSolver {
                                     *ch2,
                                     (c1.0, c1.1, c1.2, co_parent1),
                                     (c2.0, c2.1, c2.2, co_parent2),
-                                    Some((rb_pos1, rb_vels1, rb_mprops1, rb_ccd1)),
+                                    b1,
                                     b2,
                                     None,
                                     None,
@@ -445,6 +445,8 @@ impl CCDSolver {
 
             let start_time = toi.toi;
 
+            // NOTE: the 1 and 2 indices (e.g., `ch1`, `ch2`) bellow are unrelated to the
+            //       ones we used above.
             for ch1 in &colliders_to_check {
                 let co_parent1: &ColliderParent = colliders.get(ch1.0).unwrap();
                 let (co_shape1, co_pos1): (&ColliderShape, &ColliderPosition) =
@@ -475,7 +477,7 @@ impl CCDSolver {
                         let b1: Option<(_, _, _, &RigidBodyCcd)> =
                             bh1.map(|h| bodies.index_bundle(h.0));
                         let b2: Option<(_, _, _, &RigidBodyCcd)> =
-                            bh1.map(|h| bodies.index_bundle(h.0));
+                            bh2.map(|h| bodies.index_bundle(h.0));
 
                         if (frozen1.is_some() || !b1.map(|b| b.3.ccd_active).unwrap_or(false))
                             && (frozen2.is_some() || !b2.map(|b| b.3.ccd_active).unwrap_or(false))
