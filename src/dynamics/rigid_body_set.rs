@@ -11,7 +11,6 @@ use crate::dynamics::{
     RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
 };
 use crate::geometry::ColliderSet;
-use parry::partitioning::IndexedData;
 use std::ops::{Index, IndexMut};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

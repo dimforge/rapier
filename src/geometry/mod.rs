@@ -90,7 +90,7 @@ impl IntersectionEvent {
 
 pub(crate) use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair, SAPProxyIndex};
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
-pub(crate) use parry::partitioning::SimdQuadTree;
+pub(crate) use parry::partitioning::QBVH;
 pub use parry::shape::*;
 
 #[cfg(feature = "serde-serialize")]

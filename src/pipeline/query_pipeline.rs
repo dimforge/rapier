@@ -5,10 +5,10 @@ use crate::dynamics::{
 };
 use crate::geometry::{
     ColliderGroups, ColliderHandle, ColliderParent, ColliderPosition, ColliderShape,
-    InteractionGroups, PointProjection, Ray, RayIntersection, SimdQuadTree, AABB,
+    InteractionGroups, PointProjection, Ray, RayIntersection, AABB, QBVH,
 };
 use crate::math::{Isometry, Point, Real, Vector};
-use parry::partitioning::SimdQuadtreeDataGenerator;
+use parry::partitioning::QBVHDataGenerator;
 use parry::query::details::{
     IntersectionCompositeShapeShapeBestFirstVisitor,
     NonlinearTOICompositeShapeShapeBestFirstVisitor, PointCompositeShapeProjBestFirstVisitor,
@@ -32,7 +32,7 @@ pub struct QueryPipeline {
         serde(skip, default = "crate::geometry::default_query_dispatcher")
     )]
     query_dispatcher: Arc<dyn QueryDispatcher>,
-    quadtree: SimdQuadTree<ColliderHandle>,
+    quadtree: QBVH<ColliderHandle>,
     tree_built: bool,
     dilation_factor: Real,
 }
@@ -95,7 +95,7 @@ where
         self.map_typed_part_at(shape_id, f);
     }
 
-    fn typed_quadtree(&self) -> &SimdQuadTree<ColliderHandle> {
+    fn typed_quadtree(&self) -> &QBVH<ColliderHandle> {
         &self.query_pipeline.quadtree
     }
 }
@@ -136,7 +136,7 @@ impl QueryPipeline {
     {
         Self {
             query_dispatcher: Arc::new(d),
-            quadtree: SimdQuadTree::new(),
+            quadtree: QBVH::new(),
             tree_built: false,
             dilation_factor: 0.01,
         }
@@ -194,7 +194,7 @@ impl QueryPipeline {
             mode: QueryPipelineMode,
         }
 
-        impl<'a, Bs, Cs> SimdQuadtreeDataGenerator<ColliderHandle> for DataGenerator<'a, Bs, Cs>
+        impl<'a, Bs, Cs> QBVHDataGenerator<ColliderHandle> for DataGenerator<'a, Bs, Cs>
         where
             Bs: ComponentSet<RigidBodyPosition>
                 + ComponentSet<RigidBodyMassProps>
