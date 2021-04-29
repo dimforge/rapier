@@ -1,4 +1,4 @@
-use na::{Isometry3, Point3, UnitQuaternion, Vector3};
+use na::Point3;
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
@@ -14,7 +14,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground.
      */
-    let ground_size = 20.0;
+    let ground_size = 10.0;
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
@@ -27,28 +27,25 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create the boxes
      */
-    let num = 1;
+    let num = 6;
     let rad = 0.2;
 
     let shift = rad * 2.0;
     let centerx = shift * num as f32 / 2.0;
-    let centery = shift / 2.0;
+    let centery = shift / 2.0 + 3.04;
     let centerz = shift * num as f32 / 2.0;
 
-    for i in 0usize..20 {
+    for i in 0usize..num {
         for j in 0usize..num {
             for k in 0usize..num {
-                let x = i as f32 * (shift + rad / 4.0) - centerx;
+                let x = i as f32 * shift - centerx;
                 let y = j as f32 * shift + centery;
                 let z = k as f32 * shift - centerz;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic()
-                    .translation(x, y + rad, z)
-                    .ccd_enabled(true)
-                    .build();
+                let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
                 let handle = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::cuboid(rad, rad * 2.0, rad).build();
+                let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
                 colliders.insert(collider, handle, &mut bodies);
             }
         }
@@ -58,16 +55,11 @@ pub fn init_world(testbed: &mut Testbed) {
      * Setup a kinematic rigid body.
      */
     let platform_body = RigidBodyBuilder::new_kinematic()
-        .translation(0.2, 0.4, -40.0 * rad)
+        .translation(0.0, 1.5 + 0.8, -10.0 * rad)
         .build();
     let platform_handle = bodies.insert(platform_body);
-    let collider1 = ColliderBuilder::cuboid(rad * 5.0, rad * 2.0, rad * 10.0).build();
-    let collider2 = ColliderBuilder::cuboid(rad * 5.0, rad * 2.0, rad * 10.0)
-        .position_wrt_parent(Isometry3::translation(0.0, rad * 2.1, 0.0))
-        .build();
-    colliders.insert(collider1, platform_handle, &mut bodies);
-    colliders.insert(collider2, platform_handle, &mut bodies);
-    testbed.set_body_color(platform_handle, Point3::new(1.0, 1.0, 0.0));
+    let collider = ColliderBuilder::cuboid(rad * 10.0, rad, rad * 10.0).build();
+    colliders.insert(collider, platform_handle, &mut bodies);
 
     /*
      * Setup a callback to control the platform.
@@ -75,27 +67,23 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut count = 0;
     testbed.add_callback(move |_, _, physics, _, run_state| {
         count += 1;
-        // if count % 100 > 50 {
-        //     return;
-        // }
+        if count % 100 > 50 {
+            return;
+        }
 
         if let Some(platform) = physics.bodies.get_mut(platform_handle) {
             let mut next_pos = *platform.position();
 
             let dt = 0.016;
-            // next_pos.translation.vector.y += (run_state.time * 5.0).sin() * dt;
-            // next_pos.translation.vector.z += run_state.time.sin() * 5.0 * dt;
+            next_pos.translation.vector.y += (run_state.time * 5.0).sin() * dt;
+            next_pos.translation.vector.z += run_state.time.sin() * 5.0 * dt;
 
-            let drot = UnitQuaternion::new(Vector3::y() * 0.01);
-            next_pos.rotation = drot * next_pos.rotation;
-            next_pos.translation.vector += next_pos.rotation * Vector3::z() * 0.1;
-
-            // if next_pos.translation.vector.z >= rad * 10.0 {
-            //     next_pos.translation.vector.z -= dt;
-            // }
-            // if next_pos.translation.vector.z <= -rad * 10.0 {
-            //     next_pos.translation.vector.z += dt;
-            // }
+            if next_pos.translation.vector.z >= rad * 10.0 {
+                next_pos.translation.vector.z -= dt;
+            }
+            if next_pos.translation.vector.z <= -rad * 10.0 {
+                next_pos.translation.vector.z += dt;
+            }
 
             platform.set_next_kinematic_position(next_pos);
         }

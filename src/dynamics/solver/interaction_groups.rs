@@ -1,11 +1,13 @@
-use crate::data::{BundleSet, ComponentSet};
+use crate::data::ComponentSet;
 #[cfg(feature = "parallel")]
 use crate::dynamics::BodyPair;
-use crate::dynamics::{IslandManager, RigidBodyIds, RigidBodyType};
+use crate::dynamics::{IslandManager, RigidBodyIds};
 use crate::dynamics::{JointGraphEdge, JointIndex};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 #[cfg(feature = "simd-is-enabled")]
 use {
+    crate::data::BundleSet,
+    crate::dynamics::RigidBodyType,
     crate::math::{SIMD_LAST_INDEX, SIMD_WIDTH},
     vec_map::VecMap,
 };
