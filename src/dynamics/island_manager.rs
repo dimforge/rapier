@@ -115,7 +115,6 @@ impl IslandManager {
         &self.active_dynamic_set[..]
     }
 
-    #[cfg(not(feature = "parallel"))]
     pub(crate) fn active_island(&self, island_id: usize) -> &[RigidBodyHandle] {
         let island_range = self.active_islands[island_id]..self.active_islands[island_id + 1];
         &self.active_dynamic_set[island_range]

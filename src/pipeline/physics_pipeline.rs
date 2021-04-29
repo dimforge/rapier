@@ -183,7 +183,7 @@ impl PhysicsPipeline {
             use rayon::prelude::*;
             use std::sync::atomic::Ordering;
 
-            let num_islands = ilands.num_islands();
+            let num_islands = islands.num_islands();
             let solvers = &mut self.solvers[..num_islands];
             let bodies = &std::sync::atomic::AtomicPtr::new(bodies as *mut _);
 
@@ -200,6 +200,7 @@ impl PhysicsPipeline {
                         solver.solve_position_constraints(
                             scope,
                             island_id,
+                            islands,
                             integration_parameters,
                             bodies,
                         )
@@ -306,7 +307,7 @@ impl PhysicsPipeline {
             use rayon::prelude::*;
             use std::sync::atomic::Ordering;
 
-            let num_islands = bodies.num_islands();
+            let num_islands = islands.num_islands();
             let solvers = &mut self.solvers[..num_islands];
             let bodies = &std::sync::atomic::AtomicPtr::new(bodies as *mut _);
             let manifolds = &std::sync::atomic::AtomicPtr::new(&mut manifolds as *mut _);
@@ -331,6 +332,7 @@ impl PhysicsPipeline {
                         solver.init_constraints_and_solve_velocity_constraints(
                             scope,
                             island_id,
+                            islands,
                             integration_parameters,
                             bodies,
                             manifolds,

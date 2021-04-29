@@ -1,6 +1,3 @@
-#[cfg(feature = "parallel")]
-use rayon::prelude::*;
-
 use crate::data::{Arena, ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::{
     IslandManager, RigidBodyActivation, RigidBodyColliders, RigidBodyDominance, RigidBodyHandle,

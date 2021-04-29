@@ -3,15 +3,18 @@
 use crate::data::{ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::{
     RigidBodyActivation, RigidBodyChanges, RigidBodyColliders, RigidBodyDominance, RigidBodyHandle,
-    RigidBodyIds, RigidBodyPosition, RigidBodySet, RigidBodyType, RigidBodyVelocity,
+    RigidBodyIds, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderBroadPhaseData, ColliderChanges, ColliderGroups,
-    ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent, ColliderPosition, ColliderSet,
+    ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent, ColliderPosition,
     ColliderShape, ColliderType, NarrowPhase,
 };
 use crate::math::Real;
 use crate::pipeline::{EventHandler, PhysicsHooks};
+
+#[cfg(feature = "default-sets")]
+use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 
 /// The collision pipeline, responsible for performing collision detection between colliders.
 ///

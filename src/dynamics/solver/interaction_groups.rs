@@ -1,33 +1,32 @@
 use crate::data::ComponentSet;
 #[cfg(feature = "parallel")]
-use crate::dynamics::BodyPair;
-use crate::dynamics::{IslandManager, RigidBodyIds};
-use crate::dynamics::{JointGraphEdge, JointIndex};
+use crate::dynamics::RigidBodyHandle;
+use crate::dynamics::{IslandManager, JointGraphEdge, JointIndex, RigidBodyIds};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 #[cfg(feature = "simd-is-enabled")]
 use {
     crate::data::BundleSet,
-    crate::dynamics::RigidBodyType,
     crate::math::{SIMD_LAST_INDEX, SIMD_WIDTH},
     vec_map::VecMap,
 };
-
 #[cfg(feature = "parallel")]
 pub(crate) trait PairInteraction {
-    fn body_pair(&self) -> BodyPair;
+    fn body_pair(&self) -> (Option<RigidBodyHandle>, Option<RigidBodyHandle>);
 }
+#[cfg(any(feature = "parallel", feature = "simd-is-enabled"))]
+use crate::dynamics::RigidBodyType;
 
 #[cfg(feature = "parallel")]
 impl<'a> PairInteraction for &'a mut ContactManifold {
-    fn body_pair(&self) -> BodyPair {
-        self.data.body_pair
+    fn body_pair(&self) -> (Option<RigidBodyHandle>, Option<RigidBodyHandle>) {
+        (self.data.rigid_body1, self.data.rigid_body2)
     }
 }
 
 #[cfg(feature = "parallel")]
 impl<'a> PairInteraction for JointGraphEdge {
-    fn body_pair(&self) -> BodyPair {
-        BodyPair::new(self.weight.body1, self.weight.body2)
+    fn body_pair(&self) -> (Option<RigidBodyHandle>, Option<RigidBodyHandle>) {
+        (Some(self.weight.body1), Some(self.weight.body2))
     }
 }
 
@@ -60,14 +59,17 @@ impl ParallelInteractionGroups {
         self.groups.len() - 1
     }
 
-    pub fn group_interactions<Interaction: PairInteraction>(
+    pub fn group_interactions<Bodies, Interaction: PairInteraction>(
         &mut self,
         island_id: usize,
-        bodies: &impl ComponentSet<RigidBody>,
+        islands: &IslandManager,
+        bodies: &Bodies,
         interactions: &[Interaction],
         interaction_indices: &[usize],
-    ) {
-        let num_island_bodies = bodies.active_island(island_id).len();
+    ) where
+        Bodies: ComponentSet<RigidBodyIds> + ComponentSet<RigidBodyType>,
+    {
+        let num_island_bodies = islands.active_island(island_id).len();
         self.bodies_color.clear();
         self.interaction_indices.clear();
         self.groups.clear();
@@ -87,29 +89,39 @@ impl ParallelInteractionGroups {
             .zip(self.interaction_colors.iter_mut())
         {
             let body_pair = interactions[*interaction_id].body_pair();
-            let rb1 = bodies.index(body_pair.body1);
-            let rb2 = bodies.index(body_pair.body2);
+            let is_static1 = body_pair
+                .0
+                .map(|b| ComponentSet::<RigidBodyType>::index(bodies, b.0).is_static())
+                .unwrap_or(true);
+            let is_static2 = body_pair
+                .1
+                .map(|b| ComponentSet::<RigidBodyType>::index(bodies, b.0).is_static())
+                .unwrap_or(true);
 
-            match (rb1.is_static(), rb2.is_static()) {
+            match (is_static1, is_static2) {
                 (false, false) => {
+                    let rb_ids1: &RigidBodyIds = bodies.index(body_pair.0.unwrap().0);
+                    let rb_ids2: &RigidBodyIds = bodies.index(body_pair.1.unwrap().0);
                     let color_mask =
-                        bcolors[rb1.active_set_offset] | bcolors[rb2.active_set_offset];
+                        bcolors[rb_ids1.active_set_offset] | bcolors[rb_ids2.active_set_offset];
                     *color = (!color_mask).trailing_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb1.active_set_offset] |= 1 << *color;
-                    bcolors[rb2.active_set_offset] |= 1 << *color;
+                    bcolors[rb_ids1.active_set_offset] |= 1 << *color;
+                    bcolors[rb_ids2.active_set_offset] |= 1 << *color;
                 }
                 (true, false) => {
-                    let color_mask = bcolors[rb2.active_set_offset];
+                    let rb_ids2: &RigidBodyIds = bodies.index(body_pair.1.unwrap().0);
+                    let color_mask = bcolors[rb_ids2.active_set_offset];
                     *color = (!color_mask).trailing_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb2.active_set_offset] |= 1 << *color;
+                    bcolors[rb_ids2.active_set_offset] |= 1 << *color;
                 }
                 (false, true) => {
-                    let color_mask = bcolors[rb1.active_set_offset];
+                    let rb_ids1: &RigidBodyIds = bodies.index(body_pair.0.unwrap().0);
+                    let color_mask = bcolors[rb_ids1.active_set_offset];
                     *color = (!color_mask).trailing_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb1.active_set_offset] |= 1 << *color;
+                    bcolors[rb_ids1.active_set_offset] |= 1 << *color;
                 }
                 (true, true) => unreachable!(),
             }

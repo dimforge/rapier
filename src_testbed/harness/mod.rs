@@ -176,6 +176,7 @@ impl Harness {
                 physics.pipeline.step(
                     &physics.gravity,
                     &physics.integration_parameters,
+                    &mut physics.islands,
                     &mut physics.broad_phase,
                     &mut physics.narrow_phase,
                     &mut physics.bodies,

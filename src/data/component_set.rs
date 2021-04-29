@@ -5,7 +5,7 @@ use crate::data::Index;
 //     fn get(&self, handle: Index) -> Option<&T>;
 // }
 
-pub trait ComponentSetOption<T> {
+pub trait ComponentSetOption<T>: Sync {
     fn get(&self, handle: Index) -> Option<&T>;
 }
 

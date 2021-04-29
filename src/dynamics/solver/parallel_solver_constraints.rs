@@ -1,11 +1,15 @@
 use super::ParallelInteractionGroups;
 use super::{AnyJointVelocityConstraint, AnyVelocityConstraint, ThreadContext};
+use crate::data::ComponentSet;
 use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
 use crate::dynamics::solver::{
     AnyJointPositionConstraint, AnyPositionConstraint, InteractionGroups, PositionConstraint,
     PositionGroundConstraint, VelocityConstraint, VelocityGroundConstraint,
 };
-use crate::dynamics::{IntegrationParameters, JointGraphEdge};
+use crate::dynamics::{
+    IntegrationParameters, IslandManager, JointGraphEdge, RigidBodyIds, RigidBodyMassProps,
+    RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
+};
 use crate::geometry::ContactManifold;
 #[cfg(feature = "simd-is-enabled")]
 use crate::{
@@ -36,9 +40,9 @@ pub(crate) enum ConstraintDesc {
     NongroundNongrouped(usize),
     GroundNongrouped(usize),
     #[cfg(feature = "simd-is-enabled")]
-    NongroundGrouped([usize]),
+    NongroundGrouped([usize; SIMD_WIDTH]),
     #[cfg(feature = "simd-is-enabled")]
-    GroundGrouped([usize]),
+    GroundGrouped([usize; SIMD_WIDTH]),
 }
 
 pub(crate) struct ParallelSolverConstraints<VelocityConstraint, PositionConstraint> {
@@ -75,13 +79,14 @@ macro_rules! impl_init_constraints_group {
      $data: ident$(.$constraint_index: ident)*,
      $num_active_constraints: path, $empty_velocity_constraint: expr, $empty_position_constraint: expr $(, $weight: ident)*) => {
         impl ParallelSolverConstraints<$VelocityConstraint, $PositionConstraint> {
-            pub fn init_constraint_groups(
+            pub fn init_constraint_groups<Bodies>(
                 &mut self,
                 island_id: usize,
-                bodies: &impl ComponentSet<RigidBody>,
+                islands: &IslandManager,
+                bodies: &Bodies,
                 interactions: &mut [$Interaction],
                 interaction_groups: &ParallelInteractionGroups,
-            ) {
+            ) where Bodies: ComponentSet<RigidBodyType> + ComponentSet<RigidBodyIds> {
                 let mut total_num_constraints = 0;
                 let num_groups = interaction_groups.num_groups();
 
@@ -113,12 +118,14 @@ macro_rules! impl_init_constraints_group {
 
                     self.interaction_groups.$group(
                         island_id,
+                        islands,
                         bodies,
                         interactions,
                         &self.not_ground_interactions,
                     );
                     self.ground_interaction_groups.$group(
                         island_id,
+                        islands,
                         bodies,
                         interactions,
                         &self.ground_interactions,
@@ -219,13 +226,18 @@ impl_init_constraints_group!(
 );
 
 impl ParallelSolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
-    pub fn fill_constraints(
+    pub fn fill_constraints<Bodies>(
         &mut self,
         thread: &ThreadContext,
         params: &IntegrationParameters,
-        bodies: &impl ComponentSet<RigidBody>,
+        bodies: &Bodies,
         manifolds_all: &[&mut ContactManifold],
-    ) {
+    ) where
+        Bodies: ComponentSet<RigidBodyIds>
+            + ComponentSet<RigidBodyPosition>
+            + ComponentSet<RigidBodyVelocity>
+            + ComponentSet<RigidBodyMassProps>,
+    {
         let descs = &self.constraint_descs;
 
         crate::concurrent_loop! {
@@ -261,13 +273,19 @@ impl ParallelSolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
 }
 
 impl ParallelSolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
-    pub fn fill_constraints(
+    pub fn fill_constraints<Bodies>(
         &mut self,
         thread: &ThreadContext,
         params: &IntegrationParameters,
-        bodies: &impl ComponentSet<RigidBody>,
+        bodies: &Bodies,
         joints_all: &[JointGraphEdge],
-    ) {
+    ) where
+        Bodies: ComponentSet<RigidBodyPosition>
+            + ComponentSet<RigidBodyVelocity>
+            + ComponentSet<RigidBodyMassProps>
+            + ComponentSet<RigidBodyIds>
+            + ComponentSet<RigidBodyType>,
+    {
         let descs = &self.constraint_descs;
 
         crate::concurrent_loop! {
