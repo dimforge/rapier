@@ -60,8 +60,14 @@ pub(crate) fn handle_user_changes_to_rigid_bodies<Bodies, Colliders>(
 
     for handle in modified_bodies {
         let mut final_action = None;
+        let changes: Option<&RigidBodyChanges> = bodies.get(handle.0);
 
-        let mut changes: RigidBodyChanges = *bodies.index(handle.0);
+        if changes.is_none() {
+            // The body no longer exists.
+            continue;
+        }
+
+        let mut changes = *changes.unwrap();
         let mut ids: RigidBodyIds = *bodies.index(handle.0);
         let mut activation: RigidBodyActivation = *bodies.index(handle.0);
         let (status, rb_colliders, poss): (

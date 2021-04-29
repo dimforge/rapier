@@ -583,7 +583,7 @@ impl BroadPhase {
 
 #[cfg(test)]
 mod test {
-    use crate::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
+    use crate::dynamics::{IslandManager, JointSet, RigidBodyBuilder, RigidBodySet};
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet};
 
     #[test]
@@ -592,25 +592,26 @@ mod test {
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
         let mut joints = JointSet::new();
+        let mut islands = IslandManager::new();
 
         let rb = RigidBodyBuilder::new_dynamic().build();
         let co = ColliderBuilder::ball(0.5).build();
         let hrb = bodies.insert(rb);
-        colliders.insert(co, hrb, &mut bodies);
+        let coh = colliders.insert(co, hrb, &mut bodies);
 
         let mut events = Vec::new();
-        broad_phase.update(0.0, &mut colliders, &mut events);
+        broad_phase.update(0.0, &mut colliders, &[coh], &[], &mut events);
 
-        bodies.remove(hrb, &mut colliders, &mut joints);
-        broad_phase.update(0.0, &mut colliders, &mut events);
+        bodies.remove(hrb, &mut islands, &mut colliders, &mut joints);
+        broad_phase.update(0.0, &mut colliders, &[], &[coh], &mut events);
 
         // Create another body.
         let rb = RigidBodyBuilder::new_dynamic().build();
         let co = ColliderBuilder::ball(0.5).build();
         let hrb = bodies.insert(rb);
-        colliders.insert(co, hrb, &mut bodies);
+        let coh = colliders.insert(co, hrb, &mut bodies);
 
         // Make sure the proxy handles is recycled properly.
-        broad_phase.update(0.0, &mut colliders, &mut events);
+        broad_phase.update(0.0, &mut colliders, &[coh], &[], &mut events);
     }
 }

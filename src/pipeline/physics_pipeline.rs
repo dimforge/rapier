@@ -696,7 +696,7 @@ impl PhysicsPipeline {
 #[cfg(test)]
 mod test {
     use crate::dynamics::{
-        CCDSolver, IntegrationParameters, JointSet, RigidBodyBuilder, RigidBodySet,
+        CCDSolver, IntegrationParameters, IslandManager, JointSet, RigidBodyBuilder, RigidBodySet,
     };
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
     use crate::math::Vector;
@@ -710,6 +710,7 @@ mod test {
         let mut bf = BroadPhase::new();
         let mut nf = NarrowPhase::new();
         let mut bodies = RigidBodySet::new();
+        let mut islands = IslandManager::new();
 
         let rb = RigidBodyBuilder::new_static().build();
         let h1 = bodies.insert(rb.clone());
@@ -724,6 +725,7 @@ mod test {
         pipeline.step(
             &Vector::zeros(),
             &IntegrationParameters::default(),
+            &mut islands,
             &mut bf,
             &mut nf,
             &mut bodies,
@@ -742,6 +744,7 @@ mod test {
         let mut pipeline = PhysicsPipeline::new();
         let mut bf = BroadPhase::new();
         let mut nf = NarrowPhase::new();
+        let mut islands = IslandManager::new();
 
         let mut bodies = RigidBodySet::new();
 
@@ -762,12 +765,13 @@ mod test {
 
         let to_delete = [h1, h2, h3, h4];
         for h in &to_delete {
-            bodies.remove(*h, &mut colliders, &mut joints);
+            bodies.remove(*h, &mut islands, &mut colliders, &mut joints);
         }
 
         pipeline.step(
             &Vector::zeros(),
             &IntegrationParameters::default(),
+            &mut islands,
             &mut bf,
             &mut nf,
             &mut bodies,
@@ -784,6 +788,7 @@ mod test {
     fn rigid_body_removal_snapshot_handle_determinism() {
         let mut colliders = ColliderSet::new();
         let mut joints = JointSet::new();
+        let mut islands = IslandManager::new();
 
         let mut bodies = RigidBodySet::new();
         let rb = RigidBodyBuilder::new_dynamic().build();
@@ -791,9 +796,9 @@ mod test {
         let h2 = bodies.insert(rb.clone());
         let h3 = bodies.insert(rb.clone());
 
-        bodies.remove(h1, &mut colliders, &mut joints);
-        bodies.remove(h3, &mut colliders, &mut joints);
-        bodies.remove(h2, &mut colliders, &mut joints);
+        bodies.remove(h1, &mut islands, &mut colliders, &mut joints);
+        bodies.remove(h3, &mut islands, &mut colliders, &mut joints);
+        bodies.remove(h2, &mut islands, &mut colliders, &mut joints);
 
         let ser_bodies = bincode::serialize(&bodies).unwrap();
         let mut bodies2: RigidBodySet = bincode::deserialize(&ser_bodies).unwrap();
@@ -822,6 +827,7 @@ mod test {
         let mut colliders = ColliderSet::new();
         let mut ccd = CCDSolver::new();
         let mut joints = JointSet::new();
+        let mut islands = IslandManager::new();
         let physics_hooks = ();
         let event_handler = ();
 
@@ -829,13 +835,14 @@ mod test {
         let b_handle = bodies.insert(body);
         let collider = ColliderBuilder::ball(1.0).build();
         let c_handle = colliders.insert(collider, b_handle, &mut bodies);
-        colliders.remove(c_handle, &mut bodies, true);
-        bodies.remove(b_handle, &mut colliders, &mut joints);
+        colliders.remove(c_handle, &mut islands, &mut bodies, true);
+        bodies.remove(b_handle, &mut islands, &mut colliders, &mut joints);
 
         for _ in 0..10 {
             pipeline.step(
                 &gravity,
                 &integration_parameters,
+                &mut islands,
                 &mut broad_phase,
                 &mut narrow_phase,
                 &mut bodies,
