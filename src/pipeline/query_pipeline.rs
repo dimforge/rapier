@@ -23,6 +23,9 @@ use parry::query::{DefaultQueryDispatcher, NonlinearRigidMotion, QueryDispatcher
 use parry::shape::{FeatureId, Shape, TypedSimdCompositeShape};
 use std::sync::Arc;
 
+#[cfg(feature = "default-sets")]
+use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
+
 /// A pipeline for performing queries on all the colliders of a scene.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
@@ -147,8 +150,19 @@ impl QueryPipeline {
         &*self.query_dispatcher
     }
 
+    #[cfg(feature = "default-sets")]
     /// Update the acceleration structure on the query pipeline.
-    pub fn update<Bodies, Colliders>(
+    pub fn update(
+        &mut self,
+        islands: &IslandManager,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+    ) {
+        self.update_generic(islands, bodies, colliders);
+    }
+
+    /// Update the acceleration structure on the query pipeline.
+    pub fn update_generic<Bodies, Colliders>(
         &mut self,
         islands: &IslandManager,
         bodies: &Bodies,

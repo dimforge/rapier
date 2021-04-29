@@ -126,7 +126,7 @@ impl PhysicsPipeline {
         // Update narrow-phase.
         if handle_user_changes {
             narrow_phase.handle_user_changes(
-                islands,
+                Some(islands),
                 modified_colliders,
                 removed_colliders,
                 colliders,
@@ -134,7 +134,13 @@ impl PhysicsPipeline {
                 events,
             );
         }
-        narrow_phase.register_pairs(islands, colliders, bodies, &self.broad_phase_events, events);
+        narrow_phase.register_pairs(
+            Some(islands),
+            colliders,
+            bodies,
+            &self.broad_phase_events,
+            events,
+        );
         narrow_phase.compute_contacts(
             integration_parameters.prediction_distance,
             bodies,
@@ -519,7 +525,7 @@ impl PhysicsPipeline {
             &modified_colliders[..],
         );
         super::user_changes::handle_user_changes_to_rigid_bodies(
-            islands,
+            Some(islands),
             bodies,
             colliders,
             &modified_bodies,

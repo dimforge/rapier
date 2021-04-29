@@ -174,7 +174,7 @@ impl NarrowPhase {
     /// Maintain the narrow-phase internal state by taking collider removal into account.
     pub fn handle_user_changes<Bodies, Colliders>(
         &mut self,
-        islands: &mut IslandManager,
+        mut islands: Option<&mut IslandManager>,
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
         colliders: &mut Colliders,
@@ -210,7 +210,7 @@ impl NarrowPhase {
                 self.remove_collider(
                     intersection_graph_id,
                     contact_graph_id,
-                    islands,
+                    islands.as_deref_mut(),
                     colliders,
                     bodies,
                     &mut prox_id_remap,
@@ -226,7 +226,7 @@ impl NarrowPhase {
         &mut self,
         intersection_graph_id: ColliderGraphIndex,
         contact_graph_id: ColliderGraphIndex,
-        islands: &mut IslandManager,
+        islands: Option<&mut IslandManager>,
         colliders: &mut Colliders,
         bodies: &mut Bodies,
         prox_id_remap: &mut HashMap<ColliderHandle, ColliderGraphIndex>,
@@ -238,13 +238,15 @@ impl NarrowPhase {
         Colliders: ComponentSetOption<ColliderParent>,
     {
         // Wake up every body in contact with the deleted collider.
-        for (a, b, _) in self.contact_graph.interactions_with(contact_graph_id) {
-            if let Some(parent) = colliders.get(a.0).map(|c| c.handle) {
-                islands.wake_up(bodies, parent, true)
-            }
+        if let Some(islands) = islands {
+            for (a, b, _) in self.contact_graph.interactions_with(contact_graph_id) {
+                if let Some(parent) = colliders.get(a.0).map(|c| c.handle) {
+                    islands.wake_up(bodies, parent, true)
+                }
 
-            if let Some(parent) = colliders.get(b.0).map(|c| c.handle) {
-                islands.wake_up(bodies, parent, true)
+                if let Some(parent) = colliders.get(b.0).map(|c| c.handle) {
+                    islands.wake_up(bodies, parent, true)
+                }
             }
         }
 
@@ -269,7 +271,7 @@ impl NarrowPhase {
 
     pub(crate) fn handle_modified_colliders<Bodies, Colliders>(
         &mut self,
-        islands: &mut IslandManager,
+        mut islands: Option<&mut IslandManager>,
         modified_colliders: &[ColliderHandle],
         colliders: &Colliders,
         bodies: &mut Bodies,
@@ -305,19 +307,22 @@ impl NarrowPhase {
                     let (co_changes, co_type): (&ColliderChanges, &ColliderType) =
                         colliders.index_bundle(handle.0);
 
-                    if let Some(co_parent) = co_parent {
-                        islands.wake_up(bodies, co_parent.handle, true);
-                    }
+                    if let Some(islands) = islands.as_deref_mut() {
+                        if let Some(co_parent) = co_parent {
+                            islands.wake_up(bodies, co_parent.handle, true);
+                        }
 
-                    for inter in self
-                        .contact_graph
-                        .interactions_with(gid.contact_graph_index)
-                    {
-                        let other_handle = if *handle == inter.0 { inter.1 } else { inter.0 };
-                        let other_parent: Option<&ColliderParent> = colliders.get(other_handle.0);
+                        for inter in self
+                            .contact_graph
+                            .interactions_with(gid.contact_graph_index)
+                        {
+                            let other_handle = if *handle == inter.0 { inter.1 } else { inter.0 };
+                            let other_parent: Option<&ColliderParent> =
+                                colliders.get(other_handle.0);
 
-                        if let Some(other_parent) = other_parent {
-                            islands.wake_up(bodies, other_parent.handle, true);
+                            if let Some(other_parent) = other_parent {
+                                islands.wake_up(bodies, other_parent.handle, true);
+                            }
                         }
                     }
 
@@ -364,7 +369,14 @@ impl NarrowPhase {
 
         // Remove the pair from the relevant graph.
         for pair in &pairs_to_remove {
-            self.remove_pair(islands, colliders, bodies, &pair.0, events, pair.1);
+            self.remove_pair(
+                islands.as_deref_mut(),
+                colliders,
+                bodies,
+                &pair.0,
+                events,
+                pair.1,
+            );
         }
 
         // Add the paid removed pair to the relevant graph.
@@ -375,7 +387,7 @@ impl NarrowPhase {
 
     fn remove_pair<Bodies, Colliders>(
         &mut self,
-        islands: &mut IslandManager,
+        islands: Option<&mut IslandManager>,
         colliders: &Colliders,
         bodies: &mut Bodies,
         pair: &ColliderPair,
@@ -425,12 +437,14 @@ impl NarrowPhase {
                             let co_parent2: Option<&ColliderParent> =
                                 colliders.get(pair.collider2.0);
 
-                            if let Some(co_parent1) = co_parent1 {
-                                islands.wake_up(bodies, co_parent1.handle, true);
-                            }
+                            if let Some(islands) = islands {
+                                if let Some(co_parent1) = co_parent1 {
+                                    islands.wake_up(bodies, co_parent1.handle, true);
+                                }
 
-                            if let Some(co_parent2) = co_parent2 {
-                                islands.wake_up(bodies, co_parent2.handle, true);
+                                if let Some(co_parent2) = co_parent2 {
+                                    islands.wake_up(bodies, co_parent2.handle, true);
+                                }
                             }
 
                             events.handle_contact_event(ContactEvent::Stopped(
@@ -526,7 +540,7 @@ impl NarrowPhase {
 
     pub(crate) fn register_pairs<Bodies, Colliders>(
         &mut self,
-        islands: &mut IslandManager,
+        mut islands: Option<&mut IslandManager>,
         colliders: &Colliders,
         bodies: &mut Bodies,
         broad_phase_events: &[BroadPhasePairEvent],
@@ -544,7 +558,7 @@ impl NarrowPhase {
                 }
                 BroadPhasePairEvent::DeletePair(pair) => {
                     self.remove_pair(
-                        islands,
+                        islands.as_deref_mut(),
                         colliders,
                         bodies,
                         pair,

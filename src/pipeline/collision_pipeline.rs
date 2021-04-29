@@ -1,11 +1,15 @@
 //! Physics pipeline structures.
 
-use crate::data::{ComponentSet, ComponentSetMut};
+use crate::data::{ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::{
-    IslandManager, JointSet, RigidBodyActivation, RigidBodyColliders, RigidBodyDominance,
-    RigidBodyIds, RigidBodyType, RigidBodyVelocity,
+    RigidBodyActivation, RigidBodyChanges, RigidBodyColliders, RigidBodyDominance, RigidBodyHandle,
+    RigidBodyIds, RigidBodyPosition, RigidBodySet, RigidBodyType, RigidBodyVelocity,
 };
-use crate::geometry::{BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderShape, NarrowPhase};
+use crate::geometry::{
+    BroadPhase, BroadPhasePairEvent, ColliderBroadPhaseData, ColliderChanges, ColliderGroups,
+    ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent, ColliderPosition, ColliderSet,
+    ColliderShape, ColliderType, NarrowPhase,
+};
 use crate::math::Real;
 use crate::pipeline::{EventHandler, PhysicsHooks};
 
@@ -18,7 +22,6 @@ use crate::pipeline::{EventHandler, PhysicsHooks};
 pub struct CollisionPipeline {
     broadphase_collider_pairs: Vec<ColliderPair>,
     broad_phase_events: Vec<BroadPhasePairEvent>,
-    empty_joints: JointSet,
 }
 
 #[allow(dead_code)]
@@ -33,30 +36,168 @@ impl CollisionPipeline {
         CollisionPipeline {
             broadphase_collider_pairs: Vec::new(),
             broad_phase_events: Vec::new(),
-            empty_joints: JointSet::new(),
+        }
+    }
+
+    fn detect_collisions<Bodies, Colliders>(
+        &mut self,
+        prediction_distance: Real,
+        broad_phase: &mut BroadPhase,
+        narrow_phase: &mut NarrowPhase,
+        bodies: &mut Bodies,
+        colliders: &mut Colliders,
+        modified_colliders: &[ColliderHandle],
+        removed_colliders: &[ColliderHandle],
+        hooks: &dyn PhysicsHooks<Bodies, Colliders>,
+        events: &dyn EventHandler,
+        handle_user_changes: bool,
+    ) where
+        Bodies: ComponentSetMut<RigidBodyActivation>
+            + ComponentSet<RigidBodyType>
+            + ComponentSetMut<RigidBodyIds>
+            + ComponentSet<RigidBodyDominance>,
+        Colliders: ComponentSetMut<ColliderBroadPhaseData>
+            + ComponentSet<ColliderChanges>
+            + ComponentSet<ColliderPosition>
+            + ComponentSet<ColliderShape>
+            + ComponentSetOption<ColliderParent>
+            + ComponentSet<ColliderType>
+            + ComponentSet<ColliderGroups>
+            + ComponentSet<ColliderMaterial>,
+    {
+        // Update broad-phase.
+        self.broad_phase_events.clear();
+        self.broadphase_collider_pairs.clear();
+
+        broad_phase.update(
+            prediction_distance,
+            colliders,
+            modified_colliders,
+            removed_colliders,
+            &mut self.broad_phase_events,
+        );
+
+        // Update narrow-phase.
+        if handle_user_changes {
+            narrow_phase.handle_user_changes(
+                None,
+                modified_colliders,
+                removed_colliders,
+                colliders,
+                bodies,
+                events,
+            );
+        }
+
+        narrow_phase.register_pairs(None, colliders, bodies, &self.broad_phase_events, events);
+        narrow_phase.compute_contacts(
+            prediction_distance,
+            bodies,
+            colliders,
+            modified_colliders,
+            hooks,
+            events,
+        );
+        narrow_phase.compute_intersections(bodies, colliders, modified_colliders, hooks, events);
+    }
+
+    fn clear_modified_colliders(
+        &mut self,
+        colliders: &mut impl ComponentSetMut<ColliderChanges>,
+        modified_colliders: &mut Vec<ColliderHandle>,
+    ) {
+        for handle in modified_colliders.drain(..) {
+            colliders.set_internal(handle.0, ColliderChanges::empty())
         }
     }
 
     /// Executes one step of the collision detection.
-    pub fn step<Bodies, Colliders>(
+    #[cfg(feature = "default-sets")]
+    pub fn step(
         &mut self,
-        _prediction_distance: Real,
-        _broad_phase: &mut BroadPhase,
-        _narrow_phase: &mut NarrowPhase,
-        _islands: &mut IslandManager,
-        _bodies: &mut Bodies,
-        _colliders: &mut Colliders,
-        _hooks: &dyn PhysicsHooks<Bodies, Colliders>,
-        _events: &dyn EventHandler,
+        prediction_distance: Real,
+        broad_phase: &mut BroadPhase,
+        narrow_phase: &mut NarrowPhase,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+        hooks: &dyn PhysicsHooks<RigidBodySet, ColliderSet>,
+        events: &dyn EventHandler,
+    ) {
+        let mut modified_bodies = bodies.take_modified();
+        let mut modified_colliders = colliders.take_modified();
+        let mut removed_colliders = colliders.take_removed();
+
+        self.step_generic(
+            prediction_distance,
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            &mut modified_bodies,
+            &mut modified_colliders,
+            &mut removed_colliders,
+            hooks,
+            events,
+        );
+    }
+
+    /// Executes one step of the collision detection.
+    pub fn step_generic<Bodies, Colliders>(
+        &mut self,
+        prediction_distance: Real,
+        broad_phase: &mut BroadPhase,
+        narrow_phase: &mut NarrowPhase,
+        bodies: &mut Bodies,
+        colliders: &mut Colliders,
+        modified_bodies: &mut Vec<RigidBodyHandle>,
+        modified_colliders: &mut Vec<ColliderHandle>,
+        removed_colliders: &mut Vec<ColliderHandle>,
+        hooks: &dyn PhysicsHooks<Bodies, Colliders>,
+        events: &dyn EventHandler,
     ) where
-        Bodies: ComponentSetMut<RigidBodyIds>
-            + ComponentSetMut<RigidBodyActivation>
-            + ComponentSet<RigidBodyColliders>
+        Bodies: ComponentSetMut<RigidBodyPosition>
             + ComponentSetMut<RigidBodyVelocity>
+            + ComponentSetMut<RigidBodyIds>
+            + ComponentSetMut<RigidBodyActivation>
+            + ComponentSetMut<RigidBodyChanges>
+            + ComponentSet<RigidBodyColliders>
             + ComponentSet<RigidBodyDominance>
             + ComponentSet<RigidBodyType>,
-        Colliders: ComponentSetMut<ColliderShape>,
+        Colliders: ComponentSetMut<ColliderBroadPhaseData>
+            + ComponentSetMut<ColliderChanges>
+            + ComponentSetMut<ColliderPosition>
+            + ComponentSet<ColliderShape>
+            + ComponentSetOption<ColliderParent>
+            + ComponentSet<ColliderType>
+            + ComponentSet<ColliderGroups>
+            + ComponentSet<ColliderMaterial>,
     {
-        unimplemented!()
+        super::user_changes::handle_user_changes_to_colliders(
+            bodies,
+            colliders,
+            &modified_colliders[..],
+        );
+        super::user_changes::handle_user_changes_to_rigid_bodies(
+            None,
+            bodies,
+            colliders,
+            &modified_bodies,
+            modified_colliders,
+        );
+        self.detect_collisions(
+            prediction_distance,
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            &modified_colliders[..],
+            removed_colliders,
+            hooks,
+            events,
+            true,
+        );
+
+        self.clear_modified_colliders(colliders, modified_colliders);
+        removed_colliders.clear();
     }
 }
