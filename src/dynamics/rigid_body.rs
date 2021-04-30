@@ -7,8 +7,8 @@ use crate::geometry::{
     Collider, ColliderHandle, ColliderMassProperties, ColliderParent, ColliderPosition,
     ColliderShape,
 };
-use crate::math::{AngVector, Isometry, Point, Real, Rotation, Translation, Vector};
-use crate::utils::{self, WAngularInertia, WCross};
+use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector};
+use crate::utils::{self, WCross};
 use na::ComplexField;
 use num::Zero;
 
@@ -18,21 +18,21 @@ use num::Zero;
 /// To create a new rigid-body, use the `RigidBodyBuilder` structure.
 #[derive(Debug, Clone)]
 pub struct RigidBody {
-    pub rb_pos: RigidBodyPosition, // TODO ECS: public only for initial tests with bevy_rapier.
-    pub rb_mprops: RigidBodyMassProps, // TODO ECS: public only for initial tests with bevy_rapier.
-    pub rb_vels: RigidBodyVelocity, // TODO ECS: public only for initial tests with bevy_rapier.
-    pub rb_damping: RigidBodyDamping, // TODO ECS: public only for initial tests with bevy_rapier.
-    pub rb_forces: RigidBodyForces, // TODO ECS: public only for initial tests with bevy_rapier.
-    pub rb_ccd: RigidBodyCcd,      // TODO ECS: public only for initial tests with bevy_rapier.
-    pub rb_ids: RigidBodyIds,      // TODO ECS: public only for initial tests with bevy_rapier.
-    pub rb_colliders: RigidBodyColliders, // TODO ECS: public only for initial tests with bevy_rapier.
+    pub(crate) rb_pos: RigidBodyPosition,
+    pub(crate) rb_mprops: RigidBodyMassProps,
+    pub(crate) rb_vels: RigidBodyVelocity,
+    pub(crate) rb_damping: RigidBodyDamping,
+    pub(crate) rb_forces: RigidBodyForces,
+    pub(crate) rb_ccd: RigidBodyCcd,
+    pub(crate) rb_ids: RigidBodyIds,
+    pub(crate) rb_colliders: RigidBodyColliders,
     /// Whether or not this rigid-body is sleeping.
-    pub rb_activation: RigidBodyActivation, // TODO ECS: public only for initial tests with bevy_rapier.
-    pub changes: RigidBodyChanges, // TODO ECS: public only for initial tests with bevy_rapier.
+    pub(crate) rb_activation: RigidBodyActivation,
+    pub(crate) changes: RigidBodyChanges,
     /// The status of the body, governing how it is affected by external forces.
-    pub rb_type: RigidBodyType, // TODO ECS: public only for initial tests with bevy_rapier
+    pub(crate) rb_type: RigidBodyType,
     /// The dominance group this rigid-body is part of.
-    pub rb_dominance: RigidBodyDominance,
+    pub(crate) rb_dominance: RigidBodyDominance,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
 }
@@ -61,61 +61,48 @@ impl RigidBody {
         self.rb_ids = Default::default();
     }
 
-    pub fn user_data(&self) -> u128 {
-        self.user_data
-    }
-
-    pub fn set_user_data(&mut self, data: u128) {
-        self.user_data = data;
-    }
-
-    #[inline]
-    pub fn rb_activation(&self) -> &RigidBodyActivation {
+    /// The activation status of this rigid-body.
+    pub fn activation(&self) -> &RigidBodyActivation {
         &self.rb_activation
     }
 
-    #[inline]
+    /// Mutable reference to the activation status of this rigid-body.
     pub fn activation_mut(&mut self) -> &mut RigidBodyActivation {
+        self.changes |= RigidBodyChanges::SLEEP;
         &mut self.rb_activation
     }
 
-    #[inline]
-    pub(crate) fn changes(&self) -> RigidBodyChanges {
-        self.changes
-    }
-
-    #[inline]
-    pub(crate) fn changes_mut_internal(&mut self) -> &mut RigidBodyChanges {
-        &mut self.changes
-    }
-
+    /// The linear damping coefficient of this rigid-body.
     #[inline]
     pub fn linear_damping(&self) -> Real {
         self.rb_damping.linear_damping
     }
 
+    /// Sets the linear damping coefficient of this rigid-body.
     #[inline]
     pub fn set_linear_damping(&mut self, damping: Real) {
         self.rb_damping.linear_damping = damping;
     }
 
+    /// The angular damping coefficient of this rigid-body.
     #[inline]
     pub fn angular_damping(&self) -> Real {
         self.rb_damping.angular_damping
     }
 
+    /// Sets the angular damping coefficient of this rigid-body.
     #[inline]
     pub fn set_angular_damping(&mut self, damping: Real) {
         self.rb_damping.angular_damping = damping
     }
 
-    /// The status of this rigid-body.
-    pub fn rb_type(&self) -> RigidBodyType {
+    /// The type of this rigid-body.
+    pub fn body_type(&self) -> RigidBodyType {
         self.rb_type
     }
 
-    /// Sets the status of this rigid-body.
-    pub fn set_rb_type(&mut self, status: RigidBodyType) {
+    /// Sets the type of this rigid-body.
+    pub fn set_body_type(&mut self, status: RigidBodyType) {
         if status != self.rb_type {
             self.changes.insert(RigidBodyChanges::TYPE);
             self.rb_type = status;
@@ -336,22 +323,6 @@ impl RigidBody {
         !self.rb_vels.linvel.is_zero() || !self.rb_vels.angvel.is_zero()
     }
 
-    /// Computes the predict position of this rigid-body after `dt` seconds, taking
-    /// into account its velocities and external forces applied to it.
-    pub fn predict_position_using_velocity_and_forces(&self, dt: Real) -> Isometry<Real> {
-        let dlinvel = self.rb_forces.force * (self.rb_mprops.effective_inv_mass * dt);
-        let dangvel = self
-            .rb_mprops
-            .effective_world_inv_inertia_sqrt
-            .transform_vector(self.rb_forces.torque * dt);
-        let linvel = self.rb_vels.linvel + dlinvel;
-        let angvel = self.rb_vels.angvel + dangvel;
-
-        let com = self.rb_pos.position * self.rb_mprops.mass_properties.local_com;
-        let shift = Translation::from(com.coords);
-        shift * Isometry::new(linvel * dt, angvel * dt) * shift.inverse() * self.rb_pos.position
-    }
-
     /// The linear velocity of this rigid-body.
     pub fn linvel(&self) -> &Vector<Real> {
         &self.rb_vels.linvel
@@ -567,30 +538,13 @@ impl RigidBody {
 impl RigidBody {
     /// The velocity of the given world-space point on this rigid-body.
     pub fn velocity_at_point(&self, point: &Point<Real>) -> Vector<Real> {
-        let dpt = point - self.rb_mprops.world_com;
-        self.rb_vels.linvel + self.rb_vels.angvel.gcross(dpt)
+        self.rb_vels
+            .velocity_at_point(point, &self.rb_mprops.world_com)
     }
 
     /// The kinetic energy of this body.
     pub fn kinetic_energy(&self) -> Real {
-        let mut energy = (self.mass() * self.rb_vels.linvel.norm_squared()) / 2.0;
-
-        #[cfg(feature = "dim2")]
-        if !self.rb_mprops.effective_world_inv_inertia_sqrt.is_zero() {
-            let inertia_sqrt = 1.0 / self.rb_mprops.effective_world_inv_inertia_sqrt;
-            energy += (inertia_sqrt * self.rb_vels.angvel).powi(2) / 2.0;
-        }
-
-        #[cfg(feature = "dim3")]
-        if !self.rb_mprops.effective_world_inv_inertia_sqrt.is_zero() {
-            let inertia_sqrt = self
-                .rb_mprops
-                .effective_world_inv_inertia_sqrt
-                .inverse_unchecked();
-            energy += (inertia_sqrt * self.rb_vels.angvel).norm_squared() / 2.0;
-        }
-
-        energy
+        self.rb_vels.kinetic_energy(&self.rb_mprops)
     }
 
     /// The potential energy of this body in a gravity field.
@@ -892,39 +846,6 @@ impl RigidBodyBuilder {
     pub fn sleeping(mut self, sleeping: bool) -> Self {
         self.sleeping = sleeping;
         self
-    }
-
-    pub fn components(
-        &self,
-    ) -> (
-        RigidBodyPosition,
-        RigidBodyMassProps,
-        RigidBodyVelocity,
-        RigidBodyDamping,
-        RigidBodyForces,
-        RigidBodyCcd,
-        RigidBodyIds,
-        RigidBodyColliders,
-        RigidBodyActivation,
-        RigidBodyChanges,
-        RigidBodyType,
-        RigidBodyDominance,
-    ) {
-        let rb = self.build();
-        (
-            rb.rb_pos,
-            rb.rb_mprops,
-            rb.rb_vels,
-            rb.rb_damping,
-            rb.rb_forces,
-            rb.rb_ccd,
-            rb.rb_ids,
-            rb.rb_colliders,
-            rb.rb_activation,
-            rb.changes,
-            rb.rb_type,
-            rb.rb_dominance,
-        )
     }
 
     /// Build a new rigid-body with the parameters configured with this builder.

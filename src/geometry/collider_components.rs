@@ -44,12 +44,18 @@ bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     /// Flags describing how the collider has been modified by the user.
     pub struct ColliderChanges: u32 {
-        const MODIFIED             = 1 << 0;
-        const PARENT               = 1 << 1; // => BF & NF updates.
-        const POSITION             = 1 << 2; // => BF & NF updates.
-        const GROUPS               = 1 << 3; // => NF update.
-        const SHAPE                = 1 << 4; // => BF & NF update. NF pair workspace invalidation.
-        const TYPE                 = 1 << 5; // => NF update. NF pair invalidation.
+        /// Flag indicating that any component of the collider has been modified.
+        const MODIFIED = 1 << 0;
+        /// Flag indicating that the `RigidBodyParent` component of the collider has been modified.
+        const PARENT   = 1 << 1; // => BF & NF updates.
+        /// Flag indicating that the `RigidBodyPosition` component of the collider has been modified.
+        const POSITION = 1 << 2; // => BF & NF updates.
+        /// Flag indicating that the `RigidBodyGroups` component of the collider has been modified.
+        const GROUPS   = 1 << 3; // => NF update.
+        /// Flag indicating that the `RigidBodyShape` component of the collider has been modified.
+        const SHAPE    = 1 << 4; // => BF & NF update. NF pair workspace invalidation.
+        /// Flag indicating that the `RigidBodyType` component of the collider has been modified.
+        const TYPE     = 1 << 5; // => NF update. NF pair invalidation.
     }
 }
 
@@ -60,12 +66,14 @@ impl Default for ColliderChanges {
 }
 
 impl ColliderChanges {
+    /// Do these changes justify a broad-phase update?
     pub fn needs_broad_phase_update(self) -> bool {
         self.intersects(
             ColliderChanges::PARENT | ColliderChanges::POSITION | ColliderChanges::SHAPE,
         )
     }
 
+    /// Do these changes justify a narrow-phase update?
     pub fn needs_narrow_phase_update(self) -> bool {
         self.bits() > 1
     }
@@ -73,12 +81,16 @@ impl ColliderChanges {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+/// The type of collider.
 pub enum ColliderType {
+    /// A collider that can generate contacts and contact events.
     Solid,
+    /// A collider that can generate intersection and intersection events.
     Sensor,
 }
 
 impl ColliderType {
+    /// Is this collider a sensor?
     pub fn is_sensor(self) -> bool {
         self == ColliderType::Sensor
     }
@@ -86,6 +98,7 @@ impl ColliderType {
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+/// Data associated to a collider that takes part to a broad-phase algorithm.
 pub struct ColliderBroadPhaseData {
     pub(crate) proxy_index: SAPProxyIndex,
 }
@@ -98,13 +111,19 @@ impl Default for ColliderBroadPhaseData {
     }
 }
 
+/// The shape of a collider.
 pub type ColliderShape = SharedShape;
 
 #[derive(Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+/// The mass-properties of a collider.
 pub enum ColliderMassProperties {
-    /// `MassProperties` are computed with the help of [`SharedShape::mass_properties`].
+    /// The collider is given a density.
+    ///
+    /// Its actual `MassProperties` are computed automatically with
+    /// the help of [`SharedShape::mass_properties`].
     Density(Real),
+    /// The collider is given explicit mass-properties.
     MassProperties(Box<MassProperties>),
 }
 
@@ -115,6 +134,12 @@ impl Default for ColliderMassProperties {
 }
 
 impl ColliderMassProperties {
+    /// The mass-properties of this collider.
+    ///
+    /// If `self` is the `Density` variant, then this computes the mass-properties based
+    /// on the given shape.
+    ///
+    /// If `self` is the `MassProperties` variant, then this returns the stored mass-properties.
     pub fn mass_properties(&self, shape: &dyn Shape) -> MassProperties {
         match self {
             Self::Density(density) => shape.mass_properties(*density),
@@ -125,13 +150,17 @@ impl ColliderMassProperties {
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+/// Information about the rigid-body this collider is attached to.
 pub struct ColliderParent {
+    /// Handle of the rigid-body this collider is attached to.
     pub handle: RigidBodyHandle,
+    /// Const position of this collider relative to its parent rigid-body.
     pub pos_wrt_parent: Isometry<Real>,
 }
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+/// The position of a collider.
 pub struct ColliderPosition(pub Isometry<Real>);
 
 impl AsRef<Isometry<Real>> for ColliderPosition {
@@ -156,8 +185,9 @@ impl Default for ColliderPosition {
 }
 
 impl ColliderPosition {
+    /// The identity position.
     #[must_use]
-    fn identity() -> Self {
+    pub fn identity() -> Self {
         ColliderPosition(Isometry::identity())
     }
 }
@@ -173,8 +203,13 @@ where
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+/// The groups of this collider, for filtering contact and solver pairs.
 pub struct ColliderGroups {
+    /// The groups controlling the pairs of colliders that can interact (generate
+    /// interaction events or contacts).
     pub collision_groups: InteractionGroups,
+    /// The groups controlling the pairs of collider that have their contact
+    /// points taken into account for force computation.
     pub solver_groups: InteractionGroups,
 }
 
@@ -189,15 +224,30 @@ impl Default for ColliderGroups {
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+/// The constraints solver-related properties of this collider (friction, restitution, etc.)
 pub struct ColliderMaterial {
+    /// The friction coefficient of this collider.
+    ///
+    /// The greater the value, the stronger the friction forces will be.
+    /// Should be `>= 0`.
     pub friction: Real,
+    /// The restitution coefficient of this collider.
+    ///
+    /// Increase this value to make contacts with this collider more "bouncy".
+    /// Should be `>= 0` and should generally not be greater than `1` (perfectly elastic
+    /// collision).
     pub restitution: Real,
+    /// The rule applied to combine the friction coefficients of two colliders in contact.
     pub friction_combine_rule: CoefficientCombineRule,
+    /// The rule applied to combine the restitution coefficients of two colliders.
     pub restitution_combine_rule: CoefficientCombineRule,
+    /// The solver flags attached to this collider in order to customize the way the
+    /// constraints solver will work with contacts involving this collider.
     pub solver_flags: SolverFlags,
 }
 
 impl ColliderMaterial {
+    /// Creates a new collider material with the given friction and restitution coefficients.
     pub fn new(friction: Real, restitution: Real) -> Self {
         Self {
             friction,

@@ -770,13 +770,13 @@ impl<T> Arena<T> {
     /// other kinds of bit-efficient indexing.
     ///
     /// You should use the `get` method instead most of the time.
-    pub fn get_unknown_gen(&self, i: usize) -> Option<(&T, Index)> {
-        match self.items.get(i) {
+    pub fn get_unknown_gen(&self, i: u32) -> Option<(&T, Index)> {
+        match self.items.get(i as usize) {
             Some(Entry::Occupied { generation, value }) => Some((
                 value,
                 Index {
                     generation: *generation,
-                    index: i as u32,
+                    index: i,
                 },
             )),
             _ => None,
@@ -793,13 +793,13 @@ impl<T> Arena<T> {
     /// other kinds of bit-efficient indexing.
     ///
     /// You should use the `get_mut` method instead most of the time.
-    pub fn get_unknown_gen_mut(&mut self, i: usize) -> Option<(&mut T, Index)> {
-        match self.items.get_mut(i) {
+    pub fn get_unknown_gen_mut(&mut self, i: u32) -> Option<(&mut T, Index)> {
+        match self.items.get_mut(i as usize) {
             Some(Entry::Occupied { generation, value }) => Some((
                 value,
                 Index {
                     generation: *generation,
-                    index: i as u32,
+                    index: i,
                 },
             )),
             _ => None,

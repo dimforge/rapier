@@ -271,7 +271,7 @@ impl PhysicsPipeline {
                 })
                 .unwrap();
             bodies.map_mut_internal(handle.0, |forces: &mut RigidBodyForces| {
-                forces.add_linear_acceleration(&gravity, effective_inv_mass)
+                forces.add_gravity_acceleration(&gravity, effective_inv_mass)
             });
         }
         self.counters.stages.update_time.pause();
@@ -442,6 +442,10 @@ impl PhysicsPipeline {
         }
     }
 
+    /// Executes one timestep of the physics simulation.
+    ///
+    /// This is the same as `self.step_generic`, except that it is specialized
+    /// to work with `RigidBodySet` and `ColliderSet`.
     #[cfg(feature = "default-sets")]
     pub fn step(
         &mut self,

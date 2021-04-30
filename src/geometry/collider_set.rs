@@ -197,7 +197,7 @@ impl ColliderSet {
     ///
     /// Using this is discouraged in favor of `self.get(handle)` which does not
     /// suffer form the ABA problem.
-    pub fn get_unknown_gen(&self, i: usize) -> Option<(&Collider, ColliderHandle)> {
+    pub fn get_unknown_gen(&self, i: u32) -> Option<(&Collider, ColliderHandle)> {
         self.colliders
             .get_unknown_gen(i)
             .map(|(c, h)| (c, ColliderHandle(h)))
@@ -213,7 +213,7 @@ impl ColliderSet {
     /// Using this is discouraged in favor of `self.get_mut(handle)` which does not
     /// suffer form the ABA problem.
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
-    pub fn get_unknown_gen_mut(&mut self, i: usize) -> Option<(&mut Collider, ColliderHandle)> {
+    pub fn get_unknown_gen_mut(&mut self, i: u32) -> Option<(&mut Collider, ColliderHandle)> {
         let (collider, handle) = self.colliders.get_unknown_gen_mut(i)?;
         let handle = ColliderHandle(handle);
         Self::mark_as_modified(handle, collider, &mut self.modified_colliders);

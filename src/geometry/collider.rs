@@ -7,7 +7,7 @@ use crate::geometry::{
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
 use na::Unit;
-use parry::bounding_volume::{BoundingVolume, AABB};
+use parry::bounding_volume::AABB;
 use parry::shape::Shape;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -16,22 +16,21 @@ use parry::shape::Shape;
 ///
 /// To build a new collider, use the `ColliderBuilder` structure.
 pub struct Collider {
-    pub co_type: ColliderType,
-    pub co_shape: ColliderShape, // TODO ECS: this is public only for our bevy_rapier experiments.
-    pub co_mprops: ColliderMassProperties, // TODO ECS: this is public only for our bevy_rapier experiments.
-    pub co_changes: ColliderChanges, // TODO ECS: this is public only for our bevy_rapier experiments.
-    pub co_parent: ColliderParent, // TODO ECS: this is public only for our bevy_rapier experiments.
-    pub co_pos: ColliderPosition,  // TODO ECS: this is public only for our bevy_rapier experiments.
-    pub co_material: ColliderMaterial, // TODO ECS: this is public only for our bevy_rapier experiments.
-    pub co_groups: ColliderGroups, // TODO ECS: this is public only for our bevy_rapier experiments.
-    pub co_bf_data: ColliderBroadPhaseData, // TODO ECS: this is public only for our bevy_rapier experiments.
+    pub(crate) co_type: ColliderType,
+    pub(crate) co_shape: ColliderShape,
+    pub(crate) co_mprops: ColliderMassProperties,
+    pub(crate) co_changes: ColliderChanges,
+    pub(crate) co_parent: ColliderParent,
+    pub(crate) co_pos: ColliderPosition,
+    pub(crate) co_material: ColliderMaterial,
+    pub(crate) co_groups: ColliderGroups,
+    pub(crate) co_bf_data: ColliderBroadPhaseData,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
 }
 
 impl Collider {
-    // TODO ECS: exists only for our bevy_ecs tests.
-    pub fn reset_internal_references(&mut self) {
+    pub(crate) fn reset_internal_references(&mut self) {
         self.co_parent.handle = RigidBodyHandle::invalid();
         self.co_bf_data.proxy_index = crate::INVALID_U32;
         self.co_changes = ColliderChanges::all();
@@ -140,6 +139,7 @@ impl Collider {
         }
     }
 
+    /// The material (friction and restitution properties) of this collider.
     pub fn material(&self) -> &ColliderMaterial {
         &self.co_material
     }
@@ -178,11 +178,11 @@ impl Collider {
         self.co_shape.compute_aabb(&self.co_pos)
     }
 
-    /// Compute the axis-aligned bounding box of this collider.
+    /// Compute the axis-aligned bounding box of this collider moving from its current position
+    /// to the given `next_position`
     pub fn compute_swept_aabb(&self, next_position: &Isometry<Real>) -> AABB {
-        let aabb1 = self.co_shape.compute_aabb(&self.co_pos);
-        let aabb2 = self.co_shape.compute_aabb(next_position);
-        aabb1.merged(&aabb2)
+        self.co_shape
+            .compute_swept_aabb(&self.co_pos, next_position)
     }
 
     /// Compute the local-space mass properties of this collider.

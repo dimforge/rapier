@@ -6,6 +6,8 @@ use crate::dynamics::{
 use crate::geometry::{ColliderParent, InteractionGraph, NarrowPhase};
 use crate::math::Real;
 
+/// Structure responsible for maintaining the set of active rigid-bodies, and
+/// putting non-moving rigid-bodies to sleep to save computation times.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct IslandManager {
     pub(crate) active_dynamic_set: Vec<RigidBodyHandle>,
@@ -19,6 +21,7 @@ pub struct IslandManager {
 }
 
 impl IslandManager {
+    /// Creates a new empty island manager.
     pub fn new() -> Self {
         Self {
             active_dynamic_set: vec![],
@@ -34,6 +37,7 @@ impl IslandManager {
         self.active_islands.len() - 1
     }
 
+    /// Update this data-structure after one or multiple rigid-bodies have been removed for `bodies`.
     pub fn cleanup_removed_rigid_bodies(
         &mut self,
         bodies: &mut impl ComponentSetMut<RigidBodyIds>,
@@ -59,7 +63,7 @@ impl IslandManager {
         }
     }
 
-    pub fn rigid_body_removed(
+    pub(crate) fn rigid_body_removed(
         &mut self,
         removed_handle: RigidBodyHandle,
         removed_ids: &RigidBodyIds,

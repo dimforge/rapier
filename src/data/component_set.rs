@@ -5,30 +5,47 @@ use crate::data::Index;
 //     fn get(&self, handle: Index) -> Option<&T>;
 // }
 
+/// A set of optional elements of type `T`.
 pub trait ComponentSetOption<T>: Sync {
+    /// Get the element associated to the given `handle`, if there is one.
     fn get(&self, handle: Index) -> Option<&T>;
 }
 
+/// A set of elements of type `T`.
 pub trait ComponentSet<T>: ComponentSetOption<T> {
+    /// The estimated number of elements in this set.
+    ///
+    /// This value is typically used for preallocating some arrays for
+    /// better performances.
     fn size_hint(&self) -> usize;
     // TODO ECS: remove this, its only needed by the query pipeline update
     //           which should only take the modified colliders into account.
+    /// Iterate through all the elements on this set.
     fn for_each(&self, f: impl FnMut(Index, &T));
+    /// Get the element associated to the given `handle`.
     fn index(&self, handle: Index) -> &T {
         self.get(handle).unwrap()
     }
 }
 
+/// A set of mutable elements of type `T`.
 pub trait ComponentSetMut<T>: ComponentSet<T> {
+    /// Applies the given closure to the element associated to the given `handle`.
+    ///
+    /// Return `None` if the element doesn't exist.
     fn map_mut_internal<Result>(
         &mut self,
         handle: crate::data::Index,
         f: impl FnOnce(&mut T) -> Result,
     ) -> Option<Result>;
+
+    /// Set the value of this element.
     fn set_internal(&mut self, handle: crate::data::Index, val: T);
 }
 
+/// Helper trait to address multiple elements at once.
 pub trait BundleSet<'a, T> {
+    /// Access multiple elements from this set.
     fn index_bundle(&'a self, handle: Index) -> T;
 }
 

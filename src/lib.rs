@@ -9,7 +9,7 @@
 //! are compliant with the IEEE 754-2008 floating point standard.
 
 #![deny(bare_trait_objects)]
-// #![warn(missing_docs)] // TODO: re-enable this
+#![warn(missing_docs)]
 
 #[cfg(all(feature = "dim2", feature = "f32"))]
 pub extern crate parry2d as parry;

@@ -125,7 +125,7 @@ impl RigidBodySet {
         // Make sure the internal links are reset, they may not be
         // if this rigid-body was obtained by cloning another one.
         rb.reset_internal_references();
-        rb.changes_mut_internal().set(RigidBodyChanges::all(), true);
+        rb.changes.set(RigidBodyChanges::all(), true);
 
         let handle = RigidBodyHandle(self.bodies.insert(rb));
         self.modified_bodies.push(handle);
@@ -170,7 +170,7 @@ impl RigidBodySet {
     ///
     /// Using this is discouraged in favor of `self.get(handle)` which does not
     /// suffer form the ABA problem.
-    pub fn get_unknown_gen(&self, i: usize) -> Option<(&RigidBody, RigidBodyHandle)> {
+    pub fn get_unknown_gen(&self, i: u32) -> Option<(&RigidBody, RigidBodyHandle)> {
         self.bodies
             .get_unknown_gen(i)
             .map(|(b, h)| (b, RigidBodyHandle(h)))
@@ -186,7 +186,7 @@ impl RigidBodySet {
     /// Using this is discouraged in favor of `self.get_mut(handle)` which does not
     /// suffer form the ABA problem.
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
-    pub fn get_unknown_gen_mut(&mut self, i: usize) -> Option<(&mut RigidBody, RigidBodyHandle)> {
+    pub fn get_unknown_gen_mut(&mut self, i: u32) -> Option<(&mut RigidBody, RigidBodyHandle)> {
         let (rb, handle) = self.bodies.get_unknown_gen_mut(i)?;
         let handle = RigidBodyHandle(handle);
         Self::mark_as_modified(handle, rb, &mut self.modified_bodies);
@@ -203,8 +203,8 @@ impl RigidBodySet {
         rb: &mut RigidBody,
         modified_bodies: &mut Vec<RigidBodyHandle>,
     ) {
-        if !rb.changes().contains(RigidBodyChanges::MODIFIED) {
-            *rb.changes_mut_internal() = RigidBodyChanges::MODIFIED;
+        if !rb.changes.contains(RigidBodyChanges::MODIFIED) {
+            rb.changes = RigidBodyChanges::MODIFIED;
             modified_bodies.push(handle);
         }
     }
