@@ -1,78 +1,93 @@
 use crate::data::arena::Arena;
-use crate::data::pubsub::PubSub;
-use crate::dynamics::{RigidBodyHandle, RigidBodySet};
-use crate::geometry::collider::ColliderChanges;
-use crate::geometry::{Collider, SAPProxyIndex};
-use parry::partitioning::IndexedData;
+use crate::data::{ComponentSet, ComponentSetMut, ComponentSetOption};
+use crate::dynamics::{IslandManager, RigidBodyHandle, RigidBodySet};
+use crate::geometry::{
+    Collider, ColliderBroadPhaseData, ColliderGroups, ColliderMassProperties, ColliderMaterial,
+    ColliderParent, ColliderPosition, ColliderShape, ColliderType,
+};
+use crate::geometry::{ColliderChanges, ColliderHandle};
 use std::ops::{Index, IndexMut};
-
-/// The unique identifier of a collider added to a collider set.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[repr(transparent)]
-pub struct ColliderHandle(pub(crate) crate::data::arena::Index);
-
-impl ColliderHandle {
-    /// Converts this handle into its (index, generation) components.
-    pub fn into_raw_parts(self) -> (usize, u64) {
-        self.0.into_raw_parts()
-    }
-
-    /// Reconstructs an handle from its (index, generation) components.
-    pub fn from_raw_parts(id: usize, generation: u64) -> Self {
-        Self(crate::data::arena::Index::from_raw_parts(id, generation))
-    }
-
-    /// An always-invalid collider handle.
-    pub fn invalid() -> Self {
-        Self(crate::data::arena::Index::from_raw_parts(
-            crate::INVALID_USIZE,
-            crate::INVALID_U64,
-        ))
-    }
-}
-
-impl IndexedData for ColliderHandle {
-    fn default() -> Self {
-        Self(IndexedData::default())
-    }
-
-    fn index(&self) -> usize {
-        self.0.index()
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-pub(crate) struct RemovedCollider {
-    pub handle: ColliderHandle,
-    pub(crate) proxy_index: SAPProxyIndex,
-}
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 /// A set of colliders that can be handled by a physics `World`.
 pub struct ColliderSet {
-    pub(crate) removed_colliders: PubSub<RemovedCollider>,
     pub(crate) colliders: Arena<Collider>,
     pub(crate) modified_colliders: Vec<ColliderHandle>,
-    pub(crate) modified_all_colliders: bool,
+    pub(crate) removed_colliders: Vec<ColliderHandle>,
 }
+
+macro_rules! impl_field_component_set(
+    ($T: ty, $field: ident) => {
+        impl ComponentSetOption<$T> for ColliderSet {
+            fn get(&self, handle: crate::data::Index) -> Option<&$T> {
+                self.get(ColliderHandle(handle)).map(|b| &b.$field)
+            }
+        }
+
+        impl ComponentSet<$T> for ColliderSet {
+            fn size_hint(&self) -> usize {
+                self.len()
+            }
+
+            #[inline(always)]
+            fn for_each(&self, mut f: impl FnMut(crate::data::Index, &$T)) {
+                for (handle, body) in self.colliders.iter() {
+                    f(handle, &body.$field)
+                }
+            }
+        }
+
+        impl ComponentSetMut<$T> for ColliderSet {
+            fn set_internal(&mut self, handle: crate::data::Index, val: $T) {
+                if let Some(rb) = self.get_mut_internal(ColliderHandle(handle)) {
+                    rb.$field = val;
+                }
+            }
+
+            #[inline(always)]
+            fn map_mut_internal<Result>(
+                &mut self,
+                handle: crate::data::Index,
+                f: impl FnOnce(&mut $T) -> Result,
+            ) -> Option<Result> {
+                self.get_mut_internal(ColliderHandle(handle)).map(|rb| f(&mut rb.$field))
+            }
+        }
+    }
+);
+
+impl_field_component_set!(ColliderType, co_type);
+impl_field_component_set!(ColliderShape, co_shape);
+impl_field_component_set!(ColliderMassProperties, co_mprops);
+impl_field_component_set!(ColliderChanges, co_changes);
+impl_field_component_set!(ColliderParent, co_parent);
+impl_field_component_set!(ColliderPosition, co_pos);
+impl_field_component_set!(ColliderMaterial, co_material);
+impl_field_component_set!(ColliderGroups, co_groups);
+impl_field_component_set!(ColliderBroadPhaseData, co_bf_data);
 
 impl ColliderSet {
     /// Create a new empty set of colliders.
     pub fn new() -> Self {
         ColliderSet {
-            removed_colliders: PubSub::new(),
             colliders: Arena::new(),
             modified_colliders: Vec::new(),
-            modified_all_colliders: false,
+            removed_colliders: Vec::new(),
         }
+    }
+
+    pub(crate) fn take_modified(&mut self) -> Vec<ColliderHandle> {
+        std::mem::replace(&mut self.modified_colliders, vec![])
+    }
+
+    pub(crate) fn take_removed(&mut self) -> Vec<ColliderHandle> {
+        std::mem::replace(&mut self.removed_colliders, vec![])
     }
 
     /// An always-invalid collider handle.
     pub fn invalid_handle() -> ColliderHandle {
-        ColliderHandle::from_raw_parts(crate::INVALID_USIZE, crate::INVALID_U64)
+        ColliderHandle::from_raw_parts(crate::INVALID_U32, crate::INVALID_U32)
     }
 
     /// Iterate through all the colliders on this set.
@@ -84,31 +99,11 @@ impl ColliderSet {
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (ColliderHandle, &mut Collider)> {
         self.modified_colliders.clear();
-        self.modified_all_colliders = true;
-        self.colliders
-            .iter_mut()
-            .map(|(h, b)| (ColliderHandle(h), b))
-    }
-
-    #[inline(always)]
-    pub(crate) fn foreach_modified_colliders(&self, mut f: impl FnMut(ColliderHandle, &Collider)) {
-        for handle in &self.modified_colliders {
-            if let Some(rb) = self.colliders.get(handle.0) {
-                f(*handle, rb)
-            }
-        }
-    }
-
-    #[inline(always)]
-    pub(crate) fn foreach_modified_colliders_mut_internal(
-        &mut self,
-        mut f: impl FnMut(ColliderHandle, &mut Collider),
-    ) {
-        for handle in &self.modified_colliders {
-            if let Some(rb) = self.colliders.get_mut(handle.0) {
-                f(*handle, rb)
-            }
-        }
+        let modified_colliders = &mut self.modified_colliders;
+        self.colliders.iter_mut().map(move |(h, b)| {
+            modified_colliders.push(ColliderHandle(h));
+            (ColliderHandle(h), b)
+        })
     }
 
     /// The number of colliders on this set.
@@ -126,29 +121,6 @@ impl ColliderSet {
         self.colliders.contains(handle.0)
     }
 
-    pub(crate) fn contains_any_modified_collider(&self) -> bool {
-        self.modified_all_colliders || !self.modified_colliders.is_empty()
-    }
-
-    pub(crate) fn clear_modified_colliders(&mut self) {
-        if self.modified_all_colliders {
-            for collider in self.colliders.iter_mut() {
-                collider.1.changes = ColliderChanges::empty();
-            }
-            self.modified_colliders.clear();
-            self.modified_all_colliders = false;
-        } else {
-            for handle in self.modified_colliders.drain(..) {
-                // NOTE: if the collider was added, then removed from this set before
-                //       a an update, then it will no longer exist in `self.colliders`
-                //       so we need to do this `if let`.
-                if let Some(co) = self.colliders.get_mut(handle.0) {
-                    co.changes = ColliderChanges::empty();
-                }
-            }
-        }
-    }
-
     /// Inserts a new collider to this set and retrieve its handle.
     pub fn insert(
         &mut self,
@@ -159,20 +131,24 @@ impl ColliderSet {
         // Make sure the internal links are reset, they may not be
         // if this rigid-body was obtained by cloning another one.
         coll.reset_internal_references();
-
-        coll.parent = parent_handle;
+        coll.co_parent.handle = parent_handle;
 
         // NOTE: we use `get_mut` instead of `get_mut_internal` so that the
         // modification flag is updated properly.
         let parent = bodies
             .get_mut_internal_with_modification_tracking(parent_handle)
             .expect("Parent rigid body not found.");
-        coll.position = parent.position * coll.delta;
         let handle = ColliderHandle(self.colliders.insert(coll));
         self.modified_colliders.push(handle);
 
-        let coll = self.colliders.get(handle.0).unwrap();
-        parent.add_collider(handle, &coll);
+        let coll = self.colliders.get_mut(handle.0).unwrap();
+        parent.add_collider(
+            handle,
+            &mut coll.co_parent,
+            &mut coll.co_pos,
+            &coll.co_shape,
+            &coll.co_mprops,
+        );
         handle
     }
 
@@ -183,6 +159,7 @@ impl ColliderSet {
     pub fn remove(
         &mut self,
         handle: ColliderHandle,
+        islands: &mut IslandManager,
         bodies: &mut RigidBodySet,
         wake_up: bool,
     ) -> Option<Collider> {
@@ -191,25 +168,22 @@ impl ColliderSet {
         /*
          * Delete the collider from its parent body.
          */
-        // NOTE: we use `get_mut` instead of `get_mut_internal` so that the
+        // NOTE: we use `get_mut_internal_with_modification_tracking` instead of `get_mut_internal` so that the
         // modification flag is updated properly.
-        if let Some(parent) = bodies.get_mut_internal_with_modification_tracking(collider.parent) {
+        if let Some(parent) =
+            bodies.get_mut_internal_with_modification_tracking(collider.co_parent.handle)
+        {
             parent.remove_collider_internal(handle, &collider);
 
             if wake_up {
-                bodies.wake_up(collider.parent, true);
+                islands.wake_up(bodies, collider.co_parent.handle, true);
             }
         }
 
         /*
          * Publish removal.
          */
-        let message = RemovedCollider {
-            handle,
-            proxy_index: collider.proxy_index,
-        };
-
-        self.removed_colliders.publish(message);
+        self.removed_colliders.push(handle);
 
         Some(collider)
     }
@@ -223,7 +197,7 @@ impl ColliderSet {
     ///
     /// Using this is discouraged in favor of `self.get(handle)` which does not
     /// suffer form the ABA problem.
-    pub fn get_unknown_gen(&self, i: usize) -> Option<(&Collider, ColliderHandle)> {
+    pub fn get_unknown_gen(&self, i: u32) -> Option<(&Collider, ColliderHandle)> {
         self.colliders
             .get_unknown_gen(i)
             .map(|(c, h)| (c, ColliderHandle(h)))
@@ -239,15 +213,10 @@ impl ColliderSet {
     /// Using this is discouraged in favor of `self.get_mut(handle)` which does not
     /// suffer form the ABA problem.
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
-    pub fn get_unknown_gen_mut(&mut self, i: usize) -> Option<(&mut Collider, ColliderHandle)> {
+    pub fn get_unknown_gen_mut(&mut self, i: u32) -> Option<(&mut Collider, ColliderHandle)> {
         let (collider, handle) = self.colliders.get_unknown_gen_mut(i)?;
         let handle = ColliderHandle(handle);
-        Self::mark_as_modified(
-            handle,
-            collider,
-            &mut self.modified_colliders,
-            self.modified_all_colliders,
-        );
+        Self::mark_as_modified(handle, collider, &mut self.modified_colliders);
         Some((collider, handle))
     }
 
@@ -260,10 +229,9 @@ impl ColliderSet {
         handle: ColliderHandle,
         collider: &mut Collider,
         modified_colliders: &mut Vec<ColliderHandle>,
-        modified_all_colliders: bool,
     ) {
-        if !modified_all_colliders && !collider.changes.contains(ColliderChanges::MODIFIED) {
-            collider.changes = ColliderChanges::MODIFIED;
+        if !collider.co_changes.contains(ColliderChanges::MODIFIED) {
+            collider.co_changes = ColliderChanges::MODIFIED;
             modified_colliders.push(handle);
         }
     }
@@ -272,62 +240,20 @@ impl ColliderSet {
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
     pub fn get_mut(&mut self, handle: ColliderHandle) -> Option<&mut Collider> {
         let result = self.colliders.get_mut(handle.0)?;
-        Self::mark_as_modified(
-            handle,
-            result,
-            &mut self.modified_colliders,
-            self.modified_all_colliders,
-        );
+        Self::mark_as_modified(handle, result, &mut self.modified_colliders);
         Some(result)
     }
 
     pub(crate) fn get_mut_internal(&mut self, handle: ColliderHandle) -> Option<&mut Collider> {
         self.colliders.get_mut(handle.0)
     }
+}
 
-    // Just a very long name instead of `.get_mut` to make sure
-    // this is really the method we wanted to use instead of `get_mut_internal`.
-    pub(crate) fn get_mut_internal_with_modification_tracking(
-        &mut self,
-        handle: ColliderHandle,
-    ) -> Option<&mut Collider> {
-        let result = self.colliders.get_mut(handle.0)?;
-        Self::mark_as_modified(
-            handle,
-            result,
-            &mut self.modified_colliders,
-            self.modified_all_colliders,
-        );
-        Some(result)
-    }
+impl Index<crate::data::Index> for ColliderSet {
+    type Output = Collider;
 
-    // Utility function to avoid some borrowing issue in the `maintain` method.
-    fn maintain_one(bodies: &mut RigidBodySet, collider: &mut Collider) {
-        if collider
-            .changes
-            .contains(ColliderChanges::POSITION_WRT_PARENT)
-        {
-            if let Some(parent) = bodies.get_mut_internal(collider.parent()) {
-                let position = parent.position * collider.position_wrt_parent();
-                // NOTE: the set_position method will add the ColliderChanges::POSITION flag,
-                //       which is needed for the broad-phase/narrow-phase to detect the change.
-                collider.set_position(position);
-            }
-        }
-    }
-
-    pub(crate) fn handle_user_changes(&mut self, bodies: &mut RigidBodySet) {
-        if self.modified_all_colliders {
-            for (_, rb) in self.colliders.iter_mut() {
-                Self::maintain_one(bodies, rb)
-            }
-        } else {
-            for handle in self.modified_colliders.iter() {
-                if let Some(rb) = self.colliders.get_mut(handle.0) {
-                    Self::maintain_one(bodies, rb)
-                }
-            }
-        }
+    fn index(&self, index: crate::data::Index) -> &Collider {
+        &self.colliders[index]
     }
 }
 
@@ -343,12 +269,7 @@ impl Index<ColliderHandle> for ColliderSet {
 impl IndexMut<ColliderHandle> for ColliderSet {
     fn index_mut(&mut self, handle: ColliderHandle) -> &mut Collider {
         let collider = &mut self.colliders[handle.0];
-        Self::mark_as_modified(
-            handle,
-            collider,
-            &mut self.modified_colliders,
-            self.modified_all_colliders,
-        );
+        Self::mark_as_modified(handle, collider, &mut self.modified_colliders);
         collider
     }
 }

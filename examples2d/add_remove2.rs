@@ -31,9 +31,12 @@ pub fn init_world(testbed: &mut Testbed) {
             .map(|e| e.0)
             .collect();
         for handle in to_remove {
-            physics
-                .bodies
-                .remove(handle, &mut physics.colliders, &mut physics.joints);
+            physics.bodies.remove(
+                handle,
+                &mut physics.islands,
+                &mut physics.colliders,
+                &mut physics.joints,
+            );
 
             if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
                 graphics.remove_body_nodes(*window, handle);

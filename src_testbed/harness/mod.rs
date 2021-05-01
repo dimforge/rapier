@@ -4,7 +4,7 @@ use crate::{
 };
 use kiss3d::window::Window;
 use plugin::HarnessPlugin;
-use rapier::dynamics::{CCDSolver, IntegrationParameters, JointSet, RigidBodySet};
+use rapier::dynamics::{CCDSolver, IntegrationParameters, IslandManager, JointSet, RigidBodySet};
 use rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
 use rapier::math::Vector;
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
@@ -120,7 +120,7 @@ impl Harness {
         colliders: ColliderSet,
         joints: JointSet,
         gravity: Vector<f32>,
-        hooks: impl PhysicsHooks + 'static,
+        hooks: impl PhysicsHooks<RigidBodySet, ColliderSet> + 'static,
     ) {
         // println!("Num bodies: {}", bodies.len());
         // println!("Num joints: {}", joints.len());
@@ -130,6 +130,7 @@ impl Harness {
         self.physics.joints = joints;
         self.physics.hooks = Box::new(hooks);
 
+        self.physics.islands = IslandManager::new();
         self.physics.broad_phase = BroadPhase::new();
         self.physics.narrow_phase = NarrowPhase::new();
         self.state.timestep_id = 0;
@@ -175,6 +176,7 @@ impl Harness {
                 physics.pipeline.step(
                     &physics.gravity,
                     &physics.integration_parameters,
+                    &mut physics.islands,
                     &mut physics.broad_phase,
                     &mut physics.narrow_phase,
                     &mut physics.bodies,
@@ -191,6 +193,7 @@ impl Harness {
         self.physics.pipeline.step(
             &self.physics.gravity,
             &self.physics.integration_parameters,
+            &mut self.physics.islands,
             &mut self.physics.broad_phase,
             &mut self.physics.narrow_phase,
             &mut self.physics.bodies,
@@ -201,9 +204,11 @@ impl Harness {
             &self.event_handler,
         );
 
-        self.physics
-            .query_pipeline
-            .update(&self.physics.bodies, &self.physics.colliders);
+        self.physics.query_pipeline.update(
+            &self.physics.islands,
+            &self.physics.bodies,
+            &self.physics.colliders,
+        );
 
         for plugin in &mut self.plugins {
             plugin.step(&mut self.physics, &self.state)

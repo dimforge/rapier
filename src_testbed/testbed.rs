@@ -19,7 +19,7 @@ use kiss3d::text::Font;
 use kiss3d::window::{State, Window};
 use na::{self, Point2, Point3, Vector3};
 use rapier::dynamics::{
-    ActivationStatus, IntegrationParameters, JointSet, RigidBodyHandle, RigidBodySet,
+    IntegrationParameters, JointSet, RigidBodyActivation, RigidBodyHandle, RigidBodySet,
 };
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
@@ -245,7 +245,7 @@ impl Testbed {
         colliders: ColliderSet,
         joints: JointSet,
         gravity: Vector<f32>,
-        hooks: impl PhysicsHooks + 'static,
+        hooks: impl PhysicsHooks<RigidBodySet, ColliderSet> + 'static,
     ) {
         self.harness
             .set_world_with_params(bodies, colliders, joints, gravity, hooks);
@@ -586,6 +586,7 @@ impl Testbed {
                 for to_delete in &colliders[..num_to_delete] {
                     self.harness.physics.colliders.remove(
                         to_delete[0],
+                        &mut self.harness.physics.islands,
                         &mut self.harness.physics.bodies,
                         true,
                     );
@@ -605,6 +606,7 @@ impl Testbed {
                 for to_delete in &dynamic_bodies[..num_to_delete] {
                     self.harness.physics.bodies.remove(
                         *to_delete,
+                        &mut self.harness.physics.islands,
                         &mut self.harness.physics.colliders,
                         &mut self.harness.physics.joints,
                     );
@@ -617,6 +619,7 @@ impl Testbed {
                 for to_delete in &joints[..num_to_delete] {
                     self.harness.physics.joints.remove(
                         *to_delete,
+                        &mut self.harness.physics.islands,
                         &mut self.harness.physics.bodies,
                         true,
                     );
@@ -1205,13 +1208,13 @@ impl State for Testbed {
                 != self.state.flags.contains(TestbedStateFlags::SLEEP)
             {
                 if self.state.flags.contains(TestbedStateFlags::SLEEP) {
-                    for (_, mut body) in self.harness.physics.bodies.iter_mut() {
-                        body.activation.threshold = ActivationStatus::default_threshold();
+                    for (_, body) in self.harness.physics.bodies.iter_mut() {
+                        body.activation_mut().threshold = RigidBodyActivation::default_threshold();
                     }
                 } else {
-                    for (_, mut body) in self.harness.physics.bodies.iter_mut() {
+                    for (_, body) in self.harness.physics.bodies.iter_mut() {
                         body.wake_up(true);
-                        body.activation.threshold = -1.0;
+                        body.activation_mut().threshold = -1.0;
                     }
                 }
             }

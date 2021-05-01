@@ -1,7 +1,7 @@
 use na::{Isometry3, Point3, Unit, UnitQuaternion, Vector3};
 use rapier3d::dynamics::{
-    BallJoint, BodyStatus, FixedJoint, JointSet, PrismaticJoint, RevoluteJoint, RigidBodyBuilder,
-    RigidBodyHandle, RigidBodySet,
+    BallJoint, FixedJoint, JointSet, PrismaticJoint, RevoluteJoint, RigidBodyBuilder,
+    RigidBodyHandle, RigidBodySet, RigidBodyType,
 };
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
@@ -203,9 +203,9 @@ fn create_fixed_joints(
             // fixed bodies. Because physx will crash if we add
             // a joint between these.
             let status = if i == 0 && (k % 4 == 0 && k != num - 2 || k == num - 1) {
-                BodyStatus::Static
+                RigidBodyType::Static
             } else {
-                BodyStatus::Dynamic
+                RigidBodyType::Dynamic
             };
 
             let rigid_body = RigidBodyBuilder::new(status)
@@ -258,9 +258,9 @@ fn create_ball_joints(
             let fi = i as f32;
 
             let status = if i == 0 && (k % 4 == 0 || k == num - 1) {
-                BodyStatus::Static
+                RigidBodyType::Static
             } else {
-                BodyStatus::Dynamic
+                RigidBodyType::Dynamic
             };
 
             let rigid_body = RigidBodyBuilder::new(status)
@@ -317,9 +317,9 @@ fn create_actuated_revolute_joints(
         // fixed bodies. Because physx will crash if we add
         // a joint between these.
         let status = if i == 0 {
-            BodyStatus::Static
+            RigidBodyType::Static
         } else {
-            BodyStatus::Dynamic
+            RigidBodyType::Dynamic
         };
 
         let shifty = (i >= 1) as u32 as f32 * -2.0;
@@ -378,9 +378,9 @@ fn create_actuated_ball_joints(
         // fixed bodies. Because physx will crash if we add
         // a joint between these.
         let status = if i == 0 {
-            BodyStatus::Static
+            RigidBodyType::Static
         } else {
-            BodyStatus::Dynamic
+            RigidBodyType::Dynamic
         };
 
         let rigid_body = RigidBodyBuilder::new(status)

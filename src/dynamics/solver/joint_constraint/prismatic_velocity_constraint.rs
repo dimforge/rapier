@@ -1,6 +1,7 @@
 use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
-    IntegrationParameters, JointGraphEdge, JointIndex, JointParams, PrismaticJoint, RigidBody,
+    IntegrationParameters, JointGraphEdge, JointIndex, JointParams, PrismaticJoint, RigidBodyIds,
+    RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
 };
 use crate::math::{AngularInertia, Real, Vector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix, WDot};
@@ -74,32 +75,45 @@ impl PrismaticVelocityConstraint {
     pub fn from_params(
         params: &IntegrationParameters,
         joint_id: JointIndex,
-        rb1: &RigidBody,
-        rb2: &RigidBody,
+        rb1: (
+            &RigidBodyPosition,
+            &RigidBodyVelocity,
+            &RigidBodyMassProps,
+            &RigidBodyIds,
+        ),
+        rb2: (
+            &RigidBodyPosition,
+            &RigidBodyVelocity,
+            &RigidBodyMassProps,
+            &RigidBodyIds,
+        ),
         joint: &PrismaticJoint,
     ) -> Self {
+        let (poss1, vels1, mprops1, ids1) = rb1;
+        let (poss2, vels2, mprops2, ids2) = rb2;
+
         // Linear part.
-        let anchor1 = rb1.position * joint.local_anchor1;
-        let anchor2 = rb2.position * joint.local_anchor2;
-        let axis1 = rb1.position * joint.local_axis1;
-        let axis2 = rb2.position * joint.local_axis2;
+        let anchor1 = poss1.position * joint.local_anchor1;
+        let anchor2 = poss2.position * joint.local_anchor2;
+        let axis1 = poss1.position * joint.local_axis1;
+        let axis2 = poss2.position * joint.local_axis2;
 
         #[cfg(feature = "dim2")]
-        let basis1 = rb1.position * joint.basis1[0];
+        let basis1 = poss1.position * joint.basis1[0];
         #[cfg(feature = "dim3")]
         let basis1 = Matrix3x2::from_columns(&[
-            rb1.position * joint.basis1[0],
-            rb1.position * joint.basis1[1],
+            poss1.position * joint.basis1[0],
+            poss1.position * joint.basis1[1],
         ]);
 
-        let im1 = rb1.effective_inv_mass;
-        let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
-        let r1 = anchor1 - rb1.world_com;
+        let im1 = mprops1.effective_inv_mass;
+        let ii1 = mprops1.effective_world_inv_inertia_sqrt.squared();
+        let r1 = anchor1 - mprops1.world_com;
         let r1_mat = r1.gcross_matrix();
 
-        let im2 = rb2.effective_inv_mass;
-        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
-        let r2 = anchor2 - rb2.world_com;
+        let im2 = mprops2.effective_inv_mass;
+        let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
+        let r2 = anchor2 - mprops2.world_com;
         let r2_mat = r2.gcross_matrix();
 
         #[allow(unused_mut)] // For 2D.
@@ -131,8 +145,8 @@ impl PrismaticVelocityConstraint {
             lhs = SdpMatrix2::new(m11, m12, m22);
         }
 
-        let anchor_linvel1 = rb1.linvel + rb1.angvel.gcross(r1);
-        let anchor_linvel2 = rb2.linvel + rb2.angvel.gcross(r2);
+        let anchor_linvel1 = vels1.linvel + vels1.angvel.gcross(r1);
+        let anchor_linvel2 = vels2.linvel + vels2.angvel.gcross(r2);
 
         // NOTE: we don't use Cholesky in 2D because we only have a 2x2 matrix
         // for which a textbook inverse is still efficient.
@@ -142,7 +156,7 @@ impl PrismaticVelocityConstraint {
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
         let linvel_err = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
-        let angvel_err = rb2.angvel - rb1.angvel;
+        let angvel_err = vels2.angvel - vels1.angvel;
 
         #[cfg(feature = "dim2")]
         let mut rhs = Vector2::new(linvel_err.x, angvel_err) * params.velocity_solve_fraction;
@@ -159,8 +173,8 @@ impl PrismaticVelocityConstraint {
         if velocity_based_erp_inv_dt != 0.0 {
             let linear_err = basis1.tr_mul(&(anchor2 - anchor1));
 
-            let frame1 = rb1.position * joint.local_frame1();
-            let frame2 = rb2.position * joint.local_frame2();
+            let frame1 = poss1.position * joint.local_frame1();
+            let frame2 = poss2.position * joint.local_frame2();
             let ang_err = frame2.rotation * frame1.rotation.inverse();
 
             #[cfg(feature = "dim2")]
@@ -195,9 +209,9 @@ impl PrismaticVelocityConstraint {
         }
 
         if damping != 0.0 {
-            let curr_vel = rb2.linvel.dot(&axis2) + rb2.angvel.gdot(gcross2)
-                - rb1.linvel.dot(&axis1)
-                - rb1.angvel.gdot(gcross1);
+            let curr_vel = vels2.linvel.dot(&axis2) + vels2.angvel.gdot(gcross2)
+                - vels1.linvel.dot(&axis1)
+                - vels1.angvel.gdot(gcross1);
             motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
         }
 
@@ -266,12 +280,12 @@ impl PrismaticVelocityConstraint {
 
         PrismaticVelocityConstraint {
             joint_id,
-            mj_lambda1: rb1.active_set_offset,
-            mj_lambda2: rb2.active_set_offset,
+            mj_lambda1: ids1.active_set_offset,
+            mj_lambda2: ids2.active_set_offset,
             im1,
-            ii1_sqrt: rb1.effective_world_inv_inertia_sqrt,
+            ii1_sqrt: mprops1.effective_world_inv_inertia_sqrt,
             im2,
-            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
+            ii2_sqrt: mprops2.effective_world_inv_inertia_sqrt,
             impulse: joint.impulse * params.warmstart_coeff,
             limits_active,
             limits_impulse: limits_impulse * params.warmstart_coeff,
@@ -501,11 +515,19 @@ impl PrismaticVelocityGroundConstraint {
     pub fn from_params(
         params: &IntegrationParameters,
         joint_id: JointIndex,
-        rb1: &RigidBody,
-        rb2: &RigidBody,
+        rb1: (&RigidBodyPosition, &RigidBodyVelocity, &RigidBodyMassProps),
+        rb2: (
+            &RigidBodyPosition,
+            &RigidBodyVelocity,
+            &RigidBodyMassProps,
+            &RigidBodyIds,
+        ),
         joint: &PrismaticJoint,
         flipped: bool,
     ) -> Self {
+        let (poss1, vels1, mprops1) = rb1;
+        let (poss2, vels2, mprops2, ids2) = rb2;
+
         let anchor2;
         let anchor1;
         let axis2;
@@ -513,35 +535,35 @@ impl PrismaticVelocityGroundConstraint {
         let basis1;
 
         if flipped {
-            anchor2 = rb2.position * joint.local_anchor1;
-            anchor1 = rb1.position * joint.local_anchor2;
-            axis2 = rb2.position * joint.local_axis1;
-            axis1 = rb1.position * joint.local_axis2;
+            anchor2 = poss2.position * joint.local_anchor1;
+            anchor1 = poss1.position * joint.local_anchor2;
+            axis2 = poss2.position * joint.local_axis1;
+            axis1 = poss1.position * joint.local_axis2;
             #[cfg(feature = "dim2")]
             {
-                basis1 = rb1.position * joint.basis2[0];
+                basis1 = poss1.position * joint.basis2[0];
             }
             #[cfg(feature = "dim3")]
             {
                 basis1 = Matrix3x2::from_columns(&[
-                    rb1.position * joint.basis2[0],
-                    rb1.position * joint.basis2[1],
+                    poss1.position * joint.basis2[0],
+                    poss1.position * joint.basis2[1],
                 ]);
             }
         } else {
-            anchor2 = rb2.position * joint.local_anchor2;
-            anchor1 = rb1.position * joint.local_anchor1;
-            axis2 = rb2.position * joint.local_axis2;
-            axis1 = rb1.position * joint.local_axis1;
+            anchor2 = poss2.position * joint.local_anchor2;
+            anchor1 = poss1.position * joint.local_anchor1;
+            axis2 = poss2.position * joint.local_axis2;
+            axis1 = poss1.position * joint.local_axis1;
             #[cfg(feature = "dim2")]
             {
-                basis1 = rb1.position * joint.basis1[0];
+                basis1 = poss1.position * joint.basis1[0];
             }
             #[cfg(feature = "dim3")]
             {
                 basis1 = Matrix3x2::from_columns(&[
-                    rb1.position * joint.basis1[0],
-                    rb1.position * joint.basis1[1],
+                    poss1.position * joint.basis1[0],
+                    poss1.position * joint.basis1[1],
                 ]);
             }
         };
@@ -560,10 +582,10 @@ impl PrismaticVelocityGroundConstraint {
         // simplifications of the computation without introducing
         // much instabilities.
 
-        let im2 = rb2.effective_inv_mass;
-        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
-        let r1 = anchor1 - rb1.world_com;
-        let r2 = anchor2 - rb2.world_com;
+        let im2 = mprops2.effective_inv_mass;
+        let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
+        let r1 = anchor1 - mprops1.world_com;
+        let r2 = anchor2 - mprops2.world_com;
         let r2_mat = r2.gcross_matrix();
 
         #[allow(unused_mut)] // For 2D.
@@ -592,8 +614,8 @@ impl PrismaticVelocityGroundConstraint {
             lhs = SdpMatrix2::new(m11, m12, m22);
         }
 
-        let anchor_linvel1 = rb1.linvel + rb1.angvel.gcross(r1);
-        let anchor_linvel2 = rb2.linvel + rb2.angvel.gcross(r2);
+        let anchor_linvel1 = vels1.linvel + vels1.angvel.gcross(r1);
+        let anchor_linvel2 = vels2.linvel + vels2.angvel.gcross(r2);
 
         // NOTE: we don't use Cholesky in 2D because we only have a 2x2 matrix
         // for which a textbook inverse is still efficient.
@@ -603,7 +625,7 @@ impl PrismaticVelocityGroundConstraint {
         let inv_lhs = Cholesky::new_unchecked(lhs).inverse();
 
         let linvel_err = basis1.tr_mul(&(anchor_linvel2 - anchor_linvel1));
-        let angvel_err = rb2.angvel - rb1.angvel;
+        let angvel_err = vels2.angvel - vels1.angvel;
 
         #[cfg(feature = "dim2")]
         let mut rhs = Vector2::new(linvel_err.x, angvel_err) * params.velocity_solve_fraction;
@@ -622,11 +644,11 @@ impl PrismaticVelocityGroundConstraint {
 
             let (frame1, frame2);
             if flipped {
-                frame1 = rb1.position * joint.local_frame2();
-                frame2 = rb2.position * joint.local_frame1();
+                frame1 = poss1.position * joint.local_frame2();
+                frame2 = poss2.position * joint.local_frame1();
             } else {
-                frame1 = rb1.position * joint.local_frame1();
-                frame2 = rb2.position * joint.local_frame2();
+                frame1 = poss1.position * joint.local_frame1();
+                frame2 = poss2.position * joint.local_frame2();
             }
 
             let ang_err = frame2.rotation * frame1.rotation.inverse();
@@ -660,7 +682,7 @@ impl PrismaticVelocityGroundConstraint {
         }
 
         if damping != 0.0 {
-            let curr_vel = rb2.linvel.dot(&axis2) - rb1.linvel.dot(&axis1);
+            let curr_vel = vels2.linvel.dot(&axis2) - vels1.linvel.dot(&axis1);
             motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
         }
 
@@ -714,9 +736,9 @@ impl PrismaticVelocityGroundConstraint {
 
         PrismaticVelocityGroundConstraint {
             joint_id,
-            mj_lambda2: rb2.active_set_offset,
+            mj_lambda2: ids2.active_set_offset,
             im2,
-            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
+            ii2_sqrt: mprops2.effective_world_inv_inertia_sqrt,
             impulse: joint.impulse * params.warmstart_coeff,
             limits_active,
             limits_forcedir2,

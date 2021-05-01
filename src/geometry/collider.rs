@@ -1,82 +1,14 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
-use crate::geometry::{InteractionGroups, SAPProxyIndex, SharedShape, SolverFlags};
+use crate::geometry::{
+    ColliderBroadPhaseData, ColliderChanges, ColliderGroups, ColliderMassProperties,
+    ColliderMaterial, ColliderParent, ColliderPosition, ColliderShape, ColliderType,
+    InteractionGroups, SharedShape, SolverFlags,
+};
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
 use na::Unit;
-use parry::bounding_volume::{BoundingVolume, AABB};
+use parry::bounding_volume::AABB;
 use parry::shape::Shape;
-
-bitflags::bitflags! {
-    #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-    /// Flags affecting the behavior of the constraints solver for a given contact manifold.
-    pub(crate) struct ColliderFlags: u8 {
-        const SENSOR = 1 << 0;
-        const FRICTION_COMBINE_RULE_01 = 1 << 1;
-        const FRICTION_COMBINE_RULE_10 = 1 << 2;
-        const RESTITUTION_COMBINE_RULE_01 = 1 << 3;
-        const RESTITUTION_COMBINE_RULE_10 = 1 << 4;
-    }
-}
-
-impl ColliderFlags {
-    pub fn is_sensor(self) -> bool {
-        self.contains(ColliderFlags::SENSOR)
-    }
-
-    pub fn friction_combine_rule_value(self) -> u8 {
-        (self.bits & 0b0000_0110) >> 1
-    }
-
-    pub fn restitution_combine_rule_value(self) -> u8 {
-        (self.bits & 0b0001_1000) >> 3
-    }
-
-    pub fn with_friction_combine_rule(mut self, rule: CoefficientCombineRule) -> Self {
-        self.bits = (self.bits & !0b0000_0110) | ((rule as u8) << 1);
-        self
-    }
-
-    pub fn with_restitution_combine_rule(mut self, rule: CoefficientCombineRule) -> Self {
-        self.bits = (self.bits & !0b0001_1000) | ((rule as u8) << 3);
-        self
-    }
-}
-
-#[derive(Clone)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-enum MassInfo {
-    /// `MassProperties` are computed with the help of [`SharedShape::mass_properties`].
-    Density(Real),
-    MassProperties(Box<MassProperties>),
-}
-
-bitflags::bitflags! {
-    #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-    /// Flags describing how the collider has been modified by the user.
-    pub(crate) struct ColliderChanges: u32 {
-        const MODIFIED             = 1 << 0;
-        const POSITION_WRT_PARENT  = 1 << 1; // => BF & NF updates.
-        const POSITION             = 1 << 2; // => BF & NF updates.
-        const COLLISION_GROUPS     = 1 << 3; // => NF update.
-        const SOLVER_GROUPS        = 1 << 4; // => NF update.
-        const SHAPE                = 1 << 5; // => BF & NF update. NF pair workspace invalidation.
-        const SENSOR               = 1 << 6; // => NF update. NF pair invalidation.
-    }
-}
-
-impl ColliderChanges {
-    pub fn needs_broad_phase_update(self) -> bool {
-        self.intersects(
-            ColliderChanges::POSITION_WRT_PARENT
-                | ColliderChanges::POSITION
-                | ColliderChanges::SHAPE,
-        )
-    }
-
-    pub fn needs_narrow_phase_update(self) -> bool {
-        self.bits() > 1
-    }
-}
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
@@ -84,148 +16,145 @@ impl ColliderChanges {
 ///
 /// To build a new collider, use the `ColliderBuilder` structure.
 pub struct Collider {
-    shape: SharedShape,
-    mass_info: MassInfo,
-    pub(crate) flags: ColliderFlags,
-    pub(crate) solver_flags: SolverFlags,
-    pub(crate) changes: ColliderChanges,
-    pub(crate) parent: RigidBodyHandle,
-    pub(crate) delta: Isometry<Real>,
-    pub(crate) position: Isometry<Real>,
-    /// The friction coefficient of this collider.
-    pub friction: Real,
-    /// The restitution coefficient of this collider.
-    pub restitution: Real,
-    pub(crate) collision_groups: InteractionGroups,
-    pub(crate) solver_groups: InteractionGroups,
-    pub(crate) proxy_index: SAPProxyIndex,
+    pub(crate) co_type: ColliderType,
+    pub(crate) co_shape: ColliderShape,
+    pub(crate) co_mprops: ColliderMassProperties,
+    pub(crate) co_changes: ColliderChanges,
+    pub(crate) co_parent: ColliderParent,
+    pub(crate) co_pos: ColliderPosition,
+    pub(crate) co_material: ColliderMaterial,
+    pub(crate) co_groups: ColliderGroups,
+    pub(crate) co_bf_data: ColliderBroadPhaseData,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
 }
 
 impl Collider {
     pub(crate) fn reset_internal_references(&mut self) {
-        self.parent = RigidBodyHandle::invalid();
-        self.proxy_index = crate::INVALID_U32;
-        self.changes = ColliderChanges::empty();
+        self.co_parent.handle = RigidBodyHandle::invalid();
+        self.co_bf_data.proxy_index = crate::INVALID_U32;
+        self.co_changes = ColliderChanges::all();
     }
 
     /// The rigid body this collider is attached to.
     pub fn parent(&self) -> RigidBodyHandle {
-        self.parent
+        self.co_parent.handle
     }
 
     /// Is this collider a sensor?
     pub fn is_sensor(&self) -> bool {
-        self.flags.is_sensor()
+        self.co_type.is_sensor()
     }
 
     /// The combine rule used by this collider to combine its friction
     /// coefficient with the friction coefficient of the other collider it
     /// is in contact with.
     pub fn friction_combine_rule(&self) -> CoefficientCombineRule {
-        CoefficientCombineRule::from_value(self.flags.friction_combine_rule_value())
+        self.co_material.friction_combine_rule
     }
 
     /// Sets the combine rule used by this collider to combine its friction
     /// coefficient with the friction coefficient of the other collider it
     /// is in contact with.
     pub fn set_friction_combine_rule(&mut self, rule: CoefficientCombineRule) {
-        self.flags = self.flags.with_friction_combine_rule(rule);
+        self.co_material.friction_combine_rule = rule;
     }
 
     /// The combine rule used by this collider to combine its restitution
     /// coefficient with the restitution coefficient of the other collider it
     /// is in contact with.
     pub fn restitution_combine_rule(&self) -> CoefficientCombineRule {
-        CoefficientCombineRule::from_value(self.flags.restitution_combine_rule_value())
+        self.co_material.restitution_combine_rule
     }
 
     /// Sets the combine rule used by this collider to combine its restitution
     /// coefficient with the restitution coefficient of the other collider it
     /// is in contact with.
     pub fn set_restitution_combine_rule(&mut self, rule: CoefficientCombineRule) {
-        self.flags = self.flags.with_restitution_combine_rule(rule)
+        self.co_material.restitution_combine_rule = rule;
     }
 
     /// Sets whether or not this is a sensor collider.
     pub fn set_sensor(&mut self, is_sensor: bool) {
         if is_sensor != self.is_sensor() {
-            self.changes.insert(ColliderChanges::SENSOR);
-            self.flags.set(ColliderFlags::SENSOR, is_sensor);
+            self.co_changes.insert(ColliderChanges::TYPE);
+            self.co_type = if is_sensor {
+                ColliderType::Sensor
+            } else {
+                ColliderType::Solid
+            };
         }
     }
 
     #[doc(hidden)]
     pub fn set_position_debug(&mut self, position: Isometry<Real>) {
-        self.position = position;
+        self.co_pos.0 = position;
     }
 
     /// The position of this collider expressed in the local-space of the rigid-body it is attached to.
     #[deprecated(note = "use `.position_wrt_parent()` instead.")]
     pub fn delta(&self) -> &Isometry<Real> {
-        &self.delta
+        &self.co_parent.pos_wrt_parent
     }
 
     /// The world-space position of this collider.
     pub fn position(&self) -> &Isometry<Real> {
-        &self.position
-    }
-
-    /// Sets the position of this collider wrt. its parent rigid-body.
-    pub(crate) fn set_position(&mut self, position: Isometry<Real>) {
-        self.changes.insert(ColliderChanges::POSITION);
-        self.position = position;
+        &self.co_pos
     }
 
     /// The position of this collider wrt the body it is attached to.
     pub fn position_wrt_parent(&self) -> &Isometry<Real> {
-        &self.delta
+        &self.co_parent.pos_wrt_parent
     }
 
     /// Sets the position of this collider wrt. its parent rigid-body.
     pub fn set_position_wrt_parent(&mut self, position: Isometry<Real>) {
-        self.changes.insert(ColliderChanges::POSITION_WRT_PARENT);
-        self.delta = position;
+        self.co_changes.insert(ColliderChanges::PARENT);
+        self.co_parent.pos_wrt_parent = position;
     }
 
     /// The collision groups used by this collider.
     pub fn collision_groups(&self) -> InteractionGroups {
-        self.collision_groups
+        self.co_groups.collision_groups
     }
 
     /// Sets the collision groups of this collider.
     pub fn set_collision_groups(&mut self, groups: InteractionGroups) {
-        if self.collision_groups != groups {
-            self.changes.insert(ColliderChanges::COLLISION_GROUPS);
-            self.collision_groups = groups;
+        if self.co_groups.collision_groups != groups {
+            self.co_changes.insert(ColliderChanges::GROUPS);
+            self.co_groups.collision_groups = groups;
         }
     }
 
     /// The solver groups used by this collider.
     pub fn solver_groups(&self) -> InteractionGroups {
-        self.solver_groups
+        self.co_groups.solver_groups
     }
 
     /// Sets the solver groups of this collider.
     pub fn set_solver_groups(&mut self, groups: InteractionGroups) {
-        if self.solver_groups != groups {
-            self.changes.insert(ColliderChanges::SOLVER_GROUPS);
-            self.solver_groups = groups;
+        if self.co_groups.solver_groups != groups {
+            self.co_changes.insert(ColliderChanges::GROUPS);
+            self.co_groups.solver_groups = groups;
         }
+    }
+
+    /// The material (friction and restitution properties) of this collider.
+    pub fn material(&self) -> &ColliderMaterial {
+        &self.co_material
     }
 
     /// The density of this collider, if set.
     pub fn density(&self) -> Option<Real> {
-        match &self.mass_info {
-            MassInfo::Density(density) => Some(*density),
-            MassInfo::MassProperties(_) => None,
+        match &self.co_mprops {
+            ColliderMassProperties::Density(density) => Some(*density),
+            ColliderMassProperties::MassProperties(_) => None,
         }
     }
 
     /// The geometric shape of this collider.
     pub fn shape(&self) -> &dyn Shape {
-        &*self.shape.0
+        self.co_shape.as_ref()
     }
 
     /// A mutable reference to the geometric shape of this collider.
@@ -234,33 +163,33 @@ impl Collider {
     /// cloned first so that `self` contains a unique copy of that
     /// shape that you can modify.
     pub fn shape_mut(&mut self) -> &mut dyn Shape {
-        self.changes.insert(ColliderChanges::SHAPE);
-        self.shape.make_mut()
+        self.co_changes.insert(ColliderChanges::SHAPE);
+        self.co_shape.make_mut()
     }
 
     /// Sets the shape of this collider.
     pub fn set_shape(&mut self, shape: SharedShape) {
-        self.changes.insert(ColliderChanges::SHAPE);
-        self.shape = shape;
+        self.co_changes.insert(ColliderChanges::SHAPE);
+        self.co_shape = shape;
     }
 
     /// Compute the axis-aligned bounding box of this collider.
     pub fn compute_aabb(&self) -> AABB {
-        self.shape.compute_aabb(&self.position)
+        self.co_shape.compute_aabb(&self.co_pos)
     }
 
-    /// Compute the axis-aligned bounding box of this collider.
+    /// Compute the axis-aligned bounding box of this collider moving from its current position
+    /// to the given `next_position`
     pub fn compute_swept_aabb(&self, next_position: &Isometry<Real>) -> AABB {
-        let aabb1 = self.shape.compute_aabb(&self.position);
-        let aabb2 = self.shape.compute_aabb(next_position);
-        aabb1.merged(&aabb2)
+        self.co_shape
+            .compute_swept_aabb(&self.co_pos, next_position)
     }
 
     /// Compute the local-space mass properties of this collider.
     pub fn mass_properties(&self) -> MassProperties {
-        match &self.mass_info {
-            MassInfo::Density(density) => self.shape.mass_properties(*density),
-            MassInfo::MassProperties(mass_properties) => **mass_properties,
+        match &self.co_mprops {
+            ColliderMassProperties::Density(density) => self.co_shape.mass_properties(*density),
+            ColliderMassProperties::MassProperties(mass_properties) => **mass_properties,
         }
     }
 }
@@ -272,10 +201,10 @@ pub struct ColliderBuilder {
     /// The shape of the collider to be built.
     pub shape: SharedShape,
     /// The uniform density of the collider to be built.
-    density: Option<Real>,
+    pub density: Option<Real>,
     /// Overrides automatic computation of `MassProperties`.
     /// If None, it will be computed based on shape and density.
-    mass_properties: Option<MassProperties>,
+    pub mass_properties: Option<MassProperties>,
     /// The friction coefficient of the collider to be built.
     pub friction: Real,
     /// The rule used to combine two friction coefficients.
@@ -285,7 +214,7 @@ pub struct ColliderBuilder {
     /// The rule used to combine two restitution coefficients.
     pub restitution_combine_rule: CoefficientCombineRule,
     /// The position of this collider relative to the local frame of the rigid-body it is attached to.
-    pub delta: Isometry<Real>,
+    pub pos_wrt_parent: Isometry<Real>,
     /// Is this collider a sensor?
     pub is_sensor: bool,
     /// Do we have to always call the contact modifier
@@ -308,7 +237,7 @@ impl ColliderBuilder {
             mass_properties: None,
             friction: Self::default_friction(),
             restitution: 0.0,
-            delta: Isometry::identity(),
+            pos_wrt_parent: Isometry::identity(),
             is_sensor: false,
             user_data: 0,
             collision_groups: InteractionGroups::all(),
@@ -646,8 +575,8 @@ impl ColliderBuilder {
     /// relative to the rigid-body it is attached to.
     #[cfg(feature = "dim2")]
     pub fn translation(mut self, x: Real, y: Real) -> Self {
-        self.delta.translation.x = x;
-        self.delta.translation.y = y;
+        self.pos_wrt_parent.translation.x = x;
+        self.pos_wrt_parent.translation.y = y;
         self
     }
 
@@ -655,23 +584,23 @@ impl ColliderBuilder {
     /// relative to the rigid-body it is attached to.
     #[cfg(feature = "dim3")]
     pub fn translation(mut self, x: Real, y: Real, z: Real) -> Self {
-        self.delta.translation.x = x;
-        self.delta.translation.y = y;
-        self.delta.translation.z = z;
+        self.pos_wrt_parent.translation.x = x;
+        self.pos_wrt_parent.translation.y = y;
+        self.pos_wrt_parent.translation.z = z;
         self
     }
 
     /// Sets the initial orientation of the collider to be created,
     /// relative to the rigid-body it is attached to.
     pub fn rotation(mut self, angle: AngVector<Real>) -> Self {
-        self.delta.rotation = Rotation::new(angle);
+        self.pos_wrt_parent.rotation = Rotation::new(angle);
         self
     }
 
     /// Sets the initial position (translation and orientation) of the collider to be created,
     /// relative to the rigid-body it is attached to.
     pub fn position_wrt_parent(mut self, pos: Isometry<Real>) -> Self {
-        self.delta = pos;
+        self.pos_wrt_parent = pos;
         self
     }
 
@@ -679,53 +608,97 @@ impl ColliderBuilder {
     /// relative to the rigid-body it is attached to.
     #[deprecated(note = "Use `.position_wrt_parent` instead.")]
     pub fn position(mut self, pos: Isometry<Real>) -> Self {
-        self.delta = pos;
+        self.pos_wrt_parent = pos;
         self
     }
 
     /// Set the position of this collider in the local-space of the rigid-body it is attached to.
-    #[deprecated(note = "Use `.position` instead.")]
+    #[deprecated(note = "Use `.position_wrt_parent` instead.")]
     pub fn delta(mut self, delta: Isometry<Real>) -> Self {
-        self.delta = delta;
+        self.pos_wrt_parent = delta;
         self
     }
 
     /// Builds a new collider attached to the given rigid-body.
     pub fn build(&self) -> Collider {
+        let (co_changes, co_pos, co_bf_data, co_shape, co_type, co_groups, co_material, co_mprops) =
+            self.components();
+        let co_parent = ColliderParent {
+            pos_wrt_parent: co_pos.0,
+            handle: RigidBodyHandle::invalid(),
+        };
+        Collider {
+            co_shape,
+            co_mprops,
+            co_material,
+            co_parent,
+            co_changes,
+            co_pos,
+            co_bf_data,
+            co_groups,
+            co_type,
+            user_data: self.user_data,
+        }
+    }
+
+    /// Builds all the components required by a collider.
+    pub fn components(
+        &self,
+    ) -> (
+        ColliderChanges,
+        ColliderPosition,
+        ColliderBroadPhaseData,
+        ColliderShape,
+        ColliderType,
+        ColliderGroups,
+        ColliderMaterial,
+        ColliderMassProperties,
+    ) {
         let mass_info = if let Some(mp) = self.mass_properties {
-            MassInfo::MassProperties(Box::new(mp))
+            ColliderMassProperties::MassProperties(Box::new(mp))
         } else {
             let default_density = if self.is_sensor { 0.0 } else { 1.0 };
             let density = self.density.unwrap_or(default_density);
-            MassInfo::Density(density)
+            ColliderMassProperties::Density(density)
         };
 
-        let mut flags = ColliderFlags::empty();
-        flags.set(ColliderFlags::SENSOR, self.is_sensor);
-        flags = flags
-            .with_friction_combine_rule(self.friction_combine_rule)
-            .with_restitution_combine_rule(self.restitution_combine_rule);
         let mut solver_flags = SolverFlags::default();
         solver_flags.set(
             SolverFlags::MODIFY_SOLVER_CONTACTS,
             self.modify_solver_contacts,
         );
 
-        Collider {
-            shape: self.shape.clone(),
-            mass_info,
+        let co_shape = self.shape.clone();
+        let co_mprops = mass_info;
+        let co_material = ColliderMaterial {
             friction: self.friction,
             restitution: self.restitution,
-            delta: self.delta,
-            flags,
+            friction_combine_rule: self.friction_combine_rule,
+            restitution_combine_rule: self.restitution_combine_rule,
             solver_flags,
-            changes: ColliderChanges::all(),
-            parent: RigidBodyHandle::invalid(),
-            position: Isometry::identity(),
-            proxy_index: crate::INVALID_U32,
+        };
+        let co_changes = ColliderChanges::all();
+        let co_pos = ColliderPosition(self.pos_wrt_parent);
+        let co_bf_data = ColliderBroadPhaseData::default();
+        let co_groups = ColliderGroups {
             collision_groups: self.collision_groups,
             solver_groups: self.solver_groups,
-            user_data: self.user_data,
-        }
+        };
+        let co_type = if self.is_sensor {
+            ColliderType::Sensor
+        } else {
+            ColliderType::Solid
+        };
+
+        (
+            co_changes,
+            co_pos,
+            co_bf_data,
+            co_shape,
+            co_type,
+            co_groups,
+            co_material,
+            co_mprops,
+        )
     }
 }

@@ -1,4 +1,4 @@
-use crate::dynamics::{BodyPair, RigidBodyHandle};
+use crate::dynamics::RigidBodyHandle;
 use crate::geometry::{ColliderPair, Contact, ContactManifold};
 use crate::math::{Point, Real, Vector};
 use parry::query::ContactManifoldsWorkspace;
@@ -115,8 +115,10 @@ impl ContactPair {
 /// part of the same contact manifold share the same contact normal and contact kinematics.
 pub struct ContactManifoldData {
     // The following are set by the narrow-phase.
-    /// The pair of body involved in this contact manifold.
-    pub body_pair: BodyPair,
+    /// The first rigid-body involved in this contact manifold.
+    pub rigid_body1: Option<RigidBodyHandle>,
+    /// The second rigid-body involved in this contact manifold.
+    pub rigid_body2: Option<RigidBodyHandle>,
     pub(crate) warmstart_multiplier: Real,
     // The two following are set by the constraints solver.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
@@ -207,17 +209,19 @@ impl SolverContact {
 
 impl Default for ContactManifoldData {
     fn default() -> Self {
-        Self::new(
-            BodyPair::new(RigidBodyHandle::invalid(), RigidBodyHandle::invalid()),
-            SolverFlags::empty(),
-        )
+        Self::new(None, None, SolverFlags::empty())
     }
 }
 
 impl ContactManifoldData {
-    pub(crate) fn new(body_pair: BodyPair, solver_flags: SolverFlags) -> ContactManifoldData {
+    pub(crate) fn new(
+        rigid_body1: Option<RigidBodyHandle>,
+        rigid_body2: Option<RigidBodyHandle>,
+        solver_flags: SolverFlags,
+    ) -> ContactManifoldData {
         Self {
-            body_pair,
+            rigid_body1,
+            rigid_body2,
             warmstart_multiplier: Self::min_warmstart_multiplier(),
             constraint_index: 0,
             position_constraint_index: 0,

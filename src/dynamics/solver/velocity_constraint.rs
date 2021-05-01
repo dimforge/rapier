@@ -1,7 +1,8 @@
+use crate::data::{BundleSet, ComponentSet};
 use crate::dynamics::solver::VelocityGroundConstraint;
 #[cfg(feature = "simd-is-enabled")]
 use crate::dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint};
-use crate::dynamics::{IntegrationParameters, RigidBodySet};
+use crate::dynamics::{IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyVelocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{WAngularInertia, WBasis, WCross, WDot};
@@ -102,23 +103,32 @@ impl VelocityConstraint {
         manifold.data.solver_contacts.len() / MAX_MANIFOLD_POINTS + rest as usize
     }
 
-    pub fn generate(
+    pub fn generate<Bodies>(
         params: &IntegrationParameters,
         manifold_id: ContactManifoldIndex,
         manifold: &ContactManifold,
-        bodies: &RigidBodySet,
+        bodies: &Bodies,
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         push: bool,
-    ) {
+    ) where
+        Bodies: ComponentSet<RigidBodyIds>
+            + ComponentSet<RigidBodyVelocity>
+            + ComponentSet<RigidBodyMassProps>,
+    {
         assert_eq!(manifold.data.relative_dominance, 0);
 
         let inv_dt = params.inv_dt();
         let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
 
-        let rb1 = &bodies[manifold.data.body_pair.body1];
-        let rb2 = &bodies[manifold.data.body_pair.body2];
-        let mj_lambda1 = rb1.active_set_offset;
-        let mj_lambda2 = rb2.active_set_offset;
+        let handle1 = manifold.data.rigid_body1.unwrap();
+        let handle2 = manifold.data.rigid_body2.unwrap();
+        let (ids1, vels1, mprops1): (&RigidBodyIds, &RigidBodyVelocity, &RigidBodyMassProps) =
+            bodies.index_bundle(handle1.0);
+        let (ids2, vels2, mprops2): (&RigidBodyIds, &RigidBodyVelocity, &RigidBodyMassProps) =
+            bodies.index_bundle(handle2.0);
+
+        let mj_lambda1 = ids1.active_set_offset;
+        let mj_lambda2 = ids2.active_set_offset;
         let force_dir1 = -manifold.data.normal;
         let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
 
@@ -126,7 +136,7 @@ impl VelocityConstraint {
         let tangents1 = force_dir1.orthonormal_basis();
         #[cfg(feature = "dim3")]
         let (tangents1, tangent_rot1) =
-            super::compute_tangent_contact_directions(&force_dir1, &rb1.linvel, &rb2.linvel);
+            super::compute_tangent_contact_directions(&force_dir1, &vels1.linvel, &vels2.linvel);
 
         for (_l, manifold_points) in manifold
             .data
@@ -142,8 +152,8 @@ impl VelocityConstraint {
                 #[cfg(feature = "dim3")]
                 tangent_rot1,
                 elements: [VelocityConstraintElement::zero(); MAX_MANIFOLD_POINTS],
-                im1: rb1.effective_inv_mass,
-                im2: rb2.effective_inv_mass,
+                im1: mprops1.effective_inv_mass,
+                im2: mprops2.effective_inv_mass,
                 limit: 0.0,
                 mj_lambda1,
                 mj_lambda2,
@@ -190,8 +200,8 @@ impl VelocityConstraint {
                     constraint.tangent1 = tangents1[0];
                     constraint.tangent_rot1 = tangent_rot1;
                 }
-                constraint.im1 = rb1.effective_inv_mass;
-                constraint.im2 = rb2.effective_inv_mass;
+                constraint.im1 = mprops1.effective_inv_mass;
+                constraint.im2 = mprops2.effective_inv_mass;
                 constraint.limit = 0.0;
                 constraint.mj_lambda1 = mj_lambda1;
                 constraint.mj_lambda2 = mj_lambda2;
@@ -202,11 +212,11 @@ impl VelocityConstraint {
 
             for k in 0..manifold_points.len() {
                 let manifold_point = &manifold_points[k];
-                let dp1 = manifold_point.point - rb1.world_com;
-                let dp2 = manifold_point.point - rb2.world_com;
+                let dp1 = manifold_point.point - mprops1.world_com;
+                let dp2 = manifold_point.point - mprops2.world_com;
 
-                let vel1 = rb1.linvel + rb1.angvel.gcross(dp1);
-                let vel2 = rb2.linvel + rb2.angvel.gcross(dp2);
+                let vel1 = vels1.linvel + vels1.angvel.gcross(dp1);
+                let vel2 = vels2.linvel + vels2.angvel.gcross(dp2);
 
                 let warmstart_correction;
 
@@ -215,16 +225,16 @@ impl VelocityConstraint {
 
                 // Normal part.
                 {
-                    let gcross1 = rb1
+                    let gcross1 = mprops1
                         .effective_world_inv_inertia_sqrt
                         .transform_vector(dp1.gcross(force_dir1));
-                    let gcross2 = rb2
+                    let gcross2 = mprops2
                         .effective_world_inv_inertia_sqrt
                         .transform_vector(dp2.gcross(-force_dir1));
 
                     let r = 1.0
-                        / (rb1.effective_inv_mass
-                            + rb2.effective_inv_mass
+                        / (mprops1.effective_inv_mass
+                            + mprops2.effective_inv_mass
                             + gcross1.gdot(gcross1)
                             + gcross2.gdot(gcross2));
 
@@ -261,15 +271,15 @@ impl VelocityConstraint {
                     constraint.elements[k].tangent_part.impulse = impulse;
 
                     for j in 0..DIM - 1 {
-                        let gcross1 = rb1
+                        let gcross1 = mprops1
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(dp1.gcross(tangents1[j]));
-                        let gcross2 = rb2
+                        let gcross2 = mprops2
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(dp2.gcross(-tangents1[j]));
                         let r = 1.0
-                            / (rb1.effective_inv_mass
-                                + rb2.effective_inv_mass
+                            / (mprops1.effective_inv_mass
+                                + mprops2.effective_inv_mass
                                 + gcross1.gdot(gcross1)
                                 + gcross2.gdot(gcross2));
                         let rhs =

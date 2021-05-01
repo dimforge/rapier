@@ -1,5 +1,5 @@
 use na::Point2;
-use rapier2d::dynamics::{BallJoint, BodyStatus, JointSet, RigidBodyBuilder, RigidBodySet};
+use rapier2d::dynamics::{BallJoint, JointSet, RigidBodyBuilder, RigidBodySet, RigidBodyType};
 use rapier2d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed2d::Testbed;
 
@@ -31,9 +31,9 @@ pub fn init_world(testbed: &mut Testbed) {
             let fi = i as f32;
 
             let status = if i == 0 && k == 0 {
-                BodyStatus::Static
+                RigidBodyType::Static
             } else {
-                BodyStatus::Dynamic
+                RigidBodyType::Dynamic
             };
 
             let rigid_body = RigidBodyBuilder::new(status)

@@ -1,4 +1,6 @@
-use crate::dynamics::{FixedJoint, IntegrationParameters, RigidBody};
+use crate::dynamics::{
+    FixedJoint, IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition,
+};
 use crate::math::{AngularInertia, Isometry, Point, Real, Rotation};
 use crate::utils::WAngularInertia;
 
@@ -20,25 +22,32 @@ pub(crate) struct FixedPositionConstraint {
 }
 
 impl FixedPositionConstraint {
-    pub fn from_params(rb1: &RigidBody, rb2: &RigidBody, cparams: &FixedJoint) -> Self {
-        let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
-        let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
-        let im1 = rb1.effective_inv_mass;
-        let im2 = rb2.effective_inv_mass;
+    pub fn from_params(
+        rb1: (&RigidBodyMassProps, &RigidBodyIds),
+        rb2: (&RigidBodyMassProps, &RigidBodyIds),
+        cparams: &FixedJoint,
+    ) -> Self {
+        let (mprops1, ids1) = rb1;
+        let (mprops2, ids2) = rb2;
+
+        let ii1 = mprops1.effective_world_inv_inertia_sqrt.squared();
+        let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
+        let im1 = mprops1.effective_inv_mass;
+        let im2 = mprops2.effective_inv_mass;
         let lin_inv_lhs = 1.0 / (im1 + im2);
         let ang_inv_lhs = (ii1 + ii2).inverse();
 
         Self {
             local_anchor1: cparams.local_anchor1,
             local_anchor2: cparams.local_anchor2,
-            position1: rb1.active_set_offset,
-            position2: rb2.active_set_offset,
+            position1: ids1.active_set_offset,
+            position2: ids2.active_set_offset,
             im1,
             im2,
             ii1,
             ii2,
-            local_com1: rb1.mass_properties.local_com,
-            local_com2: rb2.mass_properties.local_com,
+            local_com1: mprops1.mass_properties.local_com,
+            local_com2: mprops2.mass_properties.local_com,
             lin_inv_lhs,
             ang_inv_lhs,
         }
@@ -91,29 +100,32 @@ pub(crate) struct FixedPositionGroundConstraint {
 
 impl FixedPositionGroundConstraint {
     pub fn from_params(
-        rb1: &RigidBody,
-        rb2: &RigidBody,
+        rb1: &RigidBodyPosition,
+        rb2: (&RigidBodyMassProps, &RigidBodyIds),
         cparams: &FixedJoint,
         flipped: bool,
     ) -> Self {
+        let poss1 = rb1;
+        let (mprops2, ids2) = rb2;
+
         let anchor1;
         let local_anchor2;
 
         if flipped {
-            anchor1 = rb1.next_position * cparams.local_anchor2;
+            anchor1 = poss1.next_position * cparams.local_anchor2;
             local_anchor2 = cparams.local_anchor1;
         } else {
-            anchor1 = rb1.next_position * cparams.local_anchor1;
+            anchor1 = poss1.next_position * cparams.local_anchor1;
             local_anchor2 = cparams.local_anchor2;
         };
 
         Self {
             anchor1,
             local_anchor2,
-            position2: rb2.active_set_offset,
-            im2: rb2.effective_inv_mass,
-            ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
-            local_com2: rb2.mass_properties.local_com,
+            position2: ids2.active_set_offset,
+            im2: mprops2.effective_inv_mass,
+            ii2: mprops2.effective_world_inv_inertia_sqrt.squared(),
+            local_com2: mprops2.mass_properties.local_com,
             impulse: 0.0,
         }
     }

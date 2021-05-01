@@ -1,6 +1,6 @@
 use super::{GenericVelocityConstraint, GenericVelocityGroundConstraint};
 use crate::dynamics::solver::DeltaVel;
-use crate::dynamics::{GenericJoint, IntegrationParameters, RigidBody};
+use crate::dynamics::{GenericJoint, IntegrationParameters};
 use crate::math::{
     AngDim, AngVector, AngularInertia, Dim, Isometry, Point, Real, Rotation, SpatialVector, Vector,
     DIM,

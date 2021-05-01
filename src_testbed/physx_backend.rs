@@ -520,9 +520,9 @@ fn physx_collider_from_rapier_collider(
     };
     let mut material = physics
         .create_material(
-            collider.friction,
-            collider.friction,
-            collider.restitution,
+            collider.material().friction,
+            collider.material().friction,
+            collider.material().restitution,
             (),
         )
         .unwrap();

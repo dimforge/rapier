@@ -25,6 +25,7 @@ mod debug_friction3;
 mod debug_infinite_fall3;
 mod debug_prismatic3;
 mod debug_rollback3;
+mod debug_shape_modification3;
 mod debug_triangle3;
 mod debug_trimesh3;
 mod domino3;
@@ -112,6 +113,10 @@ pub fn main() {
         ("(Debug) infinite fall", debug_infinite_fall3::init_world),
         ("(Debug) prismatic", debug_prismatic3::init_world),
         ("(Debug) rollback", debug_rollback3::init_world),
+        (
+            "(Debug) shape modification",
+            debug_shape_modification3::init_world,
+        ),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.

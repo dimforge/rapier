@@ -1,5 +1,7 @@
 use super::{FixedPositionConstraint, FixedPositionGroundConstraint};
-use crate::dynamics::{FixedJoint, IntegrationParameters, RigidBody};
+use crate::dynamics::{
+    FixedJoint, IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition,
+};
 use crate::math::{Isometry, Real, SIMD_WIDTH};
 
 // TODO: this does not uses SIMD optimizations yet.
@@ -10,12 +12,22 @@ pub(crate) struct WFixedPositionConstraint {
 
 impl WFixedPositionConstraint {
     pub fn from_params(
-        rbs1: [&RigidBody; SIMD_WIDTH],
-        rbs2: [&RigidBody; SIMD_WIDTH],
+        rbs1: (
+            [&RigidBodyMassProps; SIMD_WIDTH],
+            [&RigidBodyIds; SIMD_WIDTH],
+        ),
+        rbs2: (
+            [&RigidBodyMassProps; SIMD_WIDTH],
+            [&RigidBodyIds; SIMD_WIDTH],
+        ),
         cparams: [&FixedJoint; SIMD_WIDTH],
     ) -> Self {
         Self {
-            constraints: array![|ii| FixedPositionConstraint::from_params(rbs1[ii], rbs2[ii], cparams[ii]); SIMD_WIDTH],
+            constraints: gather![|ii| FixedPositionConstraint::from_params(
+                (rbs1.0[ii], rbs1.1[ii]),
+                (rbs2.0[ii], rbs2.1[ii]),
+                cparams[ii]
+            )],
         }
     }
 
@@ -33,13 +45,21 @@ pub(crate) struct WFixedPositionGroundConstraint {
 
 impl WFixedPositionGroundConstraint {
     pub fn from_params(
-        rbs1: [&RigidBody; SIMD_WIDTH],
-        rbs2: [&RigidBody; SIMD_WIDTH],
+        rbs1: [&RigidBodyPosition; SIMD_WIDTH],
+        rbs2: (
+            [&RigidBodyMassProps; SIMD_WIDTH],
+            [&RigidBodyIds; SIMD_WIDTH],
+        ),
         cparams: [&FixedJoint; SIMD_WIDTH],
         flipped: [bool; SIMD_WIDTH],
     ) -> Self {
         Self {
-            constraints: array![|ii| FixedPositionGroundConstraint::from_params(rbs1[ii], rbs2[ii], cparams[ii], flipped[ii]); SIMD_WIDTH],
+            constraints: gather![|ii| FixedPositionGroundConstraint::from_params(
+                rbs1[ii],
+                (rbs2.0[ii], rbs2.1[ii]),
+                cparams[ii],
+                flipped[ii]
+            )],
         }
     }
 

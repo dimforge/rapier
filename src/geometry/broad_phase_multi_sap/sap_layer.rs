@@ -1,6 +1,6 @@
 use super::{SAPProxies, SAPProxy, SAPRegion, SAPRegionPool};
 use crate::geometry::broad_phase_multi_sap::DELETED_AABB_VALUE;
-use crate::geometry::{Collider, SAPProxyIndex, AABB};
+use crate::geometry::{SAPProxyIndex, AABB};
 use crate::math::{Point, Real};
 use parry::utils::hashmap::{Entry, HashMap};
 
@@ -213,12 +213,11 @@ impl SAPLayer {
 
     pub fn preupdate_collider(
         &mut self,
-        collider: &Collider,
+        proxy_id: u32,
         aabb: &AABB,
         proxies: &mut SAPProxies,
         pool: &mut SAPRegionPool,
     ) {
-        let proxy_id = collider.proxy_index;
         let start = super::point_key(aabb.mins, self.region_width);
         let end = super::point_key(aabb.maxs, self.region_width);
 

@@ -1,8 +1,10 @@
 use super::AnyJointVelocityConstraint;
+use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
 use crate::dynamics::{
     solver::{AnyVelocityConstraint, DeltaVel},
-    IntegrationParameters, JointGraphEdge, RigidBodySet,
+    IntegrationParameters, JointGraphEdge, RigidBodyForces, RigidBodyVelocity,
 };
+use crate::dynamics::{IslandManager, RigidBodyIds, RigidBodyMassProps};
 use crate::geometry::ContactManifold;
 use crate::math::Real;
 use crate::utils::WAngularInertia;
@@ -18,31 +20,38 @@ impl VelocitySolver {
         }
     }
 
-    pub fn solve(
+    pub fn solve<Bodies>(
         &mut self,
         island_id: usize,
         params: &IntegrationParameters,
-        bodies: &mut RigidBodySet,
+        islands: &IslandManager,
+        bodies: &mut Bodies,
         manifolds_all: &mut [&mut ContactManifold],
         joints_all: &mut [JointGraphEdge],
         contact_constraints: &mut [AnyVelocityConstraint],
         joint_constraints: &mut [AnyJointVelocityConstraint],
-    ) {
+    ) where
+        Bodies: ComponentSet<RigidBodyForces>
+            + ComponentSet<RigidBodyIds>
+            + ComponentSetMut<RigidBodyVelocity>
+            + ComponentSet<RigidBodyMassProps>,
+    {
         self.mj_lambdas.clear();
         self.mj_lambdas
-            .resize(bodies.active_island(island_id).len(), DeltaVel::zero());
+            .resize(islands.active_island(island_id).len(), DeltaVel::zero());
 
         // Initialize delta-velocities (`mj_lambdas`) with external forces (gravity etc):
-        bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
-            let dvel = &mut self.mj_lambdas[rb.active_set_offset];
+        for handle in islands.active_island(island_id) {
+            let (ids, mprops, forces): (&RigidBodyIds, &RigidBodyMassProps, &RigidBodyForces) =
+                bodies.index_bundle(handle.0);
 
-            dvel.linear += rb.force * (rb.effective_inv_mass * params.dt);
-            rb.force = na::zero();
+            let dvel = &mut self.mj_lambdas[ids.active_set_offset];
 
-            // dvel.angular is actually storing angular velocity delta multiplied by the square root of the inertia tensor:
-            dvel.angular += rb.effective_world_inv_inertia_sqrt * rb.torque * params.dt;
-            rb.torque = na::zero();
-        });
+            // NOTE: `dvel.angular` is actually storing angular velocity delta multiplied
+            //       by the square root of the inertia tensor:
+            dvel.angular += mprops.effective_world_inv_inertia_sqrt * forces.torque * params.dt;
+            dvel.linear += forces.force * (mprops.effective_inv_mass * params.dt);
+        }
 
         /*
          * Warmstart constraints.
@@ -69,13 +78,19 @@ impl VelocitySolver {
         }
 
         // Update velocities.
-        bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
-            let dvel = self.mj_lambdas[rb.active_set_offset];
-            rb.linvel += dvel.linear;
-            rb.angvel += rb
+        for handle in islands.active_island(island_id) {
+            let (ids, mprops): (&RigidBodyIds, &RigidBodyMassProps) = bodies.index_bundle(handle.0);
+
+            let dvel = self.mj_lambdas[ids.active_set_offset];
+            let dangvel = mprops
                 .effective_world_inv_inertia_sqrt
                 .transform_vector(dvel.angular);
-        });
+
+            bodies.map_mut_internal(handle.0, |vels| {
+                vels.linvel += dvel.linear;
+                vels.angvel += dangvel;
+            });
+        }
 
         // Write impulses back into the manifold structures.
         for constraint in &*joint_constraints {

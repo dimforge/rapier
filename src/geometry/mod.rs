@@ -1,8 +1,7 @@
 //! Structures related to geometry: colliders, shapes, etc.
 
 pub use self::broad_phase_multi_sap::BroadPhase;
-pub use self::collider::{Collider, ColliderBuilder};
-pub use self::collider_set::{ColliderHandle, ColliderSet};
+pub use self::collider_components::*;
 pub use self::contact_pair::{ContactData, ContactManifoldData};
 pub use self::contact_pair::{ContactPair, SolverContact, SolverFlags};
 pub use self::interaction_graph::{
@@ -10,6 +9,11 @@ pub use self::interaction_graph::{
 };
 pub use self::interaction_groups::InteractionGroups;
 pub use self::narrow_phase::NarrowPhase;
+
+#[cfg(feature = "default-sets")]
+pub use self::collider::{Collider, ColliderBuilder};
+#[cfg(feature = "default-sets")]
+pub use self::collider_set::ColliderSet;
 
 pub use parry::query::TrackedContact;
 
@@ -85,9 +89,8 @@ impl IntersectionEvent {
 }
 
 pub(crate) use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair, SAPProxyIndex};
-pub(crate) use self::collider_set::RemovedCollider;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
-pub(crate) use parry::partitioning::SimdQuadTree;
+pub(crate) use parry::partitioning::QBVH;
 pub use parry::shape::*;
 
 #[cfg(feature = "serde-serialize")]
@@ -102,9 +105,13 @@ pub(crate) fn default_query_dispatcher() -> std::sync::Arc<dyn parry::query::Que
 }
 
 mod broad_phase_multi_sap;
-mod collider;
-mod collider_set;
+mod collider_components;
 mod contact_pair;
 mod interaction_graph;
 mod interaction_groups;
 mod narrow_phase;
+
+#[cfg(feature = "default-sets")]
+mod collider;
+#[cfg(feature = "default-sets")]
+mod collider_set;

@@ -1,5 +1,5 @@
 use na::Point3;
-use rapier3d::dynamics::{BodyStatus, JointSet, RigidBodyBuilder, RigidBodySet};
+use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet, RigidBodyType};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed3d::Testbed;
 
@@ -30,9 +30,9 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f32 * shift - centerz;
 
                 let status = if j == 0 {
-                    BodyStatus::Static
+                    RigidBodyType::Static
                 } else {
-                    BodyStatus::Dynamic
+                    RigidBodyType::Dynamic
                 };
                 let density = 0.477;
 

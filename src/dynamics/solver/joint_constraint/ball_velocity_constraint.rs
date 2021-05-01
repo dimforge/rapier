@@ -1,6 +1,7 @@
 use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
-    BallJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBody,
+    BallJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBodyIds,
+    RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
 };
 use crate::math::{AngVector, AngularInertia, Real, SdpMatrix, Vector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
@@ -36,19 +37,32 @@ impl BallVelocityConstraint {
     pub fn from_params(
         params: &IntegrationParameters,
         joint_id: JointIndex,
-        rb1: &RigidBody,
-        rb2: &RigidBody,
+        rb1: (
+            &RigidBodyPosition,
+            &RigidBodyVelocity,
+            &RigidBodyMassProps,
+            &RigidBodyIds,
+        ),
+        rb2: (
+            &RigidBodyPosition,
+            &RigidBodyVelocity,
+            &RigidBodyMassProps,
+            &RigidBodyIds,
+        ),
         joint: &BallJoint,
     ) -> Self {
-        let anchor_world1 = rb1.position * joint.local_anchor1;
-        let anchor_world2 = rb2.position * joint.local_anchor2;
-        let anchor1 = anchor_world1 - rb1.world_com;
-        let anchor2 = anchor_world2 - rb2.world_com;
+        let (poss1, vels1, mprops1, ids1) = rb1;
+        let (poss2, vels2, mprops2, ids2) = rb2;
 
-        let vel1 = rb1.linvel + rb1.angvel.gcross(anchor1);
-        let vel2 = rb2.linvel + rb2.angvel.gcross(anchor2);
-        let im1 = rb1.effective_inv_mass;
-        let im2 = rb2.effective_inv_mass;
+        let anchor_world1 = poss1.position * joint.local_anchor1;
+        let anchor_world2 = poss2.position * joint.local_anchor2;
+        let anchor1 = anchor_world1 - mprops1.world_com;
+        let anchor2 = anchor_world2 - mprops2.world_com;
+
+        let vel1 = vels1.linvel + vels1.angvel.gcross(anchor1);
+        let vel2 = vels2.linvel + vels2.angvel.gcross(anchor2);
+        let im1 = mprops1.effective_inv_mass;
+        let im2 = mprops2.effective_inv_mass;
 
         let rhs = (vel2 - vel1) * params.velocity_solve_fraction
             + (anchor_world2 - anchor_world1) * params.velocity_based_erp_inv_dt();
@@ -59,12 +73,12 @@ impl BallVelocityConstraint {
 
         #[cfg(feature = "dim3")]
         {
-            lhs = rb2
+            lhs = mprops2
                 .effective_world_inv_inertia_sqrt
                 .squared()
                 .quadform(&cmat2)
                 .add_diagonal(im2)
-                + rb1
+                + mprops1
                     .effective_world_inv_inertia_sqrt
                     .squared()
                     .quadform(&cmat1)
@@ -75,8 +89,8 @@ impl BallVelocityConstraint {
         // it's just easier that way.
         #[cfg(feature = "dim2")]
         {
-            let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
-            let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
+            let ii1 = mprops1.effective_world_inv_inertia_sqrt.squared();
+            let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
             let m11 = im1 + im2 + cmat1.x * cmat1.x * ii1 + cmat2.x * cmat2.x * ii2;
             let m12 = cmat1.x * cmat1.y * ii1 + cmat2.x * cmat2.y * ii2;
             let m22 = im1 + im2 + cmat1.y * cmat1.y * ii1 + cmat2.y * cmat2.y * ii2;
@@ -100,8 +114,8 @@ impl BallVelocityConstraint {
             );
 
             if stiffness != 0.0 {
-                let dpos = rb2.position.rotation
-                    * (rb1.position.rotation * joint.motor_target_pos).inverse();
+                let dpos = poss2.position.rotation
+                    * (poss1.position.rotation * joint.motor_target_pos).inverse();
                 #[cfg(feature = "dim2")]
                 {
                     motor_rhs += dpos.angle() * stiffness;
@@ -113,15 +127,15 @@ impl BallVelocityConstraint {
             }
 
             if damping != 0.0 {
-                let curr_vel = rb2.angvel - rb1.angvel;
+                let curr_vel = vels2.angvel - vels1.angvel;
                 motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
             }
 
             #[cfg(feature = "dim2")]
             if stiffness != 0.0 || damping != 0.0 {
                 motor_inv_lhs = if keep_lhs {
-                    let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
-                    let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
+                    let ii1 = mprops1.effective_world_inv_inertia_sqrt.squared();
+                    let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
                     Some(gamma / (ii1 + ii2))
                 } else {
                     Some(gamma)
@@ -132,8 +146,8 @@ impl BallVelocityConstraint {
             #[cfg(feature = "dim3")]
             if stiffness != 0.0 || damping != 0.0 {
                 motor_inv_lhs = if keep_lhs {
-                    let ii1 = rb1.effective_world_inv_inertia_sqrt.squared();
-                    let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
+                    let ii1 = mprops1.effective_world_inv_inertia_sqrt.squared();
+                    let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
                     Some((ii1 + ii2).inverse_unchecked() * gamma)
                 } else {
                     Some(SdpMatrix::diagonal(gamma))
@@ -151,8 +165,8 @@ impl BallVelocityConstraint {
 
         BallVelocityConstraint {
             joint_id,
-            mj_lambda1: rb1.active_set_offset,
-            mj_lambda2: rb2.active_set_offset,
+            mj_lambda1: ids1.active_set_offset,
+            mj_lambda2: ids2.active_set_offset,
             im1,
             im2,
             impulse: joint.impulse * params.warmstart_coeff,
@@ -164,8 +178,8 @@ impl BallVelocityConstraint {
             motor_impulse,
             motor_inv_lhs,
             motor_max_impulse: joint.motor_max_impulse,
-            ii1_sqrt: rb1.effective_world_inv_inertia_sqrt,
-            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
+            ii1_sqrt: mprops1.effective_world_inv_inertia_sqrt,
+            ii2_sqrt: mprops2.effective_world_inv_inertia_sqrt,
         }
     }
 
@@ -269,29 +283,37 @@ impl BallVelocityGroundConstraint {
     pub fn from_params(
         params: &IntegrationParameters,
         joint_id: JointIndex,
-        rb1: &RigidBody,
-        rb2: &RigidBody,
+        rb1: (&RigidBodyPosition, &RigidBodyVelocity, &RigidBodyMassProps),
+        rb2: (
+            &RigidBodyPosition,
+            &RigidBodyVelocity,
+            &RigidBodyMassProps,
+            &RigidBodyIds,
+        ),
         joint: &BallJoint,
         flipped: bool,
     ) -> Self {
+        let (poss1, vels1, mprops1) = rb1;
+        let (poss2, vels2, mprops2, ids2) = rb2;
+
         let (anchor_world1, anchor_world2) = if flipped {
             (
-                rb1.position * joint.local_anchor2,
-                rb2.position * joint.local_anchor1,
+                poss1.position * joint.local_anchor2,
+                poss2.position * joint.local_anchor1,
             )
         } else {
             (
-                rb1.position * joint.local_anchor1,
-                rb2.position * joint.local_anchor2,
+                poss1.position * joint.local_anchor1,
+                poss2.position * joint.local_anchor2,
             )
         };
 
-        let anchor1 = anchor_world1 - rb1.world_com;
-        let anchor2 = anchor_world2 - rb2.world_com;
+        let anchor1 = anchor_world1 - mprops1.world_com;
+        let anchor2 = anchor_world2 - mprops2.world_com;
 
-        let im2 = rb2.effective_inv_mass;
-        let vel1 = rb1.linvel + rb1.angvel.gcross(anchor1);
-        let vel2 = rb2.linvel + rb2.angvel.gcross(anchor2);
+        let im2 = mprops2.effective_inv_mass;
+        let vel1 = vels1.linvel + vels1.angvel.gcross(anchor1);
+        let vel2 = vels2.linvel + vels2.angvel.gcross(anchor2);
 
         let rhs = (vel2 - vel1) * params.velocity_solve_fraction
             + (anchor_world2 - anchor_world1) * params.velocity_based_erp_inv_dt();
@@ -302,7 +324,7 @@ impl BallVelocityGroundConstraint {
 
         #[cfg(feature = "dim3")]
         {
-            lhs = rb2
+            lhs = mprops2
                 .effective_world_inv_inertia_sqrt
                 .squared()
                 .quadform(&cmat2)
@@ -311,7 +333,7 @@ impl BallVelocityGroundConstraint {
 
         #[cfg(feature = "dim2")]
         {
-            let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
+            let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
             let m11 = im2 + cmat2.x * cmat2.x * ii2;
             let m12 = cmat2.x * cmat2.y * ii2;
             let m22 = im2 + cmat2.y * cmat2.y * ii2;
@@ -335,8 +357,8 @@ impl BallVelocityGroundConstraint {
             );
 
             if stiffness != 0.0 {
-                let dpos = rb2.position.rotation
-                    * (rb1.position.rotation * joint.motor_target_pos).inverse();
+                let dpos = poss2.position.rotation
+                    * (poss1.position.rotation * joint.motor_target_pos).inverse();
                 #[cfg(feature = "dim2")]
                 {
                     motor_rhs += dpos.angle() * stiffness;
@@ -348,14 +370,14 @@ impl BallVelocityGroundConstraint {
             }
 
             if damping != 0.0 {
-                let curr_vel = rb2.angvel - rb1.angvel;
+                let curr_vel = vels2.angvel - vels1.angvel;
                 motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
             }
 
             #[cfg(feature = "dim2")]
             if stiffness != 0.0 || damping != 0.0 {
                 motor_inv_lhs = if keep_lhs {
-                    let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
+                    let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
                     Some(gamma / ii2)
                 } else {
                     Some(gamma)
@@ -366,7 +388,7 @@ impl BallVelocityGroundConstraint {
             #[cfg(feature = "dim3")]
             if stiffness != 0.0 || damping != 0.0 {
                 motor_inv_lhs = if keep_lhs {
-                    let ii2 = rb2.effective_world_inv_inertia_sqrt.squared();
+                    let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
                     Some(ii2.inverse_unchecked() * gamma)
                 } else {
                     Some(SdpMatrix::diagonal(gamma))
@@ -384,7 +406,7 @@ impl BallVelocityGroundConstraint {
 
         BallVelocityGroundConstraint {
             joint_id,
-            mj_lambda2: rb2.active_set_offset,
+            mj_lambda2: ids2.active_set_offset,
             im2,
             impulse: joint.impulse * params.warmstart_coeff,
             r2: anchor2,
@@ -394,7 +416,7 @@ impl BallVelocityGroundConstraint {
             motor_impulse,
             motor_inv_lhs,
             motor_max_impulse: joint.motor_max_impulse,
-            ii2_sqrt: rb2.effective_world_inv_inertia_sqrt,
+            ii2_sqrt: mprops2.effective_world_inv_inertia_sqrt,
         }
     }
 
