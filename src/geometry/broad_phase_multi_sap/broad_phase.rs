@@ -369,6 +369,7 @@ impl BroadPhase {
                     // We need to promote the proxy to the bigger layer.
                     layer_id = self.ensure_layer_exists(new_layer_depth);
                     self.proxies[*proxy_index].layer_id = layer_id;
+                    self.proxies[*proxy_index].layer_depth = new_layer_depth;
                 }
             }
 

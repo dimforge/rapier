@@ -90,7 +90,11 @@ impl SAPRegion {
     ///
     /// Returns `true` if this region contained the proxy. Returns `false` otherwise.
     pub fn proper_proxy_moved_to_a_bigger_layer(&mut self, proxy_id: SAPProxyIndex) -> bool {
-        if self.existing_proxies[proxy_id as usize] {
+        if self.existing_proxies.get(proxy_id as usize) == Some(true) {
+            // NOTE: we are just registering the fact that that proxy isn't a
+            //       subproper proxy anymore. But it is still part of this region
+            //       so we must not set `self.existing_proxies[proxy_id] = false`
+            //       nor delete its endpoints.
             self.subproper_proxy_count -= 1;
             true
         } else {
