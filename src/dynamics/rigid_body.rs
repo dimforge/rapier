@@ -564,7 +564,7 @@ impl RigidBody {
 }
 
 /// A builder for rigid-bodies.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[must_use = "Builder functions return the updated builder"]
 pub struct RigidBodyBuilder {
     /// The initial position of the rigid-body to be built.
