@@ -26,7 +26,7 @@ pub struct Collider {
     pub(crate) co_material: ColliderMaterial,
     pub(crate) co_flags: ColliderFlags,
     pub(crate) co_bf_data: ColliderBroadPhaseData,
-    /// User-defined data associated to this rigid-body.
+    /// User-defined data associated to this collider.
     pub user_data: u128,
 }
 
