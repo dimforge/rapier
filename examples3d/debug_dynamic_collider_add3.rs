@@ -45,7 +45,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut extra_colliders = Vec::new();
     let snapped_frame = 51;
 
-    testbed.add_callback(move |mut window, mut graphics, physics, _, _| {
+    testbed.add_callback(move |mut graphics, physics, _, _| {
         step += 1;
 
         // Add a bigger ball collider
@@ -57,8 +57,8 @@ pub fn init_world(testbed: &mut Testbed) {
                 .colliders
                 .insert(collider, ball_handle, &mut physics.bodies);
 
-        if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
-            graphics.add_collider(window, new_ball_collider_handle, &physics.colliders);
+        if let Some(graphics) = &mut graphics {
+            graphics.add_collider(new_ball_collider_handle, &physics.colliders);
         }
 
         extra_colliders.push(new_ball_collider_handle);
@@ -79,6 +79,10 @@ pub fn init_world(testbed: &mut Testbed) {
             step = snapped_frame;
 
             for handle in &extra_colliders {
+                if let Some(graphics) = &mut graphics {
+                    graphics.remove_collider(*handle, &physics.colliders);
+                }
+
                 physics
                     .colliders
                     .remove(*handle, &mut physics.islands, &mut physics.bodies, true);
@@ -102,8 +106,8 @@ pub fn init_world(testbed: &mut Testbed) {
                 .colliders
                 .insert(coll, ground_handle, &mut physics.bodies);
 
-        if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
-            graphics.add_collider(window, new_ground_collider_handle, &physics.colliders);
+        if let Some(graphics) = &mut graphics {
+            graphics.add_collider(new_ground_collider_handle, &physics.colliders);
         }
 
         extra_colliders.push(new_ground_collider_handle);
@@ -114,9 +118,4 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed.set_world(bodies, colliders, joints);
     testbed.look_at(Point3::new(10.0, 10.0, 10.0), Point3::origin());
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Boxes", init_world)]);
-    testbed.run()
 }

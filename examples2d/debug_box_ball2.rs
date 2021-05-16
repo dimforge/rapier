@@ -1,3 +1,4 @@
+use na::Point2;
 use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier2d::geometry::{ColliderBuilder, ColliderSet};
 use rapier_testbed2d::Testbed;
@@ -35,10 +36,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    //    testbed.look_at(Point2::new(10.0, 10.0, 10.0), Point2::origin());
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Boxes", init_world)]);
-    testbed.run()
+    testbed.look_at(Point2::new(0.0, 0.0), 50.0);
 }

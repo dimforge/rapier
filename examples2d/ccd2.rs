@@ -90,7 +90,7 @@ pub fn init_world(testbed: &mut Testbed) {
     }
 
     // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |_, mut graphics, physics, events, _| {
+    testbed.add_callback(move |mut graphics, physics, events, _| {
         while let Ok(prox) = events.intersection_events.try_recv() {
             let color = if prox.intersecting {
                 Point3::new(1.0, 1.0, 0.0)
@@ -116,9 +116,4 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed.set_world(bodies, colliders, joints);
     testbed.look_at(Point2::new(0.0, 2.5), 20.0);
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Balls", init_world)]);
-    testbed.run()
 }

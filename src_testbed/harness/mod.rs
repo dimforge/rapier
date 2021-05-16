@@ -1,8 +1,7 @@
 use crate::{
     physics::{PhysicsEvents, PhysicsState},
-    GraphicsManager,
+    TestbedGraphics,
 };
-use kiss3d::window::Window;
 use plugin::HarnessPlugin;
 use rapier::dynamics::{CCDSolver, IntegrationParameters, IslandManager, JointSet, RigidBodySet};
 use rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
@@ -52,17 +51,8 @@ pub struct Harness {
     pub state: RunState,
 }
 
-type Callbacks = Vec<
-    Box<
-        dyn FnMut(
-            Option<&mut Window>,
-            Option<&mut GraphicsManager>,
-            &mut PhysicsState,
-            &PhysicsEvents,
-            &RunState,
-        ),
-    >,
->;
+type Callbacks =
+    Vec<Box<dyn FnMut(Option<&mut TestbedGraphics>, &mut PhysicsState, &PhysicsEvents, &RunState)>>;
 
 #[allow(dead_code)]
 impl Harness {
@@ -145,13 +135,7 @@ impl Harness {
     }
 
     pub fn add_callback<
-        F: FnMut(
-                Option<&mut Window>,
-                Option<&mut GraphicsManager>,
-                &mut PhysicsState,
-                &PhysicsEvents,
-                &RunState,
-            ) + 'static,
+        F: FnMut(Option<&mut TestbedGraphics>, &mut PhysicsState, &PhysicsEvents, &RunState) + 'static,
     >(
         &mut self,
         callback: F,
@@ -160,14 +144,10 @@ impl Harness {
     }
 
     pub fn step(&mut self) {
-        self.step_with_graphics(None, None);
+        self.step_with_graphics(None);
     }
 
-    pub fn step_with_graphics(
-        &mut self,
-        window: Option<&mut Window>,
-        graphics: Option<&mut GraphicsManager>,
-    ) {
+    pub fn step_with_graphics(&mut self, mut graphics: Option<&mut TestbedGraphics>) {
         #[cfg(feature = "parallel")]
         {
             let physics = &mut self.physics;
@@ -214,26 +194,13 @@ impl Harness {
             plugin.step(&mut self.physics, &self.state)
         }
 
-        // FIXME: This assumes either window & graphics are Some, or they are all None
-        // this is required as we cannot pass Option<&mut Window> & Option<&mut GraphicsManager directly in a loop
-        // there must be a better way of doing this?
-        match (window, graphics) {
-            (Some(window), Some(graphics)) => {
-                for f in &mut self.callbacks {
-                    f(
-                        Some(window),
-                        Some(graphics),
-                        &mut self.physics,
-                        &self.events,
-                        &self.state,
-                    );
-                }
-            }
-            _ => {
-                for f in &mut self.callbacks {
-                    f(None, None, &mut self.physics, &self.events, &self.state);
-                }
-            }
+        for f in &mut self.callbacks {
+            f(
+                graphics.as_deref_mut(),
+                &mut self.physics,
+                &self.events,
+                &self.state,
+            );
         }
 
         for plugin in &mut self.plugins {

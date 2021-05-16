@@ -65,7 +65,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Setup a callback to control the platform.
      */
     let mut count = 0;
-    testbed.add_callback(move |_, _, physics, _, run_state| {
+    testbed.add_callback(move |_, physics, _, run_state| {
         count += 1;
         if count % 100 > 50 {
             return;
@@ -94,9 +94,4 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed.set_world(bodies, colliders, joints);
     testbed.look_at(Point3::new(-10.0, 5.0, -10.0), Point3::origin());
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Kinematic body", init_world)]);
-    testbed.run()
 }

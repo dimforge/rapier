@@ -7,7 +7,7 @@ use wasm_bindgen::prelude::*;
 
 use inflector::Inflector;
 
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
 
 mod balls3;
@@ -80,12 +80,12 @@ pub fn main() {
                 .iter()
                 .position(|builder| builder.0.to_camel_case().as_str() == demo.as_str())
             {
-                Testbed::from_builders(0, vec![builders[i]]).run()
+                TestbedApp::from_builders(0, vec![builders[i]]).run()
             } else {
                 eprintln!("Invalid example to run provided: '{}'", demo);
             }
         }
-        Command::RunAll => Testbed::from_builders(0, builders).run(),
+        Command::RunAll => TestbedApp::from_builders(0, builders).run(),
         Command::List => {
             for builder in &builders {
                 println!("{}", builder.0.to_camel_case())

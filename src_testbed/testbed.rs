@@ -1,22 +1,14 @@
 use std::env;
 use std::mem;
-use std::path::Path;
-use std::rc::Rc;
+
+use bevy::pbr::Light;
+use bevy::prelude::*;
 
 use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
-use crate::ui::TestbedUi;
-use crate::{engine::GraphicsManager, harness::RunState};
+use crate::ui;
+use crate::{graphics::GraphicsManager, harness::RunState};
 
-use kiss3d::camera::Camera;
-use kiss3d::event::Event;
-use kiss3d::event::{Action, Key, WindowEvent};
-use kiss3d::light::Light;
-use kiss3d::loader::obj;
-use kiss3d::planar_camera::PlanarCamera;
-use kiss3d::post_processing::PostProcessingEffect;
-use kiss3d::text::Font;
-use kiss3d::window::{State, Window};
 use na::{self, Point2, Point3, Vector3};
 use rapier::dynamics::{
     IntegrationParameters, JointSet, RigidBodyActivation, RigidBodyHandle, RigidBodySet,
@@ -34,6 +26,15 @@ use crate::harness::Harness;
 use crate::nphysics_backend::NPhysicsWorld;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 use crate::physx_backend::PhysxWorld;
+use bevy::render::camera::Camera;
+use bevy::render::wireframe::WireframePlugin;
+use bevy::wgpu::{WgpuFeature, WgpuFeatures, WgpuOptions};
+use bevy_egui::EguiContext;
+
+#[cfg(feature = "dim2")]
+use crate::camera::{OrbitCamera, OrbitCameraPlugin};
+#[cfg(feature = "dim3")]
+use bevy_orbit_controls::{OrbitCamera, OrbitCameraPlugin};
 
 const RAPIER_BACKEND: usize = 0;
 #[cfg(feature = "other-backends")]
@@ -48,7 +49,6 @@ pub enum RunMode {
     Running,
     Stop,
     Step,
-    Quit,
 }
 
 #[cfg(not(feature = "log"))]
@@ -83,8 +83,6 @@ bitflags! {
         const CENTER_OF_MASSES = 1 << 7;
         const WIREFRAME = 1 << 8;
         const STATISTICS = 1 << 9;
-        const PROFILE = 1 << 10;
-        const DEBUG = 1 << 11;
     }
 }
 
@@ -117,20 +115,12 @@ pub struct TestbedState {
     pub selected_backend: usize,
     pub physx_use_two_friction_directions: bool,
     pub snapshot: Option<PhysicsSnapshot>,
-}
-
-pub struct Testbed {
-    builders: Vec<(&'static str, fn(&mut Testbed))>,
-    graphics: GraphicsManager,
     nsteps: usize,
     camera_locked: bool, // Used so that the camera can remain the same before and after we change backend or press the restart button.
-    plugins: Vec<Box<dyn TestbedPlugin>>,
-    //    persistant_contacts: HashMap<ContactId, bool>,
-    font: Rc<Font>,
-    cursor_pos: Point2<f32>,
-    ui: Option<TestbedUi>,
-    state: TestbedState,
-    harness: Harness,
+}
+
+struct SceneBuilders(Vec<(&'static str, fn(&mut Testbed))>);
+struct OtherBackends {
     #[cfg(all(feature = "dim2", feature = "other-backends"))]
     box2d: Option<Box2dWorld>,
     #[cfg(all(feature = "dim3", feature = "other-backends"))]
@@ -138,12 +128,38 @@ pub struct Testbed {
     #[cfg(feature = "other-backends")]
     nphysics: Option<NPhysicsWorld>,
 }
+struct Plugins(Vec<Box<dyn TestbedPlugin>>);
 
-impl Testbed {
-    pub fn new_empty() -> Testbed {
+pub struct TestbedGraphics<'a, 'b, 'c, 'd> {
+    manager: &'a mut GraphicsManager,
+    commands: &'a mut Commands<'d>,
+    meshes: &'a mut Assets<Mesh>,
+    materials: &'a mut Assets<StandardMaterial>,
+    components: &'a mut Query<'b, (&'c mut Transform,)>,
+    camera: &'a mut OrbitCamera,
+}
+
+pub struct Testbed<'a, 'b, 'c, 'd> {
+    graphics: Option<TestbedGraphics<'a, 'b, 'c, 'd>>,
+    harness: &'a mut Harness,
+    state: &'a mut TestbedState,
+    other_backends: &'a mut OtherBackends,
+    plugins: &'a mut Plugins,
+}
+
+pub struct TestbedApp {
+    builders: SceneBuilders,
+    graphics: GraphicsManager,
+    state: TestbedState,
+    harness: Harness,
+    other_backends: OtherBackends,
+    plugins: Plugins,
+}
+
+impl TestbedApp {
+    pub fn new_empty() -> Self {
         let graphics = GraphicsManager::new();
         let flags = TestbedStateFlags::SLEEP;
-        let ui = None;
 
         #[allow(unused_mut)]
         let mut backend_names = vec!["rapier"];
@@ -174,39 +190,32 @@ impl Testbed {
             selected_example: 0,
             selected_backend: RAPIER_BACKEND,
             physx_use_two_friction_directions: true,
+            nsteps: 1,
+            camera_locked: false,
         };
 
         let harness = Harness::new_empty();
-
-        Testbed {
-            builders: Vec::new(),
-            plugins: Vec::new(),
-            graphics,
-            nsteps: 1,
-            camera_locked: false,
-            //            persistant_contacts: HashMap::new(),
-            font: Font::default(),
-            cursor_pos: Point2::new(0.0f32, 0.0),
-            ui,
-            state,
-            harness,
+        let other_backends = OtherBackends {
             #[cfg(all(feature = "dim2", feature = "other-backends"))]
             box2d: None,
             #[cfg(all(feature = "dim3", feature = "other-backends"))]
             physx: None,
             #[cfg(feature = "other-backends")]
             nphysics: None,
+        };
+
+        TestbedApp {
+            builders: SceneBuilders(Vec::new()),
+            plugins: Plugins(Vec::new()),
+            graphics,
+            state,
+            harness,
+            other_backends,
         }
     }
 
-    pub fn new(bodies: RigidBodySet, colliders: ColliderSet, joints: JointSet) -> Self {
-        let mut res = Self::new_empty();
-        res.harness.set_world(bodies, colliders, joints);
-        res
-    }
-
-    pub fn from_builders(default: usize, builders: Vec<(&'static str, fn(&mut Self))>) -> Self {
-        let mut res = Testbed::new_empty();
+    pub fn from_builders(default: usize, builders: Vec<(&'static str, fn(&mut Testbed))>) -> Self {
+        let mut res = TestbedApp::new_empty();
         res.state
             .action_flags
             .set(TestbedActionFlags::EXAMPLE_CHANGED, true);
@@ -215,8 +224,251 @@ impl Testbed {
         res
     }
 
+    pub fn set_builders(&mut self, builders: Vec<(&'static str, fn(&mut Testbed))>) {
+        self.state.example_names = builders.iter().map(|e| e.0).collect();
+        self.builders = SceneBuilders(builders)
+    }
+
+    pub fn run(mut self) {
+        let mut args = env::args();
+        let mut benchmark_mode = false;
+
+        if args.len() > 1 {
+            let exname = args.next().unwrap();
+            for arg in args {
+                if &arg[..] == "--help" || &arg[..] == "-h" {
+                    usage(&exname[..]);
+                    return;
+                } else if &arg[..] == "--pause" {
+                    self.state.running = RunMode::Stop;
+                } else if &arg[..] == "--bench" {
+                    benchmark_mode = true;
+                }
+            }
+        }
+
+        // TODO: move this to dedicated benchmarking code
+        if benchmark_mode {
+            use std::fs::File;
+            use std::io::{BufWriter, Write};
+            // Don't enter the main loop. We will just step the simulation here.
+            let mut results = Vec::new();
+            let builders = mem::replace(&mut self.builders.0, Vec::new());
+            let backend_names = self.state.backend_names.clone();
+
+            for builder in builders {
+                results.clear();
+                println!("Running benchmark for {}", builder.0);
+                const NUM_ITERS: usize = 1000;
+
+                for (backend_id, backend) in backend_names.iter().enumerate() {
+                    println!("|_ using backend {}", backend);
+                    self.state.selected_backend = backend_id;
+                    if cfg!(feature = "dim3")
+                        && (backend_id == PHYSX_BACKEND_PATCH_FRICTION
+                            || backend_id == PHYSX_BACKEND_TWO_FRICTION_DIR)
+                    {
+                        self.harness
+                            .physics
+                            .integration_parameters
+                            .max_velocity_iterations = 1;
+                        self.harness
+                            .physics
+                            .integration_parameters
+                            .max_position_iterations = 4;
+                    } else {
+                        self.harness
+                            .physics
+                            .integration_parameters
+                            .max_velocity_iterations = 4;
+                        self.harness
+                            .physics
+                            .integration_parameters
+                            .max_position_iterations = 1;
+                    }
+                    // Init world.
+                    let mut testbed = Testbed {
+                        graphics: None,
+                        state: &mut self.state,
+                        harness: &mut self.harness,
+                        other_backends: &mut self.other_backends,
+                        plugins: &mut self.plugins,
+                    };
+                    (builder.1)(&mut testbed);
+                    // Run the simulation.
+                    let mut timings = Vec::new();
+                    for k in 0..=NUM_ITERS {
+                        {
+                            if self.state.selected_backend == RAPIER_BACKEND {
+                                self.harness.step();
+                            }
+
+                            #[cfg(all(feature = "dim2", feature = "other-backends"))]
+                            {
+                                if self.state.selected_backend == BOX2D_BACKEND {
+                                    self.other_backends.box2d.as_mut().unwrap().step(
+                                        &mut self.harness.physics.pipeline.counters,
+                                        &self.harness.physics.integration_parameters,
+                                    );
+                                    self.other_backends.box2d.as_mut().unwrap().sync(
+                                        &mut self.harness.physics.bodies,
+                                        &mut self.harness.physics.colliders,
+                                    );
+                                }
+                            }
+
+                            #[cfg(all(feature = "dim3", feature = "other-backends"))]
+                            {
+                                if self.state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
+                                    || self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
+                                {
+                                    //                        println!("Step");
+                                    self.other_backends.physx.as_mut().unwrap().step(
+                                        &mut self.harness.physics.pipeline.counters,
+                                        &self.harness.physics.integration_parameters,
+                                    );
+                                    self.other_backends.physx.as_mut().unwrap().sync(
+                                        &mut self.harness.physics.bodies,
+                                        &mut self.harness.physics.colliders,
+                                    );
+                                }
+                            }
+
+                            #[cfg(feature = "other-backends")]
+                            {
+                                if self.state.selected_backend == NPHYSICS_BACKEND {
+                                    self.other_backends.nphysics.as_mut().unwrap().step(
+                                        &mut self.harness.physics.pipeline.counters,
+                                        &self.harness.physics.integration_parameters,
+                                    );
+                                    self.other_backends.nphysics.as_mut().unwrap().sync(
+                                        &mut self.harness.physics.bodies,
+                                        &mut self.harness.physics.colliders,
+                                    );
+                                }
+                            }
+                        }
+
+                        // Skip the first update.
+                        if k > 0 {
+                            timings.push(self.harness.physics.pipeline.counters.step_time.time());
+                        }
+                    }
+                    results.push(timings);
+                }
+
+                // Write the result as a csv file.
+                use inflector::Inflector;
+                let filename = format!("{}.csv", builder.0.to_camel_case());
+                let mut file = BufWriter::new(File::create(filename).unwrap());
+
+                write!(file, "{}", backend_names[0]).unwrap();
+                for backend in &backend_names[1..] {
+                    write!(file, ",{}", backend).unwrap();
+                }
+                writeln!(file).unwrap();
+
+                for i in 0..results[0].len() {
+                    write!(file, "{}", results[0][i]).unwrap();
+                    for result in &results[1..] {
+                        write!(file, ",{}", result[i]).unwrap();
+                    }
+                    writeln!(file).unwrap();
+                }
+            }
+        } else {
+            let title = if cfg!(feature = "dim2") {
+                "Rapier: 2D demos".to_string()
+            } else {
+                "Rapier: 3D demos".to_string()
+            };
+
+            let mut app = App::build();
+
+            app.insert_resource(WindowDescriptor {
+                title,
+                vsync: true,
+                ..Default::default()
+            })
+            .insert_resource(ClearColor(Color::rgb(0.85, 0.85, 0.85)))
+            .insert_resource(Msaa { samples: 2 })
+            .insert_resource(WgpuOptions {
+                features: WgpuFeatures {
+                    // The Wireframe requires NonFillPolygonMode feature
+                    features: vec![WgpuFeature::NonFillPolygonMode],
+                },
+                ..Default::default()
+            })
+            .add_plugins(DefaultPlugins)
+            .add_plugin(OrbitCameraPlugin)
+            .add_plugin(WireframePlugin)
+            .add_plugin(bevy_egui::EguiPlugin);
+
+            #[cfg(target_arch = "wasm32")]
+            app.add_plugin(bevy_webgl2::WebGL2Plugin);
+
+            app.add_startup_system(setup_graphics_environment.system())
+                .insert_non_send_resource(self.graphics)
+                .insert_resource(self.state)
+                .insert_non_send_resource(self.harness)
+                .insert_non_send_resource(self.other_backends)
+                .insert_resource(self.builders)
+                .insert_non_send_resource(self.plugins)
+                .add_stage_before(CoreStage::Update, "physics", SystemStage::single_threaded())
+                .add_system_to_stage("physics", update_testbed.system())
+                .run();
+        }
+    }
+}
+
+impl<'a, 'b, 'c, 'd> TestbedGraphics<'a, 'b, 'c, 'd> {
+    pub fn set_body_color(&mut self, body: RigidBodyHandle, color: Point3<f32>) {
+        self.manager
+            .set_body_color(&mut self.materials, body, color);
+    }
+
+    pub fn add_body(
+        &mut self,
+        handle: RigidBodyHandle,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+    ) {
+        self.manager.add(
+            &mut *self.commands,
+            &mut *self.meshes,
+            &mut *self.materials,
+            &mut *self.components,
+            handle,
+            bodies,
+            colliders,
+        )
+    }
+
+    pub fn remove_collider(&mut self, handle: ColliderHandle, colliders: &ColliderSet) {
+        if let Some(parent_handle) = colliders.get(handle).map(|c| c.parent()) {
+            self.manager
+                .remove_collider_nodes(&mut *self.commands, parent_handle, handle)
+        }
+    }
+
+    pub fn remove_body(&mut self, handle: RigidBodyHandle) {
+        self.manager.remove_body_nodes(&mut *self.commands, handle)
+    }
+
+    pub fn add_collider(&mut self, handle: ColliderHandle, colliders: &ColliderSet) {
+        self.manager.add_collider(
+            &mut *self.commands,
+            &mut *self.meshes,
+            &mut *self.materials,
+            handle,
+            colliders,
+        )
+    }
+}
+
+impl<'a, 'b, 'c, 'd> Testbed<'a, 'b, 'c, 'd> {
     pub fn set_number_of_steps_per_frame(&mut self, nsteps: usize) {
-        self.nsteps = nsteps
+        self.state.nsteps = nsteps
     }
 
     pub fn allow_grabbing_behind_ground(&mut self, allow: bool) {
@@ -259,7 +511,7 @@ impl Testbed {
         #[cfg(all(feature = "dim2", feature = "other-backends"))]
         {
             if self.state.selected_backend == BOX2D_BACKEND {
-                self.box2d = Some(Box2dWorld::from_rapier(
+                self.other_backends.box2d = Some(Box2dWorld::from_rapier(
                     self.harness.physics.gravity,
                     &self.harness.physics.bodies,
                     &self.harness.physics.colliders,
@@ -273,7 +525,7 @@ impl Testbed {
             if self.state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
                 || self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
             {
-                self.physx = Some(PhysxWorld::from_rapier(
+                self.other_backends.physx = Some(PhysxWorld::from_rapier(
                     self.harness.physics.gravity,
                     &self.harness.physics.integration_parameters,
                     &self.harness.physics.bodies,
@@ -288,7 +540,7 @@ impl Testbed {
         #[cfg(feature = "other-backends")]
         {
             if self.state.selected_backend == NPHYSICS_BACKEND {
-                self.nphysics = Some(NPhysicsWorld::from_rapier(
+                self.other_backends.nphysics = Some(NPhysicsWorld::from_rapier(
                     self.harness.physics.gravity,
                     &self.harness.physics.bodies,
                     &self.harness.physics.colliders,
@@ -298,99 +550,61 @@ impl Testbed {
         }
     }
 
-    pub fn set_builders(&mut self, builders: Vec<(&'static str, fn(&mut Self))>) {
-        self.state.example_names = builders.iter().map(|e| e.0).collect();
-        self.builders = builders
-    }
-
     #[cfg(feature = "dim2")]
     pub fn look_at(&mut self, at: Point2<f32>, zoom: f32) {
-        if !self.camera_locked {
-            self.graphics.look_at(at, zoom);
+        if !self.state.camera_locked {
+            if let Some(graphics) = &mut self.graphics {
+                graphics.camera.center.x = at.x;
+                graphics.camera.center.y = at.y;
+                graphics.camera.zoom = zoom;
+            }
         }
     }
 
     #[cfg(feature = "dim3")]
     pub fn look_at(&mut self, eye: Point3<f32>, at: Point3<f32>) {
-        if !self.camera_locked {
-            self.graphics.look_at(eye, at);
+        if !self.state.camera_locked {
+            if let Some(graphics) = &mut self.graphics {
+                graphics.camera.center.x = at.x;
+                graphics.camera.center.y = at.y;
+                graphics.camera.center.z = at.z;
+
+                let view_dir = eye - at;
+                graphics.camera.distance = view_dir.norm();
+
+                if graphics.camera.distance > 0.0 {
+                    graphics.camera.y = (view_dir.y / graphics.camera.distance).acos();
+                    graphics.camera.x =
+                        (-view_dir.z).atan2(view_dir.x) - std::f32::consts::FRAC_PI_2;
+                }
+            }
         }
     }
 
-    pub fn set_body_color(&mut self, body: RigidBodyHandle, color: Point3<f32>) {
-        self.graphics.set_body_color(body, color);
+    pub fn set_initial_body_color(&mut self, body: RigidBodyHandle, color: Point3<f32>) {
+        if let Some(graphics) = &mut self.graphics {
+            graphics.manager.set_initial_body_color(body, color);
+        }
     }
 
-    pub fn set_collider_initial_color(&mut self, collider: ColliderHandle, color: Point3<f32>) {
-        self.graphics.set_collider_initial_color(collider, color);
+    pub fn set_initial_collider_color(&mut self, collider: ColliderHandle, color: Point3<f32>) {
+        if let Some(graphics) = &mut self.graphics {
+            graphics.manager.set_initial_collider_color(collider, color);
+        }
     }
 
     pub fn set_body_wireframe(&mut self, body: RigidBodyHandle, wireframe_enabled: bool) {
-        self.graphics.set_body_wireframe(body, wireframe_enabled);
+        if let Some(graphics) = &mut self.graphics {
+            graphics.manager.set_body_wireframe(body, wireframe_enabled);
+        }
     }
 
     //    pub fn world(&self) -> &Box<WorldOwner> {
     //        &self.world
     //    }
 
-    pub fn graphics_mut(&mut self) -> &mut GraphicsManager {
-        &mut self.graphics
-    }
-
-    #[cfg(feature = "dim3")]
-    pub fn set_up_axis(&mut self, up_axis: Vector3<f32>) {
-        self.graphics.set_up_axis(up_axis);
-    }
-
-    pub fn load_obj(path: &str) -> Vec<(Vec<Point3<f32>>, Vec<usize>)> {
-        let path = Path::new(path);
-        let empty = Path::new("_some_non_existant_folder"); // dont bother loading mtl files correctly
-        let objects = obj::parse_file(&path, &empty, "").expect("Unable to open the obj file.");
-
-        let mut res = Vec::new();
-
-        for (_, m, _) in objects.into_iter() {
-            let vertices = m.coords().read().unwrap().to_owned().unwrap();
-            let indices = m.faces().read().unwrap().to_owned().unwrap();
-
-            let mut flat_indices = Vec::new();
-
-            for i in indices.into_iter() {
-                flat_indices.push(i.x as usize);
-                flat_indices.push(i.y as usize);
-                flat_indices.push(i.z as usize);
-            }
-
-            let m = (vertices, flat_indices);
-
-            res.push(m);
-        }
-
-        res
-    }
-
-    fn clear(&mut self, window: &mut Window) {
-        //        self.persistant_contacts.clear();
-        //        self.state.grabbed_object = None;
-        //        self.state.grabbed_object_constraint = None;
-        self.state.can_grab_behind_ground = false;
-        self.graphics.clear(window);
-
-        for plugin in &mut self.plugins {
-            plugin.clear_graphics(window);
-        }
-
-        self.plugins.clear();
-    }
-
     pub fn add_callback<
-        F: FnMut(
-                Option<&mut Window>,
-                Option<&mut GraphicsManager>,
-                &mut PhysicsState,
-                &PhysicsEvents,
-                &RunState,
-            ) + 'static,
+        F: FnMut(Option<&mut TestbedGraphics>, &mut PhysicsState, &PhysicsEvents, &RunState) + 'static,
     >(
         &mut self,
         callback: F,
@@ -399,604 +613,602 @@ impl Testbed {
     }
 
     pub fn add_plugin(&mut self, plugin: impl TestbedPlugin + 'static) {
-        self.plugins.push(Box::new(plugin));
+        self.plugins.0.push(Box::new(plugin));
     }
 
-    pub fn run(mut self) {
-        let mut args = env::args();
-        let mut benchmark_mode = false;
+    // fn handle_common_event<'b>(&mut self, event: Event<'b>) -> Event<'b> {
+    //     match event.value {
+    //         WindowEvent::Key(Key::T, Action::Release, _) => {
+    //             if self.state.running == RunMode::Stop {
+    //                 self.state.running = RunMode::Running;
+    //             } else {
+    //                 self.state.running = RunMode::Stop;
+    //             }
+    //         }
+    //         WindowEvent::Key(Key::S, Action::Release, _) => self.state.running = RunMode::Step,
+    //         WindowEvent::Key(Key::R, Action::Release, _) => self
+    //             .state
+    //             .action_flags
+    //             .set(TestbedActionFlags::EXAMPLE_CHANGED, true),
+    //         WindowEvent::Key(Key::C, Action::Release, _) => {
+    //             // Delete 1 collider of 10% of the remaining dynamic bodies.
+    //             let mut colliders: Vec<_> = self
+    //                 .harness
+    //                 .physics
+    //                 .bodies
+    //                 .iter()
+    //                 .filter(|e| e.1.is_dynamic())
+    //                 .filter(|e| !e.1.colliders().is_empty())
+    //                 .map(|e| e.1.colliders().to_vec())
+    //                 .collect();
+    //             colliders.sort_by_key(|co| -(co.len() as isize));
+    //
+    //             let num_to_delete = (colliders.len() / 10).max(1);
+    //             for to_delete in &colliders[..num_to_delete] {
+    //                 self.harness.physics.colliders.remove(
+    //                     to_delete[0],
+    //                     &mut self.harness.physics.islands,
+    //                     &mut self.harness.physics.bodies,
+    //                     true,
+    //                 );
+    //             }
+    //         }
+    //         WindowEvent::Key(Key::D, Action::Release, _) => {
+    //             // Delete 10% of the remaining dynamic bodies.
+    //             let dynamic_bodies: Vec<_> = self
+    //                 .harness
+    //                 .physics
+    //                 .bodies
+    //                 .iter()
+    //                 .filter(|e| !e.1.is_static())
+    //                 .map(|e| e.0)
+    //                 .collect();
+    //             let num_to_delete = (dynamic_bodies.len() / 10).max(1);
+    //             for to_delete in &dynamic_bodies[..num_to_delete] {
+    //                 self.harness.physics.bodies.remove(
+    //                     *to_delete,
+    //                     &mut self.harness.physics.islands,
+    //                     &mut self.harness.physics.colliders,
+    //                     &mut self.harness.physics.joints,
+    //                 );
+    //             }
+    //         }
+    //         WindowEvent::Key(Key::J, Action::Release, _) => {
+    //             // Delete 10% of the remaining joints.
+    //             let joints: Vec<_> = self.harness.physics.joints.iter().map(|e| e.0).collect();
+    //             let num_to_delete = (joints.len() / 10).max(1);
+    //             for to_delete in &joints[..num_to_delete] {
+    //                 self.harness.physics.joints.remove(
+    //                     *to_delete,
+    //                     &mut self.harness.physics.islands,
+    //                     &mut self.harness.physics.bodies,
+    //                     true,
+    //                 );
+    //             }
+    //         }
+    //         WindowEvent::CursorPos(x, y, _) => {
+    //             self.state.cursor_pos.x = x as f32;
+    //             self.state.cursor_pos.y = y as f32;
+    //         }
+    //         _ => {}
+    //     }
+    //
+    //     event
+    // }
 
-        if args.len() > 1 {
-            let exname = args.next().unwrap();
-            for arg in args {
-                if &arg[..] == "--help" || &arg[..] == "-h" {
-                    usage(&exname[..]);
-                    return;
-                } else if &arg[..] == "--pause" {
-                    self.state.running = RunMode::Stop;
-                } else if &arg[..] == "--bench" {
-                    benchmark_mode = true;
-                }
-            }
-        }
+    // #[cfg(feature = "dim2")]
+    // fn handle_special_event(&mut self) {}
+    //
+    // #[cfg(feature = "dim3")]
+    // fn handle_special_event(&mut self) {
+    //     use rapier::dynamics::RigidBodyBuilder;
+    //     use rapier::geometry::ColliderBuilder;
+    //
+    //     if window.is_conrod_ui_capturing_mouse() {
+    //         return;
+    //     }
+    //
+    //     match event.value {
+    //         WindowEvent::Key(Key::Space, Action::Release, _) => {
+    //             let cam_pos = self.graphics.camera().view_transform().inverse();
+    //             let forward = cam_pos * -Vector::z();
+    //             let vel = forward * 1000.0;
+    //
+    //             let bodies = &mut self.harness.physics.bodies;
+    //             let colliders = &mut self.harness.physics.colliders;
+    //
+    //             let collider = ColliderBuilder::cuboid(4.0, 2.0, 0.4).density(20.0).build();
+    //             // let collider = ColliderBuilder::ball(2.0).density(1.0).build();
+    //             let body = RigidBodyBuilder::new_dynamic()
+    //                 .position(cam_pos)
+    //                 .linvel(vel.x, vel.y, vel.z)
+    //                 .ccd_enabled(true)
+    //                 .build();
+    //
+    //             let body_handle = bodies.insert(body);
+    //             colliders.insert(collider, body_handle, bodies);
+    //             self.graphics.add(window, body_handle, bodies, colliders);
+    //         }
+    //         _ => {}
+    //     }
+    // }
+}
 
-        // TODO: move this to dedicated benchmarking code
-        if benchmark_mode {
-            use std::fs::File;
-            use std::io::{BufWriter, Write};
-            // Don't enter the main loop. We will just step the simulation here.
-            let mut results = Vec::new();
-            let builders = mem::replace(&mut self.builders, Vec::new());
-            let backend_names = self.state.backend_names.clone();
+fn draw_contacts(_nf: &NarrowPhase, _colliders: &ColliderSet) {
+    // use rapier::math::Isometry;
+    //
+    // for pair in nf.contact_pairs() {
+    //     for manifold in &pair.manifolds {
+    //         /*
+    //         for contact in &manifold.data.solver_contacts {
+    //             let p = contact.point;
+    //             let n = manifold.data.normal;
+    //
+    //             use crate::engine::GraphicsWindow;
+    //             window.draw_graphics_line(&p, &(p + n * 0.4), &Point3::new(0.5, 1.0, 0.5));
+    //         }
+    //         */
+    //         for pt in manifold.contacts() {
+    //             let color = if pt.dist > 0.0 {
+    //                 Point3::new(0.0, 0.0, 1.0)
+    //             } else {
+    //                 Point3::new(1.0, 0.0, 0.0)
+    //             };
+    //             let pos1 = colliders[pair.pair.collider1].position();
+    //             let pos2 = colliders[pair.pair.collider2].position();
+    //             let start =
+    //                 pos1 * manifold.subshape_pos1.unwrap_or(Isometry::identity()) * pt.local_p1;
+    //             let end =
+    //                 pos2 * manifold.subshape_pos2.unwrap_or(Isometry::identity()) * pt.local_p2;
+    //             let n = pos1
+    //                 * manifold.subshape_pos1.unwrap_or(Isometry::identity())
+    //                 * manifold.local_n1;
+    //
+    //             // window.draw_graphics_line(&start, &(start + n * 0.4), &Point3::new(0.5, 1.0, 0.5));
+    //             // window.draw_graphics_line(&start, &end, &color);
+    //         }
+    //     }
+    // }
+}
 
-            for builder in builders {
-                results.clear();
-                println!("Running benchmark for {}", builder.0);
-                const NUM_ITERS: usize = 1000;
+#[cfg(feature = "dim3")]
+fn setup_graphics_environment(mut commands: Commands) {
+    let lights = [
+        Vec3::new(100.0, 100.0, 100.0),
+        Vec3::new(100.0, 100.0, -100.0),
+        Vec3::new(-100.0, 100.0, -100.0),
+        Vec3::new(-100.0, 100.0, 100.0),
+    ];
 
-                for (backend_id, backend) in backend_names.iter().enumerate() {
-                    println!("|_ using backend {}", backend);
-                    self.state.selected_backend = backend_id;
-                    if cfg!(feature = "dim3")
-                        && (backend_id == PHYSX_BACKEND_PATCH_FRICTION
-                            || backend_id == PHYSX_BACKEND_TWO_FRICTION_DIR)
-                    {
-                        self.harness
-                            .physics
-                            .integration_parameters
-                            .max_velocity_iterations = 1;
-                        self.harness
-                            .physics
-                            .integration_parameters
-                            .max_position_iterations = 4;
-                    } else {
-                        self.harness
-                            .physics
-                            .integration_parameters
-                            .max_velocity_iterations = 4;
-                        self.harness
-                            .physics
-                            .integration_parameters
-                            .max_position_iterations = 1;
-                    }
-                    // Init world.
-                    (builder.1)(&mut self);
-                    // Run the simulation.
-                    let mut timings = Vec::new();
-                    for k in 0..=NUM_ITERS {
-                        {
-                            if self.state.selected_backend == RAPIER_BACKEND {
-                                self.harness.step();
-                            }
-
-                            #[cfg(all(feature = "dim2", feature = "other-backends"))]
-                            {
-                                if self.state.selected_backend == BOX2D_BACKEND {
-                                    self.box2d.as_mut().unwrap().step(
-                                        &mut self.harness.physics.pipeline.counters,
-                                        &self.harness.physics.integration_parameters,
-                                    );
-                                    self.box2d.as_mut().unwrap().sync(
-                                        &mut self.harness.physics.bodies,
-                                        &mut self.harness.physics.colliders,
-                                    );
-                                }
-                            }
-
-                            #[cfg(all(feature = "dim3", feature = "other-backends"))]
-                            {
-                                if self.state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
-                                    || self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
-                                {
-                                    //                        println!("Step");
-                                    self.physx.as_mut().unwrap().step(
-                                        &mut self.harness.physics.pipeline.counters,
-                                        &self.harness.physics.integration_parameters,
-                                    );
-                                    self.physx.as_mut().unwrap().sync(
-                                        &mut self.harness.physics.bodies,
-                                        &mut self.harness.physics.colliders,
-                                    );
-                                }
-                            }
-
-                            #[cfg(feature = "other-backends")]
-                            {
-                                if self.state.selected_backend == NPHYSICS_BACKEND {
-                                    self.nphysics.as_mut().unwrap().step(
-                                        &mut self.harness.physics.pipeline.counters,
-                                        &self.harness.physics.integration_parameters,
-                                    );
-                                    self.nphysics.as_mut().unwrap().sync(
-                                        &mut self.harness.physics.bodies,
-                                        &mut self.harness.physics.colliders,
-                                    );
-                                }
-                            }
-                        }
-
-                        // Skip the first update.
-                        if k > 0 {
-                            timings.push(self.harness.physics.pipeline.counters.step_time.time());
-                        }
-                    }
-                    results.push(timings);
-                }
-
-                // Write the result as a csv file.
-                use inflector::Inflector;
-                let filename = format!("{}.csv", builder.0.to_camel_case());
-                let mut file = BufWriter::new(File::create(filename).unwrap());
-
-                write!(file, "{}", backend_names[0]).unwrap();
-                for backend in &backend_names[1..] {
-                    write!(file, ",{}", backend).unwrap();
-                }
-                writeln!(file).unwrap();
-
-                for i in 0..results[0].len() {
-                    write!(file, "{}", results[0][i]).unwrap();
-                    for result in &results[1..] {
-                        write!(file, ",{}", result[i]).unwrap();
-                    }
-                    writeln!(file).unwrap();
-                }
-            }
-        } else {
-            #[cfg(feature = "dim3")]
-            let mut window = Window::new("rapier: 3d demo");
-            #[cfg(feature = "dim2")]
-            let mut window = Window::new("rapier: 2d demo");
-            window.set_background_color(0.85, 0.85, 0.85);
-            window.set_framerate_limit(Some(60));
-            window.set_light(Light::StickToCamera);
-            self.ui = Some(TestbedUi::new(&mut window));
-            window.render_loop(self);
-        }
+    for light in lights.iter() {
+        commands.spawn_bundle(LightBundle {
+            transform: Transform::from_translation(*light),
+            light: Light {
+                intensity: 30_000.0,
+                range: 3_000_000.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
     }
 
-    fn handle_common_event<'b>(&mut self, event: Event<'b>) -> Event<'b> {
-        match event.value {
-            WindowEvent::Key(Key::T, Action::Release, _) => {
-                if self.state.running == RunMode::Stop {
-                    self.state.running = RunMode::Running;
-                } else {
-                    self.state.running = RunMode::Stop;
-                }
-            }
-            WindowEvent::Key(Key::S, Action::Release, _) => self.state.running = RunMode::Step,
-            WindowEvent::Key(Key::R, Action::Release, _) => self
-                .state
+    commands
+        .spawn_bundle(PerspectiveCameraBundle {
+            transform: Transform::from_matrix(Mat4::face_toward(
+                Vec3::new(-30.0, 30.0, 100.0),
+                Vec3::new(0.0, 10.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+            )),
+            ..Default::default()
+        })
+        .insert(OrbitCamera {
+            rotate_sensitivity: 0.05,
+            ..OrbitCamera::default()
+        });
+}
+
+#[cfg(feature = "dim2")]
+fn setup_graphics_environment(mut commands: Commands) {
+    commands.spawn_bundle(LightBundle {
+        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 2000.0)),
+        light: Light {
+            intensity: 100_000_000.0,
+            range: 6000.0,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    commands
+        .spawn_bundle(OrthographicCameraBundle {
+            transform: Transform {
+                translation: Vec3::new(0.0, 0.0, 0.0),
+                rotation: Quat::IDENTITY,
+                scale: Vec3::new(0.01, 0.01, 1.0),
+            },
+            ..OrthographicCameraBundle::new_2d()
+        })
+        .insert(OrbitCamera {
+            zoom: 100.0,
+            pan_sensitivity: 0.02,
+            ..OrbitCamera::default()
+        });
+}
+
+fn update_testbed(
+    mut commands: Commands,
+    windows: Res<Windows>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    builders: NonSendMut<SceneBuilders>,
+    mut graphics: NonSendMut<GraphicsManager>,
+    mut state: ResMut<TestbedState>,
+    mut harness: NonSendMut<Harness>,
+    mut other_backends: NonSendMut<OtherBackends>,
+    mut plugins: NonSendMut<Plugins>,
+    ui_context: Res<EguiContext>,
+    mut gfx_components: Query<(&mut Transform,)>,
+    mut cameras: Query<(&Camera, &GlobalTransform, &mut OrbitCamera)>,
+) {
+    let meshes = &mut *meshes;
+    let materials = &mut *materials;
+    let prev_example = state.selected_example;
+
+    // Update UI
+    {
+        let harness = &mut *harness;
+        ui::update_ui(&ui_context, &mut state, harness);
+    }
+
+    // Handle UI actions.
+    {
+        let backend_changed = state
+            .action_flags
+            .contains(TestbedActionFlags::BACKEND_CHANGED);
+        if backend_changed {
+            // Marking the example as changed will make the simulation
+            // restart with the selected backend.
+            state
                 .action_flags
-                .set(TestbedActionFlags::EXAMPLE_CHANGED, true),
-            WindowEvent::Key(Key::C, Action::Release, _) => {
-                // Delete 1 collider of 10% of the remaining dynamic bodies.
-                let mut colliders: Vec<_> = self
-                    .harness
-                    .physics
-                    .bodies
-                    .iter()
-                    .filter(|e| e.1.is_dynamic())
-                    .filter(|e| !e.1.colliders().is_empty())
-                    .map(|e| e.1.colliders().to_vec())
-                    .collect();
-                colliders.sort_by_key(|co| -(co.len() as isize));
-
-                let num_to_delete = (colliders.len() / 10).max(1);
-                for to_delete in &colliders[..num_to_delete] {
-                    self.harness.physics.colliders.remove(
-                        to_delete[0],
-                        &mut self.harness.physics.islands,
-                        &mut self.harness.physics.bodies,
-                        true,
-                    );
-                }
-            }
-            WindowEvent::Key(Key::D, Action::Release, _) => {
-                // Delete 10% of the remaining dynamic bodies.
-                let dynamic_bodies: Vec<_> = self
-                    .harness
-                    .physics
-                    .bodies
-                    .iter()
-                    .filter(|e| !e.1.is_static())
-                    .map(|e| e.0)
-                    .collect();
-                let num_to_delete = (dynamic_bodies.len() / 10).max(1);
-                for to_delete in &dynamic_bodies[..num_to_delete] {
-                    self.harness.physics.bodies.remove(
-                        *to_delete,
-                        &mut self.harness.physics.islands,
-                        &mut self.harness.physics.colliders,
-                        &mut self.harness.physics.joints,
-                    );
-                }
-            }
-            WindowEvent::Key(Key::J, Action::Release, _) => {
-                // Delete 10% of the remaining joints.
-                let joints: Vec<_> = self.harness.physics.joints.iter().map(|e| e.0).collect();
-                let num_to_delete = (joints.len() / 10).max(1);
-                for to_delete in &joints[..num_to_delete] {
-                    self.harness.physics.joints.remove(
-                        *to_delete,
-                        &mut self.harness.physics.islands,
-                        &mut self.harness.physics.bodies,
-                        true,
-                    );
-                }
-            }
-            WindowEvent::CursorPos(x, y, _) => {
-                self.cursor_pos.x = x as f32;
-                self.cursor_pos.y = y as f32;
-            }
-            _ => {}
+                .set(TestbedActionFlags::BACKEND_CHANGED, false);
+            state
+                .action_flags
+                .set(TestbedActionFlags::EXAMPLE_CHANGED, true);
+            state.camera_locked = true;
         }
 
-        event
+        let restarted = state.action_flags.contains(TestbedActionFlags::RESTART);
+        if restarted {
+            state.action_flags.set(TestbedActionFlags::RESTART, false);
+            state.camera_locked = true;
+            state
+                .action_flags
+                .set(TestbedActionFlags::EXAMPLE_CHANGED, true);
+        }
+
+        let example_changed = state
+            .action_flags
+            .contains(TestbedActionFlags::EXAMPLE_CHANGED);
+        if example_changed {
+            state
+                .action_flags
+                .set(TestbedActionFlags::EXAMPLE_CHANGED, false);
+            clear(&mut commands, &mut state, &mut graphics, &mut plugins);
+            harness.clear_callbacks();
+
+            if state.selected_example != prev_example {
+                harness.physics.integration_parameters = IntegrationParameters::default();
+
+                if cfg!(feature = "dim3")
+                    && (state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
+                        || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR)
+                {
+                    let max_position_iterations = harness
+                        .physics
+                        .integration_parameters
+                        .max_position_iterations;
+                    let max_velocity_iterations = harness
+                        .physics
+                        .integration_parameters
+                        .max_velocity_iterations;
+                    harness
+                        .physics
+                        .integration_parameters
+                        .max_velocity_iterations = max_position_iterations;
+                    harness
+                        .physics
+                        .integration_parameters
+                        .max_position_iterations = max_velocity_iterations;
+                }
+            }
+
+            let selected_example = state.selected_example;
+            let manager = &mut *graphics;
+            let meshes = &mut *meshes;
+            let graphics_context = TestbedGraphics {
+                manager: &mut *manager,
+                commands: &mut commands,
+                meshes: &mut *meshes,
+                materials: &mut *materials,
+                components: &mut gfx_components,
+                camera: &mut cameras.iter_mut().next().unwrap().2,
+            };
+            let mut testbed = Testbed {
+                graphics: Some(graphics_context),
+                state: &mut *state,
+                harness: &mut *harness,
+                other_backends: &mut *other_backends,
+                plugins: &mut *plugins,
+            };
+
+            builders.0[selected_example].1(&mut testbed);
+
+            state.camera_locked = false;
+        }
+
+        if state
+            .action_flags
+            .contains(TestbedActionFlags::TAKE_SNAPSHOT)
+        {
+            state
+                .action_flags
+                .set(TestbedActionFlags::TAKE_SNAPSHOT, false);
+            state.snapshot = PhysicsSnapshot::new(
+                harness.state.timestep_id,
+                &harness.physics.broad_phase,
+                &harness.physics.narrow_phase,
+                &harness.physics.bodies,
+                &harness.physics.colliders,
+                &harness.physics.joints,
+            )
+            .ok();
+
+            if let Some(snap) = &state.snapshot {
+                snap.print_snapshot_len();
+            }
+        }
+
+        if state
+            .action_flags
+            .contains(TestbedActionFlags::RESTORE_SNAPSHOT)
+        {
+            state
+                .action_flags
+                .set(TestbedActionFlags::RESTORE_SNAPSHOT, false);
+            if let Some(snapshot) = &state.snapshot {
+                if let Ok(w) = snapshot.restore() {
+                    clear(&mut commands, &mut state, &mut graphics, &mut plugins);
+
+                    // for plugin in &mut plugins {
+                    //     plugin.clear_graphics(window);
+                    // }
+
+                    // set_world(w.3, w.4, w.5);
+                    harness.physics.broad_phase = w.1;
+                    harness.physics.narrow_phase = w.2;
+                    harness.state.timestep_id = w.0;
+                }
+            }
+        }
+
+        if state
+            .action_flags
+            .contains(TestbedActionFlags::RESET_WORLD_GRAPHICS)
+        {
+            state
+                .action_flags
+                .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, false);
+            for (handle, _) in harness.physics.bodies.iter() {
+                graphics.add(
+                    &mut commands,
+                    meshes,
+                    materials,
+                    &mut gfx_components,
+                    handle,
+                    &harness.physics.bodies,
+                    &harness.physics.colliders,
+                );
+            }
+
+            // for plugin in &mut plugins {
+            //     let graphics = &mut graphics;
+            //     plugin.init_graphics(window, &mut || graphics.next_color());
+            // }
+        }
+
+        if example_changed
+            || state.prev_flags.contains(TestbedStateFlags::WIREFRAME)
+                != state.flags.contains(TestbedStateFlags::WIREFRAME)
+        {
+            // graphics.toggle_wireframe_mode(
+            //     &harness.physics.colliders,
+            //     state.flags.contains(TestbedStateFlags::WIREFRAME),
+            // )
+        }
+
+        if state.prev_flags.contains(TestbedStateFlags::SLEEP)
+            != state.flags.contains(TestbedStateFlags::SLEEP)
+        {
+            if state.flags.contains(TestbedStateFlags::SLEEP) {
+                for (_, body) in harness.physics.bodies.iter_mut() {
+                    body.activation_mut().threshold = RigidBodyActivation::default_threshold();
+                }
+            } else {
+                for (_, body) in harness.physics.bodies.iter_mut() {
+                    body.wake_up(true);
+                    body.activation_mut().threshold = -1.0;
+                }
+            }
+        }
     }
 
-    #[cfg(feature = "dim2")]
-    fn handle_special_event(&mut self, window: &mut Window, _event: Event) {
-        if window.is_conrod_ui_capturing_mouse() {
-            return;
-        }
+    state.prev_flags = state.flags;
 
-        /*
-        match event.value {
-            WindowEvent::MouseButton(MouseButton::Button1, Action::Press, modifier) => {
-                let all_groups = &CollisionGroups::new();
-                for b in self.geometrical_world.interferences_with_point(
-                    &self.colliders,
-                    &self.cursor_pos,
-                    all_groups,
-                ) {
-                    if !b.1.query_type().is_proximity_query()
-                        && Some(b.1.body()) != self.ground_handle
-                    {
-                        if let ColliderAnchor::OnBodyPart { body_part, .. } = b.1.anchor() {
-                            self.state.grabbed_object = Some(*body_part);
-                        } else {
-                            continue;
-                        }
-                    }
-                }
+    // for event in window.events().iter() {
+    //     let event = handle_common_event(event);
+    //     handle_special_event(window, event);
+    // }
 
-                if modifier.contains(Modifiers::Shift) {
-                    if let Some(body_part) = self.state.grabbed_object {
-                        if Some(body_part.0) != self.ground_handle {
-                            self.graphics.remove_body_nodes(window, body_part.0);
-                            self.bodies.remove(body_part.0);
-                        }
-                    }
+    if state.running != RunMode::Stop {
+        for _ in 0..state.nsteps {
+            if state.selected_backend == RAPIER_BACKEND {
+                let graphics = &mut graphics;
+                let mut testbed_graphics = TestbedGraphics {
+                    manager: &mut *graphics,
+                    commands: &mut commands,
+                    meshes: &mut *meshes,
+                    materials: &mut *materials,
+                    components: &mut gfx_components,
+                    camera: &mut cameras.iter_mut().next().unwrap().2,
+                };
+                harness.step_with_graphics(Some(&mut testbed_graphics));
 
-                    self.state.grabbed_object = None;
-                } else if modifier.contains(Modifiers::Alt) {
-                    self.state.drawing_ray = Some(self.cursor_pos);
-                } else if !modifier.contains(Modifiers::Control) {
-                    if let Some(body) = self.state.grabbed_object {
-                        if let Some(joint) = self.state.grabbed_object_constraint {
-                            let _ = self.constraints.remove(joint);
-                        }
-
-                        let body_pos = self
-                            .bodies
-                            .get(body.0)
-                            .unwrap()
-                            .part(body.1)
-                            .unwrap()
-                            .position();
-                        let attach1 = self.cursor_pos;
-                        let attach2 = body_pos.inv_mul(&attach1);
-
-                        if let Some(ground) = self.ground_handle {
-                            let joint = MouseConstraint::new(
-                                BodyPartHandle(ground, 0),
-                                body,
-                                attach1,
-                                attach2,
-                                1.0,
-                            );
-                            self.state.grabbed_object_constraint =
-                                Some(self.constraints.insert(joint));
-                        }
-
-                        for node in self.graphics.body_nodes_mut(body.0).unwrap().iter_mut() {
-                            node.select()
-                        }
-                    }
-
-                    event.inhibited = true;
-                } else {
-                    self.state.grabbed_object = None;
+                for plugin in &mut plugins.0 {
+                    plugin.step(&mut harness.physics)
                 }
             }
-            WindowEvent::MouseButton(MouseButton::Button1, Action::Release, _) => {
-                if let Some(body) = self.state.grabbed_object {
-                    for n in self.graphics.body_nodes_mut(body.0).unwrap().iter_mut() {
-                        n.unselect()
-                    }
-                }
 
-                if let Some(joint) = self.state.grabbed_object_constraint {
-                    let _ = self.constraints.remove(joint);
-                }
-
-                if let Some(start) = self.state.drawing_ray {
-                    self.graphics
-                        .add_ray(Ray::new(start, self.cursor_pos - start));
-                }
-
-                self.state.drawing_ray = None;
-                self.state.grabbed_object = None;
-                self.state.grabbed_object_constraint = None;
-            }
-            WindowEvent::CursorPos(x, y, modifiers) => {
-                self.cursor_pos.x = x as f32;
-                self.cursor_pos.y = y as f32;
-
-                self.cursor_pos = self
-                    .graphics
-                    .camera()
-                    .unproject(&self.cursor_pos, &na::convert(window.size()));
-
-                let attach2 = self.cursor_pos;
-                if self.state.grabbed_object.is_some() {
-                    if let Some(constraint) = self
-                        .state
-                        .grabbed_object_constraint
-                        .and_then(|joint| self.constraints.get_mut(joint))
-                        .and_then(|joint| {
-                            joint.downcast_mut::<MouseConstraint<f32, RigidBodyHandle>>()
-                        })
-                    {
-                        constraint.set_anchor_1(attach2);
-                    }
-                }
-
-                event.inhibited =
-                    modifiers.contains(Modifiers::Control) || modifiers.contains(Modifiers::Shift);
-            }
-            _ => {}
-        }
-        */
-    }
-
-    #[cfg(feature = "dim3")]
-    fn handle_special_event(&mut self, window: &mut Window, event: Event) {
-        use rapier::dynamics::RigidBodyBuilder;
-        use rapier::geometry::ColliderBuilder;
-
-        if window.is_conrod_ui_capturing_mouse() {
-            return;
-        }
-
-        match event.value {
-            WindowEvent::Key(Key::Space, Action::Release, _) => {
-                let cam_pos = self.graphics.camera().view_transform().inverse();
-                let forward = cam_pos * -Vector::z();
-                let vel = forward * 1000.0;
-
-                let bodies = &mut self.harness.physics.bodies;
-                let colliders = &mut self.harness.physics.colliders;
-
-                let collider = ColliderBuilder::cuboid(4.0, 2.0, 0.4).density(20.0).build();
-                // let collider = ColliderBuilder::ball(2.0).density(1.0).build();
-                let body = RigidBodyBuilder::new_dynamic()
-                    .position(cam_pos)
-                    .linvel(vel.x, vel.y, vel.z)
-                    .ccd_enabled(true)
-                    .build();
-
-                let body_handle = bodies.insert(body);
-                colliders.insert(collider, body_handle, bodies);
-                self.graphics.add(window, body_handle, bodies, colliders);
-            }
-            _ => {}
-        }
-
-        /*
-        match event.value {
-            WindowEvent::MouseButton(MouseButton::Button1, Action::Press, modifier) => {
-                if modifier.contains(Modifiers::Alt) {
-                    let size = window.size();
-                    let (pos, dir) = self
-                        .graphics
-                        .camera()
-                        .unproject(&self.cursor_pos, &na::convert(size));
-                    let ray = Ray::new(pos, dir);
-                    self.graphics.add_ray(ray);
-
-                    event.inhibited = true;
-                } else if modifier.contains(Modifiers::Shift) {
-                    // XXX: huge and ugly code duplication for the ray cast.
-                    let size = window.size();
-                    let (pos, dir) = self
-                        .graphics
-                        .camera()
-                        .unproject(&self.cursor_pos, &na::convert(size));
-                    let ray = Ray::new(pos, dir);
-
-                    // cast the ray
-                    let mut mintoi = Bounded::max_value();
-                    let mut minb = None;
-
-                    let all_groups = CollisionGroups::new();
-                    for (_, b, inter) in self.geometrical_world.interferences_with_ray(
-                        &self.colliders,
-                        &ray,
-                        std::f32::MAX,
-                        &all_groups,
-                    ) {
-                        if !b.query_type().is_proximity_query() && inter.toi < mintoi {
-                            mintoi = inter.toi;
-
-                            let subshape = b.shape().subshape_containing_feature(inter.feature);
-                            minb = Some(b.body_part(subshape));
-                        }
-                    }
-
-                    if let Some(body_part) = minb {
-                        if modifier.contains(Modifiers::Control) {
-                            if Some(body_part.0) != self.ground_handle {
-                                self.graphics.remove_body_nodes(window, body_part.0);
-                                self.bodies.remove(body_part.0);
-                            }
-                        } else {
-                            self.bodies
-                                .get_mut(body_part.0)
-                                .unwrap()
-                                .apply_force_at_point(
-                                    body_part.1,
-                                    &(ray.dir.normalize() * 0.01),
-                                    &ray.point_at(mintoi),
-                                    ForceType::Impulse,
-                                    true,
-                                );
-                        }
-                    }
-
-                    event.inhibited = true;
-                } else if !modifier.contains(Modifiers::Control) {
-                    match self.state.grabbed_object {
-                        Some(body) => {
-                            for n in self.graphics.body_nodes_mut(body.0).unwrap().iter_mut() {
-                                n.unselect()
-                            }
-                        }
-                        None => {}
-                    }
-
-                    // XXX: huge and uggly code duplication for the ray cast.
-                    let size = window.size();
-                    let (pos, dir) = self
-                        .graphics
-                        .camera()
-                        .unproject(&self.cursor_pos, &na::convert(size));
-                    let ray = Ray::new(pos, dir);
-
-                    // cast the ray
-                    let mut mintoi = Bounded::max_value();
-                    let mut minb = None;
-
-                    let all_groups = CollisionGroups::new();
-                    for (_, b, inter) in self.geometrical_world.interferences_with_ray(
-                        &self.colliders,
-                        &ray,
-                        std::f32::MAX,
-                        &all_groups,
-                    ) {
-                        if ((Some(b.body()) != self.ground_handle)
-                            || self.state.can_grab_behind_ground)
-                            && !b.query_type().is_proximity_query()
-                            && inter.toi < mintoi
-                        {
-                            mintoi = inter.toi;
-
-                            let subshape = b.shape().subshape_containing_feature(inter.feature);
-                            minb = Some(b.body_part(subshape));
-                        }
-                    }
-
-                    if let Some(body_part_handle) = minb {
-                        if self
-                            .bodies
-                            .get(body_part_handle.0)
-                            .unwrap()
-                            .status_dependent_ndofs()
-                            != 0
-                        {
-                            self.state.grabbed_object = minb;
-                            for n in self
-                                .graphics
-                                .body_nodes_mut(body_part_handle.0)
-                                .unwrap()
-                                .iter_mut()
-                            {
-                                if let Some(joint) = self.state.grabbed_object_constraint {
-                                    let constraint = self.constraints.remove(joint).unwrap();
-                                    let (b1, b2) = constraint.anchors();
-                                    self.bodies.get_mut(b1.0).unwrap().activate();
-                                    self.bodies.get_mut(b2.0).unwrap().activate();
-                                }
-
-                                let attach1 = ray.origin + ray.dir * mintoi;
-                                let attach2 = {
-                                    let body = self.bodies.get_mut(body_part_handle.0).unwrap();
-                                    body.activate();
-                                    let part = body.part(body_part_handle.1).unwrap();
-                                    body.material_point_at_world_point(part, &attach1)
-                                };
-
-                                if let Some(ground_handle) = self.ground_handle {
-                                    let constraint = MouseConstraint::new(
-                                        BodyPartHandle(ground_handle, 0),
-                                        body_part_handle,
-                                        attach1,
-                                        attach2,
-                                        1.0,
-                                    );
-                                    self.state.grabbed_object_plane = (attach1, -ray.dir);
-                                    self.state.grabbed_object_constraint =
-                                        Some(self.constraints.insert(constraint));
-                                }
-
-                                n.select()
-                            }
-                        }
-                    }
-
-                    event.inhibited = true;
-                }
-            }
-            WindowEvent::MouseButton(MouseButton::Button1, Action::Release, _) => {
-                if let Some(body_part) = self.state.grabbed_object {
-                    for n in self
-                        .graphics
-                        .body_nodes_mut(body_part.0)
+            #[cfg(all(feature = "dim2", feature = "other-backends"))]
+            {
+                if state.selected_backend == BOX2D_BACKEND {
+                    let harness = &mut *harness;
+                    other_backends.box2d.as_mut().unwrap().step(
+                        &mut harness.physics.pipeline.counters,
+                        &harness.physics.integration_parameters,
+                    );
+                    other_backends
+                        .box2d
+                        .as_mut()
                         .unwrap()
-                        .iter_mut()
-                    {
-                        n.unselect()
-                    }
-                }
-
-                if let Some(joint) = self.state.grabbed_object_constraint {
-                    let constraint = self.constraints.remove(joint).unwrap();
-                    let (b1, b2) = constraint.anchors();
-                    self.bodies.get_mut(b1.0).unwrap().activate();
-                    self.bodies.get_mut(b2.0).unwrap().activate();
-                }
-
-                self.state.grabbed_object = None;
-                self.state.grabbed_object_constraint = None;
-            }
-            _ => {}
-        }
-        */
-    }
-
-    #[cfg(feature = "dim2")]
-    fn highlight_hovered_body(&mut self, _window: &Window) {
-        // Do nothing for now.
-    }
-
-    #[cfg(feature = "dim3")]
-    fn highlight_hovered_body(&mut self, window: &Window) {
-        if let Some(highlighted_body) = self.state.highlighted_body {
-            if let Some(nodes) = self.graphics.body_nodes_mut(highlighted_body) {
-                for node in nodes {
-                    node.unselect()
+                        .sync(&mut harness.physics.bodies, &mut harness.physics.colliders);
                 }
             }
-        }
 
-        let size = window.size();
-        let (pos, dir) = self
-            .graphics
-            .camera()
-            .unproject(&self.cursor_pos, &na::convert(size));
-        let ray = Ray::new(pos, dir);
-        let physics = &self.harness.physics;
+            #[cfg(all(feature = "dim3", feature = "other-backends"))]
+            {
+                if state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
+                    || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
+                {
+                    //                        println!("Step");
+                    let harness = &mut *harness;
+                    other_backends.physx.as_mut().unwrap().step(
+                        &mut harness.physics.pipeline.counters,
+                        &harness.physics.integration_parameters,
+                    );
+                    other_backends
+                        .physx
+                        .as_mut()
+                        .unwrap()
+                        .sync(&mut harness.physics.bodies, &mut harness.physics.colliders);
+                }
+            }
+
+            #[cfg(feature = "other-backends")]
+            {
+                if state.selected_backend == NPHYSICS_BACKEND {
+                    let harness = &mut *harness;
+                    other_backends.nphysics.as_mut().unwrap().step(
+                        &mut harness.physics.pipeline.counters,
+                        &harness.physics.integration_parameters,
+                    );
+                    other_backends
+                        .nphysics
+                        .as_mut()
+                        .unwrap()
+                        .sync(&mut harness.physics.bodies, &mut harness.physics.colliders);
+                }
+            }
+
+            // for plugin in &mut plugins.0 {
+            //     plugin.run_callbacks(window, &mut harness.physics, &harness.state);
+            // }
+        }
+    }
+
+    if let Some(window) = windows.get_primary() {
+        for (camera, camera_pos, _) in cameras.iter_mut() {
+            highlight_hovered_body(
+                &mut *materials,
+                &mut *graphics,
+                &mut *state,
+                &harness.physics,
+                window,
+                camera,
+                camera_pos,
+            );
+        }
+    }
+
+    let physics = &harness.physics;
+    graphics.draw(&physics.bodies, &physics.colliders, &mut gfx_components);
+
+    for plugin in &mut plugins.0 {
+        plugin.draw();
+    }
+
+    if state.flags.contains(TestbedStateFlags::CONTACT_POINTS) {
+        draw_contacts(&physics.narrow_phase, &physics.colliders);
+    }
+
+    if state.running == RunMode::Step {
+        state.running = RunMode::Stop;
+    }
+}
+
+fn clear(
+    commands: &mut Commands,
+    state: &mut TestbedState,
+    graphics: &mut GraphicsManager,
+    _plugins: &mut Plugins,
+) {
+    state.can_grab_behind_ground = false;
+    graphics.clear(commands);
+
+    // for plugin in plugins.0.drain(..) {
+    //     plugin.clear_graphics();
+    // }
+}
+
+#[cfg(feature = "dim2")]
+fn highlight_hovered_body(
+    _materials: &mut Assets<StandardMaterial>,
+    _graphics_manager: &mut GraphicsManager,
+    _testbed_state: &mut TestbedState,
+    _physics: &PhysicsState,
+    _window: &Window,
+    _camera: &Camera,
+    _camera_transform: &GlobalTransform,
+) {
+    // Do nothing for now.
+}
+
+#[cfg(feature = "dim3")]
+fn highlight_hovered_body(
+    materials: &mut Assets<StandardMaterial>,
+    graphics_manager: &mut GraphicsManager,
+    testbed_state: &mut TestbedState,
+    physics: &PhysicsState,
+    window: &Window,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+) {
+    if let Some(highlighted_body) = testbed_state.highlighted_body {
+        if let Some(nodes) = graphics_manager.body_nodes_mut(highlighted_body) {
+            for node in nodes {
+                node.unselect(materials)
+            }
+        }
+    }
+
+    if let Some(cursor) = window.cursor_position() {
+        let ndc_cursor = (cursor / Vec2::new(window.width(), window.height()) * 2.0) - Vec2::ONE;
+        let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix.inverse();
+        let ray_pt1 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 0.0));
+        let ray_pt2 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 0.1));
+        let ray_dir = ray_pt2 - ray_pt1;
+        let ray_origin = Point3::new(ray_pt1.x, ray_pt1.y, ray_pt1.z);
+        let ray_dir = Vector3::new(ray_dir.x, ray_dir.y, ray_dir.z);
+
+        let ray = Ray::new(ray_origin, ray_dir);
         let hit = physics.query_pipeline.cast_ray(
             &physics.colliders,
             &ray,
@@ -1009,494 +1221,10 @@ impl Testbed {
         if let Some((handle, _)) = hit {
             let collider = &physics.colliders[handle];
             if physics.bodies[collider.parent()].is_dynamic() {
-                self.state.highlighted_body = Some(collider.parent());
-                for node in self.graphics.body_nodes_mut(collider.parent()).unwrap() {
-                    node.select()
+                testbed_state.highlighted_body = Some(collider.parent());
+                for node in graphics_manager.body_nodes_mut(collider.parent()).unwrap() {
+                    node.select(materials)
                 }
-            }
-        }
-    }
-}
-
-type CameraEffects<'a> = (
-    Option<&'a mut dyn Camera>,
-    Option<&'a mut dyn PlanarCamera>,
-    Option<&'a mut dyn PostProcessingEffect>,
-);
-
-impl State for Testbed {
-    fn cameras_and_effect(&mut self) -> CameraEffects<'_> {
-        #[cfg(feature = "dim2")]
-        let result = (
-            None,
-            Some(self.graphics.camera_mut() as &mut dyn PlanarCamera),
-            None,
-        );
-        #[cfg(feature = "dim3")]
-        let result = (
-            Some(self.graphics.camera_mut() as &mut dyn Camera),
-            None,
-            None,
-        );
-        result
-    }
-
-    fn step(&mut self, window: &mut Window) {
-        let prev_example = self.state.selected_example;
-
-        if let Some(ui) = &mut self.ui {
-            ui.update(
-                window,
-                &mut self.harness.physics.integration_parameters,
-                &mut self.state,
-                &mut self.harness.state,
-            );
-        }
-
-        // Handle UI actions.
-        {
-            let backend_changed = self
-                .state
-                .action_flags
-                .contains(TestbedActionFlags::BACKEND_CHANGED);
-            if backend_changed {
-                // Marking the example as changed will make the simulation
-                // restart with the selected backend.
-                self.state
-                    .action_flags
-                    .set(TestbedActionFlags::BACKEND_CHANGED, false);
-                self.state
-                    .action_flags
-                    .set(TestbedActionFlags::EXAMPLE_CHANGED, true);
-                self.camera_locked = true;
-            }
-
-            let restarted = self
-                .state
-                .action_flags
-                .contains(TestbedActionFlags::RESTART);
-            if restarted {
-                self.state
-                    .action_flags
-                    .set(TestbedActionFlags::RESTART, false);
-                self.camera_locked = true;
-                self.state
-                    .action_flags
-                    .set(TestbedActionFlags::EXAMPLE_CHANGED, true);
-            }
-
-            let example_changed = self
-                .state
-                .action_flags
-                .contains(TestbedActionFlags::EXAMPLE_CHANGED);
-            if example_changed {
-                self.state
-                    .action_flags
-                    .set(TestbedActionFlags::EXAMPLE_CHANGED, false);
-                self.clear(window);
-                self.harness.clear_callbacks();
-
-                if self.state.selected_example != prev_example {
-                    self.harness.physics.integration_parameters = IntegrationParameters::default();
-
-                    if cfg!(feature = "dim3")
-                        && (self.state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
-                            || self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR)
-                    {
-                        std::mem::swap(
-                            &mut self
-                                .harness
-                                .physics
-                                .integration_parameters
-                                .max_velocity_iterations,
-                            &mut self
-                                .harness
-                                .physics
-                                .integration_parameters
-                                .max_position_iterations,
-                        )
-                    }
-                }
-
-                self.builders[self.state.selected_example].1(self);
-
-                self.camera_locked = false;
-            }
-
-            if self
-                .state
-                .action_flags
-                .contains(TestbedActionFlags::TAKE_SNAPSHOT)
-            {
-                self.state
-                    .action_flags
-                    .set(TestbedActionFlags::TAKE_SNAPSHOT, false);
-                self.state.snapshot = PhysicsSnapshot::new(
-                    self.harness.state.timestep_id,
-                    &self.harness.physics.broad_phase,
-                    &self.harness.physics.narrow_phase,
-                    &self.harness.physics.bodies,
-                    &self.harness.physics.colliders,
-                    &self.harness.physics.joints,
-                )
-                .ok();
-
-                if let Some(snap) = &self.state.snapshot {
-                    snap.print_snapshot_len();
-                }
-            }
-
-            if self
-                .state
-                .action_flags
-                .contains(TestbedActionFlags::RESTORE_SNAPSHOT)
-            {
-                self.state
-                    .action_flags
-                    .set(TestbedActionFlags::RESTORE_SNAPSHOT, false);
-                if let Some(snapshot) = &self.state.snapshot {
-                    if let Ok(w) = snapshot.restore() {
-                        self.clear(window);
-                        self.graphics.clear(window);
-
-                        for plugin in &mut self.plugins {
-                            plugin.clear_graphics(window);
-                        }
-
-                        self.set_world(w.3, w.4, w.5);
-                        self.harness.physics.broad_phase = w.1;
-                        self.harness.physics.narrow_phase = w.2;
-                        self.harness.state.timestep_id = w.0;
-                    }
-                }
-            }
-
-            if self
-                .state
-                .action_flags
-                .contains(TestbedActionFlags::RESET_WORLD_GRAPHICS)
-            {
-                self.state
-                    .action_flags
-                    .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, false);
-                for (handle, _) in self.harness.physics.bodies.iter() {
-                    self.graphics.add(
-                        window,
-                        handle,
-                        &self.harness.physics.bodies,
-                        &self.harness.physics.colliders,
-                    );
-                }
-
-                for plugin in &mut self.plugins {
-                    let graphics = &mut self.graphics;
-                    plugin.init_graphics(window, &mut || graphics.next_color());
-                }
-            }
-
-            if example_changed
-                || self.state.prev_flags.contains(TestbedStateFlags::WIREFRAME)
-                    != self.state.flags.contains(TestbedStateFlags::WIREFRAME)
-            {
-                self.graphics.toggle_wireframe_mode(
-                    &self.harness.physics.colliders,
-                    self.state.flags.contains(TestbedStateFlags::WIREFRAME),
-                )
-            }
-
-            if self.state.prev_flags.contains(TestbedStateFlags::SLEEP)
-                != self.state.flags.contains(TestbedStateFlags::SLEEP)
-            {
-                if self.state.flags.contains(TestbedStateFlags::SLEEP) {
-                    for (_, body) in self.harness.physics.bodies.iter_mut() {
-                        body.activation_mut().threshold = RigidBodyActivation::default_threshold();
-                    }
-                } else {
-                    for (_, body) in self.harness.physics.bodies.iter_mut() {
-                        body.wake_up(true);
-                        body.activation_mut().threshold = -1.0;
-                    }
-                }
-            }
-
-            // if self
-            //     .state
-            //     .prev_flags
-            //     .contains(TestbedStateFlags::SUB_STEPPING)
-            //     != self.state.flags.contains(TestbedStateFlags::SUB_STEPPING)
-            // {
-            //     self.harness
-            //         .physics
-            //         .integration_parameters
-            //         .return_after_ccd_substep =
-            //         self.state.flags.contains(TestbedStateFlags::SUB_STEPPING);
-            // }
-
-            if self.state.prev_flags.contains(TestbedStateFlags::SHAPES)
-                != self.state.flags.contains(TestbedStateFlags::SHAPES)
-            {
-                unimplemented!()
-            }
-
-            if self.state.prev_flags.contains(TestbedStateFlags::JOINTS)
-                != self.state.flags.contains(TestbedStateFlags::JOINTS)
-            {
-                unimplemented!()
-            }
-
-            if example_changed
-                || self.state.prev_flags.contains(TestbedStateFlags::AABBS)
-                    != self.state.flags.contains(TestbedStateFlags::AABBS)
-            {
-                if self.state.flags.contains(TestbedStateFlags::AABBS) {
-                    //                    self.graphics
-                    //                        .show_aabbs(&self.geometrical_world, &self.colliders, window)
-                } else {
-                    //                    self.graphics.hide_aabbs(window)
-                }
-            }
-
-            if self
-                .state
-                .prev_flags
-                .contains(TestbedStateFlags::CENTER_OF_MASSES)
-                != self
-                    .state
-                    .flags
-                    .contains(TestbedStateFlags::CENTER_OF_MASSES)
-            {
-                unimplemented!()
-            }
-        }
-
-        self.state.prev_flags = self.state.flags;
-
-        for event in window.events().iter() {
-            let event = self.handle_common_event(event);
-            self.handle_special_event(window, event);
-        }
-
-        if self.state.running != RunMode::Stop {
-            for _ in 0..self.nsteps {
-                if self.state.selected_backend == RAPIER_BACKEND {
-                    let graphics = &mut self.graphics;
-                    self.harness
-                        .step_with_graphics(Some(window), Some(graphics));
-
-                    for plugin in &mut self.plugins {
-                        plugin.step(&mut self.harness.physics)
-                    }
-                }
-
-                #[cfg(all(feature = "dim2", feature = "other-backends"))]
-                {
-                    if self.state.selected_backend == BOX2D_BACKEND {
-                        self.box2d.as_mut().unwrap().step(
-                            &mut self.harness.physics.pipeline.counters,
-                            &self.harness.physics.integration_parameters,
-                        );
-                        self.box2d.as_mut().unwrap().sync(
-                            &mut self.harness.physics.bodies,
-                            &mut self.harness.physics.colliders,
-                        );
-                    }
-                }
-
-                #[cfg(all(feature = "dim3", feature = "other-backends"))]
-                {
-                    if self.state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
-                        || self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
-                    {
-                        //                        println!("Step");
-                        self.physx.as_mut().unwrap().step(
-                            &mut self.harness.physics.pipeline.counters,
-                            &self.harness.physics.integration_parameters,
-                        );
-                        self.physx.as_mut().unwrap().sync(
-                            &mut self.harness.physics.bodies,
-                            &mut self.harness.physics.colliders,
-                        );
-                    }
-                }
-
-                #[cfg(feature = "other-backends")]
-                {
-                    if self.state.selected_backend == NPHYSICS_BACKEND {
-                        self.nphysics.as_mut().unwrap().step(
-                            &mut self.harness.physics.pipeline.counters,
-                            &self.harness.physics.integration_parameters,
-                        );
-                        self.nphysics.as_mut().unwrap().sync(
-                            &mut self.harness.physics.bodies,
-                            &mut self.harness.physics.colliders,
-                        );
-                    }
-                }
-
-                for plugin in &mut self.plugins {
-                    plugin.run_callbacks(window, &mut self.harness.physics, &self.harness.state);
-                }
-            }
-        }
-
-        self.highlight_hovered_body(window);
-
-        let physics = &self.harness.physics;
-        self.graphics
-            .draw(&physics.bodies, &physics.colliders, window);
-
-        for plugin in &mut self.plugins {
-            plugin.draw();
-        }
-
-        if self.state.flags.contains(TestbedStateFlags::CONTACT_POINTS) {
-            draw_contacts(window, &physics.narrow_phase, &physics.colliders);
-        }
-
-        if self.state.running == RunMode::Step {
-            self.state.running = RunMode::Stop;
-        }
-
-        if self.state.running == RunMode::Quit {
-            window.close()
-        }
-
-        let color = Point3::new(0.0, 0.0, 0.0);
-        let counters = physics.pipeline.counters;
-        let mut profile = String::new();
-
-        if self.state.flags.contains(TestbedStateFlags::PROFILE) {
-            profile = format!(
-                r#"{}
-Total: {:.2}ms
-Collision detection: {:.2}ms
-|_ Broad-phase: {:.2}ms
-   Narrow-phase: {:.2}ms
-Island computation: {:.2}ms
-Solver: {:.2}ms
-|_ Velocity assembly: {:.2}ms
-   Velocity resolution: {:.2}ms
-   Velocity integration: {:.2}ms
-   Position assembly: {:.2}ms
-   Position resolution: {:.2}ms
-CCD: {:.2}ms
-|_ # of substeps: {}
-   TOI computation: {:.2}ms
-   Broad-phase: {:.2}ms
-   Narrow-phase: {:.2}ms
-   Solver: {:.2}ms"#,
-                profile,
-                counters.step_time(),
-                counters.collision_detection_time(),
-                counters.broad_phase_time(),
-                counters.narrow_phase_time(),
-                counters.island_construction_time(),
-                counters.solver_time(),
-                counters.solver.velocity_assembly_time.time(),
-                counters.velocity_resolution_time(),
-                counters.solver.velocity_update_time.time(),
-                counters.solver.position_assembly_time.time(),
-                counters.position_resolution_time(),
-                counters.ccd_time(),
-                counters.ccd.num_substeps,
-                counters.ccd.toi_computation_time.time(),
-                counters.ccd.broad_phase_time.time(),
-                counters.ccd.narrow_phase_time.time(),
-                counters.ccd.solver_time.time(),
-            );
-
-            for plugin in &self.plugins {
-                let plugin_profile = plugin.profiling_string();
-                profile = format!("{}\n{}", profile, plugin_profile,)
-            }
-        }
-
-        if self.state.flags.contains(TestbedStateFlags::DEBUG) {
-            let t = instant::now();
-            let physics = &self.harness.physics;
-            // let t = instant::now();
-            let bf = bincode::serialize(&physics.broad_phase).unwrap();
-            // println!("bf: {}", instant::now() - t);
-            // let t = instant::now();
-            let nf = bincode::serialize(&physics.narrow_phase).unwrap();
-            // println!("nf: {}", instant::now() - t);
-            // let t = instant::now();
-            let bs = bincode::serialize(&physics.bodies).unwrap();
-            // println!("bs: {}", instant::now() - t);
-            // let t = instant::now();
-            let cs = bincode::serialize(&physics.colliders).unwrap();
-            // println!("cs: {}", instant::now() - t);
-            // let t = instant::now();
-            let js = bincode::serialize(&physics.joints).unwrap();
-            // println!("js: {}", instant::now() - t);
-            let serialization_time = instant::now() - t;
-            let hash_bf = md5::compute(&bf);
-            let hash_nf = md5::compute(&nf);
-            let hash_bodies = md5::compute(&bs);
-            let hash_colliders = md5::compute(&cs);
-            let hash_joints = md5::compute(&js);
-            profile = format!(
-                r#"{}
-Serialization time: {:.2}ms
-Hashes at frame: {}
-|_ Broad phase [{:.1}KB]: {:?}
-|_ Narrow phase [{:.1}KB]: {:?}
-|_ Bodies [{:.1}KB]: {:?}
-|_ Colliders [{:.1}KB]: {:?}
-|_ Joints [{:.1}KB]: {:?}"#,
-                profile,
-                serialization_time,
-                self.harness.state.timestep_id,
-                bf.len() as f32 / 1000.0,
-                hash_bf,
-                nf.len() as f32 / 1000.0,
-                hash_nf,
-                bs.len() as f32 / 1000.0,
-                hash_bodies,
-                cs.len() as f32 / 1000.0,
-                hash_colliders,
-                js.len() as f32 / 1000.0,
-                hash_joints
-            );
-        }
-
-        window.draw_text(&profile, &Point2::origin(), 45.0, &self.font, &color);
-    }
-}
-
-fn draw_contacts(window: &mut Window, nf: &NarrowPhase, colliders: &ColliderSet) {
-    use rapier::math::Isometry;
-
-    for pair in nf.contact_pairs() {
-        for manifold in &pair.manifolds {
-            /*
-            for contact in &manifold.data.solver_contacts {
-                let p = contact.point;
-                let n = manifold.data.normal;
-
-                use crate::engine::GraphicsWindow;
-                window.draw_graphics_line(&p, &(p + n * 0.4), &Point3::new(0.5, 1.0, 0.5));
-            }
-            */
-            for pt in manifold.contacts() {
-                let color = if pt.dist > 0.0 {
-                    Point3::new(0.0, 0.0, 1.0)
-                } else {
-                    Point3::new(1.0, 0.0, 0.0)
-                };
-                let pos1 = colliders[pair.pair.collider1].position();
-                let pos2 = colliders[pair.pair.collider2].position();
-                let start =
-                    pos1 * manifold.subshape_pos1.unwrap_or(Isometry::identity()) * pt.local_p1;
-                let end =
-                    pos2 * manifold.subshape_pos2.unwrap_or(Isometry::identity()) * pt.local_p2;
-                let n = pos1
-                    * manifold.subshape_pos1.unwrap_or(Isometry::identity())
-                    * manifold.local_n1;
-
-                use crate::engine::GraphicsWindow;
-                window.draw_graphics_line(&start, &(start + n * 0.4), &Point3::new(0.5, 1.0, 0.5));
-                window.draw_graphics_line(&start, &end, &color);
             }
         }
     }

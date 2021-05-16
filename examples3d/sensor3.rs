@@ -46,7 +46,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
             colliders.insert(collider, handle, &mut bodies);
 
-            testbed.set_body_color(handle, Point3::new(0.5, 0.5, 1.0));
+            testbed.set_initial_body_color(handle, Point3::new(0.5, 0.5, 1.0));
         }
     }
 
@@ -70,10 +70,10 @@ pub fn init_world(testbed: &mut Testbed) {
     let sensor_collider = ColliderBuilder::ball(rad * 5.0).sensor(true).build();
     colliders.insert(sensor_collider, sensor_handle, &mut bodies);
 
-    testbed.set_body_color(sensor_handle, Point3::new(0.5, 1.0, 1.0));
+    testbed.set_initial_body_color(sensor_handle, Point3::new(0.5, 1.0, 1.0));
 
     // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |_, mut graphics, physics, events, _| {
+    testbed.add_callback(move |mut graphics, physics, events, _| {
         while let Ok(prox) = events.intersection_events.try_recv() {
             let color = if prox.intersecting {
                 Point3::new(1.0, 1.0, 0.0)
@@ -100,9 +100,4 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed.set_world(bodies, colliders, joints);
     testbed.look_at(Point3::new(-6.0, 4.0, -6.0), Point3::new(0.0, 1.0, 0.0));
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Sensor", init_world)]);
-    testbed.run()
 }

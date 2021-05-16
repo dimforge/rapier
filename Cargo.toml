@@ -1,6 +1,7 @@
 [workspace]
 members = [ "build/rapier2d", "build/rapier2d-f64", "build/rapier_testbed2d", "examples2d", "benchmarks2d",
             "build/rapier3d", "build/rapier3d-f64", "build/rapier_testbed3d", "examples3d", "benchmarks3d" ]
+resolver = "2"
 
 [patch.crates-io]
 #wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }

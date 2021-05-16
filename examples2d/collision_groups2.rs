@@ -39,7 +39,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .build();
     let green_collider_handle = colliders.insert(green_floor, floor_handle, &mut bodies);
 
-    testbed.set_collider_initial_color(green_collider_handle, Point3::new(0.0, 1.0, 0.0));
+    testbed.set_initial_collider_color(green_collider_handle, Point3::new(0.0, 1.0, 0.0));
 
     /*
      * A blue floor that will collide with the BLUE group only.
@@ -50,7 +50,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .build();
     let blue_collider_handle = colliders.insert(blue_floor, floor_handle, &mut bodies);
 
-    testbed.set_collider_initial_color(blue_collider_handle, Point3::new(0.0, 0.0, 1.0));
+    testbed.set_initial_collider_color(blue_collider_handle, Point3::new(0.0, 0.0, 1.0));
 
     /*
      * Create the cubes
@@ -81,7 +81,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 .build();
             colliders.insert(collider, handle, &mut bodies);
 
-            testbed.set_body_color(handle, color);
+            testbed.set_initial_body_color(handle, color);
         }
     }
 
@@ -90,9 +90,4 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed.set_world(bodies, colliders, joints);
     testbed.look_at(Point2::new(0.0, 1.0), 100.0);
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Boxes", init_world)]);
-    testbed.run()
 }
