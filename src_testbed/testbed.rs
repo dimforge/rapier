@@ -120,12 +120,13 @@ pub struct TestbedState {
 }
 
 struct SceneBuilders(Vec<(&'static str, fn(&mut Testbed))>);
+
+#[cfg(feature = "other-backends")]
 struct OtherBackends {
-    #[cfg(all(feature = "dim2", feature = "other-backends"))]
+    #[cfg(feature = "dim2")]
     box2d: Option<Box2dWorld>,
-    #[cfg(all(feature = "dim3", feature = "other-backends"))]
+    #[cfg(feature = "dim3")]
     physx: Option<PhysxWorld>,
-    #[cfg(feature = "other-backends")]
     nphysics: Option<NPhysicsWorld>,
 }
 struct Plugins(Vec<Box<dyn TestbedPlugin>>);
@@ -143,6 +144,7 @@ pub struct Testbed<'a, 'b, 'c, 'd> {
     graphics: Option<TestbedGraphics<'a, 'b, 'c, 'd>>,
     harness: &'a mut Harness,
     state: &'a mut TestbedState,
+    #[cfg(feature = "other-backends")]
     other_backends: &'a mut OtherBackends,
     plugins: &'a mut Plugins,
 }
@@ -152,6 +154,7 @@ pub struct TestbedApp {
     graphics: GraphicsManager,
     state: TestbedState,
     harness: Harness,
+    #[cfg(feature = "other-backends")]
     other_backends: OtherBackends,
     plugins: Plugins,
 }
@@ -195,12 +198,12 @@ impl TestbedApp {
         };
 
         let harness = Harness::new_empty();
+        #[cfg(feature = "other-backends")]
         let other_backends = OtherBackends {
-            #[cfg(all(feature = "dim2", feature = "other-backends"))]
+            #[cfg(feature = "dim2")]
             box2d: None,
-            #[cfg(all(feature = "dim3", feature = "other-backends"))]
+            #[cfg(feature = "dim3")]
             physx: None,
-            #[cfg(feature = "other-backends")]
             nphysics: None,
         };
 
@@ -210,6 +213,7 @@ impl TestbedApp {
             graphics,
             state,
             harness,
+            #[cfg(feature = "other-backends")]
             other_backends,
         }
     }
@@ -291,6 +295,7 @@ impl TestbedApp {
                         graphics: None,
                         state: &mut self.state,
                         harness: &mut self.harness,
+                        #[cfg(feature = "other-backends")]
                         other_backends: &mut self.other_backends,
                         plugins: &mut self.plugins,
                     };
@@ -407,11 +412,13 @@ impl TestbedApp {
             #[cfg(target_arch = "wasm32")]
             app.add_plugin(bevy_webgl2::WebGL2Plugin);
 
+            #[cfg(feature = "other-backends")]
+            app.insert_non_send_resource(self.other_backends);
+
             app.add_startup_system(setup_graphics_environment.system())
                 .insert_non_send_resource(self.graphics)
                 .insert_resource(self.state)
                 .insert_non_send_resource(self.harness)
-                .insert_non_send_resource(self.other_backends)
                 .insert_resource(self.builders)
                 .insert_non_send_resource(self.plugins)
                 .add_stage_before(CoreStage::Update, "physics", SystemStage::single_threaded())
@@ -843,7 +850,7 @@ fn update_testbed(
     mut graphics: NonSendMut<GraphicsManager>,
     mut state: ResMut<TestbedState>,
     mut harness: NonSendMut<Harness>,
-    mut other_backends: NonSendMut<OtherBackends>,
+    #[cfg(feature = "other-backends")] mut other_backends: NonSendMut<OtherBackends>,
     mut plugins: NonSendMut<Plugins>,
     ui_context: Res<EguiContext>,
     mut gfx_components: Query<(&mut Transform,)>,
@@ -936,6 +943,7 @@ fn update_testbed(
                 graphics: Some(graphics_context),
                 state: &mut *state,
                 harness: &mut *harness,
+                #[cfg(feature = "other-backends")]
                 other_backends: &mut *other_backends,
                 plugins: &mut *plugins,
             };

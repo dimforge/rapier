@@ -10,7 +10,7 @@ use bevy_egui::{egui, EguiContext};
 pub fn update_ui(ui_context: &EguiContext, state: &mut TestbedState, harness: &mut Harness) {
     egui::Window::new("Parameters").show(ui_context.ctx(), |ui| {
         if state.backend_names.len() > 1 && !state.example_names.is_empty() {
-            #[cfg(feature = "dim3")]
+            #[cfg(all(feature = "dim3", feature = "other-backends"))]
             let prev_selected_backend = state.selected_backend;
             let mut changed = false;
             egui::ComboBox::from_label("backend")
