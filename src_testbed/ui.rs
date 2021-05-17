@@ -124,7 +124,7 @@ pub fn update_ui(ui_context: &EguiContext, state: &mut TestbedState, harness: &m
         #[cfg(feature = "parallel")]
         {
             ui.add(
-                Slider::new(&mut harness.state.num_threads, 1..num_cpus::get_physical())
+                Slider::new(&mut harness.state.num_threads, 1..=num_cpus::get_physical())
                     .text("num. threads"),
             );
         }
