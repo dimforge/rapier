@@ -18,6 +18,9 @@ resolver = "2"
 #parry3d-f64 = { path = "../parry/build/parry3d-f64" }
 #nalgebra = { path = "../nalgebra" }
 
+#bevy-orbit-controls = { path = "../bevy-orbit-controls" }
+bevy-orbit-controls = { git = "https://github.com/sebcrozet/bevy-orbit-controls" }
+
 #kiss3d = { git = "https://github.com/sebcrozet/kiss3d" }
 #nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "dev" }
 #parry2d = { git = "https://github.com/dimforge/parry", branch = "special_cases" }
