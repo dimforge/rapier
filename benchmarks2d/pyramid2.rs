@@ -53,8 +53,3 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.set_world(bodies, colliders, joints);
     testbed.look_at(Point2::new(0.0, 2.5), 5.0);
 }
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Balls", init_world)]);
-    testbed.run()
-}

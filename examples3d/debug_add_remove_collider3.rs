@@ -34,12 +34,13 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::ball(ball_rad).density(100.0).build();
     colliders.insert(collider, ball_handle, &mut bodies);
 
-    testbed.add_callback(move |mut window, mut graphics, physics, _, _| {
+    testbed.add_callback(move |_, physics, _, _| {
         // Remove then re-add the ground collider.
+        let removed_collider_handle = ground_collider_handle;
         let coll = physics
             .colliders
             .remove(
-                ground_collider_handle,
+                removed_collider_handle,
                 &mut physics.islands,
                 &mut physics.bodies,
                 true,
@@ -48,10 +49,6 @@ pub fn init_world(testbed: &mut Testbed) {
         ground_collider_handle = physics
             .colliders
             .insert(coll, ground_handle, &mut physics.bodies);
-
-        if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
-            graphics.add_collider(window, ground_collider_handle, &physics.colliders);
-        }
     });
 
     /*
@@ -59,9 +56,4 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed.set_world(bodies, colliders, joints);
     testbed.look_at(Point3::new(10.0, 10.0, 10.0), Point3::origin());
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Boxes", init_world)]);
-    testbed.run()
 }

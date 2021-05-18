@@ -30,9 +30,15 @@ fn create_wall(
             colliders.insert(collider, handle, bodies);
             k += 1;
             if k % 2 == 0 {
-                testbed.set_body_color(handle, Point3::new(255. / 255., 131. / 255., 244.0 / 255.));
+                testbed.set_initial_body_color(
+                    handle,
+                    Point3::new(255. / 255., 131. / 255., 244.0 / 255.),
+                );
             } else {
-                testbed.set_body_color(handle, Point3::new(131. / 255., 255. / 255., 244.0 / 255.));
+                testbed.set_initial_body_color(
+                    handle,
+                    Point3::new(131. / 255., 255. / 255., 244.0 / 255.),
+                );
             }
         }
     }
@@ -114,10 +120,10 @@ pub fn init_world(testbed: &mut Testbed) {
         .build();
     let handle = bodies.insert(rigid_body);
     colliders.insert(collider.clone(), handle, &mut bodies);
-    testbed.set_body_color(handle, Point3::new(0.2, 0.2, 1.0));
+    testbed.set_initial_body_color(handle, Point3::new(0.2, 0.2, 1.0));
 
     // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |_, mut graphics, physics, events, _| {
+    testbed.add_callback(move |mut graphics, physics, events, _| {
         while let Ok(prox) = events.intersection_events.try_recv() {
             let color = if prox.intersecting {
                 Point3::new(1.0, 1.0, 0.0)
@@ -144,9 +150,4 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed.set_world(bodies, colliders, joints);
     testbed.look_at(Point3::new(100.0, 100.0, 100.0), Point3::origin());
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Boxes", init_world)]);
-    testbed.run()
 }

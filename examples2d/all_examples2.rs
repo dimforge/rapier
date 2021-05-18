@@ -7,7 +7,7 @@ use wasm_bindgen::prelude::*;
 
 use inflector::Inflector;
 
-use rapier_testbed2d::Testbed;
+use rapier_testbed2d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
 
 mod add_remove2;
@@ -89,7 +89,7 @@ pub fn main() {
         .iter()
         .position(|builder| builder.0.to_camel_case().as_str() == demo.as_str())
         .unwrap_or(0);
-    let testbed = Testbed::from_builders(i, builders);
+    let testbed = TestbedApp::from_builders(i, builders);
 
     testbed.run()
 }

@@ -100,7 +100,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Spawn cubes at regular intervals and apply a custom gravity
      * depending on their position.
      */
-    testbed.add_callback(move |mut window, mut graphics, physics, _, run_state| {
+    testbed.add_callback(move |graphics, physics, _, run_state| {
         if run_state.timestep_id % 50 == 0 && physics.bodies.len() <= 7 {
             // Spawn a new cube.
             let collider = ColliderBuilder::cuboid(1.5, 2.0).build();
@@ -112,8 +112,8 @@ pub fn init_world(testbed: &mut Testbed) {
                 .colliders
                 .insert(collider, handle, &mut physics.bodies);
 
-            if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
-                graphics.add(window, handle, &physics.bodies, &physics.colliders);
+            if let Some(graphics) = graphics {
+                graphics.add_body(handle, &physics.bodies, &physics.colliders);
             }
         }
 
@@ -138,9 +138,4 @@ pub fn init_world(testbed: &mut Testbed) {
         physics_hooks,
     );
     testbed.look_at(Point2::new(0.0, 0.0), 20.0);
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Boxes", init_world)]);
-    testbed.run()
 }

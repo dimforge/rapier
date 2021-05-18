@@ -1,10 +1,11 @@
-use kiss3d::loader::obj;
-use na::{Point3, Translation3};
+use na::Point3;
+use obj::raw::object::Polygon;
 use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
 use rapier3d::geometry::{ColliderBuilder, ColliderSet, SharedShape};
-use rapier3d::parry::bounding_volume::{self, BoundingVolume};
+use rapier3d::parry::bounding_volume;
 use rapier_testbed3d::Testbed;
-use std::path::Path;
+use std::fs::File;
+use std::io::BufReader;
 
 /*
  * NOTE: The `r` macro is only here to convert from f64 to the `N` scalar type.
@@ -42,47 +43,45 @@ pub fn init_world(testbed: &mut Testbed) {
 
     for (igeom, obj_path) in geoms.into_iter().enumerate() {
         let deltas = na::one();
-        let mtl_path = Path::new("");
 
         let mut shapes = Vec::new();
         println!("Parsing and decomposing: {}", obj_path);
-        let obj = obj::parse_file(&Path::new(&obj_path), &mtl_path, "");
+        let input = BufReader::new(File::open(obj_path).unwrap());
 
-        if let Ok(model) = obj {
-            let meshes: Vec<_> = model
+        if let Ok(model) = obj::raw::parse_obj(input) {
+            let mut vertices: Vec<_> = model
+                .positions
+                .iter()
+                .map(|v| Point3::new(v.0, v.1, v.2))
+                .collect();
+            use std::iter::FromIterator;
+            let indices: Vec<_> = model
+                .polygons
                 .into_iter()
-                .map(|mesh| mesh.1.to_trimesh().unwrap())
+                .flat_map(|p| match p {
+                    Polygon::P(idx) => idx.into_iter(),
+                    Polygon::PT(idx) => Vec::from_iter(idx.into_iter().map(|i| i.0)).into_iter(),
+                    Polygon::PN(idx) => Vec::from_iter(idx.into_iter().map(|i| i.0)).into_iter(),
+                    Polygon::PTN(idx) => Vec::from_iter(idx.into_iter().map(|i| i.0)).into_iter(),
+                })
                 .collect();
 
             // Compute the size of the model, to scale it and have similar size for everything.
-            let mut aabb =
-                bounding_volume::details::point_cloud_aabb(&deltas, &meshes[0].coords[..]);
-
-            for mesh in meshes[1..].iter() {
-                aabb.merge(&bounding_volume::details::point_cloud_aabb(
-                    &deltas,
-                    &mesh.coords[..],
-                ));
-            }
-
-            let center = aabb.center().coords;
+            let aabb = bounding_volume::details::point_cloud_aabb(&deltas, &vertices);
+            let center = aabb.center();
             let diag = (aabb.maxs - aabb.mins).norm();
 
-            for mut trimesh in meshes.into_iter() {
-                trimesh.translate_by(&Translation3::from(-center));
-                trimesh.scale_by_scalar(6.0 / diag);
+            vertices
+                .iter_mut()
+                .for_each(|p| *p = (*p - center.coords) * 6.0 / diag);
 
-                let vertices = trimesh.coords;
-                let indices: Vec<_> = trimesh
-                    .indices
-                    .unwrap_unified()
-                    .into_iter()
-                    .map(|idx| [idx.x, idx.y, idx.z])
-                    .collect();
+            let indices: Vec<_> = indices
+                .chunks(3)
+                .map(|idx| [idx[0] as u32, idx[1] as u32, idx[2] as u32])
+                .collect();
 
-                let decomposed_shape = SharedShape::convex_decomposition(&vertices, &indices);
-                shapes.push(decomposed_shape);
-            }
+            let decomposed_shape = SharedShape::convex_decomposition(&vertices, &indices);
+            shapes.push(decomposed_shape);
 
             // let compound = SharedShape::compound(compound_parts);
 
@@ -122,7 +121,7 @@ fn models() -> Vec<String> {
         "media/models/hornbug.obj".to_string(),
         "media/models/octopus_decimated.obj".to_string(),
         "media/models/rabbit_decimated.obj".to_string(),
-        "media/models/rust_logo.obj".to_string(),
+        // "media/models/rust_logo.obj".to_string(),
         "media/models/rust_logo_simplified.obj".to_string(),
         "media/models/screwdriver_decimated.obj".to_string(),
         "media/models/table.obj".to_string(),

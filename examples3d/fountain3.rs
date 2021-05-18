@@ -25,7 +25,7 @@ pub fn init_world(testbed: &mut Testbed) {
     colliders.insert(collider, handle, &mut bodies);
 
     // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |mut window, mut graphics, physics, _, run_state| {
+    testbed.add_callback(move |mut graphics, physics, _, run_state| {
         let rigid_body = RigidBodyBuilder::new_dynamic()
             .translation(0.0, 10.0, 0.0)
             .build();
@@ -40,8 +40,8 @@ pub fn init_world(testbed: &mut Testbed) {
             .colliders
             .insert(collider, handle, &mut physics.bodies);
 
-        if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
-            graphics.add(window, handle, &physics.bodies, &physics.colliders);
+        if let Some(graphics) = &mut graphics {
+            graphics.add_body(handle, &physics.bodies, &physics.colliders);
         }
 
         if physics.bodies.len() > MAX_NUMBER_OF_BODIES {
@@ -68,8 +68,8 @@ pub fn init_world(testbed: &mut Testbed) {
                     &mut physics.joints,
                 );
 
-                if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
-                    graphics.remove_body_nodes(window, *handle);
+                if let Some(graphics) = &mut graphics {
+                    graphics.remove_body(*handle);
                 }
             }
         }
@@ -84,9 +84,4 @@ pub fn init_world(testbed: &mut Testbed) {
     //     .integration_parameters
     //     .velocity_based_erp = 0.2;
     testbed.look_at(Point3::new(-30.0, 4.0, -30.0), Point3::new(0.0, 1.0, 0.0));
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Add-remove", init_world)]);
-    testbed.run()
 }

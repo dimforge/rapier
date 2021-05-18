@@ -44,7 +44,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut step = 0;
     let snapped_frame = 51;
 
-    testbed.add_callback(move |_, _, physics, _, _| {
+    testbed.add_callback(move |_, physics, _, _| {
         step += 1;
 
         // Snap the ball velocity or restore it.
@@ -69,9 +69,4 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed.set_world(bodies, colliders, joints);
     testbed.look_at(Point3::new(10.0, 10.0, 10.0), Point3::origin());
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Boxes", init_world)]);
-    testbed.run()
 }

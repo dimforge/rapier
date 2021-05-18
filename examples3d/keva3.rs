@@ -51,7 +51,7 @@ pub fn build_block(
                 let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z).build();
                 colliders.insert(collider, handle, bodies);
 
-                testbed.set_body_color(handle, color0);
+                testbed.set_initial_body_color(handle, color0);
                 std::mem::swap(&mut color0, &mut color1);
             }
         }
@@ -73,7 +73,7 @@ pub fn build_block(
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z).build();
             colliders.insert(collider, handle, bodies);
-            testbed.set_body_color(handle, color0);
+            testbed.set_initial_body_color(handle, color0);
             std::mem::swap(&mut color0, &mut color1);
         }
     }
@@ -136,9 +136,4 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed.set_world(bodies, colliders, joints);
     testbed.look_at(Point3::new(100.0, 100.0, 100.0), Point3::origin());
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Boxes", init_world)]);
-    testbed.run()
 }

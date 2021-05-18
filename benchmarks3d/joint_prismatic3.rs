@@ -74,8 +74,3 @@ pub fn init_world(testbed: &mut Testbed) {
         Point3::new(101.0, 4.0, -3.0),
     );
 }
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Joints", init_world)]);
-    testbed.run()
-}
