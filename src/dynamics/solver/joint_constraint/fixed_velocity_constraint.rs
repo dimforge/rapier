@@ -63,8 +63,8 @@ impl FixedVelocityConstraint {
         let (poss1, vels1, mprops1, ids1) = rb1;
         let (poss2, vels2, mprops2, ids2) = rb2;
 
-        let anchor1 = poss1.position * cparams.local_anchor1;
-        let anchor2 = poss2.position * cparams.local_anchor2;
+        let anchor1 = poss1.position * cparams.local_frame1;
+        let anchor2 = poss2.position * cparams.local_frame2;
         let im1 = mprops1.effective_inv_mass;
         let im2 = mprops2.effective_inv_mass;
         let ii1 = mprops1.effective_world_inv_inertia_sqrt.squared();
@@ -280,13 +280,13 @@ impl FixedVelocityGroundConstraint {
 
         let (anchor1, anchor2) = if flipped {
             (
-                poss1.position * cparams.local_anchor2,
-                poss2.position * cparams.local_anchor1,
+                poss1.position * cparams.local_frame2,
+                poss2.position * cparams.local_frame1,
             )
         } else {
             (
-                poss1.position * cparams.local_anchor1,
-                poss2.position * cparams.local_anchor2,
+                poss1.position * cparams.local_frame1,
+                poss2.position * cparams.local_frame2,
             )
         };
 

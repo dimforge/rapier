@@ -149,3 +149,12 @@ pub mod math {
     #[cfg(feature = "dim3")]
     pub const MAX_MANIFOLD_POINTS: usize = 4;
 }
+
+/// Prelude containing the common types defined by Rapier.
+pub mod prelude {
+    pub use crate::dynamics::*;
+    pub use crate::geometry::*;
+    pub use crate::math::*;
+    pub use crate::pipeline::*;
+    pub use na::{point, vector, DMatrix, DVector};
+}

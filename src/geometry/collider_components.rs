@@ -1,7 +1,8 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
-use crate::geometry::{InteractionGroups, SAPProxyIndex, Shape, SharedShape, SolverFlags};
+use crate::geometry::{InteractionGroups, SAPProxyIndex, Shape, SharedShape};
 use crate::math::{Isometry, Real};
 use crate::parry::partitioning::IndexedData;
+use crate::pipeline::PhysicsHooksFlags;
 use std::ops::Deref;
 
 /// The unique identifier of a collider added to a collider set.
@@ -241,9 +242,8 @@ pub struct ColliderMaterial {
     pub friction_combine_rule: CoefficientCombineRule,
     /// The rule applied to combine the restitution coefficients of two colliders.
     pub restitution_combine_rule: CoefficientCombineRule,
-    /// The solver flags attached to this collider in order to customize the way the
-    /// constraints solver will work with contacts involving this collider.
-    pub solver_flags: SolverFlags,
+    /// The physics hooks enabled for contact pairs and intersection pairs involving this collider.
+    pub active_hooks: PhysicsHooksFlags,
 }
 
 impl ColliderMaterial {
@@ -264,7 +264,7 @@ impl Default for ColliderMaterial {
             restitution: 0.0,
             friction_combine_rule: CoefficientCombineRule::default(),
             restitution_combine_rule: CoefficientCombineRule::default(),
-            solver_flags: SolverFlags::default(),
+            active_hooks: PhysicsHooksFlags::empty(),
         }
     }
 }

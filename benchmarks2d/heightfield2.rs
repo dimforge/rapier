@@ -1,6 +1,5 @@
-use na::{DVector, Point2, Vector2};
-use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier2d::geometry::{ColliderBuilder, ColliderSet};
+use na::DVector;
+use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -14,7 +13,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_size = Vector2::new(50.0, 1.0);
+    let ground_size = Vector::new(50.0, 1.0);
     let nsubdivs = 2000;
 
     let heights = DVector::from_fn(nsubdivs + 1, |i, _| {
@@ -28,7 +27,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let rigid_body = RigidBodyBuilder::new_static().build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::heightfield(heights, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
      * Create the cubes
@@ -46,15 +45,17 @@ pub fn init_world(testbed: &mut Testbed) {
             let y = j as f32 * shift + centery + 3.0;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y).build();
+            let rigid_body = RigidBodyBuilder::new_dynamic()
+                .translation(vector![x, y])
+                .build();
             let handle = bodies.insert(rigid_body);
 
             if j % 2 == 0 {
                 let collider = ColliderBuilder::cuboid(rad, rad).build();
-                colliders.insert(collider, handle, &mut bodies);
+                colliders.insert_with_parent(collider, handle, &mut bodies);
             } else {
                 let collider = ColliderBuilder::ball(rad).build();
-                colliders.insert(collider, handle, &mut bodies);
+                colliders.insert_with_parent(collider, handle, &mut bodies);
             }
         }
     }
@@ -63,5 +64,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point2::new(0.0, 50.0), 10.0);
+    testbed.look_at(point![0.0, 50.0], 10.0);
 }

@@ -1,6 +1,4 @@
-use na::{Isometry2, Point2};
-use rapier2d::dynamics::{FixedJoint, JointSet, RigidBodyBuilder, RigidBodySet, RigidBodyType};
-use rapier2d::geometry::{ColliderBuilder, ColliderSet};
+use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -39,18 +37,18 @@ pub fn init_world(testbed: &mut Testbed) {
                     };
 
                     let rigid_body = RigidBodyBuilder::new(status)
-                        .translation(x + fk * shift, y - fi * shift)
+                        .translation(vector![x + fk * shift, y - fi * shift])
                         .build();
                     let child_handle = bodies.insert(rigid_body);
                     let collider = ColliderBuilder::ball(rad).build();
-                    colliders.insert(collider, child_handle, &mut bodies);
+                    colliders.insert_with_parent(collider, child_handle, &mut bodies);
 
                     // Vertical joint.
                     if i > 0 {
                         let parent_handle = *body_handles.last().unwrap();
                         let joint = FixedJoint::new(
-                            Isometry2::identity(),
-                            Isometry2::translation(0.0, shift),
+                            Isometry::identity(),
+                            Isometry::translation(0.0, shift),
                         );
                         joints.insert(&mut bodies, parent_handle, child_handle, joint);
                     }
@@ -60,8 +58,8 @@ pub fn init_world(testbed: &mut Testbed) {
                         let parent_index = body_handles.len() - num;
                         let parent_handle = body_handles[parent_index];
                         let joint = FixedJoint::new(
-                            Isometry2::identity(),
-                            Isometry2::translation(-shift, 0.0),
+                            Isometry::identity(),
+                            Isometry::translation(-shift, 0.0),
                         );
                         joints.insert(&mut bodies, parent_handle, child_handle, joint);
                     }
@@ -76,5 +74,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point2::new(50.0, 50.0), 5.0);
+    testbed.look_at(point![50.0, 50.0], 5.0);
 }

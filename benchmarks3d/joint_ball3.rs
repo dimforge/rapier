@@ -1,6 +1,4 @@
-use na::Point3;
-use rapier3d::dynamics::{BallJoint, JointSet, RigidBodyBuilder, RigidBodySet, RigidBodyType};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -29,16 +27,16 @@ pub fn init_world(testbed: &mut Testbed) {
             };
 
             let rigid_body = RigidBodyBuilder::new(status)
-                .translation(fk * shift, 0.0, fi * shift)
+                .translation(vector![fk * shift, 0.0, fi * shift])
                 .build();
             let child_handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::ball(rad).build();
-            colliders.insert(collider, child_handle, &mut bodies);
+            colliders.insert_with_parent(collider, child_handle, &mut bodies);
 
             // Vertical joint.
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
-                let joint = BallJoint::new(Point3::origin(), Point3::new(0.0, 0.0, -shift));
+                let joint = BallJoint::new(Point::origin(), point![0.0, 0.0, -shift]);
                 joints.insert(&mut bodies, parent_handle, child_handle, joint);
             }
 
@@ -46,7 +44,7 @@ pub fn init_world(testbed: &mut Testbed) {
             if k > 0 {
                 let parent_index = body_handles.len() - num;
                 let parent_handle = body_handles[parent_index];
-                let joint = BallJoint::new(Point3::origin(), Point3::new(-shift, 0.0, 0.0));
+                let joint = BallJoint::new(Point::origin(), point![-shift, 0.0, 0.0]);
                 joints.insert(&mut bodies, parent_handle, child_handle, joint);
             }
 
@@ -58,8 +56,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(
-        Point3::new(-110.0, -46.0, 170.0),
-        Point3::new(54.0, -38.0, 29.0),
-    );
+    testbed.look_at(point![-110.0, -46.0, 170.0], point![54.0, -38.0, 29.0]);
 }

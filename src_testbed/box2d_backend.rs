@@ -87,9 +87,11 @@ impl Box2dWorld {
 
     fn insert_colliders(&mut self, colliders: &ColliderSet) {
         for (_, collider) in colliders.iter() {
-            let b2_body_handle = self.rapier2box2d[&collider.parent()];
-            let mut b2_body = self.world.body_mut(b2_body_handle);
-            Self::create_fixture(&collider, &mut *b2_body);
+            if let Some(parent) = collider.parent() {
+                let b2_body_handle = self.rapier2box2d[&parent];
+                let mut b2_body = self.world.body_mut(b2_body_handle);
+                Self::create_fixture(&collider, &mut *b2_body);
+            }
         }
     }
 
@@ -122,8 +124,8 @@ impl Box2dWorld {
                         body_a,
                         body_b,
                         collide_connected: true,
-                        local_anchor_a: na_vec_to_b2_vec(params.local_anchor1.translation.vector),
-                        local_anchor_b: na_vec_to_b2_vec(params.local_anchor2.translation.vector),
+                        local_anchor_a: na_vec_to_b2_vec(params.local_frame1.translation.vector),
+                        local_anchor_b: na_vec_to_b2_vec(params.local_frame2.translation.vector),
                         reference_angle: 0.0,
                         frequency: 0.0,
                         damping_ratio: 0.0,
@@ -155,7 +157,14 @@ impl Box2dWorld {
     }
 
     fn create_fixture(collider: &Collider, body: &mut b2::MetaBody<NoUserData>) {
-        let center = na_vec_to_b2_vec(collider.position_wrt_parent().translation.vector);
+        let center = na_vec_to_b2_vec(
+            collider
+                .position_wrt_parent()
+                .copied()
+                .unwrap_or(na::one())
+                .translation
+                .vector,
+        );
         let mut fixture_def = b2::FixtureDef::new();
 
         fixture_def.restitution = collider.material().restitution;
@@ -230,7 +239,9 @@ impl Box2dWorld {
 
                 for coll_handle in body.colliders() {
                     let collider = &mut colliders[*coll_handle];
-                    collider.set_position_debug(pos * collider.position_wrt_parent());
+                    collider.set_position(
+                        pos * collider.position_wrt_parent().copied().unwrap_or(na::one()),
+                    );
                 }
             }
         }

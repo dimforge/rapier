@@ -1,6 +1,4 @@
-use na::{Point2, Point3};
-use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier2d::geometry::{ColliderBuilder, ColliderSet};
+use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -18,11 +16,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height)
+        .translation(vector![0.0, -ground_height])
         .build();
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height).build();
-    colliders.insert(collider, ground_handle, &mut bodies);
+    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
      * Create some boxes.
@@ -38,12 +36,14 @@ pub fn init_world(testbed: &mut Testbed) {
         let y = 3.0;
 
         // Build the rigid body.
-        let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y).build();
+        let rigid_body = RigidBodyBuilder::new_dynamic()
+            .translation(vector![x, y])
+            .build();
         let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(rad, rad).build();
-        colliders.insert(collider, handle, &mut bodies);
+        colliders.insert_with_parent(collider, handle, &mut bodies);
 
-        testbed.set_initial_body_color(handle, Point3::new(0.5, 0.5, 1.0));
+        testbed.set_initial_body_color(handle, [0.5, 0.5, 1.0]);
     }
 
     /*
@@ -52,33 +52,37 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Rigid body so that the sensor can move.
     let sensor = RigidBodyBuilder::new_dynamic()
-        .translation(0.0, 10.0)
+        .translation(vector![0.0, 10.0])
         .build();
     let sensor_handle = bodies.insert(sensor);
 
     // Solid cube attached to the sensor which
     // other colliders can touch.
     let collider = ColliderBuilder::cuboid(rad, rad).build();
-    colliders.insert(collider, sensor_handle, &mut bodies);
+    colliders.insert_with_parent(collider, sensor_handle, &mut bodies);
 
     // We create a collider desc without density because we don't
     // want it to contribute to the rigid body mass.
-    let sensor_collider = ColliderBuilder::ball(rad * 5.0).sensor(true).build();
-    colliders.insert(sensor_collider, sensor_handle, &mut bodies);
+    let sensor_collider = ColliderBuilder::ball(rad * 5.0)
+        .density(0.0)
+        .sensor(true)
+        .build();
+    colliders.insert_with_parent(sensor_collider, sensor_handle, &mut bodies);
 
-    testbed.set_initial_body_color(sensor_handle, Point3::new(0.5, 1.0, 1.0));
+    testbed.set_initial_body_color(sensor_handle, [0.5, 1.0, 1.0]);
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, events, _| {
         while let Ok(prox) = events.intersection_events.try_recv() {
             let color = if prox.intersecting {
-                Point3::new(1.0, 1.0, 0.0)
+                [1.0, 1.0, 0.0]
             } else {
-                Point3::new(0.5, 0.5, 1.0)
+                [0.5, 0.5, 1.0]
             };
 
-            let parent_handle1 = physics.colliders.get(prox.collider1).unwrap().parent();
-            let parent_handle2 = physics.colliders.get(prox.collider2).unwrap().parent();
+            let parent_handle1 = physics.colliders[prox.collider1].parent().unwrap();
+            let parent_handle2 = physics.colliders[prox.collider2].parent().unwrap();
+
             if let Some(graphics) = &mut graphics {
                 if parent_handle1 != ground_handle && parent_handle1 != sensor_handle {
                     graphics.set_body_color(parent_handle1, color);
@@ -94,5 +98,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point2::new(0.0, 1.0), 100.0);
+    testbed.look_at(point![0.0, 1.0], 100.0);
 }

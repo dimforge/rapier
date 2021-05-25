@@ -1,8 +1,31 @@
 ## v0.9.0
+The user-guide has been fully rewritten and is now exhaustive! Check it out on [rapier.rs](https://rapier.rs/)
+
+### Added
+- A prelude has been added in order to simplify the most common imports. For example: `use rapier3d::prelude::*`
 
 ### Modified
 - Renamed `BodyStatus` to `RigidBodyType`.
 
+FIXME:
+- `RigidBodyBuilder::translation` now takes a vector instead of individual components.
+- `RigidBodyBuilder::linvel` now takes a vector instead of individual components.
+- `Colliderbuilder::translation` now takes a vector instead of individual components.
+- The way `PhysicsHooks` are enabled changed. Now, a physics hooks is executed if any of the two
+  colliders involved in the contact/intersection pair contains the related `PhysicsHooksFlag`.
+  These flags are configured on each collider with `ColliderBuilder::active_hooks`. As a result,
+  there is no `PhysicsHooks::active_hooks` method any more.
+- Before, sensor colliders had a default density  set to 0.0 whereas non-sensor colliders had a
+  default density of 1.0. This has been unified by setting the default density to 1.0 for both
+  sensor and non-sensor colliders.
+- Colliders are no longer required to be attached to a rigid-body. Therefore, `ColliderSet::insert`
+  only takes the collider as argument now. In order to attach the collider to a rigid-body,
+  (i.e., the old behavior of `ColliderSet::insert`), use `ColliderSet::insert_with_parent`.
+- The field `ContactPair::pair` (which contained two collider handles) has been replaced by two
+  fields: `ContactPair::collider1` and `ContactPair::collider2`.
+- The fields `FixedJoint::local_anchor1` and `FixedJoint::local_anchor2` have been renamed to
+  `FixedJoint::local_frame1` and `FixedJoint::local_frame2`.
+  
 ## v0.8.0
 ### Modified
 - Switch to nalgebra 0.26.

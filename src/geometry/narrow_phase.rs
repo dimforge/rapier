@@ -98,12 +98,40 @@ impl NarrowPhase {
     }
 
     /// All the contacts involving the given collider.
+    ///
+    /// It is strongly recommended to use the [`NarrowPhase::contacts_with`] method instead. This
+    /// method can be used if the generation number of the collider handle isn't known.
+    pub fn contacts_with_unknown_gen(
+        &self,
+        collider: u32,
+    ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, &ContactPair)>> {
+        let id = self.graph_indices.get_unknown_gen(collider)?;
+        Some(self.contact_graph.interactions_with(id.contact_graph_index))
+    }
+
+    /// All the contacts involving the given collider.
     pub fn contacts_with(
         &self,
         collider: ColliderHandle,
     ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, &ContactPair)>> {
         let id = self.graph_indices.get(collider.0)?;
         Some(self.contact_graph.interactions_with(id.contact_graph_index))
+    }
+
+    /// All the intersections involving the given collider.
+    ///
+    /// It is strongly recommended to use the [`NarrowPhase::intersections_with`]  method instead.
+    /// This method can be used if the generation number of the collider handle isn't known.
+    pub fn intersections_with_unknown_gen(
+        &self,
+        collider: u32,
+    ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_> {
+        let id = self.graph_indices.get_unknown_gen(collider)?;
+        Some(
+            self.intersection_graph
+                .interactions_with(id.intersection_graph_index)
+                .map(|e| (e.0, e.1, *e.2)),
+        )
     }
 
     /// All the intersections involving the given collider.
@@ -121,6 +149,22 @@ impl NarrowPhase {
 
     /// The contact pair involving two specific colliders.
     ///
+    /// It is strongly recommended to use the [`NarrowPhase::contact_pair`] method instead. This
+    /// method can be used if the generation number of the collider handle isn't known.
+    ///
+    /// If this returns `None`, there is no contact between the two colliders.
+    /// If this returns `Some`, then there may be a contact between the two colliders. Check the
+    /// result [`ContactPair::has_any_active_collider`] method to see if there is an actual contact.
+    pub fn contact_pair_unknown_gen(&self, collider1: u32, collider2: u32) -> Option<&ContactPair> {
+        let id1 = self.graph_indices.get_unknown_gen(collider1)?;
+        let id2 = self.graph_indices.get_unknown_gen(collider2)?;
+        self.contact_graph
+            .interaction_pair(id1.contact_graph_index, id2.contact_graph_index)
+            .map(|c| c.2)
+    }
+
+    /// The contact pair involving two specific colliders.
+    ///
     /// If this returns `None`, there is no contact between the two colliders.
     /// If this returns `Some`, then there may be a contact between the two colliders. Check the
     /// result [`ContactPair::has_any_active_collider`] method to see if there is an actual contact.
@@ -134,6 +178,21 @@ impl NarrowPhase {
         self.contact_graph
             .interaction_pair(id1.contact_graph_index, id2.contact_graph_index)
             .map(|c| c.2)
+    }
+
+    /// The intersection pair involving two specific colliders.
+    ///
+    /// It is strongly recommended to use the [`NarrowPhase::intersection_pair`] method instead. This
+    /// method can be used if the generation number of the collider handle isn't known.
+    ///
+    /// If this returns `None` or `Some(false)`, then there is no intersection between the two colliders.
+    /// If this returns `Some(true)`, then there may be an intersection between the two colliders.
+    pub fn intersection_pair_unknown_gen(&self, collider1: u32, collider2: u32) -> Option<bool> {
+        let id1 = self.graph_indices.get_unknown_gen(collider1)?;
+        let id2 = self.graph_indices.get_unknown_gen(collider2)?;
+        self.intersection_graph
+            .interaction_pair(id1.intersection_graph_index, id2.intersection_graph_index)
+            .map(|c| *c.2)
     }
 
     /// The intersection pair involving two specific colliders.
@@ -527,7 +586,7 @@ impl NarrowPhase {
                     .find_edge(gid1.contact_graph_index, gid2.contact_graph_index)
                     .is_none()
                 {
-                    let interaction = ContactPair::new(*pair);
+                    let interaction = ContactPair::new(pair.collider1, pair.collider2);
                     let _ = self.contact_graph.add_edge(
                         gid1.contact_graph_index,
                         gid2.contact_graph_index,
@@ -585,7 +644,8 @@ impl NarrowPhase {
             + ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderGroups>
             + ComponentSet<ColliderShape>
-            + ComponentSet<ColliderPosition>,
+            + ComponentSet<ColliderPosition>
+            + ComponentSet<ColliderMaterial>,
     {
         if modified_colliders.is_empty() {
             return;
@@ -593,7 +653,6 @@ impl NarrowPhase {
 
         let nodes = &self.intersection_graph.graph.nodes;
         let query_dispatcher = &*self.query_dispatcher;
-        let active_hooks = hooks.active_hooks();
 
         // TODO: don't iterate on all the edges.
         par_iter_mut!(&mut self.intersection_graph.graph.edges).for_each(|edge| {
@@ -601,19 +660,21 @@ impl NarrowPhase {
             let handle2 = nodes[edge.target().index()].weight;
 
             let co_parent1: Option<&ColliderParent> = colliders.get(handle1.0);
-            let (co_changes1, co_groups1, co_shape1, co_pos1): (
+            let (co_changes1, co_groups1, co_shape1, co_pos1, co_material1): (
                 &ColliderChanges,
                 &ColliderGroups,
                 &ColliderShape,
                 &ColliderPosition,
+                &ColliderMaterial,
             ) = colliders.index_bundle(handle1.0);
 
             let co_parent2: Option<&ColliderParent> = colliders.get(handle2.0);
-            let (co_changes2, co_groups2, co_shape2, co_pos2): (
+            let (co_changes2, co_groups2, co_shape2, co_pos2, co_material2): (
                 &ColliderChanges,
                 &ColliderGroups,
                 &ColliderShape,
                 &ColliderPosition,
+                &ColliderMaterial,
             ) = colliders.index_bundle(handle2.0);
 
             if !co_changes1.needs_narrow_phase_update() && !co_changes2.needs_narrow_phase_update()
@@ -655,6 +716,8 @@ impl NarrowPhase {
                 // The intersection is not allowed.
                 return;
             }
+
+            let active_hooks = co_material1.active_hooks | co_material2.active_hooks;
 
             if !active_hooks.contains(PhysicsHooksFlags::FILTER_INTERSECTION_PAIR)
                 && !status1.is_dynamic()
@@ -721,29 +784,28 @@ impl NarrowPhase {
         }
 
         let query_dispatcher = &*self.query_dispatcher;
-        let active_hooks = hooks.active_hooks();
 
         // TODO: don't iterate on all the edges.
         par_iter_mut!(&mut self.contact_graph.graph.edges).for_each(|edge| {
             let pair = &mut edge.weight;
 
-            let co_parent1: Option<&ColliderParent> = colliders.get(pair.pair.collider1.0);
+            let co_parent1: Option<&ColliderParent> = colliders.get(pair.collider1.0);
             let (co_changes1, co_groups1, co_shape1, co_pos1, co_material1): (
                 &ColliderChanges,
                 &ColliderGroups,
                 &ColliderShape,
                 &ColliderPosition,
                 &ColliderMaterial,
-            ) = colliders.index_bundle(pair.pair.collider1.0);
+            ) = colliders.index_bundle(pair.collider1.0);
 
-            let co_parent2: Option<&ColliderParent> = colliders.get(pair.pair.collider2.0);
+            let co_parent2: Option<&ColliderParent> = colliders.get(pair.collider2.0);
             let (co_changes2, co_groups2, co_shape2, co_pos2, co_material2): (
                 &ColliderChanges,
                 &ColliderGroups,
                 &ColliderShape,
                 &ColliderPosition,
                 &ColliderMaterial,
-            ) = colliders.index_bundle(pair.pair.collider2.0);
+            ) = colliders.index_bundle(pair.collider2.0);
 
             if !co_changes1.needs_narrow_phase_update() && !co_changes2.needs_narrow_phase_update()
             {
@@ -785,6 +847,7 @@ impl NarrowPhase {
                 return;
             }
 
+            let active_hooks = co_material1.active_hooks | co_material2.active_hooks;
             if !active_hooks.contains(PhysicsHooksFlags::FILTER_CONTACT_PAIR)
                 && !status1.is_dynamic()
                 && !status2.is_dynamic()
@@ -800,8 +863,8 @@ impl NarrowPhase {
                     colliders,
                     rigid_body1: co_parent1.map(|p| p.handle),
                     rigid_body2: co_parent2.map(|p| p.handle),
-                    collider1: pair.pair.collider1,
-                    collider2: pair.pair.collider2,
+                    collider1: pair.collider1,
+                    collider2: pair.collider2,
                 };
 
                 if let Some(solver_flags) = hooks.filter_contact_pair(&context) {
@@ -811,7 +874,7 @@ impl NarrowPhase {
                     return;
                 }
             } else {
-                co_material1.solver_flags | co_material2.solver_flags
+                SolverFlags::default()
             };
 
             if !co_groups1.solver_groups.test(co_groups2.solver_groups) {
@@ -896,12 +959,7 @@ impl NarrowPhase {
                 }
 
                 // Apply the user-defined contact modification.
-                if active_hooks.contains(PhysicsHooksFlags::MODIFY_SOLVER_CONTACTS)
-                    && manifold
-                        .data
-                        .solver_flags
-                        .contains(SolverFlags::MODIFY_SOLVER_CONTACTS)
-                {
+                if active_hooks.contains(PhysicsHooksFlags::MODIFY_SOLVER_CONTACTS) {
                     let mut modifiable_solver_contacts =
                         std::mem::replace(&mut manifold.data.solver_contacts, Vec::new());
                     let mut modifiable_user_data = manifold.data.user_data;
@@ -912,8 +970,8 @@ impl NarrowPhase {
                         colliders,
                         rigid_body1: co_parent1.map(|p| p.handle),
                         rigid_body2: co_parent2.map(|p| p.handle),
-                        collider1: pair.pair.collider1,
-                        collider2: pair.pair.collider2,
+                        collider1: pair.collider1,
+                        collider2: pair.collider2,
                         manifold,
                         solver_contacts: &mut modifiable_solver_contacts,
                         normal: &mut modifiable_normal,
@@ -931,13 +989,13 @@ impl NarrowPhase {
             if has_any_active_contact != pair.has_any_active_contact {
                 if has_any_active_contact {
                     events.handle_contact_event(ContactEvent::Started(
-                        pair.pair.collider1,
-                        pair.pair.collider2,
+                        pair.collider1,
+                        pair.collider2,
                     ));
                 } else {
                     events.handle_contact_event(ContactEvent::Stopped(
-                        pair.pair.collider1,
-                        pair.pair.collider2,
+                        pair.collider1,
+                        pair.collider2,
                     ));
                 }
 

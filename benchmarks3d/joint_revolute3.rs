@@ -1,6 +1,4 @@
-use na::{Isometry3, Point3, Vector3};
-use rapier3d::dynamics::{JointSet, RevoluteJoint, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -22,20 +20,20 @@ pub fn init_world(testbed: &mut Testbed) {
             let x = j as f32 * shift * 4.0;
 
             let ground = RigidBodyBuilder::new_static()
-                .translation(x, y, 0.0)
+                .translation(vector![x, y, 0.0])
                 .build();
             let mut curr_parent = bodies.insert(ground);
             let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
-            colliders.insert(collider, curr_parent, &mut bodies);
+            colliders.insert_with_parent(collider, curr_parent, &mut bodies);
 
             for i in 0..num {
                 // Create four bodies.
                 let z = i as f32 * shift * 2.0 + shift;
                 let positions = [
-                    Isometry3::translation(x, y, z),
-                    Isometry3::translation(x + shift, y, z),
-                    Isometry3::translation(x + shift, y, z + shift),
-                    Isometry3::translation(x, y, z + shift),
+                    Isometry::translation(x, y, z),
+                    Isometry::translation(x + shift, y, z),
+                    Isometry::translation(x + shift, y, z + shift),
+                    Isometry::translation(x, y, z + shift),
                 ];
 
                 let mut handles = [curr_parent; 4];
@@ -48,19 +46,19 @@ pub fn init_world(testbed: &mut Testbed) {
                     let collider = ColliderBuilder::cuboid(rad, rad, rad)
                         .density(density)
                         .build();
-                    colliders.insert(collider, handles[k], &mut bodies);
+                    colliders.insert_with_parent(collider, handles[k], &mut bodies);
                 }
 
                 // Setup four joints.
-                let o = Point3::origin();
-                let x = Vector3::x_axis();
-                let z = Vector3::z_axis();
+                let o = Point::origin();
+                let x = Vector::x_axis();
+                let z = Vector::z_axis();
 
                 let revs = [
-                    RevoluteJoint::new(o, z, Point3::new(0.0, 0.0, -shift), z),
-                    RevoluteJoint::new(o, x, Point3::new(-shift, 0.0, 0.0), x),
-                    RevoluteJoint::new(o, z, Point3::new(0.0, 0.0, -shift), z),
-                    RevoluteJoint::new(o, x, Point3::new(shift, 0.0, 0.0), x),
+                    RevoluteJoint::new(o, z, point![0.0, 0.0, -shift], z),
+                    RevoluteJoint::new(o, x, point![-shift, 0.0, 0.0], x),
+                    RevoluteJoint::new(o, z, point![0.0, 0.0, -shift], z),
+                    RevoluteJoint::new(o, x, point![shift, 0.0, 0.0], x),
                 ];
 
                 joints.insert(&mut bodies, curr_parent, handles[0], revs[0]);
@@ -77,8 +75,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(
-        Point3::new(478.0, 83.0, 228.0),
-        Point3::new(134.0, 83.0, -116.0),
-    );
+    testbed.look_at(point![478.0, 83.0, 228.0], point![134.0, 83.0, -116.0]);
 }

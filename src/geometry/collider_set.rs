@@ -61,11 +61,18 @@ impl_field_component_set!(ColliderType, co_type);
 impl_field_component_set!(ColliderShape, co_shape);
 impl_field_component_set!(ColliderMassProperties, co_mprops);
 impl_field_component_set!(ColliderChanges, co_changes);
-impl_field_component_set!(ColliderParent, co_parent);
 impl_field_component_set!(ColliderPosition, co_pos);
 impl_field_component_set!(ColliderMaterial, co_material);
 impl_field_component_set!(ColliderGroups, co_groups);
 impl_field_component_set!(ColliderBroadPhaseData, co_bf_data);
+
+impl ComponentSetOption<ColliderParent> for ColliderSet {
+    #[inline(always)]
+    fn get(&self, handle: crate::data::Index) -> Option<&ColliderParent> {
+        self.get(ColliderHandle(handle))
+            .and_then(|b| b.co_parent.as_ref())
+    }
+}
 
 impl ColliderSet {
     /// Create a new empty set of colliders.
@@ -122,7 +129,17 @@ impl ColliderSet {
     }
 
     /// Inserts a new collider to this set and retrieve its handle.
-    pub fn insert(
+    pub fn insert(&mut self, mut coll: Collider) -> ColliderHandle {
+        // Make sure the internal links are reset, they may not be
+        // if this rigid-body was obtained by cloning another one.
+        coll.reset_internal_references();
+        let handle = ColliderHandle(self.colliders.insert(coll));
+        self.modified_colliders.push(handle);
+        handle
+    }
+
+    /// Inserts a new collider to this set, attach it to the given rigid-body, and retrieve its handle.
+    pub fn insert_with_parent(
         &mut self,
         mut coll: Collider,
         parent_handle: RigidBodyHandle,
@@ -131,7 +148,10 @@ impl ColliderSet {
         // Make sure the internal links are reset, they may not be
         // if this rigid-body was obtained by cloning another one.
         coll.reset_internal_references();
-        coll.co_parent.handle = parent_handle;
+        coll.co_parent = Some(ColliderParent {
+            handle: parent_handle,
+            pos_wrt_parent: coll.co_pos.0,
+        });
 
         // NOTE: we use `get_mut` instead of `get_mut_internal` so that the
         // modification flag is updated properly.
@@ -144,7 +164,7 @@ impl ColliderSet {
         let coll = self.colliders.get_mut(handle.0).unwrap();
         parent.add_collider(
             handle,
-            &mut coll.co_parent,
+            coll.co_parent.as_mut().unwrap(),
             &mut coll.co_pos,
             &coll.co_shape,
             &coll.co_mprops,
@@ -170,13 +190,15 @@ impl ColliderSet {
          */
         // NOTE: we use `get_mut_internal_with_modification_tracking` instead of `get_mut_internal` so that the
         // modification flag is updated properly.
-        if let Some(parent) =
-            bodies.get_mut_internal_with_modification_tracking(collider.co_parent.handle)
-        {
-            parent.remove_collider_internal(handle, &collider);
+        if let Some(co_parent) = &collider.co_parent {
+            if let Some(parent) =
+                bodies.get_mut_internal_with_modification_tracking(co_parent.handle)
+            {
+                parent.remove_collider_internal(handle, &collider);
 
-            if wake_up {
-                islands.wake_up(bodies, collider.co_parent.handle, true);
+                if wake_up {
+                    islands.wake_up(bodies, co_parent.handle, true);
+                }
             }
         }
 

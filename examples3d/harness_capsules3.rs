@@ -1,7 +1,4 @@
-extern crate nalgebra as na;
-
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::harness::Harness;
 
 pub fn init_world(harness: &mut Harness) {
@@ -19,11 +16,11 @@ pub fn init_world(harness: &mut Harness) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
+        .translation(vector![0.0, -ground_height, 0.0])
         .build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
      * Create the cubes
@@ -47,10 +44,12 @@ pub fn init_world(harness: &mut Harness) {
                 let z = k as f32 * shift - centerz + offset;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
+                let rigid_body = RigidBodyBuilder::new_dynamic()
+                    .translation(vector![x, y, z])
+                    .build();
                 let handle = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::capsule_y(rad, rad).build();
-                colliders.insert(collider, handle, &mut bodies);
+                colliders.insert_with_parent(collider, handle, &mut bodies);
             }
         }
 

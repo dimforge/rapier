@@ -1,6 +1,4 @@
-use na::Point2;
-use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier2d::geometry::{ColliderBuilder, ColliderSet};
+use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -19,23 +17,23 @@ pub fn init_world(testbed: &mut Testbed) {
     let rigid_body = RigidBodyBuilder::new_static().build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, 1.2).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let rigid_body = RigidBodyBuilder::new_static()
         .rotation(std::f32::consts::FRAC_PI_2)
-        .translation(ground_size, ground_size * 4.0)
+        .translation(vector![ground_size, ground_size * 4.0])
         .build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size * 4.0, 1.2).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let rigid_body = RigidBodyBuilder::new_static()
         .rotation(std::f32::consts::FRAC_PI_2)
-        .translation(-ground_size, ground_size * 4.0)
+        .translation(vector![-ground_size, ground_size * 4.0])
         .build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size * 4.0, 1.2).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
      * Create the cubes
@@ -55,10 +53,12 @@ pub fn init_world(testbed: &mut Testbed) {
             let y = j as f32 * shifty + centery + 3.0;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y).build();
+            let rigid_body = RigidBodyBuilder::new_dynamic()
+                .translation(vector![x, y])
+                .build();
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::capsule_y(rad * 1.5, rad).build();
-            colliders.insert(collider, handle, &mut bodies);
+            colliders.insert_with_parent(collider, handle, &mut bodies);
         }
     }
 
@@ -66,5 +66,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point2::new(0.0, 50.0), 10.0);
+    testbed.look_at(point![0.0, 50.0], 10.0);
 }

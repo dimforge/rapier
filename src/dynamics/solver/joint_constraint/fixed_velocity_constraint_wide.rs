@@ -91,12 +91,12 @@ impl WFixedVelocityConstraint {
         ]);
         let mj_lambda2 = gather![|ii| ids2[ii].active_set_offset];
 
-        let local_anchor1 = Isometry::from(gather![|ii| cparams[ii].local_anchor1]);
-        let local_anchor2 = Isometry::from(gather![|ii| cparams[ii].local_anchor2]);
+        let local_frame1 = Isometry::from(gather![|ii| cparams[ii].local_frame1]);
+        let local_frame2 = Isometry::from(gather![|ii| cparams[ii].local_frame2]);
         let impulse = SpacialVector::from(gather![|ii| cparams[ii].impulse]);
 
-        let anchor1 = position1 * local_anchor1;
-        let anchor2 = position2 * local_anchor2;
+        let anchor1 = position1 * local_frame1;
+        let anchor2 = position2 * local_frame2;
         let ii1 = ii1_sqrt.squared();
         let ii2 = ii2_sqrt.squared();
         let r1 = anchor1.translation.vector - world_com1.coords;
@@ -363,20 +363,20 @@ impl WFixedVelocityGroundConstraint {
         ]);
         let mj_lambda2 = gather![|ii| ids2[ii].active_set_offset];
 
-        let local_anchor1 = Isometry::from(gather![|ii| if flipped[ii] {
-            cparams[ii].local_anchor2
+        let local_frame1 = Isometry::from(gather![|ii| if flipped[ii] {
+            cparams[ii].local_frame2
         } else {
-            cparams[ii].local_anchor1
+            cparams[ii].local_frame1
         }]);
-        let local_anchor2 = Isometry::from(gather![|ii| if flipped[ii] {
-            cparams[ii].local_anchor1
+        let local_frame2 = Isometry::from(gather![|ii| if flipped[ii] {
+            cparams[ii].local_frame1
         } else {
-            cparams[ii].local_anchor2
+            cparams[ii].local_frame2
         }]);
         let impulse = SpacialVector::from(gather![|ii| cparams[ii].impulse]);
 
-        let anchor1 = position1 * local_anchor1;
-        let anchor2 = position2 * local_anchor2;
+        let anchor1 = position1 * local_frame1;
+        let anchor2 = position2 * local_frame2;
         let ii2 = ii2_sqrt.squared();
         let r1 = anchor1.translation.vector - world_com1.coords;
         let r2 = anchor2.translation.vector - world_com2.coords;

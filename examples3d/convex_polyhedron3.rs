@@ -1,8 +1,6 @@
-use na::Point3;
 use rand::distributions::{Distribution, Standard};
 use rand::{rngs::StdRng, SeedableRng};
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -20,11 +18,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
+        .translation(vector![0.0, -ground_height, 0.0])
         .build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
      * Create the polyhedra
@@ -50,17 +48,19 @@ pub fn init_world(testbed: &mut Testbed) {
 
                 let mut points = Vec::new();
                 for _ in 0..10 {
-                    let pt: Point3<f32> = distribution.sample(&mut rng);
+                    let pt: Point<f32> = distribution.sample(&mut rng);
                     points.push(pt * scale);
                 }
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
+                let rigid_body = RigidBodyBuilder::new_dynamic()
+                    .translation(vector![x, y, z])
+                    .build();
                 let handle = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::round_convex_hull(&points, border_rad)
                     .unwrap()
                     .build();
-                colliders.insert(collider, handle, &mut bodies);
+                colliders.insert_with_parent(collider, handle, &mut bodies);
             }
         }
     }
@@ -69,5 +69,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(30.0, 30.0, 30.0), Point3::origin());
+    testbed.look_at(point![30.0, 30.0, 30.0], Point::origin());
 }

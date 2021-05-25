@@ -124,6 +124,72 @@ impl RigidBody {
         self.rb_dominance.effective_group(&self.rb_type)
     }
 
+    #[inline]
+    /// Locks or unlocks all the rotations of this rigid-body.
+    pub fn lock_rotations(&mut self, locked: bool, wake_up: bool) {
+        if self.is_dynamic() {
+            if wake_up {
+                self.wake_up(true);
+            }
+
+            self.rb_mprops
+                .flags
+                .set(RigidBodyMassPropsFlags::ROTATION_LOCKED_X, locked);
+            self.rb_mprops
+                .flags
+                .set(RigidBodyMassPropsFlags::ROTATION_LOCKED_Y, locked);
+            self.rb_mprops
+                .flags
+                .set(RigidBodyMassPropsFlags::ROTATION_LOCKED_Z, locked);
+            self.update_world_mass_properties();
+        }
+    }
+
+    #[inline]
+    /// Locks or unlocks rotations of this rigid-body along each cartesian axes.
+    pub fn restrict_rotations(
+        &mut self,
+        allow_rotations_x: bool,
+        allow_rotations_y: bool,
+        allow_rotations_z: bool,
+        wake_up: bool,
+    ) {
+        if self.is_dynamic() {
+            if wake_up {
+                self.wake_up(true);
+            }
+
+            self.rb_mprops.flags.set(
+                RigidBodyMassPropsFlags::ROTATION_LOCKED_X,
+                allow_rotations_x,
+            );
+            self.rb_mprops.flags.set(
+                RigidBodyMassPropsFlags::ROTATION_LOCKED_Y,
+                allow_rotations_y,
+            );
+            self.rb_mprops.flags.set(
+                RigidBodyMassPropsFlags::ROTATION_LOCKED_Z,
+                allow_rotations_z,
+            );
+            self.update_world_mass_properties();
+        }
+    }
+
+    #[inline]
+    /// Locks or unlocks all the rotations of this rigid-body.
+    pub fn lock_translations(&mut self, locked: bool, wake_up: bool) {
+        if self.is_dynamic() {
+            if wake_up {
+                self.wake_up(true);
+            }
+
+            self.rb_mprops
+                .flags
+                .set(RigidBodyMassPropsFlags::TRANSLATION_LOCKED, locked);
+            self.update_world_mass_properties();
+        }
+    }
+
     /// Are the translations of this rigid-body locked?
     pub fn is_translation_locked(&self) -> bool {
         self.rb_mprops
@@ -251,6 +317,16 @@ impl RigidBody {
         self.rb_forces.gravity_scale = scale;
     }
 
+    /// The dominance group of this rigid-body.
+    pub fn dominance_group(&self) -> i8 {
+        self.rb_dominance.0
+    }
+
+    /// The dominance group of this rigid-body.
+    pub fn set_dominance_group(&mut self, dominance: i8) {
+        self.rb_dominance.0 = dominance
+    }
+
     /// Adds a collider to this rigid-body.
     // TODO ECS: we keep this public for now just to simply our experiments on bevy_rapier.
     pub fn add_collider(
@@ -279,9 +355,10 @@ impl RigidBody {
         if let Some(i) = self.rb_colliders.0.iter().position(|e| *e == handle) {
             self.changes.set(RigidBodyChanges::COLLIDERS, true);
             self.rb_colliders.0.swap_remove(i);
+
             let mass_properties = coll
                 .mass_properties()
-                .transform_by(coll.position_wrt_parent());
+                .transform_by(coll.position_wrt_parent().unwrap());
             self.rb_mprops.mass_properties -= mass_properties;
             self.update_world_mass_properties();
         }
@@ -384,6 +461,45 @@ impl RigidBody {
         &self.rb_pos.position
     }
 
+    /// The translational part of this rigid-body's position.
+    #[inline]
+    pub fn translation(&self) -> Vector<Real> {
+        self.rb_pos.position.translation.vector
+    }
+
+    /// Sets the translational part of this rigid-body's position.
+    #[inline]
+    pub fn set_translation(&mut self, translation: Vector<Real>, wake_up: bool) {
+        self.changes.insert(RigidBodyChanges::POSITION);
+        self.rb_pos.position.translation.vector = translation;
+        self.rb_pos.next_position.translation.vector = translation;
+
+        // TODO: Do we really need to check that the body isn't dynamic?
+        if wake_up && self.is_dynamic() {
+            self.wake_up(true)
+        }
+    }
+
+    /// The translational part of this rigid-body's position.
+    #[inline]
+    pub fn rotation(&self) -> Rotation<Real> {
+        self.rb_pos.position.rotation
+    }
+
+    /// Sets the rotational part of this rigid-body's position.
+    #[inline]
+    pub fn set_rotation(&mut self, rotation: AngVector<Real>, wake_up: bool) {
+        self.changes.insert(RigidBodyChanges::POSITION);
+        let rotation = Rotation::new(rotation);
+        self.rb_pos.position.rotation = rotation;
+        self.rb_pos.next_position.rotation = rotation;
+
+        // TODO: Do we really need to check that the body isn't dynamic?
+        if wake_up && self.is_dynamic() {
+            self.wake_up(true)
+        }
+    }
+
     /// Sets the position and `next_kinematic_position` of this rigid body.
     ///
     /// This will teleport the rigid-body to the specified position/orientation,
@@ -404,11 +520,36 @@ impl RigidBody {
         }
     }
 
+    /// If this rigid body is kinematic, sets its future translation after the next timestep integration.
+    pub fn set_next_kinematic_rotation(&mut self, rotation: AngVector<Real>) {
+        if self.is_kinematic() {
+            self.rb_pos.next_position.rotation = Rotation::new(rotation);
+        }
+    }
+
+    /// If this rigid body is kinematic, sets its future orientation after the next timestep integration.
+    pub fn set_next_kinematic_translation(&mut self, rotation: Rotation<Real>) {
+        if self.is_kinematic() {
+            self.rb_pos.next_position.rotation = rotation;
+        }
+    }
+
     /// If this rigid body is kinematic, sets its future position after the next timestep integration.
     pub fn set_next_kinematic_position(&mut self, pos: Isometry<Real>) {
         if self.is_kinematic() {
             self.rb_pos.next_position = pos;
         }
+    }
+
+    /// Predicts the next position of this rigid-body, by integrating its velocity and forces
+    /// by a time of `dt`.
+    pub fn predict_position_using_velocity_and_forces(&self, dt: Real) -> Isometry<Real> {
+        self.rb_pos.integrate_forces_and_velocities(
+            dt,
+            &self.rb_forces,
+            &self.rb_vels,
+            &self.rb_mprops,
+        )
     }
 
     pub(crate) fn update_world_mass_properties(&mut self) {
@@ -618,8 +759,8 @@ impl RigidBodyBuilder {
     }
 
     /// Sets the scale applied to the gravity force affecting the rigid-body to be created.
-    pub fn gravity_scale(mut self, x: Real) -> Self {
-        self.gravity_scale = x;
+    pub fn gravity_scale(mut self, scale_factor: Real) -> Self {
+        self.gravity_scale = scale_factor;
         self
     }
 
@@ -630,19 +771,8 @@ impl RigidBodyBuilder {
     }
 
     /// Sets the initial translation of the rigid-body to be created.
-    #[cfg(feature = "dim2")]
-    pub fn translation(mut self, x: Real, y: Real) -> Self {
-        self.position.translation.x = x;
-        self.position.translation.y = y;
-        self
-    }
-
-    /// Sets the initial translation of the rigid-body to be created.
-    #[cfg(feature = "dim3")]
-    pub fn translation(mut self, x: Real, y: Real, z: Real) -> Self {
-        self.position.translation.x = x;
-        self.position.translation.y = y;
-        self.position.translation.z = z;
+    pub fn translation(mut self, translation: Vector<Real>) -> Self {
+        self.position.translation.vector = translation;
         self
     }
 
@@ -811,16 +941,8 @@ impl RigidBodyBuilder {
     }
 
     /// Sets the initial linear velocity of the rigid-body to be created.
-    #[cfg(feature = "dim2")]
-    pub fn linvel(mut self, x: Real, y: Real) -> Self {
-        self.linvel = Vector::new(x, y);
-        self
-    }
-
-    /// Sets the initial linear velocity of the rigid-body to be created.
-    #[cfg(feature = "dim3")]
-    pub fn linvel(mut self, x: Real, y: Real, z: Real) -> Self {
-        self.linvel = Vector::new(x, y, z);
+    pub fn linvel(mut self, linvel: Vector<Real>) -> Self {
+        self.linvel = linvel;
         self
     }
 

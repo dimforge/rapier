@@ -429,7 +429,7 @@ impl TestbedApp {
 }
 
 impl<'a, 'b, 'c, 'd> TestbedGraphics<'a, 'b, 'c, 'd> {
-    pub fn set_body_color(&mut self, body: RigidBodyHandle, color: Point3<f32>) {
+    pub fn set_body_color(&mut self, body: RigidBodyHandle, color: [f32; 3]) {
         self.manager
             .set_body_color(&mut self.materials, body, color);
     }
@@ -588,13 +588,13 @@ impl<'a, 'b, 'c, 'd> Testbed<'a, 'b, 'c, 'd> {
         }
     }
 
-    pub fn set_initial_body_color(&mut self, body: RigidBodyHandle, color: Point3<f32>) {
+    pub fn set_initial_body_color(&mut self, body: RigidBodyHandle, color: [f32; 3]) {
         if let Some(graphics) = &mut self.graphics {
             graphics.manager.set_initial_body_color(body, color);
         }
     }
 
-    pub fn set_initial_collider_color(&mut self, collider: ColliderHandle, color: Point3<f32>) {
+    pub fn set_initial_collider_color(&mut self, collider: ColliderHandle, color: [f32; 3]) {
         if let Some(graphics) = &mut self.graphics {
             graphics.manager.set_initial_collider_color(collider, color);
         }
@@ -752,14 +752,14 @@ fn draw_contacts(_nf: &NarrowPhase, _colliders: &ColliderSet) {
     //             let n = manifold.data.normal;
     //
     //             use crate::engine::GraphicsWindow;
-    //             window.draw_graphics_line(&p, &(p + n * 0.4), &Point3::new(0.5, 1.0, 0.5));
+    //             window.draw_graphics_line(&p, &(p + n * 0.4), &point![0.5, 1.0, 0.5]);
     //         }
     //         */
     //         for pt in manifold.contacts() {
     //             let color = if pt.dist > 0.0 {
-    //                 Point3::new(0.0, 0.0, 1.0)
+    //                 point![0.0, 0.0, 1.0]
     //             } else {
-    //                 Point3::new(1.0, 0.0, 0.0)
+    //                 point![1.0, 0.0, 0.0]
     //             };
     //             let pos1 = colliders[pair.pair.collider1].position();
     //             let pos2 = colliders[pair.pair.collider2].position();
@@ -771,7 +771,7 @@ fn draw_contacts(_nf: &NarrowPhase, _colliders: &ColliderSet) {
     //                 * manifold.subshape_pos1.unwrap_or(Isometry::identity())
     //                 * manifold.local_n1;
     //
-    //             // window.draw_graphics_line(&start, &(start + n * 0.4), &Point3::new(0.5, 1.0, 0.5));
+    //             // window.draw_graphics_line(&start, &(start + n * 0.4), &point![0.5, 1.0, 0.5]);
     //             // window.draw_graphics_line(&start, &end, &color);
     //         }
     //     }
@@ -1228,10 +1228,13 @@ fn highlight_hovered_body(
 
         if let Some((handle, _)) = hit {
             let collider = &physics.colliders[handle];
-            if physics.bodies[collider.parent()].is_dynamic() {
-                testbed_state.highlighted_body = Some(collider.parent());
-                for node in graphics_manager.body_nodes_mut(collider.parent()).unwrap() {
-                    node.select(materials)
+
+            if let Some(parent_handle) = collider.parent() {
+                if physics.bodies[parent_handle].is_dynamic() {
+                    testbed_state.highlighted_body = Some(parent_handle);
+                    for node in graphics_manager.body_nodes_mut(parent_handle).unwrap() {
+                        node.select(materials)
+                    }
                 }
             }
         }

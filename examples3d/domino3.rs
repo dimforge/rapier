@@ -1,6 +1,4 @@
-use na::{Point3, Translation3, UnitQuaternion, Vector3};
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -18,11 +16,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
+        .translation(vector![0.0, -ground_height, 0.0])
         .build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
      * Create the cubes
@@ -31,7 +29,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let width = 1.0;
     let thickness = 0.1;
 
-    let colors = [Point3::new(0.7, 0.5, 0.9), Point3::new(0.6, 1.0, 0.6)];
+    let colors = [[0.7, 0.5, 0.9], [0.6, 1.0, 0.6]];
 
     let mut curr_angle = 0.0;
     let mut curr_rad = 10.0;
@@ -50,16 +48,16 @@ pub fn init_world(testbed: &mut Testbed) {
         let tilt = if nudged || i == num - 1 { 0.2 } else { 0.0 };
 
         if skip == 0 {
-            let rot = UnitQuaternion::new(Vector3::y() * curr_angle);
-            let tilt = UnitQuaternion::new(rot * Vector3::z() * tilt);
+            let rot = Rotation::new(Vector::y() * curr_angle);
+            let tilt = Rotation::new(rot * Vector::z() * tilt);
             let position =
-                Translation3::new(x * curr_rad, width * 2.0 + ground_height, z * curr_rad)
+                Translation::new(x * curr_rad, width * 2.0 + ground_height, z * curr_rad)
                     * tilt
                     * rot;
             let rigid_body = RigidBodyBuilder::new_dynamic().position(position).build();
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(thickness, width * 2.0, width).build();
-            colliders.insert(collider, handle, &mut bodies);
+            colliders.insert_with_parent(collider, handle, &mut bodies);
             testbed.set_initial_body_color(handle, colors[i % 2]);
         } else {
             skip -= 1;
@@ -76,5 +74,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(100.0, 100.0, 100.0), Point3::origin());
+    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
 }

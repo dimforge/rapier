@@ -133,15 +133,30 @@ impl Default for PhysicsHooksFlags {
     }
 }
 
-/// User-defined functions called by the physics engines during one timestep in order to customize its behavior.
-pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
-    /// The sets of hooks that must be taken into account.
+#[cfg(target_arch = "wasm32")]
+pub trait PhysicsHooks<Bodies, Colliders> {
     fn active_hooks(&self) -> PhysicsHooksFlags;
+    fn filter_contact_pair(
+        &self,
+        _context: &PairFilterContext<Bodies, Colliders>,
+    ) -> Option<SolverFlags> {
+        None
+    }
+    fn filter_intersection_pair(&self, _context: &PairFilterContext<Bodies, Colliders>) -> bool {
+        false
+    }
+    fn modify_solver_contacts(&self, _context: &mut ContactModificationContext<Bodies, Colliders>) {
+    }
+}
 
+/// User-defined functions called by the physics engines during one timestep in order to customize its behavior.
+#[cfg(not(target_arch = "wasm32"))]
+pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
     /// Applies the contact pair filter.
     ///
-    /// Note that this method will only be called if `self.active_hooks()`
-    /// contains the `PhysicsHooksFlags::FILTER_CONTACT_PAIR` flags.
+    /// Note that this method will only be called if at least one of the colliders
+    /// involved in the contact contains the `PhysicsHooksFlags::FILTER_CONTACT_PAIR` flags
+    /// in its physics hooks flags.
     ///
     /// User-defined filter for potential contact pairs detected by the broad-phase.
     /// This can be used to apply custom logic in order to decide whether two colliders
@@ -165,13 +180,14 @@ pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
         &self,
         _context: &PairFilterContext<Bodies, Colliders>,
     ) -> Option<SolverFlags> {
-        None
+        Some(SolverFlags::COMPUTE_IMPULSES)
     }
 
     /// Applies the intersection pair filter.
     ///
-    /// Note that this method will only be called if `self.active_hooks()`
-    /// contains the `PhysicsHooksFlags::FILTER_INTERSECTION_PAIR` flags.
+    /// Note that this method will only be called if at least one of the colliders
+    /// involved in the contact contains the `PhysicsHooksFlags::FILTER_INTERSECTION_PAIR` flags
+    /// in its physics hooks flags.
     ///
     /// User-defined filter for potential intersection pairs detected by the broad-phase.
     ///
@@ -188,13 +204,14 @@ pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
     /// If this return `true` then the narrow-phase will compute intersection
     /// information for this pair.
     fn filter_intersection_pair(&self, _context: &PairFilterContext<Bodies, Colliders>) -> bool {
-        false
+        true
     }
 
     /// Modifies the set of contacts seen by the constraints solver.
     ///
-    /// Note that this method will only be called if `self.active_hooks()`
-    /// contains the `PhysicsHooksFlags::MODIFY_SOLVER_CONTACTS` flags.
+    /// Note that this method will only be called if at least one of the colliders
+    /// involved in the contact contains the `PhysicsHooksFlags::MODIFY_SOLVER_CONTACTS` flags
+    /// in its physics hooks flags.
     ///
     /// By default, the content of `solver_contacts` is computed from `manifold.points`.
     /// This method will be called on each contact manifold which have the flag `SolverFlags::modify_solver_contacts` set.
@@ -220,16 +237,12 @@ pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
 }
 
 impl<Bodies, Colliders> PhysicsHooks<Bodies, Colliders> for () {
-    fn active_hooks(&self) -> PhysicsHooksFlags {
-        PhysicsHooksFlags::empty()
-    }
-
     fn filter_contact_pair(&self, _: &PairFilterContext<Bodies, Colliders>) -> Option<SolverFlags> {
-        None
+        Some(SolverFlags::default())
     }
 
     fn filter_intersection_pair(&self, _: &PairFilterContext<Bodies, Colliders>) -> bool {
-        false
+        true
     }
 
     fn modify_solver_contacts(&self, _: &mut ContactModificationContext<Bodies, Colliders>) {}

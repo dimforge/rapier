@@ -1,8 +1,6 @@
-use na::Point3;
 use obj::raw::object::Polygon;
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet, SharedShape};
 use rapier3d::parry::bounding_volume;
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 use std::fs::File;
 use std::io::BufReader;
@@ -26,11 +24,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
+        .translation(vector![0.0, -ground_height, 0.0])
         .build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
      * Create the convex decompositions.
@@ -52,7 +50,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let mut vertices: Vec<_> = model
                 .positions
                 .iter()
-                .map(|v| Point3::new(v.0, v.1, v.2))
+                .map(|v| point![v.0, v.1, v.2])
                 .collect();
             use std::iter::FromIterator;
             let indices: Vec<_> = model
@@ -90,12 +88,14 @@ pub fn init_world(testbed: &mut Testbed) {
                 let y = (igeom / width) as f32 * shift + 4.0;
                 let z = k as f32 * shift;
 
-                let body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
+                let body = RigidBodyBuilder::new_dynamic()
+                    .translation(vector![x, y, z])
+                    .build();
                 let handle = bodies.insert(body);
 
                 for shape in &shapes {
                     let collider = ColliderBuilder::new(shape.clone()).build();
-                    colliders.insert(collider, handle, &mut bodies);
+                    colliders.insert_with_parent(collider, handle, &mut bodies);
                 }
             }
         }
@@ -105,7 +105,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(100.0, 100.0, 100.0), Point3::origin());
+    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
 }
 
 fn models() -> Vec<String> {

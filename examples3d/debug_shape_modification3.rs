@@ -1,6 +1,4 @@
-use na::{Isometry3, Point3, Vector3};
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet, SharedShape};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -17,30 +15,30 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
+        .translation(vector![0.0, -ground_height, 0.0])
         .build();
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size)
         .friction(0.15)
         // .restitution(0.5)
         .build();
-    colliders.insert(collider, ground_handle, &mut bodies);
+    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
      * Rolling ball
      */
     let ball_rad = 0.1;
     let rb = RigidBodyBuilder::new_dynamic()
-        .translation(0.0, 0.2, 0.0)
-        .linvel(10.0, 0.0, 0.0)
+        .translation(vector![0.0, 0.2, 0.0])
+        .linvel(vector![10.0, 0.0, 0.0])
         .build();
     let ball_handle = bodies.insert(rb);
     let collider = ColliderBuilder::ball(ball_rad).density(100.0).build();
-    let ball_coll_handle = colliders.insert(collider, ball_handle, &mut bodies);
+    let ball_coll_handle = colliders.insert_with_parent(collider, ball_handle, &mut bodies);
 
-    let mut linvel = Vector3::zeros();
-    let mut angvel = Vector3::zeros();
-    let mut pos = Isometry3::identity();
+    let mut linvel = Vector::zeros();
+    let mut angvel = Vector::zeros();
+    let mut pos = Isometry::identity();
     let mut step = 0;
     let snapped_frame = 51;
 
@@ -90,7 +88,9 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f32 * shiftz - centerz + offset;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
+                let rigid_body = RigidBodyBuilder::new_dynamic()
+                    .translation(vector![x, y, z])
+                    .build();
                 let handle = bodies.insert(rigid_body);
 
                 let collider = match j % 5 {
@@ -103,7 +103,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     _ => ColliderBuilder::capsule_y(rad, rad).build(),
                 };
 
-                colliders.insert(collider, handle, &mut bodies);
+                colliders.insert_with_parent(collider, handle, &mut bodies);
             }
         }
 
@@ -114,5 +114,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(10.0, 10.0, 10.0), Point3::origin());
+    testbed.look_at(point![10.0, 10.0, 10.0], Point::origin());
 }

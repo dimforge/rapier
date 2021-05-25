@@ -1,6 +1,4 @@
-use na::Point3;
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -18,11 +16,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
+        .translation(vector![0.0, -ground_height, 0.0])
         .build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
      * Create the boxes
@@ -43,10 +41,12 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f32 * shift - centerz;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
+                let rigid_body = RigidBodyBuilder::new_dynamic()
+                    .translation(vector![x, y, z])
+                    .build();
                 let handle = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
-                colliders.insert(collider, handle, &mut bodies);
+                colliders.insert_with_parent(collider, handle, &mut bodies);
             }
         }
     }
@@ -55,11 +55,11 @@ pub fn init_world(testbed: &mut Testbed) {
      * Setup a kinematic rigid body.
      */
     let platform_body = RigidBodyBuilder::new_kinematic()
-        .translation(0.0, 1.5 + 0.8, -10.0 * rad)
+        .translation(vector![0.0, 1.5 + 0.8, -10.0 * rad])
         .build();
     let platform_handle = bodies.insert(platform_body);
     let collider = ColliderBuilder::cuboid(rad * 10.0, rad, rad * 10.0).build();
-    colliders.insert(collider, platform_handle, &mut bodies);
+    colliders.insert_with_parent(collider, platform_handle, &mut bodies);
 
     /*
      * Setup a callback to control the platform.
@@ -93,5 +93,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Run the simulation.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(-10.0, 5.0, -10.0), Point3::origin());
+    testbed.look_at(point![-10.0, 5.0, -10.0], Point::origin());
 }
