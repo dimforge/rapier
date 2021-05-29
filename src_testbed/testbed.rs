@@ -423,6 +423,7 @@ impl TestbedApp {
                 .insert_non_send_resource(self.plugins)
                 .add_stage_before(CoreStage::Update, "physics", SystemStage::single_threaded())
                 .add_system_to_stage("physics", update_testbed.system())
+                .add_system(egui_focus.system())
                 .run();
         }
     }
@@ -839,6 +840,16 @@ fn setup_graphics_environment(mut commands: Commands) {
             pan_sensitivity: 0.02,
             ..OrbitCamera::default()
         });
+}
+
+fn egui_focus(ui_context: Res<EguiContext>, mut cameras: Query<&mut OrbitCamera>) {
+    let mut camera_enabled = true;
+    if ui_context.ctx().wants_pointer_input() {
+        camera_enabled = false;
+    }
+    for mut camera in cameras.iter_mut() {
+        camera.enabled = camera_enabled;
+    }
 }
 
 fn update_testbed(
