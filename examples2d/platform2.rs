@@ -48,34 +48,42 @@ pub fn init_world(testbed: &mut Testbed) {
     }
 
     /*
-     * Setup a kinematic rigid body.
+     * Setup a position-based kinematic rigid body.
      */
-    let platform_body = RigidBodyBuilder::new_kinematic()
+    let platform_body = RigidBodyBuilder::new_kinematic_velocity_based()
         .translation(vector![-10.0 * rad, 1.5 + 0.8])
         .build();
-    let platform_handle = bodies.insert(platform_body);
+    let velocity_based_platform_handle = bodies.insert(platform_body);
     let collider = ColliderBuilder::cuboid(rad * 10.0, rad).build();
-    colliders.insert_with_parent(collider, platform_handle, &mut bodies);
+    colliders.insert_with_parent(collider, velocity_based_platform_handle, &mut bodies);
+
+    /*
+     * Setup a velocity-based kinematic rigid body.
+     */
+    let platform_body = RigidBodyBuilder::new_kinematic_position_based()
+        .translation(vector![-10.0 * rad, 2.0 + 1.5 + 0.8])
+        .build();
+    let position_based_platform_handle = bodies.insert(platform_body);
+    let collider = ColliderBuilder::cuboid(rad * 10.0, rad).build();
+    colliders.insert_with_parent(collider, position_based_platform_handle, &mut bodies);
 
     /*
      * Setup a callback to control the platform.
      */
     testbed.add_callback(move |_, physics, _, run_state| {
-        let platform = physics.bodies.get_mut(platform_handle).unwrap();
-        let mut next_pos = *platform.position();
+        let velocity = vector![run_state.time.sin() * 5.0, (run_state.time * 5.0).sin()];
 
-        let dt = 0.016;
-        next_pos.translation.vector.y += (run_state.time * 5.0).sin() * dt;
-        next_pos.translation.vector.x += run_state.time.sin() * 5.0 * dt;
-
-        if next_pos.translation.vector.x >= rad * 10.0 {
-            next_pos.translation.vector.x -= dt;
-        }
-        if next_pos.translation.vector.x <= -rad * 10.0 {
-            next_pos.translation.vector.x += dt;
+        // Update the velocity-based kinematic body by setting its velocity.
+        if let Some(platform) = physics.bodies.get_mut(velocity_based_platform_handle) {
+            platform.set_linvel(velocity, true);
         }
 
-        platform.set_next_kinematic_position(next_pos);
+        // Update the position-based kinematic body by setting its next position.
+        if let Some(platform) = physics.bodies.get_mut(position_based_platform_handle) {
+            let mut next_tra = *platform.translation();
+            next_tra += velocity * physics.integration_parameters.dt;
+            platform.set_next_kinematic_translation(next_tra);
+        }
     });
 
     /*
