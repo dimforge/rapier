@@ -275,7 +275,7 @@ impl RigidBody {
     ///
     /// A kinematic body can move freely but is not affected by forces.
     pub fn is_kinematic(&self) -> bool {
-        self.rb_type == RigidBodyType::Kinematic
+        self.rb_type.is_kinematic()
     }
 
     /// Is this rigid body static?
@@ -527,9 +527,9 @@ impl RigidBody {
     }
 
     /// If this rigid body is kinematic, sets its future orientation after the next timestep integration.
-    pub fn set_next_kinematic_translation(&mut self, rotation: Rotation<Real>) {
+    pub fn set_next_kinematic_translation(&mut self, translation: Vector<Real>) {
         if self.is_kinematic() {
-            self.rb_pos.next_position.rotation = rotation;
+            self.rb_pos.next_position.translation = translation.into();
         }
     }
 
@@ -748,8 +748,13 @@ impl RigidBodyBuilder {
     }
 
     /// Initializes the builder of a new kinematic rigid body.
-    pub fn new_kinematic() -> Self {
-        Self::new(RigidBodyType::Kinematic)
+    pub fn new_kinematic_velocity_based() -> Self {
+        Self::new(RigidBodyType::KinematicVelocityBased)
+    }
+
+    /// Initializes the builder of a new kinematic rigid body.
+    pub fn new_kinematic_position_based() -> Self {
+        Self::new(RigidBodyType::KinematicPositionBased)
     }
 
     /// Initializes the builder of a new dynamic rigid body.
