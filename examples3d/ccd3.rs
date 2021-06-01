@@ -96,6 +96,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::ball(1.0)
         .density(10.0)
         .sensor(true)
+        .active_events(ActiveEvents::INTERSECTION_EVENTS)
         .build();
     let rigid_body = RigidBodyBuilder::new_dynamic()
         .linvel(vector![1000.0, 0.0, 0.0])

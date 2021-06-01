@@ -14,8 +14,10 @@ use crate::geometry::{
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{
-    ContactModificationContext, EventHandler, PairFilterContext, PhysicsHooks, PhysicsHooksFlags,
+    ActiveEvents, ActiveHooks, ContactModificationContext, EventHandler, PairFilterContext,
+    PhysicsHooks,
 };
+use crate::prelude::ColliderFlags;
 use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
 use parry::utils::IsometryOpt;
 use std::collections::HashMap;
@@ -101,21 +103,26 @@ impl NarrowPhase {
     ///
     /// It is strongly recommended to use the [`NarrowPhase::contacts_with`] method instead. This
     /// method can be used if the generation number of the collider handle isn't known.
-    pub fn contacts_with_unknown_gen(
-        &self,
-        collider: u32,
-    ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, &ContactPair)>> {
-        let id = self.graph_indices.get_unknown_gen(collider)?;
-        Some(self.contact_graph.interactions_with(id.contact_graph_index))
+    pub fn contacts_with_unknown_gen(&self, collider: u32) -> impl Iterator<Item = &ContactPair> {
+        self.graph_indices
+            .get_unknown_gen(collider)
+            .map(|id| id.contact_graph_index)
+            .into_iter()
+            .flat_map(move |id| self.contact_graph.interactions_with(id))
+            .map(|pair| pair.2)
     }
 
     /// All the contacts involving the given collider.
-    pub fn contacts_with(
+    pub fn contacts_with<'a>(
         &self,
         collider: ColliderHandle,
-    ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, &ContactPair)>> {
-        let id = self.graph_indices.get(collider.0)?;
-        Some(self.contact_graph.interactions_with(id.contact_graph_index))
+    ) -> impl Iterator<Item = &ContactPair> {
+        self.graph_indices
+            .get(collider.0)
+            .map(|id| id.contact_graph_index)
+            .into_iter()
+            .flat_map(move |id| self.contact_graph.interactions_with(id))
+            .map(|pair| pair.2)
     }
 
     /// All the intersections involving the given collider.
@@ -125,26 +132,32 @@ impl NarrowPhase {
     pub fn intersections_with_unknown_gen(
         &self,
         collider: u32,
-    ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_> {
-        let id = self.graph_indices.get_unknown_gen(collider)?;
-        Some(
-            self.intersection_graph
-                .interactions_with(id.intersection_graph_index)
-                .map(|e| (e.0, e.1, *e.2)),
-        )
+    ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_ {
+        self.graph_indices
+            .get_unknown_gen(collider)
+            .map(|id| id.intersection_graph_index)
+            .into_iter()
+            .flat_map(move |id| {
+                self.intersection_graph
+                    .interactions_with(id)
+                    .map(|e| (e.0, e.1, *e.2))
+            })
     }
 
     /// All the intersections involving the given collider.
     pub fn intersections_with(
         &self,
         collider: ColliderHandle,
-    ) -> Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_> {
-        let id = self.graph_indices.get(collider.0)?;
-        Some(
-            self.intersection_graph
-                .interactions_with(id.intersection_graph_index)
-                .map(|e| (e.0, e.1, *e.2)),
-        )
+    ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_ {
+        self.graph_indices
+            .get(collider.0)
+            .map(|id| id.intersection_graph_index)
+            .into_iter()
+            .flat_map(move |id| {
+                self.intersection_graph
+                    .interactions_with(id)
+                    .map(|e| (e.0, e.1, *e.2))
+            })
     }
 
     /// The contact pair involving two specific colliders.
@@ -244,8 +257,9 @@ impl NarrowPhase {
             + ComponentSet<RigidBodyType>
             + ComponentSetMut<RigidBodyIds>,
         Colliders: ComponentSet<ColliderChanges>
-            + ComponentSetOption<ColliderParent>
-            + ComponentSet<ColliderType>,
+            + ComponentSet<ColliderType>
+            + ComponentSet<ColliderFlags>
+            + ComponentSetOption<ColliderParent>,
     {
         // TODO: avoid these hash-maps.
         // They are necessary to handle the swap-remove done internally
@@ -340,8 +354,9 @@ impl NarrowPhase {
             + ComponentSet<RigidBodyType>
             + ComponentSetMut<RigidBodyIds>,
         Colliders: ComponentSet<ColliderChanges>
-            + ComponentSetOption<ColliderParent>
-            + ComponentSet<ColliderType>,
+            + ComponentSet<ColliderType>
+            + ComponentSet<ColliderFlags>
+            + ComponentSetOption<ColliderParent>,
     {
         let mut pairs_to_remove = vec![];
 
@@ -456,7 +471,9 @@ impl NarrowPhase {
         Bodies: ComponentSetMut<RigidBodyActivation>
             + ComponentSet<RigidBodyType>
             + ComponentSetMut<RigidBodyIds>,
-        Colliders: ComponentSet<ColliderType> + ComponentSetOption<ColliderParent>,
+        Colliders: ComponentSet<ColliderType>
+            + ComponentSet<ColliderFlags>
+            + ComponentSetOption<ColliderParent>,
     {
         let co_type1: Option<&ColliderType> = colliders.get(pair.collider1.0);
         let co_type2: Option<&ColliderType> = colliders.get(pair.collider2.0);
@@ -478,9 +495,16 @@ impl NarrowPhase {
 
                     // Emit an intersection lost event if we had an intersection before removing the edge.
                     if Some(true) == was_intersecting {
-                        let prox_event =
-                            IntersectionEvent::new(pair.collider1, pair.collider2, false);
-                        events.handle_intersection_event(prox_event)
+                        let co_flag1: &ColliderFlags = colliders.index(pair.collider1.0);
+                        let co_flag2: &ColliderFlags = colliders.index(pair.collider2.0);
+
+                        if (co_flag1.active_events | co_flag2.active_events)
+                            .contains(ActiveEvents::INTERSECTION_EVENTS)
+                        {
+                            let prox_event =
+                                IntersectionEvent::new(pair.collider1, pair.collider2, false);
+                            events.handle_intersection_event(prox_event)
+                        }
                     }
                 } else {
                     let contact_pair = self
@@ -506,10 +530,17 @@ impl NarrowPhase {
                                 }
                             }
 
-                            events.handle_contact_event(ContactEvent::Stopped(
-                                pair.collider1,
-                                pair.collider2,
-                            ))
+                            let co_flag1: &ColliderFlags = colliders.index(pair.collider1.0);
+                            let co_flag2: &ColliderFlags = colliders.index(pair.collider2.0);
+
+                            if (co_flag1.active_events | co_flag2.active_events)
+                                .contains(ActiveEvents::CONTACT_EVENTS)
+                            {
+                                events.handle_contact_event(
+                                    ContactEvent::Stopped(pair.collider1, pair.collider2),
+                                    &ctct,
+                                )
+                            }
                         }
                     }
                 }
@@ -606,9 +637,11 @@ impl NarrowPhase {
         events: &dyn EventHandler,
     ) where
         Bodies: ComponentSetMut<RigidBodyActivation>
-            + ComponentSet<RigidBodyType>
-            + ComponentSetMut<RigidBodyIds>,
-        Colliders: ComponentSet<ColliderType> + ComponentSetOption<ColliderParent>,
+            + ComponentSetMut<RigidBodyIds>
+            + ComponentSet<RigidBodyType>,
+        Colliders: ComponentSet<ColliderType>
+            + ComponentSet<ColliderFlags>
+            + ComponentSetOption<ColliderParent>,
     {
         for event in broad_phase_events {
             match event {
@@ -645,7 +678,8 @@ impl NarrowPhase {
             + ComponentSet<ColliderGroups>
             + ComponentSet<ColliderShape>
             + ComponentSet<ColliderPosition>
-            + ComponentSet<ColliderMaterial>,
+            + ComponentSet<ColliderMaterial>
+            + ComponentSet<ColliderFlags>,
     {
         if modified_colliders.is_empty() {
             return;
@@ -660,21 +694,21 @@ impl NarrowPhase {
             let handle2 = nodes[edge.target().index()].weight;
 
             let co_parent1: Option<&ColliderParent> = colliders.get(handle1.0);
-            let (co_changes1, co_groups1, co_shape1, co_pos1, co_material1): (
+            let (co_changes1, co_groups1, co_shape1, co_pos1, co_flags1): (
                 &ColliderChanges,
                 &ColliderGroups,
                 &ColliderShape,
                 &ColliderPosition,
-                &ColliderMaterial,
+                &ColliderFlags,
             ) = colliders.index_bundle(handle1.0);
 
             let co_parent2: Option<&ColliderParent> = colliders.get(handle2.0);
-            let (co_changes2, co_groups2, co_shape2, co_pos2, co_material2): (
+            let (co_changes2, co_groups2, co_shape2, co_pos2, co_flags2): (
                 &ColliderChanges,
                 &ColliderGroups,
                 &ColliderShape,
                 &ColliderPosition,
-                &ColliderMaterial,
+                &ColliderFlags,
             ) = colliders.index_bundle(handle2.0);
 
             if !co_changes1.needs_narrow_phase_update() && !co_changes2.needs_narrow_phase_update()
@@ -717,9 +751,10 @@ impl NarrowPhase {
                 return;
             }
 
-            let active_hooks = co_material1.active_hooks | co_material2.active_hooks;
+            let active_hooks = co_flags1.active_hooks | co_flags2.active_hooks;
+            let active_events = co_flags1.active_events | co_flags2.active_events;
 
-            if !active_hooks.contains(PhysicsHooksFlags::FILTER_INTERSECTION_PAIR)
+            if !active_hooks.contains(ActiveHooks::FILTER_INTERSECTION_PAIR)
                 && !status1.is_dynamic()
                 && !status2.is_dynamic()
             {
@@ -727,7 +762,7 @@ impl NarrowPhase {
                 return;
             }
 
-            if active_hooks.contains(PhysicsHooksFlags::FILTER_INTERSECTION_PAIR) {
+            if active_hooks.contains(ActiveHooks::FILTER_INTERSECTION_PAIR) {
                 let context = PairFilterContext {
                     bodies,
                     colliders,
@@ -748,7 +783,9 @@ impl NarrowPhase {
             if let Ok(intersection) =
                 query_dispatcher.intersection_test(&pos12, &**co_shape1, &**co_shape2)
             {
-                if intersection != edge.weight {
+                if active_events.contains(ActiveEvents::INTERSECTION_EVENTS)
+                    && intersection != edge.weight
+                {
                     edge.weight = intersection;
                     events.handle_intersection_event(IntersectionEvent::new(
                         handle1,
@@ -777,7 +814,8 @@ impl NarrowPhase {
             + ComponentSet<ColliderGroups>
             + ComponentSet<ColliderShape>
             + ComponentSet<ColliderPosition>
-            + ComponentSet<ColliderMaterial>,
+            + ComponentSet<ColliderMaterial>
+            + ComponentSet<ColliderFlags>,
     {
         if modified_colliders.is_empty() {
             return;
@@ -790,21 +828,23 @@ impl NarrowPhase {
             let pair = &mut edge.weight;
 
             let co_parent1: Option<&ColliderParent> = colliders.get(pair.collider1.0);
-            let (co_changes1, co_groups1, co_shape1, co_pos1, co_material1): (
+            let (co_changes1, co_groups1, co_shape1, co_pos1, co_material1, co_flags1): (
                 &ColliderChanges,
                 &ColliderGroups,
                 &ColliderShape,
                 &ColliderPosition,
                 &ColliderMaterial,
+                &ColliderFlags,
             ) = colliders.index_bundle(pair.collider1.0);
 
             let co_parent2: Option<&ColliderParent> = colliders.get(pair.collider2.0);
-            let (co_changes2, co_groups2, co_shape2, co_pos2, co_material2): (
+            let (co_changes2, co_groups2, co_shape2, co_pos2, co_material2, co_flags2): (
                 &ColliderChanges,
                 &ColliderGroups,
                 &ColliderShape,
                 &ColliderPosition,
                 &ColliderMaterial,
+                &ColliderFlags,
             ) = colliders.index_bundle(pair.collider2.0);
 
             if !co_changes1.needs_narrow_phase_update() && !co_changes2.needs_narrow_phase_update()
@@ -847,8 +887,10 @@ impl NarrowPhase {
                 return;
             }
 
-            let active_hooks = co_material1.active_hooks | co_material2.active_hooks;
-            if !active_hooks.contains(PhysicsHooksFlags::FILTER_CONTACT_PAIR)
+            let active_hooks = co_flags1.active_hooks | co_flags2.active_hooks;
+            let active_events = co_flags1.active_events | co_flags2.active_events;
+
+            if !active_hooks.contains(ActiveHooks::FILTER_CONTACT_PAIRS)
                 && !status1.is_dynamic()
                 && !status2.is_dynamic()
             {
@@ -856,8 +898,7 @@ impl NarrowPhase {
                 return;
             }
 
-            let mut solver_flags = if active_hooks.contains(PhysicsHooksFlags::FILTER_CONTACT_PAIR)
-            {
+            let mut solver_flags = if active_hooks.contains(ActiveHooks::FILTER_CONTACT_PAIRS) {
                 let context = PairFilterContext {
                     bodies,
                     colliders,
@@ -959,7 +1000,7 @@ impl NarrowPhase {
                 }
 
                 // Apply the user-defined contact modification.
-                if active_hooks.contains(PhysicsHooksFlags::MODIFY_SOLVER_CONTACTS) {
+                if active_hooks.contains(ActiveHooks::MODIFY_SOLVER_CONTACTS) {
                     let mut modifiable_solver_contacts =
                         std::mem::replace(&mut manifold.data.solver_contacts, Vec::new());
                     let mut modifiable_user_data = manifold.data.user_data;
@@ -987,16 +1028,18 @@ impl NarrowPhase {
             }
 
             if has_any_active_contact != pair.has_any_active_contact {
-                if has_any_active_contact {
-                    events.handle_contact_event(ContactEvent::Started(
-                        pair.collider1,
-                        pair.collider2,
-                    ));
-                } else {
-                    events.handle_contact_event(ContactEvent::Stopped(
-                        pair.collider1,
-                        pair.collider2,
-                    ));
+                if active_events.contains(ActiveEvents::CONTACT_EVENTS) {
+                    if has_any_active_contact {
+                        events.handle_contact_event(
+                            ContactEvent::Started(pair.collider1, pair.collider2),
+                            pair,
+                        );
+                    } else {
+                        events.handle_contact_event(
+                            ContactEvent::Stopped(pair.collider1, pair.collider2),
+                            pair,
+                        );
+                    }
                 }
 
                 pair.has_any_active_contact = has_any_active_contact;

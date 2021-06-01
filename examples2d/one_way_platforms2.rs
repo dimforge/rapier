@@ -72,12 +72,12 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let collider = ColliderBuilder::cuboid(25.0, 0.5)
         .translation(vector![30.0, 2.0])
-        .active_hooks(PhysicsHooksFlags::MODIFY_SOLVER_CONTACTS)
+        .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS)
         .build();
     let platform1 = colliders.insert_with_parent(collider, handle, &mut bodies);
     let collider = ColliderBuilder::cuboid(25.0, 0.5)
         .translation(vector![-30.0, -2.0])
-        .active_hooks(PhysicsHooksFlags::MODIFY_SOLVER_CONTACTS)
+        .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS)
         .build();
     let platform2 = colliders.insert_with_parent(collider, handle, &mut bodies);
 

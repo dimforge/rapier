@@ -70,6 +70,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let sensor_collider = ColliderBuilder::ball(rad * 5.0)
         .density(0.0)
         .sensor(true)
+        .active_events(ActiveEvents::INTERSECTION_EVENTS)
         .build();
     colliders.insert_with_parent(sensor_collider, sensor_handle, &mut bodies);
 

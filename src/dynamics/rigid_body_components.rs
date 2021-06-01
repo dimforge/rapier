@@ -1,7 +1,7 @@
 use crate::data::{ComponentSetMut, ComponentSetOption};
 use crate::dynamics::MassProperties;
 use crate::geometry::{
-    ColliderChanges, ColliderHandle, ColliderMassProperties, ColliderParent, ColliderPosition,
+    ColliderChanges, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition,
     ColliderShape, InteractionGraph, RigidBodyGraphIndex,
 };
 use crate::math::{AngVector, AngularInertia, Isometry, Point, Real, Translation, Vector};
@@ -166,7 +166,7 @@ impl RigidBodyPosition {
         mprops: &RigidBodyMassProps,
     ) -> Isometry<Real> {
         let new_vels = forces.integrate(dt, vels, mprops);
-        new_vels.integrate(dt, &self.position, &mprops.mass_properties.local_com)
+        new_vels.integrate(dt, &self.position, &mprops.local_mprops.local_com)
     }
 }
 
@@ -208,7 +208,7 @@ pub struct RigidBodyMassProps {
     /// Flags for locking rotation and translation.
     pub flags: RigidBodyMassPropsFlags,
     /// The local mass properties of the rigid-body.
-    pub mass_properties: MassProperties,
+    pub local_mprops: MassProperties,
     /// The world-space center of mass of the rigid-body.
     pub world_com: Point<Real>,
     /// The inverse mass taking into account translation locking.
@@ -222,7 +222,7 @@ impl Default for RigidBodyMassProps {
     fn default() -> Self {
         Self {
             flags: RigidBodyMassPropsFlags::empty(),
-            mass_properties: MassProperties::zero(),
+            local_mprops: MassProperties::zero(),
             world_com: Point::origin(),
             effective_inv_mass: 0.0,
             effective_world_inv_inertia_sqrt: AngularInertia::zero(),
@@ -239,11 +239,20 @@ impl From<RigidBodyMassPropsFlags> for RigidBodyMassProps {
     }
 }
 
+impl From<MassProperties> for RigidBodyMassProps {
+    fn from(local_mprops: MassProperties) -> Self {
+        Self {
+            local_mprops,
+            ..Default::default()
+        }
+    }
+}
+
 impl RigidBodyMassProps {
     /// The mass of the rigid-body.
     #[must_use]
     pub fn mass(&self) -> Real {
-        crate::utils::inv(self.mass_properties.inv_mass)
+        crate::utils::inv(self.local_mprops.inv_mass)
     }
 
     /// The effective mass (that takes the potential translation locking into account) of
@@ -255,11 +264,10 @@ impl RigidBodyMassProps {
 
     /// Update the world-space mass properties of `self`, taking into account the new position.
     pub fn update_world_mass_properties(&mut self, position: &Isometry<Real>) {
-        self.world_com = self.mass_properties.world_com(&position);
-        self.effective_inv_mass = self.mass_properties.inv_mass;
-        self.effective_world_inv_inertia_sqrt = self
-            .mass_properties
-            .world_inv_inertia_sqrt(&position.rotation);
+        self.world_com = self.local_mprops.world_com(&position);
+        self.effective_inv_mass = self.local_mprops.inv_mass;
+        self.effective_world_inv_inertia_sqrt =
+            self.local_mprops.world_inv_inertia_sqrt(&position.rotation);
 
         // Take into account translation/rotation locking.
         if self
@@ -665,7 +673,7 @@ impl RigidBodyColliders {
         co_pos: &mut ColliderPosition,
         co_parent: &ColliderParent,
         co_shape: &ColliderShape,
-        co_mprops: &ColliderMassProperties,
+        co_mprops: &ColliderMassProps,
     ) {
         rb_changes.set(
             RigidBodyChanges::MODIFIED | RigidBodyChanges::COLLIDERS,
@@ -684,7 +692,7 @@ impl RigidBodyColliders {
             .mass_properties(&**co_shape)
             .transform_by(&co_parent.pos_wrt_parent);
         self.0.push(co_handle);
-        rb_mprops.mass_properties += mass_properties;
+        rb_mprops.local_mprops += mass_properties;
         rb_mprops.update_world_mass_properties(&rb_pos.position);
     }
 
@@ -759,7 +767,7 @@ pub struct RigidBodyActivation {
 
 impl Default for RigidBodyActivation {
     fn default() -> Self {
-        Self::new_active()
+        Self::active()
     }
 }
 
@@ -770,7 +778,7 @@ impl RigidBodyActivation {
     }
 
     /// Create a new rb_activation status initialised with the default rb_activation threshold and is active.
-    pub fn new_active() -> Self {
+    pub fn active() -> Self {
         RigidBodyActivation {
             threshold: Self::default_threshold(),
             energy: Self::default_threshold() * 4.0,
@@ -779,11 +787,19 @@ impl RigidBodyActivation {
     }
 
     /// Create a new rb_activation status initialised with the default rb_activation threshold and is inactive.
-    pub fn new_inactive() -> Self {
+    pub fn inactive() -> Self {
         RigidBodyActivation {
             threshold: Self::default_threshold(),
             energy: 0.0,
             sleeping: true,
+        }
+    }
+
+    /// Create a new activation status that prevents the rigid-body from sleeping.
+    pub fn cannot_sleep() -> Self {
+        RigidBodyActivation {
+            threshold: -Real::MAX,
+            ..Self::active()
         }
     }
 

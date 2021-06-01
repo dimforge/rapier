@@ -1,12 +1,12 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
 use crate::geometry::{
-    ColliderBroadPhaseData, ColliderChanges, ColliderGroups, ColliderMassProperties,
+    ColliderBroadPhaseData, ColliderChanges, ColliderFlags, ColliderGroups, ColliderMassProps,
     ColliderMaterial, ColliderParent, ColliderPosition, ColliderShape, ColliderType,
     InteractionGroups, SharedShape,
 };
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
-use crate::pipeline::PhysicsHooksFlags;
+use crate::pipeline::{ActiveEvents, ActiveHooks};
 use na::Unit;
 use parry::bounding_volume::AABB;
 use parry::shape::Shape;
@@ -19,11 +19,12 @@ use parry::shape::Shape;
 pub struct Collider {
     pub(crate) co_type: ColliderType,
     pub(crate) co_shape: ColliderShape,
-    pub(crate) co_mprops: ColliderMassProperties,
+    pub(crate) co_mprops: ColliderMassProps,
     pub(crate) co_changes: ColliderChanges,
     pub(crate) co_parent: Option<ColliderParent>,
     pub(crate) co_pos: ColliderPosition,
     pub(crate) co_material: ColliderMaterial,
+    pub(crate) co_flags: ColliderFlags,
     pub(crate) co_groups: ColliderGroups,
     pub(crate) co_bf_data: ColliderBroadPhaseData,
     /// User-defined data associated to this rigid-body.
@@ -48,13 +49,23 @@ impl Collider {
     }
 
     /// The physics hooks enabled for this collider.
-    pub fn active_hooks(&self) -> PhysicsHooksFlags {
-        self.co_material.active_hooks
+    pub fn active_hooks(&self) -> ActiveHooks {
+        self.co_flags.active_hooks
     }
 
     /// Sets the physics hooks enabled for this collider.
-    pub fn set_active_hooks(&mut self, active_hooks: PhysicsHooksFlags) {
-        self.co_material.active_hooks = active_hooks;
+    pub fn set_active_hooks(&mut self, active_hooks: ActiveHooks) {
+        self.co_flags.active_hooks = active_hooks;
+    }
+
+    /// The physics hooks enabled for this collider.
+    pub fn active_events(&self) -> ActiveEvents {
+        self.co_flags.active_events
+    }
+
+    /// Sets the physics hooks enabled for this collider.
+    pub fn set_active_events(&mut self, active_events: ActiveEvents) {
+        self.co_flags.active_events = active_events;
     }
 
     /// The friction coefficient of this collider.
@@ -201,8 +212,8 @@ impl Collider {
     /// The density of this collider, if set.
     pub fn density(&self) -> Option<Real> {
         match &self.co_mprops {
-            ColliderMassProperties::Density(density) => Some(*density),
-            ColliderMassProperties::MassProperties(_) => None,
+            ColliderMassProps::Density(density) => Some(*density),
+            ColliderMassProps::MassProperties(_) => None,
         }
     }
 
@@ -242,8 +253,8 @@ impl Collider {
     /// Compute the local-space mass properties of this collider.
     pub fn mass_properties(&self) -> MassProperties {
         match &self.co_mprops {
-            ColliderMassProperties::Density(density) => self.co_shape.mass_properties(*density),
-            ColliderMassProperties::MassProperties(mass_properties) => **mass_properties,
+            ColliderMassProps::Density(density) => self.co_shape.mass_properties(*density),
+            ColliderMassProps::MassProperties(mass_properties) => **mass_properties,
         }
     }
 }
@@ -272,7 +283,9 @@ pub struct ColliderBuilder {
     /// Is this collider a sensor?
     pub is_sensor: bool,
     /// Physics hooks enabled for this collider.
-    pub active_hooks: PhysicsHooksFlags,
+    pub active_hooks: ActiveHooks,
+    /// Events enabled for this collider.
+    pub active_events: ActiveEvents,
     /// The user-data of the collider being built.
     pub user_data: u128,
     /// The collision groups for the collider being built.
@@ -297,7 +310,8 @@ impl ColliderBuilder {
             solver_groups: InteractionGroups::all(),
             friction_combine_rule: CoefficientCombineRule::Average,
             restitution_combine_rule: CoefficientCombineRule::Average,
-            active_hooks: PhysicsHooksFlags::empty(),
+            active_hooks: ActiveHooks::empty(),
+            active_events: ActiveEvents::empty(),
         }
     }
 
@@ -581,8 +595,14 @@ impl ColliderBuilder {
     }
 
     /// The set of physics hooks enabled for this collider.
-    pub fn active_hooks(mut self, active_hooks: PhysicsHooksFlags) -> Self {
+    pub fn active_hooks(mut self, active_hooks: ActiveHooks) -> Self {
         self.active_hooks = active_hooks;
+        self
+    }
+
+    /// The set of events enabled for this collider.
+    pub fn active_events(mut self, active_events: ActiveEvents) -> Self {
+        self.active_events = active_events;
         self
     }
 
@@ -672,12 +692,22 @@ impl ColliderBuilder {
 
     /// Builds a new collider attached to the given rigid-body.
     pub fn build(&self) -> Collider {
-        let (co_changes, co_pos, co_bf_data, co_shape, co_type, co_groups, co_material, co_mprops) =
-            self.components();
+        let (
+            co_changes,
+            co_pos,
+            co_bf_data,
+            co_shape,
+            co_type,
+            co_groups,
+            co_material,
+            co_flags,
+            co_mprops,
+        ) = self.components();
         Collider {
             co_shape,
             co_mprops,
             co_material,
+            co_flags,
             co_parent: None,
             co_changes,
             co_pos,
@@ -699,14 +729,15 @@ impl ColliderBuilder {
         ColliderType,
         ColliderGroups,
         ColliderMaterial,
-        ColliderMassProperties,
+        ColliderFlags,
+        ColliderMassProps,
     ) {
         let mass_info = if let Some(mp) = self.mass_properties {
-            ColliderMassProperties::MassProperties(Box::new(mp))
+            ColliderMassProps::MassProperties(Box::new(mp))
         } else {
             let default_density = Self::default_density();
             let density = self.density.unwrap_or(default_density);
-            ColliderMassProperties::Density(density)
+            ColliderMassProps::Density(density)
         };
 
         let co_shape = self.shape.clone();
@@ -716,7 +747,10 @@ impl ColliderBuilder {
             restitution: self.restitution,
             friction_combine_rule: self.friction_combine_rule,
             restitution_combine_rule: self.restitution_combine_rule,
+        };
+        let co_flags = ColliderFlags {
             active_hooks: self.active_hooks,
+            active_events: self.active_events,
         };
         let co_changes = ColliderChanges::all();
         let co_pos = ColliderPosition(self.position);
@@ -739,6 +773,7 @@ impl ColliderBuilder {
             co_type,
             co_groups,
             co_material,
+            co_flags,
             co_mprops,
         )
     }

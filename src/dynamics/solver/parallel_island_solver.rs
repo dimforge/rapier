@@ -392,7 +392,7 @@ impl ParallelIslandSolver {
 
                         let new_rb_vels = new_rb_vels.apply_damping(params.dt, rb_damping);
                         new_rb_pos.next_position =
-                            new_rb_vels.integrate(params.dt, &rb_pos.position, &rb_mprops.mass_properties.local_com);
+                            new_rb_vels.integrate(params.dt, &rb_pos.position, &rb_mprops.local_mprops.local_com);
 
                         bodies.set_internal(handle.0, new_rb_vels);
                         bodies.set_internal(handle.0, new_rb_pos);

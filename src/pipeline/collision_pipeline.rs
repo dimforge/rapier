@@ -6,9 +6,9 @@ use crate::dynamics::{
     RigidBodyIds, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, ColliderBroadPhaseData, ColliderChanges, ColliderGroups,
-    ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent, ColliderPosition,
-    ColliderShape, ColliderType, NarrowPhase,
+    BroadPhase, BroadPhasePairEvent, ColliderBroadPhaseData, ColliderChanges, ColliderFlags,
+    ColliderGroups, ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent,
+    ColliderPosition, ColliderShape, ColliderType, NarrowPhase,
 };
 use crate::math::Real;
 use crate::pipeline::{EventHandler, PhysicsHooks};
@@ -66,7 +66,8 @@ impl CollisionPipeline {
             + ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderType>
             + ComponentSet<ColliderGroups>
-            + ComponentSet<ColliderMaterial>,
+            + ComponentSet<ColliderMaterial>
+            + ComponentSet<ColliderFlags>,
     {
         // Update broad-phase.
         self.broad_phase_events.clear();
@@ -173,7 +174,8 @@ impl CollisionPipeline {
             + ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderType>
             + ComponentSet<ColliderGroups>
-            + ComponentSet<ColliderMaterial>,
+            + ComponentSet<ColliderMaterial>
+            + ComponentSet<ColliderFlags>,
     {
         super::user_changes::handle_user_changes_to_colliders(
             bodies,

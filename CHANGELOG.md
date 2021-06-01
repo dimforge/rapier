@@ -25,7 +25,19 @@ FIXME:
   fields: `ContactPair::collider1` and `ContactPair::collider2`.
 - The fields `FixedJoint::local_anchor1` and `FixedJoint::local_anchor2` have been renamed to
   `FixedJoint::local_frame1` and `FixedJoint::local_frame2`.
-  
+- The list of active dynamic bodies is no retrieved with `IslandManager::active_dynamic_bodies`
+  instead of `RigidBodySet::iter_active_dynamic`.
+- The list of active kinematic bodies is no retrieved with `IslandManager::active_kinematic_bodies`
+  instead of `RigidBodySet::iter_active_kinematic`.
+- The `InteractionGroups` is now a structures with two `u32` integers: one integers for the groups
+  membership and one for the group filter mask. (Before, both were only 16-bits wide, and were 
+  packed into a single `u32`).
+- `NarrowPhase::contacts_with` now returns an `impl Iterator<Item = &ContactPair>` instead of 
+  an `Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, &ContactPair)>>`. The colliders
+  handles can be read from the contact-pair itself.
+- `NarrowPhase::intersections_with` now returns an iterator directly instead of an `Option<impl Iterator>`.
+- Rename `PhysicsHooksFlags` to `ActiveHooks`.
+
 ## v0.8.0
 ### Modified
 - Switch to nalgebra 0.26.

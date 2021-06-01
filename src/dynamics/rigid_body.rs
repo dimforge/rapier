@@ -4,8 +4,7 @@ use crate::dynamics::{
     RigidBodyMassPropsFlags, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::{
-    Collider, ColliderHandle, ColliderMassProperties, ColliderParent, ColliderPosition,
-    ColliderShape,
+    Collider, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition, ColliderShape,
 };
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector};
 use crate::utils::{self, WCross};
@@ -48,7 +47,7 @@ impl RigidBody {
             rb_ccd: RigidBodyCcd::default(),
             rb_ids: RigidBodyIds::default(),
             rb_colliders: RigidBodyColliders::default(),
-            rb_activation: RigidBodyActivation::new_active(),
+            rb_activation: RigidBodyActivation::active(),
             changes: RigidBodyChanges::all(),
             rb_type: RigidBodyType::Dynamic,
             rb_dominance: RigidBodyDominance::default(),
@@ -112,7 +111,7 @@ impl RigidBody {
     /// The mass properties of this rigid-body.
     #[inline]
     pub fn mass_properties(&self) -> &MassProperties {
-        &self.rb_mprops.mass_properties
+        &self.rb_mprops.local_mprops
     }
 
     /// The dominance group of this rigid-body.
@@ -256,7 +255,7 @@ impl RigidBody {
             self.wake_up(true);
         }
 
-        self.rb_mprops.mass_properties = props;
+        self.rb_mprops.local_mprops = props;
         self.update_world_mass_properties();
     }
 
@@ -290,7 +289,7 @@ impl RigidBody {
     ///
     /// Returns zero if this rigid body has an infinite mass.
     pub fn mass(&self) -> Real {
-        utils::inv(self.rb_mprops.mass_properties.inv_mass)
+        utils::inv(self.rb_mprops.local_mprops.inv_mass)
     }
 
     /// The predicted position of this rigid-body.
@@ -335,7 +334,7 @@ impl RigidBody {
         co_parent: &ColliderParent,
         co_pos: &mut ColliderPosition,
         co_shape: &ColliderShape,
-        co_mprops: &ColliderMassProperties,
+        co_mprops: &ColliderMassProps,
     ) {
         self.rb_colliders.attach_collider(
             &mut self.changes,
@@ -359,7 +358,7 @@ impl RigidBody {
             let mass_properties = coll
                 .mass_properties()
                 .transform_by(coll.position_wrt_parent().unwrap());
-            self.rb_mprops.mass_properties -= mass_properties;
+            self.rb_mprops.local_mprops -= mass_properties;
             self.update_world_mass_properties();
         }
     }
@@ -463,8 +462,8 @@ impl RigidBody {
 
     /// The translational part of this rigid-body's position.
     #[inline]
-    pub fn translation(&self) -> Vector<Real> {
-        self.rb_pos.position.translation.vector
+    pub fn translation(&self) -> &Vector<Real> {
+        &self.rb_pos.position.translation.vector
     }
 
     /// Sets the translational part of this rigid-body's position.
@@ -482,8 +481,8 @@ impl RigidBody {
 
     /// The translational part of this rigid-body's position.
     #[inline]
-    pub fn rotation(&self) -> Rotation<Real> {
-        self.rb_pos.position.rotation
+    pub fn rotation(&self) -> &Rotation<Real> {
+        &self.rb_pos.position.rotation
     }
 
     /// Sets the rotational part of this rigid-body's position.
@@ -692,7 +691,7 @@ impl RigidBody {
     pub fn gravitational_potential_energy(&self, dt: Real, gravity: Vector<Real>) -> Real {
         let world_com = self
             .rb_mprops
-            .mass_properties
+            .local_mprops
             .world_com(&self.rb_pos.position)
             .coords;
 
@@ -979,7 +978,7 @@ impl RigidBodyBuilder {
         rb.rb_vels.angvel = self.angvel;
         rb.rb_type = self.rb_type;
         rb.user_data = self.user_data;
-        rb.rb_mprops.mass_properties = self.mass_properties;
+        rb.rb_mprops.local_mprops = self.mass_properties;
         rb.rb_mprops.flags = self.mprops_flags;
         rb.rb_damping.linear_damping = self.linear_damping;
         rb.rb_damping.angular_damping = self.angular_damping;

@@ -34,6 +34,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(ground_thickness, ground_size)
         .translation(vector![2.5, 0.0])
         .sensor(true)
+        .active_events(ActiveEvents::INTERSECTION_EVENTS)
         .build();
     let sensor_handle = colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 

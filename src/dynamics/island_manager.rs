@@ -229,19 +229,17 @@ impl IslandManager {
             stack: &mut Vec<RigidBodyHandle>,
         ) {
             for collider_handle in &rb_colliders.0 {
-                if let Some(contacts) = narrow_phase.contacts_with(*collider_handle) {
-                    for inter in contacts {
-                        for manifold in &inter.2.manifolds {
-                            if !manifold.data.solver_contacts.is_empty() {
-                                let other = crate::utils::select_other(
-                                    (inter.0, inter.1),
-                                    *collider_handle,
-                                );
-                                if let Some(other_body) = colliders.get(other.0) {
-                                    stack.push(other_body.handle);
-                                }
-                                break;
+                for inter in narrow_phase.contacts_with(*collider_handle) {
+                    for manifold in &inter.manifolds {
+                        if !manifold.data.solver_contacts.is_empty() {
+                            let other = crate::utils::select_other(
+                                (inter.collider1, inter.collider2),
+                                *collider_handle,
+                            );
+                            if let Some(other_body) = colliders.get(other.0) {
+                                stack.push(other_body.handle);
                             }
+                            break;
                         }
                     }
                 }

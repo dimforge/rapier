@@ -173,7 +173,7 @@ impl TOIEntry {
         if ccd.ccd_active {
             NonlinearRigidMotion::new(
                 poss.position,
-                mprops.mass_properties.local_com,
+                mprops.local_mprops.local_com,
                 vels.linvel,
                 vels.angvel,
             )

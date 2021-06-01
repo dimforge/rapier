@@ -46,8 +46,8 @@ impl FixedPositionConstraint {
             im2,
             ii1,
             ii2,
-            local_com1: mprops1.mass_properties.local_com,
-            local_com2: mprops2.mass_properties.local_com,
+            local_com1: mprops1.local_mprops.local_com,
+            local_com2: mprops2.local_mprops.local_com,
             lin_inv_lhs,
             ang_inv_lhs,
         }
@@ -125,7 +125,7 @@ impl FixedPositionGroundConstraint {
             position2: ids2.active_set_offset,
             im2: mprops2.effective_inv_mass,
             ii2: mprops2.effective_world_inv_inertia_sqrt.squared(),
-            local_com2: mprops2.mass_properties.local_com,
+            local_com2: mprops2.local_mprops.local_com,
             impulse: 0.0,
         }
     }

@@ -10,6 +10,7 @@ use crate::geometry::{
 use crate::math::Real;
 use crate::parry::utils::SortedPair;
 use crate::pipeline::{EventHandler, QueryPipeline, QueryPipelineMode};
+use crate::prelude::{ActiveEvents, ColliderFlags};
 use parry::query::{DefaultQueryDispatcher, QueryDispatcher};
 use parry::utils::hashmap::HashMap;
 use std::collections::BinaryHeap;
@@ -66,7 +67,7 @@ impl CCDSolver {
                         &RigidBodyCcd,
                         &RigidBodyMassProps,
                     ) = bodies.index_bundle(handle.0);
-                    let local_com = &mprops.mass_properties.local_com;
+                    let local_com = &mprops.local_mprops.local_com;
 
                     let min_toi = (ccd.ccd_thickness
                         * 0.15
@@ -272,7 +273,8 @@ impl CCDSolver {
         Colliders: ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>
-            + ComponentSet<ColliderType>,
+            + ComponentSet<ColliderType>
+            + ComponentSet<ColliderFlags>,
     {
         let mut frozen = HashMap::<_, Real>::default();
         let mut all_toi = BinaryHeap::new();
@@ -522,10 +524,16 @@ impl CCDSolver {
             // - If the intersection isn't active anymore, and it wasn't intersecting
             //   before, then we need to generate one interaction-start and one interaction-stop
             //   events because it will never be detected by the narrow-phase because of tunneling.
-            let (co_pos1, co_shape1): (&ColliderPosition, &ColliderShape) =
-                colliders.index_bundle(toi.c1.0);
-            let (co_pos2, co_shape2): (&ColliderPosition, &ColliderShape) =
-                colliders.index_bundle(toi.c2.0);
+            let (co_pos1, co_shape1, co_flags1): (
+                &ColliderPosition,
+                &ColliderShape,
+                &ColliderFlags,
+            ) = colliders.index_bundle(toi.c1.0);
+            let (co_pos2, co_shape2, co_flags2): (
+                &ColliderPosition,
+                &ColliderShape,
+                &ColliderFlags,
+            ) = colliders.index_bundle(toi.c2.0);
 
             let co_next_pos1 = if let Some(b1) = toi.b1 {
                 let co_parent1: &ColliderParent = colliders.get(toi.c1.0).unwrap();
@@ -535,7 +543,7 @@ impl CCDSolver {
                     &RigidBodyMassProps,
                 ) = bodies.index_bundle(b1.0);
 
-                let local_com1 = &rb_mprops1.mass_properties.local_com;
+                let local_com1 = &rb_mprops1.local_mprops.local_com;
                 let frozen1 = frozen.get(&b1);
                 let pos1 = frozen1
                     .map(|t| rb_vels1.integrate(*t, &rb_pos1.position, local_com1))
@@ -553,7 +561,7 @@ impl CCDSolver {
                     &RigidBodyMassProps,
                 ) = bodies.index_bundle(b2.0);
 
-                let local_com2 = &rb_mprops2.mass_properties.local_com;
+                let local_com2 = &rb_mprops2.local_mprops.local_com;
                 let frozen2 = frozen.get(&b2);
                 let pos2 = frozen2
                     .map(|t| rb_vels2.integrate(*t, &rb_pos2.position, local_com2))
@@ -575,7 +583,11 @@ impl CCDSolver {
                 .intersection_test(&next_coll_pos12, co_shape1.as_ref(), co_shape2.as_ref())
                 .unwrap_or(false);
 
-            if !intersect_before && !intersect_after {
+            if !intersect_before
+                && !intersect_after
+                && (co_flags1.active_events | co_flags2.active_events)
+                    .contains(ActiveEvents::INTERSECTION_EVENTS)
+            {
                 // Emit one intersection-started and one intersection-stopped event.
                 events.handle_intersection_event(IntersectionEvent::new(toi.c1, toi.c2, true));
                 events.handle_intersection_event(IntersectionEvent::new(toi.c1, toi.c2, false));

@@ -118,24 +118,23 @@ impl<'a, Bodies, Colliders> ContactModificationContext<'a, Bodies, Colliders> {
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
-    pub struct PhysicsHooksFlags: u32 {
+    pub struct ActiveHooks: u32 {
         /// If set, Rapier will call `PhysicsHooks::filter_contact_pair` whenever relevant.
-        const FILTER_CONTACT_PAIR = 0b0001;
+        const FILTER_CONTACT_PAIRS = 0b0001;
         /// If set, Rapier will call `PhysicsHooks::filter_intersection_pair` whenever relevant.
         const FILTER_INTERSECTION_PAIR = 0b0010;
         /// If set, Rapier will call `PhysicsHooks::modify_solver_contact` whenever relevant.
         const MODIFY_SOLVER_CONTACTS = 0b0100;
     }
 }
-impl Default for PhysicsHooksFlags {
+impl Default for ActiveHooks {
     fn default() -> Self {
-        PhysicsHooksFlags::empty()
+        ActiveHooks::empty()
     }
 }
 
 #[cfg(target_arch = "wasm32")]
 pub trait PhysicsHooks<Bodies, Colliders> {
-    fn active_hooks(&self) -> PhysicsHooksFlags;
     fn filter_contact_pair(
         &self,
         _context: &PairFilterContext<Bodies, Colliders>,
@@ -155,7 +154,7 @@ pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
     /// Applies the contact pair filter.
     ///
     /// Note that this method will only be called if at least one of the colliders
-    /// involved in the contact contains the `PhysicsHooksFlags::FILTER_CONTACT_PAIR` flags
+    /// involved in the contact contains the `ActiveHooks::FILTER_CONTACT_PAIRS` flags
     /// in its physics hooks flags.
     ///
     /// User-defined filter for potential contact pairs detected by the broad-phase.
@@ -186,7 +185,7 @@ pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
     /// Applies the intersection pair filter.
     ///
     /// Note that this method will only be called if at least one of the colliders
-    /// involved in the contact contains the `PhysicsHooksFlags::FILTER_INTERSECTION_PAIR` flags
+    /// involved in the contact contains the `ActiveHooks::FILTER_INTERSECTION_PAIR` flags
     /// in its physics hooks flags.
     ///
     /// User-defined filter for potential intersection pairs detected by the broad-phase.
@@ -210,7 +209,7 @@ pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
     /// Modifies the set of contacts seen by the constraints solver.
     ///
     /// Note that this method will only be called if at least one of the colliders
-    /// involved in the contact contains the `PhysicsHooksFlags::MODIFY_SOLVER_CONTACTS` flags
+    /// involved in the contact contains the `ActiveHooks::MODIFY_SOLVER_CONTACTS` flags
     /// in its physics hooks flags.
     ///
     /// By default, the content of `solver_contacts` is computed from `manifold.points`.
@@ -237,7 +236,10 @@ pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
 }
 
 impl<Bodies, Colliders> PhysicsHooks<Bodies, Colliders> for () {
-    fn filter_contact_pair(&self, _: &PairFilterContext<Bodies, Colliders>) -> Option<SolverFlags> {
+    fn filter_contact_pair(
+        &self,
+        _context: &PairFilterContext<Bodies, Colliders>,
+    ) -> Option<SolverFlags> {
         Some(SolverFlags::default())
     }
 

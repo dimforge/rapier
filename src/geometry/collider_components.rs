@@ -2,7 +2,7 @@ use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
 use crate::geometry::{InteractionGroups, SAPProxyIndex, Shape, SharedShape};
 use crate::math::{Isometry, Real};
 use crate::parry::partitioning::IndexedData;
-use crate::pipeline::PhysicsHooksFlags;
+use crate::pipeline::{ActiveEvents, ActiveHooks};
 use std::ops::Deref;
 
 /// The unique identifier of a collider added to a collider set.
@@ -118,7 +118,7 @@ pub type ColliderShape = SharedShape;
 #[derive(Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// The mass-properties of a collider.
-pub enum ColliderMassProperties {
+pub enum ColliderMassProps {
     /// The collider is given a density.
     ///
     /// Its actual `MassProperties` are computed automatically with
@@ -128,13 +128,19 @@ pub enum ColliderMassProperties {
     MassProperties(Box<MassProperties>),
 }
 
-impl Default for ColliderMassProperties {
+impl Default for ColliderMassProps {
     fn default() -> Self {
-        ColliderMassProperties::Density(1.0)
+        ColliderMassProps::Density(1.0)
     }
 }
 
-impl ColliderMassProperties {
+impl From<MassProperties> for ColliderMassProps {
+    fn from(mprops: MassProperties) -> Self {
+        ColliderMassProps::MassProperties(Box::new(mprops))
+    }
+}
+
+impl ColliderMassProps {
     /// The mass-properties of this collider.
     ///
     /// If `self` is the `Density` variant, then this computes the mass-properties based
@@ -242,8 +248,6 @@ pub struct ColliderMaterial {
     pub friction_combine_rule: CoefficientCombineRule,
     /// The rule applied to combine the restitution coefficients of two colliders.
     pub restitution_combine_rule: CoefficientCombineRule,
-    /// The physics hooks enabled for contact pairs and intersection pairs involving this collider.
-    pub active_hooks: PhysicsHooksFlags,
 }
 
 impl ColliderMaterial {
@@ -264,7 +268,43 @@ impl Default for ColliderMaterial {
             restitution: 0.0,
             friction_combine_rule: CoefficientCombineRule::default(),
             restitution_combine_rule: CoefficientCombineRule::default(),
-            active_hooks: PhysicsHooksFlags::empty(),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+/// A set of flags controlling the active hooks and events for this colliders.
+pub struct ColliderFlags {
+    /// The physics hooks enabled for contact pairs and intersection pairs involving this collider.
+    pub active_hooks: ActiveHooks,
+    /// The events enabled for this collider.
+    pub active_events: ActiveEvents,
+}
+
+impl Default for ColliderFlags {
+    fn default() -> Self {
+        Self {
+            active_hooks: ActiveHooks::empty(),
+            active_events: ActiveEvents::empty(),
+        }
+    }
+}
+
+impl From<ActiveHooks> for ColliderFlags {
+    fn from(active_hooks: ActiveHooks) -> Self {
+        Self {
+            active_hooks,
+            ..Default::default()
+        }
+    }
+}
+
+impl From<ActiveEvents> for ColliderFlags {
+    fn from(active_events: ActiveEvents) -> Self {
+        Self {
+            active_events,
+            ..Default::default()
         }
     }
 }

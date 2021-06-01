@@ -113,7 +113,7 @@ impl IslandSolver {
                 let mut new_poss = *poss;
                 let new_vels = vels.apply_damping(params.dt, damping);
                 new_poss.next_position =
-                    vels.integrate(params.dt, &poss.position, &mprops.mass_properties.local_com);
+                    vels.integrate(params.dt, &poss.position, &mprops.local_mprops.local_com);
 
                 bodies.set_internal(handle.0, new_vels);
                 bodies.set_internal(handle.0, new_poss);
@@ -140,7 +140,7 @@ impl IslandSolver {
                     .integrate(params.dt, vels, mprops)
                     .apply_damping(params.dt, &damping);
                 new_poss.next_position =
-                    vels.integrate(params.dt, &poss.position, &mprops.mass_properties.local_com);
+                    vels.integrate(params.dt, &poss.position, &mprops.local_mprops.local_com);
 
                 bodies.set_internal(handle.0, new_vels);
                 bodies.set_internal(handle.0, new_poss);
