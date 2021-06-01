@@ -10,7 +10,7 @@ use crate::geometry::{
 use crate::math::Real;
 use crate::parry::utils::SortedPair;
 use crate::pipeline::{EventHandler, QueryPipeline, QueryPipelineMode};
-use crate::prelude::{ActiveEvents, ColliderFlags};
+use crate::prelude::{ActiveEvents, ColliderFlags, ColliderGroups};
 use parry::query::{DefaultQueryDispatcher, QueryDispatcher};
 use parry::utils::hashmap::HashMap;
 use std::collections::BinaryHeap;
@@ -140,7 +140,8 @@ impl CCDSolver {
         Colliders: ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>
-            + ComponentSet<ColliderType>,
+            + ComponentSet<ColliderType>
+            + ComponentSet<ColliderGroups>,
     {
         // Update the query pipeline.
         self.query_pipeline.update_with_mode(
@@ -201,16 +202,21 @@ impl CCDSolver {
                             {
                                 let co_parent1: Option<&ColliderParent> = colliders.get(ch1.0);
                                 let co_parent2: Option<&ColliderParent> = colliders.get(ch2.0);
-                                let c1: (_, _, _) = colliders.index_bundle(ch1.0);
-                                let c2: (_, _, _) = colliders.index_bundle(ch2.0);
+                                let c1: (_, _, _, &ColliderGroups) = colliders.index_bundle(ch1.0);
+                                let c2: (_, _, _, &ColliderGroups) = colliders.index_bundle(ch2.0);
                                 let co_type1: &ColliderType = colliders.index(ch1.0);
                                 let co_type2: &ColliderType = colliders.index(ch1.0);
 
                                 let bh1 = co_parent1.map(|p| p.handle);
                                 let bh2 = co_parent2.map(|p| p.handle);
 
-                                if bh1 == bh2 || (co_type1.is_sensor() || co_type2.is_sensor()) {
-                                    // Ignore self-intersection and sensors.
+                                // Ignore self-intersection and sensors and apply collision groups filter.
+                                if bh1 == bh2                                                 // Ignore self-intersection.
+                                    || (co_type1.is_sensor() || co_type2.is_sensor())         // Ignore sensors.
+                                    || !c1.3.collision_groups.test(c2.3.collision_groups) // Apply collision groups.
+                                    || !c1.3.solver_groups.test(c2.3.solver_groups)
+                                // Apply solver groups.
+                                {
                                     return true;
                                 }
 
@@ -226,8 +232,8 @@ impl CCDSolver {
                                     self.query_pipeline.query_dispatcher(),
                                     *ch1,
                                     *ch2,
-                                    (c1.0, c1.1, c1.2, co_parent1),
-                                    (c2.0, c2.1, c2.2, co_parent2),
+                                    (c1.0, c1.1, c1.2, c1.3, co_parent1),
+                                    (c2.0, c2.1, c2.2, c2.3, co_parent2),
                                     Some((rb_pos1, rb_vels1, rb_mprops1, rb_ccd1)),
                                     b2,
                                     None,
@@ -274,7 +280,8 @@ impl CCDSolver {
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>
             + ComponentSet<ColliderType>
-            + ComponentSet<ColliderFlags>,
+            + ComponentSet<ColliderFlags>
+            + ComponentSet<ColliderGroups>,
     {
         let mut frozen = HashMap::<_, Real>::default();
         let mut all_toi = BinaryHeap::new();
@@ -336,14 +343,15 @@ impl CCDSolver {
                             {
                                 let co_parent1: Option<&ColliderParent> = colliders.get(ch1.0);
                                 let co_parent2: Option<&ColliderParent> = colliders.get(ch2.0);
-                                let c1: (_, _, _) = colliders.index_bundle(ch1.0);
-                                let c2: (_, _, _) = colliders.index_bundle(ch2.0);
+                                let c1: (_, _, _, &ColliderGroups) = colliders.index_bundle(ch1.0);
+                                let c2: (_, _, _, &ColliderGroups) = colliders.index_bundle(ch2.0);
 
                                 let bh1 = co_parent1.map(|p| p.handle);
                                 let bh2 = co_parent2.map(|p| p.handle);
 
-                                if bh1 == bh2 {
-                                    // Ignore self-intersection.
+                                // Ignore self-intersections and apply groups filter.
+                                if bh1 == bh2 || !c1.3.collision_groups.test(c2.3.collision_groups)
+                                {
                                     return true;
                                 }
 
@@ -360,8 +368,8 @@ impl CCDSolver {
                                     self.query_pipeline.query_dispatcher(),
                                     *ch1,
                                     *ch2,
-                                    (c1.0, c1.1, c1.2, co_parent1),
-                                    (c2.0, c2.1, c2.2, co_parent2),
+                                    (c1.0, c1.1, c1.2, c1.3, co_parent1),
+                                    (c2.0, c2.1, c2.2, c2.3, co_parent2),
                                     b1,
                                     b2,
                                     None,
@@ -400,7 +408,7 @@ impl CCDSolver {
 
         // NOTE: all static bodies (and kinematic bodies?) should be considered as "frozen", this
         // may avoid some resweeps.
-        let mut intersections_to_check = vec![];
+        let mut pseudo_intersections_to_check = vec![];
 
         while let Some(toi) = all_toi.pop() {
             assert!(toi.toi <= dt);
@@ -422,7 +430,7 @@ impl CCDSolver {
                 continue;
             }
 
-            if toi.is_intersection_test {
+            if toi.is_pseudo_intersection_test {
                 // NOTE: this test is redundant with the previous `if !should_freeze && ...`
                 //       but let's keep it to avoid tricky regressions if we end up swapping both
                 //       `if` for some reasons in the future.
@@ -430,7 +438,7 @@ impl CCDSolver {
                     // This is only an intersection so we don't have to freeze and there is no
                     // need to resweep. However we will need to see if we have to generate
                     // intersection events, so push the TOI for further testing.
-                    intersections_to_check.push(toi);
+                    pseudo_intersections_to_check.push(toi);
                 }
                 continue;
             }
@@ -462,14 +470,14 @@ impl CCDSolver {
                     .colliders_with_aabb_intersecting_aabb(&aabb, |ch2| {
                         let co_parent1: Option<&ColliderParent> = colliders.get(ch1.0);
                         let co_parent2: Option<&ColliderParent> = colliders.get(ch2.0);
-                        let c1: (_, _, _) = colliders.index_bundle(ch1.0);
-                        let c2: (_, _, _) = colliders.index_bundle(ch2.0);
+                        let c1: (_, _, _, &ColliderGroups) = colliders.index_bundle(ch1.0);
+                        let c2: (_, _, _, &ColliderGroups) = colliders.index_bundle(ch2.0);
 
                         let bh1 = co_parent1.map(|p| p.handle);
                         let bh2 = co_parent2.map(|p| p.handle);
 
-                        if bh1 == bh2 {
-                            // Ignore self-intersection.
+                        // Ignore self-intersection and apply groups filter.
+                        if bh1 == bh2 || !c1.3.collision_groups.test(c2.3.collision_groups) {
                             return true;
                         }
 
@@ -498,8 +506,8 @@ impl CCDSolver {
                             self.query_pipeline.query_dispatcher(),
                             *ch1,
                             *ch2,
-                            (c1.0, c1.1, c1.2, co_parent1),
-                            (c2.0, c2.1, c2.2, co_parent2),
+                            (c1.0, c1.1, c1.2, c1.3, co_parent1),
+                            (c2.0, c2.1, c2.2, c2.3, co_parent2),
                             b1,
                             b2,
                             frozen1.copied(),
@@ -516,7 +524,7 @@ impl CCDSolver {
             }
         }
 
-        for toi in intersections_to_check {
+        for toi in pseudo_intersections_to_check {
             // See if the intersection is still active once the bodies
             // reach their final positions.
             // - If the intersection is still active, don't report it yet. It will be
@@ -524,16 +532,29 @@ impl CCDSolver {
             // - If the intersection isn't active anymore, and it wasn't intersecting
             //   before, then we need to generate one interaction-start and one interaction-stop
             //   events because it will never be detected by the narrow-phase because of tunneling.
-            let (co_pos1, co_shape1, co_flags1): (
+            let (co_type1, co_pos1, co_shape1, co_flags1): (
+                &ColliderType,
                 &ColliderPosition,
                 &ColliderShape,
                 &ColliderFlags,
             ) = colliders.index_bundle(toi.c1.0);
-            let (co_pos2, co_shape2, co_flags2): (
+            let (co_type2, co_pos2, co_shape2, co_flags2): (
+                &ColliderType,
                 &ColliderPosition,
                 &ColliderShape,
                 &ColliderFlags,
             ) = colliders.index_bundle(toi.c2.0);
+
+            if !co_type1.is_sensor() && !co_type2.is_sensor() {
+                // TODO: this happens if we found a TOI between two non-sensor
+                //       colliders with mismatching solver_flags. It is not clear
+                //       what we should do in this case: we could report a
+                //       contact started/contact stopped event for example. But in
+                //       that case, what contact pair should be pass to these events?
+                // For now we just ignore this special case. Let's wait for an actual
+                // use-case to come up before we determine what we want to do here.
+                continue;
+            }
 
             let co_next_pos1 = if let Some(b1) = toi.b1 {
                 let co_parent1: &ColliderParent = colliders.get(toi.c1.0).unwrap();

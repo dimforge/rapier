@@ -33,7 +33,6 @@ pub struct Collider {
 
 impl Collider {
     pub(crate) fn reset_internal_references(&mut self) {
-        self.co_parent = None;
         self.co_bf_data.proxy_index = crate::INVALID_U32;
         self.co_changes = ColliderChanges::all();
     }

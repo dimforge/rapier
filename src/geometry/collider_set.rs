@@ -134,6 +134,7 @@ impl ColliderSet {
         // Make sure the internal links are reset, they may not be
         // if this rigid-body was obtained by cloning another one.
         coll.reset_internal_references();
+        coll.co_parent = None;
         let handle = ColliderHandle(self.colliders.insert(coll));
         self.modified_colliders.push(handle);
         handle
@@ -147,12 +148,17 @@ impl ColliderSet {
         bodies: &mut RigidBodySet,
     ) -> ColliderHandle {
         // Make sure the internal links are reset, they may not be
-        // if this rigid-body was obtained by cloning another one.
+        // if this collider was obtained by cloning another one.
         coll.reset_internal_references();
-        coll.co_parent = Some(ColliderParent {
-            handle: parent_handle,
-            pos_wrt_parent: coll.co_pos.0,
-        });
+
+        if let Some(prev_parent) = &mut coll.co_parent {
+            prev_parent.handle = parent_handle;
+        } else {
+            coll.co_parent = Some(ColliderParent {
+                handle: parent_handle,
+                pos_wrt_parent: coll.co_pos.0,
+            });
+        }
 
         // NOTE: we use `get_mut` instead of `get_mut_internal` so that the
         // modification flag is updated properly.

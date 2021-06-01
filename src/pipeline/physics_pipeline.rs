@@ -367,7 +367,8 @@ impl PhysicsPipeline {
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>
             + ComponentSet<ColliderType>
-            + ComponentSet<ColliderFlags>,
+            + ComponentSet<ColliderFlags>
+            + ComponentSet<ColliderGroups>,
     {
         self.counters.ccd.toi_computation_time.start();
         // Handle CCD
@@ -430,7 +431,10 @@ impl PhysicsPipeline {
         islands: &IslandManager,
         bodies: &mut Bodies,
     ) where
-        Bodies: ComponentSetMut<RigidBodyVelocity> + ComponentSet<RigidBodyPosition>,
+        Bodies: ComponentSetMut<RigidBodyVelocity>
+            + ComponentSetMut<RigidBodyPosition>
+            + ComponentSet<RigidBodyType>
+            + ComponentSet<RigidBodyMassProps>,
     {
         // Update kinematic bodies velocities.
         // TODO: what is the best place for this? It should at least be
@@ -438,9 +442,31 @@ impl PhysicsPipeline {
         // there to determine if this kinematic body should wake-up dynamic
         // bodies it is touching.
         for handle in islands.active_kinematic_bodies() {
-            let ppos: &RigidBodyPosition = bodies.index(handle.0);
-            let new_vel = ppos.interpolate_velocity(integration_parameters.inv_dt());
-            bodies.set_internal(handle.0, new_vel);
+            let (rb_type, rb_pos, rb_vel, rb_mprops): (
+                &RigidBodyType,
+                &RigidBodyPosition,
+                &RigidBodyVelocity,
+                &RigidBodyMassProps,
+            ) = bodies.index_bundle(handle.0);
+
+            match rb_type {
+                RigidBodyType::KinematicPositionBased => {
+                    let rb_pos: &RigidBodyPosition = bodies.index(handle.0);
+                    let new_vel = rb_pos.interpolate_velocity(integration_parameters.inv_dt());
+                    bodies.set_internal(handle.0, new_vel);
+                }
+                RigidBodyType::KinematicVelocityBased => {
+                    let new_pos = rb_vel.integrate(
+                        integration_parameters.dt,
+                        &rb_pos.position,
+                        // NOTE: we don't use the `world_com` here because it is not
+                        //       really updated for kinematic bodies.
+                        &(rb_pos.position * rb_mprops.local_mprops.local_com),
+                    );
+                    bodies.set_internal(handle.0, RigidBodyPosition::from(new_pos));
+                }
+                _ => {}
+            }
         }
     }
 
