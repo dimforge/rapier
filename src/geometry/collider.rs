@@ -1,8 +1,8 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
 use crate::geometry::{
-    ColliderBroadPhaseData, ColliderChanges, ColliderFlags, ColliderGroups, ColliderMassProps,
-    ColliderMaterial, ColliderParent, ColliderPosition, ColliderShape, ColliderType,
-    InteractionGroups, SharedShape,
+    ActiveCollisionTypes, ColliderBroadPhaseData, ColliderChanges, ColliderFlags,
+    ColliderMassProps, ColliderMaterial, ColliderParent, ColliderPosition, ColliderShape,
+    ColliderType, InteractionGroups, SharedShape,
 };
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
@@ -25,7 +25,6 @@ pub struct Collider {
     pub(crate) co_pos: ColliderPosition,
     pub(crate) co_material: ColliderMaterial,
     pub(crate) co_flags: ColliderFlags,
-    pub(crate) co_groups: ColliderGroups,
     pub(crate) co_bf_data: ColliderBroadPhaseData,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
@@ -57,14 +56,24 @@ impl Collider {
         self.co_flags.active_hooks = active_hooks;
     }
 
-    /// The physics hooks enabled for this collider.
+    /// The events enabled for this collider.
     pub fn active_events(&self) -> ActiveEvents {
         self.co_flags.active_events
     }
 
-    /// Sets the physics hooks enabled for this collider.
+    /// Sets the events enabled for this collider.
     pub fn set_active_events(&mut self, active_events: ActiveEvents) {
         self.co_flags.active_events = active_events;
+    }
+
+    /// The collision types enabled for this collider.
+    pub fn active_collision_types(&self) -> ActiveCollisionTypes {
+        self.co_flags.active_collision_types
+    }
+
+    /// Sets the collision types enabled for this collider.
+    pub fn set_active_collision_types(&mut self, active_collision_types: ActiveCollisionTypes) {
+        self.co_flags.active_collision_types = active_collision_types;
     }
 
     /// The friction coefficient of this collider.
@@ -179,27 +188,27 @@ impl Collider {
 
     /// The collision groups used by this collider.
     pub fn collision_groups(&self) -> InteractionGroups {
-        self.co_groups.collision_groups
+        self.co_flags.collision_groups
     }
 
     /// Sets the collision groups of this collider.
     pub fn set_collision_groups(&mut self, groups: InteractionGroups) {
-        if self.co_groups.collision_groups != groups {
+        if self.co_flags.collision_groups != groups {
             self.co_changes.insert(ColliderChanges::GROUPS);
-            self.co_groups.collision_groups = groups;
+            self.co_flags.collision_groups = groups;
         }
     }
 
     /// The solver groups used by this collider.
     pub fn solver_groups(&self) -> InteractionGroups {
-        self.co_groups.solver_groups
+        self.co_flags.solver_groups
     }
 
     /// Sets the solver groups of this collider.
     pub fn set_solver_groups(&mut self, groups: InteractionGroups) {
-        if self.co_groups.solver_groups != groups {
+        if self.co_flags.solver_groups != groups {
             self.co_changes.insert(ColliderChanges::GROUPS);
-            self.co_groups.solver_groups = groups;
+            self.co_flags.solver_groups = groups;
         }
     }
 
@@ -281,6 +290,8 @@ pub struct ColliderBuilder {
     pub position: Isometry<Real>,
     /// Is this collider a sensor?
     pub is_sensor: bool,
+    /// Contact pairs enabled for this collider.
+    pub active_collision_types: ActiveCollisionTypes,
     /// Physics hooks enabled for this collider.
     pub active_hooks: ActiveHooks,
     /// Events enabled for this collider.
@@ -309,6 +320,7 @@ impl ColliderBuilder {
             solver_groups: InteractionGroups::all(),
             friction_combine_rule: CoefficientCombineRule::Average,
             restitution_combine_rule: CoefficientCombineRule::Average,
+            active_collision_types: ActiveCollisionTypes::default(),
             active_hooks: ActiveHooks::empty(),
             active_events: ActiveEvents::empty(),
         }
@@ -605,6 +617,12 @@ impl ColliderBuilder {
         self
     }
 
+    /// The set of active collision types for this collider.
+    pub fn active_collision_types(mut self, active_collision_types: ActiveCollisionTypes) -> Self {
+        self.active_collision_types = active_collision_types;
+        self
+    }
+
     /// Sets the friction coefficient of the collider this builder will build.
     pub fn friction(mut self, friction: Real) -> Self {
         self.friction = friction;
@@ -691,27 +709,17 @@ impl ColliderBuilder {
 
     /// Builds a new collider attached to the given rigid-body.
     pub fn build(&self) -> Collider {
-        let (
-            co_changes,
-            co_pos,
-            co_bf_data,
-            co_shape,
-            co_type,
-            co_groups,
-            co_material,
-            co_flags,
-            co_mprops,
-        ) = self.components();
+        let (co_changes, co_pos, co_bf_data, co_shape, co_type, co_material, co_flags, co_mprops) =
+            self.components();
         Collider {
             co_shape,
             co_mprops,
             co_material,
-            co_flags,
             co_parent: None,
             co_changes,
             co_pos,
             co_bf_data,
-            co_groups,
+            co_flags,
             co_type,
             user_data: self.user_data,
         }
@@ -726,7 +734,6 @@ impl ColliderBuilder {
         ColliderBroadPhaseData,
         ColliderShape,
         ColliderType,
-        ColliderGroups,
         ColliderMaterial,
         ColliderFlags,
         ColliderMassProps,
@@ -748,16 +755,15 @@ impl ColliderBuilder {
             restitution_combine_rule: self.restitution_combine_rule,
         };
         let co_flags = ColliderFlags {
+            collision_groups: self.collision_groups,
+            solver_groups: self.solver_groups,
+            active_collision_types: self.active_collision_types,
             active_hooks: self.active_hooks,
             active_events: self.active_events,
         };
         let co_changes = ColliderChanges::all();
         let co_pos = ColliderPosition(self.position);
         let co_bf_data = ColliderBroadPhaseData::default();
-        let co_groups = ColliderGroups {
-            collision_groups: self.collision_groups,
-            solver_groups: self.solver_groups,
-        };
         let co_type = if self.is_sensor {
             ColliderType::Sensor
         } else {
@@ -770,7 +776,6 @@ impl ColliderBuilder {
             co_bf_data,
             co_shape,
             co_type,
-            co_groups,
             co_material,
             co_flags,
             co_mprops,

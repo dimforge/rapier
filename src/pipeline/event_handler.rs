@@ -3,11 +3,11 @@ use crossbeam::channel::Sender;
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-    /// Flags affecting the behavior of the constraints solver for a given contact manifold.
+    /// Flags affecting the events generated for this collider.
     pub struct ActiveEvents: u32 {
-        /// If set, Rapier will call `PhysicsHooks::FILTER_CONTACT_PAIRS` whenever relevant.
+        /// If set, Rapier will call `EventHandler::handle_intersection_event` whenever relevant for this collider.
         const INTERSECTION_EVENTS = 0b0001;
-        /// If set, Rapier will call `PhysicsHooks::filter_intersection_pair` whenever relevant.
+        /// If set, Rapier will call `PhysicsHooks::handle_contact_event` whenever relevant for this collider.
         const CONTACT_EVENTS = 0b0010;
     }
 }

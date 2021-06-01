@@ -14,8 +14,8 @@ use crate::dynamics::{
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderBroadPhaseData, ColliderChanges, ColliderFlags,
-    ColliderGroups, ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent,
-    ColliderPosition, ColliderShape, ColliderType, ContactManifoldIndex, NarrowPhase,
+    ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent, ColliderPosition,
+    ColliderShape, ColliderType, ContactManifoldIndex, NarrowPhase,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{EventHandler, PhysicsHooks};
@@ -103,7 +103,6 @@ impl PhysicsPipeline {
             + ComponentSet<ColliderShape>
             + ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderType>
-            + ComponentSet<ColliderGroups>
             + ComponentSet<ColliderMaterial>
             + ComponentSet<ColliderFlags>,
     {
@@ -367,8 +366,7 @@ impl PhysicsPipeline {
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>
             + ComponentSet<ColliderType>
-            + ComponentSet<ColliderFlags>
-            + ComponentSet<ColliderGroups>,
+            + ComponentSet<ColliderFlags>,
     {
         self.counters.ccd.toi_computation_time.start();
         // Handle CCD
@@ -547,7 +545,6 @@ impl PhysicsPipeline {
             + ComponentSet<ColliderShape>
             + ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderType>
-            + ComponentSet<ColliderGroups>
             + ComponentSet<ColliderMaterial>
             + ComponentSet<ColliderFlags>,
     {

@@ -10,7 +10,7 @@ use crate::geometry::{
 use crate::math::Real;
 use crate::parry::utils::SortedPair;
 use crate::pipeline::{EventHandler, QueryPipeline, QueryPipelineMode};
-use crate::prelude::{ActiveEvents, ColliderFlags, ColliderGroups};
+use crate::prelude::{ActiveEvents, ColliderFlags};
 use parry::query::{DefaultQueryDispatcher, QueryDispatcher};
 use parry::utils::hashmap::HashMap;
 use std::collections::BinaryHeap;
@@ -141,7 +141,7 @@ impl CCDSolver {
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>
             + ComponentSet<ColliderType>
-            + ComponentSet<ColliderGroups>,
+            + ComponentSet<ColliderFlags>,
     {
         // Update the query pipeline.
         self.query_pipeline.update_with_mode(
@@ -202,8 +202,8 @@ impl CCDSolver {
                             {
                                 let co_parent1: Option<&ColliderParent> = colliders.get(ch1.0);
                                 let co_parent2: Option<&ColliderParent> = colliders.get(ch2.0);
-                                let c1: (_, _, _, &ColliderGroups) = colliders.index_bundle(ch1.0);
-                                let c2: (_, _, _, &ColliderGroups) = colliders.index_bundle(ch2.0);
+                                let c1: (_, _, _, &ColliderFlags) = colliders.index_bundle(ch1.0);
+                                let c2: (_, _, _, &ColliderFlags) = colliders.index_bundle(ch2.0);
                                 let co_type1: &ColliderType = colliders.index(ch1.0);
                                 let co_type2: &ColliderType = colliders.index(ch1.0);
 
@@ -281,7 +281,7 @@ impl CCDSolver {
             + ComponentSet<ColliderShape>
             + ComponentSet<ColliderType>
             + ComponentSet<ColliderFlags>
-            + ComponentSet<ColliderGroups>,
+            + ComponentSet<ColliderFlags>,
     {
         let mut frozen = HashMap::<_, Real>::default();
         let mut all_toi = BinaryHeap::new();
@@ -343,8 +343,8 @@ impl CCDSolver {
                             {
                                 let co_parent1: Option<&ColliderParent> = colliders.get(ch1.0);
                                 let co_parent2: Option<&ColliderParent> = colliders.get(ch2.0);
-                                let c1: (_, _, _, &ColliderGroups) = colliders.index_bundle(ch1.0);
-                                let c2: (_, _, _, &ColliderGroups) = colliders.index_bundle(ch2.0);
+                                let c1: (_, _, _, &ColliderFlags) = colliders.index_bundle(ch1.0);
+                                let c2: (_, _, _, &ColliderFlags) = colliders.index_bundle(ch2.0);
 
                                 let bh1 = co_parent1.map(|p| p.handle);
                                 let bh2 = co_parent2.map(|p| p.handle);
@@ -470,8 +470,8 @@ impl CCDSolver {
                     .colliders_with_aabb_intersecting_aabb(&aabb, |ch2| {
                         let co_parent1: Option<&ColliderParent> = colliders.get(ch1.0);
                         let co_parent2: Option<&ColliderParent> = colliders.get(ch2.0);
-                        let c1: (_, _, _, &ColliderGroups) = colliders.index_bundle(ch1.0);
-                        let c2: (_, _, _, &ColliderGroups) = colliders.index_bundle(ch2.0);
+                        let c1: (_, _, _, &ColliderFlags) = colliders.index_bundle(ch1.0);
+                        let c2: (_, _, _, &ColliderFlags) = colliders.index_bundle(ch2.0);
 
                         let bh1 = co_parent1.map(|p| p.handle);
                         let bh2 = co_parent2.map(|p| p.handle);

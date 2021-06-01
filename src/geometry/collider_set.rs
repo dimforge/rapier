@@ -2,8 +2,8 @@ use crate::data::arena::Arena;
 use crate::data::{ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::{IslandManager, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{
-    Collider, ColliderBroadPhaseData, ColliderFlags, ColliderGroups, ColliderMassProps,
-    ColliderMaterial, ColliderParent, ColliderPosition, ColliderShape, ColliderType,
+    Collider, ColliderBroadPhaseData, ColliderFlags, ColliderMassProps, ColliderMaterial,
+    ColliderParent, ColliderPosition, ColliderShape, ColliderType,
 };
 use crate::geometry::{ColliderChanges, ColliderHandle};
 use std::ops::{Index, IndexMut};
@@ -64,7 +64,6 @@ impl_field_component_set!(ColliderChanges, co_changes);
 impl_field_component_set!(ColliderPosition, co_pos);
 impl_field_component_set!(ColliderMaterial, co_material);
 impl_field_component_set!(ColliderFlags, co_flags);
-impl_field_component_set!(ColliderGroups, co_groups);
 impl_field_component_set!(ColliderBroadPhaseData, co_bf_data);
 
 impl ComponentSetOption<ColliderParent> for ColliderSet {

@@ -2,7 +2,7 @@ use crate::dynamics::{
     RigidBodyCcd, RigidBodyHandle, RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
 };
 use crate::geometry::{
-    ColliderGroups, ColliderHandle, ColliderParent, ColliderPosition, ColliderShape, ColliderType,
+    ColliderFlags, ColliderHandle, ColliderParent, ColliderPosition, ColliderShape, ColliderType,
 };
 use crate::math::Real;
 use parry::query::{NonlinearRigidMotion, QueryDispatcher};
@@ -49,14 +49,14 @@ impl TOIEntry {
             &ColliderType,
             &ColliderShape,
             &ColliderPosition,
-            &ColliderGroups,
+            &ColliderFlags,
             Option<&ColliderParent>,
         ),
         c2: (
             &ColliderType,
             &ColliderShape,
             &ColliderPosition,
-            &ColliderGroups,
+            &ColliderFlags,
             Option<&ColliderParent>,
         ),
         b1: Option<(
@@ -82,8 +82,8 @@ impl TOIEntry {
             return None;
         }
 
-        let (co_type1, co_shape1, co_pos1, co_groups1, co_parent1) = c1;
-        let (co_type2, co_shape2, co_pos2, co_groups2, co_parent2) = c2;
+        let (co_type1, co_shape1, co_pos1, co_flags1, co_parent1) = c1;
+        let (co_type2, co_shape2, co_pos2, co_flags2, co_parent2) = c2;
 
         let linvel1 =
             frozen1.is_none() as u32 as Real * b1.map(|b| b.1.linvel).unwrap_or(na::zero());
@@ -110,7 +110,7 @@ impl TOIEntry {
             + smallest_contact_dist.max(0.0);
         let is_pseudo_intersection_test = co_type1.is_sensor()
             || co_type2.is_sensor()
-            || !co_groups1.solver_groups.test(co_groups2.solver_groups);
+            || !co_flags1.solver_groups.test(co_flags2.solver_groups);
 
         if (end_time - start_time) * vel12 < thickness {
             return None;

@@ -7,9 +7,9 @@ use crate::dynamics::{
     IslandManager, RigidBodyActivation, RigidBodyDominance, RigidBodyIds, RigidBodyType,
 };
 use crate::geometry::{
-    BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderGroups, ColliderHandle,
-    ColliderMaterial, ColliderPair, ColliderParent, ColliderPosition, ColliderShape, ColliderType,
-    ContactData, ContactEvent, ContactManifold, ContactManifoldData, ContactPair, InteractionGraph,
+    BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle, ColliderMaterial,
+    ColliderPair, ColliderParent, ColliderPosition, ColliderShape, ColliderType, ContactData,
+    ContactEvent, ContactManifold, ContactManifoldData, ContactPair, InteractionGraph,
     IntersectionEvent, SolverContact, SolverFlags,
 };
 use crate::math::{Real, Vector};
@@ -675,7 +675,6 @@ impl NarrowPhase {
             + ComponentSet<RigidBodyDominance>,
         Colliders: ComponentSet<ColliderChanges>
             + ComponentSetOption<ColliderParent>
-            + ComponentSet<ColliderGroups>
             + ComponentSet<ColliderShape>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderMaterial>
@@ -694,18 +693,16 @@ impl NarrowPhase {
             let handle2 = nodes[edge.target().index()].weight;
 
             let co_parent1: Option<&ColliderParent> = colliders.get(handle1.0);
-            let (co_changes1, co_groups1, co_shape1, co_pos1, co_flags1): (
+            let (co_changes1, co_shape1, co_pos1, co_flags1): (
                 &ColliderChanges,
-                &ColliderGroups,
                 &ColliderShape,
                 &ColliderPosition,
                 &ColliderFlags,
             ) = colliders.index_bundle(handle1.0);
 
             let co_parent2: Option<&ColliderParent> = colliders.get(handle2.0);
-            let (co_changes2, co_groups2, co_shape2, co_pos2, co_flags2): (
+            let (co_changes2, co_shape2, co_pos2, co_flags2): (
                 &ColliderChanges,
-                &ColliderGroups,
                 &ColliderShape,
                 &ColliderPosition,
                 &ColliderFlags,
@@ -718,47 +715,36 @@ impl NarrowPhase {
             }
 
             // TODO: avoid lookup into bodies.
-            let (mut sleeping1, mut status1) = (true, RigidBodyType::Static);
-            let (mut sleeping2, mut status2) = (true, RigidBodyType::Static);
+            let mut rb_type1 = RigidBodyType::Static;
+            let mut rb_type2 = RigidBodyType::Static;
 
             if let Some(co_parent1) = co_parent1 {
-                let (rb_type1, rb_activation1): (&RigidBodyType, &RigidBodyActivation) =
-                    bodies.index_bundle(co_parent1.handle.0);
-                status1 = *rb_type1;
-                sleeping1 = rb_activation1.sleeping;
+                rb_type1 = *bodies.index(co_parent1.handle.0);
             }
 
             if let Some(co_parent2) = co_parent2 {
-                let (rb_type2, rb_activation2): (&RigidBodyType, &RigidBodyActivation) =
-                    bodies.index_bundle(co_parent2.handle.0);
-                status2 = *rb_type2;
-                sleeping2 = rb_activation2.sleeping;
+                rb_type2 = *bodies.index(co_parent2.handle.0);
             }
 
-            if (sleeping1 && status2.is_static())
-                || (sleeping2 && status1.is_static())
-                || (sleeping1 && sleeping2)
+            // Filter based on the rigid-body types.
+            if !co_flags1.active_collision_types.test(rb_type1, rb_type2)
+                && !co_flags2.active_collision_types.test(rb_type1, rb_type2)
             {
-                // No need to update this intersection because nothing moved.
                 return;
             }
 
-            if !co_groups1
-                .collision_groups
-                .test(co_groups2.collision_groups)
-            {
-                // The intersection is not allowed.
+            // Filter based on collision groups.
+            if !co_flags1.collision_groups.test(co_flags2.collision_groups) {
                 return;
             }
 
             let active_hooks = co_flags1.active_hooks | co_flags2.active_hooks;
             let active_events = co_flags1.active_events | co_flags2.active_events;
 
-            if !active_hooks.contains(ActiveHooks::FILTER_INTERSECTION_PAIR)
-                && !status1.is_dynamic()
-                && !status2.is_dynamic()
+            // Filter based on rigid-body types.
+            if !co_flags1.active_collision_types.test(rb_type1, rb_type2)
+                && !co_flags2.active_collision_types.test(rb_type1, rb_type2)
             {
-                // Default filtering rule: no intersection between two non-dynamic bodies.
                 return;
             }
 
@@ -811,7 +797,6 @@ impl NarrowPhase {
             + ComponentSet<RigidBodyDominance>,
         Colliders: ComponentSet<ColliderChanges>
             + ComponentSetOption<ColliderParent>
-            + ComponentSet<ColliderGroups>
             + ComponentSet<ColliderShape>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderMaterial>
@@ -828,9 +813,8 @@ impl NarrowPhase {
             let pair = &mut edge.weight;
 
             let co_parent1: Option<&ColliderParent> = colliders.get(pair.collider1.0);
-            let (co_changes1, co_groups1, co_shape1, co_pos1, co_material1, co_flags1): (
+            let (co_changes1, co_shape1, co_pos1, co_material1, co_flags1): (
                 &ColliderChanges,
-                &ColliderGroups,
                 &ColliderShape,
                 &ColliderPosition,
                 &ColliderMaterial,
@@ -838,9 +822,8 @@ impl NarrowPhase {
             ) = colliders.index_bundle(pair.collider1.0);
 
             let co_parent2: Option<&ColliderParent> = colliders.get(pair.collider2.0);
-            let (co_changes2, co_groups2, co_shape2, co_pos2, co_material2, co_flags2): (
+            let (co_changes2, co_shape2, co_pos2, co_material2, co_flags2): (
                 &ColliderChanges,
-                &ColliderGroups,
                 &ColliderShape,
                 &ColliderPosition,
                 &ColliderMaterial,
@@ -854,49 +837,31 @@ impl NarrowPhase {
             }
 
             // TODO: avoid lookup into bodies.
-            let (mut sleeping1, mut status1) = (true, RigidBodyType::Static);
-            let (mut sleeping2, mut status2) = (true, RigidBodyType::Static);
+            let mut rb_type1 = RigidBodyType::Static;
+            let mut rb_type2 = RigidBodyType::Static;
 
             if let Some(co_parent1) = co_parent1 {
-                let (rb_type1, rb_activation1): (&RigidBodyType, &RigidBodyActivation) =
-                    bodies.index_bundle(co_parent1.handle.0);
-                status1 = *rb_type1;
-                sleeping1 = rb_activation1.sleeping;
+                rb_type1 = *bodies.index(co_parent1.handle.0);
             }
 
             if let Some(co_parent2) = co_parent2 {
-                let (rb_type2, rb_activation2): (&RigidBodyType, &RigidBodyActivation) =
-                    bodies.index_bundle(co_parent2.handle.0);
-                status2 = *rb_type2;
-                sleeping2 = rb_activation2.sleeping;
+                rb_type2 = *bodies.index(co_parent2.handle.0);
             }
 
-            if (sleeping1 && status2.is_static())
-                || (sleeping2 && status1.is_static())
-                || (sleeping1 && sleeping2)
+            // Filter based on the rigid-body types.
+            if !co_flags1.active_collision_types.test(rb_type1, rb_type2)
+                && !co_flags2.active_collision_types.test(rb_type1, rb_type2)
             {
-                // No need to update this intersection because nothing moved.
                 return;
             }
 
-            if !co_groups1
-                .collision_groups
-                .test(co_groups2.collision_groups)
-            {
-                // The collision is not allowed.
+            // Filter based on collision groups.
+            if !co_flags1.collision_groups.test(co_flags2.collision_groups) {
                 return;
             }
 
             let active_hooks = co_flags1.active_hooks | co_flags2.active_hooks;
             let active_events = co_flags1.active_events | co_flags2.active_events;
-
-            if !active_hooks.contains(ActiveHooks::FILTER_CONTACT_PAIRS)
-                && !status1.is_dynamic()
-                && !status2.is_dynamic()
-            {
-                // Default filtering rule: no contact between two non-dynamic bodies.
-                return;
-            }
 
             let mut solver_flags = if active_hooks.contains(ActiveHooks::FILTER_CONTACT_PAIRS) {
                 let context = PairFilterContext {
@@ -918,7 +883,7 @@ impl NarrowPhase {
                 SolverFlags::default()
             };
 
-            if !co_groups1.solver_groups.test(co_groups2.solver_groups) {
+            if !co_flags1.solver_groups.test(co_flags2.solver_groups) {
                 solver_flags.remove(SolverFlags::COMPUTE_IMPULSES);
             }
 
@@ -969,7 +934,7 @@ impl NarrowPhase {
                 manifold.data.rigid_body2 = co_parent2.map(|p| p.handle);
                 manifold.data.solver_flags = solver_flags;
                 manifold.data.relative_dominance =
-                    dominance1.effective_group(&status1) - dominance2.effective_group(&status2);
+                    dominance1.effective_group(&rb_type1) - dominance2.effective_group(&rb_type2);
                 manifold.data.normal = world_pos1 * manifold.local_n1;
 
                 // Generate solver contacts.
@@ -1073,7 +1038,7 @@ impl NarrowPhase {
                     .contains(SolverFlags::COMPUTE_IMPULSES)
                     && manifold.data.num_active_contacts() != 0
                 {
-                    let (active_island_id1, status1, sleeping1) =
+                    let (active_island_id1, rb_type1, sleeping1) =
                         if let Some(handle1) = manifold.data.rigid_body1 {
                             let data: (&RigidBodyIds, &RigidBodyType, &RigidBodyActivation) =
                                 bodies.index_bundle(handle1.0);
@@ -1082,7 +1047,7 @@ impl NarrowPhase {
                             (0, RigidBodyType::Static, true)
                         };
 
-                    let (active_island_id2, status2, sleeping2) =
+                    let (active_island_id2, rb_type2, sleeping2) =
                         if let Some(handle2) = manifold.data.rigid_body2 {
                             let data: (&RigidBodyIds, &RigidBodyType, &RigidBodyActivation) =
                                 bodies.index_bundle(handle2.0);
@@ -1091,11 +1056,11 @@ impl NarrowPhase {
                             (0, RigidBodyType::Static, true)
                         };
 
-                    if (status1.is_dynamic() || status2.is_dynamic())
-                        && (!status1.is_dynamic() || !sleeping1)
-                        && (!status2.is_dynamic() || !sleeping2)
+                    if (rb_type1.is_dynamic() || rb_type2.is_dynamic())
+                        && (!rb_type1.is_dynamic() || !sleeping1)
+                        && (!rb_type2.is_dynamic() || !sleeping2)
                     {
-                        let island_index = if !status1.is_dynamic() {
+                        let island_index = if !rb_type1.is_dynamic() {
                             active_island_id2
                         } else {
                             active_island_id1

@@ -3,6 +3,12 @@ The user-guide has been fully rewritten and is now exhaustive! Check it out on [
 
 ### Added
 - A prelude has been added in order to simplify the most common imports. For example: `use rapier3d::prelude::*`
+- Add `RigidBody::set_translation` and `RigidBody.translation()`.
+- Add `RigidBody::set_rotation` and `RigidBody.rotation().
+- Add `RigidBody::set_next_translation` for setting the next translation of a position-based kinematic body.
+- Add `RigidBody::set_next_rotation` for setting the next rotation of a position-based kinematic body.
+- Add kinematic bodies controlled at the velocity level: use `RigidBodyBuilder::new_kinematic_velocity_based` or
+  `RigidBodyType::KinematicVelocityBased`.
 
 ### Modified
 - Renamed `BodyStatus` to `RigidBodyType`.
@@ -37,6 +43,16 @@ FIXME:
   handles can be read from the contact-pair itself.
 - `NarrowPhase::intersections_with` now returns an iterator directly instead of an `Option<impl Iterator>`.
 - Rename `PhysicsHooksFlags` to `ActiveHooks`.
+- The `RigidBodyBuilder::new_kinematic` has be replaced by the `RigidBodyBuilder::new_kinematic_position_based` and
+  `RigidBodyBuilder::new_kinematic_velocity_based` constructors.
+- The `RigidBodyType::Kinematic` variant has been replaced by two variants: `RigidBodyType::KinematicVelocityBased` and
+  `RigidBodyType::KinematicPositionBased`.
+- Fixed a bug where collision groups were ignored by CCD.
+- Add the contact pair as an argument to `EventHandler::handle_contact_event`
+- All events are now disabled for all colliders by default. Enable events for specific colliders by setting its
+  `active_events` bit mask to `ActiveEvents::CONTACT_EVENTS` and/or `ActiveEvents::PROXIMITY_EVENTS`.
+- Add a simpler way of enabling collision-detection between colliders attached to two non-dynamic rigid-bodies: see
+  `ColliderBuilder::active_collision_types`.
 
 ## v0.8.0
 ### Modified

@@ -54,23 +54,23 @@ pub type BodyStatus = RigidBodyType;
 /// The status of a body, governing the way it is affected by external forces.
 pub enum RigidBodyType {
     /// A `RigidBodyType::Dynamic` body can be affected by all external forces.
-    Dynamic,
+    Dynamic = 0,
     /// A `RigidBodyType::Static` body cannot be affected by external forces.
-    Static,
+    Static = 1,
     /// A `RigidBodyType::KinematicPositionBased` body cannot be affected by any external forces but can be controlled
     /// by the user at the position level while keeping realistic one-way interaction with dynamic bodies.
     ///
     /// One-way interaction means that a kinematic body can push a dynamic body, but a kinematic body
     /// cannot be pushed by anything. In other words, the trajectory of a kinematic body can only be
     /// modified by the user and is independent from any contact or joint it is involved in.
-    KinematicPositionBased,
+    KinematicPositionBased = 2,
     /// A `RigidBodyType::KinematicVelocityBased` body cannot be affected by any external forces but can be controlled
     /// by the user at the velocity level while keeping realistic one-way interaction with dynamic bodies.
     ///
     /// One-way interaction means that a kinematic body can push a dynamic body, but a kinematic body
     /// cannot be pushed by anything. In other words, the trajectory of a kinematic body can only be
     /// modified by the user and is independent from any contact or joint it is involved in.
-    KinematicVelocityBased,
+    KinematicVelocityBased = 3,
     // Semikinematic, // A kinematic that performs automatic CCD with the static environment to avoid traversing it?
     // Disabled,
 }

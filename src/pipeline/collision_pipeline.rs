@@ -7,8 +7,8 @@ use crate::dynamics::{
 };
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderBroadPhaseData, ColliderChanges, ColliderFlags,
-    ColliderGroups, ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent,
-    ColliderPosition, ColliderShape, ColliderType, NarrowPhase,
+    ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent, ColliderPosition,
+    ColliderShape, ColliderType, NarrowPhase,
 };
 use crate::math::Real;
 use crate::pipeline::{EventHandler, PhysicsHooks};
@@ -65,7 +65,6 @@ impl CollisionPipeline {
             + ComponentSet<ColliderShape>
             + ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderType>
-            + ComponentSet<ColliderGroups>
             + ComponentSet<ColliderMaterial>
             + ComponentSet<ColliderFlags>,
     {
@@ -173,7 +172,6 @@ impl CollisionPipeline {
             + ComponentSet<ColliderShape>
             + ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderType>
-            + ComponentSet<ColliderGroups>
             + ComponentSet<ColliderMaterial>
             + ComponentSet<ColliderFlags>,
     {
