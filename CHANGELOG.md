@@ -9,7 +9,7 @@ The user-guide has been fully rewritten and is now exhaustive! Check it out on [
 ### Added
 - A prelude has been added in order to simplify the most common imports. For example: `use rapier3d::prelude::*`
 - Add `RigidBody::set_translation` and `RigidBody.translation()`.
-- Add `RigidBody::set_rotation` and `RigidBody.rotation().
+- Add `RigidBody::set_rotation` and `RigidBody.rotation()`.
 - Add `RigidBody::set_next_translation` for setting the next translation of a position-based kinematic body.
 - Add `RigidBody::set_next_rotation` for setting the next rotation of a position-based kinematic body.
 - Add kinematic bodies controlled at the velocity level: use `RigidBodyBuilder::new_kinematic_velocity_based` or
@@ -21,7 +21,7 @@ The user-guide has been fully rewritten and is now exhaustive! Check it out on [
 ### Modified
 The use of `RigidBodySet, ColliderSet, RigidBody, Collider` is no longer mandatory. Rigid-bodies and colliders have
 been split into multiple components that can be stored in a user-defined set. This is useful for integrating Rapier
-with other engines (for example this allows use to use Bevy's Query as our rigid-body/collider sets).
+with other engines (for example this allows us to use Bevy's Query as our rigid-body/collider sets).
 
 The `RigidBodySet, ColliderSet, RigidBody, Collider` are still the best option for whoever doesn't want to
 provide their own component sets.
@@ -48,7 +48,7 @@ provide their own component sets.
 - The `InteractionGroups` is now a structures with two `u32` integers: one integers for the groups
   membership and one for the group filter mask. (Before, both were only 16-bits wide, and were
   packed into a single `u32`).
-- Before, sensor colliders had a default density  set to 0.0 whereas non-sensor colliders had a
+- Before, sensor colliders had a default density set to 0.0 whereas non-sensor colliders had a
   default density of 1.0. This has been unified by setting the default density to 1.0 for both
   sensor and non-sensor colliders.
 - Colliders are no longer required to be attached to a rigid-body. Therefore, `ColliderSet::insert`
@@ -63,9 +63,9 @@ provide their own component sets.
 #### Pipelines and others
 - The field `ContactPair::pair` (which contained two collider handles) has been replaced by two
   fields: `ContactPair::collider1` and `ContactPair::collider2`.
-- The list of active dynamic bodies is no retrieved with `IslandManager::active_dynamic_bodies`
+- The list of active dynamic bodies is now retrieved with `IslandManager::active_dynamic_bodies`
   instead of `RigidBodySet::iter_active_dynamic`.
-- The list of active kinematic bodies is no retrieved with `IslandManager::active_kinematic_bodies`
+- The list of active kinematic bodies is now retrieved with `IslandManager::active_kinematic_bodies`
   instead of `RigidBodySet::iter_active_kinematic`.
 - `NarrowPhase::contacts_with` now returns an `impl Iterator<Item = &ContactPair>` instead of 
   an `Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, &ContactPair)>>`. The colliders
