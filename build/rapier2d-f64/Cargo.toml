@@ -44,13 +44,13 @@ required-features = [ "dim2", "f64" ]
 vec_map = { version = "0.8", optional = true }
 instant = { version = "0.1", features = [ "now" ]}
 num-traits = "0.2"
-nalgebra = "0.26"
-parry2d-f64 = "0.4"
-simba = "0.4"
-approx = "0.4"
+nalgebra = "0.27"
+parry2d-f64 = "0.5"
+simba = "0.5"
+approx = "0.5"
 rayon = { version = "1", optional = true }
 crossbeam = "0.8"
-arrayvec = "0.6"
+arrayvec = "0.7"
 bit-vec = "0.6"
 rustc-hash = "1"
 serde = { version = "1", features = [ "derive" ], optional = true }

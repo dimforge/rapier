@@ -32,9 +32,9 @@ use bevy::wgpu::{WgpuFeature, WgpuFeatures, WgpuOptions};
 use bevy_egui::EguiContext;
 
 #[cfg(feature = "dim2")]
-use crate::camera::{OrbitCamera, OrbitCameraPlugin};
+use crate::camera2d::{OrbitCamera, OrbitCameraPlugin};
 #[cfg(feature = "dim3")]
-use bevy_orbit_controls::{OrbitCamera, OrbitCameraPlugin};
+use crate::camera3d::{OrbitCamera, OrbitCameraPlugin};
 
 const RAPIER_BACKEND: usize = 0;
 #[cfg(feature = "other-backends")]
