@@ -133,17 +133,27 @@ impl Default for ActiveHooks {
     }
 }
 
+// TODO: right now, the wasm version don't have the Send+Sync bounds.
+//       This is because these bounds are very difficult to fulfill if we want to
+//       call JS closures. Also, parallelism cannot be enabled for wasm targets, so
+//       not having Send+Sync isn't a problem.
+/// User-defined functions called by the physics engines during one timestep in order to customize its behavior.
 #[cfg(target_arch = "wasm32")]
 pub trait PhysicsHooks<Bodies, Colliders> {
+    /// Applies the contact pair filter.
     fn filter_contact_pair(
         &self,
         _context: &PairFilterContext<Bodies, Colliders>,
     ) -> Option<SolverFlags> {
         None
     }
+
+    /// Applies the intersection pair filter.
     fn filter_intersection_pair(&self, _context: &PairFilterContext<Bodies, Colliders>) -> bool {
         false
     }
+
+    /// Modifies the set of contacts seen by the constraints solver.
     fn modify_solver_contacts(&self, _context: &mut ContactModificationContext<Bodies, Colliders>) {
     }
 }

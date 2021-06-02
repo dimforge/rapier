@@ -745,12 +745,12 @@ mod test {
         let rb = RigidBodyBuilder::new_static().build();
         let h1 = bodies.insert(rb.clone());
         let co = ColliderBuilder::ball(10.0).build();
-        colliders.insert(co.clone(), h1, &mut bodies);
+        colliders.insert_with_parent(co.clone(), h1, &mut bodies);
 
         // The same but with a kinematic body.
-        let rb = RigidBodyBuilder::new_kinematic().build();
+        let rb = RigidBodyBuilder::new_kinematic_position_based().build();
         let h2 = bodies.insert(rb.clone());
-        colliders.insert(co, h2, &mut bodies);
+        colliders.insert_with_parent(co, h2, &mut bodies);
 
         pipeline.step(
             &Vector::zeros(),
@@ -786,7 +786,7 @@ mod test {
         let h2 = bodies.insert(rb.clone());
 
         // The same but with a kinematic body.
-        let rb = RigidBodyBuilder::new_kinematic().build();
+        let rb = RigidBodyBuilder::new_kinematic_position_based().build();
         let h3 = bodies.insert(rb.clone());
 
         // The same but with a static body.
@@ -864,7 +864,7 @@ mod test {
         let body = RigidBodyBuilder::new_dynamic().build();
         let b_handle = bodies.insert(body);
         let collider = ColliderBuilder::ball(1.0).build();
-        let c_handle = colliders.insert(collider, b_handle, &mut bodies);
+        let c_handle = colliders.insert_with_parent(collider, b_handle, &mut bodies);
         colliders.remove(c_handle, &mut islands, &mut bodies, true);
         bodies.remove(b_handle, &mut islands, &mut colliders, &mut joints);
 
