@@ -8,10 +8,10 @@ use crate::math::{Isometry, Real, SpacialVector};
 pub struct FixedJoint {
     /// The frame of reference for the first body affected by this joint, expressed in the local frame
     /// of the first body.
-    pub local_anchor1: Isometry<Real>,
+    pub local_frame1: Isometry<Real>,
     /// The frame of reference for the second body affected by this joint, expressed in the local frame
     /// of the first body.
-    pub local_anchor2: Isometry<Real>,
+    pub local_frame2: Isometry<Real>,
     /// The impulse applied to the first body affected by this joint.
     ///
     /// The impulse applied to the second body affected by this joint is given by `-impulse`.
@@ -23,10 +23,10 @@ pub struct FixedJoint {
 
 impl FixedJoint {
     /// Creates a new fixed joint from the frames of reference of both bodies.
-    pub fn new(local_anchor1: Isometry<Real>, local_anchor2: Isometry<Real>) -> Self {
+    pub fn new(local_frame1: Isometry<Real>, local_frame2: Isometry<Real>) -> Self {
         Self {
-            local_anchor1,
-            local_anchor2,
+            local_frame1,
+            local_frame2,
             impulse: SpacialVector::zeros(),
         }
     }

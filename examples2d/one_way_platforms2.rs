@@ -1,7 +1,4 @@
-use na::{Point2, Vector2};
-use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier2d::geometry::{ColliderBuilder, ColliderHandle, ColliderSet};
-use rapier2d::pipeline::{ContactModificationContext, PhysicsHooks, PhysicsHooksFlags};
+use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 
 struct OneWayPlatformHook {
@@ -10,10 +7,6 @@ struct OneWayPlatformHook {
 }
 
 impl PhysicsHooks<RigidBodySet, ColliderSet> for OneWayPlatformHook {
-    fn active_hooks(&self) -> PhysicsHooksFlags {
-        PhysicsHooksFlags::MODIFY_SOLVER_CONTACTS
-    }
-
     fn modify_solver_contacts(
         &self,
         context: &mut ContactModificationContext<RigidBodySet, ColliderSet>,
@@ -30,20 +23,20 @@ impl PhysicsHooks<RigidBodySet, ColliderSet> for OneWayPlatformHook {
         // - If context.collider_handle2 == self.platform1 then the allowed normal is -y.
         // - If context.collider_handle1 == self.platform2 then its allowed normal +y needs to be flipped to -y.
         // - If context.collider_handle2 == self.platform2 then the allowed normal -y needs to be flipped to +y.
-        let mut allowed_local_n1 = Vector2::zeros();
+        let mut allowed_local_n1 = Vector::zeros();
 
         if context.collider1 == self.platform1 {
-            allowed_local_n1 = Vector2::y();
+            allowed_local_n1 = Vector::y();
         } else if context.collider2 == self.platform1 {
             // Flip the allowed direction.
-            allowed_local_n1 = -Vector2::y();
+            allowed_local_n1 = -Vector::y();
         }
 
         if context.collider1 == self.platform2 {
-            allowed_local_n1 = -Vector2::y();
+            allowed_local_n1 = -Vector::y();
         } else if context.collider2 == self.platform2 {
             // Flip the allowed direction.
-            allowed_local_n1 = Vector2::y();
+            allowed_local_n1 = Vector::y();
         }
 
         // Call the helper function that simulates one-way platforms.
@@ -78,15 +71,15 @@ pub fn init_world(testbed: &mut Testbed) {
     let handle = bodies.insert(rigid_body);
 
     let collider = ColliderBuilder::cuboid(25.0, 0.5)
-        .translation(30.0, 2.0)
-        .modify_solver_contacts(true)
+        .translation(vector![30.0, 2.0])
+        .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS)
         .build();
-    let platform1 = colliders.insert(collider, handle, &mut bodies);
+    let platform1 = colliders.insert_with_parent(collider, handle, &mut bodies);
     let collider = ColliderBuilder::cuboid(25.0, 0.5)
-        .translation(-30.0, -2.0)
-        .modify_solver_contacts(true)
+        .translation(vector![-30.0, -2.0])
+        .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS)
         .build();
-    let platform2 = colliders.insert(collider, handle, &mut bodies);
+    let platform2 = colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
      * Setup the one-way platform hook.
@@ -105,12 +98,12 @@ pub fn init_world(testbed: &mut Testbed) {
             // Spawn a new cube.
             let collider = ColliderBuilder::cuboid(1.5, 2.0).build();
             let body = RigidBodyBuilder::new_dynamic()
-                .translation(20.0, 10.0)
+                .translation(vector![20.0, 10.0])
                 .build();
             let handle = physics.bodies.insert(body);
             physics
                 .colliders
-                .insert(collider, handle, &mut physics.bodies);
+                .insert_with_parent(collider, handle, &mut physics.bodies);
 
             if let Some(graphics) = graphics {
                 graphics.add_body(handle, &physics.bodies, &physics.colliders);
@@ -134,8 +127,8 @@ pub fn init_world(testbed: &mut Testbed) {
         bodies,
         colliders,
         joints,
-        Vector2::new(0.0, -9.81),
+        vector![0.0, -9.81],
         physics_hooks,
     );
-    testbed.look_at(Point2::new(0.0, 0.0), 20.0);
+    testbed.look_at(point![0.0, 0.0], 20.0);
 }

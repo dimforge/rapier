@@ -1,6 +1,4 @@
-use na::Point2;
-use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier2d::geometry::{ColliderBuilder, ColliderSet};
+use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -12,13 +10,13 @@ pub fn init_world(testbed: &mut Testbed) {
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, _, _| {
         let rigid_body = RigidBodyBuilder::new_dynamic()
-            .translation(0.0, 10.0)
+            .translation(vector![0.0, 10.0])
             .build();
         let handle = physics.bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(rad, rad).build();
         physics
             .colliders
-            .insert(collider, handle, &mut physics.bodies);
+            .insert_with_parent(collider, handle, &mut physics.bodies);
 
         if let Some(graphics) = &mut graphics {
             graphics.add_body(handle, &physics.bodies, &physics.colliders);
@@ -48,5 +46,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point2::new(0.0, 0.0), 20.0);
+    testbed.look_at(point![0.0, 0.0], 20.0);
 }

@@ -1,6 +1,4 @@
-use na::Point2;
-use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier2d::geometry::{ColliderBuilder, ColliderSet};
+use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 
 use lyon::math::Point;
@@ -25,23 +23,23 @@ pub fn init_world(testbed: &mut Testbed) {
     let rigid_body = RigidBodyBuilder::new_static().build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, 1.2).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let rigid_body = RigidBodyBuilder::new_static()
         .rotation(std::f32::consts::FRAC_PI_2)
-        .translation(ground_size, ground_size)
+        .translation(vector![ground_size, ground_size])
         .build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, 1.2).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let rigid_body = RigidBodyBuilder::new_static()
         .rotation(std::f32::consts::FRAC_PI_2)
-        .translation(-ground_size, ground_size)
+        .translation(vector![-ground_size, ground_size])
         .build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, 1.2).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
      * Create the trimeshes from a tesselated SVG.
@@ -83,18 +81,18 @@ pub fn init_world(testbed: &mut Testbed) {
                 let vertices: Vec<_> = mesh
                     .vertices
                     .iter()
-                    .map(|v| Point2::new(v.position[0] * sx, v.position[1] * -sy))
+                    .map(|v| point![v.position[0] * sx, v.position[1] * -sy])
                     .collect();
 
                 for k in 0..5 {
                     let collider =
                         ColliderBuilder::trimesh(vertices.clone(), indices.clone()).build();
                     let rigid_body = RigidBodyBuilder::new_dynamic()
-                        .translation(ith as f32 * 8.0 - 20.0, 20.0 + k as f32 * 11.0)
+                        .translation(vector![ith as f32 * 8.0 - 20.0, 20.0 + k as f32 * 11.0])
                         .rotation(angle)
                         .build();
                     let handle = bodies.insert(rigid_body);
-                    colliders.insert(collider, handle, &mut bodies);
+                    colliders.insert_with_parent(collider, handle, &mut bodies);
                 }
 
                 ith += 1;
@@ -106,7 +104,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point2::new(0.0, 20.0), 17.0);
+    testbed.look_at(point![0.0, 20.0], 17.0);
 }
 
 const RAPIER_SVG_STR: &'static str = r#"

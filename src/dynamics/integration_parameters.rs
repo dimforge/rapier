@@ -10,7 +10,7 @@ pub struct IntegrationParameters {
     ///
     /// When CCD with multiple substeps is enabled, the timestep is subdivided
     /// into smaller pieces. This timestep subdivision won't generate timestep
-    /// lengths smaller than `min_dt`.
+    /// lengths smaller than `min_ccd_dt`.
     ///
     /// Setting this to a large value will reduce the opportunity to performing
     /// CCD substepping, resulting in potentially more time dropped by the
@@ -18,17 +18,6 @@ pub struct IntegrationParameters {
     /// to numerical instabilities.
     pub min_ccd_dt: Real,
 
-    //    /// If `true` and if rapier is compiled with the `parallel` feature, this will enable rayon-based multithreading (default: `true`).
-    //    ///
-    //    /// This parameter is ignored if rapier is not compiled with is `parallel` feature.
-    //    /// Refer to rayon's documentation regarding how to configure the number of threads with either
-    //    /// `rayon::ThreadPoolBuilder::new().num_threads(4).build_global().unwrap()` or `ThreadPool::install`.
-    //    /// Note that using only one thread with `multithreading_enabled` set to `true` will result on a slower
-    //    /// simulation than setting `multithreading_enabled` to `false`.
-    //    pub multithreading_enabled: bool,
-    // /// If `true`, the world's `step` method will stop right after resolving exactly one CCD event (default: `false`).
-    // /// This allows the user to take action during a timestep, in-between two CCD events.
-    // pub return_after_ccd_substep: bool,
     /// The Error Reduction Parameter in `[0, 1]` is the proportion of
     /// the positional error to be corrected at each time step (default: `0.2`).
     pub erp: Real,

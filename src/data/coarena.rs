@@ -13,6 +13,14 @@ impl<T> Coarena<T> {
         Self { data: Vec::new() }
     }
 
+    /// Gets a specific element from the coarena without specifying its generation number.
+    ///
+    /// It is strongly encouraged to use `Coarena::get` instead of this method because this method
+    /// can suffer from the ABA problem.
+    pub fn get_unknown_gen(&self, index: u32) -> Option<&T> {
+        self.data.get(index as usize).map(|(_, t)| t)
+    }
+
     /// Gets a specific element from the coarena, if it exists.
     pub fn get(&self, index: Index) -> Option<&T> {
         let (i, g) = index.into_raw_parts();

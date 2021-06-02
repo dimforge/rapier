@@ -1,5 +1,5 @@
 use crate::dynamics::RigidBodyHandle;
-use crate::geometry::{ColliderPair, Contact, ContactManifold};
+use crate::geometry::{ColliderHandle, Contact, ContactManifold};
 use crate::math::{Point, Real, Vector};
 use parry::query::ContactManifoldsWorkspace;
 
@@ -10,9 +10,6 @@ bitflags::bitflags! {
         /// The constraint solver will take this contact manifold into
         /// account for force computation.
         const COMPUTE_IMPULSES = 0b001;
-        /// The user-defined physics hooks will be used to
-        /// modify the solver contacts of this contact manifold.
-        const MODIFY_SOLVER_CONTACTS = 0b010;
     }
 }
 
@@ -56,8 +53,10 @@ impl Default for ContactData {
 #[derive(Clone)]
 /// The description of all the contacts between a pair of colliders.
 pub struct ContactPair {
-    /// The pair of colliders involved.
-    pub pair: ColliderPair,
+    /// The first collider involved in the contact pair.
+    pub collider1: ColliderHandle,
+    /// The second collider involved in the contact pair.
+    pub collider2: ColliderHandle,
     /// The set of contact manifolds between the two colliders.
     ///
     /// All contact manifold contain themselves contact points between the colliders.
@@ -68,9 +67,10 @@ pub struct ContactPair {
 }
 
 impl ContactPair {
-    pub(crate) fn new(pair: ColliderPair) -> Self {
+    pub(crate) fn new(collider1: ColliderHandle, collider2: ColliderHandle) -> Self {
         Self {
-            pair,
+            collider1,
+            collider2,
             has_any_active_contact: false,
             manifolds: Vec::new(),
             workspace: None,

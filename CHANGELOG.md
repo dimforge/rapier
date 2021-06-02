@@ -1,7 +1,71 @@
 ## v0.9.0
+The user-guide has been fully rewritten and is now exhaustive! Check it out on [rapier.rs](https://rapier.rs/)
+
+### Added
+- A prelude has been added in order to simplify the most common imports. For example: `use rapier3d::prelude::*`
+- Add `RigidBody::set_translation` and `RigidBody.translation()`.
+- Add `RigidBody::set_rotation` and `RigidBody.rotation().
+- Add `RigidBody::set_next_translation` for setting the next translation of a position-based kinematic body.
+- Add `RigidBody::set_next_rotation` for setting the next rotation of a position-based kinematic body.
+- Add kinematic bodies controlled at the velocity level: use `RigidBodyBuilder::new_kinematic_velocity_based` or
+  `RigidBodyType::KinematicVelocityBased`.
 
 ### Modified
+The use of `RigidBodySet, ColliderSet, RigidBody, Collider` is no longer mandatory. Rigid-bodies and colliders have
+been split into multiple components that can be stored in a user-defined set. This is useful for integrating Rapier
+with other engines (for example this allows use to use Bevy's Query as our rigid-body/collider sets).
+
+The `RigidBodySet, ColliderSet, RigidBody, Collider` are still the best option for whoever doesn't want to
+provide their own component sets.
+
+#### Rigid-bodies
 - Renamed `BodyStatus` to `RigidBodyType`.
+- `RigidBodyBuilder::translation` now takes a vector instead of individual components.
+- `RigidBodyBuilder::linvel` now takes a vector instead of individual components.
+- The `RigidBodyBuilder::new_kinematic` has be replaced by the `RigidBodyBuilder::new_kinematic_position_based` and
+  `RigidBodyBuilder::new_kinematic_velocity_based` constructors.
+- The `RigidBodyType::Kinematic` variant has been replaced by two variants: `RigidBodyType::KinematicVelocityBased` and
+  `RigidBodyType::KinematicPositionBased`.
+  
+#### Colliders
+- `Colliderbuilder::translation` now takes a vector instead of individual components.
+- The way `PhysicsHooks` are enabled changed. Now, a physics hooks is executed if any of the two
+  colliders involved in the contact/intersection pair contains the related `PhysicsHooksFlag`.
+  These flags are configured on each collider with `ColliderBuilder::active_hooks`. As a result,
+  there is no `PhysicsHooks::active_hooks` method any more.
+- All events are now disabled for all colliders by default. Enable events for specific colliders by setting its
+  `active_events` bit mask to `ActiveEvents::CONTACT_EVENTS` and/or `ActiveEvents::PROXIMITY_EVENTS`.
+- Add a simpler way of enabling collision-detection between colliders attached to two non-dynamic rigid-bodies: see
+  `ColliderBuilder::active_collision_types`.
+- The `InteractionGroups` is now a structures with two `u32` integers: one integers for the groups
+  membership and one for the group filter mask. (Before, both were only 16-bits wide, and were
+  packed into a single `u32`).
+- Before, sensor colliders had a default density  set to 0.0 whereas non-sensor colliders had a
+  default density of 1.0. This has been unified by setting the default density to 1.0 for both
+  sensor and non-sensor colliders.
+- Colliders are no longer required to be attached to a rigid-body. Therefore, `ColliderSet::insert`
+  only takes the collider as argument now. In order to attach the collider to a rigid-body,
+  (i.e., the old behavior of `ColliderSet::insert`), use `ColliderSet::insert_with_parent`.
+- Fixed a bug where collision groups were ignored by CCD.
+
+#### Joints
+- The fields `FixedJoint::local_anchor1` and `FixedJoint::local_anchor2` have been renamed to
+  `FixedJoint::local_frame1` and `FixedJoint::local_frame2`.
+  
+#### Pipelines and others
+- The field `ContactPair::pair` (which contained two collider handles) has been replaced by two
+  fields: `ContactPair::collider1` and `ContactPair::collider2`.
+- The list of active dynamic bodies is no retrieved with `IslandManager::active_dynamic_bodies`
+  instead of `RigidBodySet::iter_active_dynamic`.
+- The list of active kinematic bodies is no retrieved with `IslandManager::active_kinematic_bodies`
+  instead of `RigidBodySet::iter_active_kinematic`.
+- `NarrowPhase::contacts_with` now returns an `impl Iterator<Item = &ContactPair>` instead of 
+  an `Option<impl Iterator<Item = (ColliderHandle, ColliderHandle, &ContactPair)>>`. The colliders
+  handles can be read from the contact-pair itself.
+- `NarrowPhase::intersections_with` now returns an iterator directly instead of an `Option<impl Iterator>`.
+- Rename `PhysicsHooksFlags` to `ActiveHooks`.
+- Add the contact pair as an argument to `EventHandler::handle_contact_event`
+
 
 ## v0.8.0
 ### Modified

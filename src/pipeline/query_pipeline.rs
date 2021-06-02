@@ -4,7 +4,7 @@ use crate::dynamics::{
     RigidBodyVelocity,
 };
 use crate::geometry::{
-    ColliderGroups, ColliderHandle, ColliderParent, ColliderPosition, ColliderShape,
+    ColliderFlags, ColliderHandle, ColliderParent, ColliderPosition, ColliderShape,
     InteractionGroups, PointProjection, Ray, RayIntersection, AABB, QBVH,
 };
 use crate::math::{Isometry, Point, Real, Vector};
@@ -67,7 +67,7 @@ impl<'a, Colliders> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a
 where
     // TODO ECS: make everything optional but the shape?
     Colliders:
-        ComponentSet<ColliderGroups> + ComponentSet<ColliderPosition> + ComponentSet<ColliderShape>,
+        ComponentSet<ColliderFlags> + ComponentSet<ColliderPosition> + ComponentSet<ColliderShape>,
 {
     type PartShape = dyn Shape;
     type PartId = ColliderHandle;
@@ -77,10 +77,10 @@ where
         shape_id: Self::PartId,
         mut f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape),
     ) {
-        let co_groups: Option<&ColliderGroups> = self.colliders.get(shape_id.0);
+        let co_flags: Option<&ColliderFlags> = self.colliders.get(shape_id.0);
 
-        if let Some(co_groups) = co_groups {
-            if co_groups.collision_groups.test(self.query_groups)
+        if let Some(co_flags) = co_flags {
+            if co_flags.collision_groups.test(self.query_groups)
                 && self.filter.map(|f| f(shape_id)).unwrap_or(true)
             {
                 let (co_pos, co_shape): (&ColliderPosition, &ColliderShape) =
@@ -384,7 +384,7 @@ impl QueryPipeline {
         filter: Option<&dyn Fn(ColliderHandle) -> bool>,
     ) -> Option<(ColliderHandle, Real)>
     where
-        Colliders: ComponentSet<ColliderGroups>
+        Colliders: ComponentSet<ColliderFlags>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>,
     {
@@ -420,7 +420,7 @@ impl QueryPipeline {
         filter: Option<&dyn Fn(ColliderHandle) -> bool>,
     ) -> Option<(ColliderHandle, RayIntersection)>
     where
-        Colliders: ComponentSet<ColliderGroups>
+        Colliders: ComponentSet<ColliderFlags>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>,
     {
@@ -463,16 +463,16 @@ impl QueryPipeline {
         filter: Option<&dyn Fn(ColliderHandle) -> bool>,
         mut callback: impl FnMut(ColliderHandle, RayIntersection) -> bool,
     ) where
-        Colliders: ComponentSet<ColliderGroups>
+        Colliders: ComponentSet<ColliderFlags>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>,
     {
         let mut leaf_callback = &mut |handle: &ColliderHandle| {
             let co_shape: Option<&ColliderShape> = colliders.get(handle.0);
             if let Some(co_shape) = co_shape {
-                let (co_groups, co_pos): (&ColliderGroups, &ColliderPosition) =
+                let (co_flags, co_pos): (&ColliderFlags, &ColliderPosition) =
                     colliders.index_bundle(handle.0);
-                if co_groups.collision_groups.test(query_groups)
+                if co_flags.collision_groups.test(query_groups)
                     && filter.map(|f| f(*handle)).unwrap_or(true)
                 {
                     if let Some(hit) = co_shape.cast_ray_and_get_normal(co_pos, ray, max_toi, solid)
@@ -509,7 +509,7 @@ impl QueryPipeline {
         filter: Option<&dyn Fn(ColliderHandle) -> bool>,
     ) -> Option<ColliderHandle>
     where
-        Colliders: ComponentSet<ColliderGroups>
+        Colliders: ComponentSet<ColliderFlags>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>,
     {
@@ -550,7 +550,7 @@ impl QueryPipeline {
         filter: Option<&dyn Fn(ColliderHandle) -> bool>,
     ) -> Option<(ColliderHandle, PointProjection)>
     where
-        Colliders: ComponentSet<ColliderGroups>
+        Colliders: ComponentSet<ColliderFlags>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>,
     {
@@ -583,7 +583,7 @@ impl QueryPipeline {
         filter: Option<&dyn Fn(ColliderHandle) -> bool>,
         mut callback: impl FnMut(ColliderHandle) -> bool,
     ) where
-        Colliders: ComponentSet<ColliderGroups>
+        Colliders: ComponentSet<ColliderFlags>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>,
     {
@@ -591,10 +591,10 @@ impl QueryPipeline {
             let co_shape: Option<&ColliderShape> = colliders.get(handle.0);
 
             if let Some(co_shape) = co_shape {
-                let (co_groups, co_pos): (&ColliderGroups, &ColliderPosition) =
+                let (co_flags, co_pos): (&ColliderFlags, &ColliderPosition) =
                     colliders.index_bundle(handle.0);
 
-                if co_groups.collision_groups.test(query_groups)
+                if co_flags.collision_groups.test(query_groups)
                     && filter.map(|f| f(*handle)).unwrap_or(true)
                     && co_shape.contains_point(co_pos, point)
                 {
@@ -635,7 +635,7 @@ impl QueryPipeline {
         filter: Option<&dyn Fn(ColliderHandle) -> bool>,
     ) -> Option<(ColliderHandle, PointProjection, FeatureId)>
     where
-        Colliders: ComponentSet<ColliderGroups>
+        Colliders: ComponentSet<ColliderFlags>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>,
     {
@@ -685,7 +685,7 @@ impl QueryPipeline {
         filter: Option<&dyn Fn(ColliderHandle) -> bool>,
     ) -> Option<(ColliderHandle, TOI)>
     where
-        Colliders: ComponentSet<ColliderGroups>
+        Colliders: ComponentSet<ColliderFlags>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>,
     {
@@ -733,7 +733,7 @@ impl QueryPipeline {
         filter: Option<&dyn Fn(ColliderHandle) -> bool>,
     ) -> Option<(ColliderHandle, TOI)>
     where
-        Colliders: ComponentSet<ColliderGroups>
+        Colliders: ComponentSet<ColliderFlags>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>,
     {
@@ -774,7 +774,7 @@ impl QueryPipeline {
         filter: Option<&dyn Fn(ColliderHandle) -> bool>,
         mut callback: impl FnMut(ColliderHandle) -> bool,
     ) where
-        Colliders: ComponentSet<ColliderGroups>
+        Colliders: ComponentSet<ColliderFlags>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>,
     {
@@ -785,10 +785,10 @@ impl QueryPipeline {
             let co_shape: Option<&ColliderShape> = colliders.get(handle.0);
 
             if let Some(co_shape) = co_shape {
-                let (co_groups, co_pos): (&ColliderGroups, &ColliderPosition) =
+                let (co_flags, co_pos): (&ColliderFlags, &ColliderPosition) =
                     colliders.index_bundle(handle.0);
 
-                if co_groups.collision_groups.test(query_groups)
+                if co_flags.collision_groups.test(query_groups)
                     && filter.map(|f| f(*handle)).unwrap_or(true)
                 {
                     let pos12 = inv_shape_pos * co_pos.as_ref();

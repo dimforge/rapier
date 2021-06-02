@@ -1,6 +1,4 @@
-use na::{Point3, Vector3};
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -24,9 +22,9 @@ pub fn init_world(testbed: &mut Testbed) {
 
         // Build the rigid body.
         let rb = RigidBodyBuilder::new_dynamic()
-            .translation(x, y, 0.0)
-            .linvel(x * 10.0, y * 10.0, 0.0)
-            .angvel(Vector3::z() * 100.0)
+            .translation(vector![x, y, 0.0])
+            .linvel(vector![x * 10.0, y * 10.0, 0.0])
+            .angvel(Vector::z() * 100.0)
             .linear_damping((i + 1) as f32 * subdiv * 10.0)
             .angular_damping((num - i) as f32 * subdiv * 10.0)
             .build();
@@ -34,12 +32,12 @@ pub fn init_world(testbed: &mut Testbed) {
 
         // Build the collider.
         let co = ColliderBuilder::cuboid(rad, rad, rad).build();
-        colliders.insert(co, rb_handle, &mut bodies);
+        colliders.insert_with_parent(co, rb_handle, &mut bodies);
     }
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world_with_params(bodies, colliders, joints, Vector3::zeros(), ());
-    testbed.look_at(Point3::new(2.0, 2.5, 20.0), Point3::new(2.0, 2.5, 0.0));
+    testbed.set_world_with_params(bodies, colliders, joints, Vector::zeros(), ());
+    testbed.look_at(point![2.0, 2.5, 20.0], point![2.0, 2.5, 0.0]);
 }

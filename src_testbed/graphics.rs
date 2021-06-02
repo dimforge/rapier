@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use na::Point3;
+use na::{point, Point3};
 
 use crate::math::Isometry;
 use crate::objects::node::EntityWithGraphics;
@@ -34,7 +34,7 @@ impl GraphicsManager {
             b2sn: HashMap::new(),
             b2color: HashMap::new(),
             c2color: HashMap::new(),
-            ground_color: Point3::new(0.5, 0.5, 0.5),
+            ground_color: point![0.5, 0.5, 0.5],
             b2wireframe: HashMap::new(),
             prefab_meshes: HashMap::new(),
         }
@@ -57,9 +57,10 @@ impl GraphicsManager {
     pub fn remove_collider_nodes(
         &mut self,
         commands: &mut Commands,
-        body: RigidBodyHandle,
+        body: Option<RigidBodyHandle>,
         collider: ColliderHandle,
     ) {
+        let body = body.unwrap_or(RigidBodyHandle::invalid());
         if let Some(sns) = self.b2sn.get_mut(&body) {
             for sn in sns.iter_mut() {
                 if sn.collider == collider {
@@ -83,23 +84,23 @@ impl GraphicsManager {
         &mut self,
         materials: &mut Assets<StandardMaterial>,
         b: RigidBodyHandle,
-        color: Point3<f32>,
+        color: [f32; 3],
     ) {
-        self.b2color.insert(b, color);
+        self.b2color.insert(b, color.into());
 
         if let Some(ns) = self.b2sn.get_mut(&b) {
             for n in ns.iter_mut() {
-                n.set_color(materials, color)
+                n.set_color(materials, color.into())
             }
         }
     }
 
-    pub fn set_initial_body_color(&mut self, b: RigidBodyHandle, color: Point3<f32>) {
-        self.b2color.insert(b, color);
+    pub fn set_initial_body_color(&mut self, b: RigidBodyHandle, color: [f32; 3]) {
+        self.b2color.insert(b, color.into());
     }
 
-    pub fn set_initial_collider_color(&mut self, c: ColliderHandle, color: Point3<f32>) {
-        self.c2color.insert(c, color);
+    pub fn set_initial_collider_color(&mut self, c: ColliderHandle, color: [f32; 3]) {
+        self.c2color.insert(c, color.into());
     }
 
     pub fn set_body_wireframe(&mut self, b: RigidBodyHandle, enabled: bool) {
@@ -118,18 +119,18 @@ impl GraphicsManager {
         }
     }
 
-    pub fn toggle_wireframe_mode(&mut self, colliders: &ColliderSet, _enabled: bool) {
-        for n in self.b2sn.values_mut().flat_map(|val| val.iter_mut()) {
-            let _force_wireframe = if let Some(collider) = colliders.get(n.collider) {
-                collider.is_sensor()
-                    || self
-                        .b2wireframe
-                        .get(&collider.parent())
-                        .cloned()
-                        .unwrap_or(false)
-            } else {
-                false
-            };
+    pub fn toggle_wireframe_mode(&mut self, _colliders: &ColliderSet, _enabled: bool) {
+        for _n in self.b2sn.values_mut().flat_map(|val| val.iter_mut()) {
+            // let _force_wireframe = if let Some(collider) = colliders.get(n.collider) {
+            //     collider.is_sensor()
+            //         || self
+            //             .b2wireframe
+            //             .get(&collider.parent())
+            //             .cloned()
+            //             .unwrap_or(false)
+            // } else {
+            //     false
+            // };
 
             // if let Some(node) = n.scene_node_mut() {
             //     if force_wireframe || enabled {
@@ -171,7 +172,7 @@ impl GraphicsManager {
             }
         }
 
-        self.set_body_color(materials, handle, color);
+        self.set_body_color(materials, handle, color.into());
 
         color
     }
@@ -257,10 +258,10 @@ impl GraphicsManager {
         colliders: &ColliderSet,
     ) {
         let collider = &colliders[handle];
-        let color = *self.b2color.get(&collider.parent()).unwrap();
+        let collider_parent = collider.parent().unwrap_or(RigidBodyHandle::invalid());
+        let color = *self.b2color.get(&collider_parent).unwrap();
         let color = self.c2color.get(&handle).copied().unwrap_or(color);
-        let mut nodes =
-            std::mem::replace(self.b2sn.get_mut(&collider.parent()).unwrap(), Vec::new());
+        let mut nodes = std::mem::replace(self.b2sn.get_mut(&collider_parent).unwrap(), Vec::new());
         self.do_add_shape(
             commands,
             meshes,
@@ -273,7 +274,7 @@ impl GraphicsManager {
             color,
             &mut nodes,
         );
-        self.b2sn.insert(collider.parent(), nodes);
+        self.b2sn.insert(collider_parent, nodes);
     }
 
     fn do_add_shape(
@@ -338,9 +339,9 @@ impl GraphicsManager {
                 //
                 //     if bo.is_dynamic() {
                 //         if bo.is_ccd_active() {
-                //             n.set_color(Point3::new(1.0, 0.0, 0.0));
+                //             n.set_color(point![1.0, 0.0, 0.0]);
                 //         } else {
-                //             n.set_color(Point3::new(0.0, 1.0, 0.0));
+                //             n.set_color(point![0.0, 1.0, 0.0]);
                 //         }
                 //     }
                 // }
@@ -365,9 +366,9 @@ impl GraphicsManager {
     //                 let y = rotmat.column(1) * 0.25f32;
     //                 let z = rotmat.column(2) * 0.25f32;
 
-    //                 window.draw_line(center, &(*center + x), &Point3::new(1.0, 0.0, 0.0));
-    //                 window.draw_line(center, &(*center + y), &Point3::new(0.0, 1.0, 0.0));
-    //                 window.draw_line(center, &(*center + z), &Point3::new(0.0, 0.0, 1.0));
+    //                 window.draw_line(center, &(*center + x), &point![1.0, 0.0, 0.0]);
+    //                 window.draw_line(center, &(*center + y), &point![0.0, 1.0, 0.0]);
+    //                 window.draw_line(center, &(*center + z), &point![0.0, 0.0, 1.0]);
     //             // }
     //         }
     //     }

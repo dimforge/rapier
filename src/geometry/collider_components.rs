@@ -1,7 +1,8 @@
-use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
-use crate::geometry::{InteractionGroups, SAPProxyIndex, Shape, SharedShape, SolverFlags};
+use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle, RigidBodyType};
+use crate::geometry::{InteractionGroups, SAPProxyIndex, Shape, SharedShape};
 use crate::math::{Isometry, Real};
 use crate::parry::partitioning::IndexedData;
+use crate::pipeline::{ActiveEvents, ActiveHooks};
 use std::ops::Deref;
 
 /// The unique identifier of a collider added to a collider set.
@@ -117,7 +118,7 @@ pub type ColliderShape = SharedShape;
 #[derive(Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// The mass-properties of a collider.
-pub enum ColliderMassProperties {
+pub enum ColliderMassProps {
     /// The collider is given a density.
     ///
     /// Its actual `MassProperties` are computed automatically with
@@ -127,13 +128,19 @@ pub enum ColliderMassProperties {
     MassProperties(Box<MassProperties>),
 }
 
-impl Default for ColliderMassProperties {
+impl Default for ColliderMassProps {
     fn default() -> Self {
-        ColliderMassProperties::Density(1.0)
+        ColliderMassProps::Density(1.0)
     }
 }
 
-impl ColliderMassProperties {
+impl From<MassProperties> for ColliderMassProps {
+    fn from(mprops: MassProperties) -> Self {
+        ColliderMassProps::MassProperties(Box::new(mprops))
+    }
+}
+
+impl ColliderMassProps {
     /// The mass-properties of this collider.
     ///
     /// If `self` is the `Density` variant, then this computes the mass-properties based
@@ -203,27 +210,6 @@ where
 
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-/// The groups of this collider, for filtering contact and solver pairs.
-pub struct ColliderGroups {
-    /// The groups controlling the pairs of colliders that can interact (generate
-    /// interaction events or contacts).
-    pub collision_groups: InteractionGroups,
-    /// The groups controlling the pairs of collider that have their contact
-    /// points taken into account for force computation.
-    pub solver_groups: InteractionGroups,
-}
-
-impl Default for ColliderGroups {
-    fn default() -> Self {
-        Self {
-            collision_groups: InteractionGroups::default(),
-            solver_groups: InteractionGroups::default(),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// The constraints solver-related properties of this collider (friction, restitution, etc.)
 pub struct ColliderMaterial {
     /// The friction coefficient of this collider.
@@ -241,9 +227,6 @@ pub struct ColliderMaterial {
     pub friction_combine_rule: CoefficientCombineRule,
     /// The rule applied to combine the restitution coefficients of two colliders.
     pub restitution_combine_rule: CoefficientCombineRule,
-    /// The solver flags attached to this collider in order to customize the way the
-    /// constraints solver will work with contacts involving this collider.
-    pub solver_flags: SolverFlags,
 }
 
 impl ColliderMaterial {
@@ -264,7 +247,133 @@ impl Default for ColliderMaterial {
             restitution: 0.0,
             friction_combine_rule: CoefficientCombineRule::default(),
             restitution_combine_rule: CoefficientCombineRule::default(),
-            solver_flags: SolverFlags::default(),
+        }
+    }
+}
+
+bitflags::bitflags! {
+    #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    /// Flags affecting whether or not collision-detection happens between two colliders
+    /// depending on the type of rigid-bodies they are attached to.
+    pub struct ActiveCollisionTypes: u16 {
+        /// Enable collision-detection between a collider attached to a dynamic body
+        /// and another collider attached to a dynamic body.
+        const DYNAMIC_DYNAMIC = 0b0000_0000_0000_0001;
+        /// Enable collision-detection between a collider attached to a dynamic body
+        /// and another collider attached to a kinematic body.
+        const DYNAMIC_KINEMATIC = 0b0000_0000_0000_1100;
+        /// Enable collision-detection between a collider attached to a dynamic body
+        /// and another collider attached to a static body (or not attached to any body).
+        const DYNAMIC_STATIC  = 0b0000_0000_0000_0010;
+        /// Enable collision-detection between a collider attached to a kinematic body
+        /// and another collider attached to a kinematic body.
+        const KINEMATIC_KINEMATIC = 0b1100_1100_0000_0000;
+
+        /// Enable collision-detection between a collider attached to a kinematic body
+        /// and another collider attached to a static body (or not attached to any body).
+        const KINEMATIC_STATIC = 0b0010_0010_0000_0000;
+
+        /// Enable collision-detection between a collider attached to a static body (or
+        /// not attached to any body) and another collider attached to a static body (or
+        /// not attached to any body).
+        const STATIC_STATIC = 0b0000_0000_0010_0000;
+    }
+}
+
+impl ActiveCollisionTypes {
+    /// Test whether contact should be computed between two rigid-bodies with the given types.
+    pub fn test(self, rb_type1: RigidBodyType, rb_type2: RigidBodyType) -> bool {
+        // NOTE: This test is quite complicated so here is an explanation.
+        //       First, we associate the following bit masks:
+        //           - DYNAMIC = 0001
+        //           - STATIC = 0010
+        //           - KINEMATIC = 1100
+        //       These are equal to the bits indexed by `RigidBodyType as u32`.
+        //       The bit masks defined by ActiveCollisionTypes are defined is such a way
+        //       that the first part of the variant name (e.g. DYNAMIC_*) indicates which
+        //       groups of four bits should be considered:
+        //           - DYNAMIC_* = the first group of four bits.
+        //           - STATIC_* = the second group of four bits.
+        //           - KINEMATIC_* = the third and fourth groups of four bits.
+        //       The second part of the variant name (e.g. *_DYNAMIC) indicates the value
+        //       of the aforementioned groups of four bits.
+        //       For example, DYNAMIC_STATIC means that the first group of four bits (because
+        //       of DYNAMIC_*) must have the value 0010 (because of *_STATIC). That gives
+        //       us 0b0000_0000_0000_0010 for the DYNAMIC_STATIC_VARIANT.
+        //
+        //       The KINEMATIC_* is special because it occupies two groups of four bits. This is
+        //       because it combines both KinematicPositionBased and KinematicVelocityBased.
+        //
+        //       Now that we have a way of building these bit masks, let's see how we use them.
+        //       Given a pair of rigid-body types, the first rigid-body type is used to select
+        //       the group of four bits we want to test (the selection is done by to the
+        //       `>> (rb_type1 as u32 * 4) & 0b0000_1111`) and the second rigid-body type is
+        //       used to form the bit mask we test this group of four bits against.
+        //       In other word, the selection of the group of four bits tells us "for this type
+        //       of rigid-body I can have collision with rigid-body types with these bit representation".
+        //       Then the `(1 << rb_type2)` gives us the bit-representation of the rigid-body type,
+        //       which needs to be checked.
+        //
+        //       Because that test must be symmetric, we perform two similar tests by swapping
+        //       rb_type1 and rb_type2.
+        ((self.bits >> (rb_type1 as u32 * 4)) & 0b0000_1111) & (1 << rb_type2 as u32) != 0
+            || ((self.bits >> (rb_type2 as u32 * 4)) & 0b0000_1111) & (1 << rb_type1 as u32) != 0
+    }
+}
+
+impl Default for ActiveCollisionTypes {
+    fn default() -> Self {
+        ActiveCollisionTypes::DYNAMIC_DYNAMIC
+            | ActiveCollisionTypes::DYNAMIC_KINEMATIC
+            | ActiveCollisionTypes::DYNAMIC_STATIC
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+/// A set of flags for controlling collision/intersection filtering, modification, and events.
+pub struct ColliderFlags {
+    /// Controls whether collision-detection happens between two colliders depending on
+    /// the type of the rigid-bodies they are attached to.
+    pub active_collision_types: ActiveCollisionTypes,
+    /// The groups controlling the pairs of colliders that can interact (generate
+    /// interaction events or contacts).
+    pub collision_groups: InteractionGroups,
+    /// The groups controlling the pairs of collider that have their contact
+    /// points taken into account for force computation.
+    pub solver_groups: InteractionGroups,
+    /// The physics hooks enabled for contact pairs and intersection pairs involving this collider.
+    pub active_hooks: ActiveHooks,
+    /// The events enabled for this collider.
+    pub active_events: ActiveEvents,
+}
+
+impl Default for ColliderFlags {
+    fn default() -> Self {
+        Self {
+            active_collision_types: ActiveCollisionTypes::default(),
+            collision_groups: InteractionGroups::all(),
+            solver_groups: InteractionGroups::all(),
+            active_hooks: ActiveHooks::empty(),
+            active_events: ActiveEvents::empty(),
+        }
+    }
+}
+
+impl From<ActiveHooks> for ColliderFlags {
+    fn from(active_hooks: ActiveHooks) -> Self {
+        Self {
+            active_hooks,
+            ..Default::default()
+        }
+    }
+}
+
+impl From<ActiveEvents> for ColliderFlags {
+    fn from(active_events: ActiveEvents) -> Self {
+        Self {
+            active_events,
+            ..Default::default()
         }
     }
 }

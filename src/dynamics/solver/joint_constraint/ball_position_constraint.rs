@@ -34,8 +34,8 @@ impl BallPositionConstraint {
         let (mprops2, ids2) = rb2;
 
         Self {
-            local_com1: mprops1.mass_properties.local_com,
-            local_com2: mprops2.mass_properties.local_com,
+            local_com1: mprops1.local_mprops.local_com,
+            local_com2: mprops2.local_mprops.local_com,
             im1: mprops1.effective_inv_mass,
             im2: mprops2.effective_inv_mass,
             ii1: mprops1.effective_world_inv_inertia_sqrt.squared(),
@@ -131,7 +131,7 @@ impl BallPositionGroundConstraint {
                 ii2: mprops2.effective_world_inv_inertia_sqrt.squared(),
                 local_anchor2: cparams.local_anchor1,
                 position2: ids2.active_set_offset,
-                local_com2: mprops2.mass_properties.local_com,
+                local_com2: mprops2.local_mprops.local_com,
             }
         } else {
             Self {
@@ -140,7 +140,7 @@ impl BallPositionGroundConstraint {
                 ii2: mprops2.effective_world_inv_inertia_sqrt.squared(),
                 local_anchor2: cparams.local_anchor2,
                 position2: ids2.active_set_offset,
-                local_com2: mprops2.mass_properties.local_com,
+                local_com2: mprops2.local_mprops.local_com,
             }
         }
     }

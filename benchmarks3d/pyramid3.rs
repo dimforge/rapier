@@ -1,14 +1,12 @@
-use na::{Point3, Vector3};
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 fn create_pyramid(
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
-    offset: Vector3<f32>,
+    offset: Vector<f32>,
     stack_height: usize,
-    half_extents: Vector3<f32>,
+    half_extents: Vector<f32>,
 ) {
     let shift = half_extents * 2.5;
     for i in 0usize..stack_height {
@@ -24,12 +22,14 @@ fn create_pyramid(
                     - stack_height as f32 * half_extents.z;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
+                let rigid_body = RigidBodyBuilder::new_dynamic()
+                    .translation(vector![x, y, z])
+                    .build();
                 let rigid_body_handle = bodies.insert(rigid_body);
 
                 let collider =
                     ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z).build();
-                colliders.insert(collider, rigid_body_handle, bodies);
+                colliders.insert_with_parent(collider, rigid_body_handle, bodies);
             }
         }
     }
@@ -50,22 +50,22 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
+        .translation(vector![0.0, -ground_height, 0.0])
         .build();
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, ground_handle, &mut bodies);
+    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
      * Create the cubes
      */
     let cube_size = 1.0;
-    let hext = Vector3::repeat(cube_size);
+    let hext = Vector::repeat(cube_size);
     let bottomy = cube_size;
     create_pyramid(
         &mut bodies,
         &mut colliders,
-        Vector3::new(0.0, bottomy, 0.0),
+        vector![0.0, bottomy, 0.0],
         24,
         hext,
     );
@@ -74,5 +74,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(100.0, 100.0, 100.0), Point3::origin());
+    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
 }

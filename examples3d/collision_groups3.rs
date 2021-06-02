@@ -1,6 +1,4 @@
-use na::Point3;
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet, InteractionGroups};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -18,11 +16,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
+        .translation(vector![0.0, -ground_height, 0.0])
         .build();
     let floor_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, floor_handle, &mut bodies);
+    colliders.insert_with_parent(collider, floor_handle, &mut bodies);
 
     /*
      * Setup groups
@@ -34,23 +32,24 @@ pub fn init_world(testbed: &mut Testbed) {
      * A green floor that will collide with the GREEN group only.
      */
     let green_floor = ColliderBuilder::cuboid(1.0, 0.1, 1.0)
-        .translation(0.0, 1.0, 0.0)
+        .translation(vector![0.0, 1.0, 0.0])
         .collision_groups(GREEN_GROUP)
         .build();
-    let green_collider_handle = colliders.insert(green_floor, floor_handle, &mut bodies);
+    let green_collider_handle =
+        colliders.insert_with_parent(green_floor, floor_handle, &mut bodies);
 
-    testbed.set_initial_collider_color(green_collider_handle, Point3::new(0.0, 1.0, 0.0));
+    testbed.set_initial_collider_color(green_collider_handle, [0.0, 1.0, 0.0]);
 
     /*
      * A blue floor that will collide with the BLUE group only.
      */
     let blue_floor = ColliderBuilder::cuboid(1.0, 0.1, 1.0)
-        .translation(0.0, 2.0, 0.0)
+        .translation(vector![0.0, 2.0, 0.0])
         .collision_groups(BLUE_GROUP)
         .build();
-    let blue_collider_handle = colliders.insert(blue_floor, floor_handle, &mut bodies);
+    let blue_collider_handle = colliders.insert_with_parent(blue_floor, floor_handle, &mut bodies);
 
-    testbed.set_initial_collider_color(blue_collider_handle, Point3::new(0.0, 0.0, 1.0));
+    testbed.set_initial_collider_color(blue_collider_handle, [0.0, 0.0, 1.0]);
 
     /*
      * Create the cubes
@@ -72,17 +71,19 @@ pub fn init_world(testbed: &mut Testbed) {
 
                 // Alternate between the green and blue groups.
                 let (group, color) = if k % 2 == 0 {
-                    (GREEN_GROUP, Point3::new(0.0, 1.0, 0.0))
+                    (GREEN_GROUP, [0.0, 1.0, 0.0])
                 } else {
-                    (BLUE_GROUP, Point3::new(0.0, 0.0, 1.0))
+                    (BLUE_GROUP, [0.0, 0.0, 1.0])
                 };
 
-                let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
+                let rigid_body = RigidBodyBuilder::new_dynamic()
+                    .translation(vector![x, y, z])
+                    .build();
                 let handle = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::cuboid(rad, rad, rad)
                     .collision_groups(group)
                     .build();
-                colliders.insert(collider, handle, &mut bodies);
+                colliders.insert_with_parent(collider, handle, &mut bodies);
 
                 testbed.set_initial_body_color(handle, color);
             }
@@ -93,5 +94,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(10.0, 10.0, 10.0), Point3::origin());
+    testbed.look_at(point!(10.0, 10.0, 10.0), Point::origin());
 }

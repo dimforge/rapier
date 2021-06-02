@@ -41,8 +41,8 @@ impl GenericPositionConstraint {
             im2,
             ii1,
             ii2,
-            local_com1: rb1.mass_properties.local_com,
-            local_com2: rb2.mass_properties.local_com,
+            local_com1: rb1.local_mprops.local_com,
+            local_com2: rb2.local_mprops.local_com,
             joint: *joint,
         }
     }
@@ -215,7 +215,7 @@ impl GenericPositionGroundConstraint {
             position2: rb2.active_set_offset,
             im2: rb2.effective_inv_mass,
             ii2: rb2.effective_world_inv_inertia_sqrt.squared(),
-            local_com2: rb2.mass_properties.local_com,
+            local_com2: rb2.local_mprops.local_com,
             joint: *joint,
         }
     }

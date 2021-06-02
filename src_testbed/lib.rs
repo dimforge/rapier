@@ -31,7 +31,10 @@ pub use crate::testbed::{Testbed, TestbedApp, TestbedGraphics};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 mod box2d_backend;
-mod camera;
+#[cfg(feature = "dim2")]
+mod camera2d;
+#[cfg(feature = "dim3")]
+mod camera3d;
 mod graphics;
 pub mod harness;
 #[cfg(feature = "other-backends")]

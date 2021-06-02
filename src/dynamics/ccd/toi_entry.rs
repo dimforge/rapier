@@ -2,7 +2,7 @@ use crate::dynamics::{
     RigidBodyCcd, RigidBodyHandle, RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
 };
 use crate::geometry::{
-    ColliderHandle, ColliderParent, ColliderPosition, ColliderShape, ColliderType,
+    ColliderFlags, ColliderHandle, ColliderParent, ColliderPosition, ColliderShape, ColliderType,
 };
 use crate::math::Real;
 use parry::query::{NonlinearRigidMotion, QueryDispatcher};
@@ -14,7 +14,9 @@ pub struct TOIEntry {
     pub b1: Option<RigidBodyHandle>,
     pub c2: ColliderHandle,
     pub b2: Option<RigidBodyHandle>,
-    pub is_intersection_test: bool,
+    // We call this "pseudo" intersection because this also
+    // includes colliders pairs with mismatching solver_groups.
+    pub is_pseudo_intersection_test: bool,
     pub timestamp: usize,
 }
 
@@ -25,7 +27,7 @@ impl TOIEntry {
         b1: Option<RigidBodyHandle>,
         c2: ColliderHandle,
         b2: Option<RigidBodyHandle>,
-        is_intersection_test: bool,
+        is_pseudo_intersection_test: bool,
         timestamp: usize,
     ) -> Self {
         Self {
@@ -34,7 +36,7 @@ impl TOIEntry {
             b1,
             c2,
             b2,
-            is_intersection_test,
+            is_pseudo_intersection_test,
             timestamp,
         }
     }
@@ -47,12 +49,14 @@ impl TOIEntry {
             &ColliderType,
             &ColliderShape,
             &ColliderPosition,
+            &ColliderFlags,
             Option<&ColliderParent>,
         ),
         c2: (
             &ColliderType,
             &ColliderShape,
             &ColliderPosition,
+            &ColliderFlags,
             Option<&ColliderParent>,
         ),
         b1: Option<(
@@ -78,8 +82,8 @@ impl TOIEntry {
             return None;
         }
 
-        let (co_type1, co_shape1, co_pos1, co_parent1) = c1;
-        let (co_type2, co_shape2, co_pos2, co_parent2) = c2;
+        let (co_type1, co_shape1, co_pos1, co_flags1, co_parent1) = c1;
+        let (co_type2, co_shape2, co_pos2, co_flags2, co_parent2) = c2;
 
         let linvel1 =
             frozen1.is_none() as u32 as Real * b1.map(|b| b.1.linvel).unwrap_or(na::zero());
@@ -104,7 +108,9 @@ impl TOIEntry {
         // keep it since more conservatism is good at this stage.
         let thickness = (co_shape1.0.ccd_thickness() + co_shape2.0.ccd_thickness())
             + smallest_contact_dist.max(0.0);
-        let is_intersection_test = co_type1.is_sensor() || co_type2.is_sensor();
+        let is_pseudo_intersection_test = co_type1.is_sensor()
+            || co_type2.is_sensor()
+            || !co_flags1.solver_groups.test(co_flags2.solver_groups);
 
         if (end_time - start_time) * vel12 < thickness {
             return None;
@@ -135,7 +141,7 @@ impl TOIEntry {
         // If the TOI search involves two non-sensor colliders then
         // we don't want to stop the TOI search at the first penetration
         // because the colliders may be in a separating trajectory.
-        let stop_at_penetration = is_intersection_test;
+        let stop_at_penetration = is_pseudo_intersection_test;
 
         let res_toi = query_dispatcher
             .nonlinear_time_of_impact(
@@ -157,7 +163,7 @@ impl TOIEntry {
             co_parent1.map(|p| p.handle),
             ch2,
             co_parent2.map(|p| p.handle),
-            is_intersection_test,
+            is_pseudo_intersection_test,
             0,
         ))
     }
@@ -173,7 +179,7 @@ impl TOIEntry {
         if ccd.ccd_active {
             NonlinearRigidMotion::new(
                 poss.position,
-                mprops.mass_properties.local_com,
+                mprops.local_mprops.local_com,
                 vels.linvel,
                 vels.angvel,
             )

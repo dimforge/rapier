@@ -1,6 +1,4 @@
-use na::Point2;
-use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier2d::geometry::{ColliderBuilder, ColliderSet};
+use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -20,7 +18,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let rigid_body = RigidBodyBuilder::new_static().build();
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_thickness).build();
-    colliders.insert(collider, ground_handle, &mut bodies);
+    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
      * Create the cubes
@@ -40,10 +38,12 @@ pub fn init_world(testbed: &mut Testbed) {
             let y = fi * shift + centery;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y).build();
+            let rigid_body = RigidBodyBuilder::new_dynamic()
+                .translation(vector![x, y])
+                .build();
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(rad, rad).build();
-            colliders.insert(collider, handle, &mut bodies);
+            colliders.insert_with_parent(collider, handle, &mut bodies);
         }
     }
 
@@ -51,5 +51,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point2::new(0.0, 2.5), 5.0);
+    testbed.look_at(point![0.0, 2.5], 5.0);
 }

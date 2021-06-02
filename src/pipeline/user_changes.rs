@@ -100,7 +100,8 @@ pub(crate) fn handle_user_changes_to_rigid_bodies<Bodies, Colliders>(
                             // the active_dynamic_set.
                             changes.set(RigidBodyChanges::SLEEP, true);
                         }
-                        RigidBodyType::Kinematic => {
+                        RigidBodyType::KinematicVelocityBased
+                        | RigidBodyType::KinematicPositionBased => {
                             // Remove from the active dynamic set if it was there.
                             if islands.active_dynamic_set.get(ids.active_set_id) == Some(&handle) {
                                 islands.active_dynamic_set.swap_remove(ids.active_set_id);

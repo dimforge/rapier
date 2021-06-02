@@ -1,6 +1,4 @@
-use na::Point3;
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 const MAX_NUMBER_OF_BODIES: usize = 400;
@@ -18,16 +16,16 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 2.1; // 16.0;
 
     let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
+        .translation(vector![0.0, -ground_height, 0.0])
         .build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, _, run_state| {
         let rigid_body = RigidBodyBuilder::new_dynamic()
-            .translation(0.0, 10.0, 0.0)
+            .translation(vector![0.0, 10.0, 0.0])
             .build();
         let handle = physics.bodies.insert(rigid_body);
         let collider = match run_state.timestep_id % 3 {
@@ -38,7 +36,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
         physics
             .colliders
-            .insert(collider, handle, &mut physics.bodies);
+            .insert_with_parent(collider, handle, &mut physics.bodies);
 
         if let Some(graphics) = &mut graphics {
             graphics.add_body(handle, &physics.bodies, &physics.colliders);
@@ -83,5 +81,5 @@ pub fn init_world(testbed: &mut Testbed) {
     //     .physics_state_mut()
     //     .integration_parameters
     //     .velocity_based_erp = 0.2;
-    testbed.look_at(Point3::new(-30.0, 4.0, -30.0), Point3::new(0.0, 1.0, 0.0));
+    testbed.look_at(point![-30.0, 4.0, -30.0], point![0.0, 1.0, 0.0]);
 }

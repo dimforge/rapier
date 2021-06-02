@@ -13,7 +13,7 @@ use crate::dynamics::{
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, ColliderBroadPhaseData, ColliderChanges, ColliderGroups,
+    BroadPhase, BroadPhasePairEvent, ColliderBroadPhaseData, ColliderChanges, ColliderFlags,
     ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent, ColliderPosition,
     ColliderShape, ColliderType, ContactManifoldIndex, NarrowPhase,
 };
@@ -103,8 +103,8 @@ impl PhysicsPipeline {
             + ComponentSet<ColliderShape>
             + ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderType>
-            + ComponentSet<ColliderGroups>
-            + ComponentSet<ColliderMaterial>,
+            + ComponentSet<ColliderMaterial>
+            + ComponentSet<ColliderFlags>,
     {
         self.counters.stages.collision_detection_time.resume();
         self.counters.cd.broad_phase_time.resume();
@@ -365,7 +365,8 @@ impl PhysicsPipeline {
         Colliders: ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderPosition>
             + ComponentSet<ColliderShape>
-            + ComponentSet<ColliderType>,
+            + ComponentSet<ColliderType>
+            + ComponentSet<ColliderFlags>,
     {
         self.counters.ccd.toi_computation_time.start();
         // Handle CCD
@@ -428,7 +429,10 @@ impl PhysicsPipeline {
         islands: &IslandManager,
         bodies: &mut Bodies,
     ) where
-        Bodies: ComponentSetMut<RigidBodyVelocity> + ComponentSet<RigidBodyPosition>,
+        Bodies: ComponentSetMut<RigidBodyVelocity>
+            + ComponentSetMut<RigidBodyPosition>
+            + ComponentSet<RigidBodyType>
+            + ComponentSet<RigidBodyMassProps>,
     {
         // Update kinematic bodies velocities.
         // TODO: what is the best place for this? It should at least be
@@ -436,9 +440,31 @@ impl PhysicsPipeline {
         // there to determine if this kinematic body should wake-up dynamic
         // bodies it is touching.
         for handle in islands.active_kinematic_bodies() {
-            let ppos: &RigidBodyPosition = bodies.index(handle.0);
-            let new_vel = ppos.interpolate_velocity(integration_parameters.inv_dt());
-            bodies.set_internal(handle.0, new_vel);
+            let (rb_type, rb_pos, rb_vel, rb_mprops): (
+                &RigidBodyType,
+                &RigidBodyPosition,
+                &RigidBodyVelocity,
+                &RigidBodyMassProps,
+            ) = bodies.index_bundle(handle.0);
+
+            match rb_type {
+                RigidBodyType::KinematicPositionBased => {
+                    let rb_pos: &RigidBodyPosition = bodies.index(handle.0);
+                    let new_vel = rb_pos.interpolate_velocity(integration_parameters.inv_dt());
+                    bodies.set_internal(handle.0, new_vel);
+                }
+                RigidBodyType::KinematicVelocityBased => {
+                    let new_pos = rb_vel.integrate(
+                        integration_parameters.dt,
+                        &rb_pos.position,
+                        // NOTE: we don't use the `world_com` here because it is not
+                        //       really updated for kinematic bodies.
+                        &(rb_pos.position * rb_mprops.local_mprops.local_com),
+                    );
+                    bodies.set_internal(handle.0, RigidBodyPosition::from(new_pos));
+                }
+                _ => {}
+            }
         }
     }
 
@@ -519,8 +545,8 @@ impl PhysicsPipeline {
             + ComponentSet<ColliderShape>
             + ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderType>
-            + ComponentSet<ColliderGroups>
-            + ComponentSet<ColliderMaterial>,
+            + ComponentSet<ColliderMaterial>
+            + ComponentSet<ColliderFlags>,
     {
         self.counters.reset();
         self.counters.step_started();
@@ -719,12 +745,12 @@ mod test {
         let rb = RigidBodyBuilder::new_static().build();
         let h1 = bodies.insert(rb.clone());
         let co = ColliderBuilder::ball(10.0).build();
-        colliders.insert(co.clone(), h1, &mut bodies);
+        colliders.insert_with_parent(co.clone(), h1, &mut bodies);
 
         // The same but with a kinematic body.
-        let rb = RigidBodyBuilder::new_kinematic().build();
+        let rb = RigidBodyBuilder::new_kinematic_position_based().build();
         let h2 = bodies.insert(rb.clone());
-        colliders.insert(co, h2, &mut bodies);
+        colliders.insert_with_parent(co, h2, &mut bodies);
 
         pipeline.step(
             &Vector::zeros(),
@@ -760,7 +786,7 @@ mod test {
         let h2 = bodies.insert(rb.clone());
 
         // The same but with a kinematic body.
-        let rb = RigidBodyBuilder::new_kinematic().build();
+        let rb = RigidBodyBuilder::new_kinematic_position_based().build();
         let h3 = bodies.insert(rb.clone());
 
         // The same but with a static body.
@@ -838,7 +864,7 @@ mod test {
         let body = RigidBodyBuilder::new_dynamic().build();
         let b_handle = bodies.insert(body);
         let collider = ColliderBuilder::ball(1.0).build();
-        let c_handle = colliders.insert(collider, b_handle, &mut bodies);
+        let c_handle = colliders.insert_with_parent(collider, b_handle, &mut bodies);
         colliders.remove(c_handle, &mut islands, &mut bodies, true);
         bodies.remove(b_handle, &mut islands, &mut colliders, &mut joints);
 

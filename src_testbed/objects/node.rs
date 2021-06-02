@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::render::mesh::{Indices, VertexAttributeValues};
 
 //use crate::objects::plane::Plane;
-use na::{Point3, Vector3};
+use na::{point, Point3, Vector3};
 use std::collections::HashMap;
 
 use bevy::render::pipeline::PrimitiveTopology;
@@ -106,7 +106,7 @@ impl EntityWithGraphics {
     pub fn select(&mut self, materials: &mut Assets<StandardMaterial>) {
         // NOTE: we don't just call `self.set_color` because that would
         //       overwrite self.base_color too.
-        self.color = Point3::new(1.0, 0.0, 0.0);
+        self.color = point![1.0, 0.0, 0.0];
         if let Some(material) = materials.get_mut(&self.material) {
             material.base_color = Color::rgb(self.color.x, self.color.y, self.color.z);
         }
@@ -210,10 +210,10 @@ impl EntityWithGraphics {
         // Halfspace
         //
         let vertices = vec![
-            Point3::new(-1000.0, 0.0, -1000.0),
-            Point3::new(1000.0, 0.0, -1000.0),
-            Point3::new(1000.0, 0.0, 1000.0),
-            Point3::new(-1000.0, 0.0, 1000.0),
+            point![-1000.0, 0.0, -1000.0],
+            point![1000.0, 0.0, -1000.0],
+            point![1000.0, 0.0, 1000.0],
+            point![-1000.0, 0.0, 1000.0],
         ];
         let indices = vec![[0, 1, 2], [0, 2, 3]];
         let mesh = bevy_mesh((vertices, indices));
@@ -365,7 +365,7 @@ fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
             let vertices = trimesh
                 .vertices()
                 .iter()
-                .map(|p| Point3::new(p.x, p.y, 0.0))
+                .map(|p| point![p.x, p.y, 0.0])
                 .collect();
             bevy_mesh((vertices, trimesh.indices().to_vec()))
         }

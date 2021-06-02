@@ -1,18 +1,26 @@
-// NOTE: this is inspired from the `bevy-orbit-controls` projects but
+// NOTE: this is mostly taken from the `iMplode-nZ/bevy-orbit-controls` projects but
 //       with some modifications like Panning, and 2D support.
+//       Most of these modifications have been contributed upstream.
+
 use bevy::input::mouse::MouseMotion;
 use bevy::input::mouse::MouseScrollUnit::{Line, Pixel};
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 use bevy::render::camera::Camera;
+use std::ops::RangeInclusive;
 
 const LINE_TO_PIXEL_RATIO: f32 = 0.1;
 
 pub struct OrbitCamera {
-    pub zoom: f32,
+    pub x: f32,
+    pub y: f32,
+    pub pitch_range: RangeInclusive<f32>,
+    pub distance: f32,
     pub center: Vec3,
+    pub rotate_sensitivity: f32,
     pub pan_sensitivity: f32,
     pub zoom_sensitivity: f32,
+    pub rotate_button: MouseButton,
     pub pan_button: MouseButton,
     pub enabled: bool,
 }
@@ -20,17 +28,21 @@ pub struct OrbitCamera {
 impl Default for OrbitCamera {
     fn default() -> Self {
         OrbitCamera {
-            zoom: 100.0,
+            x: 0.0,
+            y: std::f32::consts::FRAC_PI_2,
+            pitch_range: 0.01..=3.13,
+            distance: 5.0,
             center: Vec3::ZERO,
+            rotate_sensitivity: 1.0,
             pan_sensitivity: 1.0,
             zoom_sensitivity: 0.8,
+            rotate_button: MouseButton::Left,
             pan_button: MouseButton::Right,
             enabled: true,
         }
     }
 }
 
-// Adapted from the 3D orbit camera from bevy-orbit-controls
 pub struct OrbitCameraPlugin;
 impl OrbitCameraPlugin {
     fn update_transform_system(
@@ -38,14 +50,16 @@ impl OrbitCameraPlugin {
     ) {
         for (camera, mut transform) in query.iter_mut() {
             if camera.enabled {
-                transform.translation = camera.center;
-                transform.scale = Vec3::new(1.0 / camera.zoom, 1.0 / camera.zoom, 1.0);
+                let rot = Quat::from_axis_angle(Vec3::Y, camera.x)
+                    * Quat::from_axis_angle(-Vec3::X, camera.y);
+                transform.translation = (rot * Vec3::Y) * camera.distance + camera.center;
+                transform.look_at(camera.center, Vec3::Y);
             }
         }
     }
 
     fn mouse_motion_system(
-        _time: Res<Time>,
+        time: Res<Time>,
         mut mouse_motion_events: EventReader<MouseMotion>,
         mouse_button_input: Res<Input<MouseButton>>,
         mut query: Query<(&mut OrbitCamera, &mut Transform, &mut Camera)>,
@@ -54,14 +68,27 @@ impl OrbitCameraPlugin {
         for event in mouse_motion_events.iter() {
             delta += event.delta;
         }
-        for (mut camera, _, _) in query.iter_mut() {
+        for (mut camera, transform, _) in query.iter_mut() {
             if !camera.enabled {
                 continue;
             }
 
+            if mouse_button_input.pressed(camera.rotate_button) {
+                camera.x -= delta.x * camera.rotate_sensitivity * time.delta_seconds();
+                camera.y -= delta.y * camera.rotate_sensitivity * time.delta_seconds();
+                camera.y = camera
+                    .y
+                    .max(*camera.pitch_range.start())
+                    .min(*camera.pitch_range.end());
+            }
+
             if mouse_button_input.pressed(camera.pan_button) {
-                let delta = delta * camera.pan_sensitivity;
-                camera.center += Vec3::new(-delta.x, delta.y, 0.0);
+                let right_dir = transform.rotation * -Vec3::X;
+                let up_dir = transform.rotation * Vec3::Y;
+                let pan_vector = (delta.x * right_dir + delta.y * up_dir)
+                    * camera.pan_sensitivity
+                    * time.delta_seconds();
+                camera.center += pan_vector;
             }
         }
     }
@@ -72,7 +99,7 @@ impl OrbitCameraPlugin {
     ) {
         let mut total = 0.0;
         for event in mouse_wheel_events.iter() {
-            total -= event.y
+            total += event.y
                 * match event.unit {
                     Line => 1.0,
                     Pixel => LINE_TO_PIXEL_RATIO,
@@ -80,7 +107,7 @@ impl OrbitCameraPlugin {
         }
         for mut camera in query.iter_mut() {
             if camera.enabled {
-                camera.zoom *= camera.zoom_sensitivity.powf(total);
+                camera.distance *= camera.zoom_sensitivity.powf(total);
             }
         }
     }

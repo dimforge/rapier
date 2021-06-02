@@ -1,6 +1,4 @@
-use na::{Isometry3, Point3};
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet, SharedShape};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -18,11 +16,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
+        .translation(vector![0.0, -ground_height, 0.0])
         .build();
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
      * Create the cubes
@@ -46,40 +44,42 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f32 * shift * 2.0 - centerz + offset;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
+                let rigid_body = RigidBodyBuilder::new_dynamic()
+                    .translation(vector![x, y, z])
+                    .build();
                 let handle = bodies.insert(rigid_body);
 
                 // First option: attach several colliders to a single rigid-body.
                 if j < numy / 2 {
                     let collider1 = ColliderBuilder::cuboid(rad * 10.0, rad, rad).build();
                     let collider2 = ColliderBuilder::cuboid(rad, rad * 10.0, rad)
-                        .translation(rad * 10.0, rad * 10.0, 0.0)
+                        .translation(vector![rad * 10.0, rad * 10.0, 0.0])
                         .build();
                     let collider3 = ColliderBuilder::cuboid(rad, rad * 10.0, rad)
-                        .translation(-rad * 10.0, rad * 10.0, 0.0)
+                        .translation(vector![-rad * 10.0, rad * 10.0, 0.0])
                         .build();
-                    colliders.insert(collider1, handle, &mut bodies);
-                    colliders.insert(collider2, handle, &mut bodies);
-                    colliders.insert(collider3, handle, &mut bodies);
+                    colliders.insert_with_parent(collider1, handle, &mut bodies);
+                    colliders.insert_with_parent(collider2, handle, &mut bodies);
+                    colliders.insert_with_parent(collider3, handle, &mut bodies);
                 } else {
                     // Second option: create a compound shape and attach it to a single collider.
                     let shapes = vec![
                         (
-                            Isometry3::identity(),
+                            Isometry::identity(),
                             SharedShape::cuboid(rad * 10.0, rad, rad),
                         ),
                         (
-                            Isometry3::translation(rad * 10.0, rad * 10.0, 0.0),
+                            Isometry::translation(rad * 10.0, rad * 10.0, 0.0),
                             SharedShape::cuboid(rad, rad * 10.0, rad),
                         ),
                         (
-                            Isometry3::translation(-rad * 10.0, rad * 10.0, 0.0),
+                            Isometry::translation(-rad * 10.0, rad * 10.0, 0.0),
                             SharedShape::cuboid(rad, rad * 10.0, rad),
                         ),
                     ];
 
                     let collider = ColliderBuilder::compound(shapes).build();
-                    colliders.insert(collider, handle, &mut bodies);
+                    colliders.insert_with_parent(collider, handle, &mut bodies);
                 }
             }
         }
@@ -91,5 +91,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(100.0, 100.0, 100.0), Point3::origin());
+    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
 }

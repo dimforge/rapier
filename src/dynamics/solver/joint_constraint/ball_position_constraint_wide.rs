@@ -40,8 +40,8 @@ impl WBallPositionConstraint {
         let (mprops1, ids1) = rbs1;
         let (mprops2, ids2) = rbs2;
 
-        let local_com1 = Point::from(gather![|ii| mprops1[ii].mass_properties.local_com]);
-        let local_com2 = Point::from(gather![|ii| mprops2[ii].mass_properties.local_com]);
+        let local_com1 = Point::from(gather![|ii| mprops1[ii].local_mprops.local_com]);
+        let local_com2 = Point::from(gather![|ii| mprops2[ii].local_mprops.local_com]);
         let im1 = SimdReal::from(gather![|ii| mprops1[ii].effective_inv_mass]);
         let im2 = SimdReal::from(gather![|ii| mprops2[ii].effective_inv_mass]);
         let ii1 = AngularInertia::<SimdReal>::from(gather![
@@ -169,7 +169,7 @@ impl WBallPositionGroundConstraint {
             cparams[ii].local_anchor2
         }]);
         let position2 = gather![|ii| ids2[ii].active_set_offset];
-        let local_com2 = Point::from(gather![|ii| mprops2[ii].mass_properties.local_com]);
+        let local_com2 = Point::from(gather![|ii| mprops2[ii].local_mprops.local_com]);
 
         Self {
             anchor1,
