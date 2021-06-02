@@ -677,28 +677,32 @@ impl Drop for FlushToZeroDenormalsAreZeroFlags {
 // code that is generating NaNs and infinite values erroneously.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DisableFloatingPointExceptionsFlags {
-    original_flags: c_int,
+    #[cfg(feature = "avoid-fe-exceptions")]
+    // We can't get a precise size for this, because it's of type
+    // `fenv_t`, which is a definition that doesn't exist in rust
+    // (not even in the libc crate, as of the time of writing.)
+    // But since the state is intended to be stored on the stack,
+    // 256 bytes should be more than enough.
+    original_flags: [u8; 256],
 }
 
 #[cfg(feature = "avoid-fe-exceptions")]
 extern "C" {
-    fn feenableexcept(flags: c_int);
-    fn fecleareexcept(flags: c_int);
-    fn fetestexcept(flags: c_int) -> c_int;
-    static FE_ALL_EXCEPT: c_int;
+    fn feholdexcept(env: *mut std::ffi::c_void);
+    fn fesetenv(env: *const std::ffi::c_void);
 }
 
 impl DisableFloatingPointExceptionsFlags {
     #[cfg(not(feature = "avoid-fe-exceptions"))]
     pub fn disable_floating_point_exceptions() -> Self {
-        Self { original_flags: 0 }
+        Self { }
     }
 
     #[cfg(feature = "avoid-fe-exceptions")]
     pub fn disable_floating_point_exceptions() -> Self {
         unsafe {
-            let original_flags = fetestexcept(FE_ALL_EXCEPT);
-            fecleareexcept(FE_ALL_EXCEPT);
+            let mut original_flags = [0; 256];
+            feholdexcept(original_flags.as_mut_ptr() as *mut _);
             Self { original_flags }
         }
     }
@@ -708,7 +712,7 @@ impl DisableFloatingPointExceptionsFlags {
 impl Drop for DisableFloatingPointExceptionsFlags {
     fn drop(&mut self) {
         unsafe {
-            feenableexcept(self.original_flags);
+            fesetenv(self.original_flags.as_ptr() as *const _);
         }
     }
 }
