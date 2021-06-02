@@ -17,7 +17,7 @@ rand       = "0.8"
 Inflector  = "0.11"
 nalgebra   = "0.27"
 lyon       = "0.17"
-usvg       = "0.13"
+usvg       = "0.14"
 
 [dependencies.rapier_testbed2d]
 path = "../build/rapier_testbed2d"
