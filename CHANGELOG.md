@@ -9,6 +9,9 @@ The user-guide has been fully rewritten and is now exhaustive! Check it out on [
 - Add `RigidBody::set_next_rotation` for setting the next rotation of a position-based kinematic body.
 - Add kinematic bodies controlled at the velocity level: use `RigidBodyBuilder::new_kinematic_velocity_based` or
   `RigidBodyType::KinematicVelocityBased`.
+- Add the cargo feature `debug-disable-legitimate-fe-exceptions` that can be enabled for debugging purpose. This will
+  disable floating point exceptions whenever they happen at places where we do expect them to happen (for example
+  some SIMD code do generate NaNs which are filtered out by lane-wise selection).
 
 ### Modified
 The use of `RigidBodySet, ColliderSet, RigidBody, Collider` is no longer mandatory. Rigid-bodies and colliders have

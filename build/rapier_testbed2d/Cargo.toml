@@ -1,6 +1,6 @@
 [package]
 name    = "rapier_testbed2d"
-version = "0.8.0"
+version = "0.9.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "Testbed for the Rapier 2-dimensional physics engine in Rust."
 homepage = "http://rapier.org"
@@ -54,5 +54,5 @@ bevy_webgl2 = "0.5"
 
 [dependencies.rapier2d]
 path = "../rapier2d"
-version = "0.8"
+version = "0.9"
 features = [ "serde-serialize" ]

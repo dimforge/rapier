@@ -670,13 +670,13 @@ impl Drop for FlushToZeroDenormalsAreZeroFlags {
     }
 }
 
-// This is an RAII structure that disables floating point exceptions while
-// it is alive, so that operations which generate NaNs and infinite values
-// intentionally will not trip an exception when debugging problematic
-// code that is generating NaNs and infinite values erroneously.
+/// This is an RAII structure that disables floating point exceptions while
+/// it is alive, so that operations which generate NaNs and infinite values
+/// intentionally will not trip an exception when debugging problematic
+/// code that is generating NaNs and infinite values erroneously.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DisableFloatingPointExceptionsFlags {
-    #[cfg(feature = "avoid-fe-exceptions")]
+    #[cfg(feature = "debug-disable-legitimate-fe-exceptions")]
     // We can't get a precise size for this, because it's of type
     // `fenv_t`, which is a definition that doesn't exist in rust
     // (not even in the libc crate, as of the time of writing.)
@@ -685,19 +685,22 @@ pub(crate) struct DisableFloatingPointExceptionsFlags {
     original_flags: [u8; 256],
 }
 
-#[cfg(feature = "avoid-fe-exceptions")]
+#[cfg(feature = "debug-disable-legitimate-fe-exceptions")]
 extern "C" {
     fn feholdexcept(env: *mut std::ffi::c_void);
     fn fesetenv(env: *const std::ffi::c_void);
 }
 
 impl DisableFloatingPointExceptionsFlags {
-    #[cfg(not(feature = "avoid-fe-exceptions"))]
+    #[cfg(not(feature = "debug-disable-legitimate-fe-exceptions"))]
+    #[allow(dead_code)]
+    /// Disables floating point exceptions as long as this object is not dropped.
     pub fn disable_floating_point_exceptions() -> Self {
-        Self { }
+        Self {}
     }
 
-    #[cfg(feature = "avoid-fe-exceptions")]
+    #[cfg(feature = "debug-disable-legitimate-fe-exceptions")]
+    /// Disables floating point exceptions as long as this object is not dropped.
     pub fn disable_floating_point_exceptions() -> Self {
         unsafe {
             let mut original_flags = [0; 256];
@@ -707,7 +710,7 @@ impl DisableFloatingPointExceptionsFlags {
     }
 }
 
-#[cfg(feature = "avoid-fe-exceptions")]
+#[cfg(feature = "debug-disable-legitimate-fe-exceptions")]
 impl Drop for DisableFloatingPointExceptionsFlags {
     fn drop(&mut self) {
         unsafe {
