@@ -4,6 +4,7 @@ use na::{Matrix3, Point2, Point3, Scalar, SimdRealField, Vector2, Vector3};
 use num::Zero;
 use simba::simd::SimdValue;
 use std::ops::IndexMut;
+use std::os::raw::c_int;
 
 use parry::utils::SdpMatrix3;
 use {
@@ -666,6 +667,48 @@ impl Drop for FlushToZeroDenormalsAreZeroFlags {
         #[cfg(target_arch = "x86_64")]
         unsafe {
             std::arch::x86_64::_mm_setcsr(self.original_flags)
+        }
+    }
+}
+
+// This is an RAII structure that disables floating point exceptions while
+// it is alive, so that operations which generate NaNs and infinite values
+// intentionally will not trip an exception when debugging problematic
+// code that is generating NaNs and infinite values erroneously.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct DisableFloatingPointExceptionsFlags {
+    original_flags: c_int,
+}
+
+#[cfg(feature = "avoid-fe-exceptions")]
+extern "C" {
+    fn feenableexcept(flags: c_int);
+    fn fecleareexcept(flags: c_int);
+    fn fetestexcept(flags: c_int) -> c_int;
+    static FE_ALL_EXCEPT: c_int;
+}
+
+impl DisableFloatingPointExceptionsFlags {
+    #[cfg(not(feature = "avoid-fe-exceptions"))]
+    pub fn disable_floating_point_exceptions() -> Self {
+        Self { original_flags: 0 }
+    }
+
+    #[cfg(feature = "avoid-fe-exceptions")]
+    pub fn disable_floating_point_exceptions() -> Self {
+        unsafe {
+            let original_flags = fetestexcept(FE_ALL_EXCEPT);
+            fecleareexcept(FE_ALL_EXCEPT);
+            Self { original_flags }
+        }
+    }
+}
+
+#[cfg(feature = "avoid-fe-exceptions")]
+impl Drop for DisableFloatingPointExceptionsFlags {
+    fn drop(&mut self) {
+        unsafe {
+            feenableexcept(self.original_flags);
         }
     }
 }

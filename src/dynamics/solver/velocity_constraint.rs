@@ -385,7 +385,13 @@ where
     let relative_linvel = linvel1 - linvel2;
     let mut tangent_relative_linvel =
         relative_linvel - force_dir1 * (force_dir1.dot(&relative_linvel));
-    let tangent_linvel_norm = tangent_relative_linvel.normalize_mut();
+
+    let tangent_linvel_norm = {
+        let _disable_fe_except =
+            crate::utils::DisableFloatingPointExceptionsFlags::disable_floating_point_exceptions();
+        tangent_relative_linvel.normalize_mut()
+    };
+
     let threshold: N::Element = na::convert(1.0e-4);
     let use_fallback = tangent_linvel_norm.simd_lt(N::splat(threshold));
     let tangent_fallback = force_dir1.orthonormal_vector();
