@@ -4,7 +4,6 @@ use na::{Matrix3, Point2, Point3, Scalar, SimdRealField, Vector2, Vector3};
 use num::Zero;
 use simba::simd::SimdValue;
 use std::ops::IndexMut;
-use std::os::raw::c_int;
 
 use parry::utils::SdpMatrix3;
 use {
