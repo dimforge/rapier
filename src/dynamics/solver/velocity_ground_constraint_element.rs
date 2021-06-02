@@ -78,7 +78,12 @@ impl<N: SimdRealField> VelocityGroundConstraintTangentPart<N> {
                 self.impulse[0] - self.r[0] * dimpulse_0,
                 self.impulse[1] - self.r[1] * dimpulse_1,
             );
-            let new_impulse = new_impulse.simd_cap_magnitude(limit);
+            let new_impulse = {
+                let _disable_fe_except =
+                    crate::utils::DisableFloatingPointExceptionsFlags::
+                    disable_floating_point_exceptions();
+                new_impulse.simd_cap_magnitude(limit)
+            };
             let dlambda = new_impulse - self.impulse;
 
             self.impulse = new_impulse;

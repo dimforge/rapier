@@ -670,6 +670,52 @@ impl Drop for FlushToZeroDenormalsAreZeroFlags {
     }
 }
 
+// This is an RAII structure that disables floating point exceptions while
+// it is alive, so that operations which generate NaNs and infinite values
+// intentionally will not trip an exception when debugging problematic
+// code that is generating NaNs and infinite values erroneously.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct DisableFloatingPointExceptionsFlags {
+    #[cfg(feature = "avoid-fe-exceptions")]
+    // We can't get a precise size for this, because it's of type
+    // `fenv_t`, which is a definition that doesn't exist in rust
+    // (not even in the libc crate, as of the time of writing.)
+    // But since the state is intended to be stored on the stack,
+    // 256 bytes should be more than enough.
+    original_flags: [u8; 256],
+}
+
+#[cfg(feature = "avoid-fe-exceptions")]
+extern "C" {
+    fn feholdexcept(env: *mut std::ffi::c_void);
+    fn fesetenv(env: *const std::ffi::c_void);
+}
+
+impl DisableFloatingPointExceptionsFlags {
+    #[cfg(not(feature = "avoid-fe-exceptions"))]
+    pub fn disable_floating_point_exceptions() -> Self {
+        Self { }
+    }
+
+    #[cfg(feature = "avoid-fe-exceptions")]
+    pub fn disable_floating_point_exceptions() -> Self {
+        unsafe {
+            let mut original_flags = [0; 256];
+            feholdexcept(original_flags.as_mut_ptr() as *mut _);
+            Self { original_flags }
+        }
+    }
+}
+
+#[cfg(feature = "avoid-fe-exceptions")]
+impl Drop for DisableFloatingPointExceptionsFlags {
+    fn drop(&mut self) {
+        unsafe {
+            fesetenv(self.original_flags.as_ptr() as *const _);
+        }
+    }
+}
+
 pub(crate) fn select_other<T: PartialEq>(pair: (T, T), elt: T) -> T {
     if pair.0 == elt {
         pair.1
