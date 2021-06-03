@@ -1,3 +1,8 @@
+## v0.9.1
+### Added
+- Add `rapier::prelude::nalgebra` so that the `vector!` and `point!` macros work out-of-the-box after importing
+  the prelude: `use rapier::prelude::*`
+
 ## v0.9.0
 The user-guide has been fully rewritten and is now exhaustive! Check it out on [rapier.rs](https://rapier.rs/)
 
