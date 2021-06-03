@@ -1,4 +1,4 @@
-use na::DVector;
+use rapier2d::na::DVector;
 use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 

@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-extern crate nalgebra as na;
-
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
