@@ -157,4 +157,5 @@ pub mod prelude {
     pub use crate::math::*;
     pub use crate::pipeline::*;
     pub use na::{point, vector, DMatrix, DVector};
+    pub extern crate nalgebra;
 }

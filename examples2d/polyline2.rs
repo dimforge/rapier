@@ -1,4 +1,4 @@
-use na::ComplexField;
+use rapier2d::na::ComplexField;
 use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 

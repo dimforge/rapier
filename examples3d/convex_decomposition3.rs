@@ -40,7 +40,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let shift = 5.0f32;
 
     for (igeom, obj_path) in geoms.into_iter().enumerate() {
-        let deltas = na::one();
+        let deltas = Isometry::identity();
 
         let mut shapes = Vec::new();
         println!("Parsing and decomposing: {}", obj_path);
