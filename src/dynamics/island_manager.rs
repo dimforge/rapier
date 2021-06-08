@@ -1,9 +1,9 @@
 use crate::data::{BundleSet, ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::{
-    Joint, RigidBodyActivation, RigidBodyColliders, RigidBodyHandle, RigidBodyIds, RigidBodyType,
-    RigidBodyVelocity,
+    JointSet, RigidBodyActivation, RigidBodyColliders, RigidBodyHandle, RigidBodyIds,
+    RigidBodyType, RigidBodyVelocity,
 };
-use crate::geometry::{ColliderParent, InteractionGraph, NarrowPhase};
+use crate::geometry::{ColliderParent, NarrowPhase};
 use crate::math::Real;
 
 /// Structure responsible for maintaining the set of active rigid-bodies, and
@@ -91,12 +91,14 @@ impl IslandManager {
     pub fn wake_up<Bodies>(&mut self, bodies: &mut Bodies, handle: RigidBodyHandle, strong: bool)
     where
         Bodies: ComponentSetMut<RigidBodyActivation>
-            + ComponentSet<RigidBodyType>
+            + ComponentSetOption<RigidBodyType>
             + ComponentSetMut<RigidBodyIds>,
     {
-        // TODO: what about kinematic bodies?
-        let status: RigidBodyType = *bodies.index(handle.0);
-        if status.is_dynamic() {
+        // NOTE: the use an Option here because there are many legitimate cases (like when
+        //       deleting a joint attached to an already-removed body) where we could be
+        //       attempting to wake-up a rigid-body that has already been deleted.
+        let rb_type: Option<RigidBodyType> = bodies.get(handle.0).copied();
+        if rb_type == Some(RigidBodyType::Dynamic) {
             bodies.map_mut_internal(handle.0, |activation: &mut RigidBodyActivation| {
                 activation.wake_up(strong)
             });
@@ -172,7 +174,7 @@ impl IslandManager {
         bodies: &mut Bodies,
         colliders: &Colliders,
         narrow_phase: &NarrowPhase,
-        joint_graph: &InteractionGraph<RigidBodyHandle, Joint>,
+        joints: &JointSet,
         min_island_size: usize,
     ) where
         Bodies: ComponentSetMut<RigidBodyIds>
@@ -299,7 +301,7 @@ impl IslandManager {
             // in contact or joined with this collider.
             push_contacting_bodies(rb_colliders, colliders, narrow_phase, &mut self.stack);
 
-            for inter in joint_graph.interactions_with(rb_ids.joint_graph_index) {
+            for inter in joints.joints_with(handle) {
                 let other = crate::utils::select_other((inter.0, inter.1), handle);
                 self.stack.push(other);
             }

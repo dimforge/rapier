@@ -235,7 +235,7 @@ impl PhysicsPipeline {
             bodies,
             colliders,
             narrow_phase,
-            joints.joint_graph(),
+            joints,
             integration_parameters.min_island_size,
         );
         self.counters.stages.island_construction_time.pause();

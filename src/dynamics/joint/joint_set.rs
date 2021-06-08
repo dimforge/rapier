@@ -2,7 +2,7 @@ use super::Joint;
 use crate::geometry::{InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex};
 
 use crate::data::arena::Arena;
-use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
+use crate::data::{BundleSet, Coarena, ComponentSet, ComponentSetMut};
 use crate::dynamics::{IslandManager, RigidBodyActivation, RigidBodyIds, RigidBodyType};
 use crate::dynamics::{JointParams, RigidBodyHandle};
 
@@ -40,6 +40,7 @@ pub(crate) type JointGraphEdge = crate::data::graph::Edge<Joint>;
 #[derive(Clone)]
 /// A set of joints that can be handled by a physics `World`.
 pub struct JointSet {
+    rb_graph_ids: Coarena<RigidBodyGraphIndex>,
     joint_ids: Arena<TemporaryInteractionIndex>, // Map joint handles to edge ids on the graph.
     joint_graph: InteractionGraph<RigidBodyHandle, Joint>,
 }
@@ -48,6 +49,7 @@ impl JointSet {
     /// Creates a new empty set of joints.
     pub fn new() -> Self {
         Self {
+            rb_graph_ids: Coarena::new(),
             joint_ids: Arena::new(),
             joint_graph: InteractionGraph::new(),
         }
@@ -66,6 +68,17 @@ impl JointSet {
     /// Retrieve the joint graph where edges are joints and nodes are rigid body handles.
     pub fn joint_graph(&self) -> &InteractionGraph<RigidBodyHandle, Joint> {
         &self.joint_graph
+    }
+
+    /// Iterates through all the joitns attached to the given rigid-body.
+    pub fn joints_with<'a>(
+        &'a self,
+        body: RigidBodyHandle,
+    ) -> impl Iterator<Item = (RigidBodyHandle, RigidBodyHandle, &'a Joint)> {
+        self.rb_graph_ids
+            .get(body.0)
+            .into_iter()
+            .flat_map(move |id| self.joint_graph.interactions_with(*id))
     }
 
     /// Is the given joint handle valid?
@@ -159,7 +172,7 @@ impl JointSet {
     /// Inserts a new joint into this set and retrieve its handle.
     pub fn insert<J>(
         &mut self,
-        bodies: &mut impl ComponentSetMut<RigidBodyIds>,
+        _bodies: &mut impl ComponentSetMut<RigidBodyIds>, // FIXME: remove this argument, this is no longer necessary.
         body1: RigidBodyHandle,
         body2: RigidBodyHandle,
         joint_params: J,
@@ -179,19 +192,24 @@ impl JointSet {
             params: joint_params.into(),
         };
 
-        let mut graph_index1 = bodies.index(joint.body1.0).joint_graph_index;
-        let mut graph_index2 = bodies.index(joint.body2.0).joint_graph_index;
+        let default_id = InteractionGraph::<(), ()>::invalid_graph_index();
+        let mut graph_index1 = *self
+            .rb_graph_ids
+            .ensure_element_exist(joint.body1.0, default_id);
+        let mut graph_index2 = *self
+            .rb_graph_ids
+            .ensure_element_exist(joint.body2.0, default_id);
 
         // NOTE: the body won't have a graph index if it does not
         // have any joint attached.
         if !InteractionGraph::<RigidBodyHandle, Joint>::is_graph_index_valid(graph_index1) {
             graph_index1 = self.joint_graph.graph.add_node(joint.body1);
-            bodies.map_mut_internal(joint.body1.0, |ids| ids.joint_graph_index = graph_index1);
+            self.rb_graph_ids.insert(joint.body1.0, graph_index1);
         }
 
         if !InteractionGraph::<RigidBodyHandle, Joint>::is_graph_index_valid(graph_index2) {
             graph_index2 = self.joint_graph.graph.add_node(joint.body2);
-            bodies.map_mut_internal(joint.body2.0, |ids| ids.joint_graph_index = graph_index2);
+            self.rb_graph_ids.insert(joint.body2.0, graph_index2);
         }
 
         self.joint_ids[handle] = self.joint_graph.add_edge(graph_index1, graph_index2, joint);
@@ -282,47 +300,61 @@ impl JointSet {
         removed_joint
     }
 
-    pub(crate) fn remove_rigid_body<Bodies>(
+    /// Deletes all the joints attached to the given rigid-body.
+    ///
+    /// The provided rigid-body handle is not required to identify a rigid-body that
+    /// is still contained by the `bodies` component set.
+    /// Returns the (now invalid) handles of the removed joints.
+    pub fn remove_joints_attached_to_rigid_body<Bodies>(
         &mut self,
-        deleted_id: RigidBodyGraphIndex,
+        handle: RigidBodyHandle,
         islands: &mut IslandManager,
         bodies: &mut Bodies,
-    ) where
+    ) -> Vec<JointHandle>
+    where
         Bodies: ComponentSetMut<RigidBodyActivation>
             + ComponentSet<RigidBodyType>
             + ComponentSetMut<RigidBodyIds>,
     {
-        if InteractionGraph::<(), ()>::is_graph_index_valid(deleted_id) {
-            // We have to delete each joint one by one in order to:
-            // - Wake-up the attached bodies.
-            // - Update our Handle -> graph edge mapping.
-            // Delete the node.
-            let to_delete: Vec<_> = self
-                .joint_graph
-                .interactions_with(deleted_id)
-                .map(|e| (e.0, e.1, e.2.handle))
-                .collect();
-            for (h1, h2, to_delete_handle) in to_delete {
-                let to_delete_edge_id = self.joint_ids.remove(to_delete_handle.0).unwrap();
-                self.joint_graph.graph.remove_edge(to_delete_edge_id);
+        let mut deleted = vec![];
 
-                // Update the id of the edge which took the place of the deleted one.
-                if let Some(j) = self.joint_graph.graph.edge_weight_mut(to_delete_edge_id) {
-                    self.joint_ids[j.handle.0] = to_delete_edge_id;
+        if let Some(deleted_id) = self
+            .rb_graph_ids
+            .remove(handle.0, InteractionGraph::<(), ()>::invalid_graph_index())
+        {
+            if InteractionGraph::<(), ()>::is_graph_index_valid(deleted_id) {
+                // We have to delete each joint one by one in order to:
+                // - Wake-up the attached bodies.
+                // - Update our Handle -> graph edge mapping.
+                // Delete the node.
+                let to_delete: Vec<_> = self
+                    .joint_graph
+                    .interactions_with(deleted_id)
+                    .map(|e| (e.0, e.1, e.2.handle))
+                    .collect();
+                for (h1, h2, to_delete_handle) in to_delete {
+                    deleted.push(to_delete_handle);
+                    let to_delete_edge_id = self.joint_ids.remove(to_delete_handle.0).unwrap();
+                    self.joint_graph.graph.remove_edge(to_delete_edge_id);
+
+                    // Update the id of the edge which took the place of the deleted one.
+                    if let Some(j) = self.joint_graph.graph.edge_weight_mut(to_delete_edge_id) {
+                        self.joint_ids[j.handle.0] = to_delete_edge_id;
+                    }
+
+                    // Wake up the attached bodies.
+                    islands.wake_up(bodies, h1, true);
+                    islands.wake_up(bodies, h2, true);
                 }
 
-                // Wake up the attached bodies.
-                islands.wake_up(bodies, h1, true);
-                islands.wake_up(bodies, h2, true);
-            }
-
-            if let Some(other) = self.joint_graph.remove_node(deleted_id) {
-                // One rigid-body joint graph index may have been invalidated
-                // so we need to update it.
-                bodies.map_mut_internal(other.0, |ids: &mut RigidBodyIds| {
-                    ids.joint_graph_index = deleted_id;
-                });
+                if let Some(other) = self.joint_graph.remove_node(deleted_id) {
+                    // One rigid-body joint graph index may have been invalidated
+                    // so we need to update it.
+                    self.rb_graph_ids.insert(other.0, deleted_id);
+                }
             }
         }
+
+        deleted
     }
 }

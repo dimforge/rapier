@@ -156,7 +156,7 @@ impl RigidBodySet {
         /*
          * Remove joints attached to this rigid-body.
          */
-        joints.remove_rigid_body(rb.rb_ids.joint_graph_index, islands, self);
+        joints.remove_joints_attached_to_rigid_body(handle, islands, self);
 
         Some(rb)
     }

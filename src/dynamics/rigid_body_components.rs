@@ -2,7 +2,7 @@ use crate::data::{ComponentSetMut, ComponentSetOption};
 use crate::dynamics::MassProperties;
 use crate::geometry::{
     ColliderChanges, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition,
-    ColliderShape, InteractionGraph, RigidBodyGraphIndex,
+    ColliderShape,
 };
 use crate::math::{AngVector, AngularInertia, Isometry, Point, Real, Translation, Vector};
 use crate::parry::partitioning::IndexedData;
@@ -620,7 +620,6 @@ impl RigidBodyCcd {
 #[derive(Clone, Debug, Copy)]
 /// Internal identifiers used by the physics engine.
 pub struct RigidBodyIds {
-    pub(crate) joint_graph_index: RigidBodyGraphIndex,
     pub(crate) active_island_id: usize,
     pub(crate) active_set_id: usize,
     pub(crate) active_set_offset: usize,
@@ -630,7 +629,6 @@ pub struct RigidBodyIds {
 impl Default for RigidBodyIds {
     fn default() -> Self {
         Self {
-            joint_graph_index: InteractionGraph::<(), ()>::invalid_graph_index(),
             active_island_id: 0,
             active_set_id: 0,
             active_set_offset: 0,
