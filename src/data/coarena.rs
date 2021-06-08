@@ -21,6 +21,20 @@ impl<T> Coarena<T> {
         self.data.get(index as usize).map(|(_, t)| t)
     }
 
+    /// Deletes an element for the coarena and returns its value.
+    ///
+    /// We can't really remove an element from the coarena. So instead of actually removing
+    /// it, this method will reset the value to the given `removed_value`.
+    pub fn remove(&mut self, index: Index, removed_value: T) -> Option<T> {
+        let (i, g) = index.into_raw_parts();
+        let data = self.data.get_mut(i as usize)?;
+        if g == data.0 {
+            Some(std::mem::replace(&mut data.1, removed_value))
+        } else {
+            None
+        }
+    }
+
     /// Gets a specific element from the coarena, if it exists.
     pub fn get(&self, index: Index) -> Option<&T> {
         let (i, g) = index.into_raw_parts();
@@ -49,6 +63,27 @@ impl<T> Coarena<T> {
         }
 
         self.data[i1 as usize] = (g1, value);
+    }
+
+    /// Ensure that the given element exists in thihs coarena, and return its mutable reference.
+    pub fn ensure_element_exist(&mut self, a: Index, default: T) -> &mut T
+    where
+        T: Clone,
+    {
+        let (i1, g1) = a.into_raw_parts();
+
+        if self.data.len() <= i1 as usize {
+            self.data
+                .resize(i1 as usize + 1, (u32::MAX, default.clone()));
+        }
+
+        let data = &mut self.data[i1 as usize];
+
+        if data.0 != g1 {
+            *data = (g1, default);
+        }
+
+        &mut data.1
     }
 
     /// Ensure that elements at the two given indices exist in this coarena, and return their reference.
