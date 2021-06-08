@@ -1,3 +1,12 @@
+## v0.9.2
+### Added
+- Make the method JointSet::remove_joints_attached_to_rigid_body public so that it can can be called externally for
+  letting component-based Rapier integration call it to cleanup joints after a rigid-body removal.
+
+### Fixed
+- Fix a panic that could happen when the same collider is listed twice in the removed_colliders array.
+
+
 ## v0.9.1
 ### Added
 - Add `rapier::prelude::nalgebra` so that the `vector!` and `point!` macros work out-of-the-box after importing
