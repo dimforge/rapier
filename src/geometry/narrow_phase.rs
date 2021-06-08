@@ -270,7 +270,10 @@ impl NarrowPhase {
         for collider in removed_colliders {
             // NOTE: if the collider does not have any graph indices currently, there is nothing
             // to remove in the narrow-phase for this collider.
-            if let Some(graph_idx) = self.graph_indices.get(collider.0) {
+            if let Some(graph_idx) = self
+                .graph_indices
+                .remove(collider.0, ColliderGraphIndices::invalid())
+            {
                 let intersection_graph_id = prox_id_remap
                     .get(collider)
                     .copied()
@@ -330,6 +333,10 @@ impl NarrowPhase {
                 replacement.intersection_graph_index = intersection_graph_id;
             } else {
                 prox_id_remap.insert(replacement, intersection_graph_id);
+                // I feel like this should never happen now that the narrow-phase is the one owning
+                // the graph_indices. Let's put an unreachable in there and see if anybody still manages
+                // to reach it. If nobody does, we will remove this.
+                unreachable!();
             }
         }
 
@@ -338,6 +345,10 @@ impl NarrowPhase {
                 replacement.contact_graph_index = contact_graph_id;
             } else {
                 contact_id_remap.insert(replacement, contact_graph_id);
+                // I feel like this should never happen now that the narrow-phase is the one owning
+                // the graph_indices. Let's put an unreachable in there and see if anybody still manages
+                // to reach it. If nobody does, we will remove this.
+                unreachable!();
             }
         }
     }
