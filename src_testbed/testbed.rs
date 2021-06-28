@@ -942,6 +942,7 @@ fn update_testbed(
             let selected_example = state.selected_example;
             let manager = &mut *graphics;
             let meshes = &mut *meshes;
+
             let graphics_context = TestbedGraphics {
                 manager: &mut *manager,
                 commands: &mut commands,
@@ -950,6 +951,7 @@ fn update_testbed(
                 components: &mut gfx_components,
                 camera: &mut cameras.iter_mut().next().unwrap().2,
             };
+
             let mut testbed = Testbed {
                 graphics: Some(graphics_context),
                 state: &mut *state,
@@ -997,9 +999,9 @@ fn update_testbed(
                 if let Ok(w) = snapshot.restore() {
                     clear(&mut commands, &mut state, &mut graphics, &mut plugins);
 
-                    // for plugin in &mut plugins {
-                    //     plugin.clear_graphics(window);
-                    // }
+                    for plugin in &mut plugins.0 {
+                        plugin.clear_graphics(&mut graphics, &mut commands);
+                    }
 
                     // set_world(w.3, w.4, w.5);
                     harness.physics.broad_phase = w.1;
@@ -1028,10 +1030,18 @@ fn update_testbed(
                 );
             }
 
-            // for plugin in &mut plugins {
-            //     let graphics = &mut graphics;
-            //     plugin.init_graphics(window, &mut || graphics.next_color());
-            // }
+            for plugin in &mut plugins.0 {
+                let next_color = graphics.next_color();
+                plugin.init_graphics(
+                    &mut graphics,
+                    &mut commands,
+                    meshes,
+                    materials,
+                    &mut gfx_components,
+                    &mut harness,
+                    &mut || next_color,
+                );
+            }
         }
 
         if example_changed
@@ -1071,6 +1081,7 @@ fn update_testbed(
         for _ in 0..state.nsteps {
             if state.selected_backend == RAPIER_BACKEND {
                 let graphics = &mut graphics;
+
                 let mut testbed_graphics = TestbedGraphics {
                     manager: &mut *graphics,
                     commands: &mut commands,
@@ -1137,9 +1148,9 @@ fn update_testbed(
                 }
             }
 
-            // for plugin in &mut plugins.0 {
-            //     plugin.run_callbacks(window, &mut harness.physics, &harness.state);
-            // }
+            for plugin in &mut plugins.0 {
+                plugin.run_callbacks(&mut harness);
+            }
         }
     }
 
@@ -1157,15 +1168,25 @@ fn update_testbed(
         }
     }
 
-    let physics = &harness.physics;
-    graphics.draw(&physics.bodies, &physics.colliders, &mut gfx_components);
+    graphics.draw(
+        &harness.physics.bodies,
+        &harness.physics.colliders,
+        &mut gfx_components,
+    );
 
     for plugin in &mut plugins.0 {
-        plugin.draw();
+        plugin.draw(
+            &mut graphics,
+            &mut commands,
+            meshes,
+            materials,
+            &mut gfx_components,
+            &mut harness,
+        );
     }
 
     if state.flags.contains(TestbedStateFlags::CONTACT_POINTS) {
-        draw_contacts(&physics.narrow_phase, &physics.colliders);
+        draw_contacts(&harness.physics.narrow_phase, &harness.physics.colliders);
     }
 
     if state.running == RunMode::Step {
@@ -1177,14 +1198,14 @@ fn clear(
     commands: &mut Commands,
     state: &mut TestbedState,
     graphics: &mut GraphicsManager,
-    _plugins: &mut Plugins,
+    plugins: &mut Plugins,
 ) {
     state.can_grab_behind_ground = false;
     graphics.clear(commands);
 
-    // for plugin in plugins.0.drain(..) {
-    //     plugin.clear_graphics();
-    // }
+    for mut plugin in plugins.0.drain(..) {
+        plugin.clear_graphics(graphics, commands);
+    }
 }
 
 #[cfg(feature = "dim2")]
