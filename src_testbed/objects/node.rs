@@ -17,6 +17,7 @@ use {
     rapier::geometry::{Ball, Cuboid},
 };
 
+#[derive(Clone, Debug)]
 pub struct EntityWithGraphics {
     pub entity: Entity,
     pub color: Point3<f32>,

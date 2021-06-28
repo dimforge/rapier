@@ -195,9 +195,9 @@ impl GraphicsManager {
             .cloned()
             .unwrap_or_else(|| self.alloc_color(materials, handle, !body.is_dynamic()));
 
-        self.add_with_color(
+        let _ = self.add_with_color(
             commands, meshes, materials, components, handle, bodies, colliders, color,
-        )
+        );
     }
 
     pub fn add_with_color(
@@ -210,8 +210,7 @@ impl GraphicsManager {
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
         color: Point3<f32>,
-    ) {
-        //        let body = bodies.get(handle).unwrap();
+    ) -> Vec<EntityWithGraphics> {
         let mut new_nodes = Vec::new();
 
         for collider_handle in bodies[handle].colliders() {
@@ -246,7 +245,10 @@ impl GraphicsManager {
         // }
 
         let nodes = self.b2sn.entry(handle).or_insert_with(Vec::new);
-        nodes.append(&mut new_nodes);
+
+        nodes.append(&mut new_nodes.clone());
+
+        new_nodes
     }
 
     pub fn add_collider(
