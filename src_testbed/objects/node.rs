@@ -11,6 +11,7 @@ use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{Cone, Cylinder};
 use rapier::math::Isometry;
+
 #[cfg(feature = "dim2")]
 use {
     na::{Point2, Vector2},
@@ -24,6 +25,7 @@ pub struct EntityWithGraphics {
     pub base_color: Point3<f32>,
     pub collider: ColliderHandle,
     pub delta: Isometry<f32>,
+    pub opacity: f32,
     material: Handle<StandardMaterial>,
 }
 
@@ -49,7 +51,8 @@ impl EntityWithGraphics {
             .or_else(|| generate_collider_mesh(shape).map(|m| meshes.add(m)))
             .expect("Could not build the collider's render mesh");
 
-        let bevy_color = Color::rgb(color.x, color.y, color.z);
+        let opacity = 1.0;
+        let bevy_color = Color::rgba(color.x, color.y, color.z, opacity);
         let shape_pos = collider_pos * delta;
         let mut transform = Transform::from_scale(scale);
         transform.translation.x = shape_pos.translation.vector.x;
@@ -101,6 +104,7 @@ impl EntityWithGraphics {
             collider,
             delta,
             material: material_weak_handle,
+            opacity,
         }
     }
 
@@ -108,12 +112,14 @@ impl EntityWithGraphics {
         //FIXME: Should this be despawn_recursive?
         commands.entity(self.entity).despawn();
     }
+
     pub fn select(&mut self, materials: &mut Assets<StandardMaterial>) {
         // NOTE: we don't just call `self.set_color` because that would
         //       overwrite self.base_color too.
         self.color = point![1.0, 0.0, 0.0];
         if let Some(material) = materials.get_mut(&self.material) {
-            material.base_color = Color::rgb(self.color.x, self.color.y, self.color.z);
+            material.base_color =
+                Color::rgba(self.color.x, self.color.y, self.color.z, self.opacity);
         }
     }
 
@@ -123,7 +129,7 @@ impl EntityWithGraphics {
 
     pub fn set_color(&mut self, materials: &mut Assets<StandardMaterial>, color: Point3<f32>) {
         if let Some(material) = materials.get_mut(&self.material) {
-            material.base_color = Color::rgb(color.x, color.y, color.z);
+            material.base_color = Color::rgba(color.x, color.y, color.z, self.opacity);
         }
         self.color = color;
         self.base_color = color;
