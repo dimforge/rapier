@@ -104,6 +104,10 @@ impl EntityWithGraphics {
         }
     }
 
+    pub fn despawn(&mut self, commands: &mut Commands) {
+        //FIXME: Should this be despawn_recursive?
+        commands.entity(self.entity).despawn();
+    }
     pub fn select(&mut self, materials: &mut Assets<StandardMaterial>) {
         // NOTE: we don't just call `self.set_color` because that would
         //       overwrite self.base_color too.
