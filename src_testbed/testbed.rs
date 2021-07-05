@@ -875,6 +875,18 @@ fn update_testbed(
     {
         let harness = &mut *harness;
         ui::update_ui(&ui_context, &mut state, harness);
+
+        for plugin in &mut plugins.0 {
+            plugin.update_ui(
+                &ui_context,
+                harness,
+                &mut graphics,
+                &mut commands,
+                &mut *meshes,
+                &mut *materials,
+                &mut gfx_components,
+            );
+        }
     }
 
     // Handle UI actions.
