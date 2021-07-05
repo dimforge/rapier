@@ -174,16 +174,30 @@ impl Collider {
         self.co_parent.as_ref().map(|p| &p.pos_wrt_parent)
     }
 
+    /// Sets the translational part of this collider's translation relative to its parent rigid-body.
+    pub fn set_translation_wrt_parent(&mut self, translation: Vector<Real>) {
+        if let Some(co_parent) = self.co_parent.as_mut() {
+            self.co_changes.insert(ColliderChanges::PARENT);
+            co_parent.pos_wrt_parent.translation.vector = translation;
+        }
+    }
+
+    /// Sets the rotational part of this collider's rotaiton relative to its parent rigid-body.
+    pub fn set_rotation_wrt_parent(&mut self, rotation: AngVector<Real>) {
+        if let Some(co_parent) = self.co_parent.as_mut() {
+            self.co_changes.insert(ColliderChanges::PARENT);
+            co_parent.pos_wrt_parent.rotation = Rotation::new(rotation);
+        }
+    }
+
     /// Sets the position of this collider wrt. its parent rigid-body.
     ///
-    /// Panics if the collider is not attached to a rigid-body.
+    /// Does nothing if the collider is not attached to a rigid-body.
     pub fn set_position_wrt_parent(&mut self, pos_wrt_parent: Isometry<Real>) {
-        self.co_changes.insert(ColliderChanges::PARENT);
-        let co_parent = self
-            .co_parent
-            .as_mut()
-            .expect("This collider has no parent.");
-        co_parent.pos_wrt_parent = pos_wrt_parent;
+        if let Some(co_parent) = self.co_parent.as_mut() {
+            self.co_changes.insert(ColliderChanges::PARENT);
+            co_parent.pos_wrt_parent = pos_wrt_parent;
+        }
     }
 
     /// The collision groups used by this collider.
