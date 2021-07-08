@@ -1,5 +1,5 @@
+use rapier3d::harness::Harness;
 use rapier3d::prelude::*;
-use rapier_testbed3d::harness::Harness;
 
 pub fn init_world(harness: &mut Harness) {
     /*
@@ -67,5 +67,5 @@ fn main() {
     init_world(harness);
     harness.set_max_steps(10000);
     harness.run();
-    println!("{}", harness.state.timestep_id);
+    println!("{}", harness.run_state.timestep_id);
 }

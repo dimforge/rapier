@@ -30,6 +30,8 @@ extern crate serde;
 extern crate num_traits as num;
 // #[macro_use]
 // extern crate array_macro;
+#[cfg(feature = "serde")]
+extern crate bincode;
 
 #[cfg(feature = "parallel")]
 pub use rayon;
@@ -134,6 +136,8 @@ pub mod counters;
 pub mod data;
 pub mod dynamics;
 pub mod geometry;
+pub mod harness;
+pub mod physics;
 pub mod pipeline;
 pub mod utils;
 

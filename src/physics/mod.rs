@@ -1,9 +1,13 @@
+//! Physics related state
+use crate::dynamics::{CCDSolver, IntegrationParameters, IslandManager, JointSet, RigidBodySet};
+use crate::geometry::{BroadPhase, ColliderSet, ContactEvent, IntersectionEvent, NarrowPhase};
+use crate::math::Vector;
+use crate::pipeline::{PhysicsHooks, PhysicsPipeline, QueryPipeline};
 use crossbeam::channel::Receiver;
-use rapier::dynamics::{CCDSolver, IntegrationParameters, IslandManager, JointSet, RigidBodySet};
-use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, IntersectionEvent, NarrowPhase};
-use rapier::math::Vector;
-use rapier::pipeline::{PhysicsHooks, PhysicsPipeline, QueryPipeline};
+use parry::math::Real;
 
+#[cfg(feature = "serde")]
+/// Shapshot of physics
 pub struct PhysicsSnapshot {
     timestep_id: usize,
     broad_phase: Vec<u8>,
@@ -13,7 +17,9 @@ pub struct PhysicsSnapshot {
     joints: Vec<u8>,
 }
 
+#[cfg(feature = "serde")]
 impl PhysicsSnapshot {
+    /// Create a new `PhysicsSnapshot` from provided parameters
     pub fn new(
         timestep_id: usize,
         broad_phase: &BroadPhase,
@@ -32,6 +38,7 @@ impl PhysicsSnapshot {
         })
     }
 
+    /// Restore physics snapshot from fields
     pub fn restore(
         &self,
     ) -> bincode::Result<(
@@ -52,6 +59,7 @@ impl PhysicsSnapshot {
         ))
     }
 
+    /// Print the snapshot length
     pub fn print_snapshot_len(&self) {
         let total = self.broad_phase.len()
             + self.narrow_phase.len()
@@ -67,22 +75,36 @@ impl PhysicsSnapshot {
     }
 }
 
+/// `PhysicsState` contains the complete state of a rapier simulation
 pub struct PhysicsState {
+    /// Islands
     pub islands: IslandManager,
+    /// Broad Phase
     pub broad_phase: BroadPhase,
+    /// Narrow Phase
     pub narrow_phase: NarrowPhase,
+    /// Bodies
     pub bodies: RigidBodySet,
+    /// Colliders
     pub colliders: ColliderSet,
+    /// Joints
     pub joints: JointSet,
+    /// CCD Solver
     pub ccd_solver: CCDSolver,
+    /// Physics Pipeline
     pub pipeline: PhysicsPipeline,
+    /// Query Pipeline
     pub query_pipeline: QueryPipeline,
+    /// Integration Params
     pub integration_parameters: IntegrationParameters,
-    pub gravity: Vector<f32>,
+    /// Gravity `Vector`
+    pub gravity: Vector<Real>,
+    /// Physics Hooks
     pub hooks: Box<dyn PhysicsHooks<RigidBodySet, ColliderSet>>,
 }
 
 impl PhysicsState {
+    /// Create a new, empty physics state
     pub fn new() -> Self {
         Self {
             islands: IslandManager::new(),
@@ -101,12 +123,16 @@ impl PhysicsState {
     }
 }
 
+/// Physics events, that plugins, and callbacks can subscribe to
 pub struct PhysicsEvents {
+    /// The `ContactEvents` that have been emitted
     pub contact_events: Receiver<ContactEvent>,
+    /// The `IntersectionEvents` that have been emitted
     pub intersection_events: Receiver<IntersectionEvent>,
 }
 
 impl PhysicsEvents {
+    /// Poll all events
     pub fn poll_all(&self) {
         while let Ok(_) = self.contact_events.try_recv() {}
         while let Ok(_) = self.intersection_events.try_recv() {}

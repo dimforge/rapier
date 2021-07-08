@@ -105,9 +105,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 .colliders
                 .insert_with_parent(collider, handle, &mut physics.bodies);
 
-            if let Some(graphics) = graphics {
-                graphics.add_body(handle, &physics.bodies, &physics.colliders);
-            }
+            graphics.add_body(handle, &physics.bodies, &physics.colliders);
         }
 
         for handle in physics.islands.active_dynamic_bodies() {

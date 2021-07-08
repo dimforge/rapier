@@ -20,7 +20,7 @@ default = [ "dim2", "f64", "default-sets" ]
 dim2    = [ ]
 f64     = [ ]
 default-sets = [ ]
-parallel = [ "rayon" ]
+parallel = [ "rayon", "num_cpus" ]
 simd-stable = [ "simba/wide", "simd-is-enabled" ]
 simd-nightly = [ "simba/packed_simd", "simd-is-enabled" ]
 # Do not enable this feature directly. It is automatically
@@ -51,6 +51,7 @@ nalgebra = "0.28"
 parry2d-f64 = "0.6"
 simba = "0.5"
 approx = "0.5"
+num_cpus = { version = "1", optional = true }
 rayon = { version = "1", optional = true }
 crossbeam = "0.8"
 arrayvec = "0.7"

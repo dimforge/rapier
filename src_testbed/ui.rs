@@ -1,7 +1,7 @@
 use rapier::counters::Counters;
 
-use crate::harness::Harness;
 use crate::testbed::{RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags};
+use rapier::harness::Harness;
 
 use crate::PhysicsState;
 use bevy_egui::egui::Slider;
@@ -106,7 +106,7 @@ pub fn update_ui(ui_context: &EguiContext, state: &mut TestbedState, harness: &m
         ui.collapsing("Serialization infos", |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.label(serialization_string(
-                    harness.state.timestep_id,
+                    harness.run_state.timestep_id,
                     &harness.physics,
                 ))
             });
@@ -124,8 +124,11 @@ pub fn update_ui(ui_context: &EguiContext, state: &mut TestbedState, harness: &m
         #[cfg(feature = "parallel")]
         {
             ui.add(
-                Slider::new(&mut harness.state.num_threads, 1..=num_cpus::get_physical())
-                    .text("num. threads"),
+                Slider::new(
+                    &mut harness.thread_state.num_threads,
+                    1..=num_cpus::get_physical(),
+                )
+                .text("num. threads"),
             );
         }
         ui.add(

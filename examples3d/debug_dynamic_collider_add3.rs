@@ -43,7 +43,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut extra_colliders = Vec::new();
     let snapped_frame = 51;
 
-    testbed.add_callback(move |mut graphics, physics, _, _| {
+    testbed.add_callback(move |graphics, physics, _, _| {
         step += 1;
 
         // Add a bigger ball collider
@@ -55,9 +55,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 .colliders
                 .insert_with_parent(collider, ball_handle, &mut physics.bodies);
 
-        if let Some(graphics) = &mut graphics {
-            graphics.add_collider(new_ball_collider_handle, &physics.colliders);
-        }
+        graphics.add_collider(new_ball_collider_handle, &physics.colliders);
 
         extra_colliders.push(new_ball_collider_handle);
 
@@ -77,9 +75,7 @@ pub fn init_world(testbed: &mut Testbed) {
             step = snapped_frame;
 
             for handle in &extra_colliders {
-                if let Some(graphics) = &mut graphics {
-                    graphics.remove_collider(*handle, &physics.colliders);
-                }
+                graphics.remove_collider(*handle, &physics.colliders);
 
                 physics
                     .colliders
@@ -104,9 +100,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 .colliders
                 .insert_with_parent(coll, ground_handle, &mut physics.bodies);
 
-        if let Some(graphics) = &mut graphics {
-            graphics.add_collider(new_ground_collider_handle, &physics.colliders);
-        }
+        graphics.add_collider(new_ground_collider_handle, &physics.colliders);
 
         extra_colliders.push(new_ground_collider_handle);
     });

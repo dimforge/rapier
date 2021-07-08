@@ -20,7 +20,8 @@ default = [ "dim3", "f32", "default-sets" ]
 dim3    = [ ]
 f32     = [ ]
 default-sets = [ ]
-parallel = [ "rayon" ]
+parallel = [ "rayon", "num_cpus" ]
+
 simd-stable = [ "parry3d/simd-stable", "simba/wide", "simd-is-enabled" ]
 simd-nightly = [ "parry3d/simd-nightly", "simba/packed_simd", "simd-is-enabled" ]
 # Do not enable this feature directly. It is automatically
@@ -51,6 +52,7 @@ nalgebra = "0.28"
 parry3d = "0.6"
 simba = "0.5"
 approx = "0.5"
+num_cpus = { version = "1", optional = true }
 rayon = { version = "1", optional = true }
 crossbeam = "0.8"
 arrayvec = "0.7"
@@ -60,6 +62,7 @@ serde = { version = "1", features = [ "derive" ], optional = true }
 downcast-rs = "1.2"
 num-derive = "0.3"
 bitflags = "1"
+bincode = "1"
 
 [dev-dependencies]
 bincode = "1"

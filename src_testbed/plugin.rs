@@ -1,9 +1,9 @@
-use crate::harness::Harness;
-use crate::physics::PhysicsState;
 use crate::GraphicsManager;
 use bevy::prelude::{Assets, Commands, Mesh, Query, StandardMaterial, Transform};
 use bevy_egui::EguiContext;
 use na::Point3;
+use rapier::harness::{Harness, RunState};
+use rapier::physics::PhysicsState;
 
 pub trait TestbedPlugin {
     fn init_graphics(
@@ -18,7 +18,7 @@ pub trait TestbedPlugin {
     );
     fn clear_graphics(&mut self, graphics: &mut GraphicsManager, commands: &mut Commands);
     fn run_callbacks(&mut self, harness: &mut Harness);
-    fn step(&mut self, physics: &mut PhysicsState);
+    fn step(&mut self, physics: &mut PhysicsState, run_state: &RunState);
     fn draw(
         &mut self,
         graphics: &mut GraphicsManager,

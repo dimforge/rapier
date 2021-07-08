@@ -4,11 +4,9 @@ use std::mem;
 use bevy::pbr::Light;
 use bevy::prelude::*;
 
-use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
+use crate::graphics::GraphicsManager;
 use crate::plugin::TestbedPlugin;
 use crate::ui;
-use crate::{graphics::GraphicsManager, harness::RunState};
-
 use na::{self, Point2, Point3, Vector3};
 use rapier::dynamics::{
     IntegrationParameters, JointSet, RigidBodyActivation, RigidBodyHandle, RigidBodySet,
@@ -16,12 +14,13 @@ use rapier::dynamics::{
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
+use rapier::harness::{Harness, RunState};
 use rapier::math::Vector;
+use rapier::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use rapier::pipeline::PhysicsHooks;
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
-use crate::harness::Harness;
 #[cfg(feature = "other-backends")]
 use crate::nphysics_backend::NPhysicsWorld;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
@@ -140,6 +139,10 @@ pub struct TestbedGraphics<'a, 'b, 'c, 'd> {
     camera: &'a mut OrbitCamera,
 }
 
+type Callbacks =
+    Vec<Box<dyn FnMut(&mut TestbedGraphics, &mut PhysicsState, &PhysicsEvents, &RunState)>>;
+// type Callback = Box<dyn FnMut(&mut TestbedGraphics, &mut PhysicsState, &PhysicsEvents, &RunState)>;
+
 pub struct Testbed<'a, 'b, 'c, 'd> {
     graphics: Option<TestbedGraphics<'a, 'b, 'c, 'd>>,
     harness: &'a mut Harness,
@@ -147,6 +150,7 @@ pub struct Testbed<'a, 'b, 'c, 'd> {
     #[cfg(feature = "other-backends")]
     other_backends: &'a mut OtherBackends,
     plugins: &'a mut Plugins,
+    callbacks: Callbacks,
 }
 
 pub struct TestbedApp {
@@ -298,6 +302,7 @@ impl TestbedApp {
                         #[cfg(feature = "other-backends")]
                         other_backends: &mut self.other_backends,
                         plugins: &mut self.plugins,
+                        callbacks: Vec::new(),
                     };
                     (builder.1)(&mut testbed);
                     // Run the simulation.
@@ -540,7 +545,7 @@ impl<'a, 'b, 'c, 'd> Testbed<'a, 'b, 'c, 'd> {
                     &self.harness.physics.colliders,
                     &self.harness.physics.joints,
                     self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR,
-                    self.harness.state.num_threads,
+                    self.harness.thread_state.num_threads,
                 ));
             }
         }
@@ -612,12 +617,12 @@ impl<'a, 'b, 'c, 'd> Testbed<'a, 'b, 'c, 'd> {
     //    }
 
     pub fn add_callback<
-        F: FnMut(Option<&mut TestbedGraphics>, &mut PhysicsState, &PhysicsEvents, &RunState) + 'static,
+        F: FnMut(&mut TestbedGraphics, &mut PhysicsState, &PhysicsEvents, &RunState) + 'static,
     >(
         &mut self,
         callback: F,
     ) {
-        self.harness.add_callback(callback);
+        self.callbacks.push(Box::new(callback));
     }
 
     pub fn add_plugin(&mut self, plugin: impl TestbedPlugin + 'static) {
@@ -975,6 +980,7 @@ fn update_testbed(
                 #[cfg(feature = "other-backends")]
                 other_backends: &mut *other_backends,
                 plugins: &mut *plugins,
+                callbacks: Vec::new(),
             };
 
             builders.0[selected_example].1(&mut testbed);
@@ -990,7 +996,7 @@ fn update_testbed(
                 .action_flags
                 .set(TestbedActionFlags::TAKE_SNAPSHOT, false);
             state.snapshot = PhysicsSnapshot::new(
-                harness.state.timestep_id,
+                harness.run_state.timestep_id,
                 &harness.physics.broad_phase,
                 &harness.physics.narrow_phase,
                 &harness.physics.bodies,
@@ -1022,7 +1028,7 @@ fn update_testbed(
                     // set_world(w.3, w.4, w.5);
                     harness.physics.broad_phase = w.1;
                     harness.physics.narrow_phase = w.2;
-                    harness.state.timestep_id = w.0;
+                    harness.run_state.timestep_id = w.0;
                 }
             }
         }
@@ -1096,20 +1102,21 @@ fn update_testbed(
     if state.running != RunMode::Stop {
         for _ in 0..state.nsteps {
             if state.selected_backend == RAPIER_BACKEND {
-                let graphics = &mut graphics;
+                // let graphics = &mut graphics;
 
-                let mut testbed_graphics = TestbedGraphics {
-                    manager: &mut *graphics,
-                    commands: &mut commands,
-                    meshes: &mut *meshes,
-                    materials: &mut *materials,
-                    components: &mut gfx_components,
-                    camera: &mut cameras.iter_mut().next().unwrap().2,
-                };
-                harness.step_with_graphics(Some(&mut testbed_graphics));
+                // let testbed_graphics = TestbedGraphics {
+                //     manager: &mut *graphics,
+                //     commands: &mut commands,
+                //     meshes: &mut *meshes,
+                //     materials: &mut *materials,
+                //     components: &mut gfx_components,
+                //     camera: &mut cameras.iter_mut().next().unwrap().2,
+                // };
+                harness.step();
 
                 for plugin in &mut plugins.0 {
-                    plugin.step(&mut harness.physics)
+                    let run_state = &(harness.run_state.clone());
+                    plugin.step(&mut harness.physics, run_state)
                 }
             }
 

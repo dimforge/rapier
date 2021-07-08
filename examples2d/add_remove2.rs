@@ -8,7 +8,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let rad = 0.5;
 
     // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |mut graphics, physics, _, _| {
+    testbed.add_callback(move |graphics, physics, _, _| {
         let rigid_body = RigidBodyBuilder::new_dynamic()
             .translation(vector![0.0, 10.0])
             .build();
@@ -18,9 +18,7 @@ pub fn init_world(testbed: &mut Testbed) {
             .colliders
             .insert_with_parent(collider, handle, &mut physics.bodies);
 
-        if let Some(graphics) = &mut graphics {
-            graphics.add_body(handle, &physics.bodies, &physics.colliders);
-        }
+        graphics.add_body(handle, &physics.bodies, &physics.colliders);
 
         let to_remove: Vec<_> = physics
             .bodies
@@ -36,9 +34,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 &mut physics.joints,
             );
 
-            if let Some(graphics) = &mut graphics {
-                graphics.remove_body(handle);
-            }
+            graphics.remove_body(handle);
         }
     });
 
