@@ -63,8 +63,10 @@ impl GraphicsManager {
         let body = body.unwrap_or(RigidBodyHandle::invalid());
         if let Some(sns) = self.b2sn.get_mut(&body) {
             for sn in sns.iter_mut() {
-                if sn.collider == collider {
-                    commands.entity(sn.entity).despawn();
+                if let Some(sn_c) = sn.collider {
+                    if sn_c == collider {
+                        commands.entity(sn.entity).despawn();
+                    }
                 }
             }
         }
@@ -216,11 +218,11 @@ impl GraphicsManager {
         for collider_handle in bodies[handle].colliders() {
             let color = self.c2color.get(collider_handle).copied().unwrap_or(color);
             let collider = &colliders[*collider_handle];
-            self.do_add_shape(
+            self.add_shape(
                 commands,
                 meshes,
                 materials,
-                *collider_handle,
+                Some(*collider_handle),
                 collider.shape(),
                 collider.is_sensor(),
                 collider.position(),
@@ -264,11 +266,11 @@ impl GraphicsManager {
         let color = *self.b2color.get(&collider_parent).unwrap();
         let color = self.c2color.get(&handle).copied().unwrap_or(color);
         let mut nodes = std::mem::replace(self.b2sn.get_mut(&collider_parent).unwrap(), Vec::new());
-        self.do_add_shape(
+        self.add_shape(
             commands,
             meshes,
             materials,
-            handle,
+            Some(handle),
             collider.shape(),
             collider.is_sensor(),
             collider.position(),
@@ -279,12 +281,12 @@ impl GraphicsManager {
         self.b2sn.insert(collider_parent, nodes);
     }
 
-    fn do_add_shape(
+    pub fn add_shape(
         &mut self,
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
-        handle: ColliderHandle,
+        handle: Option<ColliderHandle>,
         shape: &dyn Shape,
         sensor: bool,
         pos: &Isometry<f32>,
@@ -294,7 +296,7 @@ impl GraphicsManager {
     ) {
         if let Some(compound) = shape.as_compound() {
             for (shape_pos, shape) in compound.shapes() {
-                self.do_add_shape(
+                self.add_shape(
                     commands,
                     meshes,
                     materials,
@@ -393,6 +395,14 @@ impl GraphicsManager {
 
     pub fn nodes_mut(&mut self) -> impl Iterator<Item = &mut EntityWithGraphics> {
         self.b2sn.values_mut().flat_map(|val| val.iter_mut())
+    }
+
+    pub fn prefab_meshes(&self) -> &HashMap<ShapeType, Handle<Mesh>> {
+        &self.prefab_meshes
+    }
+
+    pub fn prefab_meshes_mut(&mut self) -> &mut HashMap<ShapeType, Handle<Mesh>> {
+        &mut self.prefab_meshes
     }
 }
 
