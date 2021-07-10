@@ -117,7 +117,7 @@ impl Default for RigidBodyChanges {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 /// The position of this rigid-body.
 pub struct RigidBodyPosition {
     /// The world-space position of the rigid-body.
@@ -199,9 +199,9 @@ bitflags::bitflags! {
         const TRANSLATION_LOCKED = 1 << 0;
         /// Flag indicating that the rigid-body cannot rotate along the `X` axis.
         const ROTATION_LOCKED_X = 1 << 1;
-        /// Flag indicating that the rigid-body cannot rotate along the `X` axis.
+        /// Flag indicating that the rigid-body cannot rotate along the `Y` axis.
         const ROTATION_LOCKED_Y = 1 << 2;
-        /// Flag indicating that the rigid-body cannot rotate along the `X` axis.
+        /// Flag indicating that the rigid-body cannot rotate along the `Z` axis.
         const ROTATION_LOCKED_Z = 1 << 3;
         /// Combination of flags indicating that the rigid-body cannot rotate along any axis.
         const ROTATION_LOCKED = Self::ROTATION_LOCKED_X.bits | Self::ROTATION_LOCKED_Y.bits | Self::ROTATION_LOCKED_Z.bits;
@@ -210,7 +210,7 @@ bitflags::bitflags! {
 
 // TODO: split this into "LocalMassProps" and `WorldMassProps"?
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 /// The mass properties of this rigid-bodies.
 pub struct RigidBodyMassProps {
     /// Flags for locking rotation and translation.
@@ -326,7 +326,7 @@ impl RigidBodyMassProps {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 /// The velocities of this rigid-body.
 pub struct RigidBodyVelocity {
     /// The linear velocity of the rigid-body.
@@ -466,7 +466,7 @@ impl RigidBodyVelocity {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 /// Damping factors to progressively slow down a rigid-body.
 pub struct RigidBodyDamping {
     /// Damping factor for gradually slowing down the translational motion of the rigid-body.
@@ -485,7 +485,7 @@ impl Default for RigidBodyDamping {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 /// The user-defined external forces applied to this rigid-body.
 pub struct RigidBodyForces {
     /// Accumulation of external forces (only for dynamic bodies).
@@ -545,7 +545,7 @@ impl RigidBodyForces {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 /// Information used for Continuous-Collision-Detection.
 pub struct RigidBodyCcd {
     /// The distance used by the CCD solver to decide if a movement would
@@ -617,7 +617,7 @@ impl RigidBodyCcd {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
 /// Internal identifiers used by the physics engine.
 pub struct RigidBodyIds {
     pub(crate) active_island_id: usize,
@@ -638,7 +638,7 @@ impl Default for RigidBodyIds {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// The set of colliders attached to this rigid-bodies.
 ///
 /// This should not be modified manually unless you really know what
@@ -735,7 +735,7 @@ impl RigidBodyColliders {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// The dominance groups of a rigid-body.
 pub struct RigidBodyDominance(pub i8);
 
@@ -746,7 +746,7 @@ impl Default for RigidBodyDominance {
 }
 
 impl RigidBodyDominance {
-    /// The actually dominance group of this rigid-body, after taking into account its type.
+    /// The actual dominance group of this rigid-body, after taking into account its type.
     pub fn effective_group(&self, status: &RigidBodyType) -> i16 {
         if status.is_dynamic() {
             self.0 as i16
@@ -760,7 +760,7 @@ impl RigidBodyDominance {
 ///
 /// This controls whether a body is sleeping or not.
 /// If the threshold is negative, the body never sleeps.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct RigidBodyActivation {
     /// The threshold pseudo-kinetic energy bellow which the body can fall asleep.

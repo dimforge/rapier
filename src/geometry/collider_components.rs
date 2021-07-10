@@ -3,7 +3,7 @@ use crate::geometry::{InteractionGroups, SAPProxyIndex, Shape, SharedShape};
 use crate::math::{Isometry, Real};
 use crate::parry::partitioning::IndexedData;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 /// The unique identifier of a collider added to a collider set.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -97,7 +97,7 @@ impl ColliderType {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// Data associated to a collider that takes part to a broad-phase algorithm.
 pub struct ColliderBroadPhaseData {
@@ -115,7 +115,7 @@ impl Default for ColliderBroadPhaseData {
 /// The shape of a collider.
 pub type ColliderShape = SharedShape;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// The mass-properties of a collider.
 pub enum ColliderMassProps {
@@ -155,7 +155,7 @@ impl ColliderMassProps {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// Information about the rigid-body this collider is attached to.
 pub struct ColliderParent {
@@ -165,7 +165,7 @@ pub struct ColliderParent {
     pub pos_wrt_parent: Isometry<Real>,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// The position of a collider.
 pub struct ColliderPosition(pub Isometry<Real>);
@@ -177,11 +177,23 @@ impl AsRef<Isometry<Real>> for ColliderPosition {
     }
 }
 
+impl AsMut<Isometry<Real>> for ColliderPosition {
+    fn as_mut(&mut self) -> &mut Isometry<Real> {
+        &mut self.0
+    }
+}
+
 impl Deref for ColliderPosition {
     type Target = Isometry<Real>;
     #[inline]
     fn deref(&self) -> &Isometry<Real> {
         &self.0
+    }
+}
+
+impl DerefMut for ColliderPosition {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -208,7 +220,7 @@ where
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// The constraints solver-related properties of this collider (friction, restitution, etc.)
 pub struct ColliderMaterial {
@@ -329,7 +341,7 @@ impl Default for ActiveCollisionTypes {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A set of flags for controlling collision/intersection filtering, modification, and events.
 pub struct ColliderFlags {

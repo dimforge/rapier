@@ -1,6 +1,6 @@
 use crate::math::{Isometry, Real, SpacialVector};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A joint that prevents all relative movement between two bodies.
 ///

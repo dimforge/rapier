@@ -2,7 +2,7 @@ use crate::dynamics::{BallJoint, FixedJoint, PrismaticJoint, RevoluteJoint};
 use crate::math::{Isometry, Real, SpacialVector};
 use crate::na::{Rotation3, UnitQuaternion};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A joint that prevents all relative movement between two bodies.
 ///

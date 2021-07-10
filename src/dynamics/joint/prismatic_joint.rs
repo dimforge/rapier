@@ -7,7 +7,7 @@ use na::Vector2;
 #[cfg(feature = "dim3")]
 use na::Vector5;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A joint that removes all relative motion between two bodies, except for the translations along one axis.
 pub struct PrismaticJoint {
