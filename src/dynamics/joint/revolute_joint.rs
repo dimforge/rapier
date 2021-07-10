@@ -3,7 +3,7 @@ use crate::math::{Isometry, Point, Real, Vector};
 use crate::utils::WBasis;
 use na::{RealField, Unit, Vector5};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A joint that removes all relative motion between two bodies, except for the rotations along one axis.
 pub struct RevoluteJoint {

@@ -1,7 +1,7 @@
 use crate::dynamics::SpringModel;
 use crate::math::{Point, Real, Rotation, Vector};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A joint that removes all relative linear motion between a pair of points on two bodies.
 pub struct BallJoint {

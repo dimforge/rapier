@@ -2,7 +2,7 @@
 use crate::dynamics::RevoluteJoint;
 use crate::dynamics::{BallJoint, FixedJoint, JointHandle, PrismaticJoint, RigidBodyHandle};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// An enum grouping all possible types of joints.
 pub enum JointParams {
