@@ -783,13 +783,13 @@ impl NarrowPhase {
                 if active_events.contains(ActiveEvents::INTERSECTION_EVENTS)
                     && intersection != edge.weight
                 {
-                    edge.weight = intersection;
                     events.handle_intersection_event(IntersectionEvent::new(
                         handle1,
                         handle2,
                         intersection,
                     ));
                 }
+                edge.weight = intersection;
             }
         });
     }
