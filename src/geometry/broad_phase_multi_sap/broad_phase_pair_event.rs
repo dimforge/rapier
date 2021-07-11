@@ -27,6 +27,7 @@ impl ColliderPair {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BroadPhasePairEvent {
     AddPair(ColliderPair),
     DeletePair(ColliderPair),

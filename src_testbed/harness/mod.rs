@@ -150,6 +150,13 @@ impl Harness {
     pub fn step_with_graphics(&mut self, mut graphics: Option<&mut TestbedGraphics>) {
         #[cfg(feature = "parallel")]
         {
+            if self.state.thread_pool.current_num_threads() != self.state.num_threads {
+                self.state.thread_pool = rapier::rayon::ThreadPoolBuilder::new()
+                    .num_threads(self.state.num_threads)
+                    .build()
+                    .unwrap();
+            }
+
             let physics = &mut self.physics;
             let event_handler = &self.event_handler;
             self.state.thread_pool.install(|| {
@@ -184,11 +191,11 @@ impl Harness {
             &self.event_handler,
         );
 
-        self.physics.query_pipeline.update(
-            &self.physics.islands,
-            &self.physics.bodies,
-            &self.physics.colliders,
-        );
+        // self.physics.query_pipeline.update(
+        //     &self.physics.islands,
+        //     &self.physics.bodies,
+        //     &self.physics.colliders,
+        // );
 
         for plugin in &mut self.plugins {
             plugin.step(&mut self.physics, &self.state)

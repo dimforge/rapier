@@ -654,23 +654,31 @@ impl NarrowPhase {
             + ComponentSet<ColliderFlags>
             + ComponentSetOption<ColliderParent>,
     {
+        let mut num_delete = 0;
         for event in broad_phase_events {
             match event {
                 BroadPhasePairEvent::AddPair(pair) => {
                     self.add_pair(colliders, pair);
                 }
                 BroadPhasePairEvent::DeletePair(pair) => {
-                    self.remove_pair(
-                        islands.as_deref_mut(),
-                        colliders,
-                        bodies,
-                        pair,
-                        events,
-                        PairRemovalMode::Auto,
-                    );
+                    num_delete += 1;
+                    // self.remove_pair(
+                    //     islands.as_deref_mut(),
+                    //     colliders,
+                    //     bodies,
+                    //     pair,
+                    //     events,
+                    //     PairRemovalMode::Auto,
+                    // );
                 }
             }
         }
+
+        println!(
+            "Delete events: {}, add events: {}",
+            num_delete,
+            broad_phase_events.len() - num_delete
+        );
     }
 
     pub(crate) fn compute_intersections<Bodies, Colliders>(
@@ -818,6 +826,9 @@ impl NarrowPhase {
         }
 
         let query_dispatcher = &*self.query_dispatcher;
+        println!("num threads: {}", rayon::current_num_threads());
+        let t0 = instant::now();
+        println!("Num contacts: {}", self.contact_graph.graph.edges.len());
 
         // TODO: don't iterate on all the edges.
         par_iter_mut!(&mut self.contact_graph.graph.edges).for_each(|edge| {
@@ -1021,6 +1032,8 @@ impl NarrowPhase {
                 pair.has_any_active_contact = has_any_active_contact;
             }
         });
+
+        println!("NF time: {}", instant::now() - t0);
     }
 
     /// Retrieve all the interactions with at least one contact point, happening between two active bodies.

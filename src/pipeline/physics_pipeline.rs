@@ -124,6 +124,7 @@ impl PhysicsPipeline {
         self.counters.cd.narrow_phase_time.resume();
 
         // Update narrow-phase.
+        let t0 = instant::now();
         if handle_user_changes {
             narrow_phase.handle_user_changes(
                 Some(islands),
@@ -134,6 +135,9 @@ impl PhysicsPipeline {
                 events,
             );
         }
+        println!("A time: {}", instant::now() - t0);
+        let t0 = instant::now();
+        println!("Num BF events: {}", self.broad_phase_events.len());
         narrow_phase.register_pairs(
             Some(islands),
             colliders,
@@ -141,6 +145,8 @@ impl PhysicsPipeline {
             &self.broad_phase_events,
             events,
         );
+        println!("B time: {}", instant::now() - t0);
+
         narrow_phase.compute_contacts(
             integration_parameters.prediction_distance,
             bodies,

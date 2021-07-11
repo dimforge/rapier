@@ -185,7 +185,7 @@ impl EntityWithGraphics {
         // Ball mesh
         //
         let ball = Mesh::from(shape::Icosphere {
-            subdivisions: 2,
+            subdivisions: 0,
             radius: 1.0,
         });
         out.insert(ShapeType::Ball, meshes.add(ball));

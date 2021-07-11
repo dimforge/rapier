@@ -396,7 +396,7 @@ impl TestbedApp {
                 ..Default::default()
             })
             .insert_resource(ClearColor(Color::rgb(0.85, 0.85, 0.85)))
-            .insert_resource(Msaa { samples: 2 })
+            // .insert_resource(Msaa { samples: 2 })
             .insert_resource(WgpuOptions {
                 features: WgpuFeatures {
                     // The Wireframe requires NonFillPolygonMode feature
@@ -485,6 +485,10 @@ impl<'a, 'b, 'c, 'd> Testbed<'a, 'b, 'c, 'd> {
 
     pub fn integration_parameters_mut(&mut self) -> &mut IntegrationParameters {
         &mut self.harness.physics.integration_parameters
+    }
+
+    pub fn pause(&mut self) {
+        self.state.running = RunMode::Stop;
     }
 
     pub fn physics_state_mut(&mut self) -> &mut PhysicsState {
@@ -783,9 +787,9 @@ fn draw_contacts(_nf: &NarrowPhase, _colliders: &ColliderSet) {
 fn setup_graphics_environment(mut commands: Commands) {
     let lights = [
         Vec3::new(100.0, 100.0, 100.0),
-        Vec3::new(100.0, 100.0, -100.0),
-        Vec3::new(-100.0, 100.0, -100.0),
-        Vec3::new(-100.0, 100.0, 100.0),
+        // Vec3::new(100.0, 100.0, -100.0),
+        // Vec3::new(-100.0, 100.0, -100.0),
+        // Vec3::new(-100.0, 100.0, 100.0),
     ];
 
     for light in lights.iter() {
