@@ -51,7 +51,7 @@ fn prismatic_repro(
         let (stiffness, damping) = (0.05, 0.2);
         prismatic.configure_motor_position(0.0, stiffness, damping);
 
-        joints.insert(bodies, box_rb, wheel_rb, prismatic);
+        joints.insert(box_rb, wheel_rb, prismatic);
     }
 
     // put a small box under one of the wheels

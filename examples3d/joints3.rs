@@ -46,7 +46,7 @@ fn create_prismatic_joints(
         prism.limits[0] = -2.0;
         prism.limits[1] = 2.0;
 
-        joints.insert(bodies, curr_parent, curr_child, prism);
+        joints.insert(curr_parent, curr_child, prism);
 
         curr_parent = curr_child;
     }
@@ -113,7 +113,7 @@ fn create_actuated_prismatic_joints(
             prism.limits[1] = 5.0;
         }
 
-        joints.insert(bodies, curr_parent, curr_child, prism);
+        joints.insert(curr_parent, curr_child, prism);
 
         curr_parent = curr_child;
     }
@@ -168,10 +168,10 @@ fn create_revolute_joints(
             RevoluteJoint::new(o, x, point![shift, 0.0, 0.0], x),
         ];
 
-        joints.insert(bodies, curr_parent, handles[0], revs[0]);
-        joints.insert(bodies, handles[0], handles[1], revs[1]);
-        joints.insert(bodies, handles[1], handles[2], revs[2]);
-        joints.insert(bodies, handles[2], handles[3], revs[3]);
+        joints.insert(curr_parent, handles[0], revs[0]);
+        joints.insert(handles[0], handles[1], revs[1]);
+        joints.insert(handles[1], handles[2], revs[2]);
+        joints.insert(handles[2], handles[3], revs[3]);
 
         curr_parent = handles[3];
     }
@@ -221,7 +221,7 @@ fn create_fixed_joints(
                     Isometry::identity(),
                     Isometry::translation(0.0, 0.0, -shift),
                 );
-                joints.insert(bodies, parent_handle, child_handle, joint);
+                joints.insert(parent_handle, child_handle, joint);
             }
 
             // Horizontal joint.
@@ -232,7 +232,7 @@ fn create_fixed_joints(
                     Isometry::identity(),
                     Isometry::translation(-shift, 0.0, 0.0),
                 );
-                joints.insert(bodies, parent_handle, child_handle, joint);
+                joints.insert(parent_handle, child_handle, joint);
             }
 
             body_handles.push(child_handle);
@@ -273,7 +273,7 @@ fn create_ball_joints(
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
                 let joint = BallJoint::new(Point::origin(), point![0.0, 0.0, -shift * 2.0]);
-                joints.insert(bodies, parent_handle, child_handle, joint);
+                joints.insert(parent_handle, child_handle, joint);
             }
 
             // Horizontal joint.
@@ -281,7 +281,7 @@ fn create_ball_joints(
                 let parent_index = body_handles.len() - num;
                 let parent_handle = body_handles[parent_index];
                 let joint = BallJoint::new(Point::origin(), point![-shift, 0.0, 0.0]);
-                joints.insert(bodies, parent_handle, child_handle, joint);
+                joints.insert(parent_handle, child_handle, joint);
             }
 
             body_handles.push(child_handle);
@@ -348,7 +348,7 @@ fn create_actuated_revolute_joints(
                 joint.configure_motor_velocity(-2.0, 0.1);
             }
 
-            joints.insert(bodies, parent_handle, child_handle, joint);
+            joints.insert(parent_handle, child_handle, joint);
         }
 
         parent_handle = child_handle;
@@ -406,7 +406,7 @@ fn create_actuated_ball_joints(
                 );
             }
 
-            joints.insert(bodies, parent_handle, child_handle, joint);
+            joints.insert(parent_handle, child_handle, joint);
         }
 
         parent_handle = child_handle;
