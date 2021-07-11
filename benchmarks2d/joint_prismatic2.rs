@@ -51,7 +51,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 prism.limits_enabled = true;
                 prism.limits[0] = -1.5;
                 prism.limits[1] = 1.5;
-                joints.insert(&mut bodies, curr_parent, curr_child, prism);
+                joints.insert(curr_parent, curr_child, prism);
 
                 curr_parent = curr_child;
             }

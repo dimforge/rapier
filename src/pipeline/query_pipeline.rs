@@ -35,7 +35,7 @@ pub struct QueryPipeline {
         serde(skip, default = "crate::geometry::default_query_dispatcher")
     )]
     query_dispatcher: Arc<dyn QueryDispatcher>,
-    quadtree: QBVH<ColliderHandle>,
+    qbvh: QBVH<ColliderHandle>,
     tree_built: bool,
     dilation_factor: Real,
 }
@@ -98,8 +98,8 @@ where
         self.map_typed_part_at(shape_id, f);
     }
 
-    fn typed_quadtree(&self) -> &QBVH<ColliderHandle> {
-        &self.query_pipeline.quadtree
+    fn typed_qbvh(&self) -> &QBVH<ColliderHandle> {
+        &self.query_pipeline.qbvh
     }
 }
 
@@ -139,7 +139,7 @@ impl QueryPipeline {
     {
         Self {
             query_dispatcher: Arc::new(d),
-            quadtree: QBVH::new(),
+            qbvh: QBVH::new(),
             tree_built: false,
             dilation_factor: 0.01,
         }
@@ -285,8 +285,7 @@ impl QueryPipeline {
                 colliders,
                 mode,
             };
-            self.quadtree
-                .clear_and_rebuild(generator, self.dilation_factor);
+            self.qbvh.clear_and_rebuild(generator, self.dilation_factor);
 
             // FIXME: uncomment this once we handle insertion/removals properly.
             // self.tree_built = true;
@@ -296,13 +295,13 @@ impl QueryPipeline {
         for handle in islands.iter_active_bodies() {
             let body_colliders: &RigidBodyColliders = bodies.index(handle.0);
             for handle in &body_colliders.0 {
-                self.quadtree.pre_update(*handle)
+                self.qbvh.pre_update(*handle)
             }
         }
 
         match mode {
             QueryPipelineMode::CurrentPosition => {
-                self.quadtree.update(
+                self.qbvh.update(
                     |handle| {
                         let (co_pos, co_shape): (&ColliderPosition, &ColliderShape) =
                             colliders.index_bundle(handle.0);
@@ -312,7 +311,7 @@ impl QueryPipeline {
                 );
             }
             QueryPipelineMode::SweepTestWithNextPosition => {
-                self.quadtree.update(
+                self.qbvh.update(
                     |handle| {
                         let co_parent: Option<&ColliderParent> = colliders.get(handle.0);
                         let (co_pos, co_shape): (&ColliderPosition, &ColliderShape) =
@@ -330,7 +329,7 @@ impl QueryPipeline {
                 );
             }
             QueryPipelineMode::SweepTestWithPredictedPosition { dt } => {
-                self.quadtree.update(
+                self.qbvh.update(
                     |handle| {
                         let co_parent: Option<&ColliderParent> = colliders.get(handle.0);
                         let (co_pos, co_shape): (&ColliderPosition, &ColliderShape) =
@@ -392,7 +391,7 @@ impl QueryPipeline {
         let mut visitor =
             RayCompositeShapeToiBestFirstVisitor::new(&pipeline_shape, ray, max_toi, solid);
 
-        self.quadtree.traverse_best_first(&mut visitor).map(|h| h.1)
+        self.qbvh.traverse_best_first(&mut visitor).map(|h| h.1)
     }
 
     /// Find the closest intersection between a ray and a set of collider.
@@ -432,7 +431,7 @@ impl QueryPipeline {
             solid,
         );
 
-        self.quadtree.traverse_best_first(&mut visitor).map(|h| h.1)
+        self.qbvh.traverse_best_first(&mut visitor).map(|h| h.1)
     }
 
     /// Find the all intersections between a ray and a set of collider and passes them to a callback.
@@ -486,7 +485,7 @@ impl QueryPipeline {
         };
 
         let mut visitor = RayIntersectionsVisitor::new(ray, max_toi, &mut leaf_callback);
-        self.quadtree.traverse_depth_first(&mut visitor);
+        self.qbvh.traverse_depth_first(&mut visitor);
     }
 
     /// Gets the handle of up to one collider intersecting the given shape.
@@ -521,7 +520,7 @@ impl QueryPipeline {
             shape,
         );
 
-        self.quadtree
+        self.qbvh
             .traverse_best_first(&mut visitor)
             .map(|h| (h.1 .0))
     }
@@ -558,7 +557,7 @@ impl QueryPipeline {
         let mut visitor =
             PointCompositeShapeProjBestFirstVisitor::new(&pipeline_shape, point, solid);
 
-        self.quadtree
+        self.qbvh
             .traverse_best_first(&mut visitor)
             .map(|h| (h.1 .1, h.1 .0))
     }
@@ -607,7 +606,7 @@ impl QueryPipeline {
 
         let mut visitor = PointIntersectionsVisitor::new(point, &mut leaf_callback);
 
-        self.quadtree.traverse_depth_first(&mut visitor);
+        self.qbvh.traverse_depth_first(&mut visitor);
     }
 
     /// Find the projection of a point on the closest collider.
@@ -642,7 +641,7 @@ impl QueryPipeline {
         let pipeline_shape = self.as_composite_shape(colliders, query_groups, filter);
         let mut visitor =
             PointCompositeShapeProjWithFeatureBestFirstVisitor::new(&pipeline_shape, point, false);
-        self.quadtree
+        self.qbvh
             .traverse_best_first(&mut visitor)
             .map(|h| (h.1 .1 .0, h.1 .0, h.1 .1 .1))
     }
@@ -654,7 +653,7 @@ impl QueryPipeline {
         mut callback: impl FnMut(&ColliderHandle) -> bool,
     ) {
         let mut visitor = BoundingVolumeIntersectionsVisitor::new(aabb, &mut callback);
-        self.quadtree.traverse_depth_first(&mut visitor);
+        self.qbvh.traverse_depth_first(&mut visitor);
     }
 
     /// Casts a shape at a constant linear velocity and retrieve the first collider it hits.
@@ -698,7 +697,7 @@ impl QueryPipeline {
             shape,
             max_toi,
         );
-        self.quadtree.traverse_best_first(&mut visitor).map(|h| h.1)
+        self.qbvh.traverse_best_first(&mut visitor).map(|h| h.1)
     }
 
     /// Casts a shape with an arbitrary continuous motion and retrieve the first collider it hits.
@@ -749,7 +748,7 @@ impl QueryPipeline {
             end_time,
             stop_at_penetration,
         );
-        self.quadtree.traverse_best_first(&mut visitor).map(|h| h.1)
+        self.qbvh.traverse_best_first(&mut visitor).map(|h| h.1)
     }
 
     /// Retrieve all the colliders intersecting the given shape.
@@ -805,6 +804,6 @@ impl QueryPipeline {
         let shape_aabb = shape.compute_aabb(shape_pos);
         let mut visitor = BoundingVolumeIntersectionsVisitor::new(&shape_aabb, &mut leaf_callback);
 
-        self.quadtree.traverse_depth_first(&mut visitor);
+        self.qbvh.traverse_depth_first(&mut visitor);
     }
 }

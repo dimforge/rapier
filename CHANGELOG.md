@@ -1,3 +1,12 @@
+## v0.10.0
+### Added
+- Implement `Clone` for `IslandManager`.
+
+### Modified
+- `JointSet::insert` no longer takes the rigid-body set in its arguments.
+- Modify the testbed's plugin system to let plugins interact with the rendering.
+- Implement `PartialEq` for most collider and rigid-body components.
+
 ## v0.9.2
 ### Added
 - Make the method JointSet::remove_joints_attached_to_rigid_body public so that it can can be called externally for

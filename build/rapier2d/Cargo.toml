@@ -1,6 +1,6 @@
 [package]
 name    = "rapier2d"
-version = "0.9.2"
+version = "0.10.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "2-dimensional physics engine in Rust."
 documentation = "http://docs.rs/rapier2d"
@@ -47,8 +47,8 @@ required-features = [ "dim2", "f32" ]
 vec_map = { version = "0.8", optional = true }
 instant = { version = "0.1", features = [ "now" ]}
 num-traits = "0.2"
-nalgebra = "0.27"
-parry2d = "0.5"
+nalgebra = "0.28"
+parry2d = "0.6"
 simba = "0.5"
 approx = "0.5"
 rayon = { version = "1", optional = true }

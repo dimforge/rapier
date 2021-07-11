@@ -53,7 +53,7 @@ pub fn init_world(testbed: &mut Testbed) {
                                 Isometry::identity(),
                                 Isometry::translation(0.0, 0.0, -shift),
                             );
-                            joints.insert(&mut bodies, parent_handle, child_handle, joint);
+                            joints.insert(parent_handle, child_handle, joint);
                         }
 
                         // Horizontal joint.
@@ -64,7 +64,7 @@ pub fn init_world(testbed: &mut Testbed) {
                                 Isometry::identity(),
                                 Isometry::translation(-shift, 0.0, 0.0),
                             );
-                            joints.insert(&mut bodies, parent_handle, child_handle, joint);
+                            joints.insert(parent_handle, child_handle, joint);
                         }
 
                         body_handles.push(child_handle);

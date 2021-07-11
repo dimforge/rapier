@@ -61,10 +61,10 @@ pub fn init_world(testbed: &mut Testbed) {
                     RevoluteJoint::new(o, x, point![shift, 0.0, 0.0], x),
                 ];
 
-                joints.insert(&mut bodies, curr_parent, handles[0], revs[0]);
-                joints.insert(&mut bodies, handles[0], handles[1], revs[1]);
-                joints.insert(&mut bodies, handles[1], handles[2], revs[2]);
-                joints.insert(&mut bodies, handles[2], handles[3], revs[3]);
+                joints.insert(curr_parent, handles[0], revs[0]);
+                joints.insert(handles[0], handles[1], revs[1]);
+                joints.insert(handles[1], handles[2], revs[2]);
+                joints.insert(handles[2], handles[3], revs[3]);
 
                 curr_parent = handles[3];
             }

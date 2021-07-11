@@ -42,7 +42,7 @@ pub fn init_world(testbed: &mut Testbed) {
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
                 let joint = BallJoint::new(Point::origin(), point![0.0, shift]);
-                joints.insert(&mut bodies, parent_handle, child_handle, joint);
+                joints.insert(parent_handle, child_handle, joint);
             }
 
             // Horizontal joint.
@@ -50,7 +50,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 let parent_index = body_handles.len() - numi;
                 let parent_handle = body_handles[parent_index];
                 let joint = BallJoint::new(Point::origin(), point![-shift, 0.0]);
-                joints.insert(&mut bodies, parent_handle, child_handle, joint);
+                joints.insert(parent_handle, child_handle, joint);
             }
 
             body_handles.push(child_handle);

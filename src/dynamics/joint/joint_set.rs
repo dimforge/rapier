@@ -172,7 +172,6 @@ impl JointSet {
     /// Inserts a new joint into this set and retrieve its handle.
     pub fn insert<J>(
         &mut self,
-        _bodies: &mut impl ComponentSetMut<RigidBodyIds>, // FIXME: remove this argument, this is no longer necessary.
         body1: RigidBodyHandle,
         body2: RigidBodyHandle,
         joint_params: J,
