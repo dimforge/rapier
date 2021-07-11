@@ -924,6 +924,10 @@ fn update_testbed(
                 .set(TestbedActionFlags::EXAMPLE_CHANGED, false);
             clear(&mut commands, &mut state, &mut graphics, &mut plugins);
             harness.clear_callbacks();
+            for plugin in (*plugins).0.iter_mut() {
+                plugin.clear_graphics(&mut graphics, &mut commands);
+            }
+            (*plugins).0.clear();
 
             if state.selected_example != prev_example {
                 harness.physics.integration_parameters = IntegrationParameters::default();
