@@ -1,3 +1,9 @@
+## v0.10.1
+### Added
+- Add `Collider::set_translation_wrt_parent` to change the translation of a collider wrt. its parent rigid-body.
+- Add `Collider::set_rotation_wrt_parent` to change the translation of a collider wrt. its parent rigid-body.
+
+
 ## v0.10.0
 ### Added
 - Implement `Clone` for `IslandManager`.
