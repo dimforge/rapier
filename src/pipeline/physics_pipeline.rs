@@ -135,9 +135,6 @@ impl PhysicsPipeline {
                 events,
             );
         }
-        println!("A time: {}", instant::now() - t0);
-        let t0 = instant::now();
-        println!("Num BF events: {}", self.broad_phase_events.len());
         narrow_phase.register_pairs(
             Some(islands),
             colliders,
@@ -145,7 +142,6 @@ impl PhysicsPipeline {
             &self.broad_phase_events,
             events,
         );
-        println!("B time: {}", instant::now() - t0);
 
         narrow_phase.compute_contacts(
             integration_parameters.prediction_distance,
@@ -262,6 +258,31 @@ impl PhysicsPipeline {
             bodies,
             &mut manifolds,
             &mut self.manifold_indices,
+        );
+
+        let error: Real = manifolds
+            .iter()
+            .flat_map(|m| m.data.solver_contacts.iter())
+            .map(|ctct| ctct.dist)
+            .filter(|e| *e < 0.0)
+            .map(|e| e.abs())
+            .sum();
+        let mut max_error = 0.0;
+        for e in manifolds
+            .iter()
+            .flat_map(|m| m.data.solver_contacts.iter())
+            .map(|ctct| ctct.dist)
+            .filter(|e| *e < 0.0)
+            .map(|e| e.abs())
+        {
+            if e > max_error {
+                max_error = e;
+            }
+        }
+
+        println!(
+            ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Penetration errors: {}",
+            error
         );
         joints.select_active_interactions(islands, bodies, &mut self.joint_constraint_indices);
 
