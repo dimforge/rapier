@@ -7,7 +7,7 @@ use crate::math::{Point, Real, Rotation, Vector};
 pub struct BallJoint {
     /// Where the ball joint is attached on the first body, expressed in the first body local frame.
     pub local_anchor1: Point<Real>,
-    /// Where the ball joint is attached on the first body, expressed in the first body local frame.
+    /// Where the ball joint is attached on the second body, expressed in the second body local frame.
     pub local_anchor2: Point<Real>,
     /// The impulse applied by this joint on the first body.
     ///
