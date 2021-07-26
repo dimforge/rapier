@@ -7,6 +7,8 @@
 //! - The ability to snapshot the state of the physics engine, and restore it later.
 //! - The ability to run a perfectly deterministic simulation on different machine, as long as they
 //! are compliant with the IEEE 754-2008 floating point standard.
+//!
+//! User documentation for Rapier is on [the official Rapier site](https://rapier.rs/docs/).
 
 #![deny(bare_trait_objects)]
 #![warn(missing_docs)]
