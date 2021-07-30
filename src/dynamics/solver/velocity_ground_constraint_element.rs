@@ -15,7 +15,7 @@ pub(crate) struct VelocityGroundConstraintTangentPart<N: SimdRealField> {
 }
 
 impl<N: SimdRealField> VelocityGroundConstraintTangentPart<N> {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "simd-is-enabled"))]
     fn zero() -> Self {
         Self {
             gcross2: [na::zero(); DIM - 1],
@@ -104,7 +104,7 @@ pub(crate) struct VelocityGroundConstraintNormalPart<N: SimdRealField> {
 }
 
 impl<N: SimdRealField> VelocityGroundConstraintNormalPart<N> {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "simd-is-enabled"))]
     fn zero() -> Self {
         Self {
             gcross2: na::zero(),
@@ -143,7 +143,7 @@ pub(crate) struct VelocityGroundConstraintElement<N: SimdRealField> {
 }
 
 impl<N: SimdRealField> VelocityGroundConstraintElement<N> {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(any(not(target_arch = "wasm32"), feature = "simd-is-enabled"))]
     pub fn zero() -> Self {
         Self {
             normal_part: VelocityGroundConstraintNormalPart::zero(),

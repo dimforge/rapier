@@ -60,3 +60,18 @@ jobs:
         run: cd build/rapier2d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
       - name: build rapier3d
         run: cd build/rapier3d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
+  build-wasm-emscripten:
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v2
+      - run: rustup target add wasm32-unknown-emscripten
+      - name: build rapier2d
+        run: cd build/rapier2d && cargo build --verbose --target wasm32-unknown-emscripten;
+      - name: build rapier3d
+        run: cd build/rapier3d && cargo build --verbose --target wasm32-unknown-emscripten;
+      - name: build rapier2d --features simd-stable
+        run: cd build/rapier2d && cargo build --verbose --target wasm32-unknown-emscripten --features simd-stable;
+      - name: build rapier3d --features simd-stable
+        run: cd build/rapier3d && cargo build --verbose --target wasm32-unknown-emscripten --features simd-stable;
