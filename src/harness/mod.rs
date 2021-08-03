@@ -59,13 +59,14 @@ impl RunState {
 
 /// The run harness that manages the physics state, physics events, and stepping
 pub struct Harness {
-    /// The Physics State at this point in time
+    /// The [PhysicsState] at this point in time
     pub physics: PhysicsState,
-    /// The run state at this point in time
+    /// The [RunState] at this point in time
     pub run_state: RunState,
     #[cfg(feature = "parallel")]
+    /// The [ThreadState] of the simulation
     pub thread_state: ThreadState,
-    /// The physics events for this system
+    /// The [PhysicsEvents] for the simulation
     pub events: PhysicsEvents,
     event_handler: ChannelEventCollector,
     max_steps: usize,
