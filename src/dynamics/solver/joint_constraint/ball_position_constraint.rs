@@ -119,19 +119,18 @@ impl BallPositionConstraint {
             let axis2 = position2 * self.limits_local_axis2;
 
             #[cfg(feature = "dim2")]
-                let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).axis_angle();
+            let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).axis_angle();
             #[cfg(feature = "dim3")]
-                let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle());
+            let axis_angle =
+                Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle());
 
             // TODO: handle the case where dot(axis1, axis2) = -1.0
-            if let Some((axis, angle)) = axis_angle
-            {
-
+            if let Some((axis, angle)) = axis_angle {
                 if angle >= self.limits_angle {
                     #[cfg(feature = "dim2")]
-                        let axis = axis[0];
+                    let axis = axis[0];
                     #[cfg(feature = "dim3")]
-                        let axis = axis.into_inner();
+                    let axis = axis.into_inner();
                     let ang_error = angle - self.limits_angle;
                     let ang_impulse = self
                         .inv_ii1_ii2
@@ -242,19 +241,19 @@ impl BallPositionGroundConstraint {
             let axis2 = position2 * self.limits_local_axis2;
 
             #[cfg(feature = "dim2")]
-                let axis_angle = Rotation::rotation_between_axis(&axis2, &self.limits_axis1).axis_angle();
+            let axis_angle =
+                Rotation::rotation_between_axis(&axis2, &self.limits_axis1).axis_angle();
             #[cfg(feature = "dim3")]
-                let axis_angle = Rotation::rotation_between_axis(&axis2, &self.limits_axis1).and_then(|r| r.axis_angle());
+            let axis_angle = Rotation::rotation_between_axis(&axis2, &self.limits_axis1)
+                .and_then(|r| r.axis_angle());
 
             // TODO: handle the case where dot(axis1, axis2) = -1.0
-            if let Some((axis, angle)) = axis_angle
-            {
-
+            if let Some((axis, angle)) = axis_angle {
                 if angle >= self.limits_angle {
                     #[cfg(feature = "dim2")]
-                        let axis = axis[0];
+                    let axis = axis[0];
                     #[cfg(feature = "dim3")]
-                        let axis = axis.into_inner();
+                    let axis = axis.into_inner();
                     let ang_error = angle - self.limits_angle;
                     let ang_correction = axis * ang_error * params.joint_erp;
                     position2.rotation = Rotation::new(ang_correction) * position2.rotation;

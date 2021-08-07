@@ -183,19 +183,18 @@ impl BallVelocityConstraint {
             let axis2 = rb_pos2.position * joint.limits_local_axis2;
 
             #[cfg(feature = "dim2")]
-                let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).axis_angle();
+            let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).axis_angle();
             #[cfg(feature = "dim3")]
-                let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle());
+            let axis_angle =
+                Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle());
 
             // TODO: handle the case where dot(axis1, axis2) = -1.0
-            if let Some((axis, angle)) = axis_angle
-            {
-
+            if let Some((axis, angle)) = axis_angle {
                 if angle >= joint.limits_angle {
                     #[cfg(feature = "dim2")]
-                        let axis = axis[0];
+                    let axis = axis[0];
                     #[cfg(feature = "dim3")]
-                        let axis = axis.into_inner();
+                    let axis = axis.into_inner();
 
                     limits_active = true;
                     limits_rhs = (rb_vels2.angvel.gdot(axis) - rb_vels1.angvel.gdot(axis))
@@ -526,19 +525,18 @@ impl BallVelocityGroundConstraint {
             };
 
             #[cfg(feature = "dim2")]
-                let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).axis_angle();
+            let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).axis_angle();
             #[cfg(feature = "dim3")]
-                let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle());
+            let axis_angle =
+                Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle());
 
             // TODO: handle the case where dot(axis1, axis2) = -1.0
-            if let Some((axis, angle)) = axis_angle
-            {
-
+            if let Some((axis, angle)) = axis_angle {
                 if angle >= joint.limits_angle {
                     #[cfg(feature = "dim2")]
-                        let axis = axis[0];
+                    let axis = axis[0];
                     #[cfg(feature = "dim3")]
-                        let axis = axis.into_inner();
+                    let axis = axis.into_inner();
 
                     limits_active = true;
                     limits_rhs = (rb_vels2.angvel.gdot(axis) - rb_vels1.angvel.gdot(axis))
