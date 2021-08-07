@@ -24,6 +24,15 @@ pub struct RevoluteJoint {
     /// The impulse applied to the second body is given by `-impulse`.
     pub impulse: Vector5<Real>,
 
+    /// Whether or not this joint should enforce translational limits along its axis.
+    pub limits_enabled: bool,
+    /// The min an max relative position of the attached bodies along this joint's axis.
+    pub limits: [Real; 2],
+    /// The impulse applied by this joint on the first body to enforce the position limit along this joint's axis.
+    ///
+    /// The impulse applied to the second body is given by `-impulse`.
+    pub limits_impulse: Real,
+
     /// The target relative angular velocity the motor will attempt to reach.
     pub motor_target_vel: Real,
     /// The target relative angle along the joint axis the motor will attempt to reach.
@@ -67,6 +76,9 @@ impl RevoluteJoint {
             basis2: local_axis2.orthonormal_basis(),
             impulse: na::zero(),
             world_ang_impulse: na::zero(),
+            limits_enabled: false,
+            limits: [-Real::MAX, Real::MAX],
+            limits_impulse: 0.0,
             motor_target_vel: 0.0,
             motor_target_pos: 0.0,
             motor_stiffness: 0.0,
@@ -82,7 +94,9 @@ impl RevoluteJoint {
     /// Can a SIMD constraint be used for resolving this joint?
     pub fn supports_simd_constraints(&self) -> bool {
         // SIMD revolute constraints don't support motors right now.
-        self.motor_max_impulse == 0.0 || (self.motor_stiffness == 0.0 && self.motor_damping == 0.0)
+        !self.limits_enabled
+            && (self.motor_max_impulse == 0.0
+                || (self.motor_stiffness == 0.0 && self.motor_damping == 0.0))
     }
 
     /// Set the spring-like model used by the motor to reach the desired target velocity and position.
@@ -120,21 +134,31 @@ impl RevoluteJoint {
         body_pos1: &Isometry<Real>,
         body_pos2: &Isometry<Real>,
     ) -> Real {
-        let motor_axis1 = body_pos1 * self.local_axis1;
-        let ref1 = body_pos1 * self.basis1[0];
-        let ref2 = body_pos2 * self.basis2[0];
+        Self::estimate_motor_angle_from_params(
+            &(body_pos1 * self.local_axis1),
+            &(body_pos1 * self.basis1[0]),
+            &(body_pos2 * self.basis2[0]),
+            self.motor_last_angle,
+        )
+    }
 
-        let last_angle_cycles = (self.motor_last_angle / Real::two_pi()).trunc() * Real::two_pi();
+    pub fn estimate_motor_angle_from_params(
+        axis1: &Unit<Vector<Real>>,
+        tangent1: &Vector<Real>,
+        tangent2: &Vector<Real>,
+        motor_last_angle: Real,
+    ) -> Real {
+        let last_angle_cycles = (motor_last_angle / Real::two_pi()).trunc() * Real::two_pi();
 
         // Measure the position between 0 and 2-pi
-        let new_angle = if ref1.cross(&ref2).dot(&motor_axis1) < 0.0 {
-            Real::two_pi() - ref1.angle(&ref2)
+        let new_angle = if tangent1.cross(&tangent2).dot(&axis1) < 0.0 {
+            Real::two_pi() - tangent1.angle(&tangent2)
         } else {
-            ref1.angle(&ref2)
+            tangent1.angle(&tangent2)
         };
 
         // The last angle between 0 and 2-pi
-        let last_angle_zero_two_pi = self.motor_last_angle - last_angle_cycles;
+        let last_angle_zero_two_pi = motor_last_angle - last_angle_cycles;
 
         // Figure out the smallest angle differance.
         let mut angle_diff = new_angle - last_angle_zero_two_pi;
@@ -144,6 +168,6 @@ impl RevoluteJoint {
             angle_diff += Real::two_pi()
         }
 
-        self.motor_last_angle + angle_diff
+        motor_last_angle + angle_diff
     }
 }

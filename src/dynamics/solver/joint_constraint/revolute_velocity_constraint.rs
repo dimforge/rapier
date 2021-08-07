@@ -30,6 +30,12 @@ pub(crate) struct RevoluteVelocityConstraint {
     motor_axis1: Vector<Real>,
     motor_axis2: Vector<Real>,
 
+    limits_active: bool,
+    limits_impulse: Real,
+    limits_rhs: Real,
+    limits_inv_lhs: Real,
+    limits_impulse_limits: (Real, Real),
+
     basis1: Matrix3x2<Real>,
     basis2: Matrix3x2<Real>,
 
@@ -145,8 +151,11 @@ impl RevoluteVelocityConstraint {
             joint.motor_damping,
         );
 
-        if stiffness != 0.0 {
+        if stiffness != 0.0 || joint.limits_enabled {
             motor_angle = joint.estimate_motor_angle(&poss1.position, &poss2.position);
+        }
+
+        if stiffness != 0.0 {
             motor_rhs += (motor_angle - joint.motor_target_pos) * stiffness;
         }
 
@@ -165,6 +174,47 @@ impl RevoluteVelocityConstraint {
                 gamma
             };
             motor_rhs /= gamma;
+        }
+
+        /*
+         * Setup limit constraint.
+         */
+        let mut limits_active = false;
+        let mut limits_rhs = 0.0;
+        let mut limits_inv_lhs = 0.0;
+        let mut limits_impulse_limits = (0.0, 0.0);
+        let mut limits_impulse = 0.0;
+
+        if joint.limits_enabled {
+            // TODO: we should allow predictive constraint activation.
+
+            let (min_limit, max_limit) = (joint.limits[0], joint.limits[1]);
+            let min_enabled = motor_angle < min_limit;
+            let max_enabled = max_limit < motor_angle;
+
+            limits_impulse_limits.0 = if max_enabled { -Real::INFINITY } else { 0.0 };
+            limits_impulse_limits.1 = if min_enabled { Real::INFINITY } else { 0.0 };
+            limits_active = min_enabled || max_enabled;
+
+            if limits_active {
+                limits_rhs = (vels2.angvel.dot(&motor_axis2) - vels1.angvel.dot(&motor_axis1))
+                    * params.velocity_solve_fraction;
+
+                limits_rhs += ((motor_angle - max_limit).max(0.0)
+                    - (min_limit - motor_angle).max(0.0))
+                    * velocity_based_erp_inv_dt;
+
+                limits_inv_lhs = crate::utils::inv(
+                    motor_axis2.dot(&ii2.transform_vector(motor_axis2))
+                        + motor_axis1.dot(&ii1.transform_vector(motor_axis1)),
+                );
+
+                limits_impulse = joint
+                    .limits_impulse
+                    .max(limits_impulse_limits.0)
+                    .min(limits_impulse_limits.1)
+                    * params.warmstart_coeff;
+            }
         }
 
         /*
@@ -205,6 +255,11 @@ impl RevoluteVelocityConstraint {
             motor_axis2,
             motor_impulse,
             motor_angle,
+            limits_impulse,
+            limits_impulse_limits,
+            limits_active,
+            limits_inv_lhs,
+            limits_rhs,
         }
     }
 
@@ -228,7 +283,7 @@ impl RevoluteVelocityConstraint {
             .transform_vector(ang_impulse2 + self.r2.gcross(lin_impulse2));
 
         /*
-         * Motor
+         * Warmstart motor.
          */
         if self.motor_inv_lhs != 0.0 {
             mj_lambda1.angular += self
@@ -237,6 +292,14 @@ impl RevoluteVelocityConstraint {
             mj_lambda2.angular -= self
                 .ii2_sqrt
                 .transform_vector(self.motor_axis2 * self.motor_impulse);
+        }
+
+        // Warmstart limits.
+        if self.limits_active {
+            let limit_impulse1 = -self.motor_axis2 * self.limits_impulse;
+            let limit_impulse2 = self.motor_axis2 * self.limits_impulse;
+            mj_lambda1.angular += self.ii1_sqrt.transform_vector(limit_impulse1);
+            mj_lambda2.angular += self.ii2_sqrt.transform_vector(limit_impulse2);
         }
 
         mj_lambdas[self.mj_lambda1 as usize] = mj_lambda1;
@@ -270,6 +333,31 @@ impl RevoluteVelocityConstraint {
             .transform_vector(ang_impulse2 + self.r2.gcross(lin_impulse2));
     }
 
+    fn solve_limits(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
+        if self.limits_active {
+            let limits_torquedir1 = -self.motor_axis2;
+            let limits_torquedir2 = self.motor_axis2;
+
+            let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
+            let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+
+            let ang_dvel = limits_torquedir1.dot(&ang_vel1)
+                + limits_torquedir2.dot(&ang_vel2)
+                + self.limits_rhs;
+            let new_impulse = (self.limits_impulse - ang_dvel * self.limits_inv_lhs)
+                .max(self.limits_impulse_limits.0)
+                .min(self.limits_impulse_limits.1);
+            let dimpulse = new_impulse - self.limits_impulse;
+            self.limits_impulse = new_impulse;
+
+            let ang_impulse1 = limits_torquedir1 * dimpulse;
+            let ang_impulse2 = limits_torquedir2 * dimpulse;
+
+            mj_lambda1.angular += self.ii1_sqrt.transform_vector(ang_impulse1);
+            mj_lambda2.angular += self.ii2_sqrt.transform_vector(ang_impulse2);
+        }
+    }
+
     fn solve_motors(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
         if self.motor_inv_lhs != 0.0 {
             let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
@@ -294,6 +382,7 @@ impl RevoluteVelocityConstraint {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
+        self.solve_limits(&mut mj_lambda1, &mut mj_lambda2);
         self.solve_dofs(&mut mj_lambda1, &mut mj_lambda2);
         self.solve_motors(&mut mj_lambda1, &mut mj_lambda2);
 
@@ -310,6 +399,7 @@ impl RevoluteVelocityConstraint {
             revolute.prev_axis1 = self.motor_axis1;
             revolute.motor_last_angle = self.motor_angle;
             revolute.motor_impulse = self.motor_impulse;
+            revolute.limits_impulse = self.limits_impulse;
         }
     }
 }
@@ -332,6 +422,12 @@ pub(crate) struct RevoluteVelocityGroundConstraint {
     motor_impulse: Real,
     motor_max_impulse: Real,
     motor_angle: Real, // Exists just for writing it into the joint.
+
+    limits_active: bool,
+    limits_impulse: Real,
+    limits_rhs: Real,
+    limits_inv_lhs: Real,
+    limits_impulse_limits: (Real, Real),
 
     basis2: Matrix3x2<Real>,
 
@@ -458,8 +554,11 @@ impl RevoluteVelocityGroundConstraint {
             joint.motor_damping,
         );
 
-        if stiffness != 0.0 {
+        if stiffness != 0.0 || joint.limits_enabled {
             motor_angle = joint.estimate_motor_angle(&poss1.position, &poss2.position);
+        }
+
+        if stiffness != 0.0 {
             motor_rhs += (motor_angle - joint.motor_target_pos) * stiffness;
         }
 
@@ -480,6 +579,43 @@ impl RevoluteVelocityGroundConstraint {
         let motor_impulse = na::clamp(joint.motor_impulse, -motor_max_impulse, motor_max_impulse)
             * params.warmstart_coeff;
 
+        /*
+         * Setup limit constraint.
+         */
+        let mut limits_active = false;
+        let mut limits_rhs = 0.0;
+        let mut limits_inv_lhs = 0.0;
+        let mut limits_impulse_limits = (0.0, 0.0);
+        let mut limits_impulse = 0.0;
+
+        if joint.limits_enabled {
+            // TODO: we should allow predictive constraint activation.
+            let (min_limit, max_limit) = (joint.limits[0], joint.limits[1]);
+            let min_enabled = motor_angle < min_limit;
+            let max_enabled = max_limit < motor_angle;
+
+            limits_impulse_limits.0 = if max_enabled { -Real::INFINITY } else { 0.0 };
+            limits_impulse_limits.1 = if min_enabled { Real::INFINITY } else { 0.0 };
+            limits_active = min_enabled || max_enabled;
+
+            if limits_active {
+                limits_rhs = (vels2.angvel.dot(&axis2) - vels1.angvel.dot(&axis1))
+                    * params.velocity_solve_fraction;
+
+                limits_rhs += ((motor_angle - max_limit).max(0.0)
+                    - (min_limit - motor_angle).max(0.0))
+                    * velocity_based_erp_inv_dt;
+
+                limits_inv_lhs = crate::utils::inv(axis2.dot(&ii2.transform_vector(axis2)));
+
+                limits_impulse = joint
+                    .limits_impulse
+                    .max(limits_impulse_limits.0)
+                    .min(limits_impulse_limits.1)
+                    * params.warmstart_coeff;
+            }
+        }
+
         let result = RevoluteVelocityGroundConstraint {
             joint_id,
             mj_lambda2: ids2.active_set_offset,
@@ -496,6 +632,11 @@ impl RevoluteVelocityGroundConstraint {
             motor_max_impulse,
             motor_rhs,
             motor_angle,
+            limits_impulse,
+            limits_impulse_limits,
+            limits_active,
+            limits_inv_lhs,
+            limits_rhs,
         };
 
         AnyJointVelocityConstraint::RevoluteGroundConstraint(result)
@@ -521,6 +662,12 @@ impl RevoluteVelocityGroundConstraint {
                 .transform_vector(self.motor_axis2 * self.motor_impulse);
         }
 
+        // Warmstart limits.
+        if self.limits_active {
+            let limit_impulse2 = self.motor_axis2 * self.limits_impulse;
+            mj_lambda2.angular += self.ii2_sqrt.transform_vector(limit_impulse2);
+        }
+
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
@@ -540,6 +687,24 @@ impl RevoluteVelocityGroundConstraint {
         mj_lambda2.angular -= self
             .ii2_sqrt
             .transform_vector(ang_impulse + self.r2.gcross(lin_impulse));
+    }
+
+    fn solve_limits(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
+        if self.limits_active {
+            let limits_torquedir2 = self.motor_axis2;
+
+            let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+
+            let ang_dvel = limits_torquedir2.dot(&ang_vel2) + self.limits_rhs;
+            let new_impulse = (self.limits_impulse - ang_dvel * self.limits_inv_lhs)
+                .max(self.limits_impulse_limits.0)
+                .min(self.limits_impulse_limits.1);
+            let dimpulse = new_impulse - self.limits_impulse;
+            self.limits_impulse = new_impulse;
+
+            let ang_impulse2 = limits_torquedir2 * dimpulse;
+            mj_lambda2.angular += self.ii2_sqrt.transform_vector(ang_impulse2);
+        }
     }
 
     fn solve_motors(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
@@ -563,6 +728,7 @@ impl RevoluteVelocityGroundConstraint {
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
+        self.solve_limits(&mut mj_lambda2);
         self.solve_dofs(&mut mj_lambda2);
         self.solve_motors(&mut mj_lambda2);
 
@@ -576,6 +742,7 @@ impl RevoluteVelocityGroundConstraint {
             revolute.impulse = self.impulse;
             revolute.motor_impulse = self.motor_impulse;
             revolute.motor_last_angle = self.motor_angle;
+            revolute.limits_impulse = self.limits_impulse;
         }
     }
 }

@@ -256,8 +256,8 @@ impl PrismaticVelocityConstraint {
 
             limits_impulse_limits.0 = if max_enabled { -Real::INFINITY } else { 0.0 };
             limits_impulse_limits.1 = if min_enabled { Real::INFINITY } else { 0.0 };
-
             limits_active = min_enabled || max_enabled;
+
             if limits_active {
                 limits_rhs = (anchor_linvel2.dot(&axis2) - anchor_linvel1.dot(&axis1))
                     * params.velocity_solve_fraction;
