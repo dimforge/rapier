@@ -1,5 +1,5 @@
 use crate::dynamics::SpringModel;
-use crate::math::{Point, Real, Rotation, Vector};
+use crate::math::{Point, Real, Rotation, UnitVector, Vector};
 
 #[derive(Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -38,6 +38,17 @@ pub struct BallJoint {
     pub motor_impulse: Vector<Real>,
     /// The spring-like model used by the motor to reach the target velocity and .
     pub motor_model: SpringModel,
+
+    /// Are the limits enabled for this joint?
+    pub limits_enabled: bool,
+    /// The axis of the limit cone for this joint, if the local-space of the first body.
+    pub limits_local_axis1: UnitVector<Real>,
+    /// The axis of the limit cone for this joint, if the local-space of the first body.
+    pub limits_local_axis2: UnitVector<Real>,
+    /// The maximum angle allowed between the two limit axes in world-space.
+    pub limits_angle: Real,
+    /// The impulse applied to enforce joint limits.
+    pub limits_impulse: Real,
 }
 
 impl BallJoint {
@@ -62,13 +73,20 @@ impl BallJoint {
             motor_impulse: na::zero(),
             motor_max_impulse: Real::MAX,
             motor_model: SpringModel::default(),
+            limits_enabled: false,
+            limits_local_axis1: Vector::x_axis(),
+            limits_local_axis2: Vector::x_axis(),
+            limits_angle: Real::MAX,
+            limits_impulse: 0.0,
         }
     }
 
     /// Can a SIMD constraint be used for resolving this joint?
     pub fn supports_simd_constraints(&self) -> bool {
-        // SIMD ball constraints don't support motors right now.
-        self.motor_max_impulse == 0.0 || (self.motor_stiffness == 0.0 && self.motor_damping == 0.0)
+        // SIMD ball constraints don't support motors and limits right now.
+        !self.limits_enabled
+            && (self.motor_max_impulse == 0.0
+                || (self.motor_stiffness == 0.0 && self.motor_damping == 0.0))
     }
 
     /// Set the spring-like model used by the motor to reach the desired target velocity and position.
