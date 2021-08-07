@@ -4,7 +4,7 @@ use crate::dynamics::{
     RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
 };
 use crate::math::{AngVector, AngularInertia, Real, Rotation, SdpMatrix, Vector};
-use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
+use crate::utils::{WAngularInertia, WCross, WCrossMatrix, WDot};
 
 #[derive(Debug)]
 pub(crate) struct BallVelocityConstraint {
@@ -30,7 +30,7 @@ pub(crate) struct BallVelocityConstraint {
     limits_rhs: Real,
     limits_inv_lhs: Real,
     limits_impulse: Real,
-    limits_axis: Vector<Real>,
+    limits_axis: AngVector<Real>,
 
     im1: Real,
     im2: Real,
@@ -176,19 +176,29 @@ impl BallVelocityConstraint {
         let mut limits_rhs = 0.0;
         let mut limits_inv_lhs = 0.0;
         let mut limits_impulse = 0.0;
-        let mut limits_axis = Vector::zeros();
+        let mut limits_axis = na::zero();
 
         if joint.limits_enabled {
             let axis1 = rb_pos1.position * joint.limits_local_axis1;
             let axis2 = rb_pos2.position * joint.limits_local_axis2;
 
-            if let Some((axis, angle)) =
-                Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle())
+            #[cfg(feature = "dim2")]
+                let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).axis_angle();
+            #[cfg(feature = "dim3")]
+                let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle());
+
+            // TODO: handle the case where dot(axis1, axis2) = -1.0
+            if let Some((axis, angle)) = axis_angle
             {
-                // TODO: we should allow predictive constraint activation.
+
                 if angle >= joint.limits_angle {
+                    #[cfg(feature = "dim2")]
+                        let axis = axis[0];
+                    #[cfg(feature = "dim3")]
+                        let axis = axis.into_inner();
+
                     limits_active = true;
-                    limits_rhs = (rb_vels2.angvel.dot(&axis) - rb_vels1.angvel.dot(&axis))
+                    limits_rhs = (rb_vels2.angvel.gdot(axis) - rb_vels1.angvel.gdot(axis))
                         * params.velocity_solve_fraction;
 
                     limits_rhs += (angle - joint.limits_angle) * params.velocity_based_erp_inv_dt();
@@ -196,12 +206,12 @@ impl BallVelocityConstraint {
                     let ii1 = rb_mprops1.effective_world_inv_inertia_sqrt.squared();
                     let ii2 = rb_mprops2.effective_world_inv_inertia_sqrt.squared();
                     limits_inv_lhs = crate::utils::inv(
-                        axis.dot(&ii2.transform_vector(*axis))
-                            + axis.dot(&ii1.transform_vector(*axis)),
+                        axis.gdot(ii2.transform_vector(axis))
+                            + axis.gdot(ii1.transform_vector(axis)),
                     );
 
                     limits_impulse = joint.limits_impulse * params.warmstart_coeff;
-                    limits_axis = *axis;
+                    limits_axis = axis;
                 }
             }
         }
@@ -283,8 +293,8 @@ impl BallVelocityConstraint {
             let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
-            let ang_dvel = limits_torquedir1.dot(&ang_vel1)
-                + limits_torquedir2.dot(&ang_vel2)
+            let ang_dvel = limits_torquedir1.gdot(ang_vel1)
+                + limits_torquedir2.gdot(ang_vel2)
                 + self.limits_rhs;
             let new_impulse = (self.limits_impulse - ang_dvel * self.limits_inv_lhs).max(0.0);
             let dimpulse = new_impulse - self.limits_impulse;
@@ -362,7 +372,7 @@ pub(crate) struct BallVelocityGroundConstraint {
     limits_rhs: Real,
     limits_inv_lhs: Real,
     limits_impulse: Real,
-    limits_axis: Vector<Real>,
+    limits_axis: AngVector<Real>,
 
     im2: Real,
     ii2_sqrt: AngularInertia<Real>,
@@ -500,7 +510,7 @@ impl BallVelocityGroundConstraint {
         let mut limits_rhs = 0.0;
         let mut limits_inv_lhs = 0.0;
         let mut limits_impulse = 0.0;
-        let mut limits_axis = Vector::zeros();
+        let mut limits_axis = na::zero();
 
         if joint.limits_enabled {
             let (axis1, axis2) = if flipped {
@@ -515,21 +525,31 @@ impl BallVelocityGroundConstraint {
                 )
             };
 
-            if let Some((axis, angle)) =
-                Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle())
+            #[cfg(feature = "dim2")]
+                let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).axis_angle();
+            #[cfg(feature = "dim3")]
+                let axis_angle = Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle());
+
+            // TODO: handle the case where dot(axis1, axis2) = -1.0
+            if let Some((axis, angle)) = axis_angle
             {
-                // TODO: we should allow predictive constraint activation.
+
                 if angle >= joint.limits_angle {
+                    #[cfg(feature = "dim2")]
+                        let axis = axis[0];
+                    #[cfg(feature = "dim3")]
+                        let axis = axis.into_inner();
+
                     limits_active = true;
-                    limits_rhs = (rb_vels2.angvel.dot(&axis) - rb_vels1.angvel.dot(&axis))
+                    limits_rhs = (rb_vels2.angvel.gdot(axis) - rb_vels1.angvel.gdot(axis))
                         * params.velocity_solve_fraction;
 
                     limits_rhs += (angle - joint.limits_angle) * params.velocity_based_erp_inv_dt();
 
                     let ii2 = rb_mprops2.effective_world_inv_inertia_sqrt.squared();
-                    limits_inv_lhs = crate::utils::inv(axis.dot(&ii2.transform_vector(*axis)));
+                    limits_inv_lhs = crate::utils::inv(axis.gdot(ii2.transform_vector(axis)));
                     limits_impulse = joint.limits_impulse * params.warmstart_coeff;
-                    limits_axis = *axis;
+                    limits_axis = axis;
                 }
             }
         }
@@ -590,7 +610,7 @@ impl BallVelocityGroundConstraint {
             let limits_torquedir2 = self.limits_axis;
             let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
 
-            let ang_dvel = limits_torquedir2.dot(&ang_vel2) + self.limits_rhs;
+            let ang_dvel = limits_torquedir2.gdot(ang_vel2) + self.limits_rhs;
             let new_impulse = (self.limits_impulse - ang_dvel * self.limits_inv_lhs).max(0.0);
             let dimpulse = new_impulse - self.limits_impulse;
             self.limits_impulse = new_impulse;
