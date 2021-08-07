@@ -19,6 +19,7 @@ pub struct PrismaticJoint {
     pub(crate) local_axis2: Unit<Vector<Real>>,
     pub(crate) basis1: [Vector<Real>; DIM - 1],
     pub(crate) basis2: [Vector<Real>; DIM - 1],
+
     /// The impulse applied by this joint on the first body.
     ///
     /// The impulse applied to the second body is given by `-impulse`.
@@ -29,6 +30,7 @@ pub struct PrismaticJoint {
     /// The impulse applied to the second body is given by `-impulse`.
     #[cfg(feature = "dim2")]
     pub impulse: Vector2<Real>,
+
     /// Whether or not this joint should enforce translational limits along its axis.
     pub limits_enabled: bool,
     /// The min an max relative position of the attached bodies along this joint's axis.

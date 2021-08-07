@@ -177,6 +177,85 @@ fn create_revolute_joints(
     }
 }
 
+fn create_revolute_joints_with_limits(
+    bodies: &mut RigidBodySet,
+    colliders: &mut ColliderSet,
+    joints: &mut JointSet,
+    origin: Point<f32>,
+) {
+    let ground = bodies.insert(
+        RigidBodyBuilder::new_static()
+            .translation(origin.coords)
+            .build(),
+    );
+
+    let platform1 = bodies.insert(
+        RigidBodyBuilder::new_dynamic()
+            .translation(origin.coords)
+            .build(),
+    );
+    colliders.insert_with_parent(
+        ColliderBuilder::cuboid(4.0, 0.2, 2.0).build(),
+        platform1,
+        bodies,
+    );
+
+    let shift = vector![0.0, 0.0, 6.0];
+    let platform2 = bodies.insert(
+        RigidBodyBuilder::new_dynamic()
+            .translation(origin.coords + shift)
+            .build(),
+    );
+    colliders.insert_with_parent(
+        ColliderBuilder::cuboid(4.0, 0.2, 2.0).build(),
+        platform2,
+        bodies,
+    );
+
+    let mut joint1 = RevoluteJoint::new(
+        Point::origin(),
+        Vector::z_axis(),
+        Point::origin(),
+        Vector::z_axis(),
+    );
+    joint1.limits_enabled = true;
+    joint1.limits = [-0.2, 0.2];
+    joints.insert(ground, platform1, joint1);
+
+    let mut joint2 = RevoluteJoint::new(
+        Point::origin(),
+        Vector::z_axis(),
+        Point::from(-shift),
+        Vector::z_axis(),
+    );
+    joint2.limits_enabled = true;
+    joint2.limits = [-0.3, 0.3];
+    joints.insert(platform1, platform2, joint2);
+
+    // Let’s add a couple of cuboids that will fall on the platforms, triggering the joint limits.
+    let cuboid_body1 = bodies.insert(
+        RigidBodyBuilder::new_dynamic()
+            .translation(origin.coords + vector![-2.0, 4.0, 0.0])
+            .build(),
+    );
+    colliders.insert_with_parent(
+        ColliderBuilder::cuboid(0.6, 0.6, 0.6).friction(1.0).build(),
+        cuboid_body1,
+        bodies,
+    );
+
+    let cuboid_body2 = bodies.insert(
+        RigidBodyBuilder::new_dynamic()
+            .translation(origin.coords + shift + vector![2.0, 16.0, 0.0])
+            .build(),
+    );
+    colliders.insert_with_parent(
+        ColliderBuilder::cuboid(0.6, 0.6, 0.6).friction(1.0).build(),
+        cuboid_body2,
+        bodies,
+    );
+}
+
 fn create_fixed_joints(
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
@@ -441,6 +520,12 @@ pub fn init_world(testbed: &mut Testbed) {
         &mut joints,
         point![20.0, 0.0, 0.0],
         3,
+    );
+    create_revolute_joints_with_limits(
+        &mut bodies,
+        &mut colliders,
+        &mut joints,
+        point![34.0, 0.0, 0.0],
     );
     create_fixed_joints(
         &mut bodies,

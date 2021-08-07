@@ -21,6 +21,11 @@ pub(crate) struct RevolutePositionConstraint {
 
     ang_inv_lhs: AngularInertia<Real>,
 
+    limits_enabled: bool,
+    limits: [Real; 2],
+
+    motor_last_angle: Real,
+
     local_anchor1: Point<Real>,
     local_anchor2: Point<Real>,
 
@@ -61,6 +66,9 @@ impl RevolutePositionConstraint {
             position2: ids2.active_set_offset,
             local_basis1: cparams.basis1,
             local_basis2: cparams.basis2,
+            limits_enabled: cparams.limits_enabled,
+            limits: cparams.limits,
+            motor_last_angle: cparams.motor_last_angle,
         }
     }
 
@@ -119,6 +127,31 @@ impl RevolutePositionConstraint {
                 Rotation::new(self.ii2.transform_vector(-ang_impulse)) * position2.rotation;
         }
 
+        /*
+         * Limits part.
+         */
+        if self.limits_enabled {
+            let angle = RevoluteJoint::estimate_motor_angle_from_params(
+                &(position1 * self.local_axis1),
+                &(position1 * self.local_basis1[0]),
+                &(position2 * self.local_basis2[0]),
+                self.motor_last_angle,
+            );
+            let ang_error = (angle - self.limits[1]).max(0.0) - (self.limits[0] - angle).max(0.0);
+
+            if ang_error != 0.0 {
+                let axis2 = position2 * self.local_axis2;
+                let ang_impulse = self
+                    .ang_inv_lhs
+                    .transform_vector(*axis2 * ang_error * params.joint_erp);
+
+                position1.rotation =
+                    Rotation::new(self.ii1.transform_vector(ang_impulse)) * position1.rotation;
+                position2.rotation =
+                    Rotation::new(self.ii2.transform_vector(-ang_impulse)) * position2.rotation;
+            }
+        }
+
         positions[self.position1 as usize] = position1;
         positions[self.position2 as usize] = position2;
     }
@@ -133,9 +166,14 @@ pub(crate) struct RevolutePositionGroundConstraint {
     anchor1: Point<Real>,
     local_anchor2: Point<Real>,
     axis1: Unit<Vector<Real>>,
-    local_axis2: Unit<Vector<Real>>,
-
     basis1: [Vector<Real>; 2],
+
+    limits_enabled: bool,
+    limits: [Real; 2],
+
+    motor_last_angle: Real,
+
+    local_axis2: Unit<Vector<Real>>,
     local_basis2: [Vector<Real>; 2],
 }
 
@@ -189,6 +227,9 @@ impl RevolutePositionGroundConstraint {
             position2: ids2.active_set_offset,
             basis1,
             local_basis2,
+            limits_enabled: cparams.limits_enabled,
+            limits: cparams.limits,
+            motor_last_angle: cparams.motor_last_angle,
         }
     }
 
@@ -228,6 +269,25 @@ impl RevolutePositionGroundConstraint {
                 .unwrap_or_else(Rotation::identity);
             let ang_error = delta_rot.scaled_axis() * params.joint_erp;
             position2.rotation = Rotation::new(-ang_error) * position2.rotation;
+        }
+
+        /*
+         * Limits part.
+         */
+        if self.limits_enabled {
+            let angle = RevoluteJoint::estimate_motor_angle_from_params(
+                &self.axis1,
+                &self.basis1[0],
+                &(position2 * self.local_basis2[0]),
+                self.motor_last_angle,
+            );
+            let ang_error = (angle - self.limits[1]).max(0.0) - (self.limits[0] - angle).max(0.0);
+
+            if ang_error != 0.0 {
+                let axis2 = position2 * self.local_axis2;
+                position2.rotation =
+                    Rotation::new(*axis2 * -ang_error * params.joint_erp) * position2.rotation;
+            }
         }
 
         positions[self.position2 as usize] = position2;
