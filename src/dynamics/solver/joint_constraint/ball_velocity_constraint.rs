@@ -3,7 +3,7 @@ use crate::dynamics::{
     BallJoint, IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBodyIds,
     RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
 };
-use crate::math::{AngVector, AngularInertia, Real, SdpMatrix, Vector};
+use crate::math::{AngVector, AngularInertia, Real, Rotation, SdpMatrix, Vector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 
 #[derive(Debug)]
@@ -25,6 +25,12 @@ pub(crate) struct BallVelocityConstraint {
     motor_impulse: AngVector<Real>,
     motor_inv_lhs: Option<AngularInertia<Real>>,
     motor_max_impulse: Real,
+
+    limits_active: bool,
+    limits_rhs: Real,
+    limits_inv_lhs: Real,
+    limits_impulse: Real,
+    limits_axis: Vector<Real>,
 
     im1: Real,
     im2: Real,
@@ -51,18 +57,18 @@ impl BallVelocityConstraint {
         ),
         joint: &BallJoint,
     ) -> Self {
-        let (poss1, vels1, mprops1, ids1) = rb1;
-        let (poss2, vels2, mprops2, ids2) = rb2;
+        let (rb_pos1, rb_vels1, rb_mprops1, rb_ids1) = rb1;
+        let (rb_pos2, rb_vels2, rb_mprops2, rb_ids2) = rb2;
 
-        let anchor_world1 = poss1.position * joint.local_anchor1;
-        let anchor_world2 = poss2.position * joint.local_anchor2;
-        let anchor1 = anchor_world1 - mprops1.world_com;
-        let anchor2 = anchor_world2 - mprops2.world_com;
+        let anchor_world1 = rb_pos1.position * joint.local_anchor1;
+        let anchor_world2 = rb_pos2.position * joint.local_anchor2;
+        let anchor1 = anchor_world1 - rb_mprops1.world_com;
+        let anchor2 = anchor_world2 - rb_mprops2.world_com;
 
-        let vel1 = vels1.linvel + vels1.angvel.gcross(anchor1);
-        let vel2 = vels2.linvel + vels2.angvel.gcross(anchor2);
-        let im1 = mprops1.effective_inv_mass;
-        let im2 = mprops2.effective_inv_mass;
+        let vel1 = rb_vels1.linvel + rb_vels1.angvel.gcross(anchor1);
+        let vel2 = rb_vels2.linvel + rb_vels2.angvel.gcross(anchor2);
+        let im1 = rb_mprops1.effective_inv_mass;
+        let im2 = rb_mprops2.effective_inv_mass;
 
         let rhs = (vel2 - vel1) * params.velocity_solve_fraction
             + (anchor_world2 - anchor_world1) * params.velocity_based_erp_inv_dt();
@@ -73,12 +79,12 @@ impl BallVelocityConstraint {
 
         #[cfg(feature = "dim3")]
         {
-            lhs = mprops2
+            lhs = rb_mprops2
                 .effective_world_inv_inertia_sqrt
                 .squared()
                 .quadform(&cmat2)
                 .add_diagonal(im2)
-                + mprops1
+                + rb_mprops1
                     .effective_world_inv_inertia_sqrt
                     .squared()
                     .quadform(&cmat1)
@@ -89,8 +95,8 @@ impl BallVelocityConstraint {
         // it's just easier that way.
         #[cfg(feature = "dim2")]
         {
-            let ii1 = mprops1.effective_world_inv_inertia_sqrt.squared();
-            let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
+            let ii1 = rb_mprops1.effective_world_inv_inertia_sqrt.squared();
+            let ii2 = rb_mprops2.effective_world_inv_inertia_sqrt.squared();
             let m11 = im1 + im2 + cmat1.x * cmat1.x * ii1 + cmat2.x * cmat2.x * ii2;
             let m12 = cmat1.x * cmat1.y * ii1 + cmat2.x * cmat2.y * ii2;
             let m22 = im1 + im2 + cmat1.y * cmat1.y * ii1 + cmat2.y * cmat2.y * ii2;
@@ -114,8 +120,8 @@ impl BallVelocityConstraint {
             );
 
             if stiffness != 0.0 {
-                let dpos = poss2.position.rotation
-                    * (poss1.position.rotation * joint.motor_target_pos).inverse();
+                let dpos = rb_pos2.position.rotation
+                    * (rb_pos1.position.rotation * joint.motor_target_pos).inverse();
                 #[cfg(feature = "dim2")]
                 {
                     motor_rhs += dpos.angle() * stiffness;
@@ -127,15 +133,15 @@ impl BallVelocityConstraint {
             }
 
             if damping != 0.0 {
-                let curr_vel = vels2.angvel - vels1.angvel;
+                let curr_vel = rb_vels2.angvel - rb_vels1.angvel;
                 motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
             }
 
             #[cfg(feature = "dim2")]
             if stiffness != 0.0 || damping != 0.0 {
                 motor_inv_lhs = if keep_lhs {
-                    let ii1 = mprops1.effective_world_inv_inertia_sqrt.squared();
-                    let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
+                    let ii1 = rb_mprops1.effective_world_inv_inertia_sqrt.squared();
+                    let ii2 = rb_mprops2.effective_world_inv_inertia_sqrt.squared();
                     Some(gamma / (ii1 + ii2))
                 } else {
                     Some(gamma)
@@ -146,8 +152,8 @@ impl BallVelocityConstraint {
             #[cfg(feature = "dim3")]
             if stiffness != 0.0 || damping != 0.0 {
                 motor_inv_lhs = if keep_lhs {
-                    let ii1 = mprops1.effective_world_inv_inertia_sqrt.squared();
-                    let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
+                    let ii1 = rb_mprops1.effective_world_inv_inertia_sqrt.squared();
+                    let ii2 = rb_mprops2.effective_world_inv_inertia_sqrt.squared();
                     Some((ii1 + ii2).inverse_unchecked() * gamma)
                 } else {
                     Some(SdpMatrix::diagonal(gamma))
@@ -163,10 +169,47 @@ impl BallVelocityConstraint {
         let motor_impulse =
             joint.motor_impulse.cap_magnitude(motor_max_impulse) * params.warmstart_coeff;
 
+        /*
+         * Setup the limits constraint.
+         */
+        let mut limits_active = false;
+        let mut limits_rhs = 0.0;
+        let mut limits_inv_lhs = 0.0;
+        let mut limits_impulse = 0.0;
+        let mut limits_axis = Vector::zeros();
+
+        if joint.limits_enabled {
+            let axis1 = rb_pos1.position * joint.limits_local_axis1;
+            let axis2 = rb_pos2.position * joint.limits_local_axis2;
+
+            if let Some((axis, angle)) =
+                Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle())
+            {
+                // TODO: we should allow predictive constraint activation.
+                if angle >= joint.limits_angle {
+                    limits_active = true;
+                    limits_rhs = (rb_vels2.angvel.dot(&axis) - rb_vels1.angvel.dot(&axis))
+                        * params.velocity_solve_fraction;
+
+                    limits_rhs += (angle - joint.limits_angle) * params.velocity_based_erp_inv_dt();
+
+                    let ii1 = rb_mprops1.effective_world_inv_inertia_sqrt.squared();
+                    let ii2 = rb_mprops2.effective_world_inv_inertia_sqrt.squared();
+                    limits_inv_lhs = crate::utils::inv(
+                        axis.dot(&ii2.transform_vector(*axis))
+                            + axis.dot(&ii1.transform_vector(*axis)),
+                    );
+
+                    limits_impulse = joint.limits_impulse * params.warmstart_coeff;
+                    limits_axis = *axis;
+                }
+            }
+        }
+
         BallVelocityConstraint {
             joint_id,
-            mj_lambda1: ids1.active_set_offset,
-            mj_lambda2: ids2.active_set_offset,
+            mj_lambda1: rb_ids1.active_set_offset,
+            mj_lambda2: rb_ids2.active_set_offset,
             im1,
             im2,
             impulse: joint.impulse * params.warmstart_coeff,
@@ -178,8 +221,13 @@ impl BallVelocityConstraint {
             motor_impulse,
             motor_inv_lhs,
             motor_max_impulse: joint.motor_max_impulse,
-            ii1_sqrt: mprops1.effective_world_inv_inertia_sqrt,
-            ii2_sqrt: mprops2.effective_world_inv_inertia_sqrt,
+            ii1_sqrt: rb_mprops1.effective_world_inv_inertia_sqrt,
+            ii2_sqrt: rb_mprops2.effective_world_inv_inertia_sqrt,
+            limits_active,
+            limits_axis,
+            limits_rhs,
+            limits_inv_lhs,
+            limits_impulse,
         }
     }
 
@@ -195,6 +243,16 @@ impl BallVelocityConstraint {
         mj_lambda2.angular -= self
             .ii2_sqrt
             .transform_vector(self.r2.gcross(self.impulse) + self.motor_impulse);
+
+        /*
+         * Warmstart limits.
+         */
+        if self.limits_active {
+            let limit_impulse1 = -self.limits_axis * self.limits_impulse;
+            let limit_impulse2 = self.limits_axis * self.limits_impulse;
+            mj_lambda1.angular += self.ii1_sqrt.transform_vector(limit_impulse1);
+            mj_lambda2.angular += self.ii2_sqrt.transform_vector(limit_impulse2);
+        }
 
         mj_lambdas[self.mj_lambda1 as usize] = mj_lambda1;
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
@@ -215,6 +273,29 @@ impl BallVelocityConstraint {
 
         mj_lambda2.linear -= self.im2 * impulse;
         mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_limits(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
+        if self.limits_active {
+            let limits_torquedir1 = -self.limits_axis;
+            let limits_torquedir2 = self.limits_axis;
+
+            let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
+            let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+
+            let ang_dvel = limits_torquedir1.dot(&ang_vel1)
+                + limits_torquedir2.dot(&ang_vel2)
+                + self.limits_rhs;
+            let new_impulse = (self.limits_impulse - ang_dvel * self.limits_inv_lhs).max(0.0);
+            let dimpulse = new_impulse - self.limits_impulse;
+            self.limits_impulse = new_impulse;
+
+            let ang_impulse1 = limits_torquedir1 * dimpulse;
+            let ang_impulse2 = limits_torquedir2 * dimpulse;
+
+            mj_lambda1.angular += self.ii1_sqrt.transform_vector(ang_impulse1);
+            mj_lambda2.angular += self.ii2_sqrt.transform_vector(ang_impulse2);
+        }
     }
 
     fn solve_motors(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
@@ -244,6 +325,7 @@ impl BallVelocityConstraint {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
+        self.solve_limits(&mut mj_lambda1, &mut mj_lambda2);
         self.solve_dofs(&mut mj_lambda1, &mut mj_lambda2);
         self.solve_motors(&mut mj_lambda1, &mut mj_lambda2);
 
@@ -256,6 +338,7 @@ impl BallVelocityConstraint {
         if let JointParams::BallJoint(ball) = &mut joint.params {
             ball.impulse = self.impulse;
             ball.motor_impulse = self.motor_impulse;
+            ball.limits_impulse = self.limits_impulse;
         }
     }
 }
@@ -275,6 +358,12 @@ pub(crate) struct BallVelocityGroundConstraint {
     motor_inv_lhs: Option<AngularInertia<Real>>,
     motor_max_impulse: Real,
 
+    limits_active: bool,
+    limits_rhs: Real,
+    limits_inv_lhs: Real,
+    limits_impulse: Real,
+    limits_axis: Vector<Real>,
+
     im2: Real,
     ii2_sqrt: AngularInertia<Real>,
 }
@@ -293,27 +382,27 @@ impl BallVelocityGroundConstraint {
         joint: &BallJoint,
         flipped: bool,
     ) -> Self {
-        let (poss1, vels1, mprops1) = rb1;
-        let (poss2, vels2, mprops2, ids2) = rb2;
+        let (rb_pos1, rb_vels1, rb_mprops1) = rb1;
+        let (rb_pos2, rb_vels2, rb_mprops2, rb_ids2) = rb2;
 
         let (anchor_world1, anchor_world2) = if flipped {
             (
-                poss1.position * joint.local_anchor2,
-                poss2.position * joint.local_anchor1,
+                rb_pos1.position * joint.local_anchor2,
+                rb_pos2.position * joint.local_anchor1,
             )
         } else {
             (
-                poss1.position * joint.local_anchor1,
-                poss2.position * joint.local_anchor2,
+                rb_pos1.position * joint.local_anchor1,
+                rb_pos2.position * joint.local_anchor2,
             )
         };
 
-        let anchor1 = anchor_world1 - mprops1.world_com;
-        let anchor2 = anchor_world2 - mprops2.world_com;
+        let anchor1 = anchor_world1 - rb_mprops1.world_com;
+        let anchor2 = anchor_world2 - rb_mprops2.world_com;
 
-        let im2 = mprops2.effective_inv_mass;
-        let vel1 = vels1.linvel + vels1.angvel.gcross(anchor1);
-        let vel2 = vels2.linvel + vels2.angvel.gcross(anchor2);
+        let im2 = rb_mprops2.effective_inv_mass;
+        let vel1 = rb_vels1.linvel + rb_vels1.angvel.gcross(anchor1);
+        let vel2 = rb_vels2.linvel + rb_vels2.angvel.gcross(anchor2);
 
         let rhs = (vel2 - vel1) * params.velocity_solve_fraction
             + (anchor_world2 - anchor_world1) * params.velocity_based_erp_inv_dt();
@@ -324,7 +413,7 @@ impl BallVelocityGroundConstraint {
 
         #[cfg(feature = "dim3")]
         {
-            lhs = mprops2
+            lhs = rb_mprops2
                 .effective_world_inv_inertia_sqrt
                 .squared()
                 .quadform(&cmat2)
@@ -333,7 +422,7 @@ impl BallVelocityGroundConstraint {
 
         #[cfg(feature = "dim2")]
         {
-            let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
+            let ii2 = rb_mprops2.effective_world_inv_inertia_sqrt.squared();
             let m11 = im2 + cmat2.x * cmat2.x * ii2;
             let m12 = cmat2.x * cmat2.y * ii2;
             let m22 = im2 + cmat2.y * cmat2.y * ii2;
@@ -357,8 +446,8 @@ impl BallVelocityGroundConstraint {
             );
 
             if stiffness != 0.0 {
-                let dpos = poss2.position.rotation
-                    * (poss1.position.rotation * joint.motor_target_pos).inverse();
+                let dpos = rb_pos2.position.rotation
+                    * (rb_pos1.position.rotation * joint.motor_target_pos).inverse();
                 #[cfg(feature = "dim2")]
                 {
                     motor_rhs += dpos.angle() * stiffness;
@@ -370,14 +459,14 @@ impl BallVelocityGroundConstraint {
             }
 
             if damping != 0.0 {
-                let curr_vel = vels2.angvel - vels1.angvel;
+                let curr_vel = rb_vels2.angvel - rb_vels1.angvel;
                 motor_rhs += (curr_vel - joint.motor_target_vel) * damping;
             }
 
             #[cfg(feature = "dim2")]
             if stiffness != 0.0 || damping != 0.0 {
                 motor_inv_lhs = if keep_lhs {
-                    let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
+                    let ii2 = rb_mprops2.effective_world_inv_inertia_sqrt.squared();
                     Some(gamma / ii2)
                 } else {
                     Some(gamma)
@@ -388,7 +477,7 @@ impl BallVelocityGroundConstraint {
             #[cfg(feature = "dim3")]
             if stiffness != 0.0 || damping != 0.0 {
                 motor_inv_lhs = if keep_lhs {
-                    let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
+                    let ii2 = rb_mprops2.effective_world_inv_inertia_sqrt.squared();
                     Some(ii2.inverse_unchecked() * gamma)
                 } else {
                     Some(SdpMatrix::diagonal(gamma))
@@ -404,9 +493,50 @@ impl BallVelocityGroundConstraint {
         let motor_impulse =
             joint.motor_impulse.cap_magnitude(motor_max_impulse) * params.warmstart_coeff;
 
+        /*
+         * Setup the limits constraint.
+         */
+        let mut limits_active = false;
+        let mut limits_rhs = 0.0;
+        let mut limits_inv_lhs = 0.0;
+        let mut limits_impulse = 0.0;
+        let mut limits_axis = Vector::zeros();
+
+        if joint.limits_enabled {
+            let (axis1, axis2) = if flipped {
+                (
+                    rb_pos1.position * joint.limits_local_axis2,
+                    rb_pos2.position * joint.limits_local_axis1,
+                )
+            } else {
+                (
+                    rb_pos1.position * joint.limits_local_axis1,
+                    rb_pos2.position * joint.limits_local_axis2,
+                )
+            };
+
+            if let Some((axis, angle)) =
+                Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle())
+            {
+                // TODO: we should allow predictive constraint activation.
+                if angle >= joint.limits_angle {
+                    limits_active = true;
+                    limits_rhs = (rb_vels2.angvel.dot(&axis) - rb_vels1.angvel.dot(&axis))
+                        * params.velocity_solve_fraction;
+
+                    limits_rhs += (angle - joint.limits_angle) * params.velocity_based_erp_inv_dt();
+
+                    let ii2 = rb_mprops2.effective_world_inv_inertia_sqrt.squared();
+                    limits_inv_lhs = crate::utils::inv(axis.dot(&ii2.transform_vector(*axis)));
+                    limits_impulse = joint.limits_impulse * params.warmstart_coeff;
+                    limits_axis = *axis;
+                }
+            }
+        }
+
         BallVelocityGroundConstraint {
             joint_id,
-            mj_lambda2: ids2.active_set_offset,
+            mj_lambda2: rb_ids2.active_set_offset,
             im2,
             impulse: joint.impulse * params.warmstart_coeff,
             r2: anchor2,
@@ -416,7 +546,12 @@ impl BallVelocityGroundConstraint {
             motor_impulse,
             motor_inv_lhs,
             motor_max_impulse: joint.motor_max_impulse,
-            ii2_sqrt: mprops2.effective_world_inv_inertia_sqrt,
+            ii2_sqrt: rb_mprops2.effective_world_inv_inertia_sqrt,
+            limits_active,
+            limits_axis,
+            limits_rhs,
+            limits_inv_lhs,
+            limits_impulse,
         }
     }
 
@@ -426,6 +561,15 @@ impl BallVelocityGroundConstraint {
         mj_lambda2.angular -= self
             .ii2_sqrt
             .transform_vector(self.r2.gcross(self.impulse) + self.motor_impulse);
+
+        /*
+         * Warmstart limits.
+         */
+        if self.limits_active {
+            let limit_impulse2 = self.limits_axis * self.limits_impulse;
+            mj_lambda2.angular += self.ii2_sqrt.transform_vector(limit_impulse2);
+        }
+
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
@@ -439,6 +583,21 @@ impl BallVelocityGroundConstraint {
 
         mj_lambda2.linear -= self.im2 * impulse;
         mj_lambda2.angular -= self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_limits(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
+        if self.limits_active {
+            let limits_torquedir2 = self.limits_axis;
+            let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+
+            let ang_dvel = limits_torquedir2.dot(&ang_vel2) + self.limits_rhs;
+            let new_impulse = (self.limits_impulse - ang_dvel * self.limits_inv_lhs).max(0.0);
+            let dimpulse = new_impulse - self.limits_impulse;
+            self.limits_impulse = new_impulse;
+
+            let ang_impulse2 = limits_torquedir2 * dimpulse;
+            mj_lambda2.angular += self.ii2_sqrt.transform_vector(ang_impulse2);
+        }
     }
 
     fn solve_motors(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
@@ -464,6 +623,7 @@ impl BallVelocityGroundConstraint {
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
+        self.solve_limits(&mut mj_lambda2);
         self.solve_dofs(&mut mj_lambda2);
         self.solve_motors(&mut mj_lambda2);
 
@@ -476,6 +636,7 @@ impl BallVelocityGroundConstraint {
         if let JointParams::BallJoint(ball) = &mut joint.params {
             ball.impulse = self.impulse;
             ball.motor_impulse = self.motor_impulse;
+            ball.limits_impulse = self.limits_impulse;
         }
     }
 }

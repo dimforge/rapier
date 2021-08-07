@@ -3,7 +3,7 @@ use crate::dynamics::{
 };
 #[cfg(feature = "dim2")]
 use crate::math::SdpMatrix;
-use crate::math::{AngularInertia, Isometry, Point, Real, Rotation};
+use crate::math::{AngularInertia, Isometry, Point, Real, Rotation, UnitVector};
 use crate::utils::{WAngularInertia, WCross, WCrossMatrix};
 
 #[derive(Debug)]
@@ -19,9 +19,15 @@ pub(crate) struct BallPositionConstraint {
 
     ii1: AngularInertia<Real>,
     ii2: AngularInertia<Real>,
+    inv_ii1_ii2: AngularInertia<Real>,
 
     local_anchor1: Point<Real>,
     local_anchor2: Point<Real>,
+
+    limits_enabled: bool,
+    limits_angle: Real,
+    limits_local_axis1: UnitVector<Real>,
+    limits_local_axis2: UnitVector<Real>,
 }
 
 impl BallPositionConstraint {
@@ -33,17 +39,26 @@ impl BallPositionConstraint {
         let (mprops1, ids1) = rb1;
         let (mprops2, ids2) = rb2;
 
+        let ii1 = mprops1.effective_world_inv_inertia_sqrt.squared();
+        let ii2 = mprops2.effective_world_inv_inertia_sqrt.squared();
+        let inv_ii1_ii2 = (ii1 + ii2).inverse();
+
         Self {
             local_com1: mprops1.local_mprops.local_com,
             local_com2: mprops2.local_mprops.local_com,
             im1: mprops1.effective_inv_mass,
             im2: mprops2.effective_inv_mass,
-            ii1: mprops1.effective_world_inv_inertia_sqrt.squared(),
-            ii2: mprops2.effective_world_inv_inertia_sqrt.squared(),
+            ii1,
+            ii2,
+            inv_ii1_ii2,
             local_anchor1: cparams.local_anchor1,
             local_anchor2: cparams.local_anchor2,
             position1: ids1.active_set_offset,
             position2: ids2.active_set_offset,
+            limits_enabled: cparams.limits_enabled,
+            limits_angle: cparams.limits_angle,
+            limits_local_axis1: cparams.limits_local_axis1,
+            limits_local_axis2: cparams.limits_local_axis2,
         }
     }
 
@@ -96,6 +111,31 @@ impl BallPositionConstraint {
         position1.rotation = Rotation::new(angle1) * position1.rotation;
         position2.rotation = Rotation::new(angle2) * position2.rotation;
 
+        /*
+         * Limits part.
+         */
+        if self.limits_enabled {
+            let axis1 = position1 * self.limits_local_axis1;
+            let axis2 = position2 * self.limits_local_axis2;
+
+            // TODO: handle the case where dot(axis1, axis2) = -1.0
+            if let Some((axis, angle)) =
+                Rotation::rotation_between_axis(&axis2, &axis1).and_then(|r| r.axis_angle())
+            {
+                if angle >= self.limits_angle {
+                    let ang_error = angle - self.limits_angle;
+                    let ang_impulse = self
+                        .inv_ii1_ii2
+                        .transform_vector(*axis * ang_error * params.joint_erp);
+
+                    position1.rotation =
+                        Rotation::new(self.ii1.transform_vector(-ang_impulse)) * position1.rotation;
+                    position2.rotation =
+                        Rotation::new(self.ii2.transform_vector(ang_impulse)) * position2.rotation;
+                }
+            }
+        }
+
         positions[self.position1 as usize] = position1;
         positions[self.position2 as usize] = position2;
     }
@@ -109,6 +149,11 @@ pub(crate) struct BallPositionGroundConstraint {
     ii2: AngularInertia<Real>,
     local_anchor2: Point<Real>,
     local_com2: Point<Real>,
+
+    limits_enabled: bool,
+    limits_angle: Real,
+    limits_axis1: UnitVector<Real>,
+    limits_local_axis2: UnitVector<Real>,
 }
 
 impl BallPositionGroundConstraint {
@@ -132,6 +177,10 @@ impl BallPositionGroundConstraint {
                 local_anchor2: cparams.local_anchor1,
                 position2: ids2.active_set_offset,
                 local_com2: mprops2.local_mprops.local_com,
+                limits_enabled: cparams.limits_enabled,
+                limits_angle: cparams.limits_angle,
+                limits_axis1: poss1.next_position * cparams.limits_local_axis2,
+                limits_local_axis2: cparams.limits_local_axis1,
             }
         } else {
             Self {
@@ -141,6 +190,10 @@ impl BallPositionGroundConstraint {
                 local_anchor2: cparams.local_anchor2,
                 position2: ids2.active_set_offset,
                 local_com2: mprops2.local_mprops.local_com,
+                limits_enabled: cparams.limits_enabled,
+                limits_angle: cparams.limits_angle,
+                limits_axis1: poss1.next_position * cparams.limits_local_axis1,
+                limits_local_axis2: cparams.limits_local_axis2,
             }
         }
     }
@@ -172,6 +225,25 @@ impl BallPositionGroundConstraint {
 
         let angle2 = self.ii2.transform_vector(centered_anchor2.gcross(-impulse));
         position2.rotation = Rotation::new(angle2) * position2.rotation;
+
+        /*
+         * Limits part.
+         */
+        if self.limits_enabled {
+            let axis2 = position2 * self.limits_local_axis2;
+
+            // TODO: handle the case where dot(axis1, axis2) = -1.0
+            if let Some((axis, angle)) = Rotation::rotation_between_axis(&axis2, &self.limits_axis1)
+                .and_then(|r| r.axis_angle())
+            {
+                if angle >= self.limits_angle {
+                    let ang_error = angle - self.limits_angle;
+                    let ang_correction = *axis * ang_error * params.joint_erp;
+                    position2.rotation = Rotation::new(ang_correction) * position2.rotation;
+                }
+            }
+        }
+
         positions[self.position2 as usize] = position2;
     }
 }

@@ -368,6 +368,58 @@ fn create_ball_joints(
     }
 }
 
+fn create_ball_joints_with_limits(
+    bodies: &mut RigidBodySet,
+    colliders: &mut ColliderSet,
+    joints: &mut JointSet,
+    origin: Point<f32>,
+) {
+    let shift = vector![0.0, 0.0, 3.0];
+
+    let ground = bodies.insert(
+        RigidBodyBuilder::new_static()
+            .translation(origin.coords)
+            .build(),
+    );
+
+    let ball1 = bodies.insert(
+        RigidBodyBuilder::new_dynamic()
+            .translation(origin.coords + shift)
+            .linvel(vector![20.0, 20.0, 0.0])
+            .build(),
+    );
+    colliders.insert_with_parent(
+        ColliderBuilder::cuboid(1.0, 1.0, 1.0).build(),
+        ball1,
+        bodies,
+    );
+
+    let ball2 = bodies.insert(
+        RigidBodyBuilder::new_dynamic()
+            .translation(origin.coords + shift * 2.0)
+            .build(),
+    );
+    colliders.insert_with_parent(
+        ColliderBuilder::cuboid(1.0, 1.0, 1.0).build(),
+        ball2,
+        bodies,
+    );
+
+    let mut joint1 = BallJoint::new(Point::origin(), Point::from(-shift));
+    joint1.limits_enabled = true;
+    joint1.limits_local_axis1 = Vector::z_axis();
+    joint1.limits_local_axis2 = Vector::z_axis();
+    joint1.limits_angle = 0.2;
+    joints.insert(ground, ball1, joint1);
+
+    let mut joint2 = BallJoint::new(Point::origin(), Point::from(-shift));
+    joint2.limits_enabled = true;
+    joint2.limits_local_axis1 = Vector::z_axis();
+    joint2.limits_local_axis2 = Vector::z_axis();
+    joint2.limits_angle = 0.3;
+    joints.insert(ball1, ball2, joint2);
+}
+
 fn create_actuated_revolute_joints(
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
@@ -549,6 +601,12 @@ pub fn init_world(testbed: &mut Testbed) {
         3,
     );
     create_ball_joints(&mut bodies, &mut colliders, &mut joints, 15);
+    create_ball_joints_with_limits(
+        &mut bodies,
+        &mut colliders,
+        &mut joints,
+        point![-5.0, 0.0, 0.0],
+    );
 
     /*
      * Set up the testbed.

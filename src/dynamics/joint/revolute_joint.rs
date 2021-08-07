@@ -93,7 +93,7 @@ impl RevoluteJoint {
 
     /// Can a SIMD constraint be used for resolving this joint?
     pub fn supports_simd_constraints(&self) -> bool {
-        // SIMD revolute constraints don't support motors right now.
+        // SIMD revolute constraints don't support motors and limits right now.
         !self.limits_enabled
             && (self.motor_max_impulse == 0.0
                 || (self.motor_stiffness == 0.0 && self.motor_damping == 0.0))
@@ -142,6 +142,7 @@ impl RevoluteJoint {
         )
     }
 
+    /// Estimates the current position of the motor angle given the joint parameters.
     pub fn estimate_motor_angle_from_params(
         axis1: &Unit<Vector<Real>>,
         tangent1: &Vector<Real>,

@@ -294,7 +294,9 @@ impl RevoluteVelocityConstraint {
                 .transform_vector(self.motor_axis2 * self.motor_impulse);
         }
 
-        // Warmstart limits.
+        /*
+         * Warmstart limits.
+         */
         if self.limits_active {
             let limit_impulse1 = -self.motor_axis2 * self.limits_impulse;
             let limit_impulse2 = self.motor_axis2 * self.limits_impulse;
