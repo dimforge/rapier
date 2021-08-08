@@ -41,7 +41,7 @@ impl ParallelVelocitySolver {
             // before starting the next one.
             let mut target_num_desc = 0;
             let mut start_index = thread
-                .warmstart_contact_index
+                .warmstart_constraint_index
                 .fetch_add(thread.batch_size, Ordering::SeqCst);
             let mut batch_size = thread.batch_size;
             let mut shift = 0;
@@ -69,12 +69,12 @@ impl ParallelVelocitySolver {
                             batch_size -= num_solved;
 
                             thread
-                                .num_warmstarted_contacts
+                                .num_warmstarted_constraints
                                 .fetch_add(num_solved, Ordering::SeqCst);
 
                             if batch_size == 0 {
                                 start_index = thread
-                                    .warmstart_contact_index
+                                    .warmstart_constraint_index
                                     .fetch_add(thread.batch_size, Ordering::SeqCst);
                                 start_index -= shift;
                                 batch_size = thread.batch_size;
@@ -83,7 +83,7 @@ impl ParallelVelocitySolver {
                             }
                         }
 
-                        ThreadContext::lock_until_ge(&thread.num_warmstarted_contacts, target_num_desc);
+                        ThreadContext::lock_until_ge(&thread.num_warmstarted_constraints, target_num_desc);
                     }
                 }
             );
