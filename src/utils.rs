@@ -112,7 +112,7 @@ pub trait WBasis: Sized {
     fn orthonormal_vector(self) -> Self;
 }
 
-impl<N: SimdRealField> WBasis for Vector2<N> {
+impl<N: SimdRealField + Copy> WBasis for Vector2<N> {
     type Basis = [Vector2<N>; 1];
     fn orthonormal_basis(self) -> [Vector2<N>; 1] {
         [Vector2::new(-self.y, self.x)]
@@ -122,7 +122,7 @@ impl<N: SimdRealField> WBasis for Vector2<N> {
     }
 }
 
-impl<N: SimdRealField + WSign<N>> WBasis for Vector3<N> {
+impl<N: SimdRealField + Copy + WSign<N>> WBasis for Vector3<N> {
     type Basis = [Vector3<N>; 2];
     // Robust and branchless implementation from Pixar:
     // https://graphics.pixar.com/library/OrthonormalB/paper.pdf

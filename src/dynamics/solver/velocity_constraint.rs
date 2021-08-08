@@ -373,8 +373,8 @@ pub(crate) fn compute_tangent_contact_directions<N>(
     linvel2: &Vector<N>,
 ) -> ([Vector<N>; DIM - 1], na::UnitComplex<N>)
 where
-    N: na::SimdRealField,
-    N::Element: na::RealField,
+    N: na::SimdRealField + Copy,
+    N::Element: na::RealField + Copy,
     Vector<N>: WBasis,
 {
     use na::SimdValue;
