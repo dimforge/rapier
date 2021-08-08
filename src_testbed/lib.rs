@@ -1,7 +1,7 @@
 extern crate nalgebra as na;
-#[cfg(feature = "dim2")]
+#[cfg(all(feature = "dim2", feature = "other-backends"))]
 extern crate ncollide2d as ncollide;
-#[cfg(feature = "dim3")]
+#[cfg(all(feature = "dim3", feature = "other-backends"))]
 extern crate ncollide3d as ncollide;
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 extern crate nphysics2d as nphysics;

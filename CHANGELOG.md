@@ -1,3 +1,16 @@
+## v0.11.0
+Check out the user-guide for the JS/Typescript bindings for rapier. It has been fully rewritten and is now exhaustive!
+Check it out on [rapier.rs](https://www.rapier.rs/docs/user_guides/javascript/getting_started_js)
+
+### Added
+- Joint limits are now implemented for all joints that can support them (prismatic, revolute, and ball joints).
+
+### Modified
+- Switch to  `nalgebra 0.29`.
+
+### Fixed
+- Fix the build of Rapier when targeting emscripten.
+
 ## v0.10.1
 ### Added
 - Add `Collider::set_translation_wrt_parent` to change the translation of a collider wrt. its parent rigid-body.
