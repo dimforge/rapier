@@ -1,4 +1,7 @@
-use super::{DeltaVel, ParallelInteractionGroups, ParallelVelocitySolver};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use rayon::Scope;
+
 use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
 use crate::dynamics::solver::{
     AnyJointPositionConstraint, AnyJointVelocityConstraint, AnyPositionConstraint,
@@ -12,8 +15,8 @@ use crate::dynamics::{
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Isometry, Real};
 use crate::utils::WAngularInertia;
-use rayon::Scope;
-use std::sync::atomic::{AtomicUsize, Ordering};
+
+use super::{DeltaVel, ParallelInteractionGroups, ParallelVelocitySolver};
 
 #[macro_export]
 #[doc(hidden)]

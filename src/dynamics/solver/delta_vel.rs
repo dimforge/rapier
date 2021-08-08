@@ -9,7 +9,7 @@ pub(crate) struct DeltaVel<N: Scalar + Copy> {
     pub angular: AngVector<N>,
 }
 
-impl<N: SimdRealField> DeltaVel<N> {
+impl<N: SimdRealField + Copy> DeltaVel<N> {
     pub fn zero() -> Self {
         Self {
             linear: na::zero(),
@@ -18,7 +18,7 @@ impl<N: SimdRealField> DeltaVel<N> {
     }
 }
 
-impl<N: SimdRealField> AddAssign for DeltaVel<N> {
+impl<N: SimdRealField + Copy> AddAssign for DeltaVel<N> {
     fn add_assign(&mut self, rhs: Self) {
         self.linear += rhs.linear;
         self.angular += rhs.angular;

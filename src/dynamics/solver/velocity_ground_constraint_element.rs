@@ -4,7 +4,7 @@ use crate::utils::{WBasis, WDot};
 use na::SimdRealField;
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct VelocityGroundConstraintTangentPart<N: SimdRealField> {
+pub(crate) struct VelocityGroundConstraintTangentPart<N: SimdRealField + Copy> {
     pub gcross2: [AngVector<N>; DIM - 1],
     pub rhs: [N; DIM - 1],
     #[cfg(feature = "dim2")]
@@ -14,7 +14,7 @@ pub(crate) struct VelocityGroundConstraintTangentPart<N: SimdRealField> {
     pub r: [N; DIM - 1],
 }
 
-impl<N: SimdRealField> VelocityGroundConstraintTangentPart<N> {
+impl<N: SimdRealField + Copy> VelocityGroundConstraintTangentPart<N> {
     #[cfg(any(not(target_arch = "wasm32"), feature = "simd-is-enabled"))]
     fn zero() -> Self {
         Self {
@@ -50,7 +50,7 @@ impl<N: SimdRealField> VelocityGroundConstraintTangentPart<N> {
         mj_lambda2: &mut DeltaVel<N>,
     ) where
         AngVector<N>: WDot<AngVector<N>, Result = N>,
-        N::Element: SimdRealField,
+        N::Element: SimdRealField + Copy,
     {
         #[cfg(feature = "dim2")]
         {
@@ -96,14 +96,14 @@ impl<N: SimdRealField> VelocityGroundConstraintTangentPart<N> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct VelocityGroundConstraintNormalPart<N: SimdRealField> {
+pub(crate) struct VelocityGroundConstraintNormalPart<N: SimdRealField + Copy> {
     pub gcross2: AngVector<N>,
     pub rhs: N,
     pub impulse: N,
     pub r: N,
 }
 
-impl<N: SimdRealField> VelocityGroundConstraintNormalPart<N> {
+impl<N: SimdRealField + Copy> VelocityGroundConstraintNormalPart<N> {
     #[cfg(any(not(target_arch = "wasm32"), feature = "simd-is-enabled"))]
     fn zero() -> Self {
         Self {
@@ -137,12 +137,12 @@ impl<N: SimdRealField> VelocityGroundConstraintNormalPart<N> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct VelocityGroundConstraintElement<N: SimdRealField> {
+pub(crate) struct VelocityGroundConstraintElement<N: SimdRealField + Copy> {
     pub normal_part: VelocityGroundConstraintNormalPart<N>,
     pub tangent_part: VelocityGroundConstraintTangentPart<N>,
 }
 
-impl<N: SimdRealField> VelocityGroundConstraintElement<N> {
+impl<N: SimdRealField + Copy> VelocityGroundConstraintElement<N> {
     #[cfg(any(not(target_arch = "wasm32"), feature = "simd-is-enabled"))]
     pub fn zero() -> Self {
         Self {
@@ -161,7 +161,7 @@ impl<N: SimdRealField> VelocityGroundConstraintElement<N> {
     ) where
         Vector<N>: WBasis,
         AngVector<N>: WDot<AngVector<N>, Result = N>,
-        N::Element: SimdRealField,
+        N::Element: SimdRealField + Copy,
     {
         #[cfg(feature = "dim3")]
         let tangents1 = [tangent1, &dir1.cross(&tangent1)];
@@ -185,7 +185,7 @@ impl<N: SimdRealField> VelocityGroundConstraintElement<N> {
     ) where
         Vector<N>: WBasis,
         AngVector<N>: WDot<AngVector<N>, Result = N>,
-        N::Element: SimdRealField,
+        N::Element: SimdRealField + Copy,
     {
         // Solve friction.
         #[cfg(feature = "dim3")]
