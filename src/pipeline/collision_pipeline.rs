@@ -204,3 +204,109 @@ impl CollisionPipeline {
         removed_colliders.clear();
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    #[cfg(feature = "dim3")]
+    pub fn test_no_rigid_bodies() {
+        use crate::prelude::*;
+        let mut rigid_body_set = RigidBodySet::new();
+        let mut collider_set = ColliderSet::new();
+
+        /* Create the ground. */
+        let collider_a = ColliderBuilder::cuboid(1.0, 1.0, 1.0)
+            .active_collision_types(ActiveCollisionTypes::all())
+            .sensor(true)
+            .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
+            .build();
+
+        let a_handle = collider_set.insert(collider_a);
+
+        let collider_b = ColliderBuilder::cuboid(1.0, 1.0, 1.0)
+            .active_collision_types(ActiveCollisionTypes::all())
+            .sensor(true)
+            .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
+            .build();
+
+        let _ = collider_set.insert(collider_b);
+
+        let integration_parameters = IntegrationParameters::default();
+        let mut broad_phase = BroadPhase::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut collision_pipeline = CollisionPipeline::new();
+        let physics_hooks = ();
+
+        collision_pipeline.step(
+            integration_parameters.prediction_distance,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &physics_hooks,
+            &(),
+        );
+
+        let mut hit = false;
+
+        for (_, _, intersecting) in narrow_phase.intersections_with(a_handle) {
+            if intersecting {
+                hit = true;
+            }
+        }
+
+        assert!(hit, "No hit found");
+    }
+
+    #[test]
+    #[cfg(feature = "dim2")]
+    pub fn test_no_rigid_bodies() {
+        use crate::prelude::*;
+        let mut rigid_body_set = RigidBodySet::new();
+        let mut collider_set = ColliderSet::new();
+
+        /* Create the ground. */
+        let collider_a = ColliderBuilder::cuboid(1.0, 1.0)
+            .active_collision_types(ActiveCollisionTypes::all())
+            .sensor(true)
+            .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
+            .build();
+
+        let a_handle = collider_set.insert(collider_a);
+
+        let collider_b = ColliderBuilder::cuboid(1.0, 1.0)
+            .active_collision_types(ActiveCollisionTypes::all())
+            .sensor(true)
+            .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
+            .build();
+
+        let _ = collider_set.insert(collider_b);
+
+        let integration_parameters = IntegrationParameters::default();
+        let mut broad_phase = BroadPhase::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut collision_pipeline = CollisionPipeline::new();
+        let physics_hooks = ();
+
+        collision_pipeline.step(
+            integration_parameters.prediction_distance,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &physics_hooks,
+            &(),
+        );
+
+        let mut hit = false;
+
+        for (_, _, intersecting) in narrow_phase.intersections_with(a_handle) {
+            if intersecting {
+                hit = true;
+            }
+        }
+
+        assert!(hit, "No hit found");
+    }
+}
