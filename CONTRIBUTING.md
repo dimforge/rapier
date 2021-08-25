@@ -22,8 +22,8 @@ The Rust source code of the Rapier physics engines is available  on our `rapier`
    - Run the tests `cargo test`
    - Run the 2D examples and see if they behave as expected: `cargo run --release --bin all_examples2`
    - Run the 3D examples and see if they behave as expected: `cargo run --release --bin all_examples3`
-   - Run the 2D examples with the `parallel` and `simd-stable` features enabled: `cd all_examples2; cargo run --release --features parallel,simd-stable`
-   - Run the 3D examples with the `parallel` and `simd-stable` features enabled: `cd all_examples3; cargo run --release --features parallel,simd-stable`
+   - Run the 2D examples with the `parallel` and `simd-stable` features enabled: `cargo run --release --bin all_examples2 --features parallel,simd-stable`
+   - Run the 3D examples with the `parallel` and `simd-stable` features enabled: `cargo run --release --bin all_examples3 --features parallel,simd-stable`
 4. Once you are satisfied with your changes, submit them by [opening a Pull Request](https://github.com/dimforge/rapier/pulls) on GitHub.
 5. If that Pull Request does something you need urgently, or if you think it has been forgotten, don't hesitate
    to ask **@sebcrozet** directly [on Discord][discord] for a review.
