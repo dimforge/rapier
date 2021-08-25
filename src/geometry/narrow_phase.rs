@@ -571,8 +571,12 @@ impl NarrowPhase {
             let co_parent2: Option<&ColliderParent> = colliders.get(pair.collider2.0);
 
             if co_parent1.map(|p| p.handle) == co_parent2.map(|p| p.handle) {
-                // Same parents. Ignore collisions.
-                return;
+                if co_parent1.is_some() {
+                    // Same parents. Ignore collisions.
+                    return;
+                }
+
+                // These colliders have no parents - continue.
             }
 
             let (gid1, gid2) = self.graph_indices.ensure_pair_exists(
