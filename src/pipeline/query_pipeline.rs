@@ -658,8 +658,9 @@ impl QueryPipeline {
 
     /// Casts a shape at a constant linear velocity and retrieve the first collider it hits.
     ///
-    /// This is similar to ray-casting except that we are casting a whole shape instead of
-    /// just a point (the ray origin).
+    /// This is similar to ray-casting except that we are casting a whole shape instead of just a
+    /// point (the ray origin). In the resulting `TOI`, witness and normal 1 refer to the world
+    /// collider, and are in world space.
     ///
     /// # Parameters
     /// * `colliders` - The set of colliders taking part in this pipeline.
@@ -701,6 +702,9 @@ impl QueryPipeline {
     }
 
     /// Casts a shape with an arbitrary continuous motion and retrieve the first collider it hits.
+    ///
+    /// In the resulting `TOI`, witness and normal 1 refer to the world collider, and are in world
+    /// space.
     ///
     /// # Parameters
     /// * `colliders` - The set of colliders taking part in this pipeline.
