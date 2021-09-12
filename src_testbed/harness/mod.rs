@@ -124,6 +124,7 @@ impl Harness {
         self.physics.broad_phase = BroadPhase::new();
         self.physics.narrow_phase = NarrowPhase::new();
         self.state.timestep_id = 0;
+        self.state.time = 0.0;
         self.physics.ccd_solver = CCDSolver::new();
         self.physics.query_pipeline = QueryPipeline::new();
         self.physics.pipeline = PhysicsPipeline::new();

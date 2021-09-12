@@ -1,11 +1,16 @@
 use crate::harness::Harness;
 use crate::physics::PhysicsState;
 use crate::GraphicsManager;
-use bevy::prelude::{Assets, Commands, Mesh, Query, StandardMaterial, Transform};
+use bevy::prelude::*;
+use bevy::render::pipeline::PipelineDescriptor;
 use bevy_egui::EguiContext;
-use na::Point3;
 
 pub trait TestbedPlugin {
+    fn init_plugin(
+        &mut self,
+        pipelines: &mut Assets<PipelineDescriptor>,
+        shaders: &mut Assets<Shader>,
+    );
     fn init_graphics(
         &mut self,
         graphics: &mut GraphicsManager,
@@ -14,7 +19,6 @@ pub trait TestbedPlugin {
         materials: &mut Assets<StandardMaterial>,
         components: &mut Query<(&mut Transform,)>,
         harness: &mut Harness,
-        gen_color: &mut dyn FnMut() -> Point3<f32>,
     );
     fn clear_graphics(&mut self, graphics: &mut GraphicsManager, commands: &mut Commands);
     fn run_callbacks(&mut self, harness: &mut Harness);

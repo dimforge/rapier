@@ -3,7 +3,7 @@ use super::{
 };
 use crate::geometry::broad_phase_multi_sap::SAPProxyIndex;
 use crate::geometry::{
-    ColliderBroadPhaseData, ColliderChanges, ColliderHandle, ColliderPosition, ColliderShape, AABB,
+    ColliderBroadPhaseData, ColliderChanges, ColliderHandle, ColliderPosition, ColliderShape,
 };
 use crate::math::Real;
 use crate::utils::IndexMut2;
