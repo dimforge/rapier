@@ -2,6 +2,7 @@ use super::{SAPProxies, SAPProxy, SAPRegion, SAPRegionPool};
 use crate::geometry::broad_phase_multi_sap::DELETED_AABB_VALUE;
 use crate::geometry::{SAPProxyIndex, AABB};
 use crate::math::{Point, Real};
+use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::{Entry, HashMap};
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -214,12 +215,13 @@ impl SAPLayer {
     pub fn preupdate_collider(
         &mut self,
         proxy_id: u32,
-        aabb: &AABB,
+        aabb_to_discretize: &AABB,
+        actual_aabb: Option<&AABB>,
         proxies: &mut SAPProxies,
         pool: &mut SAPRegionPool,
     ) {
-        let start = super::point_key(aabb.mins, self.region_width);
-        let end = super::point_key(aabb.maxs, self.region_width);
+        let start = super::point_key(aabb_to_discretize.mins, self.region_width);
+        let end = super::point_key(aabb_to_discretize.maxs, self.region_width);
 
         // Discretize the aabb.
         #[cfg(feature = "dim2")]
@@ -235,7 +237,22 @@ impl SAPLayer {
                     #[cfg(feature = "dim3")]
                     let region_key = Point::new(i, j, _k);
                     let region_id = self.ensure_region_exists(region_key, proxies, pool);
-                    let region = proxies[region_id].data.as_region_mut();
+                    let region_proxy = &mut proxies[region_id];
+                    let region = region_proxy.data.as_region_mut();
+
+                    if let Some(actual_aabb) = actual_aabb {
+                        // NOTE: if the actual AABB doesn't intersect the
+                        //       region’s AABB, then we need to delete the
+                        //       proxy from that region because it means that
+                        //       during the last update the proxy intersected
+                        //       that region, but it doesn't intersect it any
+                        //       more during the current update.
+                        if !region_proxy.aabb.intersects(actual_aabb) {
+                            region.predelete_proxy(proxy_id);
+                            continue;
+                        }
+                    }
+
                     region.preupdate_proxy(proxy_id, true);
                 }
             }
