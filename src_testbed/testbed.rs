@@ -35,6 +35,7 @@ use bevy_egui::EguiContext;
 use crate::camera2d::{OrbitCamera, OrbitCameraPlugin};
 #[cfg(feature = "dim3")]
 use crate::camera3d::{OrbitCamera, OrbitCameraPlugin};
+use bevy::render::pipeline::PipelineDescriptor;
 
 const RAPIER_BACKEND: usize = 0;
 #[cfg(feature = "other-backends")]
@@ -136,6 +137,8 @@ pub struct TestbedGraphics<'a, 'b, 'c, 'd> {
     commands: &'a mut Commands<'d>,
     meshes: &'a mut Assets<Mesh>,
     materials: &'a mut Assets<StandardMaterial>,
+    shaders: &'a mut Assets<Shader>,
+    pipelines: &'a mut Assets<PipelineDescriptor>,
     components: &'a mut Query<'b, (&'c mut Transform,)>,
     camera: &'a mut OrbitCamera,
 }
@@ -620,7 +623,10 @@ impl<'a, 'b, 'c, 'd> Testbed<'a, 'b, 'c, 'd> {
         self.harness.add_callback(callback);
     }
 
-    pub fn add_plugin(&mut self, plugin: impl TestbedPlugin + 'static) {
+    pub fn add_plugin(&mut self, mut plugin: impl TestbedPlugin + 'static) {
+        if let Some(gfx) = &mut self.graphics {
+            plugin.init_plugin(gfx.pipelines, gfx.shaders);
+        }
         self.plugins.0.push(Box::new(plugin));
     }
 
@@ -855,6 +861,8 @@ fn egui_focus(ui_context: Res<EguiContext>, mut cameras: Query<&mut OrbitCamera>
 fn update_testbed(
     mut commands: Commands,
     windows: Res<Windows>,
+    mut pipelines: ResMut<Assets<PipelineDescriptor>>,
+    mut shaders: ResMut<Assets<Shader>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     builders: NonSendMut<SceneBuilders>,
@@ -960,6 +968,8 @@ fn update_testbed(
             let meshes = &mut *meshes;
 
             let graphics_context = TestbedGraphics {
+                pipelines: &mut *pipelines,
+                shaders: &mut *shaders,
                 manager: &mut *manager,
                 commands: &mut commands,
                 meshes: &mut *meshes,
@@ -1047,7 +1057,6 @@ fn update_testbed(
             }
 
             for plugin in &mut plugins.0 {
-                let next_color = graphics.next_color();
                 plugin.init_graphics(
                     &mut graphics,
                     &mut commands,
@@ -1055,7 +1064,6 @@ fn update_testbed(
                     materials,
                     &mut gfx_components,
                     &mut harness,
-                    &mut || next_color,
                 );
             }
         }
@@ -1099,6 +1107,8 @@ fn update_testbed(
                 let graphics = &mut graphics;
 
                 let mut testbed_graphics = TestbedGraphics {
+                    pipelines: &mut *pipelines,
+                    shaders: &mut *shaders,
                     manager: &mut *graphics,
                     commands: &mut commands,
                     meshes: &mut *meshes,
