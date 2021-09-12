@@ -3,7 +3,7 @@ use super::{
 };
 use crate::geometry::broad_phase_multi_sap::SAPProxyIndex;
 use crate::geometry::{
-    ColliderBroadPhaseData, ColliderChanges, ColliderHandle, ColliderPosition, ColliderShape,
+    ColliderBroadPhaseData, ColliderChanges, ColliderHandle, ColliderPosition, ColliderShape, AABB,
 };
 use crate::math::Real;
 use crate::utils::IndexMut2;
@@ -351,9 +351,11 @@ impl BroadPhase {
 
         aabb.mins = super::clamp_point(aabb.mins);
         aabb.maxs = super::clamp_point(aabb.maxs);
+        let prev_aabb;
 
         let layer_id = if let Some(proxy) = self.proxies.get_mut(*proxy_index) {
             let mut layer_id = proxy.layer_id;
+            prev_aabb = proxy.aabb;
             proxy.aabb = aabb;
 
             if co_changes.contains(ColliderChanges::SHAPE) {
@@ -380,6 +382,7 @@ impl BroadPhase {
 
             // Create the proxy.
             let proxy = SAPProxy::collider(handle, aabb, layer_id, layer_depth);
+            prev_aabb = aabb;
             *proxy_index = self.proxies.insert(proxy);
             layer_id
         };
@@ -387,12 +390,41 @@ impl BroadPhase {
         let layer = &mut self.layers[layer_id as usize];
 
         // Preupdate the collider in the layer.
-        layer.preupdate_collider(
-            *proxy_index,
-            &aabb,
-            &mut self.proxies,
-            &mut self.region_pool,
-        );
+        // We need to use both the prev AABB and the new AABB for this update, to
+        // handle special cases where one AABB has left a region that doesn’t contain
+        // any other modified AABBs.
+        // If the combination of both previous and new aabbs isn’t more than 25% bigger
+        // than the new AABB, we just merge them to save some computation times (to avoid
+        // discretizing twice the area at their intersection. If it’s bigger than 25% then
+        // we discretize both aabbs individually.
+        let merged_aabbs = prev_aabb.merged(&aabb);
+
+        if merged_aabbs.volume() > aabb.volume() * 1.25 {
+            layer.preupdate_collider(
+                *proxy_index,
+                &aabb,
+                None,
+                &mut self.proxies,
+                &mut self.region_pool,
+            );
+
+            layer.preupdate_collider(
+                *proxy_index,
+                &prev_aabb,
+                Some(&aabb),
+                &mut self.proxies,
+                &mut self.region_pool,
+            );
+        } else {
+            layer.preupdate_collider(
+                *proxy_index,
+                &merged_aabbs,
+                Some(&aabb),
+                &mut self.proxies,
+                &mut self.region_pool,
+            );
+        }
+
         let need_region_propagation = !layer.created_regions.is_empty();
 
         need_region_propagation
