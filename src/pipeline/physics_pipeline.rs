@@ -450,7 +450,10 @@ impl PhysicsPipeline {
             match rb_type {
                 RigidBodyType::KinematicPositionBased => {
                     let rb_pos: &RigidBodyPosition = bodies.index(handle.0);
-                    let new_vel = rb_pos.interpolate_velocity(integration_parameters.inv_dt());
+                    let new_vel = rb_pos.interpolate_velocity(
+                        integration_parameters.inv_dt(),
+                        &rb_mprops.local_mprops.local_com,
+                    );
                     bodies.set_internal(handle.0, new_vel);
                 }
                 RigidBodyType::KinematicVelocityBased => {

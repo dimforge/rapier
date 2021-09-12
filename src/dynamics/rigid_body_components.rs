@@ -147,8 +147,11 @@ impl RigidBodyPosition {
     /// Computes the velocity need to travel from `self.position` to `self.next_position` in
     /// a time equal to `1.0 / inv_dt`.
     #[must_use]
-    pub fn interpolate_velocity(&self, inv_dt: Real) -> RigidBodyVelocity {
-        let dpos = self.next_position * self.position.inverse();
+    pub fn interpolate_velocity(&self, inv_dt: Real, local_com: &Point<Real>) -> RigidBodyVelocity {
+        let com = self.position * local_com;
+        let shift = Translation::from(com.coords);
+        let dpos = shift.inverse() * self.next_position * self.position.inverse() * shift;
+
         let angvel;
         #[cfg(feature = "dim2")]
         {
@@ -159,6 +162,7 @@ impl RigidBodyPosition {
             angvel = dpos.rotation.scaled_axis() * inv_dt;
         }
         let linvel = dpos.translation.vector * inv_dt;
+
         RigidBodyVelocity { linvel, angvel }
     }
 
