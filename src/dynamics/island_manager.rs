@@ -9,7 +9,7 @@ use crate::math::Real;
 /// Structure responsible for maintaining the set of active rigid-bodies, and
 /// putting non-moving rigid-bodies to sleep to save computation times.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct IslandManager {
     pub(crate) active_dynamic_set: Vec<RigidBodyHandle>,
     pub(crate) active_kinematic_set: Vec<RigidBodyHandle>,

@@ -19,6 +19,12 @@ pub struct IslandSolver {
     position_solver: PositionSolver,
 }
 
+impl Default for IslandSolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IslandSolver {
     pub fn new() -> Self {
         Self {

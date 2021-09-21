@@ -62,6 +62,12 @@ pub struct NarrowPhase {
 
 pub(crate) type ContactManifoldIndex = usize;
 
+impl Default for NarrowPhase {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NarrowPhase {
     /// Creates a new empty narrow-phase.
     pub fn new() -> Self {

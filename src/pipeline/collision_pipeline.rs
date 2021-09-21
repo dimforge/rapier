@@ -33,6 +33,12 @@ fn check_pipeline_send_sync() {
     do_test::<CollisionPipeline>();
 }
 
+impl Default for CollisionPipeline {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CollisionPipeline {
     /// Initializes a new physics pipeline.
     pub fn new() -> CollisionPipeline {

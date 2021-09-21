@@ -29,6 +29,12 @@ pub struct CCDSolver {
     query_pipeline: QueryPipeline,
 }
 
+impl Default for CCDSolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CCDSolver {
     /// Initializes a new CCD solver
     pub fn new() -> Self {

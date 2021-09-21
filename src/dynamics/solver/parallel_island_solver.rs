@@ -133,6 +133,12 @@ pub struct ParallelIslandSolver {
     thread: ThreadContext,
 }
 
+impl Default for ParallelIslandSolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ParallelIslandSolver {
     pub fn new() -> Self {
         Self {

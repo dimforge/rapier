@@ -36,6 +36,12 @@ pub struct RigidBody {
     pub user_data: u128,
 }
 
+impl Default for RigidBody {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RigidBody {
     fn new() -> Self {
         Self {

@@ -116,6 +116,12 @@ pub struct BroadPhase {
     reporting: HashMap<(u32, u32), bool>, // Workspace
 }
 
+impl Default for BroadPhase {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BroadPhase {
     /// Create a new empty broad-phase.
     pub fn new() -> Self {
