@@ -14,6 +14,12 @@ pub struct InteractionGraph<N, E> {
     pub(crate) graph: Graph<N, E>,
 }
 
+impl<N: Copy, E> Default for InteractionGraph<N, E> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<N: Copy, E> InteractionGraph<N, E> {
     /// Creates a new empty collection of collision objects.
     pub fn new() -> Self {

@@ -9,7 +9,7 @@ use crate::geometry::{ColliderChanges, ColliderHandle};
 use std::ops::{Index, IndexMut};
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 /// A set of colliders that can be handled by a physics `World`.
 pub struct ColliderSet {
     pub(crate) colliders: Arena<Collider>,

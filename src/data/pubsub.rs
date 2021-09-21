@@ -38,7 +38,7 @@ impl PubSubCursor {
 
 /// A pub-sub queue.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct PubSub<T> {
     deleted_messages: u32,
     deleted_offsets: u32,

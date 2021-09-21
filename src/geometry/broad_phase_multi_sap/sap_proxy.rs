@@ -87,6 +87,12 @@ pub struct SAPProxies {
     pub first_free: SAPProxyIndex,
 }
 
+impl Default for SAPProxies {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SAPProxies {
     pub fn new() -> Self {
         Self {

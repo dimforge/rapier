@@ -37,7 +37,7 @@ pub(crate) type JointIndex = usize;
 pub(crate) type JointGraphEdge = crate::data::graph::Edge<Joint>;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 /// A set of joints that can be handled by a physics `World`.
 pub struct JointSet {
     rb_graph_ids: Coarena<RigidBodyGraphIndex>,
