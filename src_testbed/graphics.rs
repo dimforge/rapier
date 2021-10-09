@@ -179,7 +179,7 @@ impl GraphicsManager {
         color
     }
 
-    pub fn add(
+    pub fn add_body_colliders(
         &mut self,
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
@@ -197,12 +197,12 @@ impl GraphicsManager {
             .cloned()
             .unwrap_or_else(|| self.alloc_color(materials, handle, !body.is_dynamic()));
 
-        let _ = self.add_with_color(
+        let _ = self.add_body_colliders_with_color(
             commands, meshes, materials, components, handle, bodies, colliders, color,
         );
     }
 
-    pub fn add_with_color(
+    pub fn add_body_colliders_with_color(
         &mut self,
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
@@ -263,9 +263,16 @@ impl GraphicsManager {
     ) {
         let collider = &colliders[handle];
         let collider_parent = collider.parent().unwrap_or(RigidBodyHandle::invalid());
-        let color = *self.b2color.get(&collider_parent).unwrap();
+        let color = self
+            .b2color
+            .get(&collider_parent)
+            .copied()
+            .unwrap_or(self.ground_color);
         let color = self.c2color.get(&handle).copied().unwrap_or(color);
-        let mut nodes = std::mem::replace(self.b2sn.get_mut(&collider_parent).unwrap(), Vec::new());
+        let mut nodes = std::mem::replace(
+            self.b2sn.entry(collider_parent).or_insert(vec![]),
+            Vec::new(),
+        );
         self.add_shape(
             commands,
             meshes,
@@ -294,6 +301,7 @@ impl GraphicsManager {
         color: Point3<f32>,
         out: &mut Vec<EntityWithGraphics>,
     ) {
+        println!("Shape type: {:?}", shape.shape_type());
         if let Some(compound) = shape.as_compound() {
             for (shape_pos, shape) in compound.shapes() {
                 self.add_shape(
