@@ -133,7 +133,7 @@ struct OtherBackends {
 struct Plugins(Vec<Box<dyn TestbedPlugin>>);
 
 pub struct TestbedGraphics<'a, 'b, 'c, 'd> {
-    manager: &'a mut GraphicsManager,
+    graphics: &'a mut GraphicsManager,
     commands: &'a mut Commands<'d>,
     meshes: &'a mut Assets<Mesh>,
     materials: &'a mut Assets<StandardMaterial>,
@@ -434,7 +434,7 @@ impl TestbedApp {
 
 impl<'a, 'b, 'c, 'd> TestbedGraphics<'a, 'b, 'c, 'd> {
     pub fn set_body_color(&mut self, body: RigidBodyHandle, color: [f32; 3]) {
-        self.manager
+        self.graphics
             .set_body_color(&mut self.materials, body, color);
     }
 
@@ -444,7 +444,7 @@ impl<'a, 'b, 'c, 'd> TestbedGraphics<'a, 'b, 'c, 'd> {
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
     ) {
-        self.manager.add(
+        self.graphics.add_body_colliders(
             &mut *self.commands,
             &mut *self.meshes,
             &mut *self.materials,
@@ -457,17 +457,17 @@ impl<'a, 'b, 'c, 'd> TestbedGraphics<'a, 'b, 'c, 'd> {
 
     pub fn remove_collider(&mut self, handle: ColliderHandle, colliders: &ColliderSet) {
         if let Some(parent_handle) = colliders.get(handle).map(|c| c.parent()) {
-            self.manager
+            self.graphics
                 .remove_collider_nodes(&mut *self.commands, parent_handle, handle)
         }
     }
 
     pub fn remove_body(&mut self, handle: RigidBodyHandle) {
-        self.manager.remove_body_nodes(&mut *self.commands, handle)
+        self.graphics.remove_body_nodes(&mut *self.commands, handle)
     }
 
     pub fn add_collider(&mut self, handle: ColliderHandle, colliders: &ColliderSet) {
-        self.manager.add_collider(
+        self.graphics.add_collider(
             &mut *self.commands,
             &mut *self.meshes,
             &mut *self.materials,
@@ -594,19 +594,23 @@ impl<'a, 'b, 'c, 'd> Testbed<'a, 'b, 'c, 'd> {
 
     pub fn set_initial_body_color(&mut self, body: RigidBodyHandle, color: [f32; 3]) {
         if let Some(graphics) = &mut self.graphics {
-            graphics.manager.set_initial_body_color(body, color);
+            graphics.graphics.set_initial_body_color(body, color);
         }
     }
 
     pub fn set_initial_collider_color(&mut self, collider: ColliderHandle, color: [f32; 3]) {
         if let Some(graphics) = &mut self.graphics {
-            graphics.manager.set_initial_collider_color(collider, color);
+            graphics
+                .graphics
+                .set_initial_collider_color(collider, color);
         }
     }
 
     pub fn set_body_wireframe(&mut self, body: RigidBodyHandle, wireframe_enabled: bool) {
         if let Some(graphics) = &mut self.graphics {
-            graphics.manager.set_body_wireframe(body, wireframe_enabled);
+            graphics
+                .graphics
+                .set_body_wireframe(body, wireframe_enabled);
         }
     }
 
@@ -964,13 +968,13 @@ fn update_testbed(
             }
 
             let selected_example = state.selected_example;
-            let manager = &mut *graphics;
+            let graphics = &mut *graphics;
             let meshes = &mut *meshes;
 
             let graphics_context = TestbedGraphics {
                 pipelines: &mut *pipelines,
                 shaders: &mut *shaders,
-                manager: &mut *manager,
+                graphics: &mut *graphics,
                 commands: &mut commands,
                 meshes: &mut *meshes,
                 materials: &mut *materials,
@@ -1045,13 +1049,23 @@ fn update_testbed(
                 .action_flags
                 .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, false);
             for (handle, _) in harness.physics.bodies.iter() {
-                graphics.add(
+                graphics.add_body_colliders(
                     &mut commands,
                     meshes,
                     materials,
                     &mut gfx_components,
                     handle,
                     &harness.physics.bodies,
+                    &harness.physics.colliders,
+                );
+            }
+
+            for (handle, _) in harness.physics.colliders.iter() {
+                graphics.add_collider(
+                    &mut commands,
+                    meshes,
+                    materials,
+                    handle,
                     &harness.physics.colliders,
                 );
             }
@@ -1109,7 +1123,7 @@ fn update_testbed(
                 let mut testbed_graphics = TestbedGraphics {
                     pipelines: &mut *pipelines,
                     shaders: &mut *shaders,
-                    manager: &mut *graphics,
+                    graphics: &mut *graphics,
                     commands: &mut commands,
                     meshes: &mut *meshes,
                     materials: &mut *materials,
