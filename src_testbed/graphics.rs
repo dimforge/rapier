@@ -301,7 +301,6 @@ impl GraphicsManager {
         color: Point3<f32>,
         out: &mut Vec<EntityWithGraphics>,
     ) {
-        println!("Shape type: {:?}", shape.shape_type());
         if let Some(compound) = shape.as_compound() {
             for (shape_pos, shape) in compound.shapes() {
                 self.add_shape(
