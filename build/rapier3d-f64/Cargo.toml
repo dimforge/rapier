@@ -29,6 +29,7 @@ simd-is-enabled = [ "vec_map" ]
 wasm-bindgen = [ "instant/wasm-bindgen" ]
 serde-serialize = [ "nalgebra/serde-serialize", "parry3d-f64/serde-serialize", "serde", "bit-vec/serde" ]
 enhanced-determinism = [ "simba/libm_force", "parry3d-f64/enhanced-determinism" ]
+bevy-components = ["bevy", "parry3d-f64/bevy-components"]
 
 # Feature used for debugging only.
 debug-disable-legitimate-fe-exceptions = [ ]
@@ -60,6 +61,7 @@ serde = { version = "1", features = [ "derive" ], optional = true }
 downcast-rs = "1.2"
 num-derive = "0.3"
 bitflags = "1"
+bevy = { version = "0.5", default-features=false, optional = true }
 
 [dev-dependencies]
 bincode = "1"

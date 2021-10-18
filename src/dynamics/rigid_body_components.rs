@@ -9,9 +9,13 @@ use crate::parry::partitioning::IndexedData;
 use crate::utils::{WCross, WDot};
 use num::Zero;
 
+#[cfg(feature = "bevy-components")]
+use bevy::prelude::Component;
+
 /// The unique handle of a rigid body added to a `RigidBodySet`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 #[repr(transparent)]
 pub struct RigidBodyHandle(pub crate::data::arena::Index);
 
@@ -51,6 +55,7 @@ pub type BodyStatus = RigidBodyType;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 /// The status of a body, governing the way it is affected by external forces.
 pub enum RigidBodyType {
     /// A `RigidBodyType::Dynamic` body can be affected by all external forces.
@@ -95,6 +100,7 @@ impl RigidBodyType {
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "bevy-components", derive(Component))]
     /// Flags describing how the rigid-body has been modified by the user.
     pub struct RigidBodyChanges: u32 {
         /// Flag indicating that any component of this rigid-body has been modified.
@@ -117,6 +123,7 @@ impl Default for RigidBodyChanges {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 #[derive(Clone, Debug, Copy, PartialEq)]
 /// The position of this rigid-body.
 pub struct RigidBodyPosition {
@@ -214,6 +221,7 @@ bitflags::bitflags! {
 
 // TODO: split this into "LocalMassProps" and `WorldMassProps"?
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 #[derive(Clone, Debug, Copy, PartialEq)]
 /// The mass properties of this rigid-bodies.
 pub struct RigidBodyMassProps {
@@ -330,6 +338,7 @@ impl RigidBodyMassProps {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 #[derive(Clone, Debug, Copy, PartialEq)]
 /// The velocities of this rigid-body.
 pub struct RigidBodyVelocity {
@@ -470,6 +479,7 @@ impl RigidBodyVelocity {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 #[derive(Clone, Debug, Copy, PartialEq)]
 /// Damping factors to progressively slow down a rigid-body.
 pub struct RigidBodyDamping {
@@ -489,6 +499,7 @@ impl Default for RigidBodyDamping {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 #[derive(Clone, Debug, Copy, PartialEq)]
 /// The user-defined external forces applied to this rigid-body.
 pub struct RigidBodyForces {
@@ -549,6 +560,7 @@ impl RigidBodyForces {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 #[derive(Clone, Debug, Copy, PartialEq)]
 /// Information used for Continuous-Collision-Detection.
 pub struct RigidBodyCcd {
@@ -621,6 +633,7 @@ impl RigidBodyCcd {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
 /// Internal identifiers used by the physics engine.
 pub struct RigidBodyIds {
@@ -642,6 +655,7 @@ impl Default for RigidBodyIds {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// The set of colliders attached to this rigid-bodies.
 ///
@@ -739,6 +753,7 @@ impl RigidBodyColliders {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 #[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// The dominance groups of a rigid-body.
 pub struct RigidBodyDominance(pub i8);
@@ -766,6 +781,7 @@ impl RigidBodyDominance {
 /// If the threshold is negative, the body never sleeps.
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 pub struct RigidBodyActivation {
     /// The threshold pseudo-kinetic energy bellow which the body can fall asleep.
     pub threshold: Real,

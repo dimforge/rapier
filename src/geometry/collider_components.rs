@@ -4,10 +4,13 @@ use crate::math::{Isometry, Real};
 use crate::parry::partitioning::IndexedData;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
 use std::ops::{Deref, DerefMut};
+#[cfg(feature = "bevy-components")]
+use bevy::prelude::Component;
 
 /// The unique identifier of a collider added to a collider set.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 #[repr(transparent)]
 pub struct ColliderHandle(pub crate::data::arena::Index);
 
@@ -43,6 +46,7 @@ impl IndexedData for ColliderHandle {
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "bevy-components", derive(Component))]
     /// Flags describing how the collider has been modified by the user.
     pub struct ColliderChanges: u32 {
         /// Flag indicating that any component of the collider has been modified.
@@ -82,6 +86,7 @@ impl ColliderChanges {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 /// The type of collider.
 pub enum ColliderType {
     /// A collider that can generate contacts and contact events.
@@ -99,6 +104,7 @@ impl ColliderType {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 /// Data associated to a collider that takes part to a broad-phase algorithm.
 pub struct ColliderBroadPhaseData {
     pub(crate) proxy_index: SAPProxyIndex,
@@ -117,6 +123,7 @@ pub type ColliderShape = SharedShape;
 
 #[derive(Clone, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 /// The mass-properties of a collider.
 pub enum ColliderMassProps {
     /// The collider is given a density.
@@ -157,6 +164,7 @@ impl ColliderMassProps {
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 /// Information about the rigid-body this collider is attached to.
 pub struct ColliderParent {
     /// Handle of the rigid-body this collider is attached to.
@@ -167,6 +175,7 @@ pub struct ColliderParent {
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 /// The position of a collider.
 pub struct ColliderPosition(pub Isometry<Real>);
 
@@ -222,6 +231,7 @@ where
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 /// The constraints solver-related properties of this collider (friction, restitution, etc.)
 pub struct ColliderMaterial {
     /// The friction coefficient of this collider.
@@ -343,6 +353,7 @@ impl Default for ActiveCollisionTypes {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy-components", derive(Component))]
 /// A set of flags for controlling collision/intersection filtering, modification, and events.
 pub struct ColliderFlags {
     /// Controls whether collision-detection happens between two colliders depending on

@@ -28,6 +28,7 @@ resolver = "2"
 #ncollide3d = { git = "https://github.com/dimforge/ncollide" }
 #nphysics2d = { git = "https://github.com/dimforge/nphysics" }
 #nphysics3d = { git = "https://github.com/dimforge/nphysics" }
+bevy = { path="../bevy" }
 
 [profile.release]
 #debug = true
