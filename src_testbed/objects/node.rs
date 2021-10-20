@@ -48,8 +48,7 @@ impl EntityWithGraphics {
         let mesh = prefab_meshs
             .get(&shape.shape_type())
             .cloned()
-            .or_else(|| generate_collider_mesh(shape).map(|m| meshes.add(m)))
-            .expect("Could not build the collider's render mesh");
+            .or_else(|| generate_collider_mesh(shape).map(|m| meshes.add(m)));
 
         let opacity = 1.0;
         let bevy_color = Color::rgba(color.x, color.y, color.z, opacity);
@@ -83,18 +82,21 @@ impl EntityWithGraphics {
         };
         let material_handle = materials.add(material);
         let material_weak_handle = material_handle.clone_weak();
-        let pbr = PbrBundle {
-            mesh,
-            material: material_handle,
-            transform,
-            ..Default::default()
-        };
 
-        let mut entity_commands = commands.entity(entity);
-        entity_commands.insert_bundle(pbr);
+        if let Some(mesh) = mesh {
+            let pbr = PbrBundle {
+                mesh,
+                material: material_handle,
+                transform,
+                ..Default::default()
+            };
 
-        if sensor {
-            entity_commands.insert(Wireframe);
+            let mut entity_commands = commands.entity(entity);
+            entity_commands.insert_bundle(pbr);
+
+            if sensor {
+                entity_commands.insert(Wireframe);
+            }
         }
 
         EntityWithGraphics {
