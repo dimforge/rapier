@@ -227,6 +227,8 @@ impl RigidBody {
     }
 
     /// Enables of disable CCD (continuous collision-detection) for this rigid-body.
+    ///
+    /// CCD prevents tunneling, but may still allow limited interpenetration of colliders.
     pub fn enable_ccd(&mut self, enabled: bool) {
         self.rb_ccd.ccd_enabled = enabled;
     }
@@ -734,6 +736,8 @@ pub struct RigidBodyBuilder {
     /// Whether or not the rigid-body is to be created asleep.
     pub sleeping: bool,
     /// Whether continuous collision-detection is enabled for the rigid-body to be built.
+    ///
+    /// CCD prevents tunneling, but may still allow limited interpenetration of colliders.
     pub ccd_enabled: bool,
     /// The dominance group of the rigid-body to be built.
     pub dominance_group: i8,
@@ -983,6 +987,8 @@ impl RigidBodyBuilder {
     }
 
     /// Sets whether or not continuous collision-detection is enabled for this rigid-body.
+    ///
+    /// CCD prevents tunneling, but may still allow limited interpenetration of colliders.
     pub fn ccd_enabled(mut self, enabled: bool) -> Self {
         self.ccd_enabled = enabled;
         self
