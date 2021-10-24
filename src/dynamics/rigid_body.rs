@@ -331,7 +331,10 @@ impl RigidBody {
 
     /// The dominance group of this rigid-body.
     pub fn set_dominance_group(&mut self, dominance: i8) {
-        self.rb_dominance.0 = dominance
+        if self.rb_dominance.0 != dominance {
+            self.changes.insert(RigidBodyChanges::DOMINANCE);
+            self.rb_dominance.0 = dominance
+        }
     }
 
     /// Adds a collider to this rigid-body.
