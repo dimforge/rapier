@@ -762,13 +762,6 @@ impl NarrowPhase {
             let active_hooks = co_flags1.active_hooks | co_flags2.active_hooks;
             let active_events = co_flags1.active_events | co_flags2.active_events;
 
-            // Filter based on rigid-body types.
-            if !co_flags1.active_collision_types.test(rb_type1, rb_type2)
-                && !co_flags2.active_collision_types.test(rb_type1, rb_type2)
-            {
-                return;
-            }
-
             if active_hooks.contains(ActiveHooks::FILTER_INTERSECTION_PAIR) {
                 let context = PairFilterContext {
                     bodies,
