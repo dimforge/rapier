@@ -107,6 +107,8 @@ bitflags::bitflags! {
         const COLLIDERS   = 1 << 3;
         /// Flag indicating that the `RigidBodyType` component of this rigid-body has been modified.
         const TYPE        = 1 << 4;
+        /// Flag indicating that the `RigidBodyDominance` component of this rigid-body has been modified.
+        const DOMINANCE   = 1 << 5;
     }
 }
 

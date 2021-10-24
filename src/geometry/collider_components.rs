@@ -47,16 +47,21 @@ bitflags::bitflags! {
     pub struct ColliderChanges: u32 {
         /// Flag indicating that any component of the collider has been modified.
         const MODIFIED = 1 << 0;
-        /// Flag indicating that the `RigidBodyParent` component of the collider has been modified.
+        /// Flag indicating that the `ColliderParent` component of the collider has been modified.
         const PARENT   = 1 << 1; // => BF & NF updates.
-        /// Flag indicating that the `RigidBodyPosition` component of the collider has been modified.
+        /// Flag indicating that the `ColliderPosition` component of the collider has been modified.
         const POSITION = 1 << 2; // => BF & NF updates.
-        /// Flag indicating that the `RigidBodyGroups` component of the collider has been modified.
+        /// Flag indicating that the collision groups of the collider have been modified.
         const GROUPS   = 1 << 3; // => NF update.
-        /// Flag indicating that the `RigidBodyShape` component of the collider has been modified.
+        /// Flag indicating that the `ColliderShape` component of the collider has been modified.
         const SHAPE    = 1 << 4; // => BF & NF update. NF pair workspace invalidation.
-        /// Flag indicating that the `RigidBodyType` component of the collider has been modified.
+        /// Flag indicating that the `ColliderType` component of the collider has been modified.
         const TYPE     = 1 << 5; // => NF update. NF pair invalidation.
+        /// Flag indicating that the dominance groups of the parent of this collider have been modified.
+        ///
+        /// This flags is automatically set by the `PhysicsPipeline` when the `RigidBodyChanges::DOMINANCE`
+        /// or `RigidBodyChanges::TYPE` of the parent rigid-body of this collider is detected.
+        const PARENT_EFFECTIVE_DOMINANCE = 1 << 6; // NF update.
     }
 }
 
@@ -76,6 +81,11 @@ impl ColliderChanges {
 
     /// Do these changes justify a narrow-phase update?
     pub fn needs_narrow_phase_update(self) -> bool {
+        // NOTE: for simplicity of implementation, we return `true` even if
+        //       we only need a dominance update. If this does become a
+        //       bottleneck at some point in the future (which is very unlikely)
+        //       we could do a special-case for dominance-only change (so that
+        //       we only update the relative_dominance of the pre-existing contact.
         self.bits() > 1
     }
 }

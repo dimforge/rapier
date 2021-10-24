@@ -155,6 +155,21 @@ pub(crate) fn handle_user_changes_to_rigid_bodies<Bodies, Colliders>(
                 }
             }
 
+            if changes.contains(RigidBodyChanges::DOMINANCE)
+                || changes.contains(RigidBodyChanges::TYPE)
+            {
+                for handle in rb_colliders.0.iter() {
+                    colliders.map_mut_internal(handle.0, |co_changes: &mut ColliderChanges| {
+                        if !co_changes.contains(ColliderChanges::MODIFIED) {
+                            modified_colliders.push(*handle);
+                        }
+
+                        *co_changes |=
+                            ColliderChanges::MODIFIED | ColliderChanges::PARENT_EFFECTIVE_DOMINANCE;
+                    });
+                }
+            }
+
             bodies.set_internal(handle.0, RigidBodyChanges::empty());
             bodies.set_internal(handle.0, ids);
             bodies.set_internal(handle.0, activation);
