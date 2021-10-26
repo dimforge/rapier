@@ -16,6 +16,7 @@ pub use self::joint::{
     JointParams,
     JointSet,
     PrismaticJoint,
+    SpringJoint,
     SpringModel, // GenericJoint
 };
 pub use self::rigid_body_components::*;

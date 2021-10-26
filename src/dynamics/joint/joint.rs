@@ -1,6 +1,8 @@
 #[cfg(feature = "dim3")]
 use crate::dynamics::RevoluteJoint;
-use crate::dynamics::{BallJoint, FixedJoint, JointHandle, PrismaticJoint, RigidBodyHandle};
+use crate::dynamics::{
+    BallJoint, FixedJoint, JointHandle, PrismaticJoint, RigidBodyHandle, SpringJoint
+};
 
 #[derive(Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -17,6 +19,8 @@ pub enum JointParams {
     /// A revolute joint that removes all degrees of degrees of freedom between the affected
     /// bodies except for the translation along one axis.
     RevoluteJoint(RevoluteJoint),
+    /// A spring joint that simulates a hookean spring attached to the two affected bodies.
+    SpringJoint(SpringJoint),
     // GenericJoint(GenericJoint),
 }
 
@@ -30,6 +34,7 @@ impl JointParams {
             // JointParams::GenericJoint(_) => 3,
             #[cfg(feature = "dim3")]
             JointParams::RevoluteJoint(_) => 4,
+            JointParams::SpringJoint(_) => 5,
         }
     }
 
@@ -63,6 +68,15 @@ impl JointParams {
     /// Gets a reference to the underlying prismatic joint, if `self` is one.
     pub fn as_prismatic_joint(&self) -> Option<&PrismaticJoint> {
         if let JointParams::PrismaticJoint(j) = self {
+            Some(j)
+        } else {
+            None
+        }
+    }
+
+    /// Gets a reference to the underlying spring joint, if `self` is one.
+    pub fn as_spring_joint(&self) -> Option<&SpringJoint> {
+        if let JointParams::SpringJoint(j) = self {
             Some(j)
         } else {
             None
@@ -111,6 +125,12 @@ impl From<PrismaticJoint> for JointParams {
     }
 }
 
+impl From<SpringJoint> for JointParams {
+    fn from(j: SpringJoint) -> Self {
+        JointParams::SpringJoint(j)
+    }
+}
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 /// A joint attached to two bodies.
@@ -138,6 +158,7 @@ impl Joint {
             JointParams::BallJoint(joint) => joint.supports_simd_constraints(),
             #[cfg(feature = "dim3")]
             JointParams::RevoluteJoint(joint) => joint.supports_simd_constraints(),
+            JointParams::SpringJoint(joint) => joint.supports_simd_constraints(),
         }
     }
 }

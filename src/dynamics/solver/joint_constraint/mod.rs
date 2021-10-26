@@ -65,6 +65,13 @@ pub(self) use revolute_velocity_constraint::{
 pub(self) use revolute_velocity_constraint_wide::{
     WRevoluteVelocityConstraint, WRevoluteVelocityGroundConstraint,
 };
+pub(self) use spring_position_constraint::{
+    SpringPositionConstraint, SpringPositionGroundConstraint,
+};
+pub(self) use spring_velocity_constraint::{
+    SpringVelocityConstraint, SpringVelocityGroundConstraint
+};
+
 
 mod ball_position_constraint;
 #[cfg(feature = "simd-is-enabled")]
@@ -100,3 +107,6 @@ mod revolute_position_constraint_wide;
 mod revolute_velocity_constraint;
 #[cfg(all(feature = "dim3", feature = "simd-is-enabled"))]
 mod revolute_velocity_constraint_wide;
+mod spring_position_constraint;
+mod spring_velocity_constraint;
+

@@ -37,6 +37,7 @@ mod platform3;
 mod primitives3;
 mod restitution3;
 mod sensor3;
+mod spring_joint3;
 mod trimesh3;
 
 fn demo_name_from_command_line() -> Option<String> {
@@ -92,6 +93,7 @@ pub fn main() {
         ("Platform", platform3::init_world),
         ("Restitution", restitution3::init_world),
         ("Sensor", sensor3::init_world),
+        ("Spring Joint", spring_joint3::init_world),
         ("TriMesh", trimesh3::init_world),
         ("Keva tower", keva3::init_world),
         (

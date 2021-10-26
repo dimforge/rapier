@@ -7,6 +7,7 @@ pub use self::joint_set::{JointHandle, JointSet};
 pub use self::prismatic_joint::PrismaticJoint;
 #[cfg(feature = "dim3")]
 pub use self::revolute_joint::RevoluteJoint;
+pub use self::spring_joint::SpringJoint;
 pub use self::spring_model::SpringModel;
 
 mod ball_joint;
@@ -17,4 +18,5 @@ mod joint_set;
 mod prismatic_joint;
 #[cfg(feature = "dim3")]
 mod revolute_joint;
+mod spring_joint;
 mod spring_model;

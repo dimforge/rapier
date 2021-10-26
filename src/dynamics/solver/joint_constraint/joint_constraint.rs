@@ -1,6 +1,7 @@
 use super::{
     BallVelocityConstraint, BallVelocityGroundConstraint, FixedVelocityConstraint,
     FixedVelocityGroundConstraint, PrismaticVelocityConstraint, PrismaticVelocityGroundConstraint,
+    SpringVelocityConstraint, SpringVelocityGroundConstraint,
 };
 #[cfg(feature = "dim3")]
 use super::{RevoluteVelocityConstraint, RevoluteVelocityGroundConstraint};
@@ -61,6 +62,8 @@ pub(crate) enum AnyJointVelocityConstraint {
     #[cfg(feature = "dim3")]
     #[cfg(feature = "simd-is-enabled")]
     WRevoluteGroundConstraint(WRevoluteVelocityGroundConstraint),
+    SpringConstraint(SpringVelocityConstraint),
+    SpringGroundConstraint(SpringVelocityGroundConstraint),
     #[allow(dead_code)] // The Empty variant is only used with parallel code.
     Empty,
 }
@@ -112,6 +115,9 @@ impl AnyJointVelocityConstraint {
             #[cfg(feature = "dim3")]
             JointParams::RevoluteJoint(p) => AnyJointVelocityConstraint::RevoluteConstraint(
                 RevoluteVelocityConstraint::from_params(params, joint_id, rb1, rb2, p),
+            ),
+            JointParams::SpringJoint(p) => AnyJointVelocityConstraint::SpringConstraint(
+                SpringVelocityConstraint::from_params(params, joint_id, rb1, rb2, p),
             ),
         }
     }
@@ -224,6 +230,11 @@ impl AnyJointVelocityConstraint {
             #[cfg(feature = "dim3")]
             JointParams::RevoluteJoint(p) => RevoluteVelocityGroundConstraint::from_params(
                 params, joint_id, rb1, rb2, p, flipped,
+            ),
+            JointParams::SpringJoint(p) => AnyJointVelocityConstraint::SpringGroundConstraint(
+                SpringVelocityGroundConstraint::from_params(
+                    params, joint_id, rb1, rb2, p, flipped
+                ),
             ),
         }
     }
@@ -348,6 +359,8 @@ impl AnyJointVelocityConstraint {
             #[cfg(feature = "simd-is-enabled")]
             AnyJointVelocityConstraint::WRevoluteGroundConstraint(c) => c.warmstart(mj_lambdas),
             AnyJointVelocityConstraint::Empty => unreachable!(),
+            AnyJointVelocityConstraint::SpringConstraint(c) => c.warmstart(mj_lambdas),
+            AnyJointVelocityConstraint::SpringGroundConstraint(c) => c.warmstart(mj_lambdas),
         }
     }
 
@@ -387,6 +400,8 @@ impl AnyJointVelocityConstraint {
             #[cfg(feature = "dim3")]
             #[cfg(feature = "simd-is-enabled")]
             AnyJointVelocityConstraint::WRevoluteGroundConstraint(c) => c.solve(mj_lambdas),
+            AnyJointVelocityConstraint::SpringConstraint(c) => c.solve(mj_lambdas),
+            AnyJointVelocityConstraint::SpringGroundConstraint(c) => c.solve(mj_lambdas),
             AnyJointVelocityConstraint::Empty => unreachable!(),
         }
     }
@@ -445,6 +460,10 @@ impl AnyJointVelocityConstraint {
             #[cfg(feature = "dim3")]
             #[cfg(feature = "simd-is-enabled")]
             AnyJointVelocityConstraint::WRevoluteGroundConstraint(c) => {
+                c.writeback_impulses(joints_all)
+            }
+            AnyJointVelocityConstraint::SpringConstraint(c) => c.writeback_impulses(joints_all),
+            AnyJointVelocityConstraint::SpringGroundConstraint(c) => {
                 c.writeback_impulses(joints_all)
             }
             AnyJointVelocityConstraint::Empty => unreachable!(),

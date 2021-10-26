@@ -1,6 +1,7 @@
 use super::{
     BallPositionConstraint, BallPositionGroundConstraint, FixedPositionConstraint,
     FixedPositionGroundConstraint, PrismaticPositionConstraint, PrismaticPositionGroundConstraint,
+    SpringPositionConstraint, SpringPositionGroundConstraint,
 };
 #[cfg(feature = "dim3")]
 use super::{RevolutePositionConstraint, RevolutePositionGroundConstraint};
@@ -55,6 +56,8 @@ pub(crate) enum AnyJointPositionConstraint {
     WRevoluteJoint(WRevolutePositionConstraint),
     #[cfg(all(feature = "dim3", feature = "simd-is-enabled"))]
     WRevoluteGroundConstraint(WRevolutePositionGroundConstraint),
+    SpringJoint(SpringPositionConstraint),
+    SpringGroundConstraint(SpringPositionGroundConstraint),
     #[allow(dead_code)] // The Empty variant is only used with parallel code.
     Empty,
 }
@@ -83,6 +86,9 @@ impl AnyJointPositionConstraint {
             #[cfg(feature = "dim3")]
             JointParams::RevoluteJoint(p) => AnyJointPositionConstraint::RevoluteJoint(
                 RevolutePositionConstraint::from_params(rb1, rb2, p),
+            ),
+            JointParams::SpringJoint(p) => AnyJointPositionConstraint::SpringJoint(
+                SpringPositionConstraint::from_params(rb1, rb2, p),
             ),
         }
     }
@@ -175,6 +181,11 @@ impl AnyJointPositionConstraint {
             JointParams::RevoluteJoint(p) => AnyJointPositionConstraint::RevoluteGroundConstraint(
                 RevolutePositionGroundConstraint::from_params(rb1, rb2, p, flipped),
             ),
+            JointParams::SpringJoint(p) => {
+                AnyJointPositionConstraint::SpringGroundConstraint(
+                    SpringPositionGroundConstraint::from_params(rb1, rb2, p, flipped),
+                )
+            }
         }
     }
 
@@ -274,6 +285,8 @@ impl AnyJointPositionConstraint {
             AnyJointPositionConstraint::WRevoluteJoint(c) => c.solve(params, positions),
             #[cfg(all(feature = "dim3", feature = "simd-is-enabled"))]
             AnyJointPositionConstraint::WRevoluteGroundConstraint(c) => c.solve(params, positions),
+            AnyJointPositionConstraint::SpringJoint(c) => c.solve(params, positions),
+            AnyJointPositionConstraint::SpringGroundConstraint(c) => c.solve(params, positions),
             AnyJointPositionConstraint::Empty => unreachable!(),
         }
     }
