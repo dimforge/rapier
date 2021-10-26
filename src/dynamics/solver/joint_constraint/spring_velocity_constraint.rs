@@ -148,6 +148,9 @@ impl SpringVelocityConstraint {
 
         mj_lambda2.linear += self.im2 * impulse;
         mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+
+        mj_lambdas[self.mj_lambda1 as usize] = mj_lambda1;
+        mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
@@ -287,6 +290,8 @@ impl SpringVelocityGroundConstraint {
 
         mj_lambda2.linear += self.im2 * impulse;
         mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+
+        mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
