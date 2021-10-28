@@ -83,10 +83,6 @@ impl SpringVelocityConstraint {
         let stiffness_impulse = joint.stiffness * dx * params.dt;
         let damping_factor = joint.damping * params.dt;
 
-        //let gamma = crate::utils::inv(params.dt * (joint.damping + params.dt * joint.stiffness));
-        //let bias = dx * params.dt * joint.stiffness * gamma;
-        //let bias = dx * crate::utils::inv(params.dt);
-
         let limits_active = joint.limits_enabled;
         let limits_min_length = joint.limits_min_length;
         let limits_max_length = joint.limits_max_length;
@@ -166,7 +162,7 @@ impl SpringVelocityConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    fn solve_spring(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>){
+    fn solve_spring(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
         if self.limits_active && self.limits_min_length >= self.limits_max_length {
             return;
         }
@@ -176,15 +172,11 @@ impl SpringVelocityConstraint {
         let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
 
         let dvel = (vel2 - vel1).dot(&self.u);
-
         let impulse = -(self.stiffness_impulse + self.damping_factor * dvel);
-        //let impulse = -force * self.dt;
 
         let impulse = impulse - self.impulse;
 
-        //let impulse = -self.inv_lhs * (dvel + self.bias + self.gamma * self.impulse);
         self.impulse += impulse;
-        println!("Impulse (Ns): {:?}", self.impulse);
         let impulse = impulse * self.u;
 
         mj_lambda1.linear -= self.im1 * impulse;
@@ -194,7 +186,11 @@ impl SpringVelocityConstraint {
         mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
     }
 
-    fn solve_lower_limit(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>){
+    fn solve_lower_limit(
+        &mut self,
+        mj_lambda1: &mut DeltaVel<Real>,
+        mj_lambda2: &mut DeltaVel<Real>,
+    ) {
         let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
         let vel1 = self.vel1 + mj_lambda1.linear + ang_vel1.gcross(self.r1);
@@ -204,7 +200,7 @@ impl SpringVelocityConstraint {
 
         let lower_impulse = -self.limits_inv_lhs * (dvel + self.limits_lower_rhs);
         let old_impulse = self.limits_lower_impulse;
-        self.limits_lower_impulse  = (old_impulse + lower_impulse).max(0.0);
+        self.limits_lower_impulse = (old_impulse + lower_impulse).max(0.0);
         let lower_impulse = self.limits_lower_impulse - old_impulse;
         let impulse = lower_impulse * self.u;
 
@@ -215,7 +211,11 @@ impl SpringVelocityConstraint {
         mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
     }
 
-    fn solve_upper_limit(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
+    fn solve_upper_limit(
+        &mut self,
+        mj_lambda1: &mut DeltaVel<Real>,
+        mj_lambda2: &mut DeltaVel<Real>,
+    ) {
         let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
         let vel1 = self.vel1 + mj_lambda1.linear + ang_vel1.gcross(self.r1);
@@ -225,7 +225,7 @@ impl SpringVelocityConstraint {
 
         let upper_impulse = -self.limits_inv_lhs * (dvel + self.limits_upper_rhs);
         let old_impulse = self.limits_upper_impulse;
-        self.limits_upper_impulse  = (old_impulse + upper_impulse).max(0.0);
+        self.limits_upper_impulse = (old_impulse + upper_impulse).max(0.0);
         let upper_impulse = self.limits_upper_impulse - old_impulse;
         let impulse = -upper_impulse * self.u;
 
@@ -236,7 +236,11 @@ impl SpringVelocityConstraint {
         mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
     }
 
-    fn solve_equal_limits(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
+    fn solve_equal_limits(
+        &mut self,
+        mj_lambda1: &mut DeltaVel<Real>,
+        mj_lambda2: &mut DeltaVel<Real>,
+    ) {
         let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
         let vel1 = self.vel1 + mj_lambda1.linear + ang_vel1.gcross(self.r1);
@@ -270,7 +274,7 @@ impl SpringVelocityConstraint {
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
-        
+
         if !self.limits_active || self.limits_min_length < self.limits_max_length {
             self.solve_spring(&mut mj_lambda1, &mut mj_lambda2);
         }
@@ -304,9 +308,17 @@ pub(crate) struct SpringVelocityGroundConstraint {
     dx: Real,
 
     impulse: Real,
-    inv_lhs: Real,
-    gamma: Real,
-    bias: Real,
+    stiffness_impulse: Real,
+    damping_factor: Real,
+
+    limits_active: bool,
+    limits_min_length: Real,
+    limits_max_length: Real,
+    limits_inv_lhs: Real,
+    limits_lower_rhs: Real,
+    limits_upper_rhs: Real,
+    limits_lower_impulse: Real,
+    limits_upper_impulse: Real,
 
     im2: Real,
 
@@ -357,23 +369,42 @@ impl SpringVelocityGroundConstraint {
 
         let dx = current_length - joint.rest_length;
 
-        let cr2u = anchor2.gcross(u);
+        let stiffness_impulse = joint.stiffness * dx * params.dt;
+        let damping_factor = joint.damping * params.dt;
 
-        let gamma = crate::utils::inv(params.dt * (joint.damping + params.dt * joint.stiffness));
-        let bias = dx * params.dt * joint.stiffness * gamma;
+        let limits_active = joint.limits_enabled;
+        let limits_min_length = joint.limits_min_length;
+        let limits_max_length = joint.limits_max_length;
+        let mut limits_inv_lhs = 0.0;
+        let mut limits_lower_rhs = 0.0;
+        let mut limits_upper_rhs = 0.0;
+        let mut limits_lower_impulse = 0.0;
+        let mut limits_upper_impulse = 0.0;
 
-        let lhs: Real;
-        #[cfg(feature = "dim2")]
-        {
-            lhs = im2 + ii2 * cr2u * cr2u + gamma;
+        if joint.limits_enabled {
+            let cr2u = anchor2.gcross(u);
+
+            let lhs: Real;
+            #[cfg(feature = "dim2")]
+            {
+                lhs = im2 + ii2 * cr2u * cr2u;
+            }
+            #[cfg(feature = "dim3")]
+            {
+                let inv_i2: Real = (cr2u.transpose() * ii2.into_matrix() * cr2u)[0];
+                lhs = im2 + inv_i2;
+            }
+            limits_inv_lhs = crate::utils::inv(lhs);
+
+            if limits_min_length < limits_max_length {
+                let inv_dt = crate::utils::inv(params.dt);
+                limits_lower_rhs = (current_length - limits_min_length).max(0.0) * inv_dt;
+                limits_upper_rhs = (limits_max_length - current_length).max(0.0) * inv_dt;
+            }
+
+            limits_lower_impulse = joint.limits_lower_impulse * params.warmstart_coeff;
+            limits_upper_impulse = joint.limits_upper_impulse * params.warmstart_coeff;
         }
-        #[cfg(feature = "dim3")]
-        {
-            let inv_i2: Real = (cr2u.transpose() * ii2.into_matrix() * cr2u)[0];
-            lhs = im2 + inv_i2 + gamma;
-        }
-
-        let inv_lhs = crate::utils::inv(lhs);
 
         Self {
             joint_id,
@@ -386,10 +417,17 @@ impl SpringVelocityGroundConstraint {
             vel2,
             r1: anchor1,
             r2: anchor2,
-            gamma,
-            bias,
-            inv_lhs,
-            ii2_sqrt: rb_mprops2.effective_world_inv_inertia_sqrt,
+            stiffness_impulse,
+            damping_factor,
+            limits_active,
+            limits_min_length,
+            limits_max_length,
+            limits_inv_lhs,
+            limits_lower_rhs,
+            limits_upper_rhs,
+            limits_lower_impulse,
+            limits_upper_impulse,
+            ii2_sqrt: rb_mprops1.effective_world_inv_inertia_sqrt,
         }
     }
 
@@ -404,21 +442,96 @@ impl SpringVelocityGroundConstraint {
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
+    fn solve_spring(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
+        if self.limits_active && self.limits_min_length >= self.limits_max_length {
+            return;
+        }
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel1 = self.vel1;
+        let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
 
+        let dvel = (vel2 - vel1).dot(&self.u);
+        let impulse = -(self.stiffness_impulse + self.damping_factor * dvel);
+
+        let impulse = impulse - self.impulse;
+
+        self.impulse += impulse;
+        let impulse = impulse * self.u;
+
+        mj_lambda2.linear += self.im2 * impulse;
+        mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_lower_limit(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
         let vel1 = self.vel1;
         let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
 
         let dvel = (vel2 - vel1).dot(&self.u);
 
-        let impulse = -self.inv_lhs * (dvel + self.bias + self.gamma * self.impulse);
+        let lower_impulse = -self.limits_inv_lhs * (dvel + self.limits_lower_rhs);
+        let old_impulse = self.limits_lower_impulse;
+        self.limits_lower_impulse = (old_impulse + lower_impulse).max(0.0);
+        let lower_impulse = self.limits_lower_impulse - old_impulse;
+        let impulse = lower_impulse * self.u;
+
+        mj_lambda2.linear += self.im2 * impulse;
+        mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_upper_limit(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel1 = self.vel1;
+        let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
+
+        let dvel = (vel1 - vel2).dot(&self.u);
+
+        let upper_impulse = -self.limits_inv_lhs * (dvel + self.limits_upper_rhs);
+        let old_impulse = self.limits_upper_impulse;
+        self.limits_upper_impulse = (old_impulse + upper_impulse).max(0.0);
+        let upper_impulse = self.limits_upper_impulse - old_impulse;
+        let impulse = -upper_impulse * self.u;
+
+        mj_lambda2.linear += self.im2 * impulse;
+        mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_equal_limits(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel1 = self.vel1;
+        let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
+
+        let dvel = (vel2 - vel1).dot(&self.u);
+
+        let impulse = -self.limits_inv_lhs * dvel;
         self.impulse += impulse;
+
         let impulse = impulse * self.u;
 
         mj_lambda2.linear += self.im2 * impulse;
         mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_limits(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
+        if self.limits_active {
+            if self.limits_min_length < self.limits_max_length {
+                self.solve_lower_limit(mj_lambda2);
+                self.solve_upper_limit(mj_lambda2);
+            } else {
+                self.solve_equal_limits(mj_lambda2);
+            }
+        }
+    }
+
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
+
+        if !self.limits_active || self.limits_min_length < self.limits_max_length {
+            self.solve_spring(&mut mj_lambda2);
+        }
+        if self.limits_active {
+            self.solve_limits(&mut mj_lambda2);
+        }
 
         mj_lambdas[self.mj_lambda2 as usize] = mj_lambda2;
     }

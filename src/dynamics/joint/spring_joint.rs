@@ -7,6 +7,7 @@ pub struct SpringJoint {
     /// Where the spring joint is attached on the first body, expressed in the first body local
     /// frame.
     pub local_anchor1: Point<Real>,
+
     /// Where the spring joint is attached on the second body, expressed in the second body local
     /// frame.
     pub local_anchor2: Point<Real>,
@@ -20,18 +21,23 @@ pub struct SpringJoint {
     /// The linear damping in units of force / unit velocity
     pub damping: Real,
 
-    /// The impulse applied by this joint on the first body.
-    ///
-    /// The impulse applied to the second body is given by `-impulse`.
+    /// The impulse applied by the spring force.
     pub impulse: Real,
 
     /// Are the limits enabled for this joint?
     pub limits_enabled: bool,
-    pub limits_min_length: Real,
-    pub limits_max_length: Real,
-    pub limits_lower_impulse: Real,
-    pub limits_upper_impulse: Real,
 
+    /// The minimum length allowed between the two anchor points
+    pub limits_min_length: Real,
+
+    /// The maximum length allowed between the two anchor points
+    pub limits_max_length: Real,
+
+    /// The impulse applied by the lower limit
+    pub limits_lower_impulse: Real,
+
+    /// The impulse applied by the upper limit
+    pub limits_upper_impulse: Real,
 }
 
 impl SpringJoint {
