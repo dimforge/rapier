@@ -24,6 +24,14 @@ pub struct SpringJoint {
     ///
     /// The impulse applied to the second body is given by `-impulse`.
     pub impulse: Real,
+
+    /// Are the limits enabled for this joint?
+    pub limits_enabled: bool,
+    pub limits_min_length: Real,
+    pub limits_max_length: Real,
+    pub limits_lower_impulse: Real,
+    pub limits_upper_impulse: Real,
+
 }
 
 impl SpringJoint {
@@ -61,6 +69,11 @@ impl SpringJoint {
             stiffness,
             damping,
             impulse,
+            limits_enabled: false,
+            limits_min_length: 0.0,
+            limits_max_length: Real::MAX,
+            limits_lower_impulse: 0.0,
+            limits_upper_impulse: 0.0,
         }
     }
 
