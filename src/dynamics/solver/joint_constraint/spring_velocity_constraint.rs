@@ -143,7 +143,7 @@ impl SpringVelocityConstraint {
             limits_lower_impulse,
             limits_upper_impulse,
             ii1_sqrt: rb_mprops1.effective_world_inv_inertia_sqrt,
-            ii2_sqrt: rb_mprops1.effective_world_inv_inertia_sqrt,
+            ii2_sqrt: rb_mprops2.effective_world_inv_inertia_sqrt,
         }
     }
 
@@ -427,7 +427,7 @@ impl SpringVelocityGroundConstraint {
             limits_upper_rhs,
             limits_lower_impulse,
             limits_upper_impulse,
-            ii2_sqrt: rb_mprops1.effective_world_inv_inertia_sqrt,
+            ii2_sqrt: rb_mprops2.effective_world_inv_inertia_sqrt,
         }
     }
 

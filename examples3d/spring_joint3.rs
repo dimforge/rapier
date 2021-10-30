@@ -26,7 +26,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Cube 1
      */
     let rb = RigidBodyBuilder::new_dynamic()
-        .translation(vector![0.0, 3.0, 3.0])
+        .translation(vector![0.0, 3.0, 2.0])
         .build();
     let cube1 = bodies.insert(rb);
     let collider = ColliderBuilder::cuboid(0.5, 0.5, 0.5).build();
@@ -36,7 +36,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Cube 2
      */
     let rb = RigidBodyBuilder::new_dynamic()
-        .translation(vector![0.0, 3.0, -3.0])
+        .translation(vector![0.0, 3.0, -2.0])
         .build();
     let cube2 = bodies.insert(rb);
     let collider = ColliderBuilder::cuboid(0.5, 0.5, 0.5).build();
@@ -48,13 +48,13 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut spring = SpringJoint::new(
         point![0.0, 0.0, 0.0], 
         point![0.0, 0.0, 0.0], 
-        9.0,
+        6.0,
         25.0,
         0.0,
     );
     spring.limits_enabled = true;
-    spring.limits_max_length = 10.0;
-    spring.limits_min_length = 7.5;
+    spring.limits_max_length = 7.0;
+    spring.limits_min_length = 4.5;
     let _spring = joints.insert(cube1, cube2, spring);
 
     /*
