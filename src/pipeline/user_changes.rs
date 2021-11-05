@@ -103,7 +103,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies<Bodies, Colliders>(
                         RigidBodyType::KinematicVelocityBased
                         | RigidBodyType::KinematicPositionBased => {
                             // Remove from the active dynamic set if it was there.
-                            if islands.active_dynamic_set.get(ids.active_set_id) == Some(&handle) {
+                            if islands.active_dynamic_set.get(ids.active_set_id) == Some(handle) {
                                 islands.active_dynamic_set.swap_remove(ids.active_set_id);
                                 final_action = Some((
                                     FinalAction::UpdateActiveDynamicSetId,
@@ -112,8 +112,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies<Bodies, Colliders>(
                             }
 
                             // Add to the active kinematic set.
-                            if islands.active_kinematic_set.get(ids.active_set_id) != Some(&handle)
-                            {
+                            if islands.active_kinematic_set.get(ids.active_set_id) != Some(handle) {
                                 ids.active_set_id = islands.active_kinematic_set.len();
                                 islands.active_kinematic_set.push(*handle);
                             }
