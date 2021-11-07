@@ -122,6 +122,7 @@ impl SpringPositionConstraint {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct SpringPositionGroundConstraint {
     position2: usize,
     anchor1: Point<Real>,

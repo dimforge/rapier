@@ -83,9 +83,9 @@ impl SpringJoint {
         }
     }
 
-    // TODO: Figure simd constraint
     /// Can a SIMD constraint be used for resolving this joint?
     pub fn supports_simd_constraints(&self) -> bool {
-        false
+        // SIMD spring constraints don't support limits right now.
+        !self.limits_enabled
     }
 }

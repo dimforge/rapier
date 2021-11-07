@@ -12,7 +12,7 @@ use super::{WRevolutePositionConstraint, WRevolutePositionGroundConstraint};
 use super::{
     WBallPositionConstraint, WBallPositionGroundConstraint, WFixedPositionConstraint,
     WFixedPositionGroundConstraint, WPrismaticPositionConstraint,
-    WPrismaticPositionGroundConstraint,
+    WPrismaticPositionGroundConstraint, WSpringPositionConstraint, WSpringPositionGroundConstraint,
 };
 use crate::data::{BundleSet, ComponentSet};
 use crate::dynamics::{
@@ -58,6 +58,10 @@ pub(crate) enum AnyJointPositionConstraint {
     WRevoluteGroundConstraint(WRevolutePositionGroundConstraint),
     SpringJoint(SpringPositionConstraint),
     SpringGroundConstraint(SpringPositionGroundConstraint),
+    #[cfg(feature = "simd-is-enabled")]
+    WSpringJoint(WSpringPositionConstraint),
+    #[cfg(feature = "simd-is-enabled")]
+    WSpringGroundConstraint(WSpringPositionGroundConstraint),
     #[allow(dead_code)] // The Empty variant is only used with parallel code.
     Empty,
 }
@@ -139,6 +143,12 @@ impl AnyJointPositionConstraint {
                     WRevolutePositionConstraint::from_params(rbs1, rbs2, joints),
                 )
             }
+            JointParams::SpringJoint(_) => {
+                let joints = gather![|ii| joints[ii].params.as_spring_joint().unwrap()];
+                AnyJointPositionConstraint::WSpringJoint(WSpringPositionConstraint::from_params(
+                    rbs1, rbs2, joints,
+                ))
+            }
         }
     }
 
@@ -181,11 +191,9 @@ impl AnyJointPositionConstraint {
             JointParams::RevoluteJoint(p) => AnyJointPositionConstraint::RevoluteGroundConstraint(
                 RevolutePositionGroundConstraint::from_params(rb1, rb2, p, flipped),
             ),
-            JointParams::SpringJoint(p) => {
-                AnyJointPositionConstraint::SpringGroundConstraint(
-                    SpringPositionGroundConstraint::from_params(rb1, rb2, p, flipped),
-                )
-            }
+            JointParams::SpringJoint(p) => AnyJointPositionConstraint::SpringGroundConstraint(
+                SpringPositionGroundConstraint::from_params(rb1, rb2, p, flipped),
+            ),
         }
     }
 
@@ -248,6 +256,12 @@ impl AnyJointPositionConstraint {
                     WRevolutePositionGroundConstraint::from_params(rbs1, rbs2, joints, flipped),
                 )
             }
+            JointParams::SpringJoint(_) => {
+                let joints = gather![|ii| joints[ii].params.as_spring_joint().unwrap()];
+                AnyJointPositionConstraint::WSpringGroundConstraint(
+                    WSpringPositionGroundConstraint::from_params(rbs1, rbs2, joints, flipped),
+                )
+            }
         }
     }
 
@@ -287,6 +301,10 @@ impl AnyJointPositionConstraint {
             AnyJointPositionConstraint::WRevoluteGroundConstraint(c) => c.solve(params, positions),
             AnyJointPositionConstraint::SpringJoint(c) => c.solve(params, positions),
             AnyJointPositionConstraint::SpringGroundConstraint(c) => c.solve(params, positions),
+            #[cfg(feature = "simd-is-enabled")]
+            AnyJointPositionConstraint::WSpringJoint(c) => c.solve(params, positions),
+            #[cfg(feature = "simd-is-enabled")]
+            AnyJointPositionConstraint::WSpringGroundConstraint(c) => c.solve(params, positions),
             AnyJointPositionConstraint::Empty => unreachable!(),
         }
     }

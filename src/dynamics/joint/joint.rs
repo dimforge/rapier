@@ -1,7 +1,7 @@
 #[cfg(feature = "dim3")]
 use crate::dynamics::RevoluteJoint;
 use crate::dynamics::{
-    BallJoint, FixedJoint, JointHandle, PrismaticJoint, RigidBodyHandle, SpringJoint
+    BallJoint, FixedJoint, JointHandle, PrismaticJoint, RigidBodyHandle, SpringJoint,
 };
 
 #[derive(Copy, Clone, PartialEq)]
@@ -27,14 +27,17 @@ pub enum JointParams {
 impl JointParams {
     /// An integer identifier for each type of joint.
     pub fn type_id(&self) -> usize {
+        // When adding a joint type_id where the joint has an simd implementation, ensure that the
+        // type id is less than NUM_JOINT_TYPES found in the simd version of
+        // InteractionGroups::group_joints()
         match self {
             JointParams::BallJoint(_) => 0,
             JointParams::FixedJoint(_) => 1,
             JointParams::PrismaticJoint(_) => 2,
             // JointParams::GenericJoint(_) => 3,
+            JointParams::SpringJoint(_) => 3,
             #[cfg(feature = "dim3")]
             JointParams::RevoluteJoint(_) => 4,
-            JointParams::SpringJoint(_) => 5,
         }
     }
 
