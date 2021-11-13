@@ -159,12 +159,12 @@ impl Collider {
         &self.co_pos
     }
 
-    /// The translational part of this rigid-body's position.
+    /// The translational part of this collider's position.
     pub fn translation(&self) -> &Vector<Real> {
         &self.co_pos.0.translation.vector
     }
 
-    /// The rotational part of this rigid-body's position.
+    /// The rotational part of this collider's position.
     pub fn rotation(&self) -> &Rotation<Real> {
         &self.co_pos.0.rotation
     }

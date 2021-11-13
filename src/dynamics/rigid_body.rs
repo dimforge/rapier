@@ -490,7 +490,7 @@ impl RigidBody {
         }
     }
 
-    /// The translational part of this rigid-body's position.
+    /// The rotational part of this rigid-body's position.
     #[inline]
     pub fn rotation(&self) -> &Rotation<Real> {
         &self.rb_pos.position.rotation
