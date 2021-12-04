@@ -22,8 +22,10 @@ pub(crate) struct WSpringVelocityConstraint {
     dx: SimdReal,
 
     impulse: SimdReal,
-    stiffness_impulse: SimdReal,
-    damping_factor: SimdReal,
+
+    gamma: SimdReal,
+    bias: SimdReal,
+    inv_lhs: SimdReal,
 
     im1: SimdReal,
     im2: SimdReal,
@@ -61,6 +63,7 @@ impl WSpringVelocityConstraint {
         let ii1_sqrt = AngularInertia::<SimdReal>::from(gather![
             |ii| mprops1[ii].effective_world_inv_inertia_sqrt
         ]);
+        let ii1 = ii1_sqrt.squared();
         let mj_lambda1 = gather![|ii| ids1[ii].active_set_offset];
 
         let position2 = Isometry::from(gather![|ii| poss2[ii].position]);
@@ -71,6 +74,7 @@ impl WSpringVelocityConstraint {
         let ii2_sqrt = AngularInertia::<SimdReal>::from(gather![
             |ii| mprops2[ii].effective_world_inv_inertia_sqrt
         ]);
+        let ii2 = ii2_sqrt.squared();
         let mj_lambda2 = gather![|ii| ids2[ii].active_set_offset];
 
         let rest_length = SimdReal::from(gather![|ii| cparams[ii].rest_length]);
@@ -94,10 +98,26 @@ impl WSpringVelocityConstraint {
         let current_length = u.magnitude();
         let u = u.normalize();
 
+        let cr1u = anchor1.gcross(u);
+        let cr2u = anchor2.gcross(u);
+
+        let lhs: SimdReal;
+        #[cfg(feature = "dim2")]
+        {
+            lhs = im1 + im2 + ii1 * cr1u * cr1u + ii2 * cr2u * cr2u;
+        }
+        #[cfg(feature = "dim3")]
+        {
+            let inv_i1: SimdReal = (cr1u.transpose() * ii1.into_matrix() * cr1u)[0];
+            let inv_i2: SimdReal = (cr2u.transpose() * ii2.into_matrix() * cr2u)[0];
+            lhs = im1 + im2 + inv_i1 + inv_i2;
+        }
+
         let dx = current_length - rest_length;
 
-        let stiffness_impulse = stiffness * dx * dt;
-        let damping_factor = damping * dt;
+        let gamma = crate::utils::simd_inv(dt * (damping + dt * stiffness));
+        let bias = dx * dt * stiffness * gamma;
+        let inv_lhs = crate::utils::simd_inv(lhs + gamma);
 
         WSpringVelocityConstraint {
             joint_id,
@@ -108,8 +128,9 @@ impl WSpringVelocityConstraint {
             impulse: impulse * SimdReal::splat(params.warmstart_coeff),
             r1: anchor1,
             r2: anchor2,
-            stiffness_impulse,
-            damping_factor,
+            gamma,
+            bias,
+            inv_lhs,
             dx,
             u,
             vel1,
@@ -170,12 +191,10 @@ impl WSpringVelocityConstraint {
         let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
 
         let dvel = (vel2 - vel1).dot(&self.u);
-        let impulse = -(self.stiffness_impulse + self.damping_factor * dvel);
+        let delta_impulse = -self.inv_lhs * (dvel + self.bias + self.gamma * self.impulse);
 
-        let impulse = impulse - self.impulse;
-
-        self.impulse += impulse;
-        let impulse = self.u * impulse;
+        self.impulse += delta_impulse;
+        let impulse = self.u * delta_impulse;
 
         mj_lambda1.linear -= impulse * self.im1;
         mj_lambda1.angular -= self.ii1_sqrt.transform_vector(self.r1.gcross(impulse));
@@ -216,8 +235,10 @@ pub(crate) struct WSpringVelocityGroundConstraint {
     dx: SimdReal,
 
     impulse: SimdReal,
-    stiffness_impulse: SimdReal,
-    damping_factor: SimdReal,
+
+    gamma: SimdReal,
+    bias: SimdReal,
+    inv_lhs: SimdReal,
 
     im2: SimdReal,
     ii2_sqrt: AngularInertia<SimdReal>,
@@ -262,6 +283,7 @@ impl WSpringVelocityGroundConstraint {
         let ii2_sqrt = AngularInertia::<SimdReal>::from(gather![
             |ii| mprops2[ii].effective_world_inv_inertia_sqrt
         ]);
+        let ii2 = ii2_sqrt.squared();
         let mj_lambda2 = gather![|ii| ids2[ii].active_set_offset];
 
         let local_anchor2 = Point::from(gather![|ii| if flipped[ii] {
@@ -288,24 +310,39 @@ impl WSpringVelocityGroundConstraint {
         let current_length = u.magnitude();
         let u = u.normalize();
 
+        let cr2u = anchor2.gcross(u);
+
+        let lhs: SimdReal;
+        #[cfg(feature = "dim2")]
+        {
+            lhs = im2 + ii2 * cr2u * cr2u;
+        }
+        #[cfg(feature = "dim3")]
+        {
+            let inv_i2: SimdReal = (cr2u.transpose() * ii2.into_matrix() * cr2u)[0];
+            lhs = im2 + inv_i2;
+        }
+
         let dx = current_length - rest_length;
 
-        let stiffness_impulse = stiffness * dx * dt;
-        let damping_factor = damping * dt;
+        let gamma = crate::utils::simd_inv(dt * (damping + dt * stiffness));
+        let bias = dx * dt * stiffness * gamma;
+        let inv_lhs = crate::utils::simd_inv(lhs + gamma);
 
         Self {
             joint_id,
             mj_lambda2,
             im2,
             impulse: impulse * SimdReal::splat(params.warmstart_coeff),
+            gamma,
+            bias,
+            inv_lhs,
             u,
             dx,
             vel1,
             vel2,
             r1: anchor1,
             r2: anchor2,
-            stiffness_impulse,
-            damping_factor,
             ii2_sqrt,
         }
     }
@@ -342,12 +379,11 @@ impl WSpringVelocityGroundConstraint {
         let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
 
         let dvel = (vel2 - vel1).dot(&self.u);
-        let impulse = -(self.stiffness_impulse + self.damping_factor * dvel);
 
-        let impulse = impulse - self.impulse;
+        let delta_impulse = -self.inv_lhs * (dvel + self.bias + self.gamma * self.impulse);
 
-        self.impulse += impulse;
-        let impulse = self.u * impulse;
+        self.impulse += delta_impulse;
+        let impulse = self.u * delta_impulse;
 
         mj_lambda2.linear += impulse * self.im2;
         mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));

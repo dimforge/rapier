@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier3d::na::RealField;
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -24,9 +24,7 @@ pub fn init_world(testbed: &mut Testbed) {
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let pos = vector![0.0, 7.0, 0.0];
-    let rb = RigidBodyBuilder::new_static()
-        .translation(pos)
-        .build();
+    let rb = RigidBodyBuilder::new_static().translation(pos).build();
     let center_cube = bodies.insert(rb);
     let collider = ColliderBuilder::cuboid(0.5, 0.5, 0.5).build();
     colliders.insert_with_parent(collider, center_cube, &mut bodies);
@@ -35,11 +33,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     for i in 0..4 {
         let angle_i = (i as Real) * Real::frac_pi_2();
-        let dpos = vector![
-            0.0,
-            distance * angle_i.sin(),
-            distance * angle_i.cos()
-        ];
+        let dpos = vector![0.0, distance * angle_i.sin(), distance * angle_i.cos()];
 
         let rb = RigidBodyBuilder::new_dynamic()
             .translation(pos + dpos)
@@ -51,13 +45,7 @@ pub fn init_world(testbed: &mut Testbed) {
         /*
          * Spring Joint
          */
-        let spring = SpringJoint::new(
-            point![0.0, 0.0, 0.0],
-            point![0.0, 0.0, 0.0],
-            4.0,
-            25.0,
-            0.0,
-            );
+        let spring = SpringJoint::new(point![0.0, 0.0, 0.0], point![0.0, 0.0, 0.0], 4.0, 25.0, 0.0);
         let _spring = joints.insert(center_cube, cube, spring);
     }
 
@@ -73,13 +61,7 @@ pub fn init_world(testbed: &mut Testbed) {
         /*
          * Spring Joint
          */
-        let spring = SpringJoint::new(
-            point![0.0, 0.0, 0.0],
-            point![0.0, 0.0, 0.0],
-            4.0,
-            25.0,
-            0.0,
-            );
+        let spring = SpringJoint::new(point![0.0, 0.0, 0.0], point![0.0, 0.0, 0.0], 4.0, 25.0, 0.0);
         let _spring = joints.insert(center_cube, cube, spring);
     }
 

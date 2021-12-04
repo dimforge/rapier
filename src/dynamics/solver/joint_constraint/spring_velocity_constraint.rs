@@ -21,8 +21,10 @@ pub(crate) struct SpringVelocityConstraint {
     dx: Real,
 
     impulse: Real,
-    stiffness_impulse: Real,
-    damping_factor: Real,
+
+    gamma: Real,
+    bias: Real,
+    inv_lhs: Real,
 
     limits_active: bool,
     limits_min_length: Real,
@@ -78,10 +80,26 @@ impl SpringVelocityConstraint {
         let current_length = u.magnitude();
         let u = u.normalize();
 
+        let cr1u = anchor1.gcross(u);
+        let cr2u = anchor2.gcross(u);
+
+        let lhs: Real;
+        #[cfg(feature = "dim2")]
+        {
+            lhs = im1 + im2 + ii1 * cr1u * cr1u + ii2 * cr2u * cr2u;
+        }
+        #[cfg(feature = "dim3")]
+        {
+            let inv_i1: Real = (cr1u.transpose() * ii1.into_matrix() * cr1u)[0];
+            let inv_i2: Real = (cr2u.transpose() * ii2.into_matrix() * cr2u)[0];
+            lhs = im1 + im2 + inv_i1 + inv_i2;
+        }
+
         let dx = current_length - joint.rest_length;
 
-        let stiffness_impulse = joint.stiffness * dx * params.dt;
-        let damping_factor = joint.damping * params.dt;
+        let gamma = crate::utils::inv(params.dt * (joint.damping + params.dt * joint.stiffness));
+        let bias = dx * params.dt * joint.stiffness * gamma;
+        let inv_lhs = crate::utils::inv(lhs + gamma);
 
         let limits_active = joint.limits_enabled;
         let limits_min_length = joint.limits_min_length;
@@ -93,20 +111,6 @@ impl SpringVelocityConstraint {
         let mut limits_upper_impulse = 0.0;
 
         if joint.limits_enabled {
-            let cr1u = anchor1.gcross(u);
-            let cr2u = anchor2.gcross(u);
-
-            let lhs: Real;
-            #[cfg(feature = "dim2")]
-            {
-                lhs = im1 + im2 + ii1 * cr1u * cr1u + ii2 * cr2u * cr2u;
-            }
-            #[cfg(feature = "dim3")]
-            {
-                let inv_i1: Real = (cr1u.transpose() * ii1.into_matrix() * cr1u)[0];
-                let inv_i2: Real = (cr2u.transpose() * ii2.into_matrix() * cr2u)[0];
-                lhs = im1 + im2 + inv_i1 + inv_i2;
-            }
             limits_inv_lhs = crate::utils::inv(lhs);
 
             if limits_min_length < limits_max_length {
@@ -132,8 +136,9 @@ impl SpringVelocityConstraint {
             vel2,
             r1: anchor1,
             r2: anchor2,
-            stiffness_impulse,
-            damping_factor,
+            gamma,
+            bias,
+            inv_lhs,
             limits_active,
             limits_min_length,
             limits_max_length,
@@ -172,12 +177,11 @@ impl SpringVelocityConstraint {
         let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
 
         let dvel = (vel2 - vel1).dot(&self.u);
-        let impulse = -(self.stiffness_impulse + self.damping_factor * dvel);
 
-        let impulse = impulse - self.impulse;
+        let delta_impulse = -self.inv_lhs * (dvel + self.bias + self.gamma * self.impulse);
 
-        self.impulse += impulse;
-        let impulse = impulse * self.u;
+        self.impulse += delta_impulse;
+        let impulse = delta_impulse * self.u;
 
         mj_lambda1.linear -= self.im1 * impulse;
         mj_lambda1.angular -= self.ii1_sqrt.transform_vector(self.r1.gcross(impulse));
@@ -248,10 +252,10 @@ impl SpringVelocityConstraint {
 
         let dvel = (vel2 - vel1).dot(&self.u);
 
-        let impulse = -self.limits_inv_lhs * dvel;
-        self.impulse += impulse;
+        let delta_impulse = -self.limits_inv_lhs * dvel;
+        self.impulse += delta_impulse;
 
-        let impulse = impulse * self.u;
+        let impulse = delta_impulse * self.u;
 
         mj_lambda1.linear -= self.im1 * impulse;
         mj_lambda1.angular -= self.ii1_sqrt.transform_vector(self.r1.gcross(impulse));
@@ -308,8 +312,10 @@ pub(crate) struct SpringVelocityGroundConstraint {
     dx: Real,
 
     impulse: Real,
-    stiffness_impulse: Real,
-    damping_factor: Real,
+
+    gamma: Real,
+    bias: Real,
+    inv_lhs: Real,
 
     limits_active: bool,
     limits_min_length: Real,
@@ -367,10 +373,24 @@ impl SpringVelocityGroundConstraint {
         let current_length = u.magnitude();
         let u = u.normalize();
 
+        let cr2u = anchor2.gcross(u);
+
         let dx = current_length - joint.rest_length;
 
-        let stiffness_impulse = joint.stiffness * dx * params.dt;
-        let damping_factor = joint.damping * params.dt;
+        let lhs: Real;
+        #[cfg(feature = "dim2")]
+        {
+            lhs = im2 + ii2 * cr2u * cr2u;
+        }
+        #[cfg(feature = "dim3")]
+        {
+            let inv_i2: Real = (cr2u.transpose() * ii2.into_matrix() * cr2u)[0];
+            lhs = im2 + inv_i2;
+        }
+
+        let gamma = crate::utils::inv(params.dt * (joint.damping + params.dt * joint.stiffness));
+        let bias = dx * params.dt * joint.stiffness * gamma;
+        let inv_lhs = crate::utils::inv(lhs + gamma);
 
         let limits_active = joint.limits_enabled;
         let limits_min_length = joint.limits_min_length;
@@ -382,18 +402,6 @@ impl SpringVelocityGroundConstraint {
         let mut limits_upper_impulse = 0.0;
 
         if joint.limits_enabled {
-            let cr2u = anchor2.gcross(u);
-
-            let lhs: Real;
-            #[cfg(feature = "dim2")]
-            {
-                lhs = im2 + ii2 * cr2u * cr2u;
-            }
-            #[cfg(feature = "dim3")]
-            {
-                let inv_i2: Real = (cr2u.transpose() * ii2.into_matrix() * cr2u)[0];
-                lhs = im2 + inv_i2;
-            }
             limits_inv_lhs = crate::utils::inv(lhs);
 
             if limits_min_length < limits_max_length {
@@ -417,8 +425,9 @@ impl SpringVelocityGroundConstraint {
             vel2,
             r1: anchor1,
             r2: anchor2,
-            stiffness_impulse,
-            damping_factor,
+            gamma,
+            bias,
+            inv_lhs,
             limits_active,
             limits_min_length,
             limits_max_length,
@@ -451,12 +460,11 @@ impl SpringVelocityGroundConstraint {
         let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
 
         let dvel = (vel2 - vel1).dot(&self.u);
-        let impulse = -(self.stiffness_impulse + self.damping_factor * dvel);
 
-        let impulse = impulse - self.impulse;
+        let delta_impulse = -self.inv_lhs * (dvel + self.bias + self.gamma * self.impulse);
 
-        self.impulse += impulse;
-        let impulse = impulse * self.u;
+        self.impulse += delta_impulse;
+        let impulse = delta_impulse * self.u;
 
         mj_lambda2.linear += self.im2 * impulse;
         mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));

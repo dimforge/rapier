@@ -11,6 +11,8 @@ use {
     na::SimdPartialOrd,
     num::One,
 };
+#[cfg(feature = "simd-is-enabled")]
+use crate::math::SIMD_WIDTH;
 
 pub(crate) fn inv(val: Real) -> Real {
     if val == 0.0 {
@@ -18,6 +20,16 @@ pub(crate) fn inv(val: Real) -> Real {
     } else {
         1.0 / val
     }
+}
+
+#[cfg(feature = "simd-is-enabled")]
+pub(crate) fn simd_inv(val: SimdReal) -> SimdReal {
+    (gather![|ii| if val.extract(ii) == 0.0 {
+        0.0
+    } else {
+        1.0 / val.extract(ii)
+    }])
+    .into()
 }
 
 /// Trait to copy the sign of each component of one scalar/vector/matrix to another.
