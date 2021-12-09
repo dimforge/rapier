@@ -24,7 +24,7 @@ pub fn init_world(testbed: &mut Testbed) {
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let pos = vector![0.0, 7.0, 0.0];
-    let rb = RigidBodyBuilder::new_static().translation(pos).build();
+    let rb = RigidBodyBuilder::new_dynamic().translation(pos).build();
     let center_cube = bodies.insert(rb);
     let collider = ColliderBuilder::cuboid(0.5, 0.5, 0.5).build();
     colliders.insert_with_parent(collider, center_cube, &mut bodies);

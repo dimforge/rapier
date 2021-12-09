@@ -3,9 +3,11 @@ use crate::dynamics::{
     IntegrationParameters, JointGraphEdge, JointIndex, JointParams, RigidBodyIds,
     RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity, SpringJoint,
 };
-use crate::math::{AngVector, AngularInertia, Isometry, Point, Real, SimdReal, Vector, SIMD_WIDTH};
+use crate::math::{
+    AngVector, AngularInertia, Isometry, Point, Real, SimdBool, SimdReal, Vector, SIMD_WIDTH,
+};
 use crate::utils::{WAngularInertia, WCross};
-use simba::simd::SimdValue;
+use simba::simd::{SimdBool as _, SimdPartialOrd, SimdValue};
 
 #[derive(Debug)]
 pub(crate) struct WSpringVelocityConstraint {
@@ -26,6 +28,15 @@ pub(crate) struct WSpringVelocityConstraint {
     gamma: SimdReal,
     bias: SimdReal,
     inv_lhs: SimdReal,
+
+    limits_active: bool,
+    limits_min_length: SimdReal,
+    limits_max_length: SimdReal,
+    limits_inv_lhs: SimdReal,
+    limits_lower_rhs: SimdReal,
+    limits_upper_rhs: SimdReal,
+    limits_lower_impulse: SimdReal,
+    limits_upper_impulse: SimdReal,
 
     im1: SimdReal,
     im2: SimdReal,
@@ -85,6 +96,7 @@ impl WSpringVelocityConstraint {
         let local_anchor2 = Point::from(gather![|ii| cparams[ii].local_anchor2]);
         let impulse = SimdReal::from(gather![|ii| cparams[ii].impulse]);
         let dt = SimdReal::splat(params.dt);
+        let warmstart_coeff = SimdReal::splat(params.warmstart_coeff);
 
         let anchor_world1 = position1 * local_anchor1;
         let anchor_world2 = position2 * local_anchor2;
@@ -119,18 +131,54 @@ impl WSpringVelocityConstraint {
         let bias = dx * dt * stiffness * gamma;
         let inv_lhs = crate::utils::simd_inv(lhs + gamma);
 
+        let limits_enabled = SimdBool::from(gather![|ii| cparams[ii].limits_enabled]);
+        let mut limits_active = false;
+        let zero: SimdReal = na::zero();
+        let mut limits_inv_lhs = zero;
+        let mut limits_lower_rhs = zero;
+        let mut limits_upper_rhs = zero;
+        let mut limits_lower_impulse = zero;
+        let mut limits_upper_impulse = zero;
+        let limits_min_length = SimdReal::from(gather![|ii| cparams[ii].limits_min_length]);
+        let limits_max_length = SimdReal::from(gather![|ii| cparams[ii].limits_max_length]);
+
+        if limits_enabled.any() {
+            limits_inv_lhs = crate::utils::simd_inv(lhs);
+
+            limits_active = limits_min_length.simd_lt(limits_max_length).any();
+            if limits_active {
+                let inv_dt = crate::utils::simd_inv(dt);
+                limits_lower_rhs = (current_length - limits_min_length).simd_max(zero) * inv_dt;
+                limits_upper_rhs = (limits_max_length - current_length).simd_max(zero) * inv_dt;
+            }
+
+            let prev_lower_impulse = SimdReal::from(gather![|ii| cparams[ii].limits_lower_impulse]);
+            let prev_upper_impulse = SimdReal::from(gather![|ii| cparams[ii].limits_upper_impulse]);
+
+            limits_lower_impulse = prev_lower_impulse * warmstart_coeff;
+            limits_upper_impulse = prev_upper_impulse * warmstart_coeff;
+        }
+
         WSpringVelocityConstraint {
             joint_id,
             mj_lambda1,
             mj_lambda2,
             im1,
             im2,
-            impulse: impulse * SimdReal::splat(params.warmstart_coeff),
+            impulse: impulse * warmstart_coeff,
             r1: anchor1,
             r2: anchor2,
             gamma,
             bias,
             inv_lhs,
+            limits_active,
+            limits_min_length,
+            limits_max_length,
+            limits_inv_lhs,
+            limits_lower_rhs,
+            limits_upper_rhs,
+            limits_lower_impulse,
+            limits_upper_impulse,
             dx,
             u,
             vel1,
@@ -154,7 +202,8 @@ impl WSpringVelocityConstraint {
             ]),
         };
 
-        let impulse: Vector<SimdReal> = self.u * self.impulse;
+        let impulse: Vector<SimdReal> =
+            self.u * (self.impulse + self.limits_lower_impulse + self.limits_upper_impulse);
 
         mj_lambda1.linear -= impulse * self.im1;
         mj_lambda1.angular -= self.ii1_sqrt.transform_vector(self.r1.gcross(impulse));
@@ -168,6 +217,116 @@ impl WSpringVelocityConstraint {
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda2[ii] as usize].linear = mj_lambda2.linear.extract(ii);
             mj_lambdas[self.mj_lambda2[ii] as usize].angular = mj_lambda2.angular.extract(ii);
+        }
+    }
+
+    fn solve_spring(
+        &mut self, 
+        mj_lambda1: &mut DeltaVel<SimdReal>, 
+        mj_lambda2: &mut DeltaVel<SimdReal>,
+    ) {
+        let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel1 = self.vel1 + mj_lambda1.linear + ang_vel1.gcross(self.r1);
+        let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
+
+        let dvel = (vel2 - vel1).dot(&self.u);
+        let delta_impulse = -self.inv_lhs * (dvel + self.bias + self.gamma * self.impulse);
+
+        self.impulse += delta_impulse;
+        let impulse = self.u * delta_impulse;
+
+        mj_lambda1.linear -= impulse * self.im1;
+        mj_lambda1.angular -= self.ii1_sqrt.transform_vector(self.r1.gcross(impulse));
+
+        mj_lambda2.linear += impulse * self.im2;
+        mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_lower_limit(
+        &mut self,
+        mj_lambda1: &mut DeltaVel<SimdReal>,
+        mj_lambda2: &mut DeltaVel<SimdReal>,
+    ) {
+        let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel1 = self.vel1 + mj_lambda1.linear + ang_vel1.gcross(self.r1);
+        let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
+
+        let dvel = (vel2 - vel1).dot(&self.u);
+
+        let lower_impulse = -self.limits_inv_lhs * (dvel + self.limits_lower_rhs);
+        let old_impulse = self.limits_lower_impulse;
+        self.limits_lower_impulse = (old_impulse + lower_impulse).simd_max(SimdReal::splat(0.0));
+        let lower_impulse = self.limits_lower_impulse - old_impulse;
+        let impulse = self.u * lower_impulse;
+
+        mj_lambda1.linear -= impulse * self.im1;
+        mj_lambda1.angular -= self.ii1_sqrt.transform_vector(self.r1.gcross(impulse));
+
+        mj_lambda2.linear += impulse * self.im2;
+        mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_upper_limit(
+        &mut self,
+        mj_lambda1: &mut DeltaVel<SimdReal>,
+        mj_lambda2: &mut DeltaVel<SimdReal>,
+    ) {
+        let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel1 = self.vel1 + mj_lambda1.linear + ang_vel1.gcross(self.r1);
+        let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
+
+        let dvel = (vel1 - vel2).dot(&self.u);
+
+        let upper_impulse = -self.limits_inv_lhs * (dvel + self.limits_upper_rhs);
+        let old_impulse = self.limits_upper_impulse;
+        self.limits_upper_impulse = (old_impulse + upper_impulse).simd_max(SimdReal::splat(0.0));
+        let upper_impulse = self.limits_upper_impulse - old_impulse;
+        let impulse = self.u * -upper_impulse;
+
+        mj_lambda1.linear -= impulse * self.im1;
+        mj_lambda1.angular -= self.ii1_sqrt.transform_vector(self.r1.gcross(impulse));
+
+        mj_lambda2.linear += impulse * self.im2;
+        mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_equal_limits(
+        &mut self,
+        mj_lambda1: &mut DeltaVel<SimdReal>,
+        mj_lambda2: &mut DeltaVel<SimdReal>,
+    ) {
+        let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel1 = self.vel1 + mj_lambda1.linear + ang_vel1.gcross(self.r1);
+        let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
+
+        let dvel = (vel2 - vel1).dot(&self.u);
+
+        let delta_impulse = -self.limits_inv_lhs * dvel;
+        self.impulse += delta_impulse;
+
+        let impulse = self.u * delta_impulse;
+
+        mj_lambda1.linear -= impulse * self.im1;
+        mj_lambda1.angular -= self.ii1_sqrt.transform_vector(self.r1.gcross(impulse));
+
+        mj_lambda2.linear += impulse * self.im2;
+        mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_limits(
+        &mut self,
+        mj_lambda1: &mut DeltaVel<SimdReal>,
+        mj_lambda2: &mut DeltaVel<SimdReal>,
+    ) {
+        if self.limits_min_length.simd_lt(self.limits_max_length).any() {
+            self.solve_lower_limit(mj_lambda1, mj_lambda2);
+            self.solve_upper_limit(mj_lambda1, mj_lambda2);
+        } else {
+            self.solve_equal_limits(mj_lambda1, mj_lambda2);
         }
     }
 
@@ -185,22 +344,10 @@ impl WSpringVelocityConstraint {
             ]),
         };
 
-        let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
-        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
-        let vel1 = self.vel1 + mj_lambda1.linear + ang_vel1.gcross(self.r1);
-        let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
-
-        let dvel = (vel2 - vel1).dot(&self.u);
-        let delta_impulse = -self.inv_lhs * (dvel + self.bias + self.gamma * self.impulse);
-
-        self.impulse += delta_impulse;
-        let impulse = self.u * delta_impulse;
-
-        mj_lambda1.linear -= impulse * self.im1;
-        mj_lambda1.angular -= self.ii1_sqrt.transform_vector(self.r1.gcross(impulse));
-
-        mj_lambda2.linear += impulse * self.im2;
-        mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+        self.solve_spring(&mut mj_lambda1, &mut mj_lambda2);
+        if self.limits_active {
+            self.solve_limits(&mut mj_lambda1, &mut mj_lambda2);
+        }
 
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda1[ii] as usize].linear = mj_lambda1.linear.extract(ii);
@@ -239,6 +386,15 @@ pub(crate) struct WSpringVelocityGroundConstraint {
     gamma: SimdReal,
     bias: SimdReal,
     inv_lhs: SimdReal,
+
+    limits_active: bool,
+    limits_min_length: SimdReal,
+    limits_max_length: SimdReal,
+    limits_inv_lhs: SimdReal,
+    limits_lower_rhs: SimdReal,
+    limits_upper_rhs: SimdReal,
+    limits_lower_impulse: SimdReal,
+    limits_upper_impulse: SimdReal,
 
     im2: SimdReal,
     ii2_sqrt: AngularInertia<SimdReal>,
@@ -297,6 +453,7 @@ impl WSpringVelocityGroundConstraint {
         let stiffness = SimdReal::from(gather![|ii| cparams[ii].stiffness]);
         let damping = SimdReal::from(gather![|ii| cparams[ii].damping]);
         let dt = SimdReal::splat(params.dt);
+        let warmstart_coeff = SimdReal::splat(params.warmstart_coeff);
 
         let anchor_world1 = position1 * local_anchor1;
         let anchor_world2 = position2 * local_anchor2;
@@ -329,6 +486,34 @@ impl WSpringVelocityGroundConstraint {
         let bias = dx * dt * stiffness * gamma;
         let inv_lhs = crate::utils::simd_inv(lhs + gamma);
 
+        let limits_enabled = SimdBool::from(gather![|ii| cparams[ii].limits_enabled]);
+        let mut limits_active = false;
+        let zero: SimdReal = na::zero();
+        let mut limits_inv_lhs = zero;
+        let mut limits_lower_rhs = zero;
+        let mut limits_upper_rhs = zero;
+        let mut limits_lower_impulse = zero;
+        let mut limits_upper_impulse = zero;
+        let limits_min_length = SimdReal::from(gather![|ii| cparams[ii].limits_min_length]);
+        let limits_max_length = SimdReal::from(gather![|ii| cparams[ii].limits_max_length]);
+
+        if limits_enabled.any() {
+            limits_inv_lhs = crate::utils::simd_inv(lhs);
+
+            limits_active = limits_min_length.simd_lt(limits_max_length).any();
+            if limits_active {
+                let inv_dt = crate::utils::simd_inv(dt);
+                limits_lower_rhs = (current_length - limits_min_length).simd_max(zero) * inv_dt;
+                limits_upper_rhs = (limits_max_length - current_length).simd_max(zero) * inv_dt;
+            }
+
+            let prev_lower_impulse = SimdReal::from(gather![|ii| cparams[ii].limits_lower_impulse]);
+            let prev_upper_impulse = SimdReal::from(gather![|ii| cparams[ii].limits_upper_impulse]);
+
+            limits_lower_impulse = prev_lower_impulse * warmstart_coeff;
+            limits_upper_impulse = prev_upper_impulse * warmstart_coeff;
+        }
+
         Self {
             joint_id,
             mj_lambda2,
@@ -337,6 +522,14 @@ impl WSpringVelocityGroundConstraint {
             gamma,
             bias,
             inv_lhs,
+            limits_active,
+            limits_min_length,
+            limits_max_length,
+            limits_inv_lhs,
+            limits_lower_rhs,
+            limits_upper_rhs,
+            limits_lower_impulse,
+            limits_upper_impulse,
             u,
             dx,
             vel1,
@@ -366,14 +559,7 @@ impl WSpringVelocityGroundConstraint {
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda2: DeltaVel<SimdReal> = DeltaVel {
-            linear: Vector::from(gather![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear]),
-            angular: AngVector::from(gather![
-                |ii| mj_lambdas[self.mj_lambda2[ii] as usize].angular
-            ]),
-        };
-
+    fn solve_spring(&mut self, mj_lambda2: &mut DeltaVel<SimdReal>){
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
         let vel1 = self.vel1;
         let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
@@ -387,6 +573,80 @@ impl WSpringVelocityGroundConstraint {
 
         mj_lambda2.linear += impulse * self.im2;
         mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_lower_limit(&mut self, mj_lambda2: &mut DeltaVel<SimdReal>) {
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel1 = self.vel1;
+        let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
+
+        let dvel = (vel2 - vel1).dot(&self.u);
+
+        let lower_impulse = -self.limits_inv_lhs * (dvel + self.limits_lower_rhs);
+        let old_impulse = self.limits_lower_impulse;
+        self.limits_lower_impulse = (old_impulse + lower_impulse).simd_max(SimdReal::splat(0.0));
+        let lower_impulse = self.limits_lower_impulse - old_impulse;
+        let impulse = self.u * lower_impulse;
+
+        mj_lambda2.linear += impulse * self.im2;
+        mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_upper_limit(&mut self, mj_lambda2: &mut DeltaVel<SimdReal>) {
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel1 = self.vel1;
+        let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
+
+        let dvel = (vel1 - vel2).dot(&self.u);
+
+        let upper_impulse = -self.limits_inv_lhs * (dvel + self.limits_upper_rhs);
+        let old_impulse = self.limits_upper_impulse;
+        self.limits_upper_impulse = (old_impulse + upper_impulse).simd_max(SimdReal::splat(0.0));
+        let upper_impulse = self.limits_upper_impulse - old_impulse;
+        let impulse = self.u * -upper_impulse;
+
+        mj_lambda2.linear += impulse * self.im2;
+        mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_equal_limits(&mut self, mj_lambda2: &mut DeltaVel<SimdReal>) {
+        let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
+        let vel1 = self.vel1;
+        let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
+
+        let dvel = (vel2 - vel1).dot(&self.u);
+
+        let impulse = -self.limits_inv_lhs * dvel;
+        self.impulse += impulse;
+
+        let impulse = self.u * impulse;
+
+        mj_lambda2.linear += impulse * self.im2;
+        mj_lambda2.angular += self.ii2_sqrt.transform_vector(self.r2.gcross(impulse));
+    }
+
+    fn solve_limits(&mut self, mj_lambda2: &mut DeltaVel<SimdReal>) {
+        if self.limits_min_length.simd_lt(self.limits_max_length).any() {
+            self.solve_lower_limit(mj_lambda2);
+            self.solve_upper_limit(mj_lambda2);
+        } else {
+            self.solve_equal_limits(mj_lambda2);
+        }
+    }
+
+
+    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+        let mut mj_lambda2: DeltaVel<SimdReal> = DeltaVel {
+            linear: Vector::from(gather![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear]),
+            angular: AngVector::from(gather![
+                |ii| mj_lambdas[self.mj_lambda2[ii] as usize].angular
+            ]),
+        };
+
+        self.solve_spring(&mut mj_lambda2);
+        if self.limits_active {
+            self.solve_limits(&mut mj_lambda2);
+        }
 
         for ii in 0..SIMD_WIDTH {
             mj_lambdas[self.mj_lambda2[ii] as usize].linear = mj_lambda2.linear.extract(ii);

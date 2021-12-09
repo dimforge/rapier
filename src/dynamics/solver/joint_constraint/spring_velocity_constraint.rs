@@ -156,7 +156,8 @@ impl SpringVelocityConstraint {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        let impulse = self.impulse * self.u;
+        let impulse = (self.impulse + self.limits_lower_impulse + self.limits_upper_impulse) *
+            self.u;
 
         mj_lambda1.linear -= self.im1 * impulse;
         mj_lambda1.angular -= self.ii1_sqrt.transform_vector(self.r1.gcross(impulse));
@@ -168,9 +169,6 @@ impl SpringVelocityConstraint {
     }
 
     fn solve_spring(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
-        if self.limits_active && self.limits_min_length >= self.limits_max_length {
-            return;
-        }
         let ang_vel1 = self.ii1_sqrt.transform_vector(mj_lambda1.angular);
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
         let vel1 = self.vel1 + mj_lambda1.linear + ang_vel1.gcross(self.r1);
@@ -265,13 +263,11 @@ impl SpringVelocityConstraint {
     }
 
     fn solve_limits(&mut self, mj_lambda1: &mut DeltaVel<Real>, mj_lambda2: &mut DeltaVel<Real>) {
-        if self.limits_active {
-            if self.limits_min_length < self.limits_max_length {
-                self.solve_lower_limit(mj_lambda1, mj_lambda2);
-                self.solve_upper_limit(mj_lambda1, mj_lambda2);
-            } else {
-                self.solve_equal_limits(mj_lambda1, mj_lambda2);
-            }
+        if self.limits_min_length < self.limits_max_length {
+            self.solve_lower_limit(mj_lambda1, mj_lambda2);
+            self.solve_upper_limit(mj_lambda1, mj_lambda2);
+        } else {
+            self.solve_equal_limits(mj_lambda1, mj_lambda2);
         }
     }
 
@@ -279,9 +275,7 @@ impl SpringVelocityConstraint {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        if !self.limits_active || self.limits_min_length < self.limits_max_length {
-            self.solve_spring(&mut mj_lambda1, &mut mj_lambda2);
-        }
+        self.solve_spring(&mut mj_lambda1, &mut mj_lambda2);
         if self.limits_active {
             self.solve_limits(&mut mj_lambda1, &mut mj_lambda2);
         }
@@ -452,9 +446,6 @@ impl SpringVelocityGroundConstraint {
     }
 
     fn solve_spring(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
-        if self.limits_active && self.limits_min_length >= self.limits_max_length {
-            return;
-        }
         let ang_vel2 = self.ii2_sqrt.transform_vector(mj_lambda2.angular);
         let vel1 = self.vel1;
         let vel2 = self.vel2 + mj_lambda2.linear + ang_vel2.gcross(self.r2);
@@ -521,22 +512,18 @@ impl SpringVelocityGroundConstraint {
     }
 
     fn solve_limits(&mut self, mj_lambda2: &mut DeltaVel<Real>) {
-        if self.limits_active {
-            if self.limits_min_length < self.limits_max_length {
-                self.solve_lower_limit(mj_lambda2);
-                self.solve_upper_limit(mj_lambda2);
-            } else {
-                self.solve_equal_limits(mj_lambda2);
-            }
+        if self.limits_min_length < self.limits_max_length {
+            self.solve_lower_limit(mj_lambda2);
+            self.solve_upper_limit(mj_lambda2);
+        } else {
+            self.solve_equal_limits(mj_lambda2);
         }
     }
 
     pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
-        if !self.limits_active || self.limits_min_length < self.limits_max_length {
-            self.solve_spring(&mut mj_lambda2);
-        }
+        self.solve_spring(&mut mj_lambda2);
         if self.limits_active {
             self.solve_limits(&mut mj_lambda2);
         }
