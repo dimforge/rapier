@@ -2,7 +2,10 @@
 
 pub use collision_pipeline::CollisionPipeline;
 pub use event_handler::{ActiveEvents, ChannelEventCollector, EventHandler};
-pub use physics_hooks::{ActiveHooks, ContactModificationContext, PairFilterContext, PhysicsHooks};
+pub use physics_hooks::{
+    ActiveHooks, ContactModificationContext, ContactResponseContext, PairFilterContext,
+    PhysicsHooks,
+};
 pub use physics_pipeline::PhysicsPipeline;
 pub use query_pipeline::{QueryPipeline, QueryPipelineMode};
 

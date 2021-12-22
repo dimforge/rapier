@@ -45,6 +45,28 @@ pub struct ContactModificationContext<'a, Bodies, Colliders> {
     pub user_data: &'a mut u32,
 }
 
+/// Context given to custom contact response to add effects bases on the impulses computed by the solver.
+pub struct ContactResponseContext<'a, Bodies, Colliders> {
+    /// The set of rigid-bodies.
+    pub bodies: &'a Bodies,
+    /// The set of colliders.
+    pub colliders: &'a Colliders,
+    /// The handle of the first collider involved in the potential collision.
+    pub collider1: ColliderHandle,
+    /// The handle of the first collider involved in the potential collision.
+    pub collider2: ColliderHandle,
+    /// The handle of the first body involved in the potential collision.
+    pub rigid_body1: Option<RigidBodyHandle>,
+    /// The handle of the first body involved in the potential collision.
+    pub rigid_body2: Option<RigidBodyHandle>,
+    /// The contact manifold.
+    pub manifold: &'a ContactManifold,
+    /// User-defined data attached to the manifold.
+    // NOTE: we keep this a &'a mut u32 to emphasize the
+    // fact that this can be modified.
+    pub user_data: &'a mut u32,
+}
+
 impl<'a, Bodies, Colliders> ContactModificationContext<'a, Bodies, Colliders> {
     /// Helper function to update `self` to emulate a oneway-platform.
     ///
@@ -125,6 +147,8 @@ bitflags::bitflags! {
         const FILTER_INTERSECTION_PAIR = 0b0010;
         /// If set, Rapier will call `PhysicsHooks::modify_solver_contact` whenever relevant.
         const MODIFY_SOLVER_CONTACTS = 0b0100;
+        /// If set, Rapier will call `PhysicsHooks::respond_to_contact_impulses` whenever relevant.
+        const RESPOND_TO_CONTACT_IMPULSES = 0b1000;
     }
 }
 impl Default for ActiveHooks {
@@ -155,6 +179,13 @@ pub trait PhysicsHooks<Bodies, Colliders> {
 
     /// Modifies the set of contacts seen by the constraints solver.
     fn modify_solver_contacts(&self, _context: &mut ContactModificationContext<Bodies, Colliders>) {
+    }
+
+    /// Respond to impulses after the solver has run.
+    fn respond_to_contact_impulses(
+        &self,
+        _context: &mut ContactResponseContext<Bodies, Colliders>,
+    ) {
     }
 }
 
@@ -243,6 +274,18 @@ pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
     /// The world-space contact normal can be modified in `context.normal`.
     fn modify_solver_contacts(&self, _context: &mut ContactModificationContext<Bodies, Colliders>) {
     }
+
+    /// Respond to contacts after the impulses have been computed.
+    ///
+    /// Use this to add special effects.
+    ///
+    /// This will be called after collision responses have been computed.
+    /// The impulse in the direction of the normal can be found in `manifold.points[i].data.impulse`.
+    fn respond_to_contact_impulses(
+        &self,
+        _context: &mut ContactResponseContext<Bodies, Colliders>,
+    ) {
+    }
 }
 
 impl<Bodies, Colliders> PhysicsHooks<Bodies, Colliders> for () {
@@ -258,4 +301,10 @@ impl<Bodies, Colliders> PhysicsHooks<Bodies, Colliders> for () {
     }
 
     fn modify_solver_contacts(&self, _: &mut ContactModificationContext<Bodies, Colliders>) {}
+
+    fn respond_to_contact_impulses(
+        &self,
+        _context: &mut ContactResponseContext<Bodies, Colliders>,
+    ) {
+    }
 }

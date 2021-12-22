@@ -14,8 +14,8 @@ use crate::geometry::{
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{
-    ActiveEvents, ActiveHooks, ContactModificationContext, EventHandler, PairFilterContext,
-    PhysicsHooks,
+    ActiveEvents, ActiveHooks, ContactModificationContext, ContactResponseContext, EventHandler,
+    PairFilterContext, PhysicsHooks,
 };
 use crate::prelude::ColliderFlags;
 use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
@@ -1086,5 +1086,53 @@ impl NarrowPhase {
                 }
             }
         }
+    }
+
+    pub(crate) fn handle_contact_responses<Bodies, Colliders>(
+        &mut self,
+        bodies: &Bodies,
+        colliders: &Colliders,
+        hooks: &dyn PhysicsHooks<Bodies, Colliders>,
+    ) where
+        Bodies: ComponentSet<RigidBodyActivation>
+            + ComponentSet<RigidBodyType>
+            + ComponentSet<RigidBodyDominance>,
+        Colliders: ComponentSet<ColliderChanges>
+            + ComponentSetOption<ColliderParent>
+            + ComponentSet<ColliderShape>
+            + ComponentSet<ColliderPosition>
+            + ComponentSet<ColliderMaterial>
+            + ComponentSet<ColliderFlags>,
+    {
+        par_iter_mut!(&mut self.contact_graph.graph.edges).for_each(|edge| {
+            let pair = &mut edge.weight;
+
+            let co_parent1: Option<&ColliderParent> = colliders.get(pair.collider1.0);
+            let co_flags1: &ColliderFlags = colliders.index(pair.collider1.0);
+
+            let co_parent2: Option<&ColliderParent> = colliders.get(pair.collider2.0);
+            let co_flags2: &ColliderFlags = colliders.index(pair.collider2.0);
+
+            let active_hooks = co_flags1.active_hooks | co_flags2.active_hooks;
+
+            if active_hooks.contains(ActiveHooks::RESPOND_TO_CONTACT_IMPULSES) {
+                for manifold in &mut pair.manifolds {
+                    let mut modifiable_user_data = manifold.data.user_data;
+
+                    let mut context = ContactResponseContext {
+                        bodies,
+                        colliders,
+                        rigid_body1: co_parent1.map(|p| p.handle),
+                        rigid_body2: co_parent2.map(|p| p.handle),
+                        collider1: pair.collider1,
+                        collider2: pair.collider2,
+                        manifold,
+                        user_data: &mut modifiable_user_data,
+                    };
+                    hooks.respond_to_contact_impulses(&mut context);
+                    manifold.data.user_data = modifiable_user_data;
+                }
+            }
+        });
     }
 }
