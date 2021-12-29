@@ -166,15 +166,15 @@ impl RigidBody {
 
             self.rb_mprops.flags.set(
                 RigidBodyMassPropsFlags::ROTATION_LOCKED_X,
-                allow_rotations_x,
+                !allow_rotations_x,
             );
             self.rb_mprops.flags.set(
                 RigidBodyMassPropsFlags::ROTATION_LOCKED_Y,
-                allow_rotations_y,
+                !allow_rotations_y,
             );
             self.rb_mprops.flags.set(
                 RigidBodyMassPropsFlags::ROTATION_LOCKED_Z,
-                allow_rotations_z,
+                !allow_rotations_z,
             );
             self.update_world_mass_properties();
         }
