@@ -622,7 +622,7 @@ impl BroadPhase {
 
 #[cfg(test)]
 mod test {
-    use crate::dynamics::{IslandManager, ImpulseJointSet, RigidBodyBuilder, RigidBodySet};
+    use crate::dynamics::{ImpulseJointSet, IslandManager, RigidBodyBuilder, RigidBodySet};
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet};
 
     #[test]
