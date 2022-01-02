@@ -10,9 +10,9 @@ use crate::dynamics::{
     ImpulseJoint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodyIds,
     RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
-use crate::math::{Isometry, Real, SPATIAL_DIM};
 #[cfg(feature = "simd-is-enabled")]
-use crate::math::{SimdReal, SIMD_WIDTH};
+use crate::math::{Isometry, SimdReal, SIMD_WIDTH};
+use crate::math::{Real, SPATIAL_DIM};
 use crate::prelude::MultibodyJointSet;
 use na::DVector;
 
