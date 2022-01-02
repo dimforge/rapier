@@ -18,8 +18,8 @@ jobs:
       run: cargo fmt -- --check
   build-native:
     runs-on: ubuntu-latest
-    env:
-      RUSTFLAGS: -D warnings
+#    env:
+#      RUSTFLAGS: -D warnings
     steps:
     - uses: actions/checkout@v2
     - run: sudo apt-get install -y cmake libxcb-composite0-dev
@@ -51,8 +51,8 @@ jobs:
       run: cargo check -j 1 --verbose -p rapier-examples-3d;
   build-wasm:
     runs-on: ubuntu-latest
-    env:
-      RUSTFLAGS: -D warnings
+#    env:
+#      RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v2
       - run: rustup target add wasm32-unknown-unknown
@@ -62,8 +62,8 @@ jobs:
         run: cd crates/rapier3d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
   build-wasm-emscripten:
     runs-on: ubuntu-latest
-    env:
-      RUSTFLAGS: -D warnings
+#    env:
+#      RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v2
       - run: rustup target add wasm32-unknown-emscripten

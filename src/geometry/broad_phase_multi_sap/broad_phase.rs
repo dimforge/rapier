@@ -80,7 +80,6 @@ pub struct BroadPhase {
     layers: Vec<SAPLayer>,
     smallest_layer: u8,
     largest_layer: u8,
-    deleted_any: bool,
     // NOTE: we maintain this hashmap to simplify collider removal.
     //       This information is also present in the ColliderProxyId
     //       component. However if that component is removed, we need
@@ -133,7 +132,6 @@ impl BroadPhase {
             region_pool: Vec::new(),
             reporting: HashMap::default(),
             colliders_proxy_ids: HashMap::default(),
-            deleted_any: false,
         }
     }
 
