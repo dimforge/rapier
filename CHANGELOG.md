@@ -1,3 +1,23 @@
+## v0.12.0-alpha.0 (2 Jan. 2020)
+### Fixed
+- Fixed `RigidBody::restrict_rotations` to properly take into account the axes to lock.
+- 
+### Modified
+- All the impulse-based joints have been replaced by a single generic 6-Dofs joint in 3D
+  (or 3-Dofs joint in 2D) named `ImpulseJoint`. The `RevoluteJoint, PrismaticJoint, FixedJoint`,
+  and `SphericalJoint` (formely named `BallJoint`) structures still exist but are just convenient
+  ways to initialize the generic `ImpulseJoint`.
+- Our constraints solver has been modified. Before we used one velocity-based resolution followed
+  by one position-based resolution. We are now using two velocity-based resolution: the first one
+  includes constraints regularization whereas the second one doesn’t. This simplifies the resolution
+  code significantly while offering stiffer results.
+- 
+
+### Added
+- Added multibody joints: joints based on the reduced-coordinates modeling. These joints can’t 
+  violate their positional constraint.
+- Implement `Default` for most of the struct that supports it.
+
 ## v0.11.1
 ### Fixed
 - Fix a bug causing large moving colliders to miss some collisions after some time.
