@@ -13,6 +13,14 @@ impl<T> Coarena<T> {
         Self { data: Vec::new() }
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = (Index, &T)> {
+        self.data
+            .iter()
+            .enumerate()
+            .filter(|(_, elt)| elt.0 != u32::MAX)
+            .map(|(i, elt)| (Index::from_raw_parts(i as u32, elt.0), &elt.1))
+    }
+
     /// Gets a specific element from the coarena without specifying its generation number.
     ///
     /// It is strongly encouraged to use `Coarena::get` instead of this method because this method
@@ -23,12 +31,12 @@ impl<T> Coarena<T> {
 
     /// Deletes an element for the coarena and returns its value.
     ///
-    /// We can't really remove an element from the coarena. So instead of actually removing
-    /// it, this method will reset the value to the given `removed_value`.
+    /// This method will reset the value to the given `removed_value`.
     pub fn remove(&mut self, index: Index, removed_value: T) -> Option<T> {
         let (i, g) = index.into_raw_parts();
         let data = self.data.get_mut(i as usize)?;
         if g == data.0 {
+            data.0 = u32::MAX; // invalidate the generation number.
             Some(std::mem::replace(&mut data.1, removed_value))
         } else {
             None

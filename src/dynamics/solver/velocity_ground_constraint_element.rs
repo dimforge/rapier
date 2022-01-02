@@ -8,7 +8,7 @@ pub(crate) struct VelocityGroundConstraintTangentPart<N: SimdRealField + Copy> {
     pub gcross2: [AngVector<N>; DIM - 1],
     pub rhs: [N; DIM - 1],
     #[cfg(feature = "dim2")]
-    pub impulse: [N; DIM - 1],
+    pub impulse: na::Vector1<N>,
     #[cfg(feature = "dim3")]
     pub impulse: na::Vector2<N>,
     pub r: [N; DIM - 1],
@@ -20,24 +20,8 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintTangentPart<N> {
         Self {
             gcross2: [na::zero(); DIM - 1],
             rhs: [na::zero(); DIM - 1],
-            #[cfg(feature = "dim2")]
-            impulse: [na::zero(); DIM - 1],
-            #[cfg(feature = "dim3")]
             impulse: na::zero(),
             r: [na::zero(); DIM - 1],
-        }
-    }
-
-    #[inline]
-    pub fn warmstart(
-        &self,
-        tangents1: [&Vector<N>; DIM - 1],
-        im2: N,
-        mj_lambda2: &mut DeltaVel<N>,
-    ) {
-        for j in 0..DIM - 1 {
-            mj_lambda2.linear += tangents1[j] * (-im2 * self.impulse[j]);
-            mj_lambda2.angular += self.gcross2[j] * self.impulse[j];
         }
     }
 
@@ -99,6 +83,7 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintTangentPart<N> {
 pub(crate) struct VelocityGroundConstraintNormalPart<N: SimdRealField + Copy> {
     pub gcross2: AngVector<N>,
     pub rhs: N,
+    pub rhs_wo_bias: N,
     pub impulse: N,
     pub r: N,
 }
@@ -109,15 +94,10 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintNormalPart<N> {
         Self {
             gcross2: na::zero(),
             rhs: na::zero(),
+            rhs_wo_bias: na::zero(),
             impulse: na::zero(),
             r: na::zero(),
         }
-    }
-
-    #[inline]
-    pub fn warmstart(&self, dir1: &Vector<N>, im2: N, mj_lambda2: &mut DeltaVel<N>) {
-        mj_lambda2.linear += dir1 * (-im2 * self.impulse);
-        mj_lambda2.angular += self.gcross2 * self.impulse;
     }
 
     #[inline]
@@ -152,29 +132,6 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintElement<N> {
     }
 
     #[inline]
-    pub fn warmstart_group(
-        elements: &[Self],
-        dir1: &Vector<N>,
-        #[cfg(feature = "dim3")] tangent1: &Vector<N>,
-        im2: N,
-        mj_lambda2: &mut DeltaVel<N>,
-    ) where
-        Vector<N>: WBasis,
-        AngVector<N>: WDot<AngVector<N>, Result = N>,
-        N::Element: SimdRealField + Copy,
-    {
-        #[cfg(feature = "dim3")]
-        let tangents1 = [tangent1, &dir1.cross(&tangent1)];
-        #[cfg(feature = "dim2")]
-        let tangents1 = [&dir1.orthonormal_vector()];
-
-        for element in elements {
-            element.normal_part.warmstart(dir1, im2, mj_lambda2);
-            element.tangent_part.warmstart(tangents1, im2, mj_lambda2);
-        }
-    }
-
-    #[inline]
     pub fn solve_group(
         elements: &mut [Self],
         dir1: &Vector<N>,
@@ -182,26 +139,32 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintElement<N> {
         im2: N,
         limit: N,
         mj_lambda2: &mut DeltaVel<N>,
+        solve_normal: bool,
+        solve_friction: bool,
     ) where
         Vector<N>: WBasis,
         AngVector<N>: WDot<AngVector<N>, Result = N>,
         N::Element: SimdRealField + Copy,
     {
-        // Solve friction.
-        #[cfg(feature = "dim3")]
-        let tangents1 = [tangent1, &dir1.cross(&tangent1)];
-        #[cfg(feature = "dim2")]
-        let tangents1 = [&dir1.orthonormal_vector()];
-
-        for element in elements.iter_mut() {
-            let limit = limit * element.normal_part.impulse;
-            let part = &mut element.tangent_part;
-            part.solve(tangents1, im2, limit, mj_lambda2);
+        // Solve penetration.
+        if solve_normal {
+            for element in elements.iter_mut() {
+                element.normal_part.solve(&dir1, im2, mj_lambda2);
+            }
         }
 
-        // Solve penetration.
-        for element in elements.iter_mut() {
-            element.normal_part.solve(&dir1, im2, mj_lambda2);
+        // Solve friction.
+        if solve_friction {
+            #[cfg(feature = "dim3")]
+            let tangents1 = [tangent1, &dir1.cross(&tangent1)];
+            #[cfg(feature = "dim2")]
+            let tangents1 = [&dir1.orthonormal_vector()];
+
+            for element in elements.iter_mut() {
+                let limit = limit * element.normal_part.impulse;
+                let part = &mut element.tangent_part;
+                part.solve(tangents1, im2, limit, mj_lambda2);
+            }
         }
     }
 }

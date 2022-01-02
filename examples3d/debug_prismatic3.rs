@@ -4,7 +4,7 @@ use rapier_testbed3d::Testbed;
 fn prismatic_repro(
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
-    joints: &mut JointSet,
+    impulse_joints: &mut ImpulseJointSet,
     box_center: Point<f32>,
 ) {
     let box_rb = bodies.insert(
@@ -39,19 +39,12 @@ fn prismatic_repro(
         );
         colliders.insert_with_parent(ColliderBuilder::ball(0.5).build(), wheel_rb, bodies);
 
-        let mut prismatic = rapier3d::dynamics::PrismaticJoint::new(
-            point![pos.x, pos.y, pos.z],
-            Vector::y_axis(),
-            Vector::zeros(),
-            Point::origin(),
-            Vector::y_axis(),
-            Vector::default(),
-        );
-        prismatic.configure_motor_model(rapier3d::dynamics::SpringModel::VelocityBased);
         let (stiffness, damping) = (0.05, 0.2);
-        prismatic.configure_motor_position(0.0, stiffness, damping);
 
-        joints.insert(box_rb, wheel_rb, prismatic);
+        let prismatic = PrismaticJoint::new(Vector::y_axis())
+            .local_anchor1(point![pos.x, pos.y, pos.z])
+            .motor_position(0.0, stiffness, damping);
+        impulse_joints.insert(box_rb, wheel_rb, prismatic);
     }
 
     // put a small box under one of the wheels
@@ -73,7 +66,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let mut joints = JointSet::new();
+    let mut impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Ground
@@ -91,13 +85,13 @@ pub fn init_world(testbed: &mut Testbed) {
     prismatic_repro(
         &mut bodies,
         &mut colliders,
-        &mut joints,
+        &mut impulse_joints,
         point![0.0, 5.0, 0.0],
     );
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.look_at(point![10.0, 10.0, 10.0], Point::origin());
 }

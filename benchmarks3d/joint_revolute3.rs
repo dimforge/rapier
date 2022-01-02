@@ -7,7 +7,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let mut joints = JointSet::new();
+    let mut impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     let rad = 0.4;
     let num = 10;
@@ -49,22 +50,21 @@ pub fn init_world(testbed: &mut Testbed) {
                     colliders.insert_with_parent(collider, handles[k], &mut bodies);
                 }
 
-                // Setup four joints.
-                let o = Point::origin();
+                // Setup four impulse_joints.
                 let x = Vector::x_axis();
                 let z = Vector::z_axis();
 
                 let revs = [
-                    RevoluteJoint::new(o, z, point![0.0, 0.0, -shift], z),
-                    RevoluteJoint::new(o, x, point![-shift, 0.0, 0.0], x),
-                    RevoluteJoint::new(o, z, point![0.0, 0.0, -shift], z),
-                    RevoluteJoint::new(o, x, point![shift, 0.0, 0.0], x),
+                    RevoluteJoint::new(z).local_anchor2(point![0.0, 0.0, -shift]),
+                    RevoluteJoint::new(x).local_anchor2(point![-shift, 0.0, 0.0]),
+                    RevoluteJoint::new(z).local_anchor2(point![0.0, 0.0, -shift]),
+                    RevoluteJoint::new(x).local_anchor2(point![shift, 0.0, 0.0]),
                 ];
 
-                joints.insert(curr_parent, handles[0], revs[0]);
-                joints.insert(handles[0], handles[1], revs[1]);
-                joints.insert(handles[1], handles[2], revs[2]);
-                joints.insert(handles[2], handles[3], revs[3]);
+                impulse_joints.insert(curr_parent, handles[0], revs[0]);
+                impulse_joints.insert(handles[0], handles[1], revs[1]);
+                impulse_joints.insert(handles[1], handles[2], revs[2]);
+                impulse_joints.insert(handles[2], handles[3], revs[3]);
 
                 curr_parent = handles[3];
             }
@@ -74,6 +74,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.look_at(point![478.0, 83.0, 228.0], point![134.0, 83.0, -116.0]);
 }

@@ -80,7 +80,6 @@ pub struct BroadPhase {
     layers: Vec<SAPLayer>,
     smallest_layer: u8,
     largest_layer: u8,
-    deleted_any: bool,
     // NOTE: we maintain this hashmap to simplify collider removal.
     //       This information is also present in the ColliderProxyId
     //       component. However if that component is removed, we need
@@ -133,7 +132,6 @@ impl BroadPhase {
             region_pool: Vec::new(),
             reporting: HashMap::default(),
             colliders_proxy_ids: HashMap::default(),
-            deleted_any: false,
         }
     }
 
@@ -622,7 +620,9 @@ impl BroadPhase {
 
 #[cfg(test)]
 mod test {
-    use crate::dynamics::{IslandManager, JointSet, RigidBodyBuilder, RigidBodySet};
+    use crate::dynamics::{
+        ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodyBuilder, RigidBodySet,
+    };
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet};
 
     #[test]
@@ -630,7 +630,8 @@ mod test {
         let mut broad_phase = BroadPhase::new();
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
-        let mut joints = JointSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
         let mut islands = IslandManager::new();
 
         let rb = RigidBodyBuilder::new_dynamic().build();
@@ -641,7 +642,13 @@ mod test {
         let mut events = Vec::new();
         broad_phase.update(0.0, &mut colliders, &[coh], &[], &mut events);
 
-        bodies.remove(hrb, &mut islands, &mut colliders, &mut joints);
+        bodies.remove(
+            hrb,
+            &mut islands,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+        );
         broad_phase.update(0.0, &mut colliders, &[], &[coh], &mut events);
 
         // Create another body.

@@ -6,7 +6,9 @@ const MAX_NUMBER_OF_BODIES: usize = 400;
 pub fn init_world(testbed: &mut Testbed) {
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
+
     let rad = 0.5;
 
     /*
@@ -63,7 +65,8 @@ pub fn init_world(testbed: &mut Testbed) {
                     *handle,
                     &mut physics.islands,
                     &mut physics.colliders,
-                    &mut physics.joints,
+                    &mut physics.impulse_joints,
+                    &mut physics.multibody_joints,
                 );
 
                 if let Some(graphics) = &mut graphics {
@@ -76,10 +79,10 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     // testbed
     //     .physics_state_mut()
     //     .integration_parameters
-    //     .velocity_based_erp = 0.2;
+    //     .erp = 0.2;
     testbed.look_at(point![-30.0, 4.0, -30.0], point![0.0, 1.0, 0.0]);
 }

@@ -62,7 +62,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Ground
@@ -126,7 +127,8 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.set_world_with_params(
         bodies,
         colliders,
-        joints,
+        impulse_joints,
+        multibody_joints,
         vector![0.0, -9.81, 0.0],
         physics_hooks,
     );

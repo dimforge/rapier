@@ -7,7 +7,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Ground
@@ -51,13 +52,13 @@ pub fn init_world(testbed: &mut Testbed) {
                 let handle = bodies.insert(rigid_body);
 
                 let collider = match j % 5 {
-                    0 => ColliderBuilder::cuboid(rad, rad, rad).build(),
-                    1 => ColliderBuilder::ball(rad).build(),
-                    // Rounded cylinders are much more efficient that cylinder, even if the
-                    // rounding margin is small.
-                    2 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0).build(),
-                    3 => ColliderBuilder::cone(rad, rad).build(),
-                    _ => ColliderBuilder::capsule_y(rad, rad).build(),
+                    _ => ColliderBuilder::cuboid(rad, rad, rad).build(),
+                    // 1 => ColliderBuilder::ball(rad).build(),
+                    // // Rounded cylinders are much more efficient that cylinder, even if the
+                    // // rounding margin is small.
+                    // 2 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0).build(),
+                    // 3 => ColliderBuilder::cone(rad, rad).build(),
+                    // _ => ColliderBuilder::capsule_y(rad, rad).build(),
                 };
 
                 colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -70,6 +71,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
 }

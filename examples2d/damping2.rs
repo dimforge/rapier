@@ -7,7 +7,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Create the balls
@@ -38,6 +39,13 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world_with_params(bodies, colliders, joints, Vector::zeros(), ());
+    testbed.set_world_with_params(
+        bodies,
+        colliders,
+        impulse_joints,
+        multibody_joints,
+        Vector::zeros(),
+        (),
+    );
     testbed.look_at(point![3.0, 2.0], 50.0);
 }

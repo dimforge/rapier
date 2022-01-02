@@ -7,7 +7,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let mut joints = JointSet::new();
+    let mut impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     let rad = 0.4;
     let num = 100;
@@ -36,16 +37,16 @@ pub fn init_world(testbed: &mut Testbed) {
             // Vertical joint.
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
-                let joint = BallJoint::new(Point::origin(), point![0.0, 0.0, -shift]);
-                joints.insert(parent_handle, child_handle, joint);
+                let joint = SphericalJoint::new().local_anchor2(point![0.0, 0.0, -shift]);
+                impulse_joints.insert(parent_handle, child_handle, joint);
             }
 
             // Horizontal joint.
             if k > 0 {
                 let parent_index = body_handles.len() - num;
                 let parent_handle = body_handles[parent_index];
-                let joint = BallJoint::new(Point::origin(), point![-shift, 0.0, 0.0]);
-                joints.insert(parent_handle, child_handle, joint);
+                let joint = SphericalJoint::new().local_anchor2(point![-shift, 0.0, 0.0]);
+                impulse_joints.insert(parent_handle, child_handle, joint);
             }
 
             body_handles.push(child_handle);
@@ -55,6 +56,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.look_at(point![-110.0, -46.0, 170.0], point![54.0, -38.0, 29.0]);
 }

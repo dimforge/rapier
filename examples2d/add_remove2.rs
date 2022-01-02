@@ -4,12 +4,15 @@ use rapier_testbed2d::Testbed;
 pub fn init_world(testbed: &mut Testbed) {
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
+
     let rad = 0.5;
 
     let positions = [vector![5.0, -1.0], vector![-5.0, -1.0]];
 
-    let platform_handles = std::array::IntoIter::new(positions)
+    let platform_handles = positions
+        .into_iter()
         .map(|pos| {
             let rigid_body = RigidBodyBuilder::new_kinematic_position_based()
                 .translation(pos)
@@ -57,7 +60,8 @@ pub fn init_world(testbed: &mut Testbed) {
                 handle,
                 &mut physics.islands,
                 &mut physics.colliders,
-                &mut physics.joints,
+                &mut physics.impulse_joints,
+                &mut physics.multibody_joints,
             );
 
             if let Some(graphics) = &mut graphics {
@@ -69,6 +73,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.look_at(point![0.0, 0.0], 20.0);
 }

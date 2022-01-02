@@ -2,14 +2,12 @@ use std::collections::HashMap;
 
 use na::{Isometry2, Vector2};
 use rapier::counters::Counters;
-use rapier::dynamics::{
-    IntegrationParameters, JointParams, JointSet, RigidBodyHandle, RigidBodySet,
-};
+use rapier::dynamics::{ImpulseJointSet, IntegrationParameters, RigidBodyHandle, RigidBodySet};
 use rapier::geometry::{Collider, ColliderSet};
 use std::f32;
 
 use wrapped2d::b2;
-use wrapped2d::dynamics::joints::{PrismaticJointDef, RevoluteJointDef, WeldJointDef};
+// use wrapped2d::dynamics::joints::{PrismaticJointDef, RevoluteJointDef, WeldJointDef};
 use wrapped2d::user_data::NoUserData;
 
 fn na_vec_to_b2_vec(v: Vector2<f32>) -> b2::Vec2 {
@@ -34,7 +32,7 @@ impl Box2dWorld {
         gravity: Vector2<f32>,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        joints: &JointSet,
+        impulse_joints: &ImpulseJointSet,
     ) -> Self {
         let mut world = b2::World::new(&na_vec_to_b2_vec(gravity));
         world.set_continuous_physics(bodies.iter().any(|b| b.1.is_ccd_enabled()));
@@ -46,7 +44,7 @@ impl Box2dWorld {
 
         res.insert_bodies(bodies);
         res.insert_colliders(colliders);
-        res.insert_joints(joints);
+        res.insert_joints(impulse_joints);
         res
     }
 
@@ -95,8 +93,9 @@ impl Box2dWorld {
         }
     }
 
-    fn insert_joints(&mut self, joints: &JointSet) {
-        for joint in joints.iter() {
+    fn insert_joints(&mut self, _impulse_joints: &ImpulseJointSet) {
+        /*
+        for joint in impulse_joints.iter() {
             let body_a = self.rapier2box2d[&joint.1.body1];
             let body_b = self.rapier2box2d[&joint.1.body2];
 
@@ -154,6 +153,8 @@ impl Box2dWorld {
                 }
             }
         }
+
+         */
     }
 
     fn create_fixture(collider: &Collider, body: &mut b2::MetaBody<NoUserData>) {
@@ -225,7 +226,7 @@ impl Box2dWorld {
         self.world.step(
             params.dt,
             params.max_velocity_iterations as i32,
-            params.max_position_iterations as i32,
+            params.max_stabilization_iterations as i32,
         );
         counters.step_completed();
     }

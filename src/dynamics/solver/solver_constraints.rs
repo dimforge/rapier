@@ -2,62 +2,69 @@ use super::{
     AnyJointVelocityConstraint, InteractionGroups, VelocityConstraint, VelocityGroundConstraint,
 };
 #[cfg(feature = "simd-is-enabled")]
-use super::{
-    WPositionConstraint, WPositionGroundConstraint, WVelocityConstraint, WVelocityGroundConstraint,
-};
+use super::{WVelocityConstraint, WVelocityGroundConstraint};
 use crate::data::ComponentSet;
 use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
-use crate::dynamics::solver::{
-    AnyJointPositionConstraint, AnyPositionConstraint, PositionConstraint, PositionGroundConstraint,
-};
+use crate::dynamics::solver::GenericVelocityConstraint;
 use crate::dynamics::{
-    solver::AnyVelocityConstraint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodyIds,
-    RigidBodyMassProps, RigidBodyPosition, RigidBodyType,
+    solver::AnyVelocityConstraint, IntegrationParameters, JointGraphEdge, JointIndex,
+    MultibodyJointSet, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType,
 };
 use crate::dynamics::{IslandManager, RigidBodyVelocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
+use crate::math::Real;
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SIMD_WIDTH;
+use na::DVector;
 
-pub(crate) struct SolverConstraints<VelocityConstraint, PositionConstraint> {
+pub(crate) struct SolverConstraints<VelocityConstraint, GenVelocityConstraint> {
+    pub generic_jacobians: DVector<Real>,
     pub not_ground_interactions: Vec<usize>,
     pub ground_interactions: Vec<usize>,
+    pub generic_not_ground_interactions: Vec<usize>,
+    pub generic_ground_interactions: Vec<usize>,
     pub interaction_groups: InteractionGroups,
     pub ground_interaction_groups: InteractionGroups,
     pub velocity_constraints: Vec<VelocityConstraint>,
-    pub position_constraints: Vec<PositionConstraint>,
+    pub generic_velocity_constraints: Vec<GenVelocityConstraint>,
 }
 
-impl<VelocityConstraint, PositionConstraint>
-    SolverConstraints<VelocityConstraint, PositionConstraint>
+impl<VelocityConstraint, GenVelocityConstraint>
+    SolverConstraints<VelocityConstraint, GenVelocityConstraint>
 {
     pub fn new() -> Self {
         Self {
-            not_ground_interactions: Vec::new(),
-            ground_interactions: Vec::new(),
+            generic_jacobians: DVector::zeros(0),
+            not_ground_interactions: vec![],
+            ground_interactions: vec![],
+            generic_not_ground_interactions: vec![],
+            generic_ground_interactions: vec![],
             interaction_groups: InteractionGroups::new(),
             ground_interaction_groups: InteractionGroups::new(),
-            velocity_constraints: Vec::new(),
-            position_constraints: Vec::new(),
+            velocity_constraints: vec![],
+            generic_velocity_constraints: vec![],
         }
     }
 
     pub fn clear(&mut self) {
         self.not_ground_interactions.clear();
         self.ground_interactions.clear();
+        self.generic_not_ground_interactions.clear();
+        self.generic_ground_interactions.clear();
         self.interaction_groups.clear();
         self.ground_interaction_groups.clear();
         self.velocity_constraints.clear();
-        self.position_constraints.clear();
+        self.generic_velocity_constraints.clear();
     }
 }
 
-impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
+impl SolverConstraints<AnyVelocityConstraint, GenericVelocityConstraint> {
     pub fn init_constraint_groups<Bodies>(
         &mut self,
         island_id: usize,
         islands: &IslandManager,
         bodies: &Bodies,
+        multibody_joints: &MultibodyJointSet,
         manifolds: &[&mut ContactManifold],
         manifold_indices: &[ContactManifoldIndex],
     ) where
@@ -65,12 +72,18 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
     {
         self.not_ground_interactions.clear();
         self.ground_interactions.clear();
+        self.generic_not_ground_interactions.clear();
+        self.generic_ground_interactions.clear();
+
         categorize_contacts(
             bodies,
+            multibody_joints,
             manifolds,
             manifold_indices,
             &mut self.ground_interactions,
             &mut self.not_ground_interactions,
+            &mut self.generic_not_ground_interactions,
+            &mut self.generic_ground_interactions,
         );
 
         self.interaction_groups.clear_groups();
@@ -106,6 +119,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
         params: &IntegrationParameters,
         islands: &IslandManager,
         bodies: &Bodies,
+        multibody_joints: &MultibodyJointSet,
         manifolds: &[&mut ContactManifold],
         manifold_indices: &[ContactManifoldIndex],
     ) where
@@ -116,15 +130,24 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
             + ComponentSet<RigidBodyType>,
     {
         self.velocity_constraints.clear();
-        self.position_constraints.clear();
+        self.generic_velocity_constraints.clear();
 
-        self.init_constraint_groups(island_id, islands, bodies, manifolds, manifold_indices);
+        self.init_constraint_groups(
+            island_id,
+            islands,
+            bodies,
+            multibody_joints,
+            manifolds,
+            manifold_indices,
+        );
 
         #[cfg(feature = "simd-is-enabled")]
         {
             self.compute_grouped_constraints(params, bodies, manifolds);
         }
         self.compute_nongrouped_constraints(params, bodies, manifolds);
+        self.compute_generic_constraints(params, bodies, multibody_joints, manifolds);
+
         #[cfg(feature = "simd-is-enabled")]
         {
             self.compute_grouped_ground_constraints(params, bodies, manifolds);
@@ -159,13 +182,6 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                 &mut self.velocity_constraints,
                 true,
             );
-            WPositionConstraint::generate(
-                params,
-                manifolds,
-                bodies,
-                &mut self.position_constraints,
-                true,
-            );
         }
     }
 
@@ -190,11 +206,34 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                 &mut self.velocity_constraints,
                 true,
             );
-            PositionConstraint::generate(
+        }
+    }
+
+    fn compute_generic_constraints<Bodies>(
+        &mut self,
+        params: &IntegrationParameters,
+        bodies: &Bodies,
+        multibody_joints: &MultibodyJointSet,
+        manifolds_all: &[&mut ContactManifold],
+    ) where
+        Bodies: ComponentSet<RigidBodyVelocity>
+            + ComponentSet<RigidBodyPosition>
+            + ComponentSet<RigidBodyMassProps>
+            + ComponentSet<RigidBodyIds>
+            + ComponentSet<RigidBodyType>,
+    {
+        let mut jacobian_id = 0;
+        for manifold_i in &self.generic_not_ground_interactions {
+            let manifold = &manifolds_all[*manifold_i];
+            GenericVelocityConstraint::generate(
                 params,
+                *manifold_i,
                 manifold,
                 bodies,
-                &mut self.position_constraints,
+                multibody_joints,
+                &mut self.generic_velocity_constraints,
+                &mut self.generic_jacobians,
+                &mut jacobian_id,
                 true,
             );
         }
@@ -227,13 +266,6 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                 &mut self.velocity_constraints,
                 true,
             );
-            WPositionGroundConstraint::generate(
-                params,
-                manifolds,
-                bodies,
-                &mut self.position_constraints,
-                true,
-            );
         }
     }
 
@@ -258,25 +290,19 @@ impl SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                 &mut self.velocity_constraints,
                 true,
             );
-            PositionGroundConstraint::generate(
-                params,
-                manifold,
-                bodies,
-                &mut self.position_constraints,
-                true,
-            )
         }
     }
 }
 
-impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
+impl SolverConstraints<AnyJointVelocityConstraint, ()> {
     pub fn init<Bodies>(
         &mut self,
         island_id: usize,
         params: &IntegrationParameters,
         islands: &IslandManager,
         bodies: &Bodies,
-        joints: &[JointGraphEdge],
+        multibody_joints: &MultibodyJointSet,
+        impulse_joints: &[JointGraphEdge],
         joint_constraint_indices: &[JointIndex],
     ) where
         Bodies: ComponentSet<RigidBodyType>
@@ -285,26 +311,32 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
             + ComponentSet<RigidBodyPosition>
             + ComponentSet<RigidBodyMassProps>,
     {
-        // Generate constraints for joints.
+        // Generate constraints for impulse_joints.
         self.not_ground_interactions.clear();
         self.ground_interactions.clear();
+        self.generic_not_ground_interactions.clear();
+        self.generic_ground_interactions.clear();
+
         categorize_joints(
             bodies,
-            joints,
+            multibody_joints,
+            impulse_joints,
             joint_constraint_indices,
             &mut self.ground_interactions,
             &mut self.not_ground_interactions,
+            &mut self.generic_ground_interactions,
+            &mut self.generic_not_ground_interactions,
         );
 
         self.velocity_constraints.clear();
-        self.position_constraints.clear();
+        self.generic_velocity_constraints.clear();
 
         self.interaction_groups.clear_groups();
         self.interaction_groups.group_joints(
             island_id,
             islands,
             bodies,
-            joints,
+            impulse_joints,
             &self.not_ground_interactions,
         );
 
@@ -313,7 +345,7 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
             island_id,
             islands,
             bodies,
-            joints,
+            impulse_joints,
             &self.ground_interactions,
         );
         // NOTE: uncomment this do disable SIMD joint resolution.
@@ -324,15 +356,72 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
         //     .nongrouped_interactions
         //     .append(&mut self.ground_interaction_groups.grouped_interactions);
 
-        self.compute_nongrouped_joint_ground_constraints(params, bodies, joints);
+        let mut j_id = 0;
+        self.compute_nongrouped_joint_constraints(
+            params,
+            bodies,
+            multibody_joints,
+            impulse_joints,
+            &mut j_id,
+        );
         #[cfg(feature = "simd-is-enabled")]
         {
-            self.compute_grouped_joint_ground_constraints(params, bodies, joints);
+            self.compute_grouped_joint_constraints(params, bodies, impulse_joints);
         }
-        self.compute_nongrouped_joint_constraints(params, bodies, joints);
+        self.compute_generic_joint_constraints(
+            params,
+            bodies,
+            multibody_joints,
+            impulse_joints,
+            &mut j_id,
+        );
+
+        self.compute_nongrouped_joint_ground_constraints(
+            params,
+            bodies,
+            multibody_joints,
+            impulse_joints,
+        );
         #[cfg(feature = "simd-is-enabled")]
         {
-            self.compute_grouped_joint_constraints(params, bodies, joints);
+            self.compute_grouped_joint_ground_constraints(params, bodies, impulse_joints);
+        }
+        self.compute_generic_ground_joint_constraints(
+            params,
+            bodies,
+            multibody_joints,
+            impulse_joints,
+            &mut j_id,
+        );
+        self.compute_articulation_constraints(
+            params,
+            island_id,
+            islands,
+            multibody_joints,
+            &mut j_id,
+        );
+    }
+
+    fn compute_articulation_constraints(
+        &mut self,
+        params: &IntegrationParameters,
+        island_id: usize,
+        islands: &IslandManager,
+        multibody_joints: &MultibodyJointSet,
+        j_id: &mut usize,
+    ) {
+        for handle in islands.active_island(island_id) {
+            if let Some(link) = multibody_joints.rigid_body_link(*handle) {
+                let multibody = multibody_joints.get_multibody(link.multibody).unwrap();
+                if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
+                    multibody.generate_internal_constraints(
+                        params,
+                        j_id,
+                        &mut self.generic_jacobians,
+                        &mut self.velocity_constraints,
+                    )
+                }
+            }
         }
     }
 
@@ -340,6 +429,7 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
         &mut self,
         params: &IntegrationParameters,
         bodies: &Bodies,
+        multibody_joints: &MultibodyJointSet,
         joints_all: &[JointGraphEdge],
     ) where
         Bodies: ComponentSet<RigidBodyType>
@@ -348,13 +438,19 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
             + ComponentSet<RigidBodyVelocity>
             + ComponentSet<RigidBodyIds>,
     {
+        let mut j_id = 0;
         for joint_i in &self.ground_interaction_groups.nongrouped_interactions {
             let joint = &joints_all[*joint_i].weight;
-            let vel_constraint =
-                AnyJointVelocityConstraint::from_joint_ground(params, *joint_i, joint, bodies);
-            self.velocity_constraints.push(vel_constraint);
-            let pos_constraint = AnyJointPositionConstraint::from_joint_ground(joint, bodies);
-            self.position_constraints.push(pos_constraint);
+            AnyJointVelocityConstraint::from_joint_ground(
+                params,
+                *joint_i,
+                joint,
+                bodies,
+                multibody_joints,
+                &mut j_id,
+                &mut self.generic_jacobians,
+                &mut self.velocity_constraints,
+            );
         }
     }
 
@@ -377,14 +473,14 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
             .chunks_exact(SIMD_WIDTH)
         {
             let joints_id = gather![|ii| joints_i[ii]];
-            let joints = gather![|ii| &joints_all[joints_i[ii]].weight];
-            let vel_constraint = AnyJointVelocityConstraint::from_wide_joint_ground(
-                params, joints_id, joints, bodies,
+            let impulse_joints = gather![|ii| &joints_all[joints_i[ii]].weight];
+            AnyJointVelocityConstraint::from_wide_joint_ground(
+                params,
+                joints_id,
+                impulse_joints,
+                bodies,
+                &mut self.velocity_constraints,
             );
-            self.velocity_constraints.push(vel_constraint);
-
-            let pos_constraint = AnyJointPositionConstraint::from_wide_joint_ground(joints, bodies);
-            self.position_constraints.push(pos_constraint);
         }
     }
 
@@ -392,7 +488,9 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
         &mut self,
         params: &IntegrationParameters,
         bodies: &Bodies,
+        multibody_joints: &MultibodyJointSet,
         joints_all: &[JointGraphEdge],
+        j_id: &mut usize,
     ) where
         Bodies: ComponentSet<RigidBodyPosition>
             + ComponentSet<RigidBodyVelocity>
@@ -401,11 +499,73 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
     {
         for joint_i in &self.interaction_groups.nongrouped_interactions {
             let joint = &joints_all[*joint_i].weight;
-            let vel_constraint =
-                AnyJointVelocityConstraint::from_joint(params, *joint_i, joint, bodies);
-            self.velocity_constraints.push(vel_constraint);
-            let pos_constraint = AnyJointPositionConstraint::from_joint(joint, bodies);
-            self.position_constraints.push(pos_constraint);
+            AnyJointVelocityConstraint::from_joint(
+                params,
+                *joint_i,
+                joint,
+                bodies,
+                multibody_joints,
+                j_id,
+                &mut self.generic_jacobians,
+                &mut self.velocity_constraints,
+            );
+        }
+    }
+
+    fn compute_generic_joint_constraints<Bodies>(
+        &mut self,
+        params: &IntegrationParameters,
+        bodies: &Bodies,
+        multibody_joints: &MultibodyJointSet,
+        joints_all: &[JointGraphEdge],
+        j_id: &mut usize,
+    ) where
+        Bodies: ComponentSet<RigidBodyPosition>
+            + ComponentSet<RigidBodyVelocity>
+            + ComponentSet<RigidBodyMassProps>
+            + ComponentSet<RigidBodyIds>,
+    {
+        for joint_i in &self.generic_not_ground_interactions {
+            let joint = &joints_all[*joint_i].weight;
+            AnyJointVelocityConstraint::from_joint(
+                params,
+                *joint_i,
+                joint,
+                bodies,
+                multibody_joints,
+                j_id,
+                &mut self.generic_jacobians,
+                &mut self.velocity_constraints,
+            )
+        }
+    }
+
+    fn compute_generic_ground_joint_constraints<Bodies>(
+        &mut self,
+        params: &IntegrationParameters,
+        bodies: &Bodies,
+        multibody_joints: &MultibodyJointSet,
+        joints_all: &[JointGraphEdge],
+        j_id: &mut usize,
+    ) where
+        Bodies: ComponentSet<RigidBodyPosition>
+            + ComponentSet<RigidBodyVelocity>
+            + ComponentSet<RigidBodyMassProps>
+            + ComponentSet<RigidBodyType>
+            + ComponentSet<RigidBodyIds>,
+    {
+        for joint_i in &self.generic_ground_interactions {
+            let joint = &joints_all[*joint_i].weight;
+            AnyJointVelocityConstraint::from_joint_ground(
+                params,
+                *joint_i,
+                joint,
+                bodies,
+                multibody_joints,
+                j_id,
+                &mut self.generic_jacobians,
+                &mut self.velocity_constraints,
+            )
         }
     }
 
@@ -427,13 +587,14 @@ impl SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
             .chunks_exact(SIMD_WIDTH)
         {
             let joints_id = gather![|ii| joints_i[ii]];
-            let joints = gather![|ii| &joints_all[joints_i[ii]].weight];
-            let vel_constraint =
-                AnyJointVelocityConstraint::from_wide_joint(params, joints_id, joints, bodies);
-            self.velocity_constraints.push(vel_constraint);
-
-            let pos_constraint = AnyJointPositionConstraint::from_wide_joint(joints, bodies);
-            self.position_constraints.push(pos_constraint);
+            let impulse_joints = gather![|ii| &joints_all[joints_i[ii]].weight];
+            AnyJointVelocityConstraint::from_wide_joint(
+                params,
+                joints_id,
+                impulse_joints,
+                bodies,
+                &mut self.velocity_constraints,
+            );
         }
     }
 }

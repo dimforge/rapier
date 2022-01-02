@@ -1,7 +1,10 @@
 use rapier::counters::Counters;
 
 use crate::harness::Harness;
-use crate::testbed::{RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags};
+use crate::testbed::{
+    RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags, PHYSX_BACKEND_PATCH_FRICTION,
+    PHYSX_BACKEND_TWO_FRICTION_DIR,
+};
 
 use crate::PhysicsState;
 use bevy_egui::egui::Slider;
@@ -10,8 +13,6 @@ use bevy_egui::{egui, EguiContext};
 pub fn update_ui(ui_context: &EguiContext, state: &mut TestbedState, harness: &mut Harness) {
     egui::Window::new("Parameters").show(ui_context.ctx(), |ui| {
         if state.backend_names.len() > 1 && !state.example_names.is_empty() {
-            #[cfg(all(feature = "dim3", feature = "other-backends"))]
-            let prev_selected_backend = state.selected_backend;
             let mut changed = false;
             egui::ComboBox::from_label("backend")
                 .width(150.0)
@@ -29,30 +30,6 @@ pub fn update_ui(ui_context: &EguiContext, state: &mut TestbedState, harness: &m
                 state
                     .action_flags
                     .set(TestbedActionFlags::BACKEND_CHANGED, true);
-
-                #[cfg(all(feature = "dim3", feature = "other-backends"))]
-                fn is_physx(id: usize) -> bool {
-                    id == crate::testbed::PHYSX_BACKEND_PATCH_FRICTION
-                        || id == crate::testbed::PHYSX_BACKEND_TWO_FRICTION_DIR
-                }
-
-                #[cfg(all(feature = "dim3", feature = "other-backends"))]
-                if (is_physx(state.selected_backend) && !is_physx(prev_selected_backend))
-                    || (!is_physx(state.selected_backend) && is_physx(prev_selected_backend))
-                {
-                    // PhysX defaults (4 position iterations, 1 velocity) are the
-                    // opposite of rapier's (4 velocity iterations, 1 position).
-                    std::mem::swap(
-                        &mut harness
-                            .physics
-                            .integration_parameters
-                            .max_position_iterations,
-                        &mut harness
-                            .physics
-                            .integration_parameters
-                            .max_velocity_iterations,
-                    );
-                }
             }
 
             ui.separator();
@@ -113,14 +90,47 @@ pub fn update_ui(ui_context: &EguiContext, state: &mut TestbedState, harness: &m
         });
 
         let integration_parameters = &mut harness.physics.integration_parameters;
-        ui.add(
-            Slider::new(&mut integration_parameters.max_velocity_iterations, 0..=200)
-                .text("vels. iters."),
+
+        ui.checkbox(
+            &mut integration_parameters.interleave_restitution_and_friction_resolution,
+            "interleave friction resolution",
         );
-        ui.add(
-            Slider::new(&mut integration_parameters.max_position_iterations, 0..=200)
-                .text("pos. iters."),
-        );
+
+        if state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
+            || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
+        {
+            ui.add(
+                Slider::new(&mut integration_parameters.max_velocity_iterations, 0..=200)
+                    .text("pos. iters."),
+            );
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.max_stabilization_iterations,
+                    0..=200,
+                )
+                .text("vel. iters."),
+            );
+        } else {
+            ui.add(
+                Slider::new(&mut integration_parameters.max_velocity_iterations, 0..=200)
+                    .text("vel. rest. iters."),
+            );
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.max_velocity_friction_iterations,
+                    0..=200,
+                )
+                .text("vel. frict. iters."),
+            );
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.max_stabilization_iterations,
+                    0..=200,
+                )
+                .text("vel. stab. iters."),
+            );
+        }
+
         #[cfg(feature = "parallel")]
         {
             ui.add(
@@ -134,10 +144,6 @@ pub fn update_ui(ui_context: &EguiContext, state: &mut TestbedState, harness: &m
         ui.add(
             Slider::new(&mut integration_parameters.min_island_size, 1..=10_000)
                 .text("min island size"),
-        );
-        ui.add(
-            Slider::new(&mut integration_parameters.warmstart_coeff, 0.0..=1.0)
-                .text("warmstart coeff"),
         );
         let mut frequency = integration_parameters.inv_dt().round() as u32;
         ui.add(Slider::new(&mut frequency, 0..=240).text("frequency (Hz)"));
@@ -247,7 +253,7 @@ fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
     let cs = bincode::serialize(&physics.colliders).unwrap();
     // println!("cs: {}", instant::now() - t);
     // let t = instant::now();
-    let js = bincode::serialize(&physics.joints).unwrap();
+    let js = bincode::serialize(&physics.impulse_joints).unwrap();
     // println!("js: {}", instant::now() - t);
     let serialization_time = instant::now() - t;
     let hash_bf = md5::compute(&bf);

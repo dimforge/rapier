@@ -1,174 +1,106 @@
-use crate::dynamics::SpringModel;
-use crate::math::{Isometry, Point, Real, Vector};
-use crate::utils::WBasis;
-use na::{RealField, Unit, Vector5};
+use crate::dynamics::joint::{JointAxesMask, JointData};
+use crate::dynamics::{JointAxis, MotorModel};
+use crate::math::{Point, Real};
 
-#[derive(Copy, Clone, PartialEq)]
+#[cfg(feature = "dim3")]
+use crate::math::UnitVector;
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-/// A joint that removes all relative motion between two bodies, except for the rotations along one axis.
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct RevoluteJoint {
-    /// Where the revolute joint is attached on the first body, expressed in the local space of the first attached body.
-    pub local_anchor1: Point<Real>,
-    /// Where the revolute joint is attached on the second body, expressed in the local space of the second attached body.
-    pub local_anchor2: Point<Real>,
-    /// The rotation axis of this revolute joint expressed in the local space of the first attached body.
-    pub local_axis1: Unit<Vector<Real>>,
-    /// The rotation axis of this revolute joint expressed in the local space of the second attached body.
-    pub local_axis2: Unit<Vector<Real>>,
-    /// The basis orthonormal to `local_axis1`, expressed in the local space of the first attached body.
-    pub basis1: [Vector<Real>; 2],
-    /// The basis orthonormal to `local_axis2`, expressed in the local space of the second attached body.
-    pub basis2: [Vector<Real>; 2],
-    /// The impulse applied by this joint on the first body.
-    ///
-    /// The impulse applied to the second body is given by `-impulse`.
-    pub impulse: Vector5<Real>,
-
-    /// Whether or not this joint should enforce translational limits along its axis.
-    pub limits_enabled: bool,
-    /// The min an max relative position of the attached bodies along this joint's axis.
-    pub limits: [Real; 2],
-    /// The impulse applied by this joint on the first body to enforce the position limit along this joint's axis.
-    ///
-    /// The impulse applied to the second body is given by `-impulse`.
-    pub limits_impulse: Real,
-
-    /// The target relative angular velocity the motor will attempt to reach.
-    pub motor_target_vel: Real,
-    /// The target relative angle along the joint axis the motor will attempt to reach.
-    pub motor_target_pos: Real,
-    /// The motor's stiffness.
-    /// See the documentation of `SpringModel` for more information on this parameter.
-    pub motor_stiffness: Real,
-    /// The motor's damping.
-    /// See the documentation of `SpringModel` for more information on this parameter.
-    pub motor_damping: Real,
-    /// The maximal impulse the motor is able to deliver.
-    pub motor_max_impulse: Real,
-    /// The angular impulse applied by the motor.
-    pub motor_impulse: Real,
-    /// The spring-like model used by the motor to reach the target velocity and .
-    pub motor_model: SpringModel,
-
-    // Used to handle cases where the position target ends up being more than pi radians away.
-    pub(crate) motor_last_angle: Real,
-    // The angular impulse expressed in world-space.
-    pub(crate) world_ang_impulse: Vector<Real>,
-    // The world-space orientation of the free axis of the first attached body.
-    pub(crate) prev_axis1: Vector<Real>,
+    data: JointData,
 }
 
 impl RevoluteJoint {
-    /// Creates a new revolute joint with the given point of applications and axis, all expressed
-    /// in the local-space of the affected bodies.
-    pub fn new(
-        local_anchor1: Point<Real>,
-        local_axis1: Unit<Vector<Real>>,
-        local_anchor2: Point<Real>,
-        local_axis2: Unit<Vector<Real>>,
-    ) -> Self {
-        Self {
-            local_anchor1,
-            local_anchor2,
-            local_axis1,
-            local_axis2,
-            basis1: local_axis1.orthonormal_basis(),
-            basis2: local_axis2.orthonormal_basis(),
-            impulse: na::zero(),
-            world_ang_impulse: na::zero(),
-            limits_enabled: false,
-            limits: [-Real::MAX, Real::MAX],
-            limits_impulse: 0.0,
-            motor_target_vel: 0.0,
-            motor_target_pos: 0.0,
-            motor_stiffness: 0.0,
-            motor_damping: 0.0,
-            motor_max_impulse: Real::MAX,
-            motor_impulse: 0.0,
-            prev_axis1: *local_axis1,
-            motor_model: SpringModel::default(),
-            motor_last_angle: 0.0,
-        }
+    #[cfg(feature = "dim2")]
+    pub fn new() -> Self {
+        let mask = JointAxesMask::X | JointAxesMask::Y;
+
+        let data = JointData::default().lock_axes(mask);
+        Self { data }
     }
 
-    /// Can a SIMD constraint be used for resolving this joint?
-    pub fn supports_simd_constraints(&self) -> bool {
-        // SIMD revolute constraints don't support motors and limits right now.
-        !self.limits_enabled
-            && (self.motor_max_impulse == 0.0
-                || (self.motor_stiffness == 0.0 && self.motor_damping == 0.0))
+    #[cfg(feature = "dim3")]
+    pub fn new(axis: UnitVector<Real>) -> Self {
+        let mask = JointAxesMask::X
+            | JointAxesMask::Y
+            | JointAxesMask::Z
+            | JointAxesMask::ANG_Y
+            | JointAxesMask::ANG_Z;
+
+        let data = JointData::default()
+            .lock_axes(mask)
+            .local_axis1(axis)
+            .local_axis2(axis);
+        Self { data }
+    }
+
+    pub fn data(&self) -> &JointData {
+        &self.data
+    }
+
+    #[must_use]
+    pub fn local_anchor1(mut self, anchor1: Point<Real>) -> Self {
+        self.data = self.data.local_anchor1(anchor1);
+        self
+    }
+
+    #[must_use]
+    pub fn local_anchor2(mut self, anchor2: Point<Real>) -> Self {
+        self.data = self.data.local_anchor2(anchor2);
+        self
     }
 
     /// Set the spring-like model used by the motor to reach the desired target velocity and position.
-    pub fn configure_motor_model(&mut self, model: SpringModel) {
-        self.motor_model = model;
+    pub fn motor_model(mut self, model: MotorModel) -> Self {
+        self.data = self.data.motor_model(JointAxis::AngX, model);
+        self
     }
 
     /// Sets the target velocity this motor needs to reach.
-    pub fn configure_motor_velocity(&mut self, target_vel: Real, factor: Real) {
-        self.configure_motor(self.motor_target_pos, target_vel, 0.0, factor)
+    pub fn motor_velocity(mut self, target_vel: Real, factor: Real) -> Self {
+        self.data = self
+            .data
+            .motor_velocity(JointAxis::AngX, target_vel, factor);
+        self
     }
 
     /// Sets the target angle this motor needs to reach.
-    pub fn configure_motor_position(&mut self, target_pos: Real, stiffness: Real, damping: Real) {
-        self.configure_motor(target_pos, 0.0, stiffness, damping)
+    pub fn motor_position(mut self, target_pos: Real, stiffness: Real, damping: Real) -> Self {
+        self.data = self
+            .data
+            .motor_position(JointAxis::AngX, target_pos, stiffness, damping);
+        self
     }
 
     /// Configure both the target angle and target velocity of the motor.
-    pub fn configure_motor(
-        &mut self,
+    pub fn motor_axis(
+        mut self,
         target_pos: Real,
         target_vel: Real,
         stiffness: Real,
         damping: Real,
-    ) {
-        self.motor_target_vel = target_vel;
-        self.motor_target_pos = target_pos;
-        self.motor_stiffness = stiffness;
-        self.motor_damping = damping;
+    ) -> Self {
+        self.data =
+            self.data
+                .motor_axis(JointAxis::AngX, target_pos, target_vel, stiffness, damping);
+        self
     }
 
-    /// Estimates the current position of the motor angle.
-    pub fn estimate_motor_angle(
-        &self,
-        body_pos1: &Isometry<Real>,
-        body_pos2: &Isometry<Real>,
-    ) -> Real {
-        Self::estimate_motor_angle_from_params(
-            &(body_pos1 * self.local_axis1),
-            &(body_pos1 * self.basis1[0]),
-            &(body_pos2 * self.basis2[0]),
-            self.motor_last_angle,
-        )
+    pub fn motor_max_impulse(mut self, max_impulse: Real) -> Self {
+        self.data = self.data.motor_max_impulse(JointAxis::AngX, max_impulse);
+        self
     }
 
-    /// Estimates the current position of the motor angle given the joint parameters.
-    pub fn estimate_motor_angle_from_params(
-        axis1: &Unit<Vector<Real>>,
-        tangent1: &Vector<Real>,
-        tangent2: &Vector<Real>,
-        motor_last_angle: Real,
-    ) -> Real {
-        let last_angle_cycles = (motor_last_angle / Real::two_pi()).trunc() * Real::two_pi();
+    #[must_use]
+    pub fn limit_axis(mut self, limits: [Real; 2]) -> Self {
+        self.data = self.data.limit_axis(JointAxis::AngX, limits);
+        self
+    }
+}
 
-        // Measure the position between 0 and 2-pi
-        let new_angle = if tangent1.cross(&tangent2).dot(&axis1) < 0.0 {
-            Real::two_pi() - tangent1.angle(&tangent2)
-        } else {
-            tangent1.angle(&tangent2)
-        };
-
-        // The last angle between 0 and 2-pi
-        let last_angle_zero_two_pi = motor_last_angle - last_angle_cycles;
-
-        // Figure out the smallest angle differance.
-        let mut angle_diff = new_angle - last_angle_zero_two_pi;
-        if angle_diff > Real::pi() {
-            angle_diff -= Real::two_pi()
-        } else if angle_diff < -Real::pi() {
-            angle_diff += Real::two_pi()
-        }
-
-        motor_last_angle + angle_diff
+impl Into<JointData> for RevoluteJoint {
+    fn into(self) -> JointData {
+        self.data
     }
 }

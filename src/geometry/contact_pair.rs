@@ -35,8 +35,6 @@ pub struct ContactData {
     /// collider's rigid-body.
     #[cfg(feature = "dim3")]
     pub tangent_impulse: na::Vector2<Real>,
-    /// The target velocity correction at the contact point.
-    pub rhs: Real,
 }
 
 impl Default for ContactData {
@@ -44,7 +42,6 @@ impl Default for ContactData {
         Self {
             impulse: 0.0,
             tangent_impulse: na::zero(),
-            rhs: 0.0,
         }
     }
 }
@@ -119,12 +116,9 @@ pub struct ContactManifoldData {
     pub rigid_body1: Option<RigidBodyHandle>,
     /// The second rigid-body involved in this contact manifold.
     pub rigid_body2: Option<RigidBodyHandle>,
-    pub(crate) warmstart_multiplier: Real,
     // The two following are set by the constraints solver.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) constraint_index: usize,
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    pub(crate) position_constraint_index: usize,
     // We put the following fields here to avoids reading the colliders inside of the
     // contact preparation method.
     /// Flags used to control some aspects of the constraints solver for this contact manifold.
@@ -177,26 +171,15 @@ pub struct SolverContact {
     /// This is set to zero by default. Set to a non-zero value to
     /// simulate, e.g., conveyor belts.
     pub tangent_velocity: Vector<Real>,
-    /// The warmstart impulse, along the contact normal, applied by this contact to the first collider's rigid-body.
-    pub warmstart_impulse: Real,
-    /// The warmstart friction impulse along the vector orthonormal to the contact normal, applied to the first
-    /// collider's rigid-body.
-    #[cfg(feature = "dim2")]
-    pub warmstart_tangent_impulse: Real,
-    /// The warmstart friction impulses along the basis orthonormal to the contact normal, applied to the first
-    /// collider's rigid-body.
-    #[cfg(feature = "dim3")]
-    pub warmstart_tangent_impulse: na::Vector2<Real>,
-    /// The last velocity correction targeted by this contact.
-    pub prev_rhs: Real,
+    /// Whether or not this contact existed during the last timestep.
+    pub is_new: bool,
 }
 
 impl SolverContact {
     /// Should we treat this contact as a bouncy contact?
     /// If `true`, use [`Self::restitution`].
     pub fn is_bouncy(&self) -> bool {
-        let is_new = self.warmstart_impulse == 0.0;
-        if is_new {
+        if self.is_new {
             // Treat new collisions as bouncing at first, unless we have zero restitution.
             self.restitution > 0.0
         } else {
@@ -222,9 +205,7 @@ impl ContactManifoldData {
         Self {
             rigid_body1,
             rigid_body2,
-            warmstart_multiplier: Self::min_warmstart_multiplier(),
             constraint_index: 0,
-            position_constraint_index: 0,
             solver_flags,
             normal: Vector::zeros(),
             solver_contacts: Vec::new(),
@@ -239,34 +220,4 @@ impl ContactManifoldData {
     pub fn num_active_contacts(&self) -> usize {
         self.solver_contacts.len()
     }
-
-    pub(crate) fn min_warmstart_multiplier() -> Real {
-        // Multiplier used to reduce the amount of warm-starting.
-        // This coefficient increases exponentially over time, until it reaches 1.0.
-        // This will reduce significant overshoot at the timesteps that
-        // follow a timestep involving high-velocity impacts.
-        1.0 // 0.01
-    }
-
-    // pub(crate) fn update_warmstart_multiplier(manifold: &mut ContactManifold) {
-    //     // In 2D, tall stacks will actually suffer from this
-    //     // because oscillation due to inaccuracies in 2D often
-    //     // cause contacts to break, which would result in
-    //     // a reset of the warmstart multiplier.
-    //     if cfg!(feature = "dim2") {
-    //         manifold.data.warmstart_multiplier = 1.0;
-    //         return;
-    //     }
-    //
-    //     for pt in &manifold.points {
-    //         if pt.data.impulse != 0.0 {
-    //             manifold.data.warmstart_multiplier =
-    //                 (manifold.data.warmstart_multiplier * 2.0).min(1.0);
-    //             return;
-    //         }
-    //     }
-    //
-    //     // Reset the multiplier.
-    //     manifold.data.warmstart_multiplier = Self::min_warmstart_multiplier()
-    // }
 }

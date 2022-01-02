@@ -1,11 +1,11 @@
 use crate::data::{Arena, ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::{
-    IslandManager, RigidBodyActivation, RigidBodyColliders, RigidBodyDominance, RigidBodyHandle,
-    RigidBodyType,
+    ImpulseJointSet, RigidBody, RigidBodyCcd, RigidBodyChanges, RigidBodyDamping, RigidBodyForces,
+    RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
 };
 use crate::dynamics::{
-    JointSet, RigidBody, RigidBodyCcd, RigidBodyChanges, RigidBodyDamping, RigidBodyForces,
-    RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
+    IslandManager, MultibodyJointSet, RigidBodyActivation, RigidBodyColliders, RigidBodyDominance,
+    RigidBodyHandle, RigidBodyType,
 };
 use crate::geometry::ColliderSet;
 use std::ops::{Index, IndexMut};
@@ -132,13 +132,14 @@ impl RigidBodySet {
         handle
     }
 
-    /// Removes a rigid-body, and all its attached colliders and joints, from these sets.
+    /// Removes a rigid-body, and all its attached colliders and impulse_joints, from these sets.
     pub fn remove(
         &mut self,
         handle: RigidBodyHandle,
         islands: &mut IslandManager,
         colliders: &mut ColliderSet,
-        joints: &mut JointSet,
+        impulse_joints: &mut ImpulseJointSet,
+        multibody_joints: &mut MultibodyJointSet,
     ) -> Option<RigidBody> {
         let rb = self.bodies.remove(handle.0)?;
         /*
@@ -154,9 +155,10 @@ impl RigidBodySet {
         }
 
         /*
-         * Remove joints attached to this rigid-body.
+         * Remove impulse_joints attached to this rigid-body.
          */
-        joints.remove_joints_attached_to_rigid_body(handle, islands, self);
+        impulse_joints.remove_joints_attached_to_rigid_body(handle, islands, self);
+        multibody_joints.remove_articulations_attached_to_rigid_body(handle, islands, self);
 
         Some(rb)
     }

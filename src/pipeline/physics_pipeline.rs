@@ -5,10 +5,10 @@ use crate::data::{BundleSet, ComponentSet, ComponentSetMut, ComponentSetOption};
 #[cfg(not(feature = "parallel"))]
 use crate::dynamics::IslandSolver;
 use crate::dynamics::{
-    CCDSolver, IntegrationParameters, IslandManager, JointSet, RigidBodyActivation, RigidBodyCcd,
-    RigidBodyChanges, RigidBodyColliders, RigidBodyDamping, RigidBodyDominance, RigidBodyForces,
-    RigidBodyHandle, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType,
-    RigidBodyVelocity,
+    CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
+    RigidBodyActivation, RigidBodyCcd, RigidBodyChanges, RigidBodyColliders, RigidBodyDamping,
+    RigidBodyDominance, RigidBodyForces, RigidBodyHandle, RigidBodyIds, RigidBodyMassProps,
+    RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
@@ -155,60 +155,6 @@ impl PhysicsPipeline {
         self.counters.stages.collision_detection_time.pause();
     }
 
-    fn solve_position_constraints<Bodies>(
-        &mut self,
-        integration_parameters: &IntegrationParameters,
-        islands: &IslandManager,
-        bodies: &mut Bodies,
-    ) where
-        Bodies: ComponentSet<RigidBodyIds> + ComponentSetMut<RigidBodyPosition>,
-    {
-        #[cfg(not(feature = "parallel"))]
-        {
-            enable_flush_to_zero!();
-
-            for island_id in 0..islands.num_islands() {
-                self.solvers[island_id].solve_position_constraints(
-                    island_id,
-                    islands,
-                    &mut self.counters,
-                    integration_parameters,
-                    bodies,
-                )
-            }
-        }
-
-        #[cfg(feature = "parallel")]
-        {
-            use rayon::prelude::*;
-            use std::sync::atomic::Ordering;
-
-            let num_islands = islands.num_islands();
-            let solvers = &mut self.solvers[..num_islands];
-            let bodies = &std::sync::atomic::AtomicPtr::new(bodies as *mut _);
-
-            rayon::scope(|scope| {
-                enable_flush_to_zero!();
-
-                solvers
-                    .par_iter_mut()
-                    .enumerate()
-                    .for_each(|(island_id, solver)| {
-                        let bodies: &mut Bodies =
-                            unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };
-
-                        solver.solve_position_constraints(
-                            scope,
-                            island_id,
-                            islands,
-                            integration_parameters,
-                            bodies,
-                        )
-                    });
-            });
-        }
-    }
-
     fn build_islands_and_solve_velocity_constraints<Bodies, Colliders>(
         &mut self,
         gravity: &Vector<Real>,
@@ -217,7 +163,8 @@ impl PhysicsPipeline {
         narrow_phase: &mut NarrowPhase,
         bodies: &mut Bodies,
         colliders: &mut Colliders,
-        joints: &mut JointSet,
+        impulse_joints: &mut ImpulseJointSet,
+        multibody_joints: &mut MultibodyJointSet,
     ) where
         Bodies: ComponentSetMut<RigidBodyPosition>
             + ComponentSetMut<RigidBodyVelocity>
@@ -235,7 +182,8 @@ impl PhysicsPipeline {
             bodies,
             colliders,
             narrow_phase,
-            joints,
+            impulse_joints,
+            multibody_joints,
             integration_parameters.min_island_size,
         );
         self.counters.stages.island_construction_time.pause();
@@ -257,7 +205,11 @@ impl PhysicsPipeline {
             &mut manifolds,
             &mut self.manifold_indices,
         );
-        joints.select_active_interactions(islands, bodies, &mut self.joint_constraint_indices);
+        impulse_joints.select_active_interactions(
+            islands,
+            bodies,
+            &mut self.joint_constraint_indices,
+        );
 
         self.counters.stages.update_time.resume();
         for handle in islands.active_dynamic_bodies() {
@@ -274,6 +226,13 @@ impl PhysicsPipeline {
                 forces.add_gravity_acceleration(&gravity, effective_inv_mass)
             });
         }
+
+        for multibody in &mut multibody_joints.multibodies {
+            multibody
+                .1
+                .update_dynamics(integration_parameters.dt, bodies);
+            multibody.1.update_acceleration(bodies);
+        }
         self.counters.stages.update_time.pause();
 
         self.counters.stages.solver_time.resume();
@@ -287,7 +246,7 @@ impl PhysicsPipeline {
             enable_flush_to_zero!();
 
             for island_id in 0..islands.num_islands() {
-                self.solvers[island_id].init_constraints_and_solve_velocity_constraints(
+                self.solvers[island_id].init_and_solve(
                     island_id,
                     &mut self.counters,
                     integration_parameters,
@@ -295,8 +254,9 @@ impl PhysicsPipeline {
                     bodies,
                     &mut manifolds[..],
                     &self.manifold_indices[island_id],
-                    joints.joints_mut(),
+                    impulse_joints.joints_mut(),
                     &self.joint_constraint_indices[island_id],
+                    multibody_joints,
                 )
             }
         }
@@ -311,7 +271,9 @@ impl PhysicsPipeline {
             let solvers = &mut self.solvers[..num_islands];
             let bodies = &std::sync::atomic::AtomicPtr::new(bodies as *mut _);
             let manifolds = &std::sync::atomic::AtomicPtr::new(&mut manifolds as *mut _);
-            let joints = &std::sync::atomic::AtomicPtr::new(joints.joints_vec_mut() as *mut _);
+            let impulse_joints =
+                &std::sync::atomic::AtomicPtr::new(impulse_joints.joints_vec_mut() as *mut _);
+            let multibody_joints = &std::sync::atomic::AtomicPtr::new(multibody_joints as *mut _);
             let manifold_indices = &self.manifold_indices[..];
             let joint_constraint_indices = &self.joint_constraint_indices[..];
 
@@ -326,10 +288,13 @@ impl PhysicsPipeline {
                             unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };
                         let manifolds: &mut Vec<&mut ContactManifold> =
                             unsafe { std::mem::transmute(manifolds.load(Ordering::Relaxed)) };
-                        let joints: &mut Vec<JointGraphEdge> =
-                            unsafe { std::mem::transmute(joints.load(Ordering::Relaxed)) };
+                        let impulse_joints: &mut Vec<JointGraphEdge> =
+                            unsafe { std::mem::transmute(impulse_joints.load(Ordering::Relaxed)) };
+                        let multibody_joints: &mut MultibodyJointSet = unsafe {
+                            std::mem::transmute(multibody_joints.load(Ordering::Relaxed))
+                        };
 
-                        solver.init_constraints_and_solve_velocity_constraints(
+                        solver.init_and_solve(
                             scope,
                             island_id,
                             islands,
@@ -337,8 +302,9 @@ impl PhysicsPipeline {
                             bodies,
                             manifolds,
                             &manifold_indices[island_id],
-                            joints,
+                            impulse_joints,
                             &joint_constraint_indices[island_id],
+                            multibody_joints,
                         )
                     });
             });
@@ -485,7 +451,8 @@ impl PhysicsPipeline {
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
-        joints: &mut JointSet,
+        impulse_joints: &mut ImpulseJointSet,
+        multibody_joints: &mut MultibodyJointSet,
         ccd_solver: &mut CCDSolver,
         hooks: &dyn PhysicsHooks<RigidBodySet, ColliderSet>,
         events: &dyn EventHandler,
@@ -505,7 +472,8 @@ impl PhysicsPipeline {
             &mut modified_bodies,
             &mut modified_colliders,
             &mut removed_colliders,
-            joints,
+            impulse_joints,
+            multibody_joints,
             ccd_solver,
             hooks,
             events,
@@ -525,7 +493,8 @@ impl PhysicsPipeline {
         modified_bodies: &mut Vec<RigidBodyHandle>,
         modified_colliders: &mut Vec<ColliderHandle>,
         removed_colliders: &mut Vec<ColliderHandle>,
-        joints: &mut JointSet,
+        impulse_joints: &mut ImpulseJointSet,
+        multibody_joints: &mut MultibodyJointSet,
         ccd_solver: &mut CCDSolver,
         hooks: &dyn PhysicsHooks<Bodies, Colliders>,
         events: &dyn EventHandler,
@@ -566,6 +535,15 @@ impl PhysicsPipeline {
             &modified_bodies,
             modified_colliders,
         );
+
+        // TODO: do this only on user-change.
+        // TODO: do we want some kind of automatic inverse kinematics?
+        for multibody in &mut multibody_joints.multibodies {
+            multibody.1.update_root_type(bodies);
+            // FIXME: what should we do here? We should not
+            //        rely on the next state here.
+            multibody.1.forward_kinematics_next(bodies, true);
+        }
 
         self.detect_collisions(
             integration_parameters,
@@ -662,7 +640,8 @@ impl PhysicsPipeline {
                 narrow_phase,
                 bodies,
                 colliders,
-                joints,
+                impulse_joints,
+                multibody_joints,
             );
 
             // If CCD is enabled, execute the CCD motion clamping.
@@ -688,15 +667,6 @@ impl PhysicsPipeline {
                 }
             }
 
-            // NOTE: we need to run the position solver **after** the
-            //       CCD motion clamping because otherwise the clamping
-            //       would undo the depenetration done by the position
-            //       solver.
-            //       This happens because our CCD use the real rigid-body
-            //       velocities instead of just interpolating between
-            //       isometries.
-            self.solve_position_constraints(&integration_parameters, islands, bodies);
-
             let clear_forces = remaining_substeps == 0;
             self.advance_to_final_positions(
                 islands,
@@ -705,6 +675,7 @@ impl PhysicsPipeline {
                 modified_colliders,
                 clear_forces,
             );
+
             self.detect_collisions(
                 &integration_parameters,
                 islands,
@@ -729,16 +700,19 @@ impl PhysicsPipeline {
 #[cfg(test)]
 mod test {
     use crate::dynamics::{
-        CCDSolver, IntegrationParameters, IslandManager, JointSet, RigidBodyBuilder, RigidBodySet,
+        CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, RigidBodyBuilder,
+        RigidBodySet,
     };
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
     use crate::math::Vector;
     use crate::pipeline::PhysicsPipeline;
+    use crate::prelude::MultibodyJointSet;
 
     #[test]
     fn kinematic_and_static_contact_crash() {
         let mut colliders = ColliderSet::new();
-        let mut joints = JointSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
         let mut pipeline = PhysicsPipeline::new();
         let mut bf = BroadPhase::new();
         let mut nf = NarrowPhase::new();
@@ -763,7 +737,8 @@ mod test {
             &mut nf,
             &mut bodies,
             &mut colliders,
-            &mut joints,
+            &mut impulse_joints,
+            &mut multibody_joints,
             &mut CCDSolver::new(),
             &(),
             &(),
@@ -773,7 +748,8 @@ mod test {
     #[test]
     fn rigid_body_removal_before_step() {
         let mut colliders = ColliderSet::new();
-        let mut joints = JointSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
         let mut pipeline = PhysicsPipeline::new();
         let mut bf = BroadPhase::new();
         let mut nf = NarrowPhase::new();
@@ -798,7 +774,13 @@ mod test {
 
         let to_delete = [h1, h2, h3, h4];
         for h in &to_delete {
-            bodies.remove(*h, &mut islands, &mut colliders, &mut joints);
+            bodies.remove(
+                *h,
+                &mut islands,
+                &mut colliders,
+                &mut impulse_joints,
+                &mut multibody_joints,
+            );
         }
 
         pipeline.step(
@@ -809,7 +791,8 @@ mod test {
             &mut nf,
             &mut bodies,
             &mut colliders,
-            &mut joints,
+            &mut impulse_joints,
+            &mut multibody_joints,
             &mut CCDSolver::new(),
             &(),
             &(),
@@ -820,7 +803,8 @@ mod test {
     #[test]
     fn rigid_body_removal_snapshot_handle_determinism() {
         let mut colliders = ColliderSet::new();
-        let mut joints = JointSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
         let mut islands = IslandManager::new();
 
         let mut bodies = RigidBodySet::new();
@@ -829,9 +813,27 @@ mod test {
         let h2 = bodies.insert(rb.clone());
         let h3 = bodies.insert(rb.clone());
 
-        bodies.remove(h1, &mut islands, &mut colliders, &mut joints);
-        bodies.remove(h3, &mut islands, &mut colliders, &mut joints);
-        bodies.remove(h2, &mut islands, &mut colliders, &mut joints);
+        bodies.remove(
+            h1,
+            &mut islands,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+        );
+        bodies.remove(
+            h3,
+            &mut islands,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+        );
+        bodies.remove(
+            h2,
+            &mut islands,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+        );
 
         let ser_bodies = bincode::serialize(&bodies).unwrap();
         let mut bodies2: RigidBodySet = bincode::deserialize(&ser_bodies).unwrap();
@@ -859,7 +861,8 @@ mod test {
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
         let mut ccd = CCDSolver::new();
-        let mut joints = JointSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
         let mut islands = IslandManager::new();
         let physics_hooks = ();
         let event_handler = ();
@@ -869,7 +872,13 @@ mod test {
         let collider = ColliderBuilder::ball(1.0).build();
         let c_handle = colliders.insert_with_parent(collider, b_handle, &mut bodies);
         colliders.remove(c_handle, &mut islands, &mut bodies, true);
-        bodies.remove(b_handle, &mut islands, &mut colliders, &mut joints);
+        bodies.remove(
+            b_handle,
+            &mut islands,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+        );
 
         for _ in 0..10 {
             pipeline.step(
@@ -880,7 +889,8 @@ mod test {
                 &mut narrow_phase,
                 &mut bodies,
                 &mut colliders,
-                &mut joints,
+                &mut impulse_joints,
+                &mut multibody_joints,
                 &mut ccd,
                 &physics_hooks,
                 &event_handler,

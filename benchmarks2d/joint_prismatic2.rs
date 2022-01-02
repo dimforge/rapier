@@ -7,7 +7,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let mut joints = JointSet::new();
+    let mut impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Create the balls
@@ -46,12 +47,10 @@ pub fn init_world(testbed: &mut Testbed) {
                     UnitVector::new_normalize(vector![-1.0, 1.0])
                 };
 
-                let mut prism =
-                    PrismaticJoint::new(Point::origin(), axis, point![0.0, shift], axis);
-                prism.limits_enabled = true;
-                prism.limits[0] = -1.5;
-                prism.limits[1] = 1.5;
-                joints.insert(curr_parent, curr_child, prism);
+                let prism = PrismaticJoint::new(axis)
+                    .local_anchor2(point![0.0, shift])
+                    .limit_axis([-1.5, 1.5]);
+                impulse_joints.insert(curr_parent, curr_child, prism);
 
                 curr_parent = curr_child;
             }
@@ -61,6 +60,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.look_at(point![80.0, 80.0], 15.0);
 }

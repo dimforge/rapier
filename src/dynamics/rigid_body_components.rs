@@ -4,9 +4,11 @@ use crate::geometry::{
     ColliderChanges, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition,
     ColliderShape,
 };
-use crate::math::{AngVector, AngularInertia, Isometry, Point, Real, Translation, Vector};
+use crate::math::{
+    AngVector, AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector,
+};
 use crate::parry::partitioning::IndexedData;
-use crate::utils::{WCross, WDot};
+use crate::utils::{WAngularInertia, WCross, WDot};
 use num::Zero;
 
 /// The unique handle of a rigid body added to a `RigidBodySet`.
@@ -276,6 +278,13 @@ impl RigidBodyMassProps {
         crate::utils::inv(self.effective_inv_mass)
     }
 
+    /// The effective world-space angular inertia (that takes the potential rotation locking into account) of
+    /// this rigid-body.
+    #[must_use]
+    pub fn effective_angular_inertia(&self) -> AngularInertia<Real> {
+        self.effective_world_inv_inertia_sqrt.squared().inverse()
+    }
+
     /// Update the world-space mass properties of `self`, taking into account the new position.
     pub fn update_world_mass_properties(&mut self, position: &Isometry<Real>) {
         self.world_com = self.local_mprops.world_com(&position);
@@ -348,12 +357,133 @@ impl Default for RigidBodyVelocity {
 }
 
 impl RigidBodyVelocity {
+    /// Create a new rigid-body velocity component.
+    #[must_use]
+    pub fn new(linvel: Vector<Real>, angvel: AngVector<Real>) -> Self {
+        Self { linvel, angvel }
+    }
+
+    /// Converts a slice to a rigid-body velocity.
+    ///
+    /// The slice must contain at least 3 elements: the `slice[0..2]  contains
+    /// the linear velocity and the `slice[2]` contains the angular velocity.
+    #[must_use]
+    #[cfg(feature = "dim2")]
+    pub fn from_slice(slice: &[Real]) -> Self {
+        Self {
+            linvel: Vector::new(slice[0], slice[1]),
+            angvel: slice[2],
+        }
+    }
+
+    /// Converts a slice to a rigid-body velocity.
+    ///
+    /// The slice must contain at least 6 elements: the `slice[0..3]  contains
+    /// the linear velocity and the `slice[3..6]` contains the angular velocity.
+    #[must_use]
+    #[cfg(feature = "dim3")]
+    pub fn from_slice(slice: &[Real]) -> Self {
+        Self {
+            linvel: Vector::new(slice[0], slice[1], slice[2]),
+            angvel: AngVector::new(slice[3], slice[4], slice[5]),
+        }
+    }
+
+    #[cfg(feature = "dim2")]
+    pub(crate) fn from_vectors(linvel: Vector<Real>, angvel: na::Vector1<Real>) -> Self {
+        Self {
+            linvel,
+            angvel: angvel.x,
+        }
+    }
+
+    #[cfg(feature = "dim3")]
+    pub(crate) fn from_vectors(linvel: Vector<Real>, angvel: Vector<Real>) -> Self {
+        Self { linvel, angvel }
+    }
+
     /// Velocities set to zero.
     #[must_use]
     pub fn zero() -> Self {
         Self {
             linvel: na::zero(),
             angvel: na::zero(),
+        }
+    }
+
+    /// This velocity seen as a slice.
+    ///
+    /// The linear part is stored first.
+    #[inline]
+    pub fn as_slice(&self) -> &[Real] {
+        self.as_vector().as_slice()
+    }
+
+    /// This velocity seen as a mutable slice.
+    ///
+    /// The linear part is stored first.
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut [Real] {
+        self.as_vector_mut().as_mut_slice()
+    }
+
+    /// This velocity seen as a vector.
+    ///
+    /// The linear part is stored first.   
+    #[inline]
+    #[cfg(feature = "dim2")]
+    pub fn as_vector(&self) -> &na::Vector3<Real> {
+        unsafe { std::mem::transmute(self) }
+    }
+
+    /// This velocity seen as a mutable vector.
+    ///
+    /// The linear part is stored first.    
+    #[inline]
+    #[cfg(feature = "dim2")]
+    pub fn as_vector_mut(&mut self) -> &mut na::Vector3<Real> {
+        unsafe { std::mem::transmute(self) }
+    }
+
+    /// This velocity seen as a vector.
+    ///
+    /// The linear part is stored first.   
+    #[inline]
+    #[cfg(feature = "dim3")]
+    pub fn as_vector(&self) -> &na::Vector6<Real> {
+        unsafe { std::mem::transmute(self) }
+    }
+
+    /// This velocity seen as a mutable vector.
+    ///
+    /// The linear part is stored first.    
+    #[inline]
+    #[cfg(feature = "dim3")]
+    pub fn as_vector_mut(&mut self) -> &mut na::Vector6<Real> {
+        unsafe { std::mem::transmute(self) }
+    }
+
+    /// Return `self` transformed by `transform`.
+    #[must_use]
+    pub fn transformed(self, transform: &Isometry<Real>) -> Self {
+        Self {
+            linvel: transform * self.linvel,
+            #[cfg(feature = "dim2")]
+            angvel: self.angvel,
+            #[cfg(feature = "dim3")]
+            angvel: transform * self.angvel,
+        }
+    }
+
+    /// Return `self` rotated by `rotation`.
+    #[must_use]
+    pub fn rotated(self, rotation: &Rotation<Real>) -> Self {
+        Self {
+            linvel: rotation * self.linvel,
+            #[cfg(feature = "dim2")]
+            angvel: self.angvel,
+            #[cfg(feature = "dim3")]
+            angvel: rotation * self.angvel,
         }
     }
 
@@ -468,6 +598,38 @@ impl RigidBodyVelocity {
         let torque_impulse = (point - rb_mprops.world_com).gcross(impulse);
         self.apply_impulse(rb_mprops, impulse);
         self.apply_torque_impulse(rb_mprops, torque_impulse);
+    }
+}
+
+impl std::ops::Mul<Real> for RigidBodyVelocity {
+    type Output = Self;
+
+    #[must_use]
+    fn mul(self, rhs: Real) -> Self {
+        RigidBodyVelocity {
+            linvel: self.linvel * rhs,
+            angvel: self.angvel * rhs,
+        }
+    }
+}
+
+impl std::ops::Add<RigidBodyVelocity> for RigidBodyVelocity {
+    type Output = Self;
+
+    #[must_use]
+    fn add(self, rhs: Self) -> Self {
+        RigidBodyVelocity {
+            linvel: self.linvel + rhs.linvel,
+            angvel: self.angvel + rhs.angvel,
+        }
+    }
+}
+
+impl std::ops::AddAssign<RigidBodyVelocity> for RigidBodyVelocity {
+    #[must_use]
+    fn add_assign(&mut self, rhs: Self) {
+        self.linvel += rhs.linvel;
+        self.angvel += rhs.angvel;
     }
 }
 
@@ -784,7 +946,7 @@ impl Default for RigidBodyActivation {
 }
 
 impl RigidBodyActivation {
-    /// The default amount of energy bellow which a body can be put to sleep by nphysics.
+    /// The default amount of energy bellow which a body can be put to sleep by rapier.
     pub fn default_threshold() -> Real {
         0.01
     }

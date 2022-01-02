@@ -216,12 +216,13 @@ impl InteractionGroups {
     ) where
         Bodies: ComponentSet<RigidBodyType> + ComponentSet<RigidBodyIds>,
     {
-        // NOTE: in 3D we have up to 10 different joint types.
-        // In 2D we only have 5 joint types.
+        // TODO: right now, we only sort based on the axes locked by the joint.
+        // We could also take motors and limits into account in the future (most of
+        // the SIMD constraints generation for motors and limits is already implemented).
         #[cfg(feature = "dim3")]
-        const NUM_JOINT_TYPES: usize = 10;
+        const NUM_JOINT_TYPES: usize = 64;
         #[cfg(feature = "dim2")]
-        const NUM_JOINT_TYPES: usize = 5;
+        const NUM_JOINT_TYPES: usize = 8;
 
         // The j-th bit of joint_type_conflicts[i] indicates that the
         // j-th bucket contains a joint with a type different than `i`.
@@ -254,13 +255,13 @@ impl InteractionGroups {
                 continue;
             }
 
-            if !interaction.supports_simd_constraints() {
+            if !interaction.data.supports_simd_constraints() {
                 // This joint does not support simd constraints yet.
                 self.nongrouped_interactions.push(*interaction_i);
                 continue;
             }
 
-            let ijoint = interaction.params.type_id();
+            let ijoint = interaction.data.locked_axes.bits() as usize;
             let i1 = ids1.active_set_offset;
             let i2 = ids2.active_set_offset;
             let conflicts =
