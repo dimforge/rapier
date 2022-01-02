@@ -706,11 +706,13 @@ mod test {
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
     use crate::math::Vector;
     use crate::pipeline::PhysicsPipeline;
+    use crate::prelude::MultibodyJointSet;
 
     #[test]
     fn kinematic_and_static_contact_crash() {
         let mut colliders = ColliderSet::new();
         let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
         let mut pipeline = PhysicsPipeline::new();
         let mut bf = BroadPhase::new();
         let mut nf = NarrowPhase::new();
@@ -736,6 +738,7 @@ mod test {
             &mut bodies,
             &mut colliders,
             &mut impulse_joints,
+            &mut multibody_joints,
             &mut CCDSolver::new(),
             &(),
             &(),
@@ -746,6 +749,7 @@ mod test {
     fn rigid_body_removal_before_step() {
         let mut colliders = ColliderSet::new();
         let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
         let mut pipeline = PhysicsPipeline::new();
         let mut bf = BroadPhase::new();
         let mut nf = NarrowPhase::new();
@@ -770,7 +774,13 @@ mod test {
 
         let to_delete = [h1, h2, h3, h4];
         for h in &to_delete {
-            bodies.remove(*h, &mut islands, &mut colliders, &mut impulse_joints);
+            bodies.remove(
+                *h,
+                &mut islands,
+                &mut colliders,
+                &mut impulse_joints,
+                &mut multibody_joints,
+            );
         }
 
         pipeline.step(
@@ -782,6 +792,7 @@ mod test {
             &mut bodies,
             &mut colliders,
             &mut impulse_joints,
+            &mut multibody_joints,
             &mut CCDSolver::new(),
             &(),
             &(),
@@ -793,6 +804,7 @@ mod test {
     fn rigid_body_removal_snapshot_handle_determinism() {
         let mut colliders = ColliderSet::new();
         let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
         let mut islands = IslandManager::new();
 
         let mut bodies = RigidBodySet::new();
@@ -801,9 +813,27 @@ mod test {
         let h2 = bodies.insert(rb.clone());
         let h3 = bodies.insert(rb.clone());
 
-        bodies.remove(h1, &mut islands, &mut colliders, &mut impulse_joints);
-        bodies.remove(h3, &mut islands, &mut colliders, &mut impulse_joints);
-        bodies.remove(h2, &mut islands, &mut colliders, &mut impulse_joints);
+        bodies.remove(
+            h1,
+            &mut islands,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+        );
+        bodies.remove(
+            h3,
+            &mut islands,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+        );
+        bodies.remove(
+            h2,
+            &mut islands,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+        );
 
         let ser_bodies = bincode::serialize(&bodies).unwrap();
         let mut bodies2: RigidBodySet = bincode::deserialize(&ser_bodies).unwrap();
@@ -832,6 +862,7 @@ mod test {
         let mut colliders = ColliderSet::new();
         let mut ccd = CCDSolver::new();
         let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
         let mut islands = IslandManager::new();
         let physics_hooks = ();
         let event_handler = ();
@@ -841,7 +872,13 @@ mod test {
         let collider = ColliderBuilder::ball(1.0).build();
         let c_handle = colliders.insert_with_parent(collider, b_handle, &mut bodies);
         colliders.remove(c_handle, &mut islands, &mut bodies, true);
-        bodies.remove(b_handle, &mut islands, &mut colliders, &mut impulse_joints);
+        bodies.remove(
+            b_handle,
+            &mut islands,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+        );
 
         for _ in 0..10 {
             pipeline.step(
@@ -853,6 +890,7 @@ mod test {
                 &mut bodies,
                 &mut colliders,
                 &mut impulse_joints,
+                &mut multibody_joints,
                 &mut ccd,
                 &physics_hooks,
                 &event_handler,

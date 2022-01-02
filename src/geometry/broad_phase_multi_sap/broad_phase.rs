@@ -620,7 +620,9 @@ impl BroadPhase {
 
 #[cfg(test)]
 mod test {
-    use crate::dynamics::{ImpulseJointSet, IslandManager, RigidBodyBuilder, RigidBodySet};
+    use crate::dynamics::{
+        ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodyBuilder, RigidBodySet,
+    };
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet};
 
     #[test]
@@ -629,6 +631,7 @@ mod test {
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
         let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
         let mut islands = IslandManager::new();
 
         let rb = RigidBodyBuilder::new_dynamic().build();
@@ -639,7 +642,13 @@ mod test {
         let mut events = Vec::new();
         broad_phase.update(0.0, &mut colliders, &[coh], &[], &mut events);
 
-        bodies.remove(hrb, &mut islands, &mut colliders, &mut impulse_joints);
+        bodies.remove(
+            hrb,
+            &mut islands,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+        );
         broad_phase.update(0.0, &mut colliders, &[], &[coh], &mut events);
 
         // Create another body.

@@ -47,7 +47,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     UnitVector::new_normalize(vector![-1.0, 1.0])
                 };
 
-                let mut prism = PrismaticJoint::new(axis)
+                let prism = PrismaticJoint::new(axis)
                     .local_anchor2(point![0.0, shift])
                     .limit_axis([-1.5, 1.5]);
                 impulse_joints.insert(curr_parent, curr_child, prism);
