@@ -14,7 +14,7 @@ mod solver_counters;
 mod stages_counters;
 mod timer;
 
-/// Aggregation of all the performances counters tracked by nphysics.
+/// Aggregation of all the performances counters tracked by rapier.
 #[derive(Clone, Copy)]
 pub struct Counters {
     /// Whether thi counter is enabled or not.
@@ -34,7 +34,7 @@ pub struct Counters {
 }
 
 impl Counters {
-    /// Create a new set of counters initialized to wero.
+    /// Create a new set of counters initialized to zero.
     pub fn new(enabled: bool) -> Self {
         Counters {
             enabled,

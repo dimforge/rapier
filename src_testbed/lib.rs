@@ -1,12 +1,4 @@
 extern crate nalgebra as na;
-#[cfg(all(feature = "dim2", feature = "other-backends"))]
-extern crate ncollide2d as ncollide;
-#[cfg(all(feature = "dim3", feature = "other-backends"))]
-extern crate ncollide3d as ncollide;
-#[cfg(all(feature = "dim2", feature = "other-backends"))]
-extern crate nphysics2d as nphysics;
-#[cfg(all(feature = "dim3", feature = "other-backends"))]
-extern crate nphysics3d as nphysics;
 #[cfg(feature = "dim2")]
 extern crate parry2d as parry;
 #[cfg(feature = "dim3")]
@@ -37,8 +29,6 @@ mod camera2d;
 mod camera3d;
 mod graphics;
 pub mod harness;
-#[cfg(feature = "other-backends")]
-mod nphysics_backend;
 pub mod objects;
 pub mod physics;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]

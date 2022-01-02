@@ -1,5 +1,8 @@
 use crossbeam::channel::Receiver;
-use rapier::dynamics::{CCDSolver, IntegrationParameters, IslandManager, JointSet, RigidBodySet};
+use rapier::dynamics::{
+    CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
+    RigidBodySet,
+};
 use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, IntersectionEvent, NarrowPhase};
 use rapier::math::Vector;
 use rapier::pipeline::{PhysicsHooks, PhysicsPipeline, QueryPipeline};
@@ -10,7 +13,7 @@ pub struct PhysicsSnapshot {
     narrow_phase: Vec<u8>,
     bodies: Vec<u8>,
     colliders: Vec<u8>,
-    joints: Vec<u8>,
+    impulse_joints: Vec<u8>,
 }
 
 impl PhysicsSnapshot {
@@ -20,7 +23,7 @@ impl PhysicsSnapshot {
         narrow_phase: &NarrowPhase,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        joints: &JointSet,
+        impulse_joints: &ImpulseJointSet,
     ) -> bincode::Result<Self> {
         Ok(Self {
             timestep_id,
@@ -28,7 +31,7 @@ impl PhysicsSnapshot {
             narrow_phase: bincode::serialize(narrow_phase)?,
             bodies: bincode::serialize(bodies)?,
             colliders: bincode::serialize(colliders)?,
-            joints: bincode::serialize(joints)?,
+            impulse_joints: bincode::serialize(impulse_joints)?,
         })
     }
 
@@ -40,7 +43,7 @@ impl PhysicsSnapshot {
         NarrowPhase,
         RigidBodySet,
         ColliderSet,
-        JointSet,
+        ImpulseJointSet,
     )> {
         Ok((
             self.timestep_id,
@@ -48,7 +51,7 @@ impl PhysicsSnapshot {
             bincode::deserialize(&self.narrow_phase)?,
             bincode::deserialize(&self.bodies)?,
             bincode::deserialize(&self.colliders)?,
-            bincode::deserialize(&self.joints)?,
+            bincode::deserialize(&self.impulse_joints)?,
         ))
     }
 
@@ -57,13 +60,13 @@ impl PhysicsSnapshot {
             + self.narrow_phase.len()
             + self.bodies.len()
             + self.colliders.len()
-            + self.joints.len();
+            + self.impulse_joints.len();
         println!("Snapshot length: {}B", total);
         println!("|_ broad_phase: {}B", self.broad_phase.len());
         println!("|_ narrow_phase: {}B", self.narrow_phase.len());
         println!("|_ bodies: {}B", self.bodies.len());
         println!("|_ colliders: {}B", self.colliders.len());
-        println!("|_ joints: {}B", self.joints.len());
+        println!("|_ impulse_joints: {}B", self.impulse_joints.len());
     }
 }
 
@@ -73,7 +76,8 @@ pub struct PhysicsState {
     pub narrow_phase: NarrowPhase,
     pub bodies: RigidBodySet,
     pub colliders: ColliderSet,
-    pub joints: JointSet,
+    pub impulse_joints: ImpulseJointSet,
+    pub multibody_joints: MultibodyJointSet,
     pub ccd_solver: CCDSolver,
     pub pipeline: PhysicsPipeline,
     pub query_pipeline: QueryPipeline,
@@ -90,7 +94,8 @@ impl PhysicsState {
             narrow_phase: NarrowPhase::new(),
             bodies: RigidBodySet::new(),
             colliders: ColliderSet::new(),
-            joints: JointSet::new(),
+            impulse_joints: ImpulseJointSet::new(),
+            multibody_joints: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             pipeline: PhysicsPipeline::new(),
             query_pipeline: QueryPipeline::new(),

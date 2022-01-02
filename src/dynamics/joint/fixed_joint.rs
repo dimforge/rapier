@@ -1,38 +1,55 @@
-use crate::math::{Isometry, Real, SpacialVector};
+use crate::dynamics::{JointAxesMask, JointData};
+use crate::math::{Isometry, Point, Real};
 
-#[derive(Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-/// A joint that prevents all relative movement between two bodies.
-///
-/// Given two frames of references, this joint aims to ensure these frame always coincide in world-space.
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct FixedJoint {
-    /// The frame of reference for the first body affected by this joint, expressed in the local frame
-    /// of the first body.
-    pub local_frame1: Isometry<Real>,
-    /// The frame of reference for the second body affected by this joint, expressed in the local frame
-    /// of the first body.
-    pub local_frame2: Isometry<Real>,
-    /// The impulse applied to the first body affected by this joint.
-    ///
-    /// The impulse applied to the second body affected by this joint is given by `-impulse`.
-    /// This combines both linear and angular impulses:
-    /// - In 2D, `impulse.xy()` gives the linear impulse, and `impulse.z` the angular impulse.
-    /// - In 3D, `impulse.xyz()` gives the linear impulse, and `(impulse[3], impulse[4], impulse[5])` the angular impulse.
-    pub impulse: SpacialVector<Real>,
+    data: JointData,
 }
 
 impl FixedJoint {
-    /// Creates a new fixed joint from the frames of reference of both bodies.
-    pub fn new(local_frame1: Isometry<Real>, local_frame2: Isometry<Real>) -> Self {
-        Self {
-            local_frame1,
-            local_frame2,
-            impulse: SpacialVector::zeros(),
-        }
+    pub fn new() -> Self {
+        #[cfg(feature = "dim2")]
+        let mask = JointAxesMask::X | JointAxesMask::Y | JointAxesMask::ANG_X;
+        #[cfg(feature = "dim3")]
+        let mask = JointAxesMask::X
+            | JointAxesMask::Y
+            | JointAxesMask::Z
+            | JointAxesMask::ANG_X
+            | JointAxesMask::ANG_Y
+            | JointAxesMask::ANG_Z;
+
+        let data = JointData::default().lock_axes(mask);
+        Self { data }
     }
 
-    /// Can a SIMD constraint be used for resolving this joint?
-    pub fn supports_simd_constraints(&self) -> bool {
-        true
+    #[must_use]
+    pub fn local_frame1(mut self, local_frame: Isometry<Real>) -> Self {
+        self.data = self.data.local_frame1(local_frame);
+        self
+    }
+
+    #[must_use]
+    pub fn local_frame2(mut self, local_frame: Isometry<Real>) -> Self {
+        self.data = self.data.local_frame2(local_frame);
+        self
+    }
+
+    #[must_use]
+    pub fn local_anchor1(mut self, anchor1: Point<Real>) -> Self {
+        self.data = self.data.local_anchor1(anchor1);
+        self
+    }
+
+    #[must_use]
+    pub fn local_anchor2(mut self, anchor2: Point<Real>) -> Self {
+        self.data = self.data.local_anchor2(anchor2);
+        self
+    }
+}
+
+impl Into<JointData> for FixedJoint {
+    fn into(self) -> JointData {
+        self.data
     }
 }

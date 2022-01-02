@@ -1,6 +1,9 @@
 //! Miscellaneous utilities.
 
-use na::{Matrix3, Point2, Point3, Scalar, SimdRealField, Vector2, Vector3};
+use na::{
+    Matrix1, Matrix2, Matrix3, Point2, Point3, RowVector2, Scalar, SimdRealField, UnitComplex,
+    UnitQuaternion, Vector1, Vector2, Vector3,
+};
 use num::Zero;
 use simba::simd::SimdValue;
 use std::ops::IndexMut;
@@ -12,12 +15,20 @@ use {
     num::One,
 };
 
+pub trait WReal: SimdRealField<Element = Real> + Copy {}
+impl WReal for Real {}
+impl WReal for SimdReal {}
+
 pub(crate) fn inv(val: Real) -> Real {
     if val == 0.0 {
         0.0
     } else {
         1.0 / val
     }
+}
+
+pub(crate) fn simd_inv<N: SimdRealField + Copy>(val: N) -> N {
+    N::zero().select(val.simd_eq(N::zero()), N::one() / val)
 }
 
 /// Trait to copy the sign of each component of one scalar/vector/matrix to another.
@@ -234,30 +245,77 @@ where
 
 pub(crate) trait WCrossMatrix: Sized {
     type CrossMat;
+    type CrossMatTr;
 
     fn gcross_matrix(self) -> Self::CrossMat;
+    fn gcross_matrix_tr(self) -> Self::CrossMatTr;
 }
 
-impl WCrossMatrix for Vector3<Real> {
-    type CrossMat = Matrix3<Real>;
+impl<N: SimdRealField + Copy> WCrossMatrix for Vector3<N> {
+    type CrossMat = Matrix3<N>;
+    type CrossMatTr = Matrix3<N>;
 
     #[inline]
     #[rustfmt::skip]
     fn gcross_matrix(self) -> Self::CrossMat {
         Matrix3::new(
-            0.0, -self.z, self.y,
-            self.z, 0.0, -self.x,
-            -self.y, self.x, 0.0,
+            N::zero(), -self.z, self.y,
+            self.z, N::zero(), -self.x,
+            -self.y, self.x, N::zero(),
+        )
+    }
+
+    #[inline]
+    #[rustfmt::skip]
+    fn gcross_matrix_tr(self) -> Self::CrossMatTr {
+        Matrix3::new(
+            N::zero(), self.z, -self.y,
+            -self.z, N::zero(), self.x,
+            self.y, -self.x, N::zero(),
         )
     }
 }
 
-impl WCrossMatrix for Vector2<Real> {
-    type CrossMat = Vector2<Real>;
+impl<N: SimdRealField + Copy> WCrossMatrix for Vector2<N> {
+    type CrossMat = RowVector2<N>;
+    type CrossMatTr = Vector2<N>;
 
     #[inline]
     fn gcross_matrix(self) -> Self::CrossMat {
+        RowVector2::new(-self.y, self.x)
+    }
+    #[inline]
+    fn gcross_matrix_tr(self) -> Self::CrossMatTr {
         Vector2::new(-self.y, self.x)
+    }
+}
+impl WCrossMatrix for Real {
+    type CrossMat = Matrix2<Real>;
+    type CrossMatTr = Matrix2<Real>;
+
+    #[inline]
+    fn gcross_matrix(self) -> Matrix2<Real> {
+        Matrix2::new(0.0, -self, self, 0.0)
+    }
+
+    #[inline]
+    fn gcross_matrix_tr(self) -> Matrix2<Real> {
+        Matrix2::new(0.0, self, -self, 0.0)
+    }
+}
+
+impl WCrossMatrix for SimdReal {
+    type CrossMat = Matrix2<SimdReal>;
+    type CrossMatTr = Matrix2<SimdReal>;
+
+    #[inline]
+    fn gcross_matrix(self) -> Matrix2<SimdReal> {
+        Matrix2::new(SimdReal::zero(), -self, self, SimdReal::zero())
+    }
+
+    #[inline]
+    fn gcross_matrix_tr(self) -> Matrix2<SimdReal> {
+        Matrix2::new(SimdReal::zero(), self, -self, SimdReal::zero())
     }
 }
 
@@ -295,50 +353,43 @@ pub(crate) trait WDot<Rhs>: Sized {
     fn gdot(&self, rhs: Rhs) -> Self::Result;
 }
 
-impl WDot<Vector3<Real>> for Vector3<Real> {
-    type Result = Real;
+impl<N: SimdRealField + Copy> WDot<Vector3<N>> for Vector3<N> {
+    type Result = N;
 
-    fn gdot(&self, rhs: Vector3<Real>) -> Self::Result {
+    fn gdot(&self, rhs: Vector3<N>) -> Self::Result {
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
     }
 }
 
-impl WDot<Vector2<Real>> for Vector2<Real> {
-    type Result = Real;
+impl<N: SimdRealField + Copy> WDot<Vector2<N>> for Vector2<N> {
+    type Result = N;
 
-    fn gdot(&self, rhs: Vector2<Real>) -> Self::Result {
+    fn gdot(&self, rhs: Vector2<N>) -> Self::Result {
         self.x * rhs.x + self.y * rhs.y
     }
 }
 
-impl WDot<Real> for Real {
-    type Result = Real;
+impl<N: SimdRealField + Copy> WDot<Vector1<N>> for N {
+    type Result = N;
 
-    fn gdot(&self, rhs: Real) -> Self::Result {
+    fn gdot(&self, rhs: Vector1<N>) -> Self::Result {
+        *self * rhs.x
+    }
+}
+
+impl<N: WReal> WDot<N> for N {
+    type Result = N;
+
+    fn gdot(&self, rhs: N) -> Self::Result {
         *self * rhs
     }
 }
 
-impl WCrossMatrix for Vector3<SimdReal> {
-    type CrossMat = Matrix3<SimdReal>;
+impl<N: SimdRealField + Copy> WDot<N> for Vector1<N> {
+    type Result = N;
 
-    #[inline]
-    #[rustfmt::skip]
-    fn gcross_matrix(self) -> Self::CrossMat {
-        Matrix3::new(
-            SimdReal::zero(), -self.z, self.y,
-            self.z, SimdReal::zero(), -self.x,
-            -self.y, self.x, SimdReal::zero(),
-        )
-    }
-}
-
-impl WCrossMatrix for Vector2<SimdReal> {
-    type CrossMat = Vector2<SimdReal>;
-
-    #[inline]
-    fn gcross_matrix(self) -> Self::CrossMat {
-        Vector2::new(-self.y, self.x)
+    fn gdot(&self, rhs: N) -> Self::Result {
+        self.x * rhs
     }
 }
 
@@ -368,27 +419,42 @@ impl WCross<Vector2<SimdReal>> for Vector2<SimdReal> {
     }
 }
 
-impl WDot<Vector3<SimdReal>> for Vector3<SimdReal> {
-    type Result = SimdReal;
+pub trait WQuat<N> {
+    type Result;
 
-    fn gdot(&self, rhs: Vector3<SimdReal>) -> Self::Result {
-        self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
+    fn diff_conj1_2(&self, rhs: &Self) -> Self::Result;
+}
+
+impl<N: SimdRealField + Copy> WQuat<N> for UnitComplex<N>
+where
+    <N as SimdValue>::Element: SimdRealField,
+{
+    type Result = Matrix1<N>;
+
+    fn diff_conj1_2(&self, rhs: &Self) -> Self::Result {
+        let two: N = na::convert(2.0);
+        Matrix1::new((self.im * rhs.im + self.re * rhs.re) * two)
     }
 }
 
-impl WDot<Vector2<SimdReal>> for Vector2<SimdReal> {
-    type Result = SimdReal;
+impl<N: SimdRealField + Copy> WQuat<N> for UnitQuaternion<N>
+where
+    <N as SimdValue>::Element: SimdRealField,
+{
+    type Result = Matrix3<N>;
 
-    fn gdot(&self, rhs: Vector2<SimdReal>) -> Self::Result {
-        self.x * rhs.x + self.y * rhs.y
-    }
-}
+    fn diff_conj1_2(&self, rhs: &Self) -> Self::Result {
+        let half: N = na::convert(0.5);
+        let v1 = self.imag();
+        let v2 = rhs.imag();
+        let w1 = self.w;
+        let w2 = rhs.w;
 
-impl WDot<SimdReal> for SimdReal {
-    type Result = SimdReal;
-
-    fn gdot(&self, rhs: SimdReal) -> Self::Result {
-        *self * rhs
+        // TODO: this can probably be optimized a lot by unrolling the ops.
+        (v1 * v2.transpose() + Matrix3::from_diagonal_element(w1 * w2)
+            - (v1 * w2 + v2 * w1).cross_matrix()
+            + v1.cross_matrix() * v2.cross_matrix())
+            * half
     }
 }
 
@@ -404,59 +470,23 @@ pub(crate) trait WAngularInertia<N> {
     fn into_matrix(self) -> Self::AngMatrix;
 }
 
-impl WAngularInertia<Real> for Real {
-    type AngVector = Real;
-    type LinVector = Vector2<Real>;
-    type AngMatrix = Real;
+impl<N: WReal> WAngularInertia<N> for N {
+    type AngVector = N;
+    type LinVector = Vector2<N>;
+    type AngMatrix = N;
 
     fn inverse(&self) -> Self {
-        if *self != 0.0 {
-            1.0 / *self
-        } else {
-            0.0
-        }
+        simd_inv(*self)
     }
 
-    fn transform_lin_vector(&self, pt: Vector2<Real>) -> Vector2<Real> {
-        *self * pt
+    fn transform_lin_vector(&self, pt: Vector2<N>) -> Vector2<N> {
+        pt * *self
     }
-    fn transform_vector(&self, pt: Real) -> Real {
-        *self * pt
-    }
-
-    fn squared(&self) -> Real {
-        *self * *self
-    }
-
-    fn transform_matrix(&self, mat: &Self::AngMatrix) -> Self::AngMatrix {
-        mat * *self
-    }
-
-    fn into_matrix(self) -> Self::AngMatrix {
-        self
-    }
-}
-
-impl WAngularInertia<SimdReal> for SimdReal {
-    type AngVector = SimdReal;
-    type LinVector = Vector2<SimdReal>;
-    type AngMatrix = SimdReal;
-
-    fn inverse(&self) -> Self {
-        let zero = <SimdReal>::zero();
-        let is_zero = self.simd_eq(zero);
-        (<SimdReal>::one() / *self).select(is_zero, zero)
-    }
-
-    fn transform_lin_vector(&self, pt: Vector2<SimdReal>) -> Vector2<SimdReal> {
+    fn transform_vector(&self, pt: N) -> N {
         pt * *self
     }
 
-    fn transform_vector(&self, pt: SimdReal) -> SimdReal {
-        *self * pt
-    }
-
-    fn squared(&self) -> SimdReal {
+    fn squared(&self) -> N {
         *self * *self
     }
 
@@ -745,6 +775,20 @@ pub trait IndexMut2<I>: IndexMut<I> {
 }
 
 impl<T> IndexMut2<usize> for Vec<T> {
+    #[inline]
+    fn index_mut2(&mut self, i: usize, j: usize) -> (&mut T, &mut T) {
+        assert!(i != j, "Unable to index the same element twice.");
+        assert!(i < self.len() && j < self.len(), "Index out of bounds.");
+
+        unsafe {
+            let a = &mut *(self.get_unchecked_mut(i) as *mut _);
+            let b = &mut *(self.get_unchecked_mut(j) as *mut _);
+            (a, b)
+        }
+    }
+}
+
+impl<T> IndexMut2<usize> for [T] {
     #[inline]
     fn index_mut2(&mut self, i: usize, j: usize) -> (&mut T, &mut T) {
         assert!(i != j, "Unable to index the same element twice.");

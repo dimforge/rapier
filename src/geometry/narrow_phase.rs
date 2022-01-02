@@ -968,9 +968,7 @@ impl NarrowPhase {
                             friction,
                             restitution,
                             tangent_velocity: Vector::zeros(),
-                            warmstart_impulse: contact.data.impulse,
-                            warmstart_tangent_impulse: contact.data.tangent_impulse,
-                            prev_rhs: contact.data.rhs,
+                            is_new: contact.data.impulse == 0.0,
                         };
 
                         manifold.data.solver_contacts.push(solver_contact);
@@ -1027,7 +1025,7 @@ impl NarrowPhase {
     }
 
     /// Retrieve all the interactions with at least one contact point, happening between two active bodies.
-    // NOTE: this is very similar to the code from JointSet::select_active_interactions.
+    // NOTE: this is very similar to the code from ImpulseJointSet::select_active_interactions.
     pub(crate) fn select_active_contacts<'a, Bodies>(
         &'a mut self,
         islands: &IslandManager,

@@ -3,7 +3,10 @@ use crate::{
     TestbedGraphics,
 };
 use plugin::HarnessPlugin;
-use rapier::dynamics::{CCDSolver, IntegrationParameters, IslandManager, JointSet, RigidBodySet};
+use rapier::dynamics::{
+    CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
+    RigidBodySet,
+};
 use rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
 use rapier::math::Vector;
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
@@ -78,9 +81,14 @@ impl Harness {
         }
     }
 
-    pub fn new(bodies: RigidBodySet, colliders: ColliderSet, joints: JointSet) -> Self {
+    pub fn new(
+        bodies: RigidBodySet,
+        colliders: ColliderSet,
+        impulse_joints: ImpulseJointSet,
+        multibody_joints: MultibodyJointSet,
+    ) -> Self {
         let mut res = Self::new_empty();
-        res.set_world(bodies, colliders, joints);
+        res.set_world(bodies, colliders, impulse_joints, multibody_joints);
         res
     }
 
@@ -100,24 +108,39 @@ impl Harness {
         &mut self.physics
     }
 
-    pub fn set_world(&mut self, bodies: RigidBodySet, colliders: ColliderSet, joints: JointSet) {
-        self.set_world_with_params(bodies, colliders, joints, Vector::y() * -9.81, ())
+    pub fn set_world(
+        &mut self,
+        bodies: RigidBodySet,
+        colliders: ColliderSet,
+        impulse_joints: ImpulseJointSet,
+        multibody_joints: MultibodyJointSet,
+    ) {
+        self.set_world_with_params(
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            Vector::y() * -9.81,
+            (),
+        )
     }
 
     pub fn set_world_with_params(
         &mut self,
         bodies: RigidBodySet,
         colliders: ColliderSet,
-        joints: JointSet,
+        impulse_joints: ImpulseJointSet,
+        multibody_joints: MultibodyJointSet,
         gravity: Vector<f32>,
         hooks: impl PhysicsHooks<RigidBodySet, ColliderSet> + 'static,
     ) {
         // println!("Num bodies: {}", bodies.len());
-        // println!("Num joints: {}", joints.len());
+        // println!("Num impulse_joints: {}", impulse_joints.len());
         self.physics.gravity = gravity;
         self.physics.bodies = bodies;
         self.physics.colliders = colliders;
-        self.physics.joints = joints;
+        self.physics.impulse_joints = impulse_joints;
+        self.physics.multibody_joints = multibody_joints;
         self.physics.hooks = Box::new(hooks);
 
         self.physics.islands = IslandManager::new();
@@ -162,7 +185,8 @@ impl Harness {
                     &mut physics.narrow_phase,
                     &mut physics.bodies,
                     &mut physics.colliders,
-                    &mut physics.joints,
+                    &mut physics.impulse_joints,
+                    &mut physics.multibody_joints,
                     &mut physics.ccd_solver,
                     &*physics.hooks,
                     event_handler,
@@ -179,7 +203,8 @@ impl Harness {
             &mut self.physics.narrow_phase,
             &mut self.physics.bodies,
             &mut self.physics.colliders,
-            &mut self.physics.joints,
+            &mut self.physics.impulse_joints,
+            &mut self.physics.multibody_joints,
             &mut self.physics.ccd_solver,
             &*self.physics.hooks,
             &self.event_handler,

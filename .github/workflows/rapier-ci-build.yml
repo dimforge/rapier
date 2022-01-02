@@ -28,13 +28,13 @@ jobs:
     - name: Build rapier3d
       run: cargo build --verbose -p rapier3d;
     - name: Build rapier2d SIMD
-      run: cd build/rapier2d; cargo build --verbose --features simd-stable;
+      run: cd crates/rapier2d; cargo build --verbose --features simd-stable;
     - name: Build rapier3d SIMD
-      run: cd build/rapier3d; cargo build --verbose --features simd-stable;
+      run: cd crates/rapier3d; cargo build --verbose --features simd-stable;
     - name: Build rapier2d SIMD Parallel
-      run: cd build/rapier2d; cargo build --verbose --features simd-stable --features parallel;
+      run: cd crates/rapier2d; cargo build --verbose --features simd-stable --features parallel;
     - name: Build rapier3d SIMD Parallel
-      run: cd build/rapier3d; cargo build --verbose --features simd-stable --features parallel;
+      run: cd crates/rapier3d; cargo build --verbose --features simd-stable --features parallel;
     - name: Run tests
       run: cargo test
     - name: Check rapier_testbed2d
@@ -42,9 +42,9 @@ jobs:
     - name: Check rapier_testbed3d
       run: cargo check --verbose -p rapier_testbed3d;
     - name: Check rapier_testbed2d --features parallel
-      run: cd build/rapier_testbed2d; cargo check --verbose --features parallel;
+      run: cd crates/rapier_testbed2d; cargo check --verbose --features parallel;
     - name: Check rapier_testbed3d --features parallel
-      run: cd build/rapier_testbed3d; cargo check --verbose --features parallel;
+      run: cd crates/rapier_testbed3d; cargo check --verbose --features parallel;
     - name: Check rapier-examples-2d
       run: cargo check -j 1 --verbose -p rapier-examples-2d;
     - name: Check rapier-examples-3d
@@ -57,9 +57,9 @@ jobs:
       - uses: actions/checkout@v2
       - run: rustup target add wasm32-unknown-unknown
       - name: build rapier2d
-        run: cd build/rapier2d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
+        run: cd crates/rapier2d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
       - name: build rapier3d
-        run: cd build/rapier3d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
+        run: cd crates/rapier3d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
   build-wasm-emscripten:
     runs-on: ubuntu-latest
     env:
@@ -68,10 +68,10 @@ jobs:
       - uses: actions/checkout@v2
       - run: rustup target add wasm32-unknown-emscripten
       - name: build rapier2d
-        run: cd build/rapier2d && cargo build --verbose --target wasm32-unknown-emscripten;
+        run: cd crates/rapier2d && cargo build --verbose --target wasm32-unknown-emscripten;
       - name: build rapier3d
-        run: cd build/rapier3d && cargo build --verbose --target wasm32-unknown-emscripten;
+        run: cd crates/rapier3d && cargo build --verbose --target wasm32-unknown-emscripten;
       - name: build rapier2d --features simd-stable
-        run: cd build/rapier2d && cargo build --verbose --target wasm32-unknown-emscripten --features simd-stable;
+        run: cd crates/rapier2d && cargo build --verbose --target wasm32-unknown-emscripten --features simd-stable;
       - name: build rapier3d --features simd-stable
-        run: cd build/rapier3d && cargo build --verbose --target wasm32-unknown-emscripten --features simd-stable;
+        run: cd crates/rapier3d && cargo build --verbose --target wasm32-unknown-emscripten --features simd-stable;

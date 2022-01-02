@@ -1,7 +1,7 @@
 use crate::data::{BundleSet, ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::{
-    JointSet, RigidBodyActivation, RigidBodyColliders, RigidBodyHandle, RigidBodyIds,
-    RigidBodyType, RigidBodyVelocity,
+    ImpulseJointSet, MultibodyJointSet, RigidBodyActivation, RigidBodyColliders, RigidBodyHandle,
+    RigidBodyIds, RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::{ColliderParent, NarrowPhase};
 use crate::math::Real;
@@ -175,7 +175,8 @@ impl IslandManager {
         bodies: &mut Bodies,
         colliders: &Colliders,
         narrow_phase: &NarrowPhase,
-        joints: &JointSet,
+        impulse_joints: &ImpulseJointSet,
+        multibody_joints: &MultibodyJointSet,
         min_island_size: usize,
     ) where
         Bodies: ComponentSetMut<RigidBodyIds>
@@ -302,8 +303,12 @@ impl IslandManager {
             // in contact or joined with this collider.
             push_contacting_bodies(rb_colliders, colliders, narrow_phase, &mut self.stack);
 
-            for inter in joints.joints_with(handle) {
+            for inter in impulse_joints.joints_with(handle) {
                 let other = crate::utils::select_other((inter.0, inter.1), handle);
+                self.stack.push(other);
+            }
+
+            for other in multibody_joints.attached_bodies(handle) {
                 self.stack.push(other);
             }
 

@@ -9,45 +9,20 @@ pub(crate) struct VelocityConstraintTangentPart<N: SimdRealField + Copy> {
     pub gcross2: [AngVector<N>; DIM - 1],
     pub rhs: [N; DIM - 1],
     #[cfg(feature = "dim2")]
-    pub impulse: [N; DIM - 1],
+    pub impulse: na::Vector1<N>,
     #[cfg(feature = "dim3")]
     pub impulse: na::Vector2<N>,
     pub r: [N; DIM - 1],
 }
 
 impl<N: SimdRealField + Copy> VelocityConstraintTangentPart<N> {
-    #[cfg(any(not(target_arch = "wasm32"), feature = "simd-is-enabled"))]
     fn zero() -> Self {
         Self {
             gcross1: [na::zero(); DIM - 1],
             gcross2: [na::zero(); DIM - 1],
             rhs: [na::zero(); DIM - 1],
-            #[cfg(feature = "dim2")]
-            impulse: [na::zero(); DIM - 1],
-            #[cfg(feature = "dim3")]
             impulse: na::zero(),
             r: [na::zero(); DIM - 1],
-        }
-    }
-
-    #[inline]
-    pub fn warmstart(
-        &self,
-        tangents1: [&Vector<N>; DIM - 1],
-        im1: N,
-        im2: N,
-        mj_lambda1: &mut DeltaVel<N>,
-        mj_lambda2: &mut DeltaVel<N>,
-    ) where
-        AngVector<N>: WDot<AngVector<N>, Result = N>,
-        N::Element: SimdRealField + Copy,
-    {
-        for j in 0..DIM - 1 {
-            mj_lambda1.linear += tangents1[j] * (im1 * self.impulse[j]);
-            mj_lambda1.angular += self.gcross1[j] * self.impulse[j];
-
-            mj_lambda2.linear += tangents1[j] * (-im2 * self.impulse[j]);
-            mj_lambda2.angular += self.gcross2[j] * self.impulse[j];
         }
     }
 
@@ -125,38 +100,21 @@ pub(crate) struct VelocityConstraintNormalPart<N: SimdRealField + Copy> {
     pub gcross1: AngVector<N>,
     pub gcross2: AngVector<N>,
     pub rhs: N,
+    pub rhs_wo_bias: N,
     pub impulse: N,
     pub r: N,
 }
 
 impl<N: SimdRealField + Copy> VelocityConstraintNormalPart<N> {
-    #[cfg(any(not(target_arch = "wasm32"), feature = "simd-is-enabled"))]
     fn zero() -> Self {
         Self {
             gcross1: na::zero(),
             gcross2: na::zero(),
             rhs: na::zero(),
+            rhs_wo_bias: na::zero(),
             impulse: na::zero(),
             r: na::zero(),
         }
-    }
-
-    #[inline]
-    pub fn warmstart(
-        &self,
-        dir1: &Vector<N>,
-        im1: N,
-        im2: N,
-        mj_lambda1: &mut DeltaVel<N>,
-        mj_lambda2: &mut DeltaVel<N>,
-    ) where
-        AngVector<N>: WDot<AngVector<N>, Result = N>,
-    {
-        mj_lambda1.linear += dir1 * (im1 * self.impulse);
-        mj_lambda1.angular += self.gcross1 * self.impulse;
-
-        mj_lambda2.linear += dir1 * (-im2 * self.impulse);
-        mj_lambda2.angular += self.gcross2 * self.impulse;
     }
 
     #[inline]
@@ -193,40 +151,10 @@ pub(crate) struct VelocityConstraintElement<N: SimdRealField + Copy> {
 }
 
 impl<N: SimdRealField + Copy> VelocityConstraintElement<N> {
-    #[cfg(any(not(target_arch = "wasm32"), feature = "simd-is-enabled"))]
     pub fn zero() -> Self {
         Self {
             normal_part: VelocityConstraintNormalPart::zero(),
             tangent_part: VelocityConstraintTangentPart::zero(),
-        }
-    }
-
-    #[inline]
-    pub fn warmstart_group(
-        elements: &[Self],
-        dir1: &Vector<N>,
-        #[cfg(feature = "dim3")] tangent1: &Vector<N>,
-        im1: N,
-        im2: N,
-        mj_lambda1: &mut DeltaVel<N>,
-        mj_lambda2: &mut DeltaVel<N>,
-    ) where
-        Vector<N>: WBasis,
-        AngVector<N>: WDot<AngVector<N>, Result = N>,
-        N::Element: SimdRealField + Copy,
-    {
-        #[cfg(feature = "dim3")]
-        let tangents1 = [tangent1, &dir1.cross(&tangent1)];
-        #[cfg(feature = "dim2")]
-        let tangents1 = [&dir1.orthonormal_vector()];
-
-        for element in elements {
-            element
-                .tangent_part
-                .warmstart(tangents1, im1, im2, mj_lambda1, mj_lambda2);
-            element
-                .normal_part
-                .warmstart(dir1, im1, im2, mj_lambda1, mj_lambda2);
         }
     }
 
@@ -240,28 +168,34 @@ impl<N: SimdRealField + Copy> VelocityConstraintElement<N> {
         limit: N,
         mj_lambda1: &mut DeltaVel<N>,
         mj_lambda2: &mut DeltaVel<N>,
+        solve_normal: bool,
+        solve_friction: bool,
     ) where
         Vector<N>: WBasis,
         AngVector<N>: WDot<AngVector<N>, Result = N>,
         N::Element: SimdRealField + Copy,
     {
-        // Solve friction.
-        #[cfg(feature = "dim3")]
-        let tangents1 = [tangent1, &dir1.cross(&tangent1)];
-        #[cfg(feature = "dim2")]
-        let tangents1 = [&dir1.orthonormal_vector()];
-
-        for element in elements.iter_mut() {
-            let limit = limit * element.normal_part.impulse;
-            let part = &mut element.tangent_part;
-            part.solve(tangents1, im1, im2, limit, mj_lambda1, mj_lambda2);
+        // Solve penetration.
+        if solve_normal {
+            for element in elements.iter_mut() {
+                element
+                    .normal_part
+                    .solve(&dir1, im1, im2, mj_lambda1, mj_lambda2);
+            }
         }
 
-        // Solve penetration.
-        for element in elements.iter_mut() {
-            element
-                .normal_part
-                .solve(&dir1, im1, im2, mj_lambda1, mj_lambda2);
+        // Solve friction.
+        if solve_friction {
+            #[cfg(feature = "dim3")]
+            let tangents1 = [tangent1, &dir1.cross(&tangent1)];
+            #[cfg(feature = "dim2")]
+            let tangents1 = [&dir1.orthonormal_vector()];
+
+            for element in elements.iter_mut() {
+                let limit = limit * element.normal_part.impulse;
+                let part = &mut element.tangent_part;
+                part.solve(tangents1, im1, im2, limit, mj_lambda1, mj_lambda2);
+            }
         }
     }
 }

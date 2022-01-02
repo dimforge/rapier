@@ -58,10 +58,10 @@ pub fn main() {
         ("Stacks", stacks3::init_world),
         ("Pyramid", pyramid3::init_world),
         ("Trimesh", trimesh3::init_world),
-        ("Joint ball", joint_ball3::init_world),
-        ("Joint fixed", joint_fixed3::init_world),
-        ("Joint revolute", joint_revolute3::init_world),
-        ("Joint prismatic", joint_prismatic3::init_world),
+        ("ImpulseJoint ball", joint_ball3::init_world),
+        ("ImpulseJoint fixed", joint_fixed3::init_world),
+        ("ImpulseJoint revolute", joint_revolute3::init_world),
+        ("ImpulseJoint prismatic", joint_prismatic3::init_world),
         ("Keva tower", keva3::init_world),
     ];
 

@@ -1,22 +1,28 @@
 use super::AnyJointVelocityConstraint;
 use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
+use crate::dynamics::solver::GenericVelocityConstraint;
 use crate::dynamics::{
     solver::{AnyVelocityConstraint, DeltaVel},
-    IntegrationParameters, JointGraphEdge, RigidBodyForces, RigidBodyVelocity,
+    IntegrationParameters, JointGraphEdge, MultibodyJointSet, RigidBodyForces, RigidBodyType,
+    RigidBodyVelocity,
 };
 use crate::dynamics::{IslandManager, RigidBodyIds, RigidBodyMassProps};
 use crate::geometry::ContactManifold;
 use crate::math::Real;
+use crate::prelude::{RigidBodyActivation, RigidBodyDamping, RigidBodyPosition};
 use crate::utils::WAngularInertia;
+use na::DVector;
 
 pub(crate) struct VelocitySolver {
     pub mj_lambdas: Vec<DeltaVel<Real>>,
+    pub generic_mj_lambdas: DVector<Real>,
 }
 
 impl VelocitySolver {
     pub fn new() -> Self {
         Self {
             mj_lambdas: Vec::new(),
+            generic_mj_lambdas: DVector::zeros(0),
         }
     }
 
@@ -26,19 +32,30 @@ impl VelocitySolver {
         params: &IntegrationParameters,
         islands: &IslandManager,
         bodies: &mut Bodies,
+        multibodies: &mut MultibodyJointSet,
         manifolds_all: &mut [&mut ContactManifold],
         joints_all: &mut [JointGraphEdge],
         contact_constraints: &mut [AnyVelocityConstraint],
+        generic_contact_constraints: &mut [GenericVelocityConstraint],
+        generic_contact_jacobians: &DVector<Real>,
         joint_constraints: &mut [AnyJointVelocityConstraint],
+        generic_joint_jacobians: &DVector<Real>,
     ) where
         Bodies: ComponentSet<RigidBodyForces>
             + ComponentSet<RigidBodyIds>
+            + ComponentSet<RigidBodyType>
             + ComponentSetMut<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>,
+            + ComponentSetMut<RigidBodyMassProps>
+            + ComponentSetMut<RigidBodyPosition>
+            + ComponentSetMut<RigidBodyActivation>
+            + ComponentSet<RigidBodyDamping>,
     {
         self.mj_lambdas.clear();
         self.mj_lambdas
             .resize(islands.active_island(island_id).len(), DeltaVel::zero());
+
+        let total_multibodies_ndofs = multibodies.multibodies.iter().map(|m| m.1.ndofs()).sum();
+        self.generic_mj_lambdas = DVector::zeros(total_multibodies_ndofs);
 
         // Initialize delta-velocities (`mj_lambdas`) with external forces (gravity etc):
         for handle in islands.active_island(island_id) {
@@ -53,43 +70,196 @@ impl VelocitySolver {
             dvel.linear += forces.force * (mprops.effective_inv_mass * params.dt);
         }
 
-        /*
-         * Warmstart constraints.
-         */
-        for constraint in &*joint_constraints {
-            constraint.warmstart(&mut self.mj_lambdas[..]);
-        }
-
-        for constraint in &*contact_constraints {
-            constraint.warmstart(&mut self.mj_lambdas[..]);
+        for (_, multibody) in multibodies.multibodies.iter_mut() {
+            let mut mj_lambdas = self
+                .generic_mj_lambdas
+                .rows_mut(multibody.solver_id, multibody.ndofs());
+            mj_lambdas.axpy(params.dt, &multibody.accelerations, 0.0);
         }
 
         /*
          * Solve constraints.
          */
-        for _ in 0..params.max_velocity_iterations {
+        for i in 0..params.max_velocity_iterations {
+            let solve_friction = params.interleave_restitution_and_friction_resolution
+                && params.max_velocity_friction_iterations + i >= params.max_velocity_iterations;
+
             for constraint in &mut *joint_constraints {
-                constraint.solve(&mut self.mj_lambdas[..]);
+                constraint.solve(
+                    generic_joint_jacobians,
+                    &mut self.mj_lambdas[..],
+                    &mut self.generic_mj_lambdas,
+                );
             }
 
             for constraint in &mut *contact_constraints {
-                constraint.solve(&mut self.mj_lambdas[..]);
+                constraint.solve(&mut self.mj_lambdas[..], true, solve_friction);
+            }
+
+            for constraint in &mut *generic_contact_constraints {
+                constraint.solve(
+                    generic_contact_jacobians,
+                    &mut self.mj_lambdas[..],
+                    &mut self.generic_mj_lambdas,
+                    true,
+                    solve_friction,
+                );
             }
         }
 
-        // Update velocities.
+        let remaining_friction_iterations =
+            if !params.interleave_restitution_and_friction_resolution {
+                params.max_velocity_friction_iterations
+            } else if params.max_velocity_friction_iterations > params.max_velocity_iterations {
+                params.max_velocity_friction_iterations - params.max_velocity_iterations
+            } else {
+                0
+            };
+
+        for _ in 0..remaining_friction_iterations {
+            for constraint in &mut *contact_constraints {
+                constraint.solve(&mut self.mj_lambdas[..], false, true);
+            }
+
+            for constraint in &mut *generic_contact_constraints {
+                constraint.solve(
+                    generic_contact_jacobians,
+                    &mut self.mj_lambdas[..],
+                    &mut self.generic_mj_lambdas,
+                    false,
+                    true,
+                );
+            }
+        }
+
+        // Update positions.
         for handle in islands.active_island(island_id) {
-            let (ids, mprops): (&RigidBodyIds, &RigidBodyMassProps) = bodies.index_bundle(handle.0);
+            if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
+                let multibody = multibodies
+                    .get_multibody_mut_internal(link.multibody)
+                    .unwrap();
 
-            let dvel = self.mj_lambdas[ids.active_set_offset];
-            let dangvel = mprops
-                .effective_world_inv_inertia_sqrt
-                .transform_vector(dvel.angular);
+                if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
+                    let mj_lambdas = self
+                        .generic_mj_lambdas
+                        .rows(multibody.solver_id, multibody.ndofs());
+                    let prev_vels = multibody.velocities.clone(); // FIXME: avoid allocations.
+                    multibody.velocities += mj_lambdas;
+                    multibody.integrate_next(params.dt);
+                    multibody.forward_kinematics_next(bodies, false);
 
-            bodies.map_mut_internal(handle.0, |vels| {
-                vels.linvel += dvel.linear;
-                vels.angvel += dangvel;
-            });
+                    if params.max_stabilization_iterations > 0 {
+                        multibody.velocities = prev_vels;
+                    }
+                }
+            } else {
+                let (ids, mprops): (&RigidBodyIds, &RigidBodyMassProps) =
+                    bodies.index_bundle(handle.0);
+
+                let dvel = self.mj_lambdas[ids.active_set_offset];
+                let dangvel = mprops
+                    .effective_world_inv_inertia_sqrt
+                    .transform_vector(dvel.angular);
+
+                // Update positions.
+                let (poss, vels, damping, mprops): (
+                    &RigidBodyPosition,
+                    &RigidBodyVelocity,
+                    &RigidBodyDamping,
+                    &RigidBodyMassProps,
+                ) = bodies.index_bundle(handle.0);
+
+                let mut new_poss = *poss;
+                let mut new_vels = *vels;
+                new_vels.linvel += dvel.linear;
+                new_vels.angvel += dangvel;
+                new_vels = new_vels.apply_damping(params.dt, damping);
+                new_poss.next_position =
+                    new_vels.integrate(params.dt, &poss.position, &mprops.local_mprops.local_com);
+                bodies.set_internal(handle.0, new_poss);
+
+                if params.max_stabilization_iterations == 0 {
+                    bodies.set_internal(handle.0, new_vels);
+                }
+            }
+        }
+
+        if params.max_stabilization_iterations > 0 {
+            for joint in &mut *joint_constraints {
+                joint.remove_bias_from_rhs();
+            }
+            for constraint in &mut *contact_constraints {
+                constraint.remove_bias_from_rhs();
+            }
+            for constraint in &mut *generic_contact_constraints {
+                constraint.remove_bias_from_rhs();
+            }
+
+            for _ in 0..params.max_stabilization_iterations {
+                for constraint in &mut *joint_constraints {
+                    constraint.solve(
+                        generic_joint_jacobians,
+                        &mut self.mj_lambdas[..],
+                        &mut self.generic_mj_lambdas,
+                    );
+                }
+
+                for constraint in &mut *contact_constraints {
+                    constraint.solve(&mut self.mj_lambdas[..], true, true);
+                }
+
+                for constraint in &mut *generic_contact_constraints {
+                    constraint.solve(
+                        generic_contact_jacobians,
+                        &mut self.mj_lambdas[..],
+                        &mut self.generic_mj_lambdas,
+                        true,
+                        true,
+                    );
+                }
+            }
+
+            // Update velocities.
+            for handle in islands.active_island(island_id) {
+                if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
+                    let multibody = multibodies
+                        .get_multibody_mut_internal(link.multibody)
+                        .unwrap();
+
+                    if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
+                        let mj_lambdas = self
+                            .generic_mj_lambdas
+                            .rows(multibody.solver_id, multibody.ndofs());
+                        multibody.velocities += mj_lambdas;
+                    }
+                } else {
+                    let (ids, mprops): (&RigidBodyIds, &RigidBodyMassProps) =
+                        bodies.index_bundle(handle.0);
+
+                    let dvel = self.mj_lambdas[ids.active_set_offset];
+                    let dangvel = mprops
+                        .effective_world_inv_inertia_sqrt
+                        .transform_vector(dvel.angular);
+
+                    // let mut curr_vel_pseudo_energy = 0.0;
+                    bodies.map_mut_internal(handle.0, |vels: &mut RigidBodyVelocity| {
+                        // curr_vel_pseudo_energy = vels.pseudo_kinetic_energy();
+                        vels.linvel += dvel.linear;
+                        vels.angvel += dangvel;
+                    });
+
+                    // let impulse_vel_pseudo_energy = RigidBodyVelocity {
+                    //     linvel: dvel.linear,
+                    //     angvel: dangvel,
+                    // }
+                    // .pseudo_kinetic_energy();
+                    //
+                    // bodies.map_mut_internal(handle.0, |activation: &mut RigidBodyActivation| {
+                    //     activation.energy =
+                    //         impulse_vel_pseudo_energy.max(curr_vel_pseudo_energy / 5.0);
+                    // });
+                }
+            }
         }
 
         // Write impulses back into the manifold structures.
@@ -98,6 +268,10 @@ impl VelocitySolver {
         }
 
         for constraint in &*contact_constraints {
+            constraint.writeback_impulses(manifolds_all);
+        }
+
+        for constraint in &*generic_contact_constraints {
             constraint.writeback_impulses(manifolds_all);
         }
     }

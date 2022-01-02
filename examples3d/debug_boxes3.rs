@@ -7,7 +7,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Ground
@@ -25,10 +26,10 @@ pub fn init_world(testbed: &mut Testbed) {
     }
 
     // Build the dynamic box rigid body.
-    for _ in 0..6 {
+    for _ in 0..2 {
         let rigid_body = RigidBodyBuilder::new_dynamic()
             .translation(vector![1.1, 0.0, 0.0])
-            .rotation(vector![0.8, 0.2, 0.1])
+            // .rotation(vector![0.8, 0.2, 0.1])
             .can_sleep(false)
             .build();
         let handle = bodies.insert(rigid_body);
@@ -39,6 +40,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.look_at(point![10.0, 10.0, 10.0], Point::origin());
 }

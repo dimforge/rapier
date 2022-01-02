@@ -2,7 +2,7 @@
 name    = "rapier-examples-2d"
 version = "0.1.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
-edition = "2018"
+edition = "2021"
 default-run = "all_examples2"
 
 [features]
@@ -19,10 +19,10 @@ lyon       = "0.17"
 usvg       = "0.14"
 
 [dependencies.rapier_testbed2d]
-path = "../build/rapier_testbed2d"
+path = "../crates/rapier_testbed2d"
 
 [dependencies.rapier2d]
-path = "../build/rapier2d"
+path = "../crates/rapier2d"
 
 [[bin]]
 name = "all_examples2"

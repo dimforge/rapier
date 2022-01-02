@@ -7,7 +7,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let mut joints = JointSet::new();
+    let mut impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Create the balls
@@ -46,22 +47,18 @@ pub fn init_world(testbed: &mut Testbed) {
                     // Vertical joint.
                     if i > 0 {
                         let parent_handle = *body_handles.last().unwrap();
-                        let joint = FixedJoint::new(
-                            Isometry::identity(),
-                            Isometry::translation(0.0, shift),
-                        );
-                        joints.insert(parent_handle, child_handle, joint);
+                        let joint =
+                            FixedJoint::new().local_frame2(Isometry::translation(0.0, shift));
+                        impulse_joints.insert(parent_handle, child_handle, joint);
                     }
 
                     // Horizontal joint.
                     if k > 0 {
                         let parent_index = body_handles.len() - num;
                         let parent_handle = body_handles[parent_index];
-                        let joint = FixedJoint::new(
-                            Isometry::identity(),
-                            Isometry::translation(-shift, 0.0),
-                        );
-                        joints.insert(parent_handle, child_handle, joint);
+                        let joint =
+                            FixedJoint::new().local_frame2(Isometry::translation(-shift, 0.0));
+                        impulse_joints.insert(parent_handle, child_handle, joint);
                     }
 
                     body_handles.push(child_handle);
@@ -73,6 +70,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.look_at(point![50.0, 50.0], 5.0);
 }

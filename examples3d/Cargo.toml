@@ -2,7 +2,7 @@
 name    = "rapier-examples-3d"
 version = "0.1.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
-edition = "2018"
+edition = "2021"
 default-run = "all_examples3"
 
 [features]
@@ -20,10 +20,10 @@ wasm-bindgen = "0.2"
 obj-rs = { version =  "0.6", default-features = false }
 
 [dependencies.rapier_testbed3d]
-path = "../build/rapier_testbed3d"
+path = "../crates/rapier_testbed3d"
 
 [dependencies.rapier3d]
-path = "../build/rapier3d"
+path = "../crates/rapier3d"
 
 [[bin]]
 name = "all_examples3"

@@ -2,23 +2,20 @@ use super::ParallelInteractionGroups;
 use super::{AnyJointVelocityConstraint, AnyVelocityConstraint, ThreadContext};
 use crate::data::ComponentSet;
 use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
-use crate::dynamics::solver::{
-    AnyJointPositionConstraint, AnyPositionConstraint, InteractionGroups, PositionConstraint,
-    PositionGroundConstraint, VelocityConstraint, VelocityGroundConstraint,
-};
+use crate::dynamics::solver::generic_velocity_constraint::GenericVelocityConstraint;
+use crate::dynamics::solver::{InteractionGroups, VelocityConstraint, VelocityGroundConstraint};
 use crate::dynamics::{
-    IntegrationParameters, IslandManager, JointGraphEdge, RigidBodyIds, RigidBodyMassProps,
-    RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
+    IntegrationParameters, IslandManager, JointGraphEdge, MultibodyJointSet, RigidBodyIds,
+    RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::ContactManifold;
+use crate::math::Real;
 #[cfg(feature = "simd-is-enabled")]
 use crate::{
-    dynamics::solver::{
-        WPositionConstraint, WPositionGroundConstraint, WVelocityConstraint,
-        WVelocityGroundConstraint,
-    },
+    dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint},
     math::SIMD_WIDTH,
 };
+use na::DVector;
 use std::sync::atomic::Ordering;
 
 // pub fn init_constraint_groups(
@@ -27,13 +24,13 @@ use std::sync::atomic::Ordering;
 //     bodies: &impl ComponentSet<RigidBody>,
 //     manifolds: &mut [&mut ContactManifold],
 //     manifold_groups: &ParallelInteractionGroups,
-//     joints: &mut [JointGraphEdge],
+//     impulse_joints: &mut [JointGraphEdge],
 //     joint_groups: &ParallelInteractionGroups,
 // ) {
 //     self.part
 //         .init_constraints_groups(island_id, bodies, manifolds, manifold_groups);
 //     self.joint_part
-//         .init_constraints_groups(island_id, bodies, joints, joint_groups);
+//         .init_constraints_groups(island_id, bodies, impulse_joints, joint_groups);
 // }
 
 pub(crate) enum ConstraintDesc {
@@ -45,45 +42,52 @@ pub(crate) enum ConstraintDesc {
     GroundGrouped([usize; SIMD_WIDTH]),
 }
 
-pub(crate) struct ParallelSolverConstraints<VelocityConstraint, PositionConstraint> {
+pub(crate) struct ParallelSolverConstraints<VelocityConstraint, GenVelocityConstraint> {
+    pub generic_jacobians: DVector<Real>,
     pub not_ground_interactions: Vec<usize>,
     pub ground_interactions: Vec<usize>,
+    pub generic_not_ground_interactions: Vec<usize>,
+    pub generic_ground_interactions: Vec<usize>,
     pub interaction_groups: InteractionGroups,
     pub ground_interaction_groups: InteractionGroups,
     pub velocity_constraints: Vec<VelocityConstraint>,
-    pub position_constraints: Vec<PositionConstraint>,
+    pub generic_velocity_constraints: Vec<GenVelocityConstraint>,
     pub constraint_descs: Vec<(usize, ConstraintDesc)>,
     pub parallel_desc_groups: Vec<usize>,
 }
 
-impl<VelocityConstraint, PositionConstraint>
-    ParallelSolverConstraints<VelocityConstraint, PositionConstraint>
+impl<VelocityConstraint, GenVelocityConstraint>
+    ParallelSolverConstraints<VelocityConstraint, GenVelocityConstraint>
 {
     pub fn new() -> Self {
         Self {
-            not_ground_interactions: Vec::new(),
-            ground_interactions: Vec::new(),
+            generic_jacobians: DVector::zeros(0),
+            not_ground_interactions: vec![],
+            ground_interactions: vec![],
+            generic_not_ground_interactions: vec![],
+            generic_ground_interactions: vec![],
             interaction_groups: InteractionGroups::new(),
             ground_interaction_groups: InteractionGroups::new(),
-            velocity_constraints: Vec::new(),
-            position_constraints: Vec::new(),
-            constraint_descs: Vec::new(),
-            parallel_desc_groups: Vec::new(),
+            velocity_constraints: vec![],
+            generic_velocity_constraints: vec![],
+            constraint_descs: vec![],
+            parallel_desc_groups: vec![],
         }
     }
 }
 
 macro_rules! impl_init_constraints_group {
-    ($VelocityConstraint: ty, $PositionConstraint: ty, $Interaction: ty,
+    ($VelocityConstraint: ty, $GenVelocityConstraint: ty, $Interaction: ty,
      $categorize: ident, $group: ident,
      $data: ident$(.$constraint_index: ident)*,
-     $num_active_constraints: path, $empty_velocity_constraint: expr, $empty_position_constraint: expr $(, $weight: ident)*) => {
-        impl ParallelSolverConstraints<$VelocityConstraint, $PositionConstraint> {
+     $num_active_constraints: path, $empty_velocity_constraint: expr $(, $weight: ident)*) => {
+        impl ParallelSolverConstraints<$VelocityConstraint, $GenVelocityConstraint> {
             pub fn init_constraint_groups<Bodies>(
                 &mut self,
                 island_id: usize,
                 islands: &IslandManager,
                 bodies: &Bodies,
+                multibody_joints: &MultibodyJointSet,
                 interactions: &mut [$Interaction],
                 interaction_groups: &ParallelInteractionGroups,
             ) where Bodies: ComponentSet<RigidBodyType> + ComponentSet<RigidBodyIds> {
@@ -103,10 +107,13 @@ macro_rules! impl_init_constraints_group {
                     self.ground_interactions.clear();
                     $categorize(
                         bodies,
+                        multibody_joints,
                         interactions,
                         group,
                         &mut self.ground_interactions,
                         &mut self.not_ground_interactions,
+                        &mut self.generic_ground_interactions,
+                        &mut self.generic_not_ground_interactions,
                     );
 
                     #[cfg(feature = "simd-is-enabled")]
@@ -192,9 +199,6 @@ macro_rules! impl_init_constraints_group {
                 self.velocity_constraints.clear();
                 self.velocity_constraints
                     .resize_with(total_num_constraints, || $empty_velocity_constraint);
-                self.position_constraints.clear();
-                self.position_constraints
-                    .resize_with(total_num_constraints, || $empty_position_constraint);
             }
         }
     }
@@ -202,30 +206,28 @@ macro_rules! impl_init_constraints_group {
 
 impl_init_constraints_group!(
     AnyVelocityConstraint,
-    AnyPositionConstraint,
+    GenericVelocityConstraint,
     &mut ContactManifold,
     categorize_contacts,
     group_manifolds,
     data.constraint_index,
     VelocityConstraint::num_active_constraints,
-    AnyVelocityConstraint::Empty,
-    AnyPositionConstraint::Empty
+    AnyVelocityConstraint::Empty
 );
 
 impl_init_constraints_group!(
     AnyJointVelocityConstraint,
-    AnyJointPositionConstraint,
+    (),
     JointGraphEdge,
     categorize_joints,
     group_joints,
     constraint_index,
     AnyJointVelocityConstraint::num_active_constraints,
     AnyJointVelocityConstraint::Empty,
-    AnyJointPositionConstraint::Empty,
     weight
 );
 
-impl ParallelSolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
+impl ParallelSolverConstraints<AnyVelocityConstraint, GenericVelocityConstraint> {
     pub fn fill_constraints<Bodies>(
         &mut self,
         thread: &ThreadContext,
@@ -247,24 +249,20 @@ impl ParallelSolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
                     ConstraintDesc::NongroundNongrouped(manifold_id) => {
                         let manifold = &*manifolds_all[*manifold_id];
                         VelocityConstraint::generate(params, *manifold_id, manifold, bodies, &mut self.velocity_constraints, false);
-                        PositionConstraint::generate(params, manifold, bodies, &mut self.position_constraints, false);
                     }
                     ConstraintDesc::GroundNongrouped(manifold_id) => {
                         let manifold = &*manifolds_all[*manifold_id];
                         VelocityGroundConstraint::generate(params, *manifold_id, manifold, bodies, &mut self.velocity_constraints, false);
-                        PositionGroundConstraint::generate(params, manifold, bodies, &mut self.position_constraints, false);
                     }
                     #[cfg(feature = "simd-is-enabled")]
                     ConstraintDesc::NongroundGrouped(manifold_id) => {
                         let manifolds = gather![|ii| &*manifolds_all[manifold_id[ii]]];
                         WVelocityConstraint::generate(params, *manifold_id, manifolds, bodies, &mut self.velocity_constraints, false);
-                        WPositionConstraint::generate(params, manifolds, bodies, &mut self.position_constraints, false);
                     }
                     #[cfg(feature = "simd-is-enabled")]
                     ConstraintDesc::GroundGrouped(manifold_id) => {
                         let manifolds = gather![|ii| &*manifolds_all[manifold_id[ii]]];
                         WVelocityGroundConstraint::generate(params, *manifold_id, manifolds, bodies, &mut self.velocity_constraints, false);
-                        WPositionGroundConstraint::generate(params, manifolds, bodies, &mut self.position_constraints, false);
                     }
                 }
             }
@@ -272,7 +270,7 @@ impl ParallelSolverConstraints<AnyVelocityConstraint, AnyPositionConstraint> {
     }
 }
 
-impl ParallelSolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint> {
+impl ParallelSolverConstraints<AnyJointVelocityConstraint, ()> {
     pub fn fill_constraints<Bodies>(
         &mut self,
         thread: &ThreadContext,
@@ -286,6 +284,9 @@ impl ParallelSolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConst
             + ComponentSet<RigidBodyIds>
             + ComponentSet<RigidBodyType>,
     {
+        return;
+
+        /*
         let descs = &self.constraint_descs;
 
         crate::concurrent_loop! {
@@ -295,35 +296,29 @@ impl ParallelSolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConst
                     ConstraintDesc::NongroundNongrouped(joint_id) => {
                         let joint = &joints_all[*joint_id].weight;
                         let velocity_constraint = AnyJointVelocityConstraint::from_joint(params, *joint_id, joint, bodies);
-                        let position_constraint = AnyJointPositionConstraint::from_joint(joint, bodies);
                         self.velocity_constraints[joint.constraint_index] = velocity_constraint;
-                        self.position_constraints[joint.constraint_index] = position_constraint;
                     }
                     ConstraintDesc::GroundNongrouped(joint_id) => {
                         let joint = &joints_all[*joint_id].weight;
                         let velocity_constraint = AnyJointVelocityConstraint::from_joint_ground(params, *joint_id, joint, bodies);
-                        let position_constraint = AnyJointPositionConstraint::from_joint_ground(joint, bodies);
                         self.velocity_constraints[joint.constraint_index] = velocity_constraint;
-                        self.position_constraints[joint.constraint_index] = position_constraint;
                     }
                     #[cfg(feature = "simd-is-enabled")]
                     ConstraintDesc::NongroundGrouped(joint_id) => {
-                        let joints = gather![|ii| &joints_all[joint_id[ii]].weight];
-                        let velocity_constraint = AnyJointVelocityConstraint::from_wide_joint(params, *joint_id, joints, bodies);
-                        let position_constraint = AnyJointPositionConstraint::from_wide_joint(joints, bodies);
-                        self.velocity_constraints[joints[0].constraint_index] = velocity_constraint;
-                        self.position_constraints[joints[0].constraint_index] = position_constraint;
+                        let impulse_joints = gather![|ii| &joints_all[joint_id[ii]].weight];
+                        let velocity_constraint = AnyJointVelocityConstraint::from_wide_joint(params, *joint_id, impulse_joints, bodies);
+                        self.velocity_constraints[impulse_joints[0].constraint_index] = velocity_constraint;
                     }
                     #[cfg(feature = "simd-is-enabled")]
                     ConstraintDesc::GroundGrouped(joint_id) => {
-                        let joints = gather![|ii| &joints_all[joint_id[ii]].weight];
-                        let velocity_constraint = AnyJointVelocityConstraint::from_wide_joint_ground(params, *joint_id, joints, bodies);
-                        let position_constraint = AnyJointPositionConstraint::from_wide_joint_ground(joints, bodies);
-                        self.velocity_constraints[joints[0].constraint_index] = velocity_constraint;
-                        self.position_constraints[joints[0].constraint_index] = position_constraint;
+                        let impulse_joints = gather![|ii| &joints_all[joint_id[ii]].weight];
+                        let velocity_constraint = AnyJointVelocityConstraint::from_wide_joint_ground(params, *joint_id, impulse_joints, bodies);
+                        self.velocity_constraints[impulse_joints[0].constraint_index] = velocity_constraint;
                     }
                 }
             }
         }
+
+         */
     }
 }

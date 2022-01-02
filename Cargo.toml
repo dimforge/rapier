@@ -1,21 +1,17 @@
 [workspace]
-members = [ "build/rapier2d", "build/rapier2d-f64", "build/rapier_testbed2d", "examples2d", "benchmarks2d",
-            "build/rapier3d", "build/rapier3d-f64", "build/rapier_testbed3d", "examples3d", "benchmarks3d" ]
+members = [ "crates/rapier2d", "crates/rapier2d-f64", "crates/rapier_testbed2d", "examples2d", "benchmarks2d",
+            "crates/rapier3d", "crates/rapier3d-f64", "crates/rapier_testbed3d", "examples3d", "benchmarks3d" ]
 resolver = "2"
 
 [patch.crates-io]
 #wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }
 
 #simba = { path = "../simba" }
-#ncollide2d = { path = "../ncollide/build/ncollide2d" }
-#ncollide3d = { path = "../ncollide/build/ncollide3d" }
-#nphysics2d = { path = "../nphysics/build/nphysics2d" }
-#nphysics3d = { path = "../nphysics/build/nphysics3d" }
 #kiss3d = { path = "../kiss3d" }
-#parry2d = { path = "../parry/build/parry2d" }
-#parry3d = { path = "../parry/build/parry3d" }
-#parry2d-f64 = { path = "../parry/build/parry2d-f64" }
-#parry3d-f64 = { path = "../parry/build/parry3d-f64" }
+#parry2d = { path = "../parry/crates/parry2d" }
+#parry3d = { path = "../parry/crates/parry3d" }
+#parry2d-f64 = { path = "../parry/crates/parry2d-f64" }
+#parry3d-f64 = { path = "../parry/crates/parry3d-f64" }
 #nalgebra = { path = "../nalgebra" }
 
 #kiss3d = { git = "https://github.com/sebcrozet/kiss3d" }
@@ -24,14 +20,10 @@ resolver = "2"
 #parry3d = { git = "https://github.com/dimforge/parry", branch = "special_cases" }
 #parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "special_cases" }
 #parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "special_cases" }
-#ncollide2d = { git = "https://github.com/dimforge/ncollide" }
-#ncollide3d = { git = "https://github.com/dimforge/ncollide" }
-#nphysics2d = { git = "https://github.com/dimforge/nphysics" }
-#nphysics3d = { git = "https://github.com/dimforge/nphysics" }
 
 [profile.release]
 #debug = true
-codegen-units = 1
+#codegen-units = 1
 #opt-level = 1
 #lto = true
 

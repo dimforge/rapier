@@ -7,7 +7,8 @@ pub fn init_world(harness: &mut Harness) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Ground
@@ -59,7 +60,7 @@ pub fn init_world(harness: &mut Harness) {
     /*
      * Set up the harness.
      */
-    harness.set_world(bodies, colliders, joints);
+    harness.set_world(bodies, colliders, impulse_joints, multibody_joints);
 }
 
 fn main() {

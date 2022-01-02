@@ -41,26 +41,37 @@ impl AnyVelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
+    pub fn remove_bias_from_rhs(&mut self) {
         match self {
-            AnyVelocityConstraint::NongroupedGround(c) => c.warmstart(mj_lambdas),
-            AnyVelocityConstraint::Nongrouped(c) => c.warmstart(mj_lambdas),
+            AnyVelocityConstraint::Nongrouped(c) => c.remove_bias_from_rhs(),
+            AnyVelocityConstraint::NongroupedGround(c) => c.remove_bias_from_rhs(),
             #[cfg(feature = "simd-is-enabled")]
-            AnyVelocityConstraint::GroupedGround(c) => c.warmstart(mj_lambdas),
+            AnyVelocityConstraint::Grouped(c) => c.remove_bias_from_rhs(),
             #[cfg(feature = "simd-is-enabled")]
-            AnyVelocityConstraint::Grouped(c) => c.warmstart(mj_lambdas),
-            AnyVelocityConstraint::Empty => unreachable!(),
+            AnyVelocityConstraint::GroupedGround(c) => c.remove_bias_from_rhs(),
+            AnyVelocityConstraint::Empty => {}
         }
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+    pub fn solve(
+        &mut self,
+        mj_lambdas: &mut [DeltaVel<Real>],
+        solve_normal: bool,
+        solve_friction: bool,
+    ) {
         match self {
-            AnyVelocityConstraint::NongroupedGround(c) => c.solve(mj_lambdas),
-            AnyVelocityConstraint::Nongrouped(c) => c.solve(mj_lambdas),
+            AnyVelocityConstraint::NongroupedGround(c) => {
+                c.solve(mj_lambdas, solve_normal, solve_friction)
+            }
+            AnyVelocityConstraint::Nongrouped(c) => {
+                c.solve(mj_lambdas, solve_normal, solve_friction)
+            }
             #[cfg(feature = "simd-is-enabled")]
-            AnyVelocityConstraint::GroupedGround(c) => c.solve(mj_lambdas),
+            AnyVelocityConstraint::GroupedGround(c) => {
+                c.solve(mj_lambdas, solve_normal, solve_friction)
+            }
             #[cfg(feature = "simd-is-enabled")]
-            AnyVelocityConstraint::Grouped(c) => c.solve(mj_lambdas),
+            AnyVelocityConstraint::Grouped(c) => c.solve(mj_lambdas, solve_normal, solve_friction),
             AnyVelocityConstraint::Empty => unreachable!(),
         }
     }
@@ -83,8 +94,6 @@ pub(crate) struct VelocityConstraint {
     pub dir1: Vector<Real>, // Non-penetration force direction for the first body.
     #[cfg(feature = "dim3")]
     pub tangent1: Vector<Real>, // One of the friction force directions.
-    #[cfg(feature = "dim3")]
-    pub tangent_rot1: na::UnitComplex<Real>, // Orientation of the tangent basis wrt. the reference basis.
     pub im1: Real,
     pub im2: Real,
     pub limit: Real,
@@ -118,7 +127,7 @@ impl VelocityConstraint {
         assert_eq!(manifold.data.relative_dominance, 0);
 
         let inv_dt = params.inv_dt();
-        let velocity_based_erp_inv_dt = params.velocity_based_erp_inv_dt();
+        let erp_inv_dt = params.erp_inv_dt();
 
         let handle1 = manifold.data.rigid_body1.unwrap();
         let handle2 = manifold.data.rigid_body2.unwrap();
@@ -130,12 +139,11 @@ impl VelocityConstraint {
         let mj_lambda1 = ids1.active_set_offset;
         let mj_lambda2 = ids2.active_set_offset;
         let force_dir1 = -manifold.data.normal;
-        let warmstart_coeff = manifold.data.warmstart_multiplier * params.warmstart_coeff;
 
         #[cfg(feature = "dim2")]
         let tangents1 = force_dir1.orthonormal_basis();
         #[cfg(feature = "dim3")]
-        let (tangents1, tangent_rot1) =
+        let tangents1 =
             super::compute_tangent_contact_directions(&force_dir1, &vels1.linvel, &vels2.linvel);
 
         for (_l, manifold_points) in manifold
@@ -149,8 +157,6 @@ impl VelocityConstraint {
                 dir1: force_dir1,
                 #[cfg(feature = "dim3")]
                 tangent1: tangents1[0],
-                #[cfg(feature = "dim3")]
-                tangent_rot1,
                 elements: [VelocityConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im1: mprops1.effective_inv_mass,
                 im2: mprops2.effective_inv_mass,
@@ -171,7 +177,7 @@ impl VelocityConstraint {
             // avoid spurious copying.
             // Is this optimization beneficial when targeting non-WASM platforms?
             //
-            // NOTE: joints have the same problem, but it is not easy to refactor the code that way
+            // NOTE: impulse_joints have the same problem, but it is not easy to refactor the code that way
             // for the moment.
             #[cfg(target_arch = "wasm32")]
             let constraint = if push {
@@ -198,7 +204,6 @@ impl VelocityConstraint {
                 #[cfg(feature = "dim3")]
                 {
                     constraint.tangent1 = tangents1[0];
-                    constraint.tangent_rot1 = tangent_rot1;
                 }
                 constraint.im1 = mprops1.effective_inv_mass;
                 constraint.im2 = mprops2.effective_inv_mass;
@@ -217,8 +222,6 @@ impl VelocityConstraint {
 
                 let vel1 = vels1.linvel + vels1.angvel.gcross(dp1);
                 let vel2 = vels2.linvel + vels2.angvel.gcross(dp2);
-
-                let warmstart_correction;
 
                 constraint.limit = manifold_point.friction;
                 constraint.manifold_contact_id[k] = manifold_point.contact_id;
@@ -241,34 +244,28 @@ impl VelocityConstraint {
                     let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
                     let is_resting = 1.0 - is_bouncy;
 
-                    let mut rhs = (1.0 + is_bouncy * manifold_point.restitution)
+                    let mut rhs_wo_bias = (1.0 + is_bouncy * manifold_point.restitution)
                         * (vel1 - vel2).dot(&force_dir1);
-                    rhs += manifold_point.dist.max(0.0) * inv_dt;
-                    rhs *= is_bouncy + is_resting * params.velocity_solve_fraction;
-                    rhs += is_resting * velocity_based_erp_inv_dt * manifold_point.dist.min(0.0);
-                    warmstart_correction = (params.warmstart_correction_slope
-                        / (rhs - manifold_point.prev_rhs).abs())
-                    .min(warmstart_coeff);
+                    rhs_wo_bias +=
+                        (manifold_point.dist + params.allowed_linear_error).max(0.0) * inv_dt;
+                    rhs_wo_bias *= is_bouncy + is_resting * params.velocity_solve_fraction;
+                    let rhs_bias = /* is_resting
+                        * */  erp_inv_dt
+                        * (manifold_point.dist + params.allowed_linear_error).min(0.0);
 
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
                         gcross1,
                         gcross2,
-                        rhs,
-                        impulse: manifold_point.warmstart_impulse * warmstart_correction,
+                        rhs: rhs_wo_bias + rhs_bias,
+                        rhs_wo_bias,
+                        impulse: 0.0,
                         r,
                     };
                 }
 
                 // Tangent parts.
                 {
-                    #[cfg(feature = "dim3")]
-                    let impulse = tangent_rot1
-                        * manifold_points[k].warmstart_tangent_impulse
-                        * warmstart_correction;
-                    #[cfg(feature = "dim2")]
-                    let impulse =
-                        [manifold_points[k].warmstart_tangent_impulse * warmstart_correction];
-                    constraint.elements[k].tangent_part.impulse = impulse;
+                    constraint.elements[k].tangent_part.impulse = na::zero();
 
                     for j in 0..DIM - 1 {
                         let gcross1 = mprops1
@@ -303,26 +300,12 @@ impl VelocityConstraint {
         }
     }
 
-    pub fn warmstart(&self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda1 = DeltaVel::zero();
-        let mut mj_lambda2 = DeltaVel::zero();
-
-        VelocityConstraintElement::warmstart_group(
-            &self.elements[..self.num_contacts as usize],
-            &self.dir1,
-            #[cfg(feature = "dim3")]
-            &self.tangent1,
-            self.im1,
-            self.im2,
-            &mut mj_lambda1,
-            &mut mj_lambda2,
-        );
-
-        mj_lambdas[self.mj_lambda1 as usize] += mj_lambda1;
-        mj_lambdas[self.mj_lambda2 as usize] += mj_lambda2;
-    }
-
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
+    pub fn solve(
+        &mut self,
+        mj_lambdas: &mut [DeltaVel<Real>],
+        solve_normal: bool,
+        solve_friction: bool,
+    ) {
         let mut mj_lambda1 = mj_lambdas[self.mj_lambda1 as usize];
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
@@ -336,6 +319,8 @@ impl VelocityConstraint {
             self.limit,
             &mut mj_lambda1,
             &mut mj_lambda2,
+            solve_normal,
+            solve_friction,
         );
 
         mj_lambdas[self.mj_lambda1 as usize] = mj_lambda1;
@@ -349,7 +334,6 @@ impl VelocityConstraint {
             let contact_id = self.manifold_contact_id[k];
             let active_contact = &mut manifold.points[contact_id as usize];
             active_contact.data.impulse = self.elements[k].normal_part.impulse;
-            active_contact.data.rhs = self.elements[k].normal_part.rhs;
 
             #[cfg(feature = "dim2")]
             {
@@ -357,10 +341,14 @@ impl VelocityConstraint {
             }
             #[cfg(feature = "dim3")]
             {
-                active_contact.data.tangent_impulse = self
-                    .tangent_rot1
-                    .inverse_transform_vector(&self.elements[k].tangent_part.impulse);
+                active_contact.data.tangent_impulse = self.elements[k].tangent_part.impulse;
             }
+        }
+    }
+
+    pub fn remove_bias_from_rhs(&mut self) {
+        for elt in &mut self.elements {
+            elt.normal_part.rhs = elt.normal_part.rhs_wo_bias;
         }
     }
 }
@@ -371,7 +359,7 @@ pub(crate) fn compute_tangent_contact_directions<N>(
     force_dir1: &Vector<N>,
     linvel1: &Vector<N>,
     linvel2: &Vector<N>,
-) -> ([Vector<N>; DIM - 1], na::UnitComplex<N>)
+) -> [Vector<N>; DIM - 1]
 where
     N: na::SimdRealField + Copy,
     N::Element: na::RealField + Copy,
@@ -399,18 +387,5 @@ where
     let tangent1 = tangent_fallback.select(use_fallback, tangent_relative_linvel);
     let bitangent1 = force_dir1.cross(&tangent1);
 
-    // Rotation such that: rot * tangent_fallback = tangent1
-    // (when projected in the tangent plane.) This is needed to ensure the
-    // warmstart impulse has the correct orientation. Indeed, at frame n + 1,
-    // we need to reapply the same impulse as we did in frame n. However the
-    // basis on which the tangent impulse is expresses may change at each frame
-    // (because the the relative linvel may change direction at each frame).
-    // So we need this rotation to:
-    // - Project the impulse back to the "reference" basis at after friction is resolved.
-    // - Project the old impulse on the new basis before the friction is resolved.
-    let rot = na::UnitComplex::new_unchecked(na::Complex::new(
-        tangent1.dot(&tangent_fallback),
-        bitangent1.dot(&tangent_fallback),
-    ));
-    ([tangent1, bitangent1], rot)
+    [tangent1, bitangent1]
 }
