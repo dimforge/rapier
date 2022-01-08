@@ -460,8 +460,6 @@ impl PhysicsPipeline {
                     let new_pos = rb_vel.integrate(
                         integration_parameters.dt,
                         &rb_pos.position,
-                        // NOTE: we don't use the `world_com` here because it is not
-                        //       really updated for kinematic bodies.
                         &rb_mprops.local_mprops.local_com,
                     );
                     bodies.set_internal(handle.0, RigidBodyPosition::from(new_pos));
