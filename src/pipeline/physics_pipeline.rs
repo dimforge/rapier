@@ -462,7 +462,7 @@ impl PhysicsPipeline {
                         &rb_pos.position,
                         // NOTE: we don't use the `world_com` here because it is not
                         //       really updated for kinematic bodies.
-                        &(rb_pos.position * rb_mprops.local_mprops.local_com),
+                        &rb_mprops.local_mprops.local_com,
                     );
                     bodies.set_internal(handle.0, RigidBodyPosition::from(new_pos));
                 }
