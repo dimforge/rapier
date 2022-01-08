@@ -365,7 +365,7 @@ impl TestbedApp {
                 ..Default::default()
             })
             .insert_resource(ClearColor(Color::rgb(0.85, 0.85, 0.85)))
-            .insert_resource(Msaa { samples: 2 })
+            .insert_resource(Msaa { samples: 4 })
             .insert_resource(WgpuOptions {
                 features: WgpuFeatures {
                     // The Wireframe requires NonFillPolygonMode feature
