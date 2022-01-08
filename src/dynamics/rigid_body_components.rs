@@ -389,19 +389,6 @@ impl RigidBodyVelocity {
         }
     }
 
-    #[cfg(feature = "dim2")]
-    pub(crate) fn from_vectors(linvel: Vector<Real>, angvel: na::Vector1<Real>) -> Self {
-        Self {
-            linvel,
-            angvel: angvel.x,
-        }
-    }
-
-    #[cfg(feature = "dim3")]
-    pub(crate) fn from_vectors(linvel: Vector<Real>, angvel: Vector<Real>) -> Self {
-        Self { linvel, angvel }
-    }
-
     /// Velocities set to zero.
     #[must_use]
     pub fn zero() -> Self {
@@ -463,21 +450,9 @@ impl RigidBodyVelocity {
         unsafe { std::mem::transmute(self) }
     }
 
-    /// Return `self` transformed by `transform`.
-    #[must_use]
-    pub fn transformed(self, transform: &Isometry<Real>) -> Self {
-        Self {
-            linvel: transform * self.linvel,
-            #[cfg(feature = "dim2")]
-            angvel: self.angvel,
-            #[cfg(feature = "dim3")]
-            angvel: transform * self.angvel,
-        }
-    }
-
     /// Return `self` rotated by `rotation`.
     #[must_use]
-    pub fn rotated(self, rotation: &Rotation<Real>) -> Self {
+    pub fn transformed(self, rotation: &Rotation<Real>) -> Self {
         Self {
             linvel: rotation * self.linvel,
             #[cfg(feature = "dim2")]

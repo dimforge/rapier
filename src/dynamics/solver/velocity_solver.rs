@@ -145,8 +145,8 @@ impl VelocitySolver {
                         .rows(multibody.solver_id, multibody.ndofs());
                     let prev_vels = multibody.velocities.clone(); // FIXME: avoid allocations.
                     multibody.velocities += mj_lambdas;
-                    multibody.integrate_next(params.dt);
-                    multibody.forward_kinematics_next(bodies, false);
+                    multibody.integrate(params.dt);
+                    multibody.forward_kinematics(bodies, false);
 
                     if params.max_stabilization_iterations > 0 {
                         multibody.velocities = prev_vels;

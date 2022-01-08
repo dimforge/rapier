@@ -542,7 +542,7 @@ impl PhysicsPipeline {
             multibody.1.update_root_type(bodies);
             // FIXME: what should we do here? We should not
             //        rely on the next state here.
-            multibody.1.forward_kinematics_next(bodies, true);
+            multibody.1.forward_kinematics(bodies, true);
         }
 
         self.detect_collisions(

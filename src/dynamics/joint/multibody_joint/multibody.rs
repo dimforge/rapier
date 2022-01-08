@@ -9,7 +9,7 @@ use crate::dynamics::{
 #[cfg(feature = "dim3")]
 use crate::math::Matrix;
 use crate::math::{
-    AngDim, AngVector, Dim, Isometry, Jacobian, Real, Vector, ANG_DIM, DIM, SPATIAL_DIM,
+    AngDim, AngVector, Dim, Isometry, Jacobian, Point, Real, Vector, ANG_DIM, DIM, SPATIAL_DIM,
 };
 use crate::prelude::MultibodyJoint;
 use crate::utils::{IndexMut2, WAngularInertia, WCross, WCrossMatrix};
@@ -66,7 +66,7 @@ pub struct Multibody {
     pub(crate) accelerations: DVector<Real>,
 
     body_jacobians: Vec<Jacobian<Real>>,
-    // FIXME: use sparse matrices.
+    // TODO: use sparse matrices?
     augmented_mass: DMatrix<Real>,
     inv_augmented_mass: LU<Real, Dynamic, Dynamic>,
 
@@ -141,7 +141,7 @@ impl Multibody {
 
             if is_new_root {
                 let joint = MultibodyJoint::fixed(*link.local_to_world());
-                link.state.joint = joint;
+                link.joint = joint;
             }
 
             curr_mb.ndofs += link.joint().ndofs();
@@ -178,7 +178,7 @@ impl Multibody {
     }
 
     pub fn append(&mut self, mut rhs: Multibody, parent: usize, joint: MultibodyJoint) {
-        let rhs_root_ndofs = rhs.links[0].state.joint.ndofs();
+        let rhs_root_ndofs = rhs.links[0].joint.ndofs();
         let rhs_copy_shift = self.ndofs + rhs_root_ndofs;
         let rhs_copy_ndofs = rhs.ndofs - rhs_root_ndofs;
 
@@ -195,17 +195,14 @@ impl Multibody {
 
         // Adjust the first link.
         {
-            rhs.links[0].state.joint = joint;
+            rhs.links[0].joint = joint;
             rhs.links[0].assembly_id = self.velocities.len();
             rhs.links[0].internal_id = self.links.len();
             rhs.links[0].parent_internal_id = parent;
         }
 
         // Grow buffers and append data from rhs.
-        self.grow_buffers(
-            rhs_copy_ndofs + rhs.links[0].state.joint.ndofs(),
-            rhs.links.len(),
-        );
+        self.grow_buffers(rhs_copy_ndofs + rhs.links[0].joint.ndofs(), rhs.links.len());
 
         if rhs_copy_ndofs > 0 {
             self.velocities
@@ -220,7 +217,6 @@ impl Multibody {
         }
 
         rhs.links[0]
-            .state
             .joint
             .default_damping(&mut self.damping.rows_mut(base_assembly_id, rhs_root_ndofs));
 
@@ -261,17 +257,6 @@ impl Multibody {
         self.links.get_mut(id)
     }
 
-    /// The links of this multibody with the given `name`.
-    pub fn links_with_name<'a>(
-        &'a self,
-        name: &'a str,
-    ) -> impl Iterator<Item = (usize, &'a MultibodyLink)> {
-        self.links
-            .iter()
-            .enumerate()
-            .filter(move |(_i, l)| l.name == name)
-    }
-
     /// The number of links on this multibody.
     pub fn num_links(&self) -> usize {
         self.links.len()
@@ -306,7 +291,7 @@ impl Multibody {
     pub fn add_link(
         &mut self,
         parent: Option<usize>, // FIXME: should be a RigidBodyHandle?
-        mut dof: MultibodyJoint,
+        dof: MultibodyJoint,
         body: RigidBodyHandle,
     ) -> &mut MultibodyLink {
         assert!(
@@ -335,21 +320,16 @@ impl Multibody {
         /*
          * Create the multibody.
          */
-        dof.update_jacobians(&self.velocities.as_slice()[assembly_id..]);
         let local_to_parent = dof.body_to_parent();
         let local_to_world;
-        let parent_to_world;
 
         let parent_internal_id;
         if let Some(parent) = parent {
             parent_internal_id = parent;
             let parent_link = &mut self.links[parent_internal_id];
-            parent_link.is_leaf = false;
-            parent_to_world = parent_link.state.local_to_world;
-            local_to_world = parent_link.state.local_to_world * local_to_parent;
+            local_to_world = parent_link.local_to_world * local_to_parent;
         } else {
             parent_internal_id = 0;
-            parent_to_world = Isometry::identity();
             local_to_world = local_to_parent;
         }
 
@@ -359,7 +339,6 @@ impl Multibody {
             assembly_id,
             parent_internal_id,
             dof,
-            parent_to_world,
             local_to_world,
             local_to_parent,
         );
@@ -400,28 +379,30 @@ impl Multibody {
                 &RigidBodyForces,
             ) = bodies.index_bundle(link.rigid_body.0);
 
-            let mut acc = link.velocity_dot_wrt_joint;
+            let mut acc = RigidBodyVelocity::zero();
 
             if i != 0 {
                 let parent_id = link.parent_internal_id;
                 let parent_link = &self.links[parent_id];
-
-                let (parent_rb_vels, parent_rb_mprops): (&RigidBodyVelocity, &RigidBodyMassProps) =
-                    bodies.index_bundle(parent_link.rigid_body.0);
+                let parent_rb_vels: &RigidBodyVelocity = bodies.index(parent_link.rigid_body.0);
 
                 acc += self.workspace.accs[parent_id];
-                acc.linvel += parent_rb_vels.angvel.gcross(link.velocity_wrt_joint.linvel);
+                // The 2.0 originates from the two identical terms of Jdot (the terms become
+                // identical once they are multiplied by the generalized velocities).
+                acc.linvel += 2.0 * parent_rb_vels.angvel.gcross(link.joint_velocity.linvel);
                 #[cfg(feature = "dim3")]
                 {
-                    acc.angvel += parent_rb_vels.angvel.cross(&link.velocity_wrt_joint.angvel);
+                    acc.angvel += parent_rb_vels.angvel.cross(&link.joint_velocity.angvel);
                 }
 
-                let shift = rb_mprops.world_com - parent_rb_mprops.world_com;
-                let dvel = rb_vels.linvel - parent_rb_vels.linvel;
-
-                acc.linvel += parent_rb_vels.angvel.gcross(dvel);
-                acc.linvel += self.workspace.accs[parent_id].angvel.gcross(shift);
+                acc.linvel += parent_rb_vels
+                    .angvel
+                    .gcross(parent_rb_vels.angvel.gcross(link.shift02));
+                acc.linvel += self.workspace.accs[parent_id].angvel.gcross(link.shift02);
             }
+
+            acc.linvel += rb_vels.angvel.gcross(rb_vels.angvel.gcross(link.shift23));
+            acc.linvel += self.workspace.accs[i].angvel.gcross(link.shift23);
 
             self.workspace.accs[i] = acc;
 
@@ -469,18 +450,12 @@ impl Multibody {
          * NOTE: this is needed for kinematic bodies too.
          */
         let link = &mut self.links[0];
-        let velocity_wrt_joint = link
-            .state
+        let joint_velocity = link
             .joint
             .jacobian_mul_coordinates(&self.velocities.as_slice()[link.assembly_id..]);
-        let velocity_dot_wrt_joint = link
-            .state
-            .joint
-            .jacobian_dot_mul_coordinates(&self.velocities.as_slice()[link.assembly_id..]);
 
-        link.velocity_dot_wrt_joint = velocity_dot_wrt_joint;
-        link.velocity_wrt_joint = velocity_wrt_joint;
-        bodies.set_internal(link.rigid_body.0, link.velocity_wrt_joint);
+        link.joint_velocity = joint_velocity;
+        bodies.set_internal(link.rigid_body.0, link.joint_velocity);
 
         for i in 1..self.links.len() {
             let (link, parent_link) = self.links.get_mut_with_parent(i);
@@ -488,22 +463,16 @@ impl Multibody {
             let (parent_rb_vels, parent_rb_mprops): (&RigidBodyVelocity, &RigidBodyMassProps) =
                 bodies.index_bundle(parent_link.rigid_body.0);
 
-            let velocity_wrt_joint = link
-                .state
+            let joint_velocity = link
                 .joint
                 .jacobian_mul_coordinates(&self.velocities.as_slice()[link.assembly_id..]);
-            let velocity_dot_wrt_joint = link
-                .state
-                .joint
-                .jacobian_dot_mul_coordinates(&self.velocities.as_slice()[link.assembly_id..]);
-
-            link.velocity_dot_wrt_joint =
-                velocity_dot_wrt_joint.transformed(&parent_link.state.local_to_world);
-            link.velocity_wrt_joint =
-                velocity_wrt_joint.transformed(&parent_link.state.local_to_world);
-            let mut new_rb_vels = *parent_rb_vels + link.velocity_wrt_joint;
+            link.joint_velocity = joint_velocity.transformed(
+                &(parent_link.local_to_world.rotation * link.joint.data.local_frame1.rotation),
+            );
+            let mut new_rb_vels = *parent_rb_vels + link.joint_velocity;
             let shift = rb_mprops.world_com - parent_rb_mprops.world_com;
             new_rb_vels.linvel += parent_rb_vels.angvel.gcross(shift);
+            new_rb_vels.linvel += link.joint_velocity.angvel.gcross(link.shift23);
 
             bodies.set_internal(link.rigid_body.0, new_rb_vels);
         }
@@ -514,23 +483,21 @@ impl Multibody {
         self.update_inertias(dt, bodies);
     }
 
-    fn update_body_next_jacobians<Bodies>(&mut self, bodies: &Bodies)
-    where
-        Bodies: ComponentSet<RigidBodyMassProps>,
-    {
+    fn update_body_jacobians(&mut self) {
         for i in 0..self.links.len() {
             let link = &self.links[i];
-            let rb_mprops = bodies.index(link.rigid_body.0);
 
             if self.body_jacobians[i].ncols() != self.ndofs {
                 // FIXME: use a resize instead.
                 self.body_jacobians[i] = Jacobian::zeros(self.ndofs);
             }
 
+            let parent_to_world;
+
             if i != 0 {
                 let parent_id = link.parent_internal_id;
                 let parent_link = &self.links[parent_id];
-                let parent_rb_mprops = bodies.index(parent_link.rigid_body.0);
+                parent_to_world = parent_link.local_to_world;
 
                 let (link_j, parent_j) = self.body_jacobians.index_mut_const(i, parent_id);
                 link_j.copy_from(&parent_j);
@@ -539,25 +506,31 @@ impl Multibody {
                     let mut link_j_v = link_j.fixed_rows_mut::<DIM>(0);
                     let parent_j_w = parent_j.fixed_rows::<ANG_DIM>(DIM);
 
-                    let shift_tr = (link.state.local_to_world * rb_mprops.local_mprops.local_com
-                        - parent_link.state.local_to_world
-                            * parent_rb_mprops.local_mprops.local_com)
-                        .gcross_matrix_tr();
+                    let shift_tr = (link.shift02).gcross_matrix_tr();
                     link_j_v.gemm(1.0, &shift_tr, &parent_j_w, 1.0);
                 }
             } else {
                 self.body_jacobians[i].fill(0.0);
+                parent_to_world = Isometry::identity();
             }
 
-            let ndofs = link.state.joint.ndofs();
+            let ndofs = link.joint.ndofs();
             let mut tmp = SMatrix::<Real, SPATIAL_DIM, SPATIAL_DIM>::zeros();
             let mut link_joint_j = tmp.columns_mut(0, ndofs);
             let mut link_j_part = self.body_jacobians[i].columns_mut(link.assembly_id, ndofs);
-            link.state
-                .joint
-                .jacobian(&link.state.parent_to_world, &mut link_joint_j);
-
+            link.joint.jacobian(
+                &(parent_to_world.rotation * link.joint.data.local_frame1.rotation),
+                &mut link_joint_j,
+            );
             link_j_part += link_joint_j;
+
+            {
+                let link_j = &mut self.body_jacobians[i];
+                let (mut link_j_v, link_j_w) =
+                    link_j.rows_range_pair_mut(0..DIM, DIM..DIM + ANG_DIM);
+                let shift_tr = link.shift23.gcross_matrix_tr();
+                link_j_v.gemm(1.0, &shift_tr, &link_j_w, 1.0);
+            }
         }
     }
 
@@ -626,64 +599,63 @@ impl Multibody {
              *
              */
             let rb_j = &self.body_jacobians[i];
-            let rb_j_v = rb_j.fixed_rows::<DIM>(0);
+            let rb_j_w = rb_j.fixed_rows::<ANG_DIM>(DIM);
 
-            let ndofs = link.state.joint.ndofs();
+            let ndofs = link.joint.ndofs();
 
             if i != 0 {
                 let parent_id = link.parent_internal_id;
                 let parent_link = &self.links[parent_id];
-                let (parent_rb_vels, parent_rb_mprops): (&RigidBodyVelocity, &RigidBodyMassProps) =
-                    bodies.index_bundle(parent_link.rigid_body.0);
+                let parent_rb_vels: &RigidBodyVelocity = bodies.index(parent_link.rigid_body.0);
                 let parent_j = &self.body_jacobians[parent_id];
-                let parent_j_v = parent_j.fixed_rows::<DIM>(0);
                 let parent_j_w = parent_j.fixed_rows::<ANG_DIM>(DIM);
                 let parent_w = parent_rb_vels.angvel.gcross_matrix();
 
                 let (coriolis_v, parent_coriolis_v) = self.coriolis_v.index_mut2(i, parent_id);
                 let (coriolis_w, parent_coriolis_w) = self.coriolis_w.index_mut2(i, parent_id);
 
-                // JDot + JDot/u * qdot
                 coriolis_v.copy_from(&parent_coriolis_v);
                 coriolis_w.copy_from(&parent_coriolis_w);
 
-                let shift_cross =
-                    (rb_mprops.world_com - parent_rb_mprops.world_com).gcross_matrix_tr();
-                coriolis_v.gemm(1.0, &shift_cross, &parent_coriolis_w, 1.0);
+                // [c1 - c0].gcross() * (JDot + JDot/u * qdot)"
+                let shift_cross_tr = link.shift02.gcross_matrix_tr();
+                coriolis_v.gemm(1.0, &shift_cross_tr, &parent_coriolis_w, 1.0);
 
-                // JDot
-                let dvel_cross = (rb_vels.linvel - parent_rb_vels.linvel).gcross_matrix_tr();
+                // JDot (but the 2.0 originates from the sum of two identical terms in JDot and JDot/u * gdot)
+                let dvel_cross = (rb_vels.angvel.gcross(link.shift02)
+                    + 2.0 * link.joint_velocity.linvel)
+                    .gcross_matrix_tr();
                 coriolis_v.gemm(1.0, &dvel_cross, &parent_j_w, 1.0);
 
                 // JDot/u * qdot
                 coriolis_v.gemm(
                     1.0,
-                    &link.velocity_wrt_joint.linvel.gcross_matrix_tr(),
+                    &link.joint_velocity.linvel.gcross_matrix_tr(),
                     &parent_j_w,
                     1.0,
                 );
-                coriolis_v.gemm(1.0, &parent_w, &rb_j_v, 1.0);
-                coriolis_v.gemm(-1.0, &parent_w, &parent_j_v, 1.0);
+                coriolis_v.gemm(1.0, &(parent_w * shift_cross_tr), &parent_j_w, 1.0);
 
                 #[cfg(feature = "dim3")]
                 {
-                    let vel_wrt_joint_w = link.velocity_wrt_joint.angvel.gcross_matrix();
+                    let vel_wrt_joint_w = link.joint_velocity.angvel.gcross_matrix();
                     coriolis_w.gemm(-1.0, &vel_wrt_joint_w, &parent_j_w, 1.0);
                 }
 
-                // JDot
+                // JDot (but the 2.0 originates from the sum of two identical terms in JDot and JDot/u * gdot)
                 {
                     let mut coriolis_v_part = coriolis_v.columns_mut(link.assembly_id, ndofs);
 
                     let mut tmp1 = SMatrix::<Real, SPATIAL_DIM, SPATIAL_DIM>::zeros();
                     let mut rb_joint_j = tmp1.columns_mut(0, ndofs);
-                    link.state
-                        .joint
-                        .jacobian(&parent_link.state.local_to_world, &mut rb_joint_j);
+                    link.joint.jacobian(
+                        &(parent_link.local_to_world.rotation
+                            * link.joint.data.local_frame1.rotation),
+                        &mut rb_joint_j,
+                    );
 
                     let rb_joint_j_v = rb_joint_j.fixed_rows::<DIM>(0);
-
-                    coriolis_v_part.gemm(1.0, &parent_w, &rb_joint_j_v, 1.0);
+                    coriolis_v_part.gemm(2.0, &parent_w, &rb_joint_j_v, 1.0);
 
                     #[cfg(feature = "dim3")]
                     {
@@ -701,36 +673,25 @@ impl Multibody {
             let coriolis_w = &mut self.coriolis_w[i];
 
             {
-                let mut tmp1 = SMatrix::<Real, SPATIAL_DIM, SPATIAL_DIM>::zeros();
-                let mut tmp2 = SMatrix::<Real, SPATIAL_DIM, SPATIAL_DIM>::zeros();
-                let mut rb_joint_j_dot = tmp1.columns_mut(0, ndofs);
-                let mut rb_joint_j_dot_veldiff = tmp2.columns_mut(0, ndofs);
-
-                link.state
-                    .joint
-                    .jacobian_dot(&link.state.parent_to_world, &mut rb_joint_j_dot);
-                link.state.joint.jacobian_dot_veldiff_mul_coordinates(
-                    &link.state.parent_to_world,
-                    &self.velocities.as_slice()[link.assembly_id..],
-                    &mut rb_joint_j_dot_veldiff,
-                );
-
-                let rb_joint_j_v_dot = rb_joint_j_dot.fixed_rows::<DIM>(0);
-                let rb_joint_j_w_dot = rb_joint_j_dot.fixed_rows::<ANG_DIM>(DIM);
-                let rb_joint_j_v_dot_veldiff = rb_joint_j_dot_veldiff.fixed_rows::<DIM>(0);
-                let rb_joint_j_w_dot_veldiff = rb_joint_j_dot_veldiff.fixed_rows::<ANG_DIM>(DIM);
-
-                let mut coriolis_v_part = coriolis_v.columns_mut(link.assembly_id, ndofs);
-                let mut coriolis_w_part = coriolis_w.columns_mut(link.assembly_id, ndofs);
+                // [c3 - c2].gcross() * (JDot + JDot/u * qdot)
+                let shift_cross_tr = link.shift23.gcross_matrix_tr();
+                coriolis_v.gemm(1.0, &shift_cross_tr, &coriolis_w, 1.0);
 
                 // JDot
-                coriolis_v_part += rb_joint_j_v_dot;
-                coriolis_w_part += rb_joint_j_w_dot;
+                let dvel_cross = rb_vels.angvel.gcross(link.shift23).gcross_matrix_tr();
+                coriolis_v.gemm(1.0, &dvel_cross, &rb_j_w, 1.0);
 
                 // JDot/u * qdot
-                coriolis_v_part += rb_joint_j_v_dot_veldiff;
-                coriolis_w_part += rb_joint_j_w_dot_veldiff;
+                coriolis_v.gemm(
+                    1.0,
+                    &(rb_vels.angvel.gcross_matrix() * shift_cross_tr),
+                    &rb_j_w,
+                    1.0,
+                );
             }
+
+            let coriolis_v = &mut self.coriolis_v[i];
+            let coriolis_w = &mut self.coriolis_w[i];
 
             /*
              * Meld with the mass matrix.
@@ -768,6 +729,8 @@ impl Multibody {
         // FIXME: avoid allocation inside LU at each timestep.
         self.acc_inv_augmented_mass = LU::new(self.acc_augmented_mass.clone());
         self.inv_augmented_mass = LU::new(self.augmented_mass.clone());
+        // self.acc_inv_augmented_mass = self.inv_augmented_mass.clone();
+        // self.augmented_mass = self.acc_augmented_mass.clone();
         // self.inv_augmented_mass = self.acc_inv_augmented_mass.clone();
     }
 
@@ -797,19 +760,16 @@ impl Multibody {
     }
 
     #[inline]
-    pub fn integrate_next(&mut self, dt: Real) {
+    pub fn integrate(&mut self, dt: Real) {
         for rb in self.links.iter_mut() {
-            rb.state
-                .joint
+            rb.joint
                 .integrate(dt, &self.velocities.as_slice()[rb.assembly_id..])
         }
     }
 
-    pub fn apply_next_displacements(&mut self, disp: &[Real]) {
+    pub fn apply_displacements(&mut self, disp: &[Real]) {
         for link in self.links.iter_mut() {
-            link.state
-                .joint
-                .apply_displacement(&disp[link.assembly_id..])
+            link.joint.apply_displacement(&disp[link.assembly_id..])
         }
     }
 
@@ -825,7 +785,7 @@ impl Multibody {
                 if rb_type.is_dynamic() {
                     let free_joint = MultibodyJoint::free(rb_pos.position);
                     let prev_root_ndofs = self.links[0].joint().ndofs();
-                    self.links[0].state.joint = free_joint;
+                    self.links[0].joint = free_joint;
                     self.links[0].assembly_id = 0;
                     self.ndofs += SPATIAL_DIM;
 
@@ -844,7 +804,7 @@ impl Multibody {
 
                     let fixed_joint = MultibodyJoint::fixed(rb_pos.position);
                     let prev_root_ndofs = self.links[0].joint().ndofs();
-                    self.links[0].state.joint = fixed_joint;
+                    self.links[0].joint = fixed_joint;
                     self.links[0].assembly_id = 0;
                     self.ndofs -= prev_root_ndofs;
 
@@ -871,15 +831,15 @@ impl Multibody {
             }
 
             // Make sure the positions are properly set to match the rigid-body’s.
-            if self.links[0].state.joint.data.locked_axes.is_empty() {
-                self.links[0].state.joint.set_free_pos(rb_pos.position);
+            if self.links[0].joint.data.locked_axes.is_empty() {
+                self.links[0].joint.set_free_pos(rb_pos.position);
             } else {
-                self.links[0].state.joint.data.local_frame1 = rb_pos.position;
+                self.links[0].joint.data.local_frame1 = rb_pos.position;
             }
         }
     }
 
-    pub fn forward_kinematics_next<Bodies>(&mut self, bodies: &mut Bodies, update_mass_props: bool)
+    pub fn forward_kinematics<Bodies>(&mut self, bodies: &mut Bodies, update_mass_props: bool)
     where
         Bodies: ComponentSet<RigidBodyType>
             + ComponentSetMut<RigidBodyMassProps>
@@ -888,19 +848,16 @@ impl Multibody {
         // Special case for the root, which has no parent.
         {
             let link = &mut self.links[0];
-            link.state
-                .joint
-                .update_jacobians(&self.velocities.as_slice());
-            link.state.local_to_parent = link.state.joint.body_to_parent();
-            link.state.local_to_world = link.state.local_to_parent;
+            link.local_to_parent = link.joint.body_to_parent();
+            link.local_to_world = link.local_to_parent;
 
-            bodies.map_mut_internal(link.rigid_body.0, |poss: &mut RigidBodyPosition| {
-                poss.next_position = link.state.local_to_world;
+            bodies.map_mut_internal(link.rigid_body.0, |rb_pos: &mut RigidBodyPosition| {
+                rb_pos.next_position = link.local_to_world;
             });
 
             if update_mass_props {
                 bodies.map_mut_internal(link.rigid_body.0, |mprops: &mut RigidBodyMassProps| {
-                    mprops.update_world_mass_properties(&link.state.local_to_world)
+                    mprops.update_world_mass_properties(&link.local_to_world)
                 });
             }
         }
@@ -909,16 +866,23 @@ impl Multibody {
         for i in 1..self.links.len() {
             let (link, parent_link) = self.links.get_mut_with_parent(i);
 
-            link.state
-                .joint
-                .update_jacobians(&self.velocities.as_slice()[link.assembly_id..]);
-            link.state.local_to_parent = link.state.joint.body_to_parent();
-            link.state.local_to_world =
-                parent_link.state.local_to_world * link.state.local_to_parent;
-            link.state.parent_to_world = parent_link.state.local_to_world;
+            link.local_to_parent = link.joint.body_to_parent();
+            link.local_to_world = parent_link.local_to_world * link.local_to_parent;
 
-            bodies.map_mut_internal(link.rigid_body.0, |poss: &mut RigidBodyPosition| {
-                poss.next_position = link.state.local_to_world;
+            {
+                let parent_rb_mprops: &RigidBodyMassProps = bodies.index(parent_link.rigid_body.0);
+                let rb_mprops: &RigidBodyMassProps = bodies.index(link.rigid_body.0);
+                let c0 = parent_link.local_to_world * parent_rb_mprops.local_mprops.local_com;
+                let c2 = link.local_to_world
+                    * Point::from(link.joint.data.local_frame2.translation.vector);
+                let c3 = link.local_to_world * rb_mprops.local_mprops.local_com;
+
+                link.shift02 = c2 - c0;
+                link.shift23 = c3 - c2;
+            }
+
+            bodies.map_mut_internal(link.rigid_body.0, |rb_pos: &mut RigidBodyPosition| {
+                rb_pos.next_position = link.local_to_world;
             });
 
             let rb_type: &RigidBodyType = bodies.index(link.rigid_body.0);
@@ -929,8 +893,8 @@ impl Multibody {
             );
 
             if update_mass_props {
-                bodies.map_mut_internal(link.rigid_body.0, |mprops: &mut RigidBodyMassProps| {
-                    mprops.update_world_mass_properties(&link.state.local_to_world)
+                bodies.map_mut_internal(link.rigid_body.0, |rb_mprops: &mut RigidBodyMassProps| {
+                    rb_mprops.update_world_mass_properties(&link.local_to_world)
                 });
             }
         }
@@ -938,7 +902,7 @@ impl Multibody {
         /*
          * Compute body jacobians.
          */
-        self.update_body_next_jacobians(bodies);
+        self.update_body_jacobians();
     }
 
     #[inline]
