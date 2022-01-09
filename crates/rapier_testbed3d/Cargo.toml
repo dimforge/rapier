@@ -41,16 +41,17 @@ md5 = "0.7"
 Inflector  = "0.11"
 serde = { version = "1", features = [ "derive" ] }
 
-bevy_egui = "0.5"
+bevy_egui = "0.10"
+bevy_ecs = "0.6"
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = {version = "0.5", default-features = false, features = ["bevy_wgpu", "bevy_winit", "render", "x11"]}
+bevy = {version = "0.6", default-features = false, features = ["bevy_winit", "render", "x11"]}
 
 # Dependencies for WASM only.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy = {version = "0.5", default-features = false, features = ["bevy_winit", "render"]}
-bevy_webgl2 = "0.5"
+bevy = {version = "0.6", default-features = false, features = ["bevy_winit", "render"]}
+#bevy_webgl2 = "0.5"
 
 [dependencies.rapier3d]
 path = "../rapier3d"

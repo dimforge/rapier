@@ -9,6 +9,7 @@ use bevy::render::camera::Camera;
 
 const LINE_TO_PIXEL_RATIO: f32 = 0.1;
 
+#[derive(Component)]
 pub struct OrbitCamera {
     pub zoom: f32,
     pub center: Vec3,
@@ -87,7 +88,7 @@ impl OrbitCameraPlugin {
     }
 }
 impl Plugin for OrbitCameraPlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.add_system(Self::mouse_motion_system.system())
             .add_system(Self::zoom_system.system())
             .add_system(Self::update_transform_system.system());

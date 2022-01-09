@@ -52,13 +52,13 @@ pub fn init_world(testbed: &mut Testbed) {
                 let handle = bodies.insert(rigid_body);
 
                 let collider = match j % 5 {
-                    _ => ColliderBuilder::cuboid(rad, rad, rad).build(),
-                    // 1 => ColliderBuilder::ball(rad).build(),
-                    // // Rounded cylinders are much more efficient that cylinder, even if the
-                    // // rounding margin is small.
-                    // 2 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0).build(),
-                    // 3 => ColliderBuilder::cone(rad, rad).build(),
-                    // _ => ColliderBuilder::capsule_y(rad, rad).build(),
+                    // _ => ColliderBuilder::cuboid(rad, rad, rad).build(),
+                    1 => ColliderBuilder::ball(rad).build(),
+                    // Rounded cylinders are much more efficient that cylinder, even if the
+                    // rounding margin is small.
+                    2 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0).build(),
+                    3 => ColliderBuilder::cone(rad, rad).build(),
+                    _ => ColliderBuilder::capsule_y(rad, rad).build(),
                 };
 
                 colliders.insert_with_parent(collider, handle, &mut bodies);

@@ -1,7 +1,6 @@
 use std::env;
 use std::mem;
 
-use bevy::pbr::Light;
 use bevy::prelude::*;
 
 use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
@@ -25,16 +24,17 @@ use crate::box2d_backend::Box2dWorld;
 use crate::harness::Harness;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 use crate::physx_backend::PhysxWorld;
+use bevy::pbr::wireframe::WireframePlugin;
 use bevy::render::camera::Camera;
-use bevy::render::wireframe::WireframePlugin;
-use bevy::wgpu::{WgpuFeature, WgpuFeatures, WgpuOptions};
+use bevy::render::options::{WgpuFeatures, WgpuOptions};
 use bevy_egui::EguiContext;
 
 #[cfg(feature = "dim2")]
 use crate::camera2d::{OrbitCamera, OrbitCameraPlugin};
 #[cfg(feature = "dim3")]
 use crate::camera3d::{OrbitCamera, OrbitCameraPlugin};
-use bevy::render::pipeline::PipelineDescriptor;
+use crate::graphics::BevyMaterial;
+// use bevy::render::render_resource::RenderPipelineDescriptor;
 
 const RAPIER_BACKEND: usize = 0;
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
@@ -128,19 +128,17 @@ struct OtherBackends {
 }
 struct Plugins(Vec<Box<dyn TestbedPlugin>>);
 
-pub struct TestbedGraphics<'a, 'b, 'c, 'd> {
+pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     graphics: &'a mut GraphicsManager,
-    commands: &'a mut Commands<'d>,
+    commands: &'a mut Commands<'d, 'e>,
     meshes: &'a mut Assets<Mesh>,
-    materials: &'a mut Assets<StandardMaterial>,
-    shaders: &'a mut Assets<Shader>,
-    pipelines: &'a mut Assets<PipelineDescriptor>,
-    components: &'a mut Query<'b, (&'c mut Transform,)>,
+    materials: &'a mut Assets<BevyMaterial>,
+    components: &'a mut Query<'b, 'f, (&'c mut Transform,)>,
     camera: &'a mut OrbitCamera,
 }
 
-pub struct Testbed<'a, 'b, 'c, 'd> {
-    graphics: Option<TestbedGraphics<'a, 'b, 'c, 'd>>,
+pub struct Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
+    graphics: Option<TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f>>,
     harness: &'a mut Harness,
     state: &'a mut TestbedState,
     #[cfg(feature = "other-backends")]
@@ -357,7 +355,7 @@ impl TestbedApp {
                 "Rapier: 3D demos".to_string()
             };
 
-            let mut app = App::build();
+            let mut app = App::new();
 
             app.insert_resource(WindowDescriptor {
                 title,
@@ -365,12 +363,14 @@ impl TestbedApp {
                 ..Default::default()
             })
             .insert_resource(ClearColor(Color::rgb(0.85, 0.85, 0.85)))
-            .insert_resource(Msaa { samples: 2 })
+            .insert_resource(Msaa { samples: 4 })
             .insert_resource(WgpuOptions {
-                features: WgpuFeatures {
-                    // The Wireframe requires NonFillPolygonMode feature
-                    features: vec![WgpuFeature::NonFillPolygonMode],
-                },
+                // Required for wireframes.
+                features: WgpuFeatures::POLYGON_MODE_LINE,
+                ..Default::default()
+            })
+            .insert_resource(AmbientLight {
+                brightness: 0.3,
                 ..Default::default()
             })
             .add_plugins(DefaultPlugins)
@@ -398,7 +398,7 @@ impl TestbedApp {
     }
 }
 
-impl<'a, 'b, 'c, 'd> TestbedGraphics<'a, 'b, 'c, 'd> {
+impl<'a, 'b, 'c, 'd, 'e, 'f> TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     pub fn set_body_color(&mut self, body: RigidBodyHandle, color: [f32; 3]) {
         self.graphics
             .set_body_color(&mut self.materials, body, color);
@@ -443,7 +443,7 @@ impl<'a, 'b, 'c, 'd> TestbedGraphics<'a, 'b, 'c, 'd> {
     }
 }
 
-impl<'a, 'b, 'c, 'd> Testbed<'a, 'b, 'c, 'd> {
+impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
     pub fn set_number_of_steps_per_frame(&mut self, nsteps: usize) {
         self.state.nsteps = nsteps
     }
@@ -603,9 +603,7 @@ impl<'a, 'b, 'c, 'd> Testbed<'a, 'b, 'c, 'd> {
     }
 
     pub fn add_plugin(&mut self, mut plugin: impl TestbedPlugin + 'static) {
-        if let Some(gfx) = &mut self.graphics {
-            plugin.init_plugin(gfx.pipelines, gfx.shaders);
-        }
+        plugin.init_plugin();
         self.plugins.0.push(Box::new(plugin));
     }
 
@@ -815,24 +813,31 @@ fn draw_contacts(_nf: &NarrowPhase, _colliders: &ColliderSet) {
 
 #[cfg(feature = "dim3")]
 fn setup_graphics_environment(mut commands: Commands) {
-    let lights = [
-        Vec3::new(100.0, 100.0, 100.0),
-        Vec3::new(100.0, 100.0, -100.0),
-        Vec3::new(-100.0, 100.0, -100.0),
-        Vec3::new(-100.0, 100.0, 100.0),
-    ];
+    const HALF_SIZE: f32 = 100.0;
 
-    for light in lights.iter() {
-        commands.spawn_bundle(LightBundle {
-            transform: Transform::from_translation(*light),
-            light: Light {
-                intensity: 30_000.0,
-                range: 3_000_000.0,
+    commands.spawn_bundle(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            illuminance: 10000.0,
+            // Configure the projection to better fit the scene
+            shadow_projection: OrthographicProjection {
+                left: -HALF_SIZE,
+                right: HALF_SIZE,
+                bottom: -HALF_SIZE,
+                top: HALF_SIZE,
+                near: -10.0 * HALF_SIZE,
+                far: 100.0 * HALF_SIZE,
                 ..Default::default()
             },
+            shadows_enabled: true,
             ..Default::default()
-        });
-    }
+        },
+        transform: Transform {
+            translation: Vec3::new(10.0, 2.0, 10.0),
+            rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_4),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
 
     commands
         .spawn_bundle(PerspectiveCameraBundle {
@@ -851,15 +856,19 @@ fn setup_graphics_environment(mut commands: Commands) {
 
 #[cfg(feature = "dim2")]
 fn setup_graphics_environment(mut commands: Commands) {
-    commands.spawn_bundle(LightBundle {
-        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 2000.0)),
-        light: Light {
-            intensity: 100_000_000.0,
-            range: 6000.0,
-            ..Default::default()
-        },
-        ..Default::default()
-    });
+    // commands.insert_resource(AmbientLight {
+    //     brightness: 0.3,
+    //     ..Default::default()
+    // });
+    // commands.spawn_bundle(LightBundle {
+    //     transform: Transform::from_translation(Vec3::new(0.0, 0.0, 2000.0)),
+    //     light: Light {
+    //         intensity: 100_000_000.0,
+    //         range: 6000.0,
+    //         ..Default::default()
+    //     },
+    //     ..Default::default()
+    // });
     commands
         .spawn_bundle(OrthographicCameraBundle {
             transform: Transform {
@@ -889,10 +898,9 @@ fn egui_focus(ui_context: Res<EguiContext>, mut cameras: Query<&mut OrbitCamera>
 fn update_testbed(
     mut commands: Commands,
     windows: Res<Windows>,
-    mut pipelines: ResMut<Assets<PipelineDescriptor>>,
-    mut shaders: ResMut<Assets<Shader>>,
+    // mut pipelines: ResMut<Assets<RenderPipelineDescriptor>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<BevyMaterial>>,
     builders: NonSendMut<SceneBuilders>,
     mut graphics: NonSendMut<GraphicsManager>,
     mut state: ResMut<TestbedState>,
@@ -911,8 +919,6 @@ fn update_testbed(
     // Handle inputs
     {
         let graphics_context = TestbedGraphics {
-            pipelines: &mut *pipelines,
-            shaders: &mut *shaders,
             graphics: &mut *graphics,
             commands: &mut commands,
             meshes: &mut *meshes,
@@ -1000,8 +1006,6 @@ fn update_testbed(
             let meshes = &mut *meshes;
 
             let graphics_context = TestbedGraphics {
-                pipelines: &mut *pipelines,
-                shaders: &mut *shaders,
                 graphics: &mut *graphics,
                 commands: &mut commands,
                 meshes: &mut *meshes,
@@ -1149,8 +1153,6 @@ fn update_testbed(
                 let graphics = &mut graphics;
 
                 let mut testbed_graphics = TestbedGraphics {
-                    pipelines: &mut *pipelines,
-                    shaders: &mut *shaders,
                     graphics: &mut *graphics,
                     commands: &mut commands,
                     meshes: &mut *meshes,
@@ -1262,7 +1264,7 @@ fn clear(
 
 #[cfg(feature = "dim2")]
 fn highlight_hovered_body(
-    _materials: &mut Assets<StandardMaterial>,
+    _materials: &mut Assets<BevyMaterial>,
     _graphics_manager: &mut GraphicsManager,
     _testbed_state: &mut TestbedState,
     _physics: &PhysicsState,
@@ -1275,7 +1277,7 @@ fn highlight_hovered_body(
 
 #[cfg(feature = "dim3")]
 fn highlight_hovered_body(
-    materials: &mut Assets<StandardMaterial>,
+    materials: &mut Assets<BevyMaterial>,
     graphics_manager: &mut GraphicsManager,
     testbed_state: &mut TestbedState,
     physics: &PhysicsState,
@@ -1294,8 +1296,8 @@ fn highlight_hovered_body(
     if let Some(cursor) = window.cursor_position() {
         let ndc_cursor = (cursor / Vec2::new(window.width(), window.height()) * 2.0) - Vec2::ONE;
         let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix.inverse();
-        let ray_pt1 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 0.0));
-        let ray_pt2 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 0.1));
+        let ray_pt1 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, -1.0));
+        let ray_pt2 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 1.0));
         let ray_dir = ray_pt2 - ray_pt1;
         let ray_origin = Point3::new(ray_pt1.x, ray_pt1.y, ray_pt1.z);
         let ray_dir = Vector3::new(ray_dir.x, ray_dir.y, ray_dir.z);
