@@ -1,35 +1,14 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::dynamics::{MultibodyJoint, RigidBodyHandle};
-use crate::math::{Isometry, Real};
+use crate::math::{Isometry, Real, Vector};
 use crate::prelude::RigidBodyVelocity;
-
-pub(crate) struct KinematicState {
-    pub joint: MultibodyJoint,
-    pub parent_to_world: Isometry<Real>,
-    // TODO: should this be removed in favor of the rigid-body position?
-    pub local_to_world: Isometry<Real>,
-    pub local_to_parent: Isometry<Real>,
-}
-
-impl Clone for KinematicState {
-    fn clone(&self) -> Self {
-        Self {
-            joint: self.joint.clone(),
-            parent_to_world: self.parent_to_world.clone(),
-            local_to_world: self.local_to_world.clone(),
-            local_to_parent: self.local_to_parent.clone(),
-        }
-    }
-}
 
 /// One link of a multibody.
 pub struct MultibodyLink {
-    pub(crate) name: String,
     // FIXME: make all those private.
     pub(crate) internal_id: usize,
     pub(crate) assembly_id: usize,
-    pub(crate) is_leaf: bool,
 
     pub(crate) parent_internal_id: usize,
     pub(crate) rigid_body: RigidBodyHandle,
@@ -37,11 +16,15 @@ pub struct MultibodyLink {
     /*
      * Change at each time step.
      */
-    pub(crate) state: KinematicState,
+    pub joint: MultibodyJoint,
+    // TODO: should this be removed in favor of the rigid-body position?
+    pub local_to_world: Isometry<Real>,
+    pub local_to_parent: Isometry<Real>,
+    pub shift02: Vector<Real>,
+    pub shift23: Vector<Real>,
 
-    // FIXME: put this on a workspace buffer instead ?
-    pub(crate) velocity_dot_wrt_joint: RigidBodyVelocity,
-    pub(crate) velocity_wrt_joint: RigidBodyVelocity,
+    /// The velocity added by the joint, in world-space.
+    pub(crate) joint_velocity: RigidBodyVelocity,
 }
 
 impl MultibodyLink {
@@ -52,35 +35,27 @@ impl MultibodyLink {
         assembly_id: usize,
         parent_internal_id: usize,
         joint: MultibodyJoint,
-        parent_to_world: Isometry<Real>,
         local_to_world: Isometry<Real>,
         local_to_parent: Isometry<Real>,
     ) -> Self {
-        let is_leaf = true;
-        let velocity_dot_wrt_joint = RigidBodyVelocity::zero();
-        let velocity_wrt_joint = RigidBodyVelocity::zero();
-        let kinematic_state = KinematicState {
-            joint,
-            parent_to_world,
-            local_to_world,
-            local_to_parent,
-        };
+        let joint_velocity = RigidBodyVelocity::zero();
 
         MultibodyLink {
-            name: String::new(),
             internal_id,
             assembly_id,
-            is_leaf,
             parent_internal_id,
-            state: kinematic_state,
-            velocity_dot_wrt_joint,
-            velocity_wrt_joint,
+            joint,
+            local_to_world,
+            local_to_parent,
+            shift02: na::zero(),
+            shift23: na::zero(),
+            joint_velocity,
             rigid_body,
         }
     }
 
     pub fn joint(&self) -> &MultibodyJoint {
-        &self.state.joint
+        &self.joint
     }
 
     pub fn rigid_body_handle(&self) -> RigidBodyHandle {
@@ -91,18 +66,6 @@ impl MultibodyLink {
     #[inline]
     pub fn is_root(&self) -> bool {
         self.internal_id == 0
-    }
-
-    /// This link's name.
-    #[inline]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Sets this link's name.
-    #[inline]
-    pub fn set_name(&mut self, name: String) {
-        self.name = name
     }
 
     /// The handle of this multibody link.
@@ -123,12 +86,12 @@ impl MultibodyLink {
 
     #[inline]
     pub fn local_to_world(&self) -> &Isometry<Real> {
-        &self.state.local_to_world
+        &self.local_to_world
     }
 
     #[inline]
     pub fn local_to_parent(&self) -> &Isometry<Real> {
-        &self.state.local_to_parent
+        &self.local_to_parent
     }
 }
 

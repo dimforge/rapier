@@ -132,8 +132,8 @@ impl IslandSolver {
                     if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
                         let accels = &multibody.accelerations;
                         multibody.velocities.axpy(params.dt, accels, 1.0);
-                        multibody.integrate_next(params.dt);
-                        multibody.forward_kinematics_next(bodies, false);
+                        multibody.integrate(params.dt);
+                        multibody.forward_kinematics(bodies, false);
                     }
                 } else {
                     // Since we didn't run the velocity solver we need to integrate the accelerations here
