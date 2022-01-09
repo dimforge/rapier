@@ -35,23 +35,26 @@ impl Force {
 }
 
 #[cfg(feature = "dim2")]
-fn concat_rb_mass_matrix(mass: Real, inertia: Real) -> SMatrix<Real, SPATIAL_DIM, SPATIAL_DIM> {
+fn concat_rb_mass_matrix(
+    mass: Vector<Real>,
+    inertia: Real,
+) -> SMatrix<Real, SPATIAL_DIM, SPATIAL_DIM> {
     let mut result = SMatrix::<Real, SPATIAL_DIM, SPATIAL_DIM>::zeros();
-    result[(0, 0)] = mass;
-    result[(1, 1)] = mass;
+    result[(0, 0)] = mass.x;
+    result[(1, 1)] = mass.y;
     result[(2, 2)] = inertia;
     result
 }
 
 #[cfg(feature = "dim3")]
 fn concat_rb_mass_matrix(
-    mass: Real,
+    mass: Vector<Real>,
     inertia: Matrix<Real>,
 ) -> SMatrix<Real, SPATIAL_DIM, SPATIAL_DIM> {
     let mut result = SMatrix::<Real, SPATIAL_DIM, SPATIAL_DIM>::zeros();
-    result[(0, 0)] = mass;
-    result[(1, 1)] = mass;
-    result[(2, 2)] = mass;
+    result[(0, 0)] = mass.x;
+    result[(1, 1)] = mass.y;
+    result[(2, 2)] = mass.z;
     result
         .fixed_slice_mut::<ANG_DIM, ANG_DIM>(DIM, DIM)
         .copy_from(&inertia);
@@ -422,7 +425,7 @@ impl Multibody {
             }
 
             let external_forces = Force::new(
-                rb_forces.force - rb_mass * acc.linvel,
+                rb_forces.force - rb_mass.component_mul(&acc.linvel),
                 rb_forces.torque - gyroscopic - rb_inertia * acc.angvel,
             );
             self.accelerations.gemv_tr(
@@ -699,7 +702,9 @@ impl Multibody {
             {
                 let mut i_coriolis_dt_v = self.i_coriolis_dt.fixed_rows_mut::<DIM>(0);
                 i_coriolis_dt_v.copy_from(coriolis_v);
-                i_coriolis_dt_v *= rb_mass * dt;
+                i_coriolis_dt_v
+                    .column_iter_mut()
+                    .for_each(|mut c| c.component_mul_assign(&(rb_mass * dt)));
             }
 
             #[cfg(feature = "dim2")]

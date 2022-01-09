@@ -33,7 +33,7 @@ impl SolverBody<Real, 1> {
             let mut out_invm_j = jacobians.fixed_rows_mut::<SPATIAL_DIM>(wj_id);
             out_invm_j
                 .fixed_rows_mut::<DIM>(0)
-                .axpy(self.im, &unit_force, 0.0);
+                .copy_from(&self.im.component_mul(&unit_force));
 
             #[cfg(feature = "dim2")]
             {

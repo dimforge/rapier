@@ -195,7 +195,48 @@ impl RigidBody {
         }
     }
 
+    #[inline]
+    /// Locks or unlocks rotations of this rigid-body along each cartesian axes.
+    pub fn restrict_translations(
+        &mut self,
+        allow_translation_x: bool,
+        allow_translation_y: bool,
+        #[cfg(feature = "dim3")] allow_translation_z: bool,
+        wake_up: bool,
+    ) {
+        if self.is_dynamic() {
+            if wake_up {
+                self.wake_up(true);
+            }
+
+            self.rb_mprops.flags.set(
+                RigidBodyMassPropsFlags::TRANSLATION_LOCKED_X,
+                !allow_translation_x,
+            );
+            self.rb_mprops.flags.set(
+                RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Y,
+                !allow_translation_y,
+            );
+            #[cfg(feature = "dim3")]
+            self.rb_mprops.flags.set(
+                RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Z,
+                !allow_translation_z,
+            );
+            self.update_world_mass_properties();
+        }
+    }
+
     /// Are the translations of this rigid-body locked?
+    #[cfg(feature = "dim2")]
+    pub fn is_translation_locked(&self) -> bool {
+        self.rb_mprops.flags.contains(
+            RigidBodyMassPropsFlags::TRANSLATION_LOCKED_X
+                | RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Y,
+        )
+    }
+
+    /// Are the translations of this rigid-body locked?
+    #[cfg(feature = "dim3")]
     pub fn is_translation_locked(&self) -> bool {
         self.rb_mprops
             .flags
@@ -633,7 +674,7 @@ impl RigidBody {
     /// This does nothing on non-dynamic bodies.
     pub fn apply_impulse(&mut self, impulse: Vector<Real>, wake_up: bool) {
         if self.rb_type == RigidBodyType::Dynamic {
-            self.rb_vels.linvel += impulse * self.rb_mprops.effective_inv_mass;
+            self.rb_vels.linvel += impulse.component_mul(&self.rb_mprops.effective_inv_mass);
 
             if wake_up {
                 self.wake_up(true);
@@ -844,6 +885,29 @@ impl RigidBodyBuilder {
     pub fn lock_translations(mut self) -> Self {
         self.mprops_flags
             .set(RigidBodyMassPropsFlags::TRANSLATION_LOCKED, true);
+        self
+    }
+
+    /// Only allow translations of this rigid-body around specific coordinate axes.
+    pub fn restrict_translations(
+        mut self,
+        allow_translations_x: bool,
+        allow_translations_y: bool,
+        #[cfg(feature = "dim3")] allow_translations_z: bool,
+    ) -> Self {
+        self.mprops_flags.set(
+            RigidBodyMassPropsFlags::TRANSLATION_LOCKED_X,
+            !allow_translations_x,
+        );
+        self.mprops_flags.set(
+            RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Y,
+            !allow_translations_y,
+        );
+        #[cfg(feature = "dim3")]
+        self.mprops_flags.set(
+            RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Z,
+            !allow_translations_z,
+        );
         self
     }
 

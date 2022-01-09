@@ -70,11 +70,11 @@ impl GenericRhs {
         dir: &Vector<Real>,
         gcross: &AngVector<Real>,
         mj_lambdas: &mut DVector<Real>,
-        inv_mass: Real,
+        inv_mass: &Vector<Real>,
     ) {
         match self {
             GenericRhs::DeltaVel(rhs) => {
-                rhs.linear += dir * (inv_mass * impulse);
+                rhs.linear += dir.component_mul(inv_mass) * impulse;
                 rhs.angular += gcross * impulse;
             }
             GenericRhs::GenericId(mj_lambda) => {
@@ -94,8 +94,8 @@ impl VelocityConstraintTangentPart<Real> {
         j_id: usize,
         jacobians: &DVector<Real>,
         tangents1: [&Vector<Real>; DIM - 1],
-        im1: Real,
-        im2: Real,
+        im1: &Vector<Real>,
+        im2: &Vector<Real>,
         ndofs1: usize,
         ndofs2: usize,
         limit: Real,
@@ -246,8 +246,8 @@ impl VelocityConstraintNormalPart<Real> {
         j_id: usize,
         jacobians: &DVector<Real>,
         dir1: &Vector<Real>,
-        im1: Real,
-        im2: Real,
+        im1: &Vector<Real>,
+        im2: &Vector<Real>,
         ndofs1: usize,
         ndofs2: usize,
         mj_lambda1: &mut GenericRhs,
@@ -296,8 +296,8 @@ impl VelocityConstraintElement<Real> {
         jacobians: &DVector<Real>,
         dir1: &Vector<Real>,
         #[cfg(feature = "dim3")] tangent1: &Vector<Real>,
-        im1: Real,
-        im2: Real,
+        im1: &Vector<Real>,
+        im2: &Vector<Real>,
         limit: Real,
         // ndofs is 0 for a non-multibody body, or a multibody with zero
         // degrees of freedom.

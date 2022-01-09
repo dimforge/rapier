@@ -203,14 +203,20 @@ bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
     pub struct RigidBodyMassPropsFlags: u8 {
+        /// Flag indicating that the rigid-body cannot translate along the `X` axis.
+        const TRANSLATION_LOCKED_X = 1 << 0;
+        /// Flag indicating that the rigid-body cannot translate along the `Y` axis.
+        const TRANSLATION_LOCKED_Y = 1 << 1;
+        /// Flag indicating that the rigid-body cannot translate along the `Z` axis.
+        const TRANSLATION_LOCKED_Z = 1 << 2;
         /// Flag indicating that the rigid-body cannot translate along any direction.
-        const TRANSLATION_LOCKED = 1 << 0;
+        const TRANSLATION_LOCKED = Self::TRANSLATION_LOCKED_X.bits | Self::TRANSLATION_LOCKED_Y.bits | Self::TRANSLATION_LOCKED_Z.bits;
         /// Flag indicating that the rigid-body cannot rotate along the `X` axis.
-        const ROTATION_LOCKED_X = 1 << 1;
+        const ROTATION_LOCKED_X = 1 << 3;
         /// Flag indicating that the rigid-body cannot rotate along the `Y` axis.
-        const ROTATION_LOCKED_Y = 1 << 2;
+        const ROTATION_LOCKED_Y = 1 << 4;
         /// Flag indicating that the rigid-body cannot rotate along the `Z` axis.
-        const ROTATION_LOCKED_Z = 1 << 3;
+        const ROTATION_LOCKED_Z = 1 << 5;
         /// Combination of flags indicating that the rigid-body cannot rotate along any axis.
         const ROTATION_LOCKED = Self::ROTATION_LOCKED_X.bits | Self::ROTATION_LOCKED_Y.bits | Self::ROTATION_LOCKED_Z.bits;
     }
@@ -228,7 +234,7 @@ pub struct RigidBodyMassProps {
     /// The world-space center of mass of the rigid-body.
     pub world_com: Point<Real>,
     /// The inverse mass taking into account translation locking.
-    pub effective_inv_mass: Real,
+    pub effective_inv_mass: Vector<Real>,
     /// The square-root of the world-space inverse angular inertia tensor of the rigid-body,
     /// taking into account rotation locking.
     pub effective_world_inv_inertia_sqrt: AngularInertia<Real>,
@@ -240,7 +246,7 @@ impl Default for RigidBodyMassProps {
             flags: RigidBodyMassPropsFlags::empty(),
             local_mprops: MassProperties::zero(),
             world_com: Point::origin(),
-            effective_inv_mass: 0.0,
+            effective_inv_mass: Vector::zero(),
             effective_world_inv_inertia_sqrt: AngularInertia::zero(),
         }
     }
@@ -274,8 +280,8 @@ impl RigidBodyMassProps {
     /// The effective mass (that takes the potential translation locking into account) of
     /// this rigid-body.
     #[must_use]
-    pub fn effective_mass(&self) -> Real {
-        crate::utils::inv(self.effective_inv_mass)
+    pub fn effective_mass(&self) -> Vector<Real> {
+        self.effective_inv_mass.map(crate::utils::inv)
     }
 
     /// The effective world-space angular inertia (that takes the potential rotation locking into account) of
@@ -288,16 +294,31 @@ impl RigidBodyMassProps {
     /// Update the world-space mass properties of `self`, taking into account the new position.
     pub fn update_world_mass_properties(&mut self, position: &Isometry<Real>) {
         self.world_com = self.local_mprops.world_com(&position);
-        self.effective_inv_mass = self.local_mprops.inv_mass;
+        self.effective_inv_mass = Vector::repeat(self.local_mprops.inv_mass);
         self.effective_world_inv_inertia_sqrt =
             self.local_mprops.world_inv_inertia_sqrt(&position.rotation);
 
         // Take into account translation/rotation locking.
         if self
             .flags
-            .contains(RigidBodyMassPropsFlags::TRANSLATION_LOCKED)
+            .contains(RigidBodyMassPropsFlags::TRANSLATION_LOCKED_X)
         {
-            self.effective_inv_mass = 0.0;
+            self.effective_inv_mass.x = 0.0;
+        }
+
+        if self
+            .flags
+            .contains(RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Y)
+        {
+            self.effective_inv_mass.y = 0.0;
+        }
+
+        #[cfg(feature = "dim3")]
+        if self
+            .flags
+            .contains(RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Z)
+        {
+            self.effective_inv_mass.z = 0.0;
         }
 
         #[cfg(feature = "dim2")]
@@ -536,7 +557,7 @@ impl RigidBodyVelocity {
     /// The impulse is applied right away, changing the linear velocity.
     /// This does nothing on non-dynamic bodies.
     pub fn apply_impulse(&mut self, rb_mprops: &RigidBodyMassProps, impulse: Vector<Real>) {
-        self.linvel += impulse * rb_mprops.effective_inv_mass;
+        self.linvel += impulse.component_mul(&rb_mprops.effective_inv_mass);
     }
 
     /// Applies an angular impulse at the center-of-mass of this rigid-body.
@@ -659,7 +680,7 @@ impl RigidBodyForces {
         init_vels: &RigidBodyVelocity,
         mprops: &RigidBodyMassProps,
     ) -> RigidBodyVelocity {
-        let linear_acc = self.force * mprops.effective_inv_mass;
+        let linear_acc = self.force.component_mul(&mprops.effective_inv_mass);
         let angular_acc = mprops.effective_world_inv_inertia_sqrt
             * (mprops.effective_world_inv_inertia_sqrt * self.torque);
 
@@ -671,8 +692,8 @@ impl RigidBodyForces {
 
     /// Adds to `self` the gravitational force that would result in a gravitational acceleration
     /// equal to `gravity`.
-    pub fn add_gravity_acceleration(&mut self, gravity: &Vector<Real>, mass: Real) {
-        self.force += gravity * self.gravity_scale * mass;
+    pub fn add_gravity_acceleration(&mut self, gravity: &Vector<Real>, mass: &Vector<Real>) {
+        self.force += gravity.component_mul(&mass) * self.gravity_scale;
     }
 
     /// Applies a force at the given world-space point of the rigid-body with the given mass properties.

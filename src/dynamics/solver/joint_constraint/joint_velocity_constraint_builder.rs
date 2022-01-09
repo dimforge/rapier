@@ -355,7 +355,7 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         // Use the modified Gram-Schmidt orthogonalization.
         for j in 0..len {
             let c_j = &mut constraints[j];
-            let dot_jj = c_j.lin_jac.norm_squared() * imsum
+            let dot_jj = c_j.lin_jac.dot(&imsum.component_mul(&c_j.lin_jac))
                 + c_j.ang_jac1.gdot(c_j.ang_jac1)
                 + c_j.ang_jac2.gdot(c_j.ang_jac2);
             let inv_dot_jj = crate::utils::simd_inv(dot_jj);
@@ -370,7 +370,7 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
 
             for i in (j + 1)..len {
                 let (c_i, c_j) = constraints.index_mut_const(i, j);
-                let dot_ij = c_i.lin_jac.dot(&c_j.lin_jac) * imsum
+                let dot_ij = c_i.lin_jac.dot(&imsum.component_mul(&c_j.lin_jac))
                     + c_i.ang_jac1.gdot(c_j.ang_jac1)
                     + c_i.ang_jac2.gdot(c_j.ang_jac2);
                 let coeff = dot_ij * inv_dot_jj;
@@ -672,7 +672,8 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         // Use the modified Gram-Schmidt orthogonalization.
         for j in 0..len {
             let c_j = &mut constraints[j];
-            let dot_jj = c_j.lin_jac.norm_squared() * imsum + c_j.ang_jac2.gdot(c_j.ang_jac2);
+            let dot_jj = c_j.lin_jac.dot(&imsum.component_mul(&c_j.lin_jac))
+                + c_j.ang_jac2.gdot(c_j.ang_jac2);
             let inv_dot_jj = crate::utils::simd_inv(dot_jj);
             c_j.inv_lhs = inv_dot_jj; // Don’t forget to update the inv_lhs.
 
@@ -685,8 +686,8 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
 
             for i in (j + 1)..len {
                 let (c_i, c_j) = constraints.index_mut_const(i, j);
-                let dot_ij =
-                    c_i.lin_jac.dot(&c_j.lin_jac) * imsum + c_i.ang_jac2.gdot(c_j.ang_jac2);
+                let dot_ij = c_i.lin_jac.dot(&imsum.component_mul(&c_j.lin_jac))
+                    + c_i.ang_jac2.gdot(c_j.ang_jac2);
                 let coeff = dot_ij * inv_dot_jj;
 
                 c_i.lin_jac -= c_j.lin_jac * coeff;

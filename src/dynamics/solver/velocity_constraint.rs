@@ -94,8 +94,8 @@ pub(crate) struct VelocityConstraint {
     pub dir1: Vector<Real>, // Non-penetration force direction for the first body.
     #[cfg(feature = "dim3")]
     pub tangent1: Vector<Real>, // One of the friction force directions.
-    pub im1: Real,
-    pub im2: Real,
+    pub im1: Vector<Real>,
+    pub im2: Vector<Real>,
     pub limit: Real,
     pub mj_lambda1: usize,
     pub mj_lambda2: usize,
@@ -235,9 +235,9 @@ impl VelocityConstraint {
                         .effective_world_inv_inertia_sqrt
                         .transform_vector(dp2.gcross(-force_dir1));
 
+                    let imsum = mprops1.effective_inv_mass + mprops2.effective_inv_mass;
                     let r = 1.0
-                        / (mprops1.effective_inv_mass
-                            + mprops2.effective_inv_mass
+                        / (force_dir1.dot(&imsum.component_mul(&force_dir1))
                             + gcross1.gdot(gcross1)
                             + gcross2.gdot(gcross2));
 
@@ -274,9 +274,9 @@ impl VelocityConstraint {
                         let gcross2 = mprops2
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(dp2.gcross(-tangents1[j]));
+                        let imsum = mprops1.effective_inv_mass + mprops2.effective_inv_mass;
                         let r = 1.0
-                            / (mprops1.effective_inv_mass
-                                + mprops2.effective_inv_mass
+                            / (tangents1[j].dot(&imsum.component_mul(&tangents1[j]))
                                 + gcross1.gdot(gcross1)
                                 + gcross2.gdot(gcross2));
                         let rhs =
@@ -314,8 +314,8 @@ impl VelocityConstraint {
             &self.dir1,
             #[cfg(feature = "dim3")]
             &self.tangent1,
-            self.im1,
-            self.im2,
+            &self.im1,
+            &self.im2,
             self.limit,
             &mut mj_lambda1,
             &mut mj_lambda2,

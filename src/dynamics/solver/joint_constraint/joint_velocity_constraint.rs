@@ -51,7 +51,7 @@ pub enum WritebackId {
 pub struct SolverBody<N: SimdRealField, const LANES: usize> {
     pub linvel: Vector<N>,
     pub angvel: AngVector<N>,
-    pub im: N,
+    pub im: Vector<N>,
     pub sqrt_ii: AngularInertia<N>,
     pub world_com: Point<N>,
     pub mj_lambda: [usize; LANES],
@@ -74,8 +74,8 @@ pub struct JointVelocityConstraint<N: SimdRealField, const LANES: usize> {
     pub rhs: N,
     pub rhs_wo_bias: N,
 
-    pub im1: N,
-    pub im2: N,
+    pub im1: Vector<N>,
+    pub im2: Vector<N>,
 
     pub writeback_id: WritebackId,
 }
@@ -94,8 +94,8 @@ impl<N: WReal, const LANES: usize> JointVelocityConstraint<N, LANES> {
             inv_lhs: N::zero(),
             rhs: N::zero(),
             rhs_wo_bias: N::zero(),
-            im1: N::zero(),
-            im2: N::zero(),
+            im1: na::zero(),
+            im2: na::zero(),
             writeback_id: WritebackId::Dof(0),
         }
     }
@@ -115,9 +115,9 @@ impl<N: WReal, const LANES: usize> JointVelocityConstraint<N, LANES> {
         let ang_impulse1 = self.ang_jac1 * delta_impulse;
         let ang_impulse2 = self.ang_jac2 * delta_impulse;
 
-        mj_lambda1.linear += lin_impulse * self.im1;
+        mj_lambda1.linear += lin_impulse.component_mul(&self.im1);
         mj_lambda1.angular += ang_impulse1;
-        mj_lambda2.linear -= lin_impulse * self.im2;
+        mj_lambda2.linear -= lin_impulse.component_mul(&self.im2);
         mj_lambda2.angular -= ang_impulse2;
     }
 
@@ -353,7 +353,7 @@ pub struct JointVelocityGroundConstraint<N: SimdRealField, const LANES: usize> {
     pub rhs: N,
     pub rhs_wo_bias: N,
 
-    pub im2: N,
+    pub im2: Vector<N>,
 
     pub writeback_id: WritebackId,
 }
@@ -370,7 +370,7 @@ impl<N: WReal, const LANES: usize> JointVelocityGroundConstraint<N, LANES> {
             inv_lhs: N::zero(),
             rhs: N::zero(),
             rhs_wo_bias: N::zero(),
-            im2: N::zero(),
+            im2: na::zero(),
             writeback_id: WritebackId::Dof(0),
         }
     }
@@ -388,7 +388,7 @@ impl<N: WReal, const LANES: usize> JointVelocityGroundConstraint<N, LANES> {
         let lin_impulse = self.lin_jac * delta_impulse;
         let ang_impulse = self.ang_jac2 * delta_impulse;
 
-        mj_lambda2.linear -= lin_impulse * self.im2;
+        mj_lambda2.linear -= lin_impulse.component_mul(&self.im2);
         mj_lambda2.angular -= ang_impulse;
     }
 

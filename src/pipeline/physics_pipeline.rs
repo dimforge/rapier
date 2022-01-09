@@ -223,7 +223,7 @@ impl PhysicsPipeline {
                 })
                 .unwrap();
             bodies.map_mut_internal(handle.0, |forces: &mut RigidBodyForces| {
-                forces.add_gravity_acceleration(&gravity, effective_inv_mass)
+                forces.add_gravity_acceleration(&gravity, &effective_inv_mass)
             });
         }
 

@@ -17,7 +17,7 @@ pub(crate) struct VelocityGroundConstraint {
     pub dir1: Vector<Real>, // Non-penetration force direction for the first body.
     #[cfg(feature = "dim3")]
     pub tangent1: Vector<Real>, // One of the friction force directions.
-    pub im2: Real,
+    pub im2: Vector<Real>,
     pub limit: Real,
     pub elements: [VelocityGroundConstraintElement<Real>; MAX_MANIFOLD_POINTS],
 
@@ -153,7 +153,9 @@ impl VelocityGroundConstraint {
                         .effective_world_inv_inertia_sqrt
                         .transform_vector(dp2.gcross(-force_dir1));
 
-                    let r = 1.0 / (mprops2.effective_inv_mass + gcross2.gdot(gcross2));
+                    let r = 1.0
+                        / (force_dir1.dot(&mprops2.effective_inv_mass.component_mul(&force_dir1))
+                            + gcross2.gdot(gcross2));
 
                     let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
                     let is_resting = 1.0 - is_bouncy;
@@ -184,7 +186,10 @@ impl VelocityGroundConstraint {
                         let gcross2 = mprops2
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(dp2.gcross(-tangents1[j]));
-                        let r = 1.0 / (mprops2.effective_inv_mass + gcross2.gdot(gcross2));
+                        let r = 1.0
+                            / (tangents1[j]
+                                .dot(&mprops2.effective_inv_mass.component_mul(&tangents1[j]))
+                                + gcross2.gdot(gcross2));
                         let rhs = (vel1 - vel2
                             + flipped_multiplier * manifold_point.tangent_velocity)
                             .dot(&tangents1[j]);
@@ -219,7 +224,7 @@ impl VelocityGroundConstraint {
             &self.dir1,
             #[cfg(feature = "dim3")]
             &self.tangent1,
-            self.im2,
+            &self.im2,
             self.limit,
             &mut mj_lambda2,
             solve_normal,
