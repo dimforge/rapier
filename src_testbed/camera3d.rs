@@ -11,6 +11,7 @@ use std::ops::RangeInclusive;
 
 const LINE_TO_PIXEL_RATIO: f32 = 0.1;
 
+#[derive(Component)]
 pub struct OrbitCamera {
     pub x: f32,
     pub y: f32,
@@ -113,7 +114,7 @@ impl OrbitCameraPlugin {
     }
 }
 impl Plugin for OrbitCameraPlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.add_system(Self::mouse_motion_system.system())
             .add_system(Self::zoom_system.system())
             .add_system(Self::update_transform_system.system());

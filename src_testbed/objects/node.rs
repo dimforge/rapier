@@ -5,15 +5,17 @@ use bevy::render::mesh::{Indices, VertexAttributeValues};
 use na::{point, Point3, Vector3};
 use std::collections::HashMap;
 
-use bevy::render::pipeline::PrimitiveTopology;
-use bevy::render::wireframe::Wireframe;
+use bevy::pbr::wireframe::Wireframe;
+use bevy::render::render_resource::PrimitiveTopology;
 use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{Cone, Cylinder};
 use rapier::math::Isometry;
 
+use crate::graphics::BevyMaterial;
 #[cfg(feature = "dim2")]
 use {
+    bevy::sprite::MaterialMesh2dBundle,
     na::{Point2, Vector2},
     rapier::geometry::{Ball, Cuboid},
 };
@@ -26,14 +28,14 @@ pub struct EntityWithGraphics {
     pub collider: Option<ColliderHandle>,
     pub delta: Isometry<f32>,
     pub opacity: f32,
-    material: Handle<StandardMaterial>,
+    material: Handle<BevyMaterial>,
 }
 
 impl EntityWithGraphics {
     pub fn spawn(
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<StandardMaterial>,
+        materials: &mut Assets<BevyMaterial>,
         prefab_meshs: &HashMap<ShapeType, Handle<Mesh>>,
         shape: &dyn Shape,
         collider: Option<ColliderHandle>,
@@ -74,9 +76,15 @@ impl EntityWithGraphics {
             transform.rotation = Quat::from_rotation_z(shape_pos.rotation.angle());
         }
 
+        #[cfg(feature = "dim2")]
+        let material = ColorMaterial {
+            color: bevy_color,
+            texture: None,
+        };
+        #[cfg(feature = "dim3")]
         let material = StandardMaterial {
             metallic: 0.5,
-            roughness: 0.5,
+            perceptual_roughness: 0.5,
             double_sided: true, // TODO: this doesn't do anything?
             ..StandardMaterial::from(bevy_color)
         };
@@ -84,7 +92,15 @@ impl EntityWithGraphics {
         let material_weak_handle = material_handle.clone_weak();
 
         if let Some(mesh) = mesh {
-            let pbr = PbrBundle {
+            #[cfg(feature = "dim2")]
+            let bundle = MaterialMesh2dBundle {
+                mesh: mesh.into(),
+                material: material_handle,
+                transform,
+                ..Default::default()
+            };
+            #[cfg(feature = "dim3")]
+            let bundle = PbrBundle {
                 mesh,
                 material: material_handle,
                 transform,
@@ -92,7 +108,7 @@ impl EntityWithGraphics {
             };
 
             let mut entity_commands = commands.entity(entity);
-            entity_commands.insert_bundle(pbr);
+            entity_commands.insert_bundle(bundle);
 
             if sensor {
                 entity_commands.insert(Wireframe);
@@ -115,23 +131,38 @@ impl EntityWithGraphics {
         commands.entity(self.entity).despawn();
     }
 
-    pub fn select(&mut self, materials: &mut Assets<StandardMaterial>) {
+    pub fn select(&mut self, materials: &mut Assets<BevyMaterial>) {
         // NOTE: we don't just call `self.set_color` because that would
         //       overwrite self.base_color too.
         self.color = point![1.0, 0.0, 0.0];
         if let Some(material) = materials.get_mut(&self.material) {
-            material.base_color =
-                Color::rgba(self.color.x, self.color.y, self.color.z, self.opacity);
+            #[cfg(feature = "dim2")]
+            {
+                material.color =
+                    Color::rgba(self.color.x, self.color.y, self.color.z, self.opacity);
+            }
+            #[cfg(feature = "dim3")]
+            {
+                material.base_color =
+                    Color::rgba(self.color.x, self.color.y, self.color.z, self.opacity);
+            }
         }
     }
 
-    pub fn unselect(&mut self, materials: &mut Assets<StandardMaterial>) {
+    pub fn unselect(&mut self, materials: &mut Assets<BevyMaterial>) {
         self.set_color(materials, self.base_color);
     }
 
-    pub fn set_color(&mut self, materials: &mut Assets<StandardMaterial>, color: Point3<f32>) {
+    pub fn set_color(&mut self, materials: &mut Assets<BevyMaterial>, color: Point3<f32>) {
         if let Some(material) = materials.get_mut(&self.material) {
-            material.base_color = Color::rgba(color.x, color.y, color.z, self.opacity);
+            #[cfg(feature = "dim2")]
+            {
+                material.color = Color::rgba(color.x, color.y, color.z, self.opacity);
+            }
+            #[cfg(feature = "dim3")]
+            {
+                material.base_color = Color::rgba(color.x, color.y, color.z, self.opacity);
+            }
         }
         self.color = color;
         self.base_color = color;
@@ -336,7 +367,7 @@ fn collider_mesh_scale(co_shape: &dyn Shape) -> Vec3 {
         #[cfg(feature = "dim3")]
         ShapeType::Cuboid => {
             let c = co_shape.as_cuboid().unwrap();
-            Vec3::from_slice_unaligned(c.half_extents.as_slice())
+            Vec3::from_slice(c.half_extents.as_slice())
         }
         #[cfg(feature = "dim3")]
         ShapeType::Cylinder => {

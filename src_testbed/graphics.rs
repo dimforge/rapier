@@ -17,6 +17,11 @@ use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg32;
 use std::collections::HashMap;
 
+#[cfg(feature = "dim2")]
+pub type BevyMaterial = ColorMaterial;
+#[cfg(feature = "dim3")]
+pub type BevyMaterial = StandardMaterial;
+
 pub struct GraphicsManager {
     rand: Pcg32,
     b2sn: HashMap<RigidBodyHandle, Vec<EntityWithGraphics>>,
@@ -84,7 +89,7 @@ impl GraphicsManager {
 
     pub fn set_body_color(
         &mut self,
-        materials: &mut Assets<StandardMaterial>,
+        materials: &mut Assets<BevyMaterial>,
         b: RigidBodyHandle,
         color: [f32; 3],
     ) {
@@ -161,7 +166,7 @@ impl GraphicsManager {
 
     fn alloc_color(
         &mut self,
-        materials: &mut Assets<StandardMaterial>,
+        materials: &mut Assets<BevyMaterial>,
         handle: RigidBodyHandle,
         is_static: bool,
     ) -> Point3<f32> {
@@ -183,7 +188,7 @@ impl GraphicsManager {
         &mut self,
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<StandardMaterial>,
+        materials: &mut Assets<BevyMaterial>,
         components: &mut Query<(&mut Transform,)>,
         handle: RigidBodyHandle,
         bodies: &RigidBodySet,
@@ -206,7 +211,7 @@ impl GraphicsManager {
         &mut self,
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<StandardMaterial>,
+        materials: &mut Assets<BevyMaterial>,
         components: &mut Query<(&mut Transform,)>,
         handle: RigidBodyHandle,
         bodies: &RigidBodySet,
@@ -257,7 +262,7 @@ impl GraphicsManager {
         &mut self,
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<StandardMaterial>,
+        materials: &mut Assets<BevyMaterial>,
         handle: ColliderHandle,
         colliders: &ColliderSet,
     ) {
@@ -292,7 +297,7 @@ impl GraphicsManager {
         &mut self,
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<StandardMaterial>,
+        materials: &mut Assets<BevyMaterial>,
         handle: Option<ColliderHandle>,
         shape: &dyn Shape,
         sensor: bool,
