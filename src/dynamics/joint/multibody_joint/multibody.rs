@@ -18,7 +18,7 @@ use na::{
 };
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug,Default)]
 struct Force {
     linear: Vector<Real>,
     angular: AngVector<Real>,
@@ -91,7 +91,11 @@ pub struct Multibody {
     coriolis_w: Vec<OMatrix<Real, AngDim, Dynamic>>,
     i_coriolis_dt: Jacobian<Real>,
 }
-
+impl Default for Multibody{
+    fn default() -> Self {
+        Multibody::new()
+    }
+}
 impl Multibody {
     /// Creates a new multibody with no link.
     pub fn new() -> Self {

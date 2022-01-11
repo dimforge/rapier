@@ -24,7 +24,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 struct ColliderGraphIndices {
     contact_graph_index: ColliderGraphIndex,
     intersection_graph_index: ColliderGraphIndex,

@@ -52,9 +52,15 @@ pub struct Index {
     generation: u32,
 }
 
-impl IndexedData for Index {
+impl Default for Index {
     fn default() -> Self {
         Self::from_raw_parts(crate::INVALID_U32, crate::INVALID_U32)
+    }
+}
+
+impl IndexedData for Index {
+    fn default() -> Self {
+       Default::default()
     }
 
     fn index(&self) -> usize {

@@ -3,7 +3,7 @@ use na::{DVectorSlice, DVectorSliceMut};
 use na::{Scalar, SimdRealField};
 use std::ops::{AddAssign, Sub};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
 //#[repr(align(64))]
 pub struct DeltaVel<N: Scalar + Copy> {

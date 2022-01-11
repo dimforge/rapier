@@ -33,6 +33,12 @@ impl ColliderPair {
     }
 }
 
+impl Default for ColliderPair{
+    fn default() -> Self {
+        ColliderPair::zero()
+    }
+}
+
 /// An event emitted by the broad-phase.
 pub enum BroadPhasePairEvent {
     /// A potential new collision pair has been detected by the broad-phase.

@@ -6,7 +6,7 @@ use crate::pipeline::{ActiveEvents, ActiveHooks};
 use std::ops::{Deref, DerefMut};
 
 /// The unique identifier of a collider added to a collider set.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[repr(transparent)]
 pub struct ColliderHandle(pub crate::data::arena::Index);
