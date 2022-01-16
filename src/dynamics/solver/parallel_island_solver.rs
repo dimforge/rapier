@@ -247,7 +247,7 @@ impl ParallelIslandSolver {
                             // NOTE: `dvel.angular` is actually storing angular velocity delta multiplied
                             //       by the square root of the inertia tensor:
                             dvel.angular += rb_mass_props.effective_world_inv_inertia_sqrt * rb_forces.torque * params.dt;
-                            dvel.linear += rb_forces.force * (rb_mass_props.effective_inv_mass * params.dt);
+                            dvel.linear += rb_forces.force.component_mul(&rb_mass_props.effective_inv_mass) * params.dt;
                         }
                     }
 
