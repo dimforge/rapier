@@ -927,11 +927,13 @@ impl RigidBodyDominance {
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct RigidBodyActivation {
-    /// The threshold pseudo-kinetic energy bellow which the body can fall asleep.
-    pub threshold: Real,
-    /// The current pseudo-kinetic energy of the body.
-    pub energy: Real,
-    /// Is this body already sleeping?
+    /// The threshold linear velocity bellow which the body can fall asleep.
+    pub linear_threshold: Real,
+    /// The angular linear velocity bellow which the body can fall asleep.
+    pub angular_threshold: Real,
+    /// Since how much time can this body sleep?
+    pub time_since_can_sleep: Real,
+    /// Is this body sleeping?
     pub sleeping: bool,
 }
 
@@ -942,16 +944,28 @@ impl Default for RigidBodyActivation {
 }
 
 impl RigidBodyActivation {
-    /// The default amount of energy bellow which a body can be put to sleep by rapier.
-    pub fn default_threshold() -> Real {
-        0.01
+    /// The default linear velocity bellow which a body can be put to sleep.
+    pub fn default_linear_threshold() -> Real {
+        0.4
+    }
+
+    /// The default angular velocity bellow which a body can be put to sleep.
+    pub fn default_angular_threshold() -> Real {
+        0.5
+    }
+
+    /// The amount of time the rigid-body must remain bellow it’s linear and angular velocity
+    /// threshold before falling to sleep.
+    pub fn default_time_until_sleep() -> Real {
+        2.0
     }
 
     /// Create a new rb_activation status initialised with the default rb_activation threshold and is active.
     pub fn active() -> Self {
         RigidBodyActivation {
-            threshold: Self::default_threshold(),
-            energy: Self::default_threshold() * 4.0,
+            linear_threshold: Self::default_linear_threshold(),
+            angular_threshold: Self::default_angular_threshold(),
+            time_since_can_sleep: 0.0,
             sleeping: false,
         }
     }
@@ -959,16 +973,18 @@ impl RigidBodyActivation {
     /// Create a new rb_activation status initialised with the default rb_activation threshold and is inactive.
     pub fn inactive() -> Self {
         RigidBodyActivation {
-            threshold: Self::default_threshold(),
-            energy: 0.0,
+            linear_threshold: Self::default_linear_threshold(),
+            angular_threshold: Self::default_angular_threshold(),
             sleeping: true,
+            time_since_can_sleep: Self::default_time_until_sleep(),
         }
     }
 
     /// Create a new activation status that prevents the rigid-body from sleeping.
     pub fn cannot_sleep() -> Self {
         RigidBodyActivation {
-            threshold: -Real::MAX,
+            linear_threshold: -1.0,
+            angular_threshold: -1.0,
             ..Self::active()
         }
     }
@@ -976,22 +992,22 @@ impl RigidBodyActivation {
     /// Returns `true` if the body is not asleep.
     #[inline]
     pub fn is_active(&self) -> bool {
-        self.energy != 0.0
+        !self.sleeping
     }
 
     /// Wakes up this rigid-body.
     #[inline]
     pub fn wake_up(&mut self, strong: bool) {
         self.sleeping = false;
-        if strong || self.energy == 0.0 {
-            self.energy = self.threshold.abs() * 2.0;
+        if strong {
+            self.time_since_can_sleep = 0.0;
         }
     }
 
     /// Put this rigid-body to sleep.
     #[inline]
     pub fn sleep(&mut self) {
-        self.energy = 0.0;
         self.sleeping = true;
+        self.time_since_can_sleep = Self::default_time_until_sleep();
     }
 }

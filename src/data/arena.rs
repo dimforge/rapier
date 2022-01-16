@@ -70,11 +70,8 @@ impl Index {
     ///
     /// Providing arbitrary values will lead to malformed indices and ultimately
     /// panics.
-    pub fn from_raw_parts(a: u32, b: u32) -> Index {
-        Index {
-            index: a,
-            generation: b,
-        }
+    pub fn from_raw_parts(index: u32, generation: u32) -> Index {
+        Index { index, generation }
     }
 
     /// Convert this `Index` into its raw parts.

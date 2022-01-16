@@ -4,7 +4,7 @@ use rapier::dynamics::{
     RigidBodySet,
 };
 use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, IntersectionEvent, NarrowPhase};
-use rapier::math::Vector;
+use rapier::math::{Real, Vector};
 use rapier::pipeline::{PhysicsHooks, PhysicsPipeline, QueryPipeline};
 
 pub struct PhysicsSnapshot {
@@ -82,7 +82,7 @@ pub struct PhysicsState {
     pub pipeline: PhysicsPipeline,
     pub query_pipeline: QueryPipeline,
     pub integration_parameters: IntegrationParameters,
-    pub gravity: Vector<f32>,
+    pub gravity: Vector<Real>,
     pub hooks: Box<dyn PhysicsHooks<RigidBodySet, ColliderSet>>,
 }
 

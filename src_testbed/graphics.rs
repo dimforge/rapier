@@ -2,10 +2,10 @@ use bevy::prelude::*;
 
 use na::{point, Point3};
 
-use crate::math::Isometry;
 use crate::objects::node::EntityWithGraphics;
 use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
 use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
+use rapier::math::{Isometry, Real};
 //use crate::objects::capsule::Capsule;
 //#[cfg(feature = "dim3")]
 //use crate::objects::mesh::Mesh;
@@ -301,8 +301,8 @@ impl GraphicsManager {
         handle: Option<ColliderHandle>,
         shape: &dyn Shape,
         sensor: bool,
-        pos: &Isometry<f32>,
-        delta: &Isometry<f32>,
+        pos: &Isometry<Real>,
+        delta: &Isometry<Real>,
         color: Point3<f32>,
         out: &mut Vec<EntityWithGraphics>,
     ) {
@@ -347,18 +347,24 @@ impl GraphicsManager {
         _bodies: &RigidBodySet,
         colliders: &ColliderSet,
         components: &mut Query<(&mut Transform,)>,
+        _materials: &mut Assets<BevyMaterial>,
     ) {
         for (_, ns) in self.b2sn.iter_mut() {
             for n in ns.iter_mut() {
-                // if let Some(co) = colliders.get(n.collider()) {
-                //     let bo = &_bodies[co.parent()];
-                //
-                //     if bo.is_dynamic() {
-                //         if bo.is_ccd_active() {
-                //             n.set_color(point![1.0, 0.0, 0.0]);
-                //         } else {
-                //             n.set_color(point![0.0, 1.0, 0.0]);
-                //         }
+                // if let Some(bo) = n
+                //     .collider
+                //     .and_then(|h| bodies.get(colliders.get(h)?.parent()?))
+                // {
+                //     if bo.activation().time_since_can_sleep
+                //         >= RigidBodyActivation::default_time_until_sleep()
+                //     {
+                //         n.set_color(materials, point![1.0, 0.0, 0.0]);
+                //     }
+                //     /* else if bo.activation().energy < bo.activation().threshold {
+                //         n.set_color(materials, point![0.0, 0.0, 1.0]);
+                //     } */
+                //     else {
+                //         n.set_color(materials, point![0.0, 1.0, 0.0]);
                 //     }
                 // }
 

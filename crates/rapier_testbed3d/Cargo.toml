@@ -21,7 +21,7 @@ required-features = [ "dim3" ]
 [features]
 default = [ "dim3" ]
 dim3 = [ ]
-parallel = [ "rapier3d/parallel", "num_cpus" ]
+parallel = [ "rapier/parallel", "num_cpus" ]
 other-backends = [ "physx", "physx-sys", "glam" ]
 
 [dependencies]
@@ -32,7 +32,6 @@ instant    = { version = "0.1", features = [ "web-sys", "now" ]}
 bitflags   = "1"
 glam       = { version = "0.12", optional = true }
 num_cpus   = { version = "1", optional = true }
-parry3d    = "0.8"
 physx      = { version = "0.11", optional = true }
 physx-sys = { version = "0.4", optional = true }
 crossbeam = "0.8"
@@ -53,7 +52,8 @@ bevy = {version = "0.6", default-features = false, features = ["bevy_winit", "re
 bevy = {version = "0.6", default-features = false, features = ["bevy_winit", "render"]}
 #bevy_webgl2 = "0.5"
 
-[dependencies.rapier3d]
+[dependencies.rapier]
+package = "rapier3d"
 path = "../rapier3d"
 version = "0.12.0-alpha.0"
 features = [ "serde-serialize" ]

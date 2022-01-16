@@ -5,6 +5,8 @@ use crate::math::{Isometry, Real, Vector};
 use crate::prelude::RigidBodyVelocity;
 
 /// One link of a multibody.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct MultibodyLink {
     // FIXME: make all those private.
     pub(crate) internal_id: usize,
@@ -96,6 +98,8 @@ impl MultibodyLink {
 }
 
 // FIXME: keep this even if we already have the Index2 traits?
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub(crate) struct MultibodyLinkVec(pub Vec<MultibodyLink>);
 
 impl MultibodyLinkVec {

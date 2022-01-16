@@ -50,12 +50,10 @@ impl OrbitCameraPlugin {
         mut query: Query<(&OrbitCamera, &mut Transform), (Changed<OrbitCamera>, With<Camera>)>,
     ) {
         for (camera, mut transform) in query.iter_mut() {
-            if camera.enabled {
-                let rot = Quat::from_axis_angle(Vec3::Y, camera.x)
-                    * Quat::from_axis_angle(-Vec3::X, camera.y);
-                transform.translation = (rot * Vec3::Y) * camera.distance + camera.center;
-                transform.look_at(camera.center, Vec3::Y);
-            }
+            let rot = Quat::from_axis_angle(Vec3::Y, camera.x)
+                * Quat::from_axis_angle(-Vec3::X, camera.y);
+            transform.translation = (rot * Vec3::Y) * camera.distance + camera.center;
+            transform.look_at(camera.center, Vec3::Y);
         }
     }
 

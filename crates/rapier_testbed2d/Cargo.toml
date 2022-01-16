@@ -21,7 +21,7 @@ required-features = [ "dim2" ]
 [features]
 default = [ "dim2" ]
 dim2 = [ ]
-parallel = [ "rapier2d/parallel", "num_cpus" ]
+parallel = [ "rapier/parallel", "num_cpus" ]
 other-backends = [ "wrapped2d" ]
 
 
@@ -33,7 +33,6 @@ instant    = { version = "0.1", features = [ "web-sys", "now" ]}
 bitflags   = "1"
 num_cpus   = { version = "1", optional = true }
 wrapped2d  = { version = "0.4", optional = true }
-parry2d = "0.8"
 crossbeam = "0.8"
 bincode = "1"
 Inflector  = "0.11"
@@ -51,7 +50,8 @@ bevy = {version = "0.6", default-features = false, features = ["bevy_winit", "re
 bevy = {version = "0.6", default-features = false, features = ["bevy_winit", "render"]}
 #bevy_webgl2 = "0.5"
 
-[dependencies.rapier2d]
+[dependencies.rapier]
+package = "rapier2d"
 path = "../rapier2d"
 version = "0.12.0-alpha.0"
 features = [ "serde-serialize" ]

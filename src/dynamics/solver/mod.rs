@@ -13,6 +13,7 @@ pub(self) use self::velocity_solver::VelocitySolver;
 pub(self) use delta_vel::DeltaVel;
 pub(self) use generic_velocity_constraint::*;
 pub(self) use generic_velocity_constraint_element::*;
+pub(self) use generic_velocity_ground_constraint::*;
 pub(self) use interaction_groups::*;
 pub(crate) use joint_constraint::MotorParameters;
 pub use joint_constraint::*;
@@ -29,6 +30,8 @@ mod categorization;
 mod delta_vel;
 mod generic_velocity_constraint;
 mod generic_velocity_constraint_element;
+mod generic_velocity_ground_constraint;
+mod generic_velocity_ground_constraint_element;
 mod interaction_groups;
 #[cfg(not(feature = "parallel"))]
 mod island_solver;

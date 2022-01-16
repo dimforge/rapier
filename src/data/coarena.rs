@@ -29,6 +29,10 @@ impl<T> Coarena<T> {
         self.data.get(index as usize).map(|(_, t)| t)
     }
 
+    pub(crate) fn get_gen(&self, index: u32) -> Option<u32> {
+        self.data.get(index as usize).map(|(gen, _)| *gen)
+    }
+
     /// Deletes an element for the coarena and returns its value.
     ///
     /// This method will reset the value to the given `removed_value`.

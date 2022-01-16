@@ -8,7 +8,7 @@ use rapier::dynamics::{
     RigidBodySet,
 };
 use rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
-use rapier::math::Vector;
+use rapier::math::{Real, Vector};
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
 
 pub mod plugin;
@@ -131,7 +131,7 @@ impl Harness {
         colliders: ColliderSet,
         impulse_joints: ImpulseJointSet,
         multibody_joints: MultibodyJointSet,
-        gravity: Vector<f32>,
+        gravity: Vector<Real>,
         hooks: impl PhysicsHooks<RigidBodySet, ColliderSet> + 'static,
     ) {
         // println!("Num bodies: {}", bodies.len());
@@ -235,7 +235,7 @@ impl Harness {
 
         self.events.poll_all();
 
-        self.state.time += self.physics.integration_parameters.dt;
+        self.state.time += self.physics.integration_parameters.dt as f32;
         self.state.timestep_id += 1;
     }
 

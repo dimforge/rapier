@@ -236,7 +236,7 @@ impl VelocityConstraint {
                         .transform_vector(dp2.gcross(-force_dir1));
 
                     let imsum = mprops1.effective_inv_mass + mprops2.effective_inv_mass;
-                    let r = 1.0
+                    let r = params.delassus_inv_factor
                         / (force_dir1.dot(&imsum.component_mul(&force_dir1))
                             + gcross1.gdot(gcross1)
                             + gcross2.gdot(gcross2));
@@ -246,8 +246,7 @@ impl VelocityConstraint {
 
                     let mut rhs_wo_bias = (1.0 + is_bouncy * manifold_point.restitution)
                         * (vel1 - vel2).dot(&force_dir1);
-                    rhs_wo_bias +=
-                        (manifold_point.dist + params.allowed_linear_error).max(0.0) * inv_dt;
+                    rhs_wo_bias += manifold_point.dist.max(0.0) * inv_dt;
                     rhs_wo_bias *= is_bouncy + is_resting * params.velocity_solve_fraction;
                     let rhs_bias = /* is_resting
                         * */  erp_inv_dt
@@ -275,17 +274,26 @@ impl VelocityConstraint {
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(dp2.gcross(-tangents1[j]));
                         let imsum = mprops1.effective_inv_mass + mprops2.effective_inv_mass;
-                        let r = 1.0
-                            / (tangents1[j].dot(&imsum.component_mul(&tangents1[j]))
-                                + gcross1.gdot(gcross1)
-                                + gcross2.gdot(gcross2));
+                        let r = tangents1[j].dot(&imsum.component_mul(&tangents1[j]))
+                            + gcross1.gdot(gcross1)
+                            + gcross2.gdot(gcross2);
                         let rhs =
                             (vel1 - vel2 + manifold_point.tangent_velocity).dot(&tangents1[j]);
 
                         constraint.elements[k].tangent_part.gcross1[j] = gcross1;
                         constraint.elements[k].tangent_part.gcross2[j] = gcross2;
                         constraint.elements[k].tangent_part.rhs[j] = rhs;
-                        constraint.elements[k].tangent_part.r[j] = r;
+                        constraint.elements[k].tangent_part.r[j] =
+                            if cfg!(feature = "dim2") { 1.0 / r } else { r };
+                    }
+
+                    #[cfg(feature = "dim3")]
+                    {
+                        constraint.elements[k].tangent_part.r[2] = 2.0
+                            * (constraint.elements[k].tangent_part.gcross1[0]
+                                .gdot(constraint.elements[k].tangent_part.gcross1[1])
+                                + constraint.elements[k].tangent_part.gcross2[0]
+                                    .gdot(constraint.elements[k].tangent_part.gcross2[1]));
                     }
                 }
             }

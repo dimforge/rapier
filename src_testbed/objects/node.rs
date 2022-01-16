@@ -10,7 +10,7 @@ use bevy::render::render_resource::PrimitiveTopology;
 use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{Cone, Cylinder};
-use rapier::math::Isometry;
+use rapier::math::{Isometry, Real};
 
 use crate::graphics::BevyMaterial;
 #[cfg(feature = "dim2")]
@@ -26,7 +26,7 @@ pub struct EntityWithGraphics {
     pub color: Point3<f32>,
     pub base_color: Point3<f32>,
     pub collider: Option<ColliderHandle>,
-    pub delta: Isometry<f32>,
+    pub delta: Isometry<Real>,
     pub opacity: f32,
     material: Handle<BevyMaterial>,
 }
@@ -39,8 +39,8 @@ impl EntityWithGraphics {
         prefab_meshs: &HashMap<ShapeType, Handle<Mesh>>,
         shape: &dyn Shape,
         collider: Option<ColliderHandle>,
-        collider_pos: Isometry<f32>,
-        delta: Isometry<f32>,
+        collider_pos: Isometry<Real>,
+        delta: Isometry<Real>,
         color: Point3<f32>,
         sensor: bool,
     ) -> Self {
@@ -56,16 +56,16 @@ impl EntityWithGraphics {
         let bevy_color = Color::rgba(color.x, color.y, color.z, opacity);
         let shape_pos = collider_pos * delta;
         let mut transform = Transform::from_scale(scale);
-        transform.translation.x = shape_pos.translation.vector.x;
-        transform.translation.y = shape_pos.translation.vector.y;
+        transform.translation.x = shape_pos.translation.vector.x as f32;
+        transform.translation.y = shape_pos.translation.vector.y as f32;
         #[cfg(feature = "dim3")]
         {
-            transform.translation.z = shape_pos.translation.vector.z;
+            transform.translation.z = shape_pos.translation.vector.z as f32;
             transform.rotation = Quat::from_xyzw(
-                shape_pos.rotation.i,
-                shape_pos.rotation.j,
-                shape_pos.rotation.k,
-                shape_pos.rotation.w,
+                shape_pos.rotation.i as f32,
+                shape_pos.rotation.j as f32,
+                shape_pos.rotation.k as f32,
+                shape_pos.rotation.w as f32,
             );
         }
         #[cfg(feature = "dim2")]
@@ -73,7 +73,7 @@ impl EntityWithGraphics {
             if sensor {
                 transform.translation.z = -10.0;
             }
-            transform.rotation = Quat::from_rotation_z(shape_pos.rotation.angle());
+            transform.rotation = Quat::from_rotation_z(shape_pos.rotation.angle() as f32);
         }
 
         #[cfg(feature = "dim2")]
@@ -172,21 +172,21 @@ impl EntityWithGraphics {
         if let Some(Some(co)) = self.collider.map(|c| colliders.get(c)) {
             if let Ok(mut pos) = components.get_component_mut::<Transform>(self.entity) {
                 let co_pos = co.position() * self.delta;
-                pos.translation.x = co_pos.translation.vector.x;
-                pos.translation.y = co_pos.translation.vector.y;
+                pos.translation.x = co_pos.translation.vector.x as f32;
+                pos.translation.y = co_pos.translation.vector.y as f32;
                 #[cfg(feature = "dim3")]
                 {
-                    pos.translation.z = co_pos.translation.vector.z;
+                    pos.translation.z = co_pos.translation.vector.z as f32;
                     pos.rotation = Quat::from_xyzw(
-                        co_pos.rotation.i,
-                        co_pos.rotation.j,
-                        co_pos.rotation.k,
-                        co_pos.rotation.w,
+                        co_pos.rotation.i as f32,
+                        co_pos.rotation.j as f32,
+                        co_pos.rotation.k as f32,
+                        co_pos.rotation.w as f32,
                     );
                 }
                 #[cfg(feature = "dim2")]
                 {
-                    pos.rotation = Quat::from_rotation_z(co_pos.rotation.angle());
+                    pos.rotation = Quat::from_rotation_z(co_pos.rotation.angle() as f32);
                 }
             }
         }
@@ -266,7 +266,7 @@ impl EntityWithGraphics {
 }
 
 #[cfg(feature = "dim2")]
-fn bevy_mesh_from_polyline(vertices: Vec<Point2<f32>>) -> Mesh {
+fn bevy_mesh_from_polyline(vertices: Vec<Point2<Real>>) -> Mesh {
     let n = vertices.len();
     let idx = (1..n as u32 - 1).map(|i| [0, i, i + 1]).collect();
     let vtx = vertices
@@ -277,7 +277,7 @@ fn bevy_mesh_from_polyline(vertices: Vec<Point2<f32>>) -> Mesh {
 }
 
 #[cfg(feature = "dim2")]
-fn bevy_polyline(buffers: (Vec<Point2<f32>>, Option<Vec<[u32; 2]>>)) -> Mesh {
+fn bevy_polyline(buffers: (Vec<Point2<Real>>, Option<Vec<[u32; 2]>>)) -> Mesh {
     let (vtx, idx) = buffers;
     // let mut normals: Vec<[f32; 3]> = vec![];
     let mut vertices: Vec<[f32; 3]> = vec![];
@@ -287,11 +287,11 @@ fn bevy_polyline(buffers: (Vec<Point2<f32>>, Option<Vec<[u32; 2]>>)) -> Mesh {
             let a = vtx[idx[0] as usize];
             let b = vtx[idx[1] as usize];
 
-            vertices.push([a.x, a.y, 0.0]);
-            vertices.push([b.x, b.y, 0.0]);
+            vertices.push([a.x as f32, a.y as f32, 0.0]);
+            vertices.push([b.x as f32, b.y as f32, 0.0]);
         }
     } else {
-        vertices = vtx.iter().map(|v| [v.x, v.y, 0.0]).collect();
+        vertices = vtx.iter().map(|v| [v.x as f32, v.y as f32, 0.0]).collect();
     }
 
     let indices: Vec<_> = (0..vertices.len() as u32).collect();
@@ -310,7 +310,7 @@ fn bevy_polyline(buffers: (Vec<Point2<f32>>, Option<Vec<[u32; 2]>>)) -> Mesh {
     mesh
 }
 
-fn bevy_mesh(buffers: (Vec<Point3<f32>>, Vec<[u32; 3]>)) -> Mesh {
+fn bevy_mesh(buffers: (Vec<Point3<Real>>, Vec<[u32; 3]>)) -> Mesh {
     let (vtx, idx) = buffers;
     let mut normals: Vec<[f32; 3]> = vec![];
     let mut vertices: Vec<[f32; 3]> = vec![];
@@ -320,9 +320,9 @@ fn bevy_mesh(buffers: (Vec<Point3<f32>>, Vec<[u32; 3]>)) -> Mesh {
         let b = vtx[idx[1] as usize];
         let c = vtx[idx[2] as usize];
 
-        vertices.push(a.into());
-        vertices.push(b.into());
-        vertices.push(c.into());
+        vertices.push(a.cast::<f32>().into());
+        vertices.push(b.cast::<f32>().into());
+        vertices.push(c.cast::<f32>().into());
     }
 
     for vtx in vertices.chunks(3) {
@@ -330,9 +330,9 @@ fn bevy_mesh(buffers: (Vec<Point3<f32>>, Vec<[u32; 3]>)) -> Mesh {
         let b = Point3::from(vtx[1]);
         let c = Point3::from(vtx[2]);
         let n = (b - a).cross(&(c - a)).normalize();
-        normals.push(n.into());
-        normals.push(n.into());
-        normals.push(n.into());
+        normals.push(n.cast::<f32>().into());
+        normals.push(n.cast::<f32>().into());
+        normals.push(n.cast::<f32>().into());
     }
 
     normals
@@ -358,36 +358,36 @@ fn collider_mesh_scale(co_shape: &dyn Shape) -> Vec3 {
         #[cfg(feature = "dim2")]
         ShapeType::Cuboid => {
             let c = co_shape.as_cuboid().unwrap();
-            Vec3::new(c.half_extents.x, c.half_extents.y, 1.0)
+            Vec3::new(c.half_extents.x as f32, c.half_extents.y as f32, 1.0)
         }
         ShapeType::Ball => {
             let b = co_shape.as_ball().unwrap();
-            Vec3::new(b.radius, b.radius, b.radius)
+            Vec3::new(b.radius as f32, b.radius as f32, b.radius as f32)
         }
         #[cfg(feature = "dim3")]
         ShapeType::Cuboid => {
             let c = co_shape.as_cuboid().unwrap();
-            Vec3::from_slice(c.half_extents.as_slice())
+            Vec3::from_slice(c.half_extents.cast::<f32>().as_slice())
         }
         #[cfg(feature = "dim3")]
         ShapeType::Cylinder => {
             let c = co_shape.as_cylinder().unwrap();
-            Vec3::new(c.radius, c.half_height, c.radius)
+            Vec3::new(c.radius as f32, c.half_height as f32, c.radius as f32)
         }
         #[cfg(feature = "dim3")]
         ShapeType::RoundCylinder => {
             let c = &co_shape.as_round_cylinder().unwrap().base_shape;
-            Vec3::new(c.radius, c.half_height, c.radius)
+            Vec3::new(c.radius as f32, c.half_height as f32, c.radius as f32)
         }
         #[cfg(feature = "dim3")]
         ShapeType::Cone => {
             let c = co_shape.as_cone().unwrap();
-            Vec3::new(c.radius, c.half_height, c.radius)
+            Vec3::new(c.radius as f32, c.half_height as f32, c.radius as f32)
         }
         #[cfg(feature = "dim3")]
         ShapeType::RoundCone => {
             let c = &co_shape.as_round_cone().unwrap().base_shape;
-            Vec3::new(c.radius, c.half_height, c.radius)
+            Vec3::new(c.radius as f32, c.half_height as f32, c.radius as f32)
         }
         _ => Vec3::ONE,
     }

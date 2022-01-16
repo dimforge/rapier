@@ -1,4 +1,4 @@
-use crate::data::{Arena, Coarena, ComponentSet, ComponentSetMut};
+use crate::data::{Arena, Coarena, ComponentSet, ComponentSetMut, Index};
 use crate::dynamics::joint::MultibodyLink;
 use crate::dynamics::{
     IslandManager, JointData, Multibody, MultibodyJoint, RigidBodyActivation, RigidBodyHandle,
@@ -6,19 +6,18 @@ use crate::dynamics::{
 };
 use crate::geometry::{InteractionGraph, RigidBodyGraphIndex};
 use crate::parry::partitioning::IndexedData;
-use std::ops::Index;
 
 /// The unique handle of an multibody_joint added to a `MultibodyJointSet`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[repr(transparent)]
-pub struct MultibodyJointHandle(pub crate::data::arena::Index);
+pub struct MultibodyJointHandle(pub Index);
 
 /// The temporary index of a multibody added to a `MultibodyJointSet`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[repr(transparent)]
-pub struct MultibodyIndex(pub crate::data::arena::Index);
+pub struct MultibodyIndex(pub Index);
 
 impl MultibodyJointHandle {
     /// Converts this handle into its (index, generation) components.
@@ -28,12 +27,12 @@ impl MultibodyJointHandle {
 
     /// Reconstructs an handle from its (index, generation) components.
     pub fn from_raw_parts(id: u32, generation: u32) -> Self {
-        Self(crate::data::arena::Index::from_raw_parts(id, generation))
+        Self(Index::from_raw_parts(id, generation))
     }
 
     /// An always-invalid rigid-body handle.
     pub fn invalid() -> Self {
-        Self(crate::data::arena::Index::from_raw_parts(
+        Self(Index::from_raw_parts(
             crate::INVALID_U32,
             crate::INVALID_U32,
         ))
@@ -55,6 +54,7 @@ impl IndexedData for MultibodyJointHandle {
     }
 }
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct MultibodyJointLink {
     pub graph_id: RigidBodyGraphIndex,
@@ -66,7 +66,7 @@ impl Default for MultibodyJointLink {
     fn default() -> Self {
         Self {
             graph_id: RigidBodyGraphIndex::new(crate::INVALID_U32),
-            multibody: MultibodyIndex(crate::data::arena::Index::from_raw_parts(
+            multibody: MultibodyIndex(Index::from_raw_parts(
                 crate::INVALID_U32,
                 crate::INVALID_U32,
             )),
@@ -76,6 +76,8 @@ impl Default for MultibodyJointLink {
 }
 
 /// A set of rigid bodies that can be handled by a physics pipeline.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct MultibodyJointSet {
     pub(crate) multibodies: Arena<Multibody>, // NOTE: a Slab would be sufficient.
     pub(crate) rb2mb: Coarena<MultibodyJointLink>,
@@ -316,6 +318,26 @@ impl MultibodyJointSet {
         Some((multibody, link.id))
     }
 
+    /// Gets the joint with the given handle without a known generation.
+    ///
+    /// This is useful when you know you want the joint at index `i` but
+    /// don't know what is its current generation number. Generation numbers are
+    /// used to protect from the ABA problem because the joint position `i`
+    /// are recycled between two insertion and a removal.
+    ///
+    /// Using this is discouraged in favor of `self.get(handle)` which does not
+    /// suffer form the ABA problem.
+    pub fn get_unknown_gen(&self, i: u32) -> Option<(&Multibody, usize, MultibodyJointHandle)> {
+        let link = self.rb2mb.get_unknown_gen(i)?;
+        let gen = self.rb2mb.get_gen(i)?;
+        let multibody = self.multibodies.get(link.multibody.0)?;
+        Some((
+            multibody,
+            link.id,
+            MultibodyJointHandle(Index::from_raw_parts(i, gen)),
+        ))
+    }
+
     /// Iterate through the handles of all the rigid-bodies attached to this rigid-body
     /// by an multibody_joint.
     pub fn attached_bodies<'a>(
@@ -335,7 +357,7 @@ impl MultibodyJointSet {
     }
 }
 
-impl Index<MultibodyIndex> for MultibodyJointSet {
+impl std::ops::Index<MultibodyIndex> for MultibodyJointSet {
     type Output = Multibody;
 
     fn index(&self, index: MultibodyIndex) -> &Multibody {

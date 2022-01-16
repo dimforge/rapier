@@ -1089,7 +1089,8 @@ impl RigidBodyBuilder {
         }
 
         if !self.can_sleep {
-            rb.rb_activation.threshold = -1.0;
+            rb.rb_activation.linear_threshold = -1.0;
+            rb.rb_activation.angular_threshold = -1.0;
         }
 
         rb

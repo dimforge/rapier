@@ -39,10 +39,8 @@ impl OrbitCameraPlugin {
         mut query: Query<(&OrbitCamera, &mut Transform), (Changed<OrbitCamera>, With<Camera>)>,
     ) {
         for (camera, mut transform) in query.iter_mut() {
-            if camera.enabled {
-                transform.translation = camera.center;
-                transform.scale = Vec3::new(1.0 / camera.zoom, 1.0 / camera.zoom, 1.0);
-            }
+            transform.translation = camera.center;
+            transform.scale = Vec3::new(1.0 / camera.zoom, 1.0 / camera.zoom, 1.0);
         }
     }
 

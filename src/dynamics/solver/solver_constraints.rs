@@ -5,6 +5,8 @@ use super::{
 use super::{WVelocityConstraint, WVelocityGroundConstraint};
 use crate::data::ComponentSet;
 use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
+use crate::dynamics::solver::generic_velocity_ground_constraint::GenericVelocityGroundConstraint;
+use crate::dynamics::solver::AnyGenericVelocityConstraint;
 use crate::dynamics::solver::GenericVelocityConstraint;
 use crate::dynamics::{
     solver::AnyVelocityConstraint, IntegrationParameters, JointGraphEdge, JointIndex,
@@ -58,7 +60,7 @@ impl<VelocityConstraint, GenVelocityConstraint>
     }
 }
 
-impl SolverConstraints<AnyVelocityConstraint, GenericVelocityConstraint> {
+impl SolverConstraints<AnyVelocityConstraint, AnyGenericVelocityConstraint> {
     pub fn init_constraint_groups<Bodies>(
         &mut self,
         island_id: usize,
@@ -82,8 +84,8 @@ impl SolverConstraints<AnyVelocityConstraint, GenericVelocityConstraint> {
             manifold_indices,
             &mut self.ground_interactions,
             &mut self.not_ground_interactions,
-            &mut self.generic_not_ground_interactions,
             &mut self.generic_ground_interactions,
+            &mut self.generic_not_ground_interactions,
         );
 
         self.interaction_groups.clear_groups();
@@ -141,18 +143,32 @@ impl SolverConstraints<AnyVelocityConstraint, GenericVelocityConstraint> {
             manifold_indices,
         );
 
+        let mut jacobian_id = 0;
         #[cfg(feature = "simd-is-enabled")]
         {
             self.compute_grouped_constraints(params, bodies, manifolds);
         }
         self.compute_nongrouped_constraints(params, bodies, manifolds);
-        self.compute_generic_constraints(params, bodies, multibody_joints, manifolds);
+        self.compute_generic_constraints(
+            params,
+            bodies,
+            multibody_joints,
+            manifolds,
+            &mut jacobian_id,
+        );
 
         #[cfg(feature = "simd-is-enabled")]
         {
             self.compute_grouped_ground_constraints(params, bodies, manifolds);
         }
         self.compute_nongrouped_ground_constraints(params, bodies, manifolds);
+        self.compute_generic_ground_constraints(
+            params,
+            bodies,
+            multibody_joints,
+            manifolds,
+            &mut jacobian_id,
+        );
     }
 
     #[cfg(feature = "simd-is-enabled")]
@@ -215,6 +231,7 @@ impl SolverConstraints<AnyVelocityConstraint, GenericVelocityConstraint> {
         bodies: &Bodies,
         multibody_joints: &MultibodyJointSet,
         manifolds_all: &[&mut ContactManifold],
+        jacobian_id: &mut usize,
     ) where
         Bodies: ComponentSet<RigidBodyVelocity>
             + ComponentSet<RigidBodyPosition>
@@ -222,7 +239,6 @@ impl SolverConstraints<AnyVelocityConstraint, GenericVelocityConstraint> {
             + ComponentSet<RigidBodyIds>
             + ComponentSet<RigidBodyType>,
     {
-        let mut jacobian_id = 0;
         for manifold_i in &self.generic_not_ground_interactions {
             let manifold = &manifolds_all[*manifold_i];
             GenericVelocityConstraint::generate(
@@ -233,7 +249,37 @@ impl SolverConstraints<AnyVelocityConstraint, GenericVelocityConstraint> {
                 multibody_joints,
                 &mut self.generic_velocity_constraints,
                 &mut self.generic_jacobians,
-                &mut jacobian_id,
+                jacobian_id,
+                true,
+            );
+        }
+    }
+
+    fn compute_generic_ground_constraints<Bodies>(
+        &mut self,
+        params: &IntegrationParameters,
+        bodies: &Bodies,
+        multibody_joints: &MultibodyJointSet,
+        manifolds_all: &[&mut ContactManifold],
+        jacobian_id: &mut usize,
+    ) where
+        Bodies: ComponentSet<RigidBodyVelocity>
+            + ComponentSet<RigidBodyPosition>
+            + ComponentSet<RigidBodyMassProps>
+            + ComponentSet<RigidBodyIds>
+            + ComponentSet<RigidBodyType>,
+    {
+        for manifold_i in &self.generic_ground_interactions {
+            let manifold = &manifolds_all[*manifold_i];
+            GenericVelocityGroundConstraint::generate(
+                params,
+                *manifold_i,
+                manifold,
+                bodies,
+                multibody_joints,
+                &mut self.generic_velocity_constraints,
+                &mut self.generic_jacobians,
+                jacobian_id,
                 true,
             );
         }

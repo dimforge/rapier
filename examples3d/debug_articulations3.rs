@@ -66,17 +66,15 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
 
-    let rigid_body = RigidBodyBuilder::new_dynamic().build();
-    let collider = ColliderBuilder::cuboid(30.0, 0.01, 30.0) // Vector::y_axis())
-        .translation(vector![0.0, -3.0, 0.0])
+    let collider = ColliderBuilder::cuboid(30.0, 0.01, 30.0)
+        .translation(vector![0.0, -3.02, 0.0])
         .rotation(vector![0.1, 0.0, 0.1])
         .build();
-    let handle = bodies.insert(rigid_body);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    colliders.insert(collider);
 
-    let rigid_body = RigidBodyBuilder::new_static().build();
-    let collider = ColliderBuilder::cuboid(30.0, 0.01, 30.0) // Vector::y_axis())
-        .translation(vector![0.0, -3.02, 0.0])
+    let rigid_body = RigidBodyBuilder::new_dynamic().build();
+    let collider = ColliderBuilder::cuboid(30.0, 0.01, 30.0)
+        .translation(vector![0.0, -3.0, 0.0])
         .rotation(vector![0.1, 0.0, 0.1])
         .build();
     let handle = bodies.insert(rigid_body);
