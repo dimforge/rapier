@@ -21,7 +21,7 @@ pub(crate) struct WVelocityGroundConstraint {
     pub tangent1: Vector<SimdReal>, // One of the friction force directions.
     pub elements: [VelocityGroundConstraintElement<SimdReal>; MAX_MANIFOLD_POINTS],
     pub num_contacts: u8,
-    pub im2: SimdReal,
+    pub im2: Vector<SimdReal>,
     pub limit: SimdReal,
     pub mj_lambda2: [usize; SIMD_WIDTH],
     pub manifold_id: [ContactManifoldIndex; SIMD_WIDTH],
@@ -76,7 +76,7 @@ impl WVelocityGroundConstraint {
 
         let flipped_sign = SimdReal::from(flipped);
 
-        let im2 = SimdReal::from(gather![|ii| mprops2[ii].effective_inv_mass]);
+        let im2 = Vector::from(gather![|ii| mprops2[ii].effective_inv_mass]);
         let ii2: AngularInertia<SimdReal> =
             AngularInertia::from(gather![|ii| mprops2[ii].effective_world_inv_inertia_sqrt]);
 
@@ -142,7 +142,8 @@ impl WVelocityGroundConstraint {
                 {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-force_dir1));
 
-                    let r = SimdReal::splat(1.0) / (im2 + gcross2.gdot(gcross2));
+                    let r = SimdReal::splat(1.0)
+                        / (force_dir1.dot(&im2.component_mul(&force_dir1)) + gcross2.gdot(gcross2));
                     let projected_velocity = (vel1 - vel2).dot(&force_dir1);
                     let mut rhs_wo_bias =
                         (SimdReal::splat(1.0) + is_bouncy * restitution) * projected_velocity;
@@ -165,7 +166,9 @@ impl WVelocityGroundConstraint {
 
                 for j in 0..DIM - 1 {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-tangents1[j]));
-                    let r = SimdReal::splat(1.0) / (im2 + gcross2.gdot(gcross2));
+                    let r = SimdReal::splat(1.0)
+                        / (tangents1[j].dot(&im2.component_mul(&tangents1[j]))
+                            + gcross2.gdot(gcross2));
                     let rhs = (vel1 - vel2 + tangent_velocity * flipped_sign).dot(&tangents1[j]);
 
                     constraint.elements[k].tangent_part.gcross2[j] = gcross2;
@@ -201,7 +204,7 @@ impl WVelocityGroundConstraint {
             &self.dir1,
             #[cfg(feature = "dim3")]
             &self.tangent1,
-            self.im2,
+            &self.im2,
             self.limit,
             &mut mj_lambda2,
             solve_normal,

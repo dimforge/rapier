@@ -116,12 +116,12 @@ impl GenericVelocityConstraint {
                 im1: if rb_type1.is_dynamic() {
                     rb_mprops1.effective_inv_mass
                 } else {
-                    0.0
+                    na::zero()
                 },
                 im2: if rb_type2.is_dynamic() {
                     rb_mprops2.effective_inv_mass
                 } else {
-                    0.0
+                    na::zero()
                 },
                 limit: 0.0,
                 mj_lambda1,
@@ -175,7 +175,8 @@ impl GenericVelocityConstraint {
                         )
                         .0
                     } else if rb_type1.is_dynamic() {
-                        rb_mprops1.effective_inv_mass + gcross1.gdot(gcross1)
+                        force_dir1.dot(&rb_mprops1.effective_inv_mass.component_mul(&force_dir1))
+                            + gcross1.gdot(gcross1)
                     } else {
                         0.0
                     };
@@ -193,7 +194,8 @@ impl GenericVelocityConstraint {
                         )
                         .0
                     } else if rb_type2.is_dynamic() {
-                        rb_mprops2.effective_inv_mass + gcross2.gdot(gcross2)
+                        force_dir1.dot(&rb_mprops2.effective_inv_mass.component_mul(&force_dir1))
+                            + gcross2.gdot(gcross2)
                     } else {
                         0.0
                     };
@@ -258,7 +260,9 @@ impl GenericVelocityConstraint {
                             )
                             .0
                         } else if rb_type1.is_dynamic() {
-                            rb_mprops1.effective_inv_mass + gcross1.gdot(gcross1)
+                            force_dir1
+                                .dot(&rb_mprops1.effective_inv_mass.component_mul(&force_dir1))
+                                + gcross1.gdot(gcross1)
                         } else {
                             0.0
                         };
@@ -276,7 +280,9 @@ impl GenericVelocityConstraint {
                             )
                             .0
                         } else if rb_type2.is_dynamic() {
-                            rb_mprops2.effective_inv_mass + gcross2.gdot(gcross2)
+                            force_dir1
+                                .dot(&rb_mprops2.effective_inv_mass.component_mul(&force_dir1))
+                                + gcross2.gdot(gcross2)
                         } else {
                             0.0
                         };
@@ -345,8 +351,8 @@ impl GenericVelocityConstraint {
             &self.velocity_constraint.dir1,
             #[cfg(feature = "dim3")]
             &self.velocity_constraint.tangent1,
-            self.velocity_constraint.im1,
-            self.velocity_constraint.im2,
+            &self.velocity_constraint.im1,
+            &self.velocity_constraint.im2,
             self.velocity_constraint.limit,
             self.ndofs1,
             self.ndofs2,

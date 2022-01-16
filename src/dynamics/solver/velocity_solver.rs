@@ -67,7 +67,7 @@ impl VelocitySolver {
             // NOTE: `dvel.angular` is actually storing angular velocity delta multiplied
             //       by the square root of the inertia tensor:
             dvel.angular += mprops.effective_world_inv_inertia_sqrt * forces.torque * params.dt;
-            dvel.linear += forces.force * (mprops.effective_inv_mass * params.dt);
+            dvel.linear += forces.force.component_mul(&mprops.effective_inv_mass) * params.dt;
         }
 
         for (_, multibody) in multibodies.multibodies.iter_mut() {

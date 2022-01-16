@@ -29,7 +29,7 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintTangentPart<N> {
     pub fn solve(
         &mut self,
         tangents1: [&Vector<N>; DIM - 1],
-        im2: N,
+        im2: &Vector<N>,
         limit: N,
         mj_lambda2: &mut DeltaVel<N>,
     ) where
@@ -45,7 +45,7 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintTangentPart<N> {
             let dlambda = new_impulse - self.impulse[0];
             self.impulse[0] = new_impulse;
 
-            mj_lambda2.linear += tangents1[0] * (-im2 * dlambda);
+            mj_lambda2.linear += tangents1[0].component_mul(im2) * -dlambda;
             mj_lambda2.angular += self.gcross2[0] * dlambda;
         }
 
@@ -72,8 +72,8 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintTangentPart<N> {
 
             self.impulse = new_impulse;
 
-            mj_lambda2.linear +=
-                tangents1[0] * (-im2 * dlambda[0]) + tangents1[1] * (-im2 * dlambda[1]);
+            mj_lambda2.linear += tangents1[0].component_mul(im2) * -dlambda[0]
+                + tangents1[1].component_mul(im2) * -dlambda[1];
             mj_lambda2.angular += self.gcross2[0] * dlambda[0] + self.gcross2[1] * dlambda[1];
         }
     }
@@ -101,7 +101,7 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintNormalPart<N> {
     }
 
     #[inline]
-    pub fn solve(&mut self, dir1: &Vector<N>, im2: N, mj_lambda2: &mut DeltaVel<N>)
+    pub fn solve(&mut self, dir1: &Vector<N>, im2: &Vector<N>, mj_lambda2: &mut DeltaVel<N>)
     where
         AngVector<N>: WDot<AngVector<N>, Result = N>,
     {
@@ -111,7 +111,7 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintNormalPart<N> {
         let dlambda = new_impulse - self.impulse;
         self.impulse = new_impulse;
 
-        mj_lambda2.linear += dir1 * (-im2 * dlambda);
+        mj_lambda2.linear += dir1.component_mul(im2) * -dlambda;
         mj_lambda2.angular += self.gcross2 * dlambda;
     }
 }
@@ -136,7 +136,7 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintElement<N> {
         elements: &mut [Self],
         dir1: &Vector<N>,
         #[cfg(feature = "dim3")] tangent1: &Vector<N>,
-        im2: N,
+        im2: &Vector<N>,
         limit: N,
         mj_lambda2: &mut DeltaVel<N>,
         solve_normal: bool,

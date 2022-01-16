@@ -20,8 +20,8 @@ pub(crate) struct WVelocityConstraint {
     pub tangent1: Vector<SimdReal>, // One of the friction force directions.
     pub elements: [VelocityConstraintElement<SimdReal>; MAX_MANIFOLD_POINTS],
     pub num_contacts: u8,
-    pub im1: SimdReal,
-    pub im2: SimdReal,
+    pub im1: Vector<SimdReal>,
+    pub im2: Vector<SimdReal>,
     pub limit: SimdReal,
     pub mj_lambda1: [usize; SIMD_WIDTH],
     pub mj_lambda2: [usize; SIMD_WIDTH],
@@ -62,7 +62,7 @@ impl WVelocityConstraint {
         let mprops2: [&RigidBodyMassProps; SIMD_WIDTH] = gather![|ii| bodies.index(handles2[ii].0)];
 
         let world_com1 = Point::from(gather![|ii| mprops1[ii].world_com]);
-        let im1 = SimdReal::from(gather![|ii| mprops1[ii].effective_inv_mass]);
+        let im1 = Vector::from(gather![|ii| mprops1[ii].effective_inv_mass]);
         let ii1: AngularInertia<SimdReal> =
             AngularInertia::from(gather![|ii| mprops1[ii].effective_world_inv_inertia_sqrt]);
 
@@ -70,7 +70,7 @@ impl WVelocityConstraint {
         let angvel1 = AngVector::<SimdReal>::from(gather![|ii| vels1[ii].angvel]);
 
         let world_com2 = Point::from(gather![|ii| mprops2[ii].world_com]);
-        let im2 = SimdReal::from(gather![|ii| mprops2[ii].effective_inv_mass]);
+        let im2 = Vector::from(gather![|ii| mprops2[ii].effective_inv_mass]);
         let ii2: AngularInertia<SimdReal> =
             AngularInertia::from(gather![|ii| mprops2[ii].effective_world_inv_inertia_sqrt]);
 
@@ -135,8 +135,11 @@ impl WVelocityConstraint {
                     let gcross1 = ii1.transform_vector(dp1.gcross(force_dir1));
                     let gcross2 = ii2.transform_vector(dp2.gcross(-force_dir1));
 
+                    let imsum = im1 + im2;
                     let r = SimdReal::splat(1.0)
-                        / (im1 + im2 + gcross1.gdot(gcross1) + gcross2.gdot(gcross2));
+                        / (force_dir1.dot(&imsum.component_mul(&force_dir1))
+                            + gcross1.gdot(gcross1)
+                            + gcross2.gdot(gcross2));
                     let projected_velocity = (vel1 - vel2).dot(&force_dir1);
                     let mut rhs_wo_bias =
                         (SimdReal::splat(1.0) + is_bouncy * restitution) * projected_velocity;
@@ -161,8 +164,11 @@ impl WVelocityConstraint {
                 for j in 0..DIM - 1 {
                     let gcross1 = ii1.transform_vector(dp1.gcross(tangents1[j]));
                     let gcross2 = ii2.transform_vector(dp2.gcross(-tangents1[j]));
+                    let imsum = im1 + im2;
                     let r = SimdReal::splat(1.0)
-                        / (im1 + im2 + gcross1.gdot(gcross1) + gcross2.gdot(gcross2));
+                        / (tangents1[j].dot(&imsum.component_mul(&tangents1[j]))
+                            + gcross1.gdot(gcross1)
+                            + gcross2.gdot(gcross2));
                     let rhs = (vel1 - vel2 + tangent_velocity).dot(&tangents1[j]);
 
                     constraint.elements[k].tangent_part.gcross1[j] = gcross1;
@@ -206,8 +212,8 @@ impl WVelocityConstraint {
             &self.dir1,
             #[cfg(feature = "dim3")]
             &self.tangent1,
-            self.im1,
-            self.im2,
+            &self.im1,
+            &self.im2,
             self.limit,
             &mut mj_lambda1,
             &mut mj_lambda2,
