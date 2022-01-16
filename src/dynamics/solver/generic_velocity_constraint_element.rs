@@ -41,7 +41,7 @@ fn tangent_j_id(j_id: usize, ndofs1: usize, ndofs2: usize) -> usize {
 
 impl GenericRhs {
     #[inline(always)]
-    fn dimpulse(
+    fn dvel(
         &self,
         j_id: usize,
         ndofs: usize,
@@ -110,14 +110,14 @@ impl VelocityConstraintTangentPart<Real> {
 
         #[cfg(feature = "dim2")]
         {
-            let dimpulse_0 = mj_lambda1.dimpulse(
+            let dvel_0 = mj_lambda1.dvel(
                 j_id1,
                 ndofs1,
                 jacobians,
                 &tangents1[0],
                 &self.gcross1[0],
                 mj_lambdas,
-            ) + mj_lambda2.dimpulse(
+            ) + mj_lambda2.dvel(
                 j_id2,
                 ndofs2,
                 jacobians,
@@ -126,7 +126,7 @@ impl VelocityConstraintTangentPart<Real> {
                 mj_lambdas,
             ) + self.rhs[0];
 
-            let new_impulse = (self.impulse[0] - self.r[0] * dimpulse_0).simd_clamp(-limit, limit);
+            let new_impulse = (self.impulse[0] - self.r[0] * dvel_0).simd_clamp(-limit, limit);
             let dlambda = new_impulse - self.impulse[0];
             self.impulse[0] = new_impulse;
 
@@ -154,14 +154,14 @@ impl VelocityConstraintTangentPart<Real> {
 
         #[cfg(feature = "dim3")]
         {
-            let dimpulse_0 = mj_lambda1.dimpulse(
+            let dvel_0 = mj_lambda1.dvel(
                 j_id1,
                 ndofs1,
                 jacobians,
                 &tangents1[0],
                 &self.gcross1[0],
                 mj_lambdas,
-            ) + mj_lambda2.dimpulse(
+            ) + mj_lambda2.dvel(
                 j_id2,
                 ndofs2,
                 jacobians,
@@ -169,14 +169,14 @@ impl VelocityConstraintTangentPart<Real> {
                 &self.gcross2[0],
                 mj_lambdas,
             ) + self.rhs[0];
-            let dimpulse_1 = mj_lambda1.dimpulse(
+            let dvel_1 = mj_lambda1.dvel(
                 j_id1 + j_step,
                 ndofs1,
                 jacobians,
                 &tangents1[1],
                 &self.gcross1[1],
                 mj_lambdas,
-            ) + mj_lambda2.dimpulse(
+            ) + mj_lambda2.dvel(
                 j_id2 + j_step,
                 ndofs2,
                 jacobians,
@@ -186,8 +186,8 @@ impl VelocityConstraintTangentPart<Real> {
             ) + self.rhs[1];
 
             let new_impulse = na::Vector2::new(
-                self.impulse[0] - self.r[0] * dimpulse_0,
-                self.impulse[1] - self.r[1] * dimpulse_1,
+                self.impulse[0] - self.r[0] * dvel_0,
+                self.impulse[1] - self.r[1] * dvel_1,
             );
             let new_impulse = new_impulse.cap_magnitude(limit);
 
@@ -257,12 +257,11 @@ impl VelocityConstraintNormalPart<Real> {
         let j_id1 = j_id1(j_id, ndofs1, ndofs2);
         let j_id2 = j_id2(j_id, ndofs1, ndofs2);
 
-        let dimpulse =
-            mj_lambda1.dimpulse(j_id1, ndofs1, jacobians, &dir1, &self.gcross1, mj_lambdas)
-                + mj_lambda2.dimpulse(j_id2, ndofs2, jacobians, &-dir1, &self.gcross2, mj_lambdas)
-                + self.rhs;
+        let dvel = mj_lambda1.dvel(j_id1, ndofs1, jacobians, &dir1, &self.gcross1, mj_lambdas)
+            + mj_lambda2.dvel(j_id2, ndofs2, jacobians, &-dir1, &self.gcross2, mj_lambdas)
+            + self.rhs;
 
-        let new_impulse = (self.impulse - self.r * dimpulse).max(0.0);
+        let new_impulse = (self.impulse - self.r * dvel).max(0.0);
         let dlambda = new_impulse - self.impulse;
         self.impulse = new_impulse;
 

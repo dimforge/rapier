@@ -11,6 +11,7 @@ use na::{DVector, DVectorSliceMut};
 #[cfg(feature = "dim3")]
 use na::{UnitQuaternion, Vector3};
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug)]
 pub struct MultibodyJoint {
     pub data: JointData,

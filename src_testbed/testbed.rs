@@ -16,7 +16,7 @@ use rapier::dynamics::{
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
-use rapier::math::Vector;
+use rapier::math::{Real, Vector};
 use rapier::pipeline::PhysicsHooks;
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
@@ -487,7 +487,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         colliders: ColliderSet,
         impulse_joints: ImpulseJointSet,
         multibody_joints: MultibodyJointSet,
-        gravity: Vector<f32>,
+        gravity: Vector<Real>,
         hooks: impl PhysicsHooks<RigidBodySet, ColliderSet> + 'static,
     ) {
         self.harness.set_world_with_params(
@@ -1129,12 +1129,15 @@ fn update_testbed(
         {
             if state.flags.contains(TestbedStateFlags::SLEEP) {
                 for (_, body) in harness.physics.bodies.iter_mut() {
-                    body.activation_mut().threshold = RigidBodyActivation::default_threshold();
+                    body.activation_mut().linear_threshold =
+                        RigidBodyActivation::default_linear_threshold();
+                    body.activation_mut().angular_threshold =
+                        RigidBodyActivation::default_angular_threshold();
                 }
             } else {
                 for (_, body) in harness.physics.bodies.iter_mut() {
                     body.wake_up(true);
-                    body.activation_mut().threshold = -1.0;
+                    body.activation_mut().linear_threshold = -1.0;
                 }
             }
         }
@@ -1226,6 +1229,7 @@ fn update_testbed(
         &harness.physics.bodies,
         &harness.physics.colliders,
         &mut gfx_components,
+        &mut *materials,
     );
 
     for plugin in &mut plugins.0 {
@@ -1299,14 +1303,14 @@ fn highlight_hovered_body(
         let ray_pt1 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, -1.0));
         let ray_pt2 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 1.0));
         let ray_dir = ray_pt2 - ray_pt1;
-        let ray_origin = Point3::new(ray_pt1.x, ray_pt1.y, ray_pt1.z);
-        let ray_dir = Vector3::new(ray_dir.x, ray_dir.y, ray_dir.z);
+        let ray_origin = Point3::new(ray_pt1.x as Real, ray_pt1.y as Real, ray_pt1.z as Real);
+        let ray_dir = Vector3::new(ray_dir.x as Real, ray_dir.y as Real, ray_dir.z as Real);
 
         let ray = Ray::new(ray_origin, ray_dir);
         let hit = physics.query_pipeline.cast_ray(
             &physics.colliders,
             &ray,
-            f32::MAX,
+            Real::MAX,
             true,
             InteractionGroups::all(),
             None,

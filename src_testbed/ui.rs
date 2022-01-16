@@ -1,4 +1,5 @@
 use rapier::counters::Counters;
+use rapier::math::Real;
 
 use crate::harness::Harness;
 use crate::testbed::{
@@ -147,7 +148,7 @@ pub fn update_ui(ui_context: &EguiContext, state: &mut TestbedState, harness: &m
         );
         let mut frequency = integration_parameters.inv_dt().round() as u32;
         ui.add(Slider::new(&mut frequency, 0..=240).text("frequency (Hz)"));
-        integration_parameters.set_inv_dt(frequency as f32);
+        integration_parameters.set_inv_dt(frequency as Real);
 
         let mut sleep = state.flags.contains(TestbedStateFlags::SLEEP);
         // let mut contact_points = state.flags.contains(TestbedStateFlags::CONTACT_POINTS);

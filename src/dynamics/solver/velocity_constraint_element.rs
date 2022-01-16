@@ -12,7 +12,10 @@ pub(crate) struct VelocityConstraintTangentPart<N: SimdRealField + Copy> {
     pub impulse: na::Vector1<N>,
     #[cfg(feature = "dim3")]
     pub impulse: na::Vector2<N>,
-    pub r: [N; DIM - 1],
+    #[cfg(feature = "dim2")]
+    pub r: [N; 1],
+    #[cfg(feature = "dim3")]
+    pub r: [N; DIM],
 }
 
 impl<N: SimdRealField + Copy> VelocityConstraintTangentPart<N> {
@@ -22,7 +25,10 @@ impl<N: SimdRealField + Copy> VelocityConstraintTangentPart<N> {
             gcross2: [na::zero(); DIM - 1],
             rhs: [na::zero(); DIM - 1],
             impulse: na::zero(),
-            r: [na::zero(); DIM - 1],
+            #[cfg(feature = "dim2")]
+            r: [na::zero(); 1],
+            #[cfg(feature = "dim3")]
+            r: [na::zero(); DIM],
         }
     }
 
@@ -41,12 +47,12 @@ impl<N: SimdRealField + Copy> VelocityConstraintTangentPart<N> {
     {
         #[cfg(feature = "dim2")]
         {
-            let dimpulse = tangents1[0].dot(&mj_lambda1.linear)
+            let dvel = tangents1[0].dot(&mj_lambda1.linear)
                 + self.gcross1[0].gdot(mj_lambda1.angular)
                 - tangents1[0].dot(&mj_lambda2.linear)
                 + self.gcross2[0].gdot(mj_lambda2.angular)
                 + self.rhs[0];
-            let new_impulse = (self.impulse[0] - self.r[0] * dimpulse).simd_clamp(-limit, limit);
+            let new_impulse = (self.impulse[0] - self.r[0] * dvel).simd_clamp(-limit, limit);
             let dlambda = new_impulse - self.impulse[0];
             self.impulse[0] = new_impulse;
 
@@ -59,25 +65,30 @@ impl<N: SimdRealField + Copy> VelocityConstraintTangentPart<N> {
 
         #[cfg(feature = "dim3")]
         {
-            let dimpulse_0 = tangents1[0].dot(&mj_lambda1.linear)
+            let dvel_0 = tangents1[0].dot(&mj_lambda1.linear)
                 + self.gcross1[0].gdot(mj_lambda1.angular)
                 - tangents1[0].dot(&mj_lambda2.linear)
                 + self.gcross2[0].gdot(mj_lambda2.angular)
                 + self.rhs[0];
-            let dimpulse_1 = tangents1[1].dot(&mj_lambda1.linear)
+            let dvel_1 = tangents1[1].dot(&mj_lambda1.linear)
                 + self.gcross1[1].gdot(mj_lambda1.angular)
                 - tangents1[1].dot(&mj_lambda2.linear)
                 + self.gcross2[1].gdot(mj_lambda2.angular)
                 + self.rhs[1];
 
-            let new_impulse = na::Vector2::new(
-                self.impulse[0] - self.r[0] * dimpulse_0,
-                self.impulse[1] - self.r[1] * dimpulse_1,
-            );
+            let dvel_00 = dvel_0 * dvel_0;
+            let dvel_11 = dvel_1 * dvel_1;
+            let dvel_01 = dvel_0 * dvel_1;
+            let inv_lhs = (dvel_00 + dvel_11)
+                * crate::utils::simd_inv(
+                    dvel_00 * self.r[0] + dvel_11 * self.r[1] + dvel_01 * self.r[2],
+                );
+            let delta_impulse = na::vector![inv_lhs * dvel_0, inv_lhs * dvel_1];
+            let new_impulse = self.impulse - delta_impulse;
             let new_impulse = {
                 let _disable_fe_except =
-                    crate::utils::DisableFloatingPointExceptionsFlags::
-                    disable_floating_point_exceptions();
+                        crate::utils::DisableFloatingPointExceptionsFlags::
+                        disable_floating_point_exceptions();
                 new_impulse.simd_cap_magnitude(limit)
             };
 
@@ -128,11 +139,11 @@ impl<N: SimdRealField + Copy> VelocityConstraintNormalPart<N> {
     ) where
         AngVector<N>: WDot<AngVector<N>, Result = N>,
     {
-        let dimpulse = dir1.dot(&mj_lambda1.linear) + self.gcross1.gdot(mj_lambda1.angular)
+        let dvel = dir1.dot(&mj_lambda1.linear) + self.gcross1.gdot(mj_lambda1.angular)
             - dir1.dot(&mj_lambda2.linear)
             + self.gcross2.gdot(mj_lambda2.angular)
             + self.rhs;
-        let new_impulse = (self.impulse - self.r * dimpulse).simd_max(N::zero());
+        let new_impulse = (self.impulse - self.r * dvel).simd_max(N::zero());
         let dlambda = new_impulse - self.impulse;
         self.impulse = new_impulse;
 

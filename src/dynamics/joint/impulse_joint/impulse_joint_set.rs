@@ -100,7 +100,7 @@ impl ImpulseJointSet {
 
     /// Gets the joint with the given handle without a known generation.
     ///
-    /// This is useful when you know you want the joint at position `i` but
+    /// This is useful when you know you want the joint at index `i` but
     /// don't know what is its current generation number. Generation numbers are
     /// used to protect from the ABA problem because the joint position `i`
     /// are recycled between two insertion and a removal.

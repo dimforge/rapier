@@ -44,6 +44,7 @@ impl WVelocityGroundConstraint {
         let inv_dt = SimdReal::splat(params.inv_dt());
         let velocity_solve_fraction = SimdReal::splat(params.velocity_solve_fraction);
         let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
+        let delassus_inv_factor = SimdReal::splat(params.delassus_inv_factor);
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
 
         let mut handles1 = gather![|ii| manifolds[ii].data.rigid_body1];
@@ -142,12 +143,12 @@ impl WVelocityGroundConstraint {
                 {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-force_dir1));
 
-                    let r = SimdReal::splat(1.0)
+                    let r = delassus_inv_factor
                         / (force_dir1.dot(&im2.component_mul(&force_dir1)) + gcross2.gdot(gcross2));
                     let projected_velocity = (vel1 - vel2).dot(&force_dir1);
                     let mut rhs_wo_bias =
                         (SimdReal::splat(1.0) + is_bouncy * restitution) * projected_velocity;
-                    rhs_wo_bias += (dist + allowed_lin_err).simd_max(SimdReal::zero()) * inv_dt;
+                    rhs_wo_bias += dist.simd_max(SimdReal::zero()) * inv_dt;
                     rhs_wo_bias *= is_bouncy + is_resting * velocity_solve_fraction;
                     let rhs_bias = (dist + allowed_lin_err).simd_min(SimdReal::zero())
                         * (erp_inv_dt/* * is_resting */);
@@ -166,14 +167,24 @@ impl WVelocityGroundConstraint {
 
                 for j in 0..DIM - 1 {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-tangents1[j]));
-                    let r = SimdReal::splat(1.0)
-                        / (tangents1[j].dot(&im2.component_mul(&tangents1[j]))
-                            + gcross2.gdot(gcross2));
+                    let r =
+                        tangents1[j].dot(&im2.component_mul(&tangents1[j])) + gcross2.gdot(gcross2);
                     let rhs = (vel1 - vel2 + tangent_velocity * flipped_sign).dot(&tangents1[j]);
 
                     constraint.elements[k].tangent_part.gcross2[j] = gcross2;
-                    constraint.elements[k].tangent_part.r[j] = r;
                     constraint.elements[k].tangent_part.rhs[j] = rhs;
+                    constraint.elements[k].tangent_part.r[j] = if cfg!(feature = "dim2") {
+                        SimdReal::splat(1.0) / r
+                    } else {
+                        r
+                    };
+                }
+
+                #[cfg(feature = "dim3")]
+                {
+                    constraint.elements[k].tangent_part.r[2] = SimdReal::splat(2.0)
+                        * constraint.elements[k].tangent_part.gcross2[0]
+                            .gdot(constraint.elements[k].tangent_part.gcross2[1]);
                 }
             }
 

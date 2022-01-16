@@ -9,9 +9,59 @@ use crate::math::{Real, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{WAngularInertia, WCross, WDot};
 
 use super::{DeltaVel, VelocityConstraintElement, VelocityConstraintNormalPart};
+use crate::dynamics::solver::GenericVelocityGroundConstraint;
 #[cfg(feature = "dim2")]
 use crate::utils::WBasis;
 use na::DVector;
+
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum AnyGenericVelocityConstraint {
+    NongroupedGround(GenericVelocityGroundConstraint),
+    Nongrouped(GenericVelocityConstraint),
+}
+
+impl AnyGenericVelocityConstraint {
+    pub fn solve(
+        &mut self,
+        jacobians: &DVector<Real>,
+        mj_lambdas: &mut [DeltaVel<Real>],
+        generic_mj_lambdas: &mut DVector<Real>,
+        solve_restitution: bool,
+        solve_friction: bool,
+    ) {
+        match self {
+            AnyGenericVelocityConstraint::Nongrouped(c) => c.solve(
+                jacobians,
+                mj_lambdas,
+                generic_mj_lambdas,
+                solve_restitution,
+                solve_friction,
+            ),
+            AnyGenericVelocityConstraint::NongroupedGround(c) => c.solve(
+                jacobians,
+                generic_mj_lambdas,
+                solve_restitution,
+                solve_friction,
+            ),
+        }
+    }
+
+    pub fn writeback_impulses(&self, manifolds_all: &mut [&mut ContactManifold]) {
+        match self {
+            AnyGenericVelocityConstraint::Nongrouped(c) => c.writeback_impulses(manifolds_all),
+            AnyGenericVelocityConstraint::NongroupedGround(c) => {
+                c.writeback_impulses(manifolds_all)
+            }
+        }
+    }
+
+    pub fn remove_bias_from_rhs(&mut self) {
+        match self {
+            AnyGenericVelocityConstraint::Nongrouped(c) => c.remove_bias_from_rhs(),
+            AnyGenericVelocityConstraint::NongroupedGround(c) => c.remove_bias_from_rhs(),
+        }
+    }
+}
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct GenericVelocityConstraint {
@@ -31,7 +81,7 @@ impl GenericVelocityConstraint {
         manifold: &ContactManifold,
         bodies: &Bodies,
         multibodies: &MultibodyJointSet,
-        out_constraints: &mut Vec<GenericVelocityConstraint>,
+        out_constraints: &mut Vec<AnyGenericVelocityConstraint>,
         jacobians: &mut DVector<Real>,
         jacobian_id: &mut usize,
         push: bool,
@@ -293,6 +343,9 @@ impl GenericVelocityConstraint {
                             (vel1 - vel2 + manifold_point.tangent_velocity).dot(&tangents1[j]);
 
                         constraint.elements[k].tangent_part.rhs[j] = rhs;
+                        // FIXME: in 3D, we should take into account gcross[0].dot(gcross[1])
+                        // in lhs. See the corresponding code on the `velocity_constraint.rs`
+                        // file.
                         constraint.elements[k].tangent_part.r[j] = r;
                     }
                 }
@@ -316,9 +369,10 @@ impl GenericVelocityConstraint {
             };
 
             if push {
-                out_constraints.push(constraint);
+                out_constraints.push(AnyGenericVelocityConstraint::Nongrouped(constraint));
             } else {
-                out_constraints[manifold.data.constraint_index + _l] = constraint;
+                out_constraints[manifold.data.constraint_index + _l] =
+                    AnyGenericVelocityConstraint::Nongrouped(constraint);
             }
         }
     }

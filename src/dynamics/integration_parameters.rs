@@ -30,6 +30,13 @@ pub struct IntegrationParameters {
     /// (default `0.0`).
     pub erp: Real,
 
+    /// 0-1: multiplier applied to each accumulated impulse during  constraints resolution.
+    /// This is similar to the concept of CFN (Constraint Force Mixing) except that it is
+    /// a multiplicative factor instead of an additive factor.
+    /// Larger values lead to stiffer constraints (1.0 being completely stiff).
+    /// Smaller values lead to more compliant constraints.
+    pub delassus_inv_factor: Real,
+
     /// Amount of penetration the engine wont attempt to correct (default: `0.001m`).
     pub allowed_linear_error: Real,
     /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002`).
@@ -96,6 +103,7 @@ impl Default for IntegrationParameters {
             min_ccd_dt: 1.0 / 60.0 / 100.0,
             velocity_solve_fraction: 1.0,
             erp: 0.8,
+            delassus_inv_factor: 0.75,
             allowed_linear_error: 0.001, // 0.005
             prediction_distance: 0.002,
             max_velocity_iterations: 4,

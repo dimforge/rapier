@@ -9,8 +9,8 @@ pub(crate) fn categorize_contacts(
     manifold_indices: &[ContactManifoldIndex],
     out_ground: &mut Vec<ContactManifoldIndex>,
     out_not_ground: &mut Vec<ContactManifoldIndex>,
-    out_generic: &mut Vec<ContactManifoldIndex>,
-    _unused: &mut Vec<ContactManifoldIndex>, // Unused but useful to simplify the parallel code.
+    out_generic_ground: &mut Vec<ContactManifoldIndex>,
+    out_generic_not_ground: &mut Vec<ContactManifoldIndex>,
 ) {
     for manifold_i in manifold_indices {
         let manifold = &manifolds[*manifold_i];
@@ -18,15 +18,19 @@ pub(crate) fn categorize_contacts(
         if manifold
             .data
             .rigid_body1
-            .map(|rb| multibody_joints.rigid_body_link(rb))
+            .and_then(|h| multibody_joints.rigid_body_link(h))
             .is_some()
             || manifold
                 .data
-                .rigid_body1
-                .map(|rb| multibody_joints.rigid_body_link(rb))
+                .rigid_body2
+                .and_then(|h| multibody_joints.rigid_body_link(h))
                 .is_some()
         {
-            out_generic.push(*manifold_i);
+            if manifold.data.relative_dominance != 0 {
+                out_generic_ground.push(*manifold_i);
+            } else {
+                out_generic_not_ground.push(*manifold_i);
+            }
         } else if manifold.data.relative_dominance != 0 {
             out_ground.push(*manifold_i)
         } else {

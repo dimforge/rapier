@@ -5,6 +5,7 @@ use crate::dynamics::{
 };
 use crate::geometry::{ColliderParent, NarrowPhase};
 use crate::math::Real;
+use crate::utils::WDot;
 
 /// Structure responsible for maintaining the set of active rigid-bodies, and
 /// putting non-moving rigid-bodies to sleep to save computation times.
@@ -172,6 +173,7 @@ impl IslandManager {
 
     pub(crate) fn update_active_set_with_contacts<Bodies, Colliders>(
         &mut self,
+        dt: Real,
         bodies: &mut Bodies,
         colliders: &Colliders,
         narrow_phase: &NarrowPhase,
@@ -207,12 +209,15 @@ impl IslandManager {
             let stack = &mut self.stack;
 
             let vels: &RigidBodyVelocity = bodies.index(h.0);
-            let pseudo_kinetic_energy = vels.pseudo_kinetic_energy();
+            let sq_linvel = vels.linvel.norm_squared();
+            let sq_angvel = vels.angvel.gdot(vels.angvel);
 
             bodies.map_mut_internal(h.0, |activation: &mut RigidBodyActivation| {
-                update_energy(activation, pseudo_kinetic_energy);
+                update_energy(activation, sq_linvel, sq_angvel, dt);
 
-                if activation.energy <= activation.threshold {
+                if activation.time_since_can_sleep
+                    >= RigidBodyActivation::default_time_until_sleep()
+                {
                     // Mark them as sleeping for now. This will
                     // be set to false during the graph traversal
                     // if it should not be put to sleep.
@@ -346,8 +351,12 @@ impl IslandManager {
     }
 }
 
-fn update_energy(activation: &mut RigidBodyActivation, pseudo_kinetic_energy: Real) {
-    let mix_factor = 0.01;
-    let new_energy = (1.0 - mix_factor) * activation.energy + mix_factor * pseudo_kinetic_energy;
-    activation.energy = new_energy.min(activation.threshold.abs() * 4.0);
+fn update_energy(activation: &mut RigidBodyActivation, sq_linvel: Real, sq_angvel: Real, dt: Real) {
+    if sq_linvel < activation.linear_threshold * activation.linear_threshold
+        && sq_angvel < activation.angular_threshold * activation.angular_threshold
+    {
+        activation.time_since_can_sleep += dt;
+    } else {
+        activation.time_since_can_sleep = 0.0;
+    }
 }

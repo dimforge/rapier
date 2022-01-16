@@ -179,6 +179,7 @@ impl PhysicsPipeline {
     {
         self.counters.stages.island_construction_time.resume();
         islands.update_active_set_with_contacts(
+            integration_parameters.dt,
             bodies,
             colliders,
             narrow_phase,

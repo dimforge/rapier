@@ -1,6 +1,6 @@
 use super::AnyJointVelocityConstraint;
 use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
-use crate::dynamics::solver::GenericVelocityConstraint;
+use crate::dynamics::solver::AnyGenericVelocityConstraint;
 use crate::dynamics::{
     solver::{AnyVelocityConstraint, DeltaVel},
     IntegrationParameters, JointGraphEdge, MultibodyJointSet, RigidBodyForces, RigidBodyType,
@@ -36,7 +36,7 @@ impl VelocitySolver {
         manifolds_all: &mut [&mut ContactManifold],
         joints_all: &mut [JointGraphEdge],
         contact_constraints: &mut [AnyVelocityConstraint],
-        generic_contact_constraints: &mut [GenericVelocityConstraint],
+        generic_contact_constraints: &mut [AnyGenericVelocityConstraint],
         generic_contact_jacobians: &DVector<Real>,
         joint_constraints: &mut [AnyJointVelocityConstraint],
         generic_joint_jacobians: &DVector<Real>,

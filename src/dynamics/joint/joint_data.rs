@@ -218,12 +218,14 @@ impl JointData {
     }
 
     /// Set the spring-like model used by the motor to reach the desired target velocity and position.
+    #[must_use]
     pub fn motor_model(mut self, axis: JointAxis, model: MotorModel) -> Self {
         self.motors[axis as usize].model = model;
         self
     }
 
     /// Sets the target velocity this motor needs to reach.
+    #[must_use]
     pub fn motor_velocity(self, axis: JointAxis, target_vel: Real, factor: Real) -> Self {
         self.motor_axis(
             axis,
@@ -235,6 +237,7 @@ impl JointData {
     }
 
     /// Sets the target angle this motor needs to reach.
+    #[must_use]
     pub fn motor_position(
         self,
         axis: JointAxis,
@@ -246,6 +249,7 @@ impl JointData {
     }
 
     /// Configure both the target angle and target velocity of the motor.
+    #[must_use]
     pub fn motor_axis(
         mut self,
         axis: JointAxis,
@@ -263,6 +267,7 @@ impl JointData {
         self
     }
 
+    #[must_use]
     pub fn motor_max_impulse(mut self, axis: JointAxis, max_impulse: Real) -> Self {
         self.motors[axis as usize].max_impulse = max_impulse;
         self

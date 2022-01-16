@@ -14,6 +14,7 @@ mod collision_groups2;
 mod convex_polygons2;
 mod damping2;
 mod debug_box_ball2;
+mod drum2;
 mod heightfield2;
 mod joints2;
 mod locked_rotations2;
@@ -63,6 +64,7 @@ pub fn main() {
         ("Collision groups", collision_groups2::init_world),
         ("Convex polygons", convex_polygons2::init_world),
         ("Damping", damping2::init_world),
+        ("Drum", drum2::init_world),
         ("Heightfield", heightfield2::init_world),
         ("Joints", joints2::init_world),
         ("Locked rotations", locked_rotations2::init_world),
