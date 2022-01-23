@@ -362,7 +362,7 @@ impl TestbedApp {
                 vsync: true,
                 ..Default::default()
             })
-            .insert_resource(ClearColor(Color::rgb(0.85, 0.85, 0.85)))
+            .insert_resource(ClearColor(Color::rgb(0.15, 0.15, 0.15)))
             .insert_resource(Msaa { samples: 4 })
             .insert_resource(WgpuOptions {
                 // Required for wireframes.
@@ -532,6 +532,14 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                     self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR,
                     self.harness.state.num_threads,
                 ));
+            }
+        }
+    }
+
+    pub fn set_graphics_shift(&mut self, shift: Vector<Real>) {
+        if !self.state.camera_locked {
+            if let Some(graphics) = &mut self.graphics {
+                graphics.graphics.gfx_shift = shift;
             }
         }
     }

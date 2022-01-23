@@ -5,7 +5,7 @@ use na::{point, Point3};
 use crate::objects::node::EntityWithGraphics;
 use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
 use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
-use rapier::math::{Isometry, Real};
+use rapier::math::{Isometry, Real, Vector};
 //use crate::objects::capsule::Capsule;
 //#[cfg(feature = "dim3")]
 //use crate::objects::mesh::Mesh;
@@ -30,6 +30,7 @@ pub struct GraphicsManager {
     b2wireframe: HashMap<RigidBodyHandle, bool>,
     ground_color: Point3<f32>,
     prefab_meshes: HashMap<ShapeType, Handle<Mesh>>,
+    pub gfx_shift: Vector<Real>,
 }
 
 impl GraphicsManager {
@@ -42,6 +43,7 @@ impl GraphicsManager {
             ground_color: point![0.5, 0.5, 0.5],
             b2wireframe: HashMap::new(),
             prefab_meshes: HashMap::new(),
+            gfx_shift: Vector::zeros(),
         }
     }
 
@@ -239,7 +241,7 @@ impl GraphicsManager {
 
         new_nodes
             .iter_mut()
-            .for_each(|n| n.update(colliders, components));
+            .for_each(|n| n.update(colliders, components, &self.gfx_shift));
 
         // for node in new_nodes.iter_mut().filter_map(|n| n.scene_node_mut()) {
         //     if self.b2wireframe.get(&handle).cloned() == Some(true) {
@@ -368,7 +370,7 @@ impl GraphicsManager {
                 //     }
                 // }
 
-                n.update(colliders, components);
+                n.update(colliders, components, &self.gfx_shift);
             }
         }
     }

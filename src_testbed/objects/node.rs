@@ -10,7 +10,7 @@ use bevy::render::render_resource::PrimitiveTopology;
 use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{Cone, Cylinder};
-use rapier::math::{Isometry, Real};
+use rapier::math::{Isometry, Real, Vector};
 
 use crate::graphics::BevyMaterial;
 #[cfg(feature = "dim2")]
@@ -168,15 +168,20 @@ impl EntityWithGraphics {
         self.base_color = color;
     }
 
-    pub fn update(&mut self, colliders: &ColliderSet, components: &mut Query<(&mut Transform,)>) {
+    pub fn update(
+        &mut self,
+        colliders: &ColliderSet,
+        components: &mut Query<(&mut Transform,)>,
+        gfx_shift: &Vector<Real>,
+    ) {
         if let Some(Some(co)) = self.collider.map(|c| colliders.get(c)) {
             if let Ok(mut pos) = components.get_component_mut::<Transform>(self.entity) {
                 let co_pos = co.position() * self.delta;
-                pos.translation.x = co_pos.translation.vector.x as f32;
-                pos.translation.y = co_pos.translation.vector.y as f32;
+                pos.translation.x = (co_pos.translation.vector.x + gfx_shift.x) as f32;
+                pos.translation.y = (co_pos.translation.vector.y + gfx_shift.y) as f32;
                 #[cfg(feature = "dim3")]
                 {
-                    pos.translation.z = co_pos.translation.vector.z as f32;
+                    pos.translation.z = (co_pos.translation.vector.z + gfx_shift.z) as f32;
                     pos.rotation = Quat::from_xyzw(
                         co_pos.rotation.i as f32,
                         co_pos.rotation.j as f32,
