@@ -524,6 +524,6 @@ impl JointGenericVelocityGroundConstraint {
     }
 
     pub fn remove_bias_from_rhs(&mut self) {
-        self.rhs = &mut self.rhs_wo_bias;
+        self.rhs = self.rhs_wo_bias;
     }
 }

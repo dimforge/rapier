@@ -121,9 +121,9 @@ impl VelocityGroundConstraintElement<Real> {
             let mut nrm_j_id = j_id;
 
             for element in elements.iter_mut() {
-                element
-                    .normal_part
-                    .generic_solve(cfm_factor, nrm_j_id, jacobians, ndofs2, mj_lambda2, mj_lambdas);
+                element.normal_part.generic_solve(
+                    cfm_factor, nrm_j_id, jacobians, ndofs2, mj_lambda2, mj_lambdas,
+                );
                 nrm_j_id += j_step;
             }
         }
