@@ -33,7 +33,7 @@ impl ColliderPair {
     }
 }
 
-impl Default for ColliderPair{
+impl Default for ColliderPair {
     fn default() -> Self {
         ColliderPair::zero()
     }

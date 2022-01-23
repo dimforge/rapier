@@ -60,7 +60,7 @@ impl Default for Index {
 
 impl IndexedData for Index {
     fn default() -> Self {
-       Default::default()
+        Default::default()
     }
 
     fn index(&self) -> usize {

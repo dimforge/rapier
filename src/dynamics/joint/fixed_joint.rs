@@ -6,11 +6,13 @@ use crate::math::{Isometry, Point, Real};
 pub struct FixedJoint {
     data: JointData,
 }
-impl Default for FixedJoint{
+
+impl Default for FixedJoint {
     fn default() -> Self {
         FixedJoint::new()
     }
 }
+
 impl FixedJoint {
     pub fn new() -> Self {
         #[cfg(feature = "dim2")]

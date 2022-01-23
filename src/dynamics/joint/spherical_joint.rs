@@ -7,11 +7,13 @@ use crate::math::{Point, Real};
 pub struct SphericalJoint {
     data: JointData,
 }
-impl Default for SphericalJoint{
+
+impl Default for SphericalJoint {
     fn default() -> Self {
         SphericalJoint::new()
     }
 }
+
 impl SphericalJoint {
     pub fn new() -> Self {
         let data =
