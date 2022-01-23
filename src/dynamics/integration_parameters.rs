@@ -29,13 +29,11 @@ pub struct IntegrationParameters {
     /// A good non-zero value is around `0.2`.
     /// (default `0.0`).
     pub erp: Real,
-
-    /// 0-1: multiplier applied to each accumulated impulse during  constraints resolution.
-    /// This is similar to the concept of CFN (Constraint Force Mixing) except that it is
-    /// a multiplicative factor instead of an additive factor.
-    /// Larger values lead to stiffer constraints (1.0 being completely stiff).
-    /// Smaller values lead to more compliant constraints.
-    pub delassus_inv_factor: Real,
+    /// 0-1: the damping ratio used by the springs for Baumgarte constraints stabilization.
+    /// Lower values make the constraints more compliant (more "springy", allowing more visible penetrations
+    /// before stabilization).
+    /// (default `0.25`).
+    pub damping_ratio: Real,
 
     /// Amount of penetration the engine wont attempt to correct (default: `0.001m`).
     pub allowed_linear_error: Real,
@@ -89,10 +87,42 @@ impl IntegrationParameters {
         }
     }
 
-    /// Convenience: `erp / dt`
-    #[inline]
-    pub(crate) fn erp_inv_dt(&self) -> Real {
-        self.erp * self.inv_dt()
+    /// The ERP coefficient, multiplied by the inverse timestep length.
+    pub fn erp_inv_dt(&self) -> Real {
+        0.8 / self.dt
+    }
+
+    /// The CFM factor to be used in the constraints resolution.
+    pub fn cfm_factor(&self) -> Real {
+        // Compute CFM assuming a critically damped spring multiplied by the dampingratio.
+        let inv_erp_minus_one = 1.0 / self.erp - 1.0;
+
+        // let stiffness = 4.0 * damping_ratio * damping_ratio * projected_mass
+        //     / (dt * dt * inv_erp_minus_one * inv_erp_minus_one);
+        // let damping = 4.0 * damping_ratio * damping_ratio * projected_mass
+        //     / (dt * inv_erp_minus_one);
+        // let cfm = 1.0 / (dt * dt * stiffness + dt * damping);
+        // NOTE: This simplies to cfm = cfm_coefff / projected_mass:
+        let cfm_coeff = inv_erp_minus_one * inv_erp_minus_one
+            / ((1.0 + inv_erp_minus_one) * 4.0 * self.damping_ratio * self.damping_ratio);
+
+        // Furthermore, we use this coefficient inside of the impulse resolution.
+        // Surprisingly, several simplifications happen there.
+        // Let `m` the projected mass of the constraint.
+        // Let `m’` the projected mass that includes CFM: `m’ = 1 / (1 / m + cfm_coeff / m) = m / (1 + cfm_coeff)`
+        // We have:
+        // new_impulse = old_impulse - m’ (delta_vel - cfm * old_impulse)
+        //             = old_impulse - m / (1 + cfm_coeff) * (delta_vel - cfm_coeff / m * old_impulse)
+        //             = old_impulse * (1 - cfm_coeff / (1 + cfm_coeff)) - m / (1 + cfm_coeff) * delta_vel
+        //             = old_impulse / (1 + cfm_coeff) - m * delta_vel / (1 + cfm_coeff)
+        //             = 1 / (1 + cfm_coeff) * (old_impulse - m * delta_vel)
+        // So, setting cfm_factor = 1 / (1 + cfm_coeff).
+        // We obtain:
+        // new_impulse = cfm_factor * (old_impulse - m * delta_vel)
+        //
+        // The value returned by this function is this cfm_factor that can be used directly
+        // in the constraints solver.
+        1.0 / (1.0 + cfm_coeff)
     }
 }
 
@@ -103,14 +133,14 @@ impl Default for IntegrationParameters {
             min_ccd_dt: 1.0 / 60.0 / 100.0,
             velocity_solve_fraction: 1.0,
             erp: 0.8,
-            delassus_inv_factor: 0.75,
+            damping_ratio: 0.25,
             allowed_linear_error: 0.001, // 0.005
             prediction_distance: 0.002,
             max_velocity_iterations: 4,
             max_velocity_friction_iterations: 8,
             max_stabilization_iterations: 1,
             interleave_restitution_and_friction_resolution: true, // Enabling this makes a big difference for 2D stability.
-            // FIXME: what is the optimal value for min_island_size?
+            // TODO: what is the optimal value for min_island_size?
             // It should not be too big so that we don't end up with
             // huge islands that don't fit in cache.
             // However we don't want it to be too small and end up with

@@ -153,7 +153,7 @@ impl VelocityGroundConstraint {
                         .effective_world_inv_inertia_sqrt
                         .transform_vector(dp2.gcross(-force_dir1));
 
-                    let r = params.delassus_inv_factor
+                    let projected_mass = 1.0
                         / (force_dir1.dot(&mprops2.effective_inv_mass.component_mul(&force_dir1))
                             + gcross2.gdot(gcross2));
 
@@ -172,8 +172,8 @@ impl VelocityGroundConstraint {
                         gcross2,
                         rhs: rhs_wo_bias + rhs_bias,
                         rhs_wo_bias,
-                        impulse: 0.0,
-                        r,
+                        impulse: na::zero(),
+                        r: projected_mass,
                     };
                 }
 
@@ -219,6 +219,7 @@ impl VelocityGroundConstraint {
 
     pub fn solve(
         &mut self,
+        cfm_factor: Real,
         mj_lambdas: &mut [DeltaVel<Real>],
         solve_normal: bool,
         solve_friction: bool,
@@ -226,6 +227,7 @@ impl VelocityGroundConstraint {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         VelocityGroundConstraintElement::solve_group(
+            cfm_factor,
             &mut self.elements[..self.num_contacts as usize],
             &self.dir1,
             #[cfg(feature = "dim3")]

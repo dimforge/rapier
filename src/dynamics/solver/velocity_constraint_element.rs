@@ -131,6 +131,7 @@ impl<N: SimdRealField + Copy> VelocityConstraintNormalPart<N> {
     #[inline]
     pub fn solve(
         &mut self,
+        cfm_factor: N,
         dir1: &Vector<N>,
         im1: &Vector<N>,
         im2: &Vector<N>,
@@ -143,7 +144,7 @@ impl<N: SimdRealField + Copy> VelocityConstraintNormalPart<N> {
             - dir1.dot(&mj_lambda2.linear)
             + self.gcross2.gdot(mj_lambda2.angular)
             + self.rhs;
-        let new_impulse = (self.impulse - self.r * dvel).simd_max(N::zero());
+        let new_impulse = cfm_factor * (self.impulse - self.r * dvel).simd_max(N::zero());
         let dlambda = new_impulse - self.impulse;
         self.impulse = new_impulse;
 
@@ -171,6 +172,7 @@ impl<N: SimdRealField + Copy> VelocityConstraintElement<N> {
 
     #[inline]
     pub fn solve_group(
+        cfm_factor: N,
         elements: &mut [Self],
         dir1: &Vector<N>,
         #[cfg(feature = "dim3")] tangent1: &Vector<N>,
@@ -191,7 +193,7 @@ impl<N: SimdRealField + Copy> VelocityConstraintElement<N> {
             for element in elements.iter_mut() {
                 element
                     .normal_part
-                    .solve(&dir1, im1, im2, mj_lambda1, mj_lambda2);
+                    .solve(cfm_factor, &dir1, im1, im2, mj_lambda1, mj_lambda2);
             }
         }
 

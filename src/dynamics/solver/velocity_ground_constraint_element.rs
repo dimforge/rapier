@@ -109,12 +109,17 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintNormalPart<N> {
     }
 
     #[inline]
-    pub fn solve(&mut self, dir1: &Vector<N>, im2: &Vector<N>, mj_lambda2: &mut DeltaVel<N>)
-    where
+    pub fn solve(
+        &mut self,
+        cfm_factor: N,
+        dir1: &Vector<N>,
+        im2: &Vector<N>,
+        mj_lambda2: &mut DeltaVel<N>,
+    ) where
         AngVector<N>: WDot<AngVector<N>, Result = N>,
     {
         let dvel = -dir1.dot(&mj_lambda2.linear) + self.gcross2.gdot(mj_lambda2.angular) + self.rhs;
-        let new_impulse = (self.impulse - self.r * dvel).simd_max(N::zero());
+        let new_impulse = cfm_factor * (self.impulse - self.r * dvel).simd_max(N::zero());
         let dlambda = new_impulse - self.impulse;
         self.impulse = new_impulse;
 
@@ -139,6 +144,7 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintElement<N> {
 
     #[inline]
     pub fn solve_group(
+        cfm_factor: N,
         elements: &mut [Self],
         dir1: &Vector<N>,
         #[cfg(feature = "dim3")] tangent1: &Vector<N>,
@@ -155,7 +161,9 @@ impl<N: SimdRealField + Copy> VelocityGroundConstraintElement<N> {
         // Solve penetration.
         if solve_normal {
             for element in elements.iter_mut() {
-                element.normal_part.solve(&dir1, im2, mj_lambda2);
+                element
+                    .normal_part
+                    .solve(cfm_factor, &dir1, im2, mj_lambda2);
             }
         }
 

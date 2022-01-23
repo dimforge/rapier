@@ -50,6 +50,7 @@ impl VelocitySolver {
             + ComponentSetMut<RigidBodyActivation>
             + ComponentSet<RigidBodyDamping>,
     {
+        let cfm_factor = params.cfm_factor();
         self.mj_lambdas.clear();
         self.mj_lambdas
             .resize(islands.active_island(island_id).len(), DeltaVel::zero());
@@ -93,17 +94,35 @@ impl VelocitySolver {
             }
 
             for constraint in &mut *contact_constraints {
-                constraint.solve(&mut self.mj_lambdas[..], true, solve_friction);
+                constraint.solve(cfm_factor, &mut self.mj_lambdas[..], true, false);
             }
 
             for constraint in &mut *generic_contact_constraints {
                 constraint.solve(
+                    cfm_factor,
                     generic_contact_jacobians,
                     &mut self.mj_lambdas[..],
                     &mut self.generic_mj_lambdas,
                     true,
-                    solve_friction,
+                    false,
                 );
+            }
+
+            if solve_friction {
+                for constraint in &mut *contact_constraints {
+                    constraint.solve(cfm_factor, &mut self.mj_lambdas[..], false, true);
+                }
+
+                for constraint in &mut *generic_contact_constraints {
+                    constraint.solve(
+                        cfm_factor,
+                        generic_contact_jacobians,
+                        &mut self.mj_lambdas[..],
+                        &mut self.generic_mj_lambdas,
+                        false,
+                        true,
+                    );
+                }
             }
         }
 
@@ -118,11 +137,12 @@ impl VelocitySolver {
 
         for _ in 0..remaining_friction_iterations {
             for constraint in &mut *contact_constraints {
-                constraint.solve(&mut self.mj_lambdas[..], false, true);
+                constraint.solve(cfm_factor, &mut self.mj_lambdas[..], false, true);
             }
 
             for constraint in &mut *generic_contact_constraints {
                 constraint.solve(
+                    cfm_factor,
                     generic_contact_jacobians,
                     &mut self.mj_lambdas[..],
                     &mut self.generic_mj_lambdas,
@@ -147,10 +167,7 @@ impl VelocitySolver {
                     multibody.velocities += mj_lambdas;
                     multibody.integrate(params.dt);
                     multibody.forward_kinematics(bodies, false);
-
-                    if params.max_stabilization_iterations > 0 {
-                        multibody.velocities = prev_vels;
-                    }
+                    multibody.velocities = prev_vels;
                 }
             } else {
                 let (ids, mprops): (&RigidBodyIds, &RigidBodyMassProps) =
@@ -177,88 +194,85 @@ impl VelocitySolver {
                 new_poss.next_position =
                     new_vels.integrate(params.dt, &poss.position, &mprops.local_mprops.local_com);
                 bodies.set_internal(handle.0, new_poss);
-
-                if params.max_stabilization_iterations == 0 {
-                    bodies.set_internal(handle.0, new_vels);
-                }
             }
         }
 
-        if params.max_stabilization_iterations > 0 {
-            for joint in &mut *joint_constraints {
-                joint.remove_bias_from_rhs();
+        for joint in &mut *joint_constraints {
+            joint.remove_bias_from_rhs();
+        }
+        for constraint in &mut *contact_constraints {
+            constraint.remove_bias_from_rhs();
+        }
+        for constraint in &mut *generic_contact_constraints {
+            constraint.remove_bias_from_rhs();
+        }
+
+        for _ in 0..params.max_stabilization_iterations {
+            for constraint in &mut *joint_constraints {
+                constraint.solve(
+                    generic_joint_jacobians,
+                    &mut self.mj_lambdas[..],
+                    &mut self.generic_mj_lambdas,
+                );
             }
+
             for constraint in &mut *contact_constraints {
-                constraint.remove_bias_from_rhs();
+                constraint.solve(1.0, &mut self.mj_lambdas[..], true, false);
             }
+
             for constraint in &mut *generic_contact_constraints {
-                constraint.remove_bias_from_rhs();
+                constraint.solve(
+                    1.0,
+                    generic_contact_jacobians,
+                    &mut self.mj_lambdas[..],
+                    &mut self.generic_mj_lambdas,
+                    true,
+                    false,
+                );
             }
 
-            for _ in 0..params.max_stabilization_iterations {
-                for constraint in &mut *joint_constraints {
-                    constraint.solve(
-                        generic_joint_jacobians,
-                        &mut self.mj_lambdas[..],
-                        &mut self.generic_mj_lambdas,
-                    );
-                }
-
-                for constraint in &mut *contact_constraints {
-                    constraint.solve(&mut self.mj_lambdas[..], true, true);
-                }
-
-                for constraint in &mut *generic_contact_constraints {
-                    constraint.solve(
-                        generic_contact_jacobians,
-                        &mut self.mj_lambdas[..],
-                        &mut self.generic_mj_lambdas,
-                        true,
-                        true,
-                    );
-                }
+            for constraint in &mut *contact_constraints {
+                constraint.solve(1.0, &mut self.mj_lambdas[..], false, true);
             }
 
-            // Update velocities.
-            for handle in islands.active_island(island_id) {
-                if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
-                    let multibody = multibodies
-                        .get_multibody_mut_internal(link.multibody)
-                        .unwrap();
+            for constraint in &mut *generic_contact_constraints {
+                constraint.solve(
+                    1.0,
+                    generic_contact_jacobians,
+                    &mut self.mj_lambdas[..],
+                    &mut self.generic_mj_lambdas,
+                    false,
+                    true,
+                );
+            }
+        }
 
-                    if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
-                        let mj_lambdas = self
-                            .generic_mj_lambdas
-                            .rows(multibody.solver_id, multibody.ndofs());
-                        multibody.velocities += mj_lambdas;
-                    }
-                } else {
-                    let (ids, mprops): (&RigidBodyIds, &RigidBodyMassProps) =
-                        bodies.index_bundle(handle.0);
+        // Update velocities.
+        for handle in islands.active_island(island_id) {
+            if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
+                let multibody = multibodies
+                    .get_multibody_mut_internal(link.multibody)
+                    .unwrap();
 
-                    let dvel = self.mj_lambdas[ids.active_set_offset];
-                    let dangvel = mprops
-                        .effective_world_inv_inertia_sqrt
-                        .transform_vector(dvel.angular);
-
-                    // let mut curr_vel_pseudo_energy = 0.0;
-                    bodies.map_mut_internal(handle.0, |vels: &mut RigidBodyVelocity| {
-                        // curr_vel_pseudo_energy = vels.pseudo_kinetic_energy();
-                        vels.linvel += dvel.linear;
-                        vels.angvel += dangvel;
-                    });
-
-                    // let impulse_vel_pseudo_energy = RigidBodyVelocity {
-                    //     linvel: dvel.linear,
-                    //     angvel: dangvel,
-                    // }
-                    // .pseudo_kinetic_energy();
-                    //
-                    // bodies.map_mut_internal(handle.0, |activation: &mut RigidBodyActivation| {
-                    //     activation.energy =
-                    //         impulse_vel_pseudo_energy.max(curr_vel_pseudo_energy / 5.0);
-                    // });
+                if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
+                    let mj_lambdas = self
+                        .generic_mj_lambdas
+                        .rows(multibody.solver_id, multibody.ndofs());
+                    multibody.velocities += mj_lambdas;
                 }
+            } else {
+                let (ids, mprops): (&RigidBodyIds, &RigidBodyMassProps) =
+                    bodies.index_bundle(handle.0);
+
+                let dvel = self.mj_lambdas[ids.active_set_offset];
+                let dangvel = mprops
+                    .effective_world_inv_inertia_sqrt
+                    .transform_vector(dvel.angular);
+
+                bodies.map_mut_internal(handle.0, |vels: &mut RigidBodyVelocity| {
+                    vels.linvel += dvel.linear;
+                    vels.angvel += dangvel;
+                });
             }
         }
 

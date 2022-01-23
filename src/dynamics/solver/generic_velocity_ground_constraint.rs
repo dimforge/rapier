@@ -210,6 +210,7 @@ impl GenericVelocityGroundConstraint {
 
     pub fn solve(
         &mut self,
+        cfm_factor: Real,
         jacobians: &DVector<Real>,
         generic_mj_lambdas: &mut DVector<Real>,
         solve_restitution: bool,
@@ -220,6 +221,7 @@ impl GenericVelocityGroundConstraint {
         let elements = &mut self.velocity_constraint.elements
             [..self.velocity_constraint.num_contacts as usize];
         VelocityGroundConstraintElement::generic_solve_group(
+            cfm_factor,
             elements,
             jacobians,
             self.velocity_constraint.limit,

@@ -23,6 +23,7 @@ pub(crate) enum AnyGenericVelocityConstraint {
 impl AnyGenericVelocityConstraint {
     pub fn solve(
         &mut self,
+        cfm_factor: Real,
         jacobians: &DVector<Real>,
         mj_lambdas: &mut [DeltaVel<Real>],
         generic_mj_lambdas: &mut DVector<Real>,
@@ -31,6 +32,7 @@ impl AnyGenericVelocityConstraint {
     ) {
         match self {
             AnyGenericVelocityConstraint::Nongrouped(c) => c.solve(
+                cfm_factor,
                 jacobians,
                 mj_lambdas,
                 generic_mj_lambdas,
@@ -38,6 +40,7 @@ impl AnyGenericVelocityConstraint {
                 solve_friction,
             ),
             AnyGenericVelocityConstraint::NongroupedGround(c) => c.solve(
+                cfm_factor,
                 jacobians,
                 generic_mj_lambdas,
                 solve_restitution,
@@ -379,6 +382,7 @@ impl GenericVelocityConstraint {
 
     pub fn solve(
         &mut self,
+        cfm_factor: Real,
         jacobians: &DVector<Real>,
         mj_lambdas: &mut [DeltaVel<Real>],
         generic_mj_lambdas: &mut DVector<Real>,
@@ -400,6 +404,7 @@ impl GenericVelocityConstraint {
         let elements = &mut self.velocity_constraint.elements
             [..self.velocity_constraint.num_contacts as usize];
         VelocityConstraintElement::generic_solve_group(
+            cfm_factor,
             elements,
             jacobians,
             &self.velocity_constraint.dir1,
