@@ -29,6 +29,12 @@ pub struct JointGenericVelocityConstraint {
     pub writeback_id: WritebackId,
 }
 
+impl Default for JointGenericVelocityConstraint {
+    fn default() -> Self {
+        JointGenericVelocityConstraint::invalid()
+    }
+}
+
 impl JointGenericVelocityConstraint {
     pub fn invalid() -> Self {
         Self {
@@ -312,6 +318,12 @@ pub struct JointGenericVelocityGroundConstraint {
     pub rhs_wo_bias: Real,
 
     pub writeback_id: WritebackId,
+}
+
+impl Default for JointGenericVelocityGroundConstraint {
+    fn default() -> Self {
+        JointGenericVelocityGroundConstraint::invalid()
+    }
 }
 
 impl JointGenericVelocityGroundConstraint {

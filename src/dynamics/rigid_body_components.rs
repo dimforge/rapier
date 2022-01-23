@@ -12,7 +12,7 @@ use crate::utils::{WAngularInertia, WCross, WDot};
 use num::Zero;
 
 /// The unique handle of a rigid body added to a `RigidBodySet`.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[repr(transparent)]
 pub struct RigidBodyHandle(pub crate::data::arena::Index);

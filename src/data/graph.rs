@@ -125,7 +125,7 @@ impl<E> Edge<E> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct Graph<N, E> {
     pub(crate) nodes: Vec<Node<N>>,
