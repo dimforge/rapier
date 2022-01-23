@@ -43,9 +43,8 @@ impl WVelocityGroundConstraint {
     {
         let inv_dt = SimdReal::splat(params.inv_dt());
         let velocity_solve_fraction = SimdReal::splat(params.velocity_solve_fraction);
-        let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
-        let delassus_inv_factor = SimdReal::splat(params.delassus_inv_factor);
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
+        let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
 
         let mut handles1 = gather![|ii| manifolds[ii].data.rigid_body1];
         let mut handles2 = gather![|ii| manifolds[ii].data.rigid_body2];
@@ -143,8 +142,9 @@ impl WVelocityGroundConstraint {
                 {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-force_dir1));
 
-                    let r = delassus_inv_factor
+                    let projected_mass = SimdReal::splat(1.0)
                         / (force_dir1.dot(&im2.component_mul(&force_dir1)) + gcross2.gdot(gcross2));
+
                     let projected_velocity = (vel1 - vel2).dot(&force_dir1);
                     let mut rhs_wo_bias =
                         (SimdReal::splat(1.0) + is_bouncy * restitution) * projected_velocity;
@@ -158,7 +158,7 @@ impl WVelocityGroundConstraint {
                         rhs: rhs_wo_bias + rhs_bias,
                         rhs_wo_bias,
                         impulse: na::zero(),
-                        r,
+                        r: projected_mass,
                     };
                 }
 
@@ -199,6 +199,7 @@ impl WVelocityGroundConstraint {
 
     pub fn solve(
         &mut self,
+        cfm_factor: Real,
         mj_lambdas: &mut [DeltaVel<Real>],
         solve_normal: bool,
         solve_friction: bool,
@@ -211,6 +212,7 @@ impl WVelocityGroundConstraint {
         };
 
         VelocityGroundConstraintElement::solve_group(
+            SimdReal::splat(cfm_factor),
             &mut self.elements[..self.num_contacts as usize],
             &self.dir1,
             #[cfg(feature = "dim3")]

@@ -48,9 +48,8 @@ impl WVelocityConstraint {
 
         let inv_dt = SimdReal::splat(params.inv_dt());
         let velocity_solve_fraction = SimdReal::splat(params.velocity_solve_fraction);
-        let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
-        let delassus_inv_factor = SimdReal::splat(params.delassus_inv_factor);
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
+        let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
 
         let handles1 = gather![|ii| manifolds[ii].data.rigid_body1.unwrap()];
         let handles2 = gather![|ii| manifolds[ii].data.rigid_body2.unwrap()];
@@ -121,7 +120,6 @@ impl WVelocityConstraint {
                 let dist = SimdReal::from(gather![|ii| manifold_points[ii][k].dist]);
                 let tangent_velocity =
                     Vector::from(gather![|ii| manifold_points[ii][k].tangent_velocity]);
-
                 let dp1 = point - world_com1;
                 let dp2 = point - world_com2;
 
@@ -137,10 +135,11 @@ impl WVelocityConstraint {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-force_dir1));
 
                     let imsum = im1 + im2;
-                    let r = delassus_inv_factor
+                    let projected_mass = SimdReal::splat(1.0)
                         / (force_dir1.dot(&imsum.component_mul(&force_dir1))
                             + gcross1.gdot(gcross1)
                             + gcross2.gdot(gcross2));
+
                     let projected_velocity = (vel1 - vel2).dot(&force_dir1);
                     let mut rhs_wo_bias =
                         (SimdReal::splat(1.0) + is_bouncy * restitution) * projected_velocity;
@@ -154,8 +153,8 @@ impl WVelocityConstraint {
                         gcross2,
                         rhs: rhs_wo_bias + rhs_bias,
                         rhs_wo_bias,
-                        impulse: na::zero(),
-                        r,
+                        impulse: SimdReal::splat(0.0),
+                        r: projected_mass,
                     };
                 }
 
@@ -202,6 +201,7 @@ impl WVelocityConstraint {
 
     pub fn solve(
         &mut self,
+        cfm_factor: Real,
         mj_lambdas: &mut [DeltaVel<Real>],
         solve_normal: bool,
         solve_friction: bool,
@@ -221,6 +221,7 @@ impl WVelocityConstraint {
         };
 
         VelocityConstraintElement::solve_group(
+            SimdReal::splat(cfm_factor),
             &mut self.elements[..self.num_contacts as usize],
             &self.dir1,
             #[cfg(feature = "dim3")]

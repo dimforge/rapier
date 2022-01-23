@@ -54,6 +54,7 @@ impl ParallelVelocitySolver {
             let joint_descs = &joint_constraints.constraint_descs[..];
             let mut target_num_desc = 0;
             let mut shift = 0;
+            let cfm_factor = params.cfm_factor();
 
             for _ in 0..params.max_velocity_iterations {
                 macro_rules! solve {
@@ -116,7 +117,13 @@ impl ParallelVelocitySolver {
                 );
                 shift += joint_descs.len();
                 start_index -= joint_descs.len();
-                solve!(contact_constraints, &mut self.mj_lambdas, true, true);
+                solve!(
+                    contact_constraints,
+                    cfm_factor,
+                    &mut self.mj_lambdas,
+                    true,
+                    true
+                );
                 shift += contact_descs.len();
                 start_index -= contact_descs.len();
             }

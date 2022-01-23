@@ -243,6 +243,7 @@ impl VelocityConstraintNormalPart<Real> {
     #[inline]
     pub fn generic_solve(
         &mut self,
+        cfm_factor: Real,
         j_id: usize,
         jacobians: &DVector<Real>,
         dir1: &Vector<Real>,
@@ -261,7 +262,7 @@ impl VelocityConstraintNormalPart<Real> {
             + mj_lambda2.dvel(j_id2, ndofs2, jacobians, &-dir1, &self.gcross2, mj_lambdas)
             + self.rhs;
 
-        let new_impulse = (self.impulse - self.r * dvel).max(0.0);
+        let new_impulse = cfm_factor * (self.impulse - self.r * dvel).max(0.0);
         let dlambda = new_impulse - self.impulse;
         self.impulse = new_impulse;
 
@@ -291,6 +292,7 @@ impl VelocityConstraintNormalPart<Real> {
 impl VelocityConstraintElement<Real> {
     #[inline]
     pub fn generic_solve_group(
+        cfm_factor: Real,
         elements: &mut [Self],
         jacobians: &DVector<Real>,
         dir1: &Vector<Real>,
@@ -318,8 +320,8 @@ impl VelocityConstraintElement<Real> {
 
             for element in elements.iter_mut() {
                 element.normal_part.generic_solve(
-                    nrm_j_id, jacobians, &dir1, im1, im2, ndofs1, ndofs2, mj_lambda1, mj_lambda2,
-                    mj_lambdas,
+                    cfm_factor, nrm_j_id, jacobians, &dir1, im1, im2, ndofs1, ndofs2, mj_lambda1,
+                    mj_lambda2, mj_lambdas,
                 );
                 nrm_j_id += j_step;
             }

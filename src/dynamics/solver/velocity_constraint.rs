@@ -55,23 +55,26 @@ impl AnyVelocityConstraint {
 
     pub fn solve(
         &mut self,
+        cfm_factor: Real,
         mj_lambdas: &mut [DeltaVel<Real>],
         solve_normal: bool,
         solve_friction: bool,
     ) {
         match self {
             AnyVelocityConstraint::NongroupedGround(c) => {
-                c.solve(mj_lambdas, solve_normal, solve_friction)
+                c.solve(cfm_factor, mj_lambdas, solve_normal, solve_friction)
             }
             AnyVelocityConstraint::Nongrouped(c) => {
-                c.solve(mj_lambdas, solve_normal, solve_friction)
+                c.solve(cfm_factor, mj_lambdas, solve_normal, solve_friction)
             }
             #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::GroupedGround(c) => {
-                c.solve(mj_lambdas, solve_normal, solve_friction)
+                c.solve(cfm_factor, mj_lambdas, solve_normal, solve_friction)
             }
             #[cfg(feature = "simd-is-enabled")]
-            AnyVelocityConstraint::Grouped(c) => c.solve(mj_lambdas, solve_normal, solve_friction),
+            AnyVelocityConstraint::Grouped(c) => {
+                c.solve(cfm_factor, mj_lambdas, solve_normal, solve_friction)
+            }
             AnyVelocityConstraint::Empty => unreachable!(),
         }
     }
@@ -236,7 +239,7 @@ impl VelocityConstraint {
                         .transform_vector(dp2.gcross(-force_dir1));
 
                     let imsum = mprops1.effective_inv_mass + mprops2.effective_inv_mass;
-                    let r = params.delassus_inv_factor
+                    let projected_mass = 1.0
                         / (force_dir1.dot(&imsum.component_mul(&force_dir1))
                             + gcross1.gdot(gcross1)
                             + gcross2.gdot(gcross2));
@@ -251,14 +254,13 @@ impl VelocityConstraint {
                     let rhs_bias = /* is_resting
                         * */  erp_inv_dt
                         * (manifold_point.dist + params.allowed_linear_error).min(0.0);
-
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
                         gcross1,
                         gcross2,
                         rhs: rhs_wo_bias + rhs_bias,
                         rhs_wo_bias,
-                        impulse: 0.0,
-                        r,
+                        impulse: na::zero(),
+                        r: projected_mass,
                     };
                 }
 
@@ -310,6 +312,7 @@ impl VelocityConstraint {
 
     pub fn solve(
         &mut self,
+        cfm_factor: Real,
         mj_lambdas: &mut [DeltaVel<Real>],
         solve_normal: bool,
         solve_friction: bool,
@@ -318,6 +321,7 @@ impl VelocityConstraint {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         VelocityConstraintElement::solve_group(
+            cfm_factor,
             &mut self.elements[..self.num_contacts as usize],
             &self.dir1,
             #[cfg(feature = "dim3")]

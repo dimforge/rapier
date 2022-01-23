@@ -1,0 +1,103 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "run 3d (no-simd - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples3",
+                "--release",
+                "--features",
+                "other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "run 3d (simd - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples3",
+                "--release",
+                "--features",
+                "simd-stable,other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "run 3d (simd - parallel - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples3",
+                "--release",
+                "--features",
+                "simd-stable,other-backends,parallel",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "run 2d (no-simd - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples2",
+                "--release",
+                "--features",
+                "other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "run 2d (simd - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples2",
+                "--release",
+                "--features",
+                "simd-stable,other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "run 2d (simd - parallel - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples2",
+                "--release",
+                "--features",
+                "simd-stable,other-backends,parallel",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        }
+    ]
+}
