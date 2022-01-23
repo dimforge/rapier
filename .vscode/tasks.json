@@ -29,9 +29,23 @@
                 "all_examples3",
                 "--release",
                 "--features",
-                "simd-stable",
+                "simd-stable,other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "run 3d (simd - parallel - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples3",
+                "--release",
                 "--features",
-                "other-backends",
+                "simd-stable,other-backends,parallel",
                 "--",
                 "--pause"
             ],
@@ -63,9 +77,23 @@
                 "all_examples2",
                 "--release",
                 "--features",
-                "simd-stable",
+                "simd-stable,other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "run 2d (simd - parallel - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples2",
+                "--release",
                 "--features",
-                "other-backends",
+                "simd-stable,other-backends,parallel",
                 "--",
                 "--pause"
             ],
