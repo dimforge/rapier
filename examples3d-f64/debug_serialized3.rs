@@ -18,7 +18,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     let bytes = std::fs::read("state.bin").unwrap();
-    let mut state: State = bincode::deserialize(&bytes).unwrap();
+    let state: State = bincode::deserialize(&bytes).unwrap();
 
     testbed.set_world(
         state.bodies,
