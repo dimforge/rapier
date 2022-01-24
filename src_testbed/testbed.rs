@@ -227,7 +227,11 @@ impl TestbedApp {
         self.builders = SceneBuilders(builders)
     }
 
-    pub fn run(mut self) {
+    pub fn run(self) {
+        self.run_with_init(|_| {})
+    }
+
+    pub fn run_with_init(mut self, mut init: impl FnMut(&mut App)) {
         let mut args = env::args();
         let mut benchmark_mode = false;
 
@@ -392,8 +396,9 @@ impl TestbedApp {
                 .insert_non_send_resource(self.plugins)
                 .add_stage_before(CoreStage::Update, "physics", SystemStage::single_threaded())
                 .add_system_to_stage("physics", update_testbed.system())
-                .add_system(egui_focus.system())
-                .run();
+                .add_system(egui_focus.system());
+            init(&mut app);
+            app.run();
         }
     }
 }
