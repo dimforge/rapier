@@ -11,9 +11,9 @@ use crate::dynamics::{JointData, RigidBodyHandle};
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[repr(transparent)]
-pub struct JointHandle(pub crate::data::arena::Index);
+pub struct ImpulseJointHandle(pub crate::data::arena::Index);
 
-impl JointHandle {
+impl ImpulseJointHandle {
     /// Converts this handle into its (index, generation) components.
     pub fn into_raw_parts(self) -> (u32, u32) {
         self.0.into_raw_parts()
@@ -82,18 +82,18 @@ impl ImpulseJointSet {
     }
 
     /// Is the given joint handle valid?
-    pub fn contains(&self, handle: JointHandle) -> bool {
+    pub fn contains(&self, handle: ImpulseJointHandle) -> bool {
         self.joint_ids.contains(handle.0)
     }
 
     /// Gets the joint with the given handle.
-    pub fn get(&self, handle: JointHandle) -> Option<&ImpulseJoint> {
+    pub fn get(&self, handle: ImpulseJointHandle) -> Option<&ImpulseJoint> {
         let id = self.joint_ids.get(handle.0)?;
         self.joint_graph.graph.edge_weight(*id)
     }
 
     /// Gets a mutable reference to the joint with the given handle.
-    pub fn get_mut(&mut self, handle: JointHandle) -> Option<&mut ImpulseJoint> {
+    pub fn get_mut(&mut self, handle: ImpulseJointHandle) -> Option<&mut ImpulseJoint> {
         let id = self.joint_ids.get(handle.0)?;
         self.joint_graph.graph.edge_weight_mut(*id)
     }
@@ -107,11 +107,11 @@ impl ImpulseJointSet {
     ///
     /// Using this is discouraged in favor of `self.get(handle)` which does not
     /// suffer form the ABA problem.
-    pub fn get_unknown_gen(&self, i: u32) -> Option<(&ImpulseJoint, JointHandle)> {
+    pub fn get_unknown_gen(&self, i: u32) -> Option<(&ImpulseJoint, ImpulseJointHandle)> {
         let (id, handle) = self.joint_ids.get_unknown_gen(i)?;
         Some((
             self.joint_graph.graph.edge_weight(*id)?,
-            JointHandle(handle),
+            ImpulseJointHandle(handle),
         ))
     }
 
@@ -124,16 +124,19 @@ impl ImpulseJointSet {
     ///
     /// Using this is discouraged in favor of `self.get_mut(handle)` which does not
     /// suffer form the ABA problem.
-    pub fn get_unknown_gen_mut(&mut self, i: u32) -> Option<(&mut ImpulseJoint, JointHandle)> {
+    pub fn get_unknown_gen_mut(
+        &mut self,
+        i: u32,
+    ) -> Option<(&mut ImpulseJoint, ImpulseJointHandle)> {
         let (id, handle) = self.joint_ids.get_unknown_gen(i)?;
         Some((
             self.joint_graph.graph.edge_weight_mut(*id)?,
-            JointHandle(handle),
+            ImpulseJointHandle(handle),
         ))
     }
 
     /// Iterates through all the joint on this set.
-    pub fn iter(&self) -> impl Iterator<Item = (JointHandle, &ImpulseJoint)> {
+    pub fn iter(&self) -> impl Iterator<Item = (ImpulseJointHandle, &ImpulseJoint)> {
         self.joint_graph
             .graph
             .edges
@@ -142,7 +145,7 @@ impl ImpulseJointSet {
     }
 
     /// Iterates mutably through all the joint on this set.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (JointHandle, &mut ImpulseJoint)> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (ImpulseJointHandle, &mut ImpulseJoint)> {
         self.joint_graph
             .graph
             .edges
@@ -175,7 +178,7 @@ impl ImpulseJointSet {
         body1: RigidBodyHandle,
         body2: RigidBodyHandle,
         data: impl Into<JointData>,
-    ) -> JointHandle {
+    ) -> ImpulseJointHandle {
         let data = data.into();
         let handle = self.joint_ids.insert(0.into());
         let joint = ImpulseJoint {
@@ -183,7 +186,7 @@ impl ImpulseJointSet {
             body2,
             data,
             impulses: na::zero(),
-            handle: JointHandle(handle),
+            handle: ImpulseJointHandle(handle),
             #[cfg(feature = "parallel")]
             constraint_index: 0,
         };
@@ -209,7 +212,7 @@ impl ImpulseJointSet {
         }
 
         self.joint_ids[handle] = self.joint_graph.add_edge(graph_index1, graph_index2, joint);
-        JointHandle(handle)
+        ImpulseJointHandle(handle)
     }
 
     /// Retrieve all the impulse_joints happening between two active bodies.
@@ -264,7 +267,7 @@ impl ImpulseJointSet {
     /// automatically woken up.
     pub fn remove<Bodies>(
         &mut self,
-        handle: JointHandle,
+        handle: ImpulseJointHandle,
         islands: &mut IslandManager,
         bodies: &mut Bodies,
         wake_up: bool,
@@ -306,7 +309,7 @@ impl ImpulseJointSet {
         handle: RigidBodyHandle,
         islands: &mut IslandManager,
         bodies: &mut Bodies,
-    ) -> Vec<JointHandle>
+    ) -> Vec<ImpulseJointHandle>
     where
         Bodies: ComponentSetMut<RigidBodyActivation>
             + ComponentSet<RigidBodyType>
