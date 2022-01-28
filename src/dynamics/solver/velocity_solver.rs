@@ -261,17 +261,22 @@ impl VelocitySolver {
                     multibody.velocities += mj_lambdas;
                 }
             } else {
-                let (ids, mprops): (&RigidBodyIds, &RigidBodyMassProps) =
-                    bodies.index_bundle(handle.0);
+                let (ids, damping, mprops): (
+                    &RigidBodyIds,
+                    &RigidBodyDamping,
+                    &RigidBodyMassProps,
+                ) = bodies.index_bundle(handle.0);
 
                 let dvel = self.mj_lambdas[ids.active_set_offset];
                 let dangvel = mprops
                     .effective_world_inv_inertia_sqrt
                     .transform_vector(dvel.angular);
+                let damping = *damping; // To avoid borrow issues.
 
                 bodies.map_mut_internal(handle.0, |vels: &mut RigidBodyVelocity| {
                     vels.linvel += dvel.linear;
                     vels.angvel += dangvel;
+                    *vels = vels.apply_damping(params.dt, &damping);
                 });
             }
         }
