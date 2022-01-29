@@ -9,7 +9,7 @@ use crate::dynamics::{
 use crate::dynamics::{IslandManager, RigidBodyIds, RigidBodyMassProps};
 use crate::geometry::ContactManifold;
 use crate::math::Real;
-use crate::prelude::{RigidBodyActivation, RigidBodyDamping, RigidBodyPosition};
+use crate::prelude::{RigidBodyDamping, RigidBodyPosition};
 use crate::utils::WAngularInertia;
 use na::DVector;
 
@@ -47,7 +47,6 @@ impl VelocitySolver {
             + ComponentSetMut<RigidBodyVelocity>
             + ComponentSetMut<RigidBodyMassProps>
             + ComponentSetMut<RigidBodyPosition>
-            + ComponentSetMut<RigidBodyActivation>
             + ComponentSet<RigidBodyDamping>,
     {
         let cfm_factor = params.cfm_factor();
