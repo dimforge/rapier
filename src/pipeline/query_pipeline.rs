@@ -361,16 +361,16 @@ impl QueryPipeline {
     /// Find the closest intersection between a ray and a set of collider.
     ///
     /// # Parameters
-    /// - `position`: the position of this shape.
-    /// - `ray`: the ray to cast.
-    /// - `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
+    /// * `colliders` - The set of colliders taking part in this pipeline.
+    /// * `ray`: the ray to cast.
+    /// * `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
     ///   limits the length of the ray to `ray.dir.norm() * max_toi`. Use `Real::MAX` for an unbounded ray.
-    /// - `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
+    /// * `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
     ///            it starts inside of a shape. If this `false` then the ray will hit the shape's boundary
     ///            even if its starts inside of it.
-    /// - `query_groups`: the interaction groups which will be tested against the collider's `contact_group`
+    /// * `query_groups`: the interaction groups which will be tested against the collider's `contact_group`
     ///                   to determine if it should be taken into account by this query.
-    /// - `filter`: a more fine-grained filter. A collider is taken into account by this query if
+    /// * `filter`: a more fine-grained filter. A collider is taken into account by this query if
     ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
     ///             is either `None` or returns `true`.
     pub fn cast_ray<Colliders>(
@@ -397,16 +397,16 @@ impl QueryPipeline {
     /// Find the closest intersection between a ray and a set of collider.
     ///
     /// # Parameters
-    /// - `position`: the position of this shape.
-    /// - `ray`: the ray to cast.
-    /// - `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
+    /// * `colliders` - The set of colliders taking part in this pipeline.
+    /// * `ray`: the ray to cast.
+    /// * `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
     ///   limits the length of the ray to `ray.dir.norm() * max_toi`. Use `Real::MAX` for an unbounded ray.
-    /// - `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
+    /// * `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
     ///            it starts inside of a shape. If this `false` then the ray will hit the shape's boundary
     ///            even if its starts inside of it.
-    /// - `query_groups`: the interaction groups which will be tested against the collider's `contact_group`
+    /// * `query_groups`: the interaction groups which will be tested against the collider's `contact_group`
     ///                   to determine if it should be taken into account by this query.
-    /// - `filter`: a more fine-grained filter. A collider is taken into account by this query if
+    /// * `filter`: a more fine-grained filter. A collider is taken into account by this query if
     ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
     ///             is either `None` or returns `true`.
     pub fn cast_ray_and_get_normal<Colliders>(
@@ -437,19 +437,19 @@ impl QueryPipeline {
     /// Find the all intersections between a ray and a set of collider and passes them to a callback.
     ///
     /// # Parameters
-    /// - `position`: the position of this shape.
-    /// - `ray`: the ray to cast.
-    /// - `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
+    /// * `colliders` - The set of colliders taking part in this pipeline.
+    /// * `ray`: the ray to cast.
+    /// * `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
     ///   limits the length of the ray to `ray.dir.norm() * max_toi`. Use `Real::MAX` for an unbounded ray.
-    /// - `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
+    /// * `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
     ///            it starts inside of a shape. If this `false` then the ray will hit the shape's boundary
     ///            even if its starts inside of it.
-    /// - `query_groups`: the interaction groups which will be tested against the collider's `contact_group`
+    /// * `query_groups`: the interaction groups which will be tested against the collider's `contact_group`
     ///                   to determine if it should be taken into account by this query.
-    /// - `filter`: a more fine-grained filter. A collider is taken into account by this query if
+    /// * `filter`: a more fine-grained filter. A collider is taken into account by this query if
     ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
     ///             is either `None` or returns `true`.
-    /// - `callback`: function executed on each collider for which a ray intersection has been found.
+    /// * `callback`: function executed on each collider for which a ray intersection has been found.
     ///               There is no guarantees on the order the results will be yielded. If this callback returns `false`,
     ///               this method will exit early, ignore any further raycast.
     pub fn intersections_with_ray<'a, Colliders>(
