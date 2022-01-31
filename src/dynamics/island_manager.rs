@@ -352,8 +352,8 @@ impl IslandManager {
 }
 
 fn update_energy(activation: &mut RigidBodyActivation, sq_linvel: Real, sq_angvel: Real, dt: Real) {
-    if sq_linvel < activation.linear_threshold * activation.linear_threshold
-        && sq_angvel < activation.angular_threshold * activation.angular_threshold
+    if sq_linvel < activation.linear_threshold * activation.linear_threshold.abs()
+        && sq_angvel < activation.angular_threshold * activation.angular_threshold.abs()
     {
         activation.time_since_can_sleep += dt;
     } else {
