@@ -141,6 +141,7 @@ impl RigidBodySet {
         colliders: &mut ColliderSet,
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
+        remove_attached_colliders: bool,
     ) -> Option<RigidBody> {
         let rb = self.bodies.remove(handle.0)?;
         /*
@@ -151,8 +152,16 @@ impl RigidBodySet {
         /*
          * Remove colliders attached to this rigid-body.
          */
-        for collider in rb.colliders() {
-            colliders.remove(*collider, islands, self, false);
+        if remove_attached_colliders {
+            for collider in rb.colliders() {
+                colliders.remove(*collider, islands, self, false);
+            }
+        } else {
+            // If we don’t remove the attached colliders, simply detach them.
+            let colliders_to_detach = rb.colliders().to_vec();
+            for co_handle in colliders_to_detach {
+                colliders.set_parent(co_handle, None, self);
+            }
         }
 
         /*

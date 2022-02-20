@@ -74,6 +74,12 @@ impl ContactPair {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.manifolds.clear();
+        self.has_any_active_contact = false;
+        self.workspace = None;
+    }
+
     /// Finds the contact with the smallest signed distance.
     ///
     /// If the colliders involved in this contact pair are penetrating, then

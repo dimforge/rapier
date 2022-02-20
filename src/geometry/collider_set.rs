@@ -6,6 +6,7 @@ use crate::geometry::{
     ColliderParent, ColliderPosition, ColliderShape, ColliderType,
 };
 use crate::geometry::{ColliderChanges, ColliderHandle};
+use crate::math::Isometry;
 use std::ops::{Index, IndexMut};
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -178,6 +179,54 @@ impl ColliderSet {
             &coll.co_mprops,
         );
         handle
+    }
+
+    /// Sets the parent of the given collider.
+    // TODO: find a way to define this as a method of Collider.
+    pub fn set_parent(
+        &mut self,
+        handle: ColliderHandle,
+        new_parent_handle: Option<RigidBodyHandle>,
+        bodies: &mut RigidBodySet,
+    ) {
+        if let Some(collider) = self.get_mut(handle) {
+            let curr_parent = collider.co_parent.map(|p| p.handle);
+            if new_parent_handle == curr_parent {
+                return; // Nothing to do, this is the same parent.
+            }
+
+            collider.co_changes |= ColliderChanges::PARENT;
+
+            if let Some(parent_handle) = curr_parent {
+                if let Some(rb) = bodies.get_mut(parent_handle) {
+                    rb.remove_collider_internal(handle, &*collider);
+                }
+            }
+
+            match new_parent_handle {
+                Some(new_parent_handle) => {
+                    if let Some(co_parent) = &mut collider.co_parent {
+                        co_parent.handle = new_parent_handle;
+                    } else {
+                        collider.co_parent = Some(ColliderParent {
+                            handle: new_parent_handle,
+                            pos_wrt_parent: Isometry::identity(),
+                        })
+                    };
+
+                    if let Some(rb) = bodies.get_mut(new_parent_handle) {
+                        rb.add_collider(
+                            handle,
+                            collider.co_parent.as_ref().unwrap(),
+                            &mut collider.co_pos,
+                            &collider.co_shape,
+                            &collider.co_mprops,
+                        );
+                    }
+                }
+                None => collider.co_parent = None,
+            }
+        }
     }
 
     /// Remove a collider from this set and update its parent accordingly.

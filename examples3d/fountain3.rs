@@ -63,6 +63,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     &mut physics.colliders,
                     &mut physics.impulse_joints,
                     &mut physics.multibody_joints,
+                    true,
                 );
 
                 if let Some(graphics) = &mut graphics {
