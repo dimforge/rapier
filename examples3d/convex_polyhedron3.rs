@@ -18,11 +18,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 40.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static()
-        .translation(vector![0.0, -ground_height, 0.0])
-        .build();
+    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height, 0.0]);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
@@ -54,13 +52,9 @@ pub fn init_world(testbed: &mut Testbed) {
                 }
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic()
-                    .translation(vector![x, y, z])
-                    .build();
+                let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y, z]);
                 let handle = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::round_convex_hull(&points, border_rad)
-                    .unwrap()
-                    .build();
+                let collider = ColliderBuilder::round_convex_hull(&points, border_rad).unwrap();
                 colliders.insert_with_parent(collider, handle, &mut bodies);
             }
         }

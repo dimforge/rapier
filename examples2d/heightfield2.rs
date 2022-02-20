@@ -25,9 +25,9 @@ pub fn init_world(testbed: &mut Testbed) {
         }
     });
 
-    let rigid_body = RigidBodyBuilder::new_static().build();
+    let rigid_body = RigidBodyBuilder::new_static();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::heightfield(heights, ground_size).build();
+    let collider = ColliderBuilder::heightfield(heights, ground_size);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
@@ -46,16 +46,14 @@ pub fn init_world(testbed: &mut Testbed) {
             let y = j as f32 * shift + centery + 3.0;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic()
-                .translation(vector![x, y])
-                .build();
+            let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y]);
             let handle = bodies.insert(rigid_body);
 
             if j % 2 == 0 {
-                let collider = ColliderBuilder::cuboid(rad, rad).build();
+                let collider = ColliderBuilder::cuboid(rad, rad);
                 colliders.insert_with_parent(collider, handle, &mut bodies);
             } else {
-                let collider = ColliderBuilder::ball(rad).build();
+                let collider = ColliderBuilder::ball(rad);
                 colliders.insert_with_parent(collider, handle, &mut bodies);
             }
         }

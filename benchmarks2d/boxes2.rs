@@ -15,25 +15,23 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let ground_size = 25.0;
 
-    let rigid_body = RigidBodyBuilder::new_static().build();
+    let rigid_body = RigidBodyBuilder::new_static();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, 1.2).build();
+    let collider = ColliderBuilder::cuboid(ground_size, 1.2);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let rigid_body = RigidBodyBuilder::new_static()
         .rotation(std::f32::consts::FRAC_PI_2)
-        .translation(vector![ground_size, ground_size * 2.0])
-        .build();
+        .translation(vector![ground_size, ground_size * 2.0]);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size * 2.0, 1.2).build();
+    let collider = ColliderBuilder::cuboid(ground_size * 2.0, 1.2);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let rigid_body = RigidBodyBuilder::new_static()
         .rotation(std::f32::consts::FRAC_PI_2)
-        .translation(vector![-ground_size, ground_size * 2.0])
-        .build();
+        .translation(vector![-ground_size, ground_size * 2.0]);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size * 2.0, 1.2).build();
+    let collider = ColliderBuilder::cuboid(ground_size * 2.0, 1.2);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
@@ -52,11 +50,9 @@ pub fn init_world(testbed: &mut Testbed) {
             let y = j as f32 * shift + centery + 2.0;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic()
-                .translation(vector![x, y])
-                .build();
+            let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y]);
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad).build();
+            let collider = ColliderBuilder::cuboid(rad, rad);
             colliders.insert_with_parent(collider, handle, &mut bodies);
         }
     }

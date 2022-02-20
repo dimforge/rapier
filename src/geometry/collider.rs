@@ -802,3 +802,9 @@ impl ColliderBuilder {
         )
     }
 }
+
+impl Into<Collider> for ColliderBuilder {
+    fn into(self) -> Collider {
+        self.build()
+    }
+}

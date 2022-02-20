@@ -48,11 +48,9 @@ pub fn init_world(testbed: &mut Testbed) {
             };
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new(status)
-                .translation(vector![x, y])
-                .build();
+            let rigid_body = RigidBodyBuilder::new(status).translation(vector![x, y]);
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::ball(rad).build();
+            let collider = ColliderBuilder::ball(rad);
             colliders.insert_with_parent(collider, handle, &mut bodies);
         }
     }

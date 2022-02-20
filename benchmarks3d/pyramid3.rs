@@ -22,13 +22,11 @@ fn create_pyramid(
                     - stack_height as f32 * half_extents.z;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic()
-                    .translation(vector![x, y, z])
-                    .build();
+                let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y, z]);
                 let rigid_body_handle = bodies.insert(rigid_body);
 
                 let collider =
-                    ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z).build();
+                    ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z);
                 colliders.insert_with_parent(collider, rigid_body_handle, bodies);
             }
         }
@@ -50,11 +48,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 50.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static()
-        .translation(vector![0.0, -ground_height, 0.0])
-        .build();
+    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height, 0.0]);
     let ground_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*

@@ -41,17 +41,14 @@ pub fn init_world(testbed: &mut Testbed) {
     let rigid_body = RigidBodyBuilder::new_dynamic()
         .translation(vector![0.0, 35.0, 0.0])
         // .rotation(Vector3::new(0.8, 0.2, 0.1))
-        .can_sleep(false)
-        .build();
+        .can_sleep(false);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(1.0, 2.0, 1.0).build();
+    let collider = ColliderBuilder::cuboid(1.0, 2.0, 1.0);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
-    let rigid_body = RigidBodyBuilder::new_static()
-        .translation(vector![0.0, 0.0, 0.0])
-        .build();
+    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, 0.0, 0.0]);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::trimesh(vtx, idx).build();
+    let collider = ColliderBuilder::trimesh(vtx, idx);
     colliders.insert_with_parent(collider, handle, &mut bodies);
     testbed.set_initial_body_color(handle, [0.3, 0.3, 0.3]);
 

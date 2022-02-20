@@ -38,15 +38,13 @@ pub fn build_block(
                 };
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic()
-                    .translation(vector![
-                        x + dim.x + shift.x,
-                        y + dim.y + shift.y,
-                        z + dim.z + shift.z
-                    ])
-                    .build();
+                let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![
+                    x + dim.x + shift.x,
+                    y + dim.y + shift.y,
+                    z + dim.z + shift.z
+                ]);
                 let handle = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z).build();
+                let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
                 colliders.insert_with_parent(collider, handle, bodies);
 
                 testbed.set_initial_body_color(handle, color0);
@@ -61,15 +59,13 @@ pub fn build_block(
     for i in 0..(block_width / (dim.x as f32 * 2.0)) as usize {
         for j in 0..(block_width / (dim.z as f32 * 2.0)) as usize {
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic()
-                .translation(vector![
-                    i as f32 * dim.x * 2.0 + dim.x + shift.x,
-                    dim.y + shift.y + block_height,
-                    j as f32 * dim.z * 2.0 + dim.z + shift.z
-                ])
-                .build();
+            let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![
+                i as f32 * dim.x * 2.0 + dim.x + shift.x,
+                dim.y + shift.y + block_height,
+                j as f32 * dim.z * 2.0 + dim.z + shift.z
+            ]);
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z).build();
+            let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
             colliders.insert_with_parent(collider, handle, bodies);
             testbed.set_initial_body_color(handle, color0);
             std::mem::swap(&mut color0, &mut color1);
@@ -92,11 +88,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 50.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static()
-        .translation(vector![0.0, -ground_height, 0.0])
-        .build();
+    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height, 0.0]);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*

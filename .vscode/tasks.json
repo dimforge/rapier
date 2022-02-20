@@ -98,6 +98,103 @@
                 "--pause"
             ],
             "group": "build"
+        },
+        {
+            "label": "bench 3d (no-simd - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_benchmarks3",
+                "--release",
+                "--features",
+                "other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "bench 3d (simd - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_benchmarks3",
+                "--release",
+                "--features",
+                "simd-stable,other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "bench 3d (simd - parallel - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_benchmarks3",
+                "--release",
+                "--features",
+                "simd-stable,other-backends,parallel",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "bench 2d (no-simd - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_benchmarks2",
+                "--release",
+                "--features",
+                "other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "bench 2d (simd - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_benchmarks2",
+                "--release",
+                "--features",
+                "simd-stable,other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "bench 2d (simd - parallel - release) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_benchmarks2",
+                "--release",
+                "--features",
+                "simd-stable,other-backends,parallel",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
         }
     ]
+]
 }

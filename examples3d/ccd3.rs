@@ -21,12 +21,9 @@ fn create_wall(
                 - stack_height as f32 * half_extents.z;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic()
-                .translation(vector![x, y, z])
-                .build();
+            let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y, z]);
             let handle = bodies.insert(rigid_body);
-            let collider =
-                ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z).build();
+            let collider = ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z);
             colliders.insert_with_parent(collider, handle, bodies);
             k += 1;
             if k % 2 == 0 {
@@ -53,11 +50,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 50.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static()
-        .translation(vector![0.0, -ground_height, 0.0])
-        .build();
+    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height, 0.0]);
     let ground_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
@@ -97,23 +92,20 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::ball(1.0)
         .density(10.0)
         .sensor(true)
-        .active_events(ActiveEvents::INTERSECTION_EVENTS)
-        .build();
+        .active_events(ActiveEvents::INTERSECTION_EVENTS);
     let rigid_body = RigidBodyBuilder::new_dynamic()
         .linvel(vector![1000.0, 0.0, 0.0])
         .translation(vector![-20.0, shift_y + 2.0, 0.0])
-        .ccd_enabled(true)
-        .build();
+        .ccd_enabled(true);
     let sensor_handle = bodies.insert(rigid_body);
     colliders.insert_with_parent(collider, sensor_handle, &mut bodies);
 
     // Second rigid-body with CCD enabled.
-    let collider = ColliderBuilder::ball(1.0).density(10.0).build();
+    let collider = ColliderBuilder::ball(1.0).density(10.0);
     let rigid_body = RigidBodyBuilder::new_dynamic()
         .linvel(vector![1000.0, 0.0, 0.0])
         .translation(vector![-20.0, shift_y + 2.0, shift_z])
-        .ccd_enabled(true)
-        .build();
+        .ccd_enabled(true);
     let handle = bodies.insert(rigid_body);
     colliders.insert_with_parent(collider.clone(), handle, &mut bodies);
     testbed.set_initial_body_color(handle, [0.2, 0.2, 1.0]);

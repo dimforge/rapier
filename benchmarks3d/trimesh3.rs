@@ -36,9 +36,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let heightfield = HeightField::new(heights, ground_size);
     let (vertices, indices) = heightfield.to_trimesh();
 
-    let rigid_body = RigidBodyBuilder::new_static().build();
+    let rigid_body = RigidBodyBuilder::new_static();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::trimesh(vertices, indices).build();
+    let collider = ColliderBuilder::trimesh(vertices, indices);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
@@ -60,16 +60,14 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f32 * shift - centerz;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic()
-                    .translation(vector![x, y, z])
-                    .build();
+                let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y, z]);
                 let handle = bodies.insert(rigid_body);
 
                 if j % 2 == 0 {
-                    let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
+                    let collider = ColliderBuilder::cuboid(rad, rad, rad);
                     colliders.insert_with_parent(collider, handle, &mut bodies);
                 } else {
-                    let collider = ColliderBuilder::ball(rad).build();
+                    let collider = ColliderBuilder::ball(rad);
                     colliders.insert_with_parent(collider, handle, &mut bodies);
                 }
             }

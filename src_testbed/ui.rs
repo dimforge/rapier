@@ -101,32 +101,32 @@ pub fn update_ui(ui_context: &EguiContext, state: &mut TestbedState, harness: &m
             || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
         {
             ui.add(
-                Slider::new(&mut integration_parameters.max_velocity_iterations, 0..=200)
+                Slider::new(&mut integration_parameters.max_velocity_iterations, 1..=200)
                     .text("pos. iters."),
             );
             ui.add(
                 Slider::new(
                     &mut integration_parameters.max_stabilization_iterations,
-                    0..=200,
+                    1..=200,
                 )
                 .text("vel. iters."),
             );
         } else {
             ui.add(
-                Slider::new(&mut integration_parameters.max_velocity_iterations, 0..=200)
+                Slider::new(&mut integration_parameters.max_velocity_iterations, 1..=200)
                     .text("vel. rest. iters."),
             );
             ui.add(
                 Slider::new(
                     &mut integration_parameters.max_velocity_friction_iterations,
-                    0..=200,
+                    1..=200,
                 )
                 .text("vel. frict. iters."),
             );
             ui.add(
                 Slider::new(
                     &mut integration_parameters.max_stabilization_iterations,
-                    0..=200,
+                    1..=200,
                 )
                 .text("vel. stab. iters."),
             );
@@ -134,10 +134,11 @@ pub fn update_ui(ui_context: &EguiContext, state: &mut TestbedState, harness: &m
 
         #[cfg(feature = "parallel")]
         {
+            let mut num_threads = harness.state.num_threads();
             ui.add(
-                Slider::new(&mut harness.state.num_threads, 1..=num_cpus::get_physical())
-                    .text("num. threads"),
+                Slider::new(&mut num_threads, 1..=num_cpus::get_physical()).text("num. threads"),
             );
+            harness.state.set_num_threads(num_threads);
         }
         ui.add(
             Slider::new(&mut integration_parameters.max_ccd_substeps, 0..=10).text("CCD substeps"),

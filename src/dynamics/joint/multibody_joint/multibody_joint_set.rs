@@ -1,7 +1,7 @@
 use crate::data::{Arena, Coarena, ComponentSet, ComponentSetMut, Index};
 use crate::dynamics::joint::MultibodyLink;
 use crate::dynamics::{
-    IslandManager, JointData, Multibody, MultibodyJoint, RigidBodyActivation, RigidBodyHandle,
+    GenericJoint, IslandManager, Multibody, MultibodyJoint, RigidBodyActivation, RigidBodyHandle,
     RigidBodyIds, RigidBodyType,
 };
 use crate::geometry::{InteractionGraph, RigidBodyGraphIndex};
@@ -112,7 +112,7 @@ impl MultibodyJointSet {
         &mut self,
         body1: RigidBodyHandle,
         body2: RigidBodyHandle,
-        data: impl Into<JointData>,
+        data: impl Into<GenericJoint>,
     ) -> Option<MultibodyJointHandle> {
         let data = data.into();
         let link1 = self.rb2mb.get(body1.0).copied().unwrap_or_else(|| {

@@ -261,7 +261,7 @@ impl GenericVelocityConstraint {
                     let mut rhs_wo_bias = (1.0 + is_bouncy * manifold_point.restitution)
                         * (vel1 - vel2).dot(&force_dir1);
                     rhs_wo_bias += manifold_point.dist.max(0.0) * inv_dt;
-                    rhs_wo_bias *= is_bouncy + is_resting * params.velocity_solve_fraction;
+                    rhs_wo_bias *= is_bouncy + is_resting;
                     let rhs_bias =
                         /* is_resting * */ erp_inv_dt * manifold_point.dist.min(0.0);
 

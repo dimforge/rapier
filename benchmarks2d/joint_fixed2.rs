@@ -38,17 +38,16 @@ pub fn init_world(testbed: &mut Testbed) {
                     };
 
                     let rigid_body = RigidBodyBuilder::new(status)
-                        .translation(vector![x + fk * shift, y - fi * shift])
-                        .build();
+                        .translation(vector![x + fk * shift, y - fi * shift]);
                     let child_handle = bodies.insert(rigid_body);
-                    let collider = ColliderBuilder::ball(rad).build();
+                    let collider = ColliderBuilder::ball(rad);
                     colliders.insert_with_parent(collider, child_handle, &mut bodies);
 
                     // Vertical joint.
                     if i > 0 {
                         let parent_handle = *body_handles.last().unwrap();
-                        let joint =
-                            FixedJoint::new().local_frame2(Isometry::translation(0.0, shift));
+                        let joint = FixedJointBuilder::new()
+                            .local_frame2(Isometry::translation(0.0, shift));
                         impulse_joints.insert(parent_handle, child_handle, joint);
                     }
 
@@ -56,8 +55,8 @@ pub fn init_world(testbed: &mut Testbed) {
                     if k > 0 {
                         let parent_index = body_handles.len() - num;
                         let parent_handle = body_handles[parent_index];
-                        let joint =
-                            FixedJoint::new().local_frame2(Isometry::translation(-shift, 0.0));
+                        let joint = FixedJointBuilder::new()
+                            .local_frame2(Isometry::translation(-shift, 0.0));
                         impulse_joints.insert(parent_handle, child_handle, joint);
                     }
 

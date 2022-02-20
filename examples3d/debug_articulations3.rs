@@ -25,17 +25,20 @@ fn create_ball_articulations(
                 RigidBodyType::Dynamic
             };
 
-            let rigid_body = RigidBodyBuilder::new(status)
-                .translation(vector![fk * shift, 0.0, fi * shift * 2.0])
-                .build();
+            let rigid_body = RigidBodyBuilder::new(status).translation(vector![
+                fk * shift,
+                0.0,
+                fi * shift * 2.0
+            ]);
             let child_handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::capsule_z(rad * 1.25, rad).build();
+            let collider = ColliderBuilder::capsule_z(rad * 1.25, rad);
             colliders.insert_with_parent(collider, child_handle, bodies);
 
             // Vertical multibody_joint.
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
-                let joint = SphericalJoint::new().local_anchor2(point![0.0, 0.0, -shift * 2.0]);
+                let joint =
+                    SphericalJointBuilder::new().local_anchor2(point![0.0, 0.0, -shift * 2.0]);
                 multibody_joints.insert(parent_handle, child_handle, joint);
             }
 
@@ -43,7 +46,7 @@ fn create_ball_articulations(
             if k > 0 && i > 0 {
                 let parent_index = body_handles.len() - num;
                 let parent_handle = body_handles[parent_index];
-                let joint = SphericalJoint::new().local_anchor2(point![-shift, 0.0, 0.0]);
+                let joint = SphericalJointBuilder::new().local_anchor2(point![-shift, 0.0, 0.0]);
                 // let joint =
                 //     PrismaticJoint::new(Vector::y_axis()).local_anchor2(point![-shift, 0.0, 0.0]);
                 // let joint = FixedJoint::new().local_anchor2(point![-shift, 0.0, 0.0]);
@@ -68,15 +71,13 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let collider = ColliderBuilder::cuboid(30.0, 0.01, 30.0)
         .translation(vector![0.0, -3.02, 0.0])
-        .rotation(vector![0.1, 0.0, 0.1])
-        .build();
+        .rotation(vector![0.1, 0.0, 0.1]);
     colliders.insert(collider);
 
-    let rigid_body = RigidBodyBuilder::new_dynamic().build();
+    let rigid_body = RigidBodyBuilder::new_dynamic();
     let collider = ColliderBuilder::cuboid(30.0, 0.01, 30.0)
         .translation(vector![0.0, -3.0, 0.0])
-        .rotation(vector![0.1, 0.0, 0.1])
-        .build();
+        .rotation(vector![0.1, 0.0, 0.1]);
     let handle = bodies.insert(rigid_body);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 

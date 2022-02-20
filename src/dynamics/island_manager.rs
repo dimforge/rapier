@@ -136,36 +136,6 @@ impl IslandManager {
             .chain(self.active_kinematic_set.iter().copied())
     }
 
-    /*
-    #[cfg(feature = "parallel")]
-    #[inline(always)]
-    #[allow(dead_code)]
-    pub(crate) fn foreach_active_island_body_mut_internal_parallel<Set>(
-        &self,
-        island_id: usize,
-        bodies: &mut Set,
-        f: impl Fn(RigidBodyHandle, &mut RigidBody) + Send + Sync,
-    ) where
-        Set: ComponentSet<T>,
-    {
-        use std::sync::atomic::Ordering;
-
-        let island_range = self.active_islands[island_id]..self.active_islands[island_id + 1];
-        let bodies = std::sync::atomic::AtomicPtr::new(&mut bodies as *mut _);
-        self.active_dynamic_set[island_range]
-            .par_iter()
-            .for_each_init(
-                || bodies.load(Ordering::Relaxed),
-                |bodies, handle| {
-                    let bodies: &mut Set = unsafe { std::mem::transmute(*bodies) };
-                    if let Some(rb) = bodies.get_mut_internal(handle.0) {
-                        f(*handle, rb)
-                    }
-                },
-            );
-    }
-     */
-
     #[cfg(feature = "parallel")]
     pub(crate) fn active_island_range(&self, island_id: usize) -> std::ops::Range<usize> {
         self.active_islands[island_id]..self.active_islands[island_id + 1]
@@ -203,7 +173,7 @@ impl IslandManager {
         // NOTE: the `.rev()` is here so that two successive timesteps preserve
         // the order of the bodies in the `active_dynamic_set` vec. This reversal
         // does not seem to affect performances nor stability. However it makes
-        // debugging slightly nicer so we keep this rev.
+        // debugging slightly nicer.
         for h in self.active_dynamic_set.drain(..).rev() {
             let can_sleep = &mut self.can_sleep;
             let stack = &mut self.stack;

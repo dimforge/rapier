@@ -16,14 +16,12 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 20.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static()
-        .translation(vector![0.0, -ground_height, 0.0])
-        .build();
+    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height, 0.0]);
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, 0.4)
         .friction(0.15)
         // .restitution(0.5)
-        .build();
+        ;
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
@@ -32,10 +30,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let ball_rad = 0.1;
     let rb = RigidBodyBuilder::new_dynamic()
         .translation(vector![0.0, 0.2, 0.0])
-        .linvel(vector![10.0, 0.0, 0.0])
-        .build();
+        .linvel(vector![10.0, 0.0, 0.0]);
     let ball_handle = bodies.insert(rb);
-    let collider = ColliderBuilder::ball(ball_rad).density(100.0).build();
+    let collider = ColliderBuilder::ball(ball_rad).density(100.0);
     colliders.insert_with_parent(collider, ball_handle, &mut bodies);
 
     let mut linvel = Vector::zeros();
@@ -49,9 +46,7 @@ pub fn init_world(testbed: &mut Testbed) {
         step += 1;
 
         // Add a bigger ball collider
-        let collider = ColliderBuilder::ball(ball_rad + 0.01 * (step as f32))
-            .density(100.0)
-            .build();
+        let collider = ColliderBuilder::ball(ball_rad + 0.01 * (step as f32)).density(100.0);
         let new_ball_collider_handle =
             physics
                 .colliders
@@ -99,8 +94,7 @@ pub fn init_world(testbed: &mut Testbed) {
         //     .remove(ground_collider_handle, &mut physics.bodies, true)
         //     .unwrap();
         let coll = ColliderBuilder::cuboid(ground_size, ground_height + step as f32 * 0.01, 0.4)
-            .friction(0.15)
-            .build();
+            .friction(0.15);
         let new_ground_collider_handle =
             physics
                 .colliders

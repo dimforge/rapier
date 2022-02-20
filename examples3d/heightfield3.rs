@@ -31,9 +31,9 @@ pub fn init_world(testbed: &mut Testbed) {
         }
     });
 
-    let rigid_body = RigidBodyBuilder::new_static().build();
+    let rigid_body = RigidBodyBuilder::new_static();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::heightfield(heights, ground_size).build();
+    let collider = ColliderBuilder::heightfield(heights, ground_size);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
@@ -55,19 +55,17 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f32 * shift - centerz;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic()
-                    .translation(vector![x, y, z])
-                    .build();
+                let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y, z]);
                 let handle = bodies.insert(rigid_body);
 
                 let collider = match j % 6 {
-                    0 => ColliderBuilder::cuboid(rad, rad, rad).build(),
-                    1 => ColliderBuilder::ball(rad).build(),
+                    0 => ColliderBuilder::cuboid(rad, rad, rad),
+                    1 => ColliderBuilder::ball(rad),
                     // Rounded cylinders are much more efficient that cylinder, even if the
                     // rounding margin is small.
-                    2 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0).build(),
-                    3 => ColliderBuilder::cone(rad, rad).build(),
-                    4 => ColliderBuilder::capsule_y(rad, rad).build(),
+                    2 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0),
+                    3 => ColliderBuilder::cone(rad, rad),
+                    4 => ColliderBuilder::capsule_y(rad, rad),
                     _ => {
                         let shapes = vec![
                             (
@@ -84,7 +82,7 @@ pub fn init_world(testbed: &mut Testbed) {
                             ),
                         ];
 
-                        ColliderBuilder::compound(shapes).build()
+                        ColliderBuilder::compound(shapes)
                     }
                 };
 

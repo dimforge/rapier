@@ -1,7 +1,7 @@
 use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::WritebackId;
 use crate::dynamics::solver::joint_constraint::{JointVelocityConstraintBuilder, SolverBody};
 use crate::dynamics::solver::DeltaVel;
-use crate::dynamics::{IntegrationParameters, JointData, JointGraphEdge, JointIndex, Multibody};
+use crate::dynamics::{GenericJoint, IntegrationParameters, JointGraphEdge, JointIndex, Multibody};
 use crate::math::{Isometry, Real, DIM};
 use crate::prelude::SPATIAL_DIM;
 use na::{DVector, DVectorSlice, DVectorSliceMut};
@@ -25,6 +25,8 @@ pub struct JointGenericVelocityConstraint {
     pub inv_lhs: Real,
     pub rhs: Real,
     pub rhs_wo_bias: Real,
+    pub cfm_coeff: Real,
+    pub cfm_gain: Real,
 
     pub writeback_id: WritebackId,
 }
@@ -52,6 +54,8 @@ impl JointGenericVelocityConstraint {
             inv_lhs: 0.0,
             rhs: 0.0,
             rhs_wo_bias: 0.0,
+            cfm_coeff: 0.0,
+            cfm_gain: 0.0,
             writeback_id: WritebackId::Dof(0),
         }
     }
@@ -65,7 +69,7 @@ impl JointGenericVelocityConstraint {
         mb2: Option<(&Multibody, usize)>,
         frame1: &Isometry<Real>,
         frame2: &Isometry<Real>,
-        joint: &JointData,
+        joint: &GenericJoint,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         out: &mut [Self],
@@ -83,26 +87,10 @@ impl JointGenericVelocityConstraint {
             locked_axes,
         );
 
-        for i in 0..DIM {
-            if locked_axes & (1 << i) != 0 {
-                out[len] = builder.lock_linear_generic(
-                    params,
-                    jacobians,
-                    j_id,
-                    joint_id,
-                    body1,
-                    body2,
-                    mb1,
-                    mb2,
-                    i,
-                    WritebackId::Dof(i),
-                );
-                len += 1;
-            }
-        }
+        let start = len;
         for i in DIM..SPATIAL_DIM {
-            if locked_axes & (1 << i) != 0 {
-                out[len] = builder.lock_angular_generic(
+            if (motor_axes >> DIM) & (1 << i) != 0 {
+                out[len] = builder.motor_angular_generic(
                     params,
                     jacobians,
                     j_id,
@@ -112,12 +100,12 @@ impl JointGenericVelocityConstraint {
                     mb1,
                     mb2,
                     i - DIM,
-                    WritebackId::Dof(i),
+                    &joint.motors[i].motor_params(params.dt),
+                    WritebackId::Motor(i),
                 );
                 len += 1;
             }
         }
-
         for i in 0..DIM {
             if motor_axes & (1 << i) != 0 {
                 out[len] = builder.motor_linear_generic(
@@ -137,10 +125,15 @@ impl JointGenericVelocityConstraint {
                 len += 1;
             }
         }
+        JointVelocityConstraintBuilder::finalize_generic_constraints(
+            jacobians,
+            &mut out[start..len],
+        );
 
+        let start = len;
         for i in DIM..SPATIAL_DIM {
-            if (motor_axes >> DIM) & (1 << i) != 0 {
-                out[len] = builder.motor_angular_generic(
+            if locked_axes & (1 << i) != 0 {
+                out[len] = builder.lock_angular_generic(
                     params,
                     jacobians,
                     j_id,
@@ -150,16 +143,14 @@ impl JointGenericVelocityConstraint {
                     mb1,
                     mb2,
                     i - DIM,
-                    &joint.motors[i].motor_params(params.dt),
-                    WritebackId::Motor(i),
+                    WritebackId::Dof(i),
                 );
                 len += 1;
             }
         }
-
         for i in 0..DIM {
-            if limit_axes & (1 << i) != 0 {
-                out[len] = builder.limit_linear_generic(
+            if locked_axes & (1 << i) != 0 {
+                out[len] = builder.lock_linear_generic(
                     params,
                     jacobians,
                     j_id,
@@ -169,8 +160,7 @@ impl JointGenericVelocityConstraint {
                     mb1,
                     mb2,
                     i,
-                    [joint.limits[i].min, joint.limits[i].max],
-                    WritebackId::Limit(i),
+                    WritebackId::Dof(i),
                 );
                 len += 1;
             }
@@ -194,8 +184,29 @@ impl JointGenericVelocityConstraint {
                 len += 1;
             }
         }
+        for i in 0..DIM {
+            if limit_axes & (1 << i) != 0 {
+                out[len] = builder.limit_linear_generic(
+                    params,
+                    jacobians,
+                    j_id,
+                    joint_id,
+                    body1,
+                    body2,
+                    mb1,
+                    mb2,
+                    i,
+                    [joint.limits[i].min, joint.limits[i].max],
+                    WritebackId::Limit(i),
+                );
+                len += 1;
+            }
+        }
 
-        JointVelocityConstraintBuilder::finalize_generic_constraints(jacobians, &mut out[..len]);
+        JointVelocityConstraintBuilder::finalize_generic_constraints(
+            jacobians,
+            &mut out[start..len],
+        );
         len
     }
 
@@ -273,7 +284,7 @@ impl JointGenericVelocityConstraint {
 
         let dvel = self.rhs + (vel2 - vel1);
         let total_impulse = na::clamp(
-            self.impulse + self.inv_lhs * dvel,
+            self.impulse + self.inv_lhs * (dvel - self.cfm_gain * self.impulse),
             self.impulse_bounds[0],
             self.impulse_bounds[1],
         );
@@ -316,6 +327,8 @@ pub struct JointGenericVelocityGroundConstraint {
     pub inv_lhs: Real,
     pub rhs: Real,
     pub rhs_wo_bias: Real,
+    pub cfm_coeff: Real,
+    pub cfm_gain: Real,
 
     pub writeback_id: WritebackId,
 }
@@ -338,6 +351,8 @@ impl JointGenericVelocityGroundConstraint {
             inv_lhs: 0.0,
             rhs: 0.0,
             rhs_wo_bias: 0.0,
+            cfm_coeff: 0.0,
+            cfm_gain: 0.0,
             writeback_id: WritebackId::Dof(0),
         }
     }
@@ -350,7 +365,7 @@ impl JointGenericVelocityGroundConstraint {
         mb2: (&Multibody, usize),
         frame1: &Isometry<Real>,
         frame2: &Isometry<Real>,
-        joint: &JointData,
+        joint: &GenericJoint,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         out: &mut [Self],
@@ -368,32 +383,20 @@ impl JointGenericVelocityGroundConstraint {
             locked_axes,
         );
 
-        for i in 0..DIM {
-            if locked_axes & (1 << i) != 0 {
-                out[len] = builder.lock_linear_generic_ground(
-                    params,
-                    jacobians,
-                    j_id,
-                    joint_id,
-                    body1,
-                    mb2,
-                    i,
-                    WritebackId::Dof(i),
-                );
-                len += 1;
-            }
-        }
+        let start = len;
         for i in DIM..SPATIAL_DIM {
-            if locked_axes & (1 << i) != 0 {
-                out[len] = builder.lock_angular_generic_ground(
+            if (motor_axes >> DIM) & (1 << i) != 0 {
+                out[len] = builder.motor_angular_generic_ground(
                     params,
                     jacobians,
                     j_id,
                     joint_id,
                     body1,
+                    body2,
                     mb2,
                     i - DIM,
-                    WritebackId::Dof(i),
+                    &joint.motors[i].motor_params(params.dt),
+                    WritebackId::Motor(i),
                 );
                 len += 1;
             }
@@ -418,27 +421,30 @@ impl JointGenericVelocityGroundConstraint {
             }
         }
 
+        JointVelocityConstraintBuilder::finalize_generic_constraints_ground(
+            jacobians,
+            &mut out[start..len],
+        );
+
+        let start = len;
         for i in DIM..SPATIAL_DIM {
-            if (motor_axes >> DIM) & (1 << i) != 0 {
-                out[len] = builder.motor_angular_generic_ground(
+            if locked_axes & (1 << i) != 0 {
+                out[len] = builder.lock_angular_generic_ground(
                     params,
                     jacobians,
                     j_id,
                     joint_id,
                     body1,
-                    body2,
                     mb2,
                     i - DIM,
-                    &joint.motors[i].motor_params(params.dt),
-                    WritebackId::Motor(i),
+                    WritebackId::Dof(i),
                 );
                 len += 1;
             }
         }
-
         for i in 0..DIM {
-            if limit_axes & (1 << i) != 0 {
-                out[len] = builder.limit_linear_generic_ground(
+            if locked_axes & (1 << i) != 0 {
+                out[len] = builder.lock_linear_generic_ground(
                     params,
                     jacobians,
                     j_id,
@@ -446,8 +452,7 @@ impl JointGenericVelocityGroundConstraint {
                     body1,
                     mb2,
                     i,
-                    [joint.limits[i].min, joint.limits[i].max],
-                    WritebackId::Limit(i),
+                    WritebackId::Dof(i),
                 );
                 len += 1;
             }
@@ -469,10 +474,26 @@ impl JointGenericVelocityGroundConstraint {
                 len += 1;
             }
         }
+        for i in 0..DIM {
+            if limit_axes & (1 << i) != 0 {
+                out[len] = builder.limit_linear_generic_ground(
+                    params,
+                    jacobians,
+                    j_id,
+                    joint_id,
+                    body1,
+                    mb2,
+                    i,
+                    [joint.limits[i].min, joint.limits[i].max],
+                    WritebackId::Limit(i),
+                );
+                len += 1;
+            }
+        }
 
         JointVelocityConstraintBuilder::finalize_generic_constraints_ground(
             jacobians,
-            &mut out[..len],
+            &mut out[start..len],
         );
         len
     }
@@ -511,7 +532,7 @@ impl JointGenericVelocityGroundConstraint {
 
         let dvel = self.rhs + vel2;
         let total_impulse = na::clamp(
-            self.impulse + self.inv_lhs * dvel,
+            self.impulse + self.inv_lhs * (dvel - self.cfm_gain * self.impulse),
             self.impulse_bounds[0],
             self.impulse_bounds[1],
         );

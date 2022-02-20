@@ -36,11 +36,9 @@ pub fn init_world(testbed: &mut Testbed) {
                 let density = 0.477;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new(status)
-                    .translation(vector![x, y, z])
-                    .build();
+                let rigid_body = RigidBodyBuilder::new(status).translation(vector![x, y, z]);
                 let handle = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::ball(rad).density(density).build();
+                let collider = ColliderBuilder::ball(rad).density(density);
                 colliders.insert_with_parent(collider, handle, &mut bodies);
             }
         }

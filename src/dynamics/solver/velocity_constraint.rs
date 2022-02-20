@@ -5,7 +5,7 @@ use crate::dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint};
 use crate::dynamics::{IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyVelocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Real, Vector, DIM, MAX_MANIFOLD_POINTS};
-use crate::utils::{WAngularInertia, WBasis, WCross, WDot, WReal};
+use crate::utils::{self, WAngularInertia, WBasis, WCross, WDot, WReal};
 
 use super::{DeltaVel, VelocityConstraintElement, VelocityConstraintNormalPart};
 
@@ -239,10 +239,11 @@ impl VelocityConstraint {
                         .transform_vector(dp2.gcross(-force_dir1));
 
                     let imsum = mprops1.effective_inv_mass + mprops2.effective_inv_mass;
-                    let projected_mass = 1.0
-                        / (force_dir1.dot(&imsum.component_mul(&force_dir1))
+                    let projected_mass = utils::inv(
+                        force_dir1.dot(&imsum.component_mul(&force_dir1))
                             + gcross1.gdot(gcross1)
-                            + gcross2.gdot(gcross2));
+                            + gcross2.gdot(gcross2),
+                    );
 
                     let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
                     let is_resting = 1.0 - is_bouncy;
@@ -250,7 +251,7 @@ impl VelocityConstraint {
                     let mut rhs_wo_bias = (1.0 + is_bouncy * manifold_point.restitution)
                         * (vel1 - vel2).dot(&force_dir1);
                     rhs_wo_bias += manifold_point.dist.max(0.0) * inv_dt;
-                    rhs_wo_bias *= is_bouncy + is_resting * params.velocity_solve_fraction;
+                    rhs_wo_bias *= is_bouncy + is_resting;
                     let rhs_bias = /* is_resting
                         * */  erp_inv_dt
                         * (manifold_point.dist + params.allowed_linear_error).min(0.0);
@@ -285,8 +286,11 @@ impl VelocityConstraint {
                         constraint.elements[k].tangent_part.gcross1[j] = gcross1;
                         constraint.elements[k].tangent_part.gcross2[j] = gcross2;
                         constraint.elements[k].tangent_part.rhs[j] = rhs;
-                        constraint.elements[k].tangent_part.r[j] =
-                            if cfg!(feature = "dim2") { 1.0 / r } else { r };
+                        constraint.elements[k].tangent_part.r[j] = if cfg!(feature = "dim2") {
+                            utils::inv(r)
+                        } else {
+                            r
+                        };
                     }
 
                     #[cfg(feature = "dim3")]

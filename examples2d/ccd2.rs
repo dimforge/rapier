@@ -16,27 +16,24 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 25.0;
     let ground_thickness = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static().ccd_enabled(true).build();
+    let rigid_body = RigidBodyBuilder::new_static().ccd_enabled(true);
     let ground_handle = bodies.insert(rigid_body);
 
-    let collider = ColliderBuilder::cuboid(ground_size, ground_thickness).build();
+    let collider = ColliderBuilder::cuboid(ground_size, ground_thickness);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
-    let collider = ColliderBuilder::cuboid(ground_thickness, ground_size)
-        .translation(vector![-3.0, 0.0])
-        .build();
+    let collider =
+        ColliderBuilder::cuboid(ground_thickness, ground_size).translation(vector![-3.0, 0.0]);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
-    let collider = ColliderBuilder::cuboid(ground_thickness, ground_size)
-        .translation(vector![6.0, 0.0])
-        .build();
+    let collider =
+        ColliderBuilder::cuboid(ground_thickness, ground_size).translation(vector![6.0, 0.0]);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     let collider = ColliderBuilder::cuboid(ground_thickness, ground_size)
         .translation(vector![2.5, 0.0])
         .sensor(true)
-        .active_events(ActiveEvents::INTERSECTION_EVENTS)
-        .build();
+        .active_events(ActiveEvents::INTERSECTION_EVENTS);
     let sensor_handle = colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
@@ -72,19 +69,18 @@ pub fn init_world(testbed: &mut Testbed) {
             let rigid_body = RigidBodyBuilder::new_dynamic()
                 .translation(vector![x, y])
                 .linvel(vector![100.0, -10.0])
-                .ccd_enabled(true)
-                .build();
+                .ccd_enabled(true);
             let handle = bodies.insert(rigid_body);
 
             // for part in &compound_parts {
             //     let collider = ColliderBuilder::new(part.1.clone())
             //         .position_wrt_parent(part.0)
-            //         .build();
+            //         ;
             //     colliders.insert_with_parent(collider, handle, &mut bodies);
             // }
 
-            let collider = ColliderBuilder::new(compound_shape.clone()).build();
-            // let collider = ColliderBuilder::cuboid(radx, rady).build();
+            let collider = ColliderBuilder::new(compound_shape.clone());
+            // let collider = ColliderBuilder::cuboid(radx, rady);
             colliders.insert_with_parent(collider, handle, &mut bodies);
         }
     }
@@ -114,6 +110,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 if parent_handle1 != ground_handle && prox.collider1 != sensor_handle {
                     graphics.set_body_color(parent_handle1, color);
                 }
+
                 if parent_handle2 != ground_handle && prox.collider2 != sensor_handle {
                     graphics.set_body_color(parent_handle2, color);
                 }

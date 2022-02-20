@@ -16,11 +16,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 5.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static()
-        .translation(vector![0.0, -ground_height, 0.0])
-        .build();
+    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height, 0.0]);
     let floor_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, floor_handle, &mut bodies);
 
     /*
@@ -34,8 +32,7 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let green_floor = ColliderBuilder::cuboid(1.0, 0.1, 1.0)
         .translation(vector![0.0, 1.0, 0.0])
-        .collision_groups(GREEN_GROUP)
-        .build();
+        .collision_groups(GREEN_GROUP);
     let green_collider_handle =
         colliders.insert_with_parent(green_floor, floor_handle, &mut bodies);
 
@@ -46,8 +43,7 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let blue_floor = ColliderBuilder::cuboid(1.0, 0.1, 1.0)
         .translation(vector![0.0, 2.0, 0.0])
-        .collision_groups(BLUE_GROUP)
-        .build();
+        .collision_groups(BLUE_GROUP);
     let blue_collider_handle = colliders.insert_with_parent(blue_floor, floor_handle, &mut bodies);
 
     testbed.set_initial_collider_color(blue_collider_handle, [0.0, 0.0, 1.0]);
@@ -77,13 +73,9 @@ pub fn init_world(testbed: &mut Testbed) {
                     (BLUE_GROUP, [0.0, 0.0, 1.0])
                 };
 
-                let rigid_body = RigidBodyBuilder::new_dynamic()
-                    .translation(vector![x, y, z])
-                    .build();
+                let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y, z]);
                 let handle = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::cuboid(rad, rad, rad)
-                    .collision_groups(group)
-                    .build();
+                let collider = ColliderBuilder::cuboid(rad, rad, rad).collision_groups(group);
                 colliders.insert_with_parent(collider, handle, &mut bodies);
 
                 testbed.set_initial_body_color(handle, color);
