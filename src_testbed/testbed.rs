@@ -682,6 +682,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                             &mut self.harness.physics.colliders,
                             &mut self.harness.physics.impulse_joints,
                             &mut self.harness.physics.multibody_joints,
+                            true,
                         );
                     }
                 }

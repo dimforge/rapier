@@ -385,7 +385,7 @@ impl NarrowPhase {
             if let Some(co_changes) = co_changes {
                 if co_changes.needs_narrow_phase_update() {
                     // No flag relevant to the narrow-phase is enabled for this collider.
-                    return;
+                    continue;
                 }
 
                 if let Some(gid) = self.graph_indices.get(handle.0) {
@@ -712,87 +712,97 @@ impl NarrowPhase {
         par_iter_mut!(&mut self.intersection_graph.graph.edges).for_each(|edge| {
             let handle1 = nodes[edge.source().index()].weight;
             let handle2 = nodes[edge.target().index()].weight;
+            let mut had_intersection = edge.weight;
 
-            let co_parent1: Option<&ColliderParent> = colliders.get(handle1.0);
-            let (co_changes1, co_shape1, co_pos1, co_flags1): (
-                &ColliderChanges,
-                &ColliderShape,
-                &ColliderPosition,
-                &ColliderFlags,
-            ) = colliders.index_bundle(handle1.0);
+            // TODO: remove the `loop` once labels on blocks is stabilized.
+            'emit_events: loop {
+                let co_parent1: Option<&ColliderParent> = colliders.get(handle1.0);
+                let (co_changes1, co_shape1, co_pos1, co_flags1): (
+                    &ColliderChanges,
+                    &ColliderShape,
+                    &ColliderPosition,
+                    &ColliderFlags,
+                ) = colliders.index_bundle(handle1.0);
 
-            let co_parent2: Option<&ColliderParent> = colliders.get(handle2.0);
-            let (co_changes2, co_shape2, co_pos2, co_flags2): (
-                &ColliderChanges,
-                &ColliderShape,
-                &ColliderPosition,
-                &ColliderFlags,
-            ) = colliders.index_bundle(handle2.0);
+                let co_parent2: Option<&ColliderParent> = colliders.get(handle2.0);
+                let (co_changes2, co_shape2, co_pos2, co_flags2): (
+                    &ColliderChanges,
+                    &ColliderShape,
+                    &ColliderPosition,
+                    &ColliderFlags,
+                ) = colliders.index_bundle(handle2.0);
 
-            if !co_changes1.needs_narrow_phase_update() && !co_changes2.needs_narrow_phase_update()
-            {
-                // No update needed for these colliders.
-                return;
-            }
-
-            // TODO: avoid lookup into bodies.
-            let mut rb_type1 = RigidBodyType::Static;
-            let mut rb_type2 = RigidBodyType::Static;
-
-            if let Some(co_parent1) = co_parent1 {
-                rb_type1 = *bodies.index(co_parent1.handle.0);
-            }
-
-            if let Some(co_parent2) = co_parent2 {
-                rb_type2 = *bodies.index(co_parent2.handle.0);
-            }
-
-            // Filter based on the rigid-body types.
-            if !co_flags1.active_collision_types.test(rb_type1, rb_type2)
-                && !co_flags2.active_collision_types.test(rb_type1, rb_type2)
-            {
-                return;
-            }
-
-            // Filter based on collision groups.
-            if !co_flags1.collision_groups.test(co_flags2.collision_groups) {
-                return;
-            }
-
-            let active_hooks = co_flags1.active_hooks | co_flags2.active_hooks;
-            let active_events = co_flags1.active_events | co_flags2.active_events;
-
-            if active_hooks.contains(ActiveHooks::FILTER_INTERSECTION_PAIR) {
-                let context = PairFilterContext {
-                    bodies,
-                    colliders,
-                    rigid_body1: co_parent1.map(|p| p.handle),
-                    rigid_body2: co_parent2.map(|p| p.handle),
-                    collider1: handle1,
-                    collider2: handle2,
-                };
-
-                if !hooks.filter_intersection_pair(&context) {
-                    // No intersection allowed.
+                if !co_changes1.needs_narrow_phase_update()
+                    && !co_changes2.needs_narrow_phase_update()
+                {
+                    // No update needed for these colliders.
                     return;
                 }
+
+                // TODO: avoid lookup into bodies.
+                let mut rb_type1 = RigidBodyType::Static;
+                let mut rb_type2 = RigidBodyType::Static;
+
+                if let Some(co_parent1) = co_parent1 {
+                    rb_type1 = *bodies.index(co_parent1.handle.0);
+                }
+
+                if let Some(co_parent2) = co_parent2 {
+                    rb_type2 = *bodies.index(co_parent2.handle.0);
+                }
+
+                // Filter based on the rigid-body types.
+                if !co_flags1.active_collision_types.test(rb_type1, rb_type2)
+                    && !co_flags2.active_collision_types.test(rb_type1, rb_type2)
+                {
+                    edge.weight = false;
+                    break 'emit_events;
+                }
+
+                // Filter based on collision groups.
+                if !co_flags1.collision_groups.test(co_flags2.collision_groups) {
+                    edge.weight = false;
+                    break 'emit_events;
+                }
+
+                let active_hooks = co_flags1.active_hooks | co_flags2.active_hooks;
+
+                if active_hooks.contains(ActiveHooks::FILTER_INTERSECTION_PAIR) {
+                    let context = PairFilterContext {
+                        bodies,
+                        colliders,
+                        rigid_body1: co_parent1.map(|p| p.handle),
+                        rigid_body2: co_parent2.map(|p| p.handle),
+                        collider1: handle1,
+                        collider2: handle2,
+                    };
+
+                    if !hooks.filter_intersection_pair(&context) {
+                        // No intersection allowed.
+                        edge.weight = false;
+                        break 'emit_events;
+                    }
+                }
+
+                let pos12 = co_pos1.inv_mul(co_pos2);
+                edge.weight = query_dispatcher
+                    .intersection_test(&pos12, &**co_shape1, &**co_shape2)
+                    .unwrap_or(false);
+                break 'emit_events;
             }
 
-            let pos12 = co_pos1.inv_mul(co_pos2);
+            let co_flags1: &ColliderFlags = colliders.index(handle1.0);
+            let co_flags2: &ColliderFlags = colliders.index(handle2.0);
+            let active_events = co_flags1.active_events | co_flags2.active_events;
 
-            if let Ok(intersection) =
-                query_dispatcher.intersection_test(&pos12, &**co_shape1, &**co_shape2)
+            if active_events.contains(ActiveEvents::INTERSECTION_EVENTS)
+                && had_intersection != edge.weight
             {
-                if active_events.contains(ActiveEvents::INTERSECTION_EVENTS)
-                    && intersection != edge.weight
-                {
-                    events.handle_intersection_event(IntersectionEvent::new(
-                        handle1,
-                        handle2,
-                        intersection,
-                    ));
-                }
-                edge.weight = intersection;
+                events.handle_intersection_event(IntersectionEvent::new(
+                    handle1,
+                    handle2,
+                    edge.weight,
+                ));
             }
         });
     }
@@ -825,188 +835,200 @@ impl NarrowPhase {
         // TODO: don't iterate on all the edges.
         par_iter_mut!(&mut self.contact_graph.graph.edges).for_each(|edge| {
             let pair = &mut edge.weight;
+            let had_any_active_contact = pair.has_any_active_contact;
 
-            let co_parent1: Option<&ColliderParent> = colliders.get(pair.collider1.0);
-            let (co_changes1, co_shape1, co_pos1, co_material1, co_flags1): (
-                &ColliderChanges,
-                &ColliderShape,
-                &ColliderPosition,
-                &ColliderMaterial,
-                &ColliderFlags,
-            ) = colliders.index_bundle(pair.collider1.0);
+            // TODO: remove the `loop` once labels on blocks are supported.
+            'emit_events: loop {
+                let co_parent1: Option<&ColliderParent> = colliders.get(pair.collider1.0);
+                let (co_changes1, co_shape1, co_pos1, co_material1, co_flags1): (
+                    &ColliderChanges,
+                    &ColliderShape,
+                    &ColliderPosition,
+                    &ColliderMaterial,
+                    &ColliderFlags,
+                ) = colliders.index_bundle(pair.collider1.0);
 
-            let co_parent2: Option<&ColliderParent> = colliders.get(pair.collider2.0);
-            let (co_changes2, co_shape2, co_pos2, co_material2, co_flags2): (
-                &ColliderChanges,
-                &ColliderShape,
-                &ColliderPosition,
-                &ColliderMaterial,
-                &ColliderFlags,
-            ) = colliders.index_bundle(pair.collider2.0);
+                let co_parent2: Option<&ColliderParent> = colliders.get(pair.collider2.0);
+                let (co_changes2, co_shape2, co_pos2, co_material2, co_flags2): (
+                    &ColliderChanges,
+                    &ColliderShape,
+                    &ColliderPosition,
+                    &ColliderMaterial,
+                    &ColliderFlags,
+                ) = colliders.index_bundle(pair.collider2.0);
 
-            if !co_changes1.needs_narrow_phase_update() && !co_changes2.needs_narrow_phase_update()
-            {
-                // No update needed for these colliders.
-                return;
-            }
-
-            // TODO: avoid lookup into bodies.
-            let mut rb_type1 = RigidBodyType::Static;
-            let mut rb_type2 = RigidBodyType::Static;
-
-            if let Some(co_parent1) = co_parent1 {
-                rb_type1 = *bodies.index(co_parent1.handle.0);
-            }
-
-            if let Some(co_parent2) = co_parent2 {
-                rb_type2 = *bodies.index(co_parent2.handle.0);
-            }
-
-            // Filter based on the rigid-body types.
-            if !co_flags1.active_collision_types.test(rb_type1, rb_type2)
-                && !co_flags2.active_collision_types.test(rb_type1, rb_type2)
-            {
-                return;
-            }
-
-            // Filter based on collision groups.
-            if !co_flags1.collision_groups.test(co_flags2.collision_groups) {
-                return;
-            }
-
-            let active_hooks = co_flags1.active_hooks | co_flags2.active_hooks;
-            let active_events = co_flags1.active_events | co_flags2.active_events;
-
-            let mut solver_flags = if active_hooks.contains(ActiveHooks::FILTER_CONTACT_PAIRS) {
-                let context = PairFilterContext {
-                    bodies,
-                    colliders,
-                    rigid_body1: co_parent1.map(|p| p.handle),
-                    rigid_body2: co_parent2.map(|p| p.handle),
-                    collider1: pair.collider1,
-                    collider2: pair.collider2,
-                };
-
-                if let Some(solver_flags) = hooks.filter_contact_pair(&context) {
-                    solver_flags
-                } else {
-                    // No contact allowed.
+                if !co_changes1.needs_narrow_phase_update()
+                    && !co_changes2.needs_narrow_phase_update()
+                {
+                    // No update needed for these colliders.
                     return;
                 }
-            } else {
-                SolverFlags::default()
-            };
 
-            if !co_flags1.solver_groups.test(co_flags2.solver_groups) {
-                solver_flags.remove(SolverFlags::COMPUTE_IMPULSES);
-            }
+                // TODO: avoid lookup into bodies.
+                let mut rb_type1 = RigidBodyType::Static;
+                let mut rb_type2 = RigidBodyType::Static;
 
-            if co_changes1.contains(ColliderChanges::SHAPE)
-                || co_changes2.contains(ColliderChanges::SHAPE)
-            {
-                // The shape changed so the workspace is no longer valid.
-                pair.workspace = None;
-            }
-
-            let pos12 = co_pos1.inv_mul(co_pos2);
-            let _ = query_dispatcher.contact_manifolds(
-                &pos12,
-                &**co_shape1,
-                &**co_shape2,
-                prediction_distance,
-                &mut pair.manifolds,
-                &mut pair.workspace,
-            );
-
-            let mut has_any_active_contact = false;
-
-            let friction = CoefficientCombineRule::combine(
-                co_material1.friction,
-                co_material2.friction,
-                co_material1.friction_combine_rule as u8,
-                co_material2.friction_combine_rule as u8,
-            );
-            let restitution = CoefficientCombineRule::combine(
-                co_material1.restitution,
-                co_material2.restitution,
-                co_material1.restitution_combine_rule as u8,
-                co_material2.restitution_combine_rule as u8,
-            );
-
-            let zero = RigidBodyDominance(0); // The value doesn't matter, it will be MAX because of the effective groups.
-            let dominance1 = co_parent1
-                .map(|p1| *bodies.index(p1.handle.0))
-                .unwrap_or(zero);
-            let dominance2 = co_parent2
-                .map(|p2| *bodies.index(p2.handle.0))
-                .unwrap_or(zero);
-
-            for manifold in &mut pair.manifolds {
-                let world_pos1 = manifold.subshape_pos1.prepend_to(co_pos1);
-                manifold.data.solver_contacts.clear();
-                manifold.data.rigid_body1 = co_parent1.map(|p| p.handle);
-                manifold.data.rigid_body2 = co_parent2.map(|p| p.handle);
-                manifold.data.solver_flags = solver_flags;
-                manifold.data.relative_dominance =
-                    dominance1.effective_group(&rb_type1) - dominance2.effective_group(&rb_type2);
-                manifold.data.normal = world_pos1 * manifold.local_n1;
-
-                // Generate solver contacts.
-                for (contact_id, contact) in manifold.points.iter().enumerate() {
-                    assert!(
-                        contact_id <= u8::MAX as usize,
-                        "A contact manifold cannot contain more than 255 contacts currently."
-                    );
-
-                    if contact.dist < prediction_distance {
-                        // Generate the solver contact.
-                        let solver_contact = SolverContact {
-                            contact_id: contact_id as u8,
-                            point: world_pos1 * contact.local_p1
-                                + manifold.data.normal * contact.dist / 2.0,
-                            dist: contact.dist,
-                            friction,
-                            restitution,
-                            tangent_velocity: Vector::zeros(),
-                            is_new: contact.data.impulse == 0.0,
-                        };
-
-                        manifold.data.solver_contacts.push(solver_contact);
-                        has_any_active_contact = true;
-                    }
+                if let Some(co_parent1) = co_parent1 {
+                    rb_type1 = *bodies.index(co_parent1.handle.0);
                 }
 
-                // Apply the user-defined contact modification.
-                if active_hooks.contains(ActiveHooks::MODIFY_SOLVER_CONTACTS) {
-                    let mut modifiable_solver_contacts =
-                        std::mem::replace(&mut manifold.data.solver_contacts, Vec::new());
-                    let mut modifiable_user_data = manifold.data.user_data;
-                    let mut modifiable_normal = manifold.data.normal;
+                if let Some(co_parent2) = co_parent2 {
+                    rb_type2 = *bodies.index(co_parent2.handle.0);
+                }
 
-                    let mut context = ContactModificationContext {
+                // Filter based on the rigid-body types.
+                if !co_flags1.active_collision_types.test(rb_type1, rb_type2)
+                    && !co_flags2.active_collision_types.test(rb_type1, rb_type2)
+                {
+                    pair.clear();
+                    break 'emit_events;
+                }
+
+                // Filter based on collision groups.
+                if !co_flags1.collision_groups.test(co_flags2.collision_groups) {
+                    pair.clear();
+                    break 'emit_events;
+                }
+
+                let active_hooks = co_flags1.active_hooks | co_flags2.active_hooks;
+
+                let mut solver_flags = if active_hooks.contains(ActiveHooks::FILTER_CONTACT_PAIRS) {
+                    let context = PairFilterContext {
                         bodies,
                         colliders,
                         rigid_body1: co_parent1.map(|p| p.handle),
                         rigid_body2: co_parent2.map(|p| p.handle),
                         collider1: pair.collider1,
                         collider2: pair.collider2,
-                        manifold,
-                        solver_contacts: &mut modifiable_solver_contacts,
-                        normal: &mut modifiable_normal,
-                        user_data: &mut modifiable_user_data,
                     };
 
-                    hooks.modify_solver_contacts(&mut context);
+                    if let Some(solver_flags) = hooks.filter_contact_pair(&context) {
+                        solver_flags
+                    } else {
+                        // No contact allowed.
+                        pair.clear();
+                        break 'emit_events;
+                    }
+                } else {
+                    SolverFlags::default()
+                };
 
-                    manifold.data.solver_contacts = modifiable_solver_contacts;
-                    manifold.data.normal = modifiable_normal;
-                    manifold.data.user_data = modifiable_user_data;
+                if !co_flags1.solver_groups.test(co_flags2.solver_groups) {
+                    solver_flags.remove(SolverFlags::COMPUTE_IMPULSES);
                 }
+
+                if co_changes1.contains(ColliderChanges::SHAPE)
+                    || co_changes2.contains(ColliderChanges::SHAPE)
+                {
+                    // The shape changed so the workspace is no longer valid.
+                    pair.workspace = None;
+                }
+
+                let pos12 = co_pos1.inv_mul(co_pos2);
+                let _ = query_dispatcher.contact_manifolds(
+                    &pos12,
+                    &**co_shape1,
+                    &**co_shape2,
+                    prediction_distance,
+                    &mut pair.manifolds,
+                    &mut pair.workspace,
+                );
+
+                let friction = CoefficientCombineRule::combine(
+                    co_material1.friction,
+                    co_material2.friction,
+                    co_material1.friction_combine_rule as u8,
+                    co_material2.friction_combine_rule as u8,
+                );
+                let restitution = CoefficientCombineRule::combine(
+                    co_material1.restitution,
+                    co_material2.restitution,
+                    co_material1.restitution_combine_rule as u8,
+                    co_material2.restitution_combine_rule as u8,
+                );
+
+                let zero = RigidBodyDominance(0); // The value doesn't matter, it will be MAX because of the effective groups.
+                let dominance1 = co_parent1
+                    .map(|p1| *bodies.index(p1.handle.0))
+                    .unwrap_or(zero);
+                let dominance2 = co_parent2
+                    .map(|p2| *bodies.index(p2.handle.0))
+                    .unwrap_or(zero);
+
+                for manifold in &mut pair.manifolds {
+                    let world_pos1 = manifold.subshape_pos1.prepend_to(co_pos1);
+                    manifold.data.solver_contacts.clear();
+                    manifold.data.rigid_body1 = co_parent1.map(|p| p.handle);
+                    manifold.data.rigid_body2 = co_parent2.map(|p| p.handle);
+                    manifold.data.solver_flags = solver_flags;
+                    manifold.data.relative_dominance = dominance1.effective_group(&rb_type1)
+                        - dominance2.effective_group(&rb_type2);
+                    manifold.data.normal = world_pos1 * manifold.local_n1;
+
+                    // Generate solver contacts.
+                    pair.has_any_active_contact = false;
+                    for (contact_id, contact) in manifold.points.iter().enumerate() {
+                        assert!(
+                            contact_id <= u8::MAX as usize,
+                            "A contact manifold cannot contain more than 255 contacts currently."
+                        );
+
+                        if contact.dist < prediction_distance {
+                            // Generate the solver contact.
+                            let solver_contact = SolverContact {
+                                contact_id: contact_id as u8,
+                                point: world_pos1 * contact.local_p1
+                                    + manifold.data.normal * contact.dist / 2.0,
+                                dist: contact.dist,
+                                friction,
+                                restitution,
+                                tangent_velocity: Vector::zeros(),
+                                is_new: contact.data.impulse == 0.0,
+                            };
+
+                            manifold.data.solver_contacts.push(solver_contact);
+                            pair.has_any_active_contact = true;
+                        }
+                    }
+
+                    // Apply the user-defined contact modification.
+                    if active_hooks.contains(ActiveHooks::MODIFY_SOLVER_CONTACTS) {
+                        let mut modifiable_solver_contacts =
+                            std::mem::replace(&mut manifold.data.solver_contacts, Vec::new());
+                        let mut modifiable_user_data = manifold.data.user_data;
+                        let mut modifiable_normal = manifold.data.normal;
+
+                        let mut context = ContactModificationContext {
+                            bodies,
+                            colliders,
+                            rigid_body1: co_parent1.map(|p| p.handle),
+                            rigid_body2: co_parent2.map(|p| p.handle),
+                            collider1: pair.collider1,
+                            collider2: pair.collider2,
+                            manifold,
+                            solver_contacts: &mut modifiable_solver_contacts,
+                            normal: &mut modifiable_normal,
+                            user_data: &mut modifiable_user_data,
+                        };
+
+                        hooks.modify_solver_contacts(&mut context);
+
+                        manifold.data.solver_contacts = modifiable_solver_contacts;
+                        manifold.data.normal = modifiable_normal;
+                        manifold.data.user_data = modifiable_user_data;
+                    }
+                }
+
+                break 'emit_events;
             }
 
-            if has_any_active_contact != pair.has_any_active_contact {
+            let co_flags1: &ColliderFlags = colliders.index(pair.collider1.0);
+            let co_flags2: &ColliderFlags = colliders.index(pair.collider2.0);
+            let active_events = co_flags1.active_events | co_flags2.active_events;
+
+            if pair.has_any_active_contact != had_any_active_contact {
                 if active_events.contains(ActiveEvents::CONTACT_EVENTS) {
-                    if has_any_active_contact {
+                    if pair.has_any_active_contact {
                         events.handle_contact_event(
                             ContactEvent::Started(pair.collider1, pair.collider2),
                             pair,
@@ -1018,8 +1040,6 @@ impl NarrowPhase {
                         );
                     }
                 }
-
-                pair.has_any_active_contact = has_any_active_contact;
             }
         });
     }
