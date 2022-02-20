@@ -311,7 +311,6 @@ impl PhysxWorld {
                                 );
                             }
                         } else if !parent_body.is_dynamic() {
-                            println!("Ground collider");
                             let actor = rapier2static.get_mut(&parent_handle).unwrap();
                             actor.attach_shape(&mut px_shape);
                         } else {

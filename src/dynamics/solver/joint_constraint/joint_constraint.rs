@@ -7,12 +7,12 @@ use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
 };
 use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
-    ImpulseJoint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodyIds,
+    ImpulseJoint, IntegrationParameters, JointAxesMask, JointGraphEdge, JointIndex, RigidBodyIds,
     RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::{Isometry, SimdReal, SIMD_WIDTH};
-use crate::math::{Real, SPATIAL_DIM};
+use crate::math::{Real, DIM, SPATIAL_DIM};
 use crate::prelude::MultibodyJointSet;
 use na::DVector;
 
@@ -30,8 +30,20 @@ pub enum AnyJointVelocityConstraint {
 
 impl AnyJointVelocityConstraint {
     #[cfg(feature = "parallel")]
-    pub fn num_active_constraints(_: &ImpulseJoint) -> usize {
-        1
+    pub fn num_active_constraints(joint: &ImpulseJoint) -> usize {
+        let joint = &joint.data;
+        let locked_axes = joint.locked_axes.bits();
+        let motor_axes = joint.motor_axes.bits() & !locked_axes;
+        let limit_axes = joint.limit_axes.bits() & !locked_axes;
+        let coupled_axes = joint.coupled_axes.bits();
+
+        (motor_axes & !coupled_axes).count_ones() as usize
+            + ((motor_axes & coupled_axes) & JointAxesMask::ANG_AXES.bits() != 0) as usize
+            + ((motor_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0) as usize
+            + locked_axes.count_ones() as usize
+            + (limit_axes & !coupled_axes).count_ones() as usize
+            + ((limit_axes & coupled_axes) & JointAxesMask::ANG_AXES.bits() != 0) as usize
+            + ((limit_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0) as usize
     }
 
     pub fn from_joint<Bodies>(
@@ -43,6 +55,7 @@ impl AnyJointVelocityConstraint {
         j_id: &mut usize,
         jacobians: &mut DVector<Real>,
         out: &mut Vec<Self>,
+        push: bool,
     ) where
         Bodies: ComponentSet<RigidBodyPosition>
             + ComponentSet<RigidBodyVelocity>
@@ -130,8 +143,15 @@ impl AnyJointVelocityConstraint {
                 &mut out_tmp,
             );
 
-            for c in out_tmp.into_iter().take(out_tmp_len) {
-                out.push(AnyJointVelocityConstraint::JointGenericConstraint(c));
+            if push {
+                for c in out_tmp.into_iter().take(out_tmp_len) {
+                    out.push(AnyJointVelocityConstraint::JointGenericConstraint(c));
+                }
+            } else {
+                for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
+                    out[joint.constraint_index + i] =
+                        AnyJointVelocityConstraint::JointGenericConstraint(c);
+                }
             }
         } else {
             // TODO: find a way to avoid the temporary buffer.
@@ -147,8 +167,15 @@ impl AnyJointVelocityConstraint {
                 &mut out_tmp,
             );
 
-            for c in out_tmp.into_iter().take(out_tmp_len) {
-                out.push(AnyJointVelocityConstraint::JointConstraint(c));
+            if push {
+                for c in out_tmp.into_iter().take(out_tmp_len) {
+                    out.push(AnyJointVelocityConstraint::JointConstraint(c));
+                }
+            } else {
+                for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
+                    out[joint.constraint_index + i] =
+                        AnyJointVelocityConstraint::JointConstraint(c);
+                }
             }
         }
     }
@@ -160,6 +187,7 @@ impl AnyJointVelocityConstraint {
         impulse_joints: [&ImpulseJoint; SIMD_WIDTH],
         bodies: &Bodies,
         out: &mut Vec<Self>,
+        push: bool,
     ) where
         Bodies: ComponentSet<RigidBodyPosition>
             + ComponentSet<RigidBodyVelocity>
@@ -232,8 +260,15 @@ impl AnyJointVelocityConstraint {
             &mut out_tmp,
         );
 
-        for c in out_tmp.into_iter().take(out_tmp_len) {
-            out.push(AnyJointVelocityConstraint::JointConstraintSimd(c));
+        if push {
+            for c in out_tmp.into_iter().take(out_tmp_len) {
+                out.push(AnyJointVelocityConstraint::JointConstraintSimd(c));
+            }
+        } else {
+            for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
+                out[impulse_joints[0].constraint_index + i] =
+                    AnyJointVelocityConstraint::JointConstraintSimd(c);
+            }
         }
     }
 
@@ -246,6 +281,7 @@ impl AnyJointVelocityConstraint {
         j_id: &mut usize,
         jacobians: &mut DVector<Real>,
         out: &mut Vec<Self>,
+        push: bool,
     ) where
         Bodies: ComponentSet<RigidBodyPosition>
             + ComponentSet<RigidBodyType>
@@ -334,8 +370,15 @@ impl AnyJointVelocityConstraint {
                 &mut out_tmp,
             );
 
-            for c in out_tmp.into_iter().take(out_tmp_len) {
-                out.push(AnyJointVelocityConstraint::JointGenericGroundConstraint(c));
+            if push {
+                for c in out_tmp.into_iter().take(out_tmp_len) {
+                    out.push(AnyJointVelocityConstraint::JointGenericGroundConstraint(c));
+                }
+            } else {
+                for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
+                    out[joint.constraint_index + i] =
+                        AnyJointVelocityConstraint::JointGenericGroundConstraint(c);
+                }
             }
         } else {
             // TODO: find a way to avoid the temporary buffer.
@@ -351,8 +394,15 @@ impl AnyJointVelocityConstraint {
                 &mut out_tmp,
             );
 
-            for c in out_tmp.into_iter().take(out_tmp_len) {
-                out.push(AnyJointVelocityConstraint::JointGroundConstraint(c));
+            if push {
+                for c in out_tmp.into_iter().take(out_tmp_len) {
+                    out.push(AnyJointVelocityConstraint::JointGroundConstraint(c));
+                }
+            } else {
+                for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
+                    out[joint.constraint_index + i] =
+                        AnyJointVelocityConstraint::JointGroundConstraint(c);
+                }
             }
         }
     }
@@ -364,6 +414,7 @@ impl AnyJointVelocityConstraint {
         impulse_joints: [&ImpulseJoint; SIMD_WIDTH],
         bodies: &Bodies,
         out: &mut Vec<Self>,
+        push: bool,
     ) where
         Bodies: ComponentSet<RigidBodyPosition>
             + ComponentSet<RigidBodyType>
@@ -455,8 +506,15 @@ impl AnyJointVelocityConstraint {
             &mut out_tmp,
         );
 
-        for c in out_tmp.into_iter().take(out_tmp_len) {
-            out.push(AnyJointVelocityConstraint::JointGroundConstraintSimd(c));
+        if push {
+            for c in out_tmp.into_iter().take(out_tmp_len) {
+                out.push(AnyJointVelocityConstraint::JointGroundConstraintSimd(c));
+            }
+        } else {
+            for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
+                out[impulse_joints[0].constraint_index + i] =
+                    AnyJointVelocityConstraint::JointGroundConstraintSimd(c);
+            }
         }
     }
 

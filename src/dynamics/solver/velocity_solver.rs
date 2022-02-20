@@ -3,13 +3,12 @@ use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
 use crate::dynamics::solver::AnyGenericVelocityConstraint;
 use crate::dynamics::{
     solver::{AnyVelocityConstraint, DeltaVel},
-    IntegrationParameters, JointGraphEdge, MultibodyJointSet, RigidBodyForces, RigidBodyType,
+    IntegrationParameters, IslandManager, JointGraphEdge, MultibodyJointSet, RigidBodyDamping,
+    RigidBodyForces, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType,
     RigidBodyVelocity,
 };
-use crate::dynamics::{IslandManager, RigidBodyIds, RigidBodyMassProps};
 use crate::geometry::ContactManifold;
 use crate::math::Real;
-use crate::prelude::{RigidBodyDamping, RigidBodyPosition};
 use crate::utils::WAngularInertia;
 use na::DVector;
 
@@ -151,7 +150,7 @@ impl VelocitySolver {
             }
         }
 
-        // Update positions.
+        // Integrate positions.
         for handle in islands.active_island(island_id) {
             if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
                 let multibody = multibodies
@@ -169,30 +168,33 @@ impl VelocitySolver {
                     multibody.velocities = prev_vels;
                 }
             } else {
-                let (ids, mprops): (&RigidBodyIds, &RigidBodyMassProps) =
+                let (rb_ids, rb_mprops): (&RigidBodyIds, &RigidBodyMassProps) =
                     bodies.index_bundle(handle.0);
 
-                let dvel = self.mj_lambdas[ids.active_set_offset];
-                let dangvel = mprops
+                let dvel = self.mj_lambdas[rb_ids.active_set_offset];
+                let dangvel = rb_mprops
                     .effective_world_inv_inertia_sqrt
                     .transform_vector(dvel.angular);
 
                 // Update positions.
-                let (poss, vels, damping, mprops): (
+                let (rb_pos, rb_vels, rb_damping, rb_mprops): (
                     &RigidBodyPosition,
                     &RigidBodyVelocity,
                     &RigidBodyDamping,
                     &RigidBodyMassProps,
                 ) = bodies.index_bundle(handle.0);
 
-                let mut new_poss = *poss;
-                let mut new_vels = *vels;
+                let mut new_pos = *rb_pos;
+                let mut new_vels = *rb_vels;
                 new_vels.linvel += dvel.linear;
                 new_vels.angvel += dangvel;
-                new_vels = new_vels.apply_damping(params.dt, damping);
-                new_poss.next_position =
-                    new_vels.integrate(params.dt, &poss.position, &mprops.local_mprops.local_com);
-                bodies.set_internal(handle.0, new_poss);
+                new_vels = new_vels.apply_damping(params.dt, rb_damping);
+                new_pos.next_position = new_vels.integrate(
+                    params.dt,
+                    &rb_pos.position,
+                    &rb_mprops.local_mprops.local_com,
+                );
+                bodies.set_internal(handle.0, new_pos);
             }
         }
 
@@ -260,17 +262,17 @@ impl VelocitySolver {
                     multibody.velocities += mj_lambdas;
                 }
             } else {
-                let (ids, damping, mprops): (
+                let (rb_ids, rb_damping, rb_mprops): (
                     &RigidBodyIds,
                     &RigidBodyDamping,
                     &RigidBodyMassProps,
                 ) = bodies.index_bundle(handle.0);
 
-                let dvel = self.mj_lambdas[ids.active_set_offset];
-                let dangvel = mprops
+                let dvel = self.mj_lambdas[rb_ids.active_set_offset];
+                let dangvel = rb_mprops
                     .effective_world_inv_inertia_sqrt
                     .transform_vector(dvel.angular);
-                let damping = *damping; // To avoid borrow issues.
+                let damping = *rb_damping; // To avoid borrow issues.
 
                 bodies.map_mut_internal(handle.0, |vels: &mut RigidBodyVelocity| {
                     vels.linvel += dvel.linear;

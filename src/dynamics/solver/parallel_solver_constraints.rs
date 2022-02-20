@@ -87,7 +87,7 @@ macro_rules! impl_init_constraints_group {
                 island_id: usize,
                 islands: &IslandManager,
                 bodies: &Bodies,
-                multibody_joints: &MultibodyJointSet,
+                multibodies: &MultibodyJointSet,
                 interactions: &mut [$Interaction],
                 interaction_groups: &ParallelInteractionGroups,
             ) where Bodies: ComponentSet<RigidBodyType> + ComponentSet<RigidBodyIds> {
@@ -107,7 +107,7 @@ macro_rules! impl_init_constraints_group {
                     self.ground_interactions.clear();
                     $categorize(
                         bodies,
-                        multibody_joints,
+                        multibodies,
                         interactions,
                         group,
                         &mut self.ground_interactions,
@@ -276,7 +276,10 @@ impl ParallelSolverConstraints<AnyJointVelocityConstraint, ()> {
         thread: &ThreadContext,
         params: &IntegrationParameters,
         bodies: &Bodies,
+        multibodies: &MultibodyJointSet,
         joints_all: &[JointGraphEdge],
+        j_id: &mut usize,
+        jacobians: &mut DVector<Real>,
     ) where
         Bodies: ComponentSet<RigidBodyPosition>
             + ComponentSet<RigidBodyVelocity>
@@ -284,9 +287,6 @@ impl ParallelSolverConstraints<AnyJointVelocityConstraint, ()> {
             + ComponentSet<RigidBodyIds>
             + ComponentSet<RigidBodyType>,
     {
-        return;
-
-        /*
         let descs = &self.constraint_descs;
 
         crate::concurrent_loop! {
@@ -295,30 +295,24 @@ impl ParallelSolverConstraints<AnyJointVelocityConstraint, ()> {
                 match &desc.1 {
                     ConstraintDesc::NongroundNongrouped(joint_id) => {
                         let joint = &joints_all[*joint_id].weight;
-                        let velocity_constraint = AnyJointVelocityConstraint::from_joint(params, *joint_id, joint, bodies);
-                        self.velocity_constraints[joint.constraint_index] = velocity_constraint;
+                        AnyJointVelocityConstraint::from_joint(params, *joint_id, joint, bodies, multibodies, j_id, jacobians, &mut self.velocity_constraints, false);
                     }
                     ConstraintDesc::GroundNongrouped(joint_id) => {
                         let joint = &joints_all[*joint_id].weight;
-                        let velocity_constraint = AnyJointVelocityConstraint::from_joint_ground(params, *joint_id, joint, bodies);
-                        self.velocity_constraints[joint.constraint_index] = velocity_constraint;
+                        AnyJointVelocityConstraint::from_joint_ground(params, *joint_id, joint, bodies, multibodies, j_id, jacobians, &mut self.velocity_constraints, false);
                     }
                     #[cfg(feature = "simd-is-enabled")]
                     ConstraintDesc::NongroundGrouped(joint_id) => {
                         let impulse_joints = gather![|ii| &joints_all[joint_id[ii]].weight];
-                        let velocity_constraint = AnyJointVelocityConstraint::from_wide_joint(params, *joint_id, impulse_joints, bodies);
-                        self.velocity_constraints[impulse_joints[0].constraint_index] = velocity_constraint;
+                        AnyJointVelocityConstraint::from_wide_joint(params, *joint_id, impulse_joints, bodies, &mut self.velocity_constraints, false);
                     }
                     #[cfg(feature = "simd-is-enabled")]
                     ConstraintDesc::GroundGrouped(joint_id) => {
                         let impulse_joints = gather![|ii| &joints_all[joint_id[ii]].weight];
-                        let velocity_constraint = AnyJointVelocityConstraint::from_wide_joint_ground(params, *joint_id, impulse_joints, bodies);
-                        self.velocity_constraints[impulse_joints[0].constraint_index] = velocity_constraint;
+                        AnyJointVelocityConstraint::from_wide_joint_ground(params, *joint_id, impulse_joints, bodies, &mut self.velocity_constraints, false);
                     }
                 }
             }
         }
-
-         */
     }
 }

@@ -1,6 +1,35 @@
 use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
+fn create_coupled_joints(
+    bodies: &mut RigidBodySet,
+    colliders: &mut ColliderSet,
+    impulse_joints: &mut ImpulseJointSet,
+    multibody_joints: &mut MultibodyJointSet,
+    origin: Point<f32>,
+    use_articulations: bool,
+) {
+    let ground = bodies.insert(RigidBodyBuilder::new_static().translation(origin.coords));
+    let body1 = bodies.insert(
+        RigidBodyBuilder::new_dynamic()
+            .translation(origin.coords)
+            .linvel(vector![5.0, 5.0, 5.0]),
+    );
+    colliders.insert_with_parent(ColliderBuilder::cuboid(1.0, 1.0, 1.0), body1, bodies);
+
+    let joint1 = GenericJointBuilder::new(JointAxesMask::empty())
+        .limits(JointAxis::X, [-3.0, 3.0])
+        .limits(JointAxis::Y, [0.0, 3.0])
+        .limits(JointAxis::Z, [0.0, 3.0])
+        .coupled_axes(JointAxesMask::Y | JointAxesMask::Z);
+
+    if use_articulations {
+        multibody_joints.insert(ground, body1, joint1);
+    } else {
+        impulse_joints.insert(ground, body1, joint1);
+    }
+}
+
 fn create_prismatic_joints(
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
@@ -450,7 +479,7 @@ fn create_actuated_revolute_joints(
             if i == 1 {
                 joint = joint
                     .local_anchor2(point![0.0, 2.0, -shift])
-                    .motor_velocity(-2.0, 100.0);
+                    .motor_velocity(-2.0, 1000.0);
             }
 
             if use_articulations {
@@ -615,6 +644,14 @@ fn do_init_world(testbed: &mut Testbed, use_articulations: bool) {
         &mut impulse_joints,
         &mut multibody_joints,
         point![-5.0, 0.0, 0.0],
+        use_articulations,
+    );
+    create_coupled_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        point![0.0, 20.0, 0.0],
         use_articulations,
     );
 
