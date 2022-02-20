@@ -1,9 +1,15 @@
 use super::{AnyJointVelocityConstraint, AnyVelocityConstraint, DeltaVel, ThreadContext};
-use crate::dynamics::solver::generic_velocity_constraint::GenericVelocityConstraint;
-use crate::dynamics::solver::ParallelSolverConstraints;
-use crate::dynamics::{IntegrationParameters, JointGraphEdge};
+use crate::concurrent_loop;
+use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
+use crate::dynamics::{
+    solver::{GenericVelocityConstraint, ParallelSolverConstraints},
+    IntegrationParameters, IslandManager, JointGraphEdge, RigidBodyDamping, RigidBodyForces,
+    RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
+};
 use crate::geometry::ContactManifold;
 use crate::math::Real;
+use crate::utils::WAngularInertia;
+
 use na::DVector;
 use std::sync::atomic::Ordering;
 
@@ -20,10 +26,13 @@ impl ParallelVelocitySolver {
         }
     }
 
-    pub fn solve(
+    pub fn solve<Bodies>(
         &mut self,
         thread: &ThreadContext,
         params: &IntegrationParameters,
+        island_id: usize,
+        islands: &IslandManager,
+        bodies: &mut Bodies,
         manifolds_all: &mut [&mut ContactManifold],
         joints_all: &mut [JointGraphEdge],
         contact_constraints: &mut ParallelSolverConstraints<
@@ -31,83 +40,87 @@ impl ParallelVelocitySolver {
             GenericVelocityConstraint,
         >,
         joint_constraints: &mut ParallelSolverConstraints<AnyJointVelocityConstraint, ()>,
-    ) {
-        if contact_constraints.constraint_descs.is_empty()
-            && joint_constraints.constraint_descs.is_empty()
-        {
-            return;
+    ) where
+        Bodies: ComponentSet<RigidBodyForces>
+            + ComponentSet<RigidBodyIds>
+            + ComponentSet<RigidBodyType>
+            + ComponentSetMut<RigidBodyVelocity>
+            + ComponentSetMut<RigidBodyMassProps>
+            + ComponentSetMut<RigidBodyPosition>
+            + ComponentSet<RigidBodyDamping>,
+    {
+        let mut start_index = thread
+            .solve_interaction_index
+            .fetch_add(thread.batch_size, Ordering::SeqCst);
+        let mut batch_size = thread.batch_size;
+        let contact_descs = &contact_constraints.constraint_descs[..];
+        let joint_descs = &joint_constraints.constraint_descs[..];
+        let mut target_num_desc = 0;
+        let mut shift = 0;
+        let cfm_factor = params.cfm_factor();
+
+        // Each thread will concurrently grab thread.batch_size constraint desc to
+        // solve. If the batch size is large enough to cross the boundary of
+        // a parallel_desc_group, we have to wait util the current group is finished
+        // before starting the next one.
+        macro_rules! solve {
+            ($part: expr, $($solve_args: expr),*) => {
+                for group in $part.parallel_desc_groups.windows(2) {
+                    let num_descs_in_group = group[1] - group[0];
+                    target_num_desc += num_descs_in_group;
+
+                    while start_index < group[1] {
+                        let end_index = (start_index + batch_size).min(group[1]);
+
+                        // TODO: remove the first branch case?
+                        let constraints = if end_index == $part.constraint_descs.len() {
+                            &mut $part.velocity_constraints
+                                [$part.constraint_descs[start_index].0..]
+                        } else {
+                            &mut $part.velocity_constraints
+                                [$part.constraint_descs[start_index].0
+                                ..$part.constraint_descs[end_index].0]
+                        };
+
+                        for constraint in constraints {
+                            constraint.solve(
+                                $($solve_args),*
+                            );
+                        }
+
+                        let num_solved = end_index - start_index;
+                        batch_size -= num_solved;
+
+                        thread
+                            .num_solved_interactions
+                            .fetch_add(num_solved, Ordering::SeqCst);
+
+                        if batch_size == 0 {
+                            start_index = thread
+                                .solve_interaction_index
+                                .fetch_add(thread.batch_size, Ordering::SeqCst);
+                            start_index -= shift;
+                            batch_size = thread.batch_size;
+                        } else {
+                            start_index += num_solved;
+                        }
+                    }
+                    ThreadContext::lock_until_ge(
+                        &thread.num_solved_interactions,
+                        target_num_desc,
+                    );
+                }
+            };
         }
 
         /*
          * Solve constraints.
          */
         {
-            // Each thread will concurrently grab thread.batch_size constraint desc to
-            // solve. If the batch size is large enough for to cross the boundary of
-            // a parallel_desc_group, we have to wait util the current group is finished
-            // before starting the next one.
-            let mut start_index = thread
-                .solve_interaction_index
-                .fetch_add(thread.batch_size, Ordering::SeqCst);
-            let mut batch_size = thread.batch_size;
-            let contact_descs = &contact_constraints.constraint_descs[..];
-            let joint_descs = &joint_constraints.constraint_descs[..];
-            let mut target_num_desc = 0;
-            let mut shift = 0;
-            let cfm_factor = params.cfm_factor();
-
-            for _ in 0..params.max_velocity_iterations {
-                macro_rules! solve {
-                    ($part: expr, $($solve_args: expr),*) => {
-                        // ImpulseJoint groups.
-                        for group in $part.parallel_desc_groups.windows(2) {
-                            let num_descs_in_group = group[1] - group[0];
-
-                            target_num_desc += num_descs_in_group;
-
-                            while start_index < group[1] {
-                                let end_index = (start_index + batch_size).min(group[1]);
-
-                                let constraints = if end_index == $part.constraint_descs.len() {
-                                    &mut $part.velocity_constraints
-                                        [$part.constraint_descs[start_index].0..]
-                                } else {
-                                    &mut $part.velocity_constraints[$part.constraint_descs
-                                        [start_index]
-                                        .0
-                                        ..$part.constraint_descs[end_index].0]
-                                };
-
-                                for constraint in constraints {
-                                    constraint.solve(
-                                        $($solve_args),*
-                                    );
-                                }
-
-                                let num_solved = end_index - start_index;
-                                batch_size -= num_solved;
-
-                                thread
-                                    .num_solved_interactions
-                                    .fetch_add(num_solved, Ordering::SeqCst);
-
-                                if batch_size == 0 {
-                                    start_index = thread
-                                        .solve_interaction_index
-                                        .fetch_add(thread.batch_size, Ordering::SeqCst);
-                                    start_index -= shift;
-                                    batch_size = thread.batch_size;
-                                } else {
-                                    start_index += num_solved;
-                                }
-                            }
-                            ThreadContext::lock_until_ge(
-                                &thread.num_solved_interactions,
-                                target_num_desc,
-                            );
-                        }
-                    };
-                }
+            for i in 0..params.max_velocity_iterations {
+                let solve_friction = params.interleave_restitution_and_friction_resolution
+                    && params.max_velocity_friction_iterations + i
+                        >= params.max_velocity_iterations;
 
                 solve!(
                     joint_constraints,
@@ -122,10 +135,165 @@ impl ParallelVelocitySolver {
                     cfm_factor,
                     &mut self.mj_lambdas,
                     true,
+                    false
+                );
+                shift += contact_descs.len();
+                start_index -= contact_descs.len();
+
+                if solve_friction {
+                    solve!(
+                        contact_constraints,
+                        cfm_factor,
+                        &mut self.mj_lambdas,
+                        false,
+                        true
+                    );
+                    shift += contact_descs.len();
+                    start_index -= contact_descs.len();
+                }
+            }
+
+            // Solve the remaining friction iterations.
+            let remaining_friction_iterations =
+                if !params.interleave_restitution_and_friction_resolution {
+                    params.max_velocity_friction_iterations
+                } else if params.max_velocity_friction_iterations > params.max_velocity_iterations {
+                    params.max_velocity_friction_iterations - params.max_velocity_iterations
+                } else {
+                    0
+                };
+
+            for _ in 0..remaining_friction_iterations {
+                solve!(
+                    contact_constraints,
+                    cfm_factor,
+                    &mut self.mj_lambdas,
+                    false,
                     true
                 );
                 shift += contact_descs.len();
                 start_index -= contact_descs.len();
+            }
+        }
+
+        // Integrate positions.
+        {
+            let island_range = islands.active_island_range(island_id);
+            let active_bodies = &islands.active_dynamic_set[island_range];
+
+            concurrent_loop! {
+                let batch_size = thread.batch_size;
+                for handle in active_bodies[thread.body_integration_pos_index, thread.num_integrated_pos_bodies] {
+                    let (rb_ids, rb_mprops): (&RigidBodyIds, &RigidBodyMassProps) =
+                    bodies.index_bundle(handle.0);
+
+                    let dvel = self.mj_lambdas[rb_ids.active_set_offset];
+                    let dangvel = rb_mprops
+                        .effective_world_inv_inertia_sqrt
+                        .transform_vector(dvel.angular);
+
+                    // Update positions.
+                    let (rb_pos, rb_vels, rb_damping, rb_mprops): (
+                        &RigidBodyPosition,
+                        &RigidBodyVelocity,
+                        &RigidBodyDamping,
+                        &RigidBodyMassProps,
+                    ) = bodies.index_bundle(handle.0);
+
+                    let mut new_pos = *rb_pos;
+                    let mut new_vels = *rb_vels;
+                    new_vels.linvel += dvel.linear;
+                    new_vels.angvel += dangvel;
+                    new_vels = new_vels.apply_damping(params.dt, rb_damping);
+                    new_pos.next_position = new_vels.integrate(
+                        params.dt,
+                        &rb_pos.position,
+                        &rb_mprops.local_mprops.local_com,
+                    );
+                    bodies.set_internal(handle.0, new_pos);
+                }
+            }
+        }
+
+        // Remove bias from constraints.
+        {
+            let joint_constraints = &mut joint_constraints.velocity_constraints;
+            let contact_constraints = &mut contact_constraints.velocity_constraints;
+
+            crate::concurrent_loop! {
+                 let batch_size = thread.batch_size;
+                 for constraint in &mut joint_constraints[thread.joint_rm_bias_index] {
+                     constraint.remove_bias_from_rhs();
+                 }
+            }
+            crate::concurrent_loop! {
+                 let batch_size = thread.batch_size;
+                 for constraint in &mut contact_constraints[thread.impulse_rm_bias_index] {
+                     constraint.remove_bias_from_rhs();
+                 }
+            }
+        }
+
+        // Stabiliziton resolution.
+        {
+            for _ in 0..params.max_stabilization_iterations {
+                solve!(
+                    joint_constraints,
+                    &joint_constraints.generic_jacobians,
+                    &mut self.mj_lambdas,
+                    &mut self.generic_mj_lambdas
+                );
+                shift += joint_descs.len();
+                start_index -= joint_descs.len();
+
+                solve!(
+                    contact_constraints,
+                    cfm_factor,
+                    &mut self.mj_lambdas,
+                    true,
+                    false
+                );
+                shift += contact_descs.len();
+                start_index -= contact_descs.len();
+
+                solve!(
+                    contact_constraints,
+                    cfm_factor,
+                    &mut self.mj_lambdas,
+                    false,
+                    true
+                );
+                shift += contact_descs.len();
+                start_index -= contact_descs.len();
+            }
+        }
+
+        // Update velocities.
+        {
+            let island_range = islands.active_island_range(island_id);
+            let active_bodies = &islands.active_dynamic_set[island_range];
+
+            concurrent_loop! {
+                let batch_size = thread.batch_size;
+                for handle in active_bodies[thread.body_integration_vel_index, thread.num_integrated_vel_bodies] {
+                    let (rb_ids, rb_damping, rb_mprops): (
+                        &RigidBodyIds,
+                        &RigidBodyDamping,
+                        &RigidBodyMassProps,
+                    ) = bodies.index_bundle(handle.0);
+
+                    let dvel = self.mj_lambdas[rb_ids.active_set_offset];
+                    let dangvel = rb_mprops
+                        .effective_world_inv_inertia_sqrt
+                        .transform_vector(dvel.angular);
+                    let damping = *rb_damping; // To avoid borrow issues.
+
+                    bodies.map_mut_internal(handle.0, |vels: &mut RigidBodyVelocity| {
+                        vels.linvel += dvel.linear;
+                        vels.angvel += dangvel;
+                        *vels = vels.apply_damping(params.dt, &damping);
+                    });
+                }
             }
         }
 

@@ -15,6 +15,5 @@ pub struct ImpulseJoint {
 
     // A joint needs to know its handle to simplify its removal.
     pub(crate) handle: ImpulseJointHandle,
-    #[cfg(feature = "parallel")]
     pub(crate) constraint_index: usize,
 }

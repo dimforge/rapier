@@ -26,6 +26,8 @@ bitflags::bitflags! {
         const FREE_PRISMATIC_AXES = Self::X.bits;
         const FREE_FIXED_AXES = 0;
         const FREE_SPHERICAL_AXES = Self::ANG_X.bits | Self::ANG_Y.bits | Self::ANG_Z.bits;
+        const LIN_AXES = Self::X.bits() | Self::Y.bits() | Self::Z.bits();
+        const ANG_AXES = Self::ANG_X.bits() | Self::ANG_Y.bits() | Self::ANG_Z.bits();
     }
 }
 
@@ -42,6 +44,8 @@ bitflags::bitflags! {
         const FREE_REVOLUTE_AXES = Self::ANG_X.bits;
         const FREE_PRISMATIC_AXES = Self::X.bits;
         const FREE_FIXED_AXES = 0;
+        const LIN_AXES = Self::X.bits() | Self::Y.bits();
+        const ANG_AXES = Self::ANG_X.bits();
     }
 }
 
@@ -104,7 +108,7 @@ impl Default for JointMotor {
             damping: 0.0,
             max_force: Real::MAX,
             impulse: 0.0,
-            model: MotorModel::AccelerationBased, // VelocityBased,
+            model: MotorModel::AccelerationBased,
         }
     }
 }
@@ -134,6 +138,7 @@ pub struct GenericJoint {
     pub locked_axes: JointAxesMask,
     pub limit_axes: JointAxesMask,
     pub motor_axes: JointAxesMask,
+    pub coupled_axes: JointAxesMask,
     pub limits: [JointLimits<Real>; SPATIAL_DIM],
     pub motors: [JointMotor; SPATIAL_DIM],
 }
@@ -146,6 +151,7 @@ impl Default for GenericJoint {
             locked_axes: JointAxesMask::empty(),
             limit_axes: JointAxesMask::empty(),
             motor_axes: JointAxesMask::empty(),
+            coupled_axes: JointAxesMask::empty(),
             limits: [JointLimits::default(); SPATIAL_DIM],
             motors: [JointMotor::default(); SPATIAL_DIM],
         }
@@ -445,6 +451,12 @@ impl GenericJointBuilder {
         self
     }
 
+    #[must_use]
+    pub fn coupled_axes(mut self, axes: JointAxesMask) -> Self {
+        self.0.coupled_axes = axes;
+        self
+    }
+
     /// Set the spring-like model used by the motor to reach the desired target velocity and position.
     #[must_use]
     pub fn motor_model(mut self, axis: JointAxis, model: MotorModel) -> Self {
@@ -496,6 +508,12 @@ impl GenericJointBuilder {
 
     #[must_use]
     pub fn build(self) -> GenericJoint {
+        self.0
+    }
+}
+
+impl Into<GenericJoint> for GenericJointBuilder {
+    fn into(self) -> GenericJoint {
         self.0
     }
 }

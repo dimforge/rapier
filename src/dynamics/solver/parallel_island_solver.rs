@@ -14,7 +14,7 @@ use crate::dynamics::{
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Isometry, Real};
-use crate::utils::WAngularInertia;
+use na::DVector;
 
 use super::{DeltaVel, ParallelInteractionGroups, ParallelVelocitySolver};
 
@@ -60,6 +60,25 @@ macro_rules! concurrent_loop {
             }
         }
     };
+
+    (let batch_size = $batch_size: expr;
+        for $elt: ident in &mut $array: ident[$index_stream:expr] $f: expr) => {
+        let max_index = $array.len();
+
+        if max_index > 0 {
+            loop {
+                let start_index = $index_stream.fetch_add($batch_size, Ordering::SeqCst);
+                if start_index > max_index {
+                    break;
+                }
+
+                let end_index = (start_index + $batch_size).min(max_index);
+                for $elt in &mut $array[start_index..end_index] {
+                    $f
+                }
+            }
+        }
+    };
 }
 
 pub(crate) struct ThreadContext {
@@ -73,10 +92,14 @@ pub(crate) struct ThreadContext {
     pub num_solved_interactions: AtomicUsize,
     pub impulse_writeback_index: AtomicUsize,
     pub joint_writeback_index: AtomicUsize,
-    pub body_integration_index: AtomicUsize,
+    pub impulse_rm_bias_index: AtomicUsize,
+    pub joint_rm_bias_index: AtomicUsize,
+    pub body_integration_pos_index: AtomicUsize,
+    pub body_integration_vel_index: AtomicUsize,
     pub body_force_integration_index: AtomicUsize,
     pub num_force_integrated_bodies: AtomicUsize,
-    pub num_integrated_bodies: AtomicUsize,
+    pub num_integrated_pos_bodies: AtomicUsize,
+    pub num_integrated_vel_bodies: AtomicUsize,
 }
 
 impl ThreadContext {
@@ -91,10 +114,14 @@ impl ThreadContext {
             num_solved_interactions: AtomicUsize::new(0),
             impulse_writeback_index: AtomicUsize::new(0),
             joint_writeback_index: AtomicUsize::new(0),
+            impulse_rm_bias_index: AtomicUsize::new(0),
+            joint_rm_bias_index: AtomicUsize::new(0),
             body_force_integration_index: AtomicUsize::new(0),
             num_force_integrated_bodies: AtomicUsize::new(0),
-            body_integration_index: AtomicUsize::new(0),
-            num_integrated_bodies: AtomicUsize::new(0),
+            body_integration_pos_index: AtomicUsize::new(0),
+            body_integration_vel_index: AtomicUsize::new(0),
+            num_integrated_pos_bodies: AtomicUsize::new(0),
+            num_integrated_vel_bodies: AtomicUsize::new(0),
         }
     }
 
@@ -151,12 +178,12 @@ impl ParallelIslandSolver {
         manifold_indices: &'s [ContactManifoldIndex],
         impulse_joints: &'s mut Vec<JointGraphEdge>,
         joint_indices: &[JointIndex],
-        multibody_joints: &mut MultibodyJointSet,
+        multibodies: &mut MultibodyJointSet,
     ) where
         Bodies: ComponentSet<RigidBodyForces>
             + ComponentSetMut<RigidBodyPosition>
             + ComponentSetMut<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
+            + ComponentSetMut<RigidBodyMassProps>
             + ComponentSet<RigidBodyDamping>
             + ComponentSet<RigidBodyIds>
             + ComponentSet<RigidBodyType>,
@@ -182,7 +209,7 @@ impl ParallelIslandSolver {
             island_id,
             islands,
             bodies,
-            multibody_joints,
+            multibodies,
             manifolds,
             &self.parallel_groups,
         );
@@ -190,7 +217,7 @@ impl ParallelIslandSolver {
             island_id,
             islands,
             bodies,
-            multibody_joints,
+            multibodies,
             impulse_joints,
             &self.parallel_joint_groups,
         );
@@ -207,6 +234,7 @@ impl ParallelIslandSolver {
             let velocity_solver =
                 std::sync::atomic::AtomicPtr::new(&mut self.velocity_solver as *mut _);
             let bodies = std::sync::atomic::AtomicPtr::new(bodies as *mut _);
+            let multibodies = std::sync::atomic::AtomicPtr::new(multibodies as *mut _);
             let manifolds = std::sync::atomic::AtomicPtr::new(manifolds as *mut _);
             let impulse_joints = std::sync::atomic::AtomicPtr::new(impulse_joints as *mut _);
             let parallel_contact_constraints =
@@ -220,6 +248,8 @@ impl ParallelIslandSolver {
                     unsafe { std::mem::transmute(velocity_solver.load(Ordering::Relaxed)) };
                 let bodies: &mut Bodies =
                     unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };
+                let multibodies: &mut MultibodyJointSet =
+                    unsafe { std::mem::transmute(multibodies.load(Ordering::Relaxed)) };
                 let manifolds: &mut Vec<&mut ContactManifold> =
                     unsafe { std::mem::transmute(manifolds.load(Ordering::Relaxed)) };
                 let impulse_joints: &mut Vec<JointGraphEdge> =
@@ -257,8 +287,10 @@ impl ParallelIslandSolver {
                 }
 
 
+                let mut j_id = 0; // TODO
+                let mut jacobians = DVector::zeros(0); // TODO
                 parallel_contact_constraints.fill_constraints(&thread, params, bodies, manifolds);
-                parallel_joint_constraints.fill_constraints(&thread, params, bodies, impulse_joints);
+                parallel_joint_constraints.fill_constraints(&thread, params, bodies, multibodies, impulse_joints, &mut j_id, &mut jacobians);
                 ThreadContext::lock_until_ge(
                     &thread.num_initialized_constraints,
                     parallel_contact_constraints.constraint_descs.len(),
@@ -271,42 +303,14 @@ impl ParallelIslandSolver {
                 velocity_solver.solve(
                         &thread,
                         params,
+                        island_id,
+                        islands,
+                        bodies,
                         manifolds,
                         impulse_joints,
                         parallel_contact_constraints,
                         parallel_joint_constraints,
                 );
-
-                // Write results back to rigid bodies and integrate velocities.
-                let island_range = islands.active_island_range(island_id);
-                let active_bodies = &islands.active_dynamic_set[island_range];
-
-                concurrent_loop! {
-                    let batch_size = thread.batch_size;
-                    for handle in active_bodies[thread.body_integration_index, thread.num_integrated_bodies] {
-                        let (rb_ids, rb_pos, rb_vels, rb_damping, rb_mprops): (
-                            &RigidBodyIds,
-                            &RigidBodyPosition,
-                            &RigidBodyVelocity,
-                            &RigidBodyDamping,
-                            &RigidBodyMassProps,
-                        ) = bodies.index_bundle(handle.0);
-
-                        let mut new_rb_pos = *rb_pos;
-                        let mut new_rb_vels = *rb_vels;
-
-                        let dvels = velocity_solver.mj_lambdas[rb_ids.active_set_offset];
-                        new_rb_vels.linvel += dvels.linear;
-                        new_rb_vels.angvel += rb_mprops.effective_world_inv_inertia_sqrt.transform_vector(dvels.angular);
-
-                        let new_rb_vels = new_rb_vels.apply_damping(params.dt, rb_damping);
-                        new_rb_pos.next_position =
-                            new_rb_vels.integrate(params.dt, &rb_pos.position, &rb_mprops.local_mprops.local_com);
-
-                        bodies.set_internal(handle.0, new_rb_vels);
-                        bodies.set_internal(handle.0, new_rb_pos);
-                    }
-                }
             })
         }
     }

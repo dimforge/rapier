@@ -187,7 +187,6 @@ impl ImpulseJointSet {
             data,
             impulses: na::zero(),
             handle: ImpulseJointHandle(handle),
-            #[cfg(feature = "parallel")]
             constraint_index: 0,
         };
 
