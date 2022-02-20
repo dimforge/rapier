@@ -27,12 +27,11 @@ pub fn init_world(testbed: &mut Testbed) {
             .linvel(vector![x * 10.0, y * 10.0, 0.0])
             .angvel(Vector::z() * 100.0)
             .linear_damping((i + 1) as f32 * subdiv * 10.0)
-            .angular_damping((num - i) as f32 * subdiv * 10.0)
-            .build();
+            .angular_damping((num - i) as f32 * subdiv * 10.0);
         let rb_handle = bodies.insert(rb);
 
         // Build the collider.
-        let co = ColliderBuilder::cuboid(rad, rad, rad).build();
+        let co = ColliderBuilder::cuboid(rad, rad, rad);
         colliders.insert_with_parent(co, rb_handle, &mut bodies);
     }
 

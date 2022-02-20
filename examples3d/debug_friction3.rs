@@ -16,20 +16,17 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 100.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static().build();
+    let rigid_body = RigidBodyBuilder::new_static();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size)
-        .friction(1.5)
-        .build();
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).friction(1.5);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     // Build a dynamic box rigid body.
     let rigid_body = RigidBodyBuilder::new_dynamic()
         .translation(vector![0.0, 1.1, 0.0])
-        .rotation(Vector::y() * 0.3)
-        .build();
+        .rotation(Vector::y() * 0.3);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(2.0, 1.0, 3.0).friction(1.5).build();
+    let collider = ColliderBuilder::cuboid(2.0, 1.0, 3.0).friction(1.5);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let rigid_body = &mut bodies[handle];

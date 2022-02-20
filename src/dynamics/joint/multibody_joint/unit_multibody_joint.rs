@@ -26,7 +26,8 @@ pub fn unit_joint_limit_constraint(
 
     let min_enabled = curr_pos < limits[0];
     let max_enabled = limits[1] < curr_pos;
-    let erp_inv_dt = params.erp_inv_dt();
+    let erp_inv_dt = params.joint_erp_inv_dt();
+    let cfm_coeff = params.joint_cfm_coeff();
     let rhs_bias = ((curr_pos - limits[1]).max(0.0) - (limits[0] - curr_pos).max(0.0)) * erp_inv_dt;
     let rhs_wo_bias = joint_velocity[dof_id];
 
@@ -54,6 +55,8 @@ pub fn unit_joint_limit_constraint(
         inv_lhs: crate::utils::inv(lhs),
         rhs: rhs_wo_bias + rhs_bias,
         rhs_wo_bias,
+        cfm_coeff,
+        cfm_gain: 0.0,
         writeback_id: WritebackId::Limit(dof_id),
     };
 
@@ -71,11 +74,13 @@ pub fn unit_joint_motor_constraint(
     link: &MultibodyLink,
     motor: &JointMotor,
     curr_pos: Real,
+    limits: Option<[Real; 2]>,
     dof_id: usize,
     j_id: &mut usize,
     jacobians: &mut DVector<Real>,
     constraints: &mut Vec<AnyJointVelocityConstraint>,
 ) {
+    let inv_dt = params.inv_dt();
     let ndofs = multibody.ndofs();
     let joint_velocity = multibody.joint_velocity(link);
 
@@ -93,14 +98,20 @@ pub fn unit_joint_motor_constraint(
     let impulse_bounds = [-motor_params.max_impulse, motor_params.max_impulse];
 
     let mut rhs_wo_bias = 0.0;
-    if motor_params.stiffness != 0.0 {
-        rhs_wo_bias += (curr_pos - motor_params.target_pos) * motor_params.stiffness;
+    if motor_params.erp_inv_dt != 0.0 {
+        rhs_wo_bias += (curr_pos - motor_params.target_pos) * motor_params.erp_inv_dt;
     }
 
-    if motor_params.damping != 0.0 {
-        let dvel = joint_velocity[dof_id];
-        rhs_wo_bias += (dvel - motor_params.target_vel) * motor_params.damping;
-    }
+    let mut target_vel = motor_params.target_vel;
+    if let Some(limits) = limits {
+        target_vel = target_vel.clamp(
+            (limits[0] - curr_pos) * inv_dt,
+            (limits[1] - curr_pos) * inv_dt,
+        );
+    };
+
+    let dvel = joint_velocity[dof_id];
+    rhs_wo_bias += dvel - target_vel;
 
     let constraint = JointGenericVelocityGroundConstraint {
         mj_lambda2: multibody.solver_id,
@@ -109,6 +120,8 @@ pub fn unit_joint_motor_constraint(
         joint_id: usize::MAX,
         impulse: 0.0,
         impulse_bounds,
+        cfm_coeff: motor_params.cfm_coeff,
+        cfm_gain: motor_params.cfm_gain,
         inv_lhs: crate::utils::inv(lhs),
         rhs: rhs_wo_bias,
         rhs_wo_bias,

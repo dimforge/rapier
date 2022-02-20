@@ -18,10 +18,6 @@ pub struct IntegrationParameters {
     /// to numerical instabilities.
     pub min_ccd_dt: Real,
 
-    /// 0-1: how much of the velocity to dampen out in the constraint solver?
-    /// (default `1.0`).
-    pub velocity_solve_fraction: Real,
-
     /// 0-1: multiplier for how much of the constraint violation (e.g. contact penetration)
     /// will be compensated for during the velocity solve.
     /// If zero, you need to enable the positional solver.
@@ -34,6 +30,9 @@ pub struct IntegrationParameters {
     /// before stabilization).
     /// (default `0.25`).
     pub damping_ratio: Real,
+
+    pub joint_erp: Real,
+    pub joint_damping_ratio: Real,
 
     /// Amount of penetration the engine wont attempt to correct (default: `0.001m`).
     pub allowed_linear_error: Real,
@@ -89,12 +88,17 @@ impl IntegrationParameters {
 
     /// The ERP coefficient, multiplied by the inverse timestep length.
     pub fn erp_inv_dt(&self) -> Real {
-        0.8 / self.dt
+        self.erp / self.dt
+    }
+
+    /// The joint ERP coefficient, multiplied by the inverse timestep length.
+    pub fn joint_erp_inv_dt(&self) -> Real {
+        self.joint_erp / self.dt
     }
 
     /// The CFM factor to be used in the constraints resolution.
     pub fn cfm_factor(&self) -> Real {
-        // Compute CFM assuming a critically damped spring multiplied by the dampingratio.
+        // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
         let inv_erp_minus_one = 1.0 / self.erp - 1.0;
 
         // let stiffness = 4.0 * damping_ratio * damping_ratio * projected_mass
@@ -124,6 +128,16 @@ impl IntegrationParameters {
         // in the constraints solver.
         1.0 / (1.0 + cfm_coeff)
     }
+
+    pub fn joint_cfm_coeff(&self) -> Real {
+        // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
+        let inv_erp_minus_one = 1.0 / self.joint_erp - 1.0;
+        inv_erp_minus_one * inv_erp_minus_one
+            / ((1.0 + inv_erp_minus_one)
+                * 4.0
+                * self.joint_damping_ratio
+                * self.joint_damping_ratio)
+    }
 }
 
 impl Default for IntegrationParameters {
@@ -131,9 +145,10 @@ impl Default for IntegrationParameters {
         Self {
             dt: 1.0 / 60.0,
             min_ccd_dt: 1.0 / 60.0 / 100.0,
-            velocity_solve_fraction: 1.0,
             erp: 0.8,
             damping_ratio: 0.25,
+            joint_erp: 1.0,
+            joint_damping_ratio: 1.0,
             allowed_linear_error: 0.001, // 0.005
             prediction_distance: 0.002,
             max_velocity_iterations: 4,

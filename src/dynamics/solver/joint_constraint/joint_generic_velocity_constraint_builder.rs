@@ -113,7 +113,7 @@ impl JointVelocityConstraintBuilder<Real> {
             j.copy_from(&wj);
         }
 
-        let rhs_wo_bias = (vel2 - vel1) * params.velocity_solve_fraction;
+        let rhs_wo_bias = vel2 - vel1;
 
         let mj_lambda1 = mb1.map(|m| m.0.solver_id).unwrap_or(body1.mj_lambda[0]);
         let mj_lambda2 = mb2.map(|m| m.0.solver_id).unwrap_or(body2.mj_lambda[0]);
@@ -133,6 +133,8 @@ impl JointVelocityConstraintBuilder<Real> {
             inv_lhs: 0.0,
             rhs: rhs_wo_bias,
             rhs_wo_bias,
+            cfm_coeff: 0.0,
+            cfm_gain: 0.0,
             writeback_id,
         }
     }
@@ -169,7 +171,7 @@ impl JointVelocityConstraintBuilder<Real> {
             ang_jac2,
         );
 
-        let erp_inv_dt = params.erp_inv_dt();
+        let erp_inv_dt = params.joint_erp_inv_dt();
         let rhs_bias = lin_jac.dot(&self.lin_err) * erp_inv_dt;
         c.rhs += rhs_bias;
         c
@@ -212,7 +214,7 @@ impl JointVelocityConstraintBuilder<Real> {
         let min_enabled = dist < limits[0];
         let max_enabled = limits[1] < dist;
 
-        let erp_inv_dt = params.erp_inv_dt();
+        let erp_inv_dt = params.joint_erp_inv_dt();
         let rhs_bias = ((dist - limits[1]).max(0.0) - (limits[0] - dist).max(0.0)) * erp_inv_dt;
         constraint.rhs += rhs_bias;
         constraint.impulse_bounds = [
@@ -265,20 +267,20 @@ impl JointVelocityConstraintBuilder<Real> {
         );
 
         let mut rhs_wo_bias = 0.0;
-        if motor_params.stiffness != 0.0 {
+        if motor_params.erp_inv_dt != 0.0 {
             let dist = self.lin_err.dot(&lin_jac);
-            rhs_wo_bias += (dist - motor_params.target_pos) * motor_params.stiffness;
+            rhs_wo_bias += (dist - motor_params.target_pos) * motor_params.erp_inv_dt;
         }
 
-        if motor_params.damping != 0.0 {
-            let dvel = lin_jac.dot(&(body2.linvel - body1.linvel))
-                + (ang_jac2.gdot(body2.angvel) - ang_jac1.gdot(body1.angvel));
-            rhs_wo_bias += (dvel - motor_params.target_vel) * motor_params.damping;
-        }
+        let dvel = lin_jac.dot(&(body2.linvel - body1.linvel))
+            + (ang_jac2.gdot(body2.angvel) - ang_jac1.gdot(body1.angvel));
+        rhs_wo_bias += dvel - motor_params.target_vel;
 
         constraint.impulse_bounds = [-motor_params.max_impulse, motor_params.max_impulse];
         constraint.rhs = rhs_wo_bias;
         constraint.rhs_wo_bias = rhs_wo_bias;
+        constraint.cfm_coeff = motor_params.cfm_coeff;
+        constraint.cfm_gain = motor_params.cfm_gain;
         constraint
     }
 
@@ -312,7 +314,7 @@ impl JointVelocityConstraintBuilder<Real> {
             ang_jac,
         );
 
-        let erp_inv_dt = params.erp_inv_dt();
+        let erp_inv_dt = params.joint_erp_inv_dt();
         #[cfg(feature = "dim2")]
         let rhs_bias = self.ang_err.im * erp_inv_dt;
         #[cfg(feature = "dim3")]
@@ -364,7 +366,7 @@ impl JointVelocityConstraintBuilder<Real> {
             max_enabled as u32 as Real * Real::MAX,
         ];
 
-        let erp_inv_dt = params.erp_inv_dt();
+        let erp_inv_dt = params.joint_erp_inv_dt();
         let rhs_bias =
             ((s_ang - s_limits[1]).max(0.0) - (s_limits[0] - s_ang).max(0.0)) * erp_inv_dt;
 
@@ -409,22 +411,22 @@ impl JointVelocityConstraintBuilder<Real> {
         );
 
         let mut rhs_wo_bias = 0.0;
-        if motor_params.stiffness != 0.0 {
+        if motor_params.erp_inv_dt != 0.0 {
             #[cfg(feature = "dim2")]
             let s_ang_dist = self.ang_err.im;
             #[cfg(feature = "dim3")]
             let s_ang_dist = self.ang_err.imag()[_motor_axis];
             let s_target_ang = motor_params.target_pos.sin();
-            rhs_wo_bias += (s_ang_dist - s_target_ang) * motor_params.stiffness;
+            rhs_wo_bias += (s_ang_dist - s_target_ang) * motor_params.erp_inv_dt;
         }
 
-        if motor_params.damping != 0.0 {
-            let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
-            rhs_wo_bias += (dvel - motor_params.target_vel * ang_jac.norm()) * motor_params.damping;
-        }
+        let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
+        rhs_wo_bias += dvel - motor_params.target_vel;
 
         constraint.rhs_wo_bias = rhs_wo_bias;
         constraint.rhs = rhs_wo_bias;
+        constraint.cfm_coeff = motor_params.cfm_coeff;
+        constraint.cfm_gain = motor_params.cfm_gain;
         constraint.impulse_bounds = [-motor_params.max_impulse, motor_params.max_impulse];
         constraint
     }
@@ -436,6 +438,11 @@ impl JointVelocityConstraintBuilder<Real> {
         // TODO: orthogonalization doesn’t seem to give good results for multibodies?
         const ORTHOGONALIZE: bool = false;
         let len = constraints.len();
+
+        if len == 0 {
+            return;
+        }
+
         let ndofs1 = constraints[0].ndofs1;
         let ndofs2 = constraints[0].ndofs2;
 
@@ -449,8 +456,10 @@ impl JointVelocityConstraintBuilder<Real> {
             let w_jac_j2 = jacobians.rows(c_j.j_id2 + ndofs2, ndofs2);
 
             let dot_jj = jac_j1.dot(&w_jac_j1) + jac_j2.dot(&w_jac_j2);
-            let inv_dot_jj = crate::utils::inv(dot_jj);
-            c_j.inv_lhs = inv_dot_jj; // Don’t forget to update the inv_lhs.
+            let cfm_gain = dot_jj * c_j.cfm_coeff + c_j.cfm_gain;
+            let inv_dot_jj = crate::utils::simd_inv(dot_jj);
+            c_j.inv_lhs = crate::utils::simd_inv(dot_jj + cfm_gain); // Don’t forget to update the inv_lhs.
+            c_j.cfm_gain = cfm_gain;
 
             if c_j.impulse_bounds != [-Real::MAX, Real::MAX] {
                 // Don't remove constraints with limited forces from the others
@@ -510,7 +519,7 @@ impl JointVelocityConstraintBuilder<Real> {
         let vel2 = mb2
             .fill_jacobians(link_id2, lin_jac, ang_jac2, j_id, jacobians)
             .1;
-        let rhs_wo_bias = (vel2 - vel1) * params.velocity_solve_fraction;
+        let rhs_wo_bias = vel2 - vel1;
 
         let mj_lambda2 = mb2.solver_id;
 
@@ -524,6 +533,8 @@ impl JointVelocityConstraintBuilder<Real> {
             inv_lhs: 0.0,
             rhs: rhs_wo_bias,
             rhs_wo_bias,
+            cfm_coeff: 0.0,
+            cfm_gain: 0.0,
             writeback_id,
         }
     }
@@ -556,7 +567,7 @@ impl JointVelocityConstraintBuilder<Real> {
             ang_jac2,
         );
 
-        let erp_inv_dt = params.erp_inv_dt();
+        let erp_inv_dt = params.joint_erp_inv_dt();
         let rhs_bias = lin_jac.dot(&self.lin_err) * erp_inv_dt;
         c.rhs += rhs_bias;
         c
@@ -595,7 +606,7 @@ impl JointVelocityConstraintBuilder<Real> {
         let min_enabled = dist < limits[0];
         let max_enabled = limits[1] < dist;
 
-        let erp_inv_dt = params.erp_inv_dt();
+        let erp_inv_dt = params.joint_erp_inv_dt();
         let rhs_bias = ((dist - limits[1]).max(0.0) - (limits[0] - dist).max(0.0)) * erp_inv_dt;
         constraint.rhs += rhs_bias;
         constraint.impulse_bounds = [
@@ -645,20 +656,20 @@ impl JointVelocityConstraintBuilder<Real> {
         );
 
         let mut rhs_wo_bias = 0.0;
-        if motor_params.stiffness != 0.0 {
+        if motor_params.erp_inv_dt != 0.0 {
             let dist = self.lin_err.dot(&lin_jac);
-            rhs_wo_bias += (dist - motor_params.target_pos) * motor_params.stiffness;
+            rhs_wo_bias += (dist - motor_params.target_pos) * motor_params.erp_inv_dt;
         }
 
-        if motor_params.damping != 0.0 {
-            let dvel = lin_jac.dot(&(body2.linvel - body1.linvel))
-                + (ang_jac2.gdot(body2.angvel) - ang_jac1.gdot(body1.angvel));
-            rhs_wo_bias += (dvel - motor_params.target_vel) * motor_params.damping;
-        }
+        let dvel = lin_jac.dot(&(body2.linvel - body1.linvel))
+            + (ang_jac2.gdot(body2.angvel) - ang_jac1.gdot(body1.angvel));
+        rhs_wo_bias += dvel - motor_params.target_vel;
 
         constraint.impulse_bounds = [-motor_params.max_impulse, motor_params.max_impulse];
         constraint.rhs = rhs_wo_bias;
         constraint.rhs_wo_bias = rhs_wo_bias;
+        constraint.cfm_coeff = motor_params.cfm_coeff;
+        constraint.cfm_gain = motor_params.cfm_gain;
         constraint
     }
 
@@ -688,7 +699,7 @@ impl JointVelocityConstraintBuilder<Real> {
             ang_jac,
         );
 
-        let erp_inv_dt = params.erp_inv_dt();
+        let erp_inv_dt = params.joint_erp_inv_dt();
         #[cfg(feature = "dim2")]
         let rhs_bias = self.ang_err.im * erp_inv_dt;
         #[cfg(feature = "dim3")]
@@ -736,7 +747,7 @@ impl JointVelocityConstraintBuilder<Real> {
             max_enabled as u32 as Real * Real::MAX,
         ];
 
-        let erp_inv_dt = params.erp_inv_dt();
+        let erp_inv_dt = params.joint_erp_inv_dt();
         let rhs_bias =
             ((s_ang - s_limits[1]).max(0.0) - (s_limits[0] - s_ang).max(0.0)) * erp_inv_dt;
 
@@ -778,22 +789,22 @@ impl JointVelocityConstraintBuilder<Real> {
         );
 
         let mut rhs = 0.0;
-        if motor_params.stiffness != 0.0 {
+        if motor_params.erp_inv_dt != 0.0 {
             #[cfg(feature = "dim2")]
             let s_ang_dist = self.ang_err.im;
             #[cfg(feature = "dim3")]
             let s_ang_dist = self.ang_err.imag()[_motor_axis];
             let s_target_ang = motor_params.target_pos.sin();
-            rhs += (s_ang_dist - s_target_ang) * motor_params.stiffness;
+            rhs += (s_ang_dist - s_target_ang) * motor_params.erp_inv_dt;
         }
 
-        if motor_params.damping != 0.0 {
-            let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
-            rhs += (dvel - motor_params.target_vel * ang_jac.norm()) * motor_params.damping;
-        }
+        let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
+        rhs += dvel - motor_params.target_vel;
 
         constraint.rhs_wo_bias = rhs;
         constraint.rhs = rhs;
+        constraint.cfm_coeff = motor_params.cfm_coeff;
+        constraint.cfm_gain = motor_params.cfm_gain;
         constraint.impulse_bounds = [-motor_params.max_impulse, motor_params.max_impulse];
         constraint
     }
@@ -805,6 +816,11 @@ impl JointVelocityConstraintBuilder<Real> {
         // TODO: orthogonalization doesn’t seem to give good results for multibodies?
         const ORTHOGONALIZE: bool = false;
         let len = constraints.len();
+
+        if len == 0 {
+            return;
+        }
+
         let ndofs2 = constraints[0].ndofs2;
 
         // Use the modified Gramm-Schmidt orthogonalization.
@@ -815,8 +831,10 @@ impl JointVelocityConstraintBuilder<Real> {
             let w_jac_j2 = jacobians.rows(c_j.j_id2 + ndofs2, ndofs2);
 
             let dot_jj = jac_j2.dot(&w_jac_j2);
-            let inv_dot_jj = crate::utils::inv(dot_jj);
-            c_j.inv_lhs = inv_dot_jj; // Don’t forget to update the inv_lhs.
+            let cfm_gain = dot_jj * c_j.cfm_coeff + c_j.cfm_gain;
+            let inv_dot_jj = crate::utils::simd_inv(dot_jj);
+            c_j.inv_lhs = crate::utils::simd_inv(dot_jj + cfm_gain); // Don’t forget to update the inv_lhs.
+            c_j.cfm_gain = cfm_gain;
 
             if c_j.impulse_bounds != [-Real::MAX, Real::MAX] {
                 // Don't remove constraints with limited forces from the others

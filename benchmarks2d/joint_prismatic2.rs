@@ -24,21 +24,17 @@ pub fn init_world(testbed: &mut Testbed) {
         for j in 0..50 {
             let x = j as f32 * shift * 4.0;
 
-            let ground = RigidBodyBuilder::new_static()
-                .translation(vector![x, y])
-                .build();
+            let ground = RigidBodyBuilder::new_static().translation(vector![x, y]);
             let mut curr_parent = bodies.insert(ground);
-            let collider = ColliderBuilder::cuboid(rad, rad).build();
+            let collider = ColliderBuilder::cuboid(rad, rad);
             colliders.insert_with_parent(collider, curr_parent, &mut bodies);
 
             for i in 0..num {
                 let y = y - (i + 1) as f32 * shift;
                 let density = 1.0;
-                let rigid_body = RigidBodyBuilder::new_dynamic()
-                    .translation(vector![x, y])
-                    .build();
+                let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y]);
                 let curr_child = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::cuboid(rad, rad).density(density).build();
+                let collider = ColliderBuilder::cuboid(rad, rad).density(density);
                 colliders.insert_with_parent(collider, curr_child, &mut bodies);
 
                 let axis = if i % 2 == 0 {
@@ -47,9 +43,9 @@ pub fn init_world(testbed: &mut Testbed) {
                     UnitVector::new_normalize(vector![-1.0, 1.0])
                 };
 
-                let prism = PrismaticJoint::new(axis)
+                let prism = PrismaticJointBuilder::new(axis)
                     .local_anchor2(point![0.0, shift])
-                    .limit_axis([-1.5, 1.5]);
+                    .limits([-1.5, 1.5]);
                 impulse_joints.insert(curr_parent, curr_child, prism);
 
                 curr_parent = curr_child;

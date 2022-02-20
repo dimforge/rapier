@@ -16,30 +16,56 @@ pub mod plugin;
 pub struct RunState {
     #[cfg(feature = "parallel")]
     pub thread_pool: rapier::rayon::ThreadPool,
-    pub num_threads: usize,
+    #[cfg(feature = "parallel")]
+    num_threads: usize,
     pub timestep_id: usize,
     pub time: f32,
 }
 
 impl RunState {
+    #[cfg(feature = "parallel")]
     pub fn new() -> Self {
-        #[cfg(feature = "parallel")]
         let num_threads = num_cpus::get_physical();
-        #[cfg(not(feature = "parallel"))]
-        let num_threads = 1;
 
-        #[cfg(feature = "parallel")]
         let thread_pool = rapier::rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .build()
             .unwrap();
 
         Self {
-            #[cfg(feature = "parallel")]
             thread_pool: thread_pool,
             num_threads,
             timestep_id: 0,
             time: 0.0,
+        }
+    }
+
+    #[cfg(not(feature = "parallel"))]
+    pub fn new() -> Self {
+        Self {
+            timestep_id: 0,
+            time: 0.0,
+        }
+    }
+
+    #[cfg(feature = "parallel")]
+    pub fn num_threads(&self) -> usize {
+        self.num_threads
+    }
+
+    #[cfg(not(feature = "parallel"))]
+    pub fn num_threads(&self) -> usize {
+        1
+    }
+
+    #[cfg(feature = "parallel")]
+    pub fn set_num_threads(&mut self, num_threads: usize) {
+        if self.num_threads != num_threads {
+            self.thread_pool = rapier::rayon::ThreadPoolBuilder::new()
+                .num_threads(num_threads)
+                .build()
+                .unwrap();
+            self.num_threads = num_threads;
         }
     }
 }

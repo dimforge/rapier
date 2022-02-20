@@ -68,18 +68,16 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let rigid_body = RigidBodyBuilder::new_static().build();
+    let rigid_body = RigidBodyBuilder::new_static();
     let handle = bodies.insert(rigid_body);
 
     let collider = ColliderBuilder::cuboid(25.0, 0.5)
         .translation(vector![30.0, 2.0])
-        .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS)
-        .build();
+        .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS);
     let platform1 = colliders.insert_with_parent(collider, handle, &mut bodies);
     let collider = ColliderBuilder::cuboid(25.0, 0.5)
         .translation(vector![-30.0, -2.0])
-        .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS)
-        .build();
+        .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS);
     let platform2 = colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
@@ -97,10 +95,8 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.add_callback(move |graphics, physics, _, run_state| {
         if run_state.timestep_id % 50 == 0 && physics.bodies.len() <= 7 {
             // Spawn a new cube.
-            let collider = ColliderBuilder::cuboid(1.5, 2.0).build();
-            let body = RigidBodyBuilder::new_dynamic()
-                .translation(vector![20.0, 10.0])
-                .build();
+            let collider = ColliderBuilder::cuboid(1.5, 2.0);
+            let body = RigidBodyBuilder::new_dynamic().translation(vector![20.0, 10.0]);
             let handle = physics.bodies.insert(body);
             physics
                 .colliders

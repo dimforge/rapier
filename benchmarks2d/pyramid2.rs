@@ -16,9 +16,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 100.0;
     let ground_thickness = 1.0;
 
-    let rigid_body = RigidBodyBuilder::new_static().build();
+    let rigid_body = RigidBodyBuilder::new_static();
     let ground_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_thickness).build();
+    let collider = ColliderBuilder::cuboid(ground_size, ground_thickness);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
@@ -39,11 +39,9 @@ pub fn init_world(testbed: &mut Testbed) {
             let y = fi * shift + centery;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic()
-                .translation(vector![x, y])
-                .build();
+            let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y]);
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad).build();
+            let collider = ColliderBuilder::cuboid(rad, rad);
             colliders.insert_with_parent(collider, handle, &mut bodies);
         }
     }

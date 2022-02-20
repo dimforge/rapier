@@ -1,91 +1,215 @@
-use crate::dynamics::joint::{JointAxesMask, JointData};
+use crate::dynamics::joint::{GenericJoint, GenericJointBuilder, JointAxesMask};
 use crate::dynamics::{JointAxis, MotorModel};
 use crate::math::{Point, Real, UnitVector};
 
+use super::{JointLimits, JointMotor};
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
+#[repr(transparent)]
 pub struct PrismaticJoint {
-    data: JointData,
+    data: GenericJoint,
 }
 
 impl PrismaticJoint {
     pub fn new(axis: UnitVector<Real>) -> Self {
-        #[cfg(feature = "dim2")]
-        let mask = JointAxesMask::Y | JointAxesMask::ANG_X;
-        #[cfg(feature = "dim3")]
-        let mask = JointAxesMask::Y
-            | JointAxesMask::Z
-            | JointAxesMask::ANG_X
-            | JointAxesMask::ANG_Y
-            | JointAxesMask::ANG_Z;
-
-        let data = JointData::default()
-            .lock_axes(mask)
+        let data = GenericJointBuilder::new(JointAxesMask::LOCKED_PRISMATIC_AXES)
             .local_axis1(axis)
-            .local_axis2(axis);
+            .local_axis2(axis)
+            .build();
         Self { data }
     }
 
     #[must_use]
+    pub fn local_anchor1(&self) -> Point<Real> {
+        self.data.local_anchor1()
+    }
+
+    pub fn set_local_anchor1(&mut self, anchor1: Point<Real>) -> &mut Self {
+        self.data.set_local_anchor1(anchor1);
+        self
+    }
+
+    #[must_use]
+    pub fn local_anchor2(&self) -> Point<Real> {
+        self.data.local_anchor2()
+    }
+
+    pub fn set_local_anchor2(&mut self, anchor2: Point<Real>) -> &mut Self {
+        self.data.set_local_anchor2(anchor2);
+        self
+    }
+
+    #[must_use]
+    pub fn local_axis1(&self) -> UnitVector<Real> {
+        self.data.local_axis1()
+    }
+
+    pub fn set_local_axis1(&mut self, axis1: UnitVector<Real>) -> &mut Self {
+        self.data.set_local_axis1(axis1);
+        self
+    }
+
+    #[must_use]
+    pub fn local_axis2(&self) -> UnitVector<Real> {
+        self.data.local_axis2()
+    }
+
+    pub fn set_local_axis2(&mut self, axis2: UnitVector<Real>) -> &mut Self {
+        self.data.set_local_axis2(axis2);
+        self
+    }
+
+    #[must_use]
+    pub fn motor(&self) -> Option<&JointMotor> {
+        self.data.motor(JointAxis::X)
+    }
+
+    /// Set the spring-like model used by the motor to reach the desired target velocity and position.
+    pub fn set_motor_model(&mut self, model: MotorModel) -> &mut Self {
+        self.data.set_motor_model(JointAxis::X, model);
+        self
+    }
+
+    /// Sets the target velocity this motor needs to reach.
+    pub fn set_motor_velocity(&mut self, target_vel: Real, factor: Real) -> &mut Self {
+        self.data
+            .set_motor_velocity(JointAxis::X, target_vel, factor);
+        self
+    }
+
+    /// Sets the target angle this motor needs to reach.
+    pub fn set_motor_position(
+        &mut self,
+        target_pos: Real,
+        stiffness: Real,
+        damping: Real,
+    ) -> &mut Self {
+        self.data
+            .set_motor_position(JointAxis::X, target_pos, stiffness, damping);
+        self
+    }
+
+    /// Configure both the target angle and target velocity of the motor.
+    pub fn set_motor(
+        &mut self,
+        target_pos: Real,
+        target_vel: Real,
+        stiffness: Real,
+        damping: Real,
+    ) -> &mut Self {
+        self.data
+            .set_motor(JointAxis::X, target_pos, target_vel, stiffness, damping);
+        self
+    }
+
+    pub fn set_motor_max_force(&mut self, max_force: Real) -> &mut Self {
+        self.data.set_motor_max_force(JointAxis::X, max_force);
+        self
+    }
+
+    #[must_use]
+    pub fn limits(&self) -> Option<&JointLimits<Real>> {
+        self.data.limits(JointAxis::X)
+    }
+
+    pub fn set_limits(&mut self, limits: [Real; 2]) -> &mut Self {
+        self.data.set_limits(JointAxis::X, limits);
+        self
+    }
+}
+
+impl Into<GenericJoint> for PrismaticJoint {
+    fn into(self) -> GenericJoint {
+        self.data
+    }
+}
+
+pub struct PrismaticJointBuilder(PrismaticJoint);
+
+impl PrismaticJointBuilder {
+    pub fn new(axis: UnitVector<Real>) -> Self {
+        Self(PrismaticJoint::new(axis))
+    }
+
+    #[must_use]
     pub fn local_anchor1(mut self, anchor1: Point<Real>) -> Self {
-        self.data = self.data.local_anchor1(anchor1);
+        self.0.set_local_anchor1(anchor1);
         self
     }
 
     #[must_use]
     pub fn local_anchor2(mut self, anchor2: Point<Real>) -> Self {
-        self.data = self.data.local_anchor2(anchor2);
+        self.0.set_local_anchor2(anchor2);
+        self
+    }
+
+    #[must_use]
+    pub fn local_axis1(mut self, axis1: UnitVector<Real>) -> Self {
+        self.0.set_local_axis1(axis1);
+        self
+    }
+
+    #[must_use]
+    pub fn local_axis2(mut self, axis2: UnitVector<Real>) -> Self {
+        self.0.set_local_axis2(axis2);
         self
     }
 
     /// Set the spring-like model used by the motor to reach the desired target velocity and position.
+    #[must_use]
     pub fn motor_model(mut self, model: MotorModel) -> Self {
-        self.data = self.data.motor_model(JointAxis::X, model);
+        self.0.set_motor_model(model);
         self
     }
 
     /// Sets the target velocity this motor needs to reach.
+    #[must_use]
     pub fn motor_velocity(mut self, target_vel: Real, factor: Real) -> Self {
-        self.data = self.data.motor_velocity(JointAxis::X, target_vel, factor);
+        self.0.set_motor_velocity(target_vel, factor);
         self
     }
 
     /// Sets the target angle this motor needs to reach.
+    #[must_use]
     pub fn motor_position(mut self, target_pos: Real, stiffness: Real, damping: Real) -> Self {
-        self.data = self
-            .data
-            .motor_position(JointAxis::X, target_pos, stiffness, damping);
+        self.0.set_motor_position(target_pos, stiffness, damping);
         self
     }
 
     /// Configure both the target angle and target velocity of the motor.
-    pub fn motor_axis(
+    #[must_use]
+    pub fn set_motor(
         mut self,
         target_pos: Real,
         target_vel: Real,
         stiffness: Real,
         damping: Real,
     ) -> Self {
-        self.data = self
-            .data
-            .motor_axis(JointAxis::X, target_pos, target_vel, stiffness, damping);
-        self
-    }
-
-    pub fn motor_max_impulse(mut self, max_impulse: Real) -> Self {
-        self.data = self.data.motor_max_impulse(JointAxis::X, max_impulse);
+        self.0.set_motor(target_pos, target_vel, stiffness, damping);
         self
     }
 
     #[must_use]
-    pub fn limit_axis(mut self, limits: [Real; 2]) -> Self {
-        self.data = self.data.limit_axis(JointAxis::X, limits);
+    pub fn motor_max_force(mut self, max_force: Real) -> Self {
+        self.0.set_motor_max_force(max_force);
         self
+    }
+
+    #[must_use]
+    pub fn limits(mut self, limits: [Real; 2]) -> Self {
+        self.0.set_limits(limits);
+        self
+    }
+
+    #[must_use]
+    pub fn build(self) -> PrismaticJoint {
+        self.0
     }
 }
 
-impl Into<JointData> for PrismaticJoint {
-    fn into(self) -> JointData {
-        self.data
+impl Into<GenericJoint> for PrismaticJointBuilder {
+    fn into(self) -> GenericJoint {
+        self.0.into()
     }
 }

@@ -1,6 +1,6 @@
 use super::VelocitySolver;
 use crate::counters::Counters;
-use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
+use crate::data::{ComponentSet, ComponentSetMut};
 use crate::dynamics::solver::{
     AnyGenericVelocityConstraint, AnyJointVelocityConstraint, AnyVelocityConstraint,
     SolverConstraints,

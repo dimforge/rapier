@@ -1096,3 +1096,9 @@ impl RigidBodyBuilder {
         rb
     }
 }
+
+impl Into<RigidBody> for RigidBodyBuilder {
+    fn into(self) -> RigidBody {
+        self.build()
+    }
+}

@@ -3,8 +3,8 @@ use crate::geometry::{InteractionGraph, RigidBodyGraphIndex, TemporaryInteractio
 
 use crate::data::arena::Arena;
 use crate::data::{BundleSet, Coarena, ComponentSet, ComponentSetMut};
+use crate::dynamics::{GenericJoint, RigidBodyHandle};
 use crate::dynamics::{IslandManager, RigidBodyActivation, RigidBodyIds, RigidBodyType};
-use crate::dynamics::{JointData, RigidBodyHandle};
 
 /// The unique identifier of a joint added to the joint set.
 /// The unique identifier of a collider added to a collider set.
@@ -177,7 +177,7 @@ impl ImpulseJointSet {
         &mut self,
         body1: RigidBodyHandle,
         body2: RigidBodyHandle,
-        data: impl Into<JointData>,
+        data: impl Into<GenericJoint>,
     ) -> ImpulseJointHandle {
         let data = data.into();
         let handle = self.joint_ids.insert(0.into());

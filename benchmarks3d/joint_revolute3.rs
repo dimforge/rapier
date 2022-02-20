@@ -20,11 +20,9 @@ pub fn init_world(testbed: &mut Testbed) {
         for j in 0..50 {
             let x = j as f32 * shift * 4.0;
 
-            let ground = RigidBodyBuilder::new_static()
-                .translation(vector![x, y, 0.0])
-                .build();
+            let ground = RigidBodyBuilder::new_static().translation(vector![x, y, 0.0]);
             let mut curr_parent = bodies.insert(ground);
-            let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
+            let collider = ColliderBuilder::cuboid(rad, rad, rad);
             colliders.insert_with_parent(collider, curr_parent, &mut bodies);
 
             for i in 0..num {
@@ -40,13 +38,9 @@ pub fn init_world(testbed: &mut Testbed) {
                 let mut handles = [curr_parent; 4];
                 for k in 0..4 {
                     let density = 1.0;
-                    let rigid_body = RigidBodyBuilder::new_dynamic()
-                        .position(positions[k])
-                        .build();
+                    let rigid_body = RigidBodyBuilder::new_dynamic().position(positions[k]);
                     handles[k] = bodies.insert(rigid_body);
-                    let collider = ColliderBuilder::cuboid(rad, rad, rad)
-                        .density(density)
-                        .build();
+                    let collider = ColliderBuilder::cuboid(rad, rad, rad).density(density);
                     colliders.insert_with_parent(collider, handles[k], &mut bodies);
                 }
 
@@ -55,10 +49,10 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = Vector::z_axis();
 
                 let revs = [
-                    RevoluteJoint::new(z).local_anchor2(point![0.0, 0.0, -shift]),
-                    RevoluteJoint::new(x).local_anchor2(point![-shift, 0.0, 0.0]),
-                    RevoluteJoint::new(z).local_anchor2(point![0.0, 0.0, -shift]),
-                    RevoluteJoint::new(x).local_anchor2(point![shift, 0.0, 0.0]),
+                    RevoluteJointBuilder::new(z).local_anchor2(point![0.0, 0.0, -shift]),
+                    RevoluteJointBuilder::new(x).local_anchor2(point![-shift, 0.0, 0.0]),
+                    RevoluteJointBuilder::new(z).local_anchor2(point![0.0, 0.0, -shift]),
+                    RevoluteJointBuilder::new(x).local_anchor2(point![shift, 0.0, 0.0]),
                 ];
 
                 impulse_joints.insert(curr_parent, handles[0], revs[0]);

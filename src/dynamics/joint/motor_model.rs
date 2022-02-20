@@ -5,57 +5,40 @@ use crate::math::Real;
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub enum MotorModel {
     /// The solved spring-like equation is:
-    /// `delta_velocity(t + dt) = stiffness / dt * (target_pos - pos(t)) + damping * (target_vel - vel(t))`
-    ///
-    /// Here the `stiffness` is the ratio of position error to be solved at each timestep (like
-    /// a velocity-based ERP), and the `damping` is the ratio of velocity error to be solved at
-    /// each timestep.
-    VelocityBased,
-    /// The solved spring-like equation is:
-    /// `acceleration(t + dt) = stiffness * (target_pos - pos(t)) + damping * (target_vel - vel(t))`
+    /// `acceleration = stiffness * (pos - target_pos) + damping * (vel - target_vel)`
     AccelerationBased,
-    // /// The solved spring-like equation is:
-    // /// `force(t + dt) = stiffness * (target_pos - pos(t + dt)) + damping * (target_vel - vel(t + dt))`
-    // ForceBased,
+    /// The solved spring-like equation is:
+    /// `force = stiffness * (pos - target_pos) + damping * (vel - target_vel)`
+    ForceBased,
 }
 
 impl Default for MotorModel {
     fn default() -> Self {
-        MotorModel::VelocityBased
+        MotorModel::AccelerationBased
     }
 }
 
 impl MotorModel {
     /// Combines the coefficients used for solving the spring equation.
     ///
-    /// Returns the new coefficients (stiffness, damping, gamma, keep_inv_lhs)
-    /// coefficients for the equivalent impulse-based equation. These new
-    /// coefficients must be used in the following way:
-    /// - `rhs = (stiffness * pos_err + damping * vel_err) / gamma`.
-    /// - `new_inv_lhs = gamma * if keep_inv_lhs { inv_lhs } else { 1.0 }`.
-    /// Note that the returned `gamma` will be zero if both `stiffness` and `damping` are zero.
+    /// Returns the coefficients (erp_inv_dt, cfm_coeff, cfm_gain).
     pub fn combine_coefficients(
         self,
         dt: Real,
         stiffness: Real,
         damping: Real,
-    ) -> (Real, Real, Real, bool) {
+    ) -> (Real, Real, Real) {
         match self {
-            MotorModel::VelocityBased => (stiffness * crate::utils::inv(dt), damping, 1.0, true),
             MotorModel::AccelerationBased => {
-                let effective_stiffness = stiffness * dt;
-                let effective_damping = damping * dt;
-                // TODO: Using gamma behaves very badly for some reasons.
-                // Maybe I got the formulation wrong, so let's keep it to 1.0 for now,
-                // and get back to this later.
-                // let gamma = effective_stiffness * dt + effective_damping;
-                (effective_stiffness, effective_damping, 1.0, true)
-            } // MotorModel::ForceBased => {
-              //     let effective_stiffness = stiffness * dt;
-              //     let effective_damping = damping * dt;
-              //     let gamma = effective_stiffness * dt + effective_damping;
-              //     (effective_stiffness, effective_damping, gamma, false)
-              // }
+                let erp_inv_dt = stiffness * crate::utils::inv(dt * stiffness + damping);
+                let cfm_coeff = crate::utils::inv(dt * dt * stiffness + dt * damping);
+                (erp_inv_dt, cfm_coeff, 0.0)
+            }
+            MotorModel::ForceBased => {
+                let erp_inv_dt = stiffness * crate::utils::inv(dt * stiffness + damping);
+                let cfm_gain = crate::utils::inv(dt * dt * stiffness + dt * damping);
+                (erp_inv_dt, 0.0, cfm_gain)
+            }
         }
     }
 }

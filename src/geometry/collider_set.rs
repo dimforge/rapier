@@ -129,7 +129,8 @@ impl ColliderSet {
     }
 
     /// Inserts a new collider to this set and retrieve its handle.
-    pub fn insert(&mut self, mut coll: Collider) -> ColliderHandle {
+    pub fn insert(&mut self, coll: impl Into<Collider>) -> ColliderHandle {
+        let mut coll = coll.into();
         // Make sure the internal links are reset, they may not be
         // if this rigid-body was obtained by cloning another one.
         coll.reset_internal_references();
@@ -142,10 +143,11 @@ impl ColliderSet {
     /// Inserts a new collider to this set, attach it to the given rigid-body, and retrieve its handle.
     pub fn insert_with_parent(
         &mut self,
-        mut coll: Collider,
+        coll: impl Into<Collider>,
         parent_handle: RigidBodyHandle,
         bodies: &mut RigidBodySet,
     ) -> ColliderHandle {
+        let mut coll = coll.into();
         // Make sure the internal links are reset, they may not be
         // if this collider was obtained by cloning another one.
         coll.reset_internal_references();

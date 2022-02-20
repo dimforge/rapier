@@ -16,11 +16,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 3.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static()
-        .translation(vector![0.0, -ground_height, 0.0])
-        .build();
+    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height, 0.0]);
     let ground_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, 0.4).build();
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, 0.4);
     let mut ground_collider_handle =
         colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
@@ -28,11 +26,9 @@ pub fn init_world(testbed: &mut Testbed) {
      * Rolling ball
      */
     let ball_rad = 0.1;
-    let rb = RigidBodyBuilder::new_dynamic()
-        .translation(vector![0.0, 0.2, 0.0])
-        .build();
+    let rb = RigidBodyBuilder::new_dynamic().translation(vector![0.0, 0.2, 0.0]);
     let ball_handle = bodies.insert(rb);
-    let collider = ColliderBuilder::ball(ball_rad).density(100.0).build();
+    let collider = ColliderBuilder::ball(ball_rad).density(100.0);
     colliders.insert_with_parent(collider, ball_handle, &mut bodies);
 
     testbed.add_callback(move |_, physics, _, _| {

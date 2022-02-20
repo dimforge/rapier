@@ -32,17 +32,16 @@ pub fn init_world(testbed: &mut Testbed) {
                 RigidBodyType::Dynamic
             };
 
-            let rigid_body = RigidBodyBuilder::new(status)
-                .translation(vector![fk * shift, -fi * shift])
-                .build();
+            let rigid_body =
+                RigidBodyBuilder::new(status).translation(vector![fk * shift, -fi * shift]);
             let child_handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::ball(rad).build();
+            let collider = ColliderBuilder::ball(rad);
             colliders.insert_with_parent(collider, child_handle, &mut bodies);
 
             // Vertical joint.
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
-                let joint = RevoluteJoint::new().local_anchor2(point![0.0, shift]);
+                let joint = RevoluteJointBuilder::new().local_anchor2(point![0.0, shift]);
                 impulse_joints.insert(parent_handle, child_handle, joint);
             }
 
@@ -50,7 +49,7 @@ pub fn init_world(testbed: &mut Testbed) {
             if k > 0 {
                 let parent_index = body_handles.len() - numi;
                 let parent_handle = body_handles[parent_index];
-                let joint = RevoluteJoint::new().local_anchor2(point![-shift, 0.0]);
+                let joint = RevoluteJointBuilder::new().local_anchor2(point![-shift, 0.0]);
                 impulse_joints.insert(parent_handle, child_handle, joint);
             }
 

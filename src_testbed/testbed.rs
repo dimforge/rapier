@@ -535,7 +535,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                     &self.harness.physics.impulse_joints,
                     &self.harness.physics.multibody_joints,
                     self.state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR,
-                    self.harness.state.num_threads,
+                    self.harness.state.num_threads(),
                 ));
             }
         }

@@ -1,4 +1,4 @@
-use crate::dynamics::{ImpulseJointHandle, JointData, RigidBodyHandle};
+use crate::dynamics::{GenericJoint, ImpulseJointHandle, RigidBodyHandle};
 use crate::math::{Real, SpacialVector};
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -10,7 +10,7 @@ pub struct ImpulseJoint {
     /// Handle to the second body attached to this joint.
     pub body2: RigidBodyHandle,
 
-    pub data: JointData,
+    pub data: GenericJoint,
     pub impulses: SpacialVector<Real>,
 
     // A joint needs to know its handle to simplify its removal.

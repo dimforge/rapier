@@ -16,11 +16,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 200.1;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static()
-        .translation(vector![0.0, -ground_height, 0.0])
-        .build();
+    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height, 0.0]);
     let ground_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
@@ -40,11 +38,9 @@ pub fn init_world(testbed: &mut Testbed) {
             let z = k as f32 * shift - centerz;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic()
-                .translation(vector![x, y, z])
-                .build();
+            let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y, z]);
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
+            let collider = ColliderBuilder::cuboid(rad, rad, rad);
             colliders.insert_with_parent(collider, handle, &mut bodies);
 
             testbed.set_initial_body_color(handle, [0.5, 0.5, 1.0]);
@@ -56,14 +52,12 @@ pub fn init_world(testbed: &mut Testbed) {
      */
 
     // Rigid body so that the sensor can move.
-    let sensor = RigidBodyBuilder::new_dynamic()
-        .translation(vector![0.0, 5.0, 0.0])
-        .build();
+    let sensor = RigidBodyBuilder::new_dynamic().translation(vector![0.0, 5.0, 0.0]);
     let sensor_handle = bodies.insert(sensor);
 
     // Solid cube attached to the sensor which
     // other colliders can touch.
-    let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
+    let collider = ColliderBuilder::cuboid(rad, rad, rad);
     colliders.insert_with_parent(collider, sensor_handle, &mut bodies);
 
     // We create a collider desc without density because we don't
@@ -71,8 +65,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let sensor_collider = ColliderBuilder::ball(rad * 5.0)
         .density(0.0)
         .sensor(true)
-        .active_events(ActiveEvents::INTERSECTION_EVENTS)
-        .build();
+        .active_events(ActiveEvents::INTERSECTION_EVENTS);
     colliders.insert_with_parent(sensor_collider, sensor_handle, &mut bodies);
 
     testbed.set_initial_body_color(sensor_handle, [0.5, 1.0, 1.0]);

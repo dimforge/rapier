@@ -9,7 +9,7 @@ use crate::math::{
 };
 #[cfg(feature = "dim2")]
 use crate::utils::WBasis;
-use crate::utils::{WAngularInertia, WCross, WDot};
+use crate::utils::{self, WAngularInertia, WCross, WDot};
 use num::Zero;
 use simba::simd::{SimdPartialOrd, SimdValue};
 
@@ -47,7 +47,6 @@ impl WVelocityConstraint {
         }
 
         let inv_dt = SimdReal::splat(params.inv_dt());
-        let velocity_solve_fraction = SimdReal::splat(params.velocity_solve_fraction);
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
         let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
 
@@ -135,16 +134,17 @@ impl WVelocityConstraint {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-force_dir1));
 
                     let imsum = im1 + im2;
-                    let projected_mass = SimdReal::splat(1.0)
-                        / (force_dir1.dot(&imsum.component_mul(&force_dir1))
+                    let projected_mass = utils::simd_inv(
+                        force_dir1.dot(&imsum.component_mul(&force_dir1))
                             + gcross1.gdot(gcross1)
-                            + gcross2.gdot(gcross2));
+                            + gcross2.gdot(gcross2),
+                    );
 
                     let projected_velocity = (vel1 - vel2).dot(&force_dir1);
                     let mut rhs_wo_bias =
                         (SimdReal::splat(1.0) + is_bouncy * restitution) * projected_velocity;
                     rhs_wo_bias += dist.simd_max(SimdReal::zero()) * inv_dt;
-                    rhs_wo_bias *= is_bouncy + is_resting * velocity_solve_fraction;
+                    rhs_wo_bias *= is_bouncy + is_resting;
                     let rhs_bias = (dist + allowed_lin_err).simd_min(SimdReal::zero())
                         * (erp_inv_dt/* * is_resting */);
 
@@ -174,7 +174,7 @@ impl WVelocityConstraint {
                     constraint.elements[k].tangent_part.gcross2[j] = gcross2;
                     constraint.elements[k].tangent_part.rhs[j] = rhs;
                     constraint.elements[k].tangent_part.r[j] = if cfg!(feature = "dim2") {
-                        SimdReal::splat(1.0) / r
+                        utils::simd_inv(r)
                     } else {
                         r
                     };

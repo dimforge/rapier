@@ -1,6 +1,6 @@
 use crate::dynamics::solver::AnyJointVelocityConstraint;
 use crate::dynamics::{
-    joint, FixedJoint, IntegrationParameters, JointData, Multibody, MultibodyLink,
+    joint, FixedJointBuilder, GenericJoint, IntegrationParameters, Multibody, MultibodyLink,
     RigidBodyVelocity,
 };
 use crate::math::{
@@ -14,13 +14,13 @@ use na::{UnitQuaternion, Vector3};
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug)]
 pub struct MultibodyJoint {
-    pub data: JointData,
+    pub data: GenericJoint,
     pub(crate) coords: SpacialVector<Real>,
     pub(crate) joint_rot: Rotation<Real>,
 }
 
 impl MultibodyJoint {
-    pub fn new(data: JointData) -> Self {
+    pub fn new(data: GenericJoint) -> Self {
         Self {
             data,
             coords: na::zero(),
@@ -29,13 +29,13 @@ impl MultibodyJoint {
     }
 
     pub(crate) fn free(pos: Isometry<Real>) -> Self {
-        let mut result = Self::new(JointData::default());
+        let mut result = Self::new(GenericJoint::default());
         result.set_free_pos(pos);
         result
     }
 
     pub(crate) fn fixed(pos: Isometry<Real>) -> Self {
-        Self::new(FixedJoint::new().local_frame1(pos).into())
+        Self::new(FixedJointBuilder::new().local_frame1(pos).build().into())
     }
 
     pub(crate) fn set_free_pos(&mut self, pos: Isometry<Real>) {
@@ -263,19 +263,11 @@ impl MultibodyJoint {
 
         for i in 0..DIM {
             if (locked_bits & (1 << i)) == 0 {
-                if (limit_bits & (1 << i)) != 0 {
-                    joint::unit_joint_limit_constraint(
-                        params,
-                        multibody,
-                        link,
-                        [self.data.limits[i].min, self.data.limits[i].max],
-                        self.coords[i],
-                        dof_id + curr_free_dof,
-                        j_id,
-                        jacobians,
-                        constraints,
-                    );
-                }
+                let limits = if (limit_bits & (1 << i)) != 0 {
+                    Some([self.data.limits[i].min, self.data.limits[i].max])
+                } else {
+                    None
+                };
 
                 if (motor_bits & (1 << i)) != 0 {
                     joint::unit_joint_motor_constraint(
@@ -283,6 +275,21 @@ impl MultibodyJoint {
                         multibody,
                         link,
                         &self.data.motors[i],
+                        self.coords[i],
+                        limits,
+                        dof_id + curr_free_dof,
+                        j_id,
+                        jacobians,
+                        constraints,
+                    );
+                }
+
+                if (limit_bits & (1 << i)) != 0 {
+                    joint::unit_joint_limit_constraint(
+                        params,
+                        multibody,
+                        link,
+                        [self.data.limits[i].min, self.data.limits[i].max],
                         self.coords[i],
                         dof_id + curr_free_dof,
                         j_id,
@@ -310,19 +317,23 @@ impl MultibodyJoint {
         // TODO: we should make special cases for multi-angular-dofs limits/motors
         for i in DIM..SPATIAL_DIM {
             if (locked_bits & (1 << i)) == 0 {
-                if (limit_bits & (1 << i)) != 0 {
+                let limits = if (limit_bits & (1 << i)) != 0 {
+                    let limits = [self.data.limits[i].min, self.data.limits[i].max];
                     joint::unit_joint_limit_constraint(
                         params,
                         multibody,
                         link,
-                        [self.data.limits[i].min, self.data.limits[i].max],
+                        limits,
                         self.coords[i],
                         dof_id + curr_free_dof,
                         j_id,
                         jacobians,
                         constraints,
                     );
-                }
+                    Some(limits)
+                } else {
+                    None
+                };
 
                 if (motor_bits & (1 << i)) != 0 {
                     joint::unit_joint_motor_constraint(
@@ -331,6 +342,7 @@ impl MultibodyJoint {
                         link,
                         &self.data.motors[i],
                         self.coords[i],
+                        limits,
                         dof_id + curr_free_dof,
                         j_id,
                         jacobians,
