@@ -19,16 +19,19 @@ pub trait WReal: SimdRealField<Element = Real> + Copy {}
 impl WReal for Real {}
 impl WReal for SimdReal {}
 
+const INV_EPSILON: Real = 1.0e-20;
+
 pub(crate) fn inv(val: Real) -> Real {
-    if val == 0.0 {
+    if val >= -INV_EPSILON && val <= INV_EPSILON {
         0.0
     } else {
         1.0 / val
     }
 }
 
-pub(crate) fn simd_inv<N: SimdRealField + Copy>(val: N) -> N {
-    N::zero().select(val.simd_eq(N::zero()), N::one() / val)
+pub(crate) fn simd_inv<N: WReal>(val: N) -> N {
+    let eps = N::splat(INV_EPSILON);
+    N::zero().select(val.simd_gt(-eps) & val.simd_lt(eps), N::one() / val)
 }
 
 /// Trait to copy the sign of each component of one scalar/vector/matrix to another.
@@ -123,7 +126,7 @@ pub trait WBasis: Sized {
     fn orthonormal_vector(self) -> Self;
 }
 
-impl<N: SimdRealField + Copy> WBasis for Vector2<N> {
+impl<N: WReal> WBasis for Vector2<N> {
     type Basis = [Vector2<N>; 1];
     fn orthonormal_basis(self) -> [Vector2<N>; 1] {
         [Vector2::new(-self.y, self.x)]
@@ -133,7 +136,7 @@ impl<N: SimdRealField + Copy> WBasis for Vector2<N> {
     }
 }
 
-impl<N: SimdRealField + Copy + WSign<N>> WBasis for Vector3<N> {
+impl<N: WReal + WSign<N>> WBasis for Vector3<N> {
     type Basis = [Vector3<N>; 2];
     // Robust and branchless implementation from Pixar:
     // https://graphics.pixar.com/library/OrthonormalB/paper.pdf
@@ -251,7 +254,7 @@ pub(crate) trait WCrossMatrix: Sized {
     fn gcross_matrix_tr(self) -> Self::CrossMatTr;
 }
 
-impl<N: SimdRealField + Copy> WCrossMatrix for Vector3<N> {
+impl<N: WReal> WCrossMatrix for Vector3<N> {
     type CrossMat = Matrix3<N>;
     type CrossMatTr = Matrix3<N>;
 
@@ -276,7 +279,7 @@ impl<N: SimdRealField + Copy> WCrossMatrix for Vector3<N> {
     }
 }
 
-impl<N: SimdRealField + Copy> WCrossMatrix for Vector2<N> {
+impl<N: WReal> WCrossMatrix for Vector2<N> {
     type CrossMat = RowVector2<N>;
     type CrossMatTr = Vector2<N>;
 
@@ -353,7 +356,7 @@ pub(crate) trait WDot<Rhs>: Sized {
     fn gdot(&self, rhs: Rhs) -> Self::Result;
 }
 
-impl<N: SimdRealField + Copy> WDot<Vector3<N>> for Vector3<N> {
+impl<N: WReal> WDot<Vector3<N>> for Vector3<N> {
     type Result = N;
 
     fn gdot(&self, rhs: Vector3<N>) -> Self::Result {
@@ -361,7 +364,7 @@ impl<N: SimdRealField + Copy> WDot<Vector3<N>> for Vector3<N> {
     }
 }
 
-impl<N: SimdRealField + Copy> WDot<Vector2<N>> for Vector2<N> {
+impl<N: WReal> WDot<Vector2<N>> for Vector2<N> {
     type Result = N;
 
     fn gdot(&self, rhs: Vector2<N>) -> Self::Result {
@@ -369,7 +372,7 @@ impl<N: SimdRealField + Copy> WDot<Vector2<N>> for Vector2<N> {
     }
 }
 
-impl<N: SimdRealField + Copy> WDot<Vector1<N>> for N {
+impl<N: WReal> WDot<Vector1<N>> for N {
     type Result = N;
 
     fn gdot(&self, rhs: Vector1<N>) -> Self::Result {
@@ -385,7 +388,7 @@ impl<N: WReal> WDot<N> for N {
     }
 }
 
-impl<N: SimdRealField + Copy> WDot<N> for Vector1<N> {
+impl<N: WReal> WDot<N> for Vector1<N> {
     type Result = N;
 
     fn gdot(&self, rhs: N) -> Self::Result {
@@ -425,26 +428,20 @@ pub trait WQuat<N> {
     fn diff_conj1_2(&self, rhs: &Self) -> Self::Result;
 }
 
-impl<N: SimdRealField + Copy> WQuat<N> for UnitComplex<N>
-where
-    <N as SimdValue>::Element: SimdRealField,
-{
+impl<N: WReal> WQuat<N> for UnitComplex<N> {
     type Result = Matrix1<N>;
 
     fn diff_conj1_2(&self, rhs: &Self) -> Self::Result {
-        let two: N = na::convert(2.0);
+        let two: N = N::splat(2.0);
         Matrix1::new((self.im * rhs.im + self.re * rhs.re) * two)
     }
 }
 
-impl<N: SimdRealField + Copy> WQuat<N> for UnitQuaternion<N>
-where
-    <N as SimdValue>::Element: SimdRealField,
-{
+impl<N: WReal> WQuat<N> for UnitQuaternion<N> {
     type Result = Matrix3<N>;
 
     fn diff_conj1_2(&self, rhs: &Self) -> Self::Result {
-        let half: N = na::convert(0.5);
+        let half = N::splat(0.5);
         let v1 = self.imag();
         let v2 = rhs.imag();
         let w1 = self.w;

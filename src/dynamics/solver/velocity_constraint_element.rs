@@ -1,10 +1,9 @@
 use super::DeltaVel;
 use crate::math::{AngVector, Vector, DIM};
-use crate::utils::{WBasis, WDot};
-use na::SimdRealField;
+use crate::utils::{WBasis, WDot, WReal};
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct VelocityConstraintTangentPart<N: SimdRealField + Copy> {
+pub(crate) struct VelocityConstraintTangentPart<N: WReal> {
     pub gcross1: [AngVector<N>; DIM - 1],
     pub gcross2: [AngVector<N>; DIM - 1],
     pub rhs: [N; DIM - 1],
@@ -18,7 +17,7 @@ pub(crate) struct VelocityConstraintTangentPart<N: SimdRealField + Copy> {
     pub r: [N; DIM],
 }
 
-impl<N: SimdRealField + Copy> VelocityConstraintTangentPart<N> {
+impl<N: WReal> VelocityConstraintTangentPart<N> {
     fn zero() -> Self {
         Self {
             gcross1: [na::zero(); DIM - 1],
@@ -43,7 +42,6 @@ impl<N: SimdRealField + Copy> VelocityConstraintTangentPart<N> {
         mj_lambda2: &mut DeltaVel<N>,
     ) where
         AngVector<N>: WDot<AngVector<N>, Result = N>,
-        N::Element: SimdRealField + Copy,
     {
         #[cfg(feature = "dim2")]
         {
@@ -107,7 +105,7 @@ impl<N: SimdRealField + Copy> VelocityConstraintTangentPart<N> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct VelocityConstraintNormalPart<N: SimdRealField + Copy> {
+pub(crate) struct VelocityConstraintNormalPart<N: WReal> {
     pub gcross1: AngVector<N>,
     pub gcross2: AngVector<N>,
     pub rhs: N,
@@ -116,7 +114,7 @@ pub(crate) struct VelocityConstraintNormalPart<N: SimdRealField + Copy> {
     pub r: N,
 }
 
-impl<N: SimdRealField + Copy> VelocityConstraintNormalPart<N> {
+impl<N: WReal> VelocityConstraintNormalPart<N> {
     fn zero() -> Self {
         Self {
             gcross1: na::zero(),
@@ -157,12 +155,12 @@ impl<N: SimdRealField + Copy> VelocityConstraintNormalPart<N> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct VelocityConstraintElement<N: SimdRealField + Copy> {
+pub(crate) struct VelocityConstraintElement<N: WReal> {
     pub normal_part: VelocityConstraintNormalPart<N>,
     pub tangent_part: VelocityConstraintTangentPart<N>,
 }
 
-impl<N: SimdRealField + Copy> VelocityConstraintElement<N> {
+impl<N: WReal> VelocityConstraintElement<N> {
     pub fn zero() -> Self {
         Self {
             normal_part: VelocityConstraintNormalPart::zero(),
@@ -186,7 +184,6 @@ impl<N: SimdRealField + Copy> VelocityConstraintElement<N> {
     ) where
         Vector<N>: WBasis,
         AngVector<N>: WDot<AngVector<N>, Result = N>,
-        N::Element: SimdRealField + Copy,
     {
         // Solve penetration.
         if solve_normal {

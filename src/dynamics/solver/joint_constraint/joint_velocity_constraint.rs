@@ -3,7 +3,6 @@ use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{IntegrationParameters, JointData, JointGraphEdge, JointIndex};
 use crate::math::{AngVector, AngularInertia, Isometry, Point, Real, Vector, DIM, SPATIAL_DIM};
 use crate::utils::{WDot, WReal};
-use simba::simd::SimdRealField;
 
 #[cfg(feature = "simd-is-enabled")]
 use {
@@ -12,7 +11,7 @@ use {
 };
 
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub struct MotorParameters<N: SimdRealField> {
+pub struct MotorParameters<N: WReal> {
     pub stiffness: N,
     pub damping: N,
     pub gamma: N,
@@ -22,7 +21,7 @@ pub struct MotorParameters<N: SimdRealField> {
     pub max_impulse: N,
 }
 
-impl<N: SimdRealField> Default for MotorParameters<N> {
+impl<N: WReal> Default for MotorParameters<N> {
     fn default() -> Self {
         Self {
             stiffness: N::zero(),
@@ -48,7 +47,7 @@ pub enum WritebackId {
 // the solver, to avoid fetching data from the rigid-body set
 // every time.
 #[derive(Copy, Clone)]
-pub struct SolverBody<N: SimdRealField, const LANES: usize> {
+pub struct SolverBody<N: WReal, const LANES: usize> {
     pub linvel: Vector<N>,
     pub angvel: AngVector<N>,
     pub im: Vector<N>,
@@ -58,7 +57,7 @@ pub struct SolverBody<N: SimdRealField, const LANES: usize> {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct JointVelocityConstraint<N: SimdRealField, const LANES: usize> {
+pub struct JointVelocityConstraint<N: WReal, const LANES: usize> {
     pub mj_lambda1: [usize; LANES],
     pub mj_lambda2: [usize; LANES],
 
@@ -339,7 +338,7 @@ impl JointVelocityConstraint<SimdReal, SIMD_WIDTH> {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct JointVelocityGroundConstraint<N: SimdRealField, const LANES: usize> {
+pub struct JointVelocityGroundConstraint<N: WReal, const LANES: usize> {
     pub mj_lambda2: [usize; LANES],
 
     pub joint_id: [JointIndex; LANES],
