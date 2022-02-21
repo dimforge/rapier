@@ -1,6 +1,6 @@
 use crate::math::{AngVector, Vector, SPATIAL_DIM};
-use na::{DVectorSlice, DVectorSliceMut};
-use na::{Scalar, SimdRealField};
+use crate::utils::WReal;
+use na::{DVectorSlice, DVectorSliceMut, Scalar};
 use std::ops::{AddAssign, Sub};
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -29,7 +29,7 @@ impl<N: Scalar + Copy> DeltaVel<N> {
     }
 }
 
-impl<N: SimdRealField + Copy> DeltaVel<N> {
+impl<N: WReal> DeltaVel<N> {
     pub fn zero() -> Self {
         Self {
             linear: na::zero(),
@@ -38,14 +38,14 @@ impl<N: SimdRealField + Copy> DeltaVel<N> {
     }
 }
 
-impl<N: SimdRealField + Copy> AddAssign for DeltaVel<N> {
+impl<N: WReal> AddAssign for DeltaVel<N> {
     fn add_assign(&mut self, rhs: Self) {
         self.linear += rhs.linear;
         self.angular += rhs.angular;
     }
 }
 
-impl<N: SimdRealField + Copy> Sub for DeltaVel<N> {
+impl<N: WReal> Sub for DeltaVel<N> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {

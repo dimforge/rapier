@@ -5,7 +5,7 @@ use crate::dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint};
 use crate::dynamics::{IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyVelocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Real, Vector, DIM, MAX_MANIFOLD_POINTS};
-use crate::utils::{WAngularInertia, WBasis, WCross, WDot};
+use crate::utils::{WAngularInertia, WBasis, WCross, WDot, WReal};
 
 use super::{DeltaVel, VelocityConstraintElement, VelocityConstraintNormalPart};
 
@@ -373,8 +373,7 @@ pub(crate) fn compute_tangent_contact_directions<N>(
     linvel2: &Vector<N>,
 ) -> [Vector<N>; DIM - 1]
 where
-    N: na::SimdRealField + Copy,
-    N::Element: na::RealField + Copy,
+    N: WReal,
     Vector<N>: WBasis,
 {
     use na::SimdValue;
@@ -392,8 +391,8 @@ where
         tangent_relative_linvel.normalize_mut()
     };
 
-    let threshold: N::Element = na::convert(1.0e-4);
-    let use_fallback = tangent_linvel_norm.simd_lt(N::splat(threshold));
+    const THRESHOLD: Real = 1.0e-4;
+    let use_fallback = tangent_linvel_norm.simd_lt(N::splat(THRESHOLD));
     let tangent_fallback = force_dir1.orthonormal_vector();
 
     let tangent1 = tangent_fallback.select(use_fallback, tangent_relative_linvel);

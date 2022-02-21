@@ -7,10 +7,9 @@ use crate::dynamics::{IntegrationParameters, JointIndex};
 use crate::math::{Isometry, Matrix, Point, Real, Rotation, Vector, ANG_DIM, DIM};
 use crate::utils::{IndexMut2, WCrossMatrix, WDot, WQuat, WReal};
 use na::SMatrix;
-use simba::simd::SimdRealField;
 
 #[derive(Debug, Copy, Clone)]
-pub struct JointVelocityConstraintBuilder<N: SimdRealField> {
+pub struct JointVelocityConstraintBuilder<N: WReal> {
     pub basis: Matrix<N>,
     pub cmat1_basis: SMatrix<N, ANG_DIM, DIM>,
     pub cmat2_basis: SMatrix<N, ANG_DIM, DIM>,
