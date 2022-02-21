@@ -19,16 +19,19 @@ pub trait WReal: SimdRealField<Element = Real> + Copy {}
 impl WReal for Real {}
 impl WReal for SimdReal {}
 
+const INV_EPSILON: Real = 1.0e-20;
+
 pub(crate) fn inv(val: Real) -> Real {
-    if val == 0.0 {
+    if val >= -INV_EPSILON && val <= INV_EPSILON {
         0.0
     } else {
         1.0 / val
     }
 }
 
-pub(crate) fn simd_inv<N: SimdRealField + Copy>(val: N) -> N {
-    N::zero().select(val.simd_eq(N::zero()), N::one() / val)
+pub(crate) fn simd_inv<N: WReal>(val: N) -> N {
+    let eps = N::splat(INV_EPSILON);
+    N::zero().select(val.simd_gt(-eps) & val.simd_lt(eps), N::one() / val)
 }
 
 /// Trait to copy the sign of each component of one scalar/vector/matrix to another.
