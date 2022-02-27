@@ -142,9 +142,8 @@ pub struct ParallelIslandSolver {
     positions: Vec<Isometry<Real>>,
     parallel_groups: ParallelInteractionGroups,
     parallel_joint_groups: ParallelInteractionGroups,
-    parallel_contact_constraints:
-        ParallelSolverConstraints<AnyVelocityConstraint, GenericVelocityConstraint>,
-    parallel_joint_constraints: ParallelSolverConstraints<AnyJointVelocityConstraint, ()>,
+    parallel_contact_constraints: ParallelSolverConstraints<AnyVelocityConstraint>,
+    parallel_joint_constraints: ParallelSolverConstraints<AnyJointVelocityConstraint>,
     thread: ThreadContext,
 }
 
@@ -191,10 +190,14 @@ impl ParallelIslandSolver {
         let num_threads = rayon::current_num_threads();
         let num_task_per_island = num_threads; // (num_threads / num_islands).max(1); // TODO: not sure this is the best value. Also, perhaps it is better to interleave tasks of each island?
         self.thread = ThreadContext::new(8); // TODO: could we compute some kind of optimal value here?
+    
+        // Interactions grouping.
+        let mut j_id = 0;
         self.parallel_groups.group_interactions(
             island_id,
             islands,
             bodies,
+            multibodies,
             manifolds,
             manifold_indices,
         );
@@ -202,9 +205,12 @@ impl ParallelIslandSolver {
             island_id,
             islands,
             bodies,
+            multibodies,
             impulse_joints,
             joint_indices,
         );
+
+        let mut contact_j_id = 0;
         self.parallel_contact_constraints.init_constraint_groups(
             island_id,
             islands,
@@ -212,7 +218,9 @@ impl ParallelIslandSolver {
             multibodies,
             manifolds,
             &self.parallel_groups,
+            &mut contact_j_id,
         );
+        let mut joint_j_id = 0;
         self.parallel_joint_constraints.init_constraint_groups(
             island_id,
             islands,
@@ -220,12 +228,49 @@ impl ParallelIslandSolver {
             multibodies,
             impulse_joints,
             &self.parallel_joint_groups,
+            &mut joint_j_id,
         );
 
-        self.velocity_solver.mj_lambdas.clear();
-        self.velocity_solver
-            .mj_lambdas
-            .resize(islands.active_island(island_id).len(), DeltaVel::zero());
+        if self.parallel_contact_constraints.generic_jacobians.len() < contact_j_id {
+            self.parallel_contact_constraints.generic_jacobians = DVector::zeros(contact_j_id);
+        } else {
+            self.parallel_contact_constraints.generic_jacobians.fill(0.0);
+        }
+
+        if self.parallel_joint_constraints.generic_jacobians.len() < joint_j_id {
+            self.parallel_joint_constraints.generic_jacobians = DVector::zeros(joint_j_id);
+        } else {
+            self.parallel_joint_constraints.generic_jacobians.fill(0.0);
+        }
+
+        // Init solver ids for multibodies.
+        {
+            let mut solver_id = 0;
+            let island_range = islands.active_island_range(island_id);
+            let active_bodies = &islands.active_dynamic_set[island_range];
+            for handle in active_bodies {
+                if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
+                    let multibody = multibodies
+                        .get_multibody_mut_internal(link.multibody)
+                        .unwrap();
+                    if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
+                        multibody.solver_id = solver_id;
+                        solver_id += multibody.ndofs();
+                    }
+                }
+            }
+
+            if self.velocity_solver.generic_mj_lambdas.len() < solver_id {
+                self.velocity_solver.generic_mj_lambdas = DVector::zeros(solver_id);
+            } else {
+                self.velocity_solver.generic_mj_lambdas.fill(0.0);
+            }
+
+            self.velocity_solver.mj_lambdas.clear();
+            self.velocity_solver
+                .mj_lambdas
+                .resize(islands.active_island(island_id).len(), DeltaVel::zero());
+        }
 
         for _ in 0..num_task_per_island {
             // We use AtomicPtr because it is Send+Sync while *mut is not.
@@ -254,10 +299,10 @@ impl ParallelIslandSolver {
                     unsafe { std::mem::transmute(manifolds.load(Ordering::Relaxed)) };
                 let impulse_joints: &mut Vec<JointGraphEdge> =
                     unsafe { std::mem::transmute(impulse_joints.load(Ordering::Relaxed)) };
-                let parallel_contact_constraints: &mut ParallelSolverConstraints<AnyVelocityConstraint, GenericVelocityConstraint> = unsafe {
+                let parallel_contact_constraints: &mut ParallelSolverConstraints<AnyVelocityConstraint> = unsafe {
                     std::mem::transmute(parallel_contact_constraints.load(Ordering::Relaxed))
                 };
-                let parallel_joint_constraints: &mut ParallelSolverConstraints<AnyJointVelocityConstraint, ()> = unsafe {
+                let parallel_joint_constraints: &mut ParallelSolverConstraints<AnyJointVelocityConstraint> = unsafe {
                     std::mem::transmute(parallel_joint_constraints.load(Ordering::Relaxed))
                 };
 
@@ -271,13 +316,28 @@ impl ParallelIslandSolver {
                     concurrent_loop! {
                         let batch_size = thread.batch_size;
                         for handle in active_bodies[thread.body_force_integration_index, thread.num_force_integrated_bodies] {
-                            let (rb_ids, rb_forces, rb_mass_props): (&RigidBodyIds, &RigidBodyForces, &RigidBodyMassProps) = bodies.index_bundle(handle.0);
-                            let dvel = &mut velocity_solver.mj_lambdas[rb_ids.active_set_offset];
-
-                            // NOTE: `dvel.angular` is actually storing angular velocity delta multiplied
-                            //       by the square root of the inertia tensor:
-                            dvel.angular += rb_mass_props.effective_world_inv_inertia_sqrt * rb_forces.torque * params.dt;
-                            dvel.linear += rb_forces.force.component_mul(&rb_mass_props.effective_inv_mass) * params.dt;
+                            if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
+                                let multibody = multibodies
+                                    .get_multibody_mut_internal(link.multibody)
+                                    .unwrap();
+                
+                                if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
+                                    let mut mj_lambdas = velocity_solver
+                                        .generic_mj_lambdas
+                                        .rows_mut(multibody.solver_id, multibody.ndofs());
+                                    mj_lambdas.axpy(params.dt, &multibody.accelerations, 0.0);
+                                }
+                            } else {
+                                let (ids, mprops, forces): (&RigidBodyIds, &RigidBodyMassProps, &RigidBodyForces) =
+                                    bodies.index_bundle(handle.0);
+                
+                                let dvel = &mut velocity_solver.mj_lambdas[ids.active_set_offset];
+                
+                                // NOTE: `dvel.angular` is actually storing angular velocity delta multiplied
+                                //       by the square root of the inertia tensor:
+                                dvel.angular += mprops.effective_world_inv_inertia_sqrt * forces.torque * params.dt;
+                                dvel.linear += forces.force.component_mul(&mprops.effective_inv_mass) * params.dt;
+                            }
                         }
                     }
 
@@ -287,10 +347,8 @@ impl ParallelIslandSolver {
                 }
 
 
-                let mut j_id = 0; // TODO
-                let mut jacobians = DVector::zeros(0); // TODO
-                parallel_contact_constraints.fill_constraints(&thread, params, bodies, manifolds);
-                parallel_joint_constraints.fill_constraints(&thread, params, bodies, multibodies, impulse_joints, &mut j_id, &mut jacobians);
+                parallel_contact_constraints.fill_constraints(&thread, params, bodies, multibodies, manifolds);
+                parallel_joint_constraints.fill_constraints(&thread, params, bodies, multibodies, impulse_joints);
                 ThreadContext::lock_until_ge(
                     &thread.num_initialized_constraints,
                     parallel_contact_constraints.constraint_descs.len(),
@@ -306,6 +364,7 @@ impl ParallelIslandSolver {
                         island_id,
                         islands,
                         bodies,
+                        multibodies,
                         manifolds,
                         impulse_joints,
                         parallel_contact_constraints,

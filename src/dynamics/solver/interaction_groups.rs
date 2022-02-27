@@ -1,7 +1,7 @@
 use crate::data::ComponentSet;
 #[cfg(feature = "parallel")]
 use crate::dynamics::RigidBodyHandle;
-use crate::dynamics::{IslandManager, JointGraphEdge, JointIndex, RigidBodyIds};
+use crate::dynamics::{IslandManager, JointGraphEdge, JointIndex, MultibodyJointSet, RigidBodyIds};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 #[cfg(feature = "simd-is-enabled")]
 use {
@@ -64,6 +64,7 @@ impl ParallelInteractionGroups {
         island_id: usize,
         islands: &IslandManager,
         bodies: &Bodies,
+        multibodies: &MultibodyJointSet,
         interactions: &[Interaction],
         interaction_indices: &[usize],
     ) where
@@ -88,7 +89,7 @@ impl ParallelInteractionGroups {
             .iter()
             .zip(self.interaction_colors.iter_mut())
         {
-            let body_pair = interactions[*interaction_id].body_pair();
+            let mut body_pair = interactions[*interaction_id].body_pair();
             let is_static1 = body_pair
                 .0
                 .map(|b| ComponentSet::<RigidBodyType>::index(bodies, b.0).is_static())
@@ -97,6 +98,24 @@ impl ParallelInteractionGroups {
                 .1
                 .map(|b| ComponentSet::<RigidBodyType>::index(bodies, b.0).is_static())
                 .unwrap_or(true);
+
+            let representative = |handle: RigidBodyHandle| {
+                if let Some(link) = multibodies.rigid_body_link(handle).copied() {
+                    let multibody = multibodies.get_multibody(link.multibody).unwrap();
+                    multibody
+                        .link(1) // Use the link 1 to cover the case where the multibody root is static.
+                        .or(multibody.link(0)) // TODO: Never happens?
+                        .map(|l| l.rigid_body)
+                        .unwrap()
+                } else {
+                    handle
+                }
+            };
+
+            body_pair = (
+                body_pair.0.map(representative),
+                body_pair.1.map(representative),
+            );
 
             match (is_static1, is_static2) {
                 (false, false) => {
@@ -112,14 +131,14 @@ impl ParallelInteractionGroups {
                 (true, false) => {
                     let rb_ids2: &RigidBodyIds = bodies.index(body_pair.1.unwrap().0);
                     let color_mask = bcolors[rb_ids2.active_set_offset];
-                    *color = (!color_mask).trailing_zeros() as usize;
+                    *color = (!color_mask).leading_zeros() as usize;
                     color_len[*color] += 1;
                     bcolors[rb_ids2.active_set_offset] |= 1 << *color;
                 }
                 (false, true) => {
                     let rb_ids1: &RigidBodyIds = bodies.index(body_pair.0.unwrap().0);
                     let color_mask = bcolors[rb_ids1.active_set_offset];
-                    *color = (!color_mask).trailing_zeros() as usize;
+                    *color = (!color_mask).leading_zeros() as usize;
                     color_len[*color] += 1;
                     bcolors[rb_ids1.active_set_offset] |= 1 << *color;
                 }
@@ -131,13 +150,11 @@ impl ParallelInteractionGroups {
         let mut last_offset = 0;
 
         for i in 0..128 {
-            if color_len[i] == 0 {
-                break;
+            if color_len[i] != 0 {
+                self.groups.push(last_offset);
+                sort_offsets[i] = last_offset;
+                last_offset += color_len[i];
             }
-
-            self.groups.push(last_offset);
-            sort_offsets[i] = last_offset;
-            last_offset += color_len[i];
         }
 
         self.sorted_interactions

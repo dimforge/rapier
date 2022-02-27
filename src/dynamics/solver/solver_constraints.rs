@@ -6,7 +6,6 @@ use super::{WVelocityConstraint, WVelocityGroundConstraint};
 use crate::data::ComponentSet;
 use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
 use crate::dynamics::solver::generic_velocity_ground_constraint::GenericVelocityGroundConstraint;
-use crate::dynamics::solver::AnyGenericVelocityConstraint;
 use crate::dynamics::solver::GenericVelocityConstraint;
 use crate::dynamics::{
     solver::AnyVelocityConstraint, IntegrationParameters, JointGraphEdge, JointIndex,
@@ -19,7 +18,7 @@ use crate::math::Real;
 use crate::math::SIMD_WIDTH;
 use na::DVector;
 
-pub(crate) struct SolverConstraints<VelocityConstraint, GenVelocityConstraint> {
+pub(crate) struct SolverConstraints<VelocityConstraint> {
     pub generic_jacobians: DVector<Real>,
     pub not_ground_interactions: Vec<usize>,
     pub ground_interactions: Vec<usize>,
@@ -28,12 +27,9 @@ pub(crate) struct SolverConstraints<VelocityConstraint, GenVelocityConstraint> {
     pub interaction_groups: InteractionGroups,
     pub ground_interaction_groups: InteractionGroups,
     pub velocity_constraints: Vec<VelocityConstraint>,
-    pub generic_velocity_constraints: Vec<GenVelocityConstraint>,
 }
 
-impl<VelocityConstraint, GenVelocityConstraint>
-    SolverConstraints<VelocityConstraint, GenVelocityConstraint>
-{
+impl<VelocityConstraint> SolverConstraints<VelocityConstraint> {
     pub fn new() -> Self {
         Self {
             generic_jacobians: DVector::zeros(0),
@@ -44,7 +40,6 @@ impl<VelocityConstraint, GenVelocityConstraint>
             interaction_groups: InteractionGroups::new(),
             ground_interaction_groups: InteractionGroups::new(),
             velocity_constraints: vec![],
-            generic_velocity_constraints: vec![],
         }
     }
 
@@ -56,11 +51,10 @@ impl<VelocityConstraint, GenVelocityConstraint>
         self.interaction_groups.clear();
         self.ground_interaction_groups.clear();
         self.velocity_constraints.clear();
-        self.generic_velocity_constraints.clear();
     }
 }
 
-impl SolverConstraints<AnyVelocityConstraint, AnyGenericVelocityConstraint> {
+impl SolverConstraints<AnyVelocityConstraint> {
     pub fn init_constraint_groups<Bodies>(
         &mut self,
         island_id: usize,
@@ -132,7 +126,6 @@ impl SolverConstraints<AnyVelocityConstraint, AnyGenericVelocityConstraint> {
             + ComponentSet<RigidBodyType>,
     {
         self.velocity_constraints.clear();
-        self.generic_velocity_constraints.clear();
 
         self.init_constraint_groups(
             island_id,
@@ -247,7 +240,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyGenericVelocityConstraint> {
                 manifold,
                 bodies,
                 multibody_joints,
-                &mut self.generic_velocity_constraints,
+                &mut self.velocity_constraints,
                 &mut self.generic_jacobians,
                 jacobian_id,
                 true,
@@ -277,7 +270,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyGenericVelocityConstraint> {
                 manifold,
                 bodies,
                 multibody_joints,
-                &mut self.generic_velocity_constraints,
+                &mut self.velocity_constraints,
                 &mut self.generic_jacobians,
                 jacobian_id,
                 true,
@@ -340,7 +333,7 @@ impl SolverConstraints<AnyVelocityConstraint, AnyGenericVelocityConstraint> {
     }
 }
 
-impl SolverConstraints<AnyJointVelocityConstraint, ()> {
+impl SolverConstraints<AnyJointVelocityConstraint> {
     pub fn init<Bodies>(
         &mut self,
         island_id: usize,
@@ -375,7 +368,6 @@ impl SolverConstraints<AnyJointVelocityConstraint, ()> {
         );
 
         self.velocity_constraints.clear();
-        self.generic_velocity_constraints.clear();
 
         self.interaction_groups.clear_groups();
         self.interaction_groups.group_joints(
