@@ -1,6 +1,5 @@
 use super::AnyJointVelocityConstraint;
 use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
-use crate::dynamics::solver::AnyGenericVelocityConstraint;
 use crate::dynamics::{
     solver::{AnyVelocityConstraint, DeltaVel},
     IntegrationParameters, IslandManager, JointGraphEdge, MultibodyJointSet, RigidBodyDamping,
@@ -35,7 +34,6 @@ impl VelocitySolver {
         manifolds_all: &mut [&mut ContactManifold],
         joints_all: &mut [JointGraphEdge],
         contact_constraints: &mut [AnyVelocityConstraint],
-        generic_contact_constraints: &mut [AnyGenericVelocityConstraint],
         generic_contact_jacobians: &DVector<Real>,
         joint_constraints: &mut [AnyJointVelocityConstraint],
         generic_joint_jacobians: &DVector<Real>,
@@ -58,22 +56,28 @@ impl VelocitySolver {
 
         // Initialize delta-velocities (`mj_lambdas`) with external forces (gravity etc):
         for handle in islands.active_island(island_id) {
-            let (ids, mprops, forces): (&RigidBodyIds, &RigidBodyMassProps, &RigidBodyForces) =
-                bodies.index_bundle(handle.0);
+            if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
+                let multibody = multibodies
+                    .get_multibody_mut_internal(link.multibody)
+                    .unwrap();
 
-            let dvel = &mut self.mj_lambdas[ids.active_set_offset];
+                if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
+                    let mut mj_lambdas = self
+                        .generic_mj_lambdas
+                        .rows_mut(multibody.solver_id, multibody.ndofs());
+                    mj_lambdas.axpy(params.dt, &multibody.accelerations, 0.0);
+                }
+            } else {
+                let (ids, mprops, forces): (&RigidBodyIds, &RigidBodyMassProps, &RigidBodyForces) =
+                    bodies.index_bundle(handle.0);
 
-            // NOTE: `dvel.angular` is actually storing angular velocity delta multiplied
-            //       by the square root of the inertia tensor:
-            dvel.angular += mprops.effective_world_inv_inertia_sqrt * forces.torque * params.dt;
-            dvel.linear += forces.force.component_mul(&mprops.effective_inv_mass) * params.dt;
-        }
+                let dvel = &mut self.mj_lambdas[ids.active_set_offset];
 
-        for (_, multibody) in multibodies.multibodies.iter_mut() {
-            let mut mj_lambdas = self
-                .generic_mj_lambdas
-                .rows_mut(multibody.solver_id, multibody.ndofs());
-            mj_lambdas.axpy(params.dt, &multibody.accelerations, 0.0);
+                // NOTE: `dvel.angular` is actually storing angular velocity delta multiplied
+                //       by the square root of the inertia tensor:
+                dvel.angular += mprops.effective_world_inv_inertia_sqrt * forces.torque * params.dt;
+                dvel.linear += forces.force.component_mul(&mprops.effective_inv_mass) * params.dt;
+            }
         }
 
         /*
@@ -92,10 +96,6 @@ impl VelocitySolver {
             }
 
             for constraint in &mut *contact_constraints {
-                constraint.solve(cfm_factor, &mut self.mj_lambdas[..], true, false);
-            }
-
-            for constraint in &mut *generic_contact_constraints {
                 constraint.solve(
                     cfm_factor,
                     generic_contact_jacobians,
@@ -108,10 +108,6 @@ impl VelocitySolver {
 
             if solve_friction {
                 for constraint in &mut *contact_constraints {
-                    constraint.solve(cfm_factor, &mut self.mj_lambdas[..], false, true);
-                }
-
-                for constraint in &mut *generic_contact_constraints {
                     constraint.solve(
                         cfm_factor,
                         generic_contact_jacobians,
@@ -135,10 +131,6 @@ impl VelocitySolver {
 
         for _ in 0..remaining_friction_iterations {
             for constraint in &mut *contact_constraints {
-                constraint.solve(cfm_factor, &mut self.mj_lambdas[..], false, true);
-            }
-
-            for constraint in &mut *generic_contact_constraints {
                 constraint.solve(
                     cfm_factor,
                     generic_contact_jacobians,
@@ -204,9 +196,6 @@ impl VelocitySolver {
         for constraint in &mut *contact_constraints {
             constraint.remove_bias_from_rhs();
         }
-        for constraint in &mut *generic_contact_constraints {
-            constraint.remove_bias_from_rhs();
-        }
 
         for _ in 0..params.max_stabilization_iterations {
             for constraint in &mut *joint_constraints {
@@ -218,10 +207,6 @@ impl VelocitySolver {
             }
 
             for constraint in &mut *contact_constraints {
-                constraint.solve(1.0, &mut self.mj_lambdas[..], true, false);
-            }
-
-            for constraint in &mut *generic_contact_constraints {
                 constraint.solve(
                     1.0,
                     generic_contact_jacobians,
@@ -233,10 +218,6 @@ impl VelocitySolver {
             }
 
             for constraint in &mut *contact_constraints {
-                constraint.solve(1.0, &mut self.mj_lambdas[..], false, true);
-            }
-
-            for constraint in &mut *generic_contact_constraints {
                 constraint.solve(
                     1.0,
                     generic_contact_jacobians,
@@ -288,10 +269,6 @@ impl VelocitySolver {
         }
 
         for constraint in &*contact_constraints {
-            constraint.writeback_impulses(manifolds_all);
-        }
-
-        for constraint in &*generic_contact_constraints {
             constraint.writeback_impulses(manifolds_all);
         }
     }

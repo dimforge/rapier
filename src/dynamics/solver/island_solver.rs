@@ -2,8 +2,7 @@ use super::VelocitySolver;
 use crate::counters::Counters;
 use crate::data::{ComponentSet, ComponentSetMut};
 use crate::dynamics::solver::{
-    AnyGenericVelocityConstraint, AnyJointVelocityConstraint, AnyVelocityConstraint,
-    SolverConstraints,
+    AnyJointVelocityConstraint, AnyVelocityConstraint, SolverConstraints,
 };
 use crate::dynamics::{
     IntegrationParameters, JointGraphEdge, JointIndex, RigidBodyDamping, RigidBodyForces,
@@ -14,8 +13,8 @@ use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::prelude::MultibodyJointSet;
 
 pub struct IslandSolver {
-    contact_constraints: SolverConstraints<AnyVelocityConstraint, AnyGenericVelocityConstraint>,
-    joint_constraints: SolverConstraints<AnyJointVelocityConstraint, ()>,
+    contact_constraints: SolverConstraints<AnyVelocityConstraint>,
+    joint_constraints: SolverConstraints<AnyJointVelocityConstraint>,
     velocity_solver: VelocitySolver,
 }
 
@@ -94,7 +93,6 @@ impl IslandSolver {
             manifolds,
             impulse_joints,
             &mut self.contact_constraints.velocity_constraints,
-            &mut self.contact_constraints.generic_velocity_constraints,
             &self.contact_constraints.generic_jacobians,
             &mut self.joint_constraints.velocity_constraints,
             &self.joint_constraints.generic_jacobians,

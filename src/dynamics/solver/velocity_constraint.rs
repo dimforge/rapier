@@ -1,11 +1,14 @@
 use crate::data::{BundleSet, ComponentSet};
-use crate::dynamics::solver::VelocityGroundConstraint;
+use crate::dynamics::solver::{
+    GenericVelocityConstraint, GenericVelocityGroundConstraint, VelocityGroundConstraint,
+};
 #[cfg(feature = "simd-is-enabled")]
 use crate::dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint};
 use crate::dynamics::{IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyVelocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{self, WAngularInertia, WBasis, WCross, WDot, WReal};
+use na::DVector;
 
 use super::{DeltaVel, VelocityConstraintElement, VelocityConstraintNormalPart};
 
@@ -18,6 +21,8 @@ pub(crate) enum AnyVelocityConstraint {
     GroupedGround(WVelocityGroundConstraint),
     #[cfg(feature = "simd-is-enabled")]
     Grouped(WVelocityConstraint),
+    NongroupedGenericGround(GenericVelocityGroundConstraint),
+    NongroupedGeneric(GenericVelocityConstraint),
     #[allow(dead_code)] // The Empty variant is only used with parallel code.
     Empty,
 }
@@ -49,32 +54,51 @@ impl AnyVelocityConstraint {
             AnyVelocityConstraint::Grouped(c) => c.remove_bias_from_rhs(),
             #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::GroupedGround(c) => c.remove_bias_from_rhs(),
-            AnyVelocityConstraint::Empty => {}
+            AnyVelocityConstraint::NongroupedGeneric(c) => c.remove_bias_from_rhs(),
+            AnyVelocityConstraint::NongroupedGenericGround(c) => c.remove_bias_from_rhs(),
+            AnyVelocityConstraint::Empty => unreachable!(),
         }
     }
 
     pub fn solve(
         &mut self,
         cfm_factor: Real,
+        jacobians: &DVector<Real>,
         mj_lambdas: &mut [DeltaVel<Real>],
-        solve_normal: bool,
+        generic_mj_lambdas: &mut DVector<Real>,
+        solve_restitution: bool,
         solve_friction: bool,
     ) {
         match self {
             AnyVelocityConstraint::NongroupedGround(c) => {
-                c.solve(cfm_factor, mj_lambdas, solve_normal, solve_friction)
+                c.solve(cfm_factor, mj_lambdas, solve_restitution, solve_friction)
             }
             AnyVelocityConstraint::Nongrouped(c) => {
-                c.solve(cfm_factor, mj_lambdas, solve_normal, solve_friction)
+                c.solve(cfm_factor, mj_lambdas, solve_restitution, solve_friction)
             }
             #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::GroupedGround(c) => {
-                c.solve(cfm_factor, mj_lambdas, solve_normal, solve_friction)
+                c.solve(cfm_factor, mj_lambdas, solve_restitution, solve_friction)
             }
             #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::Grouped(c) => {
-                c.solve(cfm_factor, mj_lambdas, solve_normal, solve_friction)
+                c.solve(cfm_factor, mj_lambdas, solve_restitution, solve_friction)
             }
+            AnyVelocityConstraint::NongroupedGeneric(c) => c.solve(
+                cfm_factor,
+                jacobians,
+                mj_lambdas,
+                generic_mj_lambdas,
+                solve_restitution,
+                solve_friction,
+            ),
+            AnyVelocityConstraint::NongroupedGenericGround(c) => c.solve(
+                cfm_factor,
+                jacobians,
+                generic_mj_lambdas,
+                solve_restitution,
+                solve_friction,
+            ),
             AnyVelocityConstraint::Empty => unreachable!(),
         }
     }
@@ -87,6 +111,8 @@ impl AnyVelocityConstraint {
             AnyVelocityConstraint::GroupedGround(c) => c.writeback_impulses(manifold_all),
             #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::Grouped(c) => c.writeback_impulses(manifold_all),
+            AnyVelocityConstraint::NongroupedGeneric(c) => c.writeback_impulses(manifold_all),
+            AnyVelocityConstraint::NongroupedGenericGround(c) => c.writeback_impulses(manifold_all),
             AnyVelocityConstraint::Empty => unreachable!(),
         }
     }

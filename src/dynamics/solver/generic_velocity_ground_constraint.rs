@@ -8,8 +8,9 @@ use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Point, Real, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::WCross;
 
-use super::{VelocityGroundConstraintElement, VelocityGroundConstraintNormalPart};
-use crate::dynamics::solver::AnyGenericVelocityConstraint;
+use super::{
+    AnyVelocityConstraint, VelocityGroundConstraintElement, VelocityGroundConstraintNormalPart,
+};
 #[cfg(feature = "dim2")]
 use crate::utils::WBasis;
 use na::DVector;
@@ -30,7 +31,7 @@ impl GenericVelocityGroundConstraint {
         manifold: &ContactManifold,
         bodies: &Bodies,
         multibodies: &MultibodyJointSet,
-        out_constraints: &mut Vec<AnyGenericVelocityConstraint>,
+        out_constraints: &mut Vec<AnyVelocityConstraint>,
         jacobians: &mut DVector<Real>,
         jacobian_id: &mut usize,
         push: bool,
@@ -145,7 +146,7 @@ impl GenericVelocityGroundConstraint {
                     let mut rhs_wo_bias = (1.0 + is_bouncy * manifold_point.restitution)
                         * (vel1 - vel2).dot(&force_dir1);
                     rhs_wo_bias += manifold_point.dist.max(0.0) * inv_dt;
-                    rhs_wo_bias *= is_bouncy + is_resting ;
+                    rhs_wo_bias *= is_bouncy + is_resting;
                     let rhs_bias =
                         /* is_resting * */ erp_inv_dt * manifold_point.dist.min(0.0);
 
@@ -200,10 +201,10 @@ impl GenericVelocityGroundConstraint {
             };
 
             if push {
-                out_constraints.push(AnyGenericVelocityConstraint::NongroupedGround(constraint));
+                out_constraints.push(AnyVelocityConstraint::NongroupedGenericGround(constraint));
             } else {
                 out_constraints[manifold.data.constraint_index + _l] =
-                    AnyGenericVelocityConstraint::NongroupedGround(constraint);
+                    AnyVelocityConstraint::NongroupedGenericGround(constraint);
             }
         }
     }

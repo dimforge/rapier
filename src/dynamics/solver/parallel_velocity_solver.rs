@@ -3,8 +3,9 @@ use crate::concurrent_loop;
 use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
 use crate::dynamics::{
     solver::{GenericVelocityConstraint, ParallelSolverConstraints},
-    IntegrationParameters, IslandManager, JointGraphEdge, RigidBodyDamping, RigidBodyForces,
-    RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
+    IntegrationParameters, IslandManager, JointGraphEdge, MultibodyJointSet, RigidBodyDamping,
+    RigidBodyForces, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType,
+    RigidBodyVelocity,
 };
 use crate::geometry::ContactManifold;
 use crate::math::Real;
@@ -33,13 +34,11 @@ impl ParallelVelocitySolver {
         island_id: usize,
         islands: &IslandManager,
         bodies: &mut Bodies,
+        multibodies: &mut MultibodyJointSet,
         manifolds_all: &mut [&mut ContactManifold],
         joints_all: &mut [JointGraphEdge],
-        contact_constraints: &mut ParallelSolverConstraints<
-            AnyVelocityConstraint,
-            GenericVelocityConstraint,
-        >,
-        joint_constraints: &mut ParallelSolverConstraints<AnyJointVelocityConstraint, ()>,
+        contact_constraints: &mut ParallelSolverConstraints<AnyVelocityConstraint>,
+        joint_constraints: &mut ParallelSolverConstraints<AnyJointVelocityConstraint>,
     ) where
         Bodies: ComponentSet<RigidBodyForces>
             + ComponentSet<RigidBodyIds>
@@ -121,7 +120,7 @@ impl ParallelVelocitySolver {
                 let solve_friction = params.interleave_restitution_and_friction_resolution
                     && params.max_velocity_friction_iterations + i
                         >= params.max_velocity_iterations;
-
+                // Solve joints.
                 solve!(
                     joint_constraints,
                     &joint_constraints.generic_jacobians,
@@ -130,10 +129,27 @@ impl ParallelVelocitySolver {
                 );
                 shift += joint_descs.len();
                 start_index -= joint_descs.len();
+
+                // Solve rigid-body contacts.
                 solve!(
                     contact_constraints,
                     cfm_factor,
+                    &contact_constraints.generic_jacobians,
                     &mut self.mj_lambdas,
+                    &mut self.generic_mj_lambdas,
+                    true,
+                    false
+                );
+                shift += contact_descs.len();
+                start_index -= contact_descs.len();
+
+                // Solve generic rigid-body contacts.
+                solve!(
+                    contact_constraints,
+                    cfm_factor,
+                    &contact_constraints.generic_jacobians,
+                    &mut self.mj_lambdas,
+                    &mut self.generic_mj_lambdas,
                     true,
                     false
                 );
@@ -144,7 +160,9 @@ impl ParallelVelocitySolver {
                     solve!(
                         contact_constraints,
                         cfm_factor,
+                        &contact_constraints.generic_jacobians,
                         &mut self.mj_lambdas,
+                        &mut self.generic_mj_lambdas,
                         false,
                         true
                     );
@@ -167,7 +185,9 @@ impl ParallelVelocitySolver {
                 solve!(
                     contact_constraints,
                     cfm_factor,
+                    &contact_constraints.generic_jacobians,
                     &mut self.mj_lambdas,
+                    &mut self.generic_mj_lambdas,
                     false,
                     true
                 );
@@ -184,35 +204,54 @@ impl ParallelVelocitySolver {
             concurrent_loop! {
                 let batch_size = thread.batch_size;
                 for handle in active_bodies[thread.body_integration_pos_index, thread.num_integrated_pos_bodies] {
-                    let (rb_ids, rb_mprops): (&RigidBodyIds, &RigidBodyMassProps) =
-                    bodies.index_bundle(handle.0);
+                    if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
+                        let multibody = multibodies
+                            .get_multibody_mut_internal(link.multibody)
+                            .unwrap();
 
-                    let dvel = self.mj_lambdas[rb_ids.active_set_offset];
-                    let dangvel = rb_mprops
-                        .effective_world_inv_inertia_sqrt
-                        .transform_vector(dvel.angular);
+                        if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
+                            let mj_lambdas = self
+                                .generic_mj_lambdas
+                                .rows(multibody.solver_id, multibody.ndofs());
+                            let prev_vels = multibody.velocities.clone(); // FIXME: avoid allocations.
+                            multibody.velocities += mj_lambdas;
+                            multibody.integrate(params.dt);
+                            multibody.forward_kinematics(bodies, false);
+                            multibody.velocities = prev_vels;
+                        }
+                    } else {
+                        let (rb_ids, rb_mprops): (&RigidBodyIds, &RigidBodyMassProps) =
+                            bodies.index_bundle(handle.0);
 
-                    // Update positions.
-                    let (rb_pos, rb_vels, rb_damping, rb_mprops): (
-                        &RigidBodyPosition,
-                        &RigidBodyVelocity,
-                        &RigidBodyDamping,
-                        &RigidBodyMassProps,
-                    ) = bodies.index_bundle(handle.0);
+                        let dvel = self.mj_lambdas[rb_ids.active_set_offset];
+                        let dangvel = rb_mprops
+                            .effective_world_inv_inertia_sqrt
+                            .transform_vector(dvel.angular);
 
-                    let mut new_pos = *rb_pos;
-                    let mut new_vels = *rb_vels;
-                    new_vels.linvel += dvel.linear;
-                    new_vels.angvel += dangvel;
-                    new_vels = new_vels.apply_damping(params.dt, rb_damping);
-                    new_pos.next_position = new_vels.integrate(
-                        params.dt,
-                        &rb_pos.position,
-                        &rb_mprops.local_mprops.local_com,
-                    );
-                    bodies.set_internal(handle.0, new_pos);
+                        // Update positions.
+                        let (rb_pos, rb_vels, rb_damping, rb_mprops): (
+                            &RigidBodyPosition,
+                            &RigidBodyVelocity,
+                            &RigidBodyDamping,
+                            &RigidBodyMassProps,
+                        ) = bodies.index_bundle(handle.0);
+
+                        let mut new_pos = *rb_pos;
+                        let mut new_vels = *rb_vels;
+                        new_vels.linvel += dvel.linear;
+                        new_vels.angvel += dangvel;
+                        new_vels = new_vels.apply_damping(params.dt, rb_damping);
+                        new_pos.next_position = new_vels.integrate(
+                            params.dt,
+                            &rb_pos.position,
+                            &rb_mprops.local_mprops.local_com,
+                        );
+                        bodies.set_internal(handle.0, new_pos);
+                    }
                 }
             }
+
+            ThreadContext::lock_until_ge(&thread.num_integrated_pos_bodies, active_bodies.len());
         }
 
         // Remove bias from constraints.
@@ -249,7 +288,9 @@ impl ParallelVelocitySolver {
                 solve!(
                     contact_constraints,
                     cfm_factor,
+                    &contact_constraints.generic_jacobians,
                     &mut self.mj_lambdas,
+                    &mut self.generic_mj_lambdas,
                     true,
                     false
                 );
@@ -259,7 +300,9 @@ impl ParallelVelocitySolver {
                 solve!(
                     contact_constraints,
                     cfm_factor,
+                    &contact_constraints.generic_jacobians,
                     &mut self.mj_lambdas,
+                    &mut self.generic_mj_lambdas,
                     false,
                     true
                 );
@@ -276,23 +319,36 @@ impl ParallelVelocitySolver {
             concurrent_loop! {
                 let batch_size = thread.batch_size;
                 for handle in active_bodies[thread.body_integration_vel_index, thread.num_integrated_vel_bodies] {
-                    let (rb_ids, rb_damping, rb_mprops): (
-                        &RigidBodyIds,
-                        &RigidBodyDamping,
-                        &RigidBodyMassProps,
-                    ) = bodies.index_bundle(handle.0);
+                    if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
+                        let multibody = multibodies
+                            .get_multibody_mut_internal(link.multibody)
+                            .unwrap();
 
-                    let dvel = self.mj_lambdas[rb_ids.active_set_offset];
-                    let dangvel = rb_mprops
-                        .effective_world_inv_inertia_sqrt
-                        .transform_vector(dvel.angular);
-                    let damping = *rb_damping; // To avoid borrow issues.
+                        if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
+                            let mj_lambdas = self
+                                .generic_mj_lambdas
+                                .rows(multibody.solver_id, multibody.ndofs());
+                            multibody.velocities += mj_lambdas;
+                        }
+                    } else {
+                        let (rb_ids, rb_damping, rb_mprops): (
+                            &RigidBodyIds,
+                            &RigidBodyDamping,
+                            &RigidBodyMassProps,
+                        ) = bodies.index_bundle(handle.0);
 
-                    bodies.map_mut_internal(handle.0, |vels: &mut RigidBodyVelocity| {
-                        vels.linvel += dvel.linear;
-                        vels.angvel += dangvel;
-                        *vels = vels.apply_damping(params.dt, &damping);
-                    });
+                        let dvel = self.mj_lambdas[rb_ids.active_set_offset];
+                        let dangvel = rb_mprops
+                            .effective_world_inv_inertia_sqrt
+                            .transform_vector(dvel.angular);
+                        let damping = *rb_damping; // To avoid borrow issues.
+
+                        bodies.map_mut_internal(handle.0, |vels: &mut RigidBodyVelocity| {
+                            vels.linvel += dvel.linear;
+                            vels.angvel += dangvel;
+                            *vels = vels.apply_damping(params.dt, &damping);
+                        });
+                    }
                 }
             }
         }
