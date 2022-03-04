@@ -66,7 +66,7 @@ discussions with the community.
 
 
 ## Acknowledgements
-Parry is supported by our **platinum** sponsors:
+Rapier is supported by our **platinum** sponsors:
 <p>
   <a href="https://embark-studios.com">
     <img src="https://www.embark.dev/img/logo_black.png" width="301px">
