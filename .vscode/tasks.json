@@ -25,6 +25,22 @@
             "group": "build"
         },
         {
+            "label": "🚀 run 3d − 💌 deterministic",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples3",
+                "--release",
+                "--features",
+                "enhanced-determinism",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
             "label": "🚀 run 3d − 🌈 simd",
             "type": "shell",
             "command": "cargo",

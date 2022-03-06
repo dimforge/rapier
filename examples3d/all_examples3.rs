@@ -20,12 +20,12 @@ mod debug_articulations3;
 mod debug_big_colliders3;
 mod debug_boxes3;
 mod debug_cylinder3;
+mod debug_deserialize3;
 mod debug_dynamic_collider_add3;
 mod debug_friction3;
 mod debug_infinite_fall3;
 mod debug_prismatic3;
 mod debug_rollback3;
-mod debug_serialized3;
 mod debug_shape_modification3;
 mod debug_triangle3;
 mod debug_trimesh3;
@@ -123,10 +123,7 @@ pub fn main() {
             "(Debug) shape modification",
             debug_shape_modification3::init_world,
         ),
-        (
-            "A serialized",
-            debug_serialized3::init_world,
-        ),
+        ("(Debug) deserialize", debug_deserialize3::init_world),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
