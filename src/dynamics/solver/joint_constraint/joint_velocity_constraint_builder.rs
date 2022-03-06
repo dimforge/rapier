@@ -3,7 +3,7 @@ use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
 };
 use crate::dynamics::solver::joint_constraint::SolverBody;
 use crate::dynamics::solver::MotorParameters;
-use crate::dynamics::{IntegrationParameters, JointAxesMask, JointIndex, JointLimits, JointMotor};
+use crate::dynamics::{IntegrationParameters, JointIndex, JointLimits};
 use crate::math::{AngVector, Isometry, Matrix, Point, Real, Rotation, Vector, ANG_DIM, DIM};
 use crate::utils::{IndexMut2, WCrossMatrix, WDot, WQuat, WReal};
 use na::SMatrix;
@@ -660,15 +660,14 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
 
     pub fn motor_linear_coupled_ground<const LANES: usize>(
         &self,
-        params: &IntegrationParameters,
-        joint_id: [JointIndex; LANES],
-        body1: &SolverBody<N, LANES>,
-        body2: &SolverBody<N, LANES>,
-        motor_coupled_axes: u8,
-        motors: &[MotorParameters<N>],
-        limited_coupled_axes: u8,
-        limits: &[JointLimits<N>],
-        writeback_id: WritebackId,
+        _joint_id: [JointIndex; LANES],
+        _body1: &SolverBody<N, LANES>,
+        _body2: &SolverBody<N, LANES>,
+        _motor_coupled_axes: u8,
+        _motors: &[MotorParameters<N>],
+        _limited_coupled_axes: u8,
+        _limits: &[JointLimits<N>],
+        _writeback_id: WritebackId,
     ) -> JointVelocityGroundConstraint<N, LANES> {
         todo!()
         /*

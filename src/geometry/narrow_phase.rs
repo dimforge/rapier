@@ -712,7 +712,7 @@ impl NarrowPhase {
         par_iter_mut!(&mut self.intersection_graph.graph.edges).for_each(|edge| {
             let handle1 = nodes[edge.source().index()].weight;
             let handle2 = nodes[edge.target().index()].weight;
-            let mut had_intersection = edge.weight;
+            let had_intersection = edge.weight;
 
             // TODO: remove the `loop` once labels on blocks is stabilized.
             'emit_events: loop {

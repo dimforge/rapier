@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use rayon::Scope;
 
 use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
-use crate::dynamics::solver::generic_velocity_constraint::GenericVelocityConstraint;
 use crate::dynamics::solver::{
     AnyJointVelocityConstraint, AnyVelocityConstraint, ParallelSolverConstraints,
 };
@@ -13,7 +12,6 @@ use crate::dynamics::{
     RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{Isometry, Real};
 use na::DVector;
 
 use super::{DeltaVel, ParallelInteractionGroups, ParallelVelocitySolver};
@@ -139,7 +137,6 @@ impl ThreadContext {
 
 pub struct ParallelIslandSolver {
     velocity_solver: ParallelVelocitySolver,
-    positions: Vec<Isometry<Real>>,
     parallel_groups: ParallelInteractionGroups,
     parallel_joint_groups: ParallelInteractionGroups,
     parallel_contact_constraints: ParallelSolverConstraints<AnyVelocityConstraint>,
@@ -157,7 +154,6 @@ impl ParallelIslandSolver {
     pub fn new() -> Self {
         Self {
             velocity_solver: ParallelVelocitySolver::new(),
-            positions: Vec::new(),
             parallel_groups: ParallelInteractionGroups::new(),
             parallel_joint_groups: ParallelInteractionGroups::new(),
             parallel_contact_constraints: ParallelSolverConstraints::new(),
@@ -192,7 +188,6 @@ impl ParallelIslandSolver {
         self.thread = ThreadContext::new(8); // TODO: could we compute some kind of optimal value here?
     
         // Interactions grouping.
-        let mut j_id = 0;
         self.parallel_groups.group_interactions(
             island_id,
             islands,

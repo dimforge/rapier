@@ -58,7 +58,7 @@ impl SolverBody<Real, 1> {
 impl JointVelocityConstraintBuilder<Real> {
     pub fn lock_jacobians_generic(
         &self,
-        params: &IntegrationParameters,
+        _params: &IntegrationParameters,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
@@ -500,7 +500,7 @@ impl JointVelocityConstraintBuilder<Real> {
 impl JointVelocityConstraintBuilder<Real> {
     pub fn lock_jacobians_generic_ground(
         &self,
-        params: &IntegrationParameters,
+        _params: &IntegrationParameters,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
