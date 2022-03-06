@@ -971,27 +971,48 @@ impl Multibody {
     }
 
     #[inline]
+    pub fn num_active_internal_constraints_and_jacobian_lines(&self) -> (usize, usize) {
+        let num_constraints: usize = self
+            .links
+            .iter()
+            .map(|l| l.joint().num_velocity_constraints())
+            .sum();
+        (num_constraints, num_constraints)
+    }
+
+    #[inline]
     pub fn generate_internal_constraints(
         &self,
         params: &IntegrationParameters,
         j_id: &mut usize,
         jacobians: &mut DVector<Real>,
         out: &mut Vec<AnyJointVelocityConstraint>,
+        mut insert_at: Option<usize>,
     ) {
-        let num_constraints: usize = self
-            .links
-            .iter()
-            .map(|l| l.joint().num_velocity_constraints())
-            .sum();
+        if !cfg!(feature = "parallel") {
+            let num_constraints: usize = self
+                .links
+                .iter()
+                .map(|l| l.joint().num_velocity_constraints())
+                .sum();
 
-        let required_jacobian_len = *j_id + num_constraints * self.ndofs * 2;
-        if jacobians.nrows() < required_jacobian_len {
-            jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
+            let required_jacobian_len = *j_id + num_constraints * self.ndofs * 2;
+            if jacobians.nrows() < required_jacobian_len {
+                jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
+            }
         }
 
         for link in self.links.iter() {
-            link.joint()
-                .velocity_constraints(params, self, link, 0, j_id, jacobians, out);
+            link.joint().velocity_constraints(
+                params,
+                self,
+                link,
+                0,
+                j_id,
+                jacobians,
+                out,
+                &mut insert_at,
+            );
         }
     }
 }

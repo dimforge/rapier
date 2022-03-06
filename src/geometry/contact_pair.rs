@@ -122,9 +122,6 @@ pub struct ContactManifoldData {
     pub rigid_body1: Option<RigidBodyHandle>,
     /// The second rigid-body involved in this contact manifold.
     pub rigid_body2: Option<RigidBodyHandle>,
-    // The two following are set by the constraints solver.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    pub(crate) constraint_index: usize,
     // We put the following fields here to avoids reading the colliders inside of the
     // contact preparation method.
     /// Flags used to control some aspects of the constraints solver for this contact manifold.
@@ -211,7 +208,6 @@ impl ContactManifoldData {
         Self {
             rigid_body1,
             rigid_body2,
-            constraint_index: 0,
             solver_flags,
             normal: Vector::zeros(),
             solver_contacts: Vec::new(),

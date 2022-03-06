@@ -136,9 +136,12 @@ pub(crate) struct VelocityConstraint {
 
 impl VelocityConstraint {
     #[cfg(feature = "parallel")]
-    pub fn num_active_constraints(manifold: &ContactManifold) -> usize {
+    pub fn num_active_constraints_and_jacobian_lines(manifold: &ContactManifold) -> (usize, usize) {
         let rest = manifold.data.solver_contacts.len() % MAX_MANIFOLD_POINTS != 0;
-        manifold.data.solver_contacts.len() / MAX_MANIFOLD_POINTS + rest as usize
+        (
+            manifold.data.solver_contacts.len() / MAX_MANIFOLD_POINTS + rest as usize,
+            manifold.data.solver_contacts.len() * DIM,
+        )
     }
 
     pub fn generate<Bodies>(
@@ -147,7 +150,7 @@ impl VelocityConstraint {
         manifold: &ContactManifold,
         bodies: &Bodies,
         out_constraints: &mut Vec<AnyVelocityConstraint>,
-        push: bool,
+        insert_at: Option<usize>,
     ) where
         Bodies: ComponentSet<RigidBodyIds>
             + ComponentSet<RigidBodyVelocity>
@@ -209,7 +212,7 @@ impl VelocityConstraint {
             // NOTE: impulse_joints have the same problem, but it is not easy to refactor the code that way
             // for the moment.
             #[cfg(target_arch = "wasm32")]
-            let constraint = if push {
+            let constraint = if insert_at.is_none() {
                 let new_len = out_constraints.len() + 1;
                 unsafe {
                     out_constraints.resize_with(new_len, || {
@@ -331,11 +334,10 @@ impl VelocityConstraint {
             }
 
             #[cfg(not(target_arch = "wasm32"))]
-            if push {
-                out_constraints.push(AnyVelocityConstraint::Nongrouped(constraint));
+            if let Some(at) = insert_at {
+                out_constraints[at + _l] = AnyVelocityConstraint::Nongrouped(constraint);
             } else {
-                out_constraints[manifold.data.constraint_index + _l] =
-                    AnyVelocityConstraint::Nongrouped(constraint);
+                out_constraints.push(AnyVelocityConstraint::Nongrouped(constraint));
             }
         }
     }

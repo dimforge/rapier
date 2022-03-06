@@ -189,7 +189,7 @@ impl SolverConstraints<AnyVelocityConstraint> {
                 manifolds,
                 bodies,
                 &mut self.velocity_constraints,
-                true,
+                None,
             );
         }
     }
@@ -213,7 +213,7 @@ impl SolverConstraints<AnyVelocityConstraint> {
                 manifold,
                 bodies,
                 &mut self.velocity_constraints,
-                true,
+                None,
             );
         }
     }
@@ -243,7 +243,7 @@ impl SolverConstraints<AnyVelocityConstraint> {
                 &mut self.velocity_constraints,
                 &mut self.generic_jacobians,
                 jacobian_id,
-                true,
+                None,
             );
         }
     }
@@ -273,7 +273,7 @@ impl SolverConstraints<AnyVelocityConstraint> {
                 &mut self.velocity_constraints,
                 &mut self.generic_jacobians,
                 jacobian_id,
-                true,
+                None,
             );
         }
     }
@@ -303,7 +303,7 @@ impl SolverConstraints<AnyVelocityConstraint> {
                 manifolds,
                 bodies,
                 &mut self.velocity_constraints,
-                true,
+                None,
             );
         }
     }
@@ -327,7 +327,7 @@ impl SolverConstraints<AnyVelocityConstraint> {
                 manifold,
                 bodies,
                 &mut self.velocity_constraints,
-                true,
+                None,
             );
         }
     }
@@ -457,6 +457,7 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
                         j_id,
                         &mut self.generic_jacobians,
                         &mut self.velocity_constraints,
+                        None,
                     )
                 }
             }
@@ -488,7 +489,7 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
                 &mut j_id,
                 &mut self.generic_jacobians,
                 &mut self.velocity_constraints,
-                true,
+                None,
             );
         }
     }
@@ -519,7 +520,7 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
                 impulse_joints,
                 bodies,
                 &mut self.velocity_constraints,
-                true,
+                None,
             );
         }
     }
@@ -548,7 +549,7 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
                 j_id,
                 &mut self.generic_jacobians,
                 &mut self.velocity_constraints,
-                true,
+                None,
             );
         }
     }
@@ -577,7 +578,7 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
                 j_id,
                 &mut self.generic_jacobians,
                 &mut self.velocity_constraints,
-                true,
+                None,
             )
         }
     }
@@ -607,7 +608,7 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
                 j_id,
                 &mut self.generic_jacobians,
                 &mut self.velocity_constraints,
-                true,
+                None,
             )
         }
     }
@@ -637,7 +638,7 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
                 impulse_joints,
                 bodies,
                 &mut self.velocity_constraints,
-                true,
+                None,
             );
         }
     }

@@ -20,6 +20,7 @@ pub fn unit_joint_limit_constraint(
     j_id: &mut usize,
     jacobians: &mut DVector<Real>,
     constraints: &mut Vec<AnyJointVelocityConstraint>,
+    insert_at: &mut Option<usize>,
 ) {
     let ndofs = multibody.ndofs();
     let joint_velocity = multibody.joint_velocity(link);
@@ -60,9 +61,14 @@ pub fn unit_joint_limit_constraint(
         writeback_id: WritebackId::Limit(dof_id),
     };
 
-    constraints.push(AnyJointVelocityConstraint::JointGenericGroundConstraint(
-        constraint,
-    ));
+    if let Some(at) = insert_at {
+        constraints[*at] = AnyJointVelocityConstraint::JointGenericGroundConstraint(constraint);
+        *at += 1;
+    } else {
+        constraints.push(AnyJointVelocityConstraint::JointGenericGroundConstraint(
+            constraint,
+        ));
+    }
     *j_id += 2 * ndofs;
 }
 
@@ -79,6 +85,7 @@ pub fn unit_joint_motor_constraint(
     j_id: &mut usize,
     jacobians: &mut DVector<Real>,
     constraints: &mut Vec<AnyJointVelocityConstraint>,
+    insert_at: &mut Option<usize>,
 ) {
     let inv_dt = params.inv_dt();
     let ndofs = multibody.ndofs();
@@ -128,8 +135,13 @@ pub fn unit_joint_motor_constraint(
         writeback_id: WritebackId::Limit(dof_id),
     };
 
-    constraints.push(AnyJointVelocityConstraint::JointGenericGroundConstraint(
-        constraint,
-    ));
+    if let Some(at) = insert_at {
+        constraints[*at] = AnyJointVelocityConstraint::JointGenericGroundConstraint(constraint);
+        *at += 1;
+    } else {
+        constraints.push(AnyJointVelocityConstraint::JointGenericGroundConstraint(
+            constraint,
+        ));
+    }
     *j_id += 2 * ndofs;
 }

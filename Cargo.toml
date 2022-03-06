@@ -27,6 +27,9 @@ resolver = "2"
 #opt-level = 1
 #lto = true
 
+[profile.dev]
+opt-level = 1
+
 
 #[profile.dev.package.rapier3d]
 #opt-level = 3

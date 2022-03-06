@@ -187,7 +187,6 @@ impl ImpulseJointSet {
             data,
             impulses: na::zero(),
             handle: ImpulseJointHandle(handle),
-            constraint_index: 0,
         };
 
         let default_id = InteractionGraph::<(), ()>::invalid_graph_index();

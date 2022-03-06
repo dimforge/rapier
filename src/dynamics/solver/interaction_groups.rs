@@ -131,14 +131,14 @@ impl ParallelInteractionGroups {
                 (true, false) => {
                     let rb_ids2: &RigidBodyIds = bodies.index(body_pair.1.unwrap().0);
                     let color_mask = bcolors[rb_ids2.active_set_offset];
-                    *color = (!color_mask).leading_zeros() as usize;
+                    *color = 127 - (!color_mask).leading_zeros() as usize;
                     color_len[*color] += 1;
                     bcolors[rb_ids2.active_set_offset] |= 1 << *color;
                 }
                 (false, true) => {
                     let rb_ids1: &RigidBodyIds = bodies.index(body_pair.0.unwrap().0);
                     let color_mask = bcolors[rb_ids1.active_set_offset];
-                    *color = (!color_mask).leading_zeros() as usize;
+                    *color = 127 - (!color_mask).leading_zeros() as usize;
                     color_len[*color] += 1;
                     bcolors[rb_ids1.active_set_offset] |= 1 << *color;
                 }
