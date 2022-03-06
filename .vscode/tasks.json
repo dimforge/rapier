@@ -57,6 +57,21 @@
             "group": "build"
         },
         {
+            "label": "run 3d (simd - parallel - debug) ",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples3",
+                "--features",
+                "simd-stable,parallel",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
             "label": "run 2d (no-simd - release) ",
             "type": "shell",
             "command": "cargo",

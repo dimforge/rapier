@@ -255,6 +255,7 @@ impl MultibodyJoint {
         j_id: &mut usize,
         jacobians: &mut DVector<Real>,
         constraints: &mut Vec<AnyJointVelocityConstraint>,
+        insert_at: &mut Option<usize>,
     ) {
         let locked_bits = self.data.locked_axes.bits();
         let limit_bits = self.data.limit_axes.bits();
@@ -281,6 +282,7 @@ impl MultibodyJoint {
                         j_id,
                         jacobians,
                         constraints,
+                        insert_at,
                     );
                 }
 
@@ -295,6 +297,7 @@ impl MultibodyJoint {
                         j_id,
                         jacobians,
                         constraints,
+                        insert_at,
                     );
                 }
                 curr_free_dof += 1;
@@ -329,6 +332,7 @@ impl MultibodyJoint {
                         j_id,
                         jacobians,
                         constraints,
+                        insert_at,
                     );
                     Some(limits)
                 } else {
@@ -347,6 +351,7 @@ impl MultibodyJoint {
                         j_id,
                         jacobians,
                         constraints,
+                        insert_at,
                     );
                 }
                 curr_free_dof += 1;

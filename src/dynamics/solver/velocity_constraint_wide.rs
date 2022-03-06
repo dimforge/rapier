@@ -36,7 +36,7 @@ impl WVelocityConstraint {
         manifolds: [&ContactManifold; SIMD_WIDTH],
         bodies: &Bodies,
         out_constraints: &mut Vec<AnyVelocityConstraint>,
-        push: bool,
+        insert_at: Option<usize>,
     ) where
         Bodies: ComponentSet<RigidBodyIds>
             + ComponentSet<RigidBodyVelocity>
@@ -190,11 +190,11 @@ impl WVelocityConstraint {
                 }
             }
 
-            if push {
-                out_constraints.push(AnyVelocityConstraint::Grouped(constraint));
-            } else {
-                out_constraints[manifolds[0].data.constraint_index + l / MAX_MANIFOLD_POINTS] =
+            if let Some(at) = insert_at {
+                out_constraints[at + l / MAX_MANIFOLD_POINTS] =
                     AnyVelocityConstraint::Grouped(constraint);
+            } else {
+                out_constraints.push(AnyVelocityConstraint::Grouped(constraint));
             }
         }
     }

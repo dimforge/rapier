@@ -36,7 +36,7 @@ impl GenericVelocityConstraint {
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         jacobians: &mut DVector<Real>,
         jacobian_id: &mut usize,
-        push: bool,
+        insert_at: Option<usize>,
     ) where
         Bodies: ComponentSet<RigidBodyIds>
             + ComponentSet<RigidBodyVelocity>
@@ -99,7 +99,7 @@ impl GenericVelocityConstraint {
         let required_jacobian_len =
             *jacobian_id + manifold.data.solver_contacts.len() * multibodies_ndof * 2 * DIM;
 
-        if jacobians.nrows() < required_jacobian_len {
+        if jacobians.nrows() < required_jacobian_len && !cfg!(feature = "parallel") {
             jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
         }
 
@@ -320,11 +320,10 @@ impl GenericVelocityConstraint {
                 generic_constraint_mask,
             };
 
-            if push {
-                out_constraints.push(AnyVelocityConstraint::NongroupedGeneric(constraint));
+            if let Some(at) = insert_at {
+                out_constraints[at + _l] = AnyVelocityConstraint::NongroupedGeneric(constraint);
             } else {
-                out_constraints[manifold.data.constraint_index + _l] =
-                    AnyVelocityConstraint::NongroupedGeneric(constraint);
+                out_constraints.push(AnyVelocityConstraint::NongroupedGeneric(constraint));
             }
         }
     }

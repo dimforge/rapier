@@ -30,20 +30,21 @@ pub enum AnyJointVelocityConstraint {
 
 impl AnyJointVelocityConstraint {
     #[cfg(feature = "parallel")]
-    pub fn num_active_constraints(joint: &ImpulseJoint) -> usize {
+    pub fn num_active_constraints_and_jacobian_lines(joint: &ImpulseJoint) -> (usize, usize) {
         let joint = &joint.data;
         let locked_axes = joint.locked_axes.bits();
         let motor_axes = joint.motor_axes.bits() & !locked_axes;
         let limit_axes = joint.limit_axes.bits() & !locked_axes;
         let coupled_axes = joint.coupled_axes.bits();
 
-        (motor_axes & !coupled_axes).count_ones() as usize
+        let num_constraints = (motor_axes & !coupled_axes).count_ones() as usize
             + ((motor_axes & coupled_axes) & JointAxesMask::ANG_AXES.bits() != 0) as usize
             + ((motor_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0) as usize
             + locked_axes.count_ones() as usize
             + (limit_axes & !coupled_axes).count_ones() as usize
             + ((limit_axes & coupled_axes) & JointAxesMask::ANG_AXES.bits() != 0) as usize
-            + ((limit_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0) as usize
+            + ((limit_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0) as usize;
+        (num_constraints, num_constraints)
     }
 
     pub fn from_joint<Bodies>(
@@ -55,7 +56,7 @@ impl AnyJointVelocityConstraint {
         j_id: &mut usize,
         jacobians: &mut DVector<Real>,
         out: &mut Vec<Self>,
-        push: bool,
+        insert_at: Option<usize>,
     ) where
         Bodies: ComponentSet<RigidBodyPosition>
             + ComponentSet<RigidBodyVelocity>
@@ -122,7 +123,7 @@ impl AnyJointVelocityConstraint {
             // TODO: is this count correct when we take both motors and limits into account?
             let required_jacobian_len = *j_id + multibodies_ndof * 2 * SPATIAL_DIM;
 
-            if jacobians.nrows() < required_jacobian_len {
+            if jacobians.nrows() < required_jacobian_len && !cfg!(feature = "parallel") {
                 jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
             }
 
@@ -143,14 +144,13 @@ impl AnyJointVelocityConstraint {
                 &mut out_tmp,
             );
 
-            if push {
-                for c in out_tmp.into_iter().take(out_tmp_len) {
-                    out.push(AnyJointVelocityConstraint::JointGenericConstraint(c));
+            if let Some(at) = insert_at {
+                for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
+                    out[at + i] = AnyJointVelocityConstraint::JointGenericConstraint(c);
                 }
             } else {
-                for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
-                    out[joint.constraint_index + i] =
-                        AnyJointVelocityConstraint::JointGenericConstraint(c);
+                for c in out_tmp.into_iter().take(out_tmp_len) {
+                    out.push(AnyJointVelocityConstraint::JointGenericConstraint(c));
                 }
             }
         } else {
@@ -167,14 +167,13 @@ impl AnyJointVelocityConstraint {
                 &mut out_tmp,
             );
 
-            if push {
-                for c in out_tmp.into_iter().take(out_tmp_len) {
-                    out.push(AnyJointVelocityConstraint::JointConstraint(c));
+            if let Some(at) = insert_at {
+                for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
+                    out[at + i] = AnyJointVelocityConstraint::JointConstraint(c);
                 }
             } else {
-                for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
-                    out[joint.constraint_index + i] =
-                        AnyJointVelocityConstraint::JointConstraint(c);
+                for c in out_tmp.into_iter().take(out_tmp_len) {
+                    out.push(AnyJointVelocityConstraint::JointConstraint(c));
                 }
             }
         }
@@ -187,7 +186,7 @@ impl AnyJointVelocityConstraint {
         impulse_joints: [&ImpulseJoint; SIMD_WIDTH],
         bodies: &Bodies,
         out: &mut Vec<Self>,
-        push: bool,
+        insert_at: Option<usize>,
     ) where
         Bodies: ComponentSet<RigidBodyPosition>
             + ComponentSet<RigidBodyVelocity>
@@ -260,14 +259,13 @@ impl AnyJointVelocityConstraint {
             &mut out_tmp,
         );
 
-        if push {
-            for c in out_tmp.into_iter().take(out_tmp_len) {
-                out.push(AnyJointVelocityConstraint::JointConstraintSimd(c));
+        if let Some(at) = insert_at {
+            for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
+                out[at + i] = AnyJointVelocityConstraint::JointConstraintSimd(c);
             }
         } else {
-            for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
-                out[impulse_joints[0].constraint_index + i] =
-                    AnyJointVelocityConstraint::JointConstraintSimd(c);
+            for c in out_tmp.into_iter().take(out_tmp_len) {
+                out.push(AnyJointVelocityConstraint::JointConstraintSimd(c));
             }
         }
     }
@@ -281,7 +279,7 @@ impl AnyJointVelocityConstraint {
         j_id: &mut usize,
         jacobians: &mut DVector<Real>,
         out: &mut Vec<Self>,
-        push: bool,
+        insert_at: Option<usize>,
     ) where
         Bodies: ComponentSet<RigidBodyPosition>
             + ComponentSet<RigidBodyType>
@@ -350,7 +348,7 @@ impl AnyJointVelocityConstraint {
             // TODO: is this count correct when we take both motors and limits into account?
             let required_jacobian_len = *j_id + multibodies_ndof * 2 * SPATIAL_DIM;
 
-            if jacobians.nrows() < required_jacobian_len {
+            if jacobians.nrows() < required_jacobian_len && !cfg!(feature = "parallel") {
                 jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
             }
 
@@ -370,14 +368,13 @@ impl AnyJointVelocityConstraint {
                 &mut out_tmp,
             );
 
-            if push {
-                for c in out_tmp.into_iter().take(out_tmp_len) {
-                    out.push(AnyJointVelocityConstraint::JointGenericGroundConstraint(c));
+            if let Some(at) = insert_at {
+                for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
+                    out[at + i] = AnyJointVelocityConstraint::JointGenericGroundConstraint(c);
                 }
             } else {
-                for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
-                    out[joint.constraint_index + i] =
-                        AnyJointVelocityConstraint::JointGenericGroundConstraint(c);
+                for c in out_tmp.into_iter().take(out_tmp_len) {
+                    out.push(AnyJointVelocityConstraint::JointGenericGroundConstraint(c));
                 }
             }
         } else {
@@ -394,14 +391,13 @@ impl AnyJointVelocityConstraint {
                 &mut out_tmp,
             );
 
-            if push {
-                for c in out_tmp.into_iter().take(out_tmp_len) {
-                    out.push(AnyJointVelocityConstraint::JointGroundConstraint(c));
+            if let Some(at) = insert_at {
+                for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
+                    out[at + i] = AnyJointVelocityConstraint::JointGroundConstraint(c);
                 }
             } else {
-                for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
-                    out[joint.constraint_index + i] =
-                        AnyJointVelocityConstraint::JointGroundConstraint(c);
+                for c in out_tmp.into_iter().take(out_tmp_len) {
+                    out.push(AnyJointVelocityConstraint::JointGroundConstraint(c));
                 }
             }
         }
@@ -414,7 +410,7 @@ impl AnyJointVelocityConstraint {
         impulse_joints: [&ImpulseJoint; SIMD_WIDTH],
         bodies: &Bodies,
         out: &mut Vec<Self>,
-        push: bool,
+        insert_at: Option<usize>,
     ) where
         Bodies: ComponentSet<RigidBodyPosition>
             + ComponentSet<RigidBodyType>
@@ -506,14 +502,13 @@ impl AnyJointVelocityConstraint {
             &mut out_tmp,
         );
 
-        if push {
-            for c in out_tmp.into_iter().take(out_tmp_len) {
-                out.push(AnyJointVelocityConstraint::JointGroundConstraintSimd(c));
+        if let Some(at) = insert_at {
+            for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
+                out[at + i] = AnyJointVelocityConstraint::JointGroundConstraintSimd(c);
             }
         } else {
-            for (i, c) in out_tmp.into_iter().take(out_tmp_len).enumerate() {
-                out[impulse_joints[0].constraint_index + i] =
-                    AnyJointVelocityConstraint::JointGroundConstraintSimd(c);
+            for c in out_tmp.into_iter().take(out_tmp_len) {
+                out.push(AnyJointVelocityConstraint::JointGroundConstraintSimd(c));
             }
         }
     }
