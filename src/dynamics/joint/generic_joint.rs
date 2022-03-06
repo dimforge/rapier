@@ -1,9 +1,7 @@
-use na::SimdRealField;
-
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint};
 use crate::math::{Isometry, Point, Real, Rotation, UnitVector, Vector, SPATIAL_DIM};
-use crate::utils::WBasis;
+use crate::utils::{WBasis, WReal};
 
 #[cfg(feature = "dim3")]
 use crate::dynamics::SphericalJoint;
@@ -77,7 +75,7 @@ pub struct JointLimits<N> {
     pub impulse: N,
 }
 
-impl<N: SimdRealField<Element = Real>> Default for JointLimits<N> {
+impl<N: WReal> Default for JointLimits<N> {
     fn default() -> Self {
         Self {
             min: -N::splat(Real::MAX),

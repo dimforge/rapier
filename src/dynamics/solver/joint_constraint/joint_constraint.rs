@@ -12,7 +12,7 @@ use crate::dynamics::{
 };
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::{Isometry, SimdReal, SIMD_WIDTH};
-use crate::math::{Real, DIM, SPATIAL_DIM};
+use crate::math::{Real, SPATIAL_DIM};
 use crate::prelude::MultibodyJointSet;
 use na::DVector;
 

@@ -9,7 +9,7 @@
     },
     "tasks": [
         {
-            "label": "run 3d (no-simd - release) ",
+            "label": "🚀 run 3d",
             "type": "shell",
             "command": "cargo",
             "args": [
@@ -25,7 +25,7 @@
             "group": "build"
         },
         {
-            "label": "run 3d (simd - release) ",
+            "label": "🚀 run 3d − 🌈 simd",
             "type": "shell",
             "command": "cargo",
             "args": [
@@ -41,7 +41,7 @@
             "group": "build"
         },
         {
-            "label": "run 3d (simd - parallel - release) ",
+            "label": "🚀 run 3d − 🌈 simd 🪢 parallel",
             "type": "shell",
             "command": "cargo",
             "args": [
@@ -57,7 +57,179 @@
             "group": "build"
         },
         {
-            "label": "run 3d (simd - parallel - debug) ",
+            "label": "🚀 run 2d",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples2",
+                "--release",
+                "--features",
+                "other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "🚀 run 2d − 🌈 simd",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples2",
+                "--release",
+                "--features",
+                "simd-stable,other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "🚀 run 2d − 🌈 simd 🪢 parallel",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples2",
+                "--release",
+                "--features",
+                "simd-stable,other-backends,parallel",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "⏱ bench 3d",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_benchmarks3",
+                "--release",
+                "--features",
+                "other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "⏱ bench 3d − 🌈 simd",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_benchmarks3",
+                "--release",
+                "--features",
+                "simd-stable,other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "⏱ bench 3d − 🌈 simd 🪢 parallel",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_benchmarks3",
+                "--release",
+                "--features",
+                "simd-stable,other-backends,parallel",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "⏱ bench 2d",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_benchmarks2",
+                "--release",
+                "--features",
+                "other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "⏱ bench 2d − 🌈 simd",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_benchmarks2",
+                "--release",
+                "--features",
+                "simd-stable,other-backends",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "⏱ bench 2d − 🌈 simd 🪢 parallel",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_benchmarks2",
+                "--release",
+                "--features",
+                "simd-stable,other-backends,parallel",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "🪲 debug 3d",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples3",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "🪲 debug 3d − 🌈 simd",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples3",
+                "--features",
+                "simd-stable",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "🪲 debug 3d − 🌈 simd 🪢 parallel",
             "type": "shell",
             "command": "cargo",
             "args": [
@@ -66,150 +238,6 @@
                 "all_examples3",
                 "--features",
                 "simd-stable,parallel",
-                "--",
-                "--pause"
-            ],
-            "group": "build"
-        },
-        {
-            "label": "run 2d (no-simd - release) ",
-            "type": "shell",
-            "command": "cargo",
-            "args": [
-                "run",
-                "--bin",
-                "all_examples2",
-                "--release",
-                "--features",
-                "other-backends",
-                "--",
-                "--pause"
-            ],
-            "group": "build"
-        },
-        {
-            "label": "run 2d (simd - release) ",
-            "type": "shell",
-            "command": "cargo",
-            "args": [
-                "run",
-                "--bin",
-                "all_examples2",
-                "--release",
-                "--features",
-                "simd-stable,other-backends",
-                "--",
-                "--pause"
-            ],
-            "group": "build"
-        },
-        {
-            "label": "run 2d (simd - parallel - release) ",
-            "type": "shell",
-            "command": "cargo",
-            "args": [
-                "run",
-                "--bin",
-                "all_examples2",
-                "--release",
-                "--features",
-                "simd-stable,other-backends,parallel",
-                "--",
-                "--pause"
-            ],
-            "group": "build"
-        },
-        {
-            "label": "bench 3d (no-simd - release) ",
-            "type": "shell",
-            "command": "cargo",
-            "args": [
-                "run",
-                "--bin",
-                "all_benchmarks3",
-                "--release",
-                "--features",
-                "other-backends",
-                "--",
-                "--pause"
-            ],
-            "group": "build"
-        },
-        {
-            "label": "bench 3d (simd - release) ",
-            "type": "shell",
-            "command": "cargo",
-            "args": [
-                "run",
-                "--bin",
-                "all_benchmarks3",
-                "--release",
-                "--features",
-                "simd-stable,other-backends",
-                "--",
-                "--pause"
-            ],
-            "group": "build"
-        },
-        {
-            "label": "bench 3d (simd - parallel - release) ",
-            "type": "shell",
-            "command": "cargo",
-            "args": [
-                "run",
-                "--bin",
-                "all_benchmarks3",
-                "--release",
-                "--features",
-                "simd-stable,other-backends,parallel",
-                "--",
-                "--pause"
-            ],
-            "group": "build"
-        },
-        {
-            "label": "bench 2d (no-simd - release) ",
-            "type": "shell",
-            "command": "cargo",
-            "args": [
-                "run",
-                "--bin",
-                "all_benchmarks2",
-                "--release",
-                "--features",
-                "other-backends",
-                "--",
-                "--pause"
-            ],
-            "group": "build"
-        },
-        {
-            "label": "bench 2d (simd - release) ",
-            "type": "shell",
-            "command": "cargo",
-            "args": [
-                "run",
-                "--bin",
-                "all_benchmarks2",
-                "--release",
-                "--features",
-                "simd-stable,other-backends",
-                "--",
-                "--pause"
-            ],
-            "group": "build"
-        },
-        {
-            "label": "bench 2d (simd - parallel - release) ",
-            "type": "shell",
-            "command": "cargo",
-            "args": [
-                "run",
-                "--bin",
-                "all_benchmarks2",
-                "--release",
-                "--features",
-                "simd-stable,other-backends,parallel",
                 "--",
                 "--pause"
             ],

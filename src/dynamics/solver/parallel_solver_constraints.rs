@@ -13,7 +13,7 @@ use crate::dynamics::{
     RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::ContactManifold;
-use crate::math::{Real, DIM, SPATIAL_DIM};
+use crate::math::{Real, SPATIAL_DIM};
 #[cfg(feature = "simd-is-enabled")]
 use crate::{
     dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint},

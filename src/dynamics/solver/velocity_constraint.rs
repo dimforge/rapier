@@ -7,7 +7,7 @@ use crate::dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint};
 use crate::dynamics::{IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyVelocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Real, Vector, DIM, MAX_MANIFOLD_POINTS};
-use crate::utils::{self, WAngularInertia, WBasis, WCross, WDot, WReal};
+use crate::utils::{self, WAngularInertia, WBasis, WCross, WDot};
 use na::DVector;
 
 use super::{DeltaVel, VelocityConstraintElement, VelocityConstraintNormalPart};
@@ -405,7 +405,7 @@ pub(crate) fn compute_tangent_contact_directions<N>(
     linvel2: &Vector<N>,
 ) -> [Vector<N>; DIM - 1]
 where
-    N: WReal,
+    N: utils::WReal,
     Vector<N>: WBasis,
 {
     use na::SimdValue;

@@ -24,7 +24,6 @@ resolver = "2"
 [profile.release]
 #debug = true
 #codegen-units = 1
-#opt-level = 1
 #lto = true
 
 [profile.dev]

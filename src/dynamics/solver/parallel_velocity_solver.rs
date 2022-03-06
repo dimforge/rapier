@@ -2,10 +2,9 @@ use super::{AnyJointVelocityConstraint, AnyVelocityConstraint, DeltaVel, ThreadC
 use crate::concurrent_loop;
 use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
 use crate::dynamics::{
-    solver::{GenericVelocityConstraint, ParallelSolverConstraints},
-    IntegrationParameters, IslandManager, JointGraphEdge, MultibodyJointSet, RigidBodyDamping,
-    RigidBodyForces, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType,
-    RigidBodyVelocity,
+    solver::ParallelSolverConstraints, IntegrationParameters, IslandManager, JointGraphEdge,
+    MultibodyJointSet, RigidBodyDamping, RigidBodyForces, RigidBodyIds, RigidBodyMassProps,
+    RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::ContactManifold;
 use crate::math::Real;
