@@ -18,7 +18,17 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    let bytes = std::fs::read("state.bin").unwrap();
+    let path = "state.bin";
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            println!(
+                "Failed to open the serialzed scene file {:?}: {}",
+                path, err
+            );
+            return;
+        }
+    };
     match bincode::deserialize(&bytes) {
         Ok(state) => {
             let state: PhysicsState = state;
