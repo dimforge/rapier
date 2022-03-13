@@ -224,7 +224,7 @@ impl PhysicsPipeline {
                 })
                 .unwrap();
             bodies.map_mut_internal(handle.0, |forces: &mut RigidBodyForces| {
-                forces.add_gravity_acceleration(&gravity, &effective_inv_mass)
+                forces.compute_effective_force_and_torque(&gravity, &effective_inv_mass)
             });
         }
 
@@ -355,7 +355,6 @@ impl PhysicsPipeline {
         bodies: &mut Bodies,
         colliders: &mut Colliders,
         modified_colliders: &mut Vec<ColliderHandle>,
-        clear_forces: bool,
     ) where
         Bodies: ComponentSetMut<RigidBodyVelocity>
             + ComponentSetMut<RigidBodyForces>
@@ -369,16 +368,6 @@ impl PhysicsPipeline {
         // Set the rigid-bodies and kinematic bodies to their final position.
         for handle in islands.iter_active_bodies() {
             let status: &RigidBodyType = bodies.index(handle.0);
-            if status.is_kinematic() {
-                bodies.set_internal(handle.0, RigidBodyVelocity::zero());
-            }
-
-            if clear_forces {
-                bodies.map_mut_internal(handle.0, |f: &mut RigidBodyForces| {
-                    f.torque = na::zero();
-                    f.force = na::zero();
-                });
-            }
 
             bodies.map_mut_internal(handle.0, |poss: &mut RigidBodyPosition| {
                 poss.position = poss.next_position
@@ -666,14 +655,7 @@ impl PhysicsPipeline {
                 }
             }
 
-            let clear_forces = remaining_substeps == 0;
-            self.advance_to_final_positions(
-                islands,
-                bodies,
-                colliders,
-                modified_colliders,
-                clear_forces,
-            );
+            self.advance_to_final_positions(islands, bodies, colliders, modified_colliders);
 
             self.detect_collisions(
                 &integration_parameters,

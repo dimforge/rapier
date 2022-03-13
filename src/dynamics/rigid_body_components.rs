@@ -202,7 +202,8 @@ where
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
-    pub struct RigidBodyMassPropsFlags: u8 {
+    // FIXME: rename this to LockedAxes
+    pub struct LockedAxes: u8 {
         /// Flag indicating that the rigid-body cannot translate along the `X` axis.
         const TRANSLATION_LOCKED_X = 1 << 0;
         /// Flag indicating that the rigid-body cannot translate along the `Y` axis.
@@ -228,7 +229,7 @@ bitflags::bitflags! {
 /// The mass properties of this rigid-bodies.
 pub struct RigidBodyMassProps {
     /// Flags for locking rotation and translation.
-    pub flags: RigidBodyMassPropsFlags,
+    pub flags: LockedAxes,
     /// The local mass properties of the rigid-body.
     pub local_mprops: MassProperties,
     /// The world-space center of mass of the rigid-body.
@@ -243,7 +244,7 @@ pub struct RigidBodyMassProps {
 impl Default for RigidBodyMassProps {
     fn default() -> Self {
         Self {
-            flags: RigidBodyMassPropsFlags::empty(),
+            flags: LockedAxes::empty(),
             local_mprops: MassProperties::zero(),
             world_com: Point::origin(),
             effective_inv_mass: Vector::zero(),
@@ -252,8 +253,8 @@ impl Default for RigidBodyMassProps {
     }
 }
 
-impl From<RigidBodyMassPropsFlags> for RigidBodyMassProps {
-    fn from(flags: RigidBodyMassPropsFlags) -> Self {
+impl From<LockedAxes> for RigidBodyMassProps {
+    fn from(flags: LockedAxes) -> Self {
         Self {
             flags,
             ..Self::default()
@@ -299,60 +300,39 @@ impl RigidBodyMassProps {
             self.local_mprops.world_inv_inertia_sqrt(&position.rotation);
 
         // Take into account translation/rotation locking.
-        if self
-            .flags
-            .contains(RigidBodyMassPropsFlags::TRANSLATION_LOCKED_X)
-        {
+        if self.flags.contains(LockedAxes::TRANSLATION_LOCKED_X) {
             self.effective_inv_mass.x = 0.0;
         }
 
-        if self
-            .flags
-            .contains(RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Y)
-        {
+        if self.flags.contains(LockedAxes::TRANSLATION_LOCKED_Y) {
             self.effective_inv_mass.y = 0.0;
         }
 
         #[cfg(feature = "dim3")]
-        if self
-            .flags
-            .contains(RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Z)
-        {
+        if self.flags.contains(LockedAxes::TRANSLATION_LOCKED_Z) {
             self.effective_inv_mass.z = 0.0;
         }
 
         #[cfg(feature = "dim2")]
         {
-            if self
-                .flags
-                .contains(RigidBodyMassPropsFlags::ROTATION_LOCKED_Z)
-            {
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_Z) {
                 self.effective_world_inv_inertia_sqrt = 0.0;
             }
         }
         #[cfg(feature = "dim3")]
         {
-            if self
-                .flags
-                .contains(RigidBodyMassPropsFlags::ROTATION_LOCKED_X)
-            {
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_X) {
                 self.effective_world_inv_inertia_sqrt.m11 = 0.0;
                 self.effective_world_inv_inertia_sqrt.m12 = 0.0;
                 self.effective_world_inv_inertia_sqrt.m13 = 0.0;
             }
 
-            if self
-                .flags
-                .contains(RigidBodyMassPropsFlags::ROTATION_LOCKED_Y)
-            {
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_Y) {
                 self.effective_world_inv_inertia_sqrt.m22 = 0.0;
                 self.effective_world_inv_inertia_sqrt.m12 = 0.0;
                 self.effective_world_inv_inertia_sqrt.m23 = 0.0;
             }
-            if self
-                .flags
-                .contains(RigidBodyMassPropsFlags::ROTATION_LOCKED_Z)
-            {
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_Z) {
                 self.effective_world_inv_inertia_sqrt.m33 = 0.0;
                 self.effective_world_inv_inertia_sqrt.m13 = 0.0;
                 self.effective_world_inv_inertia_sqrt.m23 = 0.0;
@@ -659,6 +639,10 @@ pub struct RigidBodyForces {
     /// Gravity is multiplied by this scaling factor before it's
     /// applied to this rigid-body.
     pub gravity_scale: Real,
+    // Forces applied by the user.
+    pub user_force: Vector<Real>,
+    // Torque applied by the user.
+    pub user_torque: AngVector<Real>,
 }
 
 impl Default for RigidBodyForces {
@@ -667,6 +651,8 @@ impl Default for RigidBodyForces {
             force: na::zero(),
             torque: na::zero(),
             gravity_scale: 1.0,
+            user_force: na::zero(),
+            user_torque: na::zero(),
         }
     }
 }
@@ -692,8 +678,13 @@ impl RigidBodyForces {
 
     /// Adds to `self` the gravitational force that would result in a gravitational acceleration
     /// equal to `gravity`.
-    pub fn add_gravity_acceleration(&mut self, gravity: &Vector<Real>, mass: &Vector<Real>) {
-        self.force += gravity.component_mul(&mass) * self.gravity_scale;
+    pub fn compute_effective_force_and_torque(
+        &mut self,
+        gravity: &Vector<Real>,
+        mass: &Vector<Real>,
+    ) {
+        self.force = self.user_force + gravity.component_mul(&mass) * self.gravity_scale;
+        self.torque = self.user_torque;
     }
 
     /// Applies a force at the given world-space point of the rigid-body with the given mass properties.
@@ -703,8 +694,8 @@ impl RigidBodyForces {
         force: Vector<Real>,
         point: Point<Real>,
     ) {
-        self.force += force;
-        self.torque += (point - rb_mprops.world_com).gcross(force);
+        self.user_force += force;
+        self.user_torque += (point - rb_mprops.world_com).gcross(force);
     }
 }
 
