@@ -36,6 +36,8 @@ pub struct IntegrationParameters {
 
     /// Amount of penetration the engine wont attempt to correct (default: `0.001m`).
     pub allowed_linear_error: Real,
+    /// Maximum amount of penetration the solver will attempt to resolve in one timestep.
+    pub max_penetration_correction: Real,
     /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002`).
     pub prediction_distance: Real,
     /// Maximum number of iterations performed to solve non-penetration and joint constraints (default: `4`).
@@ -150,6 +152,7 @@ impl Default for IntegrationParameters {
             joint_erp: 1.0,
             joint_damping_ratio: 1.0,
             allowed_linear_error: 0.001, // 0.005
+            max_penetration_correction: Real::MAX,
             prediction_distance: 0.002,
             max_velocity_iterations: 4,
             max_velocity_friction_iterations: 8,

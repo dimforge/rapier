@@ -1,3 +1,12 @@
+- `RigidBody::set_linvel` and `RigidBody::set_angvel` no longer modify the velocity of static bodies.
+- `RigidBody::set_body_type` will reset the velocity of a rigid-body to zero if it is static.
+- `RigidBodyMassPropsFlags` has been renamed to `LockedAxes`.
+- Don’t automatically clear forces at the end of a timestep.
+- Don’t reset the velocity of kinematic bodies to zero at the end of the timestep.
+- `RigidsBody::apply_force`, `::apply_torque`, `::apply_force_at_point` have been renamed to `::add_force`,
+  `::add_torque`, and `::add_force_at_point` to better reflect the fact that they are not cleared at the end
+  of the timestep.
+
 ## v0.12.0-alpha.0 (2 Jan. 2022)
 ### Fixed
 - Fixed `RigidBody::restrict_rotations` to properly take into account the axes to lock.
