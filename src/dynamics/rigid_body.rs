@@ -1,7 +1,7 @@
 use crate::dynamics::{
-    MassProperties, RigidBodyActivation, RigidBodyCcd, RigidBodyChanges, RigidBodyColliders,
-    RigidBodyDamping, RigidBodyDominance, RigidBodyForces, RigidBodyIds, RigidBodyMassProps,
-    RigidBodyMassPropsFlags, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
+    LockedAxes, MassProperties, RigidBodyActivation, RigidBodyCcd, RigidBodyChanges,
+    RigidBodyColliders, RigidBodyDamping, RigidBodyDominance, RigidBodyForces, RigidBodyIds,
+    RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::{
     Collider, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition, ColliderShape,
@@ -111,6 +111,10 @@ impl RigidBody {
         if status != self.rb_type {
             self.changes.insert(RigidBodyChanges::TYPE);
             self.rb_type = status;
+
+            if status == RigidBodyType::Static {
+                self.rb_vels = RigidBodyVelocity::zero();
+            }
         }
     }
 
@@ -130,22 +134,34 @@ impl RigidBody {
     }
 
     #[inline]
+    pub fn set_locked_axes(&mut self, locked_axes: LockedAxes, wake_up: bool) {
+        if locked_axes != self.rb_mprops.flags {
+            if self.is_dynamic() && wake_up {
+                self.wake_up(true);
+            }
+
+            self.rb_mprops.flags = locked_axes;
+            self.update_world_mass_properties();
+        }
+    }
+
+    #[inline]
     /// Locks or unlocks all the rotations of this rigid-body.
     pub fn lock_rotations(&mut self, locked: bool, wake_up: bool) {
-        if self.is_dynamic() {
-            if wake_up {
+        if !self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED) {
+            if self.is_dynamic() && wake_up {
                 self.wake_up(true);
             }
 
             self.rb_mprops
                 .flags
-                .set(RigidBodyMassPropsFlags::ROTATION_LOCKED_X, locked);
+                .set(LockedAxes::ROTATION_LOCKED_X, locked);
             self.rb_mprops
                 .flags
-                .set(RigidBodyMassPropsFlags::ROTATION_LOCKED_Y, locked);
+                .set(LockedAxes::ROTATION_LOCKED_Y, locked);
             self.rb_mprops
                 .flags
-                .set(RigidBodyMassPropsFlags::ROTATION_LOCKED_Z, locked);
+                .set(LockedAxes::ROTATION_LOCKED_Z, locked);
             self.update_world_mass_properties();
         }
     }
@@ -159,23 +175,23 @@ impl RigidBody {
         allow_rotations_z: bool,
         wake_up: bool,
     ) {
-        if self.is_dynamic() {
-            if wake_up {
+        if self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_X) != !allow_rotations_x
+            || self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Y) != !allow_rotations_y
+            || self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z) != !allow_rotations_z
+        {
+            if self.is_dynamic() && wake_up {
                 self.wake_up(true);
             }
 
-            self.rb_mprops.flags.set(
-                RigidBodyMassPropsFlags::ROTATION_LOCKED_X,
-                !allow_rotations_x,
-            );
-            self.rb_mprops.flags.set(
-                RigidBodyMassPropsFlags::ROTATION_LOCKED_Y,
-                !allow_rotations_y,
-            );
-            self.rb_mprops.flags.set(
-                RigidBodyMassPropsFlags::ROTATION_LOCKED_Z,
-                !allow_rotations_z,
-            );
+            self.rb_mprops
+                .flags
+                .set(LockedAxes::ROTATION_LOCKED_X, !allow_rotations_x);
+            self.rb_mprops
+                .flags
+                .set(LockedAxes::ROTATION_LOCKED_Y, !allow_rotations_y);
+            self.rb_mprops
+                .flags
+                .set(LockedAxes::ROTATION_LOCKED_Z, !allow_rotations_z);
             self.update_world_mass_properties();
         }
     }
@@ -183,14 +199,18 @@ impl RigidBody {
     #[inline]
     /// Locks or unlocks all the rotations of this rigid-body.
     pub fn lock_translations(&mut self, locked: bool, wake_up: bool) {
-        if self.is_dynamic() {
-            if wake_up {
+        if !self
+            .rb_mprops
+            .flags
+            .contains(LockedAxes::TRANSLATION_LOCKED)
+        {
+            if self.is_dynamic() && wake_up {
                 self.wake_up(true);
             }
 
             self.rb_mprops
                 .flags
-                .set(RigidBodyMassPropsFlags::TRANSLATION_LOCKED, locked);
+                .set(LockedAxes::TRANSLATION_LOCKED, locked);
             self.update_world_mass_properties();
         }
     }
@@ -204,35 +224,65 @@ impl RigidBody {
         #[cfg(feature = "dim3")] allow_translation_z: bool,
         wake_up: bool,
     ) {
-        if self.is_dynamic() {
-            if wake_up {
-                self.wake_up(true);
-            }
-
-            self.rb_mprops.flags.set(
-                RigidBodyMassPropsFlags::TRANSLATION_LOCKED_X,
-                !allow_translation_x,
-            );
-            self.rb_mprops.flags.set(
-                RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Y,
-                !allow_translation_y,
-            );
-            #[cfg(feature = "dim3")]
-            self.rb_mprops.flags.set(
-                RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Z,
-                !allow_translation_z,
-            );
-            self.update_world_mass_properties();
+        #[cfg(feature = "dim2")]
+        if self
+            .rb_mprops
+            .flags
+            .contains(LockedAxes::TRANSLATION_LOCKED_X)
+            == !allow_translation_x
+            && self
+                .rb_mprops
+                .flags
+                .contains(LockedAxes::TRANSLATION_LOCKED_Y)
+                == !allow_translation_y
+        {
+            // Nothing to change.
+            return;
         }
+        #[cfg(feature = "dim3")]
+        if self
+            .rb_mprops
+            .flags
+            .contains(LockedAxes::TRANSLATION_LOCKED_X)
+            == !allow_translation_x
+            && self
+                .rb_mprops
+                .flags
+                .contains(LockedAxes::TRANSLATION_LOCKED_Y)
+                == !allow_translation_y
+            && self
+                .rb_mprops
+                .flags
+                .contains(LockedAxes::TRANSLATION_LOCKED_Z)
+                == !allow_translation_z
+        {
+            // Nothing to change.
+            return;
+        }
+
+        if self.is_dynamic() && wake_up {
+            self.wake_up(true);
+        }
+
+        self.rb_mprops
+            .flags
+            .set(LockedAxes::TRANSLATION_LOCKED_X, !allow_translation_x);
+        self.rb_mprops
+            .flags
+            .set(LockedAxes::TRANSLATION_LOCKED_Y, !allow_translation_y);
+        #[cfg(feature = "dim3")]
+        self.rb_mprops
+            .flags
+            .set(LockedAxes::TRANSLATION_LOCKED_Z, !allow_translation_z);
+        self.update_world_mass_properties();
     }
 
     /// Are the translations of this rigid-body locked?
     #[cfg(feature = "dim2")]
     pub fn is_translation_locked(&self) -> bool {
-        self.rb_mprops.flags.contains(
-            RigidBodyMassPropsFlags::TRANSLATION_LOCKED_X
-                | RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Y,
-        )
+        self.rb_mprops
+            .flags
+            .contains(LockedAxes::TRANSLATION_LOCKED_X | LockedAxes::TRANSLATION_LOCKED_Y)
     }
 
     /// Are the translations of this rigid-body locked?
@@ -240,30 +290,22 @@ impl RigidBody {
     pub fn is_translation_locked(&self) -> bool {
         self.rb_mprops
             .flags
-            .contains(RigidBodyMassPropsFlags::TRANSLATION_LOCKED)
+            .contains(LockedAxes::TRANSLATION_LOCKED)
     }
 
     /// Are the rotations of this rigid-body locked?
     #[cfg(feature = "dim2")]
     pub fn is_rotation_locked(&self) -> bool {
-        self.rb_mprops
-            .flags
-            .contains(RigidBodyMassPropsFlags::ROTATION_LOCKED_Z)
+        self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z)
     }
 
     /// Returns `true` for each rotational degrees of freedom locked on this rigid-body.
     #[cfg(feature = "dim3")]
     pub fn is_rotation_locked(&self) -> [bool; 3] {
         [
-            self.rb_mprops
-                .flags
-                .contains(RigidBodyMassPropsFlags::ROTATION_LOCKED_X),
-            self.rb_mprops
-                .flags
-                .contains(RigidBodyMassPropsFlags::ROTATION_LOCKED_Y),
-            self.rb_mprops
-                .flags
-                .contains(RigidBodyMassPropsFlags::ROTATION_LOCKED_Z),
+            self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_X),
+            self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Y),
+            self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z),
         ]
     }
 
@@ -300,12 +342,14 @@ impl RigidBody {
     /// put to sleep because it did not move for a while.
     #[inline]
     pub fn set_mass_properties(&mut self, props: MassProperties, wake_up: bool) {
-        if self.is_dynamic() && wake_up {
-            self.wake_up(true);
-        }
+        if self.rb_mprops.local_mprops != props {
+            if self.is_dynamic() && wake_up {
+                self.wake_up(true);
+            }
 
-        self.rb_mprops.local_mprops = props;
-        self.update_world_mass_properties();
+            self.rb_mprops.local_mprops = props;
+            self.update_world_mass_properties();
+        }
     }
 
     /// The handles of colliders attached to this rigid body.
@@ -357,12 +401,14 @@ impl RigidBody {
 
     /// Sets the gravity scale facter for this rigid-body.
     pub fn set_gravity_scale(&mut self, scale: Real, wake_up: bool) {
-        if wake_up && self.rb_activation.sleeping {
-            self.changes.insert(RigidBodyChanges::SLEEP);
-            self.rb_activation.sleeping = false;
-        }
+        if self.rb_forces.gravity_scale != scale {
+            if wake_up && self.rb_activation.sleeping {
+                self.changes.insert(RigidBodyChanges::SLEEP);
+                self.rb_activation.sleeping = false;
+            }
 
-        self.rb_forces.gravity_scale = scale;
+            self.rb_forces.gravity_scale = scale;
+        }
     }
 
     /// The dominance group of this rigid-body.
@@ -473,10 +519,19 @@ impl RigidBody {
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
     pub fn set_linvel(&mut self, linvel: Vector<Real>, wake_up: bool) {
-        self.rb_vels.linvel = linvel;
-
-        if self.is_dynamic() && wake_up {
-            self.wake_up(true)
+        if self.rb_vels.linvel != linvel {
+            match self.rb_type {
+                RigidBodyType::Dynamic => {
+                    self.rb_vels.linvel = linvel;
+                    if wake_up {
+                        self.wake_up(true)
+                    }
+                }
+                RigidBodyType::KinematicVelocityBased => {
+                    self.rb_vels.linvel = linvel;
+                }
+                RigidBodyType::Static | RigidBodyType::KinematicPositionBased => {}
+            }
         }
     }
 
@@ -486,10 +541,19 @@ impl RigidBody {
     /// put to sleep because it did not move for a while.
     #[cfg(feature = "dim2")]
     pub fn set_angvel(&mut self, angvel: Real, wake_up: bool) {
-        self.rb_vels.angvel = angvel;
-
-        if self.is_dynamic() && wake_up {
-            self.wake_up(true)
+        if self.rb_vels.angvel != angvel {
+            match self.rb_type {
+                RigidBodyType::Dynamic => {
+                    self.rb_vels.angvel = angvel;
+                    if wake_up {
+                        self.wake_up(true)
+                    }
+                }
+                RigidBodyType::KinematicVelocityBased => {
+                    self.rb_vels.angvel = angvel;
+                }
+                RigidBodyType::Static | RigidBodyType::KinematicPositionBased => {}
+            }
         }
     }
 
@@ -499,10 +563,19 @@ impl RigidBody {
     /// put to sleep because it did not move for a while.
     #[cfg(feature = "dim3")]
     pub fn set_angvel(&mut self, angvel: Vector<Real>, wake_up: bool) {
-        self.rb_vels.angvel = angvel;
-
-        if self.is_dynamic() && wake_up {
-            self.wake_up(true)
+        if self.rb_vels.angvel != angvel {
+            match self.rb_type {
+                RigidBodyType::Dynamic => {
+                    self.rb_vels.angvel = angvel;
+                    if wake_up {
+                        self.wake_up(true)
+                    }
+                }
+                RigidBodyType::KinematicVelocityBased => {
+                    self.rb_vels.angvel = angvel;
+                }
+                RigidBodyType::Static | RigidBodyType::KinematicPositionBased => {}
+            }
         }
     }
 
@@ -521,13 +594,17 @@ impl RigidBody {
     /// Sets the translational part of this rigid-body's position.
     #[inline]
     pub fn set_translation(&mut self, translation: Vector<Real>, wake_up: bool) {
-        self.changes.insert(RigidBodyChanges::POSITION);
-        self.rb_pos.position.translation.vector = translation;
-        self.rb_pos.next_position.translation.vector = translation;
+        if self.rb_pos.position.translation.vector != translation
+            || self.rb_pos.next_position.translation.vector != translation
+        {
+            self.changes.insert(RigidBodyChanges::POSITION);
+            self.rb_pos.position.translation.vector = translation;
+            self.rb_pos.next_position.translation.vector = translation;
 
-        // TODO: Do we really need to check that the body isn't dynamic?
-        if wake_up && self.is_dynamic() {
-            self.wake_up(true)
+            // TODO: Do we really need to check that the body isn't dynamic?
+            if wake_up && self.is_dynamic() {
+                self.wake_up(true)
+            }
         }
     }
 
@@ -540,14 +617,19 @@ impl RigidBody {
     /// Sets the rotational part of this rigid-body's position.
     #[inline]
     pub fn set_rotation(&mut self, rotation: AngVector<Real>, wake_up: bool) {
-        self.changes.insert(RigidBodyChanges::POSITION);
         let rotation = Rotation::new(rotation);
-        self.rb_pos.position.rotation = rotation;
-        self.rb_pos.next_position.rotation = rotation;
 
-        // TODO: Do we really need to check that the body isn't dynamic?
-        if wake_up && self.is_dynamic() {
-            self.wake_up(true)
+        if self.rb_pos.position.rotation != rotation
+            || self.rb_pos.next_position.rotation != rotation
+        {
+            self.changes.insert(RigidBodyChanges::POSITION);
+            self.rb_pos.position.rotation = rotation;
+            self.rb_pos.next_position.rotation = rotation;
+
+            // TODO: Do we really need to check that the body isn't dynamic?
+            if wake_up && self.is_dynamic() {
+                self.wake_up(true)
+            }
         }
     }
 
@@ -561,13 +643,15 @@ impl RigidBody {
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
     pub fn set_position(&mut self, pos: Isometry<Real>, wake_up: bool) {
-        self.changes.insert(RigidBodyChanges::POSITION);
-        self.rb_pos.position = pos;
-        self.rb_pos.next_position = pos;
+        if self.rb_pos.position != pos || self.rb_pos.next_position != pos {
+            self.changes.insert(RigidBodyChanges::POSITION);
+            self.rb_pos.position = pos;
+            self.rb_pos.next_position = pos;
 
-        // TODO: Do we really need to check that the body isn't dynamic?
-        if wake_up && self.is_dynamic() {
-            self.wake_up(true)
+            // TODO: Do we really need to check that the body isn't dynamic?
+            if wake_up && self.is_dynamic() {
+                self.wake_up(true)
+            }
         }
     }
 
@@ -611,12 +695,10 @@ impl RigidBody {
 
 /// ## Applying forces and torques
 impl RigidBody {
-    /// Applies a force at the center-of-mass of this rigid-body.
-    /// The force will be applied in the next simulation step.
-    /// This does nothing on non-dynamic bodies.
-    pub fn apply_force(&mut self, force: Vector<Real>, wake_up: bool) {
-        if self.rb_type == RigidBodyType::Dynamic {
-            self.rb_forces.force += force;
+    /// Resets to zero all the constant (linear) forces applied to this rigid-body.
+    pub fn reset_force(&mut self, wake_up: bool) {
+        if !self.rb_forces.user_force.is_zero() {
+            self.rb_forces.user_force = na::zero();
 
             if wake_up {
                 self.wake_up(true);
@@ -624,44 +706,76 @@ impl RigidBody {
         }
     }
 
-    /// Applies a torque at the center-of-mass of this rigid-body.
-    /// The torque will be applied in the next simulation step.
+    /// Resets to zero all the constant torques applied to this rigid-body.
+    pub fn reset_torque(&mut self, wake_up: bool) {
+        if !self.rb_forces.user_torque.is_zero() {
+            self.rb_forces.user_torque = na::zero();
+
+            if wake_up {
+                self.wake_up(true);
+            }
+        }
+    }
+
+    /// Adds to this rigid-body a constant force applied at its center-of-mass.ç
+    ///
+    /// This does nothing on non-dynamic bodies.
+    pub fn add_force(&mut self, force: Vector<Real>, wake_up: bool) {
+        if !force.is_zero() {
+            if self.rb_type == RigidBodyType::Dynamic {
+                self.rb_forces.user_force += force;
+
+                if wake_up {
+                    self.wake_up(true);
+                }
+            }
+        }
+    }
+
+    /// Adds to this rigid-body a constant torque at its center-of-mass.
+    ///
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim2")]
-    pub fn apply_torque(&mut self, torque: Real, wake_up: bool) {
-        if self.rb_type == RigidBodyType::Dynamic {
-            self.rb_forces.torque += torque;
+    pub fn add_torque(&mut self, torque: Real, wake_up: bool) {
+        if !torque.is_zero() {
+            if self.rb_type == RigidBodyType::Dynamic {
+                self.rb_forces.user_torque += torque;
 
-            if wake_up {
-                self.wake_up(true);
+                if wake_up {
+                    self.wake_up(true);
+                }
             }
         }
     }
 
-    /// Applies a torque at the center-of-mass of this rigid-body.
-    /// The torque will be applied in the next simulation step.
+    /// Adds to this rigid-body a constant torque at its center-of-mass.
+    ///
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim3")]
-    pub fn apply_torque(&mut self, torque: Vector<Real>, wake_up: bool) {
-        if self.rb_type == RigidBodyType::Dynamic {
-            self.rb_forces.torque += torque;
+    pub fn add_torque(&mut self, torque: Vector<Real>, wake_up: bool) {
+        if !torque.is_zero() {
+            if self.rb_type == RigidBodyType::Dynamic {
+                self.rb_forces.user_torque += torque;
 
-            if wake_up {
-                self.wake_up(true);
+                if wake_up {
+                    self.wake_up(true);
+                }
             }
         }
     }
 
-    /// Applies a force at the given world-space point of this rigid-body.
-    /// The force will be applied in the next simulation step.
+    /// Adds to this rigid-body a constant force at the given world-space point of this rigid-body.
+    ///
     /// This does nothing on non-dynamic bodies.
-    pub fn apply_force_at_point(&mut self, force: Vector<Real>, point: Point<Real>, wake_up: bool) {
-        if self.rb_type == RigidBodyType::Dynamic {
-            self.rb_forces.force += force;
-            self.rb_forces.torque += (point - self.rb_mprops.world_com).gcross(force);
+    pub fn add_force_at_point(&mut self, force: Vector<Real>, point: Point<Real>, wake_up: bool) {
+        if !force.is_zero() {
+            if self.rb_type == RigidBodyType::Dynamic {
+                self.rb_forces.user_force += force;
+                self.rb_forces.user_torque += (point - self.rb_mprops.world_com).gcross(force);
 
-            if wake_up {
-                self.wake_up(true);
+                if wake_up {
+                    self.wake_up(true);
+                }
             }
         }
     }
@@ -673,7 +787,7 @@ impl RigidBody {
     /// The impulse is applied right away, changing the linear velocity.
     /// This does nothing on non-dynamic bodies.
     pub fn apply_impulse(&mut self, impulse: Vector<Real>, wake_up: bool) {
-        if self.rb_type == RigidBodyType::Dynamic {
+        if !impulse.is_zero() && self.rb_type == RigidBodyType::Dynamic {
             self.rb_vels.linvel += impulse.component_mul(&self.rb_mprops.effective_inv_mass);
 
             if wake_up {
@@ -687,7 +801,7 @@ impl RigidBody {
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim2")]
     pub fn apply_torque_impulse(&mut self, torque_impulse: Real, wake_up: bool) {
-        if self.rb_type == RigidBodyType::Dynamic {
+        if !torque_impulse.is_zero() && self.rb_type == RigidBodyType::Dynamic {
             self.rb_vels.angvel += self.rb_mprops.effective_world_inv_inertia_sqrt
                 * (self.rb_mprops.effective_world_inv_inertia_sqrt * torque_impulse);
 
@@ -702,7 +816,7 @@ impl RigidBody {
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim3")]
     pub fn apply_torque_impulse(&mut self, torque_impulse: Vector<Real>, wake_up: bool) {
-        if self.rb_type == RigidBodyType::Dynamic {
+        if !torque_impulse.is_zero() && self.rb_type == RigidBodyType::Dynamic {
             self.rb_vels.angvel += self.rb_mprops.effective_world_inv_inertia_sqrt
                 * (self.rb_mprops.effective_world_inv_inertia_sqrt * torque_impulse);
 
@@ -772,7 +886,7 @@ pub struct RigidBodyBuilder {
     /// Damping factor for gradually slowing down the angular motion of the rigid-body, `0.0` by default.
     pub angular_damping: Real,
     rb_type: RigidBodyType,
-    mprops_flags: RigidBodyMassPropsFlags,
+    mprops_flags: LockedAxes,
     /// The additional mass properties of the rigid-body being built. See [`RigidBodyBuilder::additional_mass_properties`] for more information.
     pub mass_properties: MassProperties,
     /// Whether or not the rigid-body to be created can sleep if it reaches a dynamic equilibrium.
@@ -800,7 +914,7 @@ impl RigidBodyBuilder {
             linear_damping: 0.0,
             angular_damping: 0.0,
             rb_type,
-            mprops_flags: RigidBodyMassPropsFlags::empty(),
+            mprops_flags: LockedAxes::empty(),
             mass_properties: MassProperties::zero(),
             can_sleep: true,
             sleeping: false,
@@ -881,10 +995,14 @@ impl RigidBodyBuilder {
         self
     }
 
+    pub fn locked_axes(mut self, locked_axes: LockedAxes) -> Self {
+        self.mprops_flags = locked_axes;
+        self
+    }
+
     /// Prevents this rigid-body from translating because of forces.
     pub fn lock_translations(mut self) -> Self {
-        self.mprops_flags
-            .set(RigidBodyMassPropsFlags::TRANSLATION_LOCKED, true);
+        self.mprops_flags.set(LockedAxes::TRANSLATION_LOCKED, true);
         self
     }
 
@@ -895,30 +1013,21 @@ impl RigidBodyBuilder {
         allow_translations_y: bool,
         #[cfg(feature = "dim3")] allow_translations_z: bool,
     ) -> Self {
-        self.mprops_flags.set(
-            RigidBodyMassPropsFlags::TRANSLATION_LOCKED_X,
-            !allow_translations_x,
-        );
-        self.mprops_flags.set(
-            RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Y,
-            !allow_translations_y,
-        );
+        self.mprops_flags
+            .set(LockedAxes::TRANSLATION_LOCKED_X, !allow_translations_x);
+        self.mprops_flags
+            .set(LockedAxes::TRANSLATION_LOCKED_Y, !allow_translations_y);
         #[cfg(feature = "dim3")]
-        self.mprops_flags.set(
-            RigidBodyMassPropsFlags::TRANSLATION_LOCKED_Z,
-            !allow_translations_z,
-        );
+        self.mprops_flags
+            .set(LockedAxes::TRANSLATION_LOCKED_Z, !allow_translations_z);
         self
     }
 
     /// Prevents this rigid-body from rotating because of forces.
     pub fn lock_rotations(mut self) -> Self {
-        self.mprops_flags
-            .set(RigidBodyMassPropsFlags::ROTATION_LOCKED_X, true);
-        self.mprops_flags
-            .set(RigidBodyMassPropsFlags::ROTATION_LOCKED_Y, true);
-        self.mprops_flags
-            .set(RigidBodyMassPropsFlags::ROTATION_LOCKED_Z, true);
+        self.mprops_flags.set(LockedAxes::ROTATION_LOCKED_X, true);
+        self.mprops_flags.set(LockedAxes::ROTATION_LOCKED_Y, true);
+        self.mprops_flags.set(LockedAxes::ROTATION_LOCKED_Z, true);
         self
     }
 
@@ -930,18 +1039,12 @@ impl RigidBodyBuilder {
         allow_rotations_y: bool,
         allow_rotations_z: bool,
     ) -> Self {
-        self.mprops_flags.set(
-            RigidBodyMassPropsFlags::ROTATION_LOCKED_X,
-            !allow_rotations_x,
-        );
-        self.mprops_flags.set(
-            RigidBodyMassPropsFlags::ROTATION_LOCKED_Y,
-            !allow_rotations_y,
-        );
-        self.mprops_flags.set(
-            RigidBodyMassPropsFlags::ROTATION_LOCKED_Z,
-            !allow_rotations_z,
-        );
+        self.mprops_flags
+            .set(LockedAxes::ROTATION_LOCKED_X, !allow_rotations_x);
+        self.mprops_flags
+            .set(LockedAxes::ROTATION_LOCKED_Y, !allow_rotations_y);
+        self.mprops_flags
+            .set(LockedAxes::ROTATION_LOCKED_Z, !allow_rotations_z);
         self
     }
 
