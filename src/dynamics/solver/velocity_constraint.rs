@@ -283,7 +283,7 @@ impl VelocityConstraint {
                     rhs_wo_bias *= is_bouncy + is_resting;
                     let rhs_bias = /* is_resting
                         * */  erp_inv_dt
-                        * (manifold_point.dist + params.allowed_linear_error).min(0.0);
+                        * (manifold_point.dist + params.allowed_linear_error).clamp(-params.max_penetration_correction, 0.0);
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
                         gcross1,
                         gcross2,

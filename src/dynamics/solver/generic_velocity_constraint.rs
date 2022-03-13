@@ -212,7 +212,7 @@ impl GenericVelocityConstraint {
                     rhs_wo_bias += manifold_point.dist.max(0.0) * inv_dt;
                     rhs_wo_bias *= is_bouncy + is_resting;
                     let rhs_bias =
-                        /* is_resting * */ erp_inv_dt * manifold_point.dist.min(0.0);
+                        /* is_resting * */ erp_inv_dt * manifold_point.dist.clamp(-params.max_penetration_correction, 0.0);
 
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
                         gcross1,

@@ -49,6 +49,7 @@ impl WVelocityConstraint {
         let inv_dt = SimdReal::splat(params.inv_dt());
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
         let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
+        let max_penetration_correction = SimdReal::splat(params.max_penetration_correction);
 
         let handles1 = gather![|ii| manifolds[ii].data.rigid_body1.unwrap()];
         let handles2 = gather![|ii| manifolds[ii].data.rigid_body2.unwrap()];
@@ -145,7 +146,8 @@ impl WVelocityConstraint {
                         (SimdReal::splat(1.0) + is_bouncy * restitution) * projected_velocity;
                     rhs_wo_bias += dist.simd_max(SimdReal::zero()) * inv_dt;
                     rhs_wo_bias *= is_bouncy + is_resting;
-                    let rhs_bias = (dist + allowed_lin_err).simd_min(SimdReal::zero())
+                    let rhs_bias = (dist + allowed_lin_err)
+                        .simd_clamp(-max_penetration_correction, SimdReal::zero())
                         * (erp_inv_dt/* * is_resting */);
 
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
