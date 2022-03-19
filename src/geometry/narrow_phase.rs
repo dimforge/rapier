@@ -8,9 +8,9 @@ use crate::dynamics::{
 };
 use crate::geometry::{
     BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle, ColliderMaterial,
-    ColliderPair, ColliderParent, ColliderPosition, ColliderShape, ColliderType, ContactData,
-    ContactEvent, ContactManifold, ContactManifoldData, ContactPair, InteractionGraph,
-    IntersectionEvent, SolverContact, SolverFlags,
+    ColliderPair, ColliderParent, ColliderPosition, ColliderShape, ColliderType, CollisionEvent,
+    ContactData, ContactManifold, ContactManifoldData, ContactPair, InteractionGraph,
+    SolverContact, SolverFlags,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{
@@ -516,10 +516,10 @@ impl NarrowPhase {
                         let co_flag2: &ColliderFlags = colliders.index(pair.collider2.0);
 
                         if (co_flag1.active_events | co_flag2.active_events)
-                            .contains(ActiveEvents::INTERSECTION_EVENTS)
+                            .contains(ActiveEvents::COLLISION_EVENTS)
                         {
                             let prox_event =
-                                IntersectionEvent::new(pair.collider1, pair.collider2, false);
+                                CollisionEvent::Stopped(pair.collider1, pair.collider2);
                             events.handle_intersection_event(prox_event)
                         }
                     }
@@ -551,10 +551,10 @@ impl NarrowPhase {
                             let co_flag2: &ColliderFlags = colliders.index(pair.collider2.0);
 
                             if (co_flag1.active_events | co_flag2.active_events)
-                                .contains(ActiveEvents::CONTACT_EVENTS)
+                                .contains(ActiveEvents::COLLISION_EVENTS)
                             {
                                 events.handle_contact_event(
-                                    ContactEvent::Stopped(pair.collider1, pair.collider2),
+                                    CollisionEvent::Stopped(pair.collider1, pair.collider2),
                                     &ctct,
                                 )
                             }
@@ -795,10 +795,10 @@ impl NarrowPhase {
             let co_flags2: &ColliderFlags = colliders.index(handle2.0);
             let active_events = co_flags1.active_events | co_flags2.active_events;
 
-            if active_events.contains(ActiveEvents::INTERSECTION_EVENTS)
+            if active_events.contains(ActiveEvents::COLLISION_EVENTS)
                 && had_intersection != edge.weight
             {
-                events.handle_intersection_event(IntersectionEvent::new(
+                events.handle_intersection_event(CollisionEvent::new(
                     handle1,
                     handle2,
                     edge.weight,
@@ -1027,15 +1027,15 @@ impl NarrowPhase {
             let active_events = co_flags1.active_events | co_flags2.active_events;
 
             if pair.has_any_active_contact != had_any_active_contact {
-                if active_events.contains(ActiveEvents::CONTACT_EVENTS) {
+                if active_events.contains(ActiveEvents::COLLISION_EVENTS) {
                     if pair.has_any_active_contact {
                         events.handle_contact_event(
-                            ContactEvent::Started(pair.collider1, pair.collider2),
+                            CollisionEvent::Started(pair.collider1, pair.collider2),
                             pair,
                         );
                     } else {
                         events.handle_contact_event(
-                            ContactEvent::Stopped(pair.collider1, pair.collider2),
+                            CollisionEvent::Stopped(pair.collider1, pair.collider2),
                             pair,
                         );
                     }

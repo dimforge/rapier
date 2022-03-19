@@ -213,7 +213,7 @@ impl PhysxWorld {
 
                     rapier2dynamic.insert(rapier_handle, actor);
                 } else {
-                    let actor = physics.create_fixed(pos, ()).unwrap();
+                    let actor = physics.create_static(pos, ()).unwrap();
                     rapier2static.insert(rapier_handle, actor);
                 }
             }
@@ -382,7 +382,7 @@ impl PhysxWorld {
             );
 
             for (_, actor) in rapier2static {
-                scene.add_fixed_actor(actor);
+                scene.add_static_actor(actor);
             }
 
             for (_, actor) in rapier2dynamic {
@@ -712,7 +712,7 @@ type PxPhysicsFoundation = PhysicsFoundation<DefaultAllocator, PxShape>;
 type PxMaterial = physx::material::PxMaterial<()>;
 type PxShape = physx::shape::PxShape<(), PxMaterial>;
 type PxArticulationLink = physx::articulation_link::PxArticulationLink<RigidBodyHandle, PxShape>;
-type PxRigidStatic = physx::rigid_fixed::PxRigidStatic<(), PxShape>;
+type PxRigidStatic = physx::rigid_static::PxRigidStatic<(), PxShape>;
 type PxRigidDynamic = physx::rigid_dynamic::PxRigidDynamic<RigidBodyHandle, PxShape>;
 type PxArticulation = physx::articulation::PxArticulation<(), PxArticulationLink>;
 type PxArticulationReducedCoordinate =

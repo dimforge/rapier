@@ -3,7 +3,7 @@ use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodySet,
 };
-use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, IntersectionEvent, NarrowPhase};
+use rapier::geometry::{BroadPhase, ColliderSet, CollisionEvent, NarrowPhase};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{PhysicsHooks, PhysicsPipeline, QueryPipeline};
 
@@ -107,13 +107,11 @@ impl PhysicsState {
 }
 
 pub struct PhysicsEvents {
-    pub contact_events: Receiver<ContactEvent>,
-    pub intersection_events: Receiver<IntersectionEvent>,
+    pub events: Receiver<CollisionEvent>,
 }
 
 impl PhysicsEvents {
     pub fn poll_all(&self) {
-        while let Ok(_) = self.contact_events.try_recv() {}
-        while let Ok(_) = self.intersection_events.try_recv() {}
+        while let Ok(_) = self.events.try_recv() {}
     }
 }

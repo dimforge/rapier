@@ -5,7 +5,7 @@ use crate::dynamics::{
     RigidBodyCcd, RigidBodyHandle, RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
 };
 use crate::geometry::{
-    ColliderParent, ColliderPosition, ColliderShape, ColliderType, IntersectionEvent, NarrowPhase,
+    ColliderParent, ColliderPosition, ColliderShape, ColliderType, CollisionEvent, NarrowPhase,
 };
 use crate::math::Real;
 use crate::parry::utils::SortedPair;
@@ -613,11 +613,11 @@ impl CCDSolver {
             if !intersect_before
                 && !intersect_after
                 && (co_flags1.active_events | co_flags2.active_events)
-                    .contains(ActiveEvents::INTERSECTION_EVENTS)
+                    .contains(ActiveEvents::COLLISION_EVENTS)
             {
                 // Emit one intersection-started and one intersection-stopped event.
-                events.handle_intersection_event(IntersectionEvent::new(toi.c1, toi.c2, true));
-                events.handle_intersection_event(IntersectionEvent::new(toi.c1, toi.c2, false));
+                events.handle_intersection_event(CollisionEvent::Started(toi.c1, toi.c2));
+                events.handle_intersection_event(CollisionEvent::Stopped(toi.c1, toi.c2));
             }
         }
 
