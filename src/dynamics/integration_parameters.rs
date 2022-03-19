@@ -20,10 +20,7 @@ pub struct IntegrationParameters {
 
     /// 0-1: multiplier for how much of the constraint violation (e.g. contact penetration)
     /// will be compensated for during the velocity solve.
-    /// If zero, you need to enable the positional solver.
-    /// If non-zero, you do not need the positional solver.
-    /// A good non-zero value is around `0.2`.
-    /// (default `0.0`).
+    /// (default `0.8`).
     pub erp: Real,
     /// 0-1: the damping ratio used by the springs for Baumgarte constraints stabilization.
     /// Lower values make the constraints more compliant (more "springy", allowing more visible penetrations
@@ -31,7 +28,13 @@ pub struct IntegrationParameters {
     /// (default `0.25`).
     pub damping_ratio: Real,
 
+    /// 0-1: multiplier for how much of the joint violation
+    /// will be compensated for during the velocity solve.
+    /// (default `1.0`).
     pub joint_erp: Real,
+
+    /// The fraction of critical damping applied to the joint for constraints regularization.
+    /// (default `0.25`).
     pub joint_damping_ratio: Real,
 
     /// Amount of penetration the engine wont attempt to correct (default: `0.001m`).
@@ -131,6 +134,7 @@ impl IntegrationParameters {
         1.0 / (1.0 + cfm_coeff)
     }
 
+    /// The CFM (constranits force mixing) coefficient applied to all joints for constraints regularization
     pub fn joint_cfm_coeff(&self) -> Real {
         // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
         let inv_erp_minus_one = 1.0 / self.joint_erp - 1.0;

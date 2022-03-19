@@ -7,11 +7,15 @@ use super::{JointLimits, JointMotor};
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]
+/// A prismatic joint, locks all relative motion between two bodies except for translation along the joint’s principal axis.
 pub struct PrismaticJoint {
     data: GenericJoint,
 }
 
 impl PrismaticJoint {
+    /// Creates a new prismatic joint allowing only relative translations along the specified axis.
+    ///
+    /// This axis is expressed in the local-space of both rigid-bodies.
     pub fn new(axis: UnitVector<Real>) -> Self {
         let data = GenericJointBuilder::new(JointAxesMask::LOCKED_PRISMATIC_AXES)
             .local_axis1(axis)
@@ -20,46 +24,60 @@ impl PrismaticJoint {
         Self { data }
     }
 
+    /// The underlying generic joint.
+    pub fn data(&self) -> &GenericJoint {
+        &self.data
+    }
+
+    /// The joint’s anchor, expressed in the local-space of the first rigid-body.
     #[must_use]
     pub fn local_anchor1(&self) -> Point<Real> {
         self.data.local_anchor1()
     }
 
+    /// Sets the joint’s anchor, expressed in the local-space of the first rigid-body.
     pub fn set_local_anchor1(&mut self, anchor1: Point<Real>) -> &mut Self {
         self.data.set_local_anchor1(anchor1);
         self
     }
 
+    /// The joint’s anchor, expressed in the local-space of the second rigid-body.
     #[must_use]
     pub fn local_anchor2(&self) -> Point<Real> {
         self.data.local_anchor2()
     }
 
+    /// Sets the joint’s anchor, expressed in the local-space of the second rigid-body.
     pub fn set_local_anchor2(&mut self, anchor2: Point<Real>) -> &mut Self {
         self.data.set_local_anchor2(anchor2);
         self
     }
 
+    /// The principal axis of the joint, expressed in the local-space of the first rigid-body.
     #[must_use]
     pub fn local_axis1(&self) -> UnitVector<Real> {
         self.data.local_axis1()
     }
 
+    /// Sets the principal axis of the joint, expressed in the local-space of the first rigid-body.
     pub fn set_local_axis1(&mut self, axis1: UnitVector<Real>) -> &mut Self {
         self.data.set_local_axis1(axis1);
         self
     }
 
+    /// The principal axis of the joint, expressed in the local-space of the second rigid-body.
     #[must_use]
     pub fn local_axis2(&self) -> UnitVector<Real> {
         self.data.local_axis2()
     }
 
+    /// Sets the principal axis of the joint, expressed in the local-space of the second rigid-body.
     pub fn set_local_axis2(&mut self, axis2: UnitVector<Real>) -> &mut Self {
         self.data.set_local_axis2(axis2);
         self
     }
 
+    /// The motor affecting the joint’s translational degree of freedom.
     #[must_use]
     pub fn motor(&self) -> Option<&JointMotor> {
         self.data.motor(JointAxis::X)
@@ -103,16 +121,19 @@ impl PrismaticJoint {
         self
     }
 
+    /// Sets the maximum force the motor can deliver.
     pub fn set_motor_max_force(&mut self, max_force: Real) -> &mut Self {
         self.data.set_motor_max_force(JointAxis::X, max_force);
         self
     }
 
+    /// The limit distance attached bodies can translate along the joint’s principal axis.
     #[must_use]
     pub fn limits(&self) -> Option<&JointLimits<Real>> {
         self.data.limits(JointAxis::X)
     }
 
+    /// Sets the `[min,max]` limit distances attached bodies can translate along the joint’s principal axis.
     pub fn set_limits(&mut self, limits: [Real; 2]) -> &mut Self {
         self.data.set_limits(JointAxis::X, limits);
         self
@@ -125,31 +146,42 @@ impl Into<GenericJoint> for PrismaticJoint {
     }
 }
 
+/// Create prismatic joints using the builder pattern.
+///
+/// A prismatic joint locks all relative motion except for translations along the joint’s principal axis.
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct PrismaticJointBuilder(PrismaticJoint);
 
 impl PrismaticJointBuilder {
+    /// Creates a new builder for prismatic joints.
+    ///
+    /// This axis is expressed in the local-space of both rigid-bodies.
     pub fn new(axis: UnitVector<Real>) -> Self {
         Self(PrismaticJoint::new(axis))
     }
 
+    /// Sets the joint’s anchor, expressed in the local-space of the first rigid-body.
     #[must_use]
     pub fn local_anchor1(mut self, anchor1: Point<Real>) -> Self {
         self.0.set_local_anchor1(anchor1);
         self
     }
 
+    /// Sets the joint’s anchor, expressed in the local-space of the second rigid-body.
     #[must_use]
     pub fn local_anchor2(mut self, anchor2: Point<Real>) -> Self {
         self.0.set_local_anchor2(anchor2);
         self
     }
 
+    /// Sets the principal axis of the joint, expressed in the local-space of the first rigid-body.
     #[must_use]
     pub fn local_axis1(mut self, axis1: UnitVector<Real>) -> Self {
         self.0.set_local_axis1(axis1);
         self
     }
 
+    /// Sets the principal axis of the joint, expressed in the local-space of the second rigid-body.
     #[must_use]
     pub fn local_axis2(mut self, axis2: UnitVector<Real>) -> Self {
         self.0.set_local_axis2(axis2);
@@ -190,18 +222,21 @@ impl PrismaticJointBuilder {
         self
     }
 
+    /// Sets the maximum force the motor can deliver.
     #[must_use]
     pub fn motor_max_force(mut self, max_force: Real) -> Self {
         self.0.set_motor_max_force(max_force);
         self
     }
 
+    /// Sets the `[min,max]` limit distances attached bodies can translate along the joint’s principal axis.
     #[must_use]
     pub fn limits(mut self, limits: [Real; 2]) -> Self {
         self.0.set_limits(limits);
         self
     }
 
+    /// Builds the prismatic joint.
     #[must_use]
     pub fn build(self) -> PrismaticJoint {
         self.0

@@ -97,6 +97,7 @@ impl MultibodyJointSet {
         }
     }
 
+    /// Iterates through all the multibody joints from this set.
     pub fn iter(&self) -> impl Iterator<Item = (MultibodyJointHandle, &Multibody, &MultibodyLink)> {
         self.rb2mb
             .iter()
@@ -246,7 +247,8 @@ impl MultibodyJointSet {
         }
     }
 
-    pub fn remove_articulations_attached_to_rigid_body<Bodies>(
+    /// Removes all the multibody joints attached to a rigid-body.
+    pub fn remove_joints_attached_to_rigid_body<Bodies>(
         &mut self,
         rb_to_remove: RigidBodyHandle,
         islands: &mut IslandManager,

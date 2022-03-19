@@ -18,12 +18,13 @@ pub struct MultibodyLink {
     /*
      * Change at each time step.
      */
+    /// The multibody joint of this link.
     pub joint: MultibodyJoint,
     // TODO: should this be removed in favor of the rigid-body position?
-    pub local_to_world: Isometry<Real>,
-    pub local_to_parent: Isometry<Real>,
-    pub shift02: Vector<Real>,
-    pub shift23: Vector<Real>,
+    pub(crate) local_to_world: Isometry<Real>,
+    pub(crate) local_to_parent: Isometry<Real>,
+    pub(crate) shift02: Vector<Real>,
+    pub(crate) shift23: Vector<Real>,
 
     /// The velocity added by the joint, in world-space.
     pub(crate) joint_velocity: RigidBodyVelocity,
@@ -56,10 +57,12 @@ impl MultibodyLink {
         }
     }
 
+    /// The multibody joint of this link.
     pub fn joint(&self) -> &MultibodyJoint {
         &self.joint
     }
 
+    /// The handle of the rigid-body of this link.
     pub fn rigid_body_handle(&self) -> RigidBodyHandle {
         self.rigid_body
     }
@@ -86,11 +89,13 @@ impl MultibodyLink {
         }
     }
 
+    /// The world-space transform of the rigid-body attached to this link.
     #[inline]
     pub fn local_to_world(&self) -> &Isometry<Real> {
         &self.local_to_world
     }
 
+    /// The position of the rigid-body attached to this link relative to its parent.
     #[inline]
     pub fn local_to_parent(&self) -> &Isometry<Real> {
         &self.local_to_parent

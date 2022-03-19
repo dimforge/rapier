@@ -13,6 +13,7 @@ impl<T> Coarena<T> {
         Self { data: Vec::new() }
     }
 
+    /// Iterates through all the elements of this coarena.
     pub fn iter(&self) -> impl Iterator<Item = (Index, &T)> {
         self.data
             .iter()

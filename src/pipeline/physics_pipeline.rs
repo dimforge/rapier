@@ -367,8 +367,6 @@ impl PhysicsPipeline {
     {
         // Set the rigid-bodies and kinematic bodies to their final position.
         for handle in islands.iter_active_bodies() {
-            let status: &RigidBodyType = bodies.index(handle.0);
-
             bodies.map_mut_internal(handle.0, |poss: &mut RigidBodyPosition| {
                 poss.position = poss.next_position
             });

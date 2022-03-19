@@ -74,6 +74,7 @@ impl ContactPair {
         }
     }
 
+    /// Clears all the contacts of this contact pair.
     pub fn clear(&mut self) {
         self.manifolds.clear();
         self.has_any_active_contact = false;

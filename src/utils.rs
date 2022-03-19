@@ -15,6 +15,9 @@ use {
     num::One,
 };
 
+/// The trait for real numbers used by Rapier.
+///
+/// This includes `f32`, `f64` and their related SIMD types.
 pub trait WReal: SimdRealField<Element = Real> + Copy {}
 impl WReal for Real {}
 impl WReal for SimdReal {}
@@ -422,9 +425,12 @@ impl WCross<Vector2<SimdReal>> for Vector2<SimdReal> {
     }
 }
 
+/// Trait implemented by quaternions.
 pub trait WQuat<N> {
+    /// The result of quaternion differentiation.
     type Result;
 
+    /// Compute the differential of `inv(q1) * q2`.
     fn diff_conj1_2(&self, rhs: &Self) -> Self::Result;
 }
 
