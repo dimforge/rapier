@@ -7,7 +7,7 @@ fn prismatic_repro(
     impulse_joints: &mut ImpulseJointSet,
     box_center: Point<f32>,
 ) {
-    let box_rb = bodies.insert(RigidBodyBuilder::new_dynamic().translation(vector![
+    let box_rb = bodies.insert(RigidBodyBuilder::dynamic().translation(vector![
         box_center.x,
         box_center.y,
         box_center.z
@@ -24,7 +24,7 @@ fn prismatic_repro(
 
     for pos in wheel_positions {
         let wheel_pos_in_world = box_center + pos;
-        let wheel_rb = bodies.insert(RigidBodyBuilder::new_dynamic().translation(vector![
+        let wheel_rb = bodies.insert(RigidBodyBuilder::dynamic().translation(vector![
             wheel_pos_in_world.x,
             wheel_pos_in_world.y,
             wheel_pos_in_world.z
@@ -40,7 +40,7 @@ fn prismatic_repro(
     }
 
     // put a small box under one of the wheels
-    let gravel = bodies.insert(RigidBodyBuilder::new_dynamic().translation(vector![
+    let gravel = bodies.insert(RigidBodyBuilder::dynamic().translation(vector![
         box_center.x + 1.0,
         box_center.y - 2.4,
         -1.0
@@ -63,7 +63,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 50.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height, 0.0]);
+    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, handle, &mut bodies);

@@ -57,8 +57,8 @@ pub type BodyStatus = RigidBodyType;
 pub enum RigidBodyType {
     /// A `RigidBodyType::Dynamic` body can be affected by all external forces.
     Dynamic = 0,
-    /// A `RigidBodyType::Static` body cannot be affected by external forces.
-    Static = 1,
+    /// A `RigidBodyType::Fixed` body cannot be affected by external forces.
+    Fixed = 1,
     /// A `RigidBodyType::KinematicPositionBased` body cannot be affected by any external forces but can be controlled
     /// by the user at the position level while keeping realistic one-way interaction with dynamic bodies.
     ///
@@ -73,14 +73,14 @@ pub enum RigidBodyType {
     /// cannot be pushed by anything. In other words, the trajectory of a kinematic body can only be
     /// modified by the user and is independent from any contact or joint it is involved in.
     KinematicVelocityBased = 3,
-    // Semikinematic, // A kinematic that performs automatic CCD with the static environment to avoid traversing it?
+    // Semikinematic, // A kinematic that performs automatic CCD with the fixed environment to avoid traversing it?
     // Disabled,
 }
 
 impl RigidBodyType {
-    /// Is this rigid-body static (i.e. cannot move)?
-    pub fn is_static(self) -> bool {
-        self == RigidBodyType::Static
+    /// Is this rigid-body fixed (i.e. cannot move)?
+    pub fn is_fixed(self) -> bool {
+        self == RigidBodyType::Fixed
     }
 
     /// Is this rigid-body dynamic (i.e. can move and be affected by forces)?

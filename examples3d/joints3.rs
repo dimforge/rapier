@@ -9,9 +9,9 @@ fn create_coupled_joints(
     origin: Point<f32>,
     use_articulations: bool,
 ) {
-    let ground = bodies.insert(RigidBodyBuilder::new_static().translation(origin.coords));
+    let ground = bodies.insert(RigidBodyBuilder::fixed().translation(origin.coords));
     let body1 = bodies.insert(
-        RigidBodyBuilder::new_dynamic()
+        RigidBodyBuilder::dynamic()
             .translation(origin.coords)
             .linvel(vector![5.0, 5.0, 5.0]),
     );
@@ -42,15 +42,14 @@ fn create_prismatic_joints(
     let rad = 0.4;
     let shift = 2.0;
 
-    let ground = RigidBodyBuilder::new_static().translation(vector![origin.x, origin.y, origin.z]);
+    let ground = RigidBodyBuilder::fixed().translation(vector![origin.x, origin.y, origin.z]);
     let mut curr_parent = bodies.insert(ground);
     let collider = ColliderBuilder::cuboid(rad, rad, rad);
     colliders.insert_with_parent(collider, curr_parent, bodies);
 
     for i in 0..num {
         let z = origin.z + (i + 1) as f32 * shift;
-        let rigid_body =
-            RigidBodyBuilder::new_dynamic().translation(vector![origin.x, origin.y, z]);
+        let rigid_body = RigidBodyBuilder::dynamic().translation(vector![origin.x, origin.y, z]);
         let curr_child = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(rad, rad, rad);
         colliders.insert_with_parent(collider, curr_child, bodies);
@@ -87,15 +86,14 @@ fn create_actuated_prismatic_joints(
     let rad = 0.4;
     let shift = 2.0;
 
-    let ground = RigidBodyBuilder::new_static().translation(vector![origin.x, origin.y, origin.z]);
+    let ground = RigidBodyBuilder::fixed().translation(vector![origin.x, origin.y, origin.z]);
     let mut curr_parent = bodies.insert(ground);
     let collider = ColliderBuilder::cuboid(rad, rad, rad);
     colliders.insert_with_parent(collider, curr_parent, bodies);
 
     for i in 0..num {
         let z = origin.z + (i + 1) as f32 * shift;
-        let rigid_body =
-            RigidBodyBuilder::new_dynamic().translation(vector![origin.x, origin.y, z]);
+        let rigid_body = RigidBodyBuilder::dynamic().translation(vector![origin.x, origin.y, z]);
         let curr_child = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(rad, rad, rad);
         colliders.insert_with_parent(collider, curr_child, bodies);
@@ -153,7 +151,7 @@ fn create_revolute_joints(
     let rad = 0.4;
     let shift = 2.0;
 
-    let ground = RigidBodyBuilder::new_static().translation(vector![origin.x, origin.y, 0.0]);
+    let ground = RigidBodyBuilder::fixed().translation(vector![origin.x, origin.y, 0.0]);
     let mut curr_parent = bodies.insert(ground);
     let collider = ColliderBuilder::cuboid(rad, rad, rad);
     colliders.insert_with_parent(collider, curr_parent, bodies);
@@ -170,7 +168,7 @@ fn create_revolute_joints(
 
         let mut handles = [curr_parent; 4];
         for k in 0..4 {
-            let rigid_body = RigidBodyBuilder::new_dynamic().position(positions[k]);
+            let rigid_body = RigidBodyBuilder::dynamic().position(positions[k]);
             handles[k] = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(rad, rad, rad);
             colliders.insert_with_parent(collider, handles[k], bodies);
@@ -210,14 +208,13 @@ fn create_revolute_joints_with_limits(
     origin: Point<f32>,
     use_articulations: bool,
 ) {
-    let ground = bodies.insert(RigidBodyBuilder::new_static().translation(origin.coords));
+    let ground = bodies.insert(RigidBodyBuilder::fixed().translation(origin.coords));
 
-    let platform1 = bodies.insert(RigidBodyBuilder::new_dynamic().translation(origin.coords));
+    let platform1 = bodies.insert(RigidBodyBuilder::dynamic().translation(origin.coords));
     colliders.insert_with_parent(ColliderBuilder::cuboid(4.0, 0.2, 2.0), platform1, bodies);
 
     let shift = vector![0.0, 0.0, 6.0];
-    let platform2 =
-        bodies.insert(RigidBodyBuilder::new_dynamic().translation(origin.coords + shift));
+    let platform2 = bodies.insert(RigidBodyBuilder::dynamic().translation(origin.coords + shift));
     colliders.insert_with_parent(ColliderBuilder::cuboid(4.0, 0.2, 2.0), platform2, bodies);
 
     let z = Vector::z_axis();
@@ -256,9 +253,8 @@ fn create_revolute_joints_with_limits(
     }
 
     // Let’s add a couple of cuboids that will fall on the platforms, triggering the joint limits.
-    let cuboid_body1 = bodies.insert(
-        RigidBodyBuilder::new_dynamic().translation(origin.coords + vector![-2.0, 4.0, 0.0]),
-    );
+    let cuboid_body1 = bodies
+        .insert(RigidBodyBuilder::dynamic().translation(origin.coords + vector![-2.0, 4.0, 0.0]));
     colliders.insert_with_parent(
         ColliderBuilder::cuboid(0.6, 0.6, 0.6).friction(1.0),
         cuboid_body1,
@@ -266,8 +262,7 @@ fn create_revolute_joints_with_limits(
     );
 
     let cuboid_body2 = bodies.insert(
-        RigidBodyBuilder::new_dynamic()
-            .translation(origin.coords + shift + vector![2.0, 16.0, 0.0]),
+        RigidBodyBuilder::dynamic().translation(origin.coords + shift + vector![2.0, 16.0, 0.0]),
     );
     colliders.insert_with_parent(
         ColliderBuilder::cuboid(0.6, 0.6, 0.6).friction(1.0),
@@ -299,7 +294,7 @@ fn create_fixed_joints(
             // fixed bodies. Because physx will crash if we add
             // a joint between these.
             let status = if i == 0 && (k % 4 == 0 && k != num - 2 || k == num - 1) {
-                RigidBodyType::Static
+                RigidBodyType::Fixed
             } else {
                 RigidBodyType::Dynamic
             };
@@ -358,7 +353,7 @@ fn create_spherical_joints(
             let fi = i as f32;
 
             let status = if i == 0 && (k % 4 == 0 || k == num - 1) {
-                RigidBodyType::Static
+                RigidBodyType::Fixed
             } else {
                 RigidBodyType::Dynamic
             };
@@ -408,17 +403,16 @@ fn create_spherical_joints_with_limits(
 ) {
     let shift = vector![0.0, 0.0, 3.0];
 
-    let ground = bodies.insert(RigidBodyBuilder::new_static().translation(origin.coords));
+    let ground = bodies.insert(RigidBodyBuilder::fixed().translation(origin.coords));
 
     let ball1 = bodies.insert(
-        RigidBodyBuilder::new_dynamic()
+        RigidBodyBuilder::dynamic()
             .translation(origin.coords + shift)
             .linvel(vector![20.0, 20.0, 0.0]),
     );
     colliders.insert_with_parent(ColliderBuilder::cuboid(1.0, 1.0, 1.0), ball1, bodies);
 
-    let ball2 =
-        bodies.insert(RigidBodyBuilder::new_dynamic().translation(origin.coords + shift * 2.0));
+    let ball2 = bodies.insert(RigidBodyBuilder::dynamic().translation(origin.coords + shift * 2.0));
     colliders.insert_with_parent(ColliderBuilder::cuboid(1.0, 1.0, 1.0), ball2, bodies);
 
     let joint1 = SphericalJointBuilder::new()
@@ -465,7 +459,7 @@ fn create_actuated_revolute_joints(
         // fixed bodies. Because physx will crash if we add
         // a joint between these.
         let status = if i == 0 {
-            RigidBodyType::Static
+            RigidBodyType::Fixed
         } else {
             RigidBodyType::Dynamic
         };
@@ -533,7 +527,7 @@ fn create_actuated_spherical_joints(
         // fixed bodies. Because physx will crash if we add
         // a joint between these.
         let status = if i == 0 {
-            RigidBodyType::Static
+            RigidBodyType::Fixed
         } else {
             RigidBodyType::Dynamic
         };

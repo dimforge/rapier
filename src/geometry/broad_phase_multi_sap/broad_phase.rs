@@ -634,7 +634,7 @@ mod test {
         let mut multibody_joints = MultibodyJointSet::new();
         let mut islands = IslandManager::new();
 
-        let rb = RigidBodyBuilder::new_dynamic().build();
+        let rb = RigidBodyBuilder::dynamic().build();
         let co = ColliderBuilder::ball(0.5).build();
         let hrb = bodies.insert(rb);
         let coh = colliders.insert_with_parent(co, hrb, &mut bodies);
@@ -652,7 +652,7 @@ mod test {
         broad_phase.update(0.0, &mut colliders, &[], &[coh], &mut events);
 
         // Create another body.
-        let rb = RigidBodyBuilder::new_dynamic().build();
+        let rb = RigidBodyBuilder::dynamic().build();
         let co = ColliderBuilder::ball(0.5).build();
         let hrb = bodies.insert(rb);
         let coh = colliders.insert_with_parent(co, hrb, &mut bodies);

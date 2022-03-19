@@ -259,7 +259,7 @@ impl IslandManager {
 
             if rb_ids.active_set_timestamp == self.active_set_timestamp || !rb_status.is_dynamic() {
                 // We already visited this body and its neighbors.
-                // Also, we don't propagate awake state through static bodies.
+                // Also, we don't propagate awake state through fixed bodies.
                 continue;
             }
 

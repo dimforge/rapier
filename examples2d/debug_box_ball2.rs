@@ -14,7 +14,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Ground
      */
     let rad = 1.0;
-    let rigid_body = RigidBodyBuilder::new_static()
+    let rigid_body = RigidBodyBuilder::fixed()
         .translation(vector![0.0, -rad])
         .rotation(std::f32::consts::PI / 4.0);
     let handle = bodies.insert(rigid_body);
@@ -22,7 +22,7 @@ pub fn init_world(testbed: &mut Testbed) {
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     // Build the dynamic box rigid body.
-    let rigid_body = RigidBodyBuilder::new_dynamic()
+    let rigid_body = RigidBodyBuilder::dynamic()
         .translation(vector![0.0, 3.0 * rad])
         .can_sleep(false);
     let handle = bodies.insert(rigid_body);

@@ -17,8 +17,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     for _ in 0..6 {
-        let rigid_body =
-            RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height, 0.0]);
+        let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
         let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
         colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -26,7 +25,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Build the dynamic box rigid body.
     for _ in 0..2 {
-        let rigid_body = RigidBodyBuilder::new_dynamic()
+        let rigid_body = RigidBodyBuilder::dynamic()
             .translation(vector![1.1, 0.0, 0.0])
             // .rotation(vector![0.8, 0.2, 0.1])
             .can_sleep(false);

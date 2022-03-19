@@ -22,7 +22,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let fi = i as f32;
 
             let status = if i == 0 && (k % 4 == 0 || k == num - 1) {
-                RigidBodyType::Static
+                RigidBodyType::Fixed
             } else {
                 RigidBodyType::Dynamic
             };

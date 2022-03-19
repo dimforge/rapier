@@ -16,7 +16,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 200.1;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height]);
+    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height]);
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
@@ -35,7 +35,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let y = 3.0;
 
         // Build the rigid body.
-        let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y]);
+        let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
         let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(rad, rad);
         colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -48,7 +48,7 @@ pub fn init_world(testbed: &mut Testbed) {
      */
 
     // Rigid body so that the sensor can move.
-    let sensor = RigidBodyBuilder::new_dynamic().translation(vector![0.0, 10.0]);
+    let sensor = RigidBodyBuilder::dynamic().translation(vector![0.0, 10.0]);
     let sensor_handle = bodies.insert(sensor);
 
     // Solid cube attached to the sensor which

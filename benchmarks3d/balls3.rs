@@ -29,7 +29,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f32 * shift - centerz;
 
                 let status = if j == 0 {
-                    RigidBodyType::Static
+                    RigidBodyType::Fixed
                 } else {
                     RigidBodyType::Dynamic
                 };

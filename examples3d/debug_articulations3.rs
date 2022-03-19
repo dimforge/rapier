@@ -20,7 +20,7 @@ fn create_ball_articulations(
 
             let status = if i == 0 {
                 // && (k % 4 == 0 || k == num - 1) {
-                RigidBodyType::Static
+                RigidBodyType::Fixed
             } else {
                 RigidBodyType::Dynamic
             };
@@ -74,7 +74,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .rotation(vector![0.1, 0.0, 0.1]);
     colliders.insert(collider);
 
-    let rigid_body = RigidBodyBuilder::new_dynamic();
+    let rigid_body = RigidBodyBuilder::dynamic();
     let collider = ColliderBuilder::cuboid(30.0, 0.01, 30.0)
         .translation(vector![0.0, -3.0, 0.0])
         .rotation(vector![0.1, 0.0, 0.1]);

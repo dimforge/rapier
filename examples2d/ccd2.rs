@@ -16,7 +16,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 25.0;
     let ground_thickness = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static().ccd_enabled(true);
+    let rigid_body = RigidBodyBuilder::fixed().ccd_enabled(true);
     let ground_handle = bodies.insert(rigid_body);
 
     let collider = ColliderBuilder::cuboid(ground_size, ground_thickness);
@@ -66,7 +66,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let y = j as f32 * shift + centery;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic()
+            let rigid_body = RigidBodyBuilder::dynamic()
                 .translation(vector![x, y])
                 .linvel(vector![100.0, -10.0])
                 .ccd_enabled(true);

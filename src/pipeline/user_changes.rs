@@ -117,7 +117,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies<Bodies, Colliders>(
                                 islands.active_kinematic_set.push(*handle);
                             }
                         }
-                        RigidBodyType::Static => {}
+                        RigidBodyType::Fixed => {}
                     }
                 }
 

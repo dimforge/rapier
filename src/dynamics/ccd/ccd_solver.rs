@@ -412,7 +412,7 @@ impl CCDSolver {
             return PredictedImpacts::ImpactsAfterEndTime(min_overstep);
         }
 
-        // NOTE: all static bodies (and kinematic bodies?) should be considered as "frozen", this
+        // NOTE: all fixed bodies (and kinematic bodies?) should be considered as "frozen", this
         // may avoid some resweeps.
         let mut pseudo_intersections_to_check = vec![];
 

@@ -392,7 +392,7 @@ impl NarrowPhase {
                     // For each modified colliders, we need to wake-up the bodies it is in contact with
                     // so that the narrow-phase properly takes into account the change in, e.g.,
                     // collision groups. Waking up the modified collider's parent isn't enough because
-                    // it could be a static or kinematic body which don't propagate the wake-up state.
+                    // it could be a fixed or kinematic body which don't propagate the wake-up state.
 
                     let co_parent: Option<&ColliderParent> = colliders.get(handle.0);
                     let (co_changes, co_type): (&ColliderChanges, &ColliderType) =
@@ -740,8 +740,8 @@ impl NarrowPhase {
                 }
 
                 // TODO: avoid lookup into bodies.
-                let mut rb_type1 = RigidBodyType::Static;
-                let mut rb_type2 = RigidBodyType::Static;
+                let mut rb_type1 = RigidBodyType::Fixed;
+                let mut rb_type2 = RigidBodyType::Fixed;
 
                 if let Some(co_parent1) = co_parent1 {
                     rb_type1 = *bodies.index(co_parent1.handle.0);
@@ -865,8 +865,8 @@ impl NarrowPhase {
                 }
 
                 // TODO: avoid lookup into bodies.
-                let mut rb_type1 = RigidBodyType::Static;
-                let mut rb_type2 = RigidBodyType::Static;
+                let mut rb_type1 = RigidBodyType::Fixed;
+                let mut rb_type2 = RigidBodyType::Fixed;
 
                 if let Some(co_parent1) = co_parent1 {
                     rb_type1 = *bodies.index(co_parent1.handle.0);
@@ -1076,7 +1076,7 @@ impl NarrowPhase {
                                 bodies.index_bundle(handle1.0);
                             (data.0.active_island_id, *data.1, data.2.sleeping)
                         } else {
-                            (0, RigidBodyType::Static, true)
+                            (0, RigidBodyType::Fixed, true)
                         };
 
                     let (active_island_id2, rb_type2, sleeping2) =
@@ -1085,7 +1085,7 @@ impl NarrowPhase {
                                 bodies.index_bundle(handle2.0);
                             (data.0.active_island_id, *data.1, data.2.sleeping)
                         } else {
-                            (0, RigidBodyType::Static, true)
+                            (0, RigidBodyType::Fixed, true)
                         };
 
                     if (rb_type1.is_dynamic() || rb_type2.is_dynamic())

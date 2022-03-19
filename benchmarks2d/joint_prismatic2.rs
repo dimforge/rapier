@@ -24,7 +24,7 @@ pub fn init_world(testbed: &mut Testbed) {
         for j in 0..50 {
             let x = j as f32 * shift * 4.0;
 
-            let ground = RigidBodyBuilder::new_static().translation(vector![x, y]);
+            let ground = RigidBodyBuilder::fixed().translation(vector![x, y]);
             let mut curr_parent = bodies.insert(ground);
             let collider = ColliderBuilder::cuboid(rad, rad);
             colliders.insert_with_parent(collider, curr_parent, &mut bodies);
@@ -32,7 +32,7 @@ pub fn init_world(testbed: &mut Testbed) {
             for i in 0..num {
                 let y = y - (i + 1) as f32 * shift;
                 let density = 1.0;
-                let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y]);
+                let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
                 let curr_child = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::cuboid(rad, rad).density(density);
                 colliders.insert_with_parent(collider, curr_child, &mut bodies);
