@@ -14,7 +14,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let platform_handles = positions
         .into_iter()
         .map(|pos| {
-            let rigid_body = RigidBodyBuilder::new_kinematic_position_based().translation(pos);
+            let rigid_body = RigidBodyBuilder::kinematic_position_based().translation(pos);
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(rad * 10.0, rad);
             colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -33,7 +33,7 @@ pub fn init_world(testbed: &mut Testbed) {
         if state.timestep_id % 10 == 0 {
             let x = rand::random::<f32>() * 10.0 - 5.0;
             let y = rand::random::<f32>() * 10.0 + 10.0;
-            let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y]);
+            let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
             let handle = physics.bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(rad, rad);
             physics

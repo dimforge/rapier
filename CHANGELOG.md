@@ -6,6 +6,10 @@
 - `RigidsBody::apply_force`, `::apply_torque`, `::apply_force_at_point` have been renamed to `::add_force`,
   `::add_torque`, and `::add_force_at_point` to better reflect the fact that they are not cleared at the end
   of the timestep.
+- Rename `RigidBodyType::Static` to `RigidBodyType::Fixed` to avoid confusion with the `static` keyword.
+- All method referring to `static` rigid-bodies now use `fixed` instead of `static`.
+- Rename `RigidBodyBuilder::new_static, new_kinematic_velocity_based, new_kinematic_velocity_based` to
+  `RigidBodyBuilder::fixed, kinematic_velocity_based, kinematic_velocity_based`.
 
 ## v0.12.0-alpha.0 (2 Jan. 2022)
 ### Fixed

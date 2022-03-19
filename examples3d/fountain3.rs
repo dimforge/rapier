@@ -17,14 +17,14 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 100.1;
     let ground_height = 2.1; // 16.0;
 
-    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height, 0.0]);
+    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, _, run_state| {
-        let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![0.0, 10.0, 0.0]);
+        let rigid_body = RigidBodyBuilder::dynamic().translation(vector![0.0, 10.0, 0.0]);
         let handle = physics.bodies.insert(rigid_body);
         let collider = match run_state.timestep_id % 3 {
             0 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0),

@@ -688,7 +688,7 @@ mod test {
     use crate::prelude::MultibodyJointSet;
 
     #[test]
-    fn kinematic_and_static_contact_crash() {
+    fn kinematic_and_fixed_contact_crash() {
         let mut colliders = ColliderSet::new();
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
@@ -698,13 +698,13 @@ mod test {
         let mut bodies = RigidBodySet::new();
         let mut islands = IslandManager::new();
 
-        let rb = RigidBodyBuilder::new_static().build();
+        let rb = RigidBodyBuilder::fixed().build();
         let h1 = bodies.insert(rb.clone());
         let co = ColliderBuilder::ball(10.0).build();
         colliders.insert_with_parent(co.clone(), h1, &mut bodies);
 
         // The same but with a kinematic body.
-        let rb = RigidBodyBuilder::new_kinematic_position_based().build();
+        let rb = RigidBodyBuilder::kinematic_position_based().build();
         let h2 = bodies.insert(rb.clone());
         colliders.insert_with_parent(co, h2, &mut bodies);
 
@@ -737,18 +737,18 @@ mod test {
         let mut bodies = RigidBodySet::new();
 
         // Check that removing the body right after inserting it works.
-        // We add two dynamic bodies, one kinematic body and one static body before removing
+        // We add two dynamic bodies, one kinematic body and one fixed body before removing
         // them. This include a non-regression test where deleting a kimenatic body crashes.
-        let rb = RigidBodyBuilder::new_dynamic().build();
+        let rb = RigidBodyBuilder::dynamic().build();
         let h1 = bodies.insert(rb.clone());
         let h2 = bodies.insert(rb.clone());
 
         // The same but with a kinematic body.
-        let rb = RigidBodyBuilder::new_kinematic_position_based().build();
+        let rb = RigidBodyBuilder::kinematic_position_based().build();
         let h3 = bodies.insert(rb.clone());
 
-        // The same but with a static body.
-        let rb = RigidBodyBuilder::new_static().build();
+        // The same but with a fixed body.
+        let rb = RigidBodyBuilder::fixed().build();
         let h4 = bodies.insert(rb.clone());
 
         let to_delete = [h1, h2, h3, h4];
@@ -787,7 +787,7 @@ mod test {
         let mut islands = IslandManager::new();
 
         let mut bodies = RigidBodySet::new();
-        let rb = RigidBodyBuilder::new_dynamic().build();
+        let rb = RigidBodyBuilder::dynamic().build();
         let h1 = bodies.insert(rb.clone());
         let h2 = bodies.insert(rb.clone());
         let h3 = bodies.insert(rb.clone());
@@ -846,7 +846,7 @@ mod test {
         let physics_hooks = ();
         let event_handler = ();
 
-        let body = RigidBodyBuilder::new_dynamic().build();
+        let body = RigidBodyBuilder::dynamic().build();
         let b_handle = bodies.insert(body);
         let collider = ColliderBuilder::ball(1.0).build();
         let c_handle = colliders.insert_with_parent(collider, b_handle, &mut bodies);

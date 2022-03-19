@@ -668,7 +668,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .physics
                         .bodies
                         .iter()
-                        .filter(|e| !e.1.is_static())
+                        .filter(|e| !e.1.is_fixed())
                         .map(|e| e.0)
                         .collect();
                     let num_to_delete = (dynamic_bodies.len() / 10).max(1);
@@ -773,7 +773,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
     //
     //             let collider = ColliderBuilder::cuboid(4.0, 2.0, 0.4).density(20.0).build();
     //             // let collider = ColliderBuilder::ball(2.0).density(1.0).build();
-    //             let body = RigidBodyBuilder::new_dynamic()
+    //             let body = RigidBodyBuilder::dynamic()
     //                 .position(cam_pos)
     //                 .linvel(vel.x, vel.y, vel.z)
     //                 .ccd_enabled(true)

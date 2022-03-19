@@ -42,7 +42,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let y = j as f32 * shifty + centery;
 
             let status = if j == 0 {
-                RigidBodyType::Static
+                RigidBodyType::Fixed
             } else {
                 RigidBodyType::Dynamic
             };

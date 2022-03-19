@@ -112,7 +112,7 @@ impl RigidBody {
             self.changes.insert(RigidBodyChanges::TYPE);
             self.rb_type = status;
 
-            if status == RigidBodyType::Static {
+            if status == RigidBodyType::Fixed {
                 self.rb_vels = RigidBodyVelocity::zero();
             }
         }
@@ -372,11 +372,11 @@ impl RigidBody {
         self.rb_type.is_kinematic()
     }
 
-    /// Is this rigid body static?
+    /// Is this rigid body fixed?
     ///
-    /// A static body cannot move and is not affected by forces.
-    pub fn is_static(&self) -> bool {
-        self.rb_type == RigidBodyType::Static
+    /// A fixed body cannot move and is not affected by forces.
+    pub fn is_fixed(&self) -> bool {
+        self.rb_type == RigidBodyType::Fixed
     }
 
     /// The mass of this rigid body.
@@ -487,7 +487,7 @@ impl RigidBody {
     /// Is this rigid body sleeping?
     pub fn is_sleeping(&self) -> bool {
         // TODO: should we:
-        // - return false for static bodies.
+        // - return false for fixed bodies.
         // - return true for non-sleeping dynamic bodies.
         // - return true only for kinematic bodies with non-zero velocity?
         self.rb_activation.sleeping
@@ -531,7 +531,7 @@ impl RigidBody {
                 RigidBodyType::KinematicVelocityBased => {
                     self.rb_vels.linvel = linvel;
                 }
-                RigidBodyType::Static | RigidBodyType::KinematicPositionBased => {}
+                RigidBodyType::Fixed | RigidBodyType::KinematicPositionBased => {}
             }
         }
     }
@@ -553,7 +553,7 @@ impl RigidBody {
                 RigidBodyType::KinematicVelocityBased => {
                     self.rb_vels.angvel = angvel;
                 }
-                RigidBodyType::Static | RigidBodyType::KinematicPositionBased => {}
+                RigidBodyType::Fixed | RigidBodyType::KinematicPositionBased => {}
             }
         }
     }
@@ -575,7 +575,7 @@ impl RigidBody {
                 RigidBodyType::KinematicVelocityBased => {
                     self.rb_vels.angvel = angvel;
                 }
-                RigidBodyType::Static | RigidBodyType::KinematicPositionBased => {}
+                RigidBodyType::Fixed | RigidBodyType::KinematicPositionBased => {}
             }
         }
     }
@@ -905,7 +905,7 @@ pub struct RigidBodyBuilder {
 }
 
 impl RigidBodyBuilder {
-    /// Initialize a new builder for a rigid body which is either static, dynamic, or kinematic.
+    /// Initialize a new builder for a rigid body which is either fixed, dynamic, or kinematic.
     pub fn new(rb_type: RigidBodyType) -> Self {
         Self {
             position: Isometry::identity(),
@@ -925,23 +925,39 @@ impl RigidBodyBuilder {
         }
     }
 
-    /// Initializes the builder of a new static rigid body.
+    /// Initializes the builder of a new fixed rigid body.
+    #[deprecated(note = "use `RigidBodyBuilder::fixed()` instead")]
     pub fn new_static() -> Self {
-        Self::new(RigidBodyType::Static)
+        Self::fixed()
+    }
+    /// Initializes the builder of a new velocity-based kinematic rigid body.
+    #[deprecated(note = "use `RigidBodyBuilder::kinematic_velocity_based()` instead")]
+    pub fn new_kinematic_velocity_based() -> Self {
+        Self::kinematic_velocity_based()
+    }
+    /// Initializes the builder of a new position-based kinematic rigid body.
+    #[deprecated(note = "use `RigidBodyBuilder::kinematic_position_based()` instead")]
+    pub fn new_kinematic_position_based() -> Self {
+        Self::kinematic_position_based()
     }
 
-    /// Initializes the builder of a new kinematic rigid body.
-    pub fn new_kinematic_velocity_based() -> Self {
+    /// Initializes the builder of a new fixed rigid body.
+    pub fn fixed() -> Self {
+        Self::new(RigidBodyType::Fixed)
+    }
+
+    /// Initializes the builder of a new velocity-based kinematic rigid body.
+    pub fn kinematic_velocity_based() -> Self {
         Self::new(RigidBodyType::KinematicVelocityBased)
     }
 
-    /// Initializes the builder of a new kinematic rigid body.
-    pub fn new_kinematic_position_based() -> Self {
+    /// Initializes the builder of a new position-based kinematic rigid body.
+    pub fn kinematic_position_based() -> Self {
         Self::new(RigidBodyType::KinematicPositionBased)
     }
 
     /// Initializes the builder of a new dynamic rigid body.
-    pub fn new_dynamic() -> Self {
+    pub fn dynamic() -> Self {
         Self::new(RigidBodyType::Dynamic)
     }
 

@@ -285,18 +285,18 @@ bitflags::bitflags! {
         /// and another collider attached to a kinematic body.
         const DYNAMIC_KINEMATIC = 0b0000_0000_0000_1100;
         /// Enable collision-detection between a collider attached to a dynamic body
-        /// and another collider attached to a static body (or not attached to any body).
+        /// and another collider attached to a fixed body (or not attached to any body).
         const DYNAMIC_STATIC  = 0b0000_0000_0000_0010;
         /// Enable collision-detection between a collider attached to a kinematic body
         /// and another collider attached to a kinematic body.
         const KINEMATIC_KINEMATIC = 0b1100_1100_0000_0000;
 
         /// Enable collision-detection between a collider attached to a kinematic body
-        /// and another collider attached to a static body (or not attached to any body).
+        /// and another collider attached to a fixed body (or not attached to any body).
         const KINEMATIC_STATIC = 0b0010_0010_0000_0000;
 
-        /// Enable collision-detection between a collider attached to a static body (or
-        /// not attached to any body) and another collider attached to a static body (or
+        /// Enable collision-detection between a collider attached to a fixed body (or
+        /// not attached to any body) and another collider attached to a fixed body (or
         /// not attached to any body).
         const STATIC_STATIC = 0b0000_0000_0010_0000;
     }

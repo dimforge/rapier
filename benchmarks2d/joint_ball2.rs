@@ -27,7 +27,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let fi = i as f32;
 
             let status = if k >= numk / 2 - 3 && k <= numk / 2 + 3 && i == 0 {
-                RigidBodyType::Static
+                RigidBodyType::Fixed
             } else {
                 RigidBodyType::Dynamic
             };

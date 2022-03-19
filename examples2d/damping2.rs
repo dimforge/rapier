@@ -22,7 +22,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let (x, y) = (i as f32 * subdiv * std::f32::consts::PI * 2.0).sin_cos();
 
         // Build the rigid body.
-        let rb = RigidBodyBuilder::new_dynamic()
+        let rb = RigidBodyBuilder::dynamic()
             .translation(vector![x, y])
             .linvel(vector![x * 10.0, y * 10.0])
             .angvel(100.0)

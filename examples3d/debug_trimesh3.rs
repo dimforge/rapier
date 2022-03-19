@@ -38,7 +38,7 @@ pub fn init_world(testbed: &mut Testbed) {
     ];
 
     // Dynamic box rigid body.
-    let rigid_body = RigidBodyBuilder::new_dynamic()
+    let rigid_body = RigidBodyBuilder::dynamic()
         .translation(vector![0.0, 35.0, 0.0])
         // .rotation(Vector3::new(0.8, 0.2, 0.1))
         .can_sleep(false);
@@ -46,7 +46,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(1.0, 2.0, 1.0);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
-    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, 0.0, 0.0]);
+    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, 0.0, 0.0]);
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::trimesh(vtx, idx);
     colliders.insert_with_parent(collider, handle, &mut bodies);

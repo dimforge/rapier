@@ -26,7 +26,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let y = j as f32 * shift - centery;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![x, y]);
+            let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(rad, rad);
             colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -36,7 +36,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Setup a velocity-based kinematic rigid body.
      */
-    let platform_body = RigidBodyBuilder::new_kinematic_velocity_based();
+    let platform_body = RigidBodyBuilder::kinematic_velocity_based();
     let velocity_based_platform_handle = bodies.insert(platform_body);
 
     let sides = [

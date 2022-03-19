@@ -68,7 +68,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let rigid_body = RigidBodyBuilder::new_static();
+    let rigid_body = RigidBodyBuilder::fixed();
     let handle = bodies.insert(rigid_body);
 
     let collider = ColliderBuilder::cuboid(25.0, 0.5)
@@ -96,7 +96,7 @@ pub fn init_world(testbed: &mut Testbed) {
         if run_state.timestep_id % 50 == 0 && physics.bodies.len() <= 7 {
             // Spawn a new cube.
             let collider = ColliderBuilder::cuboid(1.5, 2.0);
-            let body = RigidBodyBuilder::new_dynamic().translation(vector![20.0, 10.0]);
+            let body = RigidBodyBuilder::dynamic().translation(vector![20.0, 10.0]);
             let handle = physics.bodies.insert(body);
             physics
                 .colliders

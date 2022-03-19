@@ -93,20 +93,20 @@ impl ParallelInteractionGroups {
             .zip(self.interaction_colors.iter_mut())
         {
             let mut body_pair = interactions[*interaction_id].body_pair();
-            let is_static1 = body_pair
+            let is_fixed1 = body_pair
                 .0
-                .map(|b| ComponentSet::<RigidBodyType>::index(bodies, b.0).is_static())
+                .map(|b| ComponentSet::<RigidBodyType>::index(bodies, b.0).is_fixed())
                 .unwrap_or(true);
-            let is_static2 = body_pair
+            let is_fixed2 = body_pair
                 .1
-                .map(|b| ComponentSet::<RigidBodyType>::index(bodies, b.0).is_static())
+                .map(|b| ComponentSet::<RigidBodyType>::index(bodies, b.0).is_fixed())
                 .unwrap_or(true);
 
             let representative = |handle: RigidBodyHandle| {
                 if let Some(link) = multibodies.rigid_body_link(handle).copied() {
                     let multibody = multibodies.get_multibody(link.multibody).unwrap();
                     multibody
-                        .link(1) // Use the link 1 to cover the case where the multibody root is static.
+                        .link(1) // Use the link 1 to cover the case where the multibody root is fixed.
                         .or(multibody.link(0)) // TODO: Never happens?
                         .map(|l| l.rigid_body)
                         .unwrap()
@@ -120,7 +120,7 @@ impl ParallelInteractionGroups {
                 body_pair.1.map(representative),
             );
 
-            match (is_static1, is_static2) {
+            match (is_fixed1, is_fixed2) {
                 (false, false) => {
                     let rb_ids1: &RigidBodyIds = bodies.index(body_pair.0.unwrap().0);
                     let rb_ids2: &RigidBodyIds = bodies.index(body_pair.1.unwrap().0);
@@ -268,10 +268,10 @@ impl InteractionGroups {
             let (status2, ids2): (&RigidBodyType, &RigidBodyIds) =
                 bodies.index_bundle(interaction.body2.0);
 
-            let is_static1 = !status1.is_dynamic();
-            let is_static2 = !status2.is_dynamic();
+            let is_fixed1 = !status1.is_dynamic();
+            let is_fixed2 = !status2.is_dynamic();
 
-            if is_static1 && is_static2 {
+            if is_fixed1 && is_fixed2 {
                 continue;
             }
 
@@ -334,13 +334,13 @@ impl InteractionGroups {
                 }
             }
 
-            // NOTE: static bodies don't transmit forces. Therefore they don't
+            // NOTE: fixed bodies don't transmit forces. Therefore they don't
             // imply any interaction conflicts.
-            if !is_static1 {
+            if !is_fixed1 {
                 self.body_masks[i1] |= target_mask_bit;
             }
 
-            if !is_static2 {
+            if !is_fixed2 {
                 self.body_masks[i2] |= target_mask_bit;
             }
         }
@@ -431,21 +431,21 @@ impl InteractionGroups {
                     let data: (_, &RigidBodyIds) = bodies.index_bundle(rb1.0);
                     (*data.0, data.1.active_set_offset)
                 } else {
-                    (RigidBodyType::Static, 0)
+                    (RigidBodyType::Fixed, 0)
                 };
                 let (status2, active_set_offset2) = if let Some(rb2) = interaction.data.rigid_body2
                 {
                     let data: (_, &RigidBodyIds) = bodies.index_bundle(rb2.0);
                     (*data.0, data.1.active_set_offset)
                 } else {
-                    (RigidBodyType::Static, 0)
+                    (RigidBodyType::Fixed, 0)
                 };
 
-                let is_static1 = !status1.is_dynamic();
-                let is_static2 = !status2.is_dynamic();
+                let is_fixed1 = !status1.is_dynamic();
+                let is_fixed2 = !status2.is_dynamic();
 
-                // TODO: don't generate interactions between static bodies in the first place.
-                if is_static1 && is_static2 {
+                // TODO: don't generate interactions between fixed bodies in the first place.
+                if is_fixed1 && is_fixed2 {
                     continue;
                 }
 
@@ -489,13 +489,13 @@ impl InteractionGroups {
                     occupied_mask = occupied_mask | target_mask_bit;
                 }
 
-                // NOTE: static bodies don't transmit forces. Therefore they don't
+                // NOTE: fixed bodies don't transmit forces. Therefore they don't
                 // imply any interaction conflicts.
-                if !is_static1 {
+                if !is_fixed1 {
                     self.body_masks[i1] |= target_mask_bit;
                 }
 
-                if !is_static2 {
+                if !is_fixed2 {
                     self.body_masks[i2] |= target_mask_bit;
                 }
             }

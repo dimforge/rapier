@@ -38,7 +38,7 @@ pub fn build_block(
                 };
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![
+                let rigid_body = RigidBodyBuilder::dynamic().translation(vector![
                     x + dim.x + shift.x,
                     y + dim.y + shift.y,
                     z + dim.z + shift.z
@@ -59,7 +59,7 @@ pub fn build_block(
     for i in 0..(block_width / (dim.x as f32 * 2.0)) as usize {
         for j in 0..(block_width / (dim.z as f32 * 2.0)) as usize {
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic().translation(vector![
+            let rigid_body = RigidBodyBuilder::dynamic().translation(vector![
                 i as f32 * dim.x * 2.0 + dim.x + shift.x,
                 dim.y + shift.y + block_height,
                 j as f32 * dim.z * 2.0 + dim.z + shift.z
@@ -88,7 +88,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 50.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static().translation(vector![0.0, -ground_height, 0.0]);
+    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, handle, &mut bodies);

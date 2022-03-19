@@ -170,11 +170,11 @@ impl GraphicsManager {
         &mut self,
         materials: &mut Assets<BevyMaterial>,
         handle: RigidBodyHandle,
-        is_static: bool,
+        is_fixed: bool,
     ) -> Point3<f32> {
         let mut color = self.ground_color;
 
-        if !is_static {
+        if !is_fixed {
             match self.b2color.get(&handle).cloned() {
                 Some(c) => color = c,
                 None => color = Self::gen_color(&mut self.rand),
