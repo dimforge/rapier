@@ -13,13 +13,16 @@ use na::{UnitQuaternion, Vector3};
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug)]
+/// An joint attached to two bodies based on the reduced coordinates formalism.
 pub struct MultibodyJoint {
+    /// The joint’s description.
     pub data: GenericJoint,
     pub(crate) coords: SpacialVector<Real>,
     pub(crate) joint_rot: Rotation<Real>,
 }
 
 impl MultibodyJoint {
+    /// Creates a new multibody joint from its description.
     pub fn new(data: GenericJoint) -> Self {
         Self {
             data,
@@ -45,9 +48,9 @@ impl MultibodyJoint {
         self.joint_rot = pos.rotation;
     }
 
-    pub fn local_joint_rot(&self) -> &Rotation<Real> {
-        &self.joint_rot
-    }
+    // pub(crate) fn local_joint_rot(&self) -> &Rotation<Real> {
+    //     &self.joint_rot
+    // }
 
     fn num_free_lin_dofs(&self) -> usize {
         let locked_bits = self.data.locked_axes.bits();

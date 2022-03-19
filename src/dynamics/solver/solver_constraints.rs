@@ -43,15 +43,15 @@ impl<VelocityConstraint> SolverConstraints<VelocityConstraint> {
         }
     }
 
-    pub fn clear(&mut self) {
-        self.not_ground_interactions.clear();
-        self.ground_interactions.clear();
-        self.generic_not_ground_interactions.clear();
-        self.generic_ground_interactions.clear();
-        self.interaction_groups.clear();
-        self.ground_interaction_groups.clear();
-        self.velocity_constraints.clear();
-    }
+    // pub fn clear(&mut self) {
+    //     self.not_ground_interactions.clear();
+    //     self.ground_interactions.clear();
+    //     self.generic_not_ground_interactions.clear();
+    //     self.generic_ground_interactions.clear();
+    //     self.interaction_groups.clear();
+    //     self.ground_interaction_groups.clear();
+    //     self.velocity_constraints.clear();
+    // }
 }
 
 impl SolverConstraints<AnyVelocityConstraint> {

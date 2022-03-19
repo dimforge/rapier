@@ -133,6 +133,7 @@ impl RigidBody {
         self.rb_dominance.effective_group(&self.rb_type)
     }
 
+    /// Sets the axes along which this rigid-body cannot translate or rotate.
     #[inline]
     pub fn set_locked_axes(&mut self, locked_axes: LockedAxes, wake_up: bool) {
         if locked_axes != self.rb_mprops.flags {
@@ -995,6 +996,7 @@ impl RigidBodyBuilder {
         self
     }
 
+    /// Sets the axes along which this rigid-body cannot translate or rotate.
     pub fn locked_axes(mut self, locked_axes: LockedAxes) -> Self {
         self.mprops_flags = locked_axes;
         self

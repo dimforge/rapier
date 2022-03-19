@@ -639,9 +639,9 @@ pub struct RigidBodyForces {
     /// Gravity is multiplied by this scaling factor before it's
     /// applied to this rigid-body.
     pub gravity_scale: Real,
-    // Forces applied by the user.
+    /// Forces applied by the user.
     pub user_force: Vector<Real>,
-    // Torque applied by the user.
+    /// Torque applied by the user.
     pub user_torque: AngVector<Real>,
 }
 

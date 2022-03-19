@@ -5,8 +5,11 @@ use crate::dynamics::solver::joint_constraint::SolverBody;
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{IntegrationParameters, JointIndex, JointLimits};
 use crate::math::{AngVector, Isometry, Matrix, Point, Real, Rotation, Vector, ANG_DIM, DIM};
-use crate::utils::{IndexMut2, WBasis, WCross, WCrossMatrix, WDot, WQuat, WReal};
+use crate::utils::{IndexMut2, WCrossMatrix, WDot, WQuat, WReal};
 use na::SMatrix;
+
+#[cfg(feature = "dim3")]
+use crate::utils::WBasis;
 
 #[derive(Debug, Copy, Clone)]
 pub struct JointVelocityConstraintBuilder<N: WReal> {
@@ -660,79 +663,76 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         }
     }
 
-    pub fn motor_linear_coupled_ground<const LANES: usize>(
-        &self,
-        _joint_id: [JointIndex; LANES],
-        _body1: &SolverBody<N, LANES>,
-        _body2: &SolverBody<N, LANES>,
-        _motor_coupled_axes: u8,
-        _motors: &[MotorParameters<N>],
-        _limited_coupled_axes: u8,
-        _limits: &[JointLimits<N>],
-        _writeback_id: WritebackId,
-    ) -> JointVelocityGroundConstraint<N, LANES> {
-        todo!()
-        /*
-        let zero = N::zero();
-        let mut lin_jac = Vector::zeros();
-        let mut ang_jac1: AngVector<N> = na::zero();
-        let mut ang_jac2: AngVector<N> = na::zero();
-        let mut limit = N::zero();
+    // pub fn motor_linear_coupled_ground<const LANES: usize>(
+    //     &self,
+    //     _joint_id: [JointIndex; LANES],
+    //     _body1: &SolverBody<N, LANES>,
+    //     _body2: &SolverBody<N, LANES>,
+    //     _motor_coupled_axes: u8,
+    //     _motors: &[MotorParameters<N>],
+    //     _limited_coupled_axes: u8,
+    //     _limits: &[JointLimits<N>],
+    //     _writeback_id: WritebackId,
+    // ) -> JointVelocityGroundConstraint<N, LANES> {
+    //     let zero = N::zero();
+    //     let mut lin_jac = Vector::zeros();
+    //     let mut ang_jac1: AngVector<N> = na::zero();
+    //     let mut ang_jac2: AngVector<N> = na::zero();
+    //     let mut limit = N::zero();
 
-        for i in 0..DIM {
-            if limited_coupled_axes & (1 << i) != 0 {
-                let coeff = self.basis.column(i).dot(&self.lin_err);
-                lin_jac += self.basis.column(i) * coeff;
-                #[cfg(feature = "dim2")]
-                {
-                    ang_jac1 += self.cmat1_basis[i] * coeff;
-                    ang_jac2 += self.cmat2_basis[i] * coeff;
-                }
-                #[cfg(feature = "dim3")]
-                {
-                    ang_jac1 += self.cmat1_basis.column(i) * coeff;
-                    ang_jac2 += self.cmat2_basis.column(i) * coeff;
-                }
-                limit += limits[i].max * limits[i].max;
-            }
-        }
+    //     for i in 0..DIM {
+    //         if limited_coupled_axes & (1 << i) != 0 {
+    //             let coeff = self.basis.column(i).dot(&self.lin_err);
+    //             lin_jac += self.basis.column(i) * coeff;
+    //             #[cfg(feature = "dim2")]
+    //             {
+    //                 ang_jac1 += self.cmat1_basis[i] * coeff;
+    //                 ang_jac2 += self.cmat2_basis[i] * coeff;
+    //             }
+    //             #[cfg(feature = "dim3")]
+    //             {
+    //                 ang_jac1 += self.cmat1_basis.column(i) * coeff;
+    //                 ang_jac2 += self.cmat2_basis.column(i) * coeff;
+    //             }
+    //             limit += limits[i].max * limits[i].max;
+    //         }
+    //     }
 
-        limit = limit.simd_sqrt();
-        let dist = lin_jac.norm();
-        let inv_dist = crate::utils::simd_inv(dist);
-        lin_jac *= inv_dist;
-        ang_jac1 *= inv_dist;
-        ang_jac2 *= inv_dist;
+    //     limit = limit.simd_sqrt();
+    //     let dist = lin_jac.norm();
+    //     let inv_dist = crate::utils::simd_inv(dist);
+    //     lin_jac *= inv_dist;
+    //     ang_jac1 *= inv_dist;
+    //     ang_jac2 *= inv_dist;
 
-        let dvel = lin_jac.dot(&(body2.linvel - body1.linvel))
-            + (ang_jac2.gdot(body2.angvel) - ang_jac1.gdot(body1.angvel));
-        let rhs_wo_bias = dvel + (dist - limit).simd_min(zero) * N::splat(params.inv_dt());
+    //     let dvel = lin_jac.dot(&(body2.linvel - body1.linvel))
+    //         + (ang_jac2.gdot(body2.angvel) - ang_jac1.gdot(body1.angvel));
+    //     let rhs_wo_bias = dvel + (dist - limit).simd_min(zero) * N::splat(params.inv_dt());
 
-        ang_jac2 = body2.sqrt_ii * ang_jac2;
+    //     ang_jac2 = body2.sqrt_ii * ang_jac2;
 
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
-        let rhs_bias = (dist - limit).simd_max(zero) * erp_inv_dt;
-        let rhs = rhs_wo_bias + rhs_bias;
-        let impulse_bounds = [N::zero(), N::splat(Real::INFINITY)];
+    //     let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
+    //     let cfm_coeff = N::splat(params.joint_cfm_coeff());
+    //     let rhs_bias = (dist - limit).simd_max(zero) * erp_inv_dt;
+    //     let rhs = rhs_wo_bias + rhs_bias;
+    //     let impulse_bounds = [N::zero(), N::splat(Real::INFINITY)];
 
-        JointVelocityGroundConstraint {
-            joint_id,
-            mj_lambda2: body2.mj_lambda,
-            im2: body2.im,
-            impulse: N::zero(),
-            impulse_bounds,
-            lin_jac,
-            ang_jac2,
-            inv_lhs: N::zero(), // Will be set during ortogonalization.
-            cfm_coeff,
-            cfm_gain: N::zero(),
-            rhs,
-            rhs_wo_bias,
-            writeback_id,
-        }
-        */
-    }
+    //     JointVelocityGroundConstraint {
+    //         joint_id,
+    //         mj_lambda2: body2.mj_lambda,
+    //         im2: body2.im,
+    //         impulse: N::zero(),
+    //         impulse_bounds,
+    //         lin_jac,
+    //         ang_jac2,
+    //         inv_lhs: N::zero(), // Will be set during ortogonalization.
+    //         cfm_coeff,
+    //         cfm_gain: N::zero(),
+    //         rhs,
+    //         rhs_wo_bias,
+    //         writeback_id,
+    //     }
+    // }
 
     pub fn lock_linear_ground<const LANES: usize>(
         &self,

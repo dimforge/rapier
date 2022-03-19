@@ -11,7 +11,7 @@
 //! User documentation for Rapier is on [the official Rapier site](https://rapier.rs/docs/).
 
 #![deny(bare_trait_objects)]
-#![allow(missing_docs)] // FIXME: deny that
+#![warn(missing_docs)] // FIXME: deny that
 
 #[cfg(all(feature = "dim2", feature = "f32"))]
 pub extern crate parry2d as parry;

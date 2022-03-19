@@ -120,7 +120,7 @@ impl Multibody {
         }
     }
 
-    pub fn with_root(handle: RigidBodyHandle) -> Self {
+    pub(crate) fn with_root(handle: RigidBodyHandle) -> Self {
         let mut mb = Multibody::new();
         mb.root_is_dynamic = true;
         let joint = MultibodyJoint::free(Isometry::identity());
@@ -128,7 +128,7 @@ impl Multibody {
         mb
     }
 
-    pub fn remove_link(self, to_remove: usize, joint_only: bool) -> Vec<Multibody> {
+    pub(crate) fn remove_link(self, to_remove: usize, joint_only: bool) -> Vec<Multibody> {
         let mut result = vec![];
         let mut link2mb = vec![usize::MAX; self.links.len()];
         let mut link_id2new_id = vec![usize::MAX; self.links.len()];
@@ -187,7 +187,7 @@ impl Multibody {
         result
     }
 
-    pub fn append(&mut self, mut rhs: Multibody, parent: usize, joint: MultibodyJoint) {
+    pub(crate) fn append(&mut self, mut rhs: Multibody, parent: usize, joint: MultibodyJoint) {
         let rhs_root_ndofs = rhs.links[0].joint.ndofs();
         let rhs_copy_shift = self.ndofs + rhs_root_ndofs;
         let rhs_copy_ndofs = rhs.ndofs - rhs_root_ndofs;
@@ -235,6 +235,7 @@ impl Multibody {
         self.workspace.resize(self.links.len(), self.ndofs);
     }
 
+    /// The inverse augmented mass matrix of this multibody.
     pub fn inv_augmented_mass(&self) -> &LU<Real, Dynamic, Dynamic> {
         &self.inv_augmented_mass
     }
@@ -298,7 +299,7 @@ impl Multibody {
         &mut self.damping
     }
 
-    pub fn add_link(
+    pub(crate) fn add_link(
         &mut self,
         parent: Option<usize>, // FIXME: should be a RigidBodyHandle?
         dof: MultibodyJoint,
@@ -368,7 +369,7 @@ impl Multibody {
             .extend((0..num_jacobians).map(|_| Jacobian::zeros(0)));
     }
 
-    pub fn update_acceleration<Bodies>(&mut self, bodies: &Bodies)
+    pub(crate) fn update_acceleration<Bodies>(&mut self, bodies: &Bodies)
     where
         Bodies: ComponentSet<RigidBodyMassProps>
             + ComponentSet<RigidBodyForces>
@@ -451,7 +452,7 @@ impl Multibody {
     }
 
     /// Computes the constant terms of the dynamics.
-    pub fn update_dynamics<Bodies>(&mut self, dt: Real, bodies: &mut Bodies)
+    pub(crate) fn update_dynamics<Bodies>(&mut self, dt: Real, bodies: &mut Bodies)
     where
         Bodies: ComponentSetMut<RigidBodyVelocity> + ComponentSet<RigidBodyMassProps>,
     {
@@ -756,36 +757,40 @@ impl Multibody {
         )
     }
 
+    /// The generalized accelerations of this multibodies.
     #[inline]
     pub fn generalized_acceleration(&self) -> DVectorSlice<Real> {
         self.accelerations.rows(0, self.ndofs)
     }
 
+    /// The generalized velocities of this multibodies.
     #[inline]
     pub fn generalized_velocity(&self) -> DVectorSlice<Real> {
         self.velocities.rows(0, self.ndofs)
     }
 
+    /// The mutable generalized velocities of this multibodies.
     #[inline]
     pub fn generalized_velocity_mut(&mut self) -> DVectorSliceMut<Real> {
         self.velocities.rows_mut(0, self.ndofs)
     }
 
     #[inline]
-    pub fn integrate(&mut self, dt: Real) {
+    pub(crate) fn integrate(&mut self, dt: Real) {
         for rb in self.links.iter_mut() {
             rb.joint
                 .integrate(dt, &self.velocities.as_slice()[rb.assembly_id..])
         }
     }
 
+    /// Apply displacements, in generalized coordinates, to this multibody.
     pub fn apply_displacements(&mut self, disp: &[Real]) {
         for link in self.links.iter_mut() {
             link.joint.apply_displacement(&disp[link.assembly_id..])
         }
     }
 
-    pub fn update_root_type<Bodies>(&mut self, bodies: &mut Bodies)
+    pub(crate) fn update_root_type<Bodies>(&mut self, bodies: &mut Bodies)
     where
         Bodies: ComponentSet<RigidBodyType> + ComponentSet<RigidBodyPosition>,
     {
@@ -851,6 +856,7 @@ impl Multibody {
         }
     }
 
+    /// Apply forward-kinematics to this multibody and its related rigid-bodies.
     pub fn forward_kinematics<Bodies>(&mut self, bodies: &mut Bodies, update_mass_props: bool)
     where
         Bodies: ComponentSet<RigidBodyType>
@@ -917,12 +923,13 @@ impl Multibody {
         self.update_body_jacobians();
     }
 
+    /// The total number of freedoms of this multibody.
     #[inline]
     pub fn ndofs(&self) -> usize {
         self.ndofs
     }
 
-    pub fn fill_jacobians(
+    pub(crate) fn fill_jacobians(
         &self,
         link_id: usize,
         unit_force: Vector<Real>,
@@ -964,14 +971,16 @@ impl Multibody {
         (j.dot(&invm_j), j.dot(&self.generalized_velocity()))
     }
 
-    #[inline]
-    pub fn has_active_internal_constraints(&self) -> bool {
-        self.links()
-            .any(|link| link.joint().num_velocity_constraints() != 0)
-    }
+    // #[cfg(feature = "parallel")]
+    // #[inline]
+    // pub(crate) fn has_active_internal_constraints(&self) -> bool {
+    //     self.links()
+    //         .any(|link| link.joint().num_velocity_constraints() != 0)
+    // }
 
+    #[cfg(feature = "parallel")]
     #[inline]
-    pub fn num_active_internal_constraints_and_jacobian_lines(&self) -> (usize, usize) {
+    pub(crate) fn num_active_internal_constraints_and_jacobian_lines(&self) -> (usize, usize) {
         let num_constraints: usize = self
             .links
             .iter()
@@ -981,7 +990,7 @@ impl Multibody {
     }
 
     #[inline]
-    pub fn generate_internal_constraints(
+    pub(crate) fn generate_internal_constraints(
         &self,
         params: &IntegrationParameters,
         j_id: &mut usize,

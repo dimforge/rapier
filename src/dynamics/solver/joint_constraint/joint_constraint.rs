@@ -7,14 +7,18 @@ use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
 };
 use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
-    ImpulseJoint, IntegrationParameters, JointAxesMask, JointGraphEdge, JointIndex, RigidBodyIds,
+    ImpulseJoint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodyIds,
     RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
-#[cfg(feature = "simd-is-enabled")]
-use crate::math::{Isometry, SimdReal, SIMD_WIDTH};
 use crate::math::{Real, SPATIAL_DIM};
 use crate::prelude::MultibodyJointSet;
 use na::DVector;
+
+#[cfg(feature = "simd-is-enabled")]
+use crate::math::{Isometry, SimdReal, SIMD_WIDTH};
+
+#[cfg(feature = "parallel")]
+use crate::dynamics::JointAxesMask;
 
 pub enum AnyJointVelocityConstraint {
     JointConstraint(JointVelocityConstraint<Real, 1>),

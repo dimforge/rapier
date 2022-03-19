@@ -1,14 +1,17 @@
 use crate::data::ComponentSet;
-#[cfg(feature = "parallel")]
-use crate::dynamics::RigidBodyHandle;
-use crate::dynamics::{IslandManager, JointGraphEdge, JointIndex, MultibodyJointSet, RigidBodyIds};
+use crate::dynamics::{IslandManager, JointGraphEdge, JointIndex, RigidBodyIds};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
+
 #[cfg(feature = "simd-is-enabled")]
 use {
     crate::data::BundleSet,
     crate::math::{SIMD_LAST_INDEX, SIMD_WIDTH},
     vec_map::VecMap,
 };
+
+#[cfg(feature = "parallel")]
+use crate::dynamics::{MultibodyJointSet, RigidBodyHandle};
+
 #[cfg(feature = "parallel")]
 pub(crate) trait PairInteraction {
     fn body_pair(&self) -> (Option<RigidBodyHandle>, Option<RigidBodyHandle>);
@@ -195,16 +198,16 @@ impl InteractionGroups {
         }
     }
 
-    #[cfg(not(feature = "parallel"))]
-    pub fn clear(&mut self) {
-        #[cfg(feature = "simd-is-enabled")]
-        {
-            self.buckets.clear();
-            self.body_masks.clear();
-            self.grouped_interactions.clear();
-        }
-        self.nongrouped_interactions.clear();
-    }
+    // #[cfg(not(feature = "parallel"))]
+    // pub fn clear(&mut self) {
+    //     #[cfg(feature = "simd-is-enabled")]
+    //     {
+    //         self.buckets.clear();
+    //         self.body_masks.clear();
+    //         self.grouped_interactions.clear();
+    //     }
+    //     self.nongrouped_interactions.clear();
+    // }
 
     // TODO: there is a lot of duplicated code with group_manifolds here.
     // But we don't refactor just now because we may end up with distinct

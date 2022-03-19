@@ -168,7 +168,7 @@ impl RigidBodySet {
          * Remove impulse_joints attached to this rigid-body.
          */
         impulse_joints.remove_joints_attached_to_rigid_body(handle, islands, self);
-        multibody_joints.remove_articulations_attached_to_rigid_body(handle, islands, self);
+        multibody_joints.remove_joints_attached_to_rigid_body(handle, islands, self);
 
         Some(rb)
     }
@@ -260,6 +260,13 @@ impl RigidBodySet {
         })
     }
 
+    /// Update colliders positions after rigid-bodies moved.
+    ///
+    /// When a rigid-body moves, the positions of the colliders attached to it need to be updated.
+    /// This update is generally automatically done at the beggining and the end of each simulation
+    /// step with `PhysicsPipeline::step`. If the positions need to be updated without running a
+    /// simulation step (for example when using the `QueryPipeline` alone), this method can be called
+    /// manually.  
     pub fn propagate_modified_body_positions_to_colliders(&self, colliders: &mut ColliderSet) {
         for body in self.modified_bodies.iter().filter_map(|h| self.get(*h)) {
             if body.changes.contains(RigidBodyChanges::POSITION) {
