@@ -8,7 +8,6 @@ use inflector::Inflector;
 use rapier_testbed3d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
 
-mod articulations3;
 mod ccd3;
 mod collision_groups3;
 mod compound3;
@@ -32,6 +31,7 @@ mod debug_trimesh3;
 mod domino3;
 mod fountain3;
 mod heightfield3;
+mod joints3;
 // mod joints3;
 mod keva3;
 mod locked_rotations3;
@@ -81,10 +81,7 @@ pub fn main() {
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Fountain", fountain3::init_world),
         ("Primitives", primitives3::init_world),
-        (
-            "Multibody joints",
-            articulations3::init_world_with_articulations,
-        ),
+        ("Multibody joints", joints3::init_world_with_articulations),
         ("CCD", ccd3::init_world),
         ("Collision groups", collision_groups3::init_world),
         ("Compound", compound3::init_world),
@@ -93,7 +90,7 @@ pub fn main() {
         ("Damping", damping3::init_world),
         ("Domino", domino3::init_world),
         ("Heightfield", heightfield3::init_world),
-        ("Impulse Joints", articulations3::init_world_with_joints),
+        ("Impulse Joints", joints3::init_world_with_joints),
         ("Locked rotations", locked_rotations3::init_world),
         ("One-way platforms", one_way_platforms3::init_world),
         ("Platform", platform3::init_world),

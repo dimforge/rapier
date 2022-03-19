@@ -195,7 +195,7 @@ impl JointVelocityConstraint<Real, 1> {
         }
 
         if (motor_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0 {
-            // TODO: coupled linear limit constraint.
+            // TODO: coupled linear motor constraint.
             // out[len] = builder.motor_linear_coupled(
             //     params,
             //     [joint_id],
@@ -207,6 +207,7 @@ impl JointVelocityConstraint<Real, 1> {
             // );
             // len += 1;
         }
+
         JointVelocityConstraintBuilder::finalize_constraints(&mut out[start..len]);
 
         let start = len;
@@ -260,12 +261,21 @@ impl JointVelocityConstraint<Real, 1> {
             }
         }
 
+        #[cfg(feature = "dim3")]
         if (limit_axes & coupled_axes) & JointAxesMask::ANG_AXES.bits() != 0 {
-            // TODO: coupled angular limit constraint.
+            out[len] = builder.limit_angular_coupled(
+                params,
+                [joint_id],
+                body1,
+                body2,
+                limit_axes & coupled_axes,
+                &joint.limits,
+                WritebackId::Limit(0), // TODO: writeback
+            );
+            len += 1;
         }
 
         if (limit_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0 {
-            // TODO: coupled linear limit constraint.
             out[len] = builder.limit_linear_coupled(
                 params,
                 [joint_id],
@@ -593,8 +603,18 @@ impl JointVelocityGroundConstraint<Real, 1> {
             }
         }
 
+        #[cfg(feature = "dim3")]
         if (limit_axes & coupled_axes) & JointAxesMask::ANG_AXES.bits() != 0 {
-            // TODO: coupled angular limit constraint.
+            out[len] = builder.limit_angular_coupled_ground(
+                params,
+                [joint_id],
+                body1,
+                body2,
+                limit_axes & coupled_axes,
+                &joint.limits,
+                WritebackId::Limit(0), // TODO: writeback
+            );
+            len += 1;
         }
 
         if (limit_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0 {

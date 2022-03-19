@@ -5,12 +5,13 @@ use crate::dynamics::solver::joint_constraint::SolverBody;
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{IntegrationParameters, JointIndex, JointLimits};
 use crate::math::{AngVector, Isometry, Matrix, Point, Real, Rotation, Vector, ANG_DIM, DIM};
-use crate::utils::{IndexMut2, WCrossMatrix, WDot, WQuat, WReal};
+use crate::utils::{IndexMut2, WBasis, WCross, WCrossMatrix, WDot, WQuat, WReal};
 use na::SMatrix;
 
 #[derive(Debug, Copy, Clone)]
 pub struct JointVelocityConstraintBuilder<N: WReal> {
     pub basis: Matrix<N>,
+    pub basis2: Matrix<N>, // TODO: used for angular coupling. Can we avoid storing this?
     pub cmat1_basis: SMatrix<N, ANG_DIM, DIM>,
     pub cmat2_basis: SMatrix<N, ANG_DIM, DIM>,
     pub ang_basis: SMatrix<N, ANG_DIM, ANG_DIM>,
@@ -66,6 +67,7 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
 
         Self {
             basis,
+            basis2: frame2.rotation.to_rotation_matrix().into_inner(),
             cmat1_basis: cmat1 * basis,
             cmat2_basis: cmat2 * basis,
             ang_basis,
@@ -964,6 +966,156 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
                 c_i.rhs_wo_bias -= c_j.rhs_wo_bias * coeff;
                 c_i.rhs -= c_j.rhs * coeff;
             }
+        }
+    }
+}
+
+impl JointVelocityConstraintBuilder<Real> {
+    // TODO: this method is almost identical to the ground version, except for the
+    //       return type. Could they share their implementation somehow?
+    #[cfg(feature = "dim3")]
+    pub fn limit_angular_coupled(
+        &self,
+        params: &IntegrationParameters,
+        joint_id: [JointIndex; 1],
+        body1: &SolverBody<Real, 1>,
+        body2: &SolverBody<Real, 1>,
+        limited_coupled_axes: u8,
+        limits: &[JointLimits<Real>],
+        writeback_id: WritebackId,
+    ) -> JointVelocityConstraint<Real, 1> {
+        // NOTE: right now, this only supports exactly 2 coupled axes.
+        let ang_coupled_axes = limited_coupled_axes >> DIM;
+        assert_eq!(ang_coupled_axes.count_ones(), 2);
+        let not_coupled_index = ang_coupled_axes.trailing_ones() as usize;
+        let axis1 = self.basis.column(not_coupled_index).into_owned();
+        let axis2 = self.basis2.column(not_coupled_index).into_owned();
+
+        let rot = Rotation::rotation_between(&axis1, &axis2).unwrap_or_else(Rotation::identity);
+        let (ang_jac, angle) = rot
+            .axis_angle()
+            .map(|(axis, angle)| (axis.into_inner(), angle))
+            .unwrap_or_else(|| (axis1.orthonormal_basis()[0], 0.0));
+        let mut ang_limits = [0.0, 0.0];
+
+        for k in 0..3 {
+            if (ang_coupled_axes & (1 << k)) != 0 {
+                let limit = &limits[DIM + k];
+                ang_limits[0] += limit.min * limit.min;
+                ang_limits[1] += limit.max * limit.max;
+            }
+        }
+
+        ang_limits[0] = ang_limits[0].sqrt();
+        ang_limits[1] = ang_limits[1].sqrt();
+
+        let min_enabled = angle <= ang_limits[0];
+        let max_enabled = ang_limits[1] <= angle;
+
+        let impulse_bounds = [
+            if min_enabled { -Real::INFINITY } else { 0.0 },
+            if max_enabled { Real::INFINITY } else { 0.0 },
+        ];
+
+        let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
+        let rhs_wo_bias = dvel;
+
+        let erp_inv_dt = params.joint_erp_inv_dt();
+        let cfm_coeff = params.joint_cfm_coeff();
+        let rhs_bias =
+            ((angle - ang_limits[1]).max(0.0) - (ang_limits[0] - angle).max(0.0)) * erp_inv_dt;
+
+        let ang_jac1 = body1.sqrt_ii * ang_jac;
+        let ang_jac2 = body2.sqrt_ii * ang_jac;
+
+        JointVelocityConstraint {
+            joint_id,
+            mj_lambda1: body1.mj_lambda,
+            mj_lambda2: body2.mj_lambda,
+            im1: body1.im,
+            im2: body2.im,
+            impulse: 0.0,
+            impulse_bounds,
+            lin_jac: na::zero(),
+            ang_jac1,
+            ang_jac2,
+            inv_lhs: 0.0, // Will be set during ortogonalization.
+            cfm_coeff,
+            cfm_gain: 0.0,
+            rhs: rhs_wo_bias + rhs_bias,
+            rhs_wo_bias,
+            writeback_id,
+        }
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn limit_angular_coupled_ground(
+        &self,
+        params: &IntegrationParameters,
+        joint_id: [JointIndex; 1],
+        body1: &SolverBody<Real, 1>,
+        body2: &SolverBody<Real, 1>,
+        limited_coupled_axes: u8,
+        limits: &[JointLimits<Real>],
+        writeback_id: WritebackId,
+    ) -> JointVelocityGroundConstraint<Real, 1> {
+        // NOTE: right now, this only supports exactly 2 coupled axes.
+        let ang_coupled_axes = limited_coupled_axes >> DIM;
+        assert_eq!(ang_coupled_axes.count_ones(), 2);
+        let not_coupled_index = ang_coupled_axes.trailing_ones() as usize;
+        let axis1 = self.basis.column(not_coupled_index).into_owned();
+        let axis2 = self.basis2.column(not_coupled_index).into_owned();
+
+        let rot = Rotation::rotation_between(&axis1, &axis2).unwrap_or_else(Rotation::identity);
+        let (ang_jac, angle) = rot
+            .axis_angle()
+            .map(|(axis, angle)| (axis.into_inner(), angle))
+            .unwrap_or_else(|| (axis1.orthonormal_basis()[0], 0.0));
+        let mut ang_limits = [0.0, 0.0];
+
+        for k in 0..3 {
+            if (ang_coupled_axes & (1 << k)) != 0 {
+                let limit = &limits[DIM + k];
+                ang_limits[0] += limit.min * limit.min;
+                ang_limits[1] += limit.max * limit.max;
+            }
+        }
+
+        ang_limits[0] = ang_limits[0].sqrt();
+        ang_limits[1] = ang_limits[1].sqrt();
+
+        let min_enabled = angle <= ang_limits[0];
+        let max_enabled = ang_limits[1] <= angle;
+
+        let impulse_bounds = [
+            if min_enabled { -Real::INFINITY } else { 0.0 },
+            if max_enabled { Real::INFINITY } else { 0.0 },
+        ];
+
+        let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
+        let rhs_wo_bias = dvel;
+
+        let erp_inv_dt = params.joint_erp_inv_dt();
+        let cfm_coeff = params.joint_cfm_coeff();
+        let rhs_bias =
+            ((angle - ang_limits[1]).max(0.0) - (ang_limits[0] - angle).max(0.0)) * erp_inv_dt;
+
+        let ang_jac2 = body2.sqrt_ii * ang_jac;
+
+        JointVelocityGroundConstraint {
+            joint_id,
+            mj_lambda2: body2.mj_lambda,
+            im2: body2.im,
+            impulse: 0.0,
+            impulse_bounds,
+            lin_jac: na::zero(),
+            ang_jac2,
+            inv_lhs: 0.0, // Will be set during ortogonalization.
+            cfm_coeff,
+            cfm_gain: 0.0,
+            rhs: rhs_wo_bias + rhs_bias,
+            rhs_wo_bias,
+            writeback_id,
         }
     }
 }
