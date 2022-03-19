@@ -259,6 +259,19 @@ impl RigidBodySet {
             (RigidBodyHandle(h), b)
         })
     }
+
+    pub fn propagate_modified_body_positions_to_colliders(&self, colliders: &mut ColliderSet) {
+        for body in self.modified_bodies.iter().filter_map(|h| self.get(*h)) {
+            if body.changes.contains(RigidBodyChanges::POSITION) {
+                for handle in body.colliders() {
+                    if let Some(collider) = colliders.get_mut(*handle) {
+                        let new_pos = body.position() * collider.position_wrt_parent().unwrap();
+                        collider.set_position(new_pos);
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl Index<RigidBodyHandle> for RigidBodySet {
