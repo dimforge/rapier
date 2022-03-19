@@ -10,6 +10,10 @@
 - All method referring to `static` rigid-bodies now use `fixed` instead of `static`.
 - Rename `RigidBodyBuilder::new_static, new_kinematic_velocity_based, new_kinematic_velocity_based` to
   `RigidBodyBuilder::fixed, kinematic_velocity_based, kinematic_velocity_based`.
+- The `ContactEvent` and `IntersectionEvent` have been replaced by a single enum `CollisionEvent` in order
+  to simplify the user’s event handling.
+- The `ActiveEvents::CONTACT_EVENTS` and `ActiveEvents::INTERSECTION_EVENTS` flags have been replaced by a single
+  flag `ActiveEvents::COLLISION_EVENTS`.
 
 ## v0.12.0-alpha.0 (2 Jan. 2022)
 ### Fixed

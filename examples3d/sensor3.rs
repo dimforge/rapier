@@ -65,22 +65,22 @@ pub fn init_world(testbed: &mut Testbed) {
     let sensor_collider = ColliderBuilder::ball(rad * 5.0)
         .density(0.0)
         .sensor(true)
-        .active_events(ActiveEvents::INTERSECTION_EVENTS);
+        .active_events(ActiveEvents::COLLISION_EVENTS);
     colliders.insert_with_parent(sensor_collider, sensor_handle, &mut bodies);
 
     testbed.set_initial_body_color(sensor_handle, [0.5, 1.0, 1.0]);
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, events, _| {
-        while let Ok(prox) = events.intersection_events.try_recv() {
-            let color = if prox.intersecting {
+        while let Ok(prox) = events.events.try_recv() {
+            let color = if prox.started() {
                 [1.0, 1.0, 0.0]
             } else {
                 [0.5, 0.5, 1.0]
             };
 
-            let parent_handle1 = physics.colliders[prox.collider1].parent().unwrap();
-            let parent_handle2 = physics.colliders[prox.collider2].parent().unwrap();
+            let parent_handle1 = physics.colliders[prox.collider1()].parent().unwrap();
+            let parent_handle2 = physics.colliders[prox.collider2()].parent().unwrap();
 
             if let Some(graphics) = &mut graphics {
                 if parent_handle1 != ground_handle && parent_handle1 != sensor_handle {

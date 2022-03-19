@@ -52,38 +52,44 @@ pub type TOI = parry::query::TOI;
 pub use parry::shape::SharedShape;
 
 #[derive(Copy, Clone, Hash, Debug)]
-/// Events occurring when two collision objects start or stop being in contact (or penetration).
-pub enum ContactEvent {
-    /// Event occurring when two collision objects start being in contact.
-    ///
-    /// This event is generated whenever the narrow-phase finds a contact between two collision objects that did not have any contact at the last update.
+/// Events occurring when two colliders start or stop being in contact (or intersecting)
+pub enum CollisionEvent {
+    /// Event occurring when two colliders start being in contact (or intersecting)
     Started(ColliderHandle, ColliderHandle),
-    /// Event occurring when two collision objects stop being in contact.
-    ///
-    /// This event is generated whenever the narrow-phase fails to find any contact between two collision objects that did have at least one contact at the last update.
+    /// Event occurring when two colliders stop being in contact (or intersecting)
     Stopped(ColliderHandle, ColliderHandle),
 }
 
-#[derive(Copy, Clone, Debug)]
-/// Events occurring when two collision objects start or stop being in close proximity, contact, or disjoint.
-pub struct IntersectionEvent {
-    /// The first collider to which the proximity event applies.
-    pub collider1: ColliderHandle,
-    /// The second collider to which the proximity event applies.
-    pub collider2: ColliderHandle,
-    /// Are the two colliders intersecting?
-    pub intersecting: bool,
-}
+impl CollisionEvent {
+    pub(crate) fn new(h1: ColliderHandle, h2: ColliderHandle, start: bool) -> Self {
+        if start {
+            Self::Started(h1, h2)
+        } else {
+            Self::Stopped(h1, h2)
+        }
+    }
 
-impl IntersectionEvent {
-    /// Instantiates a new proximity event.
-    ///
-    /// Panics if `prev_status` is equal to `new_status`.
-    pub fn new(collider1: ColliderHandle, collider2: ColliderHandle, intersecting: bool) -> Self {
-        Self {
-            collider1,
-            collider2,
-            intersecting,
+    /// Is this a `Started` collision event?
+    pub fn started(self) -> bool {
+        matches!(self, CollisionEvent::Started(_, _))
+    }
+
+    /// Is this a `Stopped` collision event?
+    pub fn stopped(self) -> bool {
+        matches!(self, CollisionEvent::Stopped(_, _))
+    }
+
+    /// The handle of the first collider involved in this collision event.
+    pub fn collider1(self) -> ColliderHandle {
+        match self {
+            Self::Started(h, _) | Self::Stopped(h, _) => h,
+        }
+    }
+
+    /// The handle of the second collider involved in this collision event.
+    pub fn collider2(self) -> ColliderHandle {
+        match self {
+            Self::Started(_, h) | Self::Stopped(_, h) => h,
         }
     }
 }

@@ -33,7 +33,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(ground_thickness, ground_size)
         .translation(vector![2.5, 0.0])
         .sensor(true)
-        .active_events(ActiveEvents::INTERSECTION_EVENTS);
+        .active_events(ActiveEvents::COLLISION_EVENTS);
     let sensor_handle = colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
@@ -87,8 +87,8 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, events, _| {
-        while let Ok(prox) = events.intersection_events.try_recv() {
-            let color = if prox.intersecting {
+        while let Ok(prox) = events.events.try_recv() {
+            let color = if prox.started() {
                 [1.0, 1.0, 0.0]
             } else {
                 [0.5, 0.5, 1.0]
@@ -96,22 +96,22 @@ pub fn init_world(testbed: &mut Testbed) {
 
             let parent_handle1 = physics
                 .colliders
-                .get(prox.collider1)
+                .get(prox.collider1())
                 .unwrap()
                 .parent()
                 .unwrap();
             let parent_handle2 = physics
                 .colliders
-                .get(prox.collider2)
+                .get(prox.collider2())
                 .unwrap()
                 .parent()
                 .unwrap();
             if let Some(graphics) = &mut graphics {
-                if parent_handle1 != ground_handle && prox.collider1 != sensor_handle {
+                if parent_handle1 != ground_handle && prox.collider1() != sensor_handle {
                     graphics.set_body_color(parent_handle1, color);
                 }
 
-                if parent_handle2 != ground_handle && prox.collider2 != sensor_handle {
+                if parent_handle2 != ground_handle && prox.collider2() != sensor_handle {
                     graphics.set_body_color(parent_handle2, color);
                 }
             }

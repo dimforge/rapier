@@ -92,7 +92,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::ball(1.0)
         .density(10.0)
         .sensor(true)
-        .active_events(ActiveEvents::INTERSECTION_EVENTS);
+        .active_events(ActiveEvents::COLLISION_EVENTS);
     let rigid_body = RigidBodyBuilder::dynamic()
         .linvel(vector![1000.0, 0.0, 0.0])
         .translation(vector![-20.0, shift_y + 2.0, 0.0])
@@ -112,8 +112,8 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, events, _| {
-        while let Ok(prox) = events.intersection_events.try_recv() {
-            let color = if prox.intersecting {
+        while let Ok(prox) = events.events.try_recv() {
+            let color = if prox.started() {
                 [1.0, 1.0, 0.0]
             } else {
                 [0.5, 0.5, 1.0]
@@ -121,13 +121,13 @@ pub fn init_world(testbed: &mut Testbed) {
 
             let parent_handle1 = physics
                 .colliders
-                .get(prox.collider1)
+                .get(prox.collider1())
                 .unwrap()
                 .parent()
                 .unwrap();
             let parent_handle2 = physics
                 .colliders
-                .get(prox.collider2)
+                .get(prox.collider2())
                 .unwrap()
                 .parent()
                 .unwrap();
