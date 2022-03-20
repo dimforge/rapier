@@ -696,8 +696,8 @@ impl RigidBody {
 
 /// ## Applying forces and torques
 impl RigidBody {
-    /// Resets to zero all the constant (linear) forces applied to this rigid-body.
-    pub fn reset_force(&mut self, wake_up: bool) {
+    /// Resets to zero all the constant (linear) forces manually applied to this rigid-body.
+    pub fn reset_forces(&mut self, wake_up: bool) {
         if !self.rb_forces.user_force.is_zero() {
             self.rb_forces.user_force = na::zero();
 
@@ -707,8 +707,8 @@ impl RigidBody {
         }
     }
 
-    /// Resets to zero all the constant torques applied to this rigid-body.
-    pub fn reset_torque(&mut self, wake_up: bool) {
+    /// Resets to zero all the constant torques manually applied to this rigid-body.
+    pub fn reset_torques(&mut self, wake_up: bool) {
         if !self.rb_forces.user_torque.is_zero() {
             self.rb_forces.user_torque = na::zero();
 
