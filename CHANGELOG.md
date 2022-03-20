@@ -1,9 +1,15 @@
-- `RigidBody::set_linvel` and `RigidBody::set_angvel` no longer modify the velocity of static bodies.
-- `RigidBody::set_body_type` will reset the velocity of a rigid-body to zero if it is static.
-- `RigidBodyMassPropsFlags` has been renamed to `LockedAxes`.
-- Don’t automatically clear forces at the end of a timestep.
-- Don’t reset the velocity of kinematic bodies to zero at the end of the timestep.
-- `RigidsBody::apply_force`, `::apply_torque`, `::apply_force_at_point` have been renamed to `::add_force`,
+
+## Unreleased
+### Fixed
+- Fix the simulation when the `parallel` feature is enabled.
+- Fix bug where damping would not be applied properly to some bodies.
+- Fix panics caused by various situations (contact or joints) involving rigid-bodies with locked translations/rotations.
+
+
+### Modified
+- Rename `JointHandle` to `ImpulseJointHandle`.
+- Rename `RigidBodyMassPropsFlags` to `LockedAxes`.
+- Rename `RigidsBody::apply_force`, `::apply_torque`, `::apply_force_at_point` to `::add_force`,
   `::add_torque`, and `::add_force_at_point` to better reflect the fact that they are not cleared at the end
   of the timestep.
 - Rename `RigidBodyType::Static` to `RigidBodyType::Fixed` to avoid confusion with the `static` keyword.
@@ -14,7 +20,28 @@
   to simplify the user’s event handling.
 - The `ActiveEvents::CONTACT_EVENTS` and `ActiveEvents::INTERSECTION_EVENTS` flags have been replaced by a single
   flag `ActiveEvents::COLLISION_EVENTS`.
+- Joint motors no longer have a `VelocityBased` model. The new choices are `AccelerationBased` and `ForceBased`
+  which are more stable.  
+- Calling the `.build()` function from builders (`RigidBodyBuilder`, `ColliderBuilder`, etc.) is no longer necessary
+  whan adding them to sets. It is automatically called thanks to `Into<_>` implementations.  
+
+### Semantic modifications
+These are changes in the behavior of the physics engine that are not necessarily
+reflected by an API change:
+- `RigidBody::set_linvel` and `RigidBody::set_angvel` no longer modify the velocity of static bodies.
+- `RigidBody::set_body_type` will reset the velocity of a rigid-body to zero if it is static.
+- Don’t automatically clear forces at the end of a timestep.
+- Don’t reset the velocity of kinematic bodies to zero at the end of the timestep.
 - Events `CollisionEvent::Stopped` are now generated after a collider is removed. 
+
+### Added
+- Significantly improve the API of joints by adding:
+  * Builders based on the builder pattern.
+  * Getters and setters for all joints.
+  * Method to convert a `GenericJoint` to one of the more specific joint type.
+- Improve stability of joint motors.
+- Adds a `bool` argument to `RigidBodySet::remove`. If set to `false`, the colliders attached to the rigid-body
+  won’t be automatically deleted (they will only be detached from the deleted rigid-body instead).
 
 ## v0.12.0-alpha.0 (2 Jan. 2022)
 ### Fixed
