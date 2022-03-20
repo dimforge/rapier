@@ -648,6 +648,7 @@ mod test {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            true,
         );
         broad_phase.update(0.0, &mut colliders, &[], &[coh], &mut events);
 

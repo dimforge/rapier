@@ -225,7 +225,7 @@ mod tests {
         let collider_a = ColliderBuilder::cuboid(1.0, 1.0, 1.0)
             .active_collision_types(ActiveCollisionTypes::all())
             .sensor(true)
-            .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
+            .active_events(ActiveEvents::COLLISION_EVENTS)
             .build();
 
         let a_handle = collider_set.insert(collider_a);
@@ -233,7 +233,7 @@ mod tests {
         let collider_b = ColliderBuilder::cuboid(1.0, 1.0, 1.0)
             .active_collision_types(ActiveCollisionTypes::all())
             .sensor(true)
-            .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
+            .active_events(ActiveEvents::COLLISION_EVENTS)
             .build();
 
         let _ = collider_set.insert(collider_b);
@@ -276,7 +276,7 @@ mod tests {
         let collider_a = ColliderBuilder::cuboid(1.0, 1.0)
             .active_collision_types(ActiveCollisionTypes::all())
             .sensor(true)
-            .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
+            .active_events(ActiveEvents::COLLISION_EVENTS)
             .build();
 
         let a_handle = collider_set.insert(collider_a);
@@ -284,7 +284,7 @@ mod tests {
         let collider_b = ColliderBuilder::cuboid(1.0, 1.0)
             .active_collision_types(ActiveCollisionTypes::all())
             .sensor(true)
-            .active_events(ActiveEvents::CONTACT_EVENTS | ActiveEvents::INTERSECTION_EVENTS)
+            .active_events(ActiveEvents::COLLISION_EVENTS)
             .build();
 
         let _ = collider_set.insert(collider_b);

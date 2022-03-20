@@ -258,7 +258,16 @@
                 "--pause"
             ],
             "group": "build"
-        }
+        },
+        {
+            "label": "🛠 tests",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "test"
+            ],
+            "group": "build"
+        },
     ]
 ]
 }

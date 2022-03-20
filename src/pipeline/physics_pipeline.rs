@@ -759,6 +759,7 @@ mod test {
                 &mut colliders,
                 &mut impulse_joints,
                 &mut multibody_joints,
+                true,
             );
         }
 
@@ -798,6 +799,7 @@ mod test {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            true,
         );
         bodies.remove(
             h3,
@@ -805,6 +807,7 @@ mod test {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            true,
         );
         bodies.remove(
             h2,
@@ -812,6 +815,7 @@ mod test {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            true,
         );
 
         let ser_bodies = bincode::serialize(&bodies).unwrap();
@@ -857,6 +861,7 @@ mod test {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            true,
         );
 
         for _ in 0..10 {
