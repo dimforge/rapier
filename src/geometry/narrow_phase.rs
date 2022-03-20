@@ -10,7 +10,7 @@ use crate::geometry::{
     BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle, ColliderMaterial,
     ColliderPair, ColliderParent, ColliderPosition, ColliderShape, ColliderType, CollisionEvent,
     ContactData, ContactManifold, ContactManifoldData, ContactPair, InteractionGraph,
-    SolverContact, SolverFlags,
+    IntersectionPair, SolverContact, SolverFlags,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{
@@ -56,7 +56,7 @@ pub struct NarrowPhase {
     )]
     query_dispatcher: Arc<dyn PersistentQueryDispatcher<ContactManifoldData, ContactData>>,
     contact_graph: InteractionGraph<ColliderHandle, ContactPair>,
-    intersection_graph: InteractionGraph<ColliderHandle, bool>,
+    intersection_graph: InteractionGraph<ColliderHandle, IntersectionPair>,
     graph_indices: Coarena<ColliderGraphIndices>,
 }
 
@@ -101,7 +101,7 @@ impl NarrowPhase {
     }
 
     /// The intersection graph containing all intersection pairs and their intersection information.
-    pub fn intersection_graph(&self) -> &InteractionGraph<ColliderHandle, bool> {
+    pub fn intersection_graph(&self) -> &InteractionGraph<ColliderHandle, IntersectionPair> {
         &self.intersection_graph
     }
 
@@ -146,7 +146,7 @@ impl NarrowPhase {
             .flat_map(move |id| {
                 self.intersection_graph
                     .interactions_with(id)
-                    .map(|e| (e.0, e.1, *e.2))
+                    .map(|e| (e.0, e.1, e.2.intersecting))
             })
     }
 
@@ -162,7 +162,7 @@ impl NarrowPhase {
             .flat_map(move |id| {
                 self.intersection_graph
                     .interactions_with(id)
-                    .map(|e| (e.0, e.1, *e.2))
+                    .map(|e| (e.0, e.1, e.2.intersecting))
             })
     }
 
@@ -211,7 +211,7 @@ impl NarrowPhase {
         let id2 = self.graph_indices.get_unknown_gen(collider2)?;
         self.intersection_graph
             .interaction_pair(id1.intersection_graph_index, id2.intersection_graph_index)
-            .map(|c| *c.2)
+            .map(|c| c.2.intersecting)
     }
 
     /// The intersection pair involving two specific colliders.
@@ -227,7 +227,7 @@ impl NarrowPhase {
         let id2 = self.graph_indices.get(collider2.0)?;
         self.intersection_graph
             .interaction_pair(id1.intersection_graph_index, id2.intersection_graph_index)
-            .map(|c| *c.2)
+            .map(|c| c.2.intersecting)
     }
 
     /// All the contact pairs maintained by this narrow-phase.
@@ -241,7 +241,7 @@ impl NarrowPhase {
     ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_ {
         self.intersection_graph
             .interactions_with_endpoints()
-            .map(|e| (e.0, e.1, *e.2))
+            .map(|e| (e.0, e.1, e.2.intersecting))
     }
 
     // #[cfg(feature = "parallel")]
@@ -297,6 +297,7 @@ impl NarrowPhase {
                     bodies,
                     &mut prox_id_remap,
                     &mut contact_id_remap,
+                    events,
                 );
             }
         }
@@ -308,20 +309,21 @@ impl NarrowPhase {
         &mut self,
         intersection_graph_id: ColliderGraphIndex,
         contact_graph_id: ColliderGraphIndex,
-        islands: Option<&mut IslandManager>,
+        mut islands: Option<&mut IslandManager>,
         colliders: &mut Colliders,
         bodies: &mut Bodies,
         prox_id_remap: &mut HashMap<ColliderHandle, ColliderGraphIndex>,
         contact_id_remap: &mut HashMap<ColliderHandle, ColliderGraphIndex>,
+        events: &dyn EventHandler,
     ) where
         Bodies: ComponentSetMut<RigidBodyActivation>
             + ComponentSet<RigidBodyType>
             + ComponentSetMut<RigidBodyIds>,
         Colliders: ComponentSetOption<ColliderParent>,
     {
-        // Wake up every body in contact with the deleted collider.
-        if let Some(islands) = islands {
-            for (a, b, _) in self.contact_graph.interactions_with(contact_graph_id) {
+        // Wake up every body in contact with the deleted collider and generate Stopped collision events.
+        if let Some(islands) = islands.as_deref_mut() {
+            for (a, b, pair) in self.contact_graph.interactions_with(contact_graph_id) {
                 if let Some(parent) = colliders.get(a.0).map(|c| c.handle) {
                     islands.wake_up(bodies, parent, true)
                 }
@@ -329,6 +331,24 @@ impl NarrowPhase {
                 if let Some(parent) = colliders.get(b.0).map(|c| c.handle) {
                     islands.wake_up(bodies, parent, true)
                 }
+
+                if pair.start_event_emited {
+                    events.handle_collision_event(CollisionEvent::Stopped(a, b, true), Some(pair));
+                }
+            }
+        } else {
+            // If there is no island, don’t wake-up bodies, but do send the Stopped collision event.
+            for (a, b, pair) in self.contact_graph.interactions_with(contact_graph_id) {
+                if pair.start_event_emited {
+                    events.handle_collision_event(CollisionEvent::Stopped(a, b, true), Some(pair));
+                }
+            }
+        }
+
+        // Generate Stopped collision events for intersections.
+        for (a, b, pair) in self.intersection_graph.interactions_with(contact_graph_id) {
+            if pair.start_event_emited {
+                events.handle_collision_event(CollisionEvent::Stopped(a, b, true), None);
             }
         }
 
@@ -506,21 +526,21 @@ impl NarrowPhase {
                     || (mode == PairRemovalMode::Auto
                         && (co_type1.is_sensor() || co_type2.is_sensor()))
                 {
-                    let was_intersecting = self
+                    let intersection = self
                         .intersection_graph
                         .remove_edge(gid1.intersection_graph_index, gid2.intersection_graph_index);
 
                     // Emit an intersection lost event if we had an intersection before removing the edge.
-                    if Some(true) == was_intersecting {
-                        let co_flag1: &ColliderFlags = colliders.index(pair.collider1.0);
-                        let co_flag2: &ColliderFlags = colliders.index(pair.collider2.0);
+                    if let Some(mut intersection) = intersection {
+                        if intersection.intersecting {
+                            let co_flag1: &ColliderFlags = colliders.index(pair.collider1.0);
+                            let co_flag2: &ColliderFlags = colliders.index(pair.collider2.0);
 
-                        if (co_flag1.active_events | co_flag2.active_events)
-                            .contains(ActiveEvents::COLLISION_EVENTS)
-                        {
-                            let prox_event =
-                                CollisionEvent::Stopped(pair.collider1, pair.collider2);
-                            events.handle_intersection_event(prox_event)
+                            if (co_flag1.active_events | co_flag2.active_events)
+                                .contains(ActiveEvents::COLLISION_EVENTS)
+                            {
+                                intersection.emit_stop_event(pair.collider1, pair.collider2, events)
+                            }
                         }
                     }
                 } else {
@@ -530,7 +550,7 @@ impl NarrowPhase {
 
                     // Emit a contact stopped event if we had a contact before removing the edge.
                     // Also wake up the dynamic bodies that were in contact.
-                    if let Some(ctct) = contact_pair {
+                    if let Some(mut ctct) = contact_pair {
                         if ctct.has_any_active_contact {
                             let co_parent1: Option<&ColliderParent> =
                                 colliders.get(pair.collider1.0);
@@ -553,10 +573,7 @@ impl NarrowPhase {
                             if (co_flag1.active_events | co_flag2.active_events)
                                 .contains(ActiveEvents::COLLISION_EVENTS)
                             {
-                                events.handle_contact_event(
-                                    CollisionEvent::Stopped(pair.collider1, pair.collider2),
-                                    &ctct,
-                                )
+                                ctct.emit_stop_event(events);
                             }
                         }
                     }
@@ -615,7 +632,7 @@ impl NarrowPhase {
                     let _ = self.intersection_graph.add_edge(
                         gid1.intersection_graph_index,
                         gid2.intersection_graph_index,
-                        false,
+                        IntersectionPair::new(),
                     );
                 }
             } else {
@@ -712,7 +729,7 @@ impl NarrowPhase {
         par_iter_mut!(&mut self.intersection_graph.graph.edges).for_each(|edge| {
             let handle1 = nodes[edge.source().index()].weight;
             let handle2 = nodes[edge.target().index()].weight;
-            let had_intersection = edge.weight;
+            let had_intersection = edge.weight.intersecting;
 
             // TODO: remove the `loop` once labels on blocks is stabilized.
             'emit_events: loop {
@@ -755,13 +772,13 @@ impl NarrowPhase {
                 if !co_flags1.active_collision_types.test(rb_type1, rb_type2)
                     && !co_flags2.active_collision_types.test(rb_type1, rb_type2)
                 {
-                    edge.weight = false;
+                    edge.weight.intersecting = false;
                     break 'emit_events;
                 }
 
                 // Filter based on collision groups.
                 if !co_flags1.collision_groups.test(co_flags2.collision_groups) {
-                    edge.weight = false;
+                    edge.weight.intersecting = false;
                     break 'emit_events;
                 }
 
@@ -779,13 +796,13 @@ impl NarrowPhase {
 
                     if !hooks.filter_intersection_pair(&context) {
                         // No intersection allowed.
-                        edge.weight = false;
+                        edge.weight.intersecting = false;
                         break 'emit_events;
                     }
                 }
 
                 let pos12 = co_pos1.inv_mul(co_pos2);
-                edge.weight = query_dispatcher
+                edge.weight.intersecting = query_dispatcher
                     .intersection_test(&pos12, &**co_shape1, &**co_shape2)
                     .unwrap_or(false);
                 break 'emit_events;
@@ -796,13 +813,13 @@ impl NarrowPhase {
             let active_events = co_flags1.active_events | co_flags2.active_events;
 
             if active_events.contains(ActiveEvents::COLLISION_EVENTS)
-                && had_intersection != edge.weight
+                && had_intersection != edge.weight.intersecting
             {
-                events.handle_intersection_event(CollisionEvent::new(
-                    handle1,
-                    handle2,
-                    edge.weight,
-                ));
+                if edge.weight.intersecting {
+                    edge.weight.emit_start_event(handle1, handle2, events);
+                } else {
+                    edge.weight.emit_stop_event(handle1, handle2, events);
+                }
             }
         });
     }
@@ -1029,15 +1046,9 @@ impl NarrowPhase {
             if pair.has_any_active_contact != had_any_active_contact {
                 if active_events.contains(ActiveEvents::COLLISION_EVENTS) {
                     if pair.has_any_active_contact {
-                        events.handle_contact_event(
-                            CollisionEvent::Started(pair.collider1, pair.collider2),
-                            pair,
-                        );
+                        pair.emit_start_event(events);
                     } else {
-                        events.handle_contact_event(
-                            CollisionEvent::Stopped(pair.collider1, pair.collider2),
-                            pair,
-                        );
+                        pair.emit_stop_event(events);
                     }
                 }
             }

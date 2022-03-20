@@ -1,7 +1,10 @@
 use crate::dynamics::RigidBodyHandle;
 use crate::geometry::{ColliderHandle, Contact, ContactManifold};
 use crate::math::{Point, Real, Vector};
+use crate::pipeline::EventHandler;
 use parry::query::ContactManifoldsWorkspace;
+
+use super::CollisionEvent;
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -47,6 +50,45 @@ impl Default for ContactData {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug)]
+/// The description of all the contacts between a pair of colliders.
+pub struct IntersectionPair {
+    /// Are the colliders intersecting?
+    pub intersecting: bool,
+    /// Was a `CollisionEvent::Started` emitted for this collider?
+    pub(crate) start_event_emited: bool,
+}
+
+impl IntersectionPair {
+    pub(crate) fn new() -> Self {
+        Self {
+            intersecting: false,
+            start_event_emited: false,
+        }
+    }
+
+    pub(crate) fn emit_start_event(
+        &mut self,
+        collider1: ColliderHandle,
+        collider2: ColliderHandle,
+        events: &dyn EventHandler,
+    ) {
+        self.start_event_emited = true;
+        events.handle_collision_event(CollisionEvent::new(collider1, collider2, true), None);
+    }
+
+    pub(crate) fn emit_stop_event(
+        &mut self,
+        collider1: ColliderHandle,
+        collider2: ColliderHandle,
+        events: &dyn EventHandler,
+    ) {
+        self.start_event_emited = false;
+        events.handle_collision_event(CollisionEvent::new(collider1, collider2, false), None);
+    }
+}
+
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 /// The description of all the contacts between a pair of colliders.
 pub struct ContactPair {
@@ -60,6 +102,8 @@ pub struct ContactPair {
     pub manifolds: Vec<ContactManifold>,
     /// Is there any active contact in this contact pair?
     pub has_any_active_contact: bool,
+    /// Was a `CollisionEvent::Started` emitted for this collider?
+    pub(crate) start_event_emited: bool,
     pub(crate) workspace: Option<ContactManifoldsWorkspace>,
 }
 
@@ -70,6 +114,7 @@ impl ContactPair {
             collider2,
             has_any_active_contact: false,
             manifolds: Vec::new(),
+            start_event_emited: false,
             workspace: None,
         }
     }
@@ -108,6 +153,24 @@ impl ContactPair {
         }
 
         deepest
+    }
+
+    pub(crate) fn emit_start_event(&mut self, events: &dyn EventHandler) {
+        self.start_event_emited = true;
+
+        events.handle_collision_event(
+            CollisionEvent::new(self.collider1, self.collider2, true),
+            Some(self),
+        );
+    }
+
+    pub(crate) fn emit_stop_event(&mut self, events: &dyn EventHandler) {
+        self.start_event_emited = false;
+
+        events.handle_collision_event(
+            CollisionEvent::new(self.collider1, self.collider2, false),
+            Some(self),
+        );
     }
 }
 
