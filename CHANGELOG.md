@@ -9,7 +9,7 @@
 ### Modified
 - Rename `JointHandle` to `ImpulseJointHandle`.
 - Rename `RigidBodyMassPropsFlags` to `LockedAxes`.
-- Rename `RigidsBody::apply_force`, `::apply_torque`, `::apply_force_at_point` to `::add_force`,
+- Rename `RigidBody::apply_force`, `::apply_torque`, `::apply_force_at_point` to `::add_force`,
   `::add_torque`, and `::add_force_at_point` to better reflect the fact that they are not cleared at the end
   of the timestep.
 - Rename `RigidBodyType::Static` to `RigidBodyType::Fixed` to avoid confusion with the `static` keyword.
@@ -42,6 +42,8 @@ reflected by an API change:
 - Improve stability of joint motors.
 - Adds a `bool` argument to `RigidBodySet::remove`. If set to `false`, the colliders attached to the rigid-body
   won’t be automatically deleted (they will only be detached from the deleted rigid-body instead).
+- Add `RigidBody::reset_forces` and `RigidBody::reset_torques` to reset all the forces and torques added to the
+  rigid-bodiy by the user.
 
 ## v0.12.0-alpha.0 (2 Jan. 2022)
 ### Fixed
