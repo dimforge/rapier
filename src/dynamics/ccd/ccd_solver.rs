@@ -616,8 +616,8 @@ impl CCDSolver {
                     .contains(ActiveEvents::COLLISION_EVENTS)
             {
                 // Emit one intersection-started and one intersection-stopped event.
-                events.handle_intersection_event(CollisionEvent::Started(toi.c1, toi.c2));
-                events.handle_intersection_event(CollisionEvent::Stopped(toi.c1, toi.c2));
+                events.handle_collision_event(CollisionEvent::Started(toi.c1, toi.c2), None);
+                events.handle_collision_event(CollisionEvent::Stopped(toi.c1, toi.c2, false), None);
             }
         }
 

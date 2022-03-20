@@ -23,18 +23,18 @@ impl Default for ActiveEvents {
 pub trait EventHandler: Send + Sync {
     /// Handle a collision event.
     ///
-    /// A intersection event is emitted when the state of intersection between two colliders changes.
-    fn handle_intersection_event(&self, event: CollisionEvent);
-    /// Handle a contact event.
+    /// A collision event is emitted when the state of intersection between two colliders changes.
     ///
-    /// A contact event is emitted when two collider start or stop touching, independently from the
-    /// number of contact points involved.
-    fn handle_contact_event(&self, event: CollisionEvent, contact_pair: &ContactPair);
+    /// # Parameters
+    /// * `event` - The collision event.
+    /// * `contact_pair` - The current state of contacts between the two colliders. This is set ot `None`
+    ///                    if at least one of the collider is a sensor (in which case no contact information
+    ///                    is ever computed).
+    fn handle_collision_event(&self, event: CollisionEvent, contact_pair: Option<&ContactPair>);
 }
 
 impl EventHandler for () {
-    fn handle_intersection_event(&self, _event: CollisionEvent) {}
-    fn handle_contact_event(&self, _event: CollisionEvent, _contact_pair: &ContactPair) {}
+    fn handle_collision_event(&self, _event: CollisionEvent, _contact_pair: Option<&ContactPair>) {}
 }
 
 /// A collision event handler that collects events into a crossbeam channel.
@@ -50,11 +50,7 @@ impl ChannelEventCollector {
 }
 
 impl EventHandler for ChannelEventCollector {
-    fn handle_intersection_event(&self, event: CollisionEvent) {
-        let _ = self.event_sender.send(event);
-    }
-
-    fn handle_contact_event(&self, event: CollisionEvent, _: &ContactPair) {
+    fn handle_collision_event(&self, event: CollisionEvent, _: Option<&ContactPair>) {
         let _ = self.event_sender.send(event);
     }
 }

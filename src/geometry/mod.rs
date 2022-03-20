@@ -2,8 +2,9 @@
 
 pub use self::broad_phase_multi_sap::{BroadPhase, BroadPhasePairEvent, ColliderPair};
 pub use self::collider_components::*;
-pub use self::contact_pair::{ContactData, ContactManifoldData};
-pub use self::contact_pair::{ContactPair, SolverContact, SolverFlags};
+pub use self::contact_pair::{
+    ContactData, ContactManifoldData, ContactPair, IntersectionPair, SolverContact, SolverFlags,
+};
 pub use self::interaction_graph::{
     ColliderGraphIndex, InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex,
 };
@@ -56,8 +57,11 @@ pub use parry::shape::SharedShape;
 pub enum CollisionEvent {
     /// Event occurring when two colliders start being in contact (or intersecting)
     Started(ColliderHandle, ColliderHandle),
-    /// Event occurring when two colliders stop being in contact (or intersecting)
-    Stopped(ColliderHandle, ColliderHandle),
+    /// Event occurring when two colliders stop being in contact (or intersecting).
+    ///
+    /// The boolean is set to `true` of this event originates from at least one of
+    /// the colliders being removed from the `ColliderSet`.
+    Stopped(ColliderHandle, ColliderHandle, bool),
 }
 
 impl CollisionEvent {
@@ -65,31 +69,31 @@ impl CollisionEvent {
         if start {
             Self::Started(h1, h2)
         } else {
-            Self::Stopped(h1, h2)
+            Self::Stopped(h1, h2, false)
         }
     }
 
     /// Is this a `Started` collision event?
     pub fn started(self) -> bool {
-        matches!(self, CollisionEvent::Started(_, _))
+        matches!(self, CollisionEvent::Started(..))
     }
 
     /// Is this a `Stopped` collision event?
     pub fn stopped(self) -> bool {
-        matches!(self, CollisionEvent::Stopped(_, _))
+        matches!(self, CollisionEvent::Stopped(..))
     }
 
     /// The handle of the first collider involved in this collision event.
     pub fn collider1(self) -> ColliderHandle {
         match self {
-            Self::Started(h, _) | Self::Stopped(h, _) => h,
+            Self::Started(h, _) | Self::Stopped(h, _, _) => h,
         }
     }
 
     /// The handle of the second collider involved in this collision event.
     pub fn collider2(self) -> ColliderHandle {
         match self {
-            Self::Started(_, h) | Self::Stopped(_, h) => h,
+            Self::Started(_, h) | Self::Stopped(_, h, _) => h,
         }
     }
 }

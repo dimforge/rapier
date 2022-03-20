@@ -14,6 +14,7 @@
   to simplify the user’s event handling.
 - The `ActiveEvents::CONTACT_EVENTS` and `ActiveEvents::INTERSECTION_EVENTS` flags have been replaced by a single
   flag `ActiveEvents::COLLISION_EVENTS`.
+- Events `CollisionEvent::Stopped` are now generated after a collider is removed. 
 
 ## v0.12.0-alpha.0 (2 Jan. 2022)
 ### Fixed
