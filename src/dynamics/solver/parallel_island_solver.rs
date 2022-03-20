@@ -186,7 +186,7 @@ impl ParallelIslandSolver {
         let num_threads = rayon::current_num_threads();
         let num_task_per_island = num_threads; // (num_threads / num_islands).max(1); // TODO: not sure this is the best value. Also, perhaps it is better to interleave tasks of each island?
         self.thread = ThreadContext::new(8); // TODO: could we compute some kind of optimal value here?
-    
+
         // Interactions grouping.
         self.parallel_groups.group_interactions(
             island_id,
@@ -229,7 +229,9 @@ impl ParallelIslandSolver {
         if self.parallel_contact_constraints.generic_jacobians.len() < contact_j_id {
             self.parallel_contact_constraints.generic_jacobians = DVector::zeros(contact_j_id);
         } else {
-            self.parallel_contact_constraints.generic_jacobians.fill(0.0);
+            self.parallel_contact_constraints
+                .generic_jacobians
+                .fill(0.0);
         }
 
         if self.parallel_joint_constraints.generic_jacobians.len() < joint_j_id {
@@ -315,7 +317,7 @@ impl ParallelIslandSolver {
                                 let multibody = multibodies
                                     .get_multibody_mut_internal(link.multibody)
                                     .unwrap();
-                
+
                                 if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
                                     let mut mj_lambdas = velocity_solver
                                         .generic_mj_lambdas
@@ -325,9 +327,9 @@ impl ParallelIslandSolver {
                             } else {
                                 let (ids, mprops, forces): (&RigidBodyIds, &RigidBodyMassProps, &RigidBodyForces) =
                                     bodies.index_bundle(handle.0);
-                
+
                                 let dvel = &mut velocity_solver.mj_lambdas[ids.active_set_offset];
-                
+
                                 // NOTE: `dvel.angular` is actually storing angular velocity delta multiplied
                                 //       by the square root of the inertia tensor:
                                 dvel.angular += mprops.effective_world_inv_inertia_sqrt * forces.torque * params.dt;
