@@ -260,6 +260,21 @@
             "group": "build"
         },
         {
+            "label": "🪲 debug 3d − 💌 deterministic",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--bin",
+                "all_examples3",
+                "--features",
+                "enhanced-determinism",
+                "--",
+                "--pause"
+            ],
+            "group": "build"
+        },
+        {
             "label": "🛠 tests",
             "type": "shell",
             "command": "cargo",

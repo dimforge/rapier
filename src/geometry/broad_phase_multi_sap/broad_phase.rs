@@ -467,7 +467,7 @@ impl BroadPhase {
                 ) = colliders.index_bundle(handle.0);
 
                 if !co_changes.needs_broad_phase_update() {
-                    return;
+                    continue;
                 }
                 let mut new_proxy_id = co_bf_data.proxy_index;
 
