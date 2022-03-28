@@ -630,6 +630,8 @@ impl PhysicsPipeline {
                 multibody_joints,
             );
 
+            narrow_phase.handle_contact_responses(bodies, colliders, hooks);
+
             // If CCD is enabled, execute the CCD motion clamping.
             if ccd_is_enabled {
                 // NOTE: don't the forces into account when updating the CCD active flags because
