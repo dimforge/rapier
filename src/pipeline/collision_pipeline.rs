@@ -3,12 +3,12 @@
 use crate::data::{ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::{
     RigidBodyActivation, RigidBodyChanges, RigidBodyColliders, RigidBodyDominance, RigidBodyHandle,
-    RigidBodyIds, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
+    RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderBroadPhaseData, ColliderChanges, ColliderFlags,
-    ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent, ColliderPosition,
-    ColliderShape, ColliderType, NarrowPhase,
+    ColliderHandle, ColliderMassProps, ColliderMaterial, ColliderPair, ColliderParent,
+    ColliderPosition, ColliderShape, ColliderType, NarrowPhase,
 };
 use crate::math::Real;
 use crate::pipeline::{EventHandler, PhysicsHooks};
@@ -169,6 +169,7 @@ impl CollisionPipeline {
             + ComponentSetMut<RigidBodyIds>
             + ComponentSetMut<RigidBodyActivation>
             + ComponentSetMut<RigidBodyChanges>
+            + ComponentSetMut<RigidBodyMassProps>
             + ComponentSet<RigidBodyColliders>
             + ComponentSet<RigidBodyDominance>
             + ComponentSet<RigidBodyType>,
@@ -179,7 +180,8 @@ impl CollisionPipeline {
             + ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderType>
             + ComponentSet<ColliderMaterial>
-            + ComponentSet<ColliderFlags>,
+            + ComponentSet<ColliderFlags>
+            + ComponentSet<ColliderMassProps>,
     {
         super::user_changes::handle_user_changes_to_colliders(
             bodies,

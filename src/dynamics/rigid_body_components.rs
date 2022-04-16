@@ -1,4 +1,4 @@
-use crate::data::{ComponentSetMut, ComponentSetOption};
+use crate::data::{BundleSet, ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::MassProperties;
 use crate::geometry::{
     ColliderChanges, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition,
@@ -225,13 +225,14 @@ bitflags::bitflags! {
 
 // TODO: split this into "LocalMassProps" and `WorldMassProps"?
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 /// The mass properties of this rigid-bodies.
 pub struct RigidBodyMassProps {
     /// Flags for locking rotation and translation.
     pub flags: LockedAxes,
     /// The local mass properties of the rigid-body.
     pub local_mprops: MassProperties,
+    pub additional_local_mprops: Option<Box<MassProperties>>,
     /// The world-space center of mass of the rigid-body.
     pub world_com: Point<Real>,
     /// The inverse mass taking into account translation locking.
@@ -246,6 +247,7 @@ impl Default for RigidBodyMassProps {
         Self {
             flags: LockedAxes::empty(),
             local_mprops: MassProperties::zero(),
+            additional_local_mprops: None,
             world_com: Point::origin(),
             effective_inv_mass: Vector::zero(),
             effective_world_inv_inertia_sqrt: AngularInertia::zero(),
@@ -290,6 +292,38 @@ impl RigidBodyMassProps {
     #[must_use]
     pub fn effective_angular_inertia(&self) -> AngularInertia<Real> {
         self.effective_world_inv_inertia_sqrt.squared().inverse()
+    }
+
+    /// Recompute the mass-properties of this rigid-bodies based on its currentely attached colliders.
+    pub fn recompute_mass_properties_from_colliders<Colliders>(
+        &mut self,
+        colliders: &Colliders,
+        attached_colliders: &RigidBodyColliders,
+        position: &Isometry<Real>,
+    ) where
+        Colliders: ComponentSetOption<ColliderParent>
+            + ComponentSet<ColliderMassProps>
+            + ComponentSet<ColliderShape>,
+    {
+        self.local_mprops = self
+            .additional_local_mprops
+            .as_ref()
+            .map(|mprops| **mprops)
+            .unwrap_or_else(MassProperties::default);
+
+        for handle in &attached_colliders.0 {
+            let co_parent: Option<&ColliderParent> = colliders.get(handle.0);
+            if let Some(co_parent) = co_parent {
+                let (co_mprops, co_shape): (&ColliderMassProps, &ColliderShape) =
+                    colliders.index_bundle(handle.0);
+                let to_add = co_mprops
+                    .mass_properties(&**co_shape)
+                    .transform_by(&co_parent.pos_wrt_parent);
+                self.local_mprops += to_add;
+            }
+        }
+
+        self.update_world_mass_properties(position);
     }
 
     /// Update the world-space mass properties of `self`, taking into account the new position.

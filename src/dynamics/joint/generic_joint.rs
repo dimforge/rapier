@@ -76,6 +76,12 @@ bitflags::bitflags! {
     }
 }
 
+impl Default for JointAxesMask {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
 /// Identifiers of degrees of freedoms of a joint.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -230,7 +236,8 @@ impl GenericJoint {
         self.limit_axes.is_empty() && self.motor_axes.is_empty()
     }
 
-    fn complete_ang_frame(axis: UnitVector<Real>) -> Rotation<Real> {
+    #[doc(hidden)]
+    pub fn complete_ang_frame(axis: UnitVector<Real>) -> Rotation<Real> {
         let basis = axis.orthonormal_basis();
 
         #[cfg(feature = "dim2")]

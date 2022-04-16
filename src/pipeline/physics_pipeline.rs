@@ -15,7 +15,7 @@ use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderBroadPhaseData, ColliderChanges, ColliderFlags,
     ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent, ColliderPosition,
-    ColliderShape, ColliderType, ContactManifoldIndex, NarrowPhase,
+    ColliderShape, ColliderType, ContactManifoldIndex, NarrowPhase, ColliderMassProps
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{EventHandler, PhysicsHooks};
@@ -504,7 +504,8 @@ impl PhysicsPipeline {
             + ComponentSetOption<ColliderParent>
             + ComponentSet<ColliderType>
             + ComponentSet<ColliderMaterial>
-            + ComponentSet<ColliderFlags>,
+            + ComponentSet<ColliderFlags>
+            + ComponentSet<ColliderMassProps>,
     {
         self.counters.reset();
         self.counters.step_started();

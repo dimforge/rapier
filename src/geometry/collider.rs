@@ -411,21 +411,18 @@ impl ColliderBuilder {
 
     /// Initialize a new collider builder with a capsule shape aligned with the `x` axis.
     pub fn capsule_x(half_height: Real, radius: Real) -> Self {
-        let p = Point::from(Vector::x() * half_height);
-        Self::new(SharedShape::capsule(-p, p, radius))
+        Self::new(SharedShape::capsule_x(half_height, radius))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `y` axis.
     pub fn capsule_y(half_height: Real, radius: Real) -> Self {
-        let p = Point::from(Vector::y() * half_height);
-        Self::new(SharedShape::capsule(-p, p, radius))
+        Self::new(SharedShape::capsule_y(half_height, radius))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `z` axis.
     #[cfg(feature = "dim3")]
     pub fn capsule_z(half_height: Real, radius: Real) -> Self {
-        let p = Point::from(Vector::z() * half_height);
-        Self::new(SharedShape::capsule(-p, p, radius))
+        Self::new(SharedShape::capsule_z(half_height, radius))
     }
 
     /// Initialize a new collider builder with a cuboid shape defined by its half-extents.

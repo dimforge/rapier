@@ -431,14 +431,14 @@ impl InteractionGroups {
                     let data: (_, &RigidBodyIds) = bodies.index_bundle(rb1.0);
                     (*data.0, data.1.active_set_offset)
                 } else {
-                    (RigidBodyType::Fixed, 0)
+                    (RigidBodyType::Fixed, usize::MAX)
                 };
                 let (status2, active_set_offset2) = if let Some(rb2) = interaction.data.rigid_body2
                 {
                     let data: (_, &RigidBodyIds) = bodies.index_bundle(rb2.0);
                     (*data.0, data.1.active_set_offset)
                 } else {
-                    (RigidBodyType::Fixed, 0)
+                    (RigidBodyType::Fixed, usize::MAX)
                 };
 
                 let is_fixed1 = !status1.is_dynamic();
@@ -451,7 +451,9 @@ impl InteractionGroups {
 
                 let i1 = active_set_offset1;
                 let i2 = active_set_offset2;
-                let conflicts = self.body_masks[i1] | self.body_masks[i2];
+                let mask1 = if !is_fixed1 { self.body_masks[i1] } else { 0 };
+                let mask2 = if !is_fixed2 { self.body_masks[i2] } else { 0 };
+                let conflicts = mask1 | mask2;
                 let conflictfree_targets = !(conflicts & occupied_mask); // The & is because we consider empty buckets as free of conflicts.
                 let conflictfree_occupied_targets = conflictfree_targets & occupied_mask;
 
