@@ -1,38 +1,74 @@
 use crate::data::{BundleSet, ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::{
     IslandManager, RigidBodyActivation, RigidBodyChanges, RigidBodyColliders, RigidBodyHandle,
-    RigidBodyIds, RigidBodyPosition, RigidBodyType,
+    RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType,
 };
-use crate::geometry::{ColliderChanges, ColliderHandle, ColliderParent, ColliderPosition};
+use crate::geometry::{
+    ColliderChanges, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition,
+    ColliderShape,
+};
+use parry::utils::hashmap::HashMap;
 
-pub(crate) fn handle_user_changes_to_colliders<Colliders>(
-    bodies: &mut impl ComponentSet<RigidBodyPosition>,
+pub(crate) fn handle_user_changes_to_colliders<Bodies, Colliders>(
+    bodies: &mut Bodies,
     colliders: &mut Colliders,
     modified_colliders: &[ColliderHandle],
 ) where
+    Bodies: ComponentSet<RigidBodyPosition>
+        + ComponentSet<RigidBodyColliders>
+        + ComponentSetMut<RigidBodyMassProps>,
     Colliders: ComponentSetMut<ColliderChanges>
         + ComponentSetMut<ColliderPosition>
-        + ComponentSetOption<ColliderParent>,
+        + ComponentSetOption<ColliderParent>
+        + ComponentSet<ColliderShape>
+        + ComponentSet<ColliderMassProps>,
 {
+    // TODO: avoid this hashmap? We could perhaps add a new flag to RigidBodyChanges to
+    //       indicated that the mass properties need to be recomputed?
+    let mut mprops_to_update = HashMap::default();
+
     for handle in modified_colliders {
         // NOTE: we use `get` because the collider may no longer
         //       exist if it has been removed.
-        let co_changes: Option<&ColliderChanges> = colliders.get(handle.0);
+        let co_changes: Option<ColliderChanges> = colliders.get(handle.0).copied();
 
         if let Some(co_changes) = co_changes {
             if co_changes.contains(ColliderChanges::PARENT) {
                 let co_parent: Option<&ColliderParent> = colliders.get(handle.0);
 
                 if let Some(co_parent) = co_parent {
-                    let parent_pos = bodies.index(co_parent.handle.0);
+                    let parent_pos: &RigidBodyPosition = bodies.index(co_parent.handle.0);
 
                     let new_pos = parent_pos.position * co_parent.pos_wrt_parent;
-                    let new_changes = *co_changes | ColliderChanges::POSITION;
+                    let new_changes = co_changes | ColliderChanges::POSITION;
                     colliders.set_internal(handle.0, ColliderPosition(new_pos));
                     colliders.set_internal(handle.0, new_changes);
                 }
             }
+
+            if co_changes.contains(ColliderChanges::SHAPE) {
+                let co_parent: Option<&ColliderParent> = colliders.get(handle.0);
+                if let Some(co_parent) = co_parent {
+                    mprops_to_update.insert(co_parent.handle, ());
+                }
+            }
         }
+    }
+
+    for (to_update, _) in mprops_to_update {
+        let (rb_pos, rb_colliders): (&RigidBodyPosition, &RigidBodyColliders) =
+            bodies.index_bundle(to_update.0);
+        let position = rb_pos.position;
+        // FIXME: remove the clone once we remove the ComponentSets.
+        let attached_colliders = rb_colliders.clone();
+
+        bodies.map_mut_internal(to_update.0, |rb_mprops| {
+            rb_mprops.recompute_mass_properties_from_colliders(
+                colliders,
+                &attached_colliders,
+                &position,
+            )
+        });
     }
 }
 

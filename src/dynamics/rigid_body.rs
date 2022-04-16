@@ -383,7 +383,7 @@ impl RigidBody {
     ///
     /// Returns zero if this rigid body has an infinite mass.
     pub fn mass(&self) -> Real {
-        utils::inv(self.rb_mprops.local_mprops.inv_mass)
+        self.rb_mprops.local_mprops.mass()
     }
 
     /// The predicted position of this rigid-body.
@@ -889,7 +889,7 @@ pub struct RigidBodyBuilder {
     rb_type: RigidBodyType,
     mprops_flags: LockedAxes,
     /// The additional mass properties of the rigid-body being built. See [`RigidBodyBuilder::additional_mass_properties`] for more information.
-    pub mass_properties: MassProperties,
+    pub additional_mass_properties: MassProperties,
     /// Whether or not the rigid-body to be created can sleep if it reaches a dynamic equilibrium.
     pub can_sleep: bool,
     /// Whether or not the rigid-body is to be created asleep.
@@ -916,7 +916,7 @@ impl RigidBodyBuilder {
             angular_damping: 0.0,
             rb_type,
             mprops_flags: LockedAxes::empty(),
-            mass_properties: MassProperties::zero(),
+            additional_mass_properties: MassProperties::zero(),
             can_sleep: true,
             sleeping: false,
             ccd_enabled: false,
@@ -1008,7 +1008,7 @@ impl RigidBodyBuilder {
     /// mass properties of your rigid-body, don't attach colliders to it, or
     /// only attach colliders with densities equal to zero.
     pub fn additional_mass_properties(mut self, props: MassProperties) -> Self {
-        self.mass_properties = props;
+        self.additional_mass_properties = props;
         self
     }
 
@@ -1072,7 +1072,7 @@ impl RigidBodyBuilder {
     /// equal to the sum of this additional mass and the mass computed from the colliders
     /// (with non-zero densities) attached to this rigid-body.
     pub fn additional_mass(mut self, mass: Real) -> Self {
-        self.mass_properties.set_mass(mass, false);
+        self.additional_mass_properties.set_mass(mass, false);
         self
     }
 
@@ -1093,7 +1093,7 @@ impl RigidBodyBuilder {
     /// computed from the colliders (with non-zero densities) attached to this rigid-body.
     #[cfg(feature = "dim2")]
     pub fn additional_principal_angular_inertia(mut self, inertia: Real) -> Self {
-        self.mass_properties.inv_principal_inertia_sqrt =
+        self.additional_mass_properties.inv_principal_inertia_sqrt =
             utils::inv(ComplexField::sqrt(inertia.max(0.0)));
         self
     }
@@ -1119,7 +1119,7 @@ impl RigidBodyBuilder {
     /// computed from the colliders (with non-zero densities) attached to this rigid-body.
     #[cfg(feature = "dim3")]
     pub fn additional_principal_angular_inertia(mut self, inertia: AngVector<Real>) -> Self {
-        self.mass_properties.inv_principal_inertia_sqrt =
+        self.additional_mass_properties.inv_principal_inertia_sqrt =
             inertia.map(|e| utils::inv(ComplexField::sqrt(e.max(0.0))));
         self
     }
@@ -1197,7 +1197,12 @@ impl RigidBodyBuilder {
         rb.rb_vels.angvel = self.angvel;
         rb.rb_type = self.rb_type;
         rb.user_data = self.user_data;
-        rb.rb_mprops.local_mprops = self.mass_properties;
+
+        if self.additional_mass_properties != MassProperties::default() {
+            rb.rb_mprops.additional_local_mprops = Some(Box::new(self.additional_mass_properties));
+            rb.rb_mprops.local_mprops = self.additional_mass_properties;
+        }
+
         rb.rb_mprops.flags = self.mprops_flags;
         rb.rb_damping.linear_damping = self.linear_damping;
         rb.rb_damping.angular_damping = self.angular_damping;
