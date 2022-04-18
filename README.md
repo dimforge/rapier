@@ -77,6 +77,9 @@ And our gold sponsors:
 
 <p>
   <a href="https://fragcolor.com">
-    <img src="https://dimforge.com/img/fragcolor_logo1_color_black.svg" width="151px">
+    <img src="https://dimforge.com/img/fragcolor_logo2_color_black.svg" width="300px">
+  </a>
+  <a href="https://resolutiongames.com/">
+    <img src="https://dimforge.com/img/logo_resolution_games.png" width="300px" />
   </a>
 </p>
