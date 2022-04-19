@@ -1,21 +1,18 @@
 //! Physics pipeline structures.
 
 use crate::counters::Counters;
-use crate::data::{BundleSet, ComponentSet, ComponentSetMut, ComponentSetOption};
 #[cfg(not(feature = "parallel"))]
 use crate::dynamics::IslandSolver;
 use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    RigidBodyActivation, RigidBodyCcd, RigidBodyChanges, RigidBodyColliders, RigidBodyDamping,
-    RigidBodyDominance, RigidBodyForces, RigidBodyHandle, RigidBodyIds, RigidBodyMassProps,
-    RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
+    RigidBodyColliders, RigidBodyForces, RigidBodyHandle, RigidBodyMassProps, RigidBodyPosition,
+    RigidBodyType, RigidBodyVelocity,
 };
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, ColliderBroadPhaseData, ColliderChanges, ColliderFlags,
-    ColliderHandle, ColliderMaterial, ColliderPair, ColliderParent, ColliderPosition,
-    ColliderShape, ColliderType, ContactManifoldIndex, NarrowPhase, ColliderMassProps
+    BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
+    ContactManifoldIndex, NarrowPhase,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{EventHandler, PhysicsHooks};
@@ -71,7 +68,7 @@ impl PhysicsPipeline {
 
     fn clear_modified_colliders(
         &mut self,
-        colliders: &mut impl ComponentSetMut<ColliderChanges>,
+        colliders: &mut ColliderSet,
         modified_colliders: &mut Vec<ColliderHandle>,
     ) {
         for handle in modified_colliders.drain(..) {
@@ -79,33 +76,20 @@ impl PhysicsPipeline {
         }
     }
 
-    fn detect_collisions<Bodies, Colliders>(
+    fn detect_collisions(
         &mut self,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
         broad_phase: &mut BroadPhase,
         narrow_phase: &mut NarrowPhase,
-        bodies: &mut Bodies,
-        colliders: &mut Colliders,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
-        hooks: &dyn PhysicsHooks<Bodies, Colliders>,
+        hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
         handle_user_changes: bool,
-    ) where
-        Bodies: ComponentSetMut<RigidBodyActivation>
-            + ComponentSet<RigidBodyType>
-            + ComponentSetMut<RigidBodyIds>
-            + ComponentSet<RigidBodyDominance>,
-        Colliders: ComponentSetMut<ColliderBroadPhaseData>
-            + ComponentSet<ColliderChanges>
-            + ComponentSet<ColliderPosition>
-            + ComponentSet<ColliderShape>
-            + ComponentSetOption<ColliderParent>
-            + ComponentSet<ColliderType>
-            + ComponentSet<ColliderMaterial>
-            + ComponentSet<ColliderFlags>,
-    {
+    ) {
         self.counters.stages.collision_detection_time.resume();
         self.counters.cd.broad_phase_time.resume();
 
@@ -155,28 +139,17 @@ impl PhysicsPipeline {
         self.counters.stages.collision_detection_time.pause();
     }
 
-    fn build_islands_and_solve_velocity_constraints<Bodies, Colliders>(
+    fn build_islands_and_solve_velocity_constraints(
         &mut self,
         gravity: &Vector<Real>,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
         narrow_phase: &mut NarrowPhase,
-        bodies: &mut Bodies,
-        colliders: &mut Colliders,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
-    ) where
-        Bodies: ComponentSetMut<RigidBodyPosition>
-            + ComponentSetMut<RigidBodyVelocity>
-            + ComponentSetMut<RigidBodyMassProps>
-            + ComponentSetMut<RigidBodyForces>
-            + ComponentSetMut<RigidBodyIds>
-            + ComponentSetMut<RigidBodyActivation>
-            + ComponentSet<RigidBodyDamping>
-            + ComponentSet<RigidBodyColliders>
-            + ComponentSet<RigidBodyType>,
-        Colliders: ComponentSetOption<ColliderParent>,
-    {
+    ) {
         self.counters.stages.island_construction_time.resume();
         islands.update_active_set_with_contacts(
             integration_parameters.dt,
@@ -285,7 +258,7 @@ impl PhysicsPipeline {
                     .par_iter_mut()
                     .enumerate()
                     .for_each(|(island_id, solver)| {
-                        let bodies: &mut Bodies =
+                        let bodies: &mut RigidBodySet =
                             unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };
                         let manifolds: &mut Vec<&mut ContactManifold> =
                             unsafe { std::mem::transmute(manifolds.load(Ordering::Relaxed)) };
@@ -313,28 +286,16 @@ impl PhysicsPipeline {
         self.counters.stages.solver_time.pause();
     }
 
-    fn run_ccd_motion_clamping<Bodies, Colliders>(
+    fn run_ccd_motion_clamping(
         &mut self,
         integration_parameters: &IntegrationParameters,
         islands: &IslandManager,
-        bodies: &mut Bodies,
-        colliders: &mut Colliders,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
         narrow_phase: &NarrowPhase,
         ccd_solver: &mut CCDSolver,
         events: &dyn EventHandler,
-    ) where
-        Bodies: ComponentSetMut<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyCcd>
-            + ComponentSet<RigidBodyColliders>
-            + ComponentSet<RigidBodyForces>
-            + ComponentSet<RigidBodyMassProps>,
-        Colliders: ComponentSetOption<ColliderParent>
-            + ComponentSet<ColliderPosition>
-            + ComponentSet<ColliderShape>
-            + ComponentSet<ColliderType>
-            + ComponentSet<ColliderFlags>,
-    {
+    ) {
         self.counters.ccd.toi_computation_time.start();
         // Handle CCD
         let impacts = ccd_solver.predict_impacts_at_next_positions(
@@ -349,22 +310,13 @@ impl PhysicsPipeline {
         self.counters.ccd.toi_computation_time.pause();
     }
 
-    fn advance_to_final_positions<Bodies, Colliders>(
+    fn advance_to_final_positions(
         &mut self,
         islands: &IslandManager,
-        bodies: &mut Bodies,
-        colliders: &mut Colliders,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
         modified_colliders: &mut Vec<ColliderHandle>,
-    ) where
-        Bodies: ComponentSetMut<RigidBodyVelocity>
-            + ComponentSetMut<RigidBodyForces>
-            + ComponentSetMut<RigidBodyPosition>
-            + ComponentSet<RigidBodyType>
-            + ComponentSet<RigidBodyColliders>,
-        Colliders: ComponentSetMut<ColliderPosition>
-            + ComponentSetMut<ColliderChanges>
-            + ComponentSetOption<ColliderParent>,
-    {
+    ) {
         // Set the rigid-bodies and kinematic bodies to their final position.
         for handle in islands.iter_active_bodies() {
             bodies.map_mut_internal(handle.0, |poss: &mut RigidBodyPosition| {
@@ -377,17 +329,12 @@ impl PhysicsPipeline {
         }
     }
 
-    fn interpolate_kinematic_velocities<Bodies>(
+    fn interpolate_kinematic_velocities(
         &mut self,
         integration_parameters: &IntegrationParameters,
         islands: &IslandManager,
-        bodies: &mut Bodies,
-    ) where
-        Bodies: ComponentSetMut<RigidBodyVelocity>
-            + ComponentSetMut<RigidBodyPosition>
-            + ComponentSet<RigidBodyType>
-            + ComponentSet<RigidBodyMassProps>,
-    {
+        bodies: &mut RigidBodySet,
+    ) {
         // Update kinematic bodies velocities.
         // TODO: what is the best place for this? It should at least be
         // located before the island computation because we test the velocity
@@ -440,7 +387,7 @@ impl PhysicsPipeline {
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
         ccd_solver: &mut CCDSolver,
-        hooks: &dyn PhysicsHooks<RigidBodySet, ColliderSet>,
+        hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
         let mut modified_bodies = bodies.take_modified();
@@ -467,46 +414,24 @@ impl PhysicsPipeline {
     }
 
     /// Executes one timestep of the physics simulation.
-    pub fn step_generic<Bodies, Colliders>(
+    pub fn step_generic(
         &mut self,
         gravity: &Vector<Real>,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
         broad_phase: &mut BroadPhase,
         narrow_phase: &mut NarrowPhase,
-        bodies: &mut Bodies,
-        colliders: &mut Colliders,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
         modified_bodies: &mut Vec<RigidBodyHandle>,
         modified_colliders: &mut Vec<ColliderHandle>,
         removed_colliders: &mut Vec<ColliderHandle>,
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
         ccd_solver: &mut CCDSolver,
-        hooks: &dyn PhysicsHooks<Bodies, Colliders>,
+        hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
-    ) where
-        Bodies: ComponentSetMut<RigidBodyPosition>
-            + ComponentSetMut<RigidBodyVelocity>
-            + ComponentSetMut<RigidBodyMassProps>
-            + ComponentSetMut<RigidBodyIds>
-            + ComponentSetMut<RigidBodyForces>
-            + ComponentSetMut<RigidBodyActivation>
-            + ComponentSetMut<RigidBodyChanges>
-            + ComponentSetMut<RigidBodyCcd>
-            + ComponentSet<RigidBodyColliders>
-            + ComponentSet<RigidBodyDamping>
-            + ComponentSet<RigidBodyDominance>
-            + ComponentSet<RigidBodyType>,
-        Colliders: ComponentSetMut<ColliderBroadPhaseData>
-            + ComponentSetMut<ColliderChanges>
-            + ComponentSetMut<ColliderPosition>
-            + ComponentSet<ColliderShape>
-            + ComponentSetOption<ColliderParent>
-            + ComponentSet<ColliderType>
-            + ComponentSet<ColliderMaterial>
-            + ComponentSet<ColliderFlags>
-            + ComponentSet<ColliderMassProps>,
-    {
+    ) {
         self.counters.reset();
         self.counters.step_started();
 

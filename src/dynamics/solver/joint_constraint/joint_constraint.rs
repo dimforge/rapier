@@ -1,4 +1,3 @@
-use crate::data::{BundleSet, ComponentSet};
 use crate::dynamics::solver::joint_constraint::joint_generic_velocity_constraint::{
     JointGenericVelocityConstraint, JointGenericVelocityGroundConstraint,
 };
@@ -8,7 +7,7 @@ use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
 use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
     ImpulseJoint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodyIds,
-    RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
+    RigidBodyMassProps, RigidBodyPosition, RigidBodySet, RigidBodyType, RigidBodyVelocity,
 };
 use crate::math::{Real, SPATIAL_DIM};
 use crate::prelude::MultibodyJointSet;
@@ -51,22 +50,17 @@ impl AnyJointVelocityConstraint {
         (num_constraints, num_constraints)
     }
 
-    pub fn from_joint<Bodies>(
+    pub fn from_joint(
         params: &IntegrationParameters,
         joint_id: JointIndex,
         joint: &ImpulseJoint,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibodies: &MultibodyJointSet,
         j_id: &mut usize,
         jacobians: &mut DVector<Real>,
         out: &mut Vec<Self>,
         insert_at: Option<usize>,
-    ) where
-        Bodies: ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         let local_frame1 = joint.data.local_frame1;
         let local_frame2 = joint.data.local_frame2;
         let rb1: (
@@ -184,19 +178,14 @@ impl AnyJointVelocityConstraint {
     }
 
     #[cfg(feature = "simd-is-enabled")]
-    pub fn from_wide_joint<Bodies>(
+    pub fn from_wide_joint(
         params: &IntegrationParameters,
         joint_id: [JointIndex; SIMD_WIDTH],
         impulse_joints: [&ImpulseJoint; SIMD_WIDTH],
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         out: &mut Vec<Self>,
         insert_at: Option<usize>,
-    ) where
-        Bodies: ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         let rbs1: (
             [&RigidBodyPosition; SIMD_WIDTH],
             [&RigidBodyVelocity; SIMD_WIDTH],
@@ -274,23 +263,17 @@ impl AnyJointVelocityConstraint {
         }
     }
 
-    pub fn from_joint_ground<Bodies>(
+    pub fn from_joint_ground(
         params: &IntegrationParameters,
         joint_id: JointIndex,
         joint: &ImpulseJoint,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibodies: &MultibodyJointSet,
         j_id: &mut usize,
         jacobians: &mut DVector<Real>,
         out: &mut Vec<Self>,
         insert_at: Option<usize>,
-    ) where
-        Bodies: ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyType>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         let mut handle1 = joint.body1;
         let mut handle2 = joint.body2;
         let status2: &RigidBodyType = bodies.index(handle2.0);
@@ -408,20 +391,14 @@ impl AnyJointVelocityConstraint {
     }
 
     #[cfg(feature = "simd-is-enabled")]
-    pub fn from_wide_joint_ground<Bodies>(
+    pub fn from_wide_joint_ground(
         params: &IntegrationParameters,
         joint_id: [JointIndex; SIMD_WIDTH],
         impulse_joints: [&ImpulseJoint; SIMD_WIDTH],
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         out: &mut Vec<Self>,
         insert_at: Option<usize>,
-    ) where
-        Bodies: ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyType>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         let mut handles1 = gather![|ii| impulse_joints[ii].body1];
         let mut handles2 = gather![|ii| impulse_joints[ii].body2];
         let status2: [&RigidBodyType; SIMD_WIDTH] = gather![|ii| bodies.index(handles2[ii].0)];

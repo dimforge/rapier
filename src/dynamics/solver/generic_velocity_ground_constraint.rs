@@ -1,8 +1,6 @@
-use crate::data::{BundleSet, ComponentSet};
 use crate::dynamics::solver::VelocityGroundConstraint;
 use crate::dynamics::{
-    IntegrationParameters, MultibodyJointSet, RigidBodyIds, RigidBodyMassProps, RigidBodyType,
-    RigidBodyVelocity,
+    IntegrationParameters, MultibodyJointSet, RigidBodyMassProps, RigidBodySet, RigidBodyVelocity,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Point, Real, DIM, MAX_MANIFOLD_POINTS};
@@ -25,22 +23,17 @@ pub(crate) struct GenericVelocityGroundConstraint {
 }
 
 impl GenericVelocityGroundConstraint {
-    pub fn generate<Bodies>(
+    pub fn generate(
         params: &IntegrationParameters,
         manifold_id: ContactManifoldIndex,
         manifold: &ContactManifold,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibodies: &MultibodyJointSet,
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         jacobians: &mut DVector<Real>,
         jacobian_id: &mut usize,
         insert_at: Option<usize>,
-    ) where
-        Bodies: ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyType>,
-    {
+    ) {
         let inv_dt = params.inv_dt();
         let erp_inv_dt = params.erp_inv_dt();
 

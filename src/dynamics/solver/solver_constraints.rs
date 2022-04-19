@@ -3,15 +3,13 @@ use super::{
 };
 #[cfg(feature = "simd-is-enabled")]
 use super::{WVelocityConstraint, WVelocityGroundConstraint};
-use crate::data::ComponentSet;
 use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
 use crate::dynamics::solver::generic_velocity_ground_constraint::GenericVelocityGroundConstraint;
 use crate::dynamics::solver::GenericVelocityConstraint;
 use crate::dynamics::{
-    solver::AnyVelocityConstraint, IntegrationParameters, JointGraphEdge, JointIndex,
-    MultibodyJointSet, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType,
+    solver::AnyVelocityConstraint, IntegrationParameters, IslandManager, JointGraphEdge,
+    JointIndex, MultibodyJointSet, RigidBodySet,
 };
-use crate::dynamics::{IslandManager, RigidBodyVelocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::Real;
 #[cfg(feature = "simd-is-enabled")]
@@ -55,17 +53,15 @@ impl<VelocityConstraint> SolverConstraints<VelocityConstraint> {
 }
 
 impl SolverConstraints<AnyVelocityConstraint> {
-    pub fn init_constraint_groups<Bodies>(
+    pub fn init_constraint_groups(
         &mut self,
         island_id: usize,
         islands: &IslandManager,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibody_joints: &MultibodyJointSet,
         manifolds: &[&mut ContactManifold],
         manifold_indices: &[ContactManifoldIndex],
-    ) where
-        Bodies: ComponentSet<RigidBodyType> + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         self.not_ground_interactions.clear();
         self.ground_interactions.clear();
         self.generic_not_ground_interactions.clear();
@@ -109,22 +105,16 @@ impl SolverConstraints<AnyVelocityConstraint> {
         //            .append(&mut self.ground_interaction_groups.grouped_interactions);
     }
 
-    pub fn init<Bodies>(
+    pub fn init(
         &mut self,
         island_id: usize,
         params: &IntegrationParameters,
         islands: &IslandManager,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibody_joints: &MultibodyJointSet,
         manifolds: &[&mut ContactManifold],
         manifold_indices: &[ContactManifoldIndex],
-    ) where
-        Bodies: ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyType>,
-    {
+    ) {
         self.velocity_constraints.clear();
 
         self.init_constraint_groups(
@@ -165,17 +155,12 @@ impl SolverConstraints<AnyVelocityConstraint> {
     }
 
     #[cfg(feature = "simd-is-enabled")]
-    fn compute_grouped_constraints<Bodies>(
+    fn compute_grouped_constraints(
         &mut self,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         manifolds_all: &[&mut ContactManifold],
-    ) where
-        Bodies: ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         for manifolds_i in self
             .interaction_groups
             .grouped_interactions
@@ -194,17 +179,12 @@ impl SolverConstraints<AnyVelocityConstraint> {
         }
     }
 
-    fn compute_nongrouped_constraints<Bodies>(
+    fn compute_nongrouped_constraints(
         &mut self,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         manifolds_all: &[&mut ContactManifold],
-    ) where
-        Bodies: ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         for manifold_i in &self.interaction_groups.nongrouped_interactions {
             let manifold = &manifolds_all[*manifold_i];
             VelocityConstraint::generate(
@@ -218,20 +198,14 @@ impl SolverConstraints<AnyVelocityConstraint> {
         }
     }
 
-    fn compute_generic_constraints<Bodies>(
+    fn compute_generic_constraints(
         &mut self,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibody_joints: &MultibodyJointSet,
         manifolds_all: &[&mut ContactManifold],
         jacobian_id: &mut usize,
-    ) where
-        Bodies: ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyType>,
-    {
+    ) {
         for manifold_i in &self.generic_not_ground_interactions {
             let manifold = &manifolds_all[*manifold_i];
             GenericVelocityConstraint::generate(
@@ -248,20 +222,14 @@ impl SolverConstraints<AnyVelocityConstraint> {
         }
     }
 
-    fn compute_generic_ground_constraints<Bodies>(
+    fn compute_generic_ground_constraints(
         &mut self,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibody_joints: &MultibodyJointSet,
         manifolds_all: &[&mut ContactManifold],
         jacobian_id: &mut usize,
-    ) where
-        Bodies: ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyType>,
-    {
+    ) {
         for manifold_i in &self.generic_ground_interactions {
             let manifold = &manifolds_all[*manifold_i];
             GenericVelocityGroundConstraint::generate(
@@ -279,17 +247,12 @@ impl SolverConstraints<AnyVelocityConstraint> {
     }
 
     #[cfg(feature = "simd-is-enabled")]
-    fn compute_grouped_ground_constraints<Bodies>(
+    fn compute_grouped_ground_constraints(
         &mut self,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         manifolds_all: &[&mut ContactManifold],
-    ) where
-        Bodies: ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>,
-    {
+    ) {
         for manifolds_i in self
             .ground_interaction_groups
             .grouped_interactions
@@ -308,17 +271,12 @@ impl SolverConstraints<AnyVelocityConstraint> {
         }
     }
 
-    fn compute_nongrouped_ground_constraints<Bodies>(
+    fn compute_nongrouped_ground_constraints(
         &mut self,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         manifolds_all: &[&mut ContactManifold],
-    ) where
-        Bodies: ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>,
-    {
+    ) {
         for manifold_i in &self.ground_interaction_groups.nongrouped_interactions {
             let manifold = &manifolds_all[*manifold_i];
             VelocityGroundConstraint::generate(
@@ -334,22 +292,16 @@ impl SolverConstraints<AnyVelocityConstraint> {
 }
 
 impl SolverConstraints<AnyJointVelocityConstraint> {
-    pub fn init<Bodies>(
+    pub fn init(
         &mut self,
         island_id: usize,
         params: &IntegrationParameters,
         islands: &IslandManager,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibody_joints: &MultibodyJointSet,
         impulse_joints: &[JointGraphEdge],
         joint_constraint_indices: &[JointIndex],
-    ) where
-        Bodies: ComponentSet<RigidBodyType>
-            + ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyMassProps>,
-    {
+    ) {
         // Generate constraints for impulse_joints.
         self.not_ground_interactions.clear();
         self.ground_interactions.clear();
@@ -464,19 +416,13 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
         }
     }
 
-    fn compute_nongrouped_joint_ground_constraints<Bodies>(
+    fn compute_nongrouped_joint_ground_constraints(
         &mut self,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibody_joints: &MultibodyJointSet,
         joints_all: &[JointGraphEdge],
-    ) where
-        Bodies: ComponentSet<RigidBodyType>
-            + ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         let mut j_id = 0;
         for joint_i in &self.ground_interaction_groups.nongrouped_interactions {
             let joint = &joints_all[*joint_i].weight;
@@ -495,18 +441,12 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
     }
 
     #[cfg(feature = "simd-is-enabled")]
-    fn compute_grouped_joint_ground_constraints<Bodies>(
+    fn compute_grouped_joint_ground_constraints(
         &mut self,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         joints_all: &[JointGraphEdge],
-    ) where
-        Bodies: ComponentSet<RigidBodyType>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         for joints_i in self
             .ground_interaction_groups
             .grouped_interactions
@@ -525,19 +465,14 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
         }
     }
 
-    fn compute_nongrouped_joint_constraints<Bodies>(
+    fn compute_nongrouped_joint_constraints(
         &mut self,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibody_joints: &MultibodyJointSet,
         joints_all: &[JointGraphEdge],
         j_id: &mut usize,
-    ) where
-        Bodies: ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         for joint_i in &self.interaction_groups.nongrouped_interactions {
             let joint = &joints_all[*joint_i].weight;
             AnyJointVelocityConstraint::from_joint(
@@ -554,19 +489,14 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
         }
     }
 
-    fn compute_generic_joint_constraints<Bodies>(
+    fn compute_generic_joint_constraints(
         &mut self,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibody_joints: &MultibodyJointSet,
         joints_all: &[JointGraphEdge],
         j_id: &mut usize,
-    ) where
-        Bodies: ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         for joint_i in &self.generic_not_ground_interactions {
             let joint = &joints_all[*joint_i].weight;
             AnyJointVelocityConstraint::from_joint(
@@ -583,20 +513,14 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
         }
     }
 
-    fn compute_generic_ground_joint_constraints<Bodies>(
+    fn compute_generic_ground_joint_constraints(
         &mut self,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibody_joints: &MultibodyJointSet,
         joints_all: &[JointGraphEdge],
         j_id: &mut usize,
-    ) where
-        Bodies: ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyType>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         for joint_i in &self.generic_ground_interactions {
             let joint = &joints_all[*joint_i].weight;
             AnyJointVelocityConstraint::from_joint_ground(
@@ -614,17 +538,12 @@ impl SolverConstraints<AnyJointVelocityConstraint> {
     }
 
     #[cfg(feature = "simd-is-enabled")]
-    fn compute_grouped_joint_constraints<Bodies>(
+    fn compute_grouped_joint_constraints(
         &mut self,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         joints_all: &[JointGraphEdge],
-    ) where
-        Bodies: ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         for joints_i in self
             .interaction_groups
             .grouped_interactions

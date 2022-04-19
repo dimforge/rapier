@@ -1,8 +1,7 @@
-use crate::data::{BundleSet, ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::MassProperties;
 use crate::geometry::{
     ColliderChanges, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition,
-    ColliderShape,
+    ColliderSet, ColliderShape,
 };
 use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector,
@@ -295,16 +294,12 @@ impl RigidBodyMassProps {
     }
 
     /// Recompute the mass-properties of this rigid-bodies based on its currentely attached colliders.
-    pub fn recompute_mass_properties_from_colliders<Colliders>(
+    pub fn recompute_mass_properties_from_colliders(
         &mut self,
-        colliders: &Colliders,
+        colliders: &ColliderSet,
         attached_colliders: &RigidBodyColliders,
         position: &Isometry<Real>,
-    ) where
-        Colliders: ComponentSetOption<ColliderParent>
-            + ComponentSet<ColliderMassProps>
-            + ComponentSet<ColliderShape>,
-    {
+    ) {
         self.local_mprops = self
             .additional_local_mprops
             .as_ref()
@@ -312,14 +307,14 @@ impl RigidBodyMassProps {
             .unwrap_or_else(MassProperties::default);
 
         for handle in &attached_colliders.0 {
-            let co_parent: Option<&ColliderParent> = colliders.get(handle.0);
-            if let Some(co_parent) = co_parent {
-                let (co_mprops, co_shape): (&ColliderMassProps, &ColliderShape) =
-                    colliders.index_bundle(handle.0);
-                let to_add = co_mprops
-                    .mass_properties(&**co_shape)
-                    .transform_by(&co_parent.pos_wrt_parent);
-                self.local_mprops += to_add;
+            if let Some(co) = colliders.get(handle) {
+                if let Some(co_parent) = co.parent {
+                    let to_add = co
+                        .mprops
+                        .mass_properties(&**co.shape)
+                        .transform_by(&co_parent.pos_wrt_parent);
+                    self.local_mprops += to_add;
+                }
             }
         }
 
@@ -892,16 +887,12 @@ impl RigidBodyColliders {
     }
 
     /// Update the positions of all the colliders attached to this rigid-body.
-    pub fn update_positions<Colliders>(
+    pub fn update_positions(
         &self,
-        colliders: &mut Colliders,
+        colliders: &mut ColliderSet,
         modified_colliders: &mut Vec<ColliderHandle>,
         parent_pos: &Isometry<Real>,
-    ) where
-        Colliders: ComponentSetMut<ColliderPosition>
-            + ComponentSetMut<ColliderChanges>
-            + ComponentSetOption<ColliderParent>,
-    {
+    ) {
         for handle in &self.0 {
             // NOTE: the ColliderParent component must exist if we enter this method.
             let co_parent: &ColliderParent = colliders

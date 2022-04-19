@@ -1,5 +1,4 @@
-use crate::data::ComponentSet;
-use crate::dynamics::{IslandManager, JointGraphEdge, JointIndex, RigidBodyIds};
+use crate::dynamics::{IslandManager, JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
 #[cfg(feature = "simd-is-enabled")]
@@ -62,17 +61,15 @@ impl ParallelInteractionGroups {
         self.groups.len() - 1
     }
 
-    pub fn group_interactions<Bodies, Interaction: PairInteraction>(
+    pub fn group_interactions<Interaction: PairInteraction>(
         &mut self,
         island_id: usize,
         islands: &IslandManager,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibodies: &MultibodyJointSet,
         interactions: &[Interaction],
         interaction_indices: &[usize],
-    ) where
-        Bodies: ComponentSet<RigidBodyIds> + ComponentSet<RigidBodyType>,
-    {
+    ) {
         let num_island_bodies = islands.active_island(island_id).len();
         self.bodies_color.clear();
         self.interaction_indices.clear();
@@ -217,7 +214,7 @@ impl InteractionGroups {
         &mut self,
         _island_id: usize,
         _islands: &IslandManager,
-        _bodies: &impl ComponentSet<RigidBodyIds>,
+        _bodies: &RigidBodySet,
         _interactions: &[JointGraphEdge],
         interaction_indices: &[JointIndex],
     ) {
@@ -226,16 +223,14 @@ impl InteractionGroups {
     }
 
     #[cfg(feature = "simd-is-enabled")]
-    pub fn group_joints<Bodies>(
+    pub fn group_joints(
         &mut self,
         island_id: usize,
         islands: &IslandManager,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         interactions: &[JointGraphEdge],
         interaction_indices: &[JointIndex],
-    ) where
-        Bodies: ComponentSet<RigidBodyType> + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         // TODO: right now, we only sort based on the axes locked by the joint.
         // We could also take motors and limits into account in the future (most of
         // the SIMD constraints generation for motors and limits is already implemented).
@@ -376,7 +371,7 @@ impl InteractionGroups {
         &mut self,
         _island_id: usize,
         _islands: &IslandManager,
-        _bodies: &impl ComponentSet<RigidBodyIds>,
+        _bodies: &RigidBodySet,
         _interactions: &[&mut ContactManifold],
         interaction_indices: &[ContactManifoldIndex],
     ) {
@@ -385,16 +380,14 @@ impl InteractionGroups {
     }
 
     #[cfg(feature = "simd-is-enabled")]
-    pub fn group_manifolds<Bodies>(
+    pub fn group_manifolds(
         &mut self,
         island_id: usize,
         islands: &IslandManager,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         interactions: &[&mut ContactManifold],
         interaction_indices: &[ContactManifoldIndex],
-    ) where
-        Bodies: ComponentSet<RigidBodyType> + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         // Note: each bit of a body mask indicates what bucket already contains
         // a constraints involving this body.
         // TODO: currently, this is a bit overconservative because when a bucket

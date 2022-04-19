@@ -1,10 +1,11 @@
-use crate::data::{BundleSet, ComponentSet};
 use crate::dynamics::solver::{
     GenericVelocityConstraint, GenericVelocityGroundConstraint, VelocityGroundConstraint,
 };
 #[cfg(feature = "simd-is-enabled")]
 use crate::dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint};
-use crate::dynamics::{IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyVelocity};
+use crate::dynamics::{
+    IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodySet, RigidBodyVelocity,
+};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{self, WAngularInertia, WBasis, WCross, WDot};
@@ -144,18 +145,14 @@ impl VelocityConstraint {
         )
     }
 
-    pub fn generate<Bodies>(
+    pub fn generate(
         params: &IntegrationParameters,
         manifold_id: ContactManifoldIndex,
         manifold: &ContactManifold,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         insert_at: Option<usize>,
-    ) where
-        Bodies: ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>,
-    {
+    ) {
         assert_eq!(manifold.data.relative_dominance, 0);
 
         let inv_dt = params.inv_dt();

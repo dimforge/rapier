@@ -1,6 +1,5 @@
 use super::{AnyJointVelocityConstraint, AnyVelocityConstraint, DeltaVel, ThreadContext};
 use crate::concurrent_loop;
-use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
 use crate::dynamics::{
     solver::ParallelSolverConstraints, IntegrationParameters, IslandManager, JointGraphEdge,
     MultibodyJointSet, RigidBodyDamping, RigidBodyForces, RigidBodyIds, RigidBodyMassProps,
@@ -26,27 +25,19 @@ impl ParallelVelocitySolver {
         }
     }
 
-    pub fn solve<Bodies>(
+    pub fn solve(
         &mut self,
         thread: &ThreadContext,
         params: &IntegrationParameters,
         island_id: usize,
         islands: &IslandManager,
-        bodies: &mut Bodies,
+        bodies: &mut RigidBodySet,
         multibodies: &mut MultibodyJointSet,
         manifolds_all: &mut [&mut ContactManifold],
         joints_all: &mut [JointGraphEdge],
         contact_constraints: &mut ParallelSolverConstraints<AnyVelocityConstraint>,
         joint_constraints: &mut ParallelSolverConstraints<AnyJointVelocityConstraint>,
-    ) where
-        Bodies: ComponentSet<RigidBodyForces>
-            + ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyType>
-            + ComponentSetMut<RigidBodyVelocity>
-            + ComponentSetMut<RigidBodyMassProps>
-            + ComponentSetMut<RigidBodyPosition>
-            + ComponentSet<RigidBodyDamping>,
-    {
+    ) {
         let mut start_index = thread
             .solve_interaction_index
             .fetch_add(thread.batch_size, Ordering::SeqCst);

@@ -1,28 +1,15 @@
-use crate::data::{BundleSet, ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::{
-    IslandManager, RigidBodyActivation, RigidBodyChanges, RigidBodyColliders, RigidBodyHandle,
-    RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType,
+    IslandManager, RigidBodyActivation, RigidBodyChanges, RigidBodyHandle, RigidBodyIds,
+    RigidBodyPosition, RigidBodySet, RigidBodyType,
 };
-use crate::geometry::{
-    ColliderChanges, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition,
-    ColliderShape,
-};
+use crate::geometry::{ColliderChanges, ColliderHandle, ColliderPosition, ColliderSet};
 use parry::utils::hashmap::HashMap;
 
-pub(crate) fn handle_user_changes_to_colliders<Bodies, Colliders>(
-    bodies: &mut Bodies,
-    colliders: &mut Colliders,
+pub(crate) fn handle_user_changes_to_colliders(
+    bodies: &mut RigidBodySet,
+    colliders: &mut ColliderSet,
     modified_colliders: &[ColliderHandle],
-) where
-    Bodies: ComponentSet<RigidBodyPosition>
-        + ComponentSet<RigidBodyColliders>
-        + ComponentSetMut<RigidBodyMassProps>,
-    Colliders: ComponentSetMut<ColliderChanges>
-        + ComponentSetMut<ColliderPosition>
-        + ComponentSetOption<ColliderParent>
-        + ComponentSet<ColliderShape>
-        + ComponentSet<ColliderMassProps>,
-{
+) {
     // TODO: avoid this hashmap? We could perhaps add a new flag to RigidBodyChanges to
     //       indicated that the mass properties need to be recomputed?
     let mut mprops_to_update = HashMap::default();
@@ -30,25 +17,20 @@ pub(crate) fn handle_user_changes_to_colliders<Bodies, Colliders>(
     for handle in modified_colliders {
         // NOTE: we use `get` because the collider may no longer
         //       exist if it has been removed.
-        let co_changes: Option<ColliderChanges> = colliders.get(handle.0).copied();
-
-        if let Some(co_changes) = co_changes {
-            if co_changes.contains(ColliderChanges::PARENT) {
-                let co_parent: Option<&ColliderParent> = colliders.get(handle.0);
-
-                if let Some(co_parent) = co_parent {
+        if let Some(co) = colliders.get(*handle) {
+            if co.changes.contains(ColliderChanges::PARENT) {
+                if let Some(co_parent) = co.parent {
                     let parent_pos: &RigidBodyPosition = bodies.index(co_parent.handle.0);
 
                     let new_pos = parent_pos.position * co_parent.pos_wrt_parent;
-                    let new_changes = co_changes | ColliderChanges::POSITION;
+                    let new_changes = co.changes | ColliderChanges::POSITION;
                     colliders.set_internal(handle.0, ColliderPosition(new_pos));
                     colliders.set_internal(handle.0, new_changes);
                 }
             }
 
-            if co_changes.contains(ColliderChanges::SHAPE) {
-                let co_parent: Option<&ColliderParent> = colliders.get(handle.0);
-                if let Some(co_parent) = co_parent {
+            if co.changes.contains(ColliderChanges::SHAPE) {
+                if let Some(co_parent) = co.parent {
                     mprops_to_update.insert(co_parent.handle, ());
                 }
             }
@@ -56,11 +38,10 @@ pub(crate) fn handle_user_changes_to_colliders<Bodies, Colliders>(
     }
 
     for (to_update, _) in mprops_to_update {
-        let (rb_pos, rb_colliders): (&RigidBodyPosition, &RigidBodyColliders) =
-            bodies.index_bundle(to_update.0);
-        let position = rb_pos.position;
+        let rb = &bodies[to_update];
+        let position = rb.position();
         // FIXME: remove the clone once we remove the ComponentSets.
-        let attached_colliders = rb_colliders.clone();
+        let attached_colliders = rb.colliders().clone();
 
         bodies.map_mut_internal(to_update.0, |rb_mprops| {
             rb_mprops.recompute_mass_properties_from_colliders(
@@ -72,23 +53,13 @@ pub(crate) fn handle_user_changes_to_colliders<Bodies, Colliders>(
     }
 }
 
-pub(crate) fn handle_user_changes_to_rigid_bodies<Bodies, Colliders>(
+pub(crate) fn handle_user_changes_to_rigid_bodies(
     mut islands: Option<&mut IslandManager>,
-    bodies: &mut Bodies,
-    colliders: &mut Colliders,
+    bodies: &mut RigidBodySet,
+    colliders: &mut ColliderSet,
     modified_bodies: &[RigidBodyHandle],
     modified_colliders: &mut Vec<ColliderHandle>,
-) where
-    Bodies: ComponentSetMut<RigidBodyChanges>
-        + ComponentSet<RigidBodyType>
-        + ComponentSetMut<RigidBodyIds>
-        + ComponentSetMut<RigidBodyActivation>
-        + ComponentSet<RigidBodyColliders>
-        + ComponentSet<RigidBodyPosition>,
-    Colliders: ComponentSetMut<ColliderPosition>
-        + ComponentSetMut<ColliderChanges>
-        + ComponentSetOption<ColliderParent>,
-{
+) {
     enum FinalAction {
         UpdateActiveKinematicSetId,
         UpdateActiveDynamicSetId,
@@ -96,28 +67,23 @@ pub(crate) fn handle_user_changes_to_rigid_bodies<Bodies, Colliders>(
 
     for handle in modified_bodies {
         let mut final_action = None;
-        let changes: Option<&RigidBodyChanges> = bodies.get(handle.0);
 
-        if changes.is_none() {
+        if !bodies.contains(*handle) {
             // The body no longer exists.
             continue;
         }
 
-        let mut changes = *changes.unwrap();
-        let mut ids: RigidBodyIds = *bodies.index(handle.0);
-        let mut activation: RigidBodyActivation = *bodies.index(handle.0);
-        let (status, rb_colliders, poss): (
-            &RigidBodyType,
-            &RigidBodyColliders,
-            &RigidBodyPosition,
-        ) = bodies.index_bundle(handle.0);
+        let rb = &bodies[handle];
+        let mut changes = rb.changes;
+        let mut ids: RigidBodyIds = rb.ids;
+        let mut activation: RigidBodyActivation = rb.activation;
 
         {
             // The body's status changed. We need to make sure
             // it is on the correct active set.
             if let Some(islands) = islands.as_deref_mut() {
                 if changes.contains(RigidBodyChanges::TYPE) {
-                    match status {
+                    match rb.status {
                         RigidBodyType::Dynamic => {
                             // Remove from the active kinematic set if it was there.
                             if islands.active_kinematic_set.get(ids.active_set_id) == Some(handle) {
@@ -161,9 +127,10 @@ pub(crate) fn handle_user_changes_to_rigid_bodies<Bodies, Colliders>(
                 if changes.contains(RigidBodyChanges::POSITION)
                     || changes.contains(RigidBodyChanges::COLLIDERS)
                 {
-                    rb_colliders.update_positions(colliders, modified_colliders, &poss.position);
+                    rb.colliders
+                        .update_positions(colliders, modified_colliders, &rb.pos.position);
 
-                    if status.is_kinematic()
+                    if rb.is_kinematic()
                         && islands.active_kinematic_set.get(ids.active_set_id) != Some(handle)
                     {
                         ids.active_set_id = islands.active_kinematic_set.len();
@@ -175,7 +142,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies<Bodies, Colliders>(
                 // sleeping and if it is not already inside of the active set.
                 if changes.contains(RigidBodyChanges::SLEEP)
                     && !activation.sleeping // May happen if the body was put to sleep manually.
-                    && status.is_dynamic() // Only dynamic bodies are in the active dynamic set.
+                    && rb.is_dynamic() // Only dynamic bodies are in the active dynamic set.
                     && islands.active_dynamic_set.get(ids.active_set_id) != Some(handle)
                 {
                     ids.active_set_id = islands.active_dynamic_set.len(); // This will handle the case where the activation_channel contains duplicates.
@@ -186,14 +153,15 @@ pub(crate) fn handle_user_changes_to_rigid_bodies<Bodies, Colliders>(
                 if changes.contains(RigidBodyChanges::POSITION)
                     || changes.contains(RigidBodyChanges::COLLIDERS)
                 {
-                    rb_colliders.update_positions(colliders, modified_colliders, &poss.position);
+                    rb.colliders
+                        .update_positions(colliders, modified_colliders, &rb.pos.position);
                 }
             }
 
             if changes.contains(RigidBodyChanges::DOMINANCE)
                 || changes.contains(RigidBodyChanges::TYPE)
             {
-                for handle in rb_colliders.0.iter() {
+                for handle in rb.colliders.0.iter() {
                     colliders.map_mut_internal(handle.0, |co_changes: &mut ColliderChanges| {
                         if !co_changes.contains(ColliderChanges::MODIFIED) {
                             modified_colliders.push(*handle);

@@ -1,11 +1,6 @@
 use crate::data::arena::Arena;
-use crate::data::{ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::{IslandManager, RigidBodyHandle, RigidBodySet};
-use crate::geometry::{
-    Collider, ColliderBroadPhaseData, ColliderFlags, ColliderMassProps, ColliderMaterial,
-    ColliderParent, ColliderPosition, ColliderShape, ColliderType,
-};
-use crate::geometry::{ColliderChanges, ColliderHandle};
+use crate::geometry::{Collider, ColliderChanges, ColliderHandle, ColliderParent};
 use crate::math::Isometry;
 use std::ops::{Index, IndexMut};
 
@@ -16,63 +11,6 @@ pub struct ColliderSet {
     pub(crate) colliders: Arena<Collider>,
     pub(crate) modified_colliders: Vec<ColliderHandle>,
     pub(crate) removed_colliders: Vec<ColliderHandle>,
-}
-
-macro_rules! impl_field_component_set(
-    ($T: ty, $field: ident) => {
-        impl ComponentSetOption<$T> for ColliderSet {
-            fn get(&self, handle: crate::data::Index) -> Option<&$T> {
-                self.get(ColliderHandle(handle)).map(|b| &b.$field)
-            }
-        }
-
-        impl ComponentSet<$T> for ColliderSet {
-            fn size_hint(&self) -> usize {
-                self.len()
-            }
-
-            #[inline(always)]
-            fn for_each(&self, mut f: impl FnMut(crate::data::Index, &$T)) {
-                for (handle, body) in self.colliders.iter() {
-                    f(handle, &body.$field)
-                }
-            }
-        }
-
-        impl ComponentSetMut<$T> for ColliderSet {
-            fn set_internal(&mut self, handle: crate::data::Index, val: $T) {
-                if let Some(rb) = self.get_mut_internal(ColliderHandle(handle)) {
-                    rb.$field = val;
-                }
-            }
-
-            #[inline(always)]
-            fn map_mut_internal<Result>(
-                &mut self,
-                handle: crate::data::Index,
-                f: impl FnOnce(&mut $T) -> Result,
-            ) -> Option<Result> {
-                self.get_mut_internal(ColliderHandle(handle)).map(|rb| f(&mut rb.$field))
-            }
-        }
-    }
-);
-
-impl_field_component_set!(ColliderType, co_type);
-impl_field_component_set!(ColliderShape, co_shape);
-impl_field_component_set!(ColliderMassProps, co_mprops);
-impl_field_component_set!(ColliderChanges, co_changes);
-impl_field_component_set!(ColliderPosition, co_pos);
-impl_field_component_set!(ColliderMaterial, co_material);
-impl_field_component_set!(ColliderFlags, co_flags);
-impl_field_component_set!(ColliderBroadPhaseData, co_bf_data);
-
-impl ComponentSetOption<ColliderParent> for ColliderSet {
-    #[inline(always)]
-    fn get(&self, handle: crate::data::Index) -> Option<&ColliderParent> {
-        self.get(ColliderHandle(handle))
-            .and_then(|b| b.co_parent.as_ref())
-    }
 }
 
 impl ColliderSet {

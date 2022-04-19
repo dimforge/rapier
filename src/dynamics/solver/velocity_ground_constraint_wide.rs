@@ -2,7 +2,6 @@ use super::{
     AnyVelocityConstraint, DeltaVel, VelocityGroundConstraintElement,
     VelocityGroundConstraintNormalPart,
 };
-use crate::data::ComponentSet;
 use crate::dynamics::{IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyVelocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
@@ -29,18 +28,14 @@ pub(crate) struct WVelocityGroundConstraint {
 }
 
 impl WVelocityGroundConstraint {
-    pub fn generate<Bodies>(
+    pub fn generate(
         params: &IntegrationParameters,
         manifold_id: [ContactManifoldIndex; SIMD_WIDTH],
         manifolds: [&ContactManifold; SIMD_WIDTH],
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         insert_at: Option<usize>,
-    ) where
-        Bodies: ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>,
-    {
+    ) {
         let inv_dt = SimdReal::splat(params.inv_dt());
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
         let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());

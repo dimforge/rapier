@@ -1,8 +1,7 @@
-use crate::data::{Arena, Coarena, ComponentSet, ComponentSetMut, Index};
+use crate::data::{Arena, Coarena, Index};
 use crate::dynamics::joint::MultibodyLink;
 use crate::dynamics::{
-    GenericJoint, IslandManager, Multibody, MultibodyJoint, RigidBodyActivation, RigidBodyHandle,
-    RigidBodyIds, RigidBodyType,
+    GenericJoint, IslandManager, Multibody, MultibodyJoint, RigidBodyHandle, RigidBodySet,
 };
 use crate::geometry::{InteractionGraph, RigidBodyGraphIndex};
 use crate::parry::partitioning::IndexedData;
@@ -163,17 +162,13 @@ impl MultibodyJointSet {
     }
 
     /// Removes an multibody_joint from this set.
-    pub fn remove<Bodies>(
+    pub fn remove(
         &mut self,
         handle: MultibodyJointHandle,
         islands: &mut IslandManager,
-        bodies: &mut Bodies,
+        bodies: &mut RigidBodySet,
         wake_up: bool,
-    ) where
-        Bodies: ComponentSetMut<RigidBodyActivation>
-            + ComponentSet<RigidBodyType>
-            + ComponentSetMut<RigidBodyIds>,
-    {
+    ) {
         if let Some(removed) = self.rb2mb.get(handle.0).copied() {
             let multibody = self.multibodies.remove(removed.multibody.0).unwrap();
 
@@ -216,17 +211,13 @@ impl MultibodyJointSet {
     }
 
     /// Removes all the multibody_joints from the multibody the given rigid-body is part of.
-    pub fn remove_multibody_articulations<Bodies>(
+    pub fn remove_multibody_articulations(
         &mut self,
         handle: RigidBodyHandle,
         islands: &mut IslandManager,
-        bodies: &mut Bodies,
+        bodies: &mut RigidBodySet,
         wake_up: bool,
-    ) where
-        Bodies: ComponentSetMut<RigidBodyActivation>
-            + ComponentSet<RigidBodyType>
-            + ComponentSetMut<RigidBodyIds>,
-    {
+    ) {
         if let Some(removed) = self.rb2mb.get(handle.0).copied() {
             // Remove the multibody.
             let multibody = self.multibodies.remove(removed.multibody.0).unwrap();
@@ -248,16 +239,12 @@ impl MultibodyJointSet {
     }
 
     /// Removes all the multibody joints attached to a rigid-body.
-    pub fn remove_joints_attached_to_rigid_body<Bodies>(
+    pub fn remove_joints_attached_to_rigid_body(
         &mut self,
         rb_to_remove: RigidBodyHandle,
         islands: &mut IslandManager,
-        bodies: &mut Bodies,
-    ) where
-        Bodies: ComponentSetMut<RigidBodyActivation>
-            + ComponentSet<RigidBodyType>
-            + ComponentSetMut<RigidBodyIds>,
-    {
+        bodies: &mut RigidBodySet,
+    ) {
         // TODO: optimize this.
         if let Some(link_to_remove) = self.rb2mb.get(rb_to_remove.0).copied() {
             let mut articulations_to_remove = vec![];

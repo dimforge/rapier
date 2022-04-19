@@ -1,10 +1,8 @@
 use super::multibody_link::{MultibodyLink, MultibodyLinkVec};
 use super::multibody_workspace::MultibodyWorkspace;
-use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
-use crate::dynamics::solver::AnyJointVelocityConstraint;
 use crate::dynamics::{
-    IntegrationParameters, RigidBodyForces, RigidBodyHandle, RigidBodyMassProps, RigidBodyPosition,
-    RigidBodyType, RigidBodyVelocity,
+    solver::AnyJointVelocityConstraint, IntegrationParameters, RigidBodyForces, RigidBodyHandle,
+    RigidBodyMassProps, RigidBodySet, RigidBodyType, RigidBodyVelocity,
 };
 #[cfg(feature = "dim3")]
 use crate::math::Matrix;
@@ -369,12 +367,7 @@ impl Multibody {
             .extend((0..num_jacobians).map(|_| Jacobian::zeros(0)));
     }
 
-    pub(crate) fn update_acceleration<Bodies>(&mut self, bodies: &Bodies)
-    where
-        Bodies: ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyForces>
-            + ComponentSet<RigidBodyVelocity>,
-    {
+    pub(crate) fn update_acceleration(&mut self, bodies: &RigidBodySet) {
         if self.ndofs == 0 {
             return; // Nothing to do.
         }
@@ -452,10 +445,7 @@ impl Multibody {
     }
 
     /// Computes the constant terms of the dynamics.
-    pub(crate) fn update_dynamics<Bodies>(&mut self, dt: Real, bodies: &mut Bodies)
-    where
-        Bodies: ComponentSetMut<RigidBodyVelocity> + ComponentSet<RigidBodyMassProps>,
-    {
+    pub(crate) fn update_dynamics(&mut self, dt: Real, bodies: &mut RigidBodySet) {
         /*
          * Compute velocities.
          * NOTE: this is needed for kinematic bodies too.
@@ -545,10 +535,7 @@ impl Multibody {
         }
     }
 
-    fn update_inertias<Bodies>(&mut self, dt: Real, bodies: &Bodies)
-    where
-        Bodies: ComponentSet<RigidBodyMassProps> + ComponentSet<RigidBodyVelocity>,
-    {
+    fn update_inertias(&mut self, dt: Real, bodies: &RigidBodySet) {
         if self.ndofs == 0 {
             return; // Nothing to do.
         }
@@ -790,17 +777,11 @@ impl Multibody {
         }
     }
 
-    pub(crate) fn update_root_type<Bodies>(&mut self, bodies: &mut Bodies)
-    where
-        Bodies: ComponentSet<RigidBodyType> + ComponentSet<RigidBodyPosition>,
-    {
-        let rb_type: Option<&RigidBodyType> = bodies.get(self.links[0].rigid_body.0);
-        if let Some(rb_type) = rb_type {
-            let rb_pos: &RigidBodyPosition = bodies.index(self.links[0].rigid_body.0);
-
-            if rb_type.is_dynamic() != self.root_is_dynamic {
-                if rb_type.is_dynamic() {
-                    let free_joint = MultibodyJoint::free(rb_pos.position);
+    pub(crate) fn update_root_type(&mut self, bodies: &mut RigidBodySet) {
+        if let Some(rb) = bodies.get(self.links[0].rigid_body) {
+            if rb.is_dynamic() != self.root_is_dynamic {
+                if rb.is_dynamic() {
+                    let free_joint = MultibodyJoint::free(*rb.position());
                     let prev_root_ndofs = self.links[0].joint().ndofs();
                     self.links[0].joint = free_joint;
                     self.links[0].assembly_id = 0;
@@ -819,7 +800,7 @@ impl Multibody {
                     assert!(self.damping.len() >= SPATIAL_DIM);
                     assert!(self.accelerations.len() >= SPATIAL_DIM);
 
-                    let fixed_joint = MultibodyJoint::fixed(rb_pos.position);
+                    let fixed_joint = MultibodyJoint::fixed(*rb.position());
                     let prev_root_ndofs = self.links[0].joint().ndofs();
                     self.links[0].joint = fixed_joint;
                     self.links[0].assembly_id = 0;
@@ -844,39 +825,31 @@ impl Multibody {
                     }
                 }
 
-                self.root_is_dynamic = rb_type.is_dynamic();
+                self.root_is_dynamic = rb.is_dynamic();
             }
 
             // Make sure the positions are properly set to match the rigid-body’s.
             if self.links[0].joint.data.locked_axes.is_empty() {
-                self.links[0].joint.set_free_pos(rb_pos.position);
+                self.links[0].joint.set_free_pos(*rb.position());
             } else {
-                self.links[0].joint.data.local_frame1 = rb_pos.position;
+                self.links[0].joint.data.local_frame1 = *rb.position();
             }
         }
     }
 
     /// Apply forward-kinematics to this multibody and its related rigid-bodies.
-    pub fn forward_kinematics<Bodies>(&mut self, bodies: &mut Bodies, update_mass_props: bool)
-    where
-        Bodies: ComponentSet<RigidBodyType>
-            + ComponentSetMut<RigidBodyMassProps>
-            + ComponentSetMut<RigidBodyPosition>,
-    {
+    pub fn forward_kinematics(&mut self, bodies: &mut RigidBodySet, update_mass_props: bool) {
         // Special case for the root, which has no parent.
         {
             let link = &mut self.links[0];
             link.local_to_parent = link.joint.body_to_parent();
             link.local_to_world = link.local_to_parent;
 
-            bodies.map_mut_internal(link.rigid_body.0, |rb_pos: &mut RigidBodyPosition| {
-                rb_pos.next_position = link.local_to_world;
-            });
-
-            if update_mass_props {
-                bodies.map_mut_internal(link.rigid_body.0, |mprops: &mut RigidBodyMassProps| {
-                    mprops.update_world_mass_properties(&link.local_to_world)
-                });
+            if let Some(rb) = bodies.get_mut_internal(link.rigid_body) {
+                rb.pos.next_position = link.local_to_world;
+                if update_mass_props {
+                    rb.mprops.update_world_mass_properties(&link.local_to_world);
+                }
             }
         }
 
@@ -888,32 +861,30 @@ impl Multibody {
             link.local_to_world = parent_link.local_to_world * link.local_to_parent;
 
             {
-                let parent_rb_mprops: &RigidBodyMassProps = bodies.index(parent_link.rigid_body.0);
-                let rb_mprops: &RigidBodyMassProps = bodies.index(link.rigid_body.0);
-                let c0 = parent_link.local_to_world * parent_rb_mprops.local_mprops.local_com;
+                let parent_rb = &bodies[parent_link.rigid_body];
+                let link_rb = &bodies[link.rigid_body];
+                let c0 = parent_link.local_to_world * parent_rb.mprops.local_mprops.local_com;
                 let c2 = link.local_to_world
                     * Point::from(link.joint.data.local_frame2.translation.vector);
-                let c3 = link.local_to_world * rb_mprops.local_mprops.local_com;
+                let c3 = link.local_to_world * link_rb.mprops.local_mprops.local_com;
 
                 link.shift02 = c2 - c0;
                 link.shift23 = c3 - c2;
             }
 
-            bodies.map_mut_internal(link.rigid_body.0, |rb_pos: &mut RigidBodyPosition| {
-                rb_pos.next_position = link.local_to_world;
-            });
+            let link_rb = bodies.index_mut_internal(link.rigid_body);
+            link_rb.pos.next_position = link.local_to_world;
 
-            let rb_type: &RigidBodyType = bodies.index(link.rigid_body.0);
             assert_eq!(
-                *rb_type,
+                link_rb.body_type,
                 RigidBodyType::Dynamic,
                 "A rigid-body that is not at the root of a multibody must be dynamic."
             );
 
             if update_mass_props {
-                bodies.map_mut_internal(link.rigid_body.0, |rb_mprops: &mut RigidBodyMassProps| {
-                    rb_mprops.update_world_mass_properties(&link.local_to_world)
-                });
+                link_rb
+                    .mprops
+                    .update_world_mass_properties(&link.local_to_world);
             }
         }
 

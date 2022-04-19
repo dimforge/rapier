@@ -17,21 +17,21 @@ use num::Zero;
 /// To create a new rigid-body, use the `RigidBodyBuilder` structure.
 #[derive(Debug, Clone)]
 pub struct RigidBody {
-    pub(crate) rb_pos: RigidBodyPosition,
-    pub(crate) rb_mprops: RigidBodyMassProps,
-    pub(crate) rb_vels: RigidBodyVelocity,
-    pub(crate) rb_damping: RigidBodyDamping,
-    pub(crate) rb_forces: RigidBodyForces,
-    pub(crate) rb_ccd: RigidBodyCcd,
-    pub(crate) rb_ids: RigidBodyIds,
-    pub(crate) rb_colliders: RigidBodyColliders,
+    pub(crate) pos: RigidBodyPosition,
+    pub(crate) mprops: RigidBodyMassProps,
+    pub(crate) vels: RigidBodyVelocity,
+    pub(crate) damping: RigidBodyDamping,
+    pub(crate) forces: RigidBodyForces,
+    pub(crate) ccd: RigidBodyCcd,
+    pub(crate) ids: RigidBodyIds,
+    pub(crate) colliders: RigidBodyColliders,
     /// Whether or not this rigid-body is sleeping.
-    pub(crate) rb_activation: RigidBodyActivation,
+    pub(crate) activation: RigidBodyActivation,
     pub(crate) changes: RigidBodyChanges,
     /// The status of the body, governing how it is affected by external forces.
-    pub(crate) rb_type: RigidBodyType,
+    pub(crate) body_type: RigidBodyType,
     /// The dominance group this rigid-body is part of.
-    pub(crate) rb_dominance: RigidBodyDominance,
+    pub(crate) dominance: RigidBodyDominance,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
 }
@@ -45,75 +45,75 @@ impl Default for RigidBody {
 impl RigidBody {
     fn new() -> Self {
         Self {
-            rb_pos: RigidBodyPosition::default(),
-            rb_mprops: RigidBodyMassProps::default(),
-            rb_vels: RigidBodyVelocity::default(),
-            rb_damping: RigidBodyDamping::default(),
-            rb_forces: RigidBodyForces::default(),
-            rb_ccd: RigidBodyCcd::default(),
-            rb_ids: RigidBodyIds::default(),
-            rb_colliders: RigidBodyColliders::default(),
-            rb_activation: RigidBodyActivation::active(),
+            pos: RigidBodyPosition::default(),
+            mprops: RigidBodyMassProps::default(),
+            vels: RigidBodyVelocity::default(),
+            damping: RigidBodyDamping::default(),
+            forces: RigidBodyForces::default(),
+            ccd: RigidBodyCcd::default(),
+            ids: RigidBodyIds::default(),
+            colliders: RigidBodyColliders::default(),
+            activation: RigidBodyActivation::active(),
             changes: RigidBodyChanges::all(),
-            rb_type: RigidBodyType::Dynamic,
-            rb_dominance: RigidBodyDominance::default(),
+            body_type: RigidBodyType::Dynamic,
+            dominance: RigidBodyDominance::default(),
             user_data: 0,
         }
     }
 
     pub(crate) fn reset_internal_references(&mut self) {
-        self.rb_colliders.0 = Vec::new();
-        self.rb_ids = Default::default();
+        self.colliders.0 = Vec::new();
+        self.ids = Default::default();
     }
 
     /// The activation status of this rigid-body.
     pub fn activation(&self) -> &RigidBodyActivation {
-        &self.rb_activation
+        &self.activation
     }
 
     /// Mutable reference to the activation status of this rigid-body.
     pub fn activation_mut(&mut self) -> &mut RigidBodyActivation {
         self.changes |= RigidBodyChanges::SLEEP;
-        &mut self.rb_activation
+        &mut self.activation
     }
 
     /// The linear damping coefficient of this rigid-body.
     #[inline]
     pub fn linear_damping(&self) -> Real {
-        self.rb_damping.linear_damping
+        self.damping.linear_damping
     }
 
     /// Sets the linear damping coefficient of this rigid-body.
     #[inline]
     pub fn set_linear_damping(&mut self, damping: Real) {
-        self.rb_damping.linear_damping = damping;
+        self.damping.linear_damping = damping;
     }
 
     /// The angular damping coefficient of this rigid-body.
     #[inline]
     pub fn angular_damping(&self) -> Real {
-        self.rb_damping.angular_damping
+        self.damping.angular_damping
     }
 
     /// Sets the angular damping coefficient of this rigid-body.
     #[inline]
     pub fn set_angular_damping(&mut self, damping: Real) {
-        self.rb_damping.angular_damping = damping
+        self.damping.angular_damping = damping
     }
 
     /// The type of this rigid-body.
     pub fn body_type(&self) -> RigidBodyType {
-        self.rb_type
+        self.body_type
     }
 
     /// Sets the type of this rigid-body.
     pub fn set_body_type(&mut self, status: RigidBodyType) {
-        if status != self.rb_type {
+        if status != self.body_type {
             self.changes.insert(RigidBodyChanges::TYPE);
-            self.rb_type = status;
+            self.body_type = status;
 
             if status == RigidBodyType::Fixed {
-                self.rb_vels = RigidBodyVelocity::zero();
+                self.vels = RigidBodyVelocity::zero();
             }
         }
     }
@@ -121,7 +121,7 @@ impl RigidBody {
     /// The mass properties of this rigid-body.
     #[inline]
     pub fn mass_properties(&self) -> &MassProperties {
-        &self.rb_mprops.local_mprops
+        &self.mprops.local_mprops
     }
 
     /// The dominance group of this rigid-body.
@@ -130,18 +130,18 @@ impl RigidBody {
     /// rigid-bodies.
     #[inline]
     pub fn effective_dominance_group(&self) -> i16 {
-        self.rb_dominance.effective_group(&self.rb_type)
+        self.dominance.effective_group(&self.body_type)
     }
 
     /// Sets the axes along which this rigid-body cannot translate or rotate.
     #[inline]
     pub fn set_locked_axes(&mut self, locked_axes: LockedAxes, wake_up: bool) {
-        if locked_axes != self.rb_mprops.flags {
+        if locked_axes != self.mprops.flags {
             if self.is_dynamic() && wake_up {
                 self.wake_up(true);
             }
 
-            self.rb_mprops.flags = locked_axes;
+            self.mprops.flags = locked_axes;
             self.update_world_mass_properties();
         }
     }
@@ -149,20 +149,14 @@ impl RigidBody {
     #[inline]
     /// Locks or unlocks all the rotations of this rigid-body.
     pub fn lock_rotations(&mut self, locked: bool, wake_up: bool) {
-        if !self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED) {
+        if !self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED) {
             if self.is_dynamic() && wake_up {
                 self.wake_up(true);
             }
 
-            self.rb_mprops
-                .flags
-                .set(LockedAxes::ROTATION_LOCKED_X, locked);
-            self.rb_mprops
-                .flags
-                .set(LockedAxes::ROTATION_LOCKED_Y, locked);
-            self.rb_mprops
-                .flags
-                .set(LockedAxes::ROTATION_LOCKED_Z, locked);
+            self.mprops.flags.set(LockedAxes::ROTATION_LOCKED_X, locked);
+            self.mprops.flags.set(LockedAxes::ROTATION_LOCKED_Y, locked);
+            self.mprops.flags.set(LockedAxes::ROTATION_LOCKED_Z, locked);
             self.update_world_mass_properties();
         }
     }
@@ -176,21 +170,21 @@ impl RigidBody {
         allow_rotations_z: bool,
         wake_up: bool,
     ) {
-        if self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_X) != !allow_rotations_x
-            || self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Y) != !allow_rotations_y
-            || self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z) != !allow_rotations_z
+        if self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_X) != !allow_rotations_x
+            || self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Y) != !allow_rotations_y
+            || self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z) != !allow_rotations_z
         {
             if self.is_dynamic() && wake_up {
                 self.wake_up(true);
             }
 
-            self.rb_mprops
+            self.mprops
                 .flags
                 .set(LockedAxes::ROTATION_LOCKED_X, !allow_rotations_x);
-            self.rb_mprops
+            self.mprops
                 .flags
                 .set(LockedAxes::ROTATION_LOCKED_Y, !allow_rotations_y);
-            self.rb_mprops
+            self.mprops
                 .flags
                 .set(LockedAxes::ROTATION_LOCKED_Z, !allow_rotations_z);
             self.update_world_mass_properties();
@@ -200,16 +194,12 @@ impl RigidBody {
     #[inline]
     /// Locks or unlocks all the rotations of this rigid-body.
     pub fn lock_translations(&mut self, locked: bool, wake_up: bool) {
-        if !self
-            .rb_mprops
-            .flags
-            .contains(LockedAxes::TRANSLATION_LOCKED)
-        {
+        if !self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED) {
             if self.is_dynamic() && wake_up {
                 self.wake_up(true);
             }
 
-            self.rb_mprops
+            self.mprops
                 .flags
                 .set(LockedAxes::TRANSLATION_LOCKED, locked);
             self.update_world_mass_properties();
@@ -226,36 +216,16 @@ impl RigidBody {
         wake_up: bool,
     ) {
         #[cfg(feature = "dim2")]
-        if self
-            .rb_mprops
-            .flags
-            .contains(LockedAxes::TRANSLATION_LOCKED_X)
-            == !allow_translation_x
-            && self
-                .rb_mprops
-                .flags
-                .contains(LockedAxes::TRANSLATION_LOCKED_Y)
-                == !allow_translation_y
+        if self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_X) == !allow_translation_x
+            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Y) == !allow_translation_y
         {
             // Nothing to change.
             return;
         }
         #[cfg(feature = "dim3")]
-        if self
-            .rb_mprops
-            .flags
-            .contains(LockedAxes::TRANSLATION_LOCKED_X)
-            == !allow_translation_x
-            && self
-                .rb_mprops
-                .flags
-                .contains(LockedAxes::TRANSLATION_LOCKED_Y)
-                == !allow_translation_y
-            && self
-                .rb_mprops
-                .flags
-                .contains(LockedAxes::TRANSLATION_LOCKED_Z)
-                == !allow_translation_z
+        if self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_X) == !allow_translation_x
+            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Y) == !allow_translation_y
+            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Z) == !allow_translation_z
         {
             // Nothing to change.
             return;
@@ -265,14 +235,14 @@ impl RigidBody {
             self.wake_up(true);
         }
 
-        self.rb_mprops
+        self.mprops
             .flags
             .set(LockedAxes::TRANSLATION_LOCKED_X, !allow_translation_x);
-        self.rb_mprops
+        self.mprops
             .flags
             .set(LockedAxes::TRANSLATION_LOCKED_Y, !allow_translation_y);
         #[cfg(feature = "dim3")]
-        self.rb_mprops
+        self.mprops
             .flags
             .set(LockedAxes::TRANSLATION_LOCKED_Z, !allow_translation_z);
         self.update_world_mass_properties();
@@ -281,7 +251,7 @@ impl RigidBody {
     /// Are the translations of this rigid-body locked?
     #[cfg(feature = "dim2")]
     pub fn is_translation_locked(&self) -> bool {
-        self.rb_mprops
+        self.mprops
             .flags
             .contains(LockedAxes::TRANSLATION_LOCKED_X | LockedAxes::TRANSLATION_LOCKED_Y)
     }
@@ -289,24 +259,22 @@ impl RigidBody {
     /// Are the translations of this rigid-body locked?
     #[cfg(feature = "dim3")]
     pub fn is_translation_locked(&self) -> bool {
-        self.rb_mprops
-            .flags
-            .contains(LockedAxes::TRANSLATION_LOCKED)
+        self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED)
     }
 
     /// Are the rotations of this rigid-body locked?
     #[cfg(feature = "dim2")]
     pub fn is_rotation_locked(&self) -> bool {
-        self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z)
+        self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z)
     }
 
     /// Returns `true` for each rotational degrees of freedom locked on this rigid-body.
     #[cfg(feature = "dim3")]
     pub fn is_rotation_locked(&self) -> [bool; 3] {
         [
-            self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_X),
-            self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Y),
-            self.rb_mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z),
+            self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_X),
+            self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Y),
+            self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z),
         ]
     }
 
@@ -314,12 +282,12 @@ impl RigidBody {
     ///
     /// CCD prevents tunneling, but may still allow limited interpenetration of colliders.
     pub fn enable_ccd(&mut self, enabled: bool) {
-        self.rb_ccd.ccd_enabled = enabled;
+        self.ccd.ccd_enabled = enabled;
     }
 
     /// Is CCD (continous collision-detection) enabled for this rigid-body?
     pub fn is_ccd_enabled(&self) -> bool {
-        self.rb_ccd.ccd_enabled
+        self.ccd.ccd_enabled
     }
 
     // This is different from `is_ccd_enabled`. This checks that CCD
@@ -334,7 +302,7 @@ impl RigidBody {
     /// checks if CCD is allowed to run for this rigid-body or if
     /// it is completely disabled (independently from its velocity).
     pub fn is_ccd_active(&self) -> bool {
-        self.rb_ccd.ccd_active
+        self.ccd.ccd_active
     }
 
     /// Sets the rigid-body's initial mass properties.
@@ -343,47 +311,47 @@ impl RigidBody {
     /// put to sleep because it did not move for a while.
     #[inline]
     pub fn set_mass_properties(&mut self, props: MassProperties, wake_up: bool) {
-        if self.rb_mprops.local_mprops != props {
+        if self.mprops.local_mprops != props {
             if self.is_dynamic() && wake_up {
                 self.wake_up(true);
             }
 
-            self.rb_mprops.local_mprops = props;
+            self.mprops.local_mprops = props;
             self.update_world_mass_properties();
         }
     }
 
     /// The handles of colliders attached to this rigid body.
     pub fn colliders(&self) -> &[ColliderHandle] {
-        &self.rb_colliders.0[..]
+        &self.colliders.0[..]
     }
 
     /// Is this rigid body dynamic?
     ///
     /// A dynamic body can move freely and is affected by forces.
     pub fn is_dynamic(&self) -> bool {
-        self.rb_type == RigidBodyType::Dynamic
+        self.body_type == RigidBodyType::Dynamic
     }
 
     /// Is this rigid body kinematic?
     ///
     /// A kinematic body can move freely but is not affected by forces.
     pub fn is_kinematic(&self) -> bool {
-        self.rb_type.is_kinematic()
+        self.body_type.is_kinematic()
     }
 
     /// Is this rigid body fixed?
     ///
     /// A fixed body cannot move and is not affected by forces.
     pub fn is_fixed(&self) -> bool {
-        self.rb_type == RigidBodyType::Fixed
+        self.body_type == RigidBodyType::Fixed
     }
 
     /// The mass of this rigid body.
     ///
     /// Returns zero if this rigid body has an infinite mass.
     pub fn mass(&self) -> Real {
-        self.rb_mprops.local_mprops.mass()
+        self.mprops.local_mprops.mass()
     }
 
     /// The predicted position of this rigid-body.
@@ -392,36 +360,36 @@ impl RigidBody {
     /// method and is used for estimating the kinematic body velocity at the next timestep.
     /// For non-kinematic bodies, this value is currently unspecified.
     pub fn next_position(&self) -> &Isometry<Real> {
-        &self.rb_pos.next_position
+        &self.pos.next_position
     }
 
     /// The scale factor applied to the gravity affecting this rigid-body.
     pub fn gravity_scale(&self) -> Real {
-        self.rb_forces.gravity_scale
+        self.forces.gravity_scale
     }
 
     /// Sets the gravity scale facter for this rigid-body.
     pub fn set_gravity_scale(&mut self, scale: Real, wake_up: bool) {
-        if self.rb_forces.gravity_scale != scale {
-            if wake_up && self.rb_activation.sleeping {
+        if self.forces.gravity_scale != scale {
+            if wake_up && self.activation.sleeping {
                 self.changes.insert(RigidBodyChanges::SLEEP);
-                self.rb_activation.sleeping = false;
+                self.activation.sleeping = false;
             }
 
-            self.rb_forces.gravity_scale = scale;
+            self.forces.gravity_scale = scale;
         }
     }
 
     /// The dominance group of this rigid-body.
     pub fn dominance_group(&self) -> i8 {
-        self.rb_dominance.0
+        self.dominance.0
     }
 
     /// The dominance group of this rigid-body.
     pub fn set_dominance_group(&mut self, dominance: i8) {
-        if self.rb_dominance.0 != dominance {
+        if self.dominance.0 != dominance {
             self.changes.insert(RigidBodyChanges::DOMINANCE);
-            self.rb_dominance.0 = dominance
+            self.dominance.0 = dominance
         }
     }
 
@@ -435,11 +403,11 @@ impl RigidBody {
         co_shape: &ColliderShape,
         co_mprops: &ColliderMassProps,
     ) {
-        self.rb_colliders.attach_collider(
+        self.colliders.attach_collider(
             &mut self.changes,
-            &mut self.rb_ccd,
-            &mut self.rb_mprops,
-            &self.rb_pos,
+            &mut self.ccd,
+            &mut self.mprops,
+            &self.pos,
             co_handle,
             co_pos,
             co_parent,
@@ -450,14 +418,14 @@ impl RigidBody {
 
     /// Removes a collider from this rigid-body.
     pub(crate) fn remove_collider_internal(&mut self, handle: ColliderHandle, coll: &Collider) {
-        if let Some(i) = self.rb_colliders.0.iter().position(|e| *e == handle) {
+        if let Some(i) = self.colliders.0.iter().position(|e| *e == handle) {
             self.changes.set(RigidBodyChanges::COLLIDERS, true);
-            self.rb_colliders.0.swap_remove(i);
+            self.colliders.0.swap_remove(i);
 
             let mass_properties = coll
                 .mass_properties()
                 .transform_by(coll.position_wrt_parent().unwrap());
-            self.rb_mprops.local_mprops -= mass_properties;
+            self.mprops.local_mprops -= mass_properties;
             self.update_world_mass_properties();
         }
     }
@@ -468,8 +436,8 @@ impl RigidBody {
     /// it is waken up. It can be woken manually with `self.wake_up` or automatically due to
     /// external forces like contacts.
     pub fn sleep(&mut self) {
-        self.rb_activation.sleep();
-        self.rb_vels = RigidBodyVelocity::zero();
+        self.activation.sleep();
+        self.vels = RigidBodyVelocity::zero();
     }
 
     /// Wakes up this rigid body if it is sleeping.
@@ -477,11 +445,11 @@ impl RigidBody {
     /// If `strong` is `true` then it is assured that the rigid-body will
     /// remain awake during multiple subsequent timesteps.
     pub fn wake_up(&mut self, strong: bool) {
-        if self.rb_activation.sleeping {
+        if self.activation.sleeping {
             self.changes.insert(RigidBodyChanges::SLEEP);
         }
 
-        self.rb_activation.wake_up(strong);
+        self.activation.wake_up(strong);
     }
 
     /// Is this rigid body sleeping?
@@ -490,29 +458,29 @@ impl RigidBody {
         // - return false for fixed bodies.
         // - return true for non-sleeping dynamic bodies.
         // - return true only for kinematic bodies with non-zero velocity?
-        self.rb_activation.sleeping
+        self.activation.sleeping
     }
 
     /// Is the velocity of this body not zero?
     pub fn is_moving(&self) -> bool {
-        !self.rb_vels.linvel.is_zero() || !self.rb_vels.angvel.is_zero()
+        !self.vels.linvel.is_zero() || !self.vels.angvel.is_zero()
     }
 
     /// The linear velocity of this rigid-body.
     pub fn linvel(&self) -> &Vector<Real> {
-        &self.rb_vels.linvel
+        &self.vels.linvel
     }
 
     /// The angular velocity of this rigid-body.
     #[cfg(feature = "dim2")]
     pub fn angvel(&self) -> Real {
-        self.rb_vels.angvel
+        self.vels.angvel
     }
 
     /// The angular velocity of this rigid-body.
     #[cfg(feature = "dim3")]
     pub fn angvel(&self) -> &Vector<Real> {
-        &self.rb_vels.angvel
+        &self.vels.angvel
     }
 
     /// The linear velocity of this rigid-body.
@@ -520,16 +488,16 @@ impl RigidBody {
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
     pub fn set_linvel(&mut self, linvel: Vector<Real>, wake_up: bool) {
-        if self.rb_vels.linvel != linvel {
-            match self.rb_type {
+        if self.vels.linvel != linvel {
+            match self.body_type {
                 RigidBodyType::Dynamic => {
-                    self.rb_vels.linvel = linvel;
+                    self.vels.linvel = linvel;
                     if wake_up {
                         self.wake_up(true)
                     }
                 }
                 RigidBodyType::KinematicVelocityBased => {
-                    self.rb_vels.linvel = linvel;
+                    self.vels.linvel = linvel;
                 }
                 RigidBodyType::Fixed | RigidBodyType::KinematicPositionBased => {}
             }
@@ -542,16 +510,16 @@ impl RigidBody {
     /// put to sleep because it did not move for a while.
     #[cfg(feature = "dim2")]
     pub fn set_angvel(&mut self, angvel: Real, wake_up: bool) {
-        if self.rb_vels.angvel != angvel {
-            match self.rb_type {
+        if self.vels.angvel != angvel {
+            match self.body_type {
                 RigidBodyType::Dynamic => {
-                    self.rb_vels.angvel = angvel;
+                    self.vels.angvel = angvel;
                     if wake_up {
                         self.wake_up(true)
                     }
                 }
                 RigidBodyType::KinematicVelocityBased => {
-                    self.rb_vels.angvel = angvel;
+                    self.vels.angvel = angvel;
                 }
                 RigidBodyType::Fixed | RigidBodyType::KinematicPositionBased => {}
             }
@@ -564,16 +532,16 @@ impl RigidBody {
     /// put to sleep because it did not move for a while.
     #[cfg(feature = "dim3")]
     pub fn set_angvel(&mut self, angvel: Vector<Real>, wake_up: bool) {
-        if self.rb_vels.angvel != angvel {
-            match self.rb_type {
+        if self.vels.angvel != angvel {
+            match self.body_type {
                 RigidBodyType::Dynamic => {
-                    self.rb_vels.angvel = angvel;
+                    self.vels.angvel = angvel;
                     if wake_up {
                         self.wake_up(true)
                     }
                 }
                 RigidBodyType::KinematicVelocityBased => {
-                    self.rb_vels.angvel = angvel;
+                    self.vels.angvel = angvel;
                 }
                 RigidBodyType::Fixed | RigidBodyType::KinematicPositionBased => {}
             }
@@ -583,24 +551,24 @@ impl RigidBody {
     /// The world-space position of this rigid-body.
     #[inline]
     pub fn position(&self) -> &Isometry<Real> {
-        &self.rb_pos.position
+        &self.pos.position
     }
 
     /// The translational part of this rigid-body's position.
     #[inline]
     pub fn translation(&self) -> &Vector<Real> {
-        &self.rb_pos.position.translation.vector
+        &self.pos.position.translation.vector
     }
 
     /// Sets the translational part of this rigid-body's position.
     #[inline]
     pub fn set_translation(&mut self, translation: Vector<Real>, wake_up: bool) {
-        if self.rb_pos.position.translation.vector != translation
-            || self.rb_pos.next_position.translation.vector != translation
+        if self.pos.position.translation.vector != translation
+            || self.pos.next_position.translation.vector != translation
         {
             self.changes.insert(RigidBodyChanges::POSITION);
-            self.rb_pos.position.translation.vector = translation;
-            self.rb_pos.next_position.translation.vector = translation;
+            self.pos.position.translation.vector = translation;
+            self.pos.next_position.translation.vector = translation;
 
             // TODO: Do we really need to check that the body isn't dynamic?
             if wake_up && self.is_dynamic() {
@@ -612,7 +580,7 @@ impl RigidBody {
     /// The rotational part of this rigid-body's position.
     #[inline]
     pub fn rotation(&self) -> &Rotation<Real> {
-        &self.rb_pos.position.rotation
+        &self.pos.position.rotation
     }
 
     /// Sets the rotational part of this rigid-body's position.
@@ -620,12 +588,10 @@ impl RigidBody {
     pub fn set_rotation(&mut self, rotation: AngVector<Real>, wake_up: bool) {
         let rotation = Rotation::new(rotation);
 
-        if self.rb_pos.position.rotation != rotation
-            || self.rb_pos.next_position.rotation != rotation
-        {
+        if self.pos.position.rotation != rotation || self.pos.next_position.rotation != rotation {
             self.changes.insert(RigidBodyChanges::POSITION);
-            self.rb_pos.position.rotation = rotation;
-            self.rb_pos.next_position.rotation = rotation;
+            self.pos.position.rotation = rotation;
+            self.pos.next_position.rotation = rotation;
 
             // TODO: Do we really need to check that the body isn't dynamic?
             if wake_up && self.is_dynamic() {
@@ -644,10 +610,10 @@ impl RigidBody {
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
     pub fn set_position(&mut self, pos: Isometry<Real>, wake_up: bool) {
-        if self.rb_pos.position != pos || self.rb_pos.next_position != pos {
+        if self.pos.position != pos || self.pos.next_position != pos {
             self.changes.insert(RigidBodyChanges::POSITION);
-            self.rb_pos.position = pos;
-            self.rb_pos.next_position = pos;
+            self.pos.position = pos;
+            self.pos.next_position = pos;
 
             // TODO: Do we really need to check that the body isn't dynamic?
             if wake_up && self.is_dynamic() {
@@ -659,38 +625,33 @@ impl RigidBody {
     /// If this rigid body is kinematic, sets its future translation after the next timestep integration.
     pub fn set_next_kinematic_rotation(&mut self, rotation: AngVector<Real>) {
         if self.is_kinematic() {
-            self.rb_pos.next_position.rotation = Rotation::new(rotation);
+            self.pos.next_position.rotation = Rotation::new(rotation);
         }
     }
 
     /// If this rigid body is kinematic, sets its future orientation after the next timestep integration.
     pub fn set_next_kinematic_translation(&mut self, translation: Vector<Real>) {
         if self.is_kinematic() {
-            self.rb_pos.next_position.translation = translation.into();
+            self.pos.next_position.translation = translation.into();
         }
     }
 
     /// If this rigid body is kinematic, sets its future position after the next timestep integration.
     pub fn set_next_kinematic_position(&mut self, pos: Isometry<Real>) {
         if self.is_kinematic() {
-            self.rb_pos.next_position = pos;
+            self.pos.next_position = pos;
         }
     }
 
     /// Predicts the next position of this rigid-body, by integrating its velocity and forces
     /// by a time of `dt`.
     pub fn predict_position_using_velocity_and_forces(&self, dt: Real) -> Isometry<Real> {
-        self.rb_pos.integrate_forces_and_velocities(
-            dt,
-            &self.rb_forces,
-            &self.rb_vels,
-            &self.rb_mprops,
-        )
+        self.pos
+            .integrate_forces_and_velocities(dt, &self.forces, &self.vels, &self.mprops)
     }
 
     pub(crate) fn update_world_mass_properties(&mut self) {
-        self.rb_mprops
-            .update_world_mass_properties(&self.rb_pos.position);
+        self.mprops.update_world_mass_properties(&self.pos.position);
     }
 }
 
@@ -698,8 +659,8 @@ impl RigidBody {
 impl RigidBody {
     /// Resets to zero all the constant (linear) forces manually applied to this rigid-body.
     pub fn reset_forces(&mut self, wake_up: bool) {
-        if !self.rb_forces.user_force.is_zero() {
-            self.rb_forces.user_force = na::zero();
+        if !self.forces.user_force.is_zero() {
+            self.forces.user_force = na::zero();
 
             if wake_up {
                 self.wake_up(true);
@@ -709,8 +670,8 @@ impl RigidBody {
 
     /// Resets to zero all the constant torques manually applied to this rigid-body.
     pub fn reset_torques(&mut self, wake_up: bool) {
-        if !self.rb_forces.user_torque.is_zero() {
-            self.rb_forces.user_torque = na::zero();
+        if !self.forces.user_torque.is_zero() {
+            self.forces.user_torque = na::zero();
 
             if wake_up {
                 self.wake_up(true);
@@ -723,8 +684,8 @@ impl RigidBody {
     /// This does nothing on non-dynamic bodies.
     pub fn add_force(&mut self, force: Vector<Real>, wake_up: bool) {
         if !force.is_zero() {
-            if self.rb_type == RigidBodyType::Dynamic {
-                self.rb_forces.user_force += force;
+            if self.body_type == RigidBodyType::Dynamic {
+                self.forces.user_force += force;
 
                 if wake_up {
                     self.wake_up(true);
@@ -739,8 +700,8 @@ impl RigidBody {
     #[cfg(feature = "dim2")]
     pub fn add_torque(&mut self, torque: Real, wake_up: bool) {
         if !torque.is_zero() {
-            if self.rb_type == RigidBodyType::Dynamic {
-                self.rb_forces.user_torque += torque;
+            if self.body_type == RigidBodyType::Dynamic {
+                self.forces.user_torque += torque;
 
                 if wake_up {
                     self.wake_up(true);
@@ -755,8 +716,8 @@ impl RigidBody {
     #[cfg(feature = "dim3")]
     pub fn add_torque(&mut self, torque: Vector<Real>, wake_up: bool) {
         if !torque.is_zero() {
-            if self.rb_type == RigidBodyType::Dynamic {
-                self.rb_forces.user_torque += torque;
+            if self.body_type == RigidBodyType::Dynamic {
+                self.forces.user_torque += torque;
 
                 if wake_up {
                     self.wake_up(true);
@@ -770,9 +731,9 @@ impl RigidBody {
     /// This does nothing on non-dynamic bodies.
     pub fn add_force_at_point(&mut self, force: Vector<Real>, point: Point<Real>, wake_up: bool) {
         if !force.is_zero() {
-            if self.rb_type == RigidBodyType::Dynamic {
-                self.rb_forces.user_force += force;
-                self.rb_forces.user_torque += (point - self.rb_mprops.world_com).gcross(force);
+            if self.body_type == RigidBodyType::Dynamic {
+                self.forces.user_force += force;
+                self.forces.user_torque += (point - self.mprops.world_com).gcross(force);
 
                 if wake_up {
                     self.wake_up(true);
@@ -788,8 +749,8 @@ impl RigidBody {
     /// The impulse is applied right away, changing the linear velocity.
     /// This does nothing on non-dynamic bodies.
     pub fn apply_impulse(&mut self, impulse: Vector<Real>, wake_up: bool) {
-        if !impulse.is_zero() && self.rb_type == RigidBodyType::Dynamic {
-            self.rb_vels.linvel += impulse.component_mul(&self.rb_mprops.effective_inv_mass);
+        if !impulse.is_zero() && self.body_type == RigidBodyType::Dynamic {
+            self.vels.linvel += impulse.component_mul(&self.mprops.effective_inv_mass);
 
             if wake_up {
                 self.wake_up(true);
@@ -802,9 +763,9 @@ impl RigidBody {
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim2")]
     pub fn apply_torque_impulse(&mut self, torque_impulse: Real, wake_up: bool) {
-        if !torque_impulse.is_zero() && self.rb_type == RigidBodyType::Dynamic {
-            self.rb_vels.angvel += self.rb_mprops.effective_world_inv_inertia_sqrt
-                * (self.rb_mprops.effective_world_inv_inertia_sqrt * torque_impulse);
+        if !torque_impulse.is_zero() && self.body_type == RigidBodyType::Dynamic {
+            self.vels.angvel += self.mprops.effective_world_inv_inertia_sqrt
+                * (self.mprops.effective_world_inv_inertia_sqrt * torque_impulse);
 
             if wake_up {
                 self.wake_up(true);
@@ -817,9 +778,9 @@ impl RigidBody {
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim3")]
     pub fn apply_torque_impulse(&mut self, torque_impulse: Vector<Real>, wake_up: bool) {
-        if !torque_impulse.is_zero() && self.rb_type == RigidBodyType::Dynamic {
-            self.rb_vels.angvel += self.rb_mprops.effective_world_inv_inertia_sqrt
-                * (self.rb_mprops.effective_world_inv_inertia_sqrt * torque_impulse);
+        if !torque_impulse.is_zero() && self.body_type == RigidBodyType::Dynamic {
+            self.vels.angvel += self.mprops.effective_world_inv_inertia_sqrt
+                * (self.mprops.effective_world_inv_inertia_sqrt * torque_impulse);
 
             if wake_up {
                 self.wake_up(true);
@@ -836,7 +797,7 @@ impl RigidBody {
         point: Point<Real>,
         wake_up: bool,
     ) {
-        let torque_impulse = (point - self.rb_mprops.world_com).gcross(impulse);
+        let torque_impulse = (point - self.mprops.world_com).gcross(impulse);
         self.apply_impulse(impulse, wake_up);
         self.apply_torque_impulse(torque_impulse, wake_up);
     }
@@ -845,28 +806,27 @@ impl RigidBody {
 impl RigidBody {
     /// The velocity of the given world-space point on this rigid-body.
     pub fn velocity_at_point(&self, point: &Point<Real>) -> Vector<Real> {
-        self.rb_vels
-            .velocity_at_point(point, &self.rb_mprops.world_com)
+        self.vels.velocity_at_point(point, &self.mprops.world_com)
     }
 
     /// The kinetic energy of this body.
     pub fn kinetic_energy(&self) -> Real {
-        self.rb_vels.kinetic_energy(&self.rb_mprops)
+        self.vels.kinetic_energy(&self.mprops)
     }
 
     /// The potential energy of this body in a gravity field.
     pub fn gravitational_potential_energy(&self, dt: Real, gravity: Vector<Real>) -> Real {
         let world_com = self
-            .rb_mprops
+            .mprops
             .local_mprops
-            .world_com(&self.rb_pos.position)
+            .world_com(&self.pos.position)
             .coords;
 
         // Project position back along velocity vector one half-step (leap-frog)
         // to sync up the potential energy with the kinetic energy:
-        let world_com = world_com - self.rb_vels.linvel * (dt / 2.0);
+        let world_com = world_com - self.vels.linvel * (dt / 2.0);
 
-        -self.mass() * self.rb_forces.gravity_scale * gravity.dot(&world_com)
+        -self.mass() * self.forces.gravity_scale * gravity.dot(&world_com)
     }
 }
 
@@ -886,7 +846,7 @@ pub struct RigidBodyBuilder {
     pub linear_damping: Real,
     /// Damping factor for gradually slowing down the angular motion of the rigid-body, `0.0` by default.
     pub angular_damping: Real,
-    rb_type: RigidBodyType,
+    body_type: RigidBodyType,
     mprops_flags: LockedAxes,
     /// The additional mass properties of the rigid-body being built. See [`RigidBodyBuilder::additional_mass_properties`] for more information.
     pub additional_mass_properties: MassProperties,
@@ -906,7 +866,7 @@ pub struct RigidBodyBuilder {
 
 impl RigidBodyBuilder {
     /// Initialize a new builder for a rigid body which is either fixed, dynamic, or kinematic.
-    pub fn new(rb_type: RigidBodyType) -> Self {
+    pub fn new(body_type: RigidBodyType) -> Self {
         Self {
             position: Isometry::identity(),
             linvel: Vector::zeros(),
@@ -914,7 +874,7 @@ impl RigidBodyBuilder {
             gravity_scale: 1.0,
             linear_damping: 0.0,
             angular_damping: 0.0,
-            rb_type,
+            body_type,
             mprops_flags: LockedAxes::empty(),
             additional_mass_properties: MassProperties::zero(),
             can_sleep: true,
@@ -1191,23 +1151,23 @@ impl RigidBodyBuilder {
     /// Build a new rigid-body with the parameters configured with this builder.
     pub fn build(&self) -> RigidBody {
         let mut rb = RigidBody::new();
-        rb.rb_pos.next_position = self.position; // FIXME: compute the correct value?
-        rb.rb_pos.position = self.position;
-        rb.rb_vels.linvel = self.linvel;
-        rb.rb_vels.angvel = self.angvel;
-        rb.rb_type = self.rb_type;
+        rb.pos.next_position = self.position; // FIXME: compute the correct value?
+        rb.pos.position = self.position;
+        rb.vels.linvel = self.linvel;
+        rb.vels.angvel = self.angvel;
+        rb.body_type = self.body_type;
         rb.user_data = self.user_data;
 
         if self.additional_mass_properties != MassProperties::default() {
-            rb.rb_mprops.additional_local_mprops = Some(Box::new(self.additional_mass_properties));
-            rb.rb_mprops.local_mprops = self.additional_mass_properties;
+            rb.mprops.additional_local_mprops = Some(Box::new(self.additional_mass_properties));
+            rb.mprops.local_mprops = self.additional_mass_properties;
         }
 
-        rb.rb_mprops.flags = self.mprops_flags;
-        rb.rb_damping.linear_damping = self.linear_damping;
-        rb.rb_damping.angular_damping = self.angular_damping;
-        rb.rb_forces.gravity_scale = self.gravity_scale;
-        rb.rb_dominance = RigidBodyDominance(self.dominance_group);
+        rb.mprops.flags = self.mprops_flags;
+        rb.damping.linear_damping = self.linear_damping;
+        rb.damping.angular_damping = self.angular_damping;
+        rb.forces.gravity_scale = self.gravity_scale;
+        rb.dominance = RigidBodyDominance(self.dominance_group);
         rb.enable_ccd(self.ccd_enabled);
 
         if self.can_sleep && self.sleeping {
@@ -1215,8 +1175,8 @@ impl RigidBodyBuilder {
         }
 
         if !self.can_sleep {
-            rb.rb_activation.linear_threshold = -1.0;
-            rb.rb_activation.angular_threshold = -1.0;
+            rb.activation.linear_threshold = -1.0;
+            rb.activation.angular_threshold = -1.0;
         }
 
         rb

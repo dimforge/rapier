@@ -1,11 +1,11 @@
 use super::TOIEntry;
-use crate::data::{BundleSet, ComponentSet, ComponentSetMut, ComponentSetOption};
-use crate::dynamics::{IslandManager, RigidBodyColliders, RigidBodyForces};
 use crate::dynamics::{
-    RigidBodyCcd, RigidBodyHandle, RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
+    IslandManager, RigidBodyCcd, RigidBodyColliders, RigidBodyForces, RigidBodyHandle,
+    RigidBodyMassProps, RigidBodyPosition, RigidBodySet, RigidBodyVelocity,
 };
 use crate::geometry::{
-    ColliderParent, ColliderPosition, ColliderShape, ColliderType, CollisionEvent, NarrowPhase,
+    ColliderParent, ColliderPosition, ColliderSet, ColliderShape, ColliderType, CollisionEvent,
+    NarrowPhase,
 };
 use crate::math::Real;
 use crate::parry::utils::SortedPair;
@@ -57,13 +57,7 @@ impl CCDSolver {
     /// Apply motion-clamping to the bodies affected by the given `impacts`.
     ///
     /// The `impacts` should be the result of a previous call to `self.predict_next_impacts`.
-    pub fn clamp_motions<Bodies>(&self, dt: Real, bodies: &mut Bodies, impacts: &PredictedImpacts)
-    where
-        Bodies: ComponentSet<RigidBodyCcd>
-            + ComponentSetMut<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>,
-    {
+    pub fn clamp_motions(&self, dt: Real, bodies: &mut RigidBodySet, impacts: &PredictedImpacts) {
         match impacts {
             PredictedImpacts::Impacts(tois) => {
                 for (handle, toi) in tois {
@@ -93,18 +87,13 @@ impl CCDSolver {
     /// Updates the set of bodies that needs CCD to be resolved.
     ///
     /// Returns `true` if any rigid-body must have CCD resolved.
-    pub fn update_ccd_active_flags<Bodies>(
+    pub fn update_ccd_active_flags(
         &self,
         islands: &IslandManager,
-        bodies: &mut Bodies,
+        bodies: &mut RigidBodySet,
         dt: Real,
         include_forces: bool,
-    ) -> bool
-    where
-        Bodies: ComponentSetMut<RigidBodyCcd>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyForces>,
-    {
+    ) -> bool {
         let mut ccd_active = false;
 
         // println!("Checking CCD activation");
@@ -128,27 +117,14 @@ impl CCDSolver {
     }
 
     /// Find the first time a CCD-enabled body has a non-sensor collider hitting another non-sensor collider.
-    pub fn find_first_impact<Bodies, Colliders>(
+    pub fn find_first_impact(
         &mut self,
         dt: Real,
         islands: &IslandManager,
-        bodies: &Bodies,
-        colliders: &Colliders,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
         narrow_phase: &NarrowPhase,
-    ) -> Option<Real>
-    where
-        Bodies: ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyCcd>
-            + ComponentSet<RigidBodyColliders>
-            + ComponentSet<RigidBodyForces>
-            + ComponentSet<RigidBodyMassProps>,
-        Colliders: ComponentSetOption<ColliderParent>
-            + ComponentSet<ColliderPosition>
-            + ComponentSet<ColliderShape>
-            + ComponentSet<ColliderType>
-            + ComponentSet<ColliderFlags>,
-    {
+    ) -> Option<Real> {
         // Update the query pipeline.
         self.query_pipeline.update_with_mode(
             islands,
@@ -266,29 +242,15 @@ impl CCDSolver {
     }
 
     /// Outputs the set of bodies as well as their first time-of-impact event.
-    pub fn predict_impacts_at_next_positions<Bodies, Colliders>(
+    pub fn predict_impacts_at_next_positions(
         &mut self,
         dt: Real,
         islands: &IslandManager,
-        bodies: &Bodies,
-        colliders: &Colliders,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
         narrow_phase: &NarrowPhase,
         events: &dyn EventHandler,
-    ) -> PredictedImpacts
-    where
-        Bodies: ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyCcd>
-            + ComponentSet<RigidBodyColliders>
-            + ComponentSet<RigidBodyForces>
-            + ComponentSet<RigidBodyMassProps>,
-        Colliders: ComponentSetOption<ColliderParent>
-            + ComponentSet<ColliderPosition>
-            + ComponentSet<ColliderShape>
-            + ComponentSet<ColliderType>
-            + ComponentSet<ColliderFlags>
-            + ComponentSet<ColliderFlags>,
-    {
+    ) -> PredictedImpacts {
         let mut frozen = HashMap::<_, Real>::default();
         let mut all_toi = BinaryHeap::new();
         let mut pairs_seen = HashMap::default();
