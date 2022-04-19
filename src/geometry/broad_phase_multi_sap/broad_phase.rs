@@ -3,14 +3,13 @@ use super::{
 };
 use crate::geometry::broad_phase_multi_sap::SAPProxyIndex;
 use crate::geometry::{
-    ColliderBroadPhaseData, ColliderChanges, ColliderHandle, ColliderPosition, ColliderShape,
+    ColliderBroadPhaseData, ColliderChanges, ColliderHandle, ColliderPosition, ColliderSet,
+    ColliderShape,
 };
 use crate::math::Real;
 use crate::utils::IndexMut2;
 use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::HashMap;
-
-use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
 
 /// A broad-phase combining a Hierarchical Grid and Sweep-and-Prune.
 ///
@@ -435,19 +434,14 @@ impl BroadPhase {
     }
 
     /// Updates the broad-phase, taking into account the new collider positions.
-    pub fn update<Colliders>(
+    pub fn update(
         &mut self,
         prediction_distance: Real,
-        colliders: &mut Colliders,
+        colliders: &mut ColliderSet,
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
         events: &mut Vec<BroadPhasePairEvent>,
-    ) where
-        Colliders: ComponentSetMut<ColliderBroadPhaseData>
-            + ComponentSet<ColliderChanges>
-            + ComponentSet<ColliderPosition>
-            + ComponentSet<ColliderShape>,
-    {
+    ) {
         // Phase 1: pre-delete the collisions that have been deleted.
         self.handle_removed_colliders(removed_colliders);
 
@@ -457,30 +451,22 @@ impl BroadPhase {
         for handle in modified_colliders {
             // NOTE: we use `get` because the collider may no longer
             //       exist if it has been removed.
-            let co_changes: Option<&ColliderChanges> = colliders.get(handle.0);
-
-            if let Some(co_changes) = co_changes {
-                let (co_bf_data, co_pos, co_shape): (
-                    &ColliderBroadPhaseData,
-                    &ColliderPosition,
-                    &ColliderShape,
-                ) = colliders.index_bundle(handle.0);
-
-                if !co_changes.needs_broad_phase_update() {
+            if let Some(co) = colliders.get(*handle) {
+                if !co.changes.needs_broad_phase_update() {
                     continue;
                 }
-                let mut new_proxy_id = co_bf_data.proxy_index;
+                let mut new_proxy_id = co.bf_data.proxy_index;
 
                 if self.handle_modified_collider(
                     prediction_distance,
                     *handle,
                     &mut new_proxy_id,
-                    (co_pos, co_shape, co_changes),
+                    (&co.pos, &co.shape, &co.changes),
                 ) {
                     need_region_propagation = true;
                 }
 
-                if co_bf_data.proxy_index != new_proxy_id {
+                if co.bf_data.proxy_index != new_proxy_id {
                     self.colliders_proxy_ids.insert(*handle, new_proxy_id);
 
                     // Make sure we have the new proxy index in case

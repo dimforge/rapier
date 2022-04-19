@@ -1,7 +1,6 @@
 use super::{
     AnyVelocityConstraint, DeltaVel, VelocityConstraintElement, VelocityConstraintNormalPart,
 };
-use crate::data::ComponentSet;
 use crate::dynamics::{IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyVelocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
@@ -30,18 +29,14 @@ pub(crate) struct WVelocityConstraint {
 }
 
 impl WVelocityConstraint {
-    pub fn generate<Bodies>(
+    pub fn generate(
         params: &IntegrationParameters,
         manifold_id: [ContactManifoldIndex; SIMD_WIDTH],
         manifolds: [&ContactManifold; SIMD_WIDTH],
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         insert_at: Option<usize>,
-    ) where
-        Bodies: ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>,
-    {
+    ) {
         for ii in 0..SIMD_WIDTH {
             assert_eq!(manifolds[ii].data.relative_dominance, 0);
         }

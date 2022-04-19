@@ -7,8 +7,9 @@ use crate::math::{Point, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::WBasis;
 use crate::utils::{self, WAngularInertia, WCross, WDot};
 
-use crate::data::{BundleSet, ComponentSet};
-use crate::dynamics::{IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyVelocity};
+use crate::dynamics::{
+    IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodySet, RigidBodyVelocity,
+};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
 #[derive(Copy, Clone, Debug)]
@@ -27,18 +28,14 @@ pub(crate) struct VelocityGroundConstraint {
 }
 
 impl VelocityGroundConstraint {
-    pub fn generate<Bodies>(
+    pub fn generate(
         params: &IntegrationParameters,
         manifold_id: ContactManifoldIndex,
         manifold: &ContactManifold,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         insert_at: Option<usize>,
-    ) where
-        Bodies: ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>,
-    {
+    ) {
         let inv_dt = params.inv_dt();
         let erp_inv_dt = params.erp_inv_dt();
 

@@ -1,6 +1,5 @@
 use super::ParallelInteractionGroups;
 use super::{AnyJointVelocityConstraint, AnyVelocityConstraint, ThreadContext};
-use crate::data::ComponentSet;
 use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
 use crate::dynamics::solver::generic_velocity_constraint::GenericVelocityConstraint;
 use crate::dynamics::solver::{
@@ -88,16 +87,16 @@ macro_rules! impl_init_constraints_group {
      $num_active_constraints_and_jacobian_lines: path,
      $empty_velocity_constraint: expr $(, $weight: ident)*) => {
         impl ParallelSolverConstraints<$VelocityConstraint> {
-            pub fn init_constraint_groups<Bodies>(
+            pub fn init_constraint_groups(
                 &mut self,
                 island_id: usize,
                 islands: &IslandManager,
-                bodies: &Bodies,
+                bodies: &RigidBodySet,
                 multibodies: &MultibodyJointSet,
                 interactions: &mut [$Interaction],
                 interaction_groups: &ParallelInteractionGroups,
                 j_id: &mut usize,
-            ) where Bodies: ComponentSet<RigidBodyType> + ComponentSet<RigidBodyIds> {
+            )  {
                 let mut total_num_constraints = 0;
                 let num_groups = interaction_groups.num_groups();
 
@@ -316,20 +315,14 @@ impl_init_constraints_group!(
 );
 
 impl ParallelSolverConstraints<AnyVelocityConstraint> {
-    pub fn fill_constraints<Bodies>(
+    pub fn fill_constraints(
         &mut self,
         thread: &ThreadContext,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibodies: &MultibodyJointSet,
         manifolds_all: &[&mut ContactManifold],
-    ) where
-        Bodies: ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyType>,
-    {
+    ) {
         let descs = &self.constraint_descs;
 
         crate::concurrent_loop! {
@@ -372,20 +365,14 @@ impl ParallelSolverConstraints<AnyVelocityConstraint> {
 }
 
 impl ParallelSolverConstraints<AnyJointVelocityConstraint> {
-    pub fn fill_constraints<Bodies>(
+    pub fn fill_constraints(
         &mut self,
         thread: &ThreadContext,
         params: &IntegrationParameters,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         multibodies: &MultibodyJointSet,
         joints_all: &[JointGraphEdge],
-    ) where
-        Bodies: ComponentSet<RigidBodyPosition>
-            + ComponentSet<RigidBodyVelocity>
-            + ComponentSet<RigidBodyMassProps>
-            + ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyType>,
-    {
+    ) {
         let descs = &self.constraint_descs;
 
         crate::concurrent_loop! {

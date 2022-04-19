@@ -1,14 +1,10 @@
 use super::VelocitySolver;
 use crate::counters::Counters;
-use crate::data::{ComponentSet, ComponentSetMut};
 use crate::dynamics::solver::{
     AnyJointVelocityConstraint, AnyVelocityConstraint, SolverConstraints,
 };
-use crate::dynamics::{
-    IntegrationParameters, JointGraphEdge, JointIndex, RigidBodyDamping, RigidBodyForces,
-    RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType,
-};
-use crate::dynamics::{IslandManager, RigidBodyVelocity};
+use crate::dynamics::IslandManager;
+use crate::dynamics::{IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::prelude::MultibodyJointSet;
 
@@ -33,27 +29,19 @@ impl IslandSolver {
         }
     }
 
-    pub fn init_and_solve<Bodies>(
+    pub fn init_and_solve(
         &mut self,
         island_id: usize,
         counters: &mut Counters,
         params: &IntegrationParameters,
         islands: &IslandManager,
-        bodies: &mut Bodies,
+        bodies: &mut RigidBodySet,
         manifolds: &mut [&mut ContactManifold],
         manifold_indices: &[ContactManifoldIndex],
         impulse_joints: &mut [JointGraphEdge],
         joint_indices: &[JointIndex],
         multibody_joints: &mut MultibodyJointSet,
-    ) where
-        Bodies: ComponentSet<RigidBodyForces>
-            + ComponentSetMut<RigidBodyPosition>
-            + ComponentSetMut<RigidBodyVelocity>
-            + ComponentSetMut<RigidBodyMassProps>
-            + ComponentSet<RigidBodyDamping>
-            + ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyType>,
-    {
+    ) {
         // Init the solver id for multibody_joints.
         // We need that for building the constraints.
         let mut solver_id = 0;

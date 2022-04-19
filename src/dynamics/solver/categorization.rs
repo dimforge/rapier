@@ -1,9 +1,8 @@
-use crate::data::ComponentSet;
-use crate::dynamics::{JointGraphEdge, JointIndex, MultibodyJointSet, RigidBodyType};
+use crate::dynamics::{JointGraphEdge, JointIndex, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
 pub(crate) fn categorize_contacts(
-    _bodies: &impl ComponentSet<RigidBodyType>, // Unused but useful to simplify the parallel code.
+    _bodies: &RigidBodySet, // Unused but useful to simplify the parallel code.
     multibody_joints: &MultibodyJointSet,
     manifolds: &[&mut ContactManifold],
     manifold_indices: &[ContactManifoldIndex],
@@ -40,7 +39,7 @@ pub(crate) fn categorize_contacts(
 }
 
 pub(crate) fn categorize_joints(
-    bodies: &impl ComponentSet<RigidBodyType>,
+    bodies: &RigidBodySet,
     multibody_joints: &MultibodyJointSet,
     impulse_joints: &[JointGraphEdge],
     joint_indices: &[JointIndex],

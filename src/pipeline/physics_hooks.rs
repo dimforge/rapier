@@ -1,14 +1,14 @@
-use crate::dynamics::RigidBodyHandle;
-use crate::geometry::{ColliderHandle, ContactManifold, SolverContact, SolverFlags};
+use crate::dynamics::{RigidBodyHandle, RigidBodySet};
+use crate::geometry::{ColliderHandle, ColliderSet, ContactManifold, SolverContact, SolverFlags};
 use crate::math::{Real, Vector};
 use na::ComplexField;
 
 /// Context given to custom collision filters to filter-out collisions.
-pub struct PairFilterContext<'a, Bodies, Colliders> {
+pub struct PairFilterContext<'a> {
     /// The set of rigid-bodies.
-    pub bodies: &'a Bodies,
+    pub bodies: &'a RigidBodySet,
     /// The set of colliders.
-    pub colliders: &'a Colliders,
+    pub colliders: &'a ColliderSet,
     /// The handle of the first collider involved in the potential collision.
     pub collider1: ColliderHandle,
     /// The handle of the first collider involved in the potential collision.
@@ -20,11 +20,11 @@ pub struct PairFilterContext<'a, Bodies, Colliders> {
 }
 
 /// Context given to custom contact modifiers to modify the contacts seen by the constraints solver.
-pub struct ContactModificationContext<'a, Bodies, Colliders> {
+pub struct ContactModificationContext<'a> {
     /// The set of rigid-bodies.
-    pub bodies: &'a Bodies,
+    pub bodies: &'a RigidBodySet,
     /// The set of colliders.
-    pub colliders: &'a Colliders,
+    pub colliders: &'a ColliderSet,
     /// The handle of the first collider involved in the potential collision.
     pub collider1: ColliderHandle,
     /// The handle of the first collider involved in the potential collision.
@@ -45,7 +45,7 @@ pub struct ContactModificationContext<'a, Bodies, Colliders> {
     pub user_data: &'a mut u32,
 }
 
-impl<'a, Bodies, Colliders> ContactModificationContext<'a, Bodies, Colliders> {
+impl<'a> ContactModificationContext<'a> {
     /// Helper function to update `self` to emulate a oneway-platform.
     ///
     /// The "oneway" behavior will only allow contacts between two colliders
@@ -139,28 +139,24 @@ impl Default for ActiveHooks {
 //       not having Send+Sync isn't a problem.
 /// User-defined functions called by the physics engines during one timestep in order to customize its behavior.
 #[cfg(target_arch = "wasm32")]
-pub trait PhysicsHooks<Bodies, Colliders> {
+pub trait PhysicsHooks {
     /// Applies the contact pair filter.
-    fn filter_contact_pair(
-        &self,
-        _context: &PairFilterContext<Bodies, Colliders>,
-    ) -> Option<SolverFlags> {
+    fn filter_contact_pair(&self, _context: &PairFilterContext) -> Option<SolverFlags> {
         None
     }
 
     /// Applies the intersection pair filter.
-    fn filter_intersection_pair(&self, _context: &PairFilterContext<Bodies, Colliders>) -> bool {
+    fn filter_intersection_pair(&self, _context: &PairFilterContext) -> bool {
         false
     }
 
     /// Modifies the set of contacts seen by the constraints solver.
-    fn modify_solver_contacts(&self, _context: &mut ContactModificationContext<Bodies, Colliders>) {
-    }
+    fn modify_solver_contacts(&self, _context: &mut ContactModificationContext) {}
 }
 
 /// User-defined functions called by the physics engines during one timestep in order to customize its behavior.
 #[cfg(not(target_arch = "wasm32"))]
-pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
+pub trait PhysicsHooks: Send + Sync {
     /// Applies the contact pair filter.
     ///
     /// Note that this method will only be called if at least one of the colliders
@@ -185,10 +181,7 @@ pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
     /// will be taken into account by the constraints solver. If this returns
     /// `Some(SolverFlags::empty())` then the constraints solver will ignore these
     /// contacts.
-    fn filter_contact_pair(
-        &self,
-        _context: &PairFilterContext<Bodies, Colliders>,
-    ) -> Option<SolverFlags> {
+    fn filter_contact_pair(&self, _context: &PairFilterContext) -> Option<SolverFlags> {
         Some(SolverFlags::COMPUTE_IMPULSES)
     }
 
@@ -212,7 +205,7 @@ pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
     /// not compute any intersection information for it.
     /// If this return `true` then the narrow-phase will compute intersection
     /// information for this pair.
-    fn filter_intersection_pair(&self, _context: &PairFilterContext<Bodies, Colliders>) -> bool {
+    fn filter_intersection_pair(&self, _context: &PairFilterContext) -> bool {
         true
     }
 
@@ -241,21 +234,17 @@ pub trait PhysicsHooks<Bodies, Colliders>: Send + Sync {
     /// as 0 and can be modified in `context.user_data`.
     ///
     /// The world-space contact normal can be modified in `context.normal`.
-    fn modify_solver_contacts(&self, _context: &mut ContactModificationContext<Bodies, Colliders>) {
-    }
+    fn modify_solver_contacts(&self, _context: &mut ContactModificationContext) {}
 }
 
-impl<Bodies, Colliders> PhysicsHooks<Bodies, Colliders> for () {
-    fn filter_contact_pair(
-        &self,
-        _context: &PairFilterContext<Bodies, Colliders>,
-    ) -> Option<SolverFlags> {
+impl PhysicsHooks for () {
+    fn filter_contact_pair(&self, _context: &PairFilterContext) -> Option<SolverFlags> {
         Some(SolverFlags::default())
     }
 
-    fn filter_intersection_pair(&self, _: &PairFilterContext<Bodies, Colliders>) -> bool {
+    fn filter_intersection_pair(&self, _: &PairFilterContext) -> bool {
         true
     }
 
-    fn modify_solver_contacts(&self, _: &mut ContactModificationContext<Bodies, Colliders>) {}
+    fn modify_solver_contacts(&self, _: &mut ContactModificationContext) {}
 }

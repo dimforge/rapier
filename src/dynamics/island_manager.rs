@@ -1,9 +1,8 @@
-use crate::data::{BundleSet, ComponentSet, ComponentSetMut, ComponentSetOption};
 use crate::dynamics::{
     ImpulseJointSet, MultibodyJointSet, RigidBodyActivation, RigidBodyColliders, RigidBodyHandle,
-    RigidBodyIds, RigidBodyType, RigidBodyVelocity,
+    RigidBodyIds, RigidBodySet, RigidBodyType, RigidBodyVelocity,
 };
-use crate::geometry::{ColliderParent, NarrowPhase};
+use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
 use crate::utils::WDot;
 
@@ -40,10 +39,7 @@ impl IslandManager {
     }
 
     /// Update this data-structure after one or multiple rigid-bodies have been removed for `bodies`.
-    pub fn cleanup_removed_rigid_bodies(
-        &mut self,
-        bodies: &mut impl ComponentSetMut<RigidBodyIds>,
-    ) {
+    pub fn cleanup_removed_rigid_bodies(&mut self, bodies: &mut RigidBodySet) {
         let mut active_sets = [&mut self.active_kinematic_set, &mut self.active_dynamic_set];
 
         for active_set in &mut active_sets {
@@ -69,7 +65,7 @@ impl IslandManager {
         &mut self,
         removed_handle: RigidBodyHandle,
         removed_ids: &RigidBodyIds,
-        bodies: &mut impl ComponentSetMut<RigidBodyIds>,
+        bodies: &mut RigidBodySet,
     ) {
         let mut active_sets = [&mut self.active_kinematic_set, &mut self.active_dynamic_set];
 
@@ -77,10 +73,11 @@ impl IslandManager {
             if active_set.get(removed_ids.active_set_id) == Some(&removed_handle) {
                 active_set.swap_remove(removed_ids.active_set_id);
 
-                if let Some(replacement) = active_set.get(removed_ids.active_set_id) {
-                    bodies.map_mut_internal(replacement.0, |ids| {
-                        ids.active_set_id = removed_ids.active_set_id;
-                    });
+                if let Some(replacement) = active_set
+                    .get(removed_ids.active_set_id)
+                    .and_then(|h| bodies.get_mut_internal(*h))
+                {
+                    replacement.ids.active_set_id = removed_ids.active_set_id;
                 }
             }
         }
@@ -90,17 +87,11 @@ impl IslandManager {
     ///
     /// If `strong` is `true` then it is assured that the rigid-body will
     /// remain awake during multiple subsequent timesteps.
-    pub fn wake_up<Bodies>(&mut self, bodies: &mut Bodies, handle: RigidBodyHandle, strong: bool)
-    where
-        Bodies: ComponentSetMut<RigidBodyActivation>
-            + ComponentSetOption<RigidBodyType>
-            + ComponentSetMut<RigidBodyIds>,
-    {
+    pub fn wake_up(&mut self, bodies: &mut RigidBodySet, handle: RigidBodyHandle, strong: bool) {
         // NOTE: the use an Option here because there are many legitimate cases (like when
         //       deleting a joint attached to an already-removed body) where we could be
         //       attempting to wake-up a rigid-body that has already been deleted.
-        let rb_type: Option<RigidBodyType> = bodies.get(handle.0).copied();
-        if rb_type == Some(RigidBodyType::Dynamic) {
+        if bodies.get(handle).map(|rb| rb.body_type()) == Some(RigidBodyType::Dynamic) {
             bodies.map_mut_internal(handle.0, |activation: &mut RigidBodyActivation| {
                 activation.wake_up(strong)
             });
@@ -141,23 +132,16 @@ impl IslandManager {
         self.active_islands[island_id]..self.active_islands[island_id + 1]
     }
 
-    pub(crate) fn update_active_set_with_contacts<Bodies, Colliders>(
+    pub(crate) fn update_active_set_with_contacts(
         &mut self,
         dt: Real,
-        bodies: &mut Bodies,
-        colliders: &Colliders,
+        bodies: &mut RigidBodySet,
+        colliders: &ColliderSet,
         narrow_phase: &NarrowPhase,
         impulse_joints: &ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
         min_island_size: usize,
-    ) where
-        Bodies: ComponentSetMut<RigidBodyIds>
-            + ComponentSetMut<RigidBodyActivation>
-            + ComponentSetMut<RigidBodyVelocity>
-            + ComponentSet<RigidBodyColliders>
-            + ComponentSet<RigidBodyType>,
-        Colliders: ComponentSetOption<ColliderParent>,
-    {
+    ) {
         assert!(
             min_island_size > 0,
             "The minimum island size must be at least 1."
@@ -203,7 +187,7 @@ impl IslandManager {
         #[inline(always)]
         fn push_contacting_bodies(
             rb_colliders: &RigidBodyColliders,
-            colliders: &impl ComponentSetOption<ColliderParent>,
+            colliders: &ColliderSet,
             narrow_phase: &NarrowPhase,
             stack: &mut Vec<RigidBodyHandle>,
         ) {

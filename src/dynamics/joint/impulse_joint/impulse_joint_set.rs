@@ -2,9 +2,11 @@ use super::ImpulseJoint;
 use crate::geometry::{InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex};
 
 use crate::data::arena::Arena;
-use crate::data::{BundleSet, Coarena, ComponentSet, ComponentSetMut};
-use crate::dynamics::{GenericJoint, RigidBodyHandle};
-use crate::dynamics::{IslandManager, RigidBodyActivation, RigidBodyIds, RigidBodyType};
+use crate::data::Coarena;
+use crate::dynamics::{
+    GenericJoint, IslandManager, RigidBodyActivation, RigidBodyHandle, RigidBodyIds, RigidBodySet,
+    RigidBodyType,
+};
 
 /// The unique identifier of a joint added to the joint set.
 /// The unique identifier of a collider added to a collider set.
@@ -215,16 +217,12 @@ impl ImpulseJointSet {
 
     /// Retrieve all the impulse_joints happening between two active bodies.
     // NOTE: this is very similar to the code from NarrowPhase::select_active_interactions.
-    pub(crate) fn select_active_interactions<Bodies>(
+    pub(crate) fn select_active_interactions(
         &self,
         islands: &IslandManager,
-        bodies: &Bodies,
+        bodies: &RigidBodySet,
         out: &mut Vec<Vec<JointIndex>>,
-    ) where
-        Bodies: ComponentSet<RigidBodyType>
-            + ComponentSet<RigidBodyActivation>
-            + ComponentSet<RigidBodyIds>,
-    {
+    ) {
         for out_island in &mut out[..islands.num_islands()] {
             out_island.clear();
         }
@@ -263,18 +261,13 @@ impl ImpulseJointSet {
     ///
     /// If `wake_up` is set to `true`, then the bodies attached to this joint will be
     /// automatically woken up.
-    pub fn remove<Bodies>(
+    pub fn remove(
         &mut self,
         handle: ImpulseJointHandle,
         islands: &mut IslandManager,
-        bodies: &mut Bodies,
+        bodies: &mut RigidBodySet,
         wake_up: bool,
-    ) -> Option<ImpulseJoint>
-    where
-        Bodies: ComponentSetMut<RigidBodyActivation>
-            + ComponentSet<RigidBodyType>
-            + ComponentSetMut<RigidBodyIds>,
-    {
+    ) -> Option<ImpulseJoint> {
         let id = self.joint_ids.remove(handle.0)?;
         let endpoints = self.joint_graph.graph.edge_endpoints(id)?;
 
@@ -302,17 +295,12 @@ impl ImpulseJointSet {
     /// The provided rigid-body handle is not required to identify a rigid-body that
     /// is still contained by the `bodies` component set.
     /// Returns the (now invalid) handles of the removed impulse_joints.
-    pub fn remove_joints_attached_to_rigid_body<Bodies>(
+    pub fn remove_joints_attached_to_rigid_body(
         &mut self,
         handle: RigidBodyHandle,
         islands: &mut IslandManager,
-        bodies: &mut Bodies,
-    ) -> Vec<ImpulseJointHandle>
-    where
-        Bodies: ComponentSetMut<RigidBodyActivation>
-            + ComponentSet<RigidBodyType>
-            + ComponentSetMut<RigidBodyIds>,
-    {
+        bodies: &mut RigidBodySet,
+    ) -> Vec<ImpulseJointHandle> {
         let mut deleted = vec![];
 
         if let Some(deleted_id) = self

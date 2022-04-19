@@ -2,7 +2,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rayon::Scope;
 
-use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
 use crate::dynamics::solver::{
     AnyJointVelocityConstraint, AnyVelocityConstraint, ParallelSolverConstraints,
 };
@@ -162,27 +161,19 @@ impl ParallelIslandSolver {
         }
     }
 
-    pub fn init_and_solve<'s, Bodies>(
+    pub fn init_and_solve<'s>(
         &'s mut self,
         scope: &Scope<'s>,
         island_id: usize,
         islands: &'s IslandManager,
         params: &'s IntegrationParameters,
-        bodies: &'s mut Bodies,
+        bodies: &'s mut RigidBodySet,
         manifolds: &'s mut Vec<&'s mut ContactManifold>,
         manifold_indices: &'s [ContactManifoldIndex],
         impulse_joints: &'s mut Vec<JointGraphEdge>,
         joint_indices: &[JointIndex],
         multibodies: &mut MultibodyJointSet,
-    ) where
-        Bodies: ComponentSet<RigidBodyForces>
-            + ComponentSetMut<RigidBodyPosition>
-            + ComponentSetMut<RigidBodyVelocity>
-            + ComponentSetMut<RigidBodyMassProps>
-            + ComponentSet<RigidBodyDamping>
-            + ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyType>,
-    {
+    ) {
         let num_threads = rayon::current_num_threads();
         let num_task_per_island = num_threads; // (num_threads / num_islands).max(1); // TODO: not sure this is the best value. Also, perhaps it is better to interleave tasks of each island?
         self.thread = ThreadContext::new(8); // TODO: could we compute some kind of optimal value here?
@@ -288,7 +279,7 @@ impl ParallelIslandSolver {
                 // Transmute *mut -> &mut
                 let velocity_solver: &mut ParallelVelocitySolver =
                     unsafe { std::mem::transmute(velocity_solver.load(Ordering::Relaxed)) };
-                let bodies: &mut Bodies =
+                let bodies: &mut RigidBodySet =
                     unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };
                 let multibodies: &mut MultibodyJointSet =
                     unsafe { std::mem::transmute(multibodies.load(Ordering::Relaxed)) };

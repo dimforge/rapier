@@ -1,9 +1,8 @@
 use super::AnyJointVelocityConstraint;
-use crate::data::{BundleSet, ComponentSet, ComponentSetMut};
 use crate::dynamics::{
     solver::{AnyVelocityConstraint, DeltaVel},
     IntegrationParameters, IslandManager, JointGraphEdge, MultibodyJointSet, RigidBodyDamping,
-    RigidBodyForces, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType,
+    RigidBodyForces, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodySet,
     RigidBodyVelocity,
 };
 use crate::geometry::ContactManifold;
@@ -24,12 +23,12 @@ impl VelocitySolver {
         }
     }
 
-    pub fn solve<Bodies>(
+    pub fn solve(
         &mut self,
         island_id: usize,
         params: &IntegrationParameters,
         islands: &IslandManager,
-        bodies: &mut Bodies,
+        bodies: &mut RigidBodySet,
         multibodies: &mut MultibodyJointSet,
         manifolds_all: &mut [&mut ContactManifold],
         joints_all: &mut [JointGraphEdge],
@@ -37,15 +36,7 @@ impl VelocitySolver {
         generic_contact_jacobians: &DVector<Real>,
         joint_constraints: &mut [AnyJointVelocityConstraint],
         generic_joint_jacobians: &DVector<Real>,
-    ) where
-        Bodies: ComponentSet<RigidBodyForces>
-            + ComponentSet<RigidBodyIds>
-            + ComponentSet<RigidBodyType>
-            + ComponentSetMut<RigidBodyVelocity>
-            + ComponentSetMut<RigidBodyMassProps>
-            + ComponentSetMut<RigidBodyPosition>
-            + ComponentSet<RigidBodyDamping>,
-    {
+    ) {
         let cfm_factor = params.cfm_factor();
         self.mj_lambdas.clear();
         self.mj_lambdas

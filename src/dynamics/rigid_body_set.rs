@@ -1,11 +1,6 @@
-use crate::data::{Arena, ComponentSet, ComponentSetMut, ComponentSetOption};
+use crate::data::Arena;
 use crate::dynamics::{
-    ImpulseJointSet, RigidBody, RigidBodyCcd, RigidBodyChanges, RigidBodyDamping, RigidBodyForces,
-    RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
-};
-use crate::dynamics::{
-    IslandManager, MultibodyJointSet, RigidBodyActivation, RigidBodyColliders, RigidBodyDominance,
-    RigidBodyHandle, RigidBodyType,
+    ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBody, RigidBodyChanges, RigidBodyHandle,
 };
 use crate::geometry::ColliderSet;
 use std::ops::{Index, IndexMut};
@@ -38,59 +33,6 @@ pub struct RigidBodySet {
     pub(crate) bodies: Arena<RigidBody>,
     pub(crate) modified_bodies: Vec<RigidBodyHandle>,
 }
-
-macro_rules! impl_field_component_set(
-    ($T: ty, $field: ident) => {
-        impl ComponentSetOption<$T> for RigidBodySet {
-            fn get(&self, handle: crate::data::Index) -> Option<&$T> {
-                self.get(RigidBodyHandle(handle)).map(|b| &b.$field)
-            }
-        }
-
-        impl ComponentSet<$T> for RigidBodySet {
-            fn size_hint(&self) -> usize {
-                self.len()
-            }
-
-            #[inline(always)]
-            fn for_each(&self, mut f: impl FnMut(crate::data::Index, &$T)) {
-                for (handle, body) in self.bodies.iter() {
-                    f(handle, &body.$field)
-                }
-            }
-        }
-
-        impl ComponentSetMut<$T> for RigidBodySet {
-            fn set_internal(&mut self, handle: crate::data::Index, val: $T) {
-                if let Some(rb) = self.get_mut_internal(RigidBodyHandle(handle)) {
-                    rb.$field = val;
-                }
-            }
-
-            #[inline(always)]
-            fn map_mut_internal<Result>(
-                &mut self,
-                handle: crate::data::Index,
-                f: impl FnOnce(&mut $T) -> Result,
-            ) -> Option<Result> {
-                self.get_mut_internal(RigidBodyHandle(handle)).map(|rb| f(&mut rb.$field))
-            }
-        }
-    }
-);
-
-impl_field_component_set!(RigidBodyPosition, rb_pos);
-impl_field_component_set!(RigidBodyMassProps, rb_mprops);
-impl_field_component_set!(RigidBodyVelocity, rb_vels);
-impl_field_component_set!(RigidBodyDamping, rb_damping);
-impl_field_component_set!(RigidBodyForces, rb_forces);
-impl_field_component_set!(RigidBodyCcd, rb_ccd);
-impl_field_component_set!(RigidBodyIds, rb_ids);
-impl_field_component_set!(RigidBodyType, rb_type);
-impl_field_component_set!(RigidBodyActivation, rb_activation);
-impl_field_component_set!(RigidBodyColliders, rb_colliders);
-impl_field_component_set!(RigidBodyDominance, rb_dominance);
-impl_field_component_set!(RigidBodyChanges, changes);
 
 impl RigidBodySet {
     /// Create a new empty set of rigid bodies.
@@ -147,7 +89,7 @@ impl RigidBodySet {
         /*
          * Update active sets.
          */
-        islands.rigid_body_removed(handle, &rb.rb_ids, self);
+        islands.rigid_body_removed(handle, &rb.ids, self);
 
         /*
          * Remove colliders attached to this rigid-body.
@@ -231,6 +173,10 @@ impl RigidBodySet {
 
     pub(crate) fn get_mut_internal(&mut self, handle: RigidBodyHandle) -> Option<&mut RigidBody> {
         self.bodies.get_mut(handle.0)
+    }
+
+    pub(crate) fn index_mut_internal(&mut self, handle: RigidBodyHandle) -> &mut RigidBody {
+        &mut self.bodies[handle.0]
     }
 
     // Just a very long name instead of `.get_mut` to make sure

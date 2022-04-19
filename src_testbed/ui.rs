@@ -268,7 +268,7 @@ fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
 Hashes at frame: {}
 |_ Broad phase [{:.1}KB]: {}
 |_ Narrow phase [{:.1}KB]: {}
-|_ Bodies [{:.1}KB]: {}
+|_ &RigidBodySet [{:.1}KB]: {}
 |_ Colliders [{:.1}KB]: {}
 |_ Joints [{:.1}KB]: {}"#,
         serialization_time,
