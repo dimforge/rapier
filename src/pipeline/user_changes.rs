@@ -1,6 +1,5 @@
 use crate::dynamics::{
-    IslandManager, RigidBodyActivation, RigidBodyChanges, RigidBodyHandle, RigidBodyIds,
-    RigidBodySet, RigidBodyType,
+    IslandManager, RigidBodyChanges, RigidBodyHandle, RigidBodySet, RigidBodyType,
 };
 use crate::geometry::{ColliderChanges, ColliderHandle, ColliderPosition, ColliderSet};
 use parry::utils::hashmap::HashMap;

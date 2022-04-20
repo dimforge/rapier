@@ -1,6 +1,5 @@
 //! Physics pipeline structures.
 
-use crate::dynamics::RigidBodyHandle;
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair, NarrowPhase,
 };
@@ -110,7 +109,7 @@ impl CollisionPipeline {
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
-        let mut modified_bodies = bodies.take_modified();
+        let modified_bodies = bodies.take_modified();
         let mut modified_colliders = colliders.take_modified();
         let mut removed_colliders = colliders.take_removed();
 
