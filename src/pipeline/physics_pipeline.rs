@@ -5,8 +5,7 @@ use crate::counters::Counters;
 use crate::dynamics::IslandSolver;
 use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    RigidBodyColliders, RigidBodyForces, RigidBodyHandle, RigidBodyMassProps, RigidBodyPosition,
-    RigidBodyType, RigidBodyVelocity,
+    RigidBodyHandle, RigidBodyPosition, RigidBodyType,
 };
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
@@ -72,7 +71,9 @@ impl PhysicsPipeline {
         modified_colliders: &mut Vec<ColliderHandle>,
     ) {
         for handle in modified_colliders.drain(..) {
-            colliders.set_internal(handle.0, ColliderChanges::empty())
+            if let Some(co) = colliders.get_mut_internal(handle) {
+                co.changes = ColliderChanges::empty();
+            }
         }
     }
 
@@ -187,18 +188,11 @@ impl PhysicsPipeline {
 
         self.counters.stages.update_time.resume();
         for handle in islands.active_dynamic_bodies() {
-            let poss: &RigidBodyPosition = bodies.index(handle.0);
-            let position = poss.position;
-
-            let effective_inv_mass = bodies
-                .map_mut_internal(handle.0, |mprops: &mut RigidBodyMassProps| {
-                    mprops.update_world_mass_properties(&position);
-                    mprops.effective_mass()
-                })
-                .unwrap();
-            bodies.map_mut_internal(handle.0, |forces: &mut RigidBodyForces| {
-                forces.compute_effective_force_and_torque(&gravity, &effective_inv_mass)
-            });
+            let rb = bodies.index_mut_internal(*handle);
+            rb.mprops.update_world_mass_properties(&rb.pos.position);
+            let effective_mass = rb.mprops.effective_mass();
+            rb.forces
+                .compute_effective_force_and_torque(&gravity, &effective_mass);
         }
 
         for multibody in &mut multibody_joints.multibodies {
@@ -319,13 +313,10 @@ impl PhysicsPipeline {
     ) {
         // Set the rigid-bodies and kinematic bodies to their final position.
         for handle in islands.iter_active_bodies() {
-            bodies.map_mut_internal(handle.0, |poss: &mut RigidBodyPosition| {
-                poss.position = poss.next_position
-            });
-
-            let (rb_poss, rb_colls): (&RigidBodyPosition, &RigidBodyColliders) =
-                bodies.index_bundle(handle.0);
-            rb_colls.update_positions(colliders, modified_colliders, &rb_poss.position);
+            let rb = bodies.index_mut_internal(handle);
+            rb.pos.position = rb.pos.next_position;
+            rb.colliders
+                .update_positions(colliders, modified_colliders, &rb.pos.position);
         }
     }
 
@@ -341,29 +332,22 @@ impl PhysicsPipeline {
         // there to determine if this kinematic body should wake-up dynamic
         // bodies it is touching.
         for handle in islands.active_kinematic_bodies() {
-            let (rb_type, rb_pos, rb_vel, rb_mprops): (
-                &RigidBodyType,
-                &RigidBodyPosition,
-                &RigidBodyVelocity,
-                &RigidBodyMassProps,
-            ) = bodies.index_bundle(handle.0);
+            let rb = bodies.index_mut_internal(*handle);
 
-            match rb_type {
+            match rb.body_type {
                 RigidBodyType::KinematicPositionBased => {
-                    let rb_pos: &RigidBodyPosition = bodies.index(handle.0);
-                    let new_vel = rb_pos.interpolate_velocity(
+                    rb.vels = rb.pos.interpolate_velocity(
                         integration_parameters.inv_dt(),
-                        &rb_mprops.local_mprops.local_com,
+                        &rb.mprops.local_mprops.local_com,
                     );
-                    bodies.set_internal(handle.0, new_vel);
                 }
                 RigidBodyType::KinematicVelocityBased => {
-                    let new_pos = rb_vel.integrate(
+                    let new_pos = rb.vels.integrate(
                         integration_parameters.dt,
-                        &rb_pos.position,
-                        &rb_mprops.local_mprops.local_com,
+                        &rb.pos.position,
+                        &rb.mprops.local_mprops.local_com,
                     );
-                    bodies.set_internal(handle.0, RigidBodyPosition::from(new_pos));
+                    rb.pos = RigidBodyPosition::from(new_pos);
                 }
                 _ => {}
             }

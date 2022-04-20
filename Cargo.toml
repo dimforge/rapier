@@ -8,18 +8,18 @@ resolver = "2"
 
 #simba = { path = "../simba" }
 #kiss3d = { path = "../kiss3d" }
-parry2d = { path = "../parry/crates/parry2d" }
-parry3d = { path = "../parry/crates/parry3d" }
-parry2d-f64 = { path = "../parry/crates/parry2d-f64" }
-parry3d-f64 = { path = "../parry/crates/parry3d-f64" }
+#parry2d = { path = "../parry/crates/parry2d" }
+#parry3d = { path = "../parry/crates/parry3d" }
+#parry2d-f64 = { path = "../parry/crates/parry2d-f64" }
+#parry3d-f64 = { path = "../parry/crates/parry3d-f64" }
 # nalgebra = { path = "../nalgebra" }
 
 #kiss3d = { git = "https://github.com/sebcrozet/kiss3d" }
 #nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "dev" }
-#parry2d = { git = "https://github.com/dimforge/parry", branch = "special_cases" }
-#parry3d = { git = "https://github.com/dimforge/parry", branch = "special_cases" }
-#parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "special_cases" }
-#parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "special_cases" }
+parry2d = { git = "https://github.com/dimforge/parry", branch = "split-and-qbvh" }
+parry3d = { git = "https://github.com/dimforge/parry", branch = "split-and-qbvh" }
+parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "split-and-qbvh" }
+parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "split-and-qbvh" }
 
 [profile.release]
 #debug = true

@@ -7,8 +7,7 @@ use crate::dynamics::solver::{
 };
 use crate::dynamics::{
     IntegrationParameters, IslandManager, JointGraphEdge, JointIndex, MultibodyJointSet,
-    RigidBodyDamping, RigidBodyForces, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition,
-    RigidBodyType, RigidBodyVelocity,
+    RigidBodySet,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use na::DVector;
@@ -316,15 +315,13 @@ impl ParallelIslandSolver {
                                     mj_lambdas.axpy(params.dt, &multibody.accelerations, 0.0);
                                 }
                             } else {
-                                let (ids, mprops, forces): (&RigidBodyIds, &RigidBodyMassProps, &RigidBodyForces) =
-                                    bodies.index_bundle(handle.0);
-
-                                let dvel = &mut velocity_solver.mj_lambdas[ids.active_set_offset];
+                                let rb = &bodies[*handle];
+                                let dvel = &mut velocity_solver.mj_lambdas[rb.ids.active_set_offset];
 
                                 // NOTE: `dvel.angular` is actually storing angular velocity delta multiplied
                                 //       by the square root of the inertia tensor:
-                                dvel.angular += mprops.effective_world_inv_inertia_sqrt * forces.torque * params.dt;
-                                dvel.linear += forces.force.component_mul(&mprops.effective_inv_mass) * params.dt;
+                                dvel.angular += rb.mprops.effective_world_inv_inertia_sqrt * rb.forces.torque * params.dt;
+                                dvel.linear += rb.forces.force.component_mul(&rb.mprops.effective_inv_mass) * params.dt;
                             }
                         }
                     }

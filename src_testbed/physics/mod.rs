@@ -83,7 +83,7 @@ pub struct PhysicsState {
     pub query_pipeline: QueryPipeline,
     pub integration_parameters: IntegrationParameters,
     pub gravity: Vector<Real>,
-    pub hooks: Box<dyn PhysicsHooks<RigidBodySet, ColliderSet>>,
+    pub hooks: Box<dyn PhysicsHooks>,
 }
 
 impl PhysicsState {

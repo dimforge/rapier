@@ -47,12 +47,15 @@ impl IslandManager {
 
             while i < active_set.len() {
                 let handle = active_set[i];
-                if bodies.get(handle.0).is_none() {
+                if bodies.get(handle).is_none() {
                     // This rigid-body no longer exists, so we need to remove it from the active set.
                     active_set.swap_remove(i);
 
                     if i < active_set.len() {
-                        bodies.map_mut_internal(active_set[i].0, |rb_ids| rb_ids.active_set_id = i);
+                        // Update the active_set_id for the body that has been swapped.
+                        if let Some(swapped_rb) = bodies.get_mut_internal(active_set[i]) {
+                            swapped_rb.ids.active_set_id = i;
+                        }
                     }
                 } else {
                     i += 1;
@@ -92,15 +95,13 @@ impl IslandManager {
         //       deleting a joint attached to an already-removed body) where we could be
         //       attempting to wake-up a rigid-body that has already been deleted.
         if bodies.get(handle).map(|rb| rb.body_type()) == Some(RigidBodyType::Dynamic) {
-            bodies.map_mut_internal(handle.0, |activation: &mut RigidBodyActivation| {
-                activation.wake_up(strong)
-            });
-            bodies.map_mut_internal(handle.0, |ids: &mut RigidBodyIds| {
-                if self.active_dynamic_set.get(ids.active_set_id) != Some(&handle) {
-                    ids.active_set_id = self.active_dynamic_set.len();
-                    self.active_dynamic_set.push(handle);
-                }
-            });
+            let rb = bodies.index_mut_internal(handle);
+            rb.activation.wake_up(strong);
+
+            if self.active_dynamic_set.get(rb.ids.active_set_id) != Some(&handle) {
+                rb.ids.active_set_id = self.active_dynamic_set.len();
+                self.active_dynamic_set.push(handle);
+            }
         }
     }
 
@@ -162,25 +163,22 @@ impl IslandManager {
             let can_sleep = &mut self.can_sleep;
             let stack = &mut self.stack;
 
-            let vels: &RigidBodyVelocity = bodies.index(h.0);
-            let sq_linvel = vels.linvel.norm_squared();
-            let sq_angvel = vels.angvel.gdot(vels.angvel);
+            let rb = bodies.index_mut_internal(h);
+            let sq_linvel = rb.vels.linvel.norm_squared();
+            let sq_angvel = rb.vels.angvel.gdot(rb.vels.angvel);
 
-            bodies.map_mut_internal(h.0, |activation: &mut RigidBodyActivation| {
-                update_energy(activation, sq_linvel, sq_angvel, dt);
+            update_energy(&mut rb.activation, sq_linvel, sq_angvel, dt);
 
-                if activation.time_since_can_sleep
-                    >= RigidBodyActivation::default_time_until_sleep()
-                {
-                    // Mark them as sleeping for now. This will
-                    // be set to false during the graph traversal
-                    // if it should not be put to sleep.
-                    activation.sleeping = true;
-                    can_sleep.push(h);
-                } else {
-                    stack.push(h);
-                }
-            });
+            if rb.activation.time_since_can_sleep >= RigidBodyActivation::default_time_until_sleep()
+            {
+                // Mark them as sleeping for now. This will
+                // be set to false during the graph traversal
+                // if it should not be put to sleep.
+                rb.activation.sleeping = true;
+                can_sleep.push(h);
+            } else {
+                stack.push(h);
+            }
         }
 
         // Read all the contacts and push objects touching touching this rigid-body.
@@ -199,7 +197,7 @@ impl IslandManager {
                                 (inter.collider1, inter.collider2),
                                 *collider_handle,
                             );
-                            if let Some(other_body) = colliders.get(other.0) {
+                            if let Some(other_body) = colliders[other].parent {
                                 stack.push(other_body.handle);
                             }
                             break;
@@ -212,15 +210,15 @@ impl IslandManager {
         // Now iterate on all active kinematic bodies and push all the bodies
         // touching them to the stack so they can be woken up.
         for h in self.active_kinematic_set.iter() {
-            let (vels, rb_colliders): (&RigidBodyVelocity, _) = bodies.index_bundle(h.0);
+            let rb = &bodies[*h];
 
-            if vels.is_zero() {
+            if rb.vels.is_zero() {
                 // If the kinematic body does not move, it does not have
                 // to wake up any dynamic body.
                 continue;
             }
 
-            push_contacting_bodies(rb_colliders, colliders, narrow_phase, &mut self.stack);
+            push_contacting_bodies(&rb.colliders, colliders, narrow_phase, &mut self.stack);
         }
 
         //        println!("Selection: {}", instant::now() - t);
@@ -235,13 +233,9 @@ impl IslandManager {
         let mut island_marker = self.stack.len().max(1) - 1;
 
         while let Some(handle) = self.stack.pop() {
-            let (rb_status, rb_ids, rb_colliders): (
-                &RigidBodyType,
-                &RigidBodyIds,
-                &RigidBodyColliders,
-            ) = bodies.index_bundle(handle.0);
+            let rb = bodies.index_mut_internal(handle);
 
-            if rb_ids.active_set_timestamp == self.active_set_timestamp || !rb_status.is_dynamic() {
+            if rb.ids.active_set_timestamp == self.active_set_timestamp || !rb.is_dynamic() {
                 // We already visited this body and its neighbors.
                 // Also, we don't propagate awake state through fixed bodies.
                 continue;
@@ -260,7 +254,7 @@ impl IslandManager {
 
             // Transmit the active state to all the rigid-bodies with colliders
             // in contact or joined with this collider.
-            push_contacting_bodies(rb_colliders, colliders, narrow_phase, &mut self.stack);
+            push_contacting_bodies(&rb.colliders, colliders, narrow_phase, &mut self.stack);
 
             for inter in impulse_joints.joints_with(handle) {
                 let other = crate::utils::select_other((inter.0, inter.1), handle);
@@ -271,16 +265,12 @@ impl IslandManager {
                 self.stack.push(other);
             }
 
-            bodies.map_mut_internal(handle.0, |activation: &mut RigidBodyActivation| {
-                activation.wake_up(false);
-            });
-            bodies.map_mut_internal(handle.0, |ids: &mut RigidBodyIds| {
-                ids.active_island_id = self.active_islands.len() - 1;
-                ids.active_set_id = self.active_dynamic_set.len();
-                ids.active_set_offset =
-                    ids.active_set_id - self.active_islands[ids.active_island_id];
-                ids.active_set_timestamp = self.active_set_timestamp;
-            });
+            rb.activation.wake_up(false);
+            rb.ids.active_island_id = self.active_islands.len() - 1;
+            rb.ids.active_set_id = self.active_dynamic_set.len();
+            rb.ids.active_set_offset =
+                rb.ids.active_set_id - self.active_islands[rb.ids.active_island_id];
+            rb.ids.active_set_timestamp = self.active_set_timestamp;
 
             self.active_dynamic_set.push(handle);
         }
@@ -293,13 +283,11 @@ impl IslandManager {
         //        );
 
         // Actually put to sleep bodies which have not been detected as awake.
-        for h in &self.can_sleep {
-            let activation: &RigidBodyActivation = bodies.index(h.0);
-            if activation.sleeping {
-                bodies.set_internal(h.0, RigidBodyVelocity::zero());
-                bodies.map_mut_internal(h.0, |activation: &mut RigidBodyActivation| {
-                    activation.sleep()
-                });
+        for handle in &self.can_sleep {
+            let rb = bodies.index_mut_internal(*handle);
+            if rb.activation.sleeping {
+                rb.vels = RigidBodyVelocity::zero();
+                rb.activation.sleep();
             }
         }
     }

@@ -50,18 +50,18 @@ pub(crate) fn categorize_joints(
 ) {
     for joint_i in joint_indices {
         let joint = &impulse_joints[*joint_i].weight;
-        let status1 = bodies.index(joint.body1.0);
-        let status2 = bodies.index(joint.body2.0);
+        let rb1 = &bodies[joint.body1.0];
+        let rb2 = &bodies[joint.body2.0];
 
         if multibody_joints.rigid_body_link(joint.body1).is_some()
             || multibody_joints.rigid_body_link(joint.body2).is_some()
         {
-            if !status1.is_dynamic() || !status2.is_dynamic() {
+            if !rb1.is_dynamic() || !rb2.is_dynamic() {
                 generic_ground_joints.push(*joint_i);
             } else {
                 generic_nonground_joints.push(*joint_i);
             }
-        } else if !status1.is_dynamic() || !status2.is_dynamic() {
+        } else if !rb1.is_dynamic() || !rb2.is_dynamic() {
             ground_joints.push(*joint_i);
         } else {
             nonground_joints.push(*joint_i);

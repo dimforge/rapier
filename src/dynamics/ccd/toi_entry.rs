@@ -1,9 +1,5 @@
-use crate::dynamics::{
-    RigidBodyCcd, RigidBodyHandle, RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
-};
-use crate::geometry::{
-    ColliderFlags, ColliderHandle, ColliderParent, ColliderPosition, ColliderShape, ColliderType,
-};
+use crate::dynamics::{RigidBody, RigidBodyHandle};
+use crate::geometry::{Collider, ColliderHandle};
 use crate::math::Real;
 use parry::query::{NonlinearRigidMotion, QueryDispatcher};
 
@@ -45,32 +41,10 @@ impl TOIEntry {
         query_dispatcher: &QD,
         ch1: ColliderHandle,
         ch2: ColliderHandle,
-        c1: (
-            &ColliderType,
-            &ColliderShape,
-            &ColliderPosition,
-            &ColliderFlags,
-            Option<&ColliderParent>,
-        ),
-        c2: (
-            &ColliderType,
-            &ColliderShape,
-            &ColliderPosition,
-            &ColliderFlags,
-            Option<&ColliderParent>,
-        ),
-        b1: Option<(
-            &RigidBodyPosition,
-            &RigidBodyVelocity,
-            &RigidBodyMassProps,
-            &RigidBodyCcd,
-        )>,
-        b2: Option<(
-            &RigidBodyPosition,
-            &RigidBodyVelocity,
-            &RigidBodyMassProps,
-            &RigidBodyCcd,
-        )>,
+        co1: &Collider,
+        co2: &Collider,
+        rb1: Option<&RigidBody>,
+        rb2: Option<&RigidBody>,
         frozen1: Option<Real>,
         frozen2: Option<Real>,
         start_time: Real,
@@ -78,39 +52,36 @@ impl TOIEntry {
         smallest_contact_dist: Real,
     ) -> Option<Self> {
         assert!(start_time <= end_time);
-        if b1.is_none() && b2.is_none() {
+        if rb1.is_none() && rb2.is_none() {
             return None;
         }
 
-        let (co_type1, co_shape1, co_pos1, co_flags1, co_parent1) = c1;
-        let (co_type2, co_shape2, co_pos2, co_flags2, co_parent2) = c2;
-
         let linvel1 =
-            frozen1.is_none() as u32 as Real * b1.map(|b| b.1.linvel).unwrap_or(na::zero());
+            frozen1.is_none() as u32 as Real * rb1.map(|b| b.vels.linvel).unwrap_or(na::zero());
         let linvel2 =
-            frozen2.is_none() as u32 as Real * b2.map(|b| b.1.linvel).unwrap_or(na::zero());
+            frozen2.is_none() as u32 as Real * rb2.map(|b| b.vels.linvel).unwrap_or(na::zero());
         let angvel1 =
-            frozen1.is_none() as u32 as Real * b1.map(|b| b.1.angvel).unwrap_or(na::zero());
+            frozen1.is_none() as u32 as Real * rb1.map(|b| b.vels.angvel).unwrap_or(na::zero());
         let angvel2 =
-            frozen2.is_none() as u32 as Real * b2.map(|b| b.1.angvel).unwrap_or(na::zero());
+            frozen2.is_none() as u32 as Real * rb2.map(|b| b.vels.angvel).unwrap_or(na::zero());
 
         #[cfg(feature = "dim2")]
         let vel12 = (linvel2 - linvel1).norm()
-            + angvel1.abs() * b1.map(|b| b.3.ccd_max_dist).unwrap_or(0.0)
-            + angvel2.abs() * b2.map(|b| b.3.ccd_max_dist).unwrap_or(0.0);
+            + angvel1.abs() * rb1.map(|b| b.ccd.ccd_max_dist).unwrap_or(0.0)
+            + angvel2.abs() * rb2.map(|b| b.ccd.ccd_max_dist).unwrap_or(0.0);
         #[cfg(feature = "dim3")]
         let vel12 = (linvel2 - linvel1).norm()
-            + angvel1.norm() * b1.map(|b| b.3.ccd_max_dist).unwrap_or(0.0)
-            + angvel2.norm() * b2.map(|b| b.3.ccd_max_dist).unwrap_or(0.0);
+            + angvel1.norm() * rb1.map(|b| b.ccd.ccd_max_dist).unwrap_or(0.0)
+            + angvel2.norm() * rb2.map(|b| b.ccd.ccd_max_dist).unwrap_or(0.0);
 
         // We may be slightly over-conservative by taking the `max(0.0)` here.
         // But removing the `max` doesn't really affect performances so let's
         // keep it since more conservatism is good at this stage.
-        let thickness = (co_shape1.0.ccd_thickness() + co_shape2.0.ccd_thickness())
+        let thickness = (co1.shape.0.ccd_thickness() + co2.shape.0.ccd_thickness())
             + smallest_contact_dist.max(0.0);
-        let is_pseudo_intersection_test = co_type1.is_sensor()
-            || co_type2.is_sensor()
-            || !co_flags1.solver_groups.test(co_flags2.solver_groups);
+        let is_pseudo_intersection_test = co1.is_sensor()
+            || co2.is_sensor()
+            || !co1.flags.solver_groups.test(co2.flags.solver_groups);
 
         if (end_time - start_time) * vel12 < thickness {
             return None;
@@ -118,8 +89,8 @@ impl TOIEntry {
 
         // Compute the TOI.
         let identity = NonlinearRigidMotion::identity();
-        let mut motion1 = b1.map(Self::body_motion).unwrap_or(identity);
-        let mut motion2 = b2.map(Self::body_motion).unwrap_or(identity);
+        let mut motion1 = rb1.map(Self::body_motion).unwrap_or(identity);
+        let mut motion2 = rb2.map(Self::body_motion).unwrap_or(identity);
 
         if let Some(t) = frozen1 {
             motion1.freeze(t);
@@ -129,8 +100,8 @@ impl TOIEntry {
             motion2.freeze(t);
         }
 
-        let motion_c1 = motion1.prepend(co_parent1.map(|p| p.pos_wrt_parent).unwrap_or(co_pos1.0));
-        let motion_c2 = motion2.prepend(co_parent2.map(|p| p.pos_wrt_parent).unwrap_or(co_pos2.0));
+        let motion_c1 = motion1.prepend(co1.parent.map(|p| p.pos_wrt_parent).unwrap_or(co1.pos.0));
+        let motion_c2 = motion2.prepend(co2.parent.map(|p| p.pos_wrt_parent).unwrap_or(co2.pos.0));
 
         // println!("start_time: {}", start_time);
 
@@ -146,9 +117,9 @@ impl TOIEntry {
         let res_toi = query_dispatcher
             .nonlinear_time_of_impact(
                 &motion_c1,
-                co_shape1.as_ref(),
+                co1.shape.as_ref(),
                 &motion_c2,
-                co_shape2.as_ref(),
+                co2.shape.as_ref(),
                 start_time,
                 end_time,
                 stop_at_penetration,
@@ -160,31 +131,24 @@ impl TOIEntry {
         Some(Self::new(
             toi.toi,
             ch1,
-            co_parent1.map(|p| p.handle),
+            co1.parent.map(|p| p.handle),
             ch2,
-            co_parent2.map(|p| p.handle),
+            co2.parent.map(|p| p.handle),
             is_pseudo_intersection_test,
             0,
         ))
     }
 
-    fn body_motion(
-        (poss, vels, mprops, ccd): (
-            &RigidBodyPosition,
-            &RigidBodyVelocity,
-            &RigidBodyMassProps,
-            &RigidBodyCcd,
-        ),
-    ) -> NonlinearRigidMotion {
-        if ccd.ccd_active {
+    fn body_motion(rb: &RigidBody) -> NonlinearRigidMotion {
+        if rb.ccd.ccd_active {
             NonlinearRigidMotion::new(
-                poss.position,
-                mprops.local_mprops.local_com,
-                vels.linvel,
-                vels.angvel,
+                rb.pos.position,
+                rb.mprops.local_mprops.local_com,
+                rb.vels.linvel,
+                rb.vels.angvel,
             )
         } else {
-            NonlinearRigidMotion::constant_position(poss.next_position)
+            NonlinearRigidMotion::constant_position(rb.pos.next_position)
         }
     }
 }

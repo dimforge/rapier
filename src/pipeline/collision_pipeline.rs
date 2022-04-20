@@ -97,7 +97,7 @@ impl CollisionPipeline {
         modified_colliders: &mut Vec<ColliderHandle>,
     ) {
         for handle in modified_colliders.drain(..) {
-            colliders.set_internal(handle.0, ColliderChanges::empty())
+            colliders.index_mut_internal(handle).changes = ColliderChanges::empty();
         }
     }
 

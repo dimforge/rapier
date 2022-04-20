@@ -1,10 +1,6 @@
-use crate::dynamics::{
-    IslandManager, RigidBodyColliders, RigidBodyForces, RigidBodyMassProps, RigidBodyPosition,
-    RigidBodyVelocity,
-};
+use crate::dynamics::IslandManager;
 use crate::geometry::{
-    ColliderFlags, ColliderHandle, ColliderParent, ColliderPosition, ColliderShape,
-    InteractionGroups, PointProjection, Ray, RayIntersection, AABB, QBVH,
+    ColliderHandle, InteractionGroups, PointProjection, Ray, RayIntersection, AABB, QBVH,
 };
 use crate::math::{Isometry, Point, Real, Vector};
 use parry::partitioning::QBVHDataGenerator;
@@ -75,7 +71,7 @@ impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
             if co.flags.collision_groups.test(self.query_groups)
                 && self.filter.map(|f| f(shape_id)).unwrap_or(true)
             {
-                f(Some(co.pos), &**co.shape)
+                f(Some(&co.pos), &*co.shape)
             }
         }
     }
@@ -189,54 +185,35 @@ impl QueryPipeline {
             fn for_each(&mut self, mut f: impl FnMut(ColliderHandle, AABB)) {
                 match self.mode {
                     QueryPipelineMode::CurrentPosition => {
-                        self.colliders.for_each(|h, co_shape: &ColliderShape| {
-                            let co_pos: &ColliderPosition = self.colliders.index(h);
-                            f(ColliderHandle(h), co_shape.compute_aabb(&co_pos))
-                        })
+                        for (h, co) in self.colliders.iter() {
+                            f(h, co.shape.compute_aabb(&co.pos))
+                        }
                     }
                     QueryPipelineMode::SweepTestWithNextPosition => {
-                        self.colliders.for_each(|h, co_shape: &ColliderShape| {
-                            let co_parent: Option<&ColliderParent> = self.colliders.get(h);
-                            let co_pos: &ColliderPosition = self.colliders.index(h);
-
-                            if let Some(co_parent) = co_parent {
-                                let rb_pos: &RigidBodyPosition =
-                                    self.bodies.index(co_parent.handle.0);
-                                let next_position = rb_pos.next_position * co_parent.pos_wrt_parent;
-
-                                f(
-                                    ColliderHandle(h),
-                                    co_shape.compute_swept_aabb(&co_pos, &next_position),
-                                )
+                        for (h, co) in self.colliders.iter() {
+                            if let Some(co_parent) = co.parent {
+                                let rb_next_pos = &self.bodies[co_parent.handle].pos.next_position;
+                                let next_position = rb_next_pos * co_parent.pos_wrt_parent;
+                                f(h, co.shape.compute_swept_aabb(&co.pos, &next_position))
                             } else {
-                                f(ColliderHandle(h), co_shape.compute_aabb(&co_pos))
+                                f(h, co.shape.compute_aabb(&co.pos))
                             }
-                        })
+                        }
                     }
                     QueryPipelineMode::SweepTestWithPredictedPosition { dt } => {
-                        self.colliders.for_each(|h, co_shape: &ColliderShape| {
-                            let co_parent: Option<&ColliderParent> = self.colliders.get(h);
-                            let co_pos: &ColliderPosition = self.colliders.index(h);
-
-                            if let Some(co_parent) = co_parent {
-                                let (rb_pos, vels, forces, mprops): (
-                                    &RigidBodyPosition,
-                                    &RigidBodyVelocity,
-                                    &RigidBodyForces,
-                                    &RigidBodyMassProps,
-                                ) = self.bodies.index_bundle(co_parent.handle.0);
-                                let predicted_pos = rb_pos
-                                    .integrate_forces_and_velocities(dt, forces, vels, mprops);
+                        for (h, co) in self.colliders.iter() {
+                            if let Some(co_parent) = co.parent {
+                                let rb = &self.bodies[co_parent.handle];
+                                let predicted_pos = rb.pos.integrate_forces_and_velocities(
+                                    dt, &rb.forces, &rb.vels, &rb.mprops,
+                                );
 
                                 let next_position = predicted_pos * co_parent.pos_wrt_parent;
-                                f(
-                                    ColliderHandle(h),
-                                    co_shape.compute_swept_aabb(&co_pos, &next_position),
-                                )
+                                f(h, co.shape.compute_swept_aabb(&co.pos, &next_position))
                             } else {
-                                f(ColliderHandle(h), co_shape.compute_aabb(&co_pos))
+                                f(h, co.shape.compute_aabb(&co.pos))
                             }
-                        })
+                        }
                     }
                 }
             }
@@ -256,8 +233,8 @@ impl QueryPipeline {
         }
 
         for handle in islands.iter_active_bodies() {
-            let body_colliders: &RigidBodyColliders = bodies.index(handle.0);
-            for handle in &body_colliders.0 {
+            let rb = &bodies[handle];
+            for handle in &rb.colliders.0 {
                 self.qbvh.pre_update(*handle)
             }
         }
@@ -266,9 +243,8 @@ impl QueryPipeline {
             QueryPipelineMode::CurrentPosition => {
                 self.qbvh.update(
                     |handle| {
-                        let (co_pos, co_shape): (&ColliderPosition, &ColliderShape) =
-                            colliders.index_bundle(handle.0);
-                        co_shape.compute_aabb(&co_pos)
+                        let co = &colliders[*handle];
+                        co.shape.compute_aabb(&co.pos)
                     },
                     self.dilation_factor,
                 );
@@ -276,10 +252,10 @@ impl QueryPipeline {
             QueryPipelineMode::SweepTestWithNextPosition => {
                 self.qbvh.update(
                     |handle| {
-                        let co = &colliders[handle];
-                        if let Some(parent) = co.parent {
-                            let rb_pos: &RigidBodyPosition = bodies.index(co.parent.handle.0);
-                            let next_position = rb_pos.next_position * co.parent.pos_wrt_parent;
+                        let co = &colliders[*handle];
+                        if let Some(parent) = &co.parent {
+                            let rb_next_pos = &bodies[parent.handle].pos.next_position;
+                            let next_position = rb_next_pos * parent.pos_wrt_parent;
                             co.shape.compute_swept_aabb(&co.pos, &next_position)
                         } else {
                             co.shape.compute_aabb(&co.pos)
@@ -291,12 +267,12 @@ impl QueryPipeline {
             QueryPipelineMode::SweepTestWithPredictedPosition { dt } => {
                 self.qbvh.update(
                     |handle| {
-                        let co = &colliders[handle];
+                        let co = &colliders[*handle];
                         if let Some(parent) = co.parent {
                             let rb = &bodies[parent.handle];
-                            let predicted_pos = rb
-                                .pos
-                                .integrate_forces_and_velocities(dt, rb.forces, rb.vels, rb.mprops);
+                            let predicted_pos = rb.pos.integrate_forces_and_velocities(
+                                dt, &rb.forces, &rb.vels, &rb.mprops,
+                            );
 
                             let next_position = predicted_pos * parent.pos_wrt_parent;
                             co.shape.compute_swept_aabb(&co.pos, &next_position)
@@ -394,7 +370,7 @@ impl QueryPipeline {
     /// * `callback`: function executed on each collider for which a ray intersection has been found.
     ///               There is no guarantees on the order the results will be yielded. If this callback returns `false`,
     ///               this method will exit early, ignore any further raycast.
-    pub fn intersections_with_ray<'a, ColliderSet>(
+    pub fn intersections_with_ray<'a>(
         &self,
         colliders: &'a ColliderSet,
         ray: &Ray,
@@ -405,14 +381,13 @@ impl QueryPipeline {
         mut callback: impl FnMut(ColliderHandle, RayIntersection) -> bool,
     ) {
         let mut leaf_callback = &mut |handle: &ColliderHandle| {
-            let co_shape: Option<&ColliderShape> = colliders.get(handle.0);
-            if let Some(co_shape) = co_shape {
-                let (co_flags, co_pos): (&ColliderFlags, &ColliderPosition) =
-                    colliders.index_bundle(handle.0);
-                if co_flags.collision_groups.test(query_groups)
+            if let Some(co) = colliders.get(*handle) {
+                if co.flags.collision_groups.test(query_groups)
                     && filter.map(|f| f(*handle)).unwrap_or(true)
                 {
-                    if let Some(hit) = co_shape.cast_ray_and_get_normal(co_pos, ray, max_toi, solid)
+                    if let Some(hit) = co
+                        .shape
+                        .cast_ray_and_get_normal(&co.pos, ray, max_toi, solid)
                     {
                         return callback(*handle, hit);
                     }
@@ -502,7 +477,7 @@ impl QueryPipeline {
     ///             is either `None` or returns `true`.
     /// * `callback` - A function called with each collider with a shape
     ///                containing the `point`.
-    pub fn intersections_with_point<'a, ColliderSet>(
+    pub fn intersections_with_point<'a>(
         &self,
         colliders: &'a ColliderSet,
         point: &Point<Real>,
@@ -511,15 +486,10 @@ impl QueryPipeline {
         mut callback: impl FnMut(ColliderHandle) -> bool,
     ) {
         let mut leaf_callback = &mut |handle: &ColliderHandle| {
-            let co_shape: Option<&ColliderShape> = colliders.get(handle.0);
-
-            if let Some(co_shape) = co_shape {
-                let (co_flags, co_pos): (&ColliderFlags, &ColliderPosition) =
-                    colliders.index_bundle(handle.0);
-
-                if co_flags.collision_groups.test(query_groups)
+            if let Some(co) = colliders.get(*handle) {
+                if co.flags.collision_groups.test(query_groups)
                     && filter.map(|f| f(*handle)).unwrap_or(true)
-                    && co_shape.contains_point(co_pos, point)
+                    && co.shape.contains_point(&co.pos, point)
                 {
                     return callback(*handle);
                 }
@@ -677,7 +647,7 @@ impl QueryPipeline {
     ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
     ///             is either `None` or returns `true`.
     /// * `callback` - A function called with the handles of each collider intersecting the `shape`.
-    pub fn intersections_with_shape<'a, ColliderSet>(
+    pub fn intersections_with_shape<'a>(
         &self,
         colliders: &'a ColliderSet,
         shape_pos: &Isometry<Real>,
@@ -690,18 +660,13 @@ impl QueryPipeline {
         let inv_shape_pos = shape_pos.inverse();
 
         let mut leaf_callback = &mut |handle: &ColliderHandle| {
-            let co_shape: Option<&ColliderShape> = colliders.get(handle.0);
-
-            if let Some(co_shape) = co_shape {
-                let (co_flags, co_pos): (&ColliderFlags, &ColliderPosition) =
-                    colliders.index_bundle(handle.0);
-
-                if co_flags.collision_groups.test(query_groups)
+            if let Some(co) = colliders.get(*handle) {
+                if co.flags.collision_groups.test(query_groups)
                     && filter.map(|f| f(*handle)).unwrap_or(true)
                 {
-                    let pos12 = inv_shape_pos * co_pos.as_ref();
+                    let pos12 = inv_shape_pos * co.pos.as_ref();
 
-                    if dispatcher.intersection_test(&pos12, shape, &**co_shape) == Ok(true) {
+                    if dispatcher.intersection_test(&pos12, shape, &*co.shape) == Ok(true) {
                         return callback(*handle);
                     }
                 }

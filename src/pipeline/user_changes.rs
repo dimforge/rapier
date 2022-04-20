@@ -1,6 +1,6 @@
 use crate::dynamics::{
     IslandManager, RigidBodyActivation, RigidBodyChanges, RigidBodyHandle, RigidBodyIds,
-    RigidBodyPosition, RigidBodySet, RigidBodyType,
+    RigidBodySet, RigidBodyType,
 };
 use crate::geometry::{ColliderChanges, ColliderHandle, ColliderPosition, ColliderSet};
 use parry::utils::hashmap::HashMap;
@@ -17,15 +17,13 @@ pub(crate) fn handle_user_changes_to_colliders(
     for handle in modified_colliders {
         // NOTE: we use `get` because the collider may no longer
         //       exist if it has been removed.
-        if let Some(co) = colliders.get(*handle) {
+        if let Some(co) = colliders.get_mut_internal(*handle) {
             if co.changes.contains(ColliderChanges::PARENT) {
                 if let Some(co_parent) = co.parent {
-                    let parent_pos: &RigidBodyPosition = bodies.index(co_parent.handle.0);
+                    let parent_rb = &bodies[co_parent.handle];
 
-                    let new_pos = parent_pos.position * co_parent.pos_wrt_parent;
-                    let new_changes = co.changes | ColliderChanges::POSITION;
-                    colliders.set_internal(handle.0, ColliderPosition(new_pos));
-                    colliders.set_internal(handle.0, new_changes);
+                    co.pos = ColliderPosition(parent_rb.pos.position * co_parent.pos_wrt_parent);
+                    co.changes |= ColliderChanges::POSITION;
                 }
             }
 
@@ -38,18 +36,12 @@ pub(crate) fn handle_user_changes_to_colliders(
     }
 
     for (to_update, _) in mprops_to_update {
-        let rb = &bodies[to_update];
-        let position = rb.position();
-        // FIXME: remove the clone once we remove the ComponentSets.
-        let attached_colliders = rb.colliders().clone();
-
-        bodies.map_mut_internal(to_update.0, |rb_mprops| {
-            rb_mprops.recompute_mass_properties_from_colliders(
-                colliders,
-                &attached_colliders,
-                &position,
-            )
-        });
+        let rb = bodies.index_mut_internal(to_update);
+        rb.mprops.recompute_mass_properties_from_colliders(
+            colliders,
+            &rb.colliders,
+            &rb.pos.position,
+        );
     }
 }
 
@@ -73,7 +65,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
             continue;
         }
 
-        let rb = &bodies[handle];
+        let rb = bodies.index_mut_internal(*handle);
         let mut changes = rb.changes;
         let mut ids: RigidBodyIds = rb.ids;
         let mut activation: RigidBodyActivation = rb.activation;
@@ -83,7 +75,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
             // it is on the correct active set.
             if let Some(islands) = islands.as_deref_mut() {
                 if changes.contains(RigidBodyChanges::TYPE) {
-                    match rb.status {
+                    match rb.body_type {
                         RigidBodyType::Dynamic => {
                             // Remove from the active kinematic set if it was there.
                             if islands.active_kinematic_set.get(ids.active_set_id) == Some(handle) {
@@ -162,20 +154,19 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                 || changes.contains(RigidBodyChanges::TYPE)
             {
                 for handle in rb.colliders.0.iter() {
-                    colliders.map_mut_internal(handle.0, |co_changes: &mut ColliderChanges| {
-                        if !co_changes.contains(ColliderChanges::MODIFIED) {
-                            modified_colliders.push(*handle);
-                        }
+                    let co = colliders.index_mut_internal(*handle);
+                    if !co.changes.contains(ColliderChanges::MODIFIED) {
+                        modified_colliders.push(*handle);
+                    }
 
-                        *co_changes |=
-                            ColliderChanges::MODIFIED | ColliderChanges::PARENT_EFFECTIVE_DOMINANCE;
-                    });
+                    co.changes |=
+                        ColliderChanges::MODIFIED | ColliderChanges::PARENT_EFFECTIVE_DOMINANCE;
                 }
             }
 
-            bodies.set_internal(handle.0, RigidBodyChanges::empty());
-            bodies.set_internal(handle.0, ids);
-            bodies.set_internal(handle.0, activation);
+            rb.changes = RigidBodyChanges::empty();
+            rb.ids = ids;
+            rb.activation = activation;
         }
 
         // Adjust some ids, if needed.
@@ -187,9 +178,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                 };
 
                 if id < active_set.len() {
-                    bodies.map_mut_internal(active_set[id].0, |ids2: &mut RigidBodyIds| {
-                        ids2.active_set_id = id;
-                    });
+                    bodies.index_mut_internal(active_set[id]).ids.active_set_id = id;
                 }
             }
         }

@@ -6,11 +6,8 @@ struct OneWayPlatformHook {
     platform2: ColliderHandle,
 }
 
-impl PhysicsHooks<RigidBodySet, ColliderSet> for OneWayPlatformHook {
-    fn modify_solver_contacts(
-        &self,
-        context: &mut ContactModificationContext<RigidBodySet, ColliderSet>,
-    ) {
+impl PhysicsHooks for OneWayPlatformHook {
+    fn modify_solver_contacts(&self, context: &mut ContactModificationContext) {
         // The allowed normal for the first platform is its local +y axis, and the
         // allowed normal for the second platform is its local -y axis.
         //

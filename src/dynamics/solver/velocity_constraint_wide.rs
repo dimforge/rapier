@@ -1,7 +1,9 @@
 use super::{
     AnyVelocityConstraint, DeltaVel, VelocityConstraintElement, VelocityConstraintNormalPart,
 };
-use crate::dynamics::{IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyVelocity};
+use crate::dynamics::{
+    IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodySet, RigidBodyVelocity,
+};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
     AngVector, AngularInertia, Point, Real, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS, SIMD_WIDTH,
@@ -49,12 +51,12 @@ impl WVelocityConstraint {
         let handles1 = gather![|ii| manifolds[ii].data.rigid_body1.unwrap()];
         let handles2 = gather![|ii| manifolds[ii].data.rigid_body2.unwrap()];
 
-        let vels1: [&RigidBodyVelocity; SIMD_WIDTH] = gather![|ii| bodies.index(handles1[ii].0)];
-        let vels2: [&RigidBodyVelocity; SIMD_WIDTH] = gather![|ii| bodies.index(handles2[ii].0)];
-        let ids1: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| bodies.index(handles1[ii].0)];
-        let ids2: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| bodies.index(handles2[ii].0)];
-        let mprops1: [&RigidBodyMassProps; SIMD_WIDTH] = gather![|ii| bodies.index(handles1[ii].0)];
-        let mprops2: [&RigidBodyMassProps; SIMD_WIDTH] = gather![|ii| bodies.index(handles2[ii].0)];
+        let vels1: [&RigidBodyVelocity; SIMD_WIDTH] = gather![|ii| &bodies[handles1[ii]].vels];
+        let vels2: [&RigidBodyVelocity; SIMD_WIDTH] = gather![|ii| &bodies[handles2[ii]].vels];
+        let ids1: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| &bodies[handles1[ii]].ids];
+        let ids2: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| &bodies[handles2[ii]].ids];
+        let mprops1: [&RigidBodyMassProps; SIMD_WIDTH] = gather![|ii| &bodies[handles1[ii]].mprops];
+        let mprops2: [&RigidBodyMassProps; SIMD_WIDTH] = gather![|ii| &bodies[handles2[ii]].mprops];
 
         let world_com1 = Point::from(gather![|ii| mprops1[ii].world_com]);
         let im1 = Vector::from(gather![|ii| mprops1[ii].effective_inv_mass]);

@@ -231,6 +231,7 @@ pub struct RigidBodyMassProps {
     pub flags: LockedAxes,
     /// The local mass properties of the rigid-body.
     pub local_mprops: MassProperties,
+    /// Mass-properties of this rigid-bodies, added to the contributions of its attached colliders.
     pub additional_local_mprops: Option<Box<MassProperties>>,
     /// The world-space center of mass of the rigid-body.
     pub world_com: Point<Real>,
@@ -307,11 +308,11 @@ impl RigidBodyMassProps {
             .unwrap_or_else(MassProperties::default);
 
         for handle in &attached_colliders.0 {
-            if let Some(co) = colliders.get(handle) {
+            if let Some(co) = colliders.get(*handle) {
                 if let Some(co_parent) = co.parent {
                     let to_add = co
                         .mprops
-                        .mass_properties(&**co.shape)
+                        .mass_properties(&*co.shape)
                         .transform_by(&co_parent.pos_wrt_parent);
                     self.local_mprops += to_add;
                 }
@@ -895,21 +896,17 @@ impl RigidBodyColliders {
     ) {
         for handle in &self.0 {
             // NOTE: the ColliderParent component must exist if we enter this method.
-            let co_parent: &ColliderParent = colliders
-                .get(handle.0)
-                .expect("Could not find the ColliderParent component.");
-            let new_pos = parent_pos * co_parent.pos_wrt_parent;
+            let co = colliders.index_mut_internal(*handle);
+            let new_pos = parent_pos * co.parent.as_ref().unwrap().pos_wrt_parent;
+
+            if !co.changes.contains(ColliderChanges::MODIFIED) {
+                modified_colliders.push(*handle);
+            }
 
             // Set the modification flag so we can benefit from the modification-tracking
             // when updating the narrow-phase/broad-phase afterwards.
-            colliders.map_mut_internal(handle.0, |co_changes: &mut ColliderChanges| {
-                if !co_changes.contains(ColliderChanges::MODIFIED) {
-                    modified_colliders.push(*handle);
-                }
-
-                *co_changes |= ColliderChanges::POSITION;
-            });
-            colliders.set_internal(handle.0, ColliderPosition(new_pos));
+            co.changes |= ColliderChanges::POSITION;
+            co.pos = ColliderPosition(new_pos);
         }
     }
 }

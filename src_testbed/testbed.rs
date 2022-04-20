@@ -493,7 +493,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         impulse_joints: ImpulseJointSet,
         multibody_joints: MultibodyJointSet,
         gravity: Vector<Real>,
-        hooks: impl PhysicsHooks<RigidBodySet, ColliderSet> + 'static,
+        hooks: impl PhysicsHooks + 'static,
     ) {
         self.harness.set_world_with_params(
             bodies,

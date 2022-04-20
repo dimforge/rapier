@@ -3,9 +3,7 @@ use crate::dynamics::solver::{
 };
 #[cfg(feature = "simd-is-enabled")]
 use crate::dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint};
-use crate::dynamics::{
-    IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodySet, RigidBodyVelocity,
-};
+use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{self, WAngularInertia, WBasis, WCross, WDot};
@@ -160,13 +158,14 @@ impl VelocityConstraint {
 
         let handle1 = manifold.data.rigid_body1.unwrap();
         let handle2 = manifold.data.rigid_body2.unwrap();
-        let (ids1, vels1, mprops1): (&RigidBodyIds, &RigidBodyVelocity, &RigidBodyMassProps) =
-            bodies.index_bundle(handle1.0);
-        let (ids2, vels2, mprops2): (&RigidBodyIds, &RigidBodyVelocity, &RigidBodyMassProps) =
-            bodies.index_bundle(handle2.0);
 
-        let mj_lambda1 = ids1.active_set_offset;
-        let mj_lambda2 = ids2.active_set_offset;
+        let rb1 = &bodies[handle1];
+        let (vels1, mprops1) = (&rb1.vels, &rb1.mprops);
+        let rb2 = &bodies[handle2];
+        let (vels2, mprops2) = (&rb2.vels, &rb2.mprops);
+
+        let mj_lambda1 = rb1.ids.active_set_offset;
+        let mj_lambda2 = rb2.ids.active_set_offset;
         let force_dir1 = -manifold.data.normal;
 
         #[cfg(feature = "dim2")]
