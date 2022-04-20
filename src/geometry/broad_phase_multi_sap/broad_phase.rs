@@ -451,7 +451,7 @@ impl BroadPhase {
         for handle in modified_colliders {
             // NOTE: we use `get` because the collider may no longer
             //       exist if it has been removed.
-            if let Some(co) = colliders.get(*handle) {
+            if let Some(co) = colliders.get_mut_internal(*handle) {
                 if !co.changes.needs_broad_phase_update() {
                     continue;
                 }
@@ -471,12 +471,9 @@ impl BroadPhase {
 
                     // Make sure we have the new proxy index in case
                     // the collider was added for the first time.
-                    colliders.set_internal(
-                        handle.0,
-                        ColliderBroadPhaseData {
-                            proxy_index: new_proxy_id,
-                        },
-                    );
+                    co.bf_data = ColliderBroadPhaseData {
+                        proxy_index: new_proxy_id,
+                    };
                 }
             }
         }

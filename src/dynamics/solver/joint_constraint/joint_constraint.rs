@@ -6,8 +6,7 @@ use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
 };
 use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{
-    ImpulseJoint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodyIds,
-    RigidBodyMassProps, RigidBodyPosition, RigidBodySet, RigidBodyType, RigidBodyVelocity,
+    ImpulseJoint, IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet,
 };
 use crate::math::{Real, SPATIAL_DIM};
 use crate::prelude::MultibodyJointSet;
@@ -63,39 +62,26 @@ impl AnyJointVelocityConstraint {
     ) {
         let local_frame1 = joint.data.local_frame1;
         let local_frame2 = joint.data.local_frame2;
-        let rb1: (
-            &RigidBodyPosition,
-            &RigidBodyVelocity,
-            &RigidBodyMassProps,
-            &RigidBodyIds,
-        ) = bodies.index_bundle(joint.body1.0);
-        let rb2: (
-            &RigidBodyPosition,
-            &RigidBodyVelocity,
-            &RigidBodyMassProps,
-            &RigidBodyIds,
-        ) = bodies.index_bundle(joint.body2.0);
-
-        let (rb_pos1, rb_vel1, rb_mprops1, rb_ids1) = rb1;
-        let (rb_pos2, rb_vel2, rb_mprops2, rb_ids2) = rb2;
-        let frame1 = rb_pos1.position * local_frame1;
-        let frame2 = rb_pos2.position * local_frame2;
+        let rb1 = &bodies[joint.body1];
+        let rb2 = &bodies[joint.body2];
+        let frame1 = rb1.pos.position * local_frame1;
+        let frame2 = rb2.pos.position * local_frame2;
 
         let body1 = SolverBody {
-            linvel: rb_vel1.linvel,
-            angvel: rb_vel1.angvel,
-            im: rb_mprops1.effective_inv_mass,
-            sqrt_ii: rb_mprops1.effective_world_inv_inertia_sqrt,
-            world_com: rb_mprops1.world_com,
-            mj_lambda: [rb_ids1.active_set_offset],
+            linvel: rb1.vels.linvel,
+            angvel: rb1.vels.angvel,
+            im: rb1.mprops.effective_inv_mass,
+            sqrt_ii: rb1.mprops.effective_world_inv_inertia_sqrt,
+            world_com: rb1.mprops.world_com,
+            mj_lambda: [rb1.ids.active_set_offset],
         };
         let body2 = SolverBody {
-            linvel: rb_vel2.linvel,
-            angvel: rb_vel2.angvel,
-            im: rb_mprops2.effective_inv_mass,
-            sqrt_ii: rb_mprops2.effective_world_inv_inertia_sqrt,
-            world_com: rb_mprops2.world_com,
-            mj_lambda: [rb_ids2.active_set_offset],
+            linvel: rb2.vels.linvel,
+            angvel: rb2.vels.angvel,
+            im: rb2.mprops.effective_inv_mass,
+            sqrt_ii: rb2.mprops.effective_world_inv_inertia_sqrt,
+            world_com: rb2.mprops.world_com,
+            mj_lambda: [rb2.ids.active_set_offset],
         };
 
         let mb1 = multibodies
@@ -186,16 +172,20 @@ impl AnyJointVelocityConstraint {
         out: &mut Vec<Self>,
         insert_at: Option<usize>,
     ) {
+        use crate::dynamics::{
+            RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyVelocity,
+        };
+
         let rbs1: (
             [&RigidBodyPosition; SIMD_WIDTH],
             [&RigidBodyVelocity; SIMD_WIDTH],
             [&RigidBodyMassProps; SIMD_WIDTH],
             [&RigidBodyIds; SIMD_WIDTH],
         ) = (
-            gather![|ii| bodies.index(impulse_joints[ii].body1.0)],
-            gather![|ii| bodies.index(impulse_joints[ii].body1.0)],
-            gather![|ii| bodies.index(impulse_joints[ii].body1.0)],
-            gather![|ii| bodies.index(impulse_joints[ii].body1.0)],
+            gather![|ii| &bodies[impulse_joints[ii].body1].pos],
+            gather![|ii| &bodies[impulse_joints[ii].body1].vels],
+            gather![|ii| &bodies[impulse_joints[ii].body1].mprops],
+            gather![|ii| &bodies[impulse_joints[ii].body1].ids],
         );
         let rbs2: (
             [&RigidBodyPosition; SIMD_WIDTH],
@@ -203,10 +193,10 @@ impl AnyJointVelocityConstraint {
             [&RigidBodyMassProps; SIMD_WIDTH],
             [&RigidBodyIds; SIMD_WIDTH],
         ) = (
-            gather![|ii| bodies.index(impulse_joints[ii].body2.0)],
-            gather![|ii| bodies.index(impulse_joints[ii].body2.0)],
-            gather![|ii| bodies.index(impulse_joints[ii].body2.0)],
-            gather![|ii| bodies.index(impulse_joints[ii].body2.0)],
+            gather![|ii| &bodies[impulse_joints[ii].body2].pos],
+            gather![|ii| &bodies[impulse_joints[ii].body2].vels],
+            gather![|ii| &bodies[impulse_joints[ii].body2].mprops],
+            gather![|ii| &bodies[impulse_joints[ii].body2].ids],
         );
 
         let (rb_pos1, rb_vel1, rb_mprops1, rb_ids1) = rbs1;
@@ -276,8 +266,7 @@ impl AnyJointVelocityConstraint {
     ) {
         let mut handle1 = joint.body1;
         let mut handle2 = joint.body2;
-        let status2: &RigidBodyType = bodies.index(handle2.0);
-        let flipped = !status2.is_dynamic();
+        let flipped = !bodies[handle2].is_dynamic();
 
         let (local_frame1, local_frame2) = if flipped {
             std::mem::swap(&mut handle1, &mut handle2);
@@ -286,35 +275,27 @@ impl AnyJointVelocityConstraint {
             (joint.data.local_frame1, joint.data.local_frame2)
         };
 
-        let rb1: (&RigidBodyPosition, &RigidBodyVelocity, &RigidBodyMassProps) =
-            bodies.index_bundle(handle1.0);
-        let rb2: (
-            &RigidBodyPosition,
-            &RigidBodyVelocity,
-            &RigidBodyMassProps,
-            &RigidBodyIds,
-        ) = bodies.index_bundle(handle2.0);
+        let rb1 = &bodies[handle1];
+        let rb2 = &bodies[handle2];
 
-        let (rb_pos1, rb_vel1, rb_mprops1) = rb1;
-        let (rb_pos2, rb_vel2, rb_mprops2, rb_ids2) = rb2;
-        let frame1 = rb_pos1.position * local_frame1;
-        let frame2 = rb_pos2.position * local_frame2;
+        let frame1 = rb1.pos.position * local_frame1;
+        let frame2 = rb2.pos.position * local_frame2;
 
         let body1 = SolverBody {
-            linvel: rb_vel1.linvel,
-            angvel: rb_vel1.angvel,
-            im: rb_mprops1.effective_inv_mass,
-            sqrt_ii: rb_mprops1.effective_world_inv_inertia_sqrt,
-            world_com: rb_mprops1.world_com,
+            linvel: rb1.vels.linvel,
+            angvel: rb1.vels.angvel,
+            im: rb1.mprops.effective_inv_mass,
+            sqrt_ii: rb1.mprops.effective_world_inv_inertia_sqrt,
+            world_com: rb1.mprops.world_com,
             mj_lambda: [crate::INVALID_USIZE],
         };
         let body2 = SolverBody {
-            linvel: rb_vel2.linvel,
-            angvel: rb_vel2.angvel,
-            im: rb_mprops2.effective_inv_mass,
-            sqrt_ii: rb_mprops2.effective_world_inv_inertia_sqrt,
-            world_com: rb_mprops2.world_com,
-            mj_lambda: [rb_ids2.active_set_offset],
+            linvel: rb2.vels.linvel,
+            angvel: rb2.vels.angvel,
+            im: rb2.mprops.effective_inv_mass,
+            sqrt_ii: rb2.mprops.effective_world_inv_inertia_sqrt,
+            world_com: rb2.mprops.world_com,
+            mj_lambda: [rb2.ids.active_set_offset],
         };
 
         if let Some(mb2) = multibodies
@@ -399,9 +380,13 @@ impl AnyJointVelocityConstraint {
         out: &mut Vec<Self>,
         insert_at: Option<usize>,
     ) {
+        use crate::dynamics::{
+            RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
+        };
+
         let mut handles1 = gather![|ii| impulse_joints[ii].body1];
         let mut handles2 = gather![|ii| impulse_joints[ii].body2];
-        let status2: [&RigidBodyType; SIMD_WIDTH] = gather![|ii| bodies.index(handles2[ii].0)];
+        let status2: [&RigidBodyType; SIMD_WIDTH] = gather![|ii| &bodies[handles2[ii]].body_type];
         let mut flipped = [false; SIMD_WIDTH];
 
         for ii in 0..SIMD_WIDTH {
@@ -429,9 +414,9 @@ impl AnyJointVelocityConstraint {
             [&RigidBodyVelocity; SIMD_WIDTH],
             [&RigidBodyMassProps; SIMD_WIDTH],
         ) = (
-            gather![|ii| bodies.index(handles1[ii].0)],
-            gather![|ii| bodies.index(handles1[ii].0)],
-            gather![|ii| bodies.index(handles1[ii].0)],
+            gather![|ii| &bodies[handles1[ii]].pos],
+            gather![|ii| &bodies[handles1[ii]].vels],
+            gather![|ii| &bodies[handles1[ii]].mprops],
         );
         let rbs2: (
             [&RigidBodyPosition; SIMD_WIDTH],
@@ -439,10 +424,10 @@ impl AnyJointVelocityConstraint {
             [&RigidBodyMassProps; SIMD_WIDTH],
             [&RigidBodyIds; SIMD_WIDTH],
         ) = (
-            gather![|ii| bodies.index(handles2[ii].0)],
-            gather![|ii| bodies.index(handles2[ii].0)],
-            gather![|ii| bodies.index(handles2[ii].0)],
-            gather![|ii| bodies.index(handles2[ii].0)],
+            gather![|ii| &bodies[handles2[ii]].pos],
+            gather![|ii| &bodies[handles2[ii]].vels],
+            gather![|ii| &bodies[handles2[ii]].mprops],
+            gather![|ii| &bodies[handles2[ii]].ids],
         );
 
         let (rb_pos1, rb_vel1, rb_mprops1) = rbs1;

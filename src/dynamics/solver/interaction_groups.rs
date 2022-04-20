@@ -3,7 +3,6 @@ use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
 #[cfg(feature = "simd-is-enabled")]
 use {
-    crate::data::BundleSet,
     crate::math::{SIMD_LAST_INDEX, SIMD_WIDTH},
     vec_map::VecMap,
 };
@@ -90,14 +89,8 @@ impl ParallelInteractionGroups {
             .zip(self.interaction_colors.iter_mut())
         {
             let mut body_pair = interactions[*interaction_id].body_pair();
-            let is_fixed1 = body_pair
-                .0
-                .map(|b| ComponentSet::<RigidBodyType>::index(bodies, b.0).is_fixed())
-                .unwrap_or(true);
-            let is_fixed2 = body_pair
-                .1
-                .map(|b| ComponentSet::<RigidBodyType>::index(bodies, b.0).is_fixed())
-                .unwrap_or(true);
+            let is_fixed1 = body_pair.0.map(|b| bodies[b].is_fixed()).unwrap_or(true);
+            let is_fixed2 = body_pair.1.map(|b| bodies[b].is_fixed()).unwrap_or(true);
 
             let representative = |handle: RigidBodyHandle| {
                 if let Some(link) = multibodies.rigid_body_link(handle).copied() {
@@ -119,28 +112,28 @@ impl ParallelInteractionGroups {
 
             match (is_fixed1, is_fixed2) {
                 (false, false) => {
-                    let rb_ids1: &RigidBodyIds = bodies.index(body_pair.0.unwrap().0);
-                    let rb_ids2: &RigidBodyIds = bodies.index(body_pair.1.unwrap().0);
+                    let rb1 = &bodies[body_pair.0.unwrap()];
+                    let rb2 = &bodies[body_pair.1.unwrap()];
                     let color_mask =
-                        bcolors[rb_ids1.active_set_offset] | bcolors[rb_ids2.active_set_offset];
+                        bcolors[rb1.ids.active_set_offset] | bcolors[rb2.ids.active_set_offset];
                     *color = (!color_mask).trailing_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb_ids1.active_set_offset] |= 1 << *color;
-                    bcolors[rb_ids2.active_set_offset] |= 1 << *color;
+                    bcolors[rb1.ids.active_set_offset] |= 1 << *color;
+                    bcolors[rb2.ids.active_set_offset] |= 1 << *color;
                 }
                 (true, false) => {
-                    let rb_ids2: &RigidBodyIds = bodies.index(body_pair.1.unwrap().0);
-                    let color_mask = bcolors[rb_ids2.active_set_offset];
+                    let rb2 = &bodies[body_pair.1.unwrap()];
+                    let color_mask = bcolors[rb2.ids.active_set_offset];
                     *color = 127 - (!color_mask).leading_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb_ids2.active_set_offset] |= 1 << *color;
+                    bcolors[rb2.ids.active_set_offset] |= 1 << *color;
                 }
                 (false, true) => {
-                    let rb_ids1: &RigidBodyIds = bodies.index(body_pair.0.unwrap().0);
-                    let color_mask = bcolors[rb_ids1.active_set_offset];
+                    let rb1 = &bodies[body_pair.0.unwrap()];
+                    let color_mask = bcolors[rb1.ids.active_set_offset];
                     *color = 127 - (!color_mask).leading_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb_ids1.active_set_offset] |= 1 << *color;
+                    bcolors[rb1.ids.active_set_offset] |= 1 << *color;
                 }
                 (true, true) => unreachable!(),
             }
@@ -258,13 +251,11 @@ impl InteractionGroups {
         for interaction_i in interaction_indices {
             let interaction = &interactions[*interaction_i].weight;
 
-            let (status1, ids1): (&RigidBodyType, &RigidBodyIds) =
-                bodies.index_bundle(interaction.body1.0);
-            let (status2, ids2): (&RigidBodyType, &RigidBodyIds) =
-                bodies.index_bundle(interaction.body2.0);
+            let rb1 = &bodies[interaction.body1];
+            let rb2 = &bodies[interaction.body2];
 
-            let is_fixed1 = !status1.is_dynamic();
-            let is_fixed2 = !status2.is_dynamic();
+            let is_fixed1 = !rb1.is_dynamic();
+            let is_fixed2 = !rb2.is_dynamic();
 
             if is_fixed1 && is_fixed2 {
                 continue;
@@ -277,8 +268,8 @@ impl InteractionGroups {
             }
 
             let ijoint = interaction.data.locked_axes.bits() as usize;
-            let i1 = ids1.active_set_offset;
-            let i2 = ids2.active_set_offset;
+            let i1 = rb1.ids.active_set_offset;
+            let i2 = rb2.ids.active_set_offset;
             let conflicts =
                 self.body_masks[i1] | self.body_masks[i2] | joint_type_conflicts[ijoint];
             let conflictfree_targets = !(conflicts & occupied_mask); // The & is because we consider empty buckets as free of conflicts.
@@ -421,15 +412,15 @@ impl InteractionGroups {
 
                 let (status1, active_set_offset1) = if let Some(rb1) = interaction.data.rigid_body1
                 {
-                    let data: (_, &RigidBodyIds) = bodies.index_bundle(rb1.0);
-                    (*data.0, data.1.active_set_offset)
+                    let rb1 = &bodies[rb1];
+                    (rb1.body_type, rb1.ids.active_set_offset)
                 } else {
                     (RigidBodyType::Fixed, usize::MAX)
                 };
                 let (status2, active_set_offset2) = if let Some(rb2) = interaction.data.rigid_body2
                 {
-                    let data: (_, &RigidBodyIds) = bodies.index_bundle(rb2.0);
-                    (*data.0, data.1.active_set_offset)
+                    let rb2 = &bodies[rb2];
+                    (rb2.body_type, rb2.ids.active_set_offset)
                 } else {
                     (RigidBodyType::Fixed, usize::MAX)
                 };

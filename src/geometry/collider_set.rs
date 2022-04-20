@@ -73,7 +73,7 @@ impl ColliderSet {
         // Make sure the internal links are reset, they may not be
         // if this rigid-body was obtained by cloning another one.
         coll.reset_internal_references();
-        coll.co_parent = None;
+        coll.parent = None;
         let handle = ColliderHandle(self.colliders.insert(coll));
         self.modified_colliders.push(handle);
         handle
@@ -91,12 +91,12 @@ impl ColliderSet {
         // if this collider was obtained by cloning another one.
         coll.reset_internal_references();
 
-        if let Some(prev_parent) = &mut coll.co_parent {
+        if let Some(prev_parent) = &mut coll.parent {
             prev_parent.handle = parent_handle;
         } else {
-            coll.co_parent = Some(ColliderParent {
+            coll.parent = Some(ColliderParent {
                 handle: parent_handle,
-                pos_wrt_parent: coll.co_pos.0,
+                pos_wrt_parent: coll.pos.0,
             });
         }
 
@@ -111,10 +111,10 @@ impl ColliderSet {
         let coll = self.colliders.get_mut(handle.0).unwrap();
         parent.add_collider(
             handle,
-            coll.co_parent.as_mut().unwrap(),
-            &mut coll.co_pos,
-            &coll.co_shape,
-            &coll.co_mprops,
+            coll.parent.as_mut().unwrap(),
+            &mut coll.pos,
+            &coll.shape,
+            &coll.mprops,
         );
         handle
     }
@@ -128,12 +128,12 @@ impl ColliderSet {
         bodies: &mut RigidBodySet,
     ) {
         if let Some(collider) = self.get_mut(handle) {
-            let curr_parent = collider.co_parent.map(|p| p.handle);
+            let curr_parent = collider.parent.map(|p| p.handle);
             if new_parent_handle == curr_parent {
                 return; // Nothing to do, this is the same parent.
             }
 
-            collider.co_changes |= ColliderChanges::PARENT;
+            collider.changes |= ColliderChanges::PARENT;
 
             if let Some(parent_handle) = curr_parent {
                 if let Some(rb) = bodies.get_mut(parent_handle) {
@@ -143,10 +143,10 @@ impl ColliderSet {
 
             match new_parent_handle {
                 Some(new_parent_handle) => {
-                    if let Some(co_parent) = &mut collider.co_parent {
-                        co_parent.handle = new_parent_handle;
+                    if let Some(parent) = &mut collider.parent {
+                        parent.handle = new_parent_handle;
                     } else {
-                        collider.co_parent = Some(ColliderParent {
+                        collider.parent = Some(ColliderParent {
                             handle: new_parent_handle,
                             pos_wrt_parent: Isometry::identity(),
                         })
@@ -155,14 +155,14 @@ impl ColliderSet {
                     if let Some(rb) = bodies.get_mut(new_parent_handle) {
                         rb.add_collider(
                             handle,
-                            collider.co_parent.as_ref().unwrap(),
-                            &mut collider.co_pos,
-                            &collider.co_shape,
-                            &collider.co_mprops,
+                            collider.parent.as_ref().unwrap(),
+                            &mut collider.pos,
+                            &collider.shape,
+                            &collider.mprops,
                         );
                     }
                 }
-                None => collider.co_parent = None,
+                None => collider.parent = None,
             }
         }
     }
@@ -185,14 +185,14 @@ impl ColliderSet {
          */
         // NOTE: we use `get_mut_internal_with_modification_tracking` instead of `get_mut_internal` so that the
         // modification flag is updated properly.
-        if let Some(co_parent) = &collider.co_parent {
-            if let Some(parent) =
-                bodies.get_mut_internal_with_modification_tracking(co_parent.handle)
+        if let Some(parent) = &collider.parent {
+            if let Some(parent_rb) =
+                bodies.get_mut_internal_with_modification_tracking(parent.handle)
             {
-                parent.remove_collider_internal(handle, &collider);
+                parent_rb.remove_collider_internal(handle, &collider);
 
                 if wake_up {
-                    islands.wake_up(bodies, co_parent.handle, true);
+                    islands.wake_up(bodies, parent.handle, true);
                 }
             }
         }
@@ -247,8 +247,8 @@ impl ColliderSet {
         collider: &mut Collider,
         modified_colliders: &mut Vec<ColliderHandle>,
     ) {
-        if !collider.co_changes.contains(ColliderChanges::MODIFIED) {
-            collider.co_changes = ColliderChanges::MODIFIED;
+        if !collider.changes.contains(ColliderChanges::MODIFIED) {
+            collider.changes = ColliderChanges::MODIFIED;
             modified_colliders.push(handle);
         }
     }
@@ -259,6 +259,10 @@ impl ColliderSet {
         let result = self.colliders.get_mut(handle.0)?;
         Self::mark_as_modified(handle, result, &mut self.modified_colliders);
         Some(result)
+    }
+
+    pub(crate) fn index_mut_internal(&mut self, handle: ColliderHandle) -> &mut Collider {
+        &mut self.colliders[handle.0]
     }
 
     pub(crate) fn get_mut_internal(&mut self, handle: ColliderHandle) -> Option<&mut Collider> {

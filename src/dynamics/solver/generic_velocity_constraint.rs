@@ -1,8 +1,5 @@
 use crate::dynamics::solver::{GenericRhs, VelocityConstraint};
-use crate::dynamics::{
-    IntegrationParameters, MultibodyJointSet, RigidBodyIds, RigidBodyMassProps, RigidBodySet,
-    RigidBodyType, RigidBodyVelocity,
-};
+use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Real, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{WAngularInertia, WCross, WDot};
@@ -42,18 +39,12 @@ impl GenericVelocityConstraint {
 
         let handle1 = manifold.data.rigid_body1.unwrap();
         let handle2 = manifold.data.rigid_body2.unwrap();
-        let (rb_ids1, rb_vels1, rb_mprops1, rb_type1): (
-            &RigidBodyIds,
-            &RigidBodyVelocity,
-            &RigidBodyMassProps,
-            &RigidBodyType,
-        ) = bodies.index_bundle(handle1.0);
-        let (rb_ids2, rb_vels2, rb_mprops2, rb_type2): (
-            &RigidBodyIds,
-            &RigidBodyVelocity,
-            &RigidBodyMassProps,
-            &RigidBodyType,
-        ) = bodies.index_bundle(handle2.0);
+
+        let rb1 = &bodies[handle1];
+        let rb2 = &bodies[handle2];
+
+        let (vels1, mprops1, type1) = (&rb1.vels, &rb1.mprops, &rb1.body_type);
+        let (vels2, mprops2, type2) = (&rb2.vels, &rb2.mprops, &rb2.body_type);
 
         let multibody1 = multibodies
             .rigid_body_link(handle1)
@@ -63,15 +54,15 @@ impl GenericVelocityConstraint {
             .map(|m| (&multibodies[m.multibody], m.id));
         let mj_lambda1 = multibody1
             .map(|mb| mb.0.solver_id)
-            .unwrap_or(if rb_type1.is_dynamic() {
-                rb_ids1.active_set_offset
+            .unwrap_or(if type1.is_dynamic() {
+                rb1.ids.active_set_offset
             } else {
                 0
             });
         let mj_lambda2 = multibody2
             .map(|mb| mb.0.solver_id)
-            .unwrap_or(if rb_type2.is_dynamic() {
-                rb_ids2.active_set_offset
+            .unwrap_or(if type2.is_dynamic() {
+                rb2.ids.active_set_offset
             } else {
                 0
             });
@@ -80,11 +71,8 @@ impl GenericVelocityConstraint {
         #[cfg(feature = "dim2")]
         let tangents1 = force_dir1.orthonormal_basis();
         #[cfg(feature = "dim3")]
-        let tangents1 = super::compute_tangent_contact_directions(
-            &force_dir1,
-            &rb_vels1.linvel,
-            &rb_vels2.linvel,
-        );
+        let tangents1 =
+            super::compute_tangent_contact_directions(&force_dir1, &vels1.linvel, &vels2.linvel);
 
         let multibodies_ndof = multibody1.map(|m| m.0.ndofs()).unwrap_or(0)
             + multibody2.map(|m| m.0.ndofs()).unwrap_or(0);
@@ -109,13 +97,13 @@ impl GenericVelocityConstraint {
                 #[cfg(feature = "dim3")]
                 tangent1: tangents1[0],
                 elements: [VelocityConstraintElement::zero(); MAX_MANIFOLD_POINTS],
-                im1: if rb_type1.is_dynamic() {
-                    rb_mprops1.effective_inv_mass
+                im1: if type1.is_dynamic() {
+                    mprops1.effective_inv_mass
                 } else {
                     na::zero()
                 },
-                im2: if rb_type2.is_dynamic() {
-                    rb_mprops2.effective_inv_mass
+                im2: if type2.is_dynamic() {
+                    mprops2.effective_inv_mass
                 } else {
                     na::zero()
                 },
@@ -129,11 +117,11 @@ impl GenericVelocityConstraint {
 
             for k in 0..manifold_points.len() {
                 let manifold_point = &manifold_points[k];
-                let dp1 = manifold_point.point - rb_mprops1.world_com;
-                let dp2 = manifold_point.point - rb_mprops2.world_com;
+                let dp1 = manifold_point.point - mprops1.world_com;
+                let dp2 = manifold_point.point - mprops2.world_com;
 
-                let vel1 = rb_vels1.linvel + rb_vels1.angvel.gcross(dp1);
-                let vel2 = rb_vels2.linvel + rb_vels2.angvel.gcross(dp2);
+                let vel1 = vels1.linvel + vels1.angvel.gcross(dp1);
+                let vel2 = vels2.linvel + vels2.angvel.gcross(dp2);
 
                 constraint.limit = manifold_point.friction;
                 constraint.manifold_contact_id[k] = manifold_point.contact_id;
@@ -143,15 +131,15 @@ impl GenericVelocityConstraint {
                     let torque_dir1 = dp1.gcross(force_dir1);
                     let torque_dir2 = dp2.gcross(-force_dir1);
 
-                    let gcross1 = if rb_type1.is_dynamic() {
-                        rb_mprops1
+                    let gcross1 = if type1.is_dynamic() {
+                        mprops1
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(torque_dir1)
                     } else {
                         na::zero()
                     };
-                    let gcross2 = if rb_type2.is_dynamic() {
-                        rb_mprops2
+                    let gcross2 = if type2.is_dynamic() {
+                        mprops2
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(torque_dir2)
                     } else {
@@ -170,8 +158,8 @@ impl GenericVelocityConstraint {
                             jacobians,
                         )
                         .0
-                    } else if rb_type1.is_dynamic() {
-                        force_dir1.dot(&rb_mprops1.effective_inv_mass.component_mul(&force_dir1))
+                    } else if type1.is_dynamic() {
+                        force_dir1.dot(&mprops1.effective_inv_mass.component_mul(&force_dir1))
                             + gcross1.gdot(gcross1)
                     } else {
                         0.0
@@ -189,8 +177,8 @@ impl GenericVelocityConstraint {
                             jacobians,
                         )
                         .0
-                    } else if rb_type2.is_dynamic() {
-                        force_dir1.dot(&rb_mprops2.effective_inv_mass.component_mul(&force_dir1))
+                    } else if type2.is_dynamic() {
+                        force_dir1.dot(&mprops2.effective_inv_mass.component_mul(&force_dir1))
                             + gcross2.gdot(gcross2)
                     } else {
                         0.0
@@ -224,8 +212,8 @@ impl GenericVelocityConstraint {
 
                     for j in 0..DIM - 1 {
                         let torque_dir1 = dp1.gcross(tangents1[j]);
-                        let gcross1 = if rb_type1.is_dynamic() {
-                            rb_mprops1
+                        let gcross1 = if type1.is_dynamic() {
+                            mprops1
                                 .effective_world_inv_inertia_sqrt
                                 .transform_vector(torque_dir1)
                         } else {
@@ -234,8 +222,8 @@ impl GenericVelocityConstraint {
                         constraint.elements[k].tangent_part.gcross1[j] = gcross1;
 
                         let torque_dir2 = dp2.gcross(-tangents1[j]);
-                        let gcross2 = if rb_type2.is_dynamic() {
-                            rb_mprops2
+                        let gcross2 = if type2.is_dynamic() {
+                            mprops2
                                 .effective_world_inv_inertia_sqrt
                                 .transform_vector(torque_dir2)
                         } else {
@@ -255,9 +243,8 @@ impl GenericVelocityConstraint {
                                 jacobians,
                             )
                             .0
-                        } else if rb_type1.is_dynamic() {
-                            force_dir1
-                                .dot(&rb_mprops1.effective_inv_mass.component_mul(&force_dir1))
+                        } else if type1.is_dynamic() {
+                            force_dir1.dot(&mprops1.effective_inv_mass.component_mul(&force_dir1))
                                 + gcross1.gdot(gcross1)
                         } else {
                             0.0
@@ -275,9 +262,8 @@ impl GenericVelocityConstraint {
                                 jacobians,
                             )
                             .0
-                        } else if rb_type2.is_dynamic() {
-                            force_dir1
-                                .dot(&rb_mprops2.effective_inv_mass.component_mul(&force_dir1))
+                        } else if type2.is_dynamic() {
+                            force_dir1.dot(&mprops2.effective_inv_mass.component_mul(&force_dir1))
                                 + gcross2.gdot(gcross2)
                         } else {
                             0.0
@@ -303,8 +289,8 @@ impl GenericVelocityConstraint {
             //       reduce all ops to nothing because its ndofs will be zero.
             let generic_constraint_mask = (multibody1.is_some() as u8)
                 | ((multibody2.is_some() as u8) << 1)
-                | (!rb_type1.is_dynamic() as u8)
-                | ((!rb_type2.is_dynamic() as u8) << 1);
+                | (!type1.is_dynamic() as u8)
+                | ((!type2.is_dynamic() as u8) << 1);
 
             let constraint = GenericVelocityConstraint {
                 velocity_constraint: constraint,

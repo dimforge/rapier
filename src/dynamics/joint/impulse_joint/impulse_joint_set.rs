@@ -3,10 +3,7 @@ use crate::geometry::{InteractionGraph, RigidBodyGraphIndex, TemporaryInteractio
 
 use crate::data::arena::Arena;
 use crate::data::Coarena;
-use crate::dynamics::{
-    GenericJoint, IslandManager, RigidBodyActivation, RigidBodyHandle, RigidBodyIds, RigidBodySet,
-    RigidBodyType,
-};
+use crate::dynamics::{GenericJoint, IslandManager, RigidBodyHandle, RigidBodySet};
 
 /// The unique identifier of a joint added to the joint set.
 /// The unique identifier of a collider added to a collider set.
@@ -230,26 +227,17 @@ impl ImpulseJointSet {
         // FIXME: don't iterate through all the interactions.
         for (i, edge) in self.joint_graph.graph.edges.iter().enumerate() {
             let joint = &edge.weight;
+            let rb1 = &bodies[joint.body1];
+            let rb2 = &bodies[joint.body2];
 
-            let (status1, activation1, ids1): (
-                &RigidBodyType,
-                &RigidBodyActivation,
-                &RigidBodyIds,
-            ) = bodies.index_bundle(joint.body1.0);
-            let (status2, activation2, ids2): (
-                &RigidBodyType,
-                &RigidBodyActivation,
-                &RigidBodyIds,
-            ) = bodies.index_bundle(joint.body2.0);
-
-            if (status1.is_dynamic() || status2.is_dynamic())
-                && (!status1.is_dynamic() || !activation1.sleeping)
-                && (!status2.is_dynamic() || !activation2.sleeping)
+            if (rb1.is_dynamic() || rb2.is_dynamic())
+                && (!rb1.is_dynamic() || !rb1.is_sleeping())
+                && (!rb2.is_dynamic() || !rb2.is_sleeping())
             {
-                let island_index = if !status1.is_dynamic() {
-                    ids2.active_island_id
+                let island_index = if !rb1.is_dynamic() {
+                    rb2.ids.active_island_id
                 } else {
-                    ids1.active_island_id
+                    rb1.ids.active_island_id
                 };
 
                 out[island_index].push(i);

@@ -7,9 +7,7 @@ use crate::math::{Point, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::WBasis;
 use crate::utils::{self, WAngularInertia, WCross, WDot};
 
-use crate::dynamics::{
-    IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodySet, RigidBodyVelocity,
-};
+use crate::dynamics::{IntegrationParameters, RigidBodySet, RigidBodyVelocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
 #[derive(Copy, Clone, Debug)]
@@ -51,15 +49,15 @@ impl VelocityGroundConstraint {
         };
 
         let (vels1, world_com1) = if let Some(handle1) = handle1 {
-            let (vels1, mprops1): (&RigidBodyVelocity, &RigidBodyMassProps) =
-                bodies.index_bundle(handle1.0);
-            (*vels1, mprops1.world_com)
+            let rb1 = &bodies[handle1];
+            (rb1.vels, rb1.mprops.world_com)
         } else {
             (RigidBodyVelocity::zero(), Point::origin())
         };
 
-        let (ids2, vels2, mprops2): (&RigidBodyIds, &RigidBodyVelocity, &RigidBodyMassProps) =
-            bodies.index_bundle(handle2.unwrap().0);
+        let rb2 = &bodies[handle2.unwrap()];
+        let vels2 = &rb2.vels;
+        let mprops2 = &rb2.mprops;
 
         #[cfg(feature = "dim2")]
         let tangents1 = force_dir1.orthonormal_basis();
@@ -67,7 +65,7 @@ impl VelocityGroundConstraint {
         let tangents1 =
             super::compute_tangent_contact_directions(&force_dir1, &vels1.linvel, &vels2.linvel);
 
-        let mj_lambda2 = ids2.active_set_offset;
+        let mj_lambda2 = rb2.ids.active_set_offset;
 
         for (_l, manifold_points) in manifold
             .data

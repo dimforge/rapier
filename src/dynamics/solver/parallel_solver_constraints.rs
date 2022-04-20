@@ -8,8 +8,7 @@ use crate::dynamics::solver::{
 };
 use crate::dynamics::{
     ImpulseJoint, IntegrationParameters, IslandManager, JointGraphEdge, MultibodyIndex,
-    MultibodyJointSet, RigidBodyHandle, RigidBodyIds, RigidBodyMassProps, RigidBodyPosition,
-    RigidBodyType, RigidBodyVelocity,
+    MultibodyJointSet, RigidBodyHandle, RigidBodySet,
 };
 use crate::geometry::ContactManifold;
 use crate::math::{Real, SPATIAL_DIM};

@@ -1,8 +1,8 @@
 use super::multibody_link::{MultibodyLink, MultibodyLinkVec};
 use super::multibody_workspace::MultibodyWorkspace;
 use crate::dynamics::{
-    solver::AnyJointVelocityConstraint, IntegrationParameters, RigidBodyForces, RigidBodyHandle,
-    RigidBodyMassProps, RigidBodySet, RigidBodyType, RigidBodyVelocity,
+    solver::AnyJointVelocityConstraint, IntegrationParameters, RigidBodyHandle, RigidBodySet,
+    RigidBodyType, RigidBodyVelocity,
 };
 #[cfg(feature = "dim3")]
 use crate::math::Matrix;
@@ -376,36 +376,32 @@ impl Multibody {
 
         for i in 0..self.links.len() {
             let link = &self.links[i];
-
-            let (rb_vels, rb_mprops, rb_forces): (
-                &RigidBodyVelocity,
-                &RigidBodyMassProps,
-                &RigidBodyForces,
-            ) = bodies.index_bundle(link.rigid_body.0);
+            let rb = &bodies[link.rigid_body];
 
             let mut acc = RigidBodyVelocity::zero();
 
             if i != 0 {
                 let parent_id = link.parent_internal_id;
                 let parent_link = &self.links[parent_id];
-                let parent_rb_vels: &RigidBodyVelocity = bodies.index(parent_link.rigid_body.0);
+                let parent_rb = &bodies[parent_link.rigid_body];
 
                 acc += self.workspace.accs[parent_id];
                 // The 2.0 originates from the two identical terms of Jdot (the terms become
                 // identical once they are multiplied by the generalized velocities).
-                acc.linvel += 2.0 * parent_rb_vels.angvel.gcross(link.joint_velocity.linvel);
+                acc.linvel += 2.0 * parent_rb.vels.angvel.gcross(link.joint_velocity.linvel);
                 #[cfg(feature = "dim3")]
                 {
-                    acc.angvel += parent_rb_vels.angvel.cross(&link.joint_velocity.angvel);
+                    acc.angvel += parent_rb.vels.angvel.cross(&link.joint_velocity.angvel);
                 }
 
-                acc.linvel += parent_rb_vels
+                acc.linvel += parent_rb
+                    .vels
                     .angvel
-                    .gcross(parent_rb_vels.angvel.gcross(link.shift02));
+                    .gcross(parent_rb.vels.angvel.gcross(link.shift02));
                 acc.linvel += self.workspace.accs[parent_id].angvel.gcross(link.shift02);
             }
 
-            acc.linvel += rb_vels.angvel.gcross(rb_vels.angvel.gcross(link.shift23));
+            acc.linvel += rb.vels.angvel.gcross(rb.vels.angvel.gcross(link.shift23));
             acc.linvel += self.workspace.accs[i].angvel.gcross(link.shift23);
 
             self.workspace.accs[i] = acc;
@@ -413,12 +409,12 @@ impl Multibody {
             // TODO: should gyroscopic forces already be computed by the rigid-body itself
             //       (at the same time that we add the gravity force)?
             let gyroscopic;
-            let rb_inertia = rb_mprops.effective_angular_inertia();
-            let rb_mass = rb_mprops.effective_mass();
+            let rb_inertia = rb.mprops.effective_angular_inertia();
+            let rb_mass = rb.mprops.effective_mass();
 
             #[cfg(feature = "dim3")]
             {
-                gyroscopic = rb_vels.angvel.cross(&(rb_inertia * rb_vels.angvel));
+                gyroscopic = rb.vels.angvel.cross(&(rb_inertia * rb.vels.angvel));
             }
             #[cfg(feature = "dim2")]
             {
@@ -426,8 +422,8 @@ impl Multibody {
             }
 
             let external_forces = Force::new(
-                rb_forces.force - rb_mass.component_mul(&acc.linvel),
-                rb_forces.torque - gyroscopic - rb_inertia * acc.angvel,
+                rb.forces.force - rb_mass.component_mul(&acc.linvel),
+                rb.forces.torque - gyroscopic - rb_inertia * acc.angvel,
             );
             self.accelerations.gemv_tr(
                 1.0,
@@ -456,13 +452,12 @@ impl Multibody {
             .jacobian_mul_coordinates(&self.velocities.as_slice()[link.assembly_id..]);
 
         link.joint_velocity = joint_velocity;
-        bodies.set_internal(link.rigid_body.0, link.joint_velocity);
+        bodies.index_mut_internal(link.rigid_body).vels = link.joint_velocity;
 
         for i in 1..self.links.len() {
             let (link, parent_link) = self.links.get_mut_with_parent(i);
-            let rb_mprops: &RigidBodyMassProps = bodies.index(link.rigid_body.0);
-            let (parent_rb_vels, parent_rb_mprops): (&RigidBodyVelocity, &RigidBodyMassProps) =
-                bodies.index_bundle(parent_link.rigid_body.0);
+            let rb = &bodies[link.rigid_body];
+            let parent_rb = &bodies[parent_link.rigid_body];
 
             let joint_velocity = link
                 .joint
@@ -470,12 +465,12 @@ impl Multibody {
             link.joint_velocity = joint_velocity.transformed(
                 &(parent_link.local_to_world.rotation * link.joint.data.local_frame1.rotation),
             );
-            let mut new_rb_vels = *parent_rb_vels + link.joint_velocity;
-            let shift = rb_mprops.world_com - parent_rb_mprops.world_com;
-            new_rb_vels.linvel += parent_rb_vels.angvel.gcross(shift);
+            let mut new_rb_vels = parent_rb.vels + link.joint_velocity;
+            let shift = rb.mprops.world_com - parent_rb.mprops.world_com;
+            new_rb_vels.linvel += parent_rb.vels.angvel.gcross(shift);
             new_rb_vels.linvel += link.joint_velocity.angvel.gcross(link.shift23);
 
-            bodies.set_internal(link.rigid_body.0, new_rb_vels);
+            bodies.index_mut_internal(link.rigid_body).vels = new_rb_vels;
         }
 
         /*
@@ -563,10 +558,9 @@ impl Multibody {
 
         for i in 0..self.links.len() {
             let link = &self.links[i];
-            let (rb_vels, rb_mprops): (&RigidBodyVelocity, &RigidBodyMassProps) =
-                bodies.index_bundle(link.rigid_body.0);
-            let rb_mass = rb_mprops.effective_mass();
-            let rb_inertia = rb_mprops.effective_angular_inertia().into_matrix();
+            let rb = &bodies[link.rigid_body];
+            let rb_mass = rb.mprops.effective_mass();
+            let rb_inertia = rb.mprops.effective_angular_inertia().into_matrix();
 
             let body_jacobian = &self.body_jacobians[i];
 
@@ -576,8 +570,8 @@ impl Multibody {
             #[cfg(feature = "dim3")]
             {
                 // Derivative of gyroscopic forces.
-                let gyroscopic_matrix = rb_vels.angvel.gcross_matrix() * rb_inertia
-                    - (rb_inertia * rb_vels.angvel).gcross_matrix();
+                let gyroscopic_matrix = rb.vels.angvel.gcross_matrix() * rb_inertia
+                    - (rb_inertia * rb.vels.angvel).gcross_matrix();
 
                 augmented_inertia += gyroscopic_matrix * dt;
             }
@@ -604,10 +598,10 @@ impl Multibody {
             if i != 0 {
                 let parent_id = link.parent_internal_id;
                 let parent_link = &self.links[parent_id];
-                let parent_rb_vels: &RigidBodyVelocity = bodies.index(parent_link.rigid_body.0);
+                let parent_rb = &bodies[parent_link.rigid_body];
                 let parent_j = &self.body_jacobians[parent_id];
                 let parent_j_w = parent_j.fixed_rows::<ANG_DIM>(DIM);
-                let parent_w = parent_rb_vels.angvel.gcross_matrix();
+                let parent_w = parent_rb.vels.angvel.gcross_matrix();
 
                 let (coriolis_v, parent_coriolis_v) = self.coriolis_v.index_mut2(i, parent_id);
                 let (coriolis_w, parent_coriolis_w) = self.coriolis_w.index_mut2(i, parent_id);
@@ -620,7 +614,7 @@ impl Multibody {
                 coriolis_v.gemm(1.0, &shift_cross_tr, &parent_coriolis_w, 1.0);
 
                 // JDot (but the 2.0 originates from the sum of two identical terms in JDot and JDot/u * gdot)
-                let dvel_cross = (rb_vels.angvel.gcross(link.shift02)
+                let dvel_cross = (rb.vels.angvel.gcross(link.shift02)
                     + 2.0 * link.joint_velocity.linvel)
                     .gcross_matrix_tr();
                 coriolis_v.gemm(1.0, &dvel_cross, &parent_j_w, 1.0);
@@ -676,13 +670,13 @@ impl Multibody {
                 coriolis_v.gemm(1.0, &shift_cross_tr, &coriolis_w, 1.0);
 
                 // JDot
-                let dvel_cross = rb_vels.angvel.gcross(link.shift23).gcross_matrix_tr();
+                let dvel_cross = rb.vels.angvel.gcross(link.shift23).gcross_matrix_tr();
                 coriolis_v.gemm(1.0, &dvel_cross, &rb_j_w, 1.0);
 
                 // JDot/u * qdot
                 coriolis_v.gemm(
                     1.0,
-                    &(rb_vels.angvel.gcross_matrix() * shift_cross_tr),
+                    &(rb.vels.angvel.gcross_matrix() * shift_cross_tr),
                     &rb_j_w,
                     1.0,
                 );

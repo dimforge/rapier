@@ -1,7 +1,5 @@
 use crate::dynamics::solver::VelocityGroundConstraint;
-use crate::dynamics::{
-    IntegrationParameters, MultibodyJointSet, RigidBodyMassProps, RigidBodySet, RigidBodyVelocity,
-};
+use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet, RigidBodyVelocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Point, Real, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::WCross;
@@ -48,16 +46,15 @@ impl GenericVelocityGroundConstraint {
             (-manifold.data.normal, 1.0)
         };
 
-        let (rb_vels1, world_com1) = if let Some(handle1) = handle1 {
-            let (vels1, mprops1): (&RigidBodyVelocity, &RigidBodyMassProps) =
-                bodies.index_bundle(handle1.0);
-            (*vels1, mprops1.world_com)
+        let (vels1, world_com1) = if let Some(handle1) = handle1 {
+            let rb1 = &bodies[handle1];
+            (rb1.vels, rb1.mprops.world_com)
         } else {
             (RigidBodyVelocity::zero(), Point::origin())
         };
 
-        let (rb_vels2, rb_mprops2): (&RigidBodyVelocity, &RigidBodyMassProps) =
-            bodies.index_bundle(handle2.unwrap().0);
+        let rb2 = &bodies[handle2.unwrap()];
+        let (vels2, mprops2) = (&rb2.vels, &rb2.mprops);
 
         let (mb2, link_id2) = handle2
             .and_then(|h| multibodies.rigid_body_link(h))
@@ -68,11 +65,8 @@ impl GenericVelocityGroundConstraint {
         #[cfg(feature = "dim2")]
         let tangents1 = force_dir1.orthonormal_basis();
         #[cfg(feature = "dim3")]
-        let tangents1 = super::compute_tangent_contact_directions(
-            &force_dir1,
-            &rb_vels1.linvel,
-            &rb_vels2.linvel,
-        );
+        let tangents1 =
+            super::compute_tangent_contact_directions(&force_dir1, &vels1.linvel, &vels2.linvel);
 
         let multibodies_ndof = mb2.ndofs();
         // For each solver contact we generate DIM constraints, and each constraints appends
@@ -96,7 +90,7 @@ impl GenericVelocityGroundConstraint {
                 #[cfg(feature = "dim3")]
                 tangent1: tangents1[0],
                 elements: [VelocityGroundConstraintElement::zero(); MAX_MANIFOLD_POINTS],
-                im2: rb_mprops2.effective_inv_mass,
+                im2: mprops2.effective_inv_mass,
                 limit: 0.0,
                 mj_lambda2,
                 manifold_id,
@@ -107,10 +101,10 @@ impl GenericVelocityGroundConstraint {
             for k in 0..manifold_points.len() {
                 let manifold_point = &manifold_points[k];
                 let dp1 = manifold_point.point - world_com1;
-                let dp2 = manifold_point.point - rb_mprops2.world_com;
+                let dp2 = manifold_point.point - mprops2.world_com;
 
-                let vel1 = rb_vels1.linvel + rb_vels1.angvel.gcross(dp1);
-                let vel2 = rb_vels2.linvel + rb_vels2.angvel.gcross(dp2);
+                let vel1 = vels1.linvel + vels1.angvel.gcross(dp1);
+                let vel2 = vels2.linvel + vels2.angvel.gcross(dp2);
 
                 constraint.limit = manifold_point.friction;
                 constraint.manifold_contact_id[k] = manifold_point.contact_id;

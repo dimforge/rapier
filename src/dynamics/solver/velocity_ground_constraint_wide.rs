@@ -2,7 +2,9 @@ use super::{
     AnyVelocityConstraint, DeltaVel, VelocityGroundConstraintElement,
     VelocityGroundConstraintNormalPart,
 };
-use crate::dynamics::{IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodyVelocity};
+use crate::dynamics::{
+    IntegrationParameters, RigidBodyIds, RigidBodyMassProps, RigidBodySet, RigidBodyVelocity,
+};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
     AngVector, AngularInertia, Point, Real, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS, SIMD_WIDTH,
@@ -54,20 +56,20 @@ impl WVelocityGroundConstraint {
 
         let vels1: [RigidBodyVelocity; SIMD_WIDTH] = gather![|ii| {
             handles1[ii]
-                .map(|h| *bodies.index(h.0))
+                .map(|h| bodies[h].vels)
                 .unwrap_or_else(RigidBodyVelocity::zero)
         }];
         let world_com1 = Point::from(gather![|ii| {
             handles1[ii]
-                .map(|h| ComponentSet::<RigidBodyMassProps>::index(bodies, h.0).world_com)
+                .map(|h| bodies[h].mprops.world_com)
                 .unwrap_or_else(Point::origin)
         }]);
 
         let vels2: [&RigidBodyVelocity; SIMD_WIDTH] =
-            gather![|ii| bodies.index(handles2[ii].unwrap().0)];
-        let ids2: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| bodies.index(handles2[ii].unwrap().0)];
+            gather![|ii| &bodies[handles2[ii].unwrap()].vels];
+        let ids2: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| &bodies[handles2[ii].unwrap()].ids];
         let mprops2: [&RigidBodyMassProps; SIMD_WIDTH] =
-            gather![|ii| bodies.index(handles2[ii].unwrap().0)];
+            gather![|ii| &bodies[handles2[ii].unwrap()].mprops];
 
         let flipped_sign = SimdReal::from(flipped);
 
