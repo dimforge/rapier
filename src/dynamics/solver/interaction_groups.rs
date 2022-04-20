@@ -14,7 +14,7 @@ use crate::dynamics::{MultibodyJointSet, RigidBodyHandle};
 pub(crate) trait PairInteraction {
     fn body_pair(&self) -> (Option<RigidBodyHandle>, Option<RigidBodyHandle>);
 }
-#[cfg(any(feature = "parallel", feature = "simd-is-enabled"))]
+#[cfg(feature = "simd-is-enabled")]
 use crate::dynamics::RigidBodyType;
 
 #[cfg(feature = "parallel")]
