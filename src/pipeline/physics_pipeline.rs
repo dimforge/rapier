@@ -5,7 +5,7 @@ use crate::counters::Counters;
 use crate::dynamics::IslandSolver;
 use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    RigidBodyHandle, RigidBodyPosition, RigidBodyType,
+    RigidBodyPosition, RigidBodyType,
 };
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
@@ -15,8 +15,6 @@ use crate::geometry::{
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{EventHandler, PhysicsHooks};
-
-#[cfg(feature = "default-sets")]
 use {crate::dynamics::RigidBodySet, crate::geometry::ColliderSet};
 
 /// The physics pipeline, responsible for stepping the whole physics simulation.
@@ -358,7 +356,6 @@ impl PhysicsPipeline {
     ///
     /// This is the same as `self.step_generic`, except that it is specialized
     /// to work with `RigidBodySet` and `ColliderSet`.
-    #[cfg(feature = "default-sets")]
     pub fn step(
         &mut self,
         gravity: &Vector<Real>,
@@ -374,48 +371,10 @@ impl PhysicsPipeline {
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
-        let mut modified_bodies = bodies.take_modified();
+        let modified_bodies = bodies.take_modified();
         let mut modified_colliders = colliders.take_modified();
         let mut removed_colliders = colliders.take_removed();
 
-        self.step_generic(
-            gravity,
-            integration_parameters,
-            islands,
-            broad_phase,
-            narrow_phase,
-            bodies,
-            colliders,
-            &mut modified_bodies,
-            &mut modified_colliders,
-            &mut removed_colliders,
-            impulse_joints,
-            multibody_joints,
-            ccd_solver,
-            hooks,
-            events,
-        );
-    }
-
-    /// Executes one timestep of the physics simulation.
-    pub fn step_generic(
-        &mut self,
-        gravity: &Vector<Real>,
-        integration_parameters: &IntegrationParameters,
-        islands: &mut IslandManager,
-        broad_phase: &mut BroadPhase,
-        narrow_phase: &mut NarrowPhase,
-        bodies: &mut RigidBodySet,
-        colliders: &mut ColliderSet,
-        modified_bodies: &mut Vec<RigidBodyHandle>,
-        modified_colliders: &mut Vec<ColliderHandle>,
-        removed_colliders: &mut Vec<ColliderHandle>,
-        impulse_joints: &mut ImpulseJointSet,
-        multibody_joints: &mut MultibodyJointSet,
-        ccd_solver: &mut CCDSolver,
-        hooks: &dyn PhysicsHooks,
-        events: &dyn EventHandler,
-    ) {
         self.counters.reset();
         self.counters.step_started();
 
@@ -429,7 +388,7 @@ impl PhysicsPipeline {
             bodies,
             colliders,
             &modified_bodies,
-            modified_colliders,
+            &mut modified_colliders,
         );
 
         // TODO: do this only on user-change.
@@ -449,13 +408,13 @@ impl PhysicsPipeline {
             bodies,
             colliders,
             &modified_colliders[..],
-            removed_colliders,
+            &mut removed_colliders,
             hooks,
             events,
             true,
         );
 
-        self.clear_modified_colliders(colliders, modified_colliders);
+        self.clear_modified_colliders(colliders, &mut modified_colliders);
         removed_colliders.clear();
 
         let mut remaining_time = integration_parameters.dt;
@@ -563,7 +522,7 @@ impl PhysicsPipeline {
                 }
             }
 
-            self.advance_to_final_positions(islands, bodies, colliders, modified_colliders);
+            self.advance_to_final_positions(islands, bodies, colliders, &mut modified_colliders);
 
             self.detect_collisions(
                 &integration_parameters,
@@ -572,14 +531,14 @@ impl PhysicsPipeline {
                 narrow_phase,
                 bodies,
                 colliders,
-                modified_colliders,
-                removed_colliders,
+                &mut modified_colliders,
+                &mut removed_colliders,
                 hooks,
                 events,
                 false,
             );
 
-            self.clear_modified_colliders(colliders, modified_colliders);
+            self.clear_modified_colliders(colliders, &mut modified_colliders);
         }
 
         self.counters.step_completed();

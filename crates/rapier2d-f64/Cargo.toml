@@ -16,10 +16,9 @@ edition = "2021"
 maintenance = { status = "actively-developed" }
 
 [features]
-default = [ "dim2", "f64", "default-sets" ]
+default = [ "dim2", "f64" ]
 dim2    = [ ]
 f64     = [ ]
-default-sets = [ ]
 parallel = [ "rayon" ]
 simd-stable = [ "simba/wide", "simd-is-enabled" ]
 simd-nightly = [ "simba/packed_simd", "simd-is-enabled" ]

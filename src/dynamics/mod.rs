@@ -14,9 +14,7 @@ pub(crate) use self::solver::IslandSolver;
 pub(crate) use self::solver::ParallelIslandSolver;
 pub use parry::mass_properties::MassProperties;
 
-#[cfg(feature = "default-sets")]
 pub use self::rigid_body::{RigidBody, RigidBodyBuilder};
-#[cfg(feature = "default-sets")]
 pub use self::rigid_body_set::{BodyPair, RigidBodySet};
 
 mod ccd;
@@ -27,7 +25,5 @@ mod joint;
 mod rigid_body_components;
 mod solver;
 
-#[cfg(feature = "default-sets")]
 mod rigid_body;
-#[cfg(feature = "default-sets")]
 mod rigid_body_set;

@@ -16,10 +16,9 @@ edition = "2021"
 maintenance = { status = "actively-developed" }
 
 [features]
-default = [ "dim3", "f32", "default-sets" ]
+default = [ "dim3", "f32" ]
 dim3    = [ ]
 f32     = [ ]
-default-sets = [ ]
 parallel = [ "rayon" ]
 simd-stable = [ "parry3d/simd-stable", "simba/wide", "simd-is-enabled" ]
 simd-nightly = [ "parry3d/simd-nightly", "simba/packed_simd", "simd-is-enabled" ]
