@@ -11,9 +11,7 @@ pub use self::interaction_graph::{
 pub use self::interaction_groups::InteractionGroups;
 pub use self::narrow_phase::NarrowPhase;
 
-#[cfg(feature = "default-sets")]
 pub use self::collider::{Collider, ColliderBuilder};
-#[cfg(feature = "default-sets")]
 pub use self::collider_set::ColliderSet;
 
 pub use parry::query::TrackedContact;
@@ -121,7 +119,5 @@ mod interaction_graph;
 mod interaction_groups;
 mod narrow_phase;
 
-#[cfg(feature = "default-sets")]
 mod collider;
-#[cfg(feature = "default-sets")]
 mod collider_set;

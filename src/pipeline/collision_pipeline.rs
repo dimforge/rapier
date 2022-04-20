@@ -6,8 +6,6 @@ use crate::geometry::{
 };
 use crate::math::Real;
 use crate::pipeline::{EventHandler, PhysicsHooks};
-
-#[cfg(feature = "default-sets")]
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 
 /// The collision pipeline, responsible for performing collision detection between colliders.
@@ -102,7 +100,6 @@ impl CollisionPipeline {
     }
 
     /// Executes one step of the collision detection.
-    #[cfg(feature = "default-sets")]
     pub fn step(
         &mut self,
         prediction_distance: Real,
@@ -117,34 +114,6 @@ impl CollisionPipeline {
         let mut modified_colliders = colliders.take_modified();
         let mut removed_colliders = colliders.take_removed();
 
-        self.step_generic(
-            prediction_distance,
-            broad_phase,
-            narrow_phase,
-            bodies,
-            colliders,
-            &mut modified_bodies,
-            &mut modified_colliders,
-            &mut removed_colliders,
-            hooks,
-            events,
-        );
-    }
-
-    /// Executes one step of the collision detection.
-    pub fn step_generic(
-        &mut self,
-        prediction_distance: Real,
-        broad_phase: &mut BroadPhase,
-        narrow_phase: &mut NarrowPhase,
-        bodies: &mut RigidBodySet,
-        colliders: &mut ColliderSet,
-        modified_bodies: &mut Vec<RigidBodyHandle>,
-        modified_colliders: &mut Vec<ColliderHandle>,
-        removed_colliders: &mut Vec<ColliderHandle>,
-        hooks: &dyn PhysicsHooks,
-        events: &dyn EventHandler,
-    ) {
         super::user_changes::handle_user_changes_to_colliders(
             bodies,
             colliders,
@@ -155,7 +124,7 @@ impl CollisionPipeline {
             bodies,
             colliders,
             &modified_bodies,
-            modified_colliders,
+            &mut modified_colliders,
         );
         self.detect_collisions(
             prediction_distance,
@@ -164,13 +133,13 @@ impl CollisionPipeline {
             bodies,
             colliders,
             &modified_colliders[..],
-            removed_colliders,
+            &mut removed_colliders,
             hooks,
             events,
             true,
         );
 
-        self.clear_modified_colliders(colliders, modified_colliders);
+        self.clear_modified_colliders(colliders, &mut modified_colliders);
         removed_colliders.clear();
     }
 }
