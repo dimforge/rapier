@@ -67,8 +67,8 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
 
         let rb = bodies.index_mut_internal(*handle);
         let mut changes = rb.changes;
-        let mut ids: RigidBodyIds = rb.ids;
-        let mut activation: RigidBodyActivation = rb.activation;
+        let mut ids = rb.ids;
+        let mut activation = rb.activation;
 
         {
             // The body's status changed. We need to make sure
