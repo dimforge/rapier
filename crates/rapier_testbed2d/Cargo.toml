@@ -40,6 +40,7 @@ md5 = "0.7"
 
 bevy_egui = "0.10"
 bevy_ecs = "0.6"
+bevy_prototype_debug_lines = "0.6"
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -54,4 +55,4 @@ bevy = {version = "0.6", default-features = false, features = ["bevy_winit", "re
 package = "rapier2d"
 path = "../rapier2d"
 version = "0.12.0-alpha.1"
-features = [ "serde-serialize" ]
+features = [ "serde-serialize", "debug-render" ]

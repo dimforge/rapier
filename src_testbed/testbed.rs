@@ -5,7 +5,7 @@ use bevy::prelude::*;
 
 use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
-use crate::ui;
+use crate::{debug_render, ui};
 use crate::{graphics::GraphicsManager, harness::RunState};
 
 use na::{self, Point2, Point3, Vector3};
@@ -17,7 +17,7 @@ use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
 use rapier::math::{Real, Vector};
-use rapier::pipeline::PhysicsHooks;
+use rapier::pipeline::{DebugRenderMode, PhysicsHooks};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
@@ -380,7 +380,8 @@ impl TestbedApp {
             .add_plugins(DefaultPlugins)
             .add_plugin(OrbitCameraPlugin)
             .add_plugin(WireframePlugin)
-            .add_plugin(bevy_egui::EguiPlugin);
+            .add_plugin(bevy_egui::EguiPlugin)
+            .add_plugin(debug_render::RapierDebugRenderPlugin::default());
 
             #[cfg(target_arch = "wasm32")]
             app.add_plugin(bevy_webgl2::WebGL2Plugin);

@@ -6,9 +6,18 @@ pub use physics_hooks::{ActiveHooks, ContactModificationContext, PairFilterConte
 pub use physics_pipeline::PhysicsPipeline;
 pub use query_pipeline::{QueryPipeline, QueryPipelineMode};
 
+#[cfg(feature = "debug-render")]
+pub use self::debug_render_pipeline::{
+    DebugColor, DebugRenderBackend, DebugRenderMode, DebugRenderObject, DebugRenderPipeline,
+    DebugRenderStyle,
+};
+
 mod collision_pipeline;
 mod event_handler;
 mod physics_hooks;
 mod physics_pipeline;
 mod query_pipeline;
 mod user_changes;
+
+#[cfg(feature = "debug-render")]
+mod debug_render_pipeline;

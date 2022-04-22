@@ -578,33 +578,33 @@ fn do_init_world(testbed: &mut Testbed, use_articulations: bool) {
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
 
-    // create_prismatic_joints(
-    //     &mut bodies,
-    //     &mut colliders,
-    //     &mut impulse_joints,
-    //     &mut multibody_joints,
-    //     point![20.0, 5.0, 0.0],
-    //     4,
-    //     use_articulations,
-    // );
-    // create_actuated_prismatic_joints(
-    //     &mut bodies,
-    //     &mut colliders,
-    //     &mut impulse_joints,
-    //     &mut multibody_joints,
-    //     point![25.0, 5.0, 0.0],
-    //     4,
-    //     use_articulations,
-    // );
-    // create_revolute_joints(
-    //     &mut bodies,
-    //     &mut colliders,
-    //     &mut impulse_joints,
-    //     &mut multibody_joints,
-    //     point![20.0, 0.0, 0.0],
-    //     3,
-    //     use_articulations,
-    // );
+    create_prismatic_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        point![20.0, 5.0, 0.0],
+        4,
+        use_articulations,
+    );
+    create_actuated_prismatic_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        point![25.0, 5.0, 0.0],
+        4,
+        use_articulations,
+    );
+    create_revolute_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        point![20.0, 0.0, 0.0],
+        3,
+        use_articulations,
+    );
     create_revolute_joints_with_limits(
         &mut bodies,
         &mut colliders,
@@ -613,57 +613,57 @@ fn do_init_world(testbed: &mut Testbed, use_articulations: bool) {
         point![34.0, 0.0, 0.0],
         use_articulations,
     );
-    // create_fixed_joints(
-    //     &mut bodies,
-    //     &mut colliders,
-    //     &mut impulse_joints,
-    //     &mut multibody_joints,
-    //     point![0.0, 10.0, 0.0],
-    //     10,
-    //     use_articulations,
-    // );
-    // create_actuated_revolute_joints(
-    //     &mut bodies,
-    //     &mut colliders,
-    //     &mut impulse_joints,
-    //     &mut multibody_joints,
-    //     point![20.0, 10.0, 0.0],
-    //     6,
-    //     use_articulations,
-    // );
-    // create_actuated_spherical_joints(
-    //     &mut bodies,
-    //     &mut colliders,
-    //     &mut impulse_joints,
-    //     &mut multibody_joints,
-    //     point![13.0, 10.0, 0.0],
-    //     3,
-    //     use_articulations,
-    // );
-    // create_spherical_joints(
-    //     &mut bodies,
-    //     &mut colliders,
-    //     &mut impulse_joints,
-    //     &mut multibody_joints,
-    //     15,
-    //     use_articulations,
-    // );
-    // create_spherical_joints_with_limits(
-    //     &mut bodies,
-    //     &mut colliders,
-    //     &mut impulse_joints,
-    //     &mut multibody_joints,
-    //     point![-5.0, 0.0, 0.0],
-    //     use_articulations,
-    // );
-    // create_coupled_joints(
-    //     &mut bodies,
-    //     &mut colliders,
-    //     &mut impulse_joints,
-    //     &mut multibody_joints,
-    //     point![0.0, 20.0, 0.0],
-    //     use_articulations,
-    // );
+    create_fixed_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        point![0.0, 10.0, 0.0],
+        10,
+        use_articulations,
+    );
+    create_actuated_revolute_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        point![20.0, 10.0, 0.0],
+        6,
+        use_articulations,
+    );
+    create_actuated_spherical_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        point![13.0, 10.0, 0.0],
+        3,
+        use_articulations,
+    );
+    create_spherical_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        15,
+        use_articulations,
+    );
+    create_spherical_joints_with_limits(
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        point![-5.0, 0.0, 0.0],
+        use_articulations,
+    );
+    create_coupled_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        point![0.0, 20.0, 0.0],
+        use_articulations,
+    );
 
     /*
      * Set up the testbed.

@@ -28,6 +28,7 @@ simd-is-enabled = [ "vec_map" ]
 wasm-bindgen = [ "instant/wasm-bindgen" ]
 serde-serialize = [ "nalgebra/serde-serialize", "parry2d-f64/serde-serialize", "serde", "bit-vec/serde", "arrayvec/serde" ]
 enhanced-determinism = [ "simba/libm_force", "parry2d-f64/enhanced-determinism", "indexmap" ]
+debug-render = [ ]
 
 # Feature used for debugging only.
 debug-disable-legitimate-fe-exceptions = [ ]

@@ -541,6 +541,17 @@ impl PhysicsPipeline {
             self.clear_modified_colliders(colliders, &mut modified_colliders);
         }
 
+        // Finally, make sure we update the world mass-properties of the rigid-bodies
+        // that moved. Otherwise, users may end up applying forces wrt. an outdated
+        // center of mass.
+        // TODO: avoid updating the world mass properties twice (here, and
+        //       at the beginning of the next timestep) for bodies that were
+        //       not modified by the user in the mean time.
+        for handle in islands.active_dynamic_bodies() {
+            let rb = bodies.index_mut_internal(*handle);
+            rb.mprops.update_world_mass_properties(&rb.pos.position);
+        }
+
         self.counters.step_completed();
     }
 }
