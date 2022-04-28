@@ -13,20 +13,31 @@ use std::any::TypeId;
 use std::collections::HashMap;
 
 bitflags::bitflags! {
+    /// Flags indicating what part of the physics engine should be rendered
+    /// by the debug-renderer.
     pub struct DebugRenderMode: u32 {
+        /// If this flag is set, the collider shapes will be rendered.
         const COLLIDER_SHAPES = 1 << 0;
+        /// If this flag is set, the local coordinate axes of rigid-bodies will be rendered.
         const RIGID_BODY_AXES = 1 << 1;
+        /// If this flag is set, the multibody joints will be rendered.
         const MULTIBODY_JOINTS = 1 << 2;
+        /// If this flag is set, the impulse joints will be rendered.
         const IMPULSE_JOINTS = 1 << 3;
     }
 }
 
+/// Pipeline responsible for rendering the state of the physics engine for debugging purpose.
 pub struct DebugRenderPipeline {
     #[cfg(feature = "dim2")]
     instances: HashMap<TypeId, Vec<Point<Real>>>,
     #[cfg(feature = "dim3")]
     instances: HashMap<TypeId, (Vec<Point<Real>>, Vec<[u32; 2]>)>,
+    /// The style used to compute the line colors for each element
+    /// to render.
     pub style: DebugRenderStyle,
+    /// Flags controlling what part of the physics engine need to
+    /// be rendered.
     pub mode: DebugRenderMode,
 }
 
@@ -37,6 +48,7 @@ impl Default for DebugRenderPipeline {
 }
 
 impl DebugRenderPipeline {
+    /// Creates a new debug-render pipeline from a given style and flags.
     pub fn new(style: DebugRenderStyle, mode: DebugRenderMode) -> Self {
         Self {
             instances: outlines::instances(style.subdivisions),
@@ -45,10 +57,13 @@ impl DebugRenderPipeline {
         }
     }
 
+    /// Creates a new debug-render pipeline that renders everything
+    /// it can from the physics state.
     pub fn render_all(style: DebugRenderStyle) -> Self {
         Self::new(style, DebugRenderMode::all())
     }
 
+    /// Render the scene.
     pub fn render(
         &mut self,
         backend: &mut impl DebugRenderBackend,
@@ -57,11 +72,12 @@ impl DebugRenderPipeline {
         impulse_joints: &ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
     ) {
-        self.render_bodies(backend, bodies);
+        self.render_rigid_bodies(backend, bodies);
         self.render_colliders(backend, bodies, colliders);
         self.render_joints(backend, bodies, impulse_joints, multibody_joints);
     }
 
+    /// Render only the joints from the scene.
     pub fn render_joints(
         &mut self,
         backend: &mut impl DebugRenderBackend,
@@ -137,7 +153,12 @@ impl DebugRenderPipeline {
         }
     }
 
-    pub fn render_bodies(&mut self, backend: &mut impl DebugRenderBackend, bodies: &RigidBodySet) {
+    /// Render only the rigid-bodies from the scene.
+    pub fn render_rigid_bodies(
+        &mut self,
+        backend: &mut impl DebugRenderBackend,
+        bodies: &RigidBodySet,
+    ) {
         for (handle, rb) in bodies.iter() {
             let object = DebugRenderObject::RigidBody(handle, rb);
 
@@ -165,6 +186,7 @@ impl DebugRenderPipeline {
         }
     }
 
+    /// Render only the colliders from the scene.
     pub fn render_colliders(
         &mut self,
         backend: &mut impl DebugRenderBackend,

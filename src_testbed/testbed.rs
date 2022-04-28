@@ -17,7 +17,7 @@ use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{InteractionGroups, Ray};
 use rapier::math::{Real, Vector};
-use rapier::pipeline::{DebugRenderMode, PhysicsHooks};
+use rapier::pipeline::PhysicsHooks;
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
@@ -26,7 +26,6 @@ use crate::harness::Harness;
 use crate::physx_backend::PhysxWorld;
 use bevy::pbr::wireframe::WireframePlugin;
 use bevy::render::camera::Camera;
-use bevy::render::render_resource::WgpuFeatures;
 use bevy_egui::EguiContext;
 
 #[cfg(feature = "dim2")]

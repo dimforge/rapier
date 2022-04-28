@@ -1,3 +1,5 @@
+#![allow(warnings)]
+
 use bevy::{
     asset::{Assets, HandleUntyped},
     pbr::{NotShadowCaster, NotShadowReceiver},

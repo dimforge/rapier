@@ -6,16 +6,31 @@ use crate::math::{Isometry, Point, Real, Vector};
 use crate::prelude::{ColliderHandle, MultibodyJointHandle};
 use na::Scale;
 
+/// The object currently being rendered by the debug-renderer.
 #[derive(Copy, Clone)]
 pub enum DebugRenderObject<'a> {
+    /// A rigid-body is being rendered.
     RigidBody(RigidBodyHandle, &'a RigidBody),
+    /// A collider is being rendered.
     Collider(ColliderHandle, &'a Collider),
+    /// An impulse-joint is being rendered.
     ImpulseJoint(ImpulseJointHandle, &'a ImpulseJoint),
+    /// A multibody joint is being rendered.
     MultibodyJoint(MultibodyJointHandle, &'a Multibody, &'a MultibodyLink),
+    /// Another element is being rendered.
     Other,
 }
 
+/// Trait implemented by graphics backends responsible for rendering the physics scene.
+///
+/// The only thing that is required from the graphics backend is to be able to render
+/// a colored line. Note that the color is only a suggestion and is computed from the
+/// `DebugRenderStyle`. The backend is free to apply its own style, for example based on
+/// the `object` being rendered.
 pub trait DebugRenderBackend {
+    /// Draws a colored line.
+    ///
+    /// Note that this method can be called multiple time for the same `object`.
     fn draw_line(
         &mut self,
         object: DebugRenderObject,
@@ -24,6 +39,7 @@ pub trait DebugRenderBackend {
         color: [f32; 4],
     );
 
+    /// Draws a set of line.
     fn draw_polyline(
         &mut self,
         object: DebugRenderObject,
@@ -40,6 +56,7 @@ pub trait DebugRenderBackend {
         }
     }
 
+    /// Draws a chain of line.
     fn draw_line_strip(
         &mut self,
         object: DebugRenderObject,

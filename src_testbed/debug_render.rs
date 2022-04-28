@@ -1,11 +1,10 @@
 use crate::harness::Harness;
 use crate::lines::DebugLines;
 use bevy::prelude::*;
-use rapier::math::{Point, Real, DIM};
+use rapier::math::{Point, Real};
 use rapier::pipeline::{
     DebugRenderBackend, DebugRenderMode, DebugRenderObject, DebugRenderPipeline,
 };
-use std::fmt::Debug;
 
 pub struct RapierDebugRenderPlugin {
     depth_test: bool,
@@ -15,14 +14,6 @@ impl Default for RapierDebugRenderPlugin {
     fn default() -> Self {
         Self {
             depth_test: cfg!(feature = "dim3"),
-        }
-    }
-}
-
-impl RapierDebugRenderPlugin {
-    pub fn with_depth_test(enabled: bool) -> Self {
-        Self {
-            depth_test: enabled,
         }
     }
 }
