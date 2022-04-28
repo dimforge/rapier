@@ -15,6 +15,7 @@ use crate::pipeline::{
     ActiveEvents, ActiveHooks, ContactModificationContext, EventHandler, PairFilterContext,
     PhysicsHooks,
 };
+use crate::prelude::CollisionEventFlags;
 use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
 use parry::utils::IsometryOpt;
 use std::collections::HashMap;
@@ -317,14 +318,24 @@ impl NarrowPhase {
                 }
 
                 if pair.start_event_emited {
-                    events.handle_collision_event(CollisionEvent::Stopped(a, b, true), Some(pair));
+                    events.handle_collision_event(
+                        bodies,
+                        colliders,
+                        CollisionEvent::Stopped(a, b, CollisionEventFlags::REMOVED),
+                        Some(pair),
+                    );
                 }
             }
         } else {
             // If there is no island, don’t wake-up bodies, but do send the Stopped collision event.
             for (a, b, pair) in self.contact_graph.interactions_with(contact_graph_id) {
                 if pair.start_event_emited {
-                    events.handle_collision_event(CollisionEvent::Stopped(a, b, true), Some(pair));
+                    events.handle_collision_event(
+                        bodies,
+                        colliders,
+                        CollisionEvent::Stopped(a, b, CollisionEventFlags::REMOVED),
+                        Some(pair),
+                    );
                 }
             }
         }
@@ -332,7 +343,16 @@ impl NarrowPhase {
         // Generate Stopped collision events for intersections.
         for (a, b, pair) in self.intersection_graph.interactions_with(contact_graph_id) {
             if pair.start_event_emited {
-                events.handle_collision_event(CollisionEvent::Stopped(a, b, true), None);
+                events.handle_collision_event(
+                    bodies,
+                    colliders,
+                    CollisionEvent::Stopped(
+                        a,
+                        b,
+                        CollisionEventFlags::REMOVED | CollisionEventFlags::SENSOR,
+                    ),
+                    None,
+                );
             }
         }
 
@@ -495,7 +515,13 @@ impl NarrowPhase {
                             if (co1.flags.active_events | co2.flags.active_events)
                                 .contains(ActiveEvents::COLLISION_EVENTS)
                             {
-                                intersection.emit_stop_event(pair.collider1, pair.collider2, events)
+                                intersection.emit_stop_event(
+                                    bodies,
+                                    colliders,
+                                    pair.collider1,
+                                    pair.collider2,
+                                    events,
+                                )
                             }
                         }
                     }
@@ -521,7 +547,7 @@ impl NarrowPhase {
                             if (co1.flags.active_events | co2.flags.active_events)
                                 .contains(ActiveEvents::COLLISION_EVENTS)
                             {
-                                ctct.emit_stop_event(events);
+                                ctct.emit_stop_event(bodies, colliders, events);
                             }
                         }
                     }
@@ -724,9 +750,11 @@ impl NarrowPhase {
                 && had_intersection != edge.weight.intersecting
             {
                 if edge.weight.intersecting {
-                    edge.weight.emit_start_event(handle1, handle2, events);
+                    edge.weight
+                        .emit_start_event(bodies, colliders, handle1, handle2, events);
                 } else {
-                    edge.weight.emit_stop_event(handle1, handle2, events);
+                    edge.weight
+                        .emit_stop_event(bodies, colliders, handle1, handle2, events);
                 }
             }
         });
@@ -928,9 +956,9 @@ impl NarrowPhase {
             if pair.has_any_active_contact != had_any_active_contact {
                 if active_events.contains(ActiveEvents::COLLISION_EVENTS) {
                     if pair.has_any_active_contact {
-                        pair.emit_start_event(events);
+                        pair.emit_start_event(bodies, colliders, events);
                     } else {
-                        pair.emit_stop_event(events);
+                        pair.emit_stop_event(bodies, colliders, events);
                     }
                 }
             }

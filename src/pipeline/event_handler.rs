@@ -1,4 +1,5 @@
-use crate::geometry::{CollisionEvent, ContactPair};
+use crate::dynamics::RigidBodySet;
+use crate::geometry::{ColliderSet, CollisionEvent, ContactPair};
 use crossbeam::channel::Sender;
 
 bitflags::bitflags! {
@@ -27,14 +28,29 @@ pub trait EventHandler: Send + Sync {
     ///
     /// # Parameters
     /// * `event` - The collision event.
+    /// * `bodies` - The set of rigid-bodies.
+    /// * `colliders` - The set of colliders.
     /// * `contact_pair` - The current state of contacts between the two colliders. This is set ot `None`
     ///                    if at least one of the collider is a sensor (in which case no contact information
     ///                    is ever computed).
-    fn handle_collision_event(&self, event: CollisionEvent, contact_pair: Option<&ContactPair>);
+    fn handle_collision_event(
+        &self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        event: CollisionEvent,
+        contact_pair: Option<&ContactPair>,
+    );
 }
 
 impl EventHandler for () {
-    fn handle_collision_event(&self, _event: CollisionEvent, _contact_pair: Option<&ContactPair>) {}
+    fn handle_collision_event(
+        &self,
+        _bodies: &RigidBodySet,
+        _colliders: &ColliderSet,
+        _event: CollisionEvent,
+        _contact_pair: Option<&ContactPair>,
+    ) {
+    }
 }
 
 /// A collision event handler that collects events into a crossbeam channel.
@@ -50,7 +66,13 @@ impl ChannelEventCollector {
 }
 
 impl EventHandler for ChannelEventCollector {
-    fn handle_collision_event(&self, event: CollisionEvent, _: Option<&ContactPair>) {
+    fn handle_collision_event(
+        &self,
+        _bodies: &RigidBodySet,
+        _colliders: &ColliderSet,
+        event: CollisionEvent,
+        _: Option<&ContactPair>,
+    ) {
         let _ = self.event_sender.send(event);
     }
 }
