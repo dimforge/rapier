@@ -1,5 +1,18 @@
 #![allow(warnings)]
-
+/**
+ *
+ * NOTE: this module and its submodules are only temporary. It is a copy-paste of the bevy-debug-lines
+ *       crate: https://github.com/Toqozz/bevy_debug_lines (MIT license)
+ * It has been partially updated to work with bevy 0.7, but hasn’t been released yet.
+ * So, in the mean time, we are keeping a version here that we will replace by the
+ * upstream dependency once:
+ * 1. The version compatible with bevy 0.7 is released to crates.io.
+ * 2. We find a way to make the 2D version work with our examples. The problem
+ *    only happens when running our own examples because cargo’s unification of
+ *    features will enable the `3d` feature of `bevy_debug_lines` when running
+ *    a `2d` example.
+ *
+ */
 use bevy::{
     asset::{Assets, HandleUntyped},
     pbr::{NotShadowCaster, NotShadowReceiver},
@@ -64,7 +77,7 @@ pub(crate) struct DebugLinesConfig {
 ///
 /// # Usage
 ///
-/// ```
+/// ```.ignore
 /// use bevy::prelude::*;
 /// use bevy_prototype_debug_lines::*;
 ///
@@ -76,7 +89,7 @@ pub(crate) struct DebugLinesConfig {
 ///
 /// Alternatively, you can initialize the plugin with depth testing, so that
 /// debug lines cut through geometry. To do this, use [`DebugLinesPlugin::with_depth_test(true)`].
-/// ```
+/// ```.ignore
 /// use bevy::prelude::*;
 /// use bevy_prototype_debug_lines::*;
 ///
@@ -233,7 +246,7 @@ pub(crate) struct RenderDebugLinesMesh;
 /// Bevy resource providing facilities to draw lines.
 ///
 /// # Usage
-/// ```
+/// ```.ignore
 /// use bevy::prelude::*;
 /// use bevy_prototype_debug_lines::*;
 ///

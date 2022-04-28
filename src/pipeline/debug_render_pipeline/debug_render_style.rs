@@ -1,3 +1,5 @@
+use crate::math::Real;
+
 /// A color for debug-rendering.
 ///
 /// The default colors are provided in HSLA (Hue Saturation Lightness Alpha) format.
@@ -35,7 +37,7 @@ pub struct DebugRenderStyle {
     /// or non-dynamic for this multiplier to be applied).
     pub sleep_color_multiplier: [f32; 4],
     /// The length of the local coordinate axes rendered for a rigid-body.
-    pub rigid_body_axes_length: f32,
+    pub rigid_body_axes_length: Real,
 }
 
 impl Default for DebugRenderStyle {

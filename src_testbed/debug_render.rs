@@ -39,8 +39,8 @@ impl<'a> DebugRenderBackend for BevyLinesRenderBackend<'a> {
     #[cfg(feature = "dim2")]
     fn draw_line(&mut self, _: DebugRenderObject, a: Point<Real>, b: Point<Real>, color: [f32; 4]) {
         self.lines.line_colored(
-            [a.x, a.y, 1.0e-8].into(),
-            [b.x, b.y, 1.0e-8].into(),
+            [a.x as f32, a.y as f32, 1.0e-8 as f32].into(),
+            [b.x as f32, b.y as f32, 1.0e-8 as f32].into(),
             0.0,
             Color::hsla(color[0], color[1], color[2], color[3]),
         )
@@ -48,8 +48,8 @@ impl<'a> DebugRenderBackend for BevyLinesRenderBackend<'a> {
     #[cfg(feature = "dim3")]
     fn draw_line(&mut self, _: DebugRenderObject, a: Point<Real>, b: Point<Real>, color: [f32; 4]) {
         self.lines.line_colored(
-            [a.x, a.y, a.z].into(),
-            [b.x, b.y, b.z].into(),
+            [a.x as f32, a.y as f32, a.z as f32].into(),
+            [b.x as f32, b.y as f32, b.z as f32].into(),
             0.0,
             Color::hsla(color[0], color[1], color[2], color[3]),
         )
