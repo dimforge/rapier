@@ -1,7 +1,8 @@
-use crate::dynamics::RigidBodyHandle;
-use crate::geometry::{ColliderHandle, Contact, ContactManifold};
+use crate::dynamics::{RigidBodyHandle, RigidBodySet};
+use crate::geometry::{ColliderHandle, ColliderSet, Contact, ContactManifold};
 use crate::math::{Point, Real, Vector};
 use crate::pipeline::EventHandler;
+use crate::prelude::CollisionEventFlags;
 use parry::query::ContactManifoldsWorkspace;
 
 use super::CollisionEvent;
@@ -69,22 +70,36 @@ impl IntersectionPair {
 
     pub(crate) fn emit_start_event(
         &mut self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
         collider1: ColliderHandle,
         collider2: ColliderHandle,
         events: &dyn EventHandler,
     ) {
         self.start_event_emited = true;
-        events.handle_collision_event(CollisionEvent::new(collider1, collider2, true), None);
+        events.handle_collision_event(
+            bodies,
+            colliders,
+            CollisionEvent::Started(collider1, collider2, CollisionEventFlags::SENSOR),
+            None,
+        );
     }
 
     pub(crate) fn emit_stop_event(
         &mut self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
         collider1: ColliderHandle,
         collider2: ColliderHandle,
         events: &dyn EventHandler,
     ) {
         self.start_event_emited = false;
-        events.handle_collision_event(CollisionEvent::new(collider1, collider2, false), None);
+        events.handle_collision_event(
+            bodies,
+            colliders,
+            CollisionEvent::Stopped(collider1, collider2, CollisionEventFlags::SENSOR),
+            None,
+        );
     }
 }
 
@@ -155,20 +170,34 @@ impl ContactPair {
         deepest
     }
 
-    pub(crate) fn emit_start_event(&mut self, events: &dyn EventHandler) {
+    pub(crate) fn emit_start_event(
+        &mut self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        events: &dyn EventHandler,
+    ) {
         self.start_event_emited = true;
 
         events.handle_collision_event(
-            CollisionEvent::new(self.collider1, self.collider2, true),
+            bodies,
+            colliders,
+            CollisionEvent::Started(self.collider1, self.collider2, CollisionEventFlags::empty()),
             Some(self),
         );
     }
 
-    pub(crate) fn emit_stop_event(&mut self, events: &dyn EventHandler) {
+    pub(crate) fn emit_stop_event(
+        &mut self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        events: &dyn EventHandler,
+    ) {
         self.start_event_emited = false;
 
         events.handle_collision_event(
-            CollisionEvent::new(self.collider1, self.collider2, false),
+            bodies,
+            colliders,
+            CollisionEvent::Stopped(self.collider1, self.collider2, CollisionEventFlags::empty()),
             Some(self),
         );
     }

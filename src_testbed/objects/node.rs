@@ -210,7 +210,8 @@ impl EntityWithGraphics {
         // Cuboid mesh
         //
         let cuboid = bevy_mesh_from_polyline(Cuboid::new(Vector2::new(1.0, 1.0)).to_polyline());
-        out.insert(ShapeType::Cuboid, meshes.add(cuboid));
+        out.insert(ShapeType::Cuboid, meshes.add(cuboid.clone()));
+        out.insert(ShapeType::RoundCuboid, meshes.add(cuboid));
 
         //
         // Ball mesh
@@ -228,7 +229,8 @@ impl EntityWithGraphics {
         // Cuboid mesh
         //
         let cuboid = Mesh::from(shape::Cube { size: 2.0 });
-        out.insert(ShapeType::Cuboid, meshes.add(cuboid));
+        out.insert(ShapeType::Cuboid, meshes.add(cuboid.clone()));
+        out.insert(ShapeType::RoundCuboid, meshes.add(cuboid));
 
         //
         // Ball mesh
@@ -305,12 +307,12 @@ fn bevy_polyline(buffers: (Vec<Point2<Real>>, Option<Vec<[u32; 2]>>)) -> Mesh {
 
     // Generate the mesh
     let mut mesh = Mesh::new(PrimitiveTopology::LineStrip);
-    mesh.set_attribute(
+    mesh.insert_attribute(
         Mesh::ATTRIBUTE_POSITION,
         VertexAttributeValues::from(vertices),
     );
-    mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, VertexAttributeValues::from(normals));
-    mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::from(uvs));
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, VertexAttributeValues::from(normals));
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::from(uvs));
     mesh.set_indices(Some(Indices::U32(indices)));
     mesh
 }
@@ -348,12 +350,12 @@ fn bevy_mesh(buffers: (Vec<Point3<Real>>, Vec<[u32; 3]>)) -> Mesh {
 
     // Generate the mesh
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-    mesh.set_attribute(
+    mesh.insert_attribute(
         Mesh::ATTRIBUTE_POSITION,
         VertexAttributeValues::from(vertices),
     );
-    mesh.set_attribute(Mesh::ATTRIBUTE_NORMAL, VertexAttributeValues::from(normals));
-    mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::from(uvs));
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, VertexAttributeValues::from(normals));
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::from(uvs));
     mesh.set_indices(Some(Indices::U32(indices)));
     mesh
 }
@@ -363,6 +365,11 @@ fn collider_mesh_scale(co_shape: &dyn Shape) -> Vec3 {
         #[cfg(feature = "dim2")]
         ShapeType::Cuboid => {
             let c = co_shape.as_cuboid().unwrap();
+            Vec3::new(c.half_extents.x as f32, c.half_extents.y as f32, 1.0)
+        }
+        #[cfg(feature = "dim2")]
+        ShapeType::RoundCuboid => {
+            let c = &co_shape.as_round_cuboid().unwrap().inner_shape;
             Vec3::new(c.half_extents.x as f32, c.half_extents.y as f32, 1.0)
         }
         ShapeType::Ball => {
@@ -375,13 +382,18 @@ fn collider_mesh_scale(co_shape: &dyn Shape) -> Vec3 {
             Vec3::from_slice(c.half_extents.cast::<f32>().as_slice())
         }
         #[cfg(feature = "dim3")]
+        ShapeType::RoundCuboid => {
+            let c = co_shape.as_round_cuboid().unwrap();
+            Vec3::from_slice(c.inner_shape.half_extents.cast::<f32>().as_slice())
+        }
+        #[cfg(feature = "dim3")]
         ShapeType::Cylinder => {
             let c = co_shape.as_cylinder().unwrap();
             Vec3::new(c.radius as f32, c.half_height as f32, c.radius as f32)
         }
         #[cfg(feature = "dim3")]
         ShapeType::RoundCylinder => {
-            let c = &co_shape.as_round_cylinder().unwrap().base_shape;
+            let c = &co_shape.as_round_cylinder().unwrap().inner_shape;
             Vec3::new(c.radius as f32, c.half_height as f32, c.radius as f32)
         }
         #[cfg(feature = "dim3")]
@@ -391,7 +403,7 @@ fn collider_mesh_scale(co_shape: &dyn Shape) -> Vec3 {
         }
         #[cfg(feature = "dim3")]
         ShapeType::RoundCone => {
-            let c = &co_shape.as_round_cone().unwrap().base_shape;
+            let c = &co_shape.as_round_cone().unwrap().inner_shape;
             Vec3::new(c.radius as f32, c.half_height as f32, c.radius as f32)
         }
         _ => Vec3::ONE,
@@ -439,7 +451,7 @@ fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
         }
         ShapeType::RoundConvexPolygon => {
             let poly = co_shape.as_round_convex_polygon().unwrap();
-            bevy_mesh_from_polyline(poly.base_shape.points().to_vec())
+            bevy_mesh_from_polyline(poly.inner_shape.points().to_vec())
         }
         _ => return None,
     };
@@ -472,7 +484,7 @@ fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
         }
         ShapeType::RoundConvexPolyhedron => {
             let poly = co_shape.as_round_convex_polyhedron().unwrap();
-            bevy_mesh(poly.base_shape.to_trimesh())
+            bevy_mesh(poly.inner_shape.to_trimesh())
         }
         _ => return None,
     };

@@ -5,7 +5,7 @@ use bevy::prelude::*;
 
 use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
-use crate::ui;
+use crate::{debug_render, ui};
 use crate::{graphics::GraphicsManager, harness::RunState};
 
 use na::{self, Point2, Point3, Vector3};
@@ -26,7 +26,6 @@ use crate::harness::Harness;
 use crate::physx_backend::PhysxWorld;
 use bevy::pbr::wireframe::WireframePlugin;
 use bevy::render::camera::Camera;
-use bevy::render::options::{WgpuFeatures, WgpuOptions};
 use bevy_egui::EguiContext;
 
 #[cfg(feature = "dim2")]
@@ -363,16 +362,10 @@ impl TestbedApp {
 
             app.insert_resource(WindowDescriptor {
                 title,
-                vsync: true,
                 ..Default::default()
             })
             .insert_resource(ClearColor(Color::rgb(0.15, 0.15, 0.15)))
             .insert_resource(Msaa { samples: 4 })
-            .insert_resource(WgpuOptions {
-                // Required for wireframes.
-                features: WgpuFeatures::POLYGON_MODE_LINE,
-                ..Default::default()
-            })
             .insert_resource(AmbientLight {
                 brightness: 0.3,
                 ..Default::default()
@@ -380,7 +373,8 @@ impl TestbedApp {
             .add_plugins(DefaultPlugins)
             .add_plugin(OrbitCameraPlugin)
             .add_plugin(WireframePlugin)
-            .add_plugin(bevy_egui::EguiPlugin);
+            .add_plugin(bevy_egui::EguiPlugin)
+            .add_plugin(debug_render::RapierDebugRenderPlugin::default());
 
             #[cfg(target_arch = "wasm32")]
             app.add_plugin(bevy_webgl2::WebGL2Plugin);
@@ -388,15 +382,15 @@ impl TestbedApp {
             #[cfg(feature = "other-backends")]
             app.insert_non_send_resource(self.other_backends);
 
-            app.add_startup_system(setup_graphics_environment.system())
+            app.add_startup_system(setup_graphics_environment)
                 .insert_non_send_resource(self.graphics)
                 .insert_resource(self.state)
                 .insert_non_send_resource(self.harness)
                 .insert_resource(self.builders)
                 .insert_non_send_resource(self.plugins)
                 .add_stage_before(CoreStage::Update, "physics", SystemStage::single_threaded())
-                .add_system_to_stage("physics", update_testbed.system())
-                .add_system(egui_focus.system());
+                .add_system_to_stage("physics", update_testbed)
+                .add_system(egui_focus);
             init(&mut app);
             app.run();
         }
@@ -855,11 +849,14 @@ fn setup_graphics_environment(mut commands: Commands) {
 
     commands
         .spawn_bundle(PerspectiveCameraBundle {
-            transform: Transform::from_matrix(Mat4::face_toward(
-                Vec3::new(-30.0, 30.0, 100.0),
-                Vec3::new(0.0, 10.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-            )),
+            transform: Transform::from_matrix(
+                Mat4::look_at_rh(
+                    Vec3::new(-30.0, 30.0, 100.0),
+                    Vec3::new(0.0, 10.0, 0.0),
+                    Vec3::new(0.0, 1.0, 0.0),
+                )
+                .inverse(),
+            ),
             ..Default::default()
         })
         .insert(OrbitCamera {
@@ -899,9 +896,9 @@ fn setup_graphics_environment(mut commands: Commands) {
         });
 }
 
-fn egui_focus(ui_context: Res<EguiContext>, mut cameras: Query<&mut OrbitCamera>) {
+fn egui_focus(mut ui_context: ResMut<EguiContext>, mut cameras: Query<&mut OrbitCamera>) {
     let mut camera_enabled = true;
-    if ui_context.ctx().wants_pointer_input() {
+    if ui_context.ctx_mut().wants_pointer_input() {
         camera_enabled = false;
     }
     for mut camera in cameras.iter_mut() {
@@ -921,7 +918,7 @@ fn update_testbed(
     mut harness: NonSendMut<Harness>,
     #[cfg(feature = "other-backends")] mut other_backends: NonSendMut<OtherBackends>,
     mut plugins: NonSendMut<Plugins>,
-    ui_context: Res<EguiContext>,
+    mut ui_context: ResMut<EguiContext>,
     mut gfx_components: Query<(&mut Transform,)>,
     mut cameras: Query<(&Camera, &GlobalTransform, &mut OrbitCamera)>,
     keys: Res<Input<KeyCode>>,
@@ -956,11 +953,11 @@ fn update_testbed(
     // Update UI
     {
         let harness = &mut *harness;
-        ui::update_ui(&ui_context, &mut state, harness);
+        ui::update_ui(&mut ui_context, &mut state, harness);
 
         for plugin in &mut plugins.0 {
             plugin.update_ui(
-                &ui_context,
+                &mut ui_context,
                 harness,
                 &mut graphics,
                 &mut commands,

@@ -93,12 +93,12 @@ impl IntegrationParameters {
 
     /// The ERP coefficient, multiplied by the inverse timestep length.
     pub fn erp_inv_dt(&self) -> Real {
-        self.erp / self.dt
+        self.erp * self.inv_dt()
     }
 
     /// The joint ERP coefficient, multiplied by the inverse timestep length.
     pub fn joint_erp_inv_dt(&self) -> Real {
-        self.joint_erp / self.dt
+        self.joint_erp * self.inv_dt()
     }
 
     /// The CFM factor to be used in the constraints resolution.

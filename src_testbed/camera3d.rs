@@ -113,8 +113,8 @@ impl OrbitCameraPlugin {
 }
 impl Plugin for OrbitCameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(Self::mouse_motion_system.system())
-            .add_system(Self::zoom_system.system())
-            .add_system(Self::update_transform_system.system());
+        app.add_system(Self::mouse_motion_system)
+            .add_system(Self::zoom_system)
+            .add_system(Self::update_transform_system);
     }
 }

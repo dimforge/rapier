@@ -4,7 +4,7 @@ use crate::geometry::{ColliderParent, ColliderSet, CollisionEvent, NarrowPhase};
 use crate::math::Real;
 use crate::parry::utils::SortedPair;
 use crate::pipeline::{EventHandler, QueryPipeline, QueryPipelineMode};
-use crate::prelude::ActiveEvents;
+use crate::prelude::{ActiveEvents, CollisionEventFlags};
 use parry::query::{DefaultQueryDispatcher, QueryDispatcher};
 use parry::utils::hashmap::HashMap;
 use std::collections::BinaryHeap;
@@ -529,8 +529,18 @@ impl CCDSolver {
                     .contains(ActiveEvents::COLLISION_EVENTS)
             {
                 // Emit one intersection-started and one intersection-stopped event.
-                events.handle_collision_event(CollisionEvent::Started(toi.c1, toi.c2), None);
-                events.handle_collision_event(CollisionEvent::Stopped(toi.c1, toi.c2, false), None);
+                events.handle_collision_event(
+                    bodies,
+                    colliders,
+                    CollisionEvent::Started(toi.c1, toi.c2, CollisionEventFlags::SENSOR),
+                    None,
+                );
+                events.handle_collision_event(
+                    bodies,
+                    colliders,
+                    CollisionEvent::Stopped(toi.c1, toi.c2, CollisionEventFlags::SENSOR),
+                    None,
+                );
             }
         }
 

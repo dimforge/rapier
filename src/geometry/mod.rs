@@ -50,27 +50,29 @@ pub type PointProjection = parry::query::PointProjection;
 pub type TOI = parry::query::TOI;
 pub use parry::shape::SharedShape;
 
+bitflags::bitflags! {
+    /// Flags providing more information regarding a collision event.
+    #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    pub struct CollisionEventFlags: u32 {
+        /// Flag set if at least one of the colliders involved in the
+        /// collision was a sensor when the event was fired.
+        const SENSOR = 0b0001;
+        /// Flag set if a `CollisionEvent::Stopped` was fired because
+        /// at least one of the colliders was removed.
+        const REMOVED = 0b0010;
+    }
+}
+
 #[derive(Copy, Clone, Hash, Debug)]
-/// Events occurring when two colliders start or stop being in contact (or intersecting)
+/// Events occurring when two colliders start or stop colliding
 pub enum CollisionEvent {
-    /// Event occurring when two colliders start being in contact (or intersecting)
-    Started(ColliderHandle, ColliderHandle),
-    /// Event occurring when two colliders stop being in contact (or intersecting).
-    ///
-    /// The boolean is set to `true` of this event originates from at least one of
-    /// the colliders being removed from the `ColliderSet`.
-    Stopped(ColliderHandle, ColliderHandle, bool),
+    /// Event occurring when two colliders start colliding
+    Started(ColliderHandle, ColliderHandle, CollisionEventFlags),
+    /// Event occurring when two colliders stop colliding.
+    Stopped(ColliderHandle, ColliderHandle, CollisionEventFlags),
 }
 
 impl CollisionEvent {
-    pub(crate) fn new(h1: ColliderHandle, h2: ColliderHandle, start: bool) -> Self {
-        if start {
-            Self::Started(h1, h2)
-        } else {
-            Self::Stopped(h1, h2, false)
-        }
-    }
-
     /// Is this a `Started` collision event?
     pub fn started(self) -> bool {
         matches!(self, CollisionEvent::Started(..))
@@ -84,14 +86,32 @@ impl CollisionEvent {
     /// The handle of the first collider involved in this collision event.
     pub fn collider1(self) -> ColliderHandle {
         match self {
-            Self::Started(h, _) | Self::Stopped(h, _, _) => h,
+            Self::Started(h, _, _) | Self::Stopped(h, _, _) => h,
         }
     }
 
     /// The handle of the second collider involved in this collision event.
     pub fn collider2(self) -> ColliderHandle {
         match self {
-            Self::Started(_, h) | Self::Stopped(_, h, _) => h,
+            Self::Started(_, h, _) | Self::Stopped(_, h, _) => h,
+        }
+    }
+
+    /// Was at least one of the colliders involved in the collision a sensor?
+    pub fn sensor(self) -> bool {
+        match self {
+            Self::Started(_, _, f) | Self::Stopped(_, _, f) => {
+                f.contains(CollisionEventFlags::SENSOR)
+            }
+        }
+    }
+
+    /// Was at least one of the colliders involved in the collision removed?
+    pub fn removed(self) -> bool {
+        match self {
+            Self::Started(_, _, f) | Self::Stopped(_, _, f) => {
+                f.contains(CollisionEventFlags::REMOVED)
+            }
         }
     }
 }

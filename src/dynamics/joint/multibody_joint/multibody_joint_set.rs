@@ -299,10 +299,20 @@ impl MultibodyJointSet {
     }
 
     /// Gets a mutable reference to the multibody identified by its `handle`.
+    pub fn get_mut(&mut self, handle: MultibodyJointHandle) -> Option<(&mut Multibody, usize)> {
+        let link = self.rb2mb.get(handle.0)?;
+        let multibody = self.multibodies.get_mut(link.multibody.0)?;
+        Some((multibody, link.id))
+    }
+
+    /// Gets a mutable reference to the multibody identified by its `handle`.
+    ///
+    /// This method will bypass any modification-detection automatically done by the MultibodyJointSet.
     pub fn get_mut_internal(
         &mut self,
         handle: MultibodyJointHandle,
     ) -> Option<(&mut Multibody, usize)> {
+        // TODO: modification tracking?
         let link = self.rb2mb.get(handle.0)?;
         let multibody = self.multibodies.get_mut(link.multibody.0)?;
         Some((multibody, link.id))

@@ -19,8 +19,10 @@ mod box2d_backend;
 mod camera2d;
 #[cfg(feature = "dim3")]
 mod camera3d;
+mod debug_render;
 mod graphics;
 pub mod harness;
+mod lines;
 pub mod objects;
 pub mod physics;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
