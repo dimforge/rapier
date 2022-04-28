@@ -305,20 +305,26 @@ impl RigidBody {
         self.ccd.ccd_active
     }
 
-    /// Sets the rigid-body's initial mass properties.
+    /// Sets the rigid-body's additional mass properties.
     ///
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
     #[inline]
-    pub fn set_mass_properties(&mut self, props: MassProperties, wake_up: bool) {
-        if self.mprops.local_mprops != props {
-            if self.is_dynamic() && wake_up {
-                self.wake_up(true);
-            }
-
-            self.mprops.local_mprops = props;
-            self.update_world_mass_properties();
+    pub fn set_additional_mass_properties(&mut self, props: MassProperties, wake_up: bool) {
+        if let Some(add_mprops) = &mut self.mprops.additional_local_mprops {
+            self.mprops.local_mprops += props;
+            self.mprops.local_mprops -= **add_mprops;
+            **add_mprops = props;
+        } else {
+            self.mprops.additional_local_mprops = Some(Box::new(props));
+            self.mprops.local_mprops += props;
         }
+
+        if self.is_dynamic() && wake_up {
+            self.wake_up(true);
+        }
+
+        self.update_world_mass_properties();
     }
 
     /// The handles of colliders attached to this rigid body.
