@@ -3,9 +3,10 @@
 /// The default colors are provided in HSLA (Hue Saturation Lightness Alpha) format.
 pub type DebugColor = [f32; 4];
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct DebugRenderStyle {
     pub subdivisions: u32,
+    pub border_subdivisions: u32,
     pub collider_dynamic_color: DebugColor,
     pub collider_fixed_color: DebugColor,
     pub collider_kinematic_color: DebugColor,
@@ -22,6 +23,7 @@ impl Default for DebugRenderStyle {
     fn default() -> Self {
         Self {
             subdivisions: 20,
+            border_subdivisions: 5,
             collider_dynamic_color: [340.0, 1.0, 0.3, 1.0],
             collider_kinematic_color: [20.0, 1.0, 0.3, 1.0],
             collider_fixed_color: [30.0, 1.0, 0.4, 1.0],

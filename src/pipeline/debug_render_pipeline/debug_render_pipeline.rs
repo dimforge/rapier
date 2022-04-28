@@ -285,17 +285,20 @@ impl DebugRenderPipeline {
              * Round shapes.
              */
             TypedShape::RoundCuboid(s) => {
-                self.render_shape(object, backend, &s.base_shape, pos, color)
+                let vtx = s.to_polyline(self.style.border_subdivisions);
+                backend.draw_line_strip(object, &vtx, pos, &Vector::repeat(1.0), color, true)
             }
             TypedShape::RoundTriangle(s) => {
-                self.render_shape(object, backend, &s.base_shape, pos, color)
+                // TODO: take roundness into account.
+                self.render_shape(object, backend, &s.inner_shape, pos, color)
             }
-            // TypedShape::RoundTriMesh(s) => self.render_shape(backend, &s.base_shape, pos, color),
+            // TypedShape::RoundTriMesh(s) => self.render_shape(backend, &s.inner_shape, pos, color),
             // TypedShape::RoundHeightField(s) => {
-            //     self.render_shape(backend, &s.base_shape, pos, color)
+            //     self.render_shape(backend, &s.inner_shape, pos, color)
             // }
             TypedShape::RoundConvexPolygon(s) => {
-                self.render_shape(object, backend, &s.base_shape, pos, color)
+                let vtx = s.to_polyline(self.style.border_subdivisions);
+                backend.draw_line_strip(object, &vtx, pos, &Vector::repeat(1.0), color, true)
             }
             TypedShape::Custom(_) => {}
         }
@@ -326,7 +329,6 @@ impl DebugRenderPipeline {
                 let (vtx, idx) = &self.instances[&TypeId::of::<Cuboid>()];
                 backend.draw_polyline(object, vtx, idx, pos, &(s.half_extents * 2.0), color)
             }
-            #[cfg(feature = "dim3")]
             TypedShape::Capsule(s) => {
                 let (vtx, idx) = s.to_outline(self.style.subdivisions);
                 backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
@@ -426,23 +428,30 @@ impl DebugRenderPipeline {
              * Round shapes.
              */
             TypedShape::RoundCuboid(s) => {
-                self.render_shape(object, backend, &s.base_shape, pos, color)
+                let (vtx, idx) = s.to_outline(self.style.border_subdivisions);
+                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
             }
             TypedShape::RoundTriangle(s) => {
-                self.render_shape(object, backend, &s.base_shape, pos, color)
+                // TODO: take roundness into account.
+                self.render_shape(object, backend, &s.inner_shape, pos, color)
             }
-            // TypedShape::RoundTriMesh(s) => self.render_shape(object, backend, &s.base_shape, pos, color),
+            // TypedShape::RoundTriMesh(s) => self.render_shape(object, backend, &s.inner_shape, pos, color),
             // TypedShape::RoundHeightField(s) => {
-            //     self.render_shape(object, backend, &s.base_shape, pos, color)
+            //     self.render_shape(object, backend, &s.inner_shape, pos, color)
             // }
             TypedShape::RoundCylinder(s) => {
-                self.render_shape(object, backend, &s.base_shape, pos, color)
+                let (vtx, idx) =
+                    s.to_outline(self.style.subdivisions, self.style.border_subdivisions);
+                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
             }
             TypedShape::RoundCone(s) => {
-                self.render_shape(object, backend, &s.base_shape, pos, color)
+                let (vtx, idx) =
+                    s.to_outline(self.style.subdivisions, self.style.border_subdivisions);
+                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
             }
             TypedShape::RoundConvexPolyhedron(s) => {
-                self.render_shape(object, backend, &s.base_shape, pos, color)
+                let (vtx, idx) = s.to_outline(self.style.border_subdivisions);
+                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
             }
             TypedShape::Custom(_) => {}
         }
