@@ -1,6 +1,6 @@
 use crate::harness::Harness;
+use crate::lines::DebugLines;
 use bevy::prelude::*;
-use bevy_prototype_debug_lines::DebugLines;
 use rapier::math::{Point, Real, DIM};
 use rapier::pipeline::{
     DebugRenderBackend, DebugRenderMode, DebugRenderObject, DebugRenderPipeline,
@@ -29,9 +29,9 @@ impl RapierDebugRenderPlugin {
 
 impl Plugin for RapierDebugRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(
-            bevy_prototype_debug_lines::DebugLinesPlugin::with_depth_test(self.depth_test),
-        )
+        app.add_plugin(crate::lines::DebugLinesPlugin::with_depth_test(
+            self.depth_test,
+        ))
         .insert_resource(DebugRenderPipeline::new(
             Default::default(),
             !DebugRenderMode::RIGID_BODY_AXES,

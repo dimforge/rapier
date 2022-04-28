@@ -642,7 +642,7 @@ fn physx_collider_from_rapier_collider(
         }
     } else if let Some(convex) = shape
         .as_convex_polyhedron()
-        .or(shape.as_round_convex_polyhedron().map(|c| &c.base_shape))
+        .or(shape.as_round_convex_polyhedron().map(|c| &c.inner_shape))
     {
         let vertices = convex.points();
         let mut convex_desc;

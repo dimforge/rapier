@@ -11,8 +11,8 @@ use crate::PhysicsState;
 use bevy_egui::egui::Slider;
 use bevy_egui::{egui, EguiContext};
 
-pub fn update_ui(ui_context: &EguiContext, state: &mut TestbedState, harness: &mut Harness) {
-    egui::Window::new("Parameters").show(ui_context.ctx(), |ui| {
+pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness: &mut Harness) {
+    egui::Window::new("Parameters").show(ui_context.ctx_mut(), |ui| {
         if state.backend_names.len() > 1 && !state.example_names.is_empty() {
             let mut changed = false;
             egui::ComboBox::from_label("backend")
