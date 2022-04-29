@@ -397,7 +397,7 @@ impl NarrowPhase {
             // NOTE: we use `get` because the collider may no longer
             //       exist if it has been removed.
             if let Some(co) = colliders.get(*handle) {
-                if co.changes.needs_narrow_phase_update() {
+                if !co.changes.needs_narrow_phase_update() {
                     // No flag relevant to the narrow-phase is enabled for this collider.
                     continue;
                 }
