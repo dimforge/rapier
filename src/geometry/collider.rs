@@ -72,8 +72,18 @@ impl Collider {
     }
 
     /// Sets the collision types enabled for this collider.
-    pub fn set_active_collision_types(&mut self, active_collision_types: ActiveCollisionTypes) {
-        self.flags.active_collision_types = active_collision_types;
+    pub fn set_active_collision_types(
+        &mut self,
+        active_collision_types: ActiveCollisionTypes,
+        wake_up: bool,
+    ) {
+        if self.flags.active_collision_types != active_collision_types {
+            if wake_up {
+                self.changes.insert(ColliderChanges::WAKE_UP_PARENT);
+            }
+
+            self.flags.active_collision_types = active_collision_types;
+        }
     }
 
     /// The friction coefficient of this collider.
@@ -82,8 +92,14 @@ impl Collider {
     }
 
     /// Sets the friction coefficient of this collider.
-    pub fn set_friction(&mut self, coefficient: Real) {
-        self.material.friction = coefficient
+    pub fn set_friction(&mut self, coefficient: Real, wake_up: bool) {
+        if self.material.friction != coefficient {
+            if wake_up {
+                self.changes.insert(ColliderChanges::WAKE_UP_PARENT);
+            }
+
+            self.material.friction = coefficient
+        }
     }
 
     /// The combine rule used by this collider to combine its friction
@@ -96,8 +112,14 @@ impl Collider {
     /// Sets the combine rule used by this collider to combine its friction
     /// coefficient with the friction coefficient of the other collider it
     /// is in contact with.
-    pub fn set_friction_combine_rule(&mut self, rule: CoefficientCombineRule) {
-        self.material.friction_combine_rule = rule;
+    pub fn set_friction_combine_rule(&mut self, rule: CoefficientCombineRule, wake_up: bool) {
+        if self.material.friction_combine_rule != rule {
+            if wake_up {
+                self.changes.insert(ColliderChanges::WAKE_UP_PARENT);
+            }
+
+            self.material.friction_combine_rule = rule;
+        }
     }
 
     /// The restitution coefficient of this collider.
@@ -125,7 +147,7 @@ impl Collider {
     }
 
     /// Sets whether or not this is a sensor collider.
-    pub fn set_sensor(&mut self, is_sensor: bool) {
+    pub fn set_sensor(&mut self, is_sensor: bool, wake_up: bool) {
         if is_sensor != self.is_sensor() {
             self.changes.insert(ColliderChanges::TYPE);
             self.coll_type = if is_sensor {
@@ -133,6 +155,10 @@ impl Collider {
             } else {
                 ColliderType::Solid
             };
+
+            if wake_up {
+                self.changes.insert(ColliderChanges::WAKE_UP_PARENT);
+            }
         }
     }
 
@@ -175,28 +201,40 @@ impl Collider {
     }
 
     /// Sets the translational part of this collider's translation relative to its parent rigid-body.
-    pub fn set_translation_wrt_parent(&mut self, translation: Vector<Real>) {
+    pub fn set_translation_wrt_parent(&mut self, translation: Vector<Real>, wake_up: bool) {
         if let Some(parent) = self.parent.as_mut() {
             self.changes.insert(ColliderChanges::PARENT);
             parent.pos_wrt_parent.translation.vector = translation;
+
+            if wake_up {
+                self.changes.insert(ColliderChanges::WAKE_UP_PARENT);
+            }
         }
     }
 
     /// Sets the rotational part of this collider's rotaiton relative to its parent rigid-body.
-    pub fn set_rotation_wrt_parent(&mut self, rotation: AngVector<Real>) {
+    pub fn set_rotation_wrt_parent(&mut self, rotation: AngVector<Real>, wake_up: bool) {
         if let Some(parent) = self.parent.as_mut() {
             self.changes.insert(ColliderChanges::PARENT);
             parent.pos_wrt_parent.rotation = Rotation::new(rotation);
+
+            if wake_up {
+                self.changes.insert(ColliderChanges::WAKE_UP_PARENT);
+            }
         }
     }
 
     /// Sets the position of this collider wrt. its parent rigid-body.
     ///
     /// Does nothing if the collider is not attached to a rigid-body.
-    pub fn set_position_wrt_parent(&mut self, pos_wrt_parent: Isometry<Real>) {
+    pub fn set_position_wrt_parent(&mut self, pos_wrt_parent: Isometry<Real>, wake_up: bool) {
         if let Some(parent) = self.parent.as_mut() {
             self.changes.insert(ColliderChanges::PARENT);
             parent.pos_wrt_parent = pos_wrt_parent;
+
+            if wake_up {
+                self.changes.insert(ColliderChanges::WAKE_UP_PARENT);
+            }
         }
     }
 
@@ -206,10 +244,14 @@ impl Collider {
     }
 
     /// Sets the collision groups of this collider.
-    pub fn set_collision_groups(&mut self, groups: InteractionGroups) {
+    pub fn set_collision_groups(&mut self, groups: InteractionGroups, wake_up: bool) {
         if self.flags.collision_groups != groups {
             self.changes.insert(ColliderChanges::GROUPS);
             self.flags.collision_groups = groups;
+
+            if wake_up {
+                self.changes.insert(ColliderChanges::WAKE_UP_PARENT);
+            }
         }
     }
 
@@ -219,10 +261,14 @@ impl Collider {
     }
 
     /// Sets the solver groups of this collider.
-    pub fn set_solver_groups(&mut self, groups: InteractionGroups) {
+    pub fn set_solver_groups(&mut self, groups: InteractionGroups, wake_up: bool) {
         if self.flags.solver_groups != groups {
             self.changes.insert(ColliderChanges::GROUPS);
             self.flags.solver_groups = groups;
+
+            if wake_up {
+                self.changes.insert(ColliderChanges::WAKE_UP_PARENT);
+            }
         }
     }
 
@@ -249,15 +295,29 @@ impl Collider {
     /// If that shape is shared by multiple colliders, it will be
     /// cloned first so that `self` contains a unique copy of that
     /// shape that you can modify.
-    pub fn shape_mut(&mut self) -> &mut dyn Shape {
+    pub fn shape_mut(&mut self, wake_up: bool) -> &mut dyn Shape {
         self.changes.insert(ColliderChanges::SHAPE);
+
+        if wake_up {
+            self.changes.insert(ColliderChanges::WAKE_UP_PARENT);
+        }
+
         self.shape.make_mut()
     }
 
     /// Sets the shape of this collider.
-    pub fn set_shape(&mut self, shape: SharedShape) {
+    pub fn set_shape(&mut self, shape: SharedShape, wake_up: bool) {
         self.changes.insert(ColliderChanges::SHAPE);
         self.shape = shape;
+
+        if wake_up {
+            self.changes.insert(ColliderChanges::WAKE_UP_PARENT);
+        }
+    }
+
+    /// At the next physics update, wake up the parent of this collider, if it has one.
+    pub fn wake_up_parent(&mut self) {
+        self.changes.insert(ColliderChanges::WAKE_UP_PARENT);
     }
 
     /// Retrieve the SharedShape. Also see the `shape()` function

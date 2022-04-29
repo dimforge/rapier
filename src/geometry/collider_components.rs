@@ -62,6 +62,8 @@ bitflags::bitflags! {
         /// This flags is automatically set by the `PhysicsPipeline` when the `RigidBodyChanges::DOMINANCE`
         /// or `RigidBodyChanges::TYPE` of the parent rigid-body of this collider is detected.
         const PARENT_EFFECTIVE_DOMINANCE = 1 << 6; // NF update.
+        /// Indicates that the parent rigid-body of this collider should be awaken.
+        const WAKE_UP_PARENT = 1 << 7;
     }
 }
 

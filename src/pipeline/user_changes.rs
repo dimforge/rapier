@@ -4,6 +4,8 @@ use crate::dynamics::{
 use crate::geometry::{ColliderChanges, ColliderHandle, ColliderPosition, ColliderSet};
 use parry::utils::hashmap::HashMap;
 
+// NOTE: this MUST be called before handling the rigid-body user-changes in order to
+//       take changes in the parent awake status properly.
 pub(crate) fn handle_user_changes_to_colliders(
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
@@ -29,6 +31,19 @@ pub(crate) fn handle_user_changes_to_colliders(
             if co.changes.contains(ColliderChanges::SHAPE) {
                 if let Some(co_parent) = co.parent {
                     mprops_to_update.insert(co_parent.handle, ());
+                }
+            }
+
+            if co.changes.contains(ColliderChanges::WAKE_UP_PARENT) {
+                if let Some(co_parent) = co.parent {
+                    // Wake-up the parent. Because user-changes handling for colliders is done
+                    // before user-change handling for rigid-bodies, we rely on the modification
+                    // tracking.
+                    if let Some(body) =
+                        bodies.get_mut_internal_with_modification_tracking(co_parent.handle)
+                    {
+                        body.wake_up(true);
+                    }
                 }
             }
         }

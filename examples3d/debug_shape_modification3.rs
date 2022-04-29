@@ -61,7 +61,7 @@ pub fn init_world(testbed: &mut Testbed) {
         }
 
         let ball_coll = physics.colliders.get_mut(ball_coll_handle).unwrap();
-        ball_coll.set_shape(SharedShape::ball(ball_rad * step as f32 * 2.0));
+        ball_coll.set_shape(SharedShape::ball(ball_rad * step as f32 * 2.0), true);
     });
 
     /*
