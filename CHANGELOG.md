@@ -1,12 +1,17 @@
 
-## Unreleased
+## v0.12.0 (30 Apr. 2022)
 ### Fixed
 - Fix the simulation when the `parallel` feature is enabled.
 - Fix bug where damping would not be applied properly to some bodies.
 - Fix panics caused by various situations (contact or joints) involving rigid-bodies with locked translations/rotations.
-
+- Fix bug where collider modifications (like changes of collision groups, or shape) would not wake-up their attached
+  rigid-body, or would not have any effect on pre-existing contacts.
+- Fix the automatic update of a rigid-body’s mass properties after changing one of its attached colliders.
+- Fix the broad-phase becoming potentially invalid after a change of collision groups.
 
 ### Modified
+- Switch to `nalgebra` 0.31.
+- Switch to `parry` 0.9.
 - Rename `JointHandle` to `ImpulseJointHandle`.
 - Rename `RigidBodyMassPropsFlags` to `LockedAxes`.
 - Rename `RigidBody::apply_force`, `::apply_torque`, `::apply_force_at_point` to `::add_force`,
@@ -24,10 +29,13 @@
   which are more stable.  
 - Calling the `.build()` function from builders (`RigidBodyBuilder`, `ColliderBuilder`, etc.) is no longer necessary
   whan adding them to sets. It is automatically called thanks to `Into<_>` implementations.  
+- The `ComponentSet` abstractions (and related `_generic` methods like `PhysicsPipeline::step_generic`) have been
+  removed. Custom storage for colliders and rigid-bodies are no longer possible: use the built-in `RigidBodySet` and
+  `ColliderSet` instead.
 
 ### Semantic modifications
 These are changes in the behavior of the physics engine that are not necessarily
-reflected by an API change:
+reflected by an API change. See [#304](https://github.com/dimforge/rapier/pull/304) for extensive details.
 - `RigidBody::set_linvel` and `RigidBody::set_angvel` no longer modify the velocity of static bodies.
 - `RigidBody::set_body_type` will reset the velocity of a rigid-body to zero if it is static.
 - Don’t automatically clear forces at the end of a timestep.
@@ -43,7 +51,9 @@ reflected by an API change:
 - Adds a `bool` argument to `RigidBodySet::remove`. If set to `false`, the colliders attached to the rigid-body
   won’t be automatically deleted (they will only be detached from the deleted rigid-body instead).
 - Add `RigidBody::reset_forces` and `RigidBody::reset_torques` to reset all the forces and torques added to the
-  rigid-bodiy by the user.
+  rigid-body by the user.
+- Add the `debug-render` cargo feature that enables the `DebugRenderPipeline`: a line-based backend-agnostic
+  renderer to debug the state of the physics engine.
 
 ## v0.12.0-alpha.0 (2 Jan. 2022)
 ### Fixed
