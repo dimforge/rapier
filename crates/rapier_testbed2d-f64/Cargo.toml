@@ -1,6 +1,6 @@
 [package]
 name    = "rapier_testbed2d-f64"
-version = "0.12.0-alpha.1"
+version = "0.12.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "Testbed for the Rapier 2-dimensional physics engine in Rust."
 homepage = "http://rapier.org"
@@ -26,7 +26,7 @@ other-backends = [ "wrapped2d" ]
 
 
 [dependencies]
-nalgebra   = { version = "0.30", features = [ "rand" ] }
+nalgebra   = { version = "0.31", features = [ "rand" ] }
 rand       = "0.8"
 rand_pcg   = "0.3"
 instant    = { version = "0.1", features = [ "web-sys", "now" ]}
@@ -54,5 +54,5 @@ bevy = {version = "0.7", default-features = false, features = ["bevy_winit", "re
 [dependencies.rapier]
 package = "rapier2d-f64"
 path = "../rapier2d-f64"
-version = "0.12.0-alpha.1"
+version = "0.12.0"
 features = [ "serde-serialize", "debug-render" ]
