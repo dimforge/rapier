@@ -377,9 +377,9 @@ impl NarrowPhase {
             let co_changes: Option<&ColliderChanges> = colliders.get(handle.0);
 
             if let Some(co_changes) = co_changes {
-                if co_changes.needs_narrow_phase_update() {
+                if !co_changes.needs_narrow_phase_update() {
                     // No flag relevant to the narrow-phase is enabled for this collider.
-                    return;
+                    continue;
                 }
 
                 if let Some(gid) = self.graph_indices.get(handle.0) {
@@ -745,11 +745,13 @@ impl NarrowPhase {
             if !co_flags1.active_collision_types.test(rb_type1, rb_type2)
                 && !co_flags2.active_collision_types.test(rb_type1, rb_type2)
             {
+                edge.weight = false;
                 return;
             }
 
             // Filter based on collision groups.
             if !co_flags1.collision_groups.test(co_flags2.collision_groups) {
+                edge.weight = false;
                 return;
             }
 
@@ -760,6 +762,7 @@ impl NarrowPhase {
             if !co_flags1.active_collision_types.test(rb_type1, rb_type2)
                 && !co_flags2.active_collision_types.test(rb_type1, rb_type2)
             {
+                edge.weight = false;
                 return;
             }
 
@@ -775,6 +778,7 @@ impl NarrowPhase {
 
                 if !hooks.filter_intersection_pair(&context) {
                     // No intersection allowed.
+                    edge.weight = false;
                     return;
                 }
             }
@@ -867,11 +871,13 @@ impl NarrowPhase {
             if !co_flags1.active_collision_types.test(rb_type1, rb_type2)
                 && !co_flags2.active_collision_types.test(rb_type1, rb_type2)
             {
+                pair.clear();
                 return;
             }
 
             // Filter based on collision groups.
             if !co_flags1.collision_groups.test(co_flags2.collision_groups) {
+                pair.clear();
                 return;
             }
 
@@ -892,6 +898,7 @@ impl NarrowPhase {
                     solver_flags
                 } else {
                     // No contact allowed.
+                    pair.clear();
                     return;
                 }
             } else {
