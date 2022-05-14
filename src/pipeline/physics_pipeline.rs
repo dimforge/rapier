@@ -391,6 +391,11 @@ impl PhysicsPipeline {
             &mut modified_colliders,
         );
 
+        impulse_joints.wake_up_bodies_with_active_motor(
+            islands,
+            bodies
+        );
+
         // TODO: do this only on user-change.
         // TODO: do we want some kind of automatic inverse kinematics?
         for multibody in &mut multibody_joints.multibodies {

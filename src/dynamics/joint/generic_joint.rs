@@ -206,6 +206,8 @@ pub struct GenericJoint {
     ///
     /// Note that the mostor must also be explicitly enabled by the `motors` bitmask.
     pub motors: [JointMotor; SPATIAL_DIM],
+    /// The flag indicating that motor settings were changed from outside
+    pub motor_changed: bool,
 }
 
 impl Default for GenericJoint {
@@ -219,6 +221,7 @@ impl Default for GenericJoint {
             coupled_axes: JointAxesMask::empty(),
             limits: [JointLimits::default(); SPATIAL_DIM],
             motors: [JointMotor::default(); SPATIAL_DIM],
+            motor_changed: false,
         }
     }
 }
@@ -419,6 +422,7 @@ impl GenericJoint {
         self.motors[i].target_pos = target_pos;
         self.motors[i].stiffness = stiffness;
         self.motors[i].damping = damping;
+        self.motor_changed = true;
         self
     }
 }

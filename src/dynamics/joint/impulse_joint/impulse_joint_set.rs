@@ -245,6 +245,37 @@ impl ImpulseJointSet {
         }
     }
 
+    /// Wake up bodies that are attached with joint that has a motor and it was changed in this frame
+    pub(crate) fn wake_up_bodies_with_active_motor(
+        &mut self,
+        islands: &mut IslandManager,
+        bodies: &mut RigidBodySet
+    )
+    {
+        let mut to_wake_up = vec![];
+        for (i, edge) in self.joint_graph.graph.edges.iter().enumerate() {
+            let joint = &edge.weight;
+
+            let rb1 = &bodies[joint.body1];
+            let rb2 = &bodies[joint.body2];
+
+            if (rb1.is_sleeping() || rb2.is_sleeping()) && joint.data.motor_changed {
+                to_wake_up.push((edge.source(), i));
+                to_wake_up.push((edge.target(), i));
+            }
+        }
+
+        for (node_id, joint_id) in to_wake_up {
+            if let Some(rb_handle) = self.joint_graph.graph.node_weight_mut(node_id) {
+                islands.wake_up(bodies, *rb_handle, true);
+            }
+
+            if let Some(mut joint) = self.joint_graph.graph.edges.get_mut(joint_id) {
+                joint.weight.data.motor_changed = false;
+            }
+        }
+    }
+
     /// Removes a joint from this set.
     ///
     /// If `wake_up` is set to `true`, then the bodies attached to this joint will be
