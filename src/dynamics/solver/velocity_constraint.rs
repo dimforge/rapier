@@ -153,6 +153,7 @@ impl VelocityConstraint {
     ) {
         assert_eq!(manifold.data.relative_dominance, 0);
 
+        let cfm_factor = params.cfm_factor();
         let inv_dt = params.inv_dt();
         let erp_inv_dt = params.erp_inv_dt();
 
@@ -163,6 +164,7 @@ impl VelocityConstraint {
         let (vels1, mprops1) = (&rb1.vels, &rb1.mprops);
         let rb2 = &bodies[handle2];
         let (vels2, mprops2) = (&rb2.vels, &rb2.mprops);
+        let ccd_thickness = rb1.ccd.ccd_thickness + rb2.ccd.ccd_thickness;
 
         let mj_lambda1 = rb1.ids.active_set_offset;
         let mj_lambda2 = rb2.ids.active_set_offset;
@@ -280,13 +282,19 @@ impl VelocityConstraint {
                     let rhs_bias = /* is_resting
                         * */  erp_inv_dt
                         * (manifold_point.dist + params.allowed_linear_error).clamp(-params.max_penetration_correction, 0.0);
+
+                    let rhs = rhs_wo_bias + rhs_bias;
+                    let is_fast_contact = -rhs * params.dt > ccd_thickness * 0.5;
+                    let cfm = if is_fast_contact { 1.0 } else { cfm_factor };
+
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
                         gcross1,
                         gcross2,
-                        rhs: rhs_wo_bias + rhs_bias,
+                        rhs,
                         rhs_wo_bias,
                         impulse: na::zero(),
                         r: projected_mass,
+                        cfm,
                     };
                 }
 

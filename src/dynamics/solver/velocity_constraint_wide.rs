@@ -43,6 +43,8 @@ impl WVelocityConstraint {
             assert_eq!(manifolds[ii].data.relative_dominance, 0);
         }
 
+        let cfm_factor = SimdReal::splat(params.cfm_factor());
+        let dt = SimdReal::splat(params.dt);
         let inv_dt = SimdReal::splat(params.inv_dt());
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
         let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
@@ -57,6 +59,10 @@ impl WVelocityConstraint {
         let ids2: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| &bodies[handles2[ii]].ids];
         let mprops1: [&RigidBodyMassProps; SIMD_WIDTH] = gather![|ii| &bodies[handles1[ii]].mprops];
         let mprops2: [&RigidBodyMassProps; SIMD_WIDTH] = gather![|ii| &bodies[handles2[ii]].mprops];
+
+        let ccd_thickness1 = SimdReal::from(gather![|ii| bodies[handles1[ii]].ccd.ccd_thickness]);
+        let ccd_thickness2 = SimdReal::from(gather![|ii| bodies[handles2[ii]].ccd.ccd_thickness]);
+        let ccd_thickness = ccd_thickness1 + ccd_thickness2;
 
         let world_com1 = Point::from(gather![|ii| mprops1[ii].world_com]);
         let im1 = Vector::from(gather![|ii| mprops1[ii].effective_inv_mass]);
@@ -147,6 +153,10 @@ impl WVelocityConstraint {
                         .simd_clamp(-max_penetration_correction, SimdReal::zero())
                         * (erp_inv_dt/* * is_resting */);
 
+                    let rhs = rhs_wo_bias + rhs_bias;
+                    let is_fast_contact = (-rhs * dt).simd_gt(ccd_thickness * SimdReal::splat(0.5));
+                    let cfm = SimdReal::splat(1.0).select(is_fast_contact, cfm_factor);
+
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
                         gcross1,
                         gcross2,
@@ -154,6 +164,7 @@ impl WVelocityConstraint {
                         rhs_wo_bias,
                         impulse: SimdReal::splat(0.0),
                         r: projected_mass,
+                        cfm,
                     };
                 }
 

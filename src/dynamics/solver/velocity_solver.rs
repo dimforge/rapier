@@ -168,6 +168,7 @@ impl VelocitySolver {
                     &rb.pos.position,
                     &rb.mprops.local_mprops.local_com,
                 );
+                rb.integrated_vels = new_vels;
                 rb.pos = new_pos;
             }
         }

@@ -32,6 +32,7 @@ impl GenericVelocityGroundConstraint {
         jacobian_id: &mut usize,
         insert_at: Option<usize>,
     ) {
+        let cfm_factor = params.cfm_factor();
         let inv_dt = params.inv_dt();
         let erp_inv_dt = params.erp_inv_dt();
 
@@ -130,19 +131,24 @@ impl GenericVelocityGroundConstraint {
                     let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
                     let is_resting = 1.0 - is_bouncy;
 
-                    let mut rhs_wo_bias = (1.0 + is_bouncy * manifold_point.restitution)
-                        * (vel1 - vel2).dot(&force_dir1);
+                    let dvel = (vel1 - vel2).dot(&force_dir1);
+                    let mut rhs_wo_bias = (1.0 + is_bouncy * manifold_point.restitution) * dvel;
                     rhs_wo_bias += manifold_point.dist.max(0.0) * inv_dt;
                     rhs_wo_bias *= is_bouncy + is_resting;
                     let rhs_bias =
                         /* is_resting * */ erp_inv_dt * manifold_point.dist.clamp(-params.max_penetration_correction, 0.0);
 
+                    let rhs = rhs_wo_bias + rhs_bias;
+                    let is_fast_contact = -rhs * params.dt > rb2.ccd.ccd_thickness * 0.5;
+                    let cfm = if is_fast_contact { 1.0 } else { cfm_factor };
+
                     constraint.elements[k].normal_part = VelocityGroundConstraintNormalPart {
                         gcross2: na::zero(), // Unused for generic constraints.
-                        rhs: rhs_wo_bias + rhs_bias,
+                        rhs,
                         rhs_wo_bias,
                         impulse: na::zero(),
                         r,
+                        cfm,
                     };
                 }
 

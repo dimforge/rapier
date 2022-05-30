@@ -752,7 +752,7 @@ pub struct RigidBodyCcd {
 impl Default for RigidBodyCcd {
     fn default() -> Self {
         Self {
-            ccd_thickness: 0.0,
+            ccd_thickness: Real::MAX,
             ccd_max_dist: 0.0,
             ccd_active: false,
             ccd_enabled: false,

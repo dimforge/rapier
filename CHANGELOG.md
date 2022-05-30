@@ -1,3 +1,11 @@
+## Unreleased
+### Modified
+- Add a `wake_up: bool` argument to the `ImpulseJointSet::insert` and `MultibodyJointSet::insert` to
+  automatically wake-up the rigid-bodies attached to the inserted joint.
+- The methods `ImpulseJointSet::remove/remove_joints_attached_to_rigid_body`,
+  `MultibodyJointSet::remove/remove_joints_attached_to_rigid_body` and
+  `MultibodyjointSet::remove_multibody_articulations` no longer require the `bodies`
+  and `islands` arguments.
 
 ## v0.12.0 (30 Apr. 2022)
 ### Fixed

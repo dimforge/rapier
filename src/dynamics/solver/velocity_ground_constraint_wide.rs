@@ -9,6 +9,7 @@ use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
     AngVector, AngularInertia, Point, Real, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS, SIMD_WIDTH,
 };
+use crate::prelude::RigidBody;
 #[cfg(feature = "dim2")]
 use crate::utils::WBasis;
 use crate::utils::{self, WAngularInertia, WCross, WDot};
@@ -38,6 +39,8 @@ impl WVelocityGroundConstraint {
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         insert_at: Option<usize>,
     ) {
+        let cfm_factor = SimdReal::splat(params.cfm_factor());
+        let dt = SimdReal::splat(params.dt);
         let inv_dt = SimdReal::splat(params.inv_dt());
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
         let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
@@ -65,11 +68,12 @@ impl WVelocityGroundConstraint {
                 .unwrap_or_else(Point::origin)
         }]);
 
-        let vels2: [&RigidBodyVelocity; SIMD_WIDTH] =
-            gather![|ii| &bodies[handles2[ii].unwrap()].vels];
-        let ids2: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| &bodies[handles2[ii].unwrap()].ids];
-        let mprops2: [&RigidBodyMassProps; SIMD_WIDTH] =
-            gather![|ii| &bodies[handles2[ii].unwrap()].mprops];
+        let bodies2 = gather![|ii| &bodies[handles2[ii].unwrap()]];
+
+        let vels2: [&RigidBodyVelocity; SIMD_WIDTH] = gather![|ii| &bodies2[ii].vels];
+        let ids2: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| &bodies2[ii].ids];
+        let mprops2: [&RigidBodyMassProps; SIMD_WIDTH] = gather![|ii| &bodies2[ii].mprops];
+        let ccd_thickness = SimdReal::from(gather![|ii| bodies2[ii].ccd.ccd_thickness]);
 
         let flipped_sign = SimdReal::from(flipped);
 
@@ -152,12 +156,17 @@ impl WVelocityGroundConstraint {
                         .simd_clamp(-max_penetration_correction, SimdReal::zero())
                         * (erp_inv_dt/* * is_resting */);
 
+                    let rhs = rhs_wo_bias + rhs_bias;
+                    let is_fast_contact = (-rhs * dt).simd_gt(ccd_thickness * SimdReal::splat(0.5));
+                    let cfm = SimdReal::splat(1.0).select(is_fast_contact, cfm_factor);
+
                     constraint.elements[k].normal_part = VelocityGroundConstraintNormalPart {
                         gcross2,
-                        rhs: rhs_wo_bias + rhs_bias,
+                        rhs,
                         rhs_wo_bias,
                         impulse: na::zero(),
                         r: projected_mass,
+                        cfm,
                     };
                 }
 
