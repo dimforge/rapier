@@ -691,12 +691,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .collect();
                     let num_to_delete = (impulse_joints.len() / 10).max(1);
                     for to_delete in &impulse_joints[..num_to_delete] {
-                        self.harness.physics.impulse_joints.remove(
-                            *to_delete,
-                            &mut self.harness.physics.islands,
-                            &mut self.harness.physics.bodies,
-                            true,
-                        );
+                        self.harness.physics.impulse_joints.remove(*to_delete, true);
                     }
                 }
                 KeyCode::A => {
@@ -710,12 +705,10 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .collect();
                     let num_to_delete = (multibody_joints.len() / 10).max(1);
                     for to_delete in &multibody_joints[..num_to_delete] {
-                        self.harness.physics.multibody_joints.remove(
-                            *to_delete,
-                            &mut self.harness.physics.islands,
-                            &mut self.harness.physics.bodies,
-                            true,
-                        );
+                        self.harness
+                            .physics
+                            .multibody_joints
+                            .remove(*to_delete, true);
                     }
                 }
                 KeyCode::M => {
@@ -731,12 +724,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         self.harness
                             .physics
                             .multibody_joints
-                            .remove_multibody_articulations(
-                                to_delete,
-                                &mut self.harness.physics.islands,
-                                &mut self.harness.physics.bodies,
-                                true,
-                            );
+                            .remove_multibody_articulations(to_delete, true);
                     }
                 }
                 _ => {}

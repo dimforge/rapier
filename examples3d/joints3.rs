@@ -24,9 +24,9 @@ fn create_coupled_joints(
         .coupled_axes(JointAxesMask::Y | JointAxesMask::Z);
 
     if use_articulations {
-        multibody_joints.insert(ground, body1, joint1);
+        multibody_joints.insert(ground, body1, joint1, true);
     } else {
-        impulse_joints.insert(ground, body1, joint1);
+        impulse_joints.insert(ground, body1, joint1, true);
     }
 }
 
@@ -66,9 +66,9 @@ fn create_prismatic_joints(
             .limits([-2.0, 2.0]);
 
         if use_articulations {
-            multibody_joints.insert(curr_parent, curr_child, prism);
+            multibody_joints.insert(curr_parent, curr_child, prism, true);
         } else {
-            impulse_joints.insert(curr_parent, curr_child, prism);
+            impulse_joints.insert(curr_parent, curr_child, prism, true);
         }
         curr_parent = curr_child;
     }
@@ -130,9 +130,9 @@ fn create_actuated_prismatic_joints(
         }
 
         if use_articulations {
-            multibody_joints.insert(curr_parent, curr_child, prism);
+            multibody_joints.insert(curr_parent, curr_child, prism, true);
         } else {
-            impulse_joints.insert(curr_parent, curr_child, prism);
+            impulse_joints.insert(curr_parent, curr_child, prism, true);
         }
 
         curr_parent = curr_child;
@@ -185,15 +185,15 @@ fn create_revolute_joints(
         ];
 
         if use_articulations {
-            multibody_joints.insert(curr_parent, handles[0], revs[0]);
-            multibody_joints.insert(handles[0], handles[1], revs[1]);
-            multibody_joints.insert(handles[1], handles[2], revs[2]);
-            multibody_joints.insert(handles[2], handles[3], revs[3]);
+            multibody_joints.insert(curr_parent, handles[0], revs[0], true);
+            multibody_joints.insert(handles[0], handles[1], revs[1], true);
+            multibody_joints.insert(handles[1], handles[2], revs[2], true);
+            multibody_joints.insert(handles[2], handles[3], revs[3], true);
         } else {
-            impulse_joints.insert(curr_parent, handles[0], revs[0]);
-            impulse_joints.insert(handles[0], handles[1], revs[1]);
-            impulse_joints.insert(handles[1], handles[2], revs[2]);
-            impulse_joints.insert(handles[2], handles[3], revs[3]);
+            impulse_joints.insert(curr_parent, handles[0], revs[0], true);
+            impulse_joints.insert(handles[0], handles[1], revs[1], true);
+            impulse_joints.insert(handles[1], handles[2], revs[2], true);
+            impulse_joints.insert(handles[2], handles[3], revs[3], true);
         }
 
         curr_parent = handles[3];
@@ -228,9 +228,9 @@ fn create_revolute_joints_with_limits(
     //     .coupled_axes(JointAxesMask::ANG_Y | JointAxesMask::ANG_Z);
 
     if use_articulations {
-        multibody_joints.insert(ground, platform1, joint1);
+        multibody_joints.insert(ground, platform1, joint1, true);
     } else {
-        impulse_joints.insert(ground, platform1, joint1);
+        impulse_joints.insert(ground, platform1, joint1, true);
     }
 
     let joint2 = RevoluteJointBuilder::new(z)
@@ -247,9 +247,9 @@ fn create_revolute_joints_with_limits(
     //     .coupled_axes(JointAxesMask::ANG_Y | JointAxesMask::ANG_Z);
 
     if use_articulations {
-        multibody_joints.insert(platform1, platform2, joint2);
+        multibody_joints.insert(platform1, platform2, joint2, true);
     } else {
-        impulse_joints.insert(platform1, platform2, joint2);
+        impulse_joints.insert(platform1, platform2, joint2, true);
     }
 
     // Let’s add a couple of cuboids that will fall on the platforms, triggering the joint limits.
@@ -315,9 +315,9 @@ fn create_fixed_joints(
                 let joint = FixedJointBuilder::new().local_anchor2(point![0.0, 0.0, -shift]);
 
                 if use_articulations {
-                    multibody_joints.insert(parent_handle, child_handle, joint);
+                    multibody_joints.insert(parent_handle, child_handle, joint, true);
                 } else {
-                    impulse_joints.insert(parent_handle, child_handle, joint);
+                    impulse_joints.insert(parent_handle, child_handle, joint, true);
                 }
             }
 
@@ -326,7 +326,7 @@ fn create_fixed_joints(
                 let parent_index = body_handles.len() - 1;
                 let parent_handle = body_handles[parent_index];
                 let joint = FixedJointBuilder::new().local_anchor2(point![-shift, 0.0, 0.0]);
-                impulse_joints.insert(parent_handle, child_handle, joint);
+                impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
 
             body_handles.push(child_handle);
@@ -374,9 +374,9 @@ fn create_spherical_joints(
                     SphericalJointBuilder::new().local_anchor2(point![0.0, 0.0, -shift * 2.0]);
 
                 if use_articulations {
-                    multibody_joints.insert(parent_handle, child_handle, joint);
+                    multibody_joints.insert(parent_handle, child_handle, joint, true);
                 } else {
-                    impulse_joints.insert(parent_handle, child_handle, joint);
+                    impulse_joints.insert(parent_handle, child_handle, joint, true);
                 }
             }
 
@@ -385,7 +385,7 @@ fn create_spherical_joints(
                 let parent_index = body_handles.len() - num;
                 let parent_handle = body_handles[parent_index];
                 let joint = SphericalJointBuilder::new().local_anchor2(point![-shift, 0.0, 0.0]);
-                impulse_joints.insert(parent_handle, child_handle, joint);
+                impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
 
             body_handles.push(child_handle);
@@ -426,11 +426,11 @@ fn create_spherical_joints_with_limits(
         .limits(JointAxis::Y, [-0.3, 0.3]);
 
     if use_articulations {
-        multibody_joints.insert(ground, ball1, joint1);
-        multibody_joints.insert(ball1, ball2, joint2);
+        multibody_joints.insert(ground, ball1, joint1, true);
+        multibody_joints.insert(ball1, ball2, joint2, true);
     } else {
-        impulse_joints.insert(ground, ball1, joint1);
-        impulse_joints.insert(ball1, ball2, joint2);
+        impulse_joints.insert(ground, ball1, joint1, true);
+        impulse_joints.insert(ball1, ball2, joint2, true);
     }
 }
 
@@ -493,9 +493,9 @@ fn create_actuated_revolute_joints(
             }
 
             if use_articulations {
-                multibody_joints.insert(parent_handle, child_handle, joint);
+                multibody_joints.insert(parent_handle, child_handle, joint, true);
             } else {
-                impulse_joints.insert(parent_handle, child_handle, joint);
+                impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
         }
 
@@ -559,9 +559,9 @@ fn create_actuated_spherical_joints(
             }
 
             if use_articulations {
-                multibody_joints.insert(parent_handle, child_handle, joint);
+                multibody_joints.insert(parent_handle, child_handle, joint, true);
             } else {
-                impulse_joints.insert(parent_handle, child_handle, joint);
+                impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
         }
 

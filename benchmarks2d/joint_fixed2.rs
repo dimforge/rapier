@@ -48,7 +48,7 @@ pub fn init_world(testbed: &mut Testbed) {
                         let parent_handle = *body_handles.last().unwrap();
                         let joint = FixedJointBuilder::new()
                             .local_frame2(Isometry::translation(0.0, shift));
-                        impulse_joints.insert(parent_handle, child_handle, joint);
+                        impulse_joints.insert(parent_handle, child_handle, joint, true);
                     }
 
                     // Horizontal joint.
@@ -57,7 +57,7 @@ pub fn init_world(testbed: &mut Testbed) {
                         let parent_handle = body_handles[parent_index];
                         let joint = FixedJointBuilder::new()
                             .local_frame2(Isometry::translation(-shift, 0.0));
-                        impulse_joints.insert(parent_handle, child_handle, joint);
+                        impulse_joints.insert(parent_handle, child_handle, joint, true);
                     }
 
                     body_handles.push(child_handle);

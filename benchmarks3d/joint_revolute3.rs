@@ -55,10 +55,10 @@ pub fn init_world(testbed: &mut Testbed) {
                     RevoluteJointBuilder::new(x).local_anchor2(point![shift, 0.0, 0.0]),
                 ];
 
-                impulse_joints.insert(curr_parent, handles[0], revs[0]);
-                impulse_joints.insert(handles[0], handles[1], revs[1]);
-                impulse_joints.insert(handles[1], handles[2], revs[2]);
-                impulse_joints.insert(handles[2], handles[3], revs[3]);
+                impulse_joints.insert(curr_parent, handles[0], revs[0], true);
+                impulse_joints.insert(handles[0], handles[1], revs[1], true);
+                impulse_joints.insert(handles[1], handles[2], revs[2], true);
+                impulse_joints.insert(handles[2], handles[3], revs[3], true);
 
                 curr_parent = handles[3];
             }

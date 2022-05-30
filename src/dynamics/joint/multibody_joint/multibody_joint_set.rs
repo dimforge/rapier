@@ -5,6 +5,7 @@ use crate::dynamics::{
 };
 use crate::geometry::{InteractionGraph, RigidBodyGraphIndex};
 use crate::parry::partitioning::IndexedData;
+use crate::prelude::RigidBody;
 
 /// The unique handle of an multibody_joint added to a `MultibodyJointSet`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -84,6 +85,7 @@ pub struct MultibodyJointSet {
     // NOTE: this is mostly for the island extraction. So perhaps we won’t need
     //       that any more in the future when we improve our island builder.
     pub(crate) connectivity_graph: InteractionGraph<RigidBodyHandle, ()>,
+    pub(crate) to_wake_up: Vec<RigidBodyHandle>,
 }
 
 impl MultibodyJointSet {
@@ -93,6 +95,7 @@ impl MultibodyJointSet {
             multibodies: Arena::new(),
             rb2mb: Coarena::new(),
             connectivity_graph: InteractionGraph::new(),
+            to_wake_up: vec![],
         }
     }
 
@@ -113,6 +116,7 @@ impl MultibodyJointSet {
         body1: RigidBodyHandle,
         body2: RigidBodyHandle,
         data: impl Into<GenericJoint>,
+        wake_up: bool,
     ) -> Option<MultibodyJointHandle> {
         let data = data.into();
         let link1 = self.rb2mb.get(body1.0).copied().unwrap_or_else(|| {
@@ -155,6 +159,11 @@ impl MultibodyJointSet {
 
         multibody1.append(mb2, link1.id, MultibodyJoint::new(data));
 
+        if wake_up {
+            self.to_wake_up.push(body1);
+            self.to_wake_up.push(body2);
+        }
+
         // Because each rigid-body can only have one parent link,
         // we can use the second rigid-body’s handle as the multibody_joint’s
         // handle.
@@ -162,13 +171,7 @@ impl MultibodyJointSet {
     }
 
     /// Removes an multibody_joint from this set.
-    pub fn remove(
-        &mut self,
-        handle: MultibodyJointHandle,
-        islands: &mut IslandManager,
-        bodies: &mut RigidBodySet,
-        wake_up: bool,
-    ) {
+    pub fn remove(&mut self, handle: MultibodyJointHandle, wake_up: bool) {
         if let Some(removed) = self.rb2mb.get(handle.0).copied() {
             let multibody = self.multibodies.remove(removed.multibody.0).unwrap();
 
@@ -181,8 +184,8 @@ impl MultibodyJointSet {
                 );
 
                 if wake_up {
-                    islands.wake_up(bodies, RigidBodyHandle(handle.0), true);
-                    islands.wake_up(bodies, parent_rb, true);
+                    self.to_wake_up.push(RigidBodyHandle(handle.0));
+                    self.to_wake_up.push(parent_rb);
                 }
 
                 // TODO: remove the node if it no longer has any attached edges?
@@ -211,13 +214,7 @@ impl MultibodyJointSet {
     }
 
     /// Removes all the multibody_joints from the multibody the given rigid-body is part of.
-    pub fn remove_multibody_articulations(
-        &mut self,
-        handle: RigidBodyHandle,
-        islands: &mut IslandManager,
-        bodies: &mut RigidBodySet,
-        wake_up: bool,
-    ) {
+    pub fn remove_multibody_articulations(&mut self, handle: RigidBodyHandle, wake_up: bool) {
         if let Some(removed) = self.rb2mb.get(handle.0).copied() {
             // Remove the multibody.
             let multibody = self.multibodies.remove(removed.multibody.0).unwrap();
@@ -225,7 +222,7 @@ impl MultibodyJointSet {
                 let rb_handle = link.rigid_body;
 
                 if wake_up {
-                    islands.wake_up(bodies, rb_handle, true);
+                    self.to_wake_up.push(rb_handle);
                 }
 
                 // Remove the rigid-body <-> multibody mapping for this link.
@@ -239,12 +236,7 @@ impl MultibodyJointSet {
     }
 
     /// Removes all the multibody joints attached to a rigid-body.
-    pub fn remove_joints_attached_to_rigid_body(
-        &mut self,
-        rb_to_remove: RigidBodyHandle,
-        islands: &mut IslandManager,
-        bodies: &mut RigidBodySet,
-    ) {
+    pub fn remove_joints_attached_to_rigid_body(&mut self, rb_to_remove: RigidBodyHandle) {
         // TODO: optimize this.
         if let Some(link_to_remove) = self.rb2mb.get(rb_to_remove.0).copied() {
             let mut articulations_to_remove = vec![];
@@ -255,12 +247,12 @@ impl MultibodyJointSet {
                 // There is a multibody_joint handle is equal to the second rigid-body’s handle.
                 articulations_to_remove.push(MultibodyJointHandle(rb2.0));
 
-                islands.wake_up(bodies, rb1, true);
-                islands.wake_up(bodies, rb2, true);
+                self.to_wake_up.push(rb1);
+                self.to_wake_up.push(rb2);
             }
 
             for articulation_handle in articulations_to_remove {
-                self.remove(articulation_handle, islands, bodies, true);
+                self.remove(articulation_handle, true);
             }
         }
     }
