@@ -38,6 +38,14 @@ pub struct DebugRenderStyle {
     pub sleep_color_multiplier: [f32; 4],
     /// The length of the local coordinate axes rendered for a rigid-body.
     pub rigid_body_axes_length: Real,
+    /// The collor for the segments joining the two contact points.
+    pub contact_depth_color: DebugColor,
+    /// The color of the contact normals.
+    pub contact_normal_color: DebugColor,
+    /// The length of the contact normals.
+    pub contact_normal_length: Real,
+    /// The color of the colliders AABBs.
+    pub collider_aabb_color: DebugColor,
 }
 
 impl Default for DebugRenderStyle {
@@ -55,6 +63,10 @@ impl Default for DebugRenderStyle {
             multibody_joint_separation_color: [0.0, 1.0, 0.4, 1.0],
             sleep_color_multiplier: [1.0, 1.0, 0.2, 1.0],
             rigid_body_axes_length: 0.5,
+            contact_depth_color: [120.0, 1.0, 0.4, 1.0],
+            contact_normal_color: [0.0, 1.0, 1.0, 1.0],
+            contact_normal_length: 0.3,
+            collider_aabb_color: [124.0, 1.0, 0.4, 1.0],
         }
     }
 }

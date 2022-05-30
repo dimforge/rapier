@@ -25,9 +25,13 @@ struct FragmentOutput {
 fn vertex(vertex: Vertex) -> VertexOutput {
     var out: VertexOutput;
     out.clip_position = view.view_proj * vec4<f32>(vertex.pos, 1.0);
-    //out.color = vertex.color;
     // https://github.com/bevyengine/bevy/blob/328c26d02c50de0bc77f0d24a376f43ba89517b1/examples/2d/mesh2d_manual.rs#L234
-    out.color = vec4<f32>((vec4<u32>(vertex.color) >> vec4<u32>(8u, 8u, 16u, 24u)) & vec4<u32>(255u)) / 255.0;
+    // ... except the above doesn't seem to work in 3d.  Not sure what's going on there.
+    var r = f32(vertex.color & 255u) / 255.0;
+    var g = f32(vertex.color >> 8u & 255u) / 255.0;
+    var b = f32(vertex.color >> 16u & 255u) / 255.0;
+    var a = f32(vertex.color >> 24u & 255u) / 255.0;
+    out.color = vec4<f32>(r, g, b, a);
 
     return out;
 }

@@ -25,7 +25,7 @@ impl Plugin for RapierDebugRenderPlugin {
         ))
         .insert_resource(DebugRenderPipeline::new(
             Default::default(),
-            !DebugRenderMode::RIGID_BODY_AXES,
+            !DebugRenderMode::RIGID_BODY_AXES & !DebugRenderMode::COLLIDER_AABBS,
         ))
         .add_system_to_stage(CoreStage::Update, debug_render_scene);
     }
@@ -68,5 +68,6 @@ fn debug_render_scene(
         &harness.physics.colliders,
         &harness.physics.impulse_joints,
         &harness.physics.multibody_joints,
+        &harness.physics.narrow_phase,
     );
 }

@@ -17,10 +17,11 @@ struct VertexOutput {
 fn vertex(vertex: Vertex) -> VertexOutput {
     var out: VertexOutput;
     out.clip_position = view.view_proj * vec4<f32>(vertex.place, 1.0);
-    // What is this craziness?
-    out.color = vec4<f32>((vec4<u32>(vertex.color) >> vec4<u32>(0u, 8u, 16u, 24u)) & vec4<u32>(255u)) / 255.0;
-    //out.color = vertex.color;
-    //out.color = vec4<f32>(1.0, 0.0, 0.0, 1.0);
+    var r = f32(vertex.color & 255u) / 255.0;
+    var g = f32(vertex.color >> 8u & 255u) / 255.0;
+    var b = f32(vertex.color >> 16u & 255u) / 255.0;
+    var a = f32(vertex.color >> 24u & 255u) / 255.0;
+    out.color = vec4<f32>(r, g, b, a);
 
     return out;
 }

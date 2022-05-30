@@ -2,10 +2,12 @@ use super::{outlines, DebugRenderBackend};
 use crate::dynamics::{
     GenericJoint, ImpulseJointSet, MultibodyJointSet, RigidBodySet, RigidBodyType,
 };
-use crate::geometry::{Ball, ColliderSet, Cuboid, Shape, TypedShape};
+use crate::geometry::{
+    Ball, ColliderSet, Cuboid, NarrowPhase, OctantPattern, Shape, TypedShape, VoxelType, AABB,
+};
 #[cfg(feature = "dim3")]
 use crate::geometry::{Cone, Cylinder};
-use crate::math::{Isometry, Point, Real, Vector, DIM};
+use crate::math::{Isometry, Point, Real, Translation, Vector, DIM};
 use crate::pipeline::debug_render_pipeline::debug_render_backend::DebugRenderObject;
 use crate::pipeline::debug_render_pipeline::DebugRenderStyle;
 use crate::utils::WBasis;
@@ -24,6 +26,12 @@ bitflags::bitflags! {
         const MULTIBODY_JOINTS = 1 << 2;
         /// If this flag is set, the impulse joints will be rendered.
         const IMPULSE_JOINTS = 1 << 3;
+        /// If this flag is set, the solver contacts will be rendered.
+        const SOLVER_CONTACTS = 1 << 4;
+        /// If this flag is set, the geometric contacts will be rendered.
+        const CONTACTS = 1 << 5;
+        /// If this flag is set, the AABBs of colliders will be rendered.
+        const COLLIDER_AABBS = 1 << 6;
     }
 }
 
@@ -71,10 +79,61 @@ impl DebugRenderPipeline {
         colliders: &ColliderSet,
         impulse_joints: &ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
+        narrow_phase: &NarrowPhase,
     ) {
         self.render_rigid_bodies(backend, bodies);
         self.render_colliders(backend, bodies, colliders);
         self.render_joints(backend, bodies, impulse_joints, multibody_joints);
+        self.render_contacts(backend, colliders, narrow_phase);
+    }
+
+    pub fn render_contacts(
+        &mut self,
+        backend: &mut impl DebugRenderBackend,
+        colliders: &ColliderSet,
+        narrow_phase: &NarrowPhase,
+    ) {
+        if self.mode.contains(DebugRenderMode::CONTACTS) {
+            for pair in narrow_phase.contact_pairs() {
+                if let (Some(co1), Some(co2)) =
+                    (colliders.get(pair.collider1), colliders.get(pair.collider2))
+                {
+                    for manifold in &pair.manifolds {
+                        for contact in manifold.contacts() {
+                            backend.draw_line(
+                                DebugRenderObject::Other,
+                                co1.position() * contact.local_p1,
+                                co2.position() * contact.local_p2,
+                                self.style.contact_depth_color,
+                            );
+                            backend.draw_line(
+                                DebugRenderObject::Other,
+                                co1.position() * contact.local_p1,
+                                co1.position()
+                                    * (contact.local_p1
+                                        + manifold.local_n1 * self.style.contact_normal_length),
+                                self.style.contact_normal_color,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        if self.mode.contains(DebugRenderMode::SOLVER_CONTACTS) {
+            for pair in narrow_phase.contact_pairs() {
+                for manifold in &pair.manifolds {
+                    for contact in &manifold.data.solver_contacts {
+                        backend.draw_line(
+                            DebugRenderObject::Other,
+                            contact.point,
+                            contact.point + manifold.data.normal * self.style.contact_normal_length,
+                            self.style.contact_normal_color,
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /// Render only the joints from the scene.
@@ -222,6 +281,20 @@ impl DebugRenderPipeline {
                 };
 
                 self.render_shape(object, backend, co.shape(), co.position(), color)
+            }
+        }
+
+        if self.mode.contains(DebugRenderMode::COLLIDER_AABBS) {
+            for (_, co) in colliders.iter() {
+                let aabb = co.compute_aabb();
+                let cuboid = Cuboid::new(aabb.half_extents());
+                self.render_shape(
+                    DebugRenderObject::Other,
+                    backend,
+                    &cuboid,
+                    &aabb.center().into(),
+                    self.style.collider_aabb_color,
+                );
             }
         }
     }
