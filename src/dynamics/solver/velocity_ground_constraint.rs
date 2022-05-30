@@ -17,6 +17,7 @@ pub(crate) struct VelocityGroundConstraint {
     #[cfg(feature = "dim3")]
     pub tangent1: Vector<Real>, // One of the friction force directions.
     pub im2: Vector<Real>,
+    pub cfm_factor: Real,
     pub limit: Real,
     pub elements: [VelocityGroundConstraintElement<Real>; MAX_MANIFOLD_POINTS],
 
@@ -81,6 +82,7 @@ impl VelocityGroundConstraint {
                 tangent1: tangents1[0],
                 elements: [VelocityGroundConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im2: mprops2.effective_inv_mass,
+                cfm_factor,
                 limit: 0.0,
                 mj_lambda2,
                 manifold_id,
@@ -133,6 +135,8 @@ impl VelocityGroundConstraint {
                 constraint.num_contacts = manifold_points.len() as u8;
             }
 
+            let mut is_fast_contact = false;
+
             for k in 0..manifold_points.len() {
                 let manifold_point = &manifold_points[k];
                 let dp2 = manifold_point.point - mprops2.world_com;
@@ -166,8 +170,8 @@ impl VelocityGroundConstraint {
                         * (manifold_point.dist + params.allowed_linear_error).clamp(-params.max_penetration_correction, 0.0);
 
                     let rhs = rhs_wo_bias + rhs_bias;
-                    let is_fast_contact = -rhs * params.dt > rb2.ccd.ccd_thickness * 0.5;
-                    let cfm = if is_fast_contact { 1.0 } else { cfm_factor };
+                    is_fast_contact =
+                        is_fast_contact || -rhs * params.dt > rb2.ccd.ccd_thickness * 0.5;
 
                     constraint.elements[k].normal_part = VelocityGroundConstraintNormalPart {
                         gcross2,
@@ -175,7 +179,6 @@ impl VelocityGroundConstraint {
                         rhs_wo_bias,
                         impulse: na::zero(),
                         r: projected_mass,
-                        cfm,
                     };
                 }
 
@@ -212,6 +215,10 @@ impl VelocityGroundConstraint {
                 }
             }
 
+            if is_fast_contact {
+                constraint.cfm_factor = 1.0;
+            }
+
             #[cfg(not(target_arch = "wasm32"))]
             if let Some(at) = insert_at {
                 out_constraints[at + _l] = AnyVelocityConstraint::NongroupedGround(constraint);
@@ -223,7 +230,6 @@ impl VelocityGroundConstraint {
 
     pub fn solve(
         &mut self,
-        cfm_factor: Real,
         mj_lambdas: &mut [DeltaVel<Real>],
         solve_normal: bool,
         solve_friction: bool,
@@ -231,7 +237,7 @@ impl VelocityGroundConstraint {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         VelocityGroundConstraintElement::solve_group(
-            cfm_factor,
+            self.cfm_factor,
             &mut self.elements[..self.num_contacts as usize],
             &self.dir1,
             #[cfg(feature = "dim3")]
@@ -266,7 +272,8 @@ impl VelocityGroundConstraint {
         }
     }
 
-    pub fn remove_bias_from_rhs(&mut self) {
+    pub fn remove_cfm_and_bias_from_rhs(&mut self) {
+        self.cfm_factor = 1.0;
         for elt in &mut self.elements {
             elt.normal_part.rhs = elt.normal_part.rhs_wo_bias;
         }

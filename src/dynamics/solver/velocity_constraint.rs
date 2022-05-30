@@ -47,21 +47,20 @@ impl AnyVelocityConstraint {
 
     pub fn remove_bias_from_rhs(&mut self) {
         match self {
-            AnyVelocityConstraint::Nongrouped(c) => c.remove_bias_from_rhs(),
-            AnyVelocityConstraint::NongroupedGround(c) => c.remove_bias_from_rhs(),
+            AnyVelocityConstraint::Nongrouped(c) => c.remove_cfm_and_bias_from_rhs(),
+            AnyVelocityConstraint::NongroupedGround(c) => c.remove_cfm_and_bias_from_rhs(),
             #[cfg(feature = "simd-is-enabled")]
-            AnyVelocityConstraint::Grouped(c) => c.remove_bias_from_rhs(),
+            AnyVelocityConstraint::Grouped(c) => c.remove_cfm_and_bias_from_rhs(),
             #[cfg(feature = "simd-is-enabled")]
-            AnyVelocityConstraint::GroupedGround(c) => c.remove_bias_from_rhs(),
-            AnyVelocityConstraint::NongroupedGeneric(c) => c.remove_bias_from_rhs(),
-            AnyVelocityConstraint::NongroupedGenericGround(c) => c.remove_bias_from_rhs(),
+            AnyVelocityConstraint::GroupedGround(c) => c.remove_cfm_and_bias_from_rhs(),
+            AnyVelocityConstraint::NongroupedGeneric(c) => c.remove_cfm_and_bias_from_rhs(),
+            AnyVelocityConstraint::NongroupedGenericGround(c) => c.remove_cfm_and_bias_from_rhs(),
             AnyVelocityConstraint::Empty => unreachable!(),
         }
     }
 
     pub fn solve(
         &mut self,
-        cfm_factor: Real,
         jacobians: &DVector<Real>,
         mj_lambdas: &mut [DeltaVel<Real>],
         generic_mj_lambdas: &mut DVector<Real>,
@@ -70,21 +69,20 @@ impl AnyVelocityConstraint {
     ) {
         match self {
             AnyVelocityConstraint::NongroupedGround(c) => {
-                c.solve(cfm_factor, mj_lambdas, solve_restitution, solve_friction)
+                c.solve(mj_lambdas, solve_restitution, solve_friction)
             }
             AnyVelocityConstraint::Nongrouped(c) => {
-                c.solve(cfm_factor, mj_lambdas, solve_restitution, solve_friction)
+                c.solve(mj_lambdas, solve_restitution, solve_friction)
             }
             #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::GroupedGround(c) => {
-                c.solve(cfm_factor, mj_lambdas, solve_restitution, solve_friction)
+                c.solve(mj_lambdas, solve_restitution, solve_friction)
             }
             #[cfg(feature = "simd-is-enabled")]
             AnyVelocityConstraint::Grouped(c) => {
-                c.solve(cfm_factor, mj_lambdas, solve_restitution, solve_friction)
+                c.solve(mj_lambdas, solve_restitution, solve_friction)
             }
             AnyVelocityConstraint::NongroupedGeneric(c) => c.solve(
-                cfm_factor,
                 jacobians,
                 mj_lambdas,
                 generic_mj_lambdas,
@@ -92,7 +90,6 @@ impl AnyVelocityConstraint {
                 solve_friction,
             ),
             AnyVelocityConstraint::NongroupedGenericGround(c) => c.solve(
-                cfm_factor,
                 jacobians,
                 generic_mj_lambdas,
                 solve_restitution,
@@ -124,6 +121,7 @@ pub(crate) struct VelocityConstraint {
     pub tangent1: Vector<Real>, // One of the friction force directions.
     pub im1: Vector<Real>,
     pub im2: Vector<Real>,
+    pub cfm_factor: Real,
     pub limit: Real,
     pub mj_lambda1: usize,
     pub mj_lambda2: usize,
@@ -182,6 +180,8 @@ impl VelocityConstraint {
             .chunks(MAX_MANIFOLD_POINTS)
             .enumerate()
         {
+            let mut is_fast_contact = false;
+
             #[cfg(not(target_arch = "wasm32"))]
             let mut constraint = VelocityConstraint {
                 dir1: force_dir1,
@@ -190,6 +190,7 @@ impl VelocityConstraint {
                 elements: [VelocityConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im1: mprops1.effective_inv_mass,
                 im2: mprops2.effective_inv_mass,
+                cfm_factor,
                 limit: 0.0,
                 mj_lambda1,
                 mj_lambda2,
@@ -237,6 +238,7 @@ impl VelocityConstraint {
                 }
                 constraint.im1 = mprops1.effective_inv_mass;
                 constraint.im2 = mprops2.effective_inv_mass;
+                constraint.cfm_factor = cfm_factor;
                 constraint.limit = 0.0;
                 constraint.mj_lambda1 = mj_lambda1;
                 constraint.mj_lambda2 = mj_lambda2;
@@ -284,8 +286,7 @@ impl VelocityConstraint {
                         * (manifold_point.dist + params.allowed_linear_error).clamp(-params.max_penetration_correction, 0.0);
 
                     let rhs = rhs_wo_bias + rhs_bias;
-                    let is_fast_contact = -rhs * params.dt > ccd_thickness * 0.5;
-                    let cfm = if is_fast_contact { 1.0 } else { cfm_factor };
+                    is_fast_contact = is_fast_contact || (-rhs * params.dt > ccd_thickness * 0.5);
 
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
                         gcross1,
@@ -294,7 +295,6 @@ impl VelocityConstraint {
                         rhs_wo_bias,
                         impulse: na::zero(),
                         r: projected_mass,
-                        cfm,
                     };
                 }
 
@@ -337,6 +337,8 @@ impl VelocityConstraint {
                 }
             }
 
+            constraint.cfm_factor = if is_fast_contact { 1.0 } else { cfm_factor };
+
             #[cfg(not(target_arch = "wasm32"))]
             if let Some(at) = insert_at {
                 out_constraints[at + _l] = AnyVelocityConstraint::Nongrouped(constraint);
@@ -348,7 +350,6 @@ impl VelocityConstraint {
 
     pub fn solve(
         &mut self,
-        cfm_factor: Real,
         mj_lambdas: &mut [DeltaVel<Real>],
         solve_normal: bool,
         solve_friction: bool,
@@ -357,7 +358,7 @@ impl VelocityConstraint {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         VelocityConstraintElement::solve_group(
-            cfm_factor,
+            self.cfm_factor,
             &mut self.elements[..self.num_contacts as usize],
             &self.dir1,
             #[cfg(feature = "dim3")]
@@ -394,7 +395,8 @@ impl VelocityConstraint {
         }
     }
 
-    pub fn remove_bias_from_rhs(&mut self) {
+    pub fn remove_cfm_and_bias_from_rhs(&mut self) {
+        self.cfm_factor = 1.0;
         for elt in &mut self.elements {
             elt.normal_part.rhs = elt.normal_part.rhs_wo_bias;
         }

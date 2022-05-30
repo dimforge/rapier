@@ -94,6 +94,7 @@ impl GenericVelocityConstraint {
             .enumerate()
         {
             let chunk_j_id = *jacobian_id;
+            let mut is_fast_contact = false;
             let mut constraint = VelocityConstraint {
                 dir1: force_dir1,
                 #[cfg(feature = "dim3")]
@@ -109,6 +110,7 @@ impl GenericVelocityConstraint {
                 } else {
                     na::zero()
                 },
+                cfm_factor,
                 limit: 0.0,
                 mj_lambda1,
                 mj_lambda2,
@@ -199,8 +201,7 @@ impl GenericVelocityConstraint {
                         /* is_resting * */ erp_inv_dt * manifold_point.dist.clamp(-params.max_penetration_correction, 0.0);
 
                     let rhs = rhs_wo_bias + rhs_bias;
-                    let is_fast_contact = -rhs * params.dt > ccd_thickness * 0.5;
-                    let cfm = if is_fast_contact { 1.0 } else { cfm_factor };
+                    is_fast_contact = is_fast_contact || (-rhs * params.dt > ccd_thickness * 0.5);
 
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
                         gcross1,
@@ -209,7 +210,6 @@ impl GenericVelocityConstraint {
                         rhs_wo_bias,
                         impulse: na::zero(),
                         r,
-                        cfm,
                     };
                 }
 
@@ -290,6 +290,8 @@ impl GenericVelocityConstraint {
                 }
             }
 
+            constraint.cfm_factor = if is_fast_contact { 1.0 } else { cfm_factor };
+
             let ndofs1 = multibody1.map(|mb| mb.0.ndofs()).unwrap_or(0);
             let ndofs2 = multibody2.map(|mb| mb.0.ndofs()).unwrap_or(0);
             // NOTE: we use the generic constraint for non-dynamic bodies because this will
@@ -317,7 +319,6 @@ impl GenericVelocityConstraint {
 
     pub fn solve(
         &mut self,
-        cfm_factor: Real,
         jacobians: &DVector<Real>,
         mj_lambdas: &mut [DeltaVel<Real>],
         generic_mj_lambdas: &mut DVector<Real>,
@@ -339,7 +340,7 @@ impl GenericVelocityConstraint {
         let elements = &mut self.velocity_constraint.elements
             [..self.velocity_constraint.num_contacts as usize];
         VelocityConstraintElement::generic_solve_group(
-            cfm_factor,
+            self.velocity_constraint.cfm_factor,
             elements,
             jacobians,
             &self.velocity_constraint.dir1,
@@ -371,7 +372,7 @@ impl GenericVelocityConstraint {
         self.velocity_constraint.writeback_impulses(manifolds_all);
     }
 
-    pub fn remove_bias_from_rhs(&mut self) {
-        self.velocity_constraint.remove_bias_from_rhs();
+    pub fn remove_cfm_and_bias_from_rhs(&mut self) {
+        self.velocity_constraint.remove_cfm_and_bias_from_rhs();
     }
 }

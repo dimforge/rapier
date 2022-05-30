@@ -112,7 +112,6 @@ pub(crate) struct VelocityConstraintNormalPart<N: WReal> {
     pub rhs_wo_bias: N,
     pub impulse: N,
     pub r: N,
-    pub cfm: N,
 }
 
 impl<N: WReal> VelocityConstraintNormalPart<N> {
@@ -124,7 +123,6 @@ impl<N: WReal> VelocityConstraintNormalPart<N> {
             rhs_wo_bias: na::zero(),
             impulse: na::zero(),
             r: na::zero(),
-            cfm: na::one(),
         }
     }
 
@@ -144,7 +142,7 @@ impl<N: WReal> VelocityConstraintNormalPart<N> {
             - dir1.dot(&mj_lambda2.linear)
             + self.gcross2.gdot(mj_lambda2.angular)
             + self.rhs;
-        let new_impulse = self.cfm * (self.impulse - self.r * dvel).simd_max(N::zero());
+        let new_impulse = cfm_factor * (self.impulse - self.r * dvel).simd_max(N::zero());
         let dlambda = new_impulse - self.impulse;
         self.impulse = new_impulse;
 

@@ -2,12 +2,10 @@ use super::{outlines, DebugRenderBackend};
 use crate::dynamics::{
     GenericJoint, ImpulseJointSet, MultibodyJointSet, RigidBodySet, RigidBodyType,
 };
-use crate::geometry::{
-    Ball, ColliderSet, Cuboid, NarrowPhase, OctantPattern, Shape, TypedShape, VoxelType, AABB,
-};
+use crate::geometry::{Ball, ColliderSet, Cuboid, NarrowPhase, Shape, TypedShape};
 #[cfg(feature = "dim3")]
 use crate::geometry::{Cone, Cylinder};
-use crate::math::{Isometry, Point, Real, Translation, Vector, DIM};
+use crate::math::{Isometry, Point, Real, Vector, DIM};
 use crate::pipeline::debug_render_pipeline::debug_render_backend::DebugRenderObject;
 use crate::pipeline::debug_render_pipeline::DebugRenderStyle;
 use crate::utils::WBasis;
@@ -87,6 +85,7 @@ impl DebugRenderPipeline {
         self.render_contacts(backend, colliders, narrow_phase);
     }
 
+    /// Render contact.
     pub fn render_contacts(
         &mut self,
         backend: &mut impl DebugRenderBackend,

@@ -1,11 +1,8 @@
 use crate::data::{Arena, Coarena, Index};
 use crate::dynamics::joint::MultibodyLink;
-use crate::dynamics::{
-    GenericJoint, IslandManager, Multibody, MultibodyJoint, RigidBodyHandle, RigidBodySet,
-};
+use crate::dynamics::{GenericJoint, Multibody, MultibodyJoint, RigidBodyHandle};
 use crate::geometry::{InteractionGraph, RigidBodyGraphIndex};
 use crate::parry::partitioning::IndexedData;
-use crate::prelude::RigidBody;
 
 /// The unique handle of an multibody_joint added to a `MultibodyJointSet`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]

@@ -86,12 +86,14 @@ impl GenericVelocityGroundConstraint {
             .enumerate()
         {
             let chunk_j_id = *jacobian_id;
+            let mut is_fast_contact = false;
             let mut constraint = VelocityGroundConstraint {
                 dir1: force_dir1,
                 #[cfg(feature = "dim3")]
                 tangent1: tangents1[0],
                 elements: [VelocityGroundConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im2: mprops2.effective_inv_mass,
+                cfm_factor,
                 limit: 0.0,
                 mj_lambda2,
                 manifold_id,
@@ -139,8 +141,8 @@ impl GenericVelocityGroundConstraint {
                         /* is_resting * */ erp_inv_dt * manifold_point.dist.clamp(-params.max_penetration_correction, 0.0);
 
                     let rhs = rhs_wo_bias + rhs_bias;
-                    let is_fast_contact = -rhs * params.dt > rb2.ccd.ccd_thickness * 0.5;
-                    let cfm = if is_fast_contact { 1.0 } else { cfm_factor };
+                    is_fast_contact =
+                        is_fast_contact || (-rhs * params.dt > rb2.ccd.ccd_thickness * 0.5);
 
                     constraint.elements[k].normal_part = VelocityGroundConstraintNormalPart {
                         gcross2: na::zero(), // Unused for generic constraints.
@@ -148,7 +150,6 @@ impl GenericVelocityGroundConstraint {
                         rhs_wo_bias,
                         impulse: na::zero(),
                         r,
-                        cfm,
                     };
                 }
 
@@ -187,6 +188,8 @@ impl GenericVelocityGroundConstraint {
                 }
             }
 
+            constraint.cfm_factor = if is_fast_contact { 1.0 } else { cfm_factor };
+
             let constraint = GenericVelocityGroundConstraint {
                 velocity_constraint: constraint,
                 j_id: chunk_j_id,
@@ -204,7 +207,6 @@ impl GenericVelocityGroundConstraint {
 
     pub fn solve(
         &mut self,
-        cfm_factor: Real,
         jacobians: &DVector<Real>,
         generic_mj_lambdas: &mut DVector<Real>,
         solve_restitution: bool,
@@ -215,7 +217,7 @@ impl GenericVelocityGroundConstraint {
         let elements = &mut self.velocity_constraint.elements
             [..self.velocity_constraint.num_contacts as usize];
         VelocityGroundConstraintElement::generic_solve_group(
-            cfm_factor,
+            self.velocity_constraint.cfm_factor,
             elements,
             jacobians,
             self.velocity_constraint.limit,
@@ -232,7 +234,7 @@ impl GenericVelocityGroundConstraint {
         self.velocity_constraint.writeback_impulses(manifolds_all);
     }
 
-    pub fn remove_bias_from_rhs(&mut self) {
-        self.velocity_constraint.remove_bias_from_rhs();
+    pub fn remove_cfm_and_bias_from_rhs(&mut self) {
+        self.velocity_constraint.remove_cfm_and_bias_from_rhs();
     }
 }
