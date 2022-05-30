@@ -256,7 +256,7 @@ impl IslandManager {
             // in contact or joined with this collider.
             push_contacting_bodies(&rb.colliders, colliders, narrow_phase, &mut self.stack);
 
-            for inter in impulse_joints.joints_with(handle) {
+            for inter in impulse_joints.attached_joints(handle) {
                 let other = crate::utils::select_other((inter.0, inter.1), handle);
                 self.stack.push(other);
             }

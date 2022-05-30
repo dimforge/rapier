@@ -69,15 +69,23 @@ impl ImpulseJointSet {
         &self.joint_graph
     }
 
-    /// Iterates through all the impulse_joints attached to the given rigid-body.
-    pub fn joints_with<'a>(
+    /// Iterates through all the impulse joints attached to the given rigid-body.
+    pub fn attached_joints<'a>(
         &'a self,
         body: RigidBodyHandle,
-    ) -> impl Iterator<Item = (RigidBodyHandle, RigidBodyHandle, &'a ImpulseJoint)> {
+    ) -> impl Iterator<
+        Item = (
+            RigidBodyHandle,
+            RigidBodyHandle,
+            ImpulseJointHandle,
+            &'a ImpulseJoint,
+        ),
+    > {
         self.rb_graph_ids
             .get(body.0)
             .into_iter()
             .flat_map(move |id| self.joint_graph.interactions_with(*id))
+            .map(|inter| (inter.0, inter.1, inter.2.handle, inter.2))
     }
 
     /// Is the given joint handle valid?

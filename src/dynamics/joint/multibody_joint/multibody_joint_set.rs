@@ -252,14 +252,8 @@ impl MultibodyJointSet {
                 .connectivity_graph
                 .interactions_with(link_to_remove.graph_id)
             {
-                // There is an multibody_joint that we need to remove between these two bodies.
-                // If this is an outbound edge, then the multibody_joint’s handle is equal to the
-                // second body handle.
-                if rb1 == rb_to_remove {
-                    articulations_to_remove.push(MultibodyJointHandle(rb2.0));
-                } else {
-                    articulations_to_remove.push(MultibodyJointHandle(rb1.0));
-                }
+                // There is a multibody_joint handle is equal to the second rigid-body’s handle.
+                articulations_to_remove.push(MultibodyJointHandle(rb2.0));
 
                 islands.wake_up(bodies, rb1, true);
                 islands.wake_up(bodies, rb2, true);
@@ -336,6 +330,21 @@ impl MultibodyJointSet {
             link.id,
             MultibodyJointHandle(Index::from_raw_parts(i, gen)),
         ))
+    }
+
+    /// Iterates through all the joints attached to the given rigid-body.
+    pub fn attached_joints(
+        &self,
+        rb: RigidBodyHandle,
+    ) -> impl Iterator<Item = (RigidBodyHandle, RigidBodyHandle, MultibodyJointHandle)> + '_ {
+        self.rb2mb
+            .get(rb.0)
+            .into_iter()
+            .flat_map(move |link| self.connectivity_graph.interactions_with(link.graph_id))
+            .map(|inter| {
+                // NOTE: the joint handle is always equal to the handle of the second rigid-body.
+                (inter.0, inter.1, MultibodyJointHandle(inter.1 .0))
+            })
     }
 
     /// Iterate through the handles of all the rigid-bodies attached to this rigid-body
