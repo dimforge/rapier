@@ -128,6 +128,7 @@ impl VelocityGroundConstraint {
                     constraint.tangent1 = tangents1[0];
                 }
                 constraint.im2 = mprops2.effective_inv_mass;
+                constraint.cfm_factor = cfm_factor;
                 constraint.limit = 0.0;
                 constraint.mj_lambda2 = mj_lambda2;
                 constraint.manifold_id = manifold_id;
@@ -171,7 +172,7 @@ impl VelocityGroundConstraint {
 
                     let rhs = rhs_wo_bias + rhs_bias;
                     is_fast_contact =
-                        is_fast_contact || -rhs * params.dt > rb2.ccd.ccd_thickness * 0.5;
+                        is_fast_contact || (-rhs * params.dt > rb2.ccd.ccd_thickness * 0.5);
 
                     constraint.elements[k].normal_part = VelocityGroundConstraintNormalPart {
                         gcross2,
@@ -215,9 +216,7 @@ impl VelocityGroundConstraint {
                 }
             }
 
-            if is_fast_contact {
-                constraint.cfm_factor = 1.0;
-            }
+            constraint.cfm_factor = if is_fast_contact { 1.0 } else { cfm_factor };
 
             #[cfg(not(target_arch = "wasm32"))]
             if let Some(at) = insert_at {
