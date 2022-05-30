@@ -286,19 +286,19 @@ bitflags::bitflags! {
         const DYNAMIC_KINEMATIC = 0b0000_0000_0000_1100;
         /// Enable collision-detection between a collider attached to a dynamic body
         /// and another collider attached to a fixed body (or not attached to any body).
-        const DYNAMIC_STATIC  = 0b0000_0000_0000_0010;
+        const DYNAMIC_FIXED  = 0b0000_0000_0000_0010;
         /// Enable collision-detection between a collider attached to a kinematic body
         /// and another collider attached to a kinematic body.
         const KINEMATIC_KINEMATIC = 0b1100_1100_0000_0000;
 
         /// Enable collision-detection between a collider attached to a kinematic body
         /// and another collider attached to a fixed body (or not attached to any body).
-        const KINEMATIC_STATIC = 0b0010_0010_0000_0000;
+        const KINEMATIC_FIXED = 0b0010_0010_0000_0000;
 
         /// Enable collision-detection between a collider attached to a fixed body (or
         /// not attached to any body) and another collider attached to a fixed body (or
         /// not attached to any body).
-        const STATIC_STATIC = 0b0000_0000_0010_0000;
+        const FIXED_FIXED = 0b0000_0000_0010_0000;
     }
 }
 
@@ -308,20 +308,20 @@ impl ActiveCollisionTypes {
         // NOTE: This test is quite complicated so here is an explanation.
         //       First, we associate the following bit masks:
         //           - DYNAMIC = 0001
-        //           - STATIC = 0010
+        //           - FIXED = 0010
         //           - KINEMATIC = 1100
         //       These are equal to the bits indexed by `RigidBodyType as u32`.
         //       The bit masks defined by ActiveCollisionTypes are defined is such a way
         //       that the first part of the variant name (e.g. DYNAMIC_*) indicates which
         //       groups of four bits should be considered:
         //           - DYNAMIC_* = the first group of four bits.
-        //           - STATIC_* = the second group of four bits.
+        //           - FIXED_* = the second group of four bits.
         //           - KINEMATIC_* = the third and fourth groups of four bits.
         //       The second part of the variant name (e.g. *_DYNAMIC) indicates the value
         //       of the aforementioned groups of four bits.
-        //       For example, DYNAMIC_STATIC means that the first group of four bits (because
-        //       of DYNAMIC_*) must have the value 0010 (because of *_STATIC). That gives
-        //       us 0b0000_0000_0000_0010 for the DYNAMIC_STATIC_VARIANT.
+        //       For example, DYNAMIC_FIXED means that the first group of four bits (because
+        //       of DYNAMIC_*) must have the value 0010 (because of *_FIXED). That gives
+        //       us 0b0000_0000_0000_0010 for the DYNAMIC_FIXED_VARIANT.
         //
         //       The KINEMATIC_* is special because it occupies two groups of four bits. This is
         //       because it combines both KinematicPositionBased and KinematicVelocityBased.
@@ -347,7 +347,7 @@ impl Default for ActiveCollisionTypes {
     fn default() -> Self {
         ActiveCollisionTypes::DYNAMIC_DYNAMIC
             | ActiveCollisionTypes::DYNAMIC_KINEMATIC
-            | ActiveCollisionTypes::DYNAMIC_STATIC
+            | ActiveCollisionTypes::DYNAMIC_FIXED
     }
 }
 
