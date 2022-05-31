@@ -34,6 +34,7 @@ impl GenericVelocityConstraint {
         jacobian_id: &mut usize,
         insert_at: Option<usize>,
     ) {
+        let cfm_factor = params.cfm_factor();
         let inv_dt = params.inv_dt();
         let erp_inv_dt = params.erp_inv_dt();
 
@@ -45,6 +46,7 @@ impl GenericVelocityConstraint {
 
         let (vels1, mprops1, type1) = (&rb1.vels, &rb1.mprops, &rb1.body_type);
         let (vels2, mprops2, type2) = (&rb2.vels, &rb2.mprops, &rb2.body_type);
+        let ccd_thickness = rb1.ccd.ccd_thickness + rb2.ccd.ccd_thickness;
 
         let multibody1 = multibodies
             .rigid_body_link(handle1)
@@ -92,6 +94,7 @@ impl GenericVelocityConstraint {
             .enumerate()
         {
             let chunk_j_id = *jacobian_id;
+            let mut is_fast_contact = false;
             let mut constraint = VelocityConstraint {
                 dir1: force_dir1,
                 #[cfg(feature = "dim3")]
@@ -107,6 +110,7 @@ impl GenericVelocityConstraint {
                 } else {
                     na::zero()
                 },
+                cfm_factor,
                 limit: 0.0,
                 mj_lambda1,
                 mj_lambda2,
@@ -196,10 +200,13 @@ impl GenericVelocityConstraint {
                     let rhs_bias =
                         /* is_resting * */ erp_inv_dt * manifold_point.dist.clamp(-params.max_penetration_correction, 0.0);
 
+                    let rhs = rhs_wo_bias + rhs_bias;
+                    is_fast_contact = is_fast_contact || (-rhs * params.dt > ccd_thickness * 0.5);
+
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
                         gcross1,
                         gcross2,
-                        rhs: rhs_wo_bias + rhs_bias,
+                        rhs,
                         rhs_wo_bias,
                         impulse: na::zero(),
                         r,
@@ -283,6 +290,8 @@ impl GenericVelocityConstraint {
                 }
             }
 
+            constraint.cfm_factor = if is_fast_contact { 1.0 } else { cfm_factor };
+
             let ndofs1 = multibody1.map(|mb| mb.0.ndofs()).unwrap_or(0);
             let ndofs2 = multibody2.map(|mb| mb.0.ndofs()).unwrap_or(0);
             // NOTE: we use the generic constraint for non-dynamic bodies because this will
@@ -310,7 +319,6 @@ impl GenericVelocityConstraint {
 
     pub fn solve(
         &mut self,
-        cfm_factor: Real,
         jacobians: &DVector<Real>,
         mj_lambdas: &mut [DeltaVel<Real>],
         generic_mj_lambdas: &mut DVector<Real>,
@@ -332,7 +340,7 @@ impl GenericVelocityConstraint {
         let elements = &mut self.velocity_constraint.elements
             [..self.velocity_constraint.num_contacts as usize];
         VelocityConstraintElement::generic_solve_group(
-            cfm_factor,
+            self.velocity_constraint.cfm_factor,
             elements,
             jacobians,
             &self.velocity_constraint.dir1,
@@ -364,7 +372,7 @@ impl GenericVelocityConstraint {
         self.velocity_constraint.writeback_impulses(manifolds_all);
     }
 
-    pub fn remove_bias_from_rhs(&mut self) {
-        self.velocity_constraint.remove_bias_from_rhs();
+    pub fn remove_cfm_and_bias_from_rhs(&mut self) {
+        self.velocity_constraint.remove_cfm_and_bias_from_rhs();
     }
 }

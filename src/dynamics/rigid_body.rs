@@ -19,6 +19,10 @@ use num::Zero;
 pub struct RigidBody {
     pub(crate) pos: RigidBodyPosition,
     pub(crate) mprops: RigidBodyMassProps,
+    // NOTE: we need this so that the CCD can use the actual velocities obtained
+    //       by the velocity solver with bias. If we switch to intepolation, we
+    //       should remove this field.
+    pub(crate) integrated_vels: RigidBodyVelocity,
     pub(crate) vels: RigidBodyVelocity,
     pub(crate) damping: RigidBodyDamping,
     pub(crate) forces: RigidBodyForces,
@@ -47,6 +51,7 @@ impl RigidBody {
         Self {
             pos: RigidBodyPosition::default(),
             mprops: RigidBodyMassProps::default(),
+            integrated_vels: RigidBodyVelocity::default(),
             vels: RigidBodyVelocity::default(),
             damping: RigidBodyDamping::default(),
             forces: RigidBodyForces::default(),

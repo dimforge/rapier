@@ -42,6 +42,7 @@ pub struct ImpulseJointSet {
     rb_graph_ids: Coarena<RigidBodyGraphIndex>,
     joint_ids: Arena<TemporaryInteractionIndex>, // Map joint handles to edge ids on the graph.
     joint_graph: InteractionGraph<RigidBodyHandle, ImpulseJoint>,
+    pub(crate) to_wake_up: Vec<RigidBodyHandle>, // A set of rigid-body handles to wake-up during the next timestep.
 }
 
 impl ImpulseJointSet {
@@ -51,6 +52,7 @@ impl ImpulseJointSet {
             rb_graph_ids: Coarena::new(),
             joint_ids: Arena::new(),
             joint_graph: InteractionGraph::new(),
+            to_wake_up: vec![],
         }
     }
 
@@ -180,11 +182,15 @@ impl ImpulseJointSet {
     }
 
     /// Inserts a new joint into this set and retrieve its handle.
+    ///
+    /// If `wake_up` is set to `true`, then the bodies attached to this joint will be
+    /// automatically woken up during the next timestep.
     pub fn insert(
         &mut self,
         body1: RigidBodyHandle,
         body2: RigidBodyHandle,
         data: impl Into<GenericJoint>,
+        wake_up: bool,
     ) -> ImpulseJointHandle {
         let data = data.into();
         let handle = self.joint_ids.insert(0.into());
@@ -217,6 +223,12 @@ impl ImpulseJointSet {
         }
 
         self.joint_ids[handle] = self.joint_graph.add_edge(graph_index1, graph_index2, joint);
+
+        if wake_up {
+            self.to_wake_up.push(body1);
+            self.to_wake_up.push(body2);
+        }
+
         ImpulseJointHandle(handle)
     }
 
@@ -257,23 +269,16 @@ impl ImpulseJointSet {
     ///
     /// If `wake_up` is set to `true`, then the bodies attached to this joint will be
     /// automatically woken up.
-    pub fn remove(
-        &mut self,
-        handle: ImpulseJointHandle,
-        islands: &mut IslandManager,
-        bodies: &mut RigidBodySet,
-        wake_up: bool,
-    ) -> Option<ImpulseJoint> {
+    pub fn remove(&mut self, handle: ImpulseJointHandle, wake_up: bool) -> Option<ImpulseJoint> {
         let id = self.joint_ids.remove(handle.0)?;
         let endpoints = self.joint_graph.graph.edge_endpoints(id)?;
 
         if wake_up {
-            // Wake-up the bodies attached to this joint.
             if let Some(rb_handle) = self.joint_graph.graph.node_weight(endpoints.0) {
-                islands.wake_up(bodies, *rb_handle, true);
+                self.to_wake_up.push(*rb_handle);
             }
             if let Some(rb_handle) = self.joint_graph.graph.node_weight(endpoints.1) {
-                islands.wake_up(bodies, *rb_handle, true);
+                self.to_wake_up.push(*rb_handle);
             }
         }
 
@@ -294,8 +299,6 @@ impl ImpulseJointSet {
     pub fn remove_joints_attached_to_rigid_body(
         &mut self,
         handle: RigidBodyHandle,
-        islands: &mut IslandManager,
-        bodies: &mut RigidBodySet,
     ) -> Vec<ImpulseJointHandle> {
         let mut deleted = vec![];
 
@@ -324,8 +327,8 @@ impl ImpulseJointSet {
                     }
 
                     // Wake up the attached bodies.
-                    islands.wake_up(bodies, h1, true);
-                    islands.wake_up(bodies, h2, true);
+                    self.to_wake_up.push(h1);
+                    self.to_wake_up.push(h2);
                 }
 
                 if let Some(other) = self.joint_graph.remove_node(deleted_id) {

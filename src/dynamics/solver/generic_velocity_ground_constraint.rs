@@ -32,6 +32,7 @@ impl GenericVelocityGroundConstraint {
         jacobian_id: &mut usize,
         insert_at: Option<usize>,
     ) {
+        let cfm_factor = params.cfm_factor();
         let inv_dt = params.inv_dt();
         let erp_inv_dt = params.erp_inv_dt();
 
@@ -85,12 +86,14 @@ impl GenericVelocityGroundConstraint {
             .enumerate()
         {
             let chunk_j_id = *jacobian_id;
+            let mut is_fast_contact = false;
             let mut constraint = VelocityGroundConstraint {
                 dir1: force_dir1,
                 #[cfg(feature = "dim3")]
                 tangent1: tangents1[0],
                 elements: [VelocityGroundConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im2: mprops2.effective_inv_mass,
+                cfm_factor,
                 limit: 0.0,
                 mj_lambda2,
                 manifold_id,
@@ -130,16 +133,20 @@ impl GenericVelocityGroundConstraint {
                     let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
                     let is_resting = 1.0 - is_bouncy;
 
-                    let mut rhs_wo_bias = (1.0 + is_bouncy * manifold_point.restitution)
-                        * (vel1 - vel2).dot(&force_dir1);
+                    let dvel = (vel1 - vel2).dot(&force_dir1);
+                    let mut rhs_wo_bias = (1.0 + is_bouncy * manifold_point.restitution) * dvel;
                     rhs_wo_bias += manifold_point.dist.max(0.0) * inv_dt;
                     rhs_wo_bias *= is_bouncy + is_resting;
                     let rhs_bias =
                         /* is_resting * */ erp_inv_dt * manifold_point.dist.clamp(-params.max_penetration_correction, 0.0);
 
+                    let rhs = rhs_wo_bias + rhs_bias;
+                    is_fast_contact =
+                        is_fast_contact || (-rhs * params.dt > rb2.ccd.ccd_thickness * 0.5);
+
                     constraint.elements[k].normal_part = VelocityGroundConstraintNormalPart {
                         gcross2: na::zero(), // Unused for generic constraints.
-                        rhs: rhs_wo_bias + rhs_bias,
+                        rhs,
                         rhs_wo_bias,
                         impulse: na::zero(),
                         r,
@@ -181,6 +188,8 @@ impl GenericVelocityGroundConstraint {
                 }
             }
 
+            constraint.cfm_factor = if is_fast_contact { 1.0 } else { cfm_factor };
+
             let constraint = GenericVelocityGroundConstraint {
                 velocity_constraint: constraint,
                 j_id: chunk_j_id,
@@ -198,7 +207,6 @@ impl GenericVelocityGroundConstraint {
 
     pub fn solve(
         &mut self,
-        cfm_factor: Real,
         jacobians: &DVector<Real>,
         generic_mj_lambdas: &mut DVector<Real>,
         solve_restitution: bool,
@@ -209,7 +217,7 @@ impl GenericVelocityGroundConstraint {
         let elements = &mut self.velocity_constraint.elements
             [..self.velocity_constraint.num_contacts as usize];
         VelocityGroundConstraintElement::generic_solve_group(
-            cfm_factor,
+            self.velocity_constraint.cfm_factor,
             elements,
             jacobians,
             self.velocity_constraint.limit,
@@ -226,7 +234,7 @@ impl GenericVelocityGroundConstraint {
         self.velocity_constraint.writeback_impulses(manifolds_all);
     }
 
-    pub fn remove_bias_from_rhs(&mut self) {
-        self.velocity_constraint.remove_bias_from_rhs();
+    pub fn remove_cfm_and_bias_from_rhs(&mut self) {
+        self.velocity_constraint.remove_cfm_and_bias_from_rhs();
     }
 }

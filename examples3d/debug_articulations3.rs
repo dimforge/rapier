@@ -39,7 +39,7 @@ fn create_ball_articulations(
                 let parent_handle = *body_handles.last().unwrap();
                 let joint =
                     SphericalJointBuilder::new().local_anchor2(point![0.0, 0.0, -shift * 2.0]);
-                multibody_joints.insert(parent_handle, child_handle, joint);
+                multibody_joints.insert(parent_handle, child_handle, joint, true);
             }
 
             // Horizontal multibody_joint.
@@ -52,7 +52,7 @@ fn create_ball_articulations(
                 // let joint = FixedJoint::new().local_anchor2(point![-shift, 0.0, 0.0]);
                 // let joint =
                 //     RevoluteJoint::new(Vector::x_axis()).local_anchor2(point![-shift, 0.0, 0.0]);
-                impulse_joints.insert(parent_handle, child_handle, joint);
+                impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
 
             body_handles.push(child_handle);

@@ -17,6 +17,7 @@ pub(crate) struct VelocityGroundConstraint {
     #[cfg(feature = "dim3")]
     pub tangent1: Vector<Real>, // One of the friction force directions.
     pub im2: Vector<Real>,
+    pub cfm_factor: Real,
     pub limit: Real,
     pub elements: [VelocityGroundConstraintElement<Real>; MAX_MANIFOLD_POINTS],
 
@@ -34,6 +35,7 @@ impl VelocityGroundConstraint {
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         insert_at: Option<usize>,
     ) {
+        let cfm_factor = params.cfm_factor();
         let inv_dt = params.inv_dt();
         let erp_inv_dt = params.erp_inv_dt();
 
@@ -80,6 +82,7 @@ impl VelocityGroundConstraint {
                 tangent1: tangents1[0],
                 elements: [VelocityGroundConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im2: mprops2.effective_inv_mass,
+                cfm_factor,
                 limit: 0.0,
                 mj_lambda2,
                 manifold_id,
@@ -125,12 +128,15 @@ impl VelocityGroundConstraint {
                     constraint.tangent1 = tangents1[0];
                 }
                 constraint.im2 = mprops2.effective_inv_mass;
+                constraint.cfm_factor = cfm_factor;
                 constraint.limit = 0.0;
                 constraint.mj_lambda2 = mj_lambda2;
                 constraint.manifold_id = manifold_id;
                 constraint.manifold_contact_id = [0; MAX_MANIFOLD_POINTS];
                 constraint.num_contacts = manifold_points.len() as u8;
             }
+
+            let mut is_fast_contact = false;
 
             for k in 0..manifold_points.len() {
                 let manifold_point = &manifold_points[k];
@@ -156,17 +162,21 @@ impl VelocityGroundConstraint {
                     let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
                     let is_resting = 1.0 - is_bouncy;
 
-                    let mut rhs_wo_bias = (1.0 + is_bouncy * manifold_point.restitution)
-                        * (vel1 - vel2).dot(&force_dir1);
+                    let dvel = (vel1 - vel2).dot(&force_dir1);
+                    let mut rhs_wo_bias = (1.0 + is_bouncy * manifold_point.restitution) * dvel;
                     rhs_wo_bias += manifold_point.dist.max(0.0) * inv_dt;
                     rhs_wo_bias *= is_bouncy + is_resting;
                     let rhs_bias = /* is_resting
                         * */ erp_inv_dt
                         * (manifold_point.dist + params.allowed_linear_error).clamp(-params.max_penetration_correction, 0.0);
 
+                    let rhs = rhs_wo_bias + rhs_bias;
+                    is_fast_contact =
+                        is_fast_contact || (-rhs * params.dt > rb2.ccd.ccd_thickness * 0.5);
+
                     constraint.elements[k].normal_part = VelocityGroundConstraintNormalPart {
                         gcross2,
-                        rhs: rhs_wo_bias + rhs_bias,
+                        rhs,
                         rhs_wo_bias,
                         impulse: na::zero(),
                         r: projected_mass,
@@ -206,6 +216,8 @@ impl VelocityGroundConstraint {
                 }
             }
 
+            constraint.cfm_factor = if is_fast_contact { 1.0 } else { cfm_factor };
+
             #[cfg(not(target_arch = "wasm32"))]
             if let Some(at) = insert_at {
                 out_constraints[at + _l] = AnyVelocityConstraint::NongroupedGround(constraint);
@@ -217,7 +229,6 @@ impl VelocityGroundConstraint {
 
     pub fn solve(
         &mut self,
-        cfm_factor: Real,
         mj_lambdas: &mut [DeltaVel<Real>],
         solve_normal: bool,
         solve_friction: bool,
@@ -225,7 +236,7 @@ impl VelocityGroundConstraint {
         let mut mj_lambda2 = mj_lambdas[self.mj_lambda2 as usize];
 
         VelocityGroundConstraintElement::solve_group(
-            cfm_factor,
+            self.cfm_factor,
             &mut self.elements[..self.num_contacts as usize],
             &self.dir1,
             #[cfg(feature = "dim3")]
@@ -260,7 +271,8 @@ impl VelocityGroundConstraint {
         }
     }
 
-    pub fn remove_bias_from_rhs(&mut self) {
+    pub fn remove_cfm_and_bias_from_rhs(&mut self) {
+        self.cfm_factor = 1.0;
         for elt in &mut self.elements {
             elt.normal_part.rhs = elt.normal_part.rhs_wo_bias;
         }

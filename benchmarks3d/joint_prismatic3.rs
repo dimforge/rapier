@@ -45,7 +45,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     let prism = PrismaticJointBuilder::new(axis)
                         .local_anchor2(point![0.0, 0.0, -shift])
                         .limits([-2.0, 0.0]);
-                    impulse_joints.insert(curr_parent, curr_child, prism);
+                    impulse_joints.insert(curr_parent, curr_child, prism, true);
 
                     curr_parent = curr_child;
                 }

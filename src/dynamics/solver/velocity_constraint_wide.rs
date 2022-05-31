@@ -12,6 +12,7 @@ use crate::math::{
 use crate::utils::WBasis;
 use crate::utils::{self, WAngularInertia, WCross, WDot};
 use num::Zero;
+use parry::math::SimdBool;
 use simba::simd::{SimdPartialOrd, SimdValue};
 
 #[derive(Copy, Clone, Debug)]
@@ -23,6 +24,7 @@ pub(crate) struct WVelocityConstraint {
     pub num_contacts: u8,
     pub im1: Vector<SimdReal>,
     pub im2: Vector<SimdReal>,
+    pub cfm_factor: SimdReal,
     pub limit: SimdReal,
     pub mj_lambda1: [usize; SIMD_WIDTH],
     pub mj_lambda2: [usize; SIMD_WIDTH],
@@ -43,6 +45,8 @@ impl WVelocityConstraint {
             assert_eq!(manifolds[ii].data.relative_dominance, 0);
         }
 
+        let cfm_factor = SimdReal::splat(params.cfm_factor());
+        let dt = SimdReal::splat(params.dt);
         let inv_dt = SimdReal::splat(params.inv_dt());
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
         let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
@@ -57,6 +61,10 @@ impl WVelocityConstraint {
         let ids2: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| &bodies[handles2[ii]].ids];
         let mprops1: [&RigidBodyMassProps; SIMD_WIDTH] = gather![|ii| &bodies[handles1[ii]].mprops];
         let mprops2: [&RigidBodyMassProps; SIMD_WIDTH] = gather![|ii| &bodies[handles2[ii]].mprops];
+
+        let ccd_thickness1 = SimdReal::from(gather![|ii| bodies[handles1[ii]].ccd.ccd_thickness]);
+        let ccd_thickness2 = SimdReal::from(gather![|ii| bodies[handles2[ii]].ccd.ccd_thickness]);
+        let ccd_thickness = ccd_thickness1 + ccd_thickness2;
 
         let world_com1 = Point::from(gather![|ii| mprops1[ii].world_com]);
         let im1 = Vector::from(gather![|ii| mprops1[ii].effective_inv_mass]);
@@ -91,6 +99,7 @@ impl WVelocityConstraint {
                 gather![|ii| &manifolds[ii].data.solver_contacts[l..num_active_contacts]];
             let num_points = manifold_points[0].len().min(MAX_MANIFOLD_POINTS);
 
+            let mut is_fast_contact = SimdBool::splat(false);
             let mut constraint = WVelocityConstraint {
                 dir1: force_dir1,
                 #[cfg(feature = "dim3")]
@@ -98,6 +107,7 @@ impl WVelocityConstraint {
                 elements: [VelocityConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im1,
                 im2,
+                cfm_factor,
                 limit: SimdReal::splat(0.0),
                 mj_lambda1,
                 mj_lambda2,
@@ -147,6 +157,10 @@ impl WVelocityConstraint {
                         .simd_clamp(-max_penetration_correction, SimdReal::zero())
                         * (erp_inv_dt/* * is_resting */);
 
+                    let rhs = rhs_wo_bias + rhs_bias;
+                    is_fast_contact =
+                        is_fast_contact | (-rhs * dt).simd_gt(ccd_thickness * SimdReal::splat(0.5));
+
                     constraint.elements[k].normal_part = VelocityConstraintNormalPart {
                         gcross1,
                         gcross2,
@@ -189,6 +203,8 @@ impl WVelocityConstraint {
                 }
             }
 
+            constraint.cfm_factor = SimdReal::splat(1.0).select(is_fast_contact, cfm_factor);
+
             if let Some(at) = insert_at {
                 out_constraints[at + l / MAX_MANIFOLD_POINTS] =
                     AnyVelocityConstraint::Grouped(constraint);
@@ -200,7 +216,6 @@ impl WVelocityConstraint {
 
     pub fn solve(
         &mut self,
-        cfm_factor: Real,
         mj_lambdas: &mut [DeltaVel<Real>],
         solve_normal: bool,
         solve_friction: bool,
@@ -220,7 +235,7 @@ impl WVelocityConstraint {
         };
 
         VelocityConstraintElement::solve_group(
-            SimdReal::splat(cfm_factor),
+            self.cfm_factor,
             &mut self.elements[..self.num_contacts as usize],
             &self.dir1,
             #[cfg(feature = "dim3")]
@@ -270,7 +285,8 @@ impl WVelocityConstraint {
         }
     }
 
-    pub fn remove_bias_from_rhs(&mut self) {
+    pub fn remove_cfm_and_bias_from_rhs(&mut self) {
+        self.cfm_factor = SimdReal::splat(1.0);
         for elt in &mut self.elements {
             elt.normal_part.rhs = elt.normal_part.rhs_wo_bias;
         }

@@ -36,7 +36,7 @@ fn prismatic_repro(
         let prismatic = PrismaticJointBuilder::new(Vector::y_axis())
             .local_anchor1(point![pos.x, pos.y, pos.z])
             .motor_position(0.0, stiffness, damping);
-        impulse_joints.insert(box_rb, wheel_rb, prismatic);
+        impulse_joints.insert(box_rb, wheel_rb, prismatic, true);
     }
 
     // put a small box under one of the wheels

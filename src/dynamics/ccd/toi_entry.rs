@@ -56,14 +56,14 @@ impl TOIEntry {
             return None;
         }
 
-        let linvel1 =
-            frozen1.is_none() as u32 as Real * rb1.map(|b| b.vels.linvel).unwrap_or(na::zero());
-        let linvel2 =
-            frozen2.is_none() as u32 as Real * rb2.map(|b| b.vels.linvel).unwrap_or(na::zero());
-        let angvel1 =
-            frozen1.is_none() as u32 as Real * rb1.map(|b| b.vels.angvel).unwrap_or(na::zero());
-        let angvel2 =
-            frozen2.is_none() as u32 as Real * rb2.map(|b| b.vels.angvel).unwrap_or(na::zero());
+        let linvel1 = frozen1.is_none() as u32 as Real
+            * rb1.map(|b| b.integrated_vels.linvel).unwrap_or(na::zero());
+        let linvel2 = frozen2.is_none() as u32 as Real
+            * rb2.map(|b| b.integrated_vels.linvel).unwrap_or(na::zero());
+        let angvel1 = frozen1.is_none() as u32 as Real
+            * rb1.map(|b| b.integrated_vels.angvel).unwrap_or(na::zero());
+        let angvel2 = frozen2.is_none() as u32 as Real
+            * rb2.map(|b| b.integrated_vels.angvel).unwrap_or(na::zero());
 
         #[cfg(feature = "dim2")]
         let vel12 = (linvel2 - linvel1).norm()
@@ -114,6 +114,20 @@ impl TOIEntry {
         // because the colliders may be in a separating trajectory.
         let stop_at_penetration = is_pseudo_intersection_test;
 
+        // let pos12 = motion_c1
+        //     .position_at_time(start_time)
+        //     .inv_mul(&motion_c2.position_at_time(start_time));
+        // let vel12 = linvel2 - linvel1;
+        // let res_toi = query_dispatcher
+        //     .time_of_impact(
+        //         &pos12,
+        //         &vel12,
+        //         co1.shape.as_ref(),
+        //         co2.shape.as_ref(),
+        //         end_time - start_time,
+        //     )
+        //     .ok();
+
         let res_toi = query_dispatcher
             .nonlinear_time_of_impact(
                 &motion_c1,
@@ -144,8 +158,8 @@ impl TOIEntry {
             NonlinearRigidMotion::new(
                 rb.pos.position,
                 rb.mprops.local_mprops.local_com,
-                rb.vels.linvel,
-                rb.vels.angvel,
+                rb.integrated_vels.linvel,
+                rb.integrated_vels.angvel,
             )
         } else {
             NonlinearRigidMotion::constant_position(rb.pos.next_position)

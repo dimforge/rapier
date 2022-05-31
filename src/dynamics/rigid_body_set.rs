@@ -109,8 +109,8 @@ impl RigidBodySet {
         /*
          * Remove impulse_joints attached to this rigid-body.
          */
-        impulse_joints.remove_joints_attached_to_rigid_body(handle, islands, self);
-        multibody_joints.remove_joints_attached_to_rigid_body(handle, islands, self);
+        impulse_joints.remove_joints_attached_to_rigid_body(handle);
+        multibody_joints.remove_joints_attached_to_rigid_body(handle);
 
         Some(rb)
     }

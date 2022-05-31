@@ -13,6 +13,7 @@ use crate::math::{
 use crate::utils::WBasis;
 use crate::utils::{self, WAngularInertia, WCross, WDot};
 use num::Zero;
+use parry::math::SimdBool;
 use simba::simd::{SimdPartialOrd, SimdValue};
 
 #[derive(Copy, Clone, Debug)]
@@ -23,6 +24,7 @@ pub(crate) struct WVelocityGroundConstraint {
     pub elements: [VelocityGroundConstraintElement<SimdReal>; MAX_MANIFOLD_POINTS],
     pub num_contacts: u8,
     pub im2: Vector<SimdReal>,
+    pub cfm_factor: SimdReal,
     pub limit: SimdReal,
     pub mj_lambda2: [usize; SIMD_WIDTH],
     pub manifold_id: [ContactManifoldIndex; SIMD_WIDTH],
@@ -38,6 +40,8 @@ impl WVelocityGroundConstraint {
         out_constraints: &mut Vec<AnyVelocityConstraint>,
         insert_at: Option<usize>,
     ) {
+        let cfm_factor = SimdReal::splat(params.cfm_factor());
+        let dt = SimdReal::splat(params.dt);
         let inv_dt = SimdReal::splat(params.inv_dt());
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
         let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
@@ -65,11 +69,12 @@ impl WVelocityGroundConstraint {
                 .unwrap_or_else(Point::origin)
         }]);
 
-        let vels2: [&RigidBodyVelocity; SIMD_WIDTH] =
-            gather![|ii| &bodies[handles2[ii].unwrap()].vels];
-        let ids2: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| &bodies[handles2[ii].unwrap()].ids];
-        let mprops2: [&RigidBodyMassProps; SIMD_WIDTH] =
-            gather![|ii| &bodies[handles2[ii].unwrap()].mprops];
+        let bodies2 = gather![|ii| &bodies[handles2[ii].unwrap()]];
+
+        let vels2: [&RigidBodyVelocity; SIMD_WIDTH] = gather![|ii| &bodies2[ii].vels];
+        let ids2: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| &bodies2[ii].ids];
+        let mprops2: [&RigidBodyMassProps; SIMD_WIDTH] = gather![|ii| &bodies2[ii].mprops];
+        let ccd_thickness = SimdReal::from(gather![|ii| bodies2[ii].ccd.ccd_thickness]);
 
         let flipped_sign = SimdReal::from(flipped);
 
@@ -101,12 +106,14 @@ impl WVelocityGroundConstraint {
             let manifold_points = gather![|ii| &manifolds[ii].data.solver_contacts[l..]];
             let num_points = manifold_points[0].len().min(MAX_MANIFOLD_POINTS);
 
+            let mut is_fast_contact = SimdBool::splat(false);
             let mut constraint = WVelocityGroundConstraint {
                 dir1: force_dir1,
                 #[cfg(feature = "dim3")]
                 tangent1: tangents1[0],
                 elements: [VelocityGroundConstraintElement::zero(); MAX_MANIFOLD_POINTS],
                 im2,
+                cfm_factor,
                 limit: SimdReal::splat(0.0),
                 mj_lambda2,
                 manifold_id,
@@ -152,9 +159,13 @@ impl WVelocityGroundConstraint {
                         .simd_clamp(-max_penetration_correction, SimdReal::zero())
                         * (erp_inv_dt/* * is_resting */);
 
+                    let rhs = rhs_wo_bias + rhs_bias;
+                    is_fast_contact =
+                        is_fast_contact | (-rhs * dt).simd_gt(ccd_thickness * SimdReal::splat(0.5));
+
                     constraint.elements[k].normal_part = VelocityGroundConstraintNormalPart {
                         gcross2,
-                        rhs: rhs_wo_bias + rhs_bias,
+                        rhs,
                         rhs_wo_bias,
                         impulse: na::zero(),
                         r: projected_mass,
@@ -187,6 +198,8 @@ impl WVelocityGroundConstraint {
                 }
             }
 
+            constraint.cfm_factor = SimdReal::splat(1.0).select(is_fast_contact, cfm_factor);
+
             if let Some(at) = insert_at {
                 out_constraints[at + l / MAX_MANIFOLD_POINTS] =
                     AnyVelocityConstraint::GroupedGround(constraint);
@@ -198,7 +211,6 @@ impl WVelocityGroundConstraint {
 
     pub fn solve(
         &mut self,
-        cfm_factor: Real,
         mj_lambdas: &mut [DeltaVel<Real>],
         solve_normal: bool,
         solve_friction: bool,
@@ -211,7 +223,7 @@ impl WVelocityGroundConstraint {
         };
 
         VelocityGroundConstraintElement::solve_group(
-            SimdReal::splat(cfm_factor),
+            self.cfm_factor,
             &mut self.elements[..self.num_contacts as usize],
             &self.dir1,
             #[cfg(feature = "dim3")]
@@ -256,7 +268,8 @@ impl WVelocityGroundConstraint {
         }
     }
 
-    pub fn remove_bias_from_rhs(&mut self) {
+    pub fn remove_cfm_and_bias_from_rhs(&mut self) {
+        self.cfm_factor = SimdReal::splat(1.0);
         for elt in &mut self.elements {
             elt.normal_part.rhs = elt.normal_part.rhs_wo_bias;
         }

@@ -35,7 +35,6 @@ impl VelocitySolver {
         joint_constraints: &mut [AnyJointVelocityConstraint],
         generic_joint_jacobians: &DVector<Real>,
     ) {
-        let cfm_factor = params.cfm_factor();
         self.mj_lambdas.clear();
         self.mj_lambdas
             .resize(islands.active_island(island_id).len(), DeltaVel::zero());
@@ -86,7 +85,6 @@ impl VelocitySolver {
 
             for constraint in &mut *contact_constraints {
                 constraint.solve(
-                    cfm_factor,
                     generic_contact_jacobians,
                     &mut self.mj_lambdas[..],
                     &mut self.generic_mj_lambdas,
@@ -98,7 +96,6 @@ impl VelocitySolver {
             if solve_friction {
                 for constraint in &mut *contact_constraints {
                     constraint.solve(
-                        cfm_factor,
                         generic_contact_jacobians,
                         &mut self.mj_lambdas[..],
                         &mut self.generic_mj_lambdas,
@@ -121,7 +118,6 @@ impl VelocitySolver {
         for _ in 0..remaining_friction_iterations {
             for constraint in &mut *contact_constraints {
                 constraint.solve(
-                    cfm_factor,
                     generic_contact_jacobians,
                     &mut self.mj_lambdas[..],
                     &mut self.generic_mj_lambdas,
@@ -168,6 +164,7 @@ impl VelocitySolver {
                     &rb.pos.position,
                     &rb.mprops.local_mprops.local_com,
                 );
+                rb.integrated_vels = new_vels;
                 rb.pos = new_pos;
             }
         }
@@ -190,7 +187,6 @@ impl VelocitySolver {
 
             for constraint in &mut *contact_constraints {
                 constraint.solve(
-                    1.0,
                     generic_contact_jacobians,
                     &mut self.mj_lambdas[..],
                     &mut self.generic_mj_lambdas,
@@ -201,7 +197,6 @@ impl VelocitySolver {
 
             for constraint in &mut *contact_constraints {
                 constraint.solve(
-                    1.0,
                     generic_contact_jacobians,
                     &mut self.mj_lambdas[..],
                     &mut self.generic_mj_lambdas,

@@ -60,12 +60,20 @@ impl CCDSolver {
 
                     let min_toi = (rb.ccd.ccd_thickness
                         * 0.15
-                        * crate::utils::inv(rb.ccd.max_point_velocity(&rb.vels)))
+                        * crate::utils::inv(rb.ccd.max_point_velocity(&rb.integrated_vels)))
                     .min(dt);
-                    // println!("Min toi: {}, Toi: {}", min_toi, toi);
-                    let new_pos = rb
-                        .vels
-                        .integrate(toi.max(min_toi), &rb.pos.position, &local_com);
+                    // println!(
+                    //     "Min toi: {}, Toi: {}, thick: {}, max_vel: {}",
+                    //     min_toi,
+                    //     toi,
+                    //     rb.ccd.ccd_thickness,
+                    //     rb.ccd.max_point_velocity(&rb.integrated_vels)
+                    // );
+                    let new_pos = rb.integrated_vels.integrate(
+                        toi.max(min_toi),
+                        &rb.pos.position,
+                        &local_com,
+                    );
                     rb.pos.next_position = new_pos;
                 }
             }
@@ -95,7 +103,7 @@ impl CCDSolver {
                 } else {
                     None
                 };
-                let moving_fast = rb.ccd.is_moving_fast(dt, &rb.vels, forces);
+                let moving_fast = rb.ccd.is_moving_fast(dt, &rb.integrated_vels, forces);
                 rb.ccd.ccd_active = moving_fast;
                 ccd_active = ccd_active || moving_fast;
             }
@@ -131,7 +139,7 @@ impl CCDSolver {
                 let predicted_body_pos1 = rb1.pos.integrate_forces_and_velocities(
                     dt,
                     &rb1.forces,
-                    &rb1.vels,
+                    &rb1.integrated_vels,
                     &rb1.mprops,
                 );
 
@@ -256,7 +264,7 @@ impl CCDSolver {
                 let predicted_body_pos1 = rb1.pos.integrate_forces_and_velocities(
                     dt,
                     &rb1.forces,
-                    &rb1.vels,
+                    &rb1.integrated_vels,
                     &rb1.mprops,
                 );
 
@@ -491,7 +499,10 @@ impl CCDSolver {
                 let local_com1 = &rb1.mprops.local_mprops.local_com;
                 let frozen1 = frozen.get(&b1);
                 let pos1 = frozen1
-                    .map(|t| rb1.vels.integrate(*t, &rb1.pos.position, local_com1))
+                    .map(|t| {
+                        rb1.integrated_vels
+                            .integrate(*t, &rb1.pos.position, local_com1)
+                    })
                     .unwrap_or(rb1.pos.next_position);
                 pos1 * co_parent1.pos_wrt_parent
             } else {
@@ -504,7 +515,10 @@ impl CCDSolver {
                 let local_com2 = &rb2.mprops.local_mprops.local_com;
                 let frozen2 = frozen.get(&b2);
                 let pos2 = frozen2
-                    .map(|t| rb2.vels.integrate(*t, &rb2.pos.position, local_com2))
+                    .map(|t| {
+                        rb2.integrated_vels
+                            .integrate(*t, &rb2.pos.position, local_com2)
+                    })
                     .unwrap_or(rb2.pos.next_position);
                 pos2 * co_parent2.pos_wrt_parent
             } else {

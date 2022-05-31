@@ -45,7 +45,6 @@ impl ParallelVelocitySolver {
         let joint_descs = &joint_constraints.constraint_descs[..];
         let mut target_num_desc = 0;
         let mut shift = 0;
-        let cfm_factor = params.cfm_factor();
 
         // Each thread will concurrently grab thread.batch_size constraint desc to
         // solve. If the batch size is large enough to cross the boundary of
@@ -122,7 +121,6 @@ impl ParallelVelocitySolver {
                 // Solve rigid-body contacts.
                 solve!(
                     contact_constraints,
-                    cfm_factor,
                     &contact_constraints.generic_jacobians,
                     &mut self.mj_lambdas,
                     &mut self.generic_mj_lambdas,
@@ -135,7 +133,6 @@ impl ParallelVelocitySolver {
                 // Solve generic rigid-body contacts.
                 solve!(
                     contact_constraints,
-                    cfm_factor,
                     &contact_constraints.generic_jacobians,
                     &mut self.mj_lambdas,
                     &mut self.generic_mj_lambdas,
@@ -148,7 +145,6 @@ impl ParallelVelocitySolver {
                 if solve_friction {
                     solve!(
                         contact_constraints,
-                        cfm_factor,
                         &contact_constraints.generic_jacobians,
                         &mut self.mj_lambdas,
                         &mut self.generic_mj_lambdas,
@@ -173,7 +169,6 @@ impl ParallelVelocitySolver {
             for _ in 0..remaining_friction_iterations {
                 solve!(
                     contact_constraints,
-                    cfm_factor,
                     &contact_constraints.generic_jacobians,
                     &mut self.mj_lambdas,
                     &mut self.generic_mj_lambdas,
@@ -265,7 +260,6 @@ impl ParallelVelocitySolver {
 
                 solve!(
                     contact_constraints,
-                    cfm_factor,
                     &contact_constraints.generic_jacobians,
                     &mut self.mj_lambdas,
                     &mut self.generic_mj_lambdas,
@@ -277,7 +271,6 @@ impl ParallelVelocitySolver {
 
                 solve!(
                     contact_constraints,
-                    cfm_factor,
                     &contact_constraints.generic_jacobians,
                     &mut self.mj_lambdas,
                     &mut self.generic_mj_lambdas,
