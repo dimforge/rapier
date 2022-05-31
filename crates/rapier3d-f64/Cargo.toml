@@ -29,6 +29,7 @@ wasm-bindgen = [ "instant/wasm-bindgen" ]
 serde-serialize = [ "nalgebra/serde-serialize", "parry3d-f64/serde-serialize", "serde", "bit-vec/serde" ]
 enhanced-determinism = [ "simba/libm_force", "parry3d-f64/enhanced-determinism" ]
 debug-render = []
+profiler = [ "instant" ] # Enables the internal profiler.
 
 # Feature used for debugging only.
 debug-disable-legitimate-fe-exceptions = [ ]
@@ -45,7 +46,7 @@ required-features = [ "dim3", "f64" ]
 
 [dependencies]
 vec_map = { version = "0.8", optional = true }
-instant = { version = "0.1", features = [ "now" ]}
+instant = { version = "0.1", features = [ "now" ], optional = true }
 num-traits = "0.2"
 nalgebra = "0.31"
 parry3d-f64 = "0.9"
