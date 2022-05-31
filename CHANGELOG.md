@@ -1,4 +1,9 @@
-## Unreleased
+## v0.13.0 (31 Jun. 2022)
+### Fixed
+- Fix incorrect sensor events being generated after collider removal.
+- Fix bug where the CCD thickness wasn’t initialized properly.
+- Fix bug where the contact compliance would result in undesired tunneling, despite CCD being enabled.
+
 ### Modified
 - Add a `wake_up: bool` argument to the `ImpulseJointSet::insert` and `MultibodyJointSet::insert` to
   automatically wake-up the rigid-bodies attached to the inserted joint.
@@ -6,6 +11,15 @@
   `MultibodyJointSet::remove/remove_joints_attached_to_rigid_body` and
   `MultibodyjointSet::remove_multibody_articulations` no longer require the `bodies`
   and `islands` arguments.
+- Make the `instant` dependency optional, behind a `profiler` cargo feature.
+- Rename STATIC to FIXED in the `ActiveCollisionTypes` flags.
+- Rename `ImpulseJointSet::joints_with` to `::attached_joints`. Add the joint’s handle to the closure arguments.
+- Make the default debug-render less noisy out-of-the-box by only rendering joints, rigid-bodies, and colliders
+  by default.
+
+### Added
+- Debug-renderer: add rendering of contacts, solver contacts, and collider AABBs
+- Add `MultibodyJointSet::attached_joints` to return all the multibody joints attached to a given rigid-body.
 
 ## v0.12.0 (30 Apr. 2022)
 ### Fixed
