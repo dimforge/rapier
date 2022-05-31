@@ -341,7 +341,10 @@ impl NarrowPhase {
         }
 
         // Generate Stopped collision events for intersections.
-        for (a, b, pair) in self.intersection_graph.interactions_with(contact_graph_id) {
+        for (a, b, pair) in self
+            .intersection_graph
+            .interactions_with(intersection_graph_id)
+        {
             if pair.start_event_emited {
                 events.handle_collision_event(
                     bodies,
