@@ -46,6 +46,17 @@ impl Collider {
         self.coll_type.is_sensor()
     }
 
+    /// Is this collider enabled?
+    pub fn is_enabled(&self) -> bool {
+        self.flags.enabled
+    }
+
+    /// Sets whether or not this collider is enabled.
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.changes.insert(ColliderChanges::ENABLED);
+        self.flags.enabled = enabled;
+    }
+
     /// The physics hooks enabled for this collider.
     pub fn active_hooks(&self) -> ActiveHooks {
         self.flags.active_hooks
@@ -309,6 +320,8 @@ pub struct ColliderBuilder {
     pub position: Isometry<Real>,
     /// Is this collider a sensor?
     pub is_sensor: bool,
+    /// Is this collider enabled after its creation?
+    pub enabled: bool,
     /// Contact pairs enabled for this collider.
     pub active_collision_types: ActiveCollisionTypes,
     /// Physics hooks enabled for this collider.
@@ -334,6 +347,7 @@ impl ColliderBuilder {
             restitution: 0.0,
             position: Isometry::identity(),
             is_sensor: false,
+            enabled: true,
             user_data: 0,
             collision_groups: InteractionGroups::all(),
             solver_groups: InteractionGroups::all(),
@@ -594,6 +608,12 @@ impl ColliderBuilder {
         self
     }
 
+    /// Is this collider enabled after its creation?
+    pub fn enabled(mut self, is_enabled: bool) -> Self {
+        self.enabled = is_enabled;
+        self
+    }
+
     /// Sets the collision groups used by this collider.
     ///
     /// Two colliders will interact iff. their collision groups are compatible.
@@ -775,6 +795,7 @@ impl ColliderBuilder {
             active_collision_types: self.active_collision_types,
             active_hooks: self.active_hooks,
             active_events: self.active_events,
+            enabled: self.enabled,
         };
         let changes = ColliderChanges::all();
         let pos = ColliderPosition(self.position);

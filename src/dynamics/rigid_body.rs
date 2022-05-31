@@ -36,6 +36,7 @@ pub struct RigidBody {
     pub(crate) body_type: RigidBodyType,
     /// The dominance group this rigid-body is part of.
     pub(crate) dominance: RigidBodyDominance,
+    pub(crate) enabled: bool,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
 }
@@ -62,6 +63,7 @@ impl RigidBody {
             changes: RigidBodyChanges::all(),
             body_type: RigidBodyType::Dynamic,
             dominance: RigidBodyDominance::default(),
+            enabled: true,
             user_data: 0,
         }
     }
@@ -69,6 +71,17 @@ impl RigidBody {
     pub(crate) fn reset_internal_references(&mut self) {
         self.colliders.0 = Vec::new();
         self.ids = Default::default();
+    }
+
+    /// Is this rigid-body enabled?
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// Sets whether or not this rigid-body is enabled.
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.changes |= RigidBodyChanges::ENABLED;
+        self.enabled = enabled;
     }
 
     /// The activation status of this rigid-body.
@@ -869,6 +882,8 @@ pub struct RigidBodyBuilder {
     ///
     /// CCD prevents tunneling, but may still allow limited interpenetration of colliders.
     pub ccd_enabled: bool,
+    /// Is this rigid-body enabled after its creation?
+    pub enabled: bool,
     /// The dominance group of the rigid-body to be built.
     pub dominance_group: i8,
     /// An arbitrary user-defined 128-bit integer associated to the rigid-bodies built by this builder.
@@ -891,6 +906,7 @@ impl RigidBodyBuilder {
             can_sleep: true,
             sleeping: false,
             ccd_enabled: false,
+            enabled: true,
             dominance_group: 0,
             user_data: 0,
         }
@@ -1037,6 +1053,12 @@ impl RigidBodyBuilder {
         self
     }
 
+    /// Is this rigid-body enabled after its creation?
+    pub fn enabled(mut self, is_enabled: bool) -> self {
+        self.enabled = is_enabled;
+        self
+    }
+
     /// Sets the additional mass of the rigid-body being built.
     ///
     /// This is only the "additional" mass because the total mass of the  rigid-body is
@@ -1167,6 +1189,7 @@ impl RigidBodyBuilder {
         rb.vels.linvel = self.linvel;
         rb.vels.angvel = self.angvel;
         rb.body_type = self.body_type;
+        rb.enabled = self.enabled;
         rb.user_data = self.user_data;
 
         if self.additional_mass_properties != MassProperties::default() {

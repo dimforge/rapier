@@ -73,7 +73,6 @@ pub enum RigidBodyType {
     /// modified by the user and is independent from any contact or joint it is involved in.
     KinematicVelocityBased = 3,
     // Semikinematic, // A kinematic that performs automatic CCD with the fixed environment to avoid traversing it?
-    // Disabled,
 }
 
 impl RigidBodyType {
@@ -110,6 +109,8 @@ bitflags::bitflags! {
         const TYPE        = 1 << 4;
         /// Flag indicating that the `RigidBodyDominance` component of this rigid-body has been modified.
         const DOMINANCE   = 1 << 5;
+        /// Flag indicating that the `RigidBody::enabled` status was changed.
+        const ENABLED     = 1 << 6;
     }
 }
 

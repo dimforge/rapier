@@ -57,11 +57,13 @@ bitflags::bitflags! {
         const SHAPE    = 1 << 4; // => BF & NF update. NF pair workspace invalidation.
         /// Flag indicating that the `ColliderType` component of the collider has been modified.
         const TYPE     = 1 << 5; // => NF update. NF pair invalidation.
+        /// Flag indicating that this `Collider` or its parent `RigidBody` enabled status was changed.
+        const ENABLED  = 1 << 6; // => NF update.
         /// Flag indicating that the dominance groups of the parent of this collider have been modified.
         ///
         /// This flags is automatically set by the `PhysicsPipeline` when the `RigidBodyChanges::DOMINANCE`
         /// or `RigidBodyChanges::TYPE` of the parent rigid-body of this collider is detected.
-        const PARENT_EFFECTIVE_DOMINANCE = 1 << 6; // NF update.
+        const PARENT_EFFECTIVE_DOMINANCE = 1 << 7; // NF update.
     }
 }
 
@@ -309,7 +311,7 @@ impl ActiveCollisionTypes {
         //       First, we associate the following bit masks:
         //           - DYNAMIC = 0001
         //           - FIXED = 0010
-        //           - KINEMATIC = 1100
+        //           - KINEMATIC = 0011
         //       These are equal to the bits indexed by `RigidBodyType as u32`.
         //       The bit masks defined by ActiveCollisionTypes are defined is such a way
         //       that the first part of the variant name (e.g. DYNAMIC_*) indicates which
@@ -368,6 +370,8 @@ pub struct ColliderFlags {
     pub active_hooks: ActiveHooks,
     /// The events enabled for this collider.
     pub active_events: ActiveEvents,
+    /// Whether the collider takes part into the simulation or should be igonred.
+    pub enabled: bool,
 }
 
 impl Default for ColliderFlags {
@@ -378,6 +382,7 @@ impl Default for ColliderFlags {
             solver_groups: InteractionGroups::all(),
             active_hooks: ActiveHooks::empty(),
             active_events: ActiveEvents::empty(),
+            enabled: true,
         }
     }
 }

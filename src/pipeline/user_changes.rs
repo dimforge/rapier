@@ -151,15 +151,21 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
 
             if changes.contains(RigidBodyChanges::DOMINANCE)
                 || changes.contains(RigidBodyChanges::TYPE)
+                || changes.contains(RigidBodyChanges::ENABLED)
             {
+                // Propagate the modified flags to the attached colliders.
+                let flags = if changes.contains(RigidBodyChanges::ENABLED) {
+                    ColliderChanges::ENABLED
+                } else {
+                    ColliderChanges::PARENT_EFFECTIVE_DOMINANCE
+                };
                 for handle in rb.colliders.0.iter() {
                     let co = colliders.index_mut_internal(*handle);
                     if !co.changes.contains(ColliderChanges::MODIFIED) {
                         modified_colliders.push(*handle);
                     }
 
-                    co.changes |=
-                        ColliderChanges::MODIFIED | ColliderChanges::PARENT_EFFECTIVE_DOMINANCE;
+                    co.changes |= ColliderChanges::MODIFIED | flags;
                 }
             }
 
