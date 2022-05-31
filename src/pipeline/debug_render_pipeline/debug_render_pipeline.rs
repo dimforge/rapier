@@ -24,12 +24,20 @@ bitflags::bitflags! {
         const MULTIBODY_JOINTS = 1 << 2;
         /// If this flag is set, the impulse joints will be rendered.
         const IMPULSE_JOINTS = 1 << 3;
+        /// If this flag is set, all the joints will be rendered.
+        const JOINTS = Self::MULTIBODY_JOINTS.bits | Self::IMPULSE_JOINTS.bits;
         /// If this flag is set, the solver contacts will be rendered.
         const SOLVER_CONTACTS = 1 << 4;
         /// If this flag is set, the geometric contacts will be rendered.
         const CONTACTS = 1 << 5;
         /// If this flag is set, the AABBs of colliders will be rendered.
         const COLLIDER_AABBS = 1 << 6;
+    }
+}
+
+impl Default for DebugRenderMode {
+    fn default() -> Self {
+        Self::COLLIDER_SHAPES | Self::JOINTS | Self::RIGID_BODY_AXES
     }
 }
 
@@ -49,7 +57,7 @@ pub struct DebugRenderPipeline {
 
 impl Default for DebugRenderPipeline {
     fn default() -> Self {
-        Self::render_all(DebugRenderStyle::default())
+        Self::new(DebugRenderStyle::default(), DebugRenderMode::default())
     }
 }
 
