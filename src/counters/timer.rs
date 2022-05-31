@@ -4,6 +4,7 @@ use std::fmt::{Display, Error, Formatter};
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Timer {
     time: f64,
+    #[allow(dead_code)] // The field isn’t used if the `profiler` feature isn’t enabled.
     start: Option<f64>,
 }
 
@@ -23,21 +24,30 @@ impl Timer {
 
     /// Start the timer.
     pub fn start(&mut self) {
-        self.time = 0.0;
-        self.start = Some(instant::now());
+        #[cfg(feature = "profiler")]
+        {
+            self.time = 0.0;
+            self.start = Some(instant::now());
+        }
     }
 
     /// Pause the timer.
     pub fn pause(&mut self) {
-        if let Some(start) = self.start {
-            self.time += instant::now() - start;
+        #[cfg(feature = "profiler")]
+        {
+            if let Some(start) = self.start {
+                self.time += instant::now() - start;
+            }
+            self.start = None;
         }
-        self.start = None;
     }
 
     /// Resume the timer.
     pub fn resume(&mut self) {
-        self.start = Some(instant::now());
+        #[cfg(feature = "profiler")]
+        {
+            self.start = Some(instant::now());
+        }
     }
 
     /// The measured time between the last `.start()` and `.pause()` calls.

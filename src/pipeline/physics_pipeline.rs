@@ -54,7 +54,7 @@ impl PhysicsPipeline {
     /// Initializes a new physics pipeline.
     pub fn new() -> PhysicsPipeline {
         PhysicsPipeline {
-            counters: Counters::new(false),
+            counters: Counters::new(true),
             solvers: Vec::new(),
             manifold_indices: Vec::new(),
             joint_constraint_indices: Vec::new(),
