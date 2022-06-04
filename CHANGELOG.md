@@ -1,4 +1,4 @@
-## v0.13.0 (31 Jun. 2022)
+## v0.13.0 (31 May 2022)
 ### Fixed
 - Fix incorrect sensor events being generated after collider removal.
 - Fix bug where the CCD thickness wasn’t initialized properly.
