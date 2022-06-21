@@ -887,6 +887,8 @@ impl NarrowPhase {
                     .map(|p2| bodies[p2.handle].dominance)
                     .unwrap_or(zero);
 
+                pair.has_any_active_contact = false;
+
                 for manifold in &mut pair.manifolds {
                     let world_pos1 = manifold.subshape_pos1.prepend_to(&co1.pos);
                     manifold.data.solver_contacts.clear();
@@ -898,7 +900,6 @@ impl NarrowPhase {
                     manifold.data.normal = world_pos1 * manifold.local_n1;
 
                     // Generate solver contacts.
-                    pair.has_any_active_contact = false;
                     for (contact_id, contact) in manifold.points.iter().enumerate() {
                         assert!(
                             contact_id <= u8::MAX as usize,
