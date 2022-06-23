@@ -9,7 +9,8 @@ use super::JointLimits;
 #[repr(transparent)]
 /// A spherical joint, locks all relative translations between two bodies.
 pub struct SphericalJoint {
-    data: GenericJoint,
+    /// The underlying joint data.
+    pub data: GenericJoint,
 }
 
 impl Default for SphericalJoint {
@@ -28,6 +29,17 @@ impl SphericalJoint {
     /// The underlying generic joint.
     pub fn data(&self) -> &GenericJoint {
         &self.data
+    }
+
+    /// Are contacts between the attached rigid-bodies enabled?
+    pub fn contacts_enabled(&self) -> bool {
+        self.data.contacts_enabled
+    }
+
+    /// Sets whether contacts between the attached rigid-bodies are enabled.
+    pub fn set_contacts_enabled(&mut self, enabled: bool) -> &mut Self {
+        self.data.set_contacts_enabled(enabled);
+        self
     }
 
     /// The joint’s anchor, expressed in the local-space of the first rigid-body.
@@ -132,7 +144,7 @@ impl Into<GenericJoint> for SphericalJoint {
 /// Create spherical joints using the builder pattern.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct SphericalJointBuilder(SphericalJoint);
+pub struct SphericalJointBuilder(pub SphericalJoint);
 
 impl Default for SphericalJointBuilder {
     fn default() -> Self {
@@ -144,6 +156,13 @@ impl SphericalJointBuilder {
     /// Creates a new builder for spherical joints.
     pub fn new() -> Self {
         Self(SphericalJoint::new())
+    }
+
+    /// Sets whether contacts between the attached rigid-bodies are enabled.
+    #[must_use]
+    pub fn contacts_enabled(mut self, enabled: bool) -> Self {
+        self.0.set_contacts_enabled(enabled);
+        self
     }
 
     /// Sets the joint’s anchor, expressed in the local-space of the first rigid-body.

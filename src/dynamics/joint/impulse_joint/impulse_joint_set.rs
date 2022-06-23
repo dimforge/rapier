@@ -71,6 +71,20 @@ impl ImpulseJointSet {
         &self.joint_graph
     }
 
+    /// Iterates through all the joints between two rigid-bodies.
+    pub fn joints_between<'a>(
+        &'a self,
+        body1: RigidBodyHandle,
+        body2: RigidBodyHandle,
+    ) -> impl Iterator<Item = (ImpulseJointHandle, &'a ImpulseJoint)> {
+        self.rb_graph_ids
+            .get(body1.0)
+            .zip(self.rb_graph_ids.get(body2.0))
+            .into_iter()
+            .flat_map(move |(id1, id2)| self.joint_graph.interaction_pair(*id1, *id2).into_iter())
+            .map(|inter| (inter.2.handle, inter.2))
+    }
+
     /// Iterates through all the impulse joints attached to the given rigid-body.
     pub fn attached_joints<'a>(
         &'a self,

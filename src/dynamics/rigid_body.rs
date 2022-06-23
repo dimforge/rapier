@@ -20,7 +20,7 @@ pub struct RigidBody {
     pub(crate) pos: RigidBodyPosition,
     pub(crate) mprops: RigidBodyMassProps,
     // NOTE: we need this so that the CCD can use the actual velocities obtained
-    //       by the velocity solver with bias. If we switch to intepolation, we
+    //       by the velocity solver with bias. If we switch to interpolation, we
     //       should remove this field.
     pub(crate) integrated_vels: RigidBodyVelocity,
     pub(crate) vels: RigidBodyVelocity,

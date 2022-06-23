@@ -206,6 +206,8 @@ pub struct GenericJoint {
     ///
     /// Note that the mostor must also be explicitly enabled by the `motors` bitmask.
     pub motors: [JointMotor; SPATIAL_DIM],
+    /// Are contacts between the attached rigid-bodies enabled?
+    pub contacts_enabled: bool,
 }
 
 impl Default for GenericJoint {
@@ -219,6 +221,7 @@ impl Default for GenericJoint {
             coupled_axes: JointAxesMask::empty(),
             limits: [JointLimits::default(); SPATIAL_DIM],
             motors: [JointMotor::default(); SPATIAL_DIM],
+            contacts_enabled: true,
         }
     }
 }
@@ -272,6 +275,17 @@ impl GenericJoint {
     /// Sets the joint’s frame, expressed in the second rigid-body’s local-space.
     pub fn set_local_frame2(&mut self, local_frame: Isometry<Real>) -> &mut Self {
         self.local_frame2 = local_frame;
+        self
+    }
+
+    /// Are contacts between the attached rigid-bodies enabled?
+    pub fn contacts_enabled(&self) -> bool {
+        self.contacts_enabled
+    }
+
+    /// Sets whether contacts between the attached rigid-bodies are enabled.
+    pub fn set_contacts_enabled(&mut self, enabled: bool) -> &mut Self {
+        self.contacts_enabled = enabled;
         self
     }
 
@@ -481,8 +495,9 @@ impl GenericJoint {
 }
 
 /// Create generic joints using the builder pattern.
-#[derive(Copy, Clone, Debug)]
-pub struct GenericJointBuilder(GenericJoint);
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct GenericJointBuilder(pub GenericJoint);
 
 impl GenericJointBuilder {
     /// Creates a new generic joint builder.
@@ -495,6 +510,13 @@ impl GenericJointBuilder {
     #[must_use]
     pub fn locked_axes(mut self, axes: JointAxesMask) -> Self {
         self.0.locked_axes = axes;
+        self
+    }
+
+    /// Sets whether contacts between the attached rigid-bodies are enabled.
+    #[must_use]
+    pub fn contacts_enabled(mut self, enabled: bool) -> Self {
+        self.0.contacts_enabled = enabled;
         self
     }
 

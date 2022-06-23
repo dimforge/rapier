@@ -134,7 +134,7 @@ impl IntegrationParameters {
         1.0 / (1.0 + cfm_coeff)
     }
 
-    /// The CFM (constranits force mixing) coefficient applied to all joints for constraints regularization
+    /// The CFM (constraints force mixing) coefficient applied to all joints for constraints regularization
     pub fn joint_cfm_coeff(&self) -> Real {
         // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
         let inv_erp_minus_one = 1.0 / self.joint_erp - 1.0;

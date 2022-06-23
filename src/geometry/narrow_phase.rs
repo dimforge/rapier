@@ -4,7 +4,8 @@ use rayon::prelude::*;
 use crate::data::graph::EdgeIndex;
 use crate::data::Coarena;
 use crate::dynamics::{
-    CoefficientCombineRule, IslandManager, RigidBodyDominance, RigidBodySet, RigidBodyType,
+    CoefficientCombineRule, ImpulseJointSet, IslandManager, RigidBodyDominance, RigidBodySet,
+    RigidBodyType,
 };
 use crate::geometry::{
     BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle, ColliderPair,
@@ -16,7 +17,7 @@ use crate::pipeline::{
     ActiveEvents, ActiveHooks, ContactModificationContext, EventHandler, PairFilterContext,
     PhysicsHooks,
 };
-use crate::prelude::CollisionEventFlags;
+use crate::prelude::{CollisionEventFlags, MultibodyJointSet};
 use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
 use parry::utils::IsometryOpt;
 use std::collections::HashMap;
@@ -774,6 +775,8 @@ impl NarrowPhase {
         prediction_distance: Real,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
+        impulse_joints: &ImpulseJointSet,
+        multibody_joints: &MultibodyJointSet,
         modified_colliders: &[ColliderHandle],
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
@@ -810,6 +813,27 @@ impl NarrowPhase {
 
                 if let Some(co_parent2) = &co2.parent {
                     rb_type2 = bodies[co_parent2.handle].body_type;
+                }
+
+                // Deal with contacts disabled between bodies attached by joints.
+                if let (Some(co_parent1), Some(co_parent2)) = (&co1.parent, &co2.parent) {
+                    for (_, joint) in
+                        impulse_joints.joints_between(co_parent1.handle, co_parent2.handle)
+                    {
+                        if !joint.data.contacts_enabled {
+                            pair.clear();
+                            break 'emit_events;
+                        }
+                    }
+
+                    if let Some((_, _, mb_link)) =
+                        multibody_joints.joint_between(co_parent1.handle, co_parent2.handle)
+                    {
+                        if !mb_link.joint.data.contacts_enabled {
+                            pair.clear();
+                            break 'emit_events;
+                        }
+                    }
                 }
 
                 // Filter based on the rigid-body types.

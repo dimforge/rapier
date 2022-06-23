@@ -321,6 +321,41 @@ impl MultibodyJointSet {
         ))
     }
 
+    /// Returns the the joint between two rigid-bodies (if it exists).
+    pub fn joint_between(
+        &self,
+        rb1: RigidBodyHandle,
+        rb2: RigidBodyHandle,
+    ) -> Option<(MultibodyJointHandle, &Multibody, &MultibodyLink)> {
+        let id1 = self.rb2mb.get(rb1.0)?;
+        let id2 = self.rb2mb.get(rb2.0)?;
+
+        // Both bodies must be part of the same multibody.
+        if id1.multibody != id2.multibody {
+            return None;
+        }
+
+        let mb = self.multibodies.get(id1.multibody.0)?;
+
+        // NOTE: if there is a joint between these two bodies, then
+        //       one of the bodies must be the parent of the other.
+        let link1 = mb.link(id1.id)?;
+        let parent1 = link1.parent_id()?;
+
+        if parent1 == id2.id {
+            Some((MultibodyJointHandle(rb1.0), mb, &link1))
+        } else {
+            let link2 = mb.link(id2.id)?;
+            let parent2 = link2.parent_id()?;
+
+            if parent2 == id1.id {
+                Some((MultibodyJointHandle(rb2.0), mb, &link2))
+            } else {
+                None
+            }
+        }
+    }
+
     /// Iterates through all the joints attached to the given rigid-body.
     pub fn attached_joints(
         &self,
