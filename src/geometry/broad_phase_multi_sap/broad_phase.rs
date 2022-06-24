@@ -8,7 +8,7 @@ use crate::geometry::{
 };
 use crate::math::Real;
 use crate::utils::IndexMut2;
-use parry::bounding_volume::{BoundingVolume, AABB};
+use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::HashMap;
 
 /// A broad-phase combining a Hierarchical Grid and Sweep-and-Prune.
