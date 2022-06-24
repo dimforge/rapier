@@ -352,8 +352,16 @@ impl BroadPhase {
             .compute_aabb(co_pos)
             .loosened(prediction_distance / 2.0);
 
+        if aabb.mins.coords.iter().any(|e| !e.is_finite())
+            || aabb.maxs.coords.iter().any(|e| !e.is_finite())
+        {
+            // Reject AABBs with non-finite values.
+            return false;
+        }
+
         aabb.mins = super::clamp_point(aabb.mins);
         aabb.maxs = super::clamp_point(aabb.maxs);
+
         let prev_aabb;
 
         let layer_id = if let Some(proxy) = self.proxies.get_mut(*proxy_index) {
