@@ -371,6 +371,16 @@ impl PhysicsPipeline {
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
+        // Apply some of delayed wake-ups.
+        for handle in impulse_joints
+            .to_wake_up
+            .drain(..)
+            .chain(multibody_joints.to_wake_up.drain(..))
+        {
+            islands.wake_up(bodies, handle, true);
+        }
+
+        // Apply modifications.
         let modified_bodies = bodies.take_modified();
         let mut modified_colliders = colliders.take_modified();
         let mut removed_colliders = colliders.take_removed();
