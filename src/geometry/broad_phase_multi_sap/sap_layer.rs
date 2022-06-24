@@ -240,6 +240,13 @@ impl SAPLayer {
                     let region_proxy = &mut proxies[region_id];
                     let region = region_proxy.data.as_region_mut();
 
+                    // NOTE: sometimes, rounding errors will generate start/end indices
+                    //       that lie outside of the actual region’s AABB.
+                    // TODO: is there a smarter, more efficient way of dealing with this?
+                    if !region_proxy.aabb.intersects(aabb_to_discretize) {
+                        continue;
+                    }
+
                     if let Some(actual_aabb) = actual_aabb {
                         // NOTE: if the actual AABB doesn't intersect the
                         //       region’s AABB, then we need to delete the
