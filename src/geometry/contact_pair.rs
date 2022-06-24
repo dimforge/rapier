@@ -141,6 +141,36 @@ impl ContactPair {
         self.workspace = None;
     }
 
+    /// The sum of all the impulses applied by contacts on this contact pair.
+    pub fn total_impulse(&self) -> Vector<Real> {
+        self.manifolds
+            .iter()
+            .map(|m| m.total_impulse() * m.data.normal)
+            .sum()
+    }
+
+    /// The sum of the magnitudes of the contacts on this contact pair.
+    pub fn total_impulse_magnitude(&self) -> Real {
+        self.manifolds
+            .iter()
+            .fold(0.0, |a, m| a + m.total_impulse())
+    }
+
+    /// The magnitude and (unit) direction of the maximum impulse on this contact pair.
+    pub fn max_impulse(&self) -> (Real, Vector<Real>) {
+        let mut result = (0.0, Vector::zeros());
+
+        for m in &self.manifolds {
+            let impulse = m.total_impulse();
+
+            if impulse > result.0 {
+                result = (impulse, m.data.normal);
+            }
+        }
+
+        result
+    }
+
     /// Finds the contact with the smallest signed distance.
     ///
     /// If the colliders involved in this contact pair are penetrating, then
@@ -314,5 +344,20 @@ impl ContactManifoldData {
     #[inline]
     pub fn num_active_contacts(&self) -> usize {
         self.solver_contacts.len()
+    }
+}
+
+pub trait ContactManifoldExt {
+    fn total_impulse(&self) -> Real;
+    fn max_impulse(&self) -> Real;
+}
+
+impl ContactManifoldExt for ContactManifold {
+    fn total_impulse(&self) -> Real {
+        self.points.iter().map(|pt| pt.data.impulse).sum()
+    }
+
+    fn max_impulse(&self) -> Real {
+        self.points.iter().fold(0.0, |a, pt| a.max(pt.data.impulse))
     }
 }
