@@ -6,8 +6,8 @@ bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     /// Flags affecting the events generated for this collider.
     pub struct ActiveEvents: u32 {
-        /// If set, Rapier will call `EventHandler::handle_intersection_event` and
-        /// `EventHandler::handle_contact_event` whenever relevant for this collider.
+        /// If set, Rapier will call `EventHandler::handle_contact_event`
+        /// whenever relevant for this collider.
         const COLLISION_EVENTS = 0b0001;
     }
 }
