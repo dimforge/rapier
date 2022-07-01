@@ -14,7 +14,7 @@ use crate::geometry::{
     ContactManifoldIndex, NarrowPhase, TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
-use crate::pipeline::{ActiveEvents, EventHandler, PhysicsHooks};
+use crate::pipeline::{EventHandler, PhysicsHooks};
 use {crate::dynamics::RigidBodySet, crate::geometry::ColliderSet};
 
 /// The physics pipeline, responsible for stepping the whole physics simulation.

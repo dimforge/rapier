@@ -347,8 +347,11 @@ impl ContactManifoldData {
     }
 }
 
+/// Additional methods for the contact manifold.
 pub trait ContactManifoldExt {
+    /// Computes the sum of all the impulses applied by contacts from this contact manifold.
     fn total_impulse(&self) -> Real;
+    /// Computes the maximum impulse applied by contacts from this contact manifold.
     fn max_impulse(&self) -> Real;
 }
 
