@@ -121,7 +121,7 @@ impl CollisionEvent {
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
 /// Event occurring when the sum of the magnitudes of the contact forces
 /// between two colliders exceed a threshold.
-pub struct CollisionForceEvent {
+pub struct ContactForceEvent {
     /// The first collider involved in the contact.
     pub collider1: ColliderHandle,
     /// The second collider involved in the contact.
