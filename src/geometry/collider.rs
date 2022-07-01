@@ -26,6 +26,7 @@ pub struct Collider {
     pub(crate) material: ColliderMaterial,
     pub(crate) flags: ColliderFlags,
     pub(crate) bf_data: ColliderBroadPhaseData,
+    pub(crate) contact_force_event_threshold: Real,
     /// User-defined data associated to this collider.
     pub user_data: u128,
 }
@@ -122,6 +123,11 @@ impl Collider {
     /// is in contact with.
     pub fn set_restitution_combine_rule(&mut self, rule: CoefficientCombineRule) {
         self.material.restitution_combine_rule = rule;
+    }
+
+    /// Sets the total force magnitude beyond which a contact force event can be emitted.
+    pub fn set_contact_force_event_threshold(&mut self, threshold: Real) {
+        self.contact_force_event_threshold = threshold;
     }
 
     /// Sets whether or not this is a sensor collider.
@@ -283,6 +289,11 @@ impl Collider {
             ColliderMassProps::MassProperties(mass_properties) => **mass_properties,
         }
     }
+
+    /// The total force magnitude beyond which a contact force event can be emitted.
+    pub fn contact_force_event_threshold(&self) -> Real {
+        self.contact_force_event_threshold
+    }
 }
 
 /// A structure responsible for building a new collider.
@@ -321,6 +332,8 @@ pub struct ColliderBuilder {
     pub collision_groups: InteractionGroups,
     /// The solver groups for the collider being built.
     pub solver_groups: InteractionGroups,
+    /// The total force magnitude beyond which a contact force event can be emitted.
+    pub contact_force_event_threshold: Real,
 }
 
 impl ColliderBuilder {
@@ -342,6 +355,7 @@ impl ColliderBuilder {
             active_collision_types: ActiveCollisionTypes::default(),
             active_hooks: ActiveHooks::empty(),
             active_events: ActiveEvents::empty(),
+            contact_force_event_threshold: Real::MAX,
         }
     }
 
@@ -681,6 +695,12 @@ impl ColliderBuilder {
         self
     }
 
+    /// Sets the total force magnitude beyond which a contact force event can be emitted.
+    pub fn contact_force_event_threshold(mut self, threshold: Real) -> Self {
+        self.contact_force_event_threshold = threshold;
+        self
+    }
+
     /// Sets the initial translation of the collider to be created.
     ///
     /// If the collider will be attached to a rigid-body, this sets the translation relative to the
@@ -725,34 +745,6 @@ impl ColliderBuilder {
 
     /// Builds a new collider attached to the given rigid-body.
     pub fn build(&self) -> Collider {
-        let (changes, pos, bf_data, shape, coll_type, material, flags, mprops) = self.components();
-        Collider {
-            shape,
-            mprops,
-            material,
-            parent: None,
-            changes,
-            pos,
-            bf_data,
-            flags,
-            coll_type,
-            user_data: self.user_data,
-        }
-    }
-
-    /// Builds all the components required by a collider.
-    pub fn components(
-        &self,
-    ) -> (
-        ColliderChanges,
-        ColliderPosition,
-        ColliderBroadPhaseData,
-        ColliderShape,
-        ColliderType,
-        ColliderMaterial,
-        ColliderFlags,
-        ColliderMassProps,
-    ) {
         let mass_info = if let Some(mp) = self.mass_properties {
             ColliderMassProps::MassProperties(Box::new(mp))
         } else {
@@ -785,9 +777,19 @@ impl ColliderBuilder {
             ColliderType::Solid
         };
 
-        (
-            changes, pos, bf_data, shape, coll_type, material, flags, mprops,
-        )
+        Collider {
+            shape,
+            mprops,
+            material,
+            parent: None,
+            changes,
+            pos,
+            bf_data,
+            flags,
+            coll_type,
+            contact_force_event_threshold: self.contact_force_event_threshold,
+            user_data: self.user_data,
+        }
     }
 }
 

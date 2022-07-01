@@ -72,7 +72,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, events, _| {
-        while let Ok(prox) = events.events.try_recv() {
+        while let Ok(prox) = events.collision_events.try_recv() {
             let color = if prox.started() {
                 [1.0, 1.0, 0.0]
             } else {

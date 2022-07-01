@@ -16,6 +16,8 @@ pub use self::collider_set::ColliderSet;
 
 pub use parry::query::TrackedContact;
 
+use crate::math::{Real, Vector};
+
 /// A contact between two colliders.
 pub type Contact = parry::query::TrackedContact<ContactData>;
 /// A contact manifold between two colliders.
@@ -114,6 +116,28 @@ impl CollisionEvent {
             }
         }
     }
+}
+
+#[derive(Copy, Clone, PartialEq, Debug, Default)]
+/// Event occurring when the sum of the magnitudes of the contact forces
+/// between two colliders exceed a threshold.
+pub struct CollisionForceEvent {
+    /// The first collider involved in the contact.
+    pub collider1: ColliderHandle,
+    /// The second collider involved in the contact.
+    pub collider2: ColliderHandle,
+    /// The sum of all the forces between the two colliders.
+    pub total_force: Vector<Real>,
+    /// The sum of the magnitudes of each force between the two colliders.
+    ///
+    /// Note that this is **not** the same as the magnitude of `self.total_force`.
+    /// Here we are summing the magnitude of all the forces, instead of taking
+    /// the magnitude of their sum.
+    pub total_force_magnitude: Real,
+    /// The world-space (unit) direction of the force with strongest magnitude.
+    pub max_force_direction: Vector<Real>,
+    /// The magnitude of the largest force at a contact point of this contact pair.
+    pub max_force_magnitude: Real,
 }
 
 pub(crate) use self::broad_phase_multi_sap::SAPProxyIndex;

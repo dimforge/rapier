@@ -11,7 +11,7 @@ use crate::dynamics::{
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
-    ContactManifoldIndex, NarrowPhase,
+    ContactManifoldIndex, NarrowPhase, TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{EventHandler, PhysicsHooks};
@@ -31,6 +31,7 @@ use {crate::dynamics::RigidBodySet, crate::geometry::ColliderSet};
 pub struct PhysicsPipeline {
     /// Counters used for benchmarking only.
     pub counters: Counters,
+    contact_pair_indices: Vec<TemporaryInteractionIndex>,
     manifold_indices: Vec<Vec<ContactManifoldIndex>>,
     joint_constraint_indices: Vec<Vec<ContactManifoldIndex>>,
     broadphase_collider_pairs: Vec<ColliderPair>,
@@ -55,11 +56,12 @@ impl PhysicsPipeline {
     pub fn new() -> PhysicsPipeline {
         PhysicsPipeline {
             counters: Counters::new(true),
-            solvers: Vec::new(),
-            manifold_indices: Vec::new(),
-            joint_constraint_indices: Vec::new(),
-            broadphase_collider_pairs: Vec::new(),
-            broad_phase_events: Vec::new(),
+            solvers: vec![],
+            contact_pair_indices: vec![],
+            manifold_indices: vec![],
+            joint_constraint_indices: vec![],
+            broadphase_collider_pairs: vec![],
+            broad_phase_events: vec![],
         }
     }
 
@@ -148,6 +150,7 @@ impl PhysicsPipeline {
         colliders: &mut ColliderSet,
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
+        events: &dyn EventHandler,
     ) {
         self.counters.stages.island_construction_time.resume();
         islands.update_active_set_with_contacts(
@@ -175,6 +178,7 @@ impl PhysicsPipeline {
         narrow_phase.select_active_contacts(
             islands,
             bodies,
+            &mut self.contact_pair_indices,
             &mut manifolds,
             &mut self.manifold_indices,
         );
@@ -275,6 +279,34 @@ impl PhysicsPipeline {
                     });
             });
         }
+
+        // Generate contact force events if needed.
+        let inv_dt = crate::utils::inv(integration_parameters.dt);
+        for pair_id in self.contact_pair_indices.drain(..) {
+            let pair = narrow_phase.contact_pair_at_index(pair_id);
+            let co1 = &colliders[pair.collider1];
+            let co2 = &colliders[pair.collider2];
+            let threshold = co1
+                .contact_force_event_threshold
+                .min(co2.contact_force_event_threshold);
+
+            if threshold < Real::MAX {
+                let total_magnitude = pair.total_impulse_magnitude() * inv_dt;
+
+                // NOTE: the strict inequality is important here, so we don’t
+                //       trigger an event if the force is 0.0 and the threshold is 0.0.
+                if total_magnitude > threshold {
+                    events.handle_contact_force_event(
+                        integration_parameters.dt,
+                        bodies,
+                        colliders,
+                        pair,
+                        total_magnitude,
+                    );
+                }
+            }
+        }
+
         self.counters.stages.solver_time.pause();
     }
 
@@ -371,6 +403,16 @@ impl PhysicsPipeline {
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
+        // Apply some of delayed wake-ups.
+        for handle in impulse_joints
+            .to_wake_up
+            .drain(..)
+            .chain(multibody_joints.to_wake_up.drain(..))
+        {
+            islands.wake_up(bodies, handle, true);
+        }
+
+        // Apply modifications.
         let modified_bodies = bodies.take_modified();
         let mut modified_colliders = colliders.take_modified();
         let mut removed_colliders = colliders.take_removed();
@@ -497,6 +539,7 @@ impl PhysicsPipeline {
                 colliders,
                 impulse_joints,
                 multibody_joints,
+                events,
             );
 
             // If CCD is enabled, execute the CCD motion clamping.
