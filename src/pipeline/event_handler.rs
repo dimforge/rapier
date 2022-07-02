@@ -1,5 +1,5 @@
 use crate::dynamics::RigidBodySet;
-use crate::geometry::{ColliderSet, CollisionEvent, CollisionForceEvent, ContactPair};
+use crate::geometry::{ColliderSet, CollisionEvent, ContactForceEvent, ContactPair};
 use crate::math::Real;
 use crossbeam::channel::Sender;
 
@@ -89,14 +89,14 @@ impl EventHandler for () {
 /// A collision event handler that collects events into a crossbeam channel.
 pub struct ChannelEventCollector {
     collision_event_sender: Sender<CollisionEvent>,
-    contact_force_event_sender: Sender<CollisionForceEvent>,
+    contact_force_event_sender: Sender<ContactForceEvent>,
 }
 
 impl ChannelEventCollector {
     /// Initialize a new collision event handler from crossbeam channel senders.
     pub fn new(
         collision_event_sender: Sender<CollisionEvent>,
-        contact_force_event_sender: Sender<CollisionForceEvent>,
+        contact_force_event_sender: Sender<ContactForceEvent>,
     ) -> Self {
         Self {
             collision_event_sender,
@@ -124,11 +124,11 @@ impl EventHandler for ChannelEventCollector {
         contact_pair: &ContactPair,
         total_force_magnitude: Real,
     ) {
-        let mut result = CollisionForceEvent {
+        let mut result = ContactForceEvent {
             collider1: contact_pair.collider1,
             collider2: contact_pair.collider2,
             total_force_magnitude,
-            ..CollisionForceEvent::default()
+            ..ContactForceEvent::default()
         };
 
         for m in &contact_pair.manifolds {
