@@ -189,6 +189,13 @@ impl<N, E> Graph<N, E> {
         self.nodes.get(a.index()).map(|n| &n.weight)
     }
 
+    /// Access the weight for node `a` mutably.
+    ///
+    /// Also available with indexing syntax: `&mut graph[a]`.
+    pub fn node_weight_mut(&mut self, a: NodeIndex) -> Option<&mut N> {
+        self.nodes.get_mut(a.index()).map(|n| &mut n.weight)
+    }
+
     /// Access the weight for edge `a`.
     ///
     /// Also available with indexing syntax: `&graph[a]`.
