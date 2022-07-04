@@ -14,10 +14,10 @@ use rapier::dynamics::{
     RigidBodyHandle, RigidBodySet,
 };
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
-#[cfg(feature = "dim3")]
-use rapier::geometry::{InteractionGroups, Ray};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::PhysicsHooks;
+#[cfg(feature = "dim3")]
+use rapier::{geometry::Ray, pipeline::QueryFilter};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
@@ -1307,23 +1307,21 @@ fn highlight_hovered_body(
 
         let ray = Ray::new(ray_origin, ray_dir);
         let hit = physics.query_pipeline.cast_ray(
+            &physics.bodies,
             &physics.colliders,
             &ray,
             Real::MAX,
             true,
-            InteractionGroups::all(),
-            None,
+            QueryFilter::only_dynamic(),
         );
 
         if let Some((handle, _)) = hit {
             let collider = &physics.colliders[handle];
 
             if let Some(parent_handle) = collider.parent() {
-                if physics.bodies[parent_handle].is_dynamic() {
-                    testbed_state.highlighted_body = Some(parent_handle);
-                    for node in graphics_manager.body_nodes_mut(parent_handle).unwrap() {
-                        node.select(materials)
-                    }
+                testbed_state.highlighted_body = Some(parent_handle);
+                for node in graphics_manager.body_nodes_mut(parent_handle).unwrap() {
+                    node.select(materials)
                 }
             }
         }
