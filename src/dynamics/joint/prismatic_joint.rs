@@ -9,7 +9,8 @@ use super::{JointLimits, JointMotor};
 #[repr(transparent)]
 /// A prismatic joint, locks all relative motion between two bodies except for translation along the joint’s principal axis.
 pub struct PrismaticJoint {
-    data: GenericJoint,
+    /// The underlying joint data.
+    pub data: GenericJoint,
 }
 
 impl PrismaticJoint {
@@ -27,6 +28,17 @@ impl PrismaticJoint {
     /// The underlying generic joint.
     pub fn data(&self) -> &GenericJoint {
         &self.data
+    }
+
+    /// Are contacts between the attached rigid-bodies enabled?
+    pub fn contacts_enabled(&self) -> bool {
+        self.data.contacts_enabled
+    }
+
+    /// Sets whether contacts between the attached rigid-bodies are enabled.
+    pub fn set_contacts_enabled(&mut self, enabled: bool) -> &mut Self {
+        self.data.set_contacts_enabled(enabled);
+        self
     }
 
     /// The joint’s anchor, expressed in the local-space of the first rigid-body.
@@ -149,8 +161,9 @@ impl Into<GenericJoint> for PrismaticJoint {
 /// Create prismatic joints using the builder pattern.
 ///
 /// A prismatic joint locks all relative motion except for translations along the joint’s principal axis.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct PrismaticJointBuilder(PrismaticJoint);
+pub struct PrismaticJointBuilder(pub PrismaticJoint);
 
 impl PrismaticJointBuilder {
     /// Creates a new builder for prismatic joints.
@@ -158,6 +171,13 @@ impl PrismaticJointBuilder {
     /// This axis is expressed in the local-space of both rigid-bodies.
     pub fn new(axis: UnitVector<Real>) -> Self {
         Self(PrismaticJoint::new(axis))
+    }
+
+    /// Sets whether contacts between the attached rigid-bodies are enabled.
+    #[must_use]
+    pub fn contacts_enabled(mut self, enabled: bool) -> Self {
+        self.0.set_contacts_enabled(enabled);
+        self
     }
 
     /// Sets the joint’s anchor, expressed in the local-space of the first rigid-body.

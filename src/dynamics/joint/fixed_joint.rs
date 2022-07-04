@@ -6,7 +6,8 @@ use crate::math::{Isometry, Point, Real};
 #[repr(transparent)]
 /// A fixed joint, locks all relative motion between two bodies.
 pub struct FixedJoint {
-    data: GenericJoint,
+    /// The underlying joint data.
+    pub data: GenericJoint,
 }
 
 impl Default for FixedJoint {
@@ -21,6 +22,17 @@ impl FixedJoint {
     pub fn new() -> Self {
         let data = GenericJointBuilder::new(JointAxesMask::LOCKED_FIXED_AXES).build();
         Self { data }
+    }
+
+    /// Are contacts between the attached rigid-bodies enabled?
+    pub fn contacts_enabled(&self) -> bool {
+        self.data.contacts_enabled
+    }
+
+    /// Sets whether contacts between the attached rigid-bodies are enabled.
+    pub fn set_contacts_enabled(&mut self, enabled: bool) -> &mut Self {
+        self.data.set_contacts_enabled(enabled);
+        self
     }
 
     /// The joint’s frame, expressed in the first rigid-body’s local-space.
@@ -81,12 +93,19 @@ impl Into<GenericJoint> for FixedJoint {
 /// Create fixed joints using the builder pattern.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
-pub struct FixedJointBuilder(FixedJoint);
+pub struct FixedJointBuilder(pub FixedJoint);
 
 impl FixedJointBuilder {
     /// Creates a new builder for fixed joints.
     pub fn new() -> Self {
         Self(FixedJoint::new())
+    }
+
+    /// Sets whether contacts between the attached rigid-bodies are enabled.
+    #[must_use]
+    pub fn contacts_enabled(mut self, enabled: bool) -> Self {
+        self.0.set_contacts_enabled(enabled);
+        self
     }
 
     /// Sets the joint’s frame, expressed in the first rigid-body’s local-space.

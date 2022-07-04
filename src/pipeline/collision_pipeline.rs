@@ -1,5 +1,6 @@
 //! Physics pipeline structures.
 
+use crate::dynamics::{ImpulseJointSet, MultibodyJointSet};
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair, NarrowPhase,
 };
@@ -81,6 +82,8 @@ impl CollisionPipeline {
             prediction_distance,
             bodies,
             colliders,
+            &ImpulseJointSet::new(),
+            &MultibodyJointSet::new(),
             modified_colliders,
             hooks,
             events,

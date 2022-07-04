@@ -10,7 +10,8 @@ use crate::math::UnitVector;
 #[repr(transparent)]
 /// A revolute joint, locks all relative motion except for rotation along the joint’s principal axis.
 pub struct RevoluteJoint {
-    data: GenericJoint,
+    /// The underlying joint data.
+    pub data: GenericJoint,
 }
 
 impl RevoluteJoint {
@@ -36,6 +37,17 @@ impl RevoluteJoint {
     /// The underlying generic joint.
     pub fn data(&self) -> &GenericJoint {
         &self.data
+    }
+
+    /// Are contacts between the attached rigid-bodies enabled?
+    pub fn contacts_enabled(&self) -> bool {
+        self.data.contacts_enabled
+    }
+
+    /// Sets whether contacts between the attached rigid-bodies are enabled.
+    pub fn set_contacts_enabled(&mut self, enabled: bool) -> &mut Self {
+        self.data.set_contacts_enabled(enabled);
+        self
     }
 
     /// The joint’s anchor, expressed in the local-space of the first rigid-body.
@@ -136,7 +148,7 @@ impl Into<GenericJoint> for RevoluteJoint {
 /// A revolute joint locks all relative motion except for rotations along the joint’s principal axis.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct RevoluteJointBuilder(RevoluteJoint);
+pub struct RevoluteJointBuilder(pub RevoluteJoint);
 
 impl RevoluteJointBuilder {
     /// Creates a new revolute joint builder.
@@ -151,6 +163,13 @@ impl RevoluteJointBuilder {
     #[cfg(feature = "dim3")]
     pub fn new(axis: UnitVector<Real>) -> Self {
         Self(RevoluteJoint::new(axis))
+    }
+
+    /// Sets whether contacts between the attached rigid-bodies are enabled.
+    #[must_use]
+    pub fn contacts_enabled(mut self, enabled: bool) -> Self {
+        self.0.set_contacts_enabled(enabled);
+        self
     }
 
     /// Sets the joint’s anchor, expressed in the local-space of the first rigid-body.
