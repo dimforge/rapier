@@ -122,7 +122,8 @@ impl<'a> QueryFilter<'a> {
     #[inline]
     pub fn test(&self, bodies: &RigidBodySet, handle: ColliderHandle, collider: &Collider) -> bool {
         self.exclude_collider != Some(handle)
-            && self.exclude_rigid_body != collider.parent.map(|p| p.handle)
+            && (self.exclude_rigid_body.is_none() // NOTE: deal with the `None` case separately otherwise the next test is incorrect if the collider’s parent is `None` too.
+                || self.exclude_rigid_body != collider.parent.map(|p| p.handle))
             && self
                 .groups
                 .map(|grps| collider.flags.collision_groups.test(grps))
@@ -466,11 +467,7 @@ impl QueryPipeline {
     /// * `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
     ///            it starts inside of a shape. If this `false` then the ray will hit the shape's boundary
     ///            even if its starts inside of it.
-    /// * `query_groups`: the interaction groups which will be tested against the collider's `contact_group`
-    ///                   to determine if it should be taken into account by this query.
-    /// * `filter`: a more fine-grained filter. A collider is taken into account by this query if
-    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
-    ///             is either `None` or returns `true`.
+    /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     pub fn cast_ray(
         &self,
         bodies: &RigidBodySet,
@@ -497,11 +494,7 @@ impl QueryPipeline {
     /// * `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
     ///            it starts inside of a shape. If this `false` then the ray will hit the shape's boundary
     ///            even if its starts inside of it.
-    /// * `query_groups`: the interaction groups which will be tested against the collider's `contact_group`
-    ///                   to determine if it should be taken into account by this query.
-    /// * `filter`: a more fine-grained filter. A collider is taken into account by this query if
-    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
-    ///             is either `None` or returns `true`.
+    /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     pub fn cast_ray_and_get_normal(
         &self,
         bodies: &RigidBodySet,
@@ -532,11 +525,7 @@ impl QueryPipeline {
     /// * `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
     ///            it starts inside of a shape. If this `false` then the ray will hit the shape's boundary
     ///            even if its starts inside of it.
-    /// * `query_groups`: the interaction groups which will be tested against the collider's `contact_group`
-    ///                   to determine if it should be taken into account by this query.
-    /// * `filter`: a more fine-grained filter. A collider is taken into account by this query if
-    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
-    ///             is either `None` or returns `true`.
+    /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     /// * `callback`: function executed on each collider for which a ray intersection has been found.
     ///               There is no guarantees on the order the results will be yielded. If this callback returns `false`,
     ///               this method will exit early, ignore any further raycast.
@@ -575,11 +564,7 @@ impl QueryPipeline {
     /// * `colliders` - The set of colliders taking part in this pipeline.
     /// * `shape_pos` - The position of the shape used for the intersection test.
     /// * `shape` - The shape used for the intersection test.
-    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
-    ///                   to determine if it should be taken into account by this query.
-    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
-    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
-    ///             is either `None` or returns `true`.
+    /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     pub fn intersection_with_shape(
         &self,
         bodies: &RigidBodySet,
@@ -611,11 +596,7 @@ impl QueryPipeline {
     ///   itself). If it is set to `false` the collider shapes are considered to be hollow
     ///   (if the point is located inside of an hollow shape, it is projected on the shape's
     ///   boundary).
-    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
-    ///                   to determine if it should be taken into account by this query.
-    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
-    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
-    ///             is either `None` or returns `true`.
+    /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     pub fn project_point(
         &self,
         bodies: &RigidBodySet,
@@ -638,11 +619,7 @@ impl QueryPipeline {
     /// # Parameters
     /// * `colliders` - The set of colliders taking part in this pipeline.
     /// * `point` - The point used for the containment test.
-    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
-    ///                   to determine if it should be taken into account by this query.
-    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
-    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
-    ///             is either `None` or returns `true`.
+    /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     /// * `callback` - A function called with each collider with a shape
     ///                containing the `point`.
     pub fn intersections_with_point(
@@ -680,11 +657,7 @@ impl QueryPipeline {
     ///   itself). If it is set to `false` the collider shapes are considered to be hollow
     ///   (if the point is located inside of an hollow shape, it is projected on the shape's
     ///   boundary).
-    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
-    ///                   to determine if it should be taken into account by this query.
-    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
-    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
-    ///             is either `None` or returns `true`.
+    /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     pub fn project_point_and_get_feature(
         &self,
         bodies: &RigidBodySet,
@@ -723,11 +696,7 @@ impl QueryPipeline {
     /// * `shape` - The shape to cast.
     /// * `max_toi` - The maximum time-of-impact that can be reported by this cast. This effectively
     ///   limits the distance traveled by the shape to `shapeVel.norm() * maxToi`.
-    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
-    ///                   to determine if it should be taken into account by this query.
-    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
-    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
-    ///             is either `None` or returns `true`.
+    /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     pub fn cast_shape<'a>(
         &self,
         bodies: &RigidBodySet,
@@ -768,11 +737,7 @@ impl QueryPipeline {
     ///    would result in tunnelling. If it does not (i.e. we have a separating velocity along
     ///    that normal) then the nonlinear shape-casting will attempt to find another impact,
     ///    at a time `> start_time` that could result in tunnelling.
-    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
-    ///                   to determine if it should be taken into account by this query.
-    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
-    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
-    ///             is either `None` or returns `true`.
+    /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     pub fn nonlinear_cast_shape(
         &self,
         bodies: &RigidBodySet,
@@ -806,11 +771,7 @@ impl QueryPipeline {
     /// * `shapePos` - The position of the shape to test.
     /// * `shapeRot` - The orientation of the shape to test.
     /// * `shape` - The shape to test.
-    /// * `query_groups` - the interaction groups which will be tested against the collider's `contact_group`
-    ///                   to determine if it should be taken into account by this query.
-    /// * `filter` - a more fine-grained filter. A collider is taken into account by this query if
-    ///             its `contact_group` is compatible with the `query_groups`, and if this `filter`
-    ///             is either `None` or returns `true`.
+    /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     /// * `callback` - A function called with the handles of each collider intersecting the `shape`.
     pub fn intersections_with_shape<'a>(
         &self,
