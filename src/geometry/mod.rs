@@ -170,7 +170,6 @@ impl ContactForceEvent {
         //       because it’s an input of this function already
         //       assumed to be a force instead of an impulse.
         result.total_force *= inv_dt;
-        result.max_force_direction *= inv_dt;
         result.max_force_magnitude *= inv_dt;
         result
     }
