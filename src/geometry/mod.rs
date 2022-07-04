@@ -140,6 +140,42 @@ pub struct ContactForceEvent {
     pub max_force_magnitude: Real,
 }
 
+impl ContactForceEvent {
+    /// Init a contact force event from a contact pair.
+    pub fn from_contact_pair(dt: Real, pair: &ContactPair, total_force_magnitude: Real) -> Self {
+        let mut result = ContactForceEvent {
+            collider1: pair.collider1,
+            collider2: pair.collider2,
+            total_force_magnitude,
+            ..ContactForceEvent::default()
+        };
+
+        for m in &pair.manifolds {
+            let mut total_manifold_impulse = 0.0;
+            for pt in m.contacts() {
+                total_manifold_impulse += pt.data.impulse;
+
+                if pt.data.impulse > result.max_force_magnitude {
+                    result.max_force_magnitude = pt.data.impulse;
+                    result.max_force_direction = m.data.normal;
+                }
+            }
+
+            result.total_force += m.data.normal * total_manifold_impulse;
+        }
+
+        let inv_dt = crate::utils::inv(dt);
+        // NOTE: convert impulses to forces. Note that we
+        //       don’t need to convert the `total_force_magnitude`
+        //       because it’s an input of this function already
+        //       assumed to be a force instead of an impulse.
+        result.total_force *= inv_dt;
+        result.max_force_direction *= inv_dt;
+        result.max_force_magnitude *= inv_dt;
+        result
+    }
+}
+
 pub(crate) use self::broad_phase_multi_sap::SAPProxyIndex;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
 pub(crate) use parry::partitioning::QBVH;

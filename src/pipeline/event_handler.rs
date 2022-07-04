@@ -124,36 +124,7 @@ impl EventHandler for ChannelEventCollector {
         contact_pair: &ContactPair,
         total_force_magnitude: Real,
     ) {
-        let mut result = ContactForceEvent {
-            collider1: contact_pair.collider1,
-            collider2: contact_pair.collider2,
-            total_force_magnitude,
-            ..ContactForceEvent::default()
-        };
-
-        for m in &contact_pair.manifolds {
-            let mut total_manifold_impulse = 0.0;
-            for pt in m.contacts() {
-                total_manifold_impulse += pt.data.impulse;
-
-                if pt.data.impulse > result.max_force_magnitude {
-                    result.max_force_magnitude = pt.data.impulse;
-                    result.max_force_direction = m.data.normal;
-                }
-            }
-
-            result.total_force += m.data.normal * total_manifold_impulse;
-        }
-
-        let inv_dt = crate::utils::inv(dt);
-        // NOTE: convert impulses to forces. Note that we
-        //       don’t need to convert the `total_force_magnitude`
-        //       because it’s an input of this function already
-        //       assumed to be a force instead of an impulse.
-        result.total_force *= inv_dt;
-        result.max_force_direction *= inv_dt;
-        result.max_force_magnitude *= inv_dt;
-
+        let result = ContactForceEvent::from_contact_pair(dt, contact_pair, total_force_magnitude);
         let _ = self.contact_force_event_sender.send(result);
     }
 }

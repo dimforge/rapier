@@ -278,17 +278,6 @@ impl GenericJoint {
         self
     }
 
-    /// Are contacts between the attached rigid-bodies enabled?
-    pub fn contacts_enabled(&self) -> bool {
-        self.contacts_enabled
-    }
-
-    /// Sets whether contacts between the attached rigid-bodies are enabled.
-    pub fn set_contacts_enabled(&mut self, enabled: bool) -> &mut Self {
-        self.contacts_enabled = enabled;
-        self
-    }
-
     /// The principal (local X) axis of this joint, expressed in the first rigid-body’s local-space.
     #[must_use]
     pub fn local_axis1(&self) -> UnitVector<Real> {
@@ -334,6 +323,17 @@ impl GenericJoint {
     /// Sets anchor of this joint, expressed in the second rigid-body’s local-space.
     pub fn set_local_anchor2(&mut self, anchor2: Point<Real>) -> &mut Self {
         self.local_frame2.translation.vector = anchor2.coords;
+        self
+    }
+
+    /// Are contacts between the attached rigid-bodies enabled?
+    pub fn contacts_enabled(&self) -> bool {
+        self.contacts_enabled
+    }
+
+    /// Sets whether contacts between the attached rigid-bodies are enabled.
+    pub fn set_contacts_enabled(&mut self, enabled: bool) -> &mut Self {
+        self.contacts_enabled = enabled;
         self
     }
 

@@ -103,16 +103,16 @@ impl QueryFilterFlags {
 /// A filter tha describes what collider should be included or excluded from a scene query.
 #[derive(Copy, Clone, Default)]
 pub struct QueryFilter<'a> {
-    /// Flags indicating what particular type of colliders should be exclude.
+    /// Flags indicating what particular type of colliders should be excluded from the scene query.
     pub flags: QueryFilterFlags,
     /// If set, only colliders with collision groups compatible with this one will
     /// be included in the scene query.
     pub groups: Option<InteractionGroups>,
-    /// If set, this collider will be excluded by the query.
+    /// If set, this collider will be excluded from the scene query.
     pub exclude_collider: Option<ColliderHandle>,
-    /// If set, any collider attached to this rigid-body will be exclude by the query.
+    /// If set, any collider attached to this rigid-body will be excluded from the scene query.
     pub exclude_rigid_body: Option<RigidBodyHandle>,
-    /// If set, any collider for which this closure returns false
+    /// If set, any collider for which this closure returns false will be excluded from the scene query.
     pub predicate: Option<&'a dyn Fn(ColliderHandle, &Collider) -> bool>,
 }
 
