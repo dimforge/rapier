@@ -407,6 +407,9 @@ impl PhysicsPipeline {
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
+        self.counters.reset();
+        self.counters.step_started();
+
         // Apply some of delayed wake-ups.
         for handle in impulse_joints
             .to_wake_up
@@ -417,18 +420,15 @@ impl PhysicsPipeline {
         }
 
         // Apply modifications.
-        let modified_bodies = bodies.take_modified();
         let mut modified_colliders = colliders.take_modified();
         let mut removed_colliders = colliders.take_removed();
-
-        self.counters.reset();
-        self.counters.step_started();
-
         super::user_changes::handle_user_changes_to_colliders(
             bodies,
             colliders,
             &modified_colliders[..],
         );
+
+        let modified_bodies = bodies.take_modified();
         super::user_changes::handle_user_changes_to_rigid_bodies(
             Some(islands),
             bodies,

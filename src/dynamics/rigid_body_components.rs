@@ -110,6 +110,8 @@ bitflags::bitflags! {
         const TYPE        = 1 << 4;
         /// Flag indicating that the `RigidBodyDominance` component of this rigid-body has been modified.
         const DOMINANCE   = 1 << 5;
+        /// Flag indicating that the local mass-properties of this rigid-body must be recomputed.
+        const LOCAL_MASS_PROPERTIES = 1 << 6;
     }
 }
 
@@ -222,7 +224,23 @@ bitflags::bitflags! {
     }
 }
 
-// TODO: split this into "LocalMassProps" and `WorldMassProps"?
+/// Mass and angular inertia added to a rigid-body on top of its attached colliders’ contributions.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum RigidBodyAdditionalMassProps {
+    /// Mass properties to be added as-is.
+    MassProps(MassProperties),
+    /// Mass to be added to the rigid-body. This will also automatically scale
+    /// the attached colliders total angular inertia to account for the added mass.
+    Mass(Real),
+}
+
+impl Default for RigidBodyAdditionalMassProps {
+    fn default() -> Self {
+        RigidBodyAdditionalMassProps::MassProps(MassProperties::default())
+    }
+}
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 /// The mass properties of this rigid-bodies.
@@ -232,7 +250,7 @@ pub struct RigidBodyMassProps {
     /// The local mass properties of the rigid-body.
     pub local_mprops: MassProperties,
     /// Mass-properties of this rigid-bodies, added to the contributions of its attached colliders.
-    pub additional_local_mprops: Option<Box<MassProperties>>,
+    pub additional_local_mprops: Option<Box<RigidBodyAdditionalMassProps>>,
     /// The world-space center of mass of the rigid-body.
     pub world_com: Point<Real>,
     /// The inverse mass taking into account translation locking.
@@ -294,18 +312,20 @@ impl RigidBodyMassProps {
         self.effective_world_inv_inertia_sqrt.squared().inverse()
     }
 
-    /// Recompute the mass-properties of this rigid-bodies based on its currentely attached colliders.
+    /// Recompute the mass-properties of this rigid-bodies based on its currently attached colliders.
     pub fn recompute_mass_properties_from_colliders(
         &mut self,
         colliders: &ColliderSet,
         attached_colliders: &RigidBodyColliders,
         position: &Isometry<Real>,
     ) {
-        self.local_mprops = self
+        let added_mprops = self
             .additional_local_mprops
             .as_ref()
             .map(|mprops| **mprops)
-            .unwrap_or_else(MassProperties::default);
+            .unwrap_or_else(|| RigidBodyAdditionalMassProps::MassProps(MassProperties::default()));
+
+        self.local_mprops = MassProperties::default();
 
         for handle in &attached_colliders.0 {
             if let Some(co) = colliders.get(*handle) {
@@ -316,6 +336,16 @@ impl RigidBodyMassProps {
                         .transform_by(&co_parent.pos_wrt_parent);
                     self.local_mprops += to_add;
                 }
+            }
+        }
+
+        match added_mprops {
+            RigidBodyAdditionalMassProps::MassProps(mprops) => {
+                self.local_mprops += mprops;
+            }
+            RigidBodyAdditionalMassProps::Mass(mass) => {
+                let new_mass = self.local_mprops.mass() + mass;
+                self.local_mprops.set_mass(new_mass, true);
             }
         }
 

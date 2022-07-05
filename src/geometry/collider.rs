@@ -241,7 +241,51 @@ impl Collider {
     pub fn density(&self) -> Option<Real> {
         match &self.mprops {
             ColliderMassProps::Density(density) => Some(*density),
+            ColliderMassProps::Mass(_) => None,
             ColliderMassProps::MassProperties(_) => None,
+        }
+    }
+
+    /// Sets the uniform density of this collider.
+    ///
+    /// This will override any previous mass-properties set by [`Self::set_density`],
+    /// [`Self::set_mass`], [`Self::set_mass_properties`], [`ColliderBuilder::density`],
+    /// [`ColliderBuilder::mass`], or [`ColliderBuilder::mass_properties`]
+    /// for this collider.
+    ///
+    /// The mass and angular inertia of this collider will be computed automatically based on its
+    /// shape.
+    pub fn set_density(&mut self, density: Real) {
+        self.do_set_mass_properties(ColliderMassProps::Density(density));
+    }
+
+    /// Sets the mass of this collider.
+    ///
+    /// This will override any previous mass-properties set by [`Self::set_density`],
+    /// [`Self::set_mass`], [`Self::set_mass_properties`], [`ColliderBuilder::density`],
+    /// [`ColliderBuilder::mass`], or [`ColliderBuilder::mass_properties`]
+    /// for this collider.
+    ///
+    /// The angular inertia of this collider will be computed automatically based on its shape
+    /// and this mass value.
+    pub fn set_mass(&mut self, mass: Real) {
+        self.do_set_mass_properties(ColliderMassProps::Mass(mass));
+    }
+
+    /// Sets the mass properties of this collider.
+    ///
+    /// This will override any previous mass-properties set by [`Self::set_density`],
+    /// [`Self::set_mass`], [`Self::set_mass_properties`], [`ColliderBuilder::density`],
+    /// [`ColliderBuilder::mass`], or [`ColliderBuilder::mass_properties`]
+    /// for this collider.
+    pub fn set_mass_properties(&mut self, mass_properties: MassProperties) {
+        self.do_set_mass_properties(ColliderMassProps::MassProperties(Box::new(mass_properties)))
+    }
+
+    fn do_set_mass_properties(&mut self, mprops: ColliderMassProps) {
+        if mprops != self.mprops {
+            self.changes |= ColliderChanges::LOCAL_MASS_PROPERTIES;
+            self.mprops = mprops;
         }
     }
 
@@ -284,10 +328,7 @@ impl Collider {
 
     /// Compute the local-space mass properties of this collider.
     pub fn mass_properties(&self) -> MassProperties {
-        match &self.mprops {
-            ColliderMassProps::Density(density) => self.shape.mass_properties(*density),
-            ColliderMassProps::MassProperties(mass_properties) => **mass_properties,
-        }
+        self.mprops.mass_properties(&*self.shape)
     }
 
     /// The total force magnitude beyond which a contact force event can be emitted.
@@ -303,11 +344,8 @@ impl Collider {
 pub struct ColliderBuilder {
     /// The shape of the collider to be built.
     pub shape: SharedShape,
-    /// The uniform density of the collider to be built.
-    pub density: Option<Real>,
-    /// Overrides automatic computation of `MassProperties`.
-    /// If None, it will be computed based on shape and density.
-    pub mass_properties: Option<MassProperties>,
+    /// Controls the way the collider’s mass-properties are computed.
+    pub mass_properties: ColliderMassProps,
     /// The friction coefficient of the collider to be built.
     pub friction: Real,
     /// The rule used to combine two friction coefficients.
@@ -341,8 +379,7 @@ impl ColliderBuilder {
     pub fn new(shape: SharedShape) -> Self {
         Self {
             shape,
-            density: None,
-            mass_properties: None,
+            mass_properties: ColliderMassProps::default(),
             friction: Self::default_friction(),
             restitution: 0.0,
             position: Isometry::identity(),
@@ -627,9 +664,6 @@ impl ColliderBuilder {
     }
 
     /// Sets whether or not the collider built by this builder is a sensor.
-    ///
-    /// Sensors will have a default density of zero,
-    /// but if you call [`Self::mass_properties`] you can assign a mass to a sensor.
     pub fn sensor(mut self, is_sensor: bool) -> Self {
         self.is_sensor = is_sensor;
         self
@@ -679,19 +713,34 @@ impl ColliderBuilder {
 
     /// Sets the uniform density of the collider this builder will build.
     ///
-    /// This will be overridden by a call to [`Self::mass_properties`] so it only makes sense to call
-    /// either [`Self::density`] or [`Self::mass_properties`].
+    /// This will be overridden by a call to [`Self::mass`] or [`Self::mass_properties`] so it only
+    /// makes sense to call either [`Self::density`] or [`Self::mass`] or [`Self::mass_properties`].
+    ///
+    /// The mass and angular inertia of this collider will be computed automatically based on its
+    /// shape.
     pub fn density(mut self, density: Real) -> Self {
-        self.density = Some(density);
+        self.mass_properties = ColliderMassProps::Density(density);
+        self
+    }
+
+    /// Sets the mass of the collider this builder will build.
+    ///
+    /// This will be overridden by a call to [`Self::density`] or [`Self::mass_properties`] so it only
+    /// makes sense to call either [`Self::density`] or [`Self::mass`] or [`Self::mass_properties`].
+    ///
+    /// The angular inertia of this collider will be computed automatically based on its shape
+    /// and this mass value.
+    pub fn mass(mut self, mass: Real) -> Self {
+        self.mass_properties = ColliderMassProps::Mass(mass);
         self
     }
 
     /// Sets the mass properties of the collider this builder will build.
     ///
-    /// If this is set, [`Self::density`] will be ignored, so it only makes sense to call
-    /// either [`Self::density`] or [`Self::mass_properties`].
+    /// This will be overridden by a call to [`Self::density`] or [`Self::mass`] so it only
+    /// makes sense to call either [`Self::density`] or [`Self::mass`] or [`Self::mass_properties`].
     pub fn mass_properties(mut self, mass_properties: MassProperties) -> Self {
-        self.mass_properties = Some(mass_properties);
+        self.mass_properties = ColliderMassProps::MassProperties(Box::new(mass_properties));
         self
     }
 
@@ -745,16 +794,7 @@ impl ColliderBuilder {
 
     /// Builds a new collider attached to the given rigid-body.
     pub fn build(&self) -> Collider {
-        let mass_info = if let Some(mp) = self.mass_properties {
-            ColliderMassProps::MassProperties(Box::new(mp))
-        } else {
-            let default_density = Self::default_density();
-            let density = self.density.unwrap_or(default_density);
-            ColliderMassProps::Density(density)
-        };
-
         let shape = self.shape.clone();
-        let mprops = mass_info;
         let material = ColliderMaterial {
             friction: self.friction,
             restitution: self.restitution,
@@ -779,7 +819,7 @@ impl ColliderBuilder {
 
         Collider {
             shape,
-            mprops,
+            mprops: self.mass_properties.clone(),
             material,
             parent: None,
             changes,

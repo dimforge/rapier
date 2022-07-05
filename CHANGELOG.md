@@ -1,3 +1,26 @@
+## Unreleased
+### Fixed
+
+### Modified
+- The `RigidBodyBuilder::additional_mass` method will now result in the additional angular inertia
+  being automatically computed based on the shapes of the colliders attached to the rigid-body.
+- Remove the deprecated methods `RigidBodyBuilder::mass`, `::principal_angular_inertia`, `::principal_inertia`.
+- Remove the methods `RigidBodyBuilder::additional_principal_angular_inertia`. Use
+  `RigidBodyBuilder::additional_mass_properties` instead.
+
+### Added
+- Add `RigidBody::recompute_mass_properties_from_colliders` to force the immediate computation
+  of a rigid-body’s mass properties (instead of waiting for them to be recomputed during the next
+  timestep). This is useful to be able to read immediately the result of a change of a rigid-body
+  additional mass-properties or a change of one of its collider’s mass-properties.
+- Add `RigidBody::set_additional_mass` to set the additional mass for the collider. The additional
+  angular inertia is automatically computed based on the attached colliders shapes.
+- Add `Collider::set_density`, `::set_mass`, `set_mass_properties`, to alter a collider’s mass
+  properties. Note that `::set_mass` will result in the collider’s angular inertia being automatically
+  computed based on this mass and on its shape.
+- Add `ColliderBuilder::mass` to set the mass of the collider instead of its density. Its angular
+  inertia tensor will be automatically computed based on this mass and its shape.
+
 ## v0.13.0 (31 May 2022)
 ### Fixed
 - Fix incorrect sensor events being generated after collider removal.
