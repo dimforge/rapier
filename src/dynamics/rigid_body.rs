@@ -4,8 +4,7 @@ use crate::dynamics::{
     RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::{
-    Collider, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition, ColliderSet,
-    ColliderShape,
+    ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition, ColliderSet, ColliderShape,
 };
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector};
 use crate::utils::WCross;
@@ -484,7 +483,7 @@ impl RigidBody {
     }
 
     /// Removes a collider from this rigid-body.
-    pub(crate) fn remove_collider_internal(&mut self, handle: ColliderHandle, coll: &Collider) {
+    pub(crate) fn remove_collider_internal(&mut self, handle: ColliderHandle) {
         if let Some(i) = self.colliders.0.iter().position(|e| *e == handle) {
             self.changes.set(RigidBodyChanges::COLLIDERS, true);
             self.colliders.0.swap_remove(i);

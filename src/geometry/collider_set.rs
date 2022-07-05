@@ -137,7 +137,7 @@ impl ColliderSet {
 
             if let Some(parent_handle) = curr_parent {
                 if let Some(rb) = bodies.get_mut(parent_handle) {
-                    rb.remove_collider_internal(handle, &*collider);
+                    rb.remove_collider_internal(handle);
                 }
             }
 
@@ -189,7 +189,7 @@ impl ColliderSet {
             if let Some(parent_rb) =
                 bodies.get_mut_internal_with_modification_tracking(parent.handle)
             {
-                parent_rb.remove_collider_internal(handle, &collider);
+                parent_rb.remove_collider_internal(handle);
 
                 if wake_up {
                     islands.wake_up(bodies, parent.handle, true);

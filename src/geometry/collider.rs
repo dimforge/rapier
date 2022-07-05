@@ -237,12 +237,32 @@ impl Collider {
         &self.material
     }
 
-    /// The density of this collider, if set.
-    pub fn density(&self) -> Option<Real> {
+    /// The volume (or surface in 2D) of this collider.
+    pub fn volume(&self) -> Real {
+        self.shape.mass_properties(1.0).mass()
+    }
+
+    /// The density of this collider.
+    pub fn density(&self) -> Real {
         match &self.mprops {
-            ColliderMassProps::Density(density) => Some(*density),
-            ColliderMassProps::Mass(_) => None,
-            ColliderMassProps::MassProperties(_) => None,
+            ColliderMassProps::Density(density) => *density,
+            ColliderMassProps::Mass(mass) => {
+                let inv_volume = self.shape.mass_properties(1.0).inv_mass;
+                mass * inv_volume
+            }
+            ColliderMassProps::MassProperties(mprops) => {
+                let inv_volume = self.shape.mass_properties(1.0).inv_mass;
+                mprops.mass() * inv_volume
+            }
+        }
+    }
+
+    /// The mass of this collider.
+    pub fn mass(&self) -> Real {
+        match &self.mprops {
+            ColliderMassProps::Density(density) => self.shape.mass_properties(*density).mass(),
+            ColliderMassProps::Mass(mass) => *mass,
+            ColliderMassProps::MassProperties(mprops) => mprops.mass(),
         }
     }
 

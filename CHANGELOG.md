@@ -7,6 +7,7 @@
 - Remove the deprecated methods `RigidBodyBuilder::mass`, `::principal_angular_inertia`, `::principal_inertia`.
 - Remove the methods `RigidBodyBuilder::additional_principal_angular_inertia`. Use
   `RigidBodyBuilder::additional_mass_properties` instead.
+- The `Collider::density` method now always returns a `Real` (instead of an `Option<Real>`).
 
 ### Added
 - Add `RigidBody::recompute_mass_properties_from_colliders` to force the immediate computation
@@ -20,6 +21,7 @@
   computed based on this mass and on its shape.
 - Add `ColliderBuilder::mass` to set the mass of the collider instead of its density. Its angular
   inertia tensor will be automatically computed based on this mass and its shape.
+- Add `Collider::mass` and `Collider::volume` to retrieve the mass or volume of a collider.
 
 ## v0.13.0 (31 May 2022)
 ### Fixed

@@ -338,7 +338,7 @@ impl PhysxWorld {
                 let densities: Vec<_> = rb
                     .colliders()
                     .iter()
-                    .map(|h| colliders[*h].density().unwrap_or(0.0))
+                    .map(|h| colliders[*h].density())
                     .collect();
 
                 unsafe {
