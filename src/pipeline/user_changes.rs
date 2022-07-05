@@ -2,17 +2,12 @@ use crate::dynamics::{
     IslandManager, RigidBodyChanges, RigidBodyHandle, RigidBodySet, RigidBodyType,
 };
 use crate::geometry::{ColliderChanges, ColliderHandle, ColliderPosition, ColliderSet};
-use parry::utils::hashmap::HashMap;
 
 pub(crate) fn handle_user_changes_to_colliders(
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
     modified_colliders: &[ColliderHandle],
 ) {
-    // TODO: avoid this hashmap? We could perhaps add a new flag to RigidBodyChanges to
-    //       indicated that the mass properties need to be recomputed?
-    let mut mprops_to_update = HashMap::default();
-
     for handle in modified_colliders {
         // NOTE: we use `get` because the collider may no longer
         //       exist if it has been removed.
@@ -26,21 +21,18 @@ pub(crate) fn handle_user_changes_to_colliders(
                 }
             }
 
-            if co.changes.contains(ColliderChanges::SHAPE) {
-                if let Some(co_parent) = co.parent {
-                    mprops_to_update.insert(co_parent.handle, ());
+            if co
+                .changes
+                .intersects(ColliderChanges::SHAPE | ColliderChanges::LOCAL_MASS_PROPERTIES)
+            {
+                if let Some(rb) = co
+                    .parent
+                    .and_then(|p| bodies.get_mut_internal_with_modification_tracking(p.handle))
+                {
+                    rb.changes |= RigidBodyChanges::LOCAL_MASS_PROPERTIES;
                 }
             }
         }
-    }
-
-    for (to_update, _) in mprops_to_update {
-        let rb = bodies.index_mut_internal(to_update);
-        rb.mprops.recompute_mass_properties_from_colliders(
-            colliders,
-            &rb.colliders,
-            &rb.pos.position,
-        );
     }
 }
 
@@ -161,6 +153,16 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                     co.changes |=
                         ColliderChanges::MODIFIED | ColliderChanges::PARENT_EFFECTIVE_DOMINANCE;
                 }
+            }
+
+            if changes
+                .intersects(RigidBodyChanges::LOCAL_MASS_PROPERTIES | RigidBodyChanges::COLLIDERS)
+            {
+                rb.mprops.recompute_mass_properties_from_colliders(
+                    colliders,
+                    &rb.colliders,
+                    &rb.pos.position,
+                );
             }
 
             rb.changes = RigidBodyChanges::empty();

@@ -1,14 +1,13 @@
 use crate::dynamics::{
-    LockedAxes, MassProperties, RigidBodyActivation, RigidBodyCcd, RigidBodyChanges,
-    RigidBodyColliders, RigidBodyDamping, RigidBodyDominance, RigidBodyForces, RigidBodyIds,
-    RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
+    LockedAxes, MassProperties, RigidBodyActivation, RigidBodyAdditionalMassProps, RigidBodyCcd,
+    RigidBodyChanges, RigidBodyColliders, RigidBodyDamping, RigidBodyDominance, RigidBodyForces,
+    RigidBodyIds, RigidBodyMassProps, RigidBodyPosition, RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::{
-    Collider, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition, ColliderShape,
+    ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition, ColliderSet, ColliderShape,
 };
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector};
-use crate::utils::{self, WCross};
-use na::ComplexField;
+use crate::utils::WCross;
 use num::Zero;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -123,7 +122,7 @@ impl RigidBody {
         }
     }
 
-    /// The mass properties of this rigid-body.
+    /// The mass-properties of this rigid-body.
     #[inline]
     pub fn mass_properties(&self) -> &MassProperties {
         &self.mprops.local_mprops
@@ -310,26 +309,82 @@ impl RigidBody {
         self.ccd.ccd_active
     }
 
-    /// Sets the rigid-body's additional mass properties.
+    /// Recompute the mass-properties of this rigid-bodies based on its currently attached colliders.
+    pub fn recompute_mass_properties_from_colliders(&mut self, colliders: &ColliderSet) {
+        self.mprops.recompute_mass_properties_from_colliders(
+            colliders,
+            &self.colliders,
+            &self.pos.position,
+        );
+    }
+
+    /// Sets the rigid-body's additional mass.
+    ///
+    /// The total angular inertia of the rigid-body will be scaled automatically based on this
+    /// additional mass. If this scaling effect isn’t desired, use [`Self::additional_mass_properties`]
+    /// instead of this method.
+    ///
+    /// This is only the "additional" mass because the total mass of the  rigid-body is
+    /// equal to the sum of this additional mass and the mass computed from the colliders
+    /// (with non-zero densities) attached to this rigid-body.
+    ///
+    /// That total mass (which includes the attached colliders’ contributions)
+    /// will be updated at the name physics step, or can be updated manually with
+    /// [`Self::recompute_mass_properties_from_colliders`].
+    ///
+    /// This will override any previous mass-properties set by [`Self::set_additional_mass`],
+    /// [`Self::set_additional_mass_properties`], [`RigidBodyBuilder::additional_mass`], or
+    /// [`RigidBodyBuilder::additional_mass_properties`] for this rigid-body.
+    ///
+    /// If `wake_up` is `true` then the rigid-body will be woken up if it was
+    /// put to sleep because it did not move for a while.
+    #[inline]
+    pub fn set_additional_mass(&mut self, additional_mass: Real, wake_up: bool) {
+        self.do_set_additional_mass_properties(
+            RigidBodyAdditionalMassProps::Mass(additional_mass),
+            wake_up,
+        )
+    }
+
+    /// Sets the rigid-body's additional mass-properties.
+    ///
+    /// This is only the "additional" mass-properties because the total mass-properties of the
+    /// rigid-body is equal to the sum of this additional mass-properties and the mass computed from
+    /// the colliders (with non-zero densities) attached to this rigid-body.
+    ///
+    /// That total mass-properties (which include the attached colliders’ contributions)
+    /// will be updated at the name physics step, or can be updated manually with
+    /// [`Self::recompute_mass_properties_from_colliders`].
+    ///
+    /// This will override any previous mass-properties set by [`Self::set_additional_mass`],
+    /// [`Self::set_additional_mass_properties`], [`RigidBodyBuilder::additional_mass`], or
+    /// [`RigidBodyBuilder::additional_mass_properties`] for this rigid-body.
     ///
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
     #[inline]
     pub fn set_additional_mass_properties(&mut self, props: MassProperties, wake_up: bool) {
-        if let Some(add_mprops) = &mut self.mprops.additional_local_mprops {
-            self.mprops.local_mprops += props;
-            self.mprops.local_mprops -= **add_mprops;
-            **add_mprops = props;
-        } else {
-            self.mprops.additional_local_mprops = Some(Box::new(props));
-            self.mprops.local_mprops += props;
-        }
+        self.do_set_additional_mass_properties(
+            RigidBodyAdditionalMassProps::MassProps(props),
+            wake_up,
+        )
+    }
 
-        if self.is_dynamic() && wake_up {
-            self.wake_up(true);
-        }
+    fn do_set_additional_mass_properties(
+        &mut self,
+        props: RigidBodyAdditionalMassProps,
+        wake_up: bool,
+    ) {
+        let new_mprops = Some(Box::new(props));
 
-        self.update_world_mass_properties();
+        if self.mprops.additional_local_mprops != new_mprops {
+            self.changes.insert(RigidBodyChanges::LOCAL_MASS_PROPERTIES);
+            self.mprops.additional_local_mprops = new_mprops;
+
+            if self.is_dynamic() && wake_up {
+                self.wake_up(true);
+            }
+        }
     }
 
     /// The handles of colliders attached to this rigid body.
@@ -428,16 +483,10 @@ impl RigidBody {
     }
 
     /// Removes a collider from this rigid-body.
-    pub(crate) fn remove_collider_internal(&mut self, handle: ColliderHandle, coll: &Collider) {
+    pub(crate) fn remove_collider_internal(&mut self, handle: ColliderHandle) {
         if let Some(i) = self.colliders.0.iter().position(|e| *e == handle) {
             self.changes.set(RigidBodyChanges::COLLIDERS, true);
             self.colliders.0.swap_remove(i);
-
-            let mass_properties = coll
-                .mass_properties()
-                .transform_by(coll.position_wrt_parent().unwrap());
-            self.mprops.local_mprops -= mass_properties;
-            self.update_world_mass_properties();
         }
     }
 
@@ -859,8 +908,8 @@ pub struct RigidBodyBuilder {
     pub angular_damping: Real,
     body_type: RigidBodyType,
     mprops_flags: LockedAxes,
-    /// The additional mass properties of the rigid-body being built. See [`RigidBodyBuilder::additional_mass_properties`] for more information.
-    pub additional_mass_properties: MassProperties,
+    /// The additional mass-properties of the rigid-body being built. See [`RigidBodyBuilder::additional_mass_properties`] for more information.
+    additional_mass_properties: RigidBodyAdditionalMassProps,
     /// Whether or not the rigid-body to be created can sleep if it reaches a dynamic equilibrium.
     pub can_sleep: bool,
     /// Whether or not the rigid-body is to be created asleep.
@@ -887,7 +936,7 @@ impl RigidBodyBuilder {
             angular_damping: 0.0,
             body_type,
             mprops_flags: LockedAxes::empty(),
-            additional_mass_properties: MassProperties::zero(),
+            additional_mass_properties: RigidBodyAdditionalMassProps::default(),
             can_sleep: true,
             sleeping: false,
             ccd_enabled: false,
@@ -968,18 +1017,41 @@ impl RigidBodyBuilder {
         self
     }
 
-    /// Sets the additional mass properties of the rigid-body being built.
+    /// Sets the additional mass-properties of the rigid-body being built.
     ///
-    /// Note that "additional" means that the final mass properties of the rigid-bodies depends
+    /// This will be overridden by a call to [`Self::additional_mass`] so it only makes sense to call
+    /// either [`Self::additional_mass`] or [`Self::additional_mass_properties`].    
+    ///
+    /// Note that "additional" means that the final mass-properties of the rigid-bodies depends
     /// on the initial mass-properties of the rigid-body (set by this method)
     /// to which is added the contributions of all the colliders with non-zero density
     /// attached to this rigid-body.
     ///
-    /// Therefore, if you want your provided mass properties to be the final
-    /// mass properties of your rigid-body, don't attach colliders to it, or
+    /// Therefore, if you want your provided mass-properties to be the final
+    /// mass-properties of your rigid-body, don't attach colliders to it, or
     /// only attach colliders with densities equal to zero.
-    pub fn additional_mass_properties(mut self, props: MassProperties) -> Self {
-        self.additional_mass_properties = props;
+    pub fn additional_mass_properties(mut self, mprops: MassProperties) -> Self {
+        self.additional_mass_properties = RigidBodyAdditionalMassProps::MassProps(mprops);
+        self
+    }
+
+    /// Sets the additional mass of the rigid-body being built.
+    ///
+    /// This will be overridden by a call to [`Self::additional_mass_properties`] so it only makes
+    /// sense to call either [`Self::additional_mass`] or [`Self::additional_mass_properties`].    
+    ///
+    /// This is only the "additional" mass because the total mass of the  rigid-body is
+    /// equal to the sum of this additional mass and the mass computed from the colliders
+    /// (with non-zero densities) attached to this rigid-body.
+    ///
+    /// The total angular inertia of the rigid-body will be scaled automatically based on this
+    /// additional mass. If this scaling effect isn’t desired, use [`Self::additional_mass_properties`]
+    /// instead of this method.
+    ///
+    /// # Parameters
+    /// * `mass`- The mass that will be added to the created rigid-body.
+    pub fn additional_mass(mut self, mass: Real) -> Self {
+        self.additional_mass_properties = RigidBodyAdditionalMassProps::Mass(mass);
         self
     }
 
@@ -1035,78 +1107,6 @@ impl RigidBodyBuilder {
         self.mprops_flags
             .set(LockedAxes::ROTATION_LOCKED_Z, !allow_rotations_z);
         self
-    }
-
-    /// Sets the additional mass of the rigid-body being built.
-    ///
-    /// This is only the "additional" mass because the total mass of the  rigid-body is
-    /// equal to the sum of this additional mass and the mass computed from the colliders
-    /// (with non-zero densities) attached to this rigid-body.
-    pub fn additional_mass(mut self, mass: Real) -> Self {
-        self.additional_mass_properties.set_mass(mass, false);
-        self
-    }
-
-    /// Sets the additional mass of the rigid-body being built.
-    ///
-    /// This is only the "additional" mass because the total mass of the  rigid-body is
-    /// equal to the sum of this additional mass and the mass computed from the colliders
-    /// (with non-zero densities) attached to this rigid-body.
-    #[deprecated(note = "renamed to `additional_mass`.")]
-    pub fn mass(self, mass: Real) -> Self {
-        self.additional_mass(mass)
-    }
-
-    /// Sets the additional angular inertia of this rigid-body.
-    ///
-    /// This is only the "additional" angular inertia because the total angular inertia of
-    /// the rigid-body is equal to the sum of this additional value and the angular inertia
-    /// computed from the colliders (with non-zero densities) attached to this rigid-body.
-    #[cfg(feature = "dim2")]
-    pub fn additional_principal_angular_inertia(mut self, inertia: Real) -> Self {
-        self.additional_mass_properties.inv_principal_inertia_sqrt =
-            utils::inv(ComplexField::sqrt(inertia.max(0.0)));
-        self
-    }
-
-    /// Sets the angular inertia of this rigid-body.
-    #[cfg(feature = "dim2")]
-    #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
-    pub fn principal_angular_inertia(self, inertia: Real) -> Self {
-        self.additional_principal_angular_inertia(inertia)
-    }
-
-    /// Use `self.principal_angular_inertia` instead.
-    #[cfg(feature = "dim2")]
-    #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
-    pub fn principal_inertia(self, inertia: Real) -> Self {
-        self.additional_principal_angular_inertia(inertia)
-    }
-
-    /// Sets the additional principal angular inertia of this rigid-body.
-    ///
-    /// This is only the "additional" angular inertia because the total angular inertia of
-    /// the rigid-body is equal to the sum of this additional value and the angular inertia
-    /// computed from the colliders (with non-zero densities) attached to this rigid-body.
-    #[cfg(feature = "dim3")]
-    pub fn additional_principal_angular_inertia(mut self, inertia: AngVector<Real>) -> Self {
-        self.additional_mass_properties.inv_principal_inertia_sqrt =
-            inertia.map(|e| utils::inv(ComplexField::sqrt(e.max(0.0))));
-        self
-    }
-
-    /// Sets the principal angular inertia of this rigid-body.
-    #[cfg(feature = "dim3")]
-    #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
-    pub fn principal_angular_inertia(self, inertia: AngVector<Real>) -> Self {
-        self.additional_principal_angular_inertia(inertia)
-    }
-
-    /// Use `self.principal_angular_inertia` instead.
-    #[cfg(feature = "dim3")]
-    #[deprecated(note = "renamed to `additional_principal_angular_inertia`.")]
-    pub fn principal_inertia(self, inertia: AngVector<Real>) -> Self {
-        self.additional_principal_angular_inertia(inertia)
     }
 
     /// Sets the damping factor for the linear part of the rigid-body motion.
@@ -1169,9 +1169,11 @@ impl RigidBodyBuilder {
         rb.body_type = self.body_type;
         rb.user_data = self.user_data;
 
-        if self.additional_mass_properties != MassProperties::default() {
+        if self.additional_mass_properties
+            != RigidBodyAdditionalMassProps::MassProps(MassProperties::zero())
+            && self.additional_mass_properties != RigidBodyAdditionalMassProps::Mass(0.0)
+        {
             rb.mprops.additional_local_mprops = Some(Box::new(self.additional_mass_properties));
-            rb.mprops.local_mprops = self.additional_mass_properties;
         }
 
         rb.mprops.flags = self.mprops_flags;

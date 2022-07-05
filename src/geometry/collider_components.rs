@@ -47,21 +47,23 @@ bitflags::bitflags! {
     pub struct ColliderChanges: u32 {
         /// Flag indicating that any component of the collider has been modified.
         const MODIFIED = 1 << 0;
+        /// Flag indicating that the density or mass-properties of this collider was changed.
+        const LOCAL_MASS_PROPERTIES = 1 << 1; // => RigidBody local mass-properties update.
         /// Flag indicating that the `ColliderParent` component of the collider has been modified.
-        const PARENT   = 1 << 1; // => BF & NF updates.
+        const PARENT   = 1 << 2; // => BF & NF updates.
         /// Flag indicating that the `ColliderPosition` component of the collider has been modified.
-        const POSITION = 1 << 2; // => BF & NF updates.
+        const POSITION = 1 << 3; // => BF & NF updates.
         /// Flag indicating that the collision groups of the collider have been modified.
-        const GROUPS   = 1 << 3; // => NF update.
+        const GROUPS   = 1 << 4; // => NF update.
         /// Flag indicating that the `ColliderShape` component of the collider has been modified.
-        const SHAPE    = 1 << 4; // => BF & NF update. NF pair workspace invalidation.
+        const SHAPE    = 1 << 5; // => BF & NF update. NF pair workspace invalidation.
         /// Flag indicating that the `ColliderType` component of the collider has been modified.
-        const TYPE     = 1 << 5; // => NF update. NF pair invalidation.
+        const TYPE     = 1 << 6; // => NF update. NF pair invalidation.
         /// Flag indicating that the dominance groups of the parent of this collider have been modified.
         ///
         /// This flags is automatically set by the `PhysicsPipeline` when the `RigidBodyChanges::DOMINANCE`
         /// or `RigidBodyChanges::TYPE` of the parent rigid-body of this collider is detected.
-        const PARENT_EFFECTIVE_DOMINANCE = 1 << 6; // NF update.
+        const PARENT_EFFECTIVE_DOMINANCE = 1 << 7; // NF update.
     }
 }
 
@@ -86,7 +88,7 @@ impl ColliderChanges {
         //       bottleneck at some point in the future (which is very unlikely)
         //       we could do a special-case for dominance-only change (so that
         //       we only update the relative_dominance of the pre-existing contact.
-        self.bits() > 1
+        self.bits() > 2
     }
 }
 
@@ -134,6 +136,10 @@ pub enum ColliderMassProps {
     /// Its actual `MassProperties` are computed automatically with
     /// the help of [`SharedShape::mass_properties`].
     Density(Real),
+    /// The collider is given a mass.
+    ///
+    /// Its angular inertia will be computed automatically based on this mass.
+    Mass(Real),
     /// The collider is given explicit mass-properties.
     MassProperties(Box<MassProperties>),
 }
@@ -159,8 +165,23 @@ impl ColliderMassProps {
     /// If `self` is the `MassProperties` variant, then this returns the stored mass-properties.
     pub fn mass_properties(&self, shape: &dyn Shape) -> MassProperties {
         match self {
-            Self::Density(density) => shape.mass_properties(*density),
-            Self::MassProperties(mprops) => **mprops,
+            ColliderMassProps::Density(density) => {
+                if *density != 0.0 {
+                    shape.mass_properties(*density)
+                } else {
+                    MassProperties::default()
+                }
+            }
+            ColliderMassProps::Mass(mass) => {
+                if *mass != 0.0 {
+                    let mut mprops = shape.mass_properties(1.0);
+                    mprops.set_mass(*mass, true);
+                    mprops
+                } else {
+                    MassProperties::default()
+                }
+            }
+            ColliderMassProps::MassProperties(mass_properties) => **mass_properties,
         }
     }
 }
