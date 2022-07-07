@@ -38,7 +38,11 @@ impl Collider {
     }
 
     pub(crate) fn effective_contact_force_event_threshold(&self) -> Real {
-        if self.flags.active_events.contains(ActiveEvents::CONTACT_FORCE_EVENTS) {
+        if self
+            .flags
+            .active_events
+            .contains(ActiveEvents::CONTACT_FORCE_EVENTS)
+        {
             self.contact_force_event_threshold
         } else {
             Real::MAX
