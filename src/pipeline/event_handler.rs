@@ -7,9 +7,12 @@ bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     /// Flags affecting the events generated for this collider.
     pub struct ActiveEvents: u32 {
-        /// If set, Rapier will call `EventHandler::handle_contact_event`
+        /// If set, Rapier will call `EventHandler::handle_collision_event`
         /// whenever relevant for this collider.
         const COLLISION_EVENTS = 0b0001;
+        /// If set, Rapier will call `EventHandler::handle_contact_force_event`
+        /// whenever relevant for this collider.
+        const CONTACT_FORCE_EVENTS = 0b0010;
     }
 }
 
@@ -48,7 +51,7 @@ pub trait EventHandler: Send + Sync {
     ///
     /// A force event is generated whenever the total force magnitude applied between two
     /// colliders is `> Collider::contact_force_event_threshold` value of any of these
-    /// colliders.
+    /// colliders with the `ActiveEvents::CONTACT_FORCE_EVENTS` flag set.
     ///
     /// The "total force magnitude" here means "the sum of the magnitudes of the forces applied at
     /// all the contact points in a contact pair". Therefore, if the contact pair involves two

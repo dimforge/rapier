@@ -22,6 +22,10 @@
 - Add `ColliderBuilder::mass` to set the mass of the collider instead of its density. Its angular
   inertia tensor will be automatically computed based on this mass and its shape.
 - Add `Collider::mass` and `Collider::volume` to retrieve the mass or volume of a collider.
+- Add the `ContactForceEvent` event. This event is useful to read contact forces. A `ContactForceEvent`
+  is generated whenever the sum of the magnitudes of the forces applied by contacts between two colliders
+  exceeds the value specified by `Collider::contact_force_event_threshold` on any of the two colliders with
+  the `ActiveEvents::CONTACT_FORCE_EVENT` flag set.
 
 ## v0.13.0 (31 May 2022)
 ### Fixed

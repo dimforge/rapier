@@ -291,8 +291,8 @@ impl PhysicsPipeline {
             let co1 = &colliders[pair.collider1];
             let co2 = &colliders[pair.collider2];
             let threshold = co1
-                .contact_force_event_threshold
-                .min(co2.contact_force_event_threshold);
+                .effective_contact_force_event_threshold()
+                .min(co2.effective_contact_force_event_threshold());
 
             if threshold < Real::MAX {
                 let total_magnitude = pair.total_impulse_magnitude() * inv_dt;
