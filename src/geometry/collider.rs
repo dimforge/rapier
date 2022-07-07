@@ -26,7 +26,7 @@ pub struct Collider {
     pub(crate) material: ColliderMaterial,
     pub(crate) flags: ColliderFlags,
     pub(crate) bf_data: ColliderBroadPhaseData,
-    pub(crate) contact_force_event_threshold: Real,
+    contact_force_event_threshold: Real,
     /// User-defined data associated to this collider.
     pub user_data: u128,
 }
@@ -35,6 +35,18 @@ impl Collider {
     pub(crate) fn reset_internal_references(&mut self) {
         self.bf_data.proxy_index = crate::INVALID_U32;
         self.changes = ColliderChanges::all();
+    }
+
+    pub(crate) fn effective_contact_force_event_threshold(&self) -> Real {
+        if self
+            .flags
+            .active_events
+            .contains(ActiveEvents::CONTACT_FORCE_EVENTS)
+        {
+            self.contact_force_event_threshold
+        } else {
+            Real::MAX
+        }
     }
 
     /// The rigid body this collider is attached to.
@@ -412,7 +424,7 @@ impl ColliderBuilder {
             active_collision_types: ActiveCollisionTypes::default(),
             active_hooks: ActiveHooks::empty(),
             active_events: ActiveEvents::empty(),
-            contact_force_event_threshold: Real::MAX,
+            contact_force_event_threshold: 0.0,
         }
     }
 
