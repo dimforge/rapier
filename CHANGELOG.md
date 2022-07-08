@@ -14,9 +14,9 @@
   `RigidBodyBuilder::additional_mass_properties` instead.
 - The `Collider::density` method now always returns a `Real` (instead of an `Option<Real>`).
 - Rename `RigidBody::restrict_rotations` and `RigidBody::restrict_translations` to
-  `RigidBody::set_allowed_rotations` and `RigidBody::set_allowed_translations`.
+  `RigidBody::set_enabled_rotations` and `RigidBody::set_enabled_translations`.
 - Rename `RigidBodyBuilder::restrict_rotations` and `RigidBodyBuilder::restrict_translations` to
-  `RigidBodyBuilder::allowed_rotations` and `RigidBodyBuilder::allowed_translations`.
+  `RigidBodyBuilder::enabled_rotations` and `RigidBodyBuilder::enabled_translations`.
 
 ### Added
 - Add `RigidBody::recompute_mass_properties_from_colliders` to force the immediate computation
