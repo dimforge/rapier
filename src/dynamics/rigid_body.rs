@@ -167,7 +167,7 @@ impl RigidBody {
 
     #[inline]
     /// Locks or unlocks rotations of this rigid-body along each cartesian axes.
-    pub fn set_allowed_rotations(
+    pub fn set_enabled_rotations(
         &mut self,
         allow_rotations_x: bool,
         allow_rotations_y: bool,
@@ -196,7 +196,7 @@ impl RigidBody {
     }
 
     /// Locks or unlocks rotations of this rigid-body along each cartesian axes.
-    #[deprecated(note = "Use `set_allowed_rotations` instead")]
+    #[deprecated(note = "Use `set_enabled_rotations` instead")]
     pub fn restrict_rotations(
         &mut self,
         allow_rotations_x: bool,
@@ -204,7 +204,7 @@ impl RigidBody {
         allow_rotations_z: bool,
         wake_up: bool,
     ) {
-        self.set_allowed_rotations(
+        self.set_enabled_rotations(
             allow_rotations_x,
             allow_rotations_y,
             allow_rotations_z,
@@ -229,7 +229,7 @@ impl RigidBody {
 
     #[inline]
     /// Locks or unlocks rotations of this rigid-body along each cartesian axes.
-    pub fn set_allowed_translations(
+    pub fn set_enabled_translations(
         &mut self,
         allow_translation_x: bool,
         allow_translation_y: bool,
@@ -270,7 +270,7 @@ impl RigidBody {
     }
 
     #[inline]
-    #[deprecated(note = "Use `set_allowed_translations` instead")]
+    #[deprecated(note = "Use `set_enabled_translations` instead")]
     /// Locks or unlocks rotations of this rigid-body along each cartesian axes.
     pub fn restrict_translations(
         &mut self,
@@ -279,7 +279,7 @@ impl RigidBody {
         #[cfg(feature = "dim3")] allow_translation_z: bool,
         wake_up: bool,
     ) {
-        self.set_allowed_translations(
+        self.set_enabled_translations(
             allow_translation_x,
             allow_translation_y,
             #[cfg(feature = "dim3")]
@@ -339,7 +339,7 @@ impl RigidBody {
     /// a velocity greater than an automatically-computed threshold.
     ///
     /// This is not the same as `self.is_ccd_enabled` which only
-    /// checks if CCD is allowed to run for this rigid-body or if
+    /// checks if CCD is enabled to run for this rigid-body or if
     /// it is completely disabled (independently from its velocity).
     pub fn is_ccd_active(&self) -> bool {
         self.ccd.ccd_active
@@ -1104,7 +1104,7 @@ impl RigidBodyBuilder {
     }
 
     /// Only allow translations of this rigid-body around specific coordinate axes.
-    pub fn allowed_translations(
+    pub fn enabled_translations(
         mut self,
         allow_translations_x: bool,
         allow_translations_y: bool,
@@ -1120,7 +1120,7 @@ impl RigidBodyBuilder {
         self
     }
 
-    #[deprecated(note = "Use `allowed_translations` instead")]
+    #[deprecated(note = "Use `enabled_translations` instead")]
     /// Only allow translations of this rigid-body around specific coordinate axes.
     pub fn restrict_translations(
         self,
@@ -1128,7 +1128,7 @@ impl RigidBodyBuilder {
         allow_translations_y: bool,
         #[cfg(feature = "dim3")] allow_translations_z: bool,
     ) -> Self {
-        self.allowed_translations(
+        self.enabled_translations(
             allow_translations_x,
             allow_translations_y,
             #[cfg(feature = "dim3")]
@@ -1146,7 +1146,7 @@ impl RigidBodyBuilder {
 
     /// Only allow rotations of this rigid-body around specific coordinate axes.
     #[cfg(feature = "dim3")]
-    pub fn allowed_rotations(
+    pub fn enabled_rotations(
         mut self,
         allow_rotations_x: bool,
         allow_rotations_y: bool,
@@ -1162,7 +1162,7 @@ impl RigidBodyBuilder {
     }
 
     /// Locks or unlocks rotations of this rigid-body along each cartesian axes.
-    #[deprecated(note = "Use `allowed_rotations` instead")]
+    #[deprecated(note = "Use `enabled_rotations` instead")]
     #[cfg(feature = "dim3")]
     pub fn restrict_rotations(
         self,
@@ -1170,7 +1170,7 @@ impl RigidBodyBuilder {
         allow_rotations_y: bool,
         allow_rotations_z: bool,
     ) -> Self {
-        self.allowed_rotations(allow_rotations_x, allow_rotations_y, allow_rotations_z)
+        self.enabled_rotations(allow_rotations_x, allow_rotations_y, allow_rotations_z)
     }
 
     /// Sets the damping factor for the linear part of the rigid-body motion.
