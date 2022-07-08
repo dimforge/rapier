@@ -1163,6 +1163,7 @@ impl RigidBodyBuilder {
 
     /// Locks or unlocks rotations of this rigid-body along each cartesian axes.
     #[deprecated(note = "Use `allowed_rotations` instead")]
+    #[cfg(feature = "dim3")]
     pub fn restrict_rotations(
         self,
         allow_rotations_x: bool,
