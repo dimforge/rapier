@@ -30,7 +30,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let rigid_body = RigidBodyBuilder::dynamic()
         .translation(vector![0.0, 3.0, 0.0])
         .lock_translations()
-        .restrict_rotations(true, false, false);
+        .allowed_rotations(true, false, false);
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(0.2, 0.6, 2.0);
     colliders.insert_with_parent(collider, handle, &mut bodies);
