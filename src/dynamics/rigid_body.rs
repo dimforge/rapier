@@ -204,7 +204,12 @@ impl RigidBody {
         allow_rotations_z: bool,
         wake_up: bool,
     ) {
-        self.set_allowed_rotations(allow_rotations_x, allow_rotations_y, allow_rotations_z, wake_up);
+        self.set_allowed_rotations(
+            allow_rotations_x,
+            allow_rotations_y,
+            allow_rotations_z,
+            wake_up,
+        );
     }
 
     #[inline]
@@ -277,7 +282,8 @@ impl RigidBody {
         self.set_allowed_translations(
             allow_translation_x,
             allow_translation_y,
-            #[cfg(feature = "dim3")] allow_translation_z,
+            #[cfg(feature = "dim3")]
+            allow_translation_z,
             wake_up,
         )
     }
@@ -1125,7 +1131,8 @@ impl RigidBodyBuilder {
         self.allowed_translations(
             allow_translations_x,
             allow_translations_y,
-            #[cfg(feature = "dim3")] allow_translations_z,
+            #[cfg(feature = "dim3")]
+            allow_translations_z,
         )
     }
 
@@ -1164,7 +1171,6 @@ impl RigidBodyBuilder {
     ) -> Self {
         self.allowed_rotations(allow_rotations_x, allow_rotations_y, allow_rotations_z)
     }
-
 
     /// Sets the damping factor for the linear part of the rigid-body motion.
     ///
