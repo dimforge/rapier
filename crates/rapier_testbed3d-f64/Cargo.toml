@@ -1,6 +1,6 @@
 [package]
 name    = "rapier_testbed3d-f64"
-version = "0.13.0"
+version = "0.14.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "Testbed for the Rapier 3-dimensional physics engine in Rust."
 homepage = "http://rapier.org"
@@ -36,7 +36,7 @@ md5 = "0.7"
 Inflector  = "0.11"
 serde = { version = "1", features = [ "derive" ] }
 
-bevy_egui = "0.13"
+bevy_egui = "0.14"
 bevy_ecs = "0.7"
 #bevy_prototype_debug_lines = { version = "0.7", features = [ "3d" ] }
 
@@ -52,5 +52,5 @@ bevy = {version = "0.7", default-features = false, features = ["bevy_winit", "re
 [dependencies.rapier]
 package = "rapier3d-f64"
 path = "../rapier3d-f64"
-version = "0.13.0"
+version = "0.14.0"
 features = [ "serde-serialize", "debug-render", "profiler" ]

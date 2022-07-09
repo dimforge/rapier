@@ -1,6 +1,6 @@
 [package]
 name    = "rapier_testbed3d"
-version = "0.13.0"
+version = "0.14.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "Testbed for the Rapier 3-dimensional physics engine in Rust."
 homepage = "http://rapier.org"
@@ -32,7 +32,7 @@ instant    = { version = "0.1", features = [ "web-sys", "now" ]}
 bitflags   = "1"
 glam       = { version = "0.12", optional = true }
 num_cpus   = { version = "1", optional = true }
-physx      = { version = "0.11", optional = true }
+physx      = { version = "0.12", features = [ "glam" ], optional = true }
 physx-sys = { version = "0.4", optional = true }
 crossbeam = "0.8"
 bincode = "1"
@@ -40,7 +40,7 @@ md5 = "0.7"
 Inflector  = "0.11"
 serde = { version = "1", features = [ "derive" ] }
 
-bevy_egui = "0.13"
+bevy_egui = "0.14"
 bevy_ecs = "0.7"
 #bevy_prototype_debug_lines = { version = "0.7", features = [ "3d" ] }
 
@@ -56,5 +56,5 @@ bevy = {version = "0.7", default-features = false, features = ["bevy_winit", "re
 [dependencies.rapier]
 package = "rapier3d"
 path = "../rapier3d"
-version = "0.13.0"
+version = "0.14.0"
 features = [ "serde-serialize", "debug-render", "profiler" ]

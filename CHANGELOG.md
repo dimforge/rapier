@@ -1,4 +1,4 @@
-## Unreleased
+## v0.14.0 (09 July 2022)
 ### Fixed
 - Fix unpredictable broad-phase panic when using small colliders in the simulation.
 - Fix collision events being incorrectly generated for any shape that produces multiple
