@@ -78,10 +78,20 @@ impl IntoPhysx for Point3<f32> {
     }
 }
 
+impl IntoPhysx for UnitQuaternion<f32> {
+    type Output = PxQuat;
+    fn into_physx(self) -> Self::Output {
+        PxQuat::new(self.i, self.j, self.k, self.w)
+    }
+}
+
 impl IntoPhysx for Isometry3<f32> {
     type Output = PxTransform;
     fn into_physx(self) -> Self::Output {
-        self.into_glam().into()
+        PxTransform::from_translation_rotation(
+            &self.translation.vector.into_physx(),
+            &self.rotation.into_physx(),
+        )
     }
 }
 
@@ -164,7 +174,7 @@ impl PhysxWorld {
                 gravity: gravity.into_physx(),
                 thread_count: num_threads as u32,
                 broad_phase_type: BroadPhaseType::AutomaticBoxPruning,
-                solver_type: SolverType::PGS,
+                solver_type: SolverType::Pgs,
                 friction_type,
                 ccd_max_passes: integration_parameters.max_ccd_substeps as u32,
                 ..SceneDescriptor::new(())
@@ -361,7 +371,7 @@ impl PhysxWorld {
                     if rb.is_ccd_enabled() {
                         physx_sys::PxRigidBody_setRigidBodyFlag_mut(
                             actor,
-                            RigidBodyFlag::EnableCCD as u32,
+                            RigidBodyFlag::EnableCcd as u32,
                             true,
                         );
                     }

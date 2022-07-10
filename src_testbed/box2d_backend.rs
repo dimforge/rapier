@@ -170,7 +170,7 @@ impl Box2dWorld {
 
         fixture_def.restitution = collider.material().restitution;
         fixture_def.friction = collider.material().friction;
-        fixture_def.density = collider.density().unwrap_or(1.0);
+        fixture_def.density = collider.density();
         fixture_def.is_sensor = collider.is_sensor();
         fixture_def.filter = b2::Filter::new();
 
