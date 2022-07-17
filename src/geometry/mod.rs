@@ -65,6 +65,7 @@ bitflags::bitflags! {
     }
 }
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Hash, Debug)]
 /// Events occurring when two colliders start or stop colliding
 pub enum CollisionEvent {
