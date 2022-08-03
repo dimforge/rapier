@@ -836,7 +836,7 @@ fn setup_graphics_environment(mut commands: Commands) {
     });
 
     commands
-        .spawn_bundle(PerspectiveCameraBundle {
+        .spawn_bundle(Camera3dBundle {
             transform: Transform::from_matrix(
                 Mat4::look_at_rh(
                     Vec3::new(-30.0, 30.0, 100.0),
@@ -869,13 +869,13 @@ fn setup_graphics_environment(mut commands: Commands) {
     //     ..Default::default()
     // });
     commands
-        .spawn_bundle(OrthographicCameraBundle {
+        .spawn_bundle(Camera2dBundle {
             transform: Transform {
                 translation: Vec3::new(0.0, 0.0, 0.0),
                 rotation: Quat::IDENTITY,
                 scale: Vec3::new(0.01, 0.01, 1.0),
             },
-            ..OrthographicCameraBundle::new_2d()
+            ..Camera2dBundle::default()
         })
         .insert(OrbitCamera {
             zoom: 100.0,
@@ -1298,7 +1298,7 @@ fn highlight_hovered_body(
 
     if let Some(cursor) = window.cursor_position() {
         let ndc_cursor = (cursor / Vec2::new(window.width(), window.height()) * 2.0) - Vec2::ONE;
-        let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix.inverse();
+        let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
         let ray_pt1 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, -1.0));
         let ray_pt2 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 1.0));
         let ray_dir = ray_pt2 - ray_pt1;

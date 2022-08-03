@@ -1,5 +1,8 @@
 #![allow(warnings)]
+use bevy::render::mesh::MeshVertexAttribute;
+use bevy::render::render_resource::VertexFormat;
 use bevy::render::view::NoFrustumCulling;
+use bevy::render::MainWorld;
 /**
  *
  * NOTE: this module and its submodules are only temporary. It is a copy-paste of the bevy-debug-lines
@@ -35,7 +38,7 @@ mod render_dim;
 #[cfg(feature = "dim3")]
 mod dim {
     pub(crate) use super::render_dim::r3d::{queue, DebugLinePipeline, DrawDebugLines};
-    pub(crate) use bevy::core_pipeline::Opaque3d as Phase;
+    pub(crate) use bevy::core_pipeline::core_3d::Opaque3d as Phase;
     use bevy::{asset::Handle, render::mesh::Mesh};
 
     pub(crate) type MeshHandle = Handle<Mesh>;
@@ -51,7 +54,7 @@ mod dim {
 #[cfg(feature = "dim2")]
 mod dim {
     pub(crate) use super::render_dim::r2d::{queue, DebugLinePipeline, DrawDebugLines};
-    pub(crate) use bevy::core_pipeline::Transparent2d as Phase;
+    pub(crate) use bevy::core_pipeline::core_2d::Transparent2d as Phase;
     use bevy::{asset::Handle, render::mesh::Mesh, sprite::Mesh2dHandle};
 
     pub(crate) type MeshHandle = Mesh2dHandle;
@@ -153,6 +156,9 @@ pub const MAX_POINTS: usize = MAX_POINTS_PER_MESH * MESH_COUNT;
 /// Maximum number of unique lines to draw at once.
 pub const MAX_LINES: usize = MAX_POINTS / 2;
 
+const ATTRIBUTE_COLOR: MeshVertexAttribute =
+    MeshVertexAttribute::new("Vertex_Color", 1, VertexFormat::Uint32);
+
 fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     // Spawn a bunch of meshes to use for lines.
     for i in 0..MESH_COUNT {
@@ -163,7 +169,7 @@ fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>) {
             VertexAttributeValues::Float32x3(Vec::with_capacity(MAX_POINTS_PER_MESH)),
         );
         mesh.insert_attribute(
-            Mesh::ATTRIBUTE_COLOR,
+            ATTRIBUTE_COLOR,
             VertexAttributeValues::Uint32(Vec::with_capacity(MAX_POINTS_PER_MESH)),
         );
         // https://github.com/Toqozz/bevy_debug_lines/issues/16
@@ -204,7 +210,7 @@ fn update(
             }
         }
 
-        if let Some(Uint32(cbuffer)) = mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR) {
+        if let Some(Uint32(cbuffer)) = mesh.attribute_mut(ATTRIBUTE_COLOR) {
             cbuffer.clear();
             if let Some(new_content) = lines
                 .colors
@@ -233,7 +239,7 @@ fn update(
 }
 
 /// Move the DebugLinesMesh marker Component to the render context.
-fn extract(mut commands: Commands, query: Query<Entity, With<DebugLinesMesh>>) {
+fn extract(mut commands: Commands, query: Query<Entity, With<DebugLinesMesh>>, _: Res<MainWorld>) {
     for entity in query.iter() {
         commands.get_or_spawn(entity).insert(RenderDebugLinesMesh);
     }
