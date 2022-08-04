@@ -7,7 +7,7 @@ extern crate bitflags;
 #[macro_use]
 extern crate log;
 
-pub use crate::graphics::GraphicsManager;
+pub use crate::graphics::{BevyMaterial, GraphicsManager};
 pub use crate::harness::plugin::HarnessPlugin;
 pub use crate::physics::PhysicsState;
 pub use crate::plugin::TestbedPlugin;
