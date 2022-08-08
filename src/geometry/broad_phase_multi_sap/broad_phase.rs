@@ -27,7 +27,7 @@ use parry::utils::hashmap::HashMap;
 /// collecting endpoints and swapping them when they move to detect interaction pairs).
 /// Each AABB is inserted in all the regions it intersects.
 /// This prevents the far-away problem because two objects that are far away will
-/// be located on different regions. So their endpoints will never meed.
+/// be located on different regions. So their endpoints will never meet.
 ///
 /// However, the Multi-SAP approach has one notable problem: the region size must
 /// be chosen wisely. It could be user-defined, but that's makes it more difficult
