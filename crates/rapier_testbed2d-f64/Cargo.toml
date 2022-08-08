@@ -38,17 +38,17 @@ bincode = "1"
 Inflector  = "0.11"
 md5 = "0.7"
 
-bevy_egui = "0.14"
-bevy_ecs = "0.7"
+bevy_egui = "0.15"
+bevy_ecs = "0.8"
 #bevy_prototype_debug_lines = "0.7"
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = {version = "0.7", default-features = false, features = ["bevy_winit", "render", "x11"]}
+bevy = {version = "0.8", default-features = false, features = ["bevy_winit", "render", "x11"]}
 
 # Dependencies for WASM only.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy = {version = "0.7", default-features = false, features = ["bevy_winit", "render"]}
+bevy = {version = "0.8", default-features = false, features = ["bevy_winit", "render"]}
 #bevy_webgl2 = "0.5"
 
 [dependencies.rapier]
