@@ -41,7 +41,8 @@ impl MultibodyJoint {
         Self::new(FixedJointBuilder::new().local_frame1(pos).build().into())
     }
 
-    pub(crate) fn set_free_pos(&mut self, pos: Isometry<Real>) {
+    /// Sets multibody joint position
+    pub fn set_free_pos(&mut self, pos: Isometry<Real>) {
         self.coords
             .fixed_rows_mut::<DIM>(0)
             .copy_from(&pos.translation.vector);
