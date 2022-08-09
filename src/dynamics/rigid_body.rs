@@ -681,9 +681,7 @@ impl RigidBody {
 
     /// Sets the rotational part of this rigid-body's position.
     #[inline]
-    pub fn set_rotation(&mut self, rotation: AngVector<Real>, wake_up: bool) {
-        let rotation = Rotation::new(rotation);
-
+    pub fn set_rotation(&mut self, rotation: Rotation<Real>, wake_up: bool) {
         if self.pos.position.rotation != rotation || self.pos.next_position.rotation != rotation {
             self.changes.insert(RigidBodyChanges::POSITION);
             self.pos.position.rotation = rotation;
@@ -719,9 +717,9 @@ impl RigidBody {
     }
 
     /// If this rigid body is kinematic, sets its future translation after the next timestep integration.
-    pub fn set_next_kinematic_rotation(&mut self, rotation: AngVector<Real>) {
+    pub fn set_next_kinematic_rotation(&mut self, rotation: Rotation<Real>) {
         if self.is_kinematic() {
-            self.pos.next_position.rotation = Rotation::new(rotation);
+            self.pos.next_position.rotation = rotation;
         }
     }
 
