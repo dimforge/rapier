@@ -161,9 +161,9 @@ impl Collider {
     }
 
     /// Sets the rotational part of this collider's position.
-    pub fn set_rotation(&mut self, rotation: AngVector<Real>) {
+    pub fn set_rotation(&mut self, rotation: Rotation<Real>) {
         self.changes.insert(ColliderChanges::POSITION);
-        self.pos.0.rotation = Rotation::new(rotation);
+        self.pos.0.rotation = rotation;
     }
 
     /// Sets the position of this collider.

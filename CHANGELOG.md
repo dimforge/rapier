@@ -1,3 +1,9 @@
+## Unreleased
+### Modified
+- The methods `Collider::set_rotation`, `RigidBody::set_rotation`, and `RigidBody::set_next_kinematic_rotation` now
+  take a rotation (`UnitQuaternion` or `UnitComplex`) instead of a vector/angle.
+
+
 ## v0.14.0 (09 July 2022)
 ### Fixed
 - Fix unpredictable broad-phase panic when using small colliders in the simulation.

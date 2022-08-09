@@ -681,9 +681,7 @@ impl RigidBody {
 
     /// Sets the rotational part of this rigid-body's position.
     #[inline]
-    pub fn set_rotation(&mut self, rotation: AngVector<Real>, wake_up: bool) {
-        let rotation = Rotation::new(rotation);
-
+    pub fn set_rotation(&mut self, rotation: Rotation<Real>, wake_up: bool) {
         if self.pos.position.rotation != rotation || self.pos.next_position.rotation != rotation {
             self.changes.insert(RigidBodyChanges::POSITION);
             self.pos.position.rotation = rotation;
