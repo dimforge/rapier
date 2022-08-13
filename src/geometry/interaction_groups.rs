@@ -78,7 +78,6 @@ use bitflags::bitflags;
 bitflags! {
     /// A bit mask identifying groups for interaction.
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-    #[allow(missing_docs)]
     pub struct Group: u32 {
         /// The group n°1.
         const GROUP_1 = 1 << 0;
