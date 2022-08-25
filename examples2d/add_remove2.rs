@@ -1,4 +1,4 @@
-use rapier2d::prelude::*;
+use rapier2d::{na::UnitComplex, prelude::*};
 use rapier_testbed2d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -27,7 +27,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let rot = state.time * -1.0;
         for rb_handle in &platform_handles {
             let rb = physics.bodies.get_mut(*rb_handle).unwrap();
-            rb.set_next_kinematic_rotation(rot);
+            rb.set_next_kinematic_rotation(UnitComplex::new(rot));
         }
 
         if state.timestep_id % 10 == 0 {
