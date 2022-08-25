@@ -666,6 +666,9 @@ impl RigidBody {
             self.pos.position.translation.vector = translation;
             self.pos.next_position.translation.vector = translation;
 
+            // Update the world mass-properties so torque application remains valid.
+            self.update_world_mass_properties();
+
             // TODO: Do we really need to check that the body isn't dynamic?
             if wake_up && self.is_dynamic() {
                 self.wake_up(true)
@@ -686,6 +689,9 @@ impl RigidBody {
             self.changes.insert(RigidBodyChanges::POSITION);
             self.pos.position.rotation = rotation;
             self.pos.next_position.rotation = rotation;
+
+            // Update the world mass-properties so torque application remains valid.
+            self.update_world_mass_properties();
 
             // TODO: Do we really need to check that the body isn't dynamic?
             if wake_up && self.is_dynamic() {
@@ -708,6 +714,9 @@ impl RigidBody {
             self.changes.insert(RigidBodyChanges::POSITION);
             self.pos.position = pos;
             self.pos.next_position = pos;
+
+            // Update the world mass-properties so torque application remains valid.
+            self.update_world_mass_properties();
 
             // TODO: Do we really need to check that the body isn't dynamic?
             if wake_up && self.is_dynamic() {
