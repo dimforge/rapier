@@ -26,9 +26,21 @@ pub enum CharacterLength {
 }
 
 impl CharacterLength {
+    /// Returns `self` with its value changed by the closure `f` if `self` is the `Self::Absolute`
+    /// variant.
     pub fn map_absolute(self, f: impl FnOnce(Real) -> Real) -> Self {
         if let Self::Absolute(value) = self {
             Self::Absolute(f(value))
+        } else {
+            self
+        }
+    }
+
+    /// Returns `self` with its value changed by the closure `f` if `self` is the `Self::Relative`
+    /// variant.
+    pub fn map_relative(self, f: impl FnOnce(Real) -> Real) -> Self {
+        if let Self::Relative(value) = self {
+            Self::Relative(f(value))
         } else {
             self
         }
@@ -647,6 +659,10 @@ impl KinematicCharacterController {
         false
     }
 
+    /// For a given collision between a character and its environment, this method will apply
+    /// impulses to the rigid-bodies surrounding the character shape at the time of the collision.
+    /// Note that the impulse calculation is only approximate as it is not based on a global
+    /// constraints resolution scheme.
     pub fn solve_character_collision_impulses(
         &self,
         dt: Real,

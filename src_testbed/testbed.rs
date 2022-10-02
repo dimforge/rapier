@@ -8,8 +8,8 @@ use crate::plugin::TestbedPlugin;
 use crate::{debug_render, ui};
 use crate::{graphics::GraphicsManager, harness::RunState};
 
-use na::{self, Point2, Point3, Quaternion, Unit, Vector3};
-use rapier::control::{CharacterAutostep, CharacterLength, KinematicCharacterController};
+use na::{self, Point2, Point3, Vector3};
+use rapier::control::KinematicCharacterController;
 use rapier::dynamics::{
     ImpulseJointSet, IntegrationParameters, MultibodyJointSet, RigidBodyActivation,
     RigidBodyHandle, RigidBodySet,
@@ -135,6 +135,7 @@ pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     meshes: &'a mut Assets<Mesh>,
     materials: &'a mut Assets<BevyMaterial>,
     components: &'a mut Query<'b, 'f, (&'c mut Transform,)>,
+    #[allow(dead_code)] // Dead in 2D but not in 3D.
     camera_transform: GlobalTransform,
     camera: &'a mut OrbitCamera,
 }
@@ -662,7 +663,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                     .unwrap()
                     .camera_transform
                     .to_scale_rotation_translation();
-                let rot = Unit::new_unchecked(Quaternion::new(rot.w, rot.x, rot.y, rot.z));
+                let rot = na::Unit::new_unchecked(na::Quaternion::new(rot.w, rot.x, rot.y, rot.z));
                 let mut rot_x = rot * Vector::x();
                 let mut rot_z = rot * Vector::z();
                 rot_x.y = 0.0;

@@ -131,7 +131,7 @@ pub fn init_world(testbed: &mut Testbed) {
             (run_state.time * 2.0).sin() * 2.0,
             (run_state.time * 5.0).sin() * 1.5
         ];
-        let angvel = run_state.time.sin() * 0.5;
+        // let angvel = run_state.time.sin() * 0.5;
 
         // Update the velocity-based kinematic body by setting its velocity.
         if let Some(platform) = physics.bodies.get_mut(platform_handle) {
