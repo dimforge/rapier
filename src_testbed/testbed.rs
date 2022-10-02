@@ -9,15 +9,16 @@ use crate::{debug_render, ui};
 use crate::{graphics::GraphicsManager, harness::RunState};
 
 use na::{self, Point2, Point3, Vector3};
+use rapier::control::KinematicCharacterController;
 use rapier::dynamics::{
     ImpulseJointSet, IntegrationParameters, MultibodyJointSet, RigidBodyActivation,
     RigidBodyHandle, RigidBodySet,
 };
+#[cfg(feature = "dim3")]
+use rapier::geometry::Ray;
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 use rapier::math::{Real, Vector};
-use rapier::pipeline::PhysicsHooks;
-#[cfg(feature = "dim3")]
-use rapier::{geometry::Ray, pipeline::QueryFilter};
+use rapier::pipeline::{PhysicsHooks, QueryFilter};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
@@ -98,6 +99,7 @@ pub struct TestbedState {
     pub running: RunMode,
     pub draw_colls: bool,
     pub highlighted_body: Option<RigidBodyHandle>,
+    pub character_body: Option<RigidBodyHandle>,
     //    pub grabbed_object: Option<DefaultBodyPartHandle>,
     //    pub grabbed_object_constraint: Option<DefaultJointConstraintHandle>,
     pub grabbed_object_plane: (Point3<f32>, Vector3<f32>),
@@ -133,6 +135,8 @@ pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     meshes: &'a mut Assets<Mesh>,
     materials: &'a mut Assets<BevyMaterial>,
     components: &'a mut Query<'b, 'f, (&'c mut Transform,)>,
+    #[allow(dead_code)] // Dead in 2D but not in 3D.
+    camera_transform: GlobalTransform,
     camera: &'a mut OrbitCamera,
 }
 
@@ -173,6 +177,7 @@ impl TestbedApp {
             running: RunMode::Running,
             draw_colls: false,
             highlighted_body: None,
+            character_body: None,
             //            grabbed_object: None,
             //            grabbed_object_constraint: None,
             grabbed_object_plane: (Point3::origin(), na::zero()),
@@ -447,6 +452,10 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         self.state.nsteps = nsteps
     }
 
+    pub fn set_character_body(&mut self, handle: RigidBodyHandle) {
+        self.state.character_body = Some(handle);
+    }
+
     pub fn allow_grabbing_behind_ground(&mut self, allow: bool) {
         self.state.can_grab_behind_ground = allow;
     }
@@ -502,6 +511,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
             .action_flags
             .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
 
+        self.state.character_body = None;
         self.state.highlighted_body = None;
 
         #[cfg(all(feature = "dim2", feature = "other-backends"))]
@@ -612,6 +622,121 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
     pub fn add_plugin(&mut self, mut plugin: impl TestbedPlugin + 'static) {
         plugin.init_plugin();
         self.plugins.0.push(Box::new(plugin));
+    }
+
+    fn update_character_controller(&mut self, events: &Input<KeyCode>) {
+        if self.state.running == RunMode::Stop {
+            return;
+        }
+
+        if let Some(character_handle) = self.state.character_body {
+            let mut desired_movement = Vector::zeros();
+            let mut speed = 0.1;
+
+            #[cfg(feature = "dim2")]
+            for key in events.get_pressed() {
+                match *key {
+                    KeyCode::Right => {
+                        desired_movement += Vector::x();
+                    }
+                    KeyCode::Left => {
+                        desired_movement -= Vector::x();
+                    }
+                    KeyCode::Space => {
+                        desired_movement += Vector::y() * 2.0;
+                    }
+                    KeyCode::RControl => {
+                        desired_movement -= Vector::y();
+                    }
+                    KeyCode::RShift => {
+                        speed /= 10.0;
+                    }
+                    _ => {}
+                }
+            }
+
+            #[cfg(feature = "dim3")]
+            {
+                let (_, rot, _) = self
+                    .graphics
+                    .as_ref()
+                    .unwrap()
+                    .camera_transform
+                    .to_scale_rotation_translation();
+                let rot = na::Unit::new_unchecked(na::Quaternion::new(rot.w, rot.x, rot.y, rot.z));
+                let mut rot_x = rot * Vector::x();
+                let mut rot_z = rot * Vector::z();
+                rot_x.y = 0.0;
+                rot_z.y = 0.0;
+
+                for key in events.get_pressed() {
+                    match *key {
+                        KeyCode::Right => {
+                            desired_movement += rot_x;
+                        }
+                        KeyCode::Left => {
+                            desired_movement -= rot_x;
+                        }
+                        KeyCode::Up => {
+                            desired_movement -= rot_z;
+                        }
+                        KeyCode::Down => {
+                            desired_movement += rot_z;
+                        }
+                        KeyCode::Space => {
+                            desired_movement += Vector::y() * 2.0;
+                        }
+                        KeyCode::RControl => {
+                            desired_movement -= Vector::y();
+                        }
+                        KeyCode::RShift => {
+                            speed /= 10.0;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            desired_movement *= speed;
+            desired_movement -= Vector::y() * speed;
+
+            let controller = KinematicCharacterController::default();
+            let phx = &mut self.harness.physics;
+            let character_body = &phx.bodies[character_handle];
+            let character_collider = &phx.colliders[character_body.colliders()[0]];
+            let character_mass = character_body.mass();
+
+            let mut collisions = vec![];
+            let mvt = controller.move_shape(
+                phx.integration_parameters.dt,
+                &phx.bodies,
+                &phx.colliders,
+                &phx.query_pipeline,
+                character_collider.shape(),
+                character_collider.position(),
+                desired_movement.cast::<Real>(),
+                QueryFilter::new().exclude_rigid_body(character_handle),
+                |c| collisions.push(c),
+            );
+
+            for collision in &collisions {
+                controller.solve_character_collision_impulses(
+                    phx.integration_parameters.dt,
+                    &mut phx.bodies,
+                    &phx.colliders,
+                    &phx.query_pipeline,
+                    character_collider.shape(),
+                    character_mass,
+                    collision,
+                    QueryFilter::new().exclude_rigid_body(character_handle),
+                )
+            }
+
+            let character_body = &mut phx.bodies[character_handle];
+            let pos = character_body.position();
+            character_body.set_next_kinematic_translation(pos.translation.vector + mvt.translation);
+            // character_body.set_translation(pos.translation.vector + mvt.translation, false);
+        }
     }
 
     fn handle_common_events(&mut self, events: &Input<KeyCode>) {
@@ -923,7 +1048,8 @@ fn update_testbed(
             meshes: &mut *meshes,
             materials: &mut *materials,
             components: &mut gfx_components,
-            camera: &mut cameras.iter_mut().next().unwrap().2,
+            camera_transform: *cameras.single().1,
+            camera: &mut cameras.single_mut().2,
         };
 
         let mut testbed = Testbed {
@@ -936,6 +1062,7 @@ fn update_testbed(
         };
 
         testbed.handle_common_events(&*keys);
+        testbed.update_character_controller(&*keys);
     }
 
     // Update UI
@@ -1010,7 +1137,8 @@ fn update_testbed(
                 meshes: &mut *meshes,
                 materials: &mut *materials,
                 components: &mut gfx_components,
-                camera: &mut cameras.iter_mut().next().unwrap().2,
+                camera_transform: *cameras.single().1,
+                camera: &mut cameras.single_mut().2,
             };
 
             let mut testbed = Testbed {
@@ -1160,7 +1288,8 @@ fn update_testbed(
                     meshes: &mut *meshes,
                     materials: &mut *materials,
                     components: &mut gfx_components,
-                    camera: &mut cameras.iter_mut().next().unwrap().2,
+                    camera_transform: *cameras.single().1,
+                    camera: &mut cameras.single_mut().2,
                 };
                 harness.step_with_graphics(Some(&mut testbed_graphics));
 

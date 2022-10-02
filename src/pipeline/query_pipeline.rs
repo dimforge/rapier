@@ -168,7 +168,7 @@ impl<'a> QueryFilter<'a> {
     }
 
     /// Exclude from the query any collider attached to a kinematic rigid-body.
-    pub fn exclude_dynamic(self) -> Self {
+    pub fn exclude_dynamic() -> Self {
         QueryFilterFlags::EXCLUDE_DYNAMIC.into()
     }
 
@@ -696,6 +696,9 @@ impl QueryPipeline {
     /// * `shape` - The shape to cast.
     /// * `max_toi` - The maximum time-of-impact that can be reported by this cast. This effectively
     ///   limits the distance traveled by the shape to `shapeVel.norm() * maxToi`.
+    /// * `stop_at_penetration` - If set to `false`, the linear shape-cast won’t immediately stop if
+    ///   the shape is penetrating another shape at its starting point **and** its trajectory is such
+    ///   that it’s on a path to exist that penetration state.
     /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     pub fn cast_shape<'a>(
         &self,
@@ -705,6 +708,7 @@ impl QueryPipeline {
         shape_vel: &Vector<Real>,
         shape: &dyn Shape,
         max_toi: Real,
+        stop_at_penetration: bool,
         filter: QueryFilter,
     ) -> Option<(ColliderHandle, TOI)> {
         let pipeline_shape = self.as_composite_shape(bodies, colliders, filter);
@@ -715,6 +719,7 @@ impl QueryPipeline {
             &pipeline_shape,
             shape,
             max_toi,
+            stop_at_penetration,
         );
         self.qbvh.traverse_best_first(&mut visitor).map(|h| h.1)
     }
