@@ -168,7 +168,7 @@ impl<'a> QueryFilter<'a> {
     }
 
     /// Exclude from the query any collider attached to a kinematic rigid-body.
-    pub fn exclude_dynamic(self) -> Self {
+    pub fn exclude_dynamic() -> Self {
         QueryFilterFlags::EXCLUDE_DYNAMIC.into()
     }
 
@@ -705,6 +705,7 @@ impl QueryPipeline {
         shape_vel: &Vector<Real>,
         shape: &dyn Shape,
         max_toi: Real,
+        stop_at_penetration: bool,
         filter: QueryFilter,
     ) -> Option<(ColliderHandle, TOI)> {
         let pipeline_shape = self.as_composite_shape(bodies, colliders, filter);
@@ -715,6 +716,7 @@ impl QueryPipeline {
             &pipeline_shape,
             shape,
             max_toi,
+            stop_at_penetration,
         );
         self.qbvh.traverse_best_first(&mut visitor).map(|h| h.1)
     }

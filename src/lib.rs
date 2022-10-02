@@ -130,6 +130,7 @@ pub(crate) const INVALID_USIZE: usize = INVALID_U32 as usize;
 /// The string version of Rapier.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub mod control;
 pub mod counters;
 pub mod data;
 pub mod dynamics;
@@ -202,6 +203,7 @@ pub mod math {
 
 /// Prelude containing the common types defined by Rapier.
 pub mod prelude {
+    // pub use crate::controller::*;
     pub use crate::dynamics::*;
     pub use crate::geometry::*;
     pub use crate::math::*;
