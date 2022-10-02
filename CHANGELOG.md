@@ -1,4 +1,4 @@
-## Unreleased
+## v0.15.0 (02 Oct. 2022)
 ### Added
 - Add a **kinematic character** controller implementation. See the `control` module. The character controller currently
   supports the following features:
