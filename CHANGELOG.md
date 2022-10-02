@@ -1,8 +1,28 @@
 ## Unreleased
+### Added
+- Add a **kinematic character** controller implementation. See the `control` module. The character controller currently
+  supports the following features:
+    - Slide on uneven terrains
+    - Interaction with dynamic bodies.
+    - Climb stairs automatically.
+    - Automatically snap the body to the floor when going downstairs.
+    - Prevent sliding up slopes that are too steep
+    - Prevent sliding down slopes that are not steep enough
+    - Interactions with moving platforms.
+    - Report information on the obstacles it hit on its path.
+- Implement `serde` serialization/deserialization for `CollisionEvents` when the `serde-serialize` feature is enabled
+
+
 ### Modified
 - The methods `Collider::set_rotation`, `RigidBody::set_rotation`, and `RigidBody::set_next_kinematic_rotation` now
   take a rotation (`UnitQuaternion` or `UnitComplex`) instead of a vector/angle.
-
+- The method `QueryFilter::exclude_dynamic` is now a static method (the `self` argument was removed).
+- The `QueryPipeline::cast_shape` method has a new argument `stop_at_penertation`. If set to `false`, the linear
+  shape-cast won’t immediately stop if the shape is penetrating another shape at its starting point **and** its
+  trajectory is such that it’s on a path to exist that penetration state.
+- The `InteractionGroups` is now a set of explicit bit flags instead of a raw `u32`.
+- The world-space mass properties of rigid-bodies are now updated automatically whenever the user changes their
+  position.
 
 ## v0.14.0 (09 July 2022)
 ### Fixed

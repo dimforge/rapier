@@ -203,7 +203,6 @@ pub mod math {
 
 /// Prelude containing the common types defined by Rapier.
 pub mod prelude {
-    // pub use crate::controller::*;
     pub use crate::dynamics::*;
     pub use crate::geometry::*;
     pub use crate::math::*;
