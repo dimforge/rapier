@@ -22,6 +22,7 @@ mod debug_cylinder3;
 mod debug_deserialize3;
 mod debug_dynamic_collider_add3;
 mod debug_friction3;
+mod debug_halfspace3;
 mod debug_infinite_fall3;
 mod debug_prismatic3;
 mod debug_rollback3;
@@ -114,6 +115,7 @@ pub fn main() {
             debug_dynamic_collider_add3::init_world,
         ),
         ("(Debug) friction", debug_friction3::init_world),
+        ("(Debug) halfspace", debug_halfspace3::init_world),
         ("(Debug) triangle", debug_triangle3::init_world),
         ("(Debug) trimesh", debug_trimesh3::init_world),
         ("(Debug) cylinder", debug_cylinder3::init_world),

@@ -9,6 +9,7 @@ use inflector::Inflector;
 use rapier_testbed3d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
 
+mod debug_halfspace3;
 mod debug_serialized3;
 
 fn demo_name_from_command_line() -> Option<String> {
@@ -48,7 +49,10 @@ pub fn main() {
         .to_camel_case();
 
     let mut builders: Vec<(_, fn(&mut Testbed))> =
-        vec![("(Debug) serialized", debug_serialized3::init_world)];
+        vec![  
+            ("(Debug) halfspace", debug_halfspace3::init_world),    
+            ("(Debug) serialized", debug_serialized3::init_world),
+        ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
     builders.sort_by(|a, b| match (a.0.starts_with("("), b.0.starts_with("(")) {
