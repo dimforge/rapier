@@ -24,6 +24,8 @@ dim2 = [ ]
 parallel = [ "rapier/parallel", "num_cpus" ]
 other-backends = [ "wrapped2d" ]
 
+[package.metadata.docs.rs]
+features = ["parallel", "other-backends"]
 
 [dependencies]
 nalgebra   = { version = "0.31", features = [ "rand" ] }
