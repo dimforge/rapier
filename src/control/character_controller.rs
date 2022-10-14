@@ -76,6 +76,7 @@ impl Default for CharacterAutostep {
 }
 
 /// A collision between the character and its environment during its movement.
+#[derive(Copy, Clone, Debug)]
 pub struct CharacterCollision {
     /// The collider hit by the character.
     pub handle: ColliderHandle,
