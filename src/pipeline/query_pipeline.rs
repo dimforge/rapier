@@ -12,6 +12,7 @@ use parry::query::details::{
     RayCompositeShapeToiAndNormalBestFirstVisitor, RayCompositeShapeToiBestFirstVisitor,
     TOICompositeShapeShapeBestFirstVisitor,
 };
+use parry::utils::DefaultStorage;
 use parry::query::visitors::{
     BoundingVolumeIntersectionsVisitor, PointIntersectionsVisitor, RayIntersectionsVisitor,
 };
@@ -245,6 +246,7 @@ pub enum QueryPipelineMode {
 impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
     type PartShape = dyn Shape;
     type PartId = ColliderHandle;
+    type QBVHStorage = DefaultStorage;
 
     fn map_typed_part_at(
         &self,
