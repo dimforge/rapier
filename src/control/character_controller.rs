@@ -13,14 +13,14 @@ use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
 pub enum CharacterLength {
     /// The length is specified relative to some of the character shape’s size.
     ///
-    /// For example setting `CharacterAutostep::max_height` to `CharaceterLentgh::Relative(0.1)`
-    /// for a shape with an height equal to 20.0 will result in a maximum step heigth
+    /// For example setting `CharacterAutostep::max_height` to `CharacterLength::Relative(0.1)`
+    /// for a shape with an height equal to 20.0 will result in a maximum step height
     /// of `0.1 * 20.0 = 2.0`.
     Relative(Real),
     /// The lengt his specified as an aboslute value, independent from the character shape’s size.
     ///
-    /// For example setting `CharacterAutostep::max_height` to `CharaceterLentgh::Relative(0.1)`
-    /// for a shape with an height equal to 20.0 will result in a maximum step heigth
+    /// For example setting `CharacterAutostep::max_height` to `CharacterLength::Relative(0.1)`
+    /// for a shape with an height equal to 20.0 will result in a maximum step height
     /// of `0.1` (the shape height is ignored in for this value).
     Absolute(Real),
 }
