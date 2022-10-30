@@ -188,7 +188,7 @@ impl SAPAxis {
             .retain(|endpt| endpt.is_sentinel() || existing_proxies[endpt.proxy() as usize])
     }
 
-    /// Removes from this axis all the endpoints corresponding to a proxy with an AABB mins/maxs values
+    /// Removes from this axis all the endpoints corresponding to a proxy with an Aabb mins/maxs values
     /// equal to DELETED_AABB_VALUE, indicating that the endpoints should be deleted.
     ///
     /// Returns the number of deleted proxies such that `proxy.layer_depth <= layer_depth`.

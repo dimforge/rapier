@@ -1,7 +1,7 @@
 use super::NEXT_FREE_SENTINEL;
 use crate::geometry::broad_phase_multi_sap::SAPRegion;
 use crate::geometry::ColliderHandle;
-use parry::bounding_volume::AABB;
+use parry::bounding_volume::Aabb;
 use std::ops::{Index, IndexMut};
 
 pub type SAPProxyIndex = u32;
@@ -51,7 +51,7 @@ impl SAPProxyData {
 #[derive(Clone)]
 pub struct SAPProxy {
     pub data: SAPProxyData,
-    pub aabb: AABB,
+    pub aabb: Aabb,
     pub next_free: SAPProxyIndex,
     // TODO: pack the layer_id and layer_depth into a single u16?
     pub layer_id: u8,
@@ -59,7 +59,7 @@ pub struct SAPProxy {
 }
 
 impl SAPProxy {
-    pub fn collider(handle: ColliderHandle, aabb: AABB, layer_id: u8, layer_depth: i8) -> Self {
+    pub fn collider(handle: ColliderHandle, aabb: Aabb, layer_id: u8, layer_depth: i8) -> Self {
         Self {
             data: SAPProxyData::Collider(handle),
             aabb,
@@ -69,7 +69,7 @@ impl SAPProxy {
         }
     }
 
-    pub fn subregion(subregion: Box<SAPRegion>, aabb: AABB, layer_id: u8, layer_depth: i8) -> Self {
+    pub fn subregion(subregion: Box<SAPRegion>, aabb: Aabb, layer_id: u8, layer_depth: i8) -> Self {
         Self {
             data: SAPProxyData::Region(Some(subregion)),
             aabb,

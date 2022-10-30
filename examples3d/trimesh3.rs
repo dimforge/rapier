@@ -38,7 +38,11 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let rigid_body = RigidBodyBuilder::fixed();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::trimesh(vertices, indices);
+    let collider = ColliderBuilder::trimesh_with_flags(
+        vertices,
+        indices,
+        TriMeshFlags::MERGE_DUPLICATE_VERTICES,
+    );
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*

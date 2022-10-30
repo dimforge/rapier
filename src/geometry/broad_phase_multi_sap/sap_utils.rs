@@ -1,5 +1,5 @@
 use crate::math::{Point, Real, Vector};
-use parry::bounding_volume::AABB;
+use parry::bounding_volume::Aabb;
 
 pub(crate) const NUM_SENTINELS: usize = 1;
 pub(crate) const NEXT_FREE_SENTINEL: u32 = u32::MAX;
@@ -30,26 +30,26 @@ pub(crate) fn point_key(point: Point<Real>, region_width: Real) -> Point<i32> {
         .into()
 }
 
-pub(crate) fn region_aabb(index: Point<i32>, region_width: Real) -> AABB {
+pub(crate) fn region_aabb(index: Point<i32>, region_width: Real) -> Aabb {
     let mins = index.coords.map(|i| i as Real * region_width).into();
     let maxs = mins + Vector::repeat(region_width);
-    AABB::new(mins, maxs)
+    Aabb::new(mins, maxs)
 }
 
 pub(crate) fn region_width(depth: i8) -> Real {
     (REGION_WIDTH_BASE * REGION_WIDTH_POWER_BASIS.powi(depth as i32)).min(MAX_AABB_EXTENT)
 }
 
-/// Computes the depth of the layer the given AABB should be part of.
+/// Computes the depth of the layer the given Aabb should be part of.
 ///
-/// The idea here is that an AABB should be part of a layer which has
-/// regions large enough so that one AABB doesn't crosses too many
+/// The idea here is that an Aabb should be part of a layer which has
+/// regions large enough so that one Aabb doesn't crosses too many
 /// regions. But the regions must also not be too large, otherwise
 /// we are loosing the benefits of Multi-SAP.
 ///
 /// If the code bellow, we select a layer such that each region can
-/// contain at least a chain of 10 contiguous objects with that AABB.
-pub(crate) fn layer_containing_aabb(aabb: &AABB) -> i8 {
+/// contain at least a chain of 10 contiguous objects with that Aabb.
+pub(crate) fn layer_containing_aabb(aabb: &Aabb) -> i8 {
     // Max number of elements of this size we would like one region to be able to contain.
     const NUM_ELEMENTS_PER_DIMENSION: Real = 10.0;
 

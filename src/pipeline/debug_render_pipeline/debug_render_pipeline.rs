@@ -30,7 +30,7 @@ bitflags::bitflags! {
         const SOLVER_CONTACTS = 1 << 4;
         /// If this flag is set, the geometric contacts will be rendered.
         const CONTACTS = 1 << 5;
-        /// If this flag is set, the AABBs of colliders will be rendered.
+        /// If this flag is set, the Aabbs of colliders will be rendered.
         const COLLIDER_AABBS = 1 << 6;
     }
 }

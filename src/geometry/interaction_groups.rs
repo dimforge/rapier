@@ -150,3 +150,17 @@ bitflags! {
         const NONE = 0;
     }
 }
+
+impl From<u32> for Group {
+    #[inline]
+    fn from(val: u32) -> Self {
+        unsafe { Self::from_bits_unchecked(val) }
+    }
+}
+
+impl From<Group> for u32 {
+    #[inline]
+    fn from(val: Group) -> Self {
+        val.bits()
+    }
+}

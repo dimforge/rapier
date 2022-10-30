@@ -17,7 +17,7 @@ use parry::utils::hashmap::HashMap;
 /// the interactions between far-away objects. This means that objects
 /// that are very far away will still have some of their endpoints swapped
 /// within the SAP data-structure. This results in poor scaling because this
-/// results in lots of swapping between endpoints of AABBs that won't ever
+/// results in lots of swapping between endpoints of Aabbs that won't ever
 /// actually interact.
 ///
 /// The first optimization to address this problem is to use the Multi-SAP
@@ -25,7 +25,7 @@ use parry::utils::hashmap::HashMap;
 /// the spaces into equally-sized subspaces (grid cells). Each subspace, which we call
 /// a "region" contains an SAP instance (i.e. there SAP axes responsible for
 /// collecting endpoints and swapping them when they move to detect interaction pairs).
-/// Each AABB is inserted in all the regions it intersects.
+/// Each Aabb is inserted in all the regions it intersects.
 /// This prevents the far-away problem because two objects that are far away will
 /// be located on different regions. So their endpoints will never meet.
 ///
@@ -39,10 +39,10 @@ use parry::utils::hashmap::HashMap;
 /// replace the grid by a hierarchical grid. A hierarchical grid is composed of
 /// several layers. And each layer have different region sizes. For example all
 /// the regions on layer 0 will have the size 1x1x1. All the regions on the layer
-/// 1 will have the size 10x10x10, etc. That way, a given AABB will be inserted
+/// 1 will have the size 10x10x10, etc. That way, a given Aabb will be inserted
 /// on the layer that has regions big enough to avoid the large-object problem.
 /// For example a 20x20x20 object will be inserted in the layer with region
-/// of size 10x10x10, resulting in only 8 regions being intersect by the AABB.
+/// of size 10x10x10, resulting in only 8 regions being intersect by the Aabb.
 /// (If it was inserted in the layer with regions of size 1x1x1, it would have intersected
 /// 8000 regions, which is a problem performancewise.)
 ///
@@ -53,14 +53,14 @@ use parry::utils::hashmap::HashMap;
 /// way. So we need a way to do inter-layer interference detection. There is a lot ways of doing
 /// this: performing inter-layer Multi-Box-Pruning passes is one example (but this is not what we do).
 /// In our implementation, we do the following:
-/// - The AABB bounds of each region of the layer `n` are inserted into the corresponding larger region
+/// - The Aabb bounds of each region of the layer `n` are inserted into the corresponding larger region
 ///   of the layer `n + 1`.
-/// - When an AABB in the region of the layer `n + 1` intersects the AABB corresponding to one of the
-///   regions at the smaller layer `n`, we add that AABB to that smaller region.
-/// So in the end it means that a given AABB will be inserted into all the region it intersects at
+/// - When an Aabb in the region of the layer `n + 1` intersects the Aabb corresponding to one of the
+///   regions at the smaller layer `n`, we add that Aabb to that smaller region.
+/// So in the end it means that a given Aabb will be inserted into all the region it intersects at
 /// the layer `n`. And it will also be inserted into all the regions it intersects at the smaller layers
 /// (the layers `< n`), but only for the regions that already exist (so we don't have to discretize
-/// our AABB into the layers `< n`). This involves a fair amount of bookkeeping unfortunately, but
+/// our Aabb into the layers `< n`). This involves a fair amount of bookkeeping unfortunately, but
 /// this has the benefit of keep the overall complexity of the algorithm O(1) in the typical specially
 /// coherent scenario.
 ///
@@ -68,10 +68,10 @@ use parry::utils::hashmap::HashMap;
 /// - There is one `SAPLayer` per layer of the hierarchical grid.
 /// - Each `SAPLayer` contains multiple `SAPRegion` (each being a region of the grid represented by that layer).
 /// - Each `SAPRegion` contains three `SAPAxis`, representing the "classical" SAP algorithm running on this region.
-/// - Each `SAPAxis` maintains a sorted list of `SAPEndpoints` representing the endpoints of the AABBs intersecting
+/// - Each `SAPAxis` maintains a sorted list of `SAPEndpoints` representing the endpoints of the Aabbs intersecting
 ///   the bounds on the `SAPRegion` containing this `SAPAxis`.
-/// - A set of `SAPProxy` are maintained separately. It contains the AABBs of all the colliders managed by this
-///   broad-phase, as well as the AABBs of all the regions part of this broad-phase.
+/// - A set of `SAPProxy` are maintained separately. It contains the Aabbs of all the colliders managed by this
+///   broad-phase, as well as the Aabbs of all the regions part of this broad-phase.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 pub struct BroadPhase {
@@ -151,7 +151,7 @@ impl BroadPhase {
     /// Pre-deletes a proxy from this broad-phase.
     ///
     /// The removal of a proxy is a semi-lazy process. It will mark
-    /// the proxy as predeleted, and will set its AABB as +infinity.
+    /// the proxy as predeleted, and will set its Aabb as +infinity.
     /// After this method has been called with all the proxies to
     /// remove, the `complete_removal` method MUST be called to
     /// complete the removal of these proxies, by actually removing them
@@ -355,7 +355,7 @@ impl BroadPhase {
         if aabb.mins.coords.iter().any(|e| !e.is_finite())
             || aabb.maxs.coords.iter().any(|e| !e.is_finite())
         {
-            // Reject AABBs with non-finite values.
+            // Reject Aabbs with non-finite values.
             return false;
         }
 
@@ -401,11 +401,11 @@ impl BroadPhase {
         let layer = &mut self.layers[layer_id as usize];
 
         // Preupdate the collider in the layer.
-        // We need to use both the prev AABB and the new AABB for this update, to
-        // handle special cases where one AABB has left a region that doesn’t contain
-        // any other modified AABBs.
+        // We need to use both the prev Aabb and the new Aabb for this update, to
+        // handle special cases where one Aabb has left a region that doesn’t contain
+        // any other modified Aabbs.
         // If the combination of both previous and new aabbs isn’t more than 25% bigger
-        // than the new AABB, we just merge them to save some computation times (to avoid
+        // than the new Aabb, we just merge them to save some computation times (to avoid
         // discretizing twice the area at their intersection. If it’s bigger than 25% then
         // we discretize both aabbs individually.
         let merged_aabbs = prev_aabb.merged(&aabb);
@@ -501,7 +501,7 @@ impl BroadPhase {
 
     /// Propagate regions from the smallest layers up to the larger layers.
     ///
-    /// Whenever a region is created on a layer `n`, then its AABB must be
+    /// Whenever a region is created on a layer `n`, then its Aabb must be
     /// added to its larger layer so we can detect when an object
     /// in a larger layer may start interacting with objects in a smaller
     /// layer.
@@ -551,7 +551,7 @@ impl BroadPhase {
         //    order to account for the fact that a big proxy moved.
         // NOTE: this 2nd point could probably be improved: instead of updating
         //       all the subregions, we could perhaps just update the subregions
-        //       that crosses the boundary of the AABB of the big proxies that
+        //       that crosses the boundary of the Aabb of the big proxies that
         //       moved in they layer `n`.
         let mut layer_id = Some(self.largest_layer);
 
