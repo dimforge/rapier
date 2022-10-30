@@ -38,6 +38,9 @@ debug-disable-legitimate-fe-exceptions = [ ]
 # Do not enable this unless you are working on the engine internals.
 dev-remove-slow-accessors = []
 
+[package.metadata.docs.rs]
+features = ["parallel", "simd-stable", "serde-serialize", "enhanced-determinism", "debug-render"]
+
 [lib]
 name = "rapier3d"
 path = "../../src/lib.rs"

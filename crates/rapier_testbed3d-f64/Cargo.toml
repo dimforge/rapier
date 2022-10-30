@@ -23,6 +23,9 @@ default = [ "dim3" ]
 dim3 = [ ]
 parallel = [ "rapier/parallel", "num_cpus" ]
 
+[package.metadata.docs.rs]
+features = ["parallel"]
+
 [dependencies]
 nalgebra   = { version = "0.31", features = [ "rand" ] }
 rand       = "0.8"
