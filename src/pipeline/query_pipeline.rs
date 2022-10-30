@@ -1,10 +1,10 @@
 use crate::dynamics::{IslandManager, RigidBodyHandle};
 use crate::geometry::{
-    Collider, ColliderHandle, InteractionGroups, PointProjection, Ray, RayIntersection, AABB, QBVH,
+    Aabb, Collider, ColliderHandle, InteractionGroups, PointProjection, Qbvh, Ray, RayIntersection,
 };
 use crate::math::{Isometry, Point, Real, Vector};
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
-use parry::partitioning::QBVHDataGenerator;
+use parry::partitioning::QbvhDataGenerator;
 use parry::query::details::{
     IntersectionCompositeShapeShapeBestFirstVisitor,
     NonlinearTOICompositeShapeShapeBestFirstVisitor, PointCompositeShapeProjBestFirstVisitor,
@@ -12,12 +12,12 @@ use parry::query::details::{
     RayCompositeShapeToiAndNormalBestFirstVisitor, RayCompositeShapeToiBestFirstVisitor,
     TOICompositeShapeShapeBestFirstVisitor,
 };
-use parry::utils::DefaultStorage;
 use parry::query::visitors::{
     BoundingVolumeIntersectionsVisitor, PointIntersectionsVisitor, RayIntersectionsVisitor,
 };
 use parry::query::{DefaultQueryDispatcher, NonlinearRigidMotion, QueryDispatcher, TOI};
 use parry::shape::{FeatureId, Shape, TypedSimdCompositeShape};
+use parry::utils::DefaultStorage;
 use std::sync::Arc;
 
 /// A pipeline for performing queries on all the colliders of a scene.
@@ -29,7 +29,7 @@ pub struct QueryPipeline {
         serde(skip, default = "crate::geometry::default_query_dispatcher")
     )]
     query_dispatcher: Arc<dyn QueryDispatcher>,
-    qbvh: QBVH<ColliderHandle>,
+    qbvh: Qbvh<ColliderHandle>,
     tree_built: bool,
     dilation_factor: Real,
 }
@@ -246,7 +246,7 @@ pub enum QueryPipelineMode {
 impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
     type PartShape = dyn Shape;
     type PartId = ColliderHandle;
-    type QBVHStorage = DefaultStorage;
+    type QbvhStorage = DefaultStorage;
 
     fn map_typed_part_at(
         &self,
@@ -268,7 +268,7 @@ impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
         self.map_typed_part_at(shape_id, f);
     }
 
-    fn typed_qbvh(&self) -> &QBVH<ColliderHandle> {
+    fn typed_qbvh(&self) -> &Qbvh<ColliderHandle> {
         &self.query_pipeline.qbvh
     }
 }
@@ -309,7 +309,7 @@ impl QueryPipeline {
     {
         Self {
             query_dispatcher: Arc::new(d),
-            qbvh: QBVH::new(),
+            qbvh: Qbvh::new(),
             tree_built: false,
             dilation_factor: 0.01,
         }
@@ -349,13 +349,13 @@ impl QueryPipeline {
             mode: QueryPipelineMode,
         }
 
-        impl<'a> QBVHDataGenerator<ColliderHandle> for DataGenerator<'a> {
+        impl<'a> QbvhDataGenerator<ColliderHandle> for DataGenerator<'a> {
             fn size_hint(&self) -> usize {
                 self.colliders.len()
             }
 
             #[inline(always)]
-            fn for_each(&mut self, mut f: impl FnMut(ColliderHandle, AABB)) {
+            fn for_each(&mut self, mut f: impl FnMut(ColliderHandle, Aabb)) {
                 match self.mode {
                     QueryPipelineMode::CurrentPosition => {
                         for (h, co) in self.colliders.iter() {
@@ -675,10 +675,10 @@ impl QueryPipeline {
             .map(|h| (h.1 .1 .0, h.1 .0, h.1 .1 .1))
     }
 
-    /// Finds all handles of all the colliders with an AABB intersecting the given AABB.
+    /// Finds all handles of all the colliders with an Aabb intersecting the given Aabb.
     pub fn colliders_with_aabb_intersecting_aabb(
         &self,
-        aabb: &AABB,
+        aabb: &Aabb,
         mut callback: impl FnMut(&ColliderHandle) -> bool,
     ) {
         let mut visitor = BoundingVolumeIntersectionsVisitor::new(aabb, &mut callback);

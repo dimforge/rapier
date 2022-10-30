@@ -88,7 +88,7 @@
   by default.
 
 ### Added
-- Debug-renderer: add rendering of contacts, solver contacts, and collider AABBs
+- Debug-renderer: add rendering of contacts, solver contacts, and collider Aabbs
 - Add `MultibodyJointSet::attached_joints` to return all the multibody joints attached to a given rigid-body.
 
 ## v0.12.0 (30 Apr. 2022)

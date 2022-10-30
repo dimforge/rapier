@@ -8,7 +8,7 @@ use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
 use na::Unit;
-use parry::bounding_volume::AABB;
+use parry::bounding_volume::Aabb;
 use parry::shape::Shape;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -348,13 +348,13 @@ impl Collider {
     }
 
     /// Compute the axis-aligned bounding box of this collider.
-    pub fn compute_aabb(&self) -> AABB {
+    pub fn compute_aabb(&self) -> Aabb {
         self.shape.compute_aabb(&self.pos)
     }
 
     /// Compute the axis-aligned bounding box of this collider moving from its current position
     /// to the given `next_position`
-    pub fn compute_swept_aabb(&self, next_position: &Isometry<Real>) -> AABB {
+    pub fn compute_swept_aabb(&self, next_position: &Isometry<Real>) -> Aabb {
         self.shape.compute_swept_aabb(&self.pos, next_position)
     }
 

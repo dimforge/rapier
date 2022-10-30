@@ -1,6 +1,6 @@
 use super::{SAPProxies, SAPProxy, SAPRegion, SAPRegionPool};
 use crate::geometry::broad_phase_multi_sap::DELETED_AABB_VALUE;
-use crate::geometry::{SAPProxyIndex, AABB};
+use crate::geometry::{Aabb, SAPProxyIndex};
 use crate::math::{Point, Real};
 use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::{Entry, HashMap};
@@ -215,8 +215,8 @@ impl SAPLayer {
     pub fn preupdate_collider(
         &mut self,
         proxy_id: u32,
-        aabb_to_discretize: &AABB,
-        actual_aabb: Option<&AABB>,
+        aabb_to_discretize: &Aabb,
+        actual_aabb: Option<&Aabb>,
         proxies: &mut SAPProxies,
         pool: &mut SAPRegionPool,
     ) {
@@ -241,15 +241,15 @@ impl SAPLayer {
                     let region = region_proxy.data.as_region_mut();
 
                     // NOTE: sometimes, rounding errors will generate start/end indices
-                    //       that lie outside of the actual region’s AABB.
+                    //       that lie outside of the actual region’s Aabb.
                     // TODO: is there a smarter, more efficient way of dealing with this?
                     if !region_proxy.aabb.intersects(aabb_to_discretize) {
                         continue;
                     }
 
                     if let Some(actual_aabb) = actual_aabb {
-                        // NOTE: if the actual AABB doesn't intersect the
-                        //       region’s AABB, then we need to delete the
+                        // NOTE: if the actual Aabb doesn't intersect the
+                        //       region’s Aabb, then we need to delete the
                         //       proxy from that region because it means that
                         //       during the last update the proxy intersected
                         //       that region, but it doesn't intersect it any
@@ -267,12 +267,12 @@ impl SAPLayer {
     }
 
     pub fn predelete_proxy(&mut self, proxies: &mut SAPProxies, proxy_index: SAPProxyIndex) {
-        // Discretize the AABB to find the regions that need to be invalidated.
+        // Discretize the Aabb to find the regions that need to be invalidated.
         let proxy_aabb = &mut proxies[proxy_index].aabb;
         let start = super::point_key(proxy_aabb.mins, self.region_width);
         let end = super::point_key(proxy_aabb.maxs, self.region_width);
 
-        // Set the AABB of the proxy to a very large value.
+        // Set the Aabb of the proxy to a very large value.
         proxy_aabb.mins.coords.fill(DELETED_AABB_VALUE);
         proxy_aabb.maxs.coords.fill(DELETED_AABB_VALUE);
 

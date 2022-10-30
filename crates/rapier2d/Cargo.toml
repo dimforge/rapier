@@ -49,7 +49,7 @@ vec_map = { version = "0.8", optional = true }
 instant = { version = "0.1", features = [ "now" ], optional = true }
 num-traits = "0.2"
 nalgebra = "0.31"
-parry2d = "0.10"
+parry2d = "0.11"
 simba = "0.7"
 approx = "0.5"
 rayon = { version = "1", optional = true }

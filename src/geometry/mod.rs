@@ -41,7 +41,7 @@ pub type Cylinder = parry::shape::Cylinder;
 #[cfg(feature = "dim3")]
 pub type Cone = parry::shape::Cone;
 /// An axis-aligned bounding box.
-pub type AABB = parry::bounding_volume::AABB;
+pub type Aabb = parry::bounding_volume::Aabb;
 /// A ray that can be cast against colliders.
 pub type Ray = parry::query::Ray;
 /// The intersection between a ray and a  collider.
@@ -178,7 +178,7 @@ impl ContactForceEvent {
 
 pub(crate) use self::broad_phase_multi_sap::SAPProxyIndex;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
-pub(crate) use parry::partitioning::QBVH;
+pub(crate) use parry::partitioning::Qbvh;
 pub use parry::shape::*;
 
 #[cfg(feature = "serde-serialize")]

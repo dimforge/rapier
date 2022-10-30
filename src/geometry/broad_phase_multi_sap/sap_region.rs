@@ -2,7 +2,7 @@ use super::{SAPAxis, SAPProxies};
 use crate::geometry::SAPProxyIndex;
 use crate::math::DIM;
 use bit_vec::BitVec;
-use parry::bounding_volume::AABB;
+use parry::bounding_volume::Aabb;
 use parry::utils::hashmap::HashMap;
 
 pub type SAPRegionPool = Vec<Box<SAPRegion>>;
@@ -25,7 +25,7 @@ pub struct SAPRegion {
 }
 
 impl SAPRegion {
-    pub fn new(bounds: AABB) -> Self {
+    pub fn new(bounds: Aabb) -> Self {
         let axes = [
             SAPAxis::new(bounds.mins.x, bounds.maxs.x),
             SAPAxis::new(bounds.mins.y, bounds.maxs.y),
@@ -44,7 +44,7 @@ impl SAPRegion {
         }
     }
 
-    pub fn recycle(bounds: AABB, mut old: Box<Self>) -> Box<Self> {
+    pub fn recycle(bounds: Aabb, mut old: Box<Self>) -> Box<Self> {
         // Correct the bounds
         for i in 0..DIM {
             // Make sure the axis is empty (it may still contain
@@ -73,7 +73,7 @@ impl SAPRegion {
         old
     }
 
-    pub fn recycle_or_new(bounds: AABB, pool: &mut Vec<Box<Self>>) -> Box<Self> {
+    pub fn recycle_or_new(bounds: Aabb, pool: &mut Vec<Box<Self>>) -> Box<Self> {
         if let Some(old) = pool.pop() {
             Self::recycle(bounds, old)
         } else {
@@ -177,7 +177,7 @@ impl SAPRegion {
             false
         } else {
             // Here we need a second update if all proxies exit this region. In this case, we need
-            // to delete the final proxy, but the region may not have AABBs overlapping it, so it
+            // to delete the final proxy, but the region may not have Aabbs overlapping it, so it
             // wouldn't get an update otherwise.
             self.update_count = 2;
             true
