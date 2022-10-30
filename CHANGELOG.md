@@ -1,3 +1,18 @@
+## v0.16.0 (30 Oct. 2022)
+### Added
+- Implement `Copy` for `CharacterCollision`.
+- Implement conversion (`From` trait) between `Group` and `u32`.
+- Add `ColliderBuilder::trimesh_with_flags` to build a triangle mesh with specific flags controlling
+  its initialization.
+
+### Modified
+- Rename `AABB` to `Aabb` to comply with Rust’s style guide.
+- Switch to `parry 0.11`.
+
+### Fix
+- Fix internal edges of 3D triangle meshes or 3D heightfields generating invalid contacts preventing
+  balls from moving straight.
+
 ## v0.15.0 (02 Oct. 2022)
 ### Added
 - Add a **kinematic character** controller implementation. See the `control` module. The character controller currently
