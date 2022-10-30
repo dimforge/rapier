@@ -34,6 +34,7 @@ mod heightfield3;
 mod joints3;
 // mod joints3;
 mod character_controller3;
+mod debug_internal_edges3;
 mod keva3;
 mod locked_rotations3;
 mod newton_cradle3;
@@ -114,6 +115,7 @@ pub fn main() {
             debug_dynamic_collider_add3::init_world,
         ),
         ("(Debug) friction", debug_friction3::init_world),
+        ("(Debug) internal edges", debug_internal_edges3::init_world),
         ("(Debug) triangle", debug_triangle3::init_world),
         ("(Debug) trimesh", debug_trimesh3::init_world),
         ("(Debug) cylinder", debug_cylinder3::init_world),

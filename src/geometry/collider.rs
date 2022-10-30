@@ -9,7 +9,7 @@ use crate::parry::transformation::vhacd::VHACDParameters;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
 use na::Unit;
 use parry::bounding_volume::Aabb;
-use parry::shape::Shape;
+use parry::shape::{Shape, TriMeshFlags};
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
@@ -548,6 +548,16 @@ impl ColliderBuilder {
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers.
     pub fn trimesh(vertices: Vec<Point<Real>>, indices: Vec<[u32; 3]>) -> Self {
         Self::new(SharedShape::trimesh(vertices, indices))
+    }
+
+    /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers and
+    /// flags controlling its pre-processing.
+    pub fn trimesh_with_flags(
+        vertices: Vec<Point<Real>>,
+        indices: Vec<[u32; 3]>,
+        flags: TriMeshFlags,
+    ) -> Self {
+        Self::new(SharedShape::trimesh_with_flags(vertices, indices, flags))
     }
 
     /// Initializes a collider builder with a compound shape obtained from the decomposition of
