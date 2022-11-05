@@ -1,5 +1,5 @@
 use crate::dynamics::solver::MotorParameters;
-use crate::dynamics::{FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint};
+use crate::dynamics::{FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RopeJoint};
 use crate::math::{Isometry, Point, Real, Rotation, UnitVector, Vector, SPATIAL_DIM};
 use crate::utils::{WBasis, WReal};
 
@@ -483,6 +483,12 @@ impl GenericJoint {
         as_prismatic_mut,
         PrismaticJoint,
         JointAxesMask::LOCKED_PRISMATIC_AXES
+    );
+    joint_conversion_methods!(
+        as_rope,
+        as_rope_mut,
+        RopeJoint,
+        JointAxesMask::FREE_FIXED_AXES
     );
 
     #[cfg(feature = "dim3")]

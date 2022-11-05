@@ -26,6 +26,7 @@ mod pyramid2;
 mod restitution2;
 mod sensor2;
 mod trimesh2;
+mod rope_joints2;
 
 fn demo_name_from_command_line() -> Option<String> {
     let mut args = std::env::args();
@@ -69,6 +70,7 @@ pub fn main() {
         ("Drum", drum2::init_world),
         ("Heightfield", heightfield2::init_world),
         ("Joints", joints2::init_world),
+        ("DistanceJoints", rope_joints2::init_world),
         ("Locked rotations", locked_rotations2::init_world),
         ("One-way platforms", one_way_platforms2::init_world),
         ("Platform", platform2::init_world),
