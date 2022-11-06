@@ -42,6 +42,7 @@ mod one_way_platforms3;
 mod platform3;
 mod primitives3;
 mod restitution3;
+mod rope_joints3;
 mod sensor3;
 mod trimesh3;
 
@@ -99,6 +100,7 @@ pub fn main() {
         ("One-way platforms", one_way_platforms3::init_world),
         ("Platform", platform3::init_world),
         ("Restitution", restitution3::init_world),
+        ("Rope Joints", rope_joints3::init_world),
         ("Sensor", sensor3::init_world),
         ("TriMesh", trimesh3::init_world),
         ("Keva tower", keva3::init_world),
