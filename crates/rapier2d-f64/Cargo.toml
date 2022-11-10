@@ -1,6 +1,6 @@
 [package]
 name    = "rapier2d-f64"
-version = "0.16.0"
+version = "0.16.1"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "2-dimensional physics engine in Rust."
 documentation = "http://docs.rs/rapier2d"
@@ -39,7 +39,7 @@ debug-disable-legitimate-fe-exceptions = [ ]
 dev-remove-slow-accessors = []
 
 [package.metadata.docs.rs]
-features = ["parallel", "simd-stable", "serde-serialize", "enhanced-determinism", "debug-render"]
+features = ["parallel", "simd-stable", "serde-serialize", "debug-render"]
 
 [lib]
 name = "rapier2d_f64"
