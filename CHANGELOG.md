@@ -1,3 +1,8 @@
+## v0.16.1 (10 Nov. 2022)
+### Fix
+- Fixed docs build on `docs.rs`.
+
+
 ## v0.16.0 (30 Oct. 2022)
 ### Added
 - Implement `Copy` for `CharacterCollision`.
