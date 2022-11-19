@@ -7,6 +7,7 @@ use crate::geometry::{
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
+use crate::prelude::ColliderEnabled;
 use na::Unit;
 use parry::bounding_volume::Aabb;
 use parry::shape::{Shape, TriMeshFlags};
@@ -151,6 +152,32 @@ impl Collider {
             } else {
                 ColliderType::Solid
             };
+        }
+    }
+
+    /// Is this collider enabled?
+    pub fn is_enabled(&self) -> bool {
+        match self.flags.enabled {
+            ColliderEnabled::Enabled => true,
+            _ => false,
+        }
+    }
+
+    /// Sets whether or not this collider is enabled.
+    pub fn set_enabled(&mut self, enabled: bool) {
+        match self.flags.enabled {
+            ColliderEnabled::Enabled | ColliderEnabled::DisabledByParent => {
+                if !enabled {
+                    self.changes.insert(ColliderChanges::ENABLED_OR_DISABLED);
+                    self.flags.enabled = ColliderEnabled::Disabled;
+                }
+            }
+            ColliderEnabled::Disabled => {
+                if enabled {
+                    self.changes.insert(ColliderChanges::ENABLED_OR_DISABLED);
+                    self.flags.enabled = ColliderEnabled::Enabled;
+                }
+            }
         }
     }
 
@@ -402,6 +429,8 @@ pub struct ColliderBuilder {
     pub collision_groups: InteractionGroups,
     /// The solver groups for the collider being built.
     pub solver_groups: InteractionGroups,
+    /// Will the collider being built be enabled?
+    pub enabled: bool,
     /// The total force magnitude beyond which a contact force event can be emitted.
     pub contact_force_event_threshold: Real,
 }
@@ -424,6 +453,7 @@ impl ColliderBuilder {
             active_collision_types: ActiveCollisionTypes::default(),
             active_hooks: ActiveHooks::empty(),
             active_events: ActiveEvents::empty(),
+            enabled: true,
             contact_force_event_threshold: 0.0,
         }
     }
@@ -834,6 +864,12 @@ impl ColliderBuilder {
         self
     }
 
+    /// Enable or disable the collider after its creation.
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
     /// Builds a new collider attached to the given rigid-body.
     pub fn build(&self) -> Collider {
         let shape = self.shape.clone();
@@ -849,6 +885,11 @@ impl ColliderBuilder {
             active_collision_types: self.active_collision_types,
             active_hooks: self.active_hooks,
             active_events: self.active_events,
+            enabled: if self.enabled {
+                ColliderEnabled::Enabled
+            } else {
+                ColliderEnabled::Disabled
+            },
         };
         let changes = ColliderChanges::all();
         let pos = ColliderPosition(self.position);

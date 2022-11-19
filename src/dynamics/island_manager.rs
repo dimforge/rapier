@@ -98,7 +98,8 @@ impl IslandManager {
             let rb = bodies.index_mut_internal(handle);
             rb.activation.wake_up(strong);
 
-            if self.active_dynamic_set.get(rb.ids.active_set_id) != Some(&handle) {
+            if rb.is_enabled() && self.active_dynamic_set.get(rb.ids.active_set_id) != Some(&handle)
+            {
                 rb.ids.active_set_id = self.active_dynamic_set.len();
                 self.active_dynamic_set.push(handle);
             }
@@ -256,12 +257,12 @@ impl IslandManager {
             // in contact or joined with this collider.
             push_contacting_bodies(&rb.colliders, colliders, narrow_phase, &mut self.stack);
 
-            for inter in impulse_joints.attached_joints(handle) {
+            for inter in impulse_joints.attached_enabled_joints(handle) {
                 let other = crate::utils::select_other((inter.0, inter.1), handle);
                 self.stack.push(other);
             }
 
-            for other in multibody_joints.attached_bodies(handle) {
+            for other in multibody_joints.bodies_attached_with_enabled_joint(handle) {
                 self.stack.push(other);
             }
 

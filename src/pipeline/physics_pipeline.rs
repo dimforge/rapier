@@ -422,6 +422,7 @@ impl PhysicsPipeline {
         // Apply modifications.
         let mut modified_colliders = colliders.take_modified();
         let mut removed_colliders = colliders.take_removed();
+
         super::user_changes::handle_user_changes_to_colliders(
             bodies,
             colliders,
@@ -433,8 +434,20 @@ impl PhysicsPipeline {
             Some(islands),
             bodies,
             colliders,
+            impulse_joints,
+            multibody_joints,
             &modified_bodies,
             &mut modified_colliders,
+        );
+
+        // Disabled colliders are treated as if they were removed.
+        // NOTE: this must be called here, after handle_user_changes_to_rigid_bodies to take into
+        //       account colliders disabled because of their parent rigid-body.
+        removed_colliders.extend(
+            modified_colliders
+                .iter()
+                .copied()
+                .filter(|h| colliders.get(*h).map(|c| !c.is_enabled()).unwrap_or(false)),
         );
 
         // TODO: do this only on user-change.

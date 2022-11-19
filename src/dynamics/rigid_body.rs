@@ -35,6 +35,7 @@ pub struct RigidBody {
     pub(crate) body_type: RigidBodyType,
     /// The dominance group this rigid-body is part of.
     pub(crate) dominance: RigidBodyDominance,
+    pub(crate) enabled: bool,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
 }
@@ -61,6 +62,7 @@ impl RigidBody {
             changes: RigidBodyChanges::all(),
             body_type: RigidBodyType::Dynamic,
             dominance: RigidBodyDominance::default(),
+            enabled: true,
             user_data: 0,
         }
     }
@@ -79,6 +81,28 @@ impl RigidBody {
     pub fn activation_mut(&mut self) -> &mut RigidBodyActivation {
         self.changes |= RigidBodyChanges::SLEEP;
         &mut self.activation
+    }
+
+    /// Is this rigid-body enabled?
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// Sets whether this rigid-body is enabled or not.
+    pub fn set_enabled(&mut self, enabled: bool) {
+        if enabled != self.enabled {
+            if enabled {
+                // NOTE: this is probably overkill, but it makes sure we don’t
+                // forget anything that needs to be updated because the rigid-body
+                // was basically interpreted as if it was removed while it was
+                // disabled.
+                self.changes = RigidBodyChanges::all();
+            } else {
+                self.changes |= RigidBodyChanges::ENABLED_OR_DISABLED;
+            }
+
+            self.enabled = enabled;
+        }
     }
 
     /// The linear damping coefficient of this rigid-body.
@@ -963,6 +987,8 @@ pub struct RigidBodyBuilder {
     pub ccd_enabled: bool,
     /// The dominance group of the rigid-body to be built.
     pub dominance_group: i8,
+    /// Will the rigid-body being built be enabled?
+    pub enabled: bool,
     /// An arbitrary user-defined 128-bit integer associated to the rigid-bodies built by this builder.
     pub user_data: u128,
 }
@@ -984,6 +1010,7 @@ impl RigidBodyBuilder {
             sleeping: false,
             ccd_enabled: false,
             dominance_group: 0,
+            enabled: true,
             user_data: 0,
         }
     }
@@ -1230,6 +1257,12 @@ impl RigidBodyBuilder {
         self
     }
 
+    /// Enable or disable the rigid-body after its creation.
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
     /// Build a new rigid-body with the parameters configured with this builder.
     pub fn build(&self) -> RigidBody {
         let mut rb = RigidBody::new();
@@ -1252,6 +1285,7 @@ impl RigidBodyBuilder {
         rb.damping.angular_damping = self.angular_damping;
         rb.forces.gravity_scale = self.gravity_scale;
         rb.dominance = RigidBodyDominance(self.dominance_group);
+        rb.enabled = self.enabled;
         rb.enable_ccd(self.ccd_enabled);
 
         if self.can_sleep && self.sleeping {

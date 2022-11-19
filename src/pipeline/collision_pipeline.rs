@@ -127,9 +127,20 @@ impl CollisionPipeline {
             None,
             bodies,
             colliders,
+            &mut ImpulseJointSet::new(),
+            &mut MultibodyJointSet::new(),
             &modified_bodies,
             &mut modified_colliders,
         );
+
+        // Disabled colliders are treated as if they were removed.
+        removed_colliders.extend(
+            modified_colliders
+                .iter()
+                .copied()
+                .filter(|h| colliders.get(*h).map(|c| !c.is_enabled()).unwrap_or(false)),
+        );
+
         self.detect_collisions(
             prediction_distance,
             broad_phase,

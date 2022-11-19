@@ -358,12 +358,12 @@ impl QueryPipeline {
             fn for_each(&mut self, mut f: impl FnMut(ColliderHandle, Aabb)) {
                 match self.mode {
                     QueryPipelineMode::CurrentPosition => {
-                        for (h, co) in self.colliders.iter() {
+                        for (h, co) in self.colliders.iter_enabled() {
                             f(h, co.shape.compute_aabb(&co.pos))
                         }
                     }
                     QueryPipelineMode::SweepTestWithNextPosition => {
-                        for (h, co) in self.colliders.iter() {
+                        for (h, co) in self.colliders.iter_enabled() {
                             if let Some(co_parent) = co.parent {
                                 let rb_next_pos = &self.bodies[co_parent.handle].pos.next_position;
                                 let next_position = rb_next_pos * co_parent.pos_wrt_parent;
@@ -374,7 +374,7 @@ impl QueryPipeline {
                         }
                     }
                     QueryPipelineMode::SweepTestWithPredictedPosition { dt } => {
-                        for (h, co) in self.colliders.iter() {
+                        for (h, co) in self.colliders.iter_enabled() {
                             if let Some(co_parent) = co.parent {
                                 let rb = &self.bodies[co_parent.handle];
                                 let predicted_pos = rb.pos.integrate_forces_and_velocities(
