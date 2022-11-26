@@ -123,7 +123,6 @@ impl CCDSolver {
     ) -> Option<Real> {
         // Update the query pipeline.
         self.query_pipeline.update_with_mode(
-            islands,
             bodies,
             colliders,
             QueryPipelineMode::SweepTestWithPredictedPosition { dt },
@@ -245,7 +244,6 @@ impl CCDSolver {
 
         // Update the query pipeline.
         self.query_pipeline.update_with_mode(
-            islands,
             bodies,
             colliders,
             QueryPipelineMode::SweepTestWithNextPosition,

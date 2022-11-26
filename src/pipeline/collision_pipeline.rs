@@ -5,7 +5,7 @@ use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair, NarrowPhase,
 };
 use crate::math::Real;
-use crate::pipeline::{EventHandler, PhysicsHooks};
+use crate::pipeline::{EventHandler, PhysicsHooks, QueryPipeline};
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 
 /// The collision pipeline, responsible for performing collision detection between colliders.
@@ -111,6 +111,7 @@ impl CollisionPipeline {
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
+        query_pipeline: Option<&mut QueryPipeline>,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
@@ -153,6 +154,10 @@ impl CollisionPipeline {
             events,
             true,
         );
+
+        if let Some(queries) = query_pipeline {
+            queries.update_incremental(colliders, &modified_colliders, &removed_colliders, true);
+        }
 
         self.clear_modified_colliders(colliders, &mut modified_colliders);
         removed_colliders.clear();

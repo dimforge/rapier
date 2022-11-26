@@ -5,7 +5,6 @@ use crate::utils::{WBasis, WReal};
 
 #[cfg(feature = "dim3")]
 use crate::dynamics::SphericalJoint;
-use crate::geometry::ColliderEnabled;
 
 #[cfg(feature = "dim3")]
 bitflags::bitflags! {

@@ -14,7 +14,7 @@ use crate::geometry::{
     ContactManifoldIndex, NarrowPhase, TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
-use crate::pipeline::{EventHandler, PhysicsHooks};
+use crate::pipeline::{EventHandler, PhysicsHooks, QueryPipeline};
 use {crate::dynamics::RigidBodySet, crate::geometry::ColliderSet};
 
 /// The physics pipeline, responsible for stepping the whole physics simulation.
@@ -404,6 +404,7 @@ impl PhysicsPipeline {
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
         ccd_solver: &mut CCDSolver,
+        mut query_pipeline: Option<&mut QueryPipeline>,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
@@ -468,12 +469,16 @@ impl PhysicsPipeline {
             colliders,
             impulse_joints,
             multibody_joints,
-            &modified_colliders[..],
-            &mut removed_colliders,
+            &modified_colliders,
+            &removed_colliders,
             hooks,
             events,
             true,
         );
+
+        if let Some(queries) = query_pipeline.as_deref_mut() {
+            queries.update_incremental(colliders, &modified_colliders, &removed_colliders, false);
+        }
 
         self.clear_modified_colliders(colliders, &mut modified_colliders);
         removed_colliders.clear();
@@ -595,12 +600,21 @@ impl PhysicsPipeline {
                 colliders,
                 impulse_joints,
                 multibody_joints,
-                &mut modified_colliders,
-                &mut removed_colliders,
+                &modified_colliders,
+                &[],
                 hooks,
                 events,
                 false,
             );
+
+            if let Some(queries) = query_pipeline.as_deref_mut() {
+                queries.update_incremental(
+                    colliders,
+                    &modified_colliders,
+                    &[],
+                    remaining_substeps == 0,
+                );
+            }
 
             self.clear_modified_colliders(colliders, &mut modified_colliders);
         }

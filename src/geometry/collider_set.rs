@@ -285,6 +285,7 @@ impl ColliderSet {
 
     // Just a very long name instead of `.get_mut` to make sure
     // this is really the method we wanted to use instead of `get_mut_internal`.
+    #[allow(dead_code)]
     pub(crate) fn get_mut_internal_with_modification_tracking(
         &mut self,
         handle: ColliderHandle,

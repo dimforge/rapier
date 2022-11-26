@@ -46,7 +46,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
     impulse_joints: &mut ImpulseJointSet,
-    multibody_joints: &mut MultibodyJointSet,
+    _multibody_joints: &mut MultibodyJointSet, // FIXME: propagate disabled state to multibodies
     modified_bodies: &[RigidBodyHandle],
     modified_colliders: &mut Vec<ColliderHandle>,
 ) {
