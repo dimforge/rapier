@@ -1,7 +1,20 @@
+
+## Unreleased
+### Added
+- Add `RigidBody::set_enabled`, `RigidBody::is_enabled`, `RigidBodyBuilder::enabled` to enable/disable a rigid-body
+  without having to delete it.
+- Add `Collider::set_enabled`, `Collider::is_enabled`, `ColliderBuilder::enabled` to enable/disable a collider
+  without having to delete it.
+- Add `GenericJoint::set_enabled`, `GenericJoint::is_enabled` to enable/disable a joint without having to delete it.
+
+### Modified
+- Add the `QueryPipeline` as an optional argument to `PhysicsPipeline::step` and `CollisionPipeline::step`. If this
+  argument is specified, then the query pipeline will be incrementally (i.e. more efficiently) update at the same time as
+  these other pipelines. In that case, calling `QueryPipeline::update` a `PhysicsPipeline::step` isn’t needed.
+
 ## v0.16.1 (10 Nov. 2022)
 ### Fix
 - Fixed docs build on `docs.rs`.
-
 
 ## v0.16.0 (30 Oct. 2022)
 ### Added
