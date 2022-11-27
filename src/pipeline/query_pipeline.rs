@@ -330,12 +330,19 @@ impl QueryPipeline {
         removed_colliders: &[ColliderHandle],
         refit_and_rebalance: bool,
     ) {
-        for modified in modified_colliders {
-            self.qbvh.pre_update_or_insert(*modified);
-        }
-
+        // We remove first. This is needed to avoid the ABA problem: if a collider was removed
+        // and another added right after with the same handle index, we can remove first, and
+        // then update the new one (but only if its actually exists, to address the case where
+        // a collider was added/modified and then removed during the same frame).
         for removed in removed_colliders {
             self.qbvh.remove(*removed);
+        }
+
+        for modified in modified_colliders {
+            // Check that the collider still exists as it may have been removed.
+            if colliders.contains(*modified) {
+                self.qbvh.pre_update_or_insert(*modified);
+            }
         }
 
         if refit_and_rebalance {
