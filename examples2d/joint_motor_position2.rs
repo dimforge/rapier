@@ -25,7 +25,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * A rectangle on a motor
      */
     for num in 0..9 {
-        let x_pos = -6.0 + 1.5 * num as f32; 
+        let x_pos = -6.0 + 1.5 * num as f32;
         let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x_pos, 2.0]);
         let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(0.1, 0.5);
@@ -34,13 +34,20 @@ pub fn init_world(testbed: &mut Testbed) {
         let joint = RevoluteJointBuilder::new()
             .local_anchor2(point![x_pos, 1.5])
             .local_anchor1(point![0.0, -0.5])
-            .motor_position(std::f32::consts::PI/4.0*num as f32, 100.0, 15.0);
-        impulse_joints.insert(handle,ground_handle, joint, true);
+            .motor_position(std::f32::consts::PI / 4.0 * num as f32, 100.0, 15.0);
+        impulse_joints.insert(handle, ground_handle, joint, true);
     }
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world_with_params(bodies, colliders, impulse_joints, multibody_joints,vector![0.0,0.0],());
+    testbed.set_world_with_params(
+        bodies,
+        colliders,
+        impulse_joints,
+        multibody_joints,
+        vector![0.0, 0.0],
+        (),
+    );
     testbed.look_at(point![0.0, 0.0], 40.0);
 }

@@ -418,7 +418,8 @@ impl JointVelocityConstraintBuilder<Real> {
             {
                 let s_ang_dist = self.ang_err.angle();
                 let s_target_ang = motor_params.target_pos;
-                rhs_wo_bias += ((s_ang_dist - s_target_ang) % (2.0*PI))/(2.0*PI) * motor_params.erp_inv_dt;
+                rhs_wo_bias += ((s_ang_dist - s_target_ang) % (2.0 * PI)) / (2.0 * PI)
+                    * motor_params.erp_inv_dt;
             }
             #[cfg(feature = "dim3")]
             {
@@ -802,7 +803,8 @@ impl JointVelocityConstraintBuilder<Real> {
             {
                 let s_ang_dist = self.ang_err.angle();
                 let s_target_ang = motor_params.target_pos;
-                rhs += ((s_ang_dist - s_target_ang) % (2.0*PI))/(2.0*PI) * motor_params.erp_inv_dt;
+                rhs += ((s_ang_dist - s_target_ang) % (2.0 * PI)) / (2.0 * PI)
+                    * motor_params.erp_inv_dt;
             }
             #[cfg(feature = "dim3")]
             {

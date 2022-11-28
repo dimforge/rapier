@@ -357,7 +357,8 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
             {
                 let s_ang_dist = self.ang_err.angle();
                 let s_target_ang = motor_params.target_pos;
-                rhs_wo_bias += ((s_ang_dist - s_target_ang) % N::simd_two_pi())/N::simd_two_pi() * motor_params.erp_inv_dt;
+                rhs_wo_bias += ((s_ang_dist - s_target_ang) % N::simd_two_pi()) / N::simd_two_pi()
+                    * motor_params.erp_inv_dt;
             }
             #[cfg(feature = "dim3")]
             {
@@ -365,7 +366,6 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
                 let s_target_ang = motor_params.target_pos.simd_sin();
                 rhs_wo_bias += (s_ang_dist - s_target_ang) * motor_params.erp_inv_dt;
             }
-           
         }
 
         let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
@@ -805,7 +805,8 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
             {
                 let s_ang_dist = self.ang_err.angle();
                 let s_target_ang = motor_params.target_pos;
-                rhs_wo_bias += ((s_ang_dist - s_target_ang) % N::simd_two_pi())/N::simd_two_pi() * motor_params.erp_inv_dt;
+                rhs_wo_bias += ((s_ang_dist - s_target_ang) % N::simd_two_pi()) / N::simd_two_pi()
+                    * motor_params.erp_inv_dt;
             }
             #[cfg(feature = "dim3")]
             {
