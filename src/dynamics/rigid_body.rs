@@ -146,6 +146,12 @@ impl RigidBody {
         }
     }
 
+    /// The world-space center-of-mass of this rigid-body.
+    #[inline]
+    pub fn center_of_mass(&self) -> &Point<Real> {
+        &self.mprops.world_com
+    }
+
     /// The mass-properties of this rigid-body.
     #[inline]
     pub fn mass_properties(&self) -> &MassProperties {
