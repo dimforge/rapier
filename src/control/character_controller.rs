@@ -195,6 +195,7 @@ impl KinematicCharacterController {
         self.check_and_fix_penetrations();
 
         let mut translation_remaining = desired_translation;
+        let mut translation_before = result.translation;
 
         // Check if we are grounded at the initial position.
         let grounded_at_starting_pos = self.detect_grounded_status_and_apply_friction(
@@ -289,6 +290,11 @@ impl KinematicCharacterController {
                 Some(&mut kinematic_friction_translation),
                 Some(&mut translation_remaining),
             );
+
+            if (translation_before - result.translation).norm_squared() < 1e-10 {
+                break;
+            }
+            translation_before = result.translation;
 
             if !self.slide {
                 break;
