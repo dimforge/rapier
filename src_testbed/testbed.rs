@@ -652,16 +652,16 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
             for key in events.get_pressed() {
                 match *key {
                     KeyCode::Right => {
-                        steering_angle += -0.1;
+                        steering_angle += -0.7;
                     }
                     KeyCode::Left => {
-                        steering_angle += 0.1;
+                        steering_angle += 0.7;
                     }
                     KeyCode::Up => {
-                        engine_force += 0.1;
+                        engine_force += 30.0;
                     }
                     KeyCode::Down => {
-                        engine_force += -0.1;
+                        engine_force += -30.0;
                     }
                     _ => {}
                 }
@@ -1308,10 +1308,10 @@ fn update_testbed(
             || state.prev_flags.contains(TestbedStateFlags::WIREFRAME)
                 != state.flags.contains(TestbedStateFlags::WIREFRAME)
         {
-            // graphics.toggle_wireframe_mode(
-            //     &harness.physics.colliders,
-            //     state.flags.contains(TestbedStateFlags::WIREFRAME),
-            // )
+            graphics.toggle_wireframe_mode(
+                &harness.physics.colliders,
+                state.flags.contains(TestbedStateFlags::WIREFRAME),
+            )
         }
 
         if state.prev_flags.contains(TestbedStateFlags::SLEEP)

@@ -29,7 +29,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let hh = 0.15;
     let rigid_body = RigidBodyBuilder::dynamic().translation(vector![0.0, 1.0, 0.0]);
     let vehicle_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(hw, hh, hw);
+    let collider = ColliderBuilder::cuboid(hw * 2.0, hh, hw).density(100.0);
     colliders.insert_with_parent(collider, vehicle_handle, &mut bodies);
 
     let mut tuning = WheelTuning::default();
@@ -37,10 +37,10 @@ pub fn init_world(testbed: &mut Testbed) {
     tuning.suspension_damping = 10.0;
     let mut vehicle = DynamicRayCastVehicleController::new(vehicle_handle);
     let wheel_positions = [
-        point![hw, -hh, hw],
-        point![hw, -hh, -hw],
-        point![-hw, -hh, hw],
-        point![-hw, -hh, -hw],
+        point![hw * 1.5, -hh, hw],
+        point![hw * 1.5, -hh, -hw],
+        point![-hw * 1.5, -hh, hw],
+        point![-hw * 1.5, -hh, -hw],
     ];
 
     for pos in wheel_positions {
@@ -57,7 +57,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let centerx = shift * (num / 2) as f32;
     let centery = rad;
 
-    for j in 0usize..4 {
+    for j in 0usize..1 {
         for k in 0usize..4 {
             for i in 0..num {
                 let x = i as f32 * shift - centerx;
@@ -73,25 +73,11 @@ pub fn init_world(testbed: &mut Testbed) {
     }
 
     /*
-     * Create some stairs.
-     */
-    let stair_width = 1.0;
-    let stair_height = 0.1;
-    for i in 0..10 {
-        let x = i as f32 * stair_width / 2.0;
-        let y = i as f32 * stair_height * 1.5 + 3.0;
-
-        let collider = ColliderBuilder::cuboid(stair_width / 2.0, stair_height / 2.0, stair_width)
-            .translation(vector![x, y, 0.0]);
-        colliders.insert(collider);
-    }
-
-    /*
      * Create a slope we can climb.
      */
     let slope_angle = 0.2;
     let slope_size = 2.0;
-    let collider = ColliderBuilder::cuboid(slope_size, ground_height, slope_size)
+    let collider = ColliderBuilder::cuboid(slope_size, ground_height, ground_size)
         .translation(vector![ground_size + slope_size, -ground_height + 0.4, 0.0])
         .rotation(Vector::z() * slope_angle);
     colliders.insert(collider);
@@ -110,60 +96,60 @@ pub fn init_world(testbed: &mut Testbed) {
         .rotation(Vector::z() * impossible_slope_angle);
     colliders.insert(collider);
 
-    /*
-     * Create a moving platform.
-     */
-    let body = RigidBodyBuilder::kinematic_velocity_based().translation(vector![-8.0, 1.5, 0.0]);
-    // .rotation(-0.3);
-    let platform_handle = bodies.insert(body);
-    let collider = ColliderBuilder::cuboid(2.0, ground_height, 2.0);
-    colliders.insert_with_parent(collider, platform_handle, &mut bodies);
+    // /*
+    //  * Create a moving platform.
+    //  */
+    // let body = RigidBodyBuilder::kinematic_velocity_based().translation(vector![-8.0, 1.5, 0.0]);
+    // // .rotation(-0.3);
+    // let platform_handle = bodies.insert(body);
+    // let collider = ColliderBuilder::cuboid(2.0, ground_height, 2.0);
+    // colliders.insert_with_parent(collider, platform_handle, &mut bodies);
 
     /*
      * More complex ground.
      */
-    let ground_size = Vector::new(10.0, 1.0, 10.0);
+    let ground_size = Vector::new(10.0, 0.4, 10.0);
     let nsubdivs = 20;
 
     let heights = DMatrix::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
-        (i as f32 * ground_size.x / (nsubdivs as f32) / 2.0).cos()
-            + (j as f32 * ground_size.z / (nsubdivs as f32) / 2.0).cos()
+        -(i as f32 * ground_size.x / (nsubdivs as f32) / 2.0).cos()
+            - (j as f32 * ground_size.z / (nsubdivs as f32) / 2.0).cos()
     });
 
     let collider =
-        ColliderBuilder::heightfield(heights, ground_size).translation(vector![-8.0, 5.0, 0.0]);
+        ColliderBuilder::heightfield(heights, ground_size).translation(vector![-7.0, 0.0, 0.0]);
     colliders.insert(collider);
 
-    /*
-     * A tilting dynamic body with a limited joint.
-     */
-    let ground = RigidBodyBuilder::fixed().translation(vector![0.0, 5.0, 0.0]);
-    let ground_handle = bodies.insert(ground);
-    let body = RigidBodyBuilder::dynamic().translation(vector![0.0, 5.0, 0.0]);
-    let handle = bodies.insert(body);
-    let collider = ColliderBuilder::cuboid(1.0, 0.1, 2.0);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
-    let joint = RevoluteJointBuilder::new(Vector::z_axis()).limits([-0.3, 0.3]);
-    impulse_joints.insert(ground_handle, handle, joint, true);
+    // /*
+    //  * A tilting dynamic body with a limited joint.
+    //  */
+    // let ground = RigidBodyBuilder::fixed().translation(vector![0.0, 5.0, 0.0]);
+    // let ground_handle = bodies.insert(ground);
+    // let body = RigidBodyBuilder::dynamic().translation(vector![0.0, 5.0, 0.0]);
+    // let handle = bodies.insert(body);
+    // let collider = ColliderBuilder::cuboid(1.0, 0.1, 2.0);
+    // colliders.insert_with_parent(collider, handle, &mut bodies);
+    // let joint = RevoluteJointBuilder::new(Vector::z_axis()).limits([-0.3, 0.3]);
+    // impulse_joints.insert(ground_handle, handle, joint, true);
 
-    /*
-     * Setup a callback to move the platform.
-     */
-    testbed.add_callback(move |_, physics, _, run_state| {
-        let linvel = vector![
-            (run_state.time * 2.0).sin() * 2.0,
-            (run_state.time * 5.0).sin() * 1.5,
-            0.0
-        ];
-        // let angvel = run_state.time.sin() * 0.5;
-
-        // Update the velocity-based kinematic body by setting its velocity.
-        if let Some(platform) = physics.bodies.get_mut(platform_handle) {
-            platform.set_linvel(linvel, true);
-            // NOTE: interaction with rotating platforms isn’t handled very well yet.
-            // platform.set_angvel(angvel, true);
-        }
-    });
+    // /*
+    //  * Setup a callback to move the platform.
+    //  */
+    // testbed.add_callback(move |_, physics, _, run_state| {
+    //     let linvel = vector![
+    //         (run_state.time * 2.0).sin() * 2.0,
+    //         (run_state.time * 5.0).sin() * 1.5,
+    //         0.0
+    //     ];
+    //     // let angvel = run_state.time.sin() * 0.5;
+    //
+    //     // Update the velocity-based kinematic body by setting its velocity.
+    //     if let Some(platform) = physics.bodies.get_mut(platform_handle) {
+    //         platform.set_linvel(linvel, true);
+    //         // NOTE: interaction with rotating platforms isn’t handled very well yet.
+    //         // platform.set_angvel(angvel, true);
+    //     }
+    // });
 
     /*
      * Set up the testbed.

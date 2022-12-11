@@ -2,10 +2,13 @@
 ## Unreleased
 ### Added
 - Add `RigidBody::set_enabled`, `RigidBody::is_enabled`, `RigidBodyBuilder::enabled` to enable/disable a rigid-body
-  without having to delete it.
+  without having to delete it. Disabling a rigid-body attached to a multibody joint isn’t supported yet.
 - Add `Collider::set_enabled`, `Collider::is_enabled`, `ColliderBuilder::enabled` to enable/disable a collider
   without having to delete it.
 - Add `GenericJoint::set_enabled`, `GenericJoint::is_enabled` to enable/disable a joint without having to delete it.
+  Disabling a multibody joint isn’t supported yet.
+- Add `DynamicRayCastVehicleController`, a vehicle controller based on ray-casting and dynamic rigid-bodies (mostly
+  a port of the vehicle controller from Bullet physics).
 
 ### Modified
 - Add the `QueryPipeline` as an optional argument to `PhysicsPipeline::step` and `CollisionPipeline::step`. If this
