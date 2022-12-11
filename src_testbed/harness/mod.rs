@@ -215,7 +215,7 @@ impl Harness {
                     &mut physics.impulse_joints,
                     &mut physics.multibody_joints,
                     &mut physics.ccd_solver,
-                    &mut physics.query_pipeline,
+                    Some(&mut physics.query_pipeline),
                     &*physics.hooks,
                     event_handler,
                 );

@@ -65,9 +65,9 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
         }
 
         let rb = bodies.index_mut_internal(*handle);
-        let mut changes = rb.changes;
         let mut ids = rb.ids;
-        let mut activation = rb.activation;
+        let changes = rb.changes;
+        let activation = rb.activation;
 
         {
             if rb.is_enabled() {
@@ -126,7 +126,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                     // sleeping and if it is not already inside of the active set.
                     if changes.contains(RigidBodyChanges::SLEEP)
                         && rb.is_enabled()
-                        && !activation.sleeping // May happen if the body was put to sleep manually.
+                        && !rb.activation.sleeping // May happen if the body was put to sleep manually.
                         && rb.is_dynamic() // Only dynamic bodies are in the active dynamic set.
                         && islands.active_dynamic_set.get(ids.active_set_id) != Some(handle)
                     {
