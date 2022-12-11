@@ -203,6 +203,7 @@ mod tests {
             &mut narrow_phase,
             &mut rigid_body_set,
             &mut collider_set,
+            None,
             &physics_hooks,
             &(),
         );
@@ -254,6 +255,7 @@ mod tests {
             &mut narrow_phase,
             &mut rigid_body_set,
             &mut collider_set,
+            None,
             &physics_hooks,
             &(),
         );

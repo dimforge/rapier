@@ -677,6 +677,7 @@ mod test {
             &mut impulse_joints,
             &mut multibody_joints,
             &mut CCDSolver::new(),
+            None,
             &(),
             &(),
         );
@@ -732,6 +733,7 @@ mod test {
             &mut impulse_joints,
             &mut multibody_joints,
             &mut CCDSolver::new(),
+            None,
             &(),
             &(),
         );
@@ -834,6 +836,7 @@ mod test {
                 &mut impulse_joints,
                 &mut multibody_joints,
                 &mut ccd,
+                None,
                 &physics_hooks,
                 &event_handler,
             );
