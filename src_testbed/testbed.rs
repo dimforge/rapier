@@ -9,6 +9,8 @@ use crate::{debug_render, ui};
 use crate::{graphics::GraphicsManager, harness::RunState};
 
 use na::{self, Point2, Point3, Vector3};
+#[cfg(feature = "dim3")]
+use rapier::control::DynamicRayCastVehicleController;
 use rapier::control::KinematicCharacterController;
 use rapier::dynamics::{
     ImpulseJointSet, IntegrationParameters, MultibodyJointSet, RigidBodyActivation,
@@ -100,6 +102,8 @@ pub struct TestbedState {
     pub draw_colls: bool,
     pub highlighted_body: Option<RigidBodyHandle>,
     pub character_body: Option<RigidBodyHandle>,
+    #[cfg(feature = "dim3")]
+    pub vehicle_controller: Option<DynamicRayCastVehicleController>,
     //    pub grabbed_object: Option<DefaultBodyPartHandle>,
     //    pub grabbed_object_constraint: Option<DefaultJointConstraintHandle>,
     pub grabbed_object_plane: (Point3<f32>, Vector3<f32>),
@@ -178,6 +182,8 @@ impl TestbedApp {
             draw_colls: false,
             highlighted_body: None,
             character_body: None,
+            #[cfg(feature = "dim3")]
+            vehicle_controller: None,
             //            grabbed_object: None,
             //            grabbed_object_constraint: None,
             grabbed_object_plane: (Point3::origin(), na::zero()),
@@ -456,6 +462,11 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         self.state.character_body = Some(handle);
     }
 
+    #[cfg(feature = "dim3")]
+    pub fn set_vehicle_controller(&mut self, controller: DynamicRayCastVehicleController) {
+        self.state.vehicle_controller = Some(controller);
+    }
+
     pub fn allow_grabbing_behind_ground(&mut self, allow: bool) {
         self.state.can_grab_behind_ground = allow;
     }
@@ -511,8 +522,12 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
             .action_flags
             .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
 
-        self.state.character_body = None;
         self.state.highlighted_body = None;
+        self.state.character_body = None;
+        #[cfg(feature = "dim3")]
+        {
+            self.state.vehicle_controller = None;
+        }
 
         #[cfg(all(feature = "dim2", feature = "other-backends"))]
         {
@@ -622,6 +637,50 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
     pub fn add_plugin(&mut self, mut plugin: impl TestbedPlugin + 'static) {
         plugin.init_plugin();
         self.plugins.0.push(Box::new(plugin));
+    }
+
+    #[cfg(feature = "dim3")]
+    fn update_vehicle_controller(&mut self, events: &Input<KeyCode>) {
+        if self.state.running == RunMode::Stop {
+            return;
+        }
+
+        if let Some(vehicle) = &mut self.state.vehicle_controller {
+            let mut engine_force = 0.0;
+            let mut steering_angle = 0.0;
+
+            for key in events.get_pressed() {
+                match *key {
+                    KeyCode::Right => {
+                        steering_angle += -0.7;
+                    }
+                    KeyCode::Left => {
+                        steering_angle += 0.7;
+                    }
+                    KeyCode::Up => {
+                        engine_force += 30.0;
+                    }
+                    KeyCode::Down => {
+                        engine_force += -30.0;
+                    }
+                    _ => {}
+                }
+            }
+
+            let wheels = vehicle.wheels_mut();
+            wheels[0].engine_force = engine_force;
+            wheels[0].steering = steering_angle;
+            wheels[1].engine_force = engine_force;
+            wheels[1].steering = steering_angle;
+
+            vehicle.update_vehicle(
+                self.harness.physics.integration_parameters.dt,
+                &mut self.harness.physics.bodies,
+                &self.harness.physics.colliders,
+                &self.harness.physics.query_pipeline,
+                QueryFilter::exclude_dynamic().exclude_rigid_body(vehicle.chassis),
+            );
+        }
     }
 
     fn update_character_controller(&mut self, events: &Input<KeyCode>) {
@@ -1063,6 +1122,10 @@ fn update_testbed(
 
         testbed.handle_common_events(&*keys);
         testbed.update_character_controller(&*keys);
+        #[cfg(feature = "dim3")]
+        {
+            testbed.update_vehicle_controller(&*keys);
+        }
     }
 
     // Update UI
@@ -1245,10 +1308,10 @@ fn update_testbed(
             || state.prev_flags.contains(TestbedStateFlags::WIREFRAME)
                 != state.flags.contains(TestbedStateFlags::WIREFRAME)
         {
-            // graphics.toggle_wireframe_mode(
-            //     &harness.physics.colliders,
-            //     state.flags.contains(TestbedStateFlags::WIREFRAME),
-            // )
+            graphics.toggle_wireframe_mode(
+                &harness.physics.colliders,
+                state.flags.contains(TestbedStateFlags::WIREFRAME),
+            )
         }
 
         if state.prev_flags.contains(TestbedStateFlags::SLEEP)

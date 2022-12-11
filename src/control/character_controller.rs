@@ -133,7 +133,7 @@ impl Default for KinematicCharacterController {
 pub struct EffectiveCharacterMovement {
     /// The movement to apply.
     pub translation: Vector<Real>,
-    /// Is the character touching the ground after applying `EffictiveKineamticMovement::translation`?
+    /// Is the character touching the ground after applying `EffectiveKineamticMovement::translation`?
     pub grounded: bool,
 }
 

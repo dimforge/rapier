@@ -176,7 +176,11 @@ impl BroadPhase {
     /// This method will actually remove from the proxy list all the proxies
     /// marked as deletable by `self.predelete_proxy`, making their proxy
     /// handles re-usable by new proxies.
-    fn complete_removals(&mut self, removed_colliders: &[ColliderHandle]) {
+    fn complete_removals(
+        &mut self,
+        colliders: &mut ColliderSet,
+        removed_colliders: &[ColliderHandle],
+    ) {
         // If there is no layer, there is nothing to remove.
         if self.layers.is_empty() {
             return;
@@ -223,6 +227,11 @@ impl BroadPhase {
                 if proxy_id != crate::INVALID_U32 {
                     self.proxies.remove(proxy_id);
                 }
+            }
+
+            if let Some(co) = colliders.get_mut_internal(*removed) {
+                // Reset the proxy index.
+                co.bf_data.proxy_index = crate::INVALID_U32;
             }
         }
     }
@@ -460,9 +469,10 @@ impl BroadPhase {
             // NOTE: we use `get` because the collider may no longer
             //       exist if it has been removed.
             if let Some(co) = colliders.get_mut_internal(*handle) {
-                if !co.changes.needs_broad_phase_update() {
+                if !co.is_enabled() || !co.changes.needs_broad_phase_update() {
                     continue;
                 }
+
                 let mut new_proxy_id = co.bf_data.proxy_index;
 
                 if self.handle_modified_collider(
@@ -496,7 +506,7 @@ impl BroadPhase {
 
         // Phase 5: bottom-up pass to remove proxies, and propagate region removed from smaller
         // layers to possible remove regions from larger layers that would become empty that way.
-        self.complete_removals(removed_colliders);
+        self.complete_removals(colliders, removed_colliders);
     }
 
     /// Propagate regions from the smallest layers up to the larger layers.

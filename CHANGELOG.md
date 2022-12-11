@@ -1,7 +1,28 @@
+
+## Unreleased
+### Added
+- Add `RigidBody::set_enabled`, `RigidBody::is_enabled`, `RigidBodyBuilder::enabled` to enable/disable a rigid-body
+  without having to delete it. Disabling a rigid-body attached to a multibody joint isn’t supported yet.
+- Add `Collider::set_enabled`, `Collider::is_enabled`, `ColliderBuilder::enabled` to enable/disable a collider
+  without having to delete it.
+- Add `GenericJoint::set_enabled`, `GenericJoint::is_enabled` to enable/disable a joint without having to delete it.
+  Disabling a multibody joint isn’t supported yet.
+- Add `DynamicRayCastVehicleController`, a vehicle controller based on ray-casting and dynamic rigid-bodies (mostly
+  a port of the vehicle controller from Bullet physics).
+
+### Modified
+- Add the `QueryPipeline` as an optional argument to `PhysicsPipeline::step` and `CollisionPipeline::step`. If this
+  argument is specified, then the query pipeline will be incrementally (i.e. more efficiently) update at the same time as
+  these other pipelines. In that case, calling `QueryPipeline::update` a `PhysicsPipeline::step` isn’t needed.
+- `RigidBody::set_body_type` now takes an extra boolean argument indicating if the rigid-body should be woken-up
+  (if it becomes dynamic).
+
+### Fix
+- Fix bug resulting in rigid-bodies being awakened after they are created, even if they are created sleeping.
+
 ## v0.16.1 (10 Nov. 2022)
 ### Fix
 - Fixed docs build on `docs.rs`.
-
 
 ## v0.16.0 (30 Oct. 2022)
 ### Added

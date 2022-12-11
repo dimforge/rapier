@@ -215,6 +215,7 @@ impl Harness {
                     &mut physics.impulse_joints,
                     &mut physics.multibody_joints,
                     &mut physics.ccd_solver,
+                    Some(&mut physics.query_pipeline),
                     &*physics.hooks,
                     event_handler,
                 );
@@ -233,14 +234,9 @@ impl Harness {
             &mut self.physics.impulse_joints,
             &mut self.physics.multibody_joints,
             &mut self.physics.ccd_solver,
+            Some(&mut self.physics.query_pipeline),
             &*self.physics.hooks,
             &self.event_handler,
-        );
-
-        self.physics.query_pipeline.update(
-            &self.physics.islands,
-            &self.physics.bodies,
-            &self.physics.colliders,
         );
 
         for plugin in &mut self.plugins {

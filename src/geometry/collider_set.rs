@@ -41,6 +41,14 @@ impl ColliderSet {
         self.colliders.iter().map(|(h, c)| (ColliderHandle(h), c))
     }
 
+    /// Iterate through all the enabled colliders on this set.
+    pub fn iter_enabled(&self) -> impl Iterator<Item = (ColliderHandle, &Collider)> {
+        self.colliders
+            .iter()
+            .map(|(h, c)| (ColliderHandle(h), c))
+            .filter(|(_, c)| c.is_enabled())
+    }
+
     /// Iterates mutably through all the colliders on this set.
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (ColliderHandle, &mut Collider)> {
@@ -50,6 +58,12 @@ impl ColliderSet {
             modified_colliders.push(ColliderHandle(h));
             (ColliderHandle(h), b)
         })
+    }
+
+    /// Iterates mutably through all the enabled colliders on this set.
+    #[cfg(not(feature = "dev-remove-slow-accessors"))]
+    pub fn iter_enabled_mut(&mut self) -> impl Iterator<Item = (ColliderHandle, &mut Collider)> {
+        self.iter_mut().filter(|(_, c)| c.is_enabled())
     }
 
     /// The number of colliders on this set.
@@ -267,6 +281,18 @@ impl ColliderSet {
 
     pub(crate) fn get_mut_internal(&mut self, handle: ColliderHandle) -> Option<&mut Collider> {
         self.colliders.get_mut(handle.0)
+    }
+
+    // Just a very long name instead of `.get_mut` to make sure
+    // this is really the method we wanted to use instead of `get_mut_internal`.
+    #[allow(dead_code)]
+    pub(crate) fn get_mut_internal_with_modification_tracking(
+        &mut self,
+        handle: ColliderHandle,
+    ) -> Option<&mut Collider> {
+        let result = self.colliders.get_mut(handle.0)?;
+        Self::mark_as_modified(handle, result, &mut self.modified_colliders);
+        Some(result)
     }
 }
 

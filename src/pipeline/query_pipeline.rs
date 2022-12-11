@@ -1,10 +1,10 @@
-use crate::dynamics::{IslandManager, RigidBodyHandle};
+use crate::dynamics::RigidBodyHandle;
 use crate::geometry::{
     Aabb, Collider, ColliderHandle, InteractionGroups, PointProjection, Qbvh, Ray, RayIntersection,
 };
 use crate::math::{Isometry, Point, Real, Vector};
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
-use parry::partitioning::QbvhDataGenerator;
+use parry::partitioning::{QbvhDataGenerator, QbvhUpdateWorkspace};
 use parry::query::details::{
     IntersectionCompositeShapeShapeBestFirstVisitor,
     NonlinearTOICompositeShapeShapeBestFirstVisitor, PointCompositeShapeProjBestFirstVisitor,
@@ -30,8 +30,9 @@ pub struct QueryPipeline {
     )]
     query_dispatcher: Arc<dyn QueryDispatcher>,
     qbvh: Qbvh<ColliderHandle>,
-    tree_built: bool,
     dilation_factor: Real,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    workspace: QbvhUpdateWorkspace,
 }
 
 struct QueryPipelineAsCompositeShape<'a> {
@@ -310,8 +311,8 @@ impl QueryPipeline {
         Self {
             query_dispatcher: Arc::new(d),
             qbvh: Qbvh::new(),
-            tree_built: false,
             dilation_factor: 0.01,
+            workspace: QbvhUpdateWorkspace::default(),
         }
     }
 
@@ -320,25 +321,46 @@ impl QueryPipeline {
         &*self.query_dispatcher
     }
 
-    /// Update the acceleration structure on the query pipeline.
-    pub fn update(
+    /// Update the query pipeline incrementally, avoiding a complete rebuild of its
+    /// internal data-structure.
+    pub fn update_incremental(
         &mut self,
-        islands: &IslandManager,
-        bodies: &RigidBodySet,
         colliders: &ColliderSet,
+        modified_colliders: &[ColliderHandle],
+        removed_colliders: &[ColliderHandle],
+        refit_and_rebalance: bool,
     ) {
-        self.update_with_mode(
-            islands,
-            bodies,
-            colliders,
-            QueryPipelineMode::CurrentPosition,
-        )
+        // We remove first. This is needed to avoid the ABA problem: if a collider was removed
+        // and another added right after with the same handle index, we can remove first, and
+        // then update the new one (but only if its actually exists, to address the case where
+        // a collider was added/modified and then removed during the same frame).
+        for removed in removed_colliders {
+            self.qbvh.remove(*removed);
+        }
+
+        for modified in modified_colliders {
+            // Check that the collider still exists as it may have been removed.
+            if colliders.contains(*modified) {
+                self.qbvh.pre_update_or_insert(*modified);
+            }
+        }
+
+        if refit_and_rebalance {
+            let _ = self.qbvh.refit(0.0, &mut self.workspace, |handle| {
+                colliders[*handle].compute_aabb()
+            });
+            self.qbvh.rebalance(0.0, &mut self.workspace);
+        }
+    }
+
+    /// Update the acceleration structure on the query pipeline.
+    pub fn update(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet) {
+        self.update_with_mode(bodies, colliders, QueryPipelineMode::CurrentPosition)
     }
 
     /// Update the acceleration structure on the query pipeline.
     pub fn update_with_mode(
         &mut self,
-        islands: &IslandManager,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
         mode: QueryPipelineMode,
@@ -358,12 +380,12 @@ impl QueryPipeline {
             fn for_each(&mut self, mut f: impl FnMut(ColliderHandle, Aabb)) {
                 match self.mode {
                     QueryPipelineMode::CurrentPosition => {
-                        for (h, co) in self.colliders.iter() {
+                        for (h, co) in self.colliders.iter_enabled() {
                             f(h, co.shape.compute_aabb(&co.pos))
                         }
                     }
                     QueryPipelineMode::SweepTestWithNextPosition => {
-                        for (h, co) in self.colliders.iter() {
+                        for (h, co) in self.colliders.iter_enabled() {
                             if let Some(co_parent) = co.parent {
                                 let rb_next_pos = &self.bodies[co_parent.handle].pos.next_position;
                                 let next_position = rb_next_pos * co_parent.pos_wrt_parent;
@@ -374,7 +396,7 @@ impl QueryPipeline {
                         }
                     }
                     QueryPipelineMode::SweepTestWithPredictedPosition { dt } => {
-                        for (h, co) in self.colliders.iter() {
+                        for (h, co) in self.colliders.iter_enabled() {
                             if let Some(co_parent) = co.parent {
                                 let rb = &self.bodies[co_parent.handle];
                                 let predicted_pos = rb.pos.integrate_forces_and_velocities(
@@ -392,71 +414,12 @@ impl QueryPipeline {
             }
         }
 
-        if !self.tree_built {
-            let generator = DataGenerator {
-                bodies,
-                colliders,
-                mode,
-            };
-            self.qbvh.clear_and_rebuild(generator, self.dilation_factor);
-
-            // FIXME: uncomment this once we handle insertion/removals properly.
-            // self.tree_built = true;
-            return;
-        }
-
-        for handle in islands.iter_active_bodies() {
-            let rb = &bodies[handle];
-            for handle in &rb.colliders.0 {
-                self.qbvh.pre_update(*handle)
-            }
-        }
-
-        match mode {
-            QueryPipelineMode::CurrentPosition => {
-                self.qbvh.update(
-                    |handle| {
-                        let co = &colliders[*handle];
-                        co.shape.compute_aabb(&co.pos)
-                    },
-                    self.dilation_factor,
-                );
-            }
-            QueryPipelineMode::SweepTestWithNextPosition => {
-                self.qbvh.update(
-                    |handle| {
-                        let co = &colliders[*handle];
-                        if let Some(parent) = &co.parent {
-                            let rb_next_pos = &bodies[parent.handle].pos.next_position;
-                            let next_position = rb_next_pos * parent.pos_wrt_parent;
-                            co.shape.compute_swept_aabb(&co.pos, &next_position)
-                        } else {
-                            co.shape.compute_aabb(&co.pos)
-                        }
-                    },
-                    self.dilation_factor,
-                );
-            }
-            QueryPipelineMode::SweepTestWithPredictedPosition { dt } => {
-                self.qbvh.update(
-                    |handle| {
-                        let co = &colliders[*handle];
-                        if let Some(parent) = co.parent {
-                            let rb = &bodies[parent.handle];
-                            let predicted_pos = rb.pos.integrate_forces_and_velocities(
-                                dt, &rb.forces, &rb.vels, &rb.mprops,
-                            );
-
-                            let next_position = predicted_pos * parent.pos_wrt_parent;
-                            co.shape.compute_swept_aabb(&co.pos, &next_position)
-                        } else {
-                            co.shape.compute_aabb(&co.pos)
-                        }
-                    },
-                    self.dilation_factor,
-                );
-            }
-        }
+        let generator = DataGenerator {
+            bodies,
+            colliders,
+            mode,
+        };
+        self.qbvh.clear_and_rebuild(generator, self.dilation_factor);
     }
 
     /// Find the closest intersection between a ray and a set of collider.

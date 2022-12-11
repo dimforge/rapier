@@ -1,6 +1,9 @@
 //! Structures related to geometry: colliders, shapes, etc.
 
-pub use self::broad_phase_multi_sap::{BroadPhase, BroadPhasePairEvent, ColliderPair};
+pub use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair};
+
+pub use self::broad_phase_multi_sap::BroadPhase;
+// pub use self::broad_phase_qbvh::BroadPhase;
 pub use self::collider_components::*;
 pub use self::contact_pair::{
     ContactData, ContactManifoldData, ContactPair, IntersectionPair, SolverContact, SolverFlags,
@@ -199,5 +202,6 @@ mod interaction_graph;
 mod interaction_groups;
 mod narrow_phase;
 
+mod broad_phase_qbvh;
 mod collider;
 mod collider_set;

@@ -299,7 +299,13 @@ impl NarrowPhase {
             }
         }
 
-        self.handle_modified_colliders(islands, modified_colliders, colliders, bodies, events);
+        self.handle_user_changes_on_colliders(
+            islands,
+            modified_colliders,
+            colliders,
+            bodies,
+            events,
+        );
     }
 
     pub(crate) fn remove_collider(
@@ -393,7 +399,7 @@ impl NarrowPhase {
         }
     }
 
-    pub(crate) fn handle_modified_colliders(
+    pub(crate) fn handle_user_changes_on_colliders(
         &mut self,
         mut islands: Option<&mut IslandManager>,
         modified_colliders: &[ColliderHandle],

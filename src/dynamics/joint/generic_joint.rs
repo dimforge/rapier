@@ -182,6 +182,19 @@ impl JointMotor {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+/// Enum indicating whether or not a joint is enabled.
+pub enum JointEnabled {
+    /// The joint is enabled.
+    Enabled,
+    /// The joint wasn’t disabled by the user explicitly but it is attached to
+    /// a disabled rigid-body.
+    DisabledByAttachedBody,
+    /// The joint is disabled by the user explicitly.
+    Disabled,
+}
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 /// A generic joint.
@@ -208,6 +221,8 @@ pub struct GenericJoint {
     pub motors: [JointMotor; SPATIAL_DIM],
     /// Are contacts between the attached rigid-bodies enabled?
     pub contacts_enabled: bool,
+    /// Whether or not the joint is enabled.
+    pub enabled: JointEnabled,
 }
 
 impl Default for GenericJoint {
@@ -222,6 +237,7 @@ impl Default for GenericJoint {
             limits: [JointLimits::default(); SPATIAL_DIM],
             motors: [JointMotor::default(); SPATIAL_DIM],
             contacts_enabled: true,
+            enabled: JointEnabled::Enabled,
         }
     }
 }
@@ -257,6 +273,27 @@ impl GenericJoint {
             let mat = Matrix3::from_columns(&[axis.into_inner(), basis[0], basis[1]]);
             let rotmat = Rotation3::from_matrix_unchecked(mat);
             UnitQuaternion::from_rotation_matrix(&rotmat)
+        }
+    }
+
+    /// Is this joint enabled?
+    pub fn is_enabled(&self) -> bool {
+        self.enabled == JointEnabled::Enabled
+    }
+
+    /// Set whether this joint is enabled or not.
+    pub fn set_enabled(&mut self, enabled: bool) {
+        match self.enabled {
+            JointEnabled::Enabled | JointEnabled::DisabledByAttachedBody => {
+                if !enabled {
+                    self.enabled = JointEnabled::Disabled;
+                }
+            }
+            JointEnabled::Disabled => {
+                if enabled {
+                    self.enabled = JointEnabled::Enabled;
+                }
+            }
         }
     }
 

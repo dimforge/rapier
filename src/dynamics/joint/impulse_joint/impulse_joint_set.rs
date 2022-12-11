@@ -72,11 +72,11 @@ impl ImpulseJointSet {
     }
 
     /// Iterates through all the joints between two rigid-bodies.
-    pub fn joints_between<'a>(
-        &'a self,
+    pub fn joints_between(
+        &self,
         body1: RigidBodyHandle,
         body2: RigidBodyHandle,
-    ) -> impl Iterator<Item = (ImpulseJointHandle, &'a ImpulseJoint)> {
+    ) -> impl Iterator<Item = (ImpulseJointHandle, &ImpulseJoint)> {
         self.rb_graph_ids
             .get(body1.0)
             .zip(self.rb_graph_ids.get(body2.0))
@@ -86,15 +86,15 @@ impl ImpulseJointSet {
     }
 
     /// Iterates through all the impulse joints attached to the given rigid-body.
-    pub fn attached_joints<'a>(
-        &'a self,
+    pub fn attached_joints(
+        &self,
         body: RigidBodyHandle,
     ) -> impl Iterator<
         Item = (
             RigidBodyHandle,
             RigidBodyHandle,
             ImpulseJointHandle,
-            &'a ImpulseJoint,
+            &ImpulseJoint,
         ),
     > {
         self.rb_graph_ids
@@ -102,6 +102,35 @@ impl ImpulseJointSet {
             .into_iter()
             .flat_map(move |id| self.joint_graph.interactions_with(*id))
             .map(|inter| (inter.0, inter.1, inter.2.handle, inter.2))
+    }
+
+    /// Iterates through all the impulse joints attached to the given rigid-body.
+    pub fn map_attached_joints_mut<'a>(
+        &'a mut self,
+        body: RigidBodyHandle,
+        mut f: impl FnMut(RigidBodyHandle, RigidBodyHandle, ImpulseJointHandle, &mut ImpulseJoint),
+    ) {
+        self.rb_graph_ids.get(body.0).into_iter().for_each(|id| {
+            for inter in self.joint_graph.interactions_with_mut(*id) {
+                (f)(inter.0, inter.1, inter.3.handle, inter.3)
+            }
+        })
+    }
+
+    /// Iterates through all the enabled impulse joints attached to the given rigid-body.
+    pub fn attached_enabled_joints(
+        &self,
+        body: RigidBodyHandle,
+    ) -> impl Iterator<
+        Item = (
+            RigidBodyHandle,
+            RigidBodyHandle,
+            ImpulseJointHandle,
+            &ImpulseJoint,
+        ),
+    > {
+        self.attached_joints(body)
+            .filter(|inter| inter.3.data.is_enabled())
     }
 
     /// Is the given joint handle valid?
@@ -246,7 +275,7 @@ impl ImpulseJointSet {
         ImpulseJointHandle(handle)
     }
 
-    /// Retrieve all the impulse_joints happening between two active bodies.
+    /// Retrieve all the enabled impulse joints happening between two active bodies.
     // NOTE: this is very similar to the code from NarrowPhase::select_active_interactions.
     pub(crate) fn select_active_interactions(
         &self,
@@ -264,7 +293,8 @@ impl ImpulseJointSet {
             let rb1 = &bodies[joint.body1];
             let rb2 = &bodies[joint.body2];
 
-            if (rb1.is_dynamic() || rb2.is_dynamic())
+            if joint.data.is_enabled()
+                && (rb1.is_dynamic() || rb2.is_dynamic())
                 && (!rb1.is_dynamic() || !rb1.is_sleeping())
                 && (!rb2.is_dynamic() || !rb2.is_sleeping())
             {

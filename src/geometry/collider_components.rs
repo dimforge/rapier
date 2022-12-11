@@ -64,6 +64,8 @@ bitflags::bitflags! {
         /// This flags is automatically set by the `PhysicsPipeline` when the `RigidBodyChanges::DOMINANCE`
         /// or `RigidBodyChanges::TYPE` of the parent rigid-body of this collider is detected.
         const PARENT_EFFECTIVE_DOMINANCE = 1 << 7; // NF update.
+        /// Flag indicating that whether or not the collider is enabled was changed.
+        const ENABLED_OR_DISABLED = 1 << 8; // BF & NF updates.
     }
 }
 
@@ -374,6 +376,19 @@ impl Default for ActiveCollisionTypes {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+/// Enum indicating whether or not a collider is enabled.
+pub enum ColliderEnabled {
+    /// The collider is enabled.
+    Enabled,
+    /// The collider wasn’t disabled by the user explicitly but it is attached to
+    /// a disabled rigid-body.
+    DisabledByParent,
+    /// The collider is disabled by the user explicitly.
+    Disabled,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A set of flags for controlling collision/intersection filtering, modification, and events.
 pub struct ColliderFlags {
     /// Controls whether collision-detection happens between two colliders depending on
@@ -389,6 +404,8 @@ pub struct ColliderFlags {
     pub active_hooks: ActiveHooks,
     /// The events enabled for this collider.
     pub active_events: ActiveEvents,
+    /// Whether or not the collider is enabled.
+    pub enabled: ColliderEnabled,
 }
 
 impl Default for ColliderFlags {
@@ -399,6 +416,7 @@ impl Default for ColliderFlags {
             solver_groups: InteractionGroups::all(),
             active_hooks: ActiveHooks::empty(),
             active_events: ActiveEvents::empty(),
+            enabled: ColliderEnabled::Enabled,
         }
     }
 }

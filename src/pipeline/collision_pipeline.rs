@@ -5,7 +5,7 @@ use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair, NarrowPhase,
 };
 use crate::math::Real;
-use crate::pipeline::{EventHandler, PhysicsHooks};
+use crate::pipeline::{EventHandler, PhysicsHooks, QueryPipeline};
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 
 /// The collision pipeline, responsible for performing collision detection between colliders.
@@ -111,6 +111,7 @@ impl CollisionPipeline {
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
+        query_pipeline: Option<&mut QueryPipeline>,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
@@ -127,9 +128,20 @@ impl CollisionPipeline {
             None,
             bodies,
             colliders,
+            &mut ImpulseJointSet::new(),
+            &mut MultibodyJointSet::new(),
             &modified_bodies,
             &mut modified_colliders,
         );
+
+        // Disabled colliders are treated as if they were removed.
+        removed_colliders.extend(
+            modified_colliders
+                .iter()
+                .copied()
+                .filter(|h| colliders.get(*h).map(|c| !c.is_enabled()).unwrap_or(false)),
+        );
+
         self.detect_collisions(
             prediction_distance,
             broad_phase,
@@ -142,6 +154,10 @@ impl CollisionPipeline {
             events,
             true,
         );
+
+        if let Some(queries) = query_pipeline {
+            queries.update_incremental(colliders, &modified_colliders, &removed_colliders, true);
+        }
 
         self.clear_modified_colliders(colliders, &mut modified_colliders);
         removed_colliders.clear();
@@ -187,6 +203,7 @@ mod tests {
             &mut narrow_phase,
             &mut rigid_body_set,
             &mut collider_set,
+            None,
             &physics_hooks,
             &(),
         );
@@ -238,6 +255,7 @@ mod tests {
             &mut narrow_phase,
             &mut rigid_body_set,
             &mut collider_set,
+            None,
             &physics_hooks,
             &(),
         );

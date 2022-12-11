@@ -372,7 +372,7 @@ impl MultibodyJointSet {
     }
 
     /// Iterate through the handles of all the rigid-bodies attached to this rigid-body
-    /// by an multibody_joint.
+    /// by a multibody_joint.
     pub fn attached_bodies<'a>(
         &'a self,
         body: RigidBodyHandle,
@@ -382,6 +382,21 @@ impl MultibodyJointSet {
             .into_iter()
             .flat_map(move |id| self.connectivity_graph.interactions_with(id.graph_id))
             .map(move |inter| crate::utils::select_other((inter.0, inter.1), body))
+    }
+
+    /// Iterate through the handles of all the rigid-bodies attached to this rigid-body
+    /// by an enabled multibody_joint.
+    pub fn bodies_attached_with_enabled_joint<'a>(
+        &'a self,
+        body: RigidBodyHandle,
+    ) -> impl Iterator<Item = RigidBodyHandle> + 'a {
+        self.attached_bodies(body).filter(move |other| {
+            if let Some((_, _, link)) = self.joint_between(body, *other) {
+                link.joint.data.is_enabled()
+            } else {
+                false
+            }
+        })
     }
 
     /// Iterates through all the multibodies on this set.

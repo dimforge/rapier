@@ -5,7 +5,7 @@ use crate::counters::Counters;
 use crate::dynamics::IslandSolver;
 use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    RigidBodyPosition, RigidBodyType,
+    RigidBodyChanges, RigidBodyHandle, RigidBodyPosition, RigidBodyType,
 };
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
@@ -14,7 +14,7 @@ use crate::geometry::{
     ContactManifoldIndex, NarrowPhase, TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
-use crate::pipeline::{EventHandler, PhysicsHooks};
+use crate::pipeline::{EventHandler, PhysicsHooks, QueryPipeline};
 use {crate::dynamics::RigidBodySet, crate::geometry::ColliderSet};
 
 /// The physics pipeline, responsible for stepping the whole physics simulation.
@@ -73,6 +73,18 @@ impl PhysicsPipeline {
         for handle in modified_colliders.drain(..) {
             if let Some(co) = colliders.get_mut_internal(handle) {
                 co.changes = ColliderChanges::empty();
+            }
+        }
+    }
+
+    fn clear_modified_bodies(
+        &mut self,
+        bodies: &mut RigidBodySet,
+        modified_bodies: &mut Vec<RigidBodyHandle>,
+    ) {
+        for handle in modified_bodies.drain(..) {
+            if let Some(rb) = bodies.get_mut_internal(handle) {
+                rb.changes = RigidBodyChanges::empty();
             }
         }
     }
@@ -404,6 +416,7 @@ impl PhysicsPipeline {
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
         ccd_solver: &mut CCDSolver,
+        mut query_pipeline: Option<&mut QueryPipeline>,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
@@ -422,19 +435,32 @@ impl PhysicsPipeline {
         // Apply modifications.
         let mut modified_colliders = colliders.take_modified();
         let mut removed_colliders = colliders.take_removed();
+
         super::user_changes::handle_user_changes_to_colliders(
             bodies,
             colliders,
             &modified_colliders[..],
         );
 
-        let modified_bodies = bodies.take_modified();
+        let mut modified_bodies = bodies.take_modified();
         super::user_changes::handle_user_changes_to_rigid_bodies(
             Some(islands),
             bodies,
             colliders,
+            impulse_joints,
+            multibody_joints,
             &modified_bodies,
             &mut modified_colliders,
+        );
+
+        // Disabled colliders are treated as if they were removed.
+        // NOTE: this must be called here, after handle_user_changes_to_rigid_bodies to take into
+        //       account colliders disabled because of their parent rigid-body.
+        removed_colliders.extend(
+            modified_colliders
+                .iter()
+                .copied()
+                .filter(|h| colliders.get(*h).map(|c| !c.is_enabled()).unwrap_or(false)),
         );
 
         // TODO: do this only on user-change.
@@ -455,14 +481,19 @@ impl PhysicsPipeline {
             colliders,
             impulse_joints,
             multibody_joints,
-            &modified_colliders[..],
-            &mut removed_colliders,
+            &modified_colliders,
+            &removed_colliders,
             hooks,
             events,
             true,
         );
 
+        if let Some(queries) = query_pipeline.as_deref_mut() {
+            queries.update_incremental(colliders, &modified_colliders, &removed_colliders, false);
+        }
+
         self.clear_modified_colliders(colliders, &mut modified_colliders);
+        self.clear_modified_bodies(bodies, &mut modified_bodies);
         removed_colliders.clear();
 
         let mut remaining_time = integration_parameters.dt;
@@ -582,12 +613,21 @@ impl PhysicsPipeline {
                 colliders,
                 impulse_joints,
                 multibody_joints,
-                &mut modified_colliders,
-                &mut removed_colliders,
+                &modified_colliders,
+                &[],
                 hooks,
                 events,
                 false,
             );
+
+            if let Some(queries) = query_pipeline.as_deref_mut() {
+                queries.update_incremental(
+                    colliders,
+                    &modified_colliders,
+                    &[],
+                    remaining_substeps == 0,
+                );
+            }
 
             self.clear_modified_colliders(colliders, &mut modified_colliders);
         }
@@ -650,6 +690,7 @@ mod test {
             &mut impulse_joints,
             &mut multibody_joints,
             &mut CCDSolver::new(),
+            None,
             &(),
             &(),
         );
@@ -705,6 +746,7 @@ mod test {
             &mut impulse_joints,
             &mut multibody_joints,
             &mut CCDSolver::new(),
+            None,
             &(),
             &(),
         );
@@ -807,6 +849,7 @@ mod test {
                 &mut impulse_joints,
                 &mut multibody_joints,
                 &mut ccd,
+                None,
                 &physics_hooks,
                 &event_handler,
             );
