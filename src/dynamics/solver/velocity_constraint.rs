@@ -214,6 +214,7 @@ impl VelocityConstraint {
             let constraint = if insert_at.is_none() {
                 let new_len = out_constraints.len() + 1;
                 unsafe {
+                    #[allow(invalid_value)]
                     out_constraints.resize_with(new_len, || {
                         AnyVelocityConstraint::Nongrouped(
                             std::mem::MaybeUninit::uninit().assume_init(),
