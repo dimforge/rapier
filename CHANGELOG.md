@@ -14,6 +14,11 @@
 - Add the `QueryPipeline` as an optional argument to `PhysicsPipeline::step` and `CollisionPipeline::step`. If this
   argument is specified, then the query pipeline will be incrementally (i.e. more efficiently) update at the same time as
   these other pipelines. In that case, calling `QueryPipeline::update` a `PhysicsPipeline::step` isn’t needed.
+- `RigidBody::set_body_type` now takes an extra boolean argument indicating if the rigid-body should be woken-up
+  (if it becomes dynamic).
+
+### Fix
+- Fix bug resulting in rigid-bodies being awakened after they are created, even if they are created sleeping.
 
 ## v0.16.1 (10 Nov. 2022)
 ### Fix

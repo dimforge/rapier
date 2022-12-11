@@ -135,13 +135,17 @@ impl RigidBody {
     }
 
     /// Sets the type of this rigid-body.
-    pub fn set_body_type(&mut self, status: RigidBodyType) {
+    pub fn set_body_type(&mut self, status: RigidBodyType, wake_up: bool) {
         if status != self.body_type {
             self.changes.insert(RigidBodyChanges::TYPE);
             self.body_type = status;
 
             if status == RigidBodyType::Fixed {
                 self.vels = RigidBodyVelocity::zero();
+            }
+
+            if self.is_dynamic() && wake_up {
+                self.wake_up(true);
             }
         }
     }

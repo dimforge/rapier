@@ -5,7 +5,7 @@ use crate::counters::Counters;
 use crate::dynamics::IslandSolver;
 use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    RigidBodyPosition, RigidBodyType,
+    RigidBodyChanges, RigidBodyHandle, RigidBodyPosition, RigidBodyType,
 };
 #[cfg(feature = "parallel")]
 use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
@@ -73,6 +73,18 @@ impl PhysicsPipeline {
         for handle in modified_colliders.drain(..) {
             if let Some(co) = colliders.get_mut_internal(handle) {
                 co.changes = ColliderChanges::empty();
+            }
+        }
+    }
+
+    fn clear_modified_bodies(
+        &mut self,
+        bodies: &mut RigidBodySet,
+        modified_bodies: &mut Vec<RigidBodyHandle>,
+    ) {
+        for handle in modified_bodies.drain(..) {
+            if let Some(rb) = bodies.get_mut_internal(handle) {
+                rb.changes = RigidBodyChanges::empty();
             }
         }
     }
@@ -430,7 +442,7 @@ impl PhysicsPipeline {
             &modified_colliders[..],
         );
 
-        let modified_bodies = bodies.take_modified();
+        let mut modified_bodies = bodies.take_modified();
         super::user_changes::handle_user_changes_to_rigid_bodies(
             Some(islands),
             bodies,
@@ -481,6 +493,7 @@ impl PhysicsPipeline {
         }
 
         self.clear_modified_colliders(colliders, &mut modified_colliders);
+        self.clear_modified_bodies(bodies, &mut modified_bodies);
         removed_colliders.clear();
 
         let mut remaining_time = integration_parameters.dt;

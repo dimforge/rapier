@@ -86,14 +86,6 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                                         ids.active_set_id,
                                     ));
                                 }
-
-                                // Add to the active dynamic set.
-                                activation.wake_up(true);
-                                // Make sure the sleep change flag is set (even if for some
-                                // reasons the rigid-body was already awake) to make
-                                // sure the code handling sleeping change adds the body to
-                                // the active_dynamic_set.
-                                changes.set(RigidBodyChanges::SLEEP, true);
                             }
                             RigidBodyType::KinematicVelocityBased
                             | RigidBodyType::KinematicPositionBased => {
@@ -216,7 +208,6 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                 }
             }
 
-            rb.changes = RigidBodyChanges::empty();
             rb.ids = ids;
             rb.activation = activation;
         }

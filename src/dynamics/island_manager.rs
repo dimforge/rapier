@@ -1,6 +1,6 @@
 use crate::dynamics::{
-    ImpulseJointSet, MultibodyJointSet, RigidBodyActivation, RigidBodyColliders, RigidBodyHandle,
-    RigidBodyIds, RigidBodySet, RigidBodyType, RigidBodyVelocity,
+    ImpulseJointSet, MultibodyJointSet, RigidBodyActivation, RigidBodyChanges, RigidBodyColliders,
+    RigidBodyHandle, RigidBodyIds, RigidBodySet, RigidBodyType, RigidBodyVelocity,
 };
 use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
@@ -96,12 +96,18 @@ impl IslandManager {
         //       attempting to wake-up a rigid-body that has already been deleted.
         if bodies.get(handle).map(|rb| rb.body_type()) == Some(RigidBodyType::Dynamic) {
             let rb = bodies.index_mut_internal(handle);
-            rb.activation.wake_up(strong);
 
-            if rb.is_enabled() && self.active_dynamic_set.get(rb.ids.active_set_id) != Some(&handle)
-            {
-                rb.ids.active_set_id = self.active_dynamic_set.len();
-                self.active_dynamic_set.push(handle);
+            // Check that the user didn’t change the sleeping state explicitly, in which
+            // case we don’t overwrite it.
+            if !rb.changes.contains(RigidBodyChanges::SLEEP) {
+                rb.activation.wake_up(strong);
+
+                if rb.is_enabled()
+                    && self.active_dynamic_set.get(rb.ids.active_set_id) != Some(&handle)
+                {
+                    rb.ids.active_set_id = self.active_dynamic_set.len();
+                    self.active_dynamic_set.push(handle);
+                }
             }
         }
     }
