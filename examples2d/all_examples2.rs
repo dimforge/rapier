@@ -26,6 +26,7 @@ mod pyramid2;
 mod restitution2;
 mod sensor2;
 mod trimesh2;
+mod rope_joints2;
 
 fn demo_name_from_command_line() -> Option<String> {
     let mut args = std::env::args();
@@ -75,6 +76,7 @@ pub fn main() {
         ("Polyline", polyline2::init_world),
         ("Pyramid", pyramid2::init_world),
         ("Restitution", restitution2::init_world),
+        ("Rope Joints", rope_joints2::init_world),
         ("Sensor", sensor2::init_world),
         ("Trimesh", trimesh2::init_world),
         ("(Debug) box ball", debug_box_ball2::init_world),
