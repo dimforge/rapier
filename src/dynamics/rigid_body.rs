@@ -938,6 +938,22 @@ impl RigidBody {
         self.apply_impulse(impulse, wake_up);
         self.apply_torque_impulse(torque_impulse, wake_up);
     }
+
+    /// Retrieves the constant force(s) that the user has added to the body.
+    pub fn user_force(&self) -> Vector<Real> {
+        if self.body_type == RigidBodyType::Dynamic {
+            return self.forces.user_force;
+        }
+        Vector::zeros()
+    }
+
+    /// Retrieves the constant torque(s) that the user has added to the body.
+    pub fn user_torque(&self) -> AngVector<Real> {
+        if self.body_type == RigidBodyType::Dynamic {
+            return self.forces.user_torque;
+        }
+        AngVector::zero()
+    }
 }
 
 impl RigidBody {
