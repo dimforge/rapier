@@ -24,9 +24,9 @@ mod platform2;
 mod polyline2;
 mod pyramid2;
 mod restitution2;
+mod rope_joints2;
 mod sensor2;
 mod trimesh2;
-mod rope_joints2;
 
 fn demo_name_from_command_line() -> Option<String> {
     let mut args = std::env::args();

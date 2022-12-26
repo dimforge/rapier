@@ -21,13 +21,14 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(ground_size, ground_height);
     colliders.insert_with_parent(collider, floor_handle, &mut bodies);
 
-
-    let rigid_body = RigidBodyBuilder::fixed().translation(vector![-ground_size - ground_height, ground_size]);
+    let rigid_body =
+        RigidBodyBuilder::fixed().translation(vector![-ground_size - ground_height, ground_size]);
     let floor_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_height, ground_size);
     colliders.insert_with_parent(collider, floor_handle, &mut bodies);
 
-    let rigid_body = RigidBodyBuilder::fixed().translation(vector![ground_size + ground_height, ground_size]);
+    let rigid_body =
+        RigidBodyBuilder::fixed().translation(vector![ground_size + ground_height, ground_size]);
     let floor_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_height, ground_size);
     colliders.insert_with_parent(collider, floor_handle, &mut bodies);
@@ -50,7 +51,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::ball(rad);
     colliders.insert_with_parent(collider, child_handle, &mut bodies);
 
-    let joint = RopeJointBuilder::new().local_anchor2(point![0.0, 0.0]).limits([2.0, 2.0]);
+    let joint = RopeJointBuilder::new()
+        .local_anchor2(point![0.0, 0.0])
+        .limits([2.0, 2.0]);
     impulse_joints.insert(character_handle, child_handle, joint, true);
 
     /*
