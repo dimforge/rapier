@@ -9,6 +9,8 @@
   Disabling a multibody joint isn’t supported yet.
 - Add `DynamicRayCastVehicleController`, a vehicle controller based on ray-casting and dynamic rigid-bodies (mostly
   a port of the vehicle controller from Bullet physics).
+- Add `RigidBody::user_force` and `RigidBody::user_torque` to read the forces or torques added by the user to a
+  dynamic rigid-body.
 
 ### Modified
 - Add the `QueryPipeline` as an optional argument to `PhysicsPipeline::step` and `CollisionPipeline::step`. If this
