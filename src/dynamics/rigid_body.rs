@@ -940,19 +940,25 @@ impl RigidBody {
     }
 
     /// Retrieves the constant force(s) that the user has added to the body.
+    ///
+    /// Returns zero if the rigid-body isn’t dynamic.
     pub fn user_force(&self) -> Vector<Real> {
         if self.body_type == RigidBodyType::Dynamic {
-            return self.forces.user_force;
+            self.forces.user_force
+        } else {
+            Vector::zeros()
         }
-        Vector::zeros()
     }
 
     /// Retrieves the constant torque(s) that the user has added to the body.
+    ///
+    /// Returns zero if the rigid-body isn’t dynamic.
     pub fn user_torque(&self) -> AngVector<Real> {
         if self.body_type == RigidBodyType::Dynamic {
-            return self.forces.user_torque;
+            self.forces.user_torque
+        } else {
+            AngVector::zero()
         }
-        AngVector::zero()
     }
 }
 
