@@ -6,6 +6,9 @@ use rapier::pipeline::{
     DebugRenderBackend, DebugRenderMode, DebugRenderObject, DebugRenderPipeline,
 };
 
+#[derive(Resource)]
+pub struct DebugRenderPipelineResource(pub DebugRenderPipeline);
+
 pub struct RapierDebugRenderPlugin {
     depth_test: bool,
 }
@@ -23,10 +26,10 @@ impl Plugin for RapierDebugRenderPlugin {
         app.add_plugin(crate::lines::DebugLinesPlugin::with_depth_test(
             self.depth_test,
         ))
-        .insert_resource(DebugRenderPipeline::new(
+        .insert_resource(DebugRenderPipelineResource(DebugRenderPipeline::new(
             Default::default(),
             !DebugRenderMode::RIGID_BODY_AXES & !DebugRenderMode::COLLIDER_AABBS,
-        ))
+        )))
         .add_system_to_stage(CoreStage::Update, debug_render_scene);
     }
 }
@@ -57,12 +60,12 @@ impl<'a> DebugRenderBackend for BevyLinesRenderBackend<'a> {
 }
 
 fn debug_render_scene(
-    mut pipeline: ResMut<DebugRenderPipeline>,
+    mut pipeline: ResMut<DebugRenderPipelineResource>,
     harness: NonSend<Harness>,
     mut lines: ResMut<DebugLines>,
 ) {
     let mut backend = BevyLinesRenderBackend { lines: &mut *lines };
-    pipeline.render(
+    pipeline.0.render(
         &mut backend,
         &harness.physics.bodies,
         &harness.physics.colliders,

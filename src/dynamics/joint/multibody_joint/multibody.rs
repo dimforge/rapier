@@ -11,9 +11,7 @@ use crate::math::{
 };
 use crate::prelude::MultibodyJoint;
 use crate::utils::{IndexMut2, WAngularInertia, WCross, WCrossMatrix};
-use na::{
-    self, DMatrix, DVector, DVectorSlice, DVectorSliceMut, Dynamic, OMatrix, SMatrix, SVector, LU,
-};
+use na::{self, DMatrix, DVector, DVectorView, DVectorViewMut, Dyn, OMatrix, SMatrix, SVector, LU};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default)]
@@ -54,7 +52,7 @@ fn concat_rb_mass_matrix(
     result[(1, 1)] = mass.y;
     result[(2, 2)] = mass.z;
     result
-        .fixed_slice_mut::<ANG_DIM, ANG_DIM>(DIM, DIM)
+        .fixed_view_mut::<ANG_DIM, ANG_DIM>(DIM, DIM)
         .copy_from(&inertia);
     result
 }
@@ -72,10 +70,10 @@ pub struct Multibody {
     body_jacobians: Vec<Jacobian<Real>>,
     // TODO: use sparse matrices?
     augmented_mass: DMatrix<Real>,
-    inv_augmented_mass: LU<Real, Dynamic, Dynamic>,
+    inv_augmented_mass: LU<Real, Dyn, Dyn>,
 
     acc_augmented_mass: DMatrix<Real>,
-    acc_inv_augmented_mass: LU<Real, Dynamic, Dynamic>,
+    acc_inv_augmented_mass: LU<Real, Dyn, Dyn>,
 
     ndofs: usize,
     pub(crate) root_is_dynamic: bool,
@@ -85,8 +83,8 @@ pub struct Multibody {
      * Workspaces.
      */
     workspace: MultibodyWorkspace,
-    coriolis_v: Vec<OMatrix<Real, Dim, Dynamic>>,
-    coriolis_w: Vec<OMatrix<Real, AngDim, Dynamic>>,
+    coriolis_v: Vec<OMatrix<Real, Dim, Dyn>>,
+    coriolis_w: Vec<OMatrix<Real, AngDim, Dyn>>,
     i_coriolis_dt: Jacobian<Real>,
 }
 impl Default for Multibody {
@@ -234,7 +232,7 @@ impl Multibody {
     }
 
     /// The inverse augmented mass matrix of this multibody.
-    pub fn inv_augmented_mass(&self) -> &LU<Real, Dynamic, Dynamic> {
+    pub fn inv_augmented_mass(&self) -> &LU<Real, Dyn, Dyn> {
         &self.inv_augmented_mass
     }
 
@@ -547,11 +545,11 @@ impl Multibody {
         if self.coriolis_v.len() != self.links.len() {
             self.coriolis_v.resize(
                 self.links.len(),
-                OMatrix::<Real, Dim, Dynamic>::zeros(self.ndofs),
+                OMatrix::<Real, Dim, Dyn>::zeros(self.ndofs),
             );
             self.coriolis_w.resize(
                 self.links.len(),
-                OMatrix::<Real, AngDim, Dynamic>::zeros(self.ndofs),
+                OMatrix::<Real, AngDim, Dyn>::zeros(self.ndofs),
             );
             self.i_coriolis_dt = Jacobian::zeros(self.ndofs);
         }
@@ -730,9 +728,9 @@ impl Multibody {
 
     /// The generalized velocity at the multibody_joint of the given link.
     #[inline]
-    pub(crate) fn joint_velocity(&self, link: &MultibodyLink) -> DVectorSlice<Real> {
+    pub(crate) fn joint_velocity(&self, link: &MultibodyLink) -> DVectorView<Real> {
         let ndofs = link.joint().ndofs();
-        DVectorSlice::from_slice(
+        DVectorView::from_slice(
             &self.velocities.as_slice()[link.assembly_id..link.assembly_id + ndofs],
             ndofs,
         )
@@ -740,19 +738,19 @@ impl Multibody {
 
     /// The generalized accelerations of this multibodies.
     #[inline]
-    pub fn generalized_acceleration(&self) -> DVectorSlice<Real> {
+    pub fn generalized_acceleration(&self) -> DVectorView<Real> {
         self.accelerations.rows(0, self.ndofs)
     }
 
     /// The generalized velocities of this multibodies.
     #[inline]
-    pub fn generalized_velocity(&self) -> DVectorSlice<Real> {
+    pub fn generalized_velocity(&self) -> DVectorView<Real> {
         self.velocities.rows(0, self.ndofs)
     }
 
     /// The mutable generalized velocities of this multibodies.
     #[inline]
-    pub fn generalized_velocity_mut(&mut self) -> DVectorSliceMut<Real> {
+    pub fn generalized_velocity_mut(&mut self) -> DVectorViewMut<Real> {
         self.velocities.rows_mut(0, self.ndofs)
     }
 

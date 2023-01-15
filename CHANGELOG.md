@@ -1,5 +1,5 @@
 
-## Unreleased
+## v0.17.0 (15 Jan. 2022)
 ### Added
 - Add `RigidBody::set_enabled`, `RigidBody::is_enabled`, `RigidBodyBuilder::enabled` to enable/disable a rigid-body
   without having to delete it. Disabling a rigid-body attached to a multibody joint isn’t supported yet.

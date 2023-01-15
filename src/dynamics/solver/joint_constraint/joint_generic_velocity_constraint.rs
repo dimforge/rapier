@@ -4,7 +4,7 @@ use crate::dynamics::solver::DeltaVel;
 use crate::dynamics::{GenericJoint, IntegrationParameters, JointGraphEdge, JointIndex, Multibody};
 use crate::math::{Isometry, Real, DIM};
 use crate::prelude::SPATIAL_DIM;
-use na::{DVector, DVectorSlice, DVectorSliceMut};
+use na::{DVector, DVectorView, DVectorViewMut};
 
 #[derive(Debug, Copy, Clone)]
 pub struct JointGenericVelocityConstraint {
@@ -222,7 +222,7 @@ impl JointGenericVelocityConstraint {
         &self,
         mj_lambdas: &'a [DeltaVel<Real>],
         generic_mj_lambdas: &'a DVector<Real>,
-    ) -> DVectorSlice<'a, Real> {
+    ) -> DVectorView<'a, Real> {
         if self.is_rigid_body1 {
             mj_lambdas[self.mj_lambda1].as_vector_slice()
         } else {
@@ -234,7 +234,7 @@ impl JointGenericVelocityConstraint {
         &self,
         mj_lambdas: &'a mut [DeltaVel<Real>],
         generic_mj_lambdas: &'a mut DVector<Real>,
-    ) -> DVectorSliceMut<'a, Real> {
+    ) -> DVectorViewMut<'a, Real> {
         if self.is_rigid_body1 {
             mj_lambdas[self.mj_lambda1].as_vector_slice_mut()
         } else {
@@ -246,7 +246,7 @@ impl JointGenericVelocityConstraint {
         &self,
         mj_lambdas: &'a [DeltaVel<Real>],
         generic_mj_lambdas: &'a DVector<Real>,
-    ) -> DVectorSlice<'a, Real> {
+    ) -> DVectorView<'a, Real> {
         if self.is_rigid_body2 {
             mj_lambdas[self.mj_lambda2].as_vector_slice()
         } else {
@@ -258,7 +258,7 @@ impl JointGenericVelocityConstraint {
         &self,
         mj_lambdas: &'a mut [DeltaVel<Real>],
         generic_mj_lambdas: &'a mut DVector<Real>,
-    ) -> DVectorSliceMut<'a, Real> {
+    ) -> DVectorViewMut<'a, Real> {
         if self.is_rigid_body2 {
             mj_lambdas[self.mj_lambda2].as_vector_slice_mut()
         } else {
@@ -275,11 +275,11 @@ impl JointGenericVelocityConstraint {
         let jacobians = jacobians.as_slice();
 
         let mj_lambda1 = self.mj_lambda1(mj_lambdas, generic_mj_lambdas);
-        let j1 = DVectorSlice::from_slice(&jacobians[self.j_id1..], self.ndofs1);
+        let j1 = DVectorView::from_slice(&jacobians[self.j_id1..], self.ndofs1);
         let vel1 = j1.dot(&mj_lambda1);
 
         let mj_lambda2 = self.mj_lambda2(mj_lambdas, generic_mj_lambdas);
-        let j2 = DVectorSlice::from_slice(&jacobians[self.j_id2..], self.ndofs2);
+        let j2 = DVectorView::from_slice(&jacobians[self.j_id2..], self.ndofs2);
         let vel2 = j2.dot(&mj_lambda2);
 
         let dvel = self.rhs + (vel2 - vel1);
@@ -292,11 +292,11 @@ impl JointGenericVelocityConstraint {
         self.impulse = total_impulse;
 
         let mut mj_lambda1 = self.mj_lambda1_mut(mj_lambdas, generic_mj_lambdas);
-        let wj1 = DVectorSlice::from_slice(&jacobians[self.wj_id1()..], self.ndofs1);
+        let wj1 = DVectorView::from_slice(&jacobians[self.wj_id1()..], self.ndofs1);
         mj_lambda1.axpy(delta_impulse, &wj1, 1.0);
 
         let mut mj_lambda2 = self.mj_lambda2_mut(mj_lambdas, generic_mj_lambdas);
-        let wj2 = DVectorSlice::from_slice(&jacobians[self.wj_id2()..], self.ndofs2);
+        let wj2 = DVectorView::from_slice(&jacobians[self.wj_id2()..], self.ndofs2);
         mj_lambda2.axpy(-delta_impulse, &wj2, 1.0);
     }
 
@@ -506,7 +506,7 @@ impl JointGenericVelocityGroundConstraint {
         &self,
         _mj_lambdas: &'a [DeltaVel<Real>],
         generic_mj_lambdas: &'a DVector<Real>,
-    ) -> DVectorSlice<'a, Real> {
+    ) -> DVectorView<'a, Real> {
         generic_mj_lambdas.rows(self.mj_lambda2, self.ndofs2)
     }
 
@@ -514,7 +514,7 @@ impl JointGenericVelocityGroundConstraint {
         &self,
         _mj_lambdas: &'a mut [DeltaVel<Real>],
         generic_mj_lambdas: &'a mut DVector<Real>,
-    ) -> DVectorSliceMut<'a, Real> {
+    ) -> DVectorViewMut<'a, Real> {
         generic_mj_lambdas.rows_mut(self.mj_lambda2, self.ndofs2)
     }
 
@@ -527,7 +527,7 @@ impl JointGenericVelocityGroundConstraint {
         let jacobians = jacobians.as_slice();
 
         let mj_lambda2 = self.mj_lambda2(mj_lambdas, generic_mj_lambdas);
-        let j2 = DVectorSlice::from_slice(&jacobians[self.j_id2..], self.ndofs2);
+        let j2 = DVectorView::from_slice(&jacobians[self.j_id2..], self.ndofs2);
         let vel2 = j2.dot(&mj_lambda2);
 
         let dvel = self.rhs + vel2;
@@ -540,7 +540,7 @@ impl JointGenericVelocityGroundConstraint {
         self.impulse = total_impulse;
 
         let mut mj_lambda2 = self.mj_lambda2_mut(mj_lambdas, generic_mj_lambdas);
-        let wj2 = DVectorSlice::from_slice(&jacobians[self.wj_id2()..], self.ndofs2);
+        let wj2 = DVectorView::from_slice(&jacobians[self.wj_id2()..], self.ndofs2);
         mj_lambda2.axpy(-delta_impulse, &wj2, 1.0);
     }
 

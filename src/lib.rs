@@ -157,11 +157,11 @@ pub mod math {
 
     /// The type of a slice of the constraint Jacobian in twist coordinates.
     #[cfg(feature = "dim2")]
-    pub type JacobianSlice<'a, N> = na::MatrixSlice3xX<'a, N>;
+    pub type JacobianView<'a, N> = na::MatrixView3xX<'a, N>;
 
     /// The type of a mutable slice of the constraint Jacobian in twist coordinates.
     #[cfg(feature = "dim2")]
-    pub type JacobianSliceMut<'a, N> = na::MatrixSliceMut3xX<'a, N>;
+    pub type JacobianViewMut<'a, N> = na::MatrixViewMut3xX<'a, N>;
 
     /// The maximum number of possible rotations and translations of a rigid body.
     #[cfg(feature = "dim2")]
@@ -186,11 +186,11 @@ pub mod math {
 
     /// The type of a slice of the constraint Jacobian in twist coordinates.
     #[cfg(feature = "dim3")]
-    pub type JacobianSlice<'a, N> = na::MatrixSlice6xX<'a, N>;
+    pub type JacobianView<'a, N> = na::MatrixView6xX<'a, N>;
 
     /// The type of a mutable slice of the constraint Jacobian in twist coordinates.
     #[cfg(feature = "dim3")]
-    pub type JacobianSliceMut<'a, N> = na::MatrixSliceMut6xX<'a, N>;
+    pub type JacobianViewMut<'a, N> = na::MatrixViewMut6xX<'a, N>;
 
     /// The maximum number of possible rotations and translations of a rigid body.
     #[cfg(feature = "dim3")]
