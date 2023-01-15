@@ -1,6 +1,6 @@
 use crate::math::{AngVector, Vector, SPATIAL_DIM};
 use crate::utils::WReal;
-use na::{DVectorSlice, DVectorSliceMut, Scalar};
+use na::{DVectorView, DVectorViewMut, Scalar};
 use std::ops::{AddAssign, Sub};
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -20,12 +20,12 @@ impl<N: Scalar + Copy> DeltaVel<N> {
         unsafe { std::mem::transmute(self) }
     }
 
-    pub fn as_vector_slice(&self) -> DVectorSlice<N> {
-        DVectorSlice::from_slice(&self.as_slice()[..], SPATIAL_DIM)
+    pub fn as_vector_slice(&self) -> DVectorView<N> {
+        DVectorView::from_slice(&self.as_slice()[..], SPATIAL_DIM)
     }
 
-    pub fn as_vector_slice_mut(&mut self) -> DVectorSliceMut<N> {
-        DVectorSliceMut::from_slice(&mut self.as_mut_slice()[..], SPATIAL_DIM)
+    pub fn as_vector_slice_mut(&mut self) -> DVectorViewMut<N> {
+        DVectorViewMut::from_slice(&mut self.as_mut_slice()[..], SPATIAL_DIM)
     }
 }
 

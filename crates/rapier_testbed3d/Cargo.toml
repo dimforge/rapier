@@ -1,6 +1,6 @@
 [package]
 name    = "rapier_testbed3d"
-version = "0.16.0"
+version = "0.17.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "Testbed for the Rapier 3-dimensional physics engine in Rust."
 homepage = "http://rapier.org"
@@ -28,36 +28,36 @@ other-backends = [ "physx", "physx-sys", "glam" ]
 features = ["parallel", "other-backends"]
 
 [dependencies]
-nalgebra   = { version = "0.31", features = [ "rand" ] }
+nalgebra   = { version = "0.32", features = [ "rand" ] }
 rand       = "0.8"
 rand_pcg   = "0.3"
 instant    = { version = "0.1", features = [ "web-sys", "now" ]}
 bitflags   = "1"
-glam       = { version = "0.12", optional = true }
+glam       = { version = "0.20", optional = true } # For Physx
 num_cpus   = { version = "1", optional = true }
-physx      = { version = "0.12", features = [ "glam" ], optional = true }
-physx-sys = { version = "0.4", optional = true }
+physx      = { version = "0.16", features = [ "glam" ], optional = true }
+physx-sys = { version = "0.8", optional = true }
 crossbeam = "0.8"
 bincode = "1"
 md5 = "0.7"
 Inflector  = "0.11"
 serde = { version = "1", features = [ "derive" ] }
 
-bevy_egui = "0.16"
-bevy_ecs = "0.8"
+bevy_egui = "0.18"
+bevy_ecs = "0.9"
 #bevy_prototype_debug_lines = { version = "0.7", features = [ "3d" ] }
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = {version = "0.8", default-features = false, features = ["bevy_winit", "render", "x11"]}
+bevy = {version = "0.9", default-features = false, features = ["bevy_winit", "render", "x11"]}
 
 # Dependencies for WASM only.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy = {version = "0.8", default-features = false, features = ["bevy_winit", "render"]}
+bevy = {version = "0.9", default-features = false, features = ["bevy_winit", "render"]}
 #bevy_webgl2 = "0.5"
 
 [dependencies.rapier]
 package = "rapier3d"
 path = "../rapier3d"
-version = "0.16.0"
+version = "0.17.0"
 features = [ "serde-serialize", "debug-render", "profiler" ]

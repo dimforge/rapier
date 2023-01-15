@@ -44,7 +44,7 @@ impl EntityWithGraphics {
         color: Point3<f32>,
         sensor: bool,
     ) -> Self {
-        let entity = commands.spawn().id();
+        let entity = commands.spawn_empty().id();
 
         let scale = collider_mesh_scale(shape);
         let mesh = prefab_meshs
@@ -108,7 +108,7 @@ impl EntityWithGraphics {
             };
 
             let mut entity_commands = commands.entity(entity);
-            entity_commands.insert_bundle(bundle);
+            entity_commands.insert(bundle);
 
             if sensor {
                 entity_commands.insert(Wireframe);

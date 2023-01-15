@@ -97,6 +97,7 @@ bitflags! {
     }
 }
 
+#[derive(Resource)]
 pub struct TestbedState {
     pub running: RunMode,
     pub draw_colls: bool,
@@ -122,6 +123,7 @@ pub struct TestbedState {
     camera_locked: bool, // Used so that the camera can remain the same before and after we change backend or press the restart button.
 }
 
+#[derive(Resource)]
 struct SceneBuilders(Vec<(&'static str, fn(&mut Testbed))>);
 
 #[cfg(feature = "other-backends")]
@@ -369,23 +371,26 @@ impl TestbedApp {
                 "Rapier: 3D demos".to_string()
             };
 
-            let mut app = App::new();
+            let window_plugin = WindowPlugin {
+                window: WindowDescriptor {
+                    title,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
 
-            app.insert_resource(WindowDescriptor {
-                title,
-                ..Default::default()
-            })
-            .insert_resource(ClearColor(Color::rgb(0.15, 0.15, 0.15)))
-            .insert_resource(Msaa { samples: 4 })
-            .insert_resource(AmbientLight {
-                brightness: 0.3,
-                ..Default::default()
-            })
-            .add_plugins(DefaultPlugins)
-            .add_plugin(OrbitCameraPlugin)
-            .add_plugin(WireframePlugin)
-            .add_plugin(bevy_egui::EguiPlugin)
-            .add_plugin(debug_render::RapierDebugRenderPlugin::default());
+            let mut app = App::new();
+            app.insert_resource(ClearColor(Color::rgb(0.15, 0.15, 0.15)))
+                .insert_resource(Msaa { samples: 4 })
+                .insert_resource(AmbientLight {
+                    brightness: 0.3,
+                    ..Default::default()
+                })
+                .add_plugins(DefaultPlugins.set(window_plugin))
+                .add_plugin(OrbitCameraPlugin)
+                .add_plugin(WireframePlugin)
+                .add_plugin(bevy_egui::EguiPlugin)
+                .add_plugin(debug_render::RapierDebugRenderPlugin::default());
 
             #[cfg(target_arch = "wasm32")]
             app.add_plugin(bevy_webgl2::WebGL2Plugin);
@@ -995,7 +1000,7 @@ fn draw_contacts(_nf: &NarrowPhase, _colliders: &ColliderSet) {
 fn setup_graphics_environment(mut commands: Commands) {
     const HALF_SIZE: f32 = 100.0;
 
-    commands.spawn_bundle(DirectionalLightBundle {
+    commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             illuminance: 10000.0,
             // Configure the projection to better fit the scene
@@ -1020,7 +1025,7 @@ fn setup_graphics_environment(mut commands: Commands) {
     });
 
     commands
-        .spawn_bundle(Camera3dBundle {
+        .spawn(Camera3dBundle {
             transform: Transform::from_matrix(
                 Mat4::look_at_rh(
                     Vec3::new(-30.0, 30.0, 100.0),
@@ -1053,7 +1058,7 @@ fn setup_graphics_environment(mut commands: Commands) {
     //     ..Default::default()
     // });
     commands
-        .spawn_bundle(Camera2dBundle {
+        .spawn(Camera2dBundle {
             transform: Transform {
                 translation: Vec3::new(0.0, 0.0, 0.0),
                 rotation: Quat::IDENTITY,

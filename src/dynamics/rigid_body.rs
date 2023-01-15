@@ -158,8 +158,8 @@ impl RigidBody {
 
     /// The mass-properties of this rigid-body.
     #[inline]
-    pub fn mass_properties(&self) -> &MassProperties {
-        &self.mprops.local_mprops
+    pub fn mass_properties(&self) -> &RigidBodyMassProps {
+        &self.mprops
     }
 
     /// The dominance group of this rigid-body.
@@ -182,6 +182,12 @@ impl RigidBody {
             self.mprops.flags = locked_axes;
             self.update_world_mass_properties();
         }
+    }
+
+    /// The axes along which this rigid-body cannot translate or rotate.
+    #[inline]
+    pub fn locked_axes(&self) -> LockedAxes {
+        self.mprops.flags
     }
 
     #[inline]

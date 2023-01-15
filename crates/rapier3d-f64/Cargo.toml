@@ -1,6 +1,6 @@
 [package]
 name    = "rapier3d-f64"
-version = "0.16.1"
+version = "0.17.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "3-dimensional physics engine in Rust."
 documentation = "http://docs.rs/rapier3d"
@@ -51,9 +51,9 @@ required-features = [ "dim3", "f64" ]
 vec_map = { version = "0.8", optional = true }
 instant = { version = "0.1", features = [ "now" ], optional = true }
 num-traits = "0.2"
-nalgebra = "0.31"
-parry3d-f64 = "0.12"
-simba = "0.7"
+nalgebra = "0.32"
+parry3d-f64 = "0.13"
+simba = "0.8"
 approx = "0.5"
 rayon = { version = "1", optional = true }
 crossbeam = "0.8"

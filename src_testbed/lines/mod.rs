@@ -73,6 +73,7 @@ mod dim {
 pub(crate) const DEBUG_LINES_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 17477439189930443325);
 
+#[derive(Resource)]
 pub(crate) struct DebugLinesConfig {
     depth_test: bool,
 }
@@ -275,7 +276,7 @@ pub(crate) struct RenderDebugLinesMesh;
 ///     );
 /// }
 /// ```
-#[derive(Default)]
+#[derive(Default, Resource)]
 pub struct DebugLines {
     pub positions: Vec<[f32; 3]>,
     //pub colors: Vec<[f32; 4]>,

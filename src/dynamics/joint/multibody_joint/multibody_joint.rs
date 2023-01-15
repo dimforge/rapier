@@ -4,10 +4,10 @@ use crate::dynamics::{
     RigidBodyVelocity,
 };
 use crate::math::{
-    Isometry, JacobianSliceMut, Real, Rotation, SpacialVector, Translation, Vector, ANG_DIM, DIM,
+    Isometry, JacobianViewMut, Real, Rotation, SpacialVector, Translation, Vector, ANG_DIM, DIM,
     SPATIAL_DIM,
 };
-use na::{DVector, DVectorSliceMut};
+use na::{DVector, DVectorViewMut};
 #[cfg(feature = "dim3")]
 use na::{UnitQuaternion, Vector3};
 
@@ -126,14 +126,14 @@ impl MultibodyJoint {
     }
 
     /// Sets in `out` the non-zero entries of the multibody_joint jacobian transformed by `transform`.
-    pub fn jacobian(&self, transform: &Rotation<Real>, out: &mut JacobianSliceMut<Real>) {
+    pub fn jacobian(&self, transform: &Rotation<Real>, out: &mut JacobianViewMut<Real>) {
         let locked_bits = self.data.locked_axes.bits();
         let mut curr_free_dof = 0;
 
         for i in 0..DIM {
             if (locked_bits & (1 << i)) == 0 {
                 let transformed_axis = transform * Vector::ith(i, 1.0);
-                out.fixed_slice_mut::<DIM, 1>(0, curr_free_dof)
+                out.fixed_view_mut::<DIM, 1>(0, curr_free_dof)
                     .copy_from(&transformed_axis);
                 curr_free_dof += 1;
             }
@@ -153,7 +153,7 @@ impl MultibodyJoint {
                 {
                     let dof_id = (!locked_ang_bits).trailing_zeros() as usize;
                     let rotmat = transform.to_rotation_matrix().into_inner();
-                    out.fixed_slice_mut::<ANG_DIM, 1>(DIM, curr_free_dof)
+                    out.fixed_view_mut::<ANG_DIM, 1>(DIM, curr_free_dof)
                         .copy_from(&rotmat.column(dof_id));
                 }
             }
@@ -163,7 +163,7 @@ impl MultibodyJoint {
             #[cfg(feature = "dim3")]
             3 => {
                 let rotmat = transform.to_rotation_matrix();
-                out.fixed_slice_mut::<3, 3>(3, curr_free_dof)
+                out.fixed_view_mut::<3, 3>(3, curr_free_dof)
                     .copy_from(rotmat.matrix());
             }
             _ => unreachable!(),
@@ -213,7 +213,7 @@ impl MultibodyJoint {
     }
 
     /// Fill `out` with the non-zero entries of a damping that can be applied by default to ensure a good stability of the multibody_joint.
-    pub fn default_damping(&self, out: &mut DVectorSliceMut<Real>) {
+    pub fn default_damping(&self, out: &mut DVectorViewMut<Real>) {
         let locked_bits = self.data.locked_axes.bits();
         let mut curr_free_dof = self.num_free_lin_dofs();
 
