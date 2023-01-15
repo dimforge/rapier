@@ -11,6 +11,7 @@
   a port of the vehicle controller from Bullet physics).
 - Add `RigidBody::user_force` and `RigidBody::user_torque` to read the forces or torques added by the user to a
   dynamic rigid-body.
+- Add `RigidBody::locked_axes` to get the rigid-body axes that were locked by the user.
 
 ### Modified
 - Add the `QueryPipeline` as an optional argument to `PhysicsPipeline::step` and `CollisionPipeline::step`. If this
@@ -18,6 +19,7 @@
   these other pipelines. In that case, calling `QueryPipeline::update` a `PhysicsPipeline::step` isn’t needed.
 - `RigidBody::set_body_type` now takes an extra boolean argument indicating if the rigid-body should be woken-up
   (if it becomes dynamic).
+- `RigidBody::mass_properties` now also returns the world-space mass-properties of the rigid-body.
 
 ### Fix
 - Fix bug resulting in rigid-bodies being awakened after they are created, even if they are created sleeping.
