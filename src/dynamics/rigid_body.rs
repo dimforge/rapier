@@ -184,6 +184,12 @@ impl RigidBody {
         }
     }
 
+    /// The axes along which this rigid-body cannot translate or rotate.
+    #[inline]
+    pub fn locked_axes(&self) -> LockedAxes {
+        self.mprops.flags
+    }
+
     #[inline]
     /// Locks or unlocks all the rotations of this rigid-body.
     pub fn lock_rotations(&mut self, locked: bool, wake_up: bool) {
