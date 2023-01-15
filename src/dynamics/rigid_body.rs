@@ -158,8 +158,8 @@ impl RigidBody {
 
     /// The mass-properties of this rigid-body.
     #[inline]
-    pub fn mass_properties(&self) -> &MassProperties {
-        &self.mprops.local_mprops
+    pub fn mass_properties(&self) -> &RigidBodyMassProps {
+        &self.mprops
     }
 
     /// The dominance group of this rigid-body.

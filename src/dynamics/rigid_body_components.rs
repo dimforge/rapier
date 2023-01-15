@@ -245,7 +245,7 @@ impl Default for RigidBodyAdditionalMassProps {
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
-/// The mass properties of this rigid-bodies.
+/// The mass properties of a rigid-body.
 pub struct RigidBodyMassProps {
     /// Flags for locking rotation and translation.
     pub flags: LockedAxes,
