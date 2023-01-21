@@ -161,16 +161,6 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                 }
             }
 
-            if changes
-                .intersects(RigidBodyChanges::LOCAL_MASS_PROPERTIES | RigidBodyChanges::COLLIDERS)
-            {
-                rb.mprops.recompute_mass_properties_from_colliders(
-                    colliders,
-                    &rb.colliders,
-                    &rb.pos.position,
-                );
-            }
-
             if changes.contains(RigidBodyChanges::ENABLED_OR_DISABLED) {
                 // Propagate the rigid-body’s enabled/disable status to its colliders.
                 for handle in rb.colliders.0.iter() {
@@ -206,6 +196,19 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                 if !rb.enabled {
                     final_action = Some(FinalAction::RemoveFromIsland);
                 }
+            }
+
+            // NOTE: recompute the mass-properties AFTER dealing with the rigid-body changes
+            //       that imply a collider change (in particular, after propagation of the
+            //       enabled/disabled status).
+            if changes
+                .intersects(RigidBodyChanges::LOCAL_MASS_PROPERTIES | RigidBodyChanges::COLLIDERS)
+            {
+                rb.mprops.recompute_mass_properties_from_colliders(
+                    colliders,
+                    &rb.colliders,
+                    &rb.pos.position,
+                );
             }
 
             rb.ids = ids;
