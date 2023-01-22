@@ -1,3 +1,7 @@
+## v0.17.1 (22 Jan. 2022)
+### Fix
+- Fix bug resulting in dynamic rigid-bodies acting as kinematic bodies after being disabled and then re-enabled.
+
 
 ## v0.17.0 (15 Jan. 2022)
 ### Added
