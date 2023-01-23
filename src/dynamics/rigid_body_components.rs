@@ -978,6 +978,8 @@ pub struct RigidBodyActivation {
     pub linear_threshold: Real,
     /// The angular linear velocity bellow which the body can fall asleep.
     pub angular_threshold: Real,
+    /// The amount of time the rigid-body must remain below the thresholds to be put to sleep.
+    pub time_until_sleep: Real,
     /// Since how much time can this body sleep?
     pub time_since_can_sleep: Real,
     /// Is this body sleeping?
@@ -1012,6 +1014,7 @@ impl RigidBodyActivation {
         RigidBodyActivation {
             linear_threshold: Self::default_linear_threshold(),
             angular_threshold: Self::default_angular_threshold(),
+            time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: 0.0,
             sleeping: false,
         }
@@ -1022,8 +1025,9 @@ impl RigidBodyActivation {
         RigidBodyActivation {
             linear_threshold: Self::default_linear_threshold(),
             angular_threshold: Self::default_angular_threshold(),
-            sleeping: true,
+            time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: Self::default_time_until_sleep(),
+            sleeping: true,
         }
     }
 
@@ -1055,6 +1059,6 @@ impl RigidBodyActivation {
     #[inline]
     pub fn sleep(&mut self) {
         self.sleeping = true;
-        self.time_since_can_sleep = Self::default_time_until_sleep();
+        self.time_since_can_sleep = self.time_until_sleep;
     }
 }

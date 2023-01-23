@@ -176,8 +176,7 @@ impl IslandManager {
 
             update_energy(&mut rb.activation, sq_linvel, sq_angvel, dt);
 
-            if rb.activation.time_since_can_sleep >= RigidBodyActivation::default_time_until_sleep()
-            {
+            if rb.activation.time_since_can_sleep >= rb.activation.time_until_sleep {
                 // Mark them as sleeping for now. This will
                 // be set to false during the graph traversal
                 // if it should not be put to sleep.
