@@ -89,6 +89,19 @@ pub fn init_world(testbed: &mut Testbed) {
     colliders.insert(collider);
 
     /*
+     * Create a wall we can’t climb.
+     */
+    let wall_angle = PI / 2.;
+    let wall_size = 2.0;
+    let collider = ColliderBuilder::cuboid(wall_size, ground_height)
+        .translation(vector![
+            ground_size + slope_size * 2.0 + impossible_slope_size + 0.35,
+            -ground_height + 2.5 * 2.3
+        ])
+        .rotation(wall_angle);
+    colliders.insert(collider);
+
+    /*
      * Create a moving platform.
      */
     let body = RigidBodyBuilder::kinematic_velocity_based().translation(vector![-8.0, 1.5]);
