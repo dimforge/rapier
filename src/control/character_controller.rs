@@ -271,11 +271,7 @@ impl KinematicCharacterController {
                         println!("[stair] translation_remaining: {translation_remaining:?}");
                         // No slopes or stairs ahead; try to move along obstacles.
 
-                        let allowed_translation: Vector<Real> =
-                            self.split_into_components(&translation_remaining)
-                                .map(|remaining| subtract_hit(remaining, &toi, offset))
-                                .into_iter()
-                                .sum();
+                        let allowed_translation = subtract_hit(translation_remaining, &toi, offset);
 
                         result.translation += allowed_translation;
                         translation_remaining -= allowed_translation;
@@ -740,5 +736,5 @@ impl KinematicCharacterController {
 }
 
 fn subtract_hit(translation: Vector<Real>, hit: &TOI, offset: Real) -> Vector<Real> {
-    translation - *hit.normal1 * (translation).dot(&hit.normal1) * (1.0 + offset)
+    translation - *hit.normal1 * ((translation).dot(&hit.normal1) * (1.0 + offset)).min(0.0)
 }
