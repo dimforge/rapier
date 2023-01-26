@@ -267,7 +267,7 @@ impl KinematicCharacterController {
                         translation_remaining = translation_on_slope;
                     } else {
                         // No slopes or stairs ahead; try to move along obstacle.
-                        let allowed_translation = subtract_hit(translation_remaining, &toi, offset);
+                        let allowed_translation = subtract_hit(translation_remaining, &toi, 0.);
                         result.translation += allowed_translation;
                         translation_remaining -= allowed_translation;
                     }
