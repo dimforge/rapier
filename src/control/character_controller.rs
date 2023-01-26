@@ -247,28 +247,26 @@ impl KinematicCharacterController {
                     toi,
                 });
 
-                if ![self.up, -self.up] // Try to move up or down stairs
-                    .iter()
-                    .any(|up| self.handle_stairs(
-                        bodies,
-                        colliders,
-                        queries,
-                        character_shape,
-                        &(Translation::from(result.translation) * character_pos),
-                        &dims,
-                        filter,
-                        handle,
-                        &mut translation_remaining,
-                        &mut result,
-                        up
-                    )) {
+                // Try to go up stairs.
+                if !self.handle_stairs(
+                    bodies,
+                    colliders,
+                    queries,
+                    character_shape,
+                    &(Translation::from(result.translation) * character_pos),
+                    &dims,
+                    filter,
+                    handle,
+                    &mut translation_remaining,
+                    &mut result,
+                ) {
                     // No stairs, try to move along slopes.
                     if let Some(translation_on_slope) =
                         self.handle_slopes(&toi, &mut translation_remaining, offset)
                     {
                         translation_remaining = translation_on_slope;
                     } else {
-                        // No slopes or stairs ahead; try to move along obstacles.
+                        // No slopes or stairs ahead; try to move along obstacle.
                         let allowed_translation = subtract_hit(translation_remaining, &toi, offset);
                         result.translation += allowed_translation;
                         translation_remaining -= allowed_translation;
@@ -525,7 +523,6 @@ impl KinematicCharacterController {
         stair_handle: ColliderHandle,
         translation_remaining: &mut Vector<Real>,
         result: &mut EffectiveCharacterMovement,
-        stair_dir: &Vector<Real>,
     ) -> bool {
         let autostep = match self.autostep {
             Some(autostep) => autostep,
@@ -549,9 +546,9 @@ impl KinematicCharacterController {
             filter.flags |= QueryFilterFlags::EXCLUDE_DYNAMIC;
         }
 
-        let shifted_character_pos = Translation::from(*stair_dir * max_height) * character_pos;
+        let shifted_character_pos = Translation::from(*self.up * max_height) * character_pos;
 
-        let horizontal_dir = match (*translation_remaining - *stair_dir * translation_remaining.dot(&stair_dir))
+        let horizontal_dir = match (*translation_remaining - *self.up * translation_remaining.dot(&self.up))
             .try_normalize(1.0e-5) {
             Some(dir) => dir,
             None => return false,
@@ -562,7 +559,7 @@ impl KinematicCharacterController {
                 bodies,
                 colliders,
                 character_pos,
-                &stair_dir,
+                &self.up,
                 character_shape,
                 max_height,
                 false,
@@ -598,7 +595,7 @@ impl KinematicCharacterController {
             bodies,
             colliders,
             &(Translation::from(horizontal_dir * min_width) * shifted_character_pos),
-            &-stair_dir,
+            &-self.up,
             character_shape,
             max_height,
             false,
@@ -609,8 +606,8 @@ impl KinematicCharacterController {
                     .map(|remaining| subtract_hit(remaining, &hit, offset));
 
 
-            let angle_with_floor = stair_dir.angle(&hit.normal1);
-            let climbing = stair_dir.dot(&horizontal_slope_translation) >= 0.0;
+            let angle_with_floor = self.up.angle(&hit.normal1);
+            let climbing = self.up.dot(&horizontal_slope_translation) >= 0.0;
 
             if climbing && angle_with_floor > self.max_slope_climb_angle {
                 return false; // The target ramp is too steep.
@@ -625,7 +622,7 @@ impl KinematicCharacterController {
                     colliders,
                     &(Translation::from(horizontal_dir * min_width)
                         * shifted_character_pos),
-                    &-stair_dir,
+                    &-self.up,
                     character_shape,
                     max_height,
                     false,
@@ -636,7 +633,7 @@ impl KinematicCharacterController {
 
         // Remove the step height from the vertical part of the self.
         *translation_remaining -=
-            *stair_dir * ((translation_remaining.dot(&stair_dir)).clamp(0.0, step_height) + offset);
+            *self.up * ((translation_remaining.dot(&self.up)).clamp(0.0, step_height) + offset);
 
         // Advance the collider on the step horizontally, to make sure further
         // movement won’t just get stuck on its edge.
@@ -644,7 +641,7 @@ impl KinematicCharacterController {
             horizontal_dir * min_width.min(horizontal_dir.dot(translation_remaining));
         *translation_remaining -= horizontal_nudge;
 
-        result.translation += *stair_dir * step_height + horizontal_nudge;
+        result.translation += *self.up * step_height + horizontal_nudge;
         return true;
     }
 
