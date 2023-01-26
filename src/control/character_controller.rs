@@ -273,6 +273,13 @@ impl KinematicCharacterController {
                     );
                     if !stair_handled {
                         println!("[stair] translation_remaining: {translation_remaining:?}");
+                        // No slopes or stairs ahead; try to move along obstacles.
+                        let allowed_dist =
+                            (toi.toi - (-toi.normal1.dot(&translation_dir)) * offset).max(0.0);
+                        let allowed_translation = *translation_dir * allowed_dist;
+                        result.translation += allowed_translation;
+                        translation_remaining -= allowed_translation;
+
                     }
                 }
             } else {
@@ -483,27 +490,28 @@ impl KinematicCharacterController {
         let horizontal_translation_remaining =
             *translation_remaining - vertical_translation_remaining;
 
-        let horizontal_translation_remaining =
+        let horizontal_slope_translation =
             horizontal_translation_remaining
                 - *hit.normal1 * (horizontal_translation_remaining).dot(&hit.normal1);
 
-        let vertical_translation_remaining =
+        let vertical_slope_translation =
             vertical_translation_remaining
                 - *hit.normal1 * (vertical_translation_remaining).dot(&hit.normal1);
 
-        let sliding_translation_remaining = horizontal_translation_remaining + vertical_translation_remaining;
+        let slope_translation = horizontal_slope_translation + vertical_slope_translation;
 
         // Check if there is a slope to climb.
         let angle_with_floor = self.up.angle(&hit.normal1);
-        let climbing = self.up.dot(&sliding_translation_remaining) >= 0.0;
+        let climbing = self.up.dot(&slope_translation) >= 0.0;
 
         climbing
             .then(||(angle_with_floor <= self.max_slope_climb_angle) // Are we allowed to climb?
-                .then_some(Some(sliding_translation_remaining))
-                .unwrap_or(None))
+                .then_some(slope_translation))
             .unwrap_or_else(|| (angle_with_floor >= self.min_slope_slide_angle)// Are we allowed to slide?
-                .then_some(Some(sliding_translation_remaining))
-                .unwrap_or(Some(horizontal_translation_remaining)))
+                .then_some(slope_translation)
+                .unwrap_or(horizontal_slope_translation)
+                .into())
+
     }
 
     fn handle_stairs(
