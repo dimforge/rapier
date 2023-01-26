@@ -355,6 +355,10 @@ impl KinematicCharacterController {
         None
     }
 
+    fn predict_ground(&self, up_extends: Real) -> Real {
+        self.offset.eval(up_extends) * 1.3
+    }
+
     fn detect_grounded_status_and_apply_friction(
         &self,
         dt: Real,
@@ -368,7 +372,7 @@ impl KinematicCharacterController {
         mut kinematic_friction_translation: Option<&mut Vector<Real>>,
         mut translation_remaining: Option<&mut Vector<Real>>,
     ) -> bool {
-        let prediction = self.offset.eval(dims.y) * 1.2;
+        let prediction = self.predict_ground(dims.y);
 
         // TODO: allow custom dispatchers.
         let dispatcher = DefaultQueryDispatcher;
@@ -667,7 +671,7 @@ impl KinematicCharacterController {
         let up_extent = extents.dot(&self.up);
         let movement_to_transfer =
             *collision.toi.normal1 * collision.translation_remaining.dot(&collision.toi.normal1);
-        let prediction = self.offset.eval(up_extent) * 1.2;
+        let prediction = self.predict_ground(up_extent);
 
         // TODO: allow custom dispatchers.
         let dispatcher = DefaultQueryDispatcher;
