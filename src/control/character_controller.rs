@@ -254,10 +254,12 @@ impl KinematicCharacterController {
                 if let (Some(translation_on_slope), _) =
                     self.handle_slopes(&toi, &mut translation_remaining)
                 {
+                    println!("[slope] translation_on_slope: {translation_on_slope:?}");
                     translation_remaining = translation_on_slope;
+                    println!("[slope] translation_remaining: {translation_remaining:?}");
                 } else {
                     // If the slope is too big, try to step on the stair.
-                    self.handle_stairs(
+                    let stair_handled = self.handle_stairs(
                         bodies,
                         colliders,
                         queries,
@@ -269,6 +271,9 @@ impl KinematicCharacterController {
                         &mut translation_remaining,
                         &mut result,
                     );
+                    if !stair_handled {
+                        println!("[stair] translation_remaining: {translation_remaining:?}");
+                    }
                 }
             } else {
                 // No interference along the path.
@@ -484,9 +489,11 @@ impl KinematicCharacterController {
         // - If there is no horizontal translation, then we only have gravity. In that case,
         //   we take the vertical movement into account to decide if we need to slide down.
         let sliding_translation_remaining = if horizontal_translation_remaining != Vector::zeros() {
+            println!("[slope] horizontal_translation_remaining: {horizontal_translation_remaining:?}");
             horizontal_translation_remaining
-                - *hit.normal1 * (horizontal_translation_remaining).dot(&hit.normal1)
+                - *hit.normal1 * (horizontal_translation_remaining).dot(&hit.normal1) + vertical_translation_remaining
         } else {
+            println!("[slope] vertical_translation_remaining: {vertical_translation_remaining:?}");
             vertical_translation_remaining
                 - *hit.normal1 * (vertical_translation_remaining).dot(&hit.normal1)
         };
@@ -504,6 +511,7 @@ impl KinematicCharacterController {
                 // To avoid sliding down, we remove the sliding component due to the vertical
                 // part of the movement but have to keep the component due to the horizontal
                 // part of the self.
+                println!("[slope] Can't slide down.");
                 *translation_remaining
                     - (*hit.normal1 * horizontal_translation_remaining.dot(&hit.normal1)
                         + vertical_translation_remaining)
