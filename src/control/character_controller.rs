@@ -247,36 +247,31 @@ impl KinematicCharacterController {
                     toi,
                 });
 
-                if let Some(translation_on_slope) =
-                    self.handle_slopes(&toi, &mut translation_remaining, offset)
-                {
-                    translation_remaining = translation_on_slope;
-                    println!("[slope] translation_on_slope: {translation_on_slope:?}");
-                    println!("[slope] translation_remaining: {translation_remaining:?}");
-                } else {
-                    // If the slope is too big, try to step on the stair.
-                    let stair_handled = self.handle_stairs(
-                        bodies,
-                        colliders,
-                        queries,
-                        character_shape,
-                        &(Translation::from(result.translation) * character_pos),
-                        &dims,
-                        filter,
-                        handle,
-                        &mut translation_remaining,
-                        &mut result,
-                    );
-                    println!("[stair] translation_remaining: {translation_remaining:?}");
-                    println!("[stair]stair_handled: {stair_handled:?}");
-                    if !stair_handled {
+                // If the slope is too big, try to step on the stair.
+                if !self.handle_stairs(
+                    bodies,
+                    colliders,
+                    queries,
+                    character_shape,
+                    &(Translation::from(result.translation) * character_pos),
+                    &dims,
+                    filter,
+                    handle,
+                    &mut translation_remaining,
+                    &mut result,
+                ) {
+                    if let Some(translation_on_slope) =
+                        self.handle_slopes(&toi, &mut translation_remaining, offset)
+                    {
+                        translation_remaining = translation_on_slope;
+                    } else {
                         // No slopes or stairs ahead; try to move along obstacles.
                         let allowed_translation = subtract_hit(translation_remaining, &toi, offset);
                         result.translation += allowed_translation;
                         translation_remaining -= allowed_translation;
-
                     }
                 }
+
             } else {
                 // No interference along the path.
                 result.translation += translation_remaining;
@@ -490,6 +485,8 @@ impl KinematicCharacterController {
         // Check if there is a slope to climb.
         let angle_with_floor = self.up.angle(&hit.normal1);
         let climbing = self.up.dot(&slope_translation) >= 0.0;
+        println!("angle_with_floor: {}, climbing: {}", angle_with_floor, climbing);
+        println!("max_slope_climb_angle: {}, min_slope_slide_angle: {}", self.max_slope_climb_angle, self.min_slope_slide_angle);
 
         climbing
             .then(||(angle_with_floor <= self.max_slope_climb_angle) // Are we allowed to climb?
@@ -528,125 +525,127 @@ impl KinematicCharacterController {
         translation_remaining: &mut Vector<Real>,
         result: &mut EffectiveCharacterMovement,
     ) -> bool {
-        if let Some(autostep) = self.autostep {
-            let min_width = autostep.min_width.eval(dims.x);
-            let max_height = autostep.max_height.eval(dims.y);
+        let autostep = match self.autostep {
+            Some(autostep) => autostep,
+            None => return false,
+        };
+        let min_width = autostep.min_width.eval(dims.x);
+        let max_height = autostep.max_height.eval(dims.y);
 
-            if !autostep.include_dynamic_bodies {
-                if colliders
-                    .get(stair_handle)
-                    .and_then(|co| co.parent)
-                    .and_then(|p| bodies.get(p.handle))
-                    .map(|b| b.is_dynamic())
-                    == Some(true)
-                {
-                    // The "stair" is a dynamic body, which the user wants to ignore.
-                    return false;
-                }
-
-                filter.flags |= QueryFilterFlags::EXCLUDE_DYNAMIC;
+        if !autostep.include_dynamic_bodies {
+            if colliders
+                .get(stair_handle)
+                .and_then(|co| co.parent)
+                .and_then(|p| bodies.get(p.handle))
+                .map(|b| b.is_dynamic())
+                == Some(true)
+            {
+                // The "stair" is a dynamic body, which the user wants to ignore.
+                return false;
             }
 
-            let shifted_character_pos = Translation::from(*self.up * max_height) * character_pos;
+            filter.flags |= QueryFilterFlags::EXCLUDE_DYNAMIC;
+        }
 
-            if let Some(horizontal_dir) = (*translation_remaining
-                - *self.up * translation_remaining.dot(&self.up))
-            .try_normalize(1.0e-5)
-            {
-                if queries
-                    .cast_shape(
-                        bodies,
-                        colliders,
-                        character_pos,
-                        &self.up,
-                        character_shape,
-                        max_height,
-                        false,
-                        filter,
-                    )
-                    .is_some()
-                {
-                    // We can’t go up.
-                    return false;
-                }
+        let shifted_character_pos = Translation::from(*self.up * max_height) * character_pos;
 
-                if queries
-                    .cast_shape(
-                        bodies,
-                        colliders,
-                        &shifted_character_pos,
-                        &horizontal_dir,
-                        character_shape,
-                        min_width,
-                        false,
-                        filter,
-                    )
-                    .is_some()
-                {
-                    // We don’t have enough room on the stair to stay on it.
-                    return false;
-                }
+        let horizontal_dir = match (*translation_remaining - *self.up * translation_remaining.dot(&self.up))
+            .try_normalize(1.0e-5) {
+            Some(dir) => dir,
+            None => return false,
+        };
 
-                // Check that we are not getting into a ramp that is too steep
-                // after stepping.
-                if let Some((_, hit)) = queries.cast_shape(
+        if queries
+            .cast_shape(
+                bodies,
+                colliders,
+                character_pos,
+                &self.up,
+                character_shape,
+                max_height,
+                false,
+                filter,
+            )
+            .is_some()
+        {
+            // We can’t go up.
+            return false;
+        }
+
+        if queries
+            .cast_shape(
+                bodies,
+                colliders,
+                &shifted_character_pos,
+                &horizontal_dir,
+                character_shape,
+                min_width,
+                false,
+                filter,
+            )
+            .is_some()
+        {
+            // We don’t have enough room on the stair to stay on it.
+            return false;
+        }
+
+        // Check that we are not getting into a ramp that is too steep
+        // after stepping.
+        if let Some((_, hit)) = queries.cast_shape(
+            bodies,
+            colliders,
+            &(Translation::from(horizontal_dir * min_width) * shifted_character_pos),
+            &-self.up,
+            character_shape,
+            max_height,
+            false,
+            filter,
+        ) {
+            let vertical_translation_remaining =
+                *self.up * (self.up.dot(translation_remaining));
+            let horizontal_translation_remaining =
+                *translation_remaining - vertical_translation_remaining;
+            let sliding_movement = horizontal_translation_remaining
+                - *hit.normal1 * horizontal_translation_remaining.dot(&hit.normal1);
+
+            let angle_with_floor = self.up.angle(&hit.normal1);
+            let climbing = self.up.dot(&sliding_movement) >= 0.0;
+
+            if climbing && angle_with_floor > self.max_slope_climb_angle {
+                return false; // The target ramp is too steep.
+            }
+        }
+
+        // We can step, we need to find the actual step height.
+        let step_height = self.offset.eval(dims.y) + max_height
+            - queries
+                .cast_shape(
                     bodies,
                     colliders,
-                    &(Translation::from(horizontal_dir * min_width) * shifted_character_pos),
+                    &(Translation::from(horizontal_dir * min_width)
+                        * shifted_character_pos),
                     &-self.up,
                     character_shape,
                     max_height,
                     false,
                     filter,
-                ) {
-                    let vertical_translation_remaining =
-                        *self.up * (self.up.dot(translation_remaining));
-                    let horizontal_translation_remaining =
-                        *translation_remaining - vertical_translation_remaining;
-                    let sliding_movement = horizontal_translation_remaining
-                        - *hit.normal1 * horizontal_translation_remaining.dot(&hit.normal1);
+                )
+                .map(|hit| hit.1.toi)
+                .unwrap_or(max_height);
 
-                    let angle_with_floor = self.up.angle(&hit.normal1);
-                    let climbing = self.up.dot(&sliding_movement) >= 0.0;
+        // Remove the step height from the vertical part of the self.
+        *translation_remaining -=
+            *self.up * translation_remaining.dot(&self.up).clamp(0.0, step_height);
 
-                    if climbing && angle_with_floor > self.max_slope_climb_angle {
-                        return false; // The target ramp is too steep.
-                    }
-                }
+        // Advance the collider on the step horizontally, to make sure further
+        // movement won’t just get stuck on its edge.
+        let horizontal_nudge =
+            horizontal_dir * min_width.min(horizontal_dir.dot(translation_remaining));
+        *translation_remaining -= horizontal_nudge;
 
-                // We can step, we need to find the actual step height.
-                let step_height = self.offset.eval(dims.y) + max_height
-                    - queries
-                        .cast_shape(
-                            bodies,
-                            colliders,
-                            &(Translation::from(horizontal_dir * min_width)
-                                * shifted_character_pos),
-                            &-self.up,
-                            character_shape,
-                            max_height,
-                            false,
-                            filter,
-                        )
-                        .map(|hit| hit.1.toi)
-                        .unwrap_or(max_height);
+        result.translation += *self.up * step_height + horizontal_nudge;
+        return true;
 
-                // Remove the step height from the vertical part of the self.
-                *translation_remaining -=
-                    *self.up * translation_remaining.dot(&self.up).clamp(0.0, step_height);
-
-                // Advance the collider on the step horizontally, to make sure further
-                // movement won’t just get stuck on its edge.
-                let horizontal_nudge =
-                    horizontal_dir * min_width.min(horizontal_dir.dot(translation_remaining));
-                *translation_remaining -= horizontal_nudge;
-
-                result.translation += *self.up * step_height + horizontal_nudge;
-                return true;
-            }
-        }
-
-        false
     }
 
     /// For a given collision between a character and its environment, this method will apply
