@@ -365,7 +365,7 @@ impl KinematicCharacterController {
         mut kinematic_friction_translation: Option<&mut Vector<Real>>,
         mut translation_remaining: Option<&mut Vector<Real>>,
     ) -> bool {
-        let prediction = self.offset.eval(dims.y) * 1.0;
+        let prediction = self.offset.eval(dims.y);
 
         // TODO: allow custom dispatchers.
         let dispatcher = DefaultQueryDispatcher;
@@ -603,7 +603,7 @@ impl KinematicCharacterController {
         ) {
             let [_vertical_slope_translation, horizontal_slope_translation] =
                 self.split_into_components(translation_remaining)
-                    .map(|remaining| subtract_hit(remaining, &hit, offset));
+                    .map(|remaining| subtract_hit(remaining, &hit, 0.));
 
 
             let angle_with_floor = self.up.angle(&hit.normal1);
@@ -664,7 +664,7 @@ impl KinematicCharacterController {
         let up_extent = extents.dot(&self.up);
         let movement_to_transfer =
             *collision.toi.normal1 * collision.translation_remaining.dot(&collision.toi.normal1);
-        let prediction = self.offset.eval(up_extent) * 1.0;
+        let prediction = self.offset.eval(up_extent);
 
         // TODO: allow custom dispatchers.
         let dispatcher = DefaultQueryDispatcher;
