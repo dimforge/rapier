@@ -262,17 +262,17 @@ impl KinematicCharacterController {
                         &mut result,
                         up
                     )) {
-                        // No stairs, try to move along slopes.
-                        if let Some(translation_on_slope) =
-                            self.handle_slopes(&toi, &mut translation_remaining, offset)
-                        {
-                            translation_remaining = translation_on_slope;
-                        } else {
-                            // No slopes or stairs ahead; try to move along obstacles.
-                            let allowed_translation = subtract_hit(translation_remaining, &toi, offset);
-                            result.translation += allowed_translation;
-                            translation_remaining -= allowed_translation;
-                        }
+                    // No stairs, try to move along slopes.
+                    if let Some(translation_on_slope) =
+                        self.handle_slopes(&toi, &mut translation_remaining, offset)
+                    {
+                        translation_remaining = translation_on_slope;
+                    } else {
+                        // No slopes or stairs ahead; try to move along obstacles.
+                        let allowed_translation = subtract_hit(translation_remaining, &toi, offset);
+                        result.translation += allowed_translation;
+                        translation_remaining -= allowed_translation;
+                    }
                 }
 
             } else {
@@ -591,6 +591,7 @@ impl KinematicCharacterController {
             return false;
         }
 
+        let offset = self.offset.eval(dims.y);
         // Check that we are not getting into a ramp that is too steep
         // after stepping.
         if let Some((_, hit)) = queries.cast_shape(
@@ -603,15 +604,13 @@ impl KinematicCharacterController {
             false,
             filter,
         ) {
-            let vertical_translation_remaining =
-                *stair_dir * (stair_dir.dot(translation_remaining));
-            let horizontal_translation_remaining =
-                *translation_remaining - vertical_translation_remaining;
-            let sliding_movement = horizontal_translation_remaining
-                - *hit.normal1 * horizontal_translation_remaining.dot(&hit.normal1);
+            let [_vertical_slope_translation, horizontal_slope_translation] =
+                self.split_into_components(translation_remaining)
+                    .map(|remaining| subtract_hit(remaining, &hit, offset));
+
 
             let angle_with_floor = stair_dir.angle(&hit.normal1);
-            let climbing = stair_dir.dot(&sliding_movement) >= 0.0;
+            let climbing = stair_dir.dot(&horizontal_slope_translation) >= 0.0;
 
             if climbing && angle_with_floor > self.max_slope_climb_angle {
                 return false; // The target ramp is too steep.
@@ -619,7 +618,7 @@ impl KinematicCharacterController {
         }
 
         // We can step, we need to find the actual step height.
-        let step_height = self.offset.eval(dims.y) + max_height
+        let step_height = offset + max_height
             - queries
                 .cast_shape(
                     bodies,
@@ -637,7 +636,7 @@ impl KinematicCharacterController {
 
         // Remove the step height from the vertical part of the self.
         *translation_remaining -=
-            *stair_dir * translation_remaining.dot(&stair_dir).clamp(0.0, step_height);
+            *stair_dir * ((translation_remaining.dot(&stair_dir)).clamp(0.0, step_height) + offset);
 
         // Advance the collider on the step horizontally, to make sure further
         // movement won’t just get stuck on its edge.
