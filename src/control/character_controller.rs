@@ -185,11 +185,8 @@ impl KinematicCharacterController {
             translation: Vector::zeros(),
             grounded: false,
         };
-
-        let extents = character_shape.compute_local_aabb().extents();
-        let up_extent = extents.dot(&self.up);
-        let side_extent = (extents - *self.up * up_extent).norm();
-        let dims = Vector2::new(side_extent, up_extent);
+        let dims = self.compute_dims(character_shape);
+        let offset = self.offset.eval(dims.y);
 
         // 1. Check and fix penetrations.
         self.check_and_fix_penetrations();
@@ -214,7 +211,6 @@ impl KinematicCharacterController {
 
         let mut max_iters = 20;
         let mut kinematic_friction_translation = Vector::zeros();
-        let offset = self.offset.eval(dims.y);
 
         while let Some((translation_dir, translation_dist)) =
             UnitVector::try_new_and_get(translation_remaining, 1.0e-5)
@@ -252,7 +248,7 @@ impl KinematicCharacterController {
                 });
 
                 if let Some(translation_on_slope) =
-                    self.handle_slopes(&toi, &mut translation_remaining)
+                    self.handle_slopes(&toi, &mut translation_remaining, offset)
                 {
                     println!("[slope] translation_on_slope: {translation_on_slope:?}");
                     translation_remaining = translation_on_slope;
@@ -273,6 +269,17 @@ impl KinematicCharacterController {
                     );
                     if !stair_handled {
                         println!("[stair] translation_remaining: {translation_remaining:?}");
+                        // No slopes or stairs ahead; try to move along obstacles.
+
+                        let [vertical_slope_translation, horizontal_slope_translation] =
+                            self.split_into_components(&translation_remaining)
+                                .map(|remaining| subtract_hit(remaining, &toi, offset));
+
+                        let horizontal_allowed_dist =
+                            (toi.toi - (-toi.normal1.dot(&translation_dir)) * offset).max(0.0);
+                        let allowed_translation = *translation_dir * allowed_dist;
+                        result.translation += allowed_translation;
+                        translation_remaining -= allowed_translation;
 
                     }
                 }
@@ -479,10 +486,11 @@ impl KinematicCharacterController {
         &self,
         hit: &TOI,
         translation_remaining: &Vector<Real>,
+        offset: Real,
     ) -> Option<Vector<Real>> {
         let [vertical_slope_translation, horizontal_slope_translation] =
             self.split_into_components(translation_remaining)
-                .map(|remaining| subtract_hit(remaining, hit));
+                .map(|remaining| subtract_hit(remaining, hit, offset));
         let slope_translation = horizontal_slope_translation + vertical_slope_translation;
 
         // Check if there is a slope to climb.
@@ -505,6 +513,13 @@ impl KinematicCharacterController {
         [vertical_translation, horizontal_translation]
     }
 
+
+    fn compute_dims(&self, character_shape: &dyn Shape) -> Vector2<Real> {
+        let extents = character_shape.compute_local_aabb().extents();
+        let up_extent = extents.dot(&self.up);
+        let side_extent = (extents - *self.up * up_extent).norm();
+        Vector2::new(side_extent, up_extent)
+    }
 
     fn handle_stairs(
         &self,
@@ -725,7 +740,6 @@ impl KinematicCharacterController {
     }
 }
 
-
-fn subtract_hit(translation: Vector<Real>, hit: &TOI) -> Vector<Real> {
-    translation - *hit.normal1 * (translation).dot(&hit.normal1)
+fn subtract_hit(translation: Vector<Real>, hit: &TOI, offset: Real) -> Vector<Real> {
+    translation - *hit.normal1 * (translation).dot(&hit.normal1) * (1.0 + offset)
 }
