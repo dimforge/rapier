@@ -342,7 +342,7 @@ impl KinematicCharacterController {
                     filter,
                 ) {
                     // Apply the snap.
-                    result.translation -= *self.up * (hit.toi - offset).max(0.0);
+                    result.translation -= *self.up * (hit.toi - offset);
                     result.grounded = true;
                     return Some((hit_handle, hit));
                 }
