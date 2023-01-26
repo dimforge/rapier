@@ -342,7 +342,10 @@ impl KinematicCharacterController {
                     filter,
                 ) {
                     // Apply the snap.
-                    result.translation -= *self.up * (hit.toi - offset);
+                    let snap_distance = hit.toi - offset;
+                    if snap_distance.abs() > 1.0e-5 {
+                        result.translation -= *self.up * snap_distance;
+                    }
                     result.grounded = true;
                     return Some((hit_handle, hit));
                 }
