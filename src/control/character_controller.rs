@@ -628,7 +628,7 @@ impl KinematicCharacterController {
                     false,
                     filter,
                 )
-                .map(|hit| hit.1.toi + offset)
+                .map(|hit| hit.1.toi)
                 .unwrap_or(max_height);
 
         // Remove the step height from the vertical part of the self.
