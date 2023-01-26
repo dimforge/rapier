@@ -273,12 +273,6 @@ impl KinematicCharacterController {
                     );
                     if !stair_handled {
                         println!("[stair] translation_remaining: {translation_remaining:?}");
-                        // No slopes or stairs ahead; try to move along obstacles.
-                        let allowed_dist =
-                            (toi.toi - (-toi.normal1.dot(&translation_dir)) * offset).max(0.0);
-                        let allowed_translation = *translation_dir * allowed_dist;
-                        result.translation += allowed_translation;
-                        translation_remaining -= allowed_translation;
 
                     }
                 }
@@ -486,18 +480,9 @@ impl KinematicCharacterController {
         hit: &TOI,
         translation_remaining: &Vector<Real>,
     ) -> Option<Vector<Real>> {
-        let vertical_translation_remaining = *self.up * (self.up.dot(translation_remaining));
-        let horizontal_translation_remaining =
-            *translation_remaining - vertical_translation_remaining;
-
-        let horizontal_slope_translation =
-            horizontal_translation_remaining
-                - *hit.normal1 * (horizontal_translation_remaining).dot(&hit.normal1);
-
-        let vertical_slope_translation =
-            vertical_translation_remaining
-                - *hit.normal1 * (vertical_translation_remaining).dot(&hit.normal1);
-
+        let [vertical_slope_translation, horizontal_slope_translation] =
+            self.split_into_components(translation_remaining)
+                .map(|remaining| subtract_hit(remaining, hit));
         let slope_translation = horizontal_slope_translation + vertical_slope_translation;
 
         // Check if there is a slope to climb.
@@ -513,6 +498,13 @@ impl KinematicCharacterController {
                 .into())
 
     }
+
+    fn split_into_components(&self, translation: &Vector<Real>) -> [Vector<Real>; 2] {
+        let vertical_translation = *self.up * (self.up.dot(translation));
+        let horizontal_translation = *translation - vertical_translation;
+        [vertical_translation, horizontal_translation]
+    }
+
 
     fn handle_stairs(
         &self,
@@ -731,4 +723,9 @@ impl KinematicCharacterController {
             }
         }
     }
+}
+
+
+fn subtract_hit(translation: Vector<Real>, hit: &TOI) -> Vector<Real> {
+    translation - *hit.normal1 * (translation).dot(&hit.normal1)
 }
