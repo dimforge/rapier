@@ -251,7 +251,7 @@ impl KinematicCharacterController {
                     toi,
                 });
 
-                if let (Some(translation_on_slope), _) =
+                if let Some(translation_on_slope) =
                     self.handle_slopes(&toi, &mut translation_remaining)
                 {
                     println!("[slope] translation_on_slope: {translation_on_slope:?}");
@@ -478,33 +478,32 @@ impl KinematicCharacterController {
         &self,
         hit: &TOI,
         translation_remaining: &Vector<Real>,
-    ) -> (Option<Vector<Real>>, Real) {
+    ) -> Option<Vector<Real>> {
         let vertical_translation_remaining = *self.up * (self.up.dot(translation_remaining));
         let horizontal_translation_remaining =
             *translation_remaining - vertical_translation_remaining;
 
-        // The idea behind this `if` statement is as follows:
-        // - If there is any amount of horizontal translations, then the intended
-        //   climb/slide down movement is decided by that translation.
-        // - If there is no horizontal translation, then we only have gravity. In that case,
-        //   we take the vertical movement into account to decide if we need to slide down.
-        let sliding_translation_remaining =
-            translation_remaining
-                - *hit.normal1 * (translation_remaining).dot(&hit.normal1);
+        let horizontal_translation_remaining =
+            horizontal_translation_remaining
+                - *hit.normal1 * (horizontal_translation_remaining).dot(&hit.normal1);
 
-        println!("[slope] sliding_translation_remaining: {sliding_translation_remaining:?}");
+        let vertical_translation_remaining =
+            vertical_translation_remaining
+                - *hit.normal1 * (vertical_translation_remaining).dot(&hit.normal1);
 
-        // Check if there is a slope we can climb.
+        let sliding_translation_remaining = horizontal_translation_remaining + vertical_translation_remaining;
+
+        // Check if there is a slope to climb.
         let angle_with_floor = self.up.angle(&hit.normal1);
         let climbing = self.up.dot(&sliding_translation_remaining) >= 0.0;
 
         climbing
-            .then(||(angle_with_floor <= self.max_slope_climb_angle)
-                .then_some((Some(sliding_translation_remaining), angle_with_floor))
-                .unwrap_or((None, angle_with_floor)))
-            .unwrap_or_else(|| (angle_with_floor >= self.min_slope_slide_angle)
-                .then_some((Some(sliding_translation_remaining), -angle_with_floor))
-                .unwrap_or((Some(horizontal_translation_remaining), -angle_with_floor)))
+            .then(||(angle_with_floor <= self.max_slope_climb_angle) // Are we allowed to climb?
+                .then_some(Some(sliding_translation_remaining))
+                .unwrap_or(None))
+            .unwrap_or_else(|| (angle_with_floor >= self.min_slope_slide_angle)// Are we allowed to slide?
+                .then_some(Some(sliding_translation_remaining))
+                .unwrap_or(Some(horizontal_translation_remaining)))
     }
 
     fn handle_stairs(
