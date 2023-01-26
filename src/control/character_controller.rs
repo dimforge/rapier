@@ -736,5 +736,6 @@ impl KinematicCharacterController {
 }
 
 fn subtract_hit(translation: Vector<Real>, hit: &TOI, offset: Real) -> Vector<Real> {
-    translation - *hit.normal1 * ((translation).dot(&hit.normal1) * (1.0 + offset)).min(0.0)
+    let hit_normal = (translation.dot(&hit.normal1) * (1.0 + offset)).min(0.0);
+    translation - *hit.normal1 * hit_normal
 }
