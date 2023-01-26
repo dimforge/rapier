@@ -250,8 +250,8 @@ impl KinematicCharacterController {
                 if let Some(translation_on_slope) =
                     self.handle_slopes(&toi, &mut translation_remaining, offset)
                 {
-                    println!("[slope] translation_on_slope: {translation_on_slope:?}");
                     translation_remaining = translation_on_slope;
+                    println!("[slope] translation_on_slope: {translation_on_slope:?}");
                     println!("[slope] translation_remaining: {translation_remaining:?}");
                 } else {
                     // If the slope is too big, try to step on the stair.
@@ -267,12 +267,11 @@ impl KinematicCharacterController {
                         &mut translation_remaining,
                         &mut result,
                     );
+                    println!("[stair] translation_remaining: {translation_remaining:?}");
+                    println!("[stair]stair_handled: {stair_handled:?}");
                     if !stair_handled {
-                        println!("[stair] translation_remaining: {translation_remaining:?}");
                         // No slopes or stairs ahead; try to move along obstacles.
-
                         let allowed_translation = subtract_hit(translation_remaining, &toi, offset);
-
                         result.translation += allowed_translation;
                         translation_remaining -= allowed_translation;
 
