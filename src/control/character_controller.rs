@@ -247,42 +247,32 @@ impl KinematicCharacterController {
                     toi,
                 });
 
-                // If the slope is too big, try to step on the stair.
-                if !self.handle_stairs(
-                    bodies,
-                    colliders,
-                    queries,
-                    character_shape,
-                    &(Translation::from(result.translation) * character_pos),
-                    &dims,
-                    filter,
-                    handle,
-                    &mut translation_remaining,
-                    &mut result,
-                    &self.up
-                ) && !self.handle_stairs(
-                    bodies,
-                    colliders,
-                    queries,
-                    character_shape,
-                    &(Translation::from(result.translation) * character_pos),
-                    &dims,
-                    filter,
-                    handle,
-                    &mut translation_remaining,
-                    &mut result,
-                    &-self.up
-                ){
-                    if let Some(translation_on_slope) =
-                        self.handle_slopes(&toi, &mut translation_remaining, offset)
-                    {
-                        translation_remaining = translation_on_slope;
-                    } else {
-                        // No slopes or stairs ahead; try to move along obstacles.
-                        let allowed_translation = subtract_hit(translation_remaining, &toi, offset);
-                        result.translation += allowed_translation;
-                        translation_remaining -= allowed_translation;
-                    }
+                if ![self.up, -self.up] // Try to move up or down stairs
+                    .iter()
+                    .any(|up| self.handle_stairs(
+                        bodies,
+                        colliders,
+                        queries,
+                        character_shape,
+                        &(Translation::from(result.translation) * character_pos),
+                        &dims,
+                        filter,
+                        handle,
+                        &mut translation_remaining,
+                        &mut result,
+                        up
+                    )) {
+                        // No stairs, try to move along slopes.
+                        if let Some(translation_on_slope) =
+                            self.handle_slopes(&toi, &mut translation_remaining, offset)
+                        {
+                            translation_remaining = translation_on_slope;
+                        } else {
+                            // No slopes or stairs ahead; try to move along obstacles.
+                            let allowed_translation = subtract_hit(translation_remaining, &toi, offset);
+                            result.translation += allowed_translation;
+                            translation_remaining -= allowed_translation;
+                        }
                 }
 
             } else {
@@ -498,8 +488,6 @@ impl KinematicCharacterController {
         // Check if there is a slope to climb.
         let angle_with_floor = self.up.angle(&hit.normal1);
         let climbing = self.up.dot(&slope_translation) >= 0.0;
-        println!("angle_with_floor: {}, climbing: {}", angle_with_floor, climbing);
-        println!("max_slope_climb_angle: {}, min_slope_slide_angle: {}", self.max_slope_climb_angle, self.min_slope_slide_angle);
 
         climbing
             .then(||(angle_with_floor <= self.max_slope_climb_angle) // Are we allowed to climb?
