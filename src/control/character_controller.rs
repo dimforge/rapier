@@ -603,7 +603,7 @@ impl KinematicCharacterController {
         ) {
             let [_vertical_slope_translation, horizontal_slope_translation] =
                 self.split_into_components(translation_remaining)
-                    .map(|remaining| subtract_hit(remaining, &hit, 0.));
+                    .map(|remaining| subtract_hit(remaining, &hit, offset));
 
 
             let angle_with_floor = self.up.angle(&hit.normal1);
@@ -731,6 +731,6 @@ impl KinematicCharacterController {
 }
 
 fn subtract_hit(translation: Vector<Real>, hit: &TOI, offset: Real) -> Vector<Real> {
-    let hit_normal = (translation.dot(&hit.normal1) * (1.0 + offset)).min(0.0);
+    let hit_normal = (translation.dot(&hit.normal1) * (1.0 + 0.)).min(0.0);
     translation - *hit.normal1 * hit_normal
 }
