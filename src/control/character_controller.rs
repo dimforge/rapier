@@ -271,13 +271,12 @@ impl KinematicCharacterController {
                         println!("[stair] translation_remaining: {translation_remaining:?}");
                         // No slopes or stairs ahead; try to move along obstacles.
 
-                        let [vertical_slope_translation, horizontal_slope_translation] =
+                        let allowed_translation: Vector<Real> =
                             self.split_into_components(&translation_remaining)
-                                .map(|remaining| subtract_hit(remaining, &toi, offset));
+                                .map(|remaining| subtract_hit(remaining, &toi, offset))
+                                .into_iter()
+                                .sum();
 
-                        let horizontal_allowed_dist =
-                            (toi.toi - (-toi.normal1.dot(&translation_dir)) * offset).max(0.0);
-                        let allowed_translation = *translation_dir * allowed_dist;
                         result.translation += allowed_translation;
                         translation_remaining -= allowed_translation;
 
