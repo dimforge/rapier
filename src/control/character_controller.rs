@@ -365,7 +365,7 @@ impl KinematicCharacterController {
         mut kinematic_friction_translation: Option<&mut Vector<Real>>,
         mut translation_remaining: Option<&mut Vector<Real>>,
     ) -> bool {
-        let prediction = self.offset.eval(dims.y) * 1.1;
+        let prediction = self.offset.eval(dims.y) * 1.2;
 
         // TODO: allow custom dispatchers.
         let dispatcher = DefaultQueryDispatcher;
@@ -628,7 +628,7 @@ impl KinematicCharacterController {
                     false,
                     filter,
                 )
-                .map(|hit| hit.1.toi)
+                .map(|hit| hit.1.toi + offset)
                 .unwrap_or(max_height);
 
         // Remove the step height from the vertical part of the self.
@@ -664,7 +664,7 @@ impl KinematicCharacterController {
         let up_extent = extents.dot(&self.up);
         let movement_to_transfer =
             *collision.toi.normal1 * collision.translation_remaining.dot(&collision.toi.normal1);
-        let prediction = self.offset.eval(up_extent) * 1.1;
+        let prediction = self.offset.eval(up_extent) * 1.2;
 
         // TODO: allow custom dispatchers.
         let dispatcher = DefaultQueryDispatcher;
