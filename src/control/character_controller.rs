@@ -228,7 +228,7 @@ impl KinematicCharacterController {
                 &(Translation::from(result.translation) * character_pos),
                 &translation_dir,
                 character_shape,
-                translation_dist + offset,
+                translation_dist - offset,
                 false,
                 filter,
             ) {
@@ -337,7 +337,7 @@ impl KinematicCharacterController {
                     character_pos,
                     &-self.up,
                     character_shape,
-                    snap_distance + offset,
+                    snap_distance - offset,
                     false,
                     filter,
                 ) {
@@ -365,7 +365,7 @@ impl KinematicCharacterController {
         mut kinematic_friction_translation: Option<&mut Vector<Real>>,
         mut translation_remaining: Option<&mut Vector<Real>>,
     ) -> bool {
-        let prediction = self.offset.eval(dims.y) * 1.1;
+        let prediction = self.offset.eval(dims.y) * 1.0;
 
         // TODO: allow custom dispatchers.
         let dispatcher = DefaultQueryDispatcher;
@@ -664,7 +664,7 @@ impl KinematicCharacterController {
         let up_extent = extents.dot(&self.up);
         let movement_to_transfer =
             *collision.toi.normal1 * collision.translation_remaining.dot(&collision.toi.normal1);
-        let prediction = self.offset.eval(up_extent) * 1.1;
+        let prediction = self.offset.eval(up_extent) * 1.0;
 
         // TODO: allow custom dispatchers.
         let dispatcher = DefaultQueryDispatcher;
