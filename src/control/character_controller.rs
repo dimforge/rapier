@@ -488,50 +488,23 @@ impl KinematicCharacterController {
         //   climb/slide down movement is decided by that translation.
         // - If there is no horizontal translation, then we only have gravity. In that case,
         //   we take the vertical movement into account to decide if we need to slide down.
-        let sliding_translation_remaining = if horizontal_translation_remaining != Vector::zeros() {
-            println!("[slope] horizontal_translation_remaining: {horizontal_translation_remaining:?}");
-            horizontal_translation_remaining
-                - *hit.normal1 * (horizontal_translation_remaining).dot(&hit.normal1) + vertical_translation_remaining
-        } else {
-            println!("[slope] vertical_translation_remaining: {vertical_translation_remaining:?}");
-            vertical_translation_remaining
-                - *hit.normal1 * (vertical_translation_remaining).dot(&hit.normal1)
-        };
+        let sliding_translation_remaining =
+            translation_remaining
+                - *hit.normal1 * (translation_remaining).dot(&hit.normal1);
+
+        println!("[slope] sliding_translation_remaining: {sliding_translation_remaining:?}");
 
         // Check if there is a slope we can climb.
         let angle_with_floor = self.up.angle(&hit.normal1);
         let climbing = self.up.dot(&sliding_translation_remaining) >= 0.0;
 
-        if !climbing {
-            // Moving down the slope.
-            let remaining = if angle_with_floor >= self.min_slope_slide_angle {
-                // Can slide down.
-                sliding_translation_remaining
-            } else {
-                // To avoid sliding down, we remove the sliding component due to the vertical
-                // part of the movement but have to keep the component due to the horizontal
-                // part of the self.
-                println!("[slope] Can't slide down.");
-                *translation_remaining
-                    - (*hit.normal1 * horizontal_translation_remaining.dot(&hit.normal1)
-                        + vertical_translation_remaining)
-                // Remove the complete vertical part.
-            };
-
-            (Some(remaining), -angle_with_floor)
-        } else {
-            // Moving up the slope.
-            let remaining = if angle_with_floor <= self.max_slope_climb_angle {
-                // Let’s climb by cancelling from the desired movement the part that
-                // doesn’t line up with the slope, and continuing the loop.
-                Some(sliding_translation_remaining)
-            } else {
-                // The slope was too steep.
-                None
-            };
-
-            (remaining, angle_with_floor)
-        }
+        climbing
+            .then(||(angle_with_floor <= self.max_slope_climb_angle)
+                .then_some((Some(sliding_translation_remaining), angle_with_floor))
+                .unwrap_or((None, angle_with_floor)))
+            .unwrap_or_else(|| (angle_with_floor >= self.min_slope_slide_angle)
+                .then_some((Some(sliding_translation_remaining), -angle_with_floor))
+                .unwrap_or((Some(horizontal_translation_remaining), -angle_with_floor)))
     }
 
     fn handle_stairs(
