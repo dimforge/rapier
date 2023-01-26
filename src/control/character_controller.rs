@@ -365,7 +365,7 @@ impl KinematicCharacterController {
         mut kinematic_friction_translation: Option<&mut Vector<Real>>,
         mut translation_remaining: Option<&mut Vector<Real>>,
     ) -> bool {
-        let prediction = self.offset.eval(dims.y);
+        let prediction = self.offset.eval(dims.y) * 1.1;
 
         // TODO: allow custom dispatchers.
         let dispatcher = DefaultQueryDispatcher;
