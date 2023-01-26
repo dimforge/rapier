@@ -615,7 +615,7 @@ impl KinematicCharacterController {
         }
 
         // We can step, we need to find the actual step height.
-        let step_height = offset + max_height
+        let step_height = max_height
             - queries
                 .cast_shape(
                     bodies,
@@ -628,12 +628,12 @@ impl KinematicCharacterController {
                     false,
                     filter,
                 )
-                .map(|hit| hit.1.toi)
+                .map(|hit| hit.1.toi + offset)
                 .unwrap_or(max_height);
 
         // Remove the step height from the vertical part of the self.
         *translation_remaining -=
-            *self.up * ((translation_remaining.dot(&self.up)).clamp(0.0, step_height) + offset);
+            *self.up * ((translation_remaining.dot(&self.up)).clamp(0.0, step_height));
 
         // Advance the collider on the step horizontally, to make sure further
         // movement won’t just get stuck on its edge.
