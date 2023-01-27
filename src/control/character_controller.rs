@@ -229,7 +229,7 @@ impl KinematicCharacterController {
                 &translation_dir,
                 character_shape,
                 translation_dist + offset,
-                false,
+                true,
                 filter,
             ) {
                 // We hit something, compute the allowed self.
@@ -338,7 +338,7 @@ impl KinematicCharacterController {
                     &-self.up,
                     character_shape,
                     snap_distance + offset,
-                    false,
+                    true,
                     filter,
                 ) {
                     // Apply the snap.
@@ -571,7 +571,7 @@ impl KinematicCharacterController {
                 &self.up,
                 character_shape,
                 max_height,
-                false,
+                true,
                 filter,
             )
             .is_some()
@@ -588,7 +588,7 @@ impl KinematicCharacterController {
                 &horizontal_dir,
                 character_shape,
                 min_width,
-                false,
+                true,
                 filter,
             )
             .is_some()
@@ -607,7 +607,7 @@ impl KinematicCharacterController {
             &-self.up,
             character_shape,
             max_height,
-            false,
+            true,
             filter,
         ) {
             let [_vertical_slope_translation, horizontal_slope_translation] =
@@ -634,7 +634,7 @@ impl KinematicCharacterController {
                     &-self.up,
                     character_shape,
                     max_height,
-                    false,
+                    true,
                     filter,
                 )
                 .map(|hit| hit.1.toi)
