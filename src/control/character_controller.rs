@@ -229,7 +229,7 @@ impl KinematicCharacterController {
                 &translation_dir,
                 character_shape,
                 translation_dist + offset,
-                true,
+                false,
                 filter,
             ) {
                 // We hit something, compute the allowed self.
@@ -338,7 +338,7 @@ impl KinematicCharacterController {
                     &-self.up,
                     character_shape,
                     snap_distance + offset,
-                    true,
+                    false,
                     filter,
                 ) {
                     // Apply the snap.
@@ -356,7 +356,7 @@ impl KinematicCharacterController {
     }
 
     fn predict_ground(&self, up_extends: Real) -> Real {
-        self.offset.eval(up_extends) * 1.4
+        self.offset.eval(up_extends) * 1.1
     }
 
     fn detect_grounded_status_and_apply_friction(
@@ -566,7 +566,7 @@ impl KinematicCharacterController {
                 &self.up,
                 character_shape,
                 max_height,
-                true,
+                false,
                 filter,
             )
             .is_some()
@@ -583,7 +583,7 @@ impl KinematicCharacterController {
                 &horizontal_dir,
                 character_shape,
                 min_width,
-                true,
+                false,
                 filter,
             )
             .is_some()
@@ -602,7 +602,7 @@ impl KinematicCharacterController {
             &-self.up,
             character_shape,
             max_height,
-            true,
+            false,
             filter,
         ) {
             let [_vertical_slope_translation, horizontal_slope_translation] =
@@ -629,7 +629,7 @@ impl KinematicCharacterController {
                     &-self.up,
                     character_shape,
                     max_height,
-                    true,
+                    false,
                     filter,
                 )
                 .map(|hit| hit.1.toi)
