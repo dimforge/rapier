@@ -228,13 +228,13 @@ impl KinematicCharacterController {
                 &(Translation::from(result.translation) * character_pos),
                 &translation_dir,
                 character_shape,
-                translation_dist - offset,
+                translation_dist,
                 false,
                 filter,
             ) {
                 // We hit something, compute the allowed self.
                 let allowed_dist =
-                    (toi.toi - (-toi.normal1.dot(&translation_dir)) * offset).max(0.0);
+                    toi.toi - (toi.normal1.dot(&translation_dir)).abs() * offset;
                 let allowed_translation = *translation_dir * allowed_dist;
                 result.translation += allowed_translation;
                 translation_remaining -= allowed_translation;
@@ -337,7 +337,7 @@ impl KinematicCharacterController {
                     &-self.up,
                     character_shape,
                     snap_distance,
-                    true,
+                    false,
                     filter,
                 ) {
                     // Apply the snap.
@@ -738,6 +738,7 @@ impl KinematicCharacterController {
 }
 
 fn subtract_hit(translation: Vector<Real>, hit: &TOI, offset: Real) -> Vector<Real> {
-    let surface_correction = translation.dot(&hit.normal1) * (1.0 + offset);
-    translation - *hit.normal1 * surface_correction
+    let surface_correction = translation.dot(&hit.normal1).abs();
+    let surface_correction = surface_correction + offset;
+    translation + *hit.normal1 * surface_correction
 }
