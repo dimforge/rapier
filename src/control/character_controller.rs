@@ -346,7 +346,6 @@ impl KinematicCharacterController {
                     if snap_distance.abs() > 1.0e-5 {
                         result.translation -= *self.up * snap_distance;
                     }
-                    println!("snap");
                     result.grounded = true;
                     return Some((hit_handle, hit));
                 }
@@ -413,8 +412,7 @@ impl KinematicCharacterController {
                             let normal1 = character_pos * m.local_n1;
                             let normal2 = -normal1;
 
-                            if normal1.dot(&self.up).abs() <= -1.0e-5 {
-                                println!("Grounded 1");
+                            if normal1.dot(&self.up) <= -1.0e-5 {
                                 grounded = true;
                             }
 
@@ -463,10 +461,9 @@ impl KinematicCharacterController {
                         for m in &manifolds {
                             let normal = character_pos * m.local_n1;
 
-                            if normal.dot(&self.up).abs() <= -1.0e-5 {
+                            if normal.dot(&self.up) <= -1.0e-5 {
                                 for contact in &m.points {
                                     if contact.dist <= prediction {
-                                        println!("Grounded 2");
                                         grounded = true;
                                         return false; // We can stop the search early.
                                     }
