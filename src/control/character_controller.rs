@@ -193,8 +193,8 @@ impl KinematicCharacterController {
 
         let mut translation_remaining = desired_translation;
 
-        // Check if we are grounded at the initial position.
-        let grounded_at_starting_pos = self.detect_grounded_status_and_apply_friction(
+        // Apply friction
+        self.detect_grounded_status_and_apply_friction(
             dt,
             bodies,
             colliders,
@@ -299,18 +299,17 @@ impl KinematicCharacterController {
         }
 
         // If needed, and if we are not already grounded, snap to the ground.
-        if grounded_at_starting_pos {
-            self.snap_to_ground(
-                bodies,
-                colliders,
-                queries,
-                character_shape,
-                &(Translation::from(result.translation) * character_pos),
-                &dims,
-                filter,
-                &mut result,
-            );
-        }
+        self.snap_to_ground(
+            bodies,
+            colliders,
+            queries,
+            character_shape,
+            &(Translation::from(result.translation) * character_pos),
+            &dims,
+            filter,
+            &mut result,
+        );
+
 
         // Return the result.
         result
