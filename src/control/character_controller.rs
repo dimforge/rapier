@@ -485,9 +485,11 @@ impl KinematicCharacterController {
         translation_remaining: &Vector<Real>,
         offset: Real,
     ) -> Option<Vector<Real>> {
+        let [vertical_translation, horizontal_translation] =
+            self.split_into_components(translation_remaining);
         let [vertical_slope_translation, horizontal_slope_translation] =
-            self.split_into_components(translation_remaining)
-                .map(|remaining| subtract_hit(remaining, hit, offset));
+            [vertical_translation, horizontal_translation]
+            .map(|remaining| subtract_hit(remaining, hit, offset));
         let slope_translation = horizontal_slope_translation + vertical_slope_translation;
 
         // Check if there is a slope to climb.
@@ -496,10 +498,10 @@ impl KinematicCharacterController {
 
         climbing
             .then(||(angle_with_floor <= self.max_slope_climb_angle) // Are we allowed to climb?
-                .then_some(slope_translation))
+                .then_some(horizontal_translation ))
             .unwrap_or_else(|| (angle_with_floor >= self.min_slope_slide_angle)// Are we allowed to slide?
-                .then_some(slope_translation)
-                .unwrap_or(horizontal_slope_translation)
+                .then_some(slope_translation )
+                .unwrap_or(horizontal_translation)
                 .into())
 
     }
