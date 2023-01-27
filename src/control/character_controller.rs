@@ -328,20 +328,20 @@ impl KinematicCharacterController {
         result: &mut EffectiveCharacterMovement,
     ) -> Option<(ColliderHandle, TOI)> {
         if let Some(snap_distance) = self.snap_to_ground {
-            let snap_distance = snap_distance.eval(dims.y);
             if result.translation.dot(&self.up) < 1.0e-5 {
-                let offset = self.offset.eval(dims.y);
+                let snap_distance = snap_distance.eval(dims.y);
                 if let Some((hit_handle, hit)) = queries.cast_shape(
                     bodies,
                     colliders,
                     character_pos,
                     &-self.up,
                     character_shape,
-                    snap_distance - offset,
-                    false,
+                    snap_distance,
+                    true,
                     filter,
                 ) {
                     // Apply the snap.
+                    let offset = self.offset.eval(dims.y);
                     let snap_distance = hit.toi - offset;
                     if snap_distance.abs() > 1.0e-5 {
                         result.translation -= *self.up * snap_distance;
