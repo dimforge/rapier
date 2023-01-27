@@ -410,6 +410,9 @@ impl KinematicCharacterController {
 
                         for m in &manifolds {
                             let normal = -(character_pos * m.local_n1);
+                            if normal.dot(&self.up) >= -1e-5 {
+                                grounded = true;
+                            }
 
                             if let Some(kinematic_parent) = kinematic_parent {
                                 let mut num_active_contacts = 0;
@@ -456,7 +459,7 @@ impl KinematicCharacterController {
                         for m in &manifolds {
                             let normal = character_pos * m.local_n1;
 
-                            if normal.dot(&self.up) <= -1.0e-5 {
+                            if normal.dot(&self.up) <= 1.0e-5 {
                                 for contact in &m.points {
                                     if contact.dist <= prediction {
                                         grounded = true;
