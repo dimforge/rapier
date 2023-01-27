@@ -356,7 +356,7 @@ impl KinematicCharacterController {
     }
 
     fn predict_ground(&self, up_extends: Real) -> Real {
-        self.offset.eval(up_extends) * 3.
+        self.offset.eval(up_extends) * 1.4
     }
 
     fn detect_grounded_status_and_apply_friction(
@@ -532,8 +532,10 @@ impl KinematicCharacterController {
             Some(autostep) => autostep,
             None => return false,
         };
-        let min_width = autostep.min_width.eval(dims.x);
-        let max_height = autostep.max_height.eval(dims.y);
+
+        let offset = self.offset.eval(dims.y);
+        let min_width = autostep.min_width.eval(dims.x) + offset;
+        let max_height = autostep.max_height.eval(dims.y) + offset;
 
         if !autostep.include_dynamic_bodies {
             if colliders
@@ -592,7 +594,6 @@ impl KinematicCharacterController {
             return false;
         }
 
-        let offset = self.offset.eval(dims.y);
         // Check that we are not getting into a ramp that is too steep
         // after stepping.
         if let Some((_, hit)) = queries.cast_shape(
@@ -605,13 +606,15 @@ impl KinematicCharacterController {
             false,
             filter,
         ) {
-            let [_vertical_slope_translation, horizontal_slope_translation] =
+            let [vertical_slope_translation, horizontal_slope_translation] =
                 self.split_into_components(translation_remaining)
                     .map(|remaining| subtract_hit(remaining, &hit, offset));
 
+            let slope_translation = horizontal_slope_translation + vertical_slope_translation;
+
 
             let angle_with_floor = self.up.angle(&hit.normal1);
-            let climbing = self.up.dot(&horizontal_slope_translation) >= 0.0;
+            let climbing = self.up.dot(&slope_translation) >= 0.0;
 
             if climbing && angle_with_floor > self.max_slope_climb_angle {
                 return false; // The target ramp is too steep.
@@ -636,16 +639,16 @@ impl KinematicCharacterController {
                 .unwrap_or(max_height);
 
         // Remove the step height from the vertical part of the self.
-        *translation_remaining -=
-            *self.up * ((translation_remaining.dot(&self.up)).clamp(0.0, step_height));
+        let step = *self.up * step_height;
+        *translation_remaining -= step;
 
         // Advance the collider on the step horizontally, to make sure further
         // movement won’t just get stuck on its edge.
         let horizontal_nudge =
-            horizontal_dir * min_width.min(horizontal_dir.dot(translation_remaining));
+            horizontal_dir * horizontal_dir.dot(translation_remaining).min(min_width);
         *translation_remaining -= horizontal_nudge;
 
-        result.translation += *self.up * step_height + horizontal_nudge;
+        result.translation += step + horizontal_nudge;
         return true;
     }
 
