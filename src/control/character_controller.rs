@@ -193,8 +193,8 @@ impl KinematicCharacterController {
 
         let mut translation_remaining = desired_translation;
 
-        // Apply friction
-        self.detect_grounded_status_and_apply_friction(
+        // Check if we are grounded at the initial position.
+        let grounded_at_starting_pos = self.detect_grounded_status_and_apply_friction(
             dt,
             bodies,
             colliders,
@@ -299,17 +299,18 @@ impl KinematicCharacterController {
         }
 
         // If needed, and if we are not already grounded, snap to the ground.
-        self.snap_to_ground(
-            bodies,
-            colliders,
-            queries,
-            character_shape,
-            &(Translation::from(result.translation) * character_pos),
-            &dims,
-            filter,
-            &mut result,
-        );
-
+        if grounded_at_starting_pos {
+            self.snap_to_ground(
+                bodies,
+                colliders,
+                queries,
+                character_shape,
+                &(Translation::from(result.translation) * character_pos),
+                &dims,
+                filter,
+                &mut result,
+            );
+        }
 
         // Return the result.
         result
@@ -381,7 +382,7 @@ impl KinematicCharacterController {
             .compute_aabb(character_pos)
             .loosened(prediction);
 
-        let mut grounded = false;
+        let mut grounded = true;
 
         queries.colliders_with_aabb_intersecting_aabb(&character_aabb, |handle| {
             if let Some(collider) = colliders.get(*handle) {
@@ -409,6 +410,9 @@ impl KinematicCharacterController {
 
                         for m in &manifolds {
                             let normal = -(character_pos * m.local_n1);
+                            if normal.dot(&self.up) <= 1.0e-5 {
+                                grounded = false;
+                            }
                             if let Some(kinematic_parent) = kinematic_parent {
                                 let mut num_active_contacts = 0;
                                 let mut manifold_center = Point::origin();
@@ -428,9 +432,6 @@ impl KinematicCharacterController {
                                         *translation_remaining += normal
                                             * (normal_target_mvt - normal_current_mvt);
 
-                                        if normal.dot(&self.up) <= 1.0e-5 {
-                                            grounded = true;
-                                        }
                                     }
                                 }
 
@@ -458,13 +459,9 @@ impl KinematicCharacterController {
                         for m in &manifolds {
                             let normal = character_pos * m.local_n1;
 
-                            if normal.dot(&self.up) <= 1.0e-5 {
-                                for contact in &m.points {
-                                    if contact.dist <= prediction {
-                                        grounded = true;
-                                        return false; // We can stop the search early.
-                                    }
-                                }
+                            if normal.dot(&self.up) >= -1.0e-5 {
+                                grounded = false;
+                                return false; // We can stop the search early.
                             }
                         }
                     }
