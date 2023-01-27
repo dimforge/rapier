@@ -299,7 +299,7 @@ impl KinematicCharacterController {
         }
 
         // If needed, and if we are not already grounded, snap to the ground.
-        if grounded_at_starting_pos {
+        //if grounded_at_starting_pos {
             self.snap_to_ground(
                 bodies,
                 colliders,
@@ -310,7 +310,7 @@ impl KinematicCharacterController {
                 filter,
                 &mut result,
             );
-        }
+        //}
 
         // Return the result.
         result
