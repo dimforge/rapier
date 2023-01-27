@@ -409,12 +409,7 @@ impl KinematicCharacterController {
                             .filter(|rb| rb.is_kinematic());
 
                         for m in &manifolds {
-                            let normal1 = character_pos * m.local_n1;
-                            let normal2 = -normal1;
-
-                            if normal1.dot(&self.up) <= -1.0e-5 {
-                                grounded = true;
-                            }
+                            let normal = -(character_pos * m.local_n1);
 
                             if let Some(kinematic_parent) = kinematic_parent {
                                 let mut num_active_contacts = 0;
@@ -427,12 +422,12 @@ impl KinematicCharacterController {
                                         let target_vel =
                                             kinematic_parent.velocity_at_point(&contact_point);
 
-                                        let normal_target_mvt = target_vel.dot(&normal2) * dt;
+                                        let normal_target_mvt = target_vel.dot(&normal) * dt;
                                         let normal_current_mvt =
-                                            translation_remaining.dot(&normal2);
+                                            translation_remaining.dot(&normal);
 
                                         manifold_center += contact_point.coords;
-                                        *translation_remaining += normal2
+                                        *translation_remaining += normal
                                             * (normal_target_mvt - normal_current_mvt).max(0.0);
                                     }
                                 }
@@ -442,7 +437,7 @@ impl KinematicCharacterController {
                                         &(manifold_center / num_active_contacts as Real),
                                     );
                                     let tangent_platform_mvt =
-                                        (target_vel - normal2 * target_vel.dot(&normal2)) * dt;
+                                        (target_vel - normal * target_vel.dot(&normal)) * dt;
                                     kinematic_friction_translation.zip_apply(
                                         &tangent_platform_mvt,
                                         |y, x| {
