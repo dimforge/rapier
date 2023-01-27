@@ -428,6 +428,10 @@ impl KinematicCharacterController {
                                         manifold_center += contact_point.coords;
                                         *translation_remaining += normal
                                             * (normal_target_mvt - normal_current_mvt);
+
+                                        if normal.dot(&self.up) <= 1.0e-5 {
+                                            grounded = true;
+                                        }
                                     }
                                 }
 
