@@ -330,18 +330,18 @@ impl KinematicCharacterController {
         if let Some(snap_distance) = self.snap_to_ground {
             if result.translation.dot(&self.up) < 1.0e-5 {
                 let snap_distance = snap_distance.eval(dims.y);
+                let offset = self.offset.eval(dims.y);
                 if let Some((hit_handle, hit)) = queries.cast_shape(
                     bodies,
                     colliders,
                     character_pos,
                     &-self.up,
                     character_shape,
-                    snap_distance,
+                    snap_distance + offset,
                     false,
                     filter,
                 ) {
                     // Apply the snap.
-                    let offset = self.offset.eval(dims.y);
                     let snap_distance = hit.toi - offset;
                     if snap_distance.abs() > 1.0e-5 {
                         result.translation -= *self.up * snap_distance;
@@ -356,7 +356,7 @@ impl KinematicCharacterController {
     }
 
     fn predict_ground(&self, up_extends: Real) -> Real {
-        self.offset.eval(up_extends) * 1.4
+        self.offset.eval(up_extends) * 1.3
     }
 
     fn detect_grounded_status_and_apply_friction(
