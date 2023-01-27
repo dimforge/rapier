@@ -356,7 +356,7 @@ impl KinematicCharacterController {
     }
 
     fn predict_ground(&self, up_extends: Real) -> Real {
-        self.offset.eval(up_extends) * 1.4
+        self.offset.eval(up_extends) * 1.1
     }
 
     fn detect_grounded_status_and_apply_friction(
