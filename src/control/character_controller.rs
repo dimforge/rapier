@@ -410,10 +410,6 @@ impl KinematicCharacterController {
 
                         for m in &manifolds {
                             let normal = -(character_pos * m.local_n1);
-                            if normal.dot(&self.up) >= -1e-5 {
-                                grounded = true;
-                            }
-
                             if let Some(kinematic_parent) = kinematic_parent {
                                 let mut num_active_contacts = 0;
                                 let mut manifold_center = Point::origin();
@@ -431,7 +427,7 @@ impl KinematicCharacterController {
 
                                         manifold_center += contact_point.coords;
                                         *translation_remaining += normal
-                                            * (normal_target_mvt - normal_current_mvt).max(0.0);
+                                            * (normal_target_mvt - normal_current_mvt);
                                     }
                                 }
 
