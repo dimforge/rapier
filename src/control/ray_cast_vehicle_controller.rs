@@ -2,7 +2,7 @@
 
 use crate::dynamics::{RigidBody, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Ray};
-use crate::math::{Point, Real, Rotation, Vector};
+use crate::math::{Point, Real, Rotation, UnitVector, Vector};
 use crate::pipeline::{QueryFilter, QueryPipeline};
 use crate::utils::{WCross, WDot};
 
@@ -10,16 +10,17 @@ use crate::utils::{WCross, WDot};
 pub struct DynamicRayCastVehicleController {
     wheels: Vec<Wheel>,
     forward_ws: Vec<Vector<Real>>,
+    #[cfg(feature = "dim3")]
     axle: Vec<Vector<Real>>,
     /// The current forward speed of the vehicle.
     pub current_vehicle_speed: Real,
 
     /// Handle of the vehicle’s chassis.
     pub chassis: RigidBodyHandle,
-    /// The chassis’ local _up_ direction (`0 = x, 1 = y, 2 = z`)
-    pub index_up_axis: usize,
-    /// The chassis’ local _forward_ direction (`0 = x, 1 = y, 2 = z`)
-    pub index_forward_axis: usize,
+    /// The chassis’ local _up_ direction.
+    pub index_up_axis: UnitVector<Real>,
+    /// The chassis’ local _forward_ direction.
+    pub index_forward_axis: UnitVector<Real>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -68,6 +69,7 @@ struct WheelDesc {
     /// The ray-casting will happen following this direction to detect the ground.
     pub direction_cs: Vector<Real>,
     /// The wheel’s axle axis, relative to the chassis.
+    #[cfg(feature = "dim3")]
     pub axle_cs: Vector<Real>,
     /// The rest length of the wheel’s suspension spring.
     pub suspension_rest_length: Real,
@@ -102,6 +104,7 @@ pub struct Wheel {
 
     center: Point<Real>,
     wheel_direction_ws: Vector<Real>,
+    #[cfg(feature = "dim3")]
     wheel_axle_ws: Vector<Real>,
 
     /// The position of the wheel, relative to the chassis.
@@ -111,6 +114,7 @@ pub struct Wheel {
     /// The ray-casting will happen following this direction to detect the ground.
     pub direction_cs: Vector<Real>,
     /// The wheel’s axle axis, relative to the chassis.
+    #[cfg(feature = "dim3")]
     pub axle_cs: Vector<Real>,
     /// The rest length of the wheel’s suspension spring.
     pub suspension_rest_length: Real,
@@ -143,12 +147,14 @@ pub struct Wheel {
     /// The forward impulses applied by the wheel on the chassis.
     pub forward_impulse: Real,
     /// The side impulses applied by the wheel on the chassis.
+    #[cfg(feature = "dim3")]
     pub side_impulse: Real,
 
-    /// The steering angle for this wheel.
-    pub steering: Real,
     /// The forward force applied by this wheel on the chassis.
     pub engine_force: Real,
+    /// The steering angle for this wheel.
+    #[cfg(feature = "dim3")]
+    pub steering: Real,
     /// The maximum amount of braking impulse applied to slow down the vehicle.
     pub brake: Real,
 
@@ -171,11 +177,14 @@ impl Wheel {
             damping_relaxation: info.damping_relaxation,
             chassis_connection_point_cs: info.chassis_connection_cs,
             direction_cs: info.direction_cs,
+            #[cfg(feature = "dim3")]
             axle_cs: info.axle_cs,
             wheel_direction_ws: info.direction_cs,
+            #[cfg(feature = "dim3")]
             wheel_axle_ws: info.axle_cs,
             center: Point::origin(),
             friction_slip: info.friction_slip,
+            #[cfg(feature = "dim3")]
             steering: 0.0,
             engine_force: 0.0,
             rotation: 0.0,
@@ -187,6 +196,7 @@ impl Wheel {
             wheel_suspension_force: 0.0,
             max_suspension_force: info.max_suspension_force,
             skid_info: 0.0,
+            #[cfg(feature = "dim3")]
             side_impulse: 0.0,
             forward_impulse: 0.0,
         }
@@ -203,6 +213,7 @@ impl Wheel {
     }
 
     /// The world-space direction of the wheel’s axle.
+    #[cfg(feature = "dim3")]
     pub fn axle(&self) -> Vector<Real> {
         self.wheel_axle_ws
     }
@@ -222,16 +233,17 @@ struct RayCastInfo {
 impl DynamicRayCastVehicleController {
     /// Creates a new vehicle represented by the given rigid-body.
     ///
-    /// Wheels have to be attached afterwards calling [`Self::add_wheel`].
+    /// Wheels have to be attached afterwards by calling [`Self::add_wheel`].
     pub fn new(chassis: RigidBodyHandle) -> Self {
         Self {
             wheels: vec![],
             forward_ws: vec![],
+            #[cfg(feature = "dim3")]
             axle: vec![],
             current_vehicle_speed: 0.0,
             chassis,
-            index_up_axis: 1,
-            index_forward_axis: 0,
+            index_up_axis: Vector::y_axis(),
+            index_forward_axis: Vector::x_axis(),
         }
     }
 
@@ -243,7 +255,7 @@ impl DynamicRayCastVehicleController {
         &mut self,
         chassis_connection_cs: Point<Real>,
         direction_cs: Vector<Real>,
-        axle_cs: Vector<Real>,
+        #[cfg(feature = "dim3")] axle_cs: Vector<Real>,
         suspension_rest_length: Real,
         radius: Real,
         tuning: &WheelTuning,
@@ -251,6 +263,7 @@ impl DynamicRayCastVehicleController {
         let ci = WheelDesc {
             chassis_connection_cs,
             direction_cs,
+            #[cfg(feature = "dim3")]
             axle_cs,
             suspension_rest_length,
             radius,
@@ -268,22 +281,17 @@ impl DynamicRayCastVehicleController {
         &mut self.wheels[wheel_id]
     }
 
-    #[cfg(feature = "dim2")]
-    fn update_wheel_transform(&mut self, chassis: &RigidBody, wheel_index: usize) {
-        self.update_wheel_transforms_ws(chassis, wheel_index);
-        let wheel = &mut self.wheels[wheel_index];
-        wheel.center = (wheel.raycast_info.hard_point_ws
-            + wheel.wheel_direction_ws * wheel.raycast_info.suspension_length)
-            .coords;
-    }
-
-    #[cfg(feature = "dim3")]
     fn update_wheel_transform(&mut self, chassis: &RigidBody, wheel_index: usize) {
         self.update_wheel_transforms_ws(chassis, wheel_index);
         let wheel = &mut self.wheels[wheel_index];
 
-        let steering_orn = Rotation::new(-wheel.wheel_direction_ws * wheel.steering);
-        wheel.wheel_axle_ws = steering_orn * (chassis.position() * wheel.axle_cs);
+        // steering
+        #[cfg(feature = "dim3")]
+        {
+            let steering_orn = Rotation::new(-wheel.wheel_direction_ws * wheel.steering);
+            wheel.wheel_axle_ws = steering_orn * (chassis.position() * wheel.axle_cs);
+        }
+
         wheel.center = wheel.raycast_info.hard_point_ws
             + wheel.wheel_direction_ws * wheel.raycast_info.suspension_length;
     }
@@ -296,7 +304,10 @@ impl DynamicRayCastVehicleController {
 
         wheel.raycast_info.hard_point_ws = chassis_transform * wheel.chassis_connection_point_cs;
         wheel.wheel_direction_ws = chassis_transform * wheel.direction_cs;
-        wheel.wheel_axle_ws = chassis_transform * wheel.axle_cs;
+        #[cfg(feature = "dim3")]
+        {
+            wheel.wheel_axle_ws = chassis_transform * wheel.axle_cs;
+        }
     }
 
     fn ray_cast(
@@ -398,7 +409,7 @@ impl DynamicRayCastVehicleController {
 
         self.current_vehicle_speed = chassis.linvel().norm();
 
-        let forward_w = chassis.position() * Vector::ith(self.index_forward_axis, 1.0);
+        let forward_w = chassis.position() * self.index_forward_axis.into_inner();
 
         if forward_w.dot(chassis.linvel()) < 0.0 {
             self.current_vehicle_speed *= -1.0;
@@ -445,7 +456,7 @@ impl DynamicRayCastVehicleController {
             let vel = chassis.velocity_at_point(&wheel.raycast_info.hard_point_ws);
 
             if wheel.raycast_info.is_in_contact {
-                let mut fwd = chassis.position() * Vector::ith(self.index_forward_axis, 1.0);
+                let mut fwd = chassis.position() * self.index_forward_axis.into_inner();
                 let proj = fwd.dot(&wheel.raycast_info.contact_normal_ws);
                 fwd -= wheel.raycast_info.contact_normal_ws * proj;
 
@@ -519,6 +530,7 @@ impl DynamicRayCastVehicleController {
         }
 
         self.forward_ws.resize(num_wheels, Default::default());
+        #[cfg(feature = "dim3")]
         self.axle.resize(num_wheels, Default::default());
 
         let mut num_wheels_on_ground = 0;
@@ -531,7 +543,10 @@ impl DynamicRayCastVehicleController {
                 num_wheels_on_ground += 1;
             }
 
-            wheel.side_impulse = 0.0;
+            #[cfg(feature = "dim3")]
+            {
+                wheel.side_impulse = 0.0;
+            }
             wheel.forward_impulse = 0.0;
         }
 
@@ -541,40 +556,56 @@ impl DynamicRayCastVehicleController {
                 let ground_object = wheel.raycast_info.ground_object;
 
                 if ground_object.is_some() {
-                    self.axle[i] = wheel.wheel_axle_ws;
-
                     let surf_normal_ws = wheel.raycast_info.contact_normal_ws;
-                    let proj = self.axle[i].dot(&surf_normal_ws);
-                    self.axle[i] -= surf_normal_ws * proj;
-                    self.axle[i] = self.axle[i]
-                        .try_normalize(1.0e-5)
-                        .unwrap_or_else(Vector::zeros);
-                    self.forward_ws[i] = surf_normal_ws
-                        .cross(&self.axle[i])
-                        .try_normalize(1.0e-5)
-                        .unwrap_or_else(Vector::zeros);
 
-                    if let Some(ground_body) = ground_object
-                        .and_then(|h| colliders[h].parent())
-                        .map(|h| &bodies[h])
-                        .filter(|b| b.is_dynamic())
+                    #[cfg(feature = "dim2")]
                     {
-                        wheel.side_impulse = resolve_single_bilateral(
-                            &bodies[self.chassis],
-                            &wheel.raycast_info.contact_point_ws,
-                            &ground_body,
-                            &wheel.raycast_info.contact_point_ws,
-                            &self.axle[i],
-                        );
-                    } else {
-                        wheel.side_impulse = resolve_single_unilateral(
-                            &bodies[self.chassis],
-                            &wheel.raycast_info.contact_point_ws,
-                            &self.axle[i],
-                        );
+                        let eee = na::Vector3::new(surf_normal_ws.x, surf_normal_ws.y, 0.0)
+                            .cross(&na::Vector3::z());
+                        self.forward_ws[i] = Vector::new(eee.x, eee.y)
+                            .try_normalize(1.0e-5)
+                            .unwrap_or_else(Vector::zeros);
                     }
 
-                    wheel.side_impulse *= Self::SIDE_FRICTION_STIFFNESS2;
+                    #[cfg(feature = "dim3")]
+                    {
+                        self.axle[i] = wheel.wheel_axle_ws;
+                        let proj = self.axle[i].dot(&surf_normal_ws);
+
+                        self.axle[i] -= surf_normal_ws * proj;
+                        self.axle[i] = self.axle[i]
+                            .try_normalize(1.0e-5)
+                            .unwrap_or_else(Vector::zeros);
+                        self.forward_ws[i] = surf_normal_ws
+                            .cross(&self.axle[i])
+                            .try_normalize(1.0e-5)
+                            .unwrap_or_else(Vector::zeros);
+                    }
+
+                    #[cfg(feature = "dim3")]
+                    {
+                        if let Some(ground_body) = ground_object
+                            .and_then(|h| colliders[h].parent())
+                            .map(|h| &bodies[h])
+                            .filter(|b| b.is_dynamic())
+                        {
+                            wheel.side_impulse = resolve_single_bilateral(
+                                &bodies[self.chassis],
+                                &wheel.raycast_info.contact_point_ws,
+                                &ground_body,
+                                &wheel.raycast_info.contact_point_ws,
+                                &self.axle[i],
+                            );
+                        } else {
+                            wheel.side_impulse = resolve_single_unilateral(
+                                &bodies[self.chassis],
+                                &wheel.raycast_info.contact_point_ws,
+                                &self.axle[i],
+                            );
+                        }
+
+                        wheel.side_impulse *= Self::SIDE_FRICTION_STIFFNESS2;
+                    }
                 }
             }
         }
@@ -628,8 +659,12 @@ impl DynamicRayCastVehicleController {
                     wheel.forward_impulse = rolling_friction;
 
                     let x = wheel.forward_impulse * fwd_factor;
+                    #[cfg(feature = "dim3")]
                     let y = wheel.side_impulse * side_factor;
 
+                    #[cfg(feature = "dim2")]
+                    let impulse_squared = x * x;
+                    #[cfg(feature = "dim3")]
                     let impulse_squared = x * x + y * y;
 
                     if impulse_squared > max_imp_squared {
@@ -642,6 +677,7 @@ impl DynamicRayCastVehicleController {
             }
         }
 
+        #[cfg(feature = "dim3")]
         if sliding {
             for wheel in &mut self.wheels {
                 if wheel.side_impulse != 0.0 {
@@ -670,11 +706,13 @@ impl DynamicRayCastVehicleController {
                         false,
                     );
                 }
+
+                #[cfg(feature = "dim3")]
                 if wheel.side_impulse != 0.0 {
                     let side_impulse = self.axle[wheel_id] * wheel.side_impulse;
 
                     let v_chassis_world_up =
-                        chassis.position().rotation * Vector::ith(self.index_up_axis, 1.0);
+                        chassis.position().rotation * self.index_up_axis.into_inner();
                     impulse_point -= v_chassis_world_up
                         * (v_chassis_world_up.dot(&(impulse_point - chassis.center_of_mass()))
                             * (1.0 - wheel.roll_influence));

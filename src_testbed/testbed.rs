@@ -9,7 +9,6 @@ use crate::{debug_render, ui};
 use crate::{graphics::GraphicsManager, harness::RunState};
 
 use na::{self, Point2, Point3, Vector3};
-#[cfg(feature = "dim3")]
 use rapier::control::DynamicRayCastVehicleController;
 use rapier::control::KinematicCharacterController;
 use rapier::dynamics::{
@@ -103,7 +102,6 @@ pub struct TestbedState {
     pub draw_colls: bool,
     pub highlighted_body: Option<RigidBodyHandle>,
     pub character_body: Option<RigidBodyHandle>,
-    #[cfg(feature = "dim3")]
     pub vehicle_controller: Option<DynamicRayCastVehicleController>,
     //    pub grabbed_object: Option<DefaultBodyPartHandle>,
     //    pub grabbed_object_constraint: Option<DefaultJointConstraintHandle>,
@@ -184,7 +182,6 @@ impl TestbedApp {
             draw_colls: false,
             highlighted_body: None,
             character_body: None,
-            #[cfg(feature = "dim3")]
             vehicle_controller: None,
             //            grabbed_object: None,
             //            grabbed_object_constraint: None,
@@ -467,7 +464,6 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         self.state.character_body = Some(handle);
     }
 
-    #[cfg(feature = "dim3")]
     pub fn set_vehicle_controller(&mut self, controller: DynamicRayCastVehicleController) {
         self.state.vehicle_controller = Some(controller);
     }
@@ -644,39 +640,62 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         self.plugins.0.push(Box::new(plugin));
     }
 
-    #[cfg(feature = "dim3")]
     fn update_vehicle_controller(&mut self, events: &Input<KeyCode>) {
         if self.state.running == RunMode::Stop {
             return;
         }
 
         if let Some(vehicle) = &mut self.state.vehicle_controller {
-            let mut engine_force = 0.0;
-            let mut steering_angle = 0.0;
+            #[cfg(feature = "dim2")]
+            {
+                let mut engine_force = 0.0;
 
-            for key in events.get_pressed() {
-                match *key {
-                    KeyCode::Right => {
-                        steering_angle += -0.7;
+                for key in events.get_pressed() {
+                    match *key {
+                        KeyCode::Right => {
+                            engine_force += 100.0;
+                        }
+                        KeyCode::Left => {
+                            engine_force += -100.0;
+                        }
+                        _ => {}
                     }
-                    KeyCode::Left => {
-                        steering_angle += 0.7;
-                    }
-                    KeyCode::Up => {
-                        engine_force += 30.0;
-                    }
-                    KeyCode::Down => {
-                        engine_force += -30.0;
-                    }
-                    _ => {}
                 }
+
+                let wheels = vehicle.wheels_mut();
+                wheels[0].engine_force = engine_force;
+                wheels[1].engine_force = engine_force;
             }
 
-            let wheels = vehicle.wheels_mut();
-            wheels[0].engine_force = engine_force;
-            wheels[0].steering = steering_angle;
-            wheels[1].engine_force = engine_force;
-            wheels[1].steering = steering_angle;
+            #[cfg(feature = "dim3")]
+            {
+                let mut engine_force = 0.0;
+                let mut steering_angle = 0.0;
+
+                for key in events.get_pressed() {
+                    match *key {
+                        KeyCode::Right => {
+                            steering_angle += -0.7;
+                        }
+                        KeyCode::Left => {
+                            steering_angle += 0.7;
+                        }
+                        KeyCode::Up => {
+                            engine_force += 30.0;
+                        }
+                        KeyCode::Down => {
+                            engine_force += -30.0;
+                        }
+                        _ => {}
+                    }
+                }
+
+                let wheels = vehicle.wheels_mut();
+                wheels[0].engine_force = engine_force;
+                wheels[0].steering = steering_angle;
+                wheels[1].engine_force = engine_force;
+                wheels[1].steering = steering_angle;
+            }
 
             vehicle.update_vehicle(
                 self.harness.physics.integration_parameters.dt,
@@ -1127,10 +1146,7 @@ fn update_testbed(
 
         testbed.handle_common_events(&*keys);
         testbed.update_character_controller(&*keys);
-        #[cfg(feature = "dim3")]
-        {
-            testbed.update_vehicle_controller(&*keys);
-        }
+        testbed.update_vehicle_controller(&*keys);
     }
 
     // Update UI
