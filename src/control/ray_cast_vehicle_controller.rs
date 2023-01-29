@@ -560,9 +560,7 @@ impl DynamicRayCastVehicleController {
 
                     #[cfg(feature = "dim2")]
                     {
-                        let eee = na::Vector3::new(surf_normal_ws.x, surf_normal_ws.y, 0.0)
-                            .cross(&na::Vector3::z());
-                        self.forward_ws[i] = Vector::new(eee.x, eee.y)
+                        self.forward_ws[i] = Vector::new(surf_normal_ws.y, -surf_normal_ws.x)
                             .try_normalize(1.0e-5)
                             .unwrap_or_else(Vector::zeros);
                     }

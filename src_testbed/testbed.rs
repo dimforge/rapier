@@ -649,6 +649,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
             #[cfg(feature = "dim2")]
             {
                 let mut engine_force = 0.0;
+                let mut brake = 0.0;
 
                 for key in events.get_pressed() {
                     match *key {
@@ -658,13 +659,18 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         KeyCode::Left => {
                             engine_force += -100.0;
                         }
+                        KeyCode::Down => {
+                            brake += 50.0;
+                        }
                         _ => {}
                     }
                 }
 
                 let wheels = vehicle.wheels_mut();
                 wheels[0].engine_force = engine_force;
+                wheels[0].brake = brake;
                 wheels[1].engine_force = engine_force;
+                wheels[1].brake = brake;
             }
 
             #[cfg(feature = "dim3")]
