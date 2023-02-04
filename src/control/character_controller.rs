@@ -232,7 +232,8 @@ impl KinematicCharacterController {
                 filter,
             ) {
                 // We hit something, compute the allowed self.
-                let allowed_dist = toi.toi - (toi.normal1.dot(&translation_dir)).abs() * offset;
+                let allowed_dist =
+                    (toi.toi - (-toi.normal1.dot(&translation_dir)) * offset).max(0.0);
                 let allowed_translation = *translation_dir * allowed_dist;
                 result.translation += allowed_translation;
                 translation_remaining -= allowed_translation;
@@ -263,7 +264,7 @@ impl KinematicCharacterController {
                         self.handle_slopes(&toi, &mut translation_remaining, offset)
                     {
                         translation_remaining = translation_on_slope;
-                    } else if allowed_dist < 1.0e5 {
+                    } else if allowed_dist.abs() < 1.0e5 {
                         // No slopes or stairs ahead, but we didn't move yet; try to move along obstacle.
                         let allowed_translation = subtract_hit(translation_remaining, &toi, offset);
                         result.translation += allowed_translation;
