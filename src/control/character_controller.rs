@@ -206,8 +206,6 @@ impl KinematicCharacterController {
             None,
         );
 
-        // println!("Init grounded status: {grounded_at_starting_pos}");
-
         let mut max_iters = 20;
         let mut kinematic_friction_translation = Vector::zeros();
 
