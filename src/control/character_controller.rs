@@ -263,8 +263,8 @@ impl KinematicCharacterController {
                         self.handle_slopes(&toi, &mut translation_remaining, offset)
                     {
                         translation_remaining = translation_on_slope;
-                    } else {
-                        // No slopes or stairs ahead; try to move along obstacle.
+                    } else if allowed_dist < 1.0e5 {
+                        // No slopes or stairs ahead, but we didn't move yet; try to move along obstacle.
                         let allowed_translation = subtract_hit(translation_remaining, &toi, offset);
                         result.translation += allowed_translation;
                         translation_remaining -= allowed_translation;
