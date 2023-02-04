@@ -403,22 +403,14 @@ impl KinematicCharacterController {
                             .filter(|rb| rb.is_kinematic());
 
                         for m in &manifolds {
-                            let normal = -(character_pos * m.local_n1);
-                            if normal.dot(&self.up) >= 1.0e-5 {
+                            if self.is_grounded_at_contact_manifold(m, character_pos, dims) {
                                 grounded = true;
-                                println!("grounded!");
-                                println!("normal: {:?}", normal);
-                                println!("up: {:?}", self.up);
-                                println!("dot: {:?}", normal.dot(&self.up));
-                                println!("character_pos: {:?}", character_pos);
-                                println!("m.local_n1: {:?}", m.local_n1);
-                                println!("m.local_n2: {:?}", m.local_n2);
-                                println!();
                             }
 
                             if let Some(kinematic_parent) = kinematic_parent {
                                 let mut num_active_contacts = 0;
                                 let mut manifold_center = Point::origin();
+                                let normal = -(character_pos * m.local_n1);
 
                                 for contact in &m.points {
                                     if contact.dist <= prediction {
@@ -458,15 +450,9 @@ impl KinematicCharacterController {
                             *kinematic_friction_translation - init_kinematic_friction_translation;
                     } else {
                         for m in &manifolds {
-                            let normal = character_pos * m.local_n1;
-
-                            if normal.dot(&self.up) <= 1.0e-5 {
-                                for contact in &m.points {
-                                    if contact.dist <= prediction {
-                                        grounded = true;
-                                        return false; // We can stop the search early.
-                                    }
-                                }
+                            if self.is_grounded_at_contact_manifold(m, character_pos, dims) {
+                                grounded = true;
+                                return false; // We can stop the search early.
                             }
                         }
                     }
@@ -476,6 +462,25 @@ impl KinematicCharacterController {
         });
 
         grounded
+    }
+
+    fn is_grounded_at_contact_manifold(
+        &self,
+        manifold: &ContactManifold,
+        character_pos: &Isometry<Real>,
+        dims: &Vector2<Real>,
+    ) -> bool {
+        let normal = -(character_pos * manifold.local_n1);
+
+        if normal.dot(&self.up) >= 1.0e-5 {
+            let prediction = self.predict_ground(dims.y);
+            for contact in &manifold.points {
+                if contact.dist <= prediction {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn handle_slopes(
