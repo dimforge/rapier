@@ -199,7 +199,7 @@ impl KinematicCharacterController {
             colliders,
             queries,
             character_shape,
-            &character_pos,
+            character_pos,
             &dims,
             filter,
             None,
@@ -259,7 +259,7 @@ impl KinematicCharacterController {
                 ) {
                     // No stairs, try to move along slopes.
                     if let Some(translation_on_slope) =
-                        self.handle_slopes(&toi, &mut translation_remaining, offset)
+                        self.handle_slopes(&toi, &translation_remaining, offset)
                     {
                         translation_remaining = translation_on_slope;
                     } else if allowed_dist.abs() < 1.0e5 {
@@ -499,17 +499,16 @@ impl KinematicCharacterController {
         let angle_with_floor = self.up.angle(&hit.normal1);
         let climbing = self.up.dot(&slope_translation) >= 0.0;
 
-        climbing
-            .then(|| {
-                (angle_with_floor <= self.max_slope_climb_angle) // Are we allowed to climb?
-                    .then_some(horizontal_translation)
-            })
-            .unwrap_or_else(|| {
-                (angle_with_floor >= self.min_slope_slide_angle) // Are we allowed to slide?
-                    .then_some(slope_translation)
-                    .unwrap_or(horizontal_translation)
-                    .into()
-            })
+        if climbing {
+            // Are we allowed to climb?
+            (angle_with_floor <= self.max_slope_climb_angle).then_some(slope_translation)
+        }
+        // Are we forced to slide?
+        else if angle_with_floor >= self.min_slope_slide_angle {
+            slope_translation.into()
+        } else {
+            horizontal_translation.into()
+        }
     }
 
     fn split_into_components(&self, translation: &Vector<Real>) -> [Vector<Real>; 2] {
@@ -659,7 +658,7 @@ impl KinematicCharacterController {
         *translation_remaining -= horizontal_nudge;
 
         result.translation += step + horizontal_nudge;
-        return true;
+        true
     }
 
     /// For a given collision between a character and its environment, this method will apply
