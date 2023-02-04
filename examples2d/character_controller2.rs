@@ -1,6 +1,6 @@
-use std::f32::consts::PI;
 use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
+use std::f32::consts::PI;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*

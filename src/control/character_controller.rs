@@ -232,8 +232,7 @@ impl KinematicCharacterController {
                 filter,
             ) {
                 // We hit something, compute the allowed self.
-                let allowed_dist =
-                    toi.toi - (toi.normal1.dot(&translation_dir)).abs() * offset;
+                let allowed_dist = toi.toi - (toi.normal1.dot(&translation_dir)).abs() * offset;
                 let allowed_translation = *translation_dir * allowed_dist;
                 result.translation += allowed_translation;
                 translation_remaining -= allowed_translation;
@@ -271,7 +270,6 @@ impl KinematicCharacterController {
                         translation_remaining -= allowed_translation;
                     }
                 }
-
             } else {
                 // No interference along the path.
                 result.translation += translation_remaining;
@@ -422,13 +420,11 @@ impl KinematicCharacterController {
                                             kinematic_parent.velocity_at_point(&contact_point);
 
                                         let normal_target_mvt = target_vel.dot(&normal) * dt;
-                                        let normal_current_mvt =
-                                            translation_remaining.dot(&normal);
+                                        let normal_current_mvt = translation_remaining.dot(&normal);
 
                                         manifold_center += contact_point.coords;
-                                        *translation_remaining += normal
-                                            * (normal_target_mvt - normal_current_mvt);
-
+                                        *translation_remaining +=
+                                            normal * (normal_target_mvt - normal_current_mvt);
                                     }
                                 }
 
@@ -480,7 +476,7 @@ impl KinematicCharacterController {
             self.split_into_components(translation_remaining);
         let [vertical_slope_translation, horizontal_slope_translation] =
             [vertical_translation, horizontal_translation]
-            .map(|remaining| subtract_hit(remaining, hit, offset));
+                .map(|remaining| subtract_hit(remaining, hit, offset));
         let slope_translation = horizontal_slope_translation + vertical_slope_translation;
 
         // Check if there is a slope to climb.
@@ -488,13 +484,16 @@ impl KinematicCharacterController {
         let climbing = self.up.dot(&slope_translation) >= 0.0;
 
         climbing
-            .then(||(angle_with_floor <= self.max_slope_climb_angle) // Are we allowed to climb?
-                .then_some(horizontal_translation ))
-            .unwrap_or_else(|| (angle_with_floor >= self.min_slope_slide_angle)// Are we allowed to slide?
-                .then_some(slope_translation )
-                .unwrap_or(horizontal_translation)
-                .into())
-
+            .then(|| {
+                (angle_with_floor <= self.max_slope_climb_angle) // Are we allowed to climb?
+                    .then_some(horizontal_translation)
+            })
+            .unwrap_or_else(|| {
+                (angle_with_floor >= self.min_slope_slide_angle) // Are we allowed to slide?
+                    .then_some(slope_translation)
+                    .unwrap_or(horizontal_translation)
+                    .into()
+            })
     }
 
     fn split_into_components(&self, translation: &Vector<Real>) -> [Vector<Real>; 2] {
@@ -502,7 +501,6 @@ impl KinematicCharacterController {
         let horizontal_translation = *translation - vertical_translation;
         [vertical_translation, horizontal_translation]
     }
-
 
     fn compute_dims(&self, character_shape: &dyn Shape) -> Vector2<Real> {
         let extents = character_shape.compute_local_aabb().extents();
@@ -550,8 +548,10 @@ impl KinematicCharacterController {
 
         let shifted_character_pos = Translation::from(*self.up * max_height) * character_pos;
 
-        let horizontal_dir = match (*translation_remaining - *self.up * translation_remaining.dot(&self.up))
-            .try_normalize(1.0e-5) {
+        let horizontal_dir = match (*translation_remaining
+            - *self.up * translation_remaining.dot(&self.up))
+        .try_normalize(1.0e-5)
+        {
             Some(dir) => dir,
             None => return false,
         };
@@ -602,12 +602,11 @@ impl KinematicCharacterController {
             false,
             filter,
         ) {
-            let [vertical_slope_translation, horizontal_slope_translation] =
-                self.split_into_components(translation_remaining)
-                    .map(|remaining| subtract_hit(remaining, &hit, offset));
+            let [vertical_slope_translation, horizontal_slope_translation] = self
+                .split_into_components(translation_remaining)
+                .map(|remaining| subtract_hit(remaining, &hit, offset));
 
             let slope_translation = horizontal_slope_translation + vertical_slope_translation;
-
 
             let angle_with_floor = self.up.angle(&hit.normal1);
             let climbing = self.up.dot(&slope_translation) >= 0.0;
@@ -623,8 +622,7 @@ impl KinematicCharacterController {
                 .cast_shape(
                     bodies,
                     colliders,
-                    &(Translation::from(horizontal_dir * min_width)
-                        * shifted_character_pos),
+                    &(Translation::from(horizontal_dir * min_width) * shifted_character_pos),
                     &-self.up,
                     character_shape,
                     max_height,
