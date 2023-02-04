@@ -404,7 +404,7 @@ impl KinematicCharacterController {
 
                         for m in &manifolds {
                             let normal = -(character_pos * m.local_n1);
-                            if normal.dot(&self.up) >= -1.0e-5 {
+                            if normal.dot(&self.up) >= 1.0e-5 {
                                 grounded = true;
                             }
 
