@@ -406,6 +406,14 @@ impl KinematicCharacterController {
                             let normal = -(character_pos * m.local_n1);
                             if normal.dot(&self.up) >= 1.0e-5 {
                                 grounded = true;
+                                println!("grounded!");
+                                println!("normal: {:?}", normal);
+                                println!("up: {:?}", self.up);
+                                println!("dot: {:?}", normal.dot(&self.up));
+                                println!("character_pos: {:?}", character_pos);
+                                println!("m.local_n1: {:?}", m.local_n1);
+                                println!("m.local_n2: {:?}", m.local_n2);
+                                println!();
                             }
 
                             if let Some(kinematic_parent) = kinematic_parent {
