@@ -403,7 +403,7 @@ impl KinematicCharacterController {
                             .filter(|rb| rb.is_kinematic());
 
                         for m in &manifolds {
-                            let normal = -(character_pos * m.local_n1);
+                            let normal = -(character_pos * m.local_n1).normalize();
                             if normal.dot(&self.up) >= -1.0e-5 {
                                 grounded = true;
                             }
@@ -450,7 +450,7 @@ impl KinematicCharacterController {
                             *kinematic_friction_translation - init_kinematic_friction_translation;
                     } else {
                         for m in &manifolds {
-                            let normal = character_pos * m.local_n1;
+                            let normal = (character_pos * m.local_n1).normalize();
 
                             if normal.dot(&self.up) <= 1.0e-5 {
                                 for contact in &m.points {
