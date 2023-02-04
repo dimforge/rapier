@@ -376,7 +376,7 @@ impl KinematicCharacterController {
             .compute_aabb(character_pos)
             .loosened(prediction);
 
-        let mut grounded = true;
+        let mut grounded = false;
 
         queries.colliders_with_aabb_intersecting_aabb(&character_aabb, |handle| {
             if let Some(collider) = colliders.get(*handle) {
@@ -404,9 +404,10 @@ impl KinematicCharacterController {
 
                         for m in &manifolds {
                             let normal = -(character_pos * m.local_n1);
-                            if normal.dot(&self.up) <= 1.0e-5 {
-                                grounded = false;
+                            if normal.dot(&self.up) >= -1.0e-5 {
+                                grounded = true;
                             }
+
                             if let Some(kinematic_parent) = kinematic_parent {
                                 let mut num_active_contacts = 0;
                                 let mut manifold_center = Point::origin();
@@ -451,9 +452,13 @@ impl KinematicCharacterController {
                         for m in &manifolds {
                             let normal = character_pos * m.local_n1;
 
-                            if normal.dot(&self.up) >= -1.0e-5 {
-                                grounded = false;
-                                return false; // We can stop the search early.
+                            if normal.dot(&self.up) <= 1.0e-5 {
+                                for contact in &m.points {
+                                    if contact.dist <= prediction {
+                                        grounded = true;
+                                        return false; // We can stop the search early.
+                                    }
+                                }
                             }
                         }
                     }
