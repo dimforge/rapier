@@ -499,20 +499,16 @@ impl KinematicCharacterController {
         let angle_with_floor = self.up.angle(&hit.normal1);
         let climbing = self.up.dot(&slope_translation) >= 0.0;
 
-        climbing
-            .then(|| {
-                (angle_with_floor <= self.max_slope_climb_angle) // Are we allowed to climb?
-                    .then_some(horizontal_translation)
-            })
-            .unwrap_or_else(|| {
-                // Are we allowed to slide?
-                if angle_with_floor >= self.min_slope_slide_angle {
-                    slope_translation
-                } else {
-                    horizontal_translation
-                }
-                .into()
-            })
+        if climbing {
+            // Are we allowed to climb?
+            (angle_with_floor <= self.max_slope_climb_angle).then_some(horizontal_translation)
+        }
+        // Are we allowed to slide?
+        else if angle_with_floor >= self.min_slope_slide_angle {
+            Some(slope_translation)
+        } else {
+            Some(horizontal_translation)
+        }
     }
 
     fn split_into_components(&self, translation: &Vector<Real>) -> [Vector<Real>; 2] {
