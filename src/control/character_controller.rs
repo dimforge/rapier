@@ -259,12 +259,12 @@ impl KinematicCharacterController {
                 ) {
                     // No stairs, try to move along slopes.
                     if let Some(translation_on_slope) =
-                        self.handle_slopes(&toi, &translation_remaining, offset)
+                        self.handle_slopes(&toi, &translation_remaining)
                     {
                         translation_remaining = translation_on_slope;
                     } else if allowed_dist.abs() < 1.0e5 {
                         // No slopes or stairs ahead, but we didn't move yet; try to move along obstacle.
-                        let allowed_translation = subtract_hit(translation_remaining, &toi, offset);
+                        let allowed_translation = subtract_hit(translation_remaining, &toi);
                         result.translation += allowed_translation;
                         translation_remaining -= allowed_translation;
                     }
@@ -485,13 +485,12 @@ impl KinematicCharacterController {
         &self,
         hit: &TOI,
         translation_remaining: &Vector<Real>,
-        offset: Real,
     ) -> Option<Vector<Real>> {
         let [vertical_translation, horizontal_translation] =
             self.split_into_components(translation_remaining);
         let [vertical_slope_translation, horizontal_slope_translation] =
             [vertical_translation, horizontal_translation]
-                .map(|remaining| subtract_hit(remaining, hit, offset));
+                .map(|remaining| subtract_hit(remaining, hit));
         let slope_translation = horizontal_slope_translation + vertical_slope_translation;
 
         // Check if there is a slope to climb.
@@ -618,7 +617,7 @@ impl KinematicCharacterController {
         ) {
             let [vertical_slope_translation, horizontal_slope_translation] = self
                 .split_into_components(translation_remaining)
-                .map(|remaining| subtract_hit(remaining, &hit, offset));
+                .map(|remaining| subtract_hit(remaining, &hit));
 
             let slope_translation = horizontal_slope_translation + vertical_slope_translation;
 
@@ -745,8 +744,9 @@ impl KinematicCharacterController {
     }
 }
 
-fn subtract_hit(translation: Vector<Real>, hit: &TOI, offset: Real) -> Vector<Real> {
-    let surface_correction = translation.dot(&hit.normal1).abs();
-    let surface_correction = surface_correction + offset;
+fn subtract_hit(translation: Vector<Real>, hit: &TOI) -> Vector<Real> {
+    let surface_correction = (-translation).dot(&hit.normal1).max(0.0);
+    // This fixes some instances of moving through walls
+    let surface_correction = surface_correction * (1.0 + 1.0e-5);
     translation + *hit.normal1 * surface_correction
 }
