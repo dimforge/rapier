@@ -186,7 +186,6 @@ impl KinematicCharacterController {
             grounded: false,
         };
         let dims = self.compute_dims(character_shape);
-        let offset = self.offset.eval(dims.y);
 
         // 1. Check and fix penetrations.
         self.check_and_fix_penetrations();
@@ -208,6 +207,7 @@ impl KinematicCharacterController {
 
         let mut max_iters = 20;
         let mut kinematic_friction_translation = Vector::zeros();
+        let offset = self.offset.eval(dims.y);
 
         while let Some((translation_dir, translation_dist)) =
             UnitVector::try_new_and_get(translation_remaining, 1.0e-5)
@@ -337,8 +337,7 @@ impl KinematicCharacterController {
                     filter,
                 ) {
                     // Apply the snap.
-                    let snap_distance = hit.toi - offset;
-                    result.translation -= *self.up * snap_distance;
+                    result.translation -= *self.up * (hit.toi - offset).max(0.0);
                     result.grounded = true;
                     return Some((hit_handle, hit));
                 }
