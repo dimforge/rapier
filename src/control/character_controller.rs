@@ -258,16 +258,7 @@ impl KinematicCharacterController {
                     &mut result,
                 ) {
                     // No stairs, try to move along slopes.
-                    if let Some(translation_on_slope) =
-                        self.handle_slopes(&toi, &translation_remaining)
-                    {
-                        translation_remaining = translation_on_slope;
-                    } else if allowed_dist.abs() < 1.0e5 {
-                        // No slopes or stairs ahead, but we didn't move yet; try to move along obstacle.
-                        let allowed_translation = subtract_hit(translation_remaining, &toi);
-                        result.translation += allowed_translation;
-                        translation_remaining -= allowed_translation;
-                    }
+                    translation_remaining = self.handle_slopes(&toi, &translation_remaining);
                 }
             } else {
                 // No interference along the path.
@@ -481,31 +472,30 @@ impl KinematicCharacterController {
         false
     }
 
-    fn handle_slopes(
-        &self,
-        hit: &TOI,
-        translation_remaining: &Vector<Real>,
-    ) -> Option<Vector<Real>> {
+    fn handle_slopes(&self, hit: &TOI, translation_remaining: &Vector<Real>) -> Vector<Real> {
         let [vertical_translation, horizontal_translation] =
             self.split_into_components(translation_remaining);
-        let [vertical_slope_translation, horizontal_slope_translation] =
-            [vertical_translation, horizontal_translation]
-                .map(|remaining| subtract_hit(remaining, hit));
-        let slope_translation = horizontal_slope_translation + vertical_slope_translation;
+        let slope_translation = subtract_hit(*translation_remaining, hit);
 
         // Check if there is a slope to climb.
         let angle_with_floor = self.up.angle(&hit.normal1);
-        let climbing = self.up.dot(&slope_translation) >= 0.0;
+        // We are climbing if the movement along the slope goes upward, and the angle with the
+        // floor is smaller than pi/2 (in which case we hit some some sort of ceiling).
+        //
+        // NOTE: part of the slope will already be handled by auto-stepping if it was enabled.
+        //       Therefore, `climbing` may not always be `true` when climbing on a slope at
+        //       slow speed.
+        let climbing = self.up.dot(&slope_translation) >= 0.0 && self.up.dot(&hit.normal1) > 0.0;
 
-        if climbing {
-            // Are we allowed to climb?
-            (angle_with_floor <= self.max_slope_climb_angle).then_some(horizontal_translation)
-        }
-        // Are we allowed to slide?
-        else if angle_with_floor >= self.min_slope_slide_angle {
-            Some(slope_translation)
+        if climbing && angle_with_floor >= self.max_slope_climb_angle {
+            // Prevent horizontal movement from pushing through the slope.
+            vertical_translation
+        } else if !climbing && angle_with_floor <= self.min_slope_slide_angle {
+            // Prevent the vertical movement from sliding down.
+            horizontal_translation
         } else {
-            Some(horizontal_translation)
+            // Let it slide
+            slope_translation
         }
     }
 
