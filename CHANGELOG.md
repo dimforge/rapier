@@ -1,9 +1,16 @@
-## v0.17.1 (22 Jan. 2022)
+## v0.17.2 (26 Feb. 2023)
+### Fix
+- Fix issue with convex polyhedron jitter due to missing contacts.
+- Fix character controller getting stuck against vertical walls.
+- Fix character controller’s snapping to ground not triggering sometimes.
+- Fix character controller’s horizontal offset being mostly ignored and some instances of vertical offset being ignored.
+
+## v0.17.1 (22 Jan. 2023)
 ### Fix
 - Fix bug resulting in dynamic rigid-bodies acting as kinematic bodies after being disabled and then re-enabled.
 
 
-## v0.17.0 (15 Jan. 2022)
+## v0.17.0 (15 Jan. 2023)
 ### Added
 - Add `RigidBody::set_enabled`, `RigidBody::is_enabled`, `RigidBodyBuilder::enabled` to enable/disable a rigid-body
   without having to delete it. Disabling a rigid-body attached to a multibody joint isn’t supported yet.
