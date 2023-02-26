@@ -185,32 +185,25 @@ impl KinematicCharacterController {
             translation: Vector::zeros(),
             grounded: false,
         };
-
-        let extents = character_shape.compute_local_aabb().extents();
-        let up_extent = extents.dot(&self.up);
-        let side_extent = (extents - *self.up * up_extent).norm();
-        let dims = Vector2::new(side_extent, up_extent);
+        let dims = self.compute_dims(character_shape);
 
         // 1. Check and fix penetrations.
         self.check_and_fix_penetrations();
 
         let mut translation_remaining = desired_translation;
 
-        // Check if we are grounded at the initial position.
         let grounded_at_starting_pos = self.detect_grounded_status_and_apply_friction(
             dt,
             bodies,
             colliders,
             queries,
             character_shape,
-            &character_pos,
+            character_pos,
             &dims,
             filter,
             None,
             None,
         );
-
-        // println!("Init grounded status: {grounded_at_starting_pos}");
 
         let mut max_iters = 20;
         let mut kinematic_friction_translation = Vector::zeros();
@@ -251,24 +244,21 @@ impl KinematicCharacterController {
                     toi,
                 });
 
-                if let (Some(translation_on_slope), _) =
-                    self.handle_slopes(&toi, &mut translation_remaining)
-                {
-                    translation_remaining = translation_on_slope;
-                } else {
-                    // If the slope is too big, try to step on the stair.
-                    self.handle_stairs(
-                        bodies,
-                        colliders,
-                        queries,
-                        character_shape,
-                        &(Translation::from(result.translation) * character_pos),
-                        &dims,
-                        filter,
-                        handle,
-                        &mut translation_remaining,
-                        &mut result,
-                    );
+                // Try to go up stairs.
+                if !self.handle_stairs(
+                    bodies,
+                    colliders,
+                    queries,
+                    character_shape,
+                    &(Translation::from(result.translation) * character_pos),
+                    &dims,
+                    filter,
+                    handle,
+                    &mut translation_remaining,
+                    &mut result,
+                ) {
+                    // No stairs, try to move along slopes.
+                    translation_remaining = self.handle_slopes(&toi, &translation_remaining);
                 }
             } else {
                 // No interference along the path.
@@ -294,7 +284,6 @@ impl KinematicCharacterController {
                 break;
             }
         }
-
         // If needed, and if we are not already grounded, snap to the ground.
         if grounded_at_starting_pos {
             self.snap_to_ground(
@@ -325,8 +314,8 @@ impl KinematicCharacterController {
         result: &mut EffectiveCharacterMovement,
     ) -> Option<(ColliderHandle, TOI)> {
         if let Some(snap_distance) = self.snap_to_ground {
-            let snap_distance = snap_distance.eval(dims.y);
-            if result.translation.dot(&self.up) < 1.0e-5 {
+            if result.translation.dot(&self.up) < -1.0e-5 {
+                let snap_distance = snap_distance.eval(dims.y);
                 let offset = self.offset.eval(dims.y);
                 if let Some((hit_handle, hit)) = queries.cast_shape(
                     bodies,
@@ -349,6 +338,10 @@ impl KinematicCharacterController {
         None
     }
 
+    fn predict_ground(&self, up_extends: Real) -> Real {
+        self.offset.eval(up_extends) * 1.1
+    }
+
     fn detect_grounded_status_and_apply_friction(
         &self,
         dt: Real,
@@ -362,7 +355,7 @@ impl KinematicCharacterController {
         mut kinematic_friction_translation: Option<&mut Vector<Real>>,
         mut translation_remaining: Option<&mut Vector<Real>>,
     ) -> bool {
-        let prediction = self.offset.eval(dims.y) * 1.1;
+        let prediction = self.predict_ground(dims.y);
 
         // TODO: allow custom dispatchers.
         let dispatcher = DefaultQueryDispatcher;
@@ -399,16 +392,14 @@ impl KinematicCharacterController {
                             .filter(|rb| rb.is_kinematic());
 
                         for m in &manifolds {
-                            let normal1 = character_pos * m.local_n1;
-                            let normal2 = -normal1;
-
-                            if normal1.dot(&self.up) <= -1.0e-5 {
+                            if self.is_grounded_at_contact_manifold(m, character_pos, dims) {
                                 grounded = true;
                             }
 
                             if let Some(kinematic_parent) = kinematic_parent {
                                 let mut num_active_contacts = 0;
                                 let mut manifold_center = Point::origin();
+                                let normal = -(character_pos * m.local_n1);
 
                                 for contact in &m.points {
                                     if contact.dist <= prediction {
@@ -417,13 +408,12 @@ impl KinematicCharacterController {
                                         let target_vel =
                                             kinematic_parent.velocity_at_point(&contact_point);
 
-                                        let normal_target_mvt = target_vel.dot(&normal2) * dt;
-                                        let normal_current_mvt =
-                                            translation_remaining.dot(&normal2);
+                                        let normal_target_mvt = target_vel.dot(&normal) * dt;
+                                        let normal_current_mvt = translation_remaining.dot(&normal);
 
                                         manifold_center += contact_point.coords;
-                                        *translation_remaining += normal2
-                                            * (normal_target_mvt - normal_current_mvt).max(0.0);
+                                        *translation_remaining +=
+                                            normal * (normal_target_mvt - normal_current_mvt);
                                     }
                                 }
 
@@ -432,7 +422,7 @@ impl KinematicCharacterController {
                                         &(manifold_center / num_active_contacts as Real),
                                     );
                                     let tangent_platform_mvt =
-                                        (target_vel - normal2 * target_vel.dot(&normal2)) * dt;
+                                        (target_vel - normal * target_vel.dot(&normal)) * dt;
                                     kinematic_friction_translation.zip_apply(
                                         &tangent_platform_mvt,
                                         |y, x| {
@@ -449,15 +439,9 @@ impl KinematicCharacterController {
                             *kinematic_friction_translation - init_kinematic_friction_translation;
                     } else {
                         for m in &manifolds {
-                            let normal = character_pos * m.local_n1;
-
-                            if normal.dot(&self.up) <= -1.0e-5 {
-                                for contact in &m.points {
-                                    if contact.dist <= prediction {
-                                        grounded = true;
-                                        return false; // We can stop the search early.
-                                    }
-                                }
+                            if self.is_grounded_at_contact_manifold(m, character_pos, dims) {
+                                grounded = true;
+                                return false; // We can stop the search early.
                             }
                         }
                     }
@@ -469,61 +453,63 @@ impl KinematicCharacterController {
         grounded
     }
 
-    fn handle_slopes(
+    fn is_grounded_at_contact_manifold(
         &self,
-        hit: &TOI,
-        translation_remaining: &Vector<Real>,
-    ) -> (Option<Vector<Real>>, Real) {
-        let vertical_translation_remaining = *self.up * (self.up.dot(translation_remaining));
-        let horizontal_translation_remaining =
-            *translation_remaining - vertical_translation_remaining;
+        manifold: &ContactManifold,
+        character_pos: &Isometry<Real>,
+        dims: &Vector2<Real>,
+    ) -> bool {
+        let normal = -(character_pos * manifold.local_n1);
 
-        // The idea behind this `if` statement is as follows:
-        // - If there is any amount of horizontal translations, then the intended
-        //   climb/slide down movement is decided by that translation.
-        // - If there is no horizontal translation, then we only have gravity. In that case,
-        //   we take the vertical movement into account to decide if we need to slide down.
-        let sliding_translation_remaining = if horizontal_translation_remaining != Vector::zeros() {
-            horizontal_translation_remaining
-                - *hit.normal1 * (horizontal_translation_remaining).dot(&hit.normal1)
-        } else {
-            vertical_translation_remaining
-                - *hit.normal1 * (vertical_translation_remaining).dot(&hit.normal1)
-        };
-
-        // Check if there is a slope we can climb.
-        let angle_with_floor = self.up.angle(&hit.normal1);
-        let climbing = self.up.dot(&sliding_translation_remaining) >= 0.0;
-
-        if !climbing {
-            // Moving down the slope.
-            let remaining = if angle_with_floor >= self.min_slope_slide_angle {
-                // Can slide down.
-                sliding_translation_remaining
-            } else {
-                // To avoid sliding down, we remove the sliding component due to the vertical
-                // part of the movement but have to keep the component due to the horizontal
-                // part of the self.
-                *translation_remaining
-                    - (*hit.normal1 * horizontal_translation_remaining.dot(&hit.normal1)
-                        + vertical_translation_remaining)
-                // Remove the complete vertical part.
-            };
-
-            (Some(remaining), -angle_with_floor)
-        } else {
-            // Moving up the slope.
-            let remaining = if angle_with_floor <= self.max_slope_climb_angle {
-                // Let’s climb by cancelling from the desired movement the part that
-                // doesn’t line up with the slope, and continuing the loop.
-                Some(sliding_translation_remaining)
-            } else {
-                // The slope was too steep.
-                None
-            };
-
-            (remaining, angle_with_floor)
+        if normal.dot(&self.up) >= 1.0e-5 {
+            let prediction = self.predict_ground(dims.y);
+            for contact in &manifold.points {
+                if contact.dist <= prediction {
+                    return true;
+                }
+            }
         }
+        false
+    }
+
+    fn handle_slopes(&self, hit: &TOI, translation_remaining: &Vector<Real>) -> Vector<Real> {
+        let [vertical_translation, horizontal_translation] =
+            self.split_into_components(translation_remaining);
+        let slope_translation = subtract_hit(*translation_remaining, hit);
+
+        // Check if there is a slope to climb.
+        let angle_with_floor = self.up.angle(&hit.normal1);
+        // We are climbing if the movement along the slope goes upward, and the angle with the
+        // floor is smaller than pi/2 (in which case we hit some some sort of ceiling).
+        //
+        // NOTE: part of the slope will already be handled by auto-stepping if it was enabled.
+        //       Therefore, `climbing` may not always be `true` when climbing on a slope at
+        //       slow speed.
+        let climbing = self.up.dot(&slope_translation) >= 0.0 && self.up.dot(&hit.normal1) > 0.0;
+
+        if climbing && angle_with_floor >= self.max_slope_climb_angle {
+            // Prevent horizontal movement from pushing through the slope.
+            vertical_translation
+        } else if !climbing && angle_with_floor <= self.min_slope_slide_angle {
+            // Prevent the vertical movement from sliding down.
+            horizontal_translation
+        } else {
+            // Let it slide
+            slope_translation
+        }
+    }
+
+    fn split_into_components(&self, translation: &Vector<Real>) -> [Vector<Real>; 2] {
+        let vertical_translation = *self.up * (self.up.dot(translation));
+        let horizontal_translation = *translation - vertical_translation;
+        [vertical_translation, horizontal_translation]
+    }
+
+    fn compute_dims(&self, character_shape: &dyn Shape) -> Vector2<Real> {
+        let extents = character_shape.compute_local_aabb().extents();
+        let up_extent = extents.dot(&self.up);
+        let side_extent = (extents - *self.up * up_extent).norm();
+        Vector2::new(side_extent, up_extent)
     }
 
     fn handle_stairs(
@@ -539,68 +525,104 @@ impl KinematicCharacterController {
         translation_remaining: &mut Vector<Real>,
         result: &mut EffectiveCharacterMovement,
     ) -> bool {
-        if let Some(autostep) = self.autostep {
-            let min_width = autostep.min_width.eval(dims.x);
-            let max_height = autostep.max_height.eval(dims.y);
+        let autostep = match self.autostep {
+            Some(autostep) => autostep,
+            None => return false,
+        };
 
-            if !autostep.include_dynamic_bodies {
-                if colliders
-                    .get(stair_handle)
-                    .and_then(|co| co.parent)
-                    .and_then(|p| bodies.get(p.handle))
-                    .map(|b| b.is_dynamic())
-                    == Some(true)
-                {
-                    // The "stair" is a dynamic body, which the user wants to ignore.
-                    return false;
-                }
+        let offset = self.offset.eval(dims.y);
+        let min_width = autostep.min_width.eval(dims.x) + offset;
+        let max_height = autostep.max_height.eval(dims.y) + offset;
 
-                filter.flags |= QueryFilterFlags::EXCLUDE_DYNAMIC;
+        if !autostep.include_dynamic_bodies {
+            if colliders
+                .get(stair_handle)
+                .and_then(|co| co.parent)
+                .and_then(|p| bodies.get(p.handle))
+                .map(|b| b.is_dynamic())
+                == Some(true)
+            {
+                // The "stair" is a dynamic body, which the user wants to ignore.
+                return false;
             }
 
-            let shifted_character_pos = Translation::from(*self.up * max_height) * character_pos;
+            filter.flags |= QueryFilterFlags::EXCLUDE_DYNAMIC;
+        }
 
-            if let Some(horizontal_dir) = (*translation_remaining
-                - *self.up * translation_remaining.dot(&self.up))
-            .try_normalize(1.0e-5)
-            {
-                if queries
-                    .cast_shape(
-                        bodies,
-                        colliders,
-                        character_pos,
-                        &self.up,
-                        character_shape,
-                        max_height,
-                        false,
-                        filter,
-                    )
-                    .is_some()
-                {
-                    // We can’t go up.
-                    return false;
-                }
+        let shifted_character_pos = Translation::from(*self.up * max_height) * character_pos;
 
-                if queries
-                    .cast_shape(
-                        bodies,
-                        colliders,
-                        &shifted_character_pos,
-                        &horizontal_dir,
-                        character_shape,
-                        min_width,
-                        false,
-                        filter,
-                    )
-                    .is_some()
-                {
-                    // We don’t have enough room on the stair to stay on it.
-                    return false;
-                }
+        let horizontal_dir = match (*translation_remaining
+            - *self.up * translation_remaining.dot(&self.up))
+        .try_normalize(1.0e-5)
+        {
+            Some(dir) => dir,
+            None => return false,
+        };
 
-                // Check that we are not getting into a ramp that is too steep
-                // after stepping.
-                if let Some((_, hit)) = queries.cast_shape(
+        if queries
+            .cast_shape(
+                bodies,
+                colliders,
+                character_pos,
+                &self.up,
+                character_shape,
+                max_height,
+                false,
+                filter,
+            )
+            .is_some()
+        {
+            // We can’t go up.
+            return false;
+        }
+
+        if queries
+            .cast_shape(
+                bodies,
+                colliders,
+                &shifted_character_pos,
+                &horizontal_dir,
+                character_shape,
+                min_width,
+                false,
+                filter,
+            )
+            .is_some()
+        {
+            // We don’t have enough room on the stair to stay on it.
+            return false;
+        }
+
+        // Check that we are not getting into a ramp that is too steep
+        // after stepping.
+        if let Some((_, hit)) = queries.cast_shape(
+            bodies,
+            colliders,
+            &(Translation::from(horizontal_dir * min_width) * shifted_character_pos),
+            &-self.up,
+            character_shape,
+            max_height,
+            false,
+            filter,
+        ) {
+            let [vertical_slope_translation, horizontal_slope_translation] = self
+                .split_into_components(translation_remaining)
+                .map(|remaining| subtract_hit(remaining, &hit));
+
+            let slope_translation = horizontal_slope_translation + vertical_slope_translation;
+
+            let angle_with_floor = self.up.angle(&hit.normal1);
+            let climbing = self.up.dot(&slope_translation) >= 0.0;
+
+            if climbing && angle_with_floor > self.max_slope_climb_angle {
+                return false; // The target ramp is too steep.
+            }
+        }
+
+        // We can step, we need to find the actual step height.
+        let step_height = max_height
+            - queries
+                .cast_shape(
                     bodies,
                     colliders,
                     &(Translation::from(horizontal_dir * min_width) * shifted_character_pos),
@@ -609,55 +631,22 @@ impl KinematicCharacterController {
                     max_height,
                     false,
                     filter,
-                ) {
-                    let vertical_translation_remaining =
-                        *self.up * (self.up.dot(translation_remaining));
-                    let horizontal_translation_remaining =
-                        *translation_remaining - vertical_translation_remaining;
-                    let sliding_movement = horizontal_translation_remaining
-                        - *hit.normal1 * horizontal_translation_remaining.dot(&hit.normal1);
+                )
+                .map(|hit| hit.1.toi)
+                .unwrap_or(max_height);
 
-                    let angle_with_floor = self.up.angle(&hit.normal1);
-                    let climbing = self.up.dot(&sliding_movement) >= 0.0;
+        // Remove the step height from the vertical part of the self.
+        let step = *self.up * step_height;
+        *translation_remaining -= step;
 
-                    if climbing && angle_with_floor > self.max_slope_climb_angle {
-                        return false; // The target ramp is too steep.
-                    }
-                }
+        // Advance the collider on the step horizontally, to make sure further
+        // movement won’t just get stuck on its edge.
+        let horizontal_nudge =
+            horizontal_dir * horizontal_dir.dot(translation_remaining).min(min_width);
+        *translation_remaining -= horizontal_nudge;
 
-                // We can step, we need to find the actual step height.
-                let step_height = self.offset.eval(dims.y) + max_height
-                    - queries
-                        .cast_shape(
-                            bodies,
-                            colliders,
-                            &(Translation::from(horizontal_dir * min_width)
-                                * shifted_character_pos),
-                            &-self.up,
-                            character_shape,
-                            max_height,
-                            false,
-                            filter,
-                        )
-                        .map(|hit| hit.1.toi)
-                        .unwrap_or(max_height);
-
-                // Remove the step height from the vertical part of the self.
-                *translation_remaining -=
-                    *self.up * translation_remaining.dot(&self.up).clamp(0.0, step_height);
-
-                // Advance the collider on the step horizontally, to make sure further
-                // movement won’t just get stuck on its edge.
-                let horizontal_nudge =
-                    horizontal_dir * min_width.min(horizontal_dir.dot(translation_remaining));
-                *translation_remaining -= horizontal_nudge;
-
-                result.translation += *self.up * step_height + horizontal_nudge;
-                return true;
-            }
-        }
-
-        false
+        result.translation += step + horizontal_nudge;
+        true
     }
 
     /// For a given collision between a character and its environment, this method will apply
@@ -679,7 +668,7 @@ impl KinematicCharacterController {
         let up_extent = extents.dot(&self.up);
         let movement_to_transfer =
             *collision.toi.normal1 * collision.translation_remaining.dot(&collision.toi.normal1);
-        let prediction = self.offset.eval(up_extent) * 1.1;
+        let prediction = self.predict_ground(up_extent);
 
         // TODO: allow custom dispatchers.
         let dispatcher = DefaultQueryDispatcher;
@@ -743,4 +732,11 @@ impl KinematicCharacterController {
             }
         }
     }
+}
+
+fn subtract_hit(translation: Vector<Real>, hit: &TOI) -> Vector<Real> {
+    let surface_correction = (-translation).dot(&hit.normal1).max(0.0);
+    // This fixes some instances of moving through walls
+    let surface_correction = surface_correction * (1.0 + 1.0e-5);
+    translation + *hit.normal1 * surface_correction
 }
