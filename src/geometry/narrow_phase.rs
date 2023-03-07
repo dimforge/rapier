@@ -8,9 +8,10 @@ use crate::dynamics::{
     RigidBodyType,
 };
 use crate::geometry::{
-    BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle, ColliderPair,
-    ColliderSet, CollisionEvent, ContactData, ContactManifold, ContactManifoldData, ContactPair,
-    InteractionGraph, IntersectionPair, SolverContact, SolverFlags, TemporaryInteractionIndex,
+    get_group_from_colliders, BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex,
+    ColliderHandle, ColliderPair, ColliderSet, CollisionEvent, ContactData, ContactManifold,
+    ContactManifoldData, ContactPair, InteractionGraph, IntersectionPair, SolverContact,
+    SolverFlags, TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{
@@ -322,11 +323,15 @@ impl NarrowPhase {
         // Wake up every body in contact with the deleted collider and generate Stopped collision events.
         if let Some(islands) = islands.as_deref_mut() {
             for (a, b, pair) in self.contact_graph.interactions_with(contact_graph_id) {
-                if let Some(parent) = colliders.get(a).and_then(|c| c.parent.as_ref()) {
+                let co1 = colliders.get(a);
+                let co2 = colliders.get(b);
+                let group = get_group_from_colliders(co1, co2);
+
+                if let Some(parent) = co1.and_then(|c| c.parent.as_ref()) {
                     islands.wake_up(bodies, parent.handle, true)
                 }
 
-                if let Some(parent) = colliders.get(b).and_then(|c| c.parent.as_ref()) {
+                if let Some(parent) = co2.and_then(|c| c.parent.as_ref()) {
                     islands.wake_up(bodies, parent.handle, true)
                 }
 
@@ -334,7 +339,7 @@ impl NarrowPhase {
                     events.handle_collision_event(
                         bodies,
                         colliders,
-                        CollisionEvent::Stopped(a, b, CollisionEventFlags::REMOVED),
+                        CollisionEvent::Stopped(a, b, CollisionEventFlags::REMOVED, group),
                         Some(pair),
                     );
                 }
@@ -342,11 +347,12 @@ impl NarrowPhase {
         } else {
             // If there is no island, don’t wake-up bodies, but do send the Stopped collision event.
             for (a, b, pair) in self.contact_graph.interactions_with(contact_graph_id) {
+                let group = get_group_from_colliders(colliders.get(a), colliders.get(b));
                 if pair.start_event_emited {
                     events.handle_collision_event(
                         bodies,
                         colliders,
-                        CollisionEvent::Stopped(a, b, CollisionEventFlags::REMOVED),
+                        CollisionEvent::Stopped(a, b, CollisionEventFlags::REMOVED, group),
                         Some(pair),
                     );
                 }
@@ -366,6 +372,7 @@ impl NarrowPhase {
                         a,
                         b,
                         CollisionEventFlags::REMOVED | CollisionEventFlags::SENSOR,
+                        None,
                     ),
                     None,
                 );

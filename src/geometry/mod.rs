@@ -73,9 +73,19 @@ bitflags::bitflags! {
 /// Events occurring when two colliders start or stop colliding
 pub enum CollisionEvent {
     /// Event occurring when two colliders start colliding
-    Started(ColliderHandle, ColliderHandle, CollisionEventFlags),
+    Started(
+        ColliderHandle,
+        ColliderHandle,
+        CollisionEventFlags,
+        Option<Group>,
+    ),
     /// Event occurring when two colliders stop colliding.
-    Stopped(ColliderHandle, ColliderHandle, CollisionEventFlags),
+    Stopped(
+        ColliderHandle,
+        ColliderHandle,
+        CollisionEventFlags,
+        Option<Group>,
+    ),
 }
 
 impl CollisionEvent {
@@ -92,21 +102,21 @@ impl CollisionEvent {
     /// The handle of the first collider involved in this collision event.
     pub fn collider1(self) -> ColliderHandle {
         match self {
-            Self::Started(h, _, _) | Self::Stopped(h, _, _) => h,
+            Self::Started(h, _, _, _) | Self::Stopped(h, _, _, _) => h,
         }
     }
 
     /// The handle of the second collider involved in this collision event.
     pub fn collider2(self) -> ColliderHandle {
         match self {
-            Self::Started(_, h, _) | Self::Stopped(_, h, _) => h,
+            Self::Started(_, h, _, _) | Self::Stopped(_, h, _, _) => h,
         }
     }
 
     /// Was at least one of the colliders involved in the collision a sensor?
     pub fn sensor(self) -> bool {
         match self {
-            Self::Started(_, _, f) | Self::Stopped(_, _, f) => {
+            Self::Started(_, _, f, _) | Self::Stopped(_, _, f, _) => {
                 f.contains(CollisionEventFlags::SENSOR)
             }
         }
@@ -115,9 +125,16 @@ impl CollisionEvent {
     /// Was at least one of the colliders involved in the collision removed?
     pub fn removed(self) -> bool {
         match self {
-            Self::Started(_, _, f) | Self::Stopped(_, _, f) => {
+            Self::Started(_, _, f, _) | Self::Stopped(_, _, f, _) => {
                 f.contains(CollisionEventFlags::REMOVED)
             }
+        }
+    }
+
+    /// The `Group` which this `CollisionEvent` comes from.
+    pub fn group(self) -> Option<Group> {
+        match self {
+            Self::Started(_, _, _, g) | Self::Stopped(_, _, _, g) => g,
         }
     }
 }
@@ -193,6 +210,21 @@ pub(crate) fn default_persistent_query_dispatcher(
 #[cfg(feature = "serde-serialize")]
 pub(crate) fn default_query_dispatcher() -> std::sync::Arc<dyn parry::query::QueryDispatcher> {
     std::sync::Arc::new(parry::query::DefaultQueryDispatcher)
+}
+
+pub(crate) fn get_group_from_colliders(
+    co1: Option<&Collider>,
+    co2: Option<&Collider>,
+) -> Option<Group> {
+    match (co1, co2) {
+        (Some(co1), Some(co2)) => Some(
+            co1.flags
+                .collision_groups
+                .memberships
+                .intersection(co2.flags.collision_groups.filter),
+        ),
+        _ => None,
+    }
 }
 
 mod broad_phase_multi_sap;

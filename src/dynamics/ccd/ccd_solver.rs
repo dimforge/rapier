@@ -540,17 +540,32 @@ impl CCDSolver {
                 && (co1.flags.active_events | co2.flags.active_events)
                     .contains(ActiveEvents::COLLISION_EVENTS)
             {
+                let group = co1
+                    .flags
+                    .collision_groups
+                    .memberships
+                    .intersection(co2.flags.collision_groups.filter);
                 // Emit one intersection-started and one intersection-stopped event.
                 events.handle_collision_event(
                     bodies,
                     colliders,
-                    CollisionEvent::Started(toi.c1, toi.c2, CollisionEventFlags::SENSOR),
+                    CollisionEvent::Started(
+                        toi.c1,
+                        toi.c2,
+                        CollisionEventFlags::SENSOR,
+                        Some(group),
+                    ),
                     None,
                 );
                 events.handle_collision_event(
                     bodies,
                     colliders,
-                    CollisionEvent::Stopped(toi.c1, toi.c2, CollisionEventFlags::SENSOR),
+                    CollisionEvent::Stopped(
+                        toi.c1,
+                        toi.c2,
+                        CollisionEventFlags::SENSOR,
+                        Some(group),
+                    ),
                     None,
                 );
             }

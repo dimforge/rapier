@@ -1,5 +1,7 @@
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
-use crate::geometry::{ColliderHandle, ColliderSet, Contact, ContactManifold};
+use crate::geometry::{
+    get_group_from_colliders, ColliderHandle, ColliderSet, Contact, ContactManifold,
+};
 use crate::math::{Point, Real, Vector};
 use crate::pipeline::EventHandler;
 use crate::prelude::CollisionEventFlags;
@@ -77,10 +79,11 @@ impl IntersectionPair {
         events: &dyn EventHandler,
     ) {
         self.start_event_emited = true;
+        let group = get_group_from_colliders(colliders.get(collider1), colliders.get(collider2));
         events.handle_collision_event(
             bodies,
             colliders,
-            CollisionEvent::Started(collider1, collider2, CollisionEventFlags::SENSOR),
+            CollisionEvent::Started(collider1, collider2, CollisionEventFlags::SENSOR, group),
             None,
         );
     }
@@ -94,10 +97,11 @@ impl IntersectionPair {
         events: &dyn EventHandler,
     ) {
         self.start_event_emited = false;
+        let group = get_group_from_colliders(colliders.get(collider1), colliders.get(collider2));
         events.handle_collision_event(
             bodies,
             colliders,
-            CollisionEvent::Stopped(collider1, collider2, CollisionEventFlags::SENSOR),
+            CollisionEvent::Stopped(collider1, collider2, CollisionEventFlags::SENSOR, group),
             None,
         );
     }
@@ -207,11 +211,18 @@ impl ContactPair {
         events: &dyn EventHandler,
     ) {
         self.start_event_emited = true;
+        let group =
+            get_group_from_colliders(colliders.get(self.collider1), colliders.get(self.collider2));
 
         events.handle_collision_event(
             bodies,
             colliders,
-            CollisionEvent::Started(self.collider1, self.collider2, CollisionEventFlags::empty()),
+            CollisionEvent::Started(
+                self.collider1,
+                self.collider2,
+                CollisionEventFlags::empty(),
+                group,
+            ),
             Some(self),
         );
     }
@@ -223,11 +234,18 @@ impl ContactPair {
         events: &dyn EventHandler,
     ) {
         self.start_event_emited = false;
+        let group =
+            get_group_from_colliders(colliders.get(self.collider1), colliders.get(self.collider2));
 
         events.handle_collision_event(
             bodies,
             colliders,
-            CollisionEvent::Stopped(self.collider1, self.collider2, CollisionEventFlags::empty()),
+            CollisionEvent::Stopped(
+                self.collider1,
+                self.collider2,
+                CollisionEventFlags::empty(),
+                group,
+            ),
             Some(self),
         );
     }
