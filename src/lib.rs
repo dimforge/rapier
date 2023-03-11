@@ -31,6 +31,9 @@ extern crate num_traits as num;
 // #[macro_use]
 // extern crate array_macro;
 
+#[cfg(all(target_family = "wasm", feature = "parallel"))]
+std::compile_error!("Rapier does not currently support parallelism on WebAssembly.");
+
 #[cfg(feature = "parallel")]
 pub use rayon;
 
