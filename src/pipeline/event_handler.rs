@@ -36,7 +36,7 @@ pub trait EventHandler: Send + Sync {
     /// * `event` - The collision event.
     /// * `bodies` - The set of rigid-bodies.
     /// * `colliders` - The set of colliders.
-    /// * `contact_pair` - The current state of contacts between the two colliders. This is set or `None`
+    /// * `contact_pair` - The current state of contacts between the two colliders. This is set to `None`
     ///                    if at least one of the collider is a sensor (in which case no contact information
     ///                    is ever computed).
     fn handle_collision_event(
