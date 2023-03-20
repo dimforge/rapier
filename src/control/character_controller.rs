@@ -135,6 +135,8 @@ pub struct EffectiveCharacterMovement {
     pub translation: Vector<Real>,
     /// Is the character touching the ground after applying `EffectiveKineamticMovement::translation`?
     pub grounded: bool,
+    /// Is the character sliding down a slope due to slope angle being larger than `min_slope_slide_angle`?
+    pub is_sliding_down_slope: bool,
 }
 
 impl KinematicCharacterController {
@@ -184,6 +186,7 @@ impl KinematicCharacterController {
         let mut result = EffectiveCharacterMovement {
             translation: Vector::zeros(),
             grounded: false,
+            is_sliding_down_slope: false,
         };
         let dims = self.compute_dims(character_shape);
 
@@ -258,7 +261,7 @@ impl KinematicCharacterController {
                     &mut result,
                 ) {
                     // No stairs, try to move along slopes.
-                    translation_remaining = self.handle_slopes(&toi, &translation_remaining);
+                    translation_remaining = self.handle_slopes(&toi, &translation_remaining, &mut result);
                 }
             } else {
                 // No interference along the path.
@@ -472,13 +475,14 @@ impl KinematicCharacterController {
         false
     }
 
-    fn handle_slopes(&self, hit: &TOI, translation_remaining: &Vector<Real>) -> Vector<Real> {
+    fn handle_slopes(&self, hit: &TOI, translation_remaining: &Vector<Real>, result: &mut EffectiveCharacterMovement) -> Vector<Real> {
         let [vertical_translation, horizontal_translation] =
             self.split_into_components(translation_remaining);
         let slope_translation = subtract_hit(*translation_remaining, hit);
 
         // Check if there is a slope to climb.
         let angle_with_floor = self.up.angle(&hit.normal1);
+
         // We are climbing if the movement along the slope goes upward, and the angle with the
         // floor is smaller than pi/2 (in which case we hit some some sort of ceiling).
         //
@@ -495,6 +499,7 @@ impl KinematicCharacterController {
             horizontal_translation
         } else {
             // Let it slide
+            result.is_sliding_down_slope = true;
             slope_translation
         }
     }
