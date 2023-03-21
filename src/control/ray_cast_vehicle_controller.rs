@@ -135,7 +135,7 @@ pub struct Wheel {
     ///
     /// The larger the value, the more instantaneous braking will happen (with the risk of
     /// causing the vehicle to flip if it’s too strong).
-    friction_slip: Real,
+    pub friction_slip: Real,
     /// The wheel’s current rotation on its axle.
     pub rotation: Real,
     delta_rotation: Real,
