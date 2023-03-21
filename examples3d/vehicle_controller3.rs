@@ -44,7 +44,7 @@ pub fn init_world(testbed: &mut Testbed) {
     ];
 
     for pos in wheel_positions {
-        vehicle.add_wheel(pos, -Vector::y(), Vector::z(), hh, hh / 4.0, &tuning);
+        vehicle.add_wheel(pos, -Vector::y(), Vector::z(), hh, hh / 4.0, 1.0, &tuning);
     }
 
     /*

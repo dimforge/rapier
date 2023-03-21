@@ -37,7 +37,7 @@ pub struct WheelTuning {
     pub suspension_damping: Real,
     /// The maximum distance the suspension can travel before and after its resting length.
     pub max_suspension_travel: Real,
-    /// Parameter controlling how much traction the tire his.
+    /// Parameter controlling how much traction the tire has.
     ///
     /// The larger the value, the more instantaneous braking will happen (with the risk of
     /// causing the vehicle to flip if it’s too strong).
@@ -86,13 +86,16 @@ struct WheelDesc {
     ///
     /// Increase this value if the suspension appears to overshoot.
     pub damping_relaxation: Real,
-    /// Parameter controlling how much traction the tire his.
+    /// Parameter controlling how much traction the tire has.
     ///
     /// The larger the value, the more instantaneous braking will happen (with the risk of
     /// causing the vehicle to flip if it’s too strong).
     pub friction_slip: Real,
     /// The maximum force applied by the suspension.
     pub max_suspension_force: Real,
+    /// The multiplier of friction between
+    /// a tire and the collider it's on top of.
+    pub initial_side_friction_stiffness: Real,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -128,7 +131,7 @@ pub struct Wheel {
     ///
     /// Increase this value if the suspension appears to overshoot.
     pub damping_relaxation: Real,
-    /// Parameter controlling how much traction the tire his.
+    /// Parameter controlling how much traction the tire has.
     ///
     /// The larger the value, the more instantaneous braking will happen (with the risk of
     /// causing the vehicle to flip if it’s too strong).
@@ -157,6 +160,9 @@ pub struct Wheel {
     /// The force applied by the suspension.
     pub wheel_suspension_force: Real,
     skid_info: Real,
+    /// The multiplier of friction between
+    /// a tire and the collider it's on top of.
+    pub side_friction_stiffness: Real,
 }
 
 impl Wheel {
@@ -189,6 +195,7 @@ impl Wheel {
             skid_info: 0.0,
             side_impulse: 0.0,
             forward_impulse: 0.0,
+            side_friction_stiffness: info.initial_side_friction_stiffness,
         }
     }
 
@@ -246,6 +253,7 @@ impl DynamicRayCastVehicleController {
         axle_cs: Vector<Real>,
         suspension_rest_length: Real,
         radius: Real,
+        side_friction_stiffness: Real,
         tuning: &WheelTuning,
     ) -> &mut Wheel {
         let ci = WheelDesc {
@@ -260,6 +268,7 @@ impl DynamicRayCastVehicleController {
             friction_slip: tuning.friction_slip,
             max_suspension_travel: tuning.max_suspension_travel,
             max_suspension_force: tuning.max_suspension_force,
+            initial_side_friction_stiffness: side_friction_stiffness,
         };
 
         let wheel_id = self.wheels.len();
@@ -509,8 +518,6 @@ impl DynamicRayCastVehicleController {
         }
     }
 
-    const SIDE_FRICTION_STIFFNESS2: Real = 1.0;
-
     fn update_friction(&mut self, bodies: &mut RigidBodySet, colliders: &ColliderSet, dt: Real) {
         let num_wheels = self.wheels.len();
 
@@ -574,7 +581,7 @@ impl DynamicRayCastVehicleController {
                         );
                     }
 
-                    wheel.side_impulse *= Self::SIDE_FRICTION_STIFFNESS2;
+                    wheel.side_impulse *= wheel.side_friction_stiffness;
                 }
             }
         }
