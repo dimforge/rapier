@@ -6,7 +6,6 @@ use crate::math::{Isometry, Point, Real, Vector};
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 use parry::partitioning::{QbvhDataGenerator, QbvhUpdateWorkspace};
 use parry::query::details::{
-    IntersectionCompositeShapeShapeBestFirstVisitor,
     NonlinearTOICompositeShapeShapeBestFirstVisitor, PointCompositeShapeProjBestFirstVisitor,
     PointCompositeShapeProjWithFeatureBestFirstVisitor,
     RayCompositeShapeToiAndNormalBestFirstVisitor, RayCompositeShapeToiBestFirstVisitor,
@@ -539,12 +538,16 @@ impl QueryPipeline {
         filter: QueryFilter,
     ) -> Option<ColliderHandle> {
         let pipeline_shape = self.as_composite_shape(bodies, colliders, filter);
-        let mut visitor = IntersectionCompositeShapeShapeBestFirstVisitor::new(
-            &*self.query_dispatcher,
-            shape_pos,
-            &pipeline_shape,
-            shape,
-        );
+        #[allow(deprecated)]
+        // TODO: replace this with IntersectionCompositeShapeShapeVisitor when it
+        //        can return the shape part id.
+        let mut visitor =
+            parry::query::details::IntersectionCompositeShapeShapeBestFirstVisitor::new(
+                &*self.query_dispatcher,
+                shape_pos,
+                &pipeline_shape,
+                shape,
+            );
 
         self.qbvh
             .traverse_best_first(&mut visitor)
