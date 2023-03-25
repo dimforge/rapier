@@ -261,7 +261,8 @@ impl KinematicCharacterController {
                     &mut result,
                 ) {
                     // No stairs, try to move along slopes.
-                    translation_remaining = self.handle_slopes(&toi, &translation_remaining, &mut result);
+                    translation_remaining =
+                        self.handle_slopes(&toi, &translation_remaining, &mut result);
                 }
             } else {
                 // No interference along the path.
@@ -475,7 +476,12 @@ impl KinematicCharacterController {
         false
     }
 
-    fn handle_slopes(&self, hit: &TOI, translation_remaining: &Vector<Real>, result: &mut EffectiveCharacterMovement) -> Vector<Real> {
+    fn handle_slopes(
+        &self,
+        hit: &TOI,
+        translation_remaining: &Vector<Real>,
+        result: &mut EffectiveCharacterMovement,
+    ) -> Vector<Real> {
         let [vertical_translation, horizontal_translation] =
             self.split_into_components(translation_remaining);
         let slope_translation = subtract_hit(*translation_remaining, hit);
