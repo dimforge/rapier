@@ -1,7 +1,7 @@
 use crate::dynamics::{
     ImpulseJoint, ImpulseJointHandle, Multibody, MultibodyLink, RigidBody, RigidBodyHandle,
 };
-use crate::geometry::Collider;
+use crate::geometry::{Aabb, Collider, ContactPair};
 use crate::math::{Isometry, Point, Real, Vector};
 use crate::prelude::{ColliderHandle, MultibodyJointHandle};
 use na::Scale;
@@ -13,12 +13,14 @@ pub enum DebugRenderObject<'a> {
     RigidBody(RigidBodyHandle, &'a RigidBody),
     /// A collider is being rendered.
     Collider(ColliderHandle, &'a Collider),
+    /// The AABB of a collider is being rendered.
+    ColliderAabb(ColliderHandle, &'a Collider, &'a Aabb),
     /// An impulse-joint is being rendered.
     ImpulseJoint(ImpulseJointHandle, &'a ImpulseJoint),
     /// A multibody joint is being rendered.
     MultibodyJoint(MultibodyJointHandle, &'a Multibody, &'a MultibodyLink),
-    /// Another element is being rendered.
-    Other,
+    /// The contacts of a contact-pair are being rendered.
+    ContactPair(&'a ContactPair, &'a Collider, &'a Collider),
 }
 
 /// Trait implemented by graphics backends responsible for rendering the physics scene.
@@ -28,6 +30,11 @@ pub enum DebugRenderObject<'a> {
 /// `DebugRenderStyle`. The backend is free to apply its own style, for example based on
 /// the `object` being rendered.
 pub trait DebugRenderBackend {
+    /// Predicate to filter-out some objects from the debug-rendering.
+    fn filter_object(&self, _object: DebugRenderObject) -> bool {
+        true
+    }
+
     /// Draws a colored line.
     ///
     /// Note that this method can be called multiple time for the same `object`.
