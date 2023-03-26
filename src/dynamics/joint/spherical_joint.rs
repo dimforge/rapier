@@ -1,6 +1,6 @@
 use crate::dynamics::joint::{GenericJoint, GenericJointBuilder, JointAxesMask};
 use crate::dynamics::{JointAxis, JointMotor, MotorModel};
-use crate::math::{Point, Real};
+use crate::math::{Isometry, Point, Real};
 
 use super::JointLimits;
 
