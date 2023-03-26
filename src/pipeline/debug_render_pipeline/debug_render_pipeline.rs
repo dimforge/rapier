@@ -170,7 +170,7 @@ impl DebugRenderPipeline {
                                 mut anchor_color: [f32; 4],
                                 mut separation_color: [f32; 4],
                                 object| {
-            if backend.filter_object(object) {
+            if !backend.filter_object(object) {
                 return;
             }
 
