@@ -1,6 +1,6 @@
 use crate::dynamics::joint::{GenericJoint, GenericJointBuilder, JointAxesMask};
 use crate::dynamics::{JointAxis, JointMotor, MotorModel};
-use crate::math::{Point, Real};
+use crate::math::{Isometry, Point, Real};
 
 use super::JointLimits;
 
@@ -66,6 +66,34 @@ impl SphericalJoint {
         self
     }
 
+    /// Gets both the joint anchor and the joint’s reference orientation relative to the first
+    /// rigid-body’s local-space.
+    #[must_use]
+    pub fn local_frame1(&self) -> &Isometry<Real> {
+        &self.data.local_frame1
+    }
+
+    /// Sets both the joint anchor and the joint’s reference orientation relative to the first
+    /// rigid-body’s local-space.
+    pub fn set_local_frame1(&mut self, local_frame: Isometry<Real>) -> &mut Self {
+        self.data.set_local_frame1(local_frame);
+        self
+    }
+
+    /// Gets both the joint anchor and the joint’s reference orientation relative to the second
+    /// rigid-body’s local-space.
+    #[must_use]
+    pub fn local_frame2(&self) -> &Isometry<Real> {
+        &self.data.local_frame2
+    }
+
+    /// Sets both the joint anchor and the joint’s reference orientation relative to the second
+    /// rigid-body’s local-space.
+    pub fn set_local_frame2(&mut self, local_frame: Isometry<Real>) -> &mut Self {
+        self.data.set_local_frame2(local_frame);
+        self
+    }
+
     /// The motor affecting the joint’s rotational degree of freedom along the specified axis.
     #[must_use]
     pub fn motor(&self, axis: JointAxis) -> Option<&JointMotor> {
@@ -128,7 +156,8 @@ impl SphericalJoint {
         self.data.limits(axis)
     }
 
-    /// Sets the `[min,max]` limit angles attached bodies can translate along the joint’s principal axis.
+    /// Sets the `[min,max]` limit angles attached bodies can translate along the joint’s principal
+    /// axis.
     pub fn set_limits(&mut self, axis: JointAxis, limits: [Real; 2]) -> &mut Self {
         self.data.set_limits(axis, limits);
         self
@@ -176,6 +205,22 @@ impl SphericalJointBuilder {
     #[must_use]
     pub fn local_anchor2(mut self, anchor2: Point<Real>) -> Self {
         self.0.set_local_anchor2(anchor2);
+        self
+    }
+
+    /// Sets both the joint anchor and the joint’s reference orientation relative to the first
+    /// rigid-body’s local-space.
+    #[must_use]
+    pub fn local_frame1(mut self, frame1: Isometry<Real>) -> Self {
+        self.0.set_local_frame1(frame1);
+        self
+    }
+
+    /// Sets both the joint anchor and the joint’s reference orientation relative to the second
+    /// rigid-body’s local-space.
+    #[must_use]
+    pub fn local_frame2(mut self, frame2: Isometry<Real>) -> Self {
+        self.0.set_local_frame2(frame2);
         self
     }
 

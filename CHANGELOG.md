@@ -1,3 +1,14 @@
+## Unlereased
+### Added
+- Add `SphericalJoint::local_frame1/2`, `::set_local_frame1/2`, and `SphericalJointBuilder::local_frame1/2` to set both
+  the joint’s anchor and reference orientation.
+- Add `EffectiveCharacterMovement::is_sliding_down_slope` to indicate if the character controlled by the kinematic
+  character controller is sliding on a slope that is too steep.
+- Add `Wheel::side_friction_stiffness` to customize the side friction applied to the vehicle controller’s wheel.
+
+### Modified
+- Make `Wheel::friction_slip` public to customize the front friction applied to the vehicle controller’s wheels.
+
 ## v0.17.2 (26 Feb. 2023)
 ### Fix
 - Fix issue with convex polyhedron jitter due to missing contacts.
