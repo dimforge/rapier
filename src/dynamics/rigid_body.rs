@@ -765,21 +765,22 @@ impl RigidBody {
         }
     }
 
-    /// If this rigid body is kinematic, sets its future translation after the next timestep integration.
+    /// If this rigid body is kinematic, sets its future orientation after the next timestep integration.
     pub fn set_next_kinematic_rotation(&mut self, rotation: Rotation<Real>) {
         if self.is_kinematic() {
             self.pos.next_position.rotation = rotation;
         }
     }
 
-    /// If this rigid body is kinematic, sets its future orientation after the next timestep integration.
+    /// If this rigid body is kinematic, sets its future translation after the next timestep integration.
     pub fn set_next_kinematic_translation(&mut self, translation: Vector<Real>) {
         if self.is_kinematic() {
             self.pos.next_position.translation = translation.into();
         }
     }
 
-    /// If this rigid body is kinematic, sets its future position after the next timestep integration.
+    /// If this rigid body is kinematic, sets its future position (translation and orientation) after
+    /// the next timestep integration.
     pub fn set_next_kinematic_position(&mut self, pos: Isometry<Real>) {
         if self.is_kinematic() {
             self.pos.next_position = pos;
