@@ -435,6 +435,11 @@ impl InteractionGroups {
 
                 let i1 = active_set_offset1;
                 let i2 = active_set_offset2;
+
+                if i1 >= self.body_masks.len() || i2 >= self.body_masks.len() {
+                    continue;
+                }
+
                 let mask1 = if !is_fixed1 { self.body_masks[i1] } else { 0 };
                 let mask2 = if !is_fixed2 { self.body_masks[i2] } else { 0 };
                 let conflicts = mask1 | mask2;
