@@ -16,7 +16,7 @@ use parry::shape::{Shape, TriMeshFlags};
 #[derive(Clone)]
 /// A geometric entity that can be attached to a body so it can be affected by contacts and proximity queries.
 ///
-/// To build a new collider, use the `ColliderBuilder` structure.
+/// To build a new collider, use the [`ColliderBuilder`] structure.
 pub struct Collider {
     pub(crate) coll_type: ColliderType,
     pub(crate) shape: ColliderShape,
