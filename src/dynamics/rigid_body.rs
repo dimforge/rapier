@@ -13,7 +13,7 @@ use num::Zero;
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A rigid body.
 ///
-/// To create a new rigid-body, use the `RigidBodyBuilder` structure.
+/// To create a new rigid-body, use the [`RigidBodyBuilder`] structure.
 #[derive(Debug, Clone)]
 pub struct RigidBody {
     pub(crate) pos: RigidBodyPosition,
