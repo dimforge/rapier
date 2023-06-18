@@ -831,7 +831,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .collect();
                     colliders.sort_by_key(|co| -(co.len() as isize));
 
-                    let num_to_delete = (colliders.len() / 10).max(1);
+                    let num_to_delete = (colliders.len() / 10).max(0);
                     for to_delete in &colliders[..num_to_delete] {
                         if let Some(graphics) = self.graphics.as_mut() {
                             graphics.remove_collider(to_delete[0], &self.harness.physics.colliders);
@@ -854,7 +854,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .filter(|e| !e.1.is_fixed())
                         .map(|e| e.0)
                         .collect();
-                    let num_to_delete = (dynamic_bodies.len() / 10).max(1);
+                    let num_to_delete = (dynamic_bodies.len() / 10).max(0);
                     for to_delete in &dynamic_bodies[..num_to_delete] {
                         if let Some(graphics) = self.graphics.as_mut() {
                             graphics.remove_body(*to_delete);
@@ -878,7 +878,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .iter()
                         .map(|e| e.0)
                         .collect();
-                    let num_to_delete = (impulse_joints.len() / 10).max(1);
+                    let num_to_delete = (impulse_joints.len() / 10).max(0);
                     for to_delete in &impulse_joints[..num_to_delete] {
                         self.harness.physics.impulse_joints.remove(*to_delete, true);
                     }
@@ -892,7 +892,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .iter()
                         .map(|e| e.0)
                         .collect();
-                    let num_to_delete = (multibody_joints.len() / 10).max(1);
+                    let num_to_delete = (multibody_joints.len() / 10).max(0);
                     for to_delete in &multibody_joints[..num_to_delete] {
                         self.harness
                             .physics
