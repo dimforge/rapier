@@ -4,7 +4,7 @@ use crate::dynamics::{RigidBody, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Ray};
 use crate::math::{Point, Real, Rotation, Vector};
 use crate::pipeline::{QueryFilter, QueryPipeline};
-use crate::utils::{WCross, WDot};
+use crate::utils::{Axis, WCross, WDot};
 
 /// A character controller to simulate vehicles using ray-casting for the wheels.
 pub struct DynamicRayCastVehicleController {
@@ -17,9 +17,9 @@ pub struct DynamicRayCastVehicleController {
     /// Handle of the vehicle’s chassis.
     pub chassis: RigidBodyHandle,
     /// The chassis’ local _up_ direction (`0 = x, 1 = y, 2 = z`)
-    pub index_up_axis: usize,
+    pub index_up_axis: Axis,
     /// The chassis’ local _forward_ direction (`0 = x, 1 = y, 2 = z`)
-    pub index_forward_axis: usize,
+    pub index_forward_axis: Axis,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -238,8 +238,8 @@ impl DynamicRayCastVehicleController {
             axle: vec![],
             current_vehicle_speed: 0.0,
             chassis,
-            index_up_axis: 1,
-            index_forward_axis: 0,
+            index_up_axis: Axis::Y,
+            index_forward_axis: Axis::X,
         }
     }
 
@@ -407,7 +407,7 @@ impl DynamicRayCastVehicleController {
 
         self.current_vehicle_speed = chassis.linvel().norm();
 
-        let forward_w = chassis.position() * Vector::ith(self.index_forward_axis, 1.0);
+        let forward_w = chassis.position() * Vector::ith(self.index_forward_axis as usize, 1.0);
 
         if forward_w.dot(chassis.linvel()) < 0.0 {
             self.current_vehicle_speed *= -1.0;
@@ -454,7 +454,8 @@ impl DynamicRayCastVehicleController {
             let vel = chassis.velocity_at_point(&wheel.raycast_info.hard_point_ws);
 
             if wheel.raycast_info.is_in_contact {
-                let mut fwd = chassis.position() * Vector::ith(self.index_forward_axis, 1.0);
+                let mut fwd =
+                    chassis.position() * Vector::ith(self.index_forward_axis as usize, 1.0);
                 let proj = fwd.dot(&wheel.raycast_info.contact_normal_ws);
                 fwd -= wheel.raycast_info.contact_normal_ws * proj;
 
@@ -681,7 +682,7 @@ impl DynamicRayCastVehicleController {
                     let side_impulse = self.axle[wheel_id] * wheel.side_impulse;
 
                     let v_chassis_world_up =
-                        chassis.position().rotation * Vector::ith(self.index_up_axis, 1.0);
+                        chassis.position().rotation * Vector::ith(self.index_up_axis as usize, 1.0);
                     impulse_point -= v_chassis_world_up
                         * (v_chassis_world_up.dot(&(impulse_point - chassis.center_of_mass()))
                             * (1.0 - wheel.roll_influence));
