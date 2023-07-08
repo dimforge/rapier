@@ -8,6 +8,8 @@
 
 ### Modified
 - Make `Wheel::friction_slip` public to customize the front friction applied to the vehicle controller’s wheels.
+- Add the `DebugRenderBackend::filter_object` predicate that can be implemented to apply custom filtering rules
+  on the objects being rendered.
 
 ## v0.17.2 (26 Feb. 2023)
 ### Fix
