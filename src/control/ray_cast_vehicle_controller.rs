@@ -200,6 +200,12 @@ impl Wheel {
         }
     }
 
+    /// Information about suspension and the ground obtained from the ray-casting
+    /// for this wheel.
+    pub fn raycast_info(&self) -> &RayCastInfo {
+        &self.raycast_info
+    }
+
     /// The world-space center of the wheel.
     pub fn center(&self) -> Point<Real> {
         self.center
@@ -216,15 +222,22 @@ impl Wheel {
     }
 }
 
+/// Information about suspension and the ground obtained from the ray-casting
+/// to simulate a wheel’s suspension.
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
-struct RayCastInfo {
-    // set by raycaster
-    contact_normal_ws: Vector<Real>, //contact normal
-    contact_point_ws: Point<Real>,   //raycast hitpoint
-    suspension_length: Real,
-    hard_point_ws: Point<Real>, //raycast starting point
-    is_in_contact: bool,
-    ground_object: Option<ColliderHandle>,
+pub struct RayCastInfo {
+    /// The (world-space) contact normal between the wheel and the floor.
+    pub contact_normal_ws: Vector<Real>,
+    /// The (world-space) point hit by the wheel’s ray-cast.
+    pub contact_point_ws: Point<Real>,
+    /// The suspension length for the wheel.
+    pub suspension_length: Real,
+    /// The (world-space) starting point of the ray-cast.
+    pub hard_point_ws: Point<Real>,
+    /// Is the wheel in contact with the ground?
+    pub is_in_contact: bool,
+    /// The collider hit by the ray-cast.
+    pub ground_object: Option<ColliderHandle>,
 }
 
 impl DynamicRayCastVehicleController {
