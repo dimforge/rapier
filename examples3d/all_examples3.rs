@@ -35,6 +35,7 @@ mod joints3;
 // mod joints3;
 mod character_controller3;
 mod debug_internal_edges3;
+mod joint_motor_position3;
 mod keva3;
 mod locked_rotations3;
 mod newton_cradle3;
@@ -97,6 +98,7 @@ pub fn main() {
         ("Domino", domino3::init_world),
         ("Heightfield", heightfield3::init_world),
         ("Impulse Joints", joints3::init_world_with_joints),
+        ("Joint Motor Position", joint_motor_position3::init_world),
         ("Locked rotations", locked_rotations3::init_world),
         ("One-way platforms", one_way_platforms3::init_world),
         ("Platform", platform3::init_world),

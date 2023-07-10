@@ -6,14 +6,13 @@ use crate::dynamics::solver::joint_constraint::{JointVelocityConstraintBuilder, 
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{IntegrationParameters, JointIndex, Multibody};
 use crate::math::{Real, Vector, ANG_DIM, DIM, SPATIAL_DIM};
+use crate::utils;
 use crate::utils::IndexMut2;
 use crate::utils::WDot;
 use na::{DVector, SVector};
 
 #[cfg(feature = "dim3")]
 use crate::utils::WAngularInertia;
-#[cfg(feature = "dim2")]
-const PI: Real = std::f64::consts::PI as Real;
 
 impl SolverBody<Real, 1> {
     pub fn fill_jacobians(
@@ -358,7 +357,7 @@ impl JointVelocityConstraintBuilder<Real> {
 
         let s_limits = [(limits[0] / 2.0).sin(), (limits[1] / 2.0).sin()];
         #[cfg(feature = "dim2")]
-        let s_ang = self.ang_err.im;
+        let s_ang = (self.ang_err.angle() / 2.0).sin();
         #[cfg(feature = "dim3")]
         let s_ang = self.ang_err.imag()[limited_axis];
         let min_enabled = s_ang < s_limits[0];
@@ -393,7 +392,7 @@ impl JointVelocityConstraintBuilder<Real> {
     ) -> JointGenericVelocityConstraint {
         // let mut ang_jac = self.ang_basis.column(motor_axis).into_owned();
         #[cfg(feature = "dim2")]
-        let ang_jac = na::Vector1::new(1.0);
+        let ang_jac = na::Vector1::new(1.0); // self.ang_basis[(0, 0)]);
         #[cfg(feature = "dim3")]
         let ang_jac = self.basis.column(_motor_axis).into_owned();
 
@@ -415,18 +414,12 @@ impl JointVelocityConstraintBuilder<Real> {
         let mut rhs_wo_bias = 0.0;
         if motor_params.erp_inv_dt != 0.0 {
             #[cfg(feature = "dim2")]
-            {
-                let s_ang_dist = self.ang_err.angle();
-                let s_target_ang = motor_params.target_pos;
-                rhs_wo_bias += ((s_ang_dist - s_target_ang) % (2.0 * PI)) / (2.0 * PI)
-                    * motor_params.erp_inv_dt;
-            }
+            let s_ang_dist = (self.ang_err.angle() / 2.0).sin();
             #[cfg(feature = "dim3")]
-            {
-                let s_ang_dist = self.ang_err.imag()[_motor_axis];
-                let s_target_ang = motor_params.target_pos.sin();
-                rhs_wo_bias += (s_ang_dist - s_target_ang) * motor_params.erp_inv_dt;
-            }
+            let s_ang_dist = self.ang_err.imag()[_motor_axis];
+            let s_target_ang = (motor_params.target_pos / 2.0).sin();
+            rhs_wo_bias += utils::smallest_abs_diff_between_sin_angles(s_ang_dist, s_target_ang)
+                * motor_params.erp_inv_dt;
         }
 
         let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
@@ -746,7 +739,7 @@ impl JointVelocityConstraintBuilder<Real> {
 
         let s_limits = [(limits[0] / 2.0).sin(), (limits[1] / 2.0).sin()];
         #[cfg(feature = "dim2")]
-        let s_ang = self.ang_err.im;
+        let s_ang = (self.ang_err.angle() / 2.0).sin();
         #[cfg(feature = "dim3")]
         let s_ang = self.ang_err.imag()[limited_axis];
         let min_enabled = s_ang < s_limits[0];
@@ -800,18 +793,12 @@ impl JointVelocityConstraintBuilder<Real> {
         let mut rhs = 0.0;
         if motor_params.erp_inv_dt != 0.0 {
             #[cfg(feature = "dim2")]
-            {
-                let s_ang_dist = self.ang_err.angle();
-                let s_target_ang = motor_params.target_pos;
-                rhs += ((s_ang_dist - s_target_ang) % (2.0 * PI)) / (2.0 * PI)
-                    * motor_params.erp_inv_dt;
-            }
+            let s_ang_dist = (self.ang_err.angle() / 2.0).sin();
             #[cfg(feature = "dim3")]
-            {
-                let s_ang_dist = self.ang_err.imag()[_motor_axis];
-                let s_target_ang = motor_params.target_pos.sin();
-                rhs += (s_ang_dist - s_target_ang) * motor_params.erp_inv_dt;
-            }
+            let s_ang_dist = self.ang_err.imag()[_motor_axis];
+            let s_target_ang = (motor_params.target_pos / 2.0).sin();
+            rhs += utils::smallest_abs_diff_between_sin_angles(s_ang_dist, s_target_ang)
+                * motor_params.erp_inv_dt;
         }
 
         let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);

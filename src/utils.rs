@@ -804,3 +804,13 @@ impl<T> IndexMut2<usize> for [T] {
         }
     }
 }
+
+/// Calculate the difference with smallest absolute value between the two given values.
+pub fn smallest_abs_diff_between_sin_angles<N: WReal>(a: N, b: N) -> N {
+    // Select the smallest path among the two angles to reach the target.
+    let s_err = a - b;
+    let sgn = s_err.simd_signum();
+    let s_err_complement = s_err - sgn * N::splat(2.0);
+    let s_err_is_smallest = s_err.simd_abs().simd_lt(s_err_complement.simd_abs());
+    s_err.select(s_err_is_smallest, s_err_complement)
+}

@@ -5,6 +5,7 @@ use crate::dynamics::solver::joint_constraint::SolverBody;
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{IntegrationParameters, JointIndex, JointLimits};
 use crate::math::{AngVector, Isometry, Matrix, Point, Real, Rotation, Vector, ANG_DIM, DIM};
+use crate::utils;
 use crate::utils::{IndexMut2, WCrossMatrix, WDot, WQuat, WReal};
 use na::SMatrix;
 
@@ -289,7 +290,7 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         let half = N::splat(0.5);
         let s_limits = [(limits[0] * half).simd_sin(), (limits[1] * half).simd_sin()];
         #[cfg(feature = "dim2")]
-        let s_ang = self.ang_err.im;
+        let s_ang = (self.ang_err.angle() * half).simd_sin();
         #[cfg(feature = "dim3")]
         let s_ang = self.ang_err.imag()[limited_axis];
         let min_enabled = s_ang.simd_lt(s_limits[0]);
@@ -353,19 +354,15 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
 
         let mut rhs_wo_bias = N::zero();
         if motor_params.erp_inv_dt != N::zero() {
+            let half = N::splat(0.5);
+
             #[cfg(feature = "dim2")]
-            {
-                let s_ang_dist = self.ang_err.angle();
-                let s_target_ang = motor_params.target_pos;
-                rhs_wo_bias += ((s_ang_dist - s_target_ang) % N::simd_two_pi()) / N::simd_two_pi()
-                    * motor_params.erp_inv_dt;
-            }
+            let s_ang_dist = (self.ang_err.angle() * half).simd_sin();
             #[cfg(feature = "dim3")]
-            {
-                let s_ang_dist = self.ang_err.imag()[_motor_axis];
-                let s_target_ang = motor_params.target_pos.simd_sin();
-                rhs_wo_bias += (s_ang_dist - s_target_ang) * motor_params.erp_inv_dt;
-            }
+            let s_ang_dist = self.ang_err.imag()[_motor_axis];
+            let s_target_ang = (motor_params.target_pos * half).simd_sin();
+            rhs_wo_bias += utils::smallest_abs_diff_between_sin_angles(s_ang_dist, s_target_ang)
+                * motor_params.erp_inv_dt;
         }
 
         let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
@@ -801,19 +798,15 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
 
         let mut rhs_wo_bias = N::zero();
         if motor_params.erp_inv_dt != N::zero() {
+            let half = N::splat(0.5);
+
             #[cfg(feature = "dim2")]
-            {
-                let s_ang_dist = self.ang_err.angle();
-                let s_target_ang = motor_params.target_pos;
-                rhs_wo_bias += ((s_ang_dist - s_target_ang) % N::simd_two_pi()) / N::simd_two_pi()
-                    * motor_params.erp_inv_dt;
-            }
+            let s_ang_dist = (self.ang_err.angle() * half).simd_sin();
             #[cfg(feature = "dim3")]
-            {
-                let s_ang_dist = self.ang_err.imag()[_motor_axis];
-                let s_target_ang = motor_params.target_pos.simd_sin();
-                rhs_wo_bias += (s_ang_dist - s_target_ang) * motor_params.erp_inv_dt;
-            }
+            let s_ang_dist = self.ang_err.imag()[_motor_axis];
+            let s_target_ang = (motor_params.target_pos * half).simd_sin();
+            rhs_wo_bias += utils::smallest_abs_diff_between_sin_angles(s_ang_dist, s_target_ang)
+                * motor_params.erp_inv_dt;
         }
 
         let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
@@ -852,7 +845,7 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         let half = N::splat(0.5);
         let s_limits = [(limits[0] * half).simd_sin(), (limits[1] * half).simd_sin()];
         #[cfg(feature = "dim2")]
-        let s_ang = self.ang_err.im;
+        let s_ang = (self.ang_err.angle() * half).simd_sin();
         #[cfg(feature = "dim3")]
         let s_ang = self.ang_err.imag()[limited_axis];
         let min_enabled = s_ang.simd_lt(s_limits[0]);
