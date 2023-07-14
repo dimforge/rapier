@@ -401,9 +401,6 @@ impl PhysicsPipeline {
     }
 
     /// Executes one timestep of the physics simulation.
-    ///
-    /// This is the same as `self.step_generic`, except that it is specialized
-    /// to work with `RigidBodySet` and `ColliderSet`.
     pub fn step(
         &mut self,
         gravity: &Vector<Real>,

@@ -105,22 +105,26 @@ impl DebugRenderPipeline {
                 if let (Some(co1), Some(co2)) =
                     (colliders.get(pair.collider1), colliders.get(pair.collider2))
                 {
-                    for manifold in &pair.manifolds {
-                        for contact in manifold.contacts() {
-                            backend.draw_line(
-                                DebugRenderObject::Other,
-                                co1.position() * contact.local_p1,
-                                co2.position() * contact.local_p2,
-                                self.style.contact_depth_color,
-                            );
-                            backend.draw_line(
-                                DebugRenderObject::Other,
-                                co1.position() * contact.local_p1,
-                                co1.position()
-                                    * (contact.local_p1
-                                        + manifold.local_n1 * self.style.contact_normal_length),
-                                self.style.contact_normal_color,
-                            );
+                    let object = DebugRenderObject::ContactPair(pair, co1, co2);
+
+                    if backend.filter_object(object) {
+                        for manifold in &pair.manifolds {
+                            for contact in manifold.contacts() {
+                                backend.draw_line(
+                                    object,
+                                    co1.position() * contact.local_p1,
+                                    co2.position() * contact.local_p2,
+                                    self.style.contact_depth_color,
+                                );
+                                backend.draw_line(
+                                    object,
+                                    co1.position() * contact.local_p1,
+                                    co1.position()
+                                        * (contact.local_p1
+                                            + manifold.local_n1 * self.style.contact_normal_length),
+                                    self.style.contact_normal_color,
+                                );
+                            }
                         }
                     }
                 }
@@ -129,14 +133,23 @@ impl DebugRenderPipeline {
 
         if self.mode.contains(DebugRenderMode::SOLVER_CONTACTS) {
             for pair in narrow_phase.contact_pairs() {
-                for manifold in &pair.manifolds {
-                    for contact in &manifold.data.solver_contacts {
-                        backend.draw_line(
-                            DebugRenderObject::Other,
-                            contact.point,
-                            contact.point + manifold.data.normal * self.style.contact_normal_length,
-                            self.style.contact_normal_color,
-                        );
+                if let (Some(co1), Some(co2)) =
+                    (colliders.get(pair.collider1), colliders.get(pair.collider2))
+                {
+                    let object = DebugRenderObject::ContactPair(pair, co1, co2);
+
+                    if backend.filter_object(object) {
+                        for manifold in &pair.manifolds {
+                            for contact in &manifold.data.solver_contacts {
+                                backend.draw_line(
+                                    object,
+                                    contact.point,
+                                    contact.point
+                                        + manifold.data.normal * self.style.contact_normal_length,
+                                    self.style.contact_normal_color,
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -157,6 +170,10 @@ impl DebugRenderPipeline {
                                 mut anchor_color: [f32; 4],
                                 mut separation_color: [f32; 4],
                                 object| {
+            if !backend.filter_object(object) {
+                return;
+            }
+
             if let (Some(rb1), Some(rb2)) = (bodies.get(body1), bodies.get(body2)) {
                 let coeff = if (rb1.is_fixed() || rb1.is_sleeping())
                     && (rb2.is_fixed() || rb2.is_sleeping())
@@ -230,6 +247,7 @@ impl DebugRenderPipeline {
 
             if self.style.rigid_body_axes_length != 0.0
                 && self.mode.contains(DebugRenderMode::RIGID_BODY_AXES)
+                && backend.filter_object(object)
             {
                 let basis = rb.rotation().to_rotation_matrix().into_inner();
                 let coeff = if rb.is_sleeping() {
@@ -262,46 +280,53 @@ impl DebugRenderPipeline {
         if self.mode.contains(DebugRenderMode::COLLIDER_SHAPES) {
             for (h, co) in colliders.iter() {
                 let object = DebugRenderObject::Collider(h, co);
-                let color = if let Some(parent) = co.parent().and_then(|p| bodies.get(p)) {
-                    let coeff = if parent.is_sleeping() {
-                        self.style.sleep_color_multiplier
+
+                if backend.filter_object(object) {
+                    let color = if let Some(parent) = co.parent().and_then(|p| bodies.get(p)) {
+                        let coeff = if parent.is_sleeping() {
+                            self.style.sleep_color_multiplier
+                        } else {
+                            [1.0; 4]
+                        };
+                        let c = match parent.body_type {
+                            RigidBodyType::Fixed => self.style.collider_fixed_color,
+                            RigidBodyType::Dynamic => self.style.collider_dynamic_color,
+                            RigidBodyType::KinematicPositionBased
+                            | RigidBodyType::KinematicVelocityBased => {
+                                self.style.collider_kinematic_color
+                            }
+                        };
+
+                        [
+                            c[0] * coeff[0],
+                            c[1] * coeff[1],
+                            c[2] * coeff[2],
+                            c[3] * coeff[3],
+                        ]
                     } else {
-                        [1.0; 4]
-                    };
-                    let c = match parent.body_type {
-                        RigidBodyType::Fixed => self.style.collider_fixed_color,
-                        RigidBodyType::Dynamic => self.style.collider_dynamic_color,
-                        RigidBodyType::KinematicPositionBased
-                        | RigidBodyType::KinematicVelocityBased => {
-                            self.style.collider_kinematic_color
-                        }
+                        self.style.collider_parentless_color
                     };
 
-                    [
-                        c[0] * coeff[0],
-                        c[1] * coeff[1],
-                        c[2] * coeff[2],
-                        c[3] * coeff[3],
-                    ]
-                } else {
-                    self.style.collider_parentless_color
-                };
-
-                self.render_shape(object, backend, co.shape(), co.position(), color)
+                    self.render_shape(object, backend, co.shape(), co.position(), color)
+                }
             }
         }
 
         if self.mode.contains(DebugRenderMode::COLLIDER_AABBS) {
-            for (_, co) in colliders.iter() {
+            for (h, co) in colliders.iter() {
                 let aabb = co.compute_aabb();
                 let cuboid = Cuboid::new(aabb.half_extents());
-                self.render_shape(
-                    DebugRenderObject::Other,
-                    backend,
-                    &cuboid,
-                    &aabb.center().into(),
-                    self.style.collider_aabb_color,
-                );
+                let object = DebugRenderObject::ColliderAabb(h, co, &aabb);
+
+                if backend.filter_object(object) {
+                    self.render_shape(
+                        object,
+                        backend,
+                        &cuboid,
+                        &aabb.center().into(),
+                        self.style.collider_aabb_color,
+                    );
+                }
             }
         }
     }
