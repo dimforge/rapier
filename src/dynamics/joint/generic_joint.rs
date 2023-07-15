@@ -223,6 +223,8 @@ pub struct GenericJoint {
     pub contacts_enabled: bool,
     /// Whether or not the joint is enabled.
     pub enabled: JointEnabled,
+    /// User-defined data associated to this joint.
+    pub user_data: u128,
 }
 
 impl Default for GenericJoint {
@@ -238,6 +240,7 @@ impl Default for GenericJoint {
             motors: [JointMotor::default(); SPATIAL_DIM],
             contacts_enabled: true,
             enabled: JointEnabled::Enabled,
+            user_data: 0,
         }
     }
 }
@@ -666,6 +669,12 @@ impl GenericJointBuilder {
     #[must_use]
     pub fn motor_max_force(mut self, axis: JointAxis, max_force: Real) -> Self {
         self.0.set_motor_max_force(axis, max_force);
+        self
+    }
+
+    /// An arbitrary user-defined 128-bit integer associated to the joints built by this builder.
+    pub fn user_data(mut self, data: u128) -> Self {
+        self.0.user_data = data;
         self
     }
 
