@@ -38,7 +38,7 @@ pub fn init_world(testbed: &mut Testbed) {
             .local_anchor1(point![x_pos, 1.5])
             .local_anchor2(point![0.0, -0.5])
             .motor_position(
-                (std::f32::consts::PI - std::f32::consts::PI / 4.0 * num as f32),
+                std::f32::consts::PI - std::f32::consts::PI / 4.0 * num as f32,
                 1000.0,
                 150.0,
             );
