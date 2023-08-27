@@ -62,7 +62,7 @@ bit-vec = "0.6"
 rustc-hash = "1"
 serde = { version = "1", features = [ "derive" ], optional = true }
 downcast-rs = "1.2"
-num-derive = "0.3"
+num-derive = "0.4"
 bitflags = "1"
 
 [dev-dependencies]
