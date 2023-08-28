@@ -430,7 +430,7 @@ impl RigidBodyVelocity {
 
     /// Converts a slice to a rigid-body velocity.
     ///
-    /// The slice must contain at least 3 elements: the `slice[0..2]  contains
+    /// The slice must contain at least 3 elements: the `slice[0..2]` contains
     /// the linear velocity and the `slice[2]` contains the angular velocity.
     #[must_use]
     #[cfg(feature = "dim2")]
@@ -443,7 +443,7 @@ impl RigidBodyVelocity {
 
     /// Converts a slice to a rigid-body velocity.
     ///
-    /// The slice must contain at least 6 elements: the `slice[0..3]  contains
+    /// The slice must contain at least 6 elements: the `slice[0..3]` contains
     /// the linear velocity and the `slice[3..6]` contains the angular velocity.
     #[must_use]
     #[cfg(feature = "dim3")]
@@ -481,7 +481,7 @@ impl RigidBodyVelocity {
 
     /// This velocity seen as a vector.
     ///
-    /// The linear part is stored first.   
+    /// The linear part is stored first.
     #[inline]
     #[cfg(feature = "dim2")]
     pub fn as_vector(&self) -> &na::Vector3<Real> {
@@ -490,7 +490,7 @@ impl RigidBodyVelocity {
 
     /// This velocity seen as a mutable vector.
     ///
-    /// The linear part is stored first.    
+    /// The linear part is stored first.
     #[inline]
     #[cfg(feature = "dim2")]
     pub fn as_vector_mut(&mut self) -> &mut na::Vector3<Real> {
@@ -499,7 +499,7 @@ impl RigidBodyVelocity {
 
     /// This velocity seen as a vector.
     ///
-    /// The linear part is stored first.   
+    /// The linear part is stored first.
     #[inline]
     #[cfg(feature = "dim3")]
     pub fn as_vector(&self) -> &na::Vector6<Real> {
@@ -508,7 +508,7 @@ impl RigidBodyVelocity {
 
     /// This velocity seen as a mutable vector.
     ///
-    /// The linear part is stored first.    
+    /// The linear part is stored first.
     #[inline]
     #[cfg(feature = "dim3")]
     pub fn as_vector_mut(&mut self) -> &mut na::Vector6<Real> {

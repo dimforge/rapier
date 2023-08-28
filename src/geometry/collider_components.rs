@@ -136,7 +136,7 @@ pub enum ColliderMassProps {
     /// The collider is given a density.
     ///
     /// Its actual `MassProperties` are computed automatically with
-    /// the help of [`SharedShape::mass_properties`].
+    /// the help of [`Shape::mass_properties`].
     Density(Real),
     /// The collider is given a mass.
     ///
