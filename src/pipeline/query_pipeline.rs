@@ -47,9 +47,9 @@ bitflags::bitflags! {
     pub struct QueryFilterFlags: u32 {
         /// Exclude from the query any collider attached to a fixed rigid-body and colliders with no rigid-body attached.
         const EXCLUDE_FIXED = 1 << 1;
-        /// Exclude from the query any collider attached to a dynamic rigid-body.
-        const EXCLUDE_KINEMATIC = 1 << 2;
         /// Exclude from the query any collider attached to a kinematic rigid-body.
+        const EXCLUDE_KINEMATIC = 1 << 2;
+        /// Exclude from the query any collider attached to a dynamic rigid-body.
         const EXCLUDE_DYNAMIC = 1 << 3;
         /// Exclude from the query any collider that is a sensor.
         const EXCLUDE_SENSORS = 1 << 4;
@@ -163,12 +163,12 @@ impl<'a> QueryFilter<'a> {
         QueryFilterFlags::EXCLUDE_FIXED.into()
     }
 
-    /// Exclude from the query any collider attached to a dynamic rigid-body.
+    /// Exclude from the query any collider attached to a kinematic rigid-body.
     pub fn exclude_kinematic() -> Self {
         QueryFilterFlags::EXCLUDE_KINEMATIC.into()
     }
 
-    /// Exclude from the query any collider attached to a kinematic rigid-body.
+    /// Exclude from the query any collider attached to a dynamic rigid-body.
     pub fn exclude_dynamic() -> Self {
         QueryFilterFlags::EXCLUDE_DYNAMIC.into()
     }
