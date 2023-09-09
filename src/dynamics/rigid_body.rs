@@ -193,7 +193,7 @@ impl RigidBody {
     #[inline]
     /// Locks or unlocks all the rotations of this rigid-body.
     pub fn lock_rotations(&mut self, locked: bool, wake_up: bool) {
-        if !self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED) {
+        if locked != self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED) {
             if self.is_dynamic() && wake_up {
                 self.wake_up(true);
             }
@@ -255,7 +255,7 @@ impl RigidBody {
     #[inline]
     /// Locks or unlocks all the rotations of this rigid-body.
     pub fn lock_translations(&mut self, locked: bool, wake_up: bool) {
-        if !self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED) {
+        if locked != self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED) {
             if self.is_dynamic() && wake_up {
                 self.wake_up(true);
             }
