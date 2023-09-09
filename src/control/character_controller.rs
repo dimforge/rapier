@@ -8,6 +8,7 @@ use parry::bounding_volume::BoundingVolume;
 use parry::math::Translation;
 use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 /// A length measure used for various options of a character controller.
 pub enum CharacterLength {
@@ -55,6 +56,7 @@ impl CharacterLength {
 }
 
 /// Configuration for the auto-stepping character controller feature.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct CharacterAutostep {
     /// The maximum step height a character can automatically step over.
@@ -91,6 +93,7 @@ pub struct CharacterCollision {
 }
 
 /// A character controller for kinematic bodies.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug)]
 pub struct KinematicCharacterController {
     /// The direction that goes "up". Used to determine where the floor is, and the floor’s angle.
