@@ -1,8 +1,8 @@
 //! Arena adapted from the generational-arena crate.
 //!
-//! See  https://github.com/fitzgen/generational-arena/blob/master/src/lib.rs.
+//! See <https://github.com/fitzgen/generational-arena/blob/master/src/lib.rs>.
 //! This has been modified to have a fully deterministic deserialization (including for the order of
-//! Index attribution after a deserialization of the arena.
+//! Index attribution after a deserialization of the arena).
 use parry::partitioning::IndexedData;
 use std::cmp;
 use std::iter::{self, Extend, FromIterator, FusedIterator};
