@@ -630,8 +630,8 @@ impl PhysicsPipeline {
         }
 
         // Finally, make sure we update the world mass-properties of the rigid-bodies
-        // that moved. Otherwise, users may end up applying forces wrt. an outdated
-        // center of mass.
+        // that moved. Otherwise, users may end up applying forces with respect to an
+        // outdated center of mass.
         // TODO: avoid updating the world mass properties twice (here, and
         //       at the beginning of the next timestep) for bodies that were
         //       not modified by the user in the mean time.

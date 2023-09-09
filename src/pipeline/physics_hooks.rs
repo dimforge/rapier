@@ -95,7 +95,8 @@ impl<'a> ContactModificationContext<'a> {
             CONTACT_CURRENTLY_FORBIDDEN => {
                 // Contacts are forbidden so we need to continue forbidding contacts
                 // until all the contacts are non-penetrating again. In that case, if
-                // the contacts are OK wrt. the contact normal, then we can mark them as allowed.
+                // the contacts are OK with respect to the contact normal, then we can
+                // mark them as allowed.
                 if contact_is_ok && self.solver_contacts.iter().all(|c| c.dist > 0.0) {
                     *self.user_data = CONTACT_CURRENTLY_ALLOWED;
                 } else {
