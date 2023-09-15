@@ -193,7 +193,7 @@ impl RigidBody {
     #[inline]
     /// Locks or unlocks all the rotations of this rigid-body.
     pub fn lock_rotations(&mut self, locked: bool, wake_up: bool) {
-        if !self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED) {
+        if locked != self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED) {
             if self.is_dynamic() && wake_up {
                 self.wake_up(true);
             }
@@ -255,7 +255,7 @@ impl RigidBody {
     #[inline]
     /// Locks or unlocks all the rotations of this rigid-body.
     pub fn lock_translations(&mut self, locked: bool, wake_up: bool) {
-        if !self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED) {
+        if locked != self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED) {
             if self.is_dynamic() && wake_up {
                 self.wake_up(true);
             }
@@ -397,7 +397,7 @@ impl RigidBody {
     /// Sets the rigid-body's additional mass.
     ///
     /// The total angular inertia of the rigid-body will be scaled automatically based on this
-    /// additional mass. If this scaling effect isn’t desired, use [`Self::additional_mass_properties`]
+    /// additional mass. If this scaling effect isn’t desired, use [`Self::set_additional_mass_properties`]
     /// instead of this method.
     ///
     /// This is only the "additional" mass because the total mass of the  rigid-body is

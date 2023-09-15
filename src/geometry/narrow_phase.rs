@@ -178,7 +178,7 @@ impl NarrowPhase {
     ///
     /// If this returns `None`, there is no contact between the two colliders.
     /// If this returns `Some`, then there may be a contact between the two colliders. Check the
-    /// result [`ContactPair::has_any_active_collider`] method to see if there is an actual contact.
+    /// result [`ContactPair::has_any_active_contact`] method to see if there is an actual contact.
     pub fn contact_pair_unknown_gen(&self, collider1: u32, collider2: u32) -> Option<&ContactPair> {
         let id1 = self.graph_indices.get_unknown_gen(collider1)?;
         let id2 = self.graph_indices.get_unknown_gen(collider2)?;
@@ -191,7 +191,7 @@ impl NarrowPhase {
     ///
     /// If this returns `None`, there is no contact between the two colliders.
     /// If this returns `Some`, then there may be a contact between the two colliders. Check the
-    /// result [`ContactPair::has_any_active_collider`] method to see if there is an actual contact.
+    /// result [`ContactPair::has_any_active_contact`] method to see if there is an actual contact.
     pub fn contact_pair(
         &self,
         collider1: ColliderHandle,

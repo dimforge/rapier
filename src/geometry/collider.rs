@@ -214,7 +214,7 @@ impl Collider {
         &self.pos.0.rotation
     }
 
-    /// The position of this collider wrt the body it is attached to.
+    /// The position of this collider with respect to the body it is attached to.
     pub fn position_wrt_parent(&self) -> Option<&Isometry<Real>> {
         self.parent.as_ref().map(|p| &p.pos_wrt_parent)
     }
@@ -235,7 +235,7 @@ impl Collider {
         }
     }
 
-    /// Sets the position of this collider wrt. its parent rigid-body.
+    /// Sets the position of this collider with respect to its parent rigid-body.
     ///
     /// Does nothing if the collider is not attached to a rigid-body.
     pub fn set_position_wrt_parent(&mut self, pos_wrt_parent: Isometry<Real>) {

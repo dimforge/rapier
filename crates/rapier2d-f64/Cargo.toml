@@ -27,7 +27,7 @@ simd-nightly = [ "simba/packed_simd", "simd-is-enabled" ]
 simd-is-enabled = [ "vec_map" ]
 wasm-bindgen = [ "instant/wasm-bindgen" ]
 serde-serialize = [ "nalgebra/serde-serialize", "parry2d-f64/serde-serialize", "serde", "bit-vec/serde", "arrayvec/serde" ]
-enhanced-determinism = [ "simba/libm_force", "parry2d-f64/enhanced-determinism", "indexmap" ]
+enhanced-determinism = [ "simba/libm_force", "parry2d-f64/enhanced-determinism" ]
 debug-render = [ ]
 profiler = [ "instant" ] # Enables the internal profiler.
 
@@ -61,9 +61,8 @@ arrayvec = "0.7"
 bit-vec = "0.6"
 rustc-hash = "1"
 serde = { version = "1", features = [ "derive" ], optional = true }
-indexmap = { version = "1", features = [ "serde-1" ], optional = true }
 downcast-rs = "1.2"
-num-derive = "0.3"
+num-derive = "0.4"
 bitflags = "1"
 
 [dev-dependencies]

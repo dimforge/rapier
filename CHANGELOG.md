@@ -256,8 +256,8 @@ Check it out on [rapier.rs](https://www.rapier.rs/docs/user_guides/javascript/ge
 
 ## v0.10.1
 ### Added
-- Add `Collider::set_translation_wrt_parent` to change the translation of a collider wrt. its parent rigid-body.
-- Add `Collider::set_rotation_wrt_parent` to change the translation of a collider wrt. its parent rigid-body.
+- Add `Collider::set_translation_wrt_parent` to change the translation of a collider with respect to its parent rigid-body.
+- Add `Collider::set_rotation_wrt_parent` to change the translation of a collider with respect to its parent rigid-body.
 
 
 ## v0.10.0
