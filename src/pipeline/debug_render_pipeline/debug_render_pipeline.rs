@@ -242,7 +242,10 @@ impl DebugRenderPipeline {
                     [120.0 * coeff[0], 1.0 * coeff[1], 0.1 * coeff[2], coeff[3]],
                     [240.0 * coeff[0], 1.0 * coeff[1], 0.2 * coeff[2], coeff[3]],
                 ];
-                let com = rb.mprops.world_com;
+
+                let com = rb
+                    .position()
+                    .transform_point(&rb.mprops.local_mprops.local_com);
 
                 for k in 0..DIM {
                     let axis = basis.column(k) * self.style.rigid_body_axes_length;
