@@ -522,7 +522,7 @@ impl KinematicCharacterController {
     fn compute_dims(&self, character_shape: &dyn Shape) -> Vector2<Real> {
         let extents = character_shape.compute_local_aabb().extents();
         let up_extent = extents.dot(&self.up.abs());
-        let side_extent = (extents - *self.up * up_extent).norm();
+        let side_extent = (extents - (*self.up).abs() * up_extent).norm();
         Vector2::new(side_extent, up_extent)
     }
 
