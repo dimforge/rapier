@@ -521,7 +521,7 @@ impl KinematicCharacterController {
 
     fn compute_dims(&self, character_shape: &dyn Shape) -> Vector2<Real> {
         let extents = character_shape.compute_local_aabb().extents();
-        let up_extent = extents.dot(&self.up);
+        let up_extent = extents.dot(&self.up.abs());
         let side_extent = (extents - *self.up * up_extent).norm();
         Vector2::new(side_extent, up_extent)
     }
@@ -679,7 +679,7 @@ impl KinematicCharacterController {
         filter: QueryFilter,
     ) {
         let extents = character_shape.compute_local_aabb().extents();
-        let up_extent = extents.dot(&self.up);
+        let up_extent = extents.dot(&self.up.abs());
         let movement_to_transfer =
             *collision.toi.normal1 * collision.translation_remaining.dot(&collision.toi.normal1);
         let prediction = self.predict_ground(up_extent);
