@@ -1,4 +1,4 @@
-use rapier2d::prelude::*;
+use rapier2d::{prelude::*, parry};
 use rapier_testbed2d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -10,70 +10,51 @@ pub fn init_world(testbed: &mut Testbed) {
     let impulse_joints = ImpulseJointSet::new();
     let multibody_joints = MultibodyJointSet::new();
 
-    /*
-     * Create the boxes
-     */
-    let num = 30;
-    let rad = 0.2;
+    // Bug
 
-    let shift = rad * 2.0;
-    let centerx = shift * num as f32 / 2.0;
-    let centery = shift * num as f32 / 2.0;
-
-    for i in 0usize..num {
-        for j in 0usize..num {
-            let x = i as f32 * shift - centerx;
-            let y = j as f32 * shift - centery;
-
-            // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
-            let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad);
-            colliders.insert_with_parent(collider, handle, &mut bodies);
-        }
+    let shape1 = SharedShape::cuboid(10.0, 10.0);
+    let mut vec = Vec::<Point::<Real>>::with_capacity(3);
+    unsafe {
+        vec.push(Point::<Real> { coords : vector![364.114, 402.089] });
+        vec.push(Point::<Real> { coords : vector![1497.16, 384.289] });
+        vec.push(Point::<Real> { coords : vector![2142.0, 384.289] });
+        vec.push(Point::<Real> { coords : vector![2576.04, 466.961] });
+        vec.push(Point::<Real> { coords : vector![-1321.98, 1016.73] });
     }
+    let shape2 = SharedShape::convex_polyline(vec);
+    let shape2 = shape2.unwrap();
+    let transform1 = Isometry::new(vector![381.592, 348.491], 0.0);
+    let transform2 = Isometry::new(vector![0.0, 0.0], 0.0);
 
     /*
-     * Setup a velocity-based kinematic rigid body.
+     * Ground
      */
-    let platform_body = RigidBodyBuilder::kinematic_velocity_based();
-    let velocity_based_platform_handle = bodies.insert(platform_body);
+    let rad = 1.0;
+    let rigid_body = RigidBodyBuilder::fixed()
+        .translation(vector![0.0, 0.0])
+        .rotation(0.0);
+    let handle = bodies.insert(rigid_body);
+    //let collider = ColliderBuilder::cuboid(rad, rad);
+    colliders.insert_with_parent(ColliderBuilder::new(shape2.clone()), handle, &mut bodies);
 
-    let sides = [
-        (10.0, 0.25, vector![0.0, 10.0]),
-        (10.0, 0.25, vector![0.0, -10.0]),
-        (0.25, 10.0, vector![10.0, 0.0]),
-        (0.25, 10.0, vector![-10.0, 0.0]),
-    ];
-    let balls = [
-        (1.25, vector![6.0, 6.0]),
-        (1.25, vector![-6.0, 6.0]),
-        (1.25, vector![6.0, -6.0]),
-        (1.25, vector![-6.0, -6.0]),
-    ];
-
-    for (hx, hy, pos) in sides {
-        let collider = ColliderBuilder::cuboid(hx, hy).translation(pos);
-        colliders.insert_with_parent(collider, velocity_based_platform_handle, &mut bodies);
+    // Build the dynamic box rigid body.
+    let rigid_body = RigidBodyBuilder::fixed()
+        .translation(vector![1561.0, 376.55])
+        .can_sleep(false);
+    let handle = bodies.insert(rigid_body);
+    //let collider = ColliderBuilder::ball(rad);
+    colliders.insert_with_parent(ColliderBuilder::new(shape1.clone()), handle, &mut bodies);
+    
+    if let Ok(Some(contact)) = parry::query::contact(
+        &transform1, shape1.as_ref(), &transform2, shape2.as_ref(), 1.0
+    ) {
+        panic!("collision");
+    } else {
+        print!("no collision");
     }
-    for (r, pos) in balls {
-        let collider = ColliderBuilder::ball(r).translation(pos);
-        colliders.insert_with_parent(collider, velocity_based_platform_handle, &mut bodies);
-    }
-
     /*
-     * Setup a callback to control the platform.
-     */
-    testbed.add_callback(move |_, physics, _, _| {
-        // Update the velocity-based kinematic body by setting its velocity.
-        if let Some(platform) = physics.bodies.get_mut(velocity_based_platform_handle) {
-            platform.set_angvel(-0.15, true);
-        }
-    });
-
-    /*
-     * Run the simulation.
+     * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 1.0], 40.0);
+    testbed.look_at(point![1561.0, 376.55], 1.0);
 }
