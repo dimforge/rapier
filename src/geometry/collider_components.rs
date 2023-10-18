@@ -79,7 +79,7 @@ impl ColliderChanges {
     /// Do these changes justify a broad-phase update?
     pub fn needs_broad_phase_update(self) -> bool {
         self.intersects(
-            ColliderChanges::PARENT | ColliderChanges::POSITION | ColliderChanges::SHAPE,
+            ColliderChanges::PARENT | ColliderChanges::POSITION | ColliderChanges::SHAPE | ColliderChanges::ENABLED_OR_DISABLED,
         )
     }
 
