@@ -40,21 +40,24 @@ bincode = "1"
 Inflector  = "0.11"
 md5 = "0.7"
 
-bevy_egui = "0.18"
-bevy_ecs = "0.9"
+bevy_egui = "0.22"
+bevy_ecs = "0.11"
+bevy_core_pipeline = "0.11"
+bevy_pbr = "0.11"
+bevy_sprite = "0.11"
 #bevy_prototype_debug_lines = "0.7"
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = {version = "0.9", default-features = false, features = ["bevy_winit", "render", "x11"]}
+bevy = {version = "0.11", default-features = false, features = ["bevy_winit",  "x11"]}
 
 # Dependencies for WASM only.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy = {version = "0.9", default-features = false, features = ["bevy_winit", "render"]}
+bevy = {version = "0.11", default-features = false, features = ["bevy_winit",]}
 #bevy_webgl2 = "0.5"
 
 [dependencies.rapier]
 package = "rapier2d"
 path = "../rapier2d"
-version = "0.17.0"
+version = "0.18.0"
 features = [ "serde-serialize", "debug-render", "profiler" ]

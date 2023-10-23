@@ -20,17 +20,16 @@ impl Default for RapierDebugRenderPlugin {
         }
     }
 }
-
 impl Plugin for RapierDebugRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(crate::lines::DebugLinesPlugin::with_depth_test(
+        app.add_plugins(crate::lines::DebugLinesPlugin::with_depth_test(
             self.depth_test,
         ))
         .insert_resource(DebugRenderPipelineResource(DebugRenderPipeline::new(
             Default::default(),
             !DebugRenderMode::RIGID_BODY_AXES & !DebugRenderMode::COLLIDER_AABBS,
         )))
-        .add_system_to_stage(CoreStage::Update, debug_render_scene);
+        .add_systems(Update, debug_render_scene);
     }
 }
 

@@ -19,7 +19,6 @@ use bevy::render::MainWorld;
  */
 use bevy::{
     asset::{Assets, HandleUntyped},
-    pbr::{NotShadowCaster, NotShadowReceiver},
     prelude::*,
     reflect::TypeUuid,
     render::{
@@ -27,8 +26,10 @@ use bevy::{
         render_phase::AddRenderCommand,
         render_resource::PrimitiveTopology,
         render_resource::Shader,
+        RenderSet,
     },
 };
+use bevy_pbr::{NotShadowCaster, NotShadowReceiver};
 
 mod render_dim;
 
@@ -38,8 +39,8 @@ mod render_dim;
 #[cfg(feature = "dim3")]
 mod dim {
     pub(crate) use super::render_dim::r3d::{queue, DebugLinePipeline, DrawDebugLines};
-    pub(crate) use bevy::core_pipeline::core_3d::Opaque3d as Phase;
     use bevy::{asset::Handle, render::mesh::Mesh};
+    pub(crate) use bevy_core_pipeline::core_3d::Opaque3d as Phase;
 
     pub(crate) type MeshHandle = Handle<Mesh>;
     pub(crate) fn from_handle(from: &MeshHandle) -> &Handle<Mesh> {
@@ -54,8 +55,9 @@ mod dim {
 #[cfg(feature = "dim2")]
 mod dim {
     pub(crate) use super::render_dim::r2d::{queue, DebugLinePipeline, DrawDebugLines};
-    pub(crate) use bevy::core_pipeline::core_2d::Transparent2d as Phase;
-    use bevy::{asset::Handle, render::mesh::Mesh, sprite::Mesh2dHandle};
+    use bevy::{asset::Handle, render::mesh::Mesh};
+    pub(crate) use bevy_core_pipeline::core_2d::Transparent2d as Phase;
+    use bevy_sprite::Mesh2dHandle;
 
     pub(crate) type MeshHandle = Mesh2dHandle;
     pub(crate) fn from_handle(from: &MeshHandle) -> &Handle<Mesh> {
@@ -120,27 +122,33 @@ impl DebugLinesPlugin {
         Self { depth_test: val }
     }
 }
-
+use bevy::render::render_phase::DrawFunctions;
+use bevy::render::Render;
 impl Plugin for DebugLinesPlugin {
     fn build(&self, app: &mut App) {
-        use bevy::render::{render_resource::SpecializedMeshPipelines, RenderApp, RenderStage};
+        use bevy::render::{render_resource::SpecializedMeshPipelines, RenderApp};
         let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
         shaders.set_untracked(
             DEBUG_LINES_SHADER_HANDLE,
-            Shader::from_wgsl(dim::SHADER_FILE),
+            Shader::from_wgsl(dim::SHADER_FILE, file!()),
         );
         app.init_resource::<DebugLines>();
-        app.add_startup_system(setup)
-            .add_system_to_stage(CoreStage::PostUpdate, update.label("draw_lines"));
+
+        app.init_resource::<DrawFunctions<dim::Phase>>();
+
+        app.add_systems(Startup, setup)
+            .add_systems(PostUpdate, update);
+
         app.sub_app_mut(RenderApp)
+            .init_resource::<DrawFunctions<dim::Phase>>()
             .add_render_command::<dim::Phase, dim::DrawDebugLines>()
             .insert_resource(DebugLinesConfig {
                 depth_test: self.depth_test,
             })
             .init_resource::<dim::DebugLinePipeline>()
             .init_resource::<SpecializedMeshPipelines<dim::DebugLinePipeline>>()
-            .add_system_to_stage(RenderStage::Extract, extract)
-            .add_system_to_stage(RenderStage::Queue, dim::queue);
+            .add_systems(Render, extract.in_set(RenderSet::ExtractCommands))
+            .add_systems(Render, dim::queue.in_set(RenderSet::Queue));
 
         info!("Loaded {} debug lines plugin.", dim::DIMMENSION);
     }
@@ -176,7 +184,7 @@ fn setup(mut cmds: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         // https://github.com/Toqozz/bevy_debug_lines/issues/16
         //mesh.set_indices(Some(Indices::U16(Vec::with_capacity(MAX_POINTS_PER_MESH))));
 
-        cmds.spawn_bundle((
+        cmds.spawn((
             dim::into_handle(meshes.add(mesh)),
             NotShadowCaster,
             NotShadowReceiver,

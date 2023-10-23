@@ -13,6 +13,8 @@ use rapier::math::{Isometry, Real, Vector};
 //#[cfg(feature = "dim2")]
 //use crate::objects::polyline::Polyline;
 // use crate::objects::mesh::Mesh;
+use bevy_pbr::StandardMaterial;
+use bevy_sprite::ColorMaterial;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg32;
 use std::collections::HashMap;
