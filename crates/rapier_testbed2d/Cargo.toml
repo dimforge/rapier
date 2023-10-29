@@ -49,11 +49,11 @@ bevy_sprite = "0.11"
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = {version = "0.11", default-features = false, features = ["bevy_winit",  "x11"]}
+bevy = {version = "0.11", default-features = false, features = ["bevy_sprite", "bevy_winit", "x11", "tonemapping_luts", "ktx2", "zstd", "bevy_render", "bevy_pbr", "bevy_gizmos"]}
 
 # Dependencies for WASM only.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy = {version = "0.11", default-features = false, features = ["bevy_winit",]}
+bevy = {version = "0.11", default-features = false, features = ["bevy_sprite", "bevy_winit", "tonemapping_luts", "ktx2", "zstd", "bevy_render", "bevy_pbr", "bevy_gizmos"]}
 #bevy_webgl2 = "0.5"
 
 [dependencies.rapier]

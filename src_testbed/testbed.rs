@@ -395,8 +395,8 @@ impl TestbedApp {
                 .add_plugins(DefaultPlugins.set(window_plugin))
                 .add_plugins(OrbitCameraPlugin)
                 .add_plugins(WireframePlugin)
+                // .add_plugins(debug_render::RapierDebugRenderPlugin::default())
                 .add_plugins(bevy_egui::EguiPlugin);
-            // .add_plugins(debug_render::RapierDebugRenderPlugin::default());
 
             #[cfg(target_arch = "wasm32")]
             app.add_plugin(bevy_webgl2::WebGL2Plugin);
@@ -412,7 +412,7 @@ impl TestbedApp {
                 .insert_non_send_resource(self.plugins)
                 // .add_stage_before(CoreStage::Update, "physics", SystemStage::single_threaded())
                 // .add_system_to_stage("physics", update_testbed)
-                .add_systems(PreUpdate, update_testbed)
+                .add_systems(Update, update_testbed)
                 .add_systems(Update, egui_focus);
             init(&mut app);
             app.run();
@@ -1100,7 +1100,7 @@ fn update_testbed(
     // mut pipelines: ResMut<Assets<RenderPipelineDescriptor>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<BevyMaterial>>,
-    builders: NonSendMut<SceneBuilders>,
+    builders: ResMut<SceneBuilders>,
     mut graphics: NonSendMut<GraphicsManager>,
     mut state: ResMut<TestbedState>,
     mut harness: NonSendMut<Harness>,
