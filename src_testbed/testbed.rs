@@ -406,8 +406,6 @@ impl TestbedApp {
                 .insert_non_send_resource(self.harness)
                 .insert_resource(self.builders)
                 .insert_non_send_resource(self.plugins)
-                // .add_stage_before(CoreStage::Update, "physics", SystemStage::single_threaded())
-                // .add_system_to_stage("physics", update_testbed)
                 .add_systems(Update, update_testbed)
                 .add_systems(Update, egui_focus);
             init(&mut app);
@@ -1001,23 +999,9 @@ fn draw_contacts(_nf: &NarrowPhase, _colliders: &ColliderSet) {
 
 #[cfg(feature = "dim3")]
 fn setup_graphics_environment(mut commands: Commands) {
-    // const HALF_SIZE: f32 = 100.0;
-
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             illuminance: 10000.0,
-            // Configure the projection to better fit the scene
-            // shadow_projection: OrthographicProjection {
-            //     area: Rect::new(
-            //          -HALF_SIZE,
-            //          HALF_SIZE,
-            //          -HALF_SIZE,
-            //          HALF_SIZE,
-            //     ),
-            //     near: -10.0 * HALF_SIZE,
-            //     far: 100.0 * HALF_SIZE,
-            //     ..Default::default()
-            // },
             shadows_enabled: true,
             ..Default::default()
         },
