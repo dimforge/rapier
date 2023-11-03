@@ -1501,7 +1501,7 @@ fn highlight_hovered_body(
     }
 
     if let Some(cursor) = window.cursor_position() {
-        let ndc_cursor = (cursor / Vec2::new(window.width(), window.height()) * 2.0) - Vec2::ONE;
+        let ndc_cursor = Vec2::new(cursor.x / window.width() * 2.0 - 1.0,  1.0 - cursor.y / window.height() * 2.0);
         let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
         let ray_pt1 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, -1.0));
         let ray_pt2 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 1.0));
