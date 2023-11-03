@@ -9,17 +9,10 @@ use rapier::pipeline::{
 #[derive(Resource)]
 pub struct DebugRenderPipelineResource(pub DebugRenderPipeline);
 
+#[derive(Default)]
 pub struct RapierDebugRenderPlugin {
-    depth_test: bool,
 }
 
-impl Default for RapierDebugRenderPlugin {
-    fn default() -> Self {
-        Self {
-            depth_test: cfg!(feature = "dim3"),
-        }
-    }
-}
 impl Plugin for RapierDebugRenderPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(DebugRenderPipelineResource(DebugRenderPipeline::new(

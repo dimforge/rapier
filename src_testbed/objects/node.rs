@@ -7,9 +7,9 @@ use std::collections::HashMap;
 
 use bevy::render::render_resource::PrimitiveTopology;
 use bevy_pbr::wireframe::Wireframe;
-use bevy_pbr::PbrBundle;
-use bevy_pbr::StandardMaterial;
-use bevy_sprite::ColorMaterial;
+// use bevy_pbr::PbrBundle;
+// use bevy_pbr::StandardMaterial;
+// use bevy_sprite::ColorMaterial;
 use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
 
 #[cfg(feature = "dim3")]

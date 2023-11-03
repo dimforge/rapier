@@ -5,7 +5,7 @@ use bevy::prelude::*;
 
 use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
-use crate::{debug_render, ui};
+use crate::ui;
 use crate::{graphics::GraphicsManager, harness::RunState};
 
 use na::{self, Point2, Point3, Vector3};
@@ -28,14 +28,10 @@ use crate::harness::Harness;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 use crate::physx_backend::PhysxWorld;
 use bevy::render::camera::Camera;
-use bevy_core_pipeline::prelude::Camera2dBundle;
-use bevy_core_pipeline::prelude::Camera3dBundle;
 use bevy_core_pipeline::prelude::ClearColor;
 use bevy_egui::EguiContexts;
 use bevy_pbr::wireframe::WireframePlugin;
 use bevy_pbr::AmbientLight;
-use bevy_pbr::DirectionalLight;
-use bevy_pbr::DirectionalLightBundle;
 
 #[cfg(feature = "dim2")]
 use crate::camera2d::{OrbitCamera, OrbitCameraPlugin};
@@ -1005,7 +1001,7 @@ fn draw_contacts(_nf: &NarrowPhase, _colliders: &ColliderSet) {
 
 #[cfg(feature = "dim3")]
 fn setup_graphics_environment(mut commands: Commands) {
-    const HALF_SIZE: f32 = 100.0;
+    // const HALF_SIZE: f32 = 100.0;
 
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {

@@ -10,6 +10,7 @@
 - Make `Wheel::friction_slip` public to customize the front friction applied to the vehicle controller’s wheels.
 - Add the `DebugRenderBackend::filter_object` predicate that can be implemented to apply custom filtering rules
   on the objects being rendered.
+- **Breaking** Delete `RapierDebugRenderPlugin::depth_test` after switch to Bevy 0.11 Gizmos.
 
 ## v0.17.2 (26 Feb. 2023)
 ### Fix
