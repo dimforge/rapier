@@ -10,8 +10,7 @@ use rapier::pipeline::{
 pub struct DebugRenderPipelineResource(pub DebugRenderPipeline);
 
 #[derive(Default)]
-pub struct RapierDebugRenderPlugin {
-}
+pub struct RapierDebugRenderPlugin {}
 
 impl Plugin for RapierDebugRenderPlugin {
     fn build(&self, app: &mut App) {
