@@ -58,5 +58,5 @@ bevy = {version = "0.11", default-features = false, features = ["bevy_winit", "t
 [dependencies.rapier]
 package = "rapier3d-f64"
 path = "../rapier3d-f64"
-version = "0.18.0"
+version = "0.17.2"
 features = [ "serde-serialize", "debug-render", "profiler" ]
