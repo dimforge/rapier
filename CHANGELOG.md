@@ -10,7 +10,7 @@
 - Make `Wheel::friction_slip` public to customize the front friction applied to the vehicle controller’s wheels.
 - Add the `DebugRenderBackend::filter_object` predicate that can be implemented to apply custom filtering rules
   on the objects being rendered.
-- Switch to `bevy 0.11` and use its new Gizmos API.
+- Switch the testbed to `bevy 0.11` and use its new Gizmos API for rendering lines.
 
 ## v0.17.2 (26 Feb. 2023)
 ### Fix
