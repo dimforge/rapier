@@ -1,6 +1,7 @@
 use rapier::counters::Counters;
 use rapier::math::Real;
 
+use crate::debug_render::DebugRenderPipelineResource;
 use crate::harness::Harness;
 use crate::testbed::{
     RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags, PHYSX_BACKEND_PATCH_FRICTION,
@@ -9,9 +10,14 @@ use crate::testbed::{
 
 use crate::PhysicsState;
 use bevy_egui::egui::Slider;
-use bevy_egui::{egui, EguiContext};
+use bevy_egui::{egui, EguiContexts};
 
-pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness: &mut Harness) {
+pub fn update_ui(
+    ui_context: &mut EguiContexts,
+    state: &mut TestbedState,
+    harness: &mut Harness,
+    debug_render: &mut DebugRenderPipelineResource,
+) {
     egui::Window::new("Parameters").show(ui_context.ctx_mut(), |ui| {
         if state.backend_names.len() > 1 && !state.example_names.is_empty() {
             let mut changed = false;
@@ -157,6 +163,7 @@ pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness
         ui.checkbox(&mut sleep, "sleep enabled");
         // ui.checkbox(&mut contact_points, "draw contacts");
         // ui.checkbox(&mut wireframe, "draw wireframes");
+        ui.checkbox(&mut debug_render.enabled, "debug render enabled");
 
         state.flags.set(TestbedStateFlags::SLEEP, sleep);
         // state
