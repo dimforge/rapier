@@ -7,17 +7,23 @@ use rapier::pipeline::{
 };
 
 #[derive(Resource)]
-pub struct DebugRenderPipelineResource(pub DebugRenderPipeline);
+pub struct DebugRenderPipelineResource {
+    pub pipeline: DebugRenderPipeline,
+    pub enabled: bool,
+}
 
 #[derive(Default)]
 pub struct RapierDebugRenderPlugin {}
 
 impl Plugin for RapierDebugRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(DebugRenderPipelineResource(DebugRenderPipeline::new(
-            Default::default(),
-            !DebugRenderMode::RIGID_BODY_AXES & !DebugRenderMode::COLLIDER_AABBS,
-        )))
+        app.insert_resource(DebugRenderPipelineResource {
+            pipeline: DebugRenderPipeline::new(
+                Default::default(),
+                !DebugRenderMode::RIGID_BODY_AXES & !DebugRenderMode::COLLIDER_AABBS,
+            ),
+            enabled: false,
+        })
         .add_systems(Update, debug_render_scene);
     }
 }
@@ -46,17 +52,19 @@ impl<'a> DebugRenderBackend for BevyLinesRenderBackend<'a> {
 }
 
 fn debug_render_scene(
-    mut pipeline: ResMut<DebugRenderPipelineResource>,
+    mut debug_render: ResMut<DebugRenderPipelineResource>,
     harness: NonSend<Harness>,
     gizmos: Gizmos,
 ) {
-    let mut backend = BevyLinesRenderBackend { gizmos };
-    pipeline.0.render(
-        &mut backend,
-        &harness.physics.bodies,
-        &harness.physics.colliders,
-        &harness.physics.impulse_joints,
-        &harness.physics.multibody_joints,
-        &harness.physics.narrow_phase,
-    );
+    if debug_render.enabled {
+        let mut backend = BevyLinesRenderBackend { gizmos };
+        debug_render.pipeline.render(
+            &mut backend,
+            &harness.physics.bodies,
+            &harness.physics.colliders,
+            &harness.physics.impulse_joints,
+            &harness.physics.multibody_joints,
+            &harness.physics.narrow_phase,
+        );
+    }
 }

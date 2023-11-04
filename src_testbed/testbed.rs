@@ -3,6 +3,7 @@ use std::mem;
 
 use bevy::prelude::*;
 
+use crate::debug_render::{DebugRenderPipelineResource, RapierDebugRenderPlugin};
 use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
 use crate::ui;
@@ -391,7 +392,7 @@ impl TestbedApp {
                 .add_plugins(DefaultPlugins.set(window_plugin))
                 .add_plugins(OrbitCameraPlugin)
                 .add_plugins(WireframePlugin)
-                // .add_plugins(debug_render::RapierDebugRenderPlugin::default())
+                .add_plugins(RapierDebugRenderPlugin::default())
                 .add_plugins(bevy_egui::EguiPlugin);
 
             #[cfg(target_arch = "wasm32")]
@@ -1083,6 +1084,7 @@ fn update_testbed(
     builders: ResMut<SceneBuilders>,
     mut graphics: NonSendMut<GraphicsManager>,
     mut state: ResMut<TestbedState>,
+    mut debug_render: ResMut<DebugRenderPipelineResource>,
     mut harness: NonSendMut<Harness>,
     #[cfg(feature = "other-backends")] mut other_backends: NonSendMut<OtherBackends>,
     mut plugins: NonSendMut<Plugins>,
@@ -1127,7 +1129,7 @@ fn update_testbed(
     // Update UI
     {
         let harness = &mut *harness;
-        ui::update_ui(&mut ui_context, &mut state, harness);
+        ui::update_ui(&mut ui_context, &mut state, harness, &mut debug_render);
 
         for plugin in &mut plugins.0 {
             plugin.update_ui(
