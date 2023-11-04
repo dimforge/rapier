@@ -2,8 +2,8 @@
 name    = "rapier2d"
 version = "0.18.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
-description = "3-dimensional physics engine in Rust."
-documentation = "https://docs.rs/rapier3d"
+description = "2-dimensional physics engine in Rust."
+documentation = "https://docs.rs/rapier2d"
 homepage = "https://rapier.rs"
 repository = "https://github.com/dimforge/rapier"
 readme = "README.md"
