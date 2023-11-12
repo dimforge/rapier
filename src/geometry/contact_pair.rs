@@ -101,6 +101,22 @@ impl IntersectionPair {
             None,
         );
     }
+
+    pub(crate) fn emit_active_event(
+        &mut self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        collider1: ColliderHandle,
+        collider2: ColliderHandle,
+        events: &dyn EventHandler,
+    ) {
+        events.handle_collision_event(
+            bodies,
+            colliders,
+            CollisionEvent::Active(collider1, collider2, CollisionEventFlags::SENSOR),
+            None,
+        );
+    }
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -228,6 +244,20 @@ impl ContactPair {
             bodies,
             colliders,
             CollisionEvent::Stopped(self.collider1, self.collider2, CollisionEventFlags::empty()),
+            Some(self),
+        );
+    }
+
+    pub(crate) fn emit_active_event(
+        &mut self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        events: &dyn EventHandler,
+    ) {
+        events.handle_collision_event(
+            bodies,
+            colliders,
+            CollisionEvent::Active(self.collider1, self.collider2, CollisionEventFlags::empty()),
             Some(self),
         );
     }

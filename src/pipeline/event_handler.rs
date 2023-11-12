@@ -13,6 +13,10 @@ bitflags::bitflags! {
         /// If set, Rapier will call `EventHandler::handle_contact_force_event`
         /// whenever relevant for this collider.
         const CONTACT_FORCE_EVENTS = 0b0010;
+        /// If set, Rapier will call `EventHandler::handle_collision_event`
+        /// whenever relevant for this collider. Even after `CollisionEvent::Started`
+        /// has already been called.
+        const ACTIVE_COLLISION_EVENTS = 0b0100;
     }
 }
 

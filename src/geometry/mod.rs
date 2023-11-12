@@ -76,6 +76,9 @@ pub enum CollisionEvent {
     Started(ColliderHandle, ColliderHandle, CollisionEventFlags),
     /// Event occurring when two colliders stop colliding.
     Stopped(ColliderHandle, ColliderHandle, CollisionEventFlags),
+    /// Event occurring when two colliders are actively colliding.
+    /// Even after `CollisionEvent::Started` has already been called.
+    Active(ColliderHandle, ColliderHandle, CollisionEventFlags),
 }
 
 impl CollisionEvent {
@@ -92,21 +95,21 @@ impl CollisionEvent {
     /// The handle of the first collider involved in this collision event.
     pub fn collider1(self) -> ColliderHandle {
         match self {
-            Self::Started(h, _, _) | Self::Stopped(h, _, _) => h,
+            Self::Started(h, _, _) | Self::Stopped(h, _, _) | Self::Active(h, _, _) => h,
         }
     }
 
     /// The handle of the second collider involved in this collision event.
     pub fn collider2(self) -> ColliderHandle {
         match self {
-            Self::Started(_, h, _) | Self::Stopped(_, h, _) => h,
+            Self::Started(_, h, _) | Self::Stopped(_, h, _) | Self::Active(_, h, _) => h,
         }
     }
 
     /// Was at least one of the colliders involved in the collision a sensor?
     pub fn sensor(self) -> bool {
         match self {
-            Self::Started(_, _, f) | Self::Stopped(_, _, f) => {
+            Self::Started(_, _, f) | Self::Stopped(_, _, f) | Self::Active(_, _, f) => {
                 f.contains(CollisionEventFlags::SENSOR)
             }
         }
@@ -115,7 +118,7 @@ impl CollisionEvent {
     /// Was at least one of the colliders involved in the collision removed?
     pub fn removed(self) -> bool {
         match self {
-            Self::Started(_, _, f) | Self::Stopped(_, _, f) => {
+            Self::Started(_, _, f) | Self::Stopped(_, _, f) | Self::Active(_, _, f) => {
                 f.contains(CollisionEventFlags::REMOVED)
             }
         }

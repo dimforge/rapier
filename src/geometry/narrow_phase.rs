@@ -762,6 +762,11 @@ impl NarrowPhase {
 
             let active_events = co1.flags.active_events | co2.flags.active_events;
 
+            if had_intersection && active_events.contains(ActiveEvents::ACTIVE_COLLISION_EVENTS) {
+                edge.weight
+                    .emit_active_event(bodies, colliders, handle1, handle2, events);
+            }
+
             if active_events.contains(ActiveEvents::COLLISION_EVENTS)
                 && had_intersection != edge.weight.intersecting
             {
@@ -992,6 +997,12 @@ impl NarrowPhase {
             }
 
             let active_events = co1.flags.active_events | co2.flags.active_events;
+
+            if pair.has_any_active_contact
+                && active_events.contains(ActiveEvents::ACTIVE_COLLISION_EVENTS)
+            {
+                pair.emit_active_event(bodies, colliders, events);
+            }
 
             if pair.has_any_active_contact != had_any_active_contact {
                 if active_events.contains(ActiveEvents::COLLISION_EVENTS) {
