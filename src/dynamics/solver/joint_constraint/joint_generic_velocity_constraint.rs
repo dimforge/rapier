@@ -89,7 +89,7 @@ impl JointGenericVelocityConstraint {
 
         let start = len;
         for i in DIM..SPATIAL_DIM {
-            if (motor_axes >> DIM) & (1 << i) != 0 {
+            if motor_axes & (1 << i) != 0 {
                 out[len] = builder.motor_angular_generic(
                     params,
                     jacobians,
@@ -385,7 +385,7 @@ impl JointGenericVelocityGroundConstraint {
 
         let start = len;
         for i in DIM..SPATIAL_DIM {
-            if (motor_axes >> DIM) & (1 << i) != 0 {
+            if motor_axes & (1 << i) != 0 {
                 out[len] = builder.motor_angular_generic_ground(
                     params,
                     jacobians,
