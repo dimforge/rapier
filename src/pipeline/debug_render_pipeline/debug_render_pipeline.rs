@@ -175,7 +175,9 @@ impl DebugRenderPipeline {
             }
 
             if let (Some(rb1), Some(rb2)) = (bodies.get(body1), bodies.get(body2)) {
-                let coeff = if (rb1.is_fixed() || rb1.is_sleeping())
+                let coeff = if !data.is_enabled() || !rb1.is_enabled() || !rb2.is_enabled() {
+                    self.style.disabled_color_multiplier
+                } else if (rb1.is_fixed() || rb1.is_sleeping())
                     && (rb2.is_fixed() || rb2.is_sleeping())
                 {
                     self.style.sleep_color_multiplier
@@ -250,7 +252,9 @@ impl DebugRenderPipeline {
                 && backend.filter_object(object)
             {
                 let basis = rb.rotation().to_rotation_matrix().into_inner();
-                let coeff = if rb.is_sleeping() {
+                let coeff = if !rb.is_enabled() {
+                    self.style.disabled_color_multiplier
+                } else if rb.is_sleeping() {
                     self.style.sleep_color_multiplier
                 } else {
                     [1.0; 4]
@@ -283,7 +287,9 @@ impl DebugRenderPipeline {
 
                 if backend.filter_object(object) {
                     let color = if let Some(parent) = co.parent().and_then(|p| bodies.get(p)) {
-                        let coeff = if parent.is_sleeping() {
+                        let coeff = if !parent.is_enabled() || !co.is_enabled() {
+                            self.style.disabled_color_multiplier
+                        } else if parent.is_sleeping() {
                             self.style.sleep_color_multiplier
                         } else {
                             [1.0; 4]
