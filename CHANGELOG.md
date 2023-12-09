@@ -5,6 +5,7 @@
 - Add `EffectiveCharacterMovement::is_sliding_down_slope` to indicate if the character controlled by the kinematic
   character controller is sliding on a slope that is too steep.
 - Add `Wheel::side_friction_stiffness` to customize the side friction applied to the vehicle controller’s wheel.
+- Add `DebugRenderStyle::disabled_color_multiplier` to make the debug-renderer color disabled object differently.
 
 ### Modified
 - Make `Wheel::friction_slip` public to customize the front friction applied to the vehicle controller’s wheels.
