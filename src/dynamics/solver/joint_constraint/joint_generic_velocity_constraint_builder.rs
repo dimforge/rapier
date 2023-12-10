@@ -214,8 +214,8 @@ impl JointVelocityConstraintBuilder<Real> {
         );
 
         let dist = self.lin_err.dot(&lin_jac);
-        let min_enabled = dist < limits[0];
-        let max_enabled = limits[1] < dist;
+        let min_enabled = dist <= limits[0];
+        let max_enabled = limits[1] <= dist;
 
         let erp_inv_dt = params.joint_erp_inv_dt();
         let rhs_bias = ((dist - limits[1]).max(0.0) - (limits[0] - dist).max(0.0)) * erp_inv_dt;
@@ -368,8 +368,8 @@ impl JointVelocityConstraintBuilder<Real> {
         let s_ang = (self.ang_err.angle() / 2.0).sin();
         #[cfg(feature = "dim3")]
         let s_ang = self.ang_err.imag()[_limited_axis];
-        let min_enabled = s_ang < s_limits[0];
-        let max_enabled = s_limits[1] < s_ang;
+        let min_enabled = s_ang <= s_limits[0];
+        let max_enabled = s_limits[1] <= s_ang;
         let impulse_bounds = [
             min_enabled as u32 as Real * -Real::MAX,
             max_enabled as u32 as Real * Real::MAX,
@@ -612,8 +612,8 @@ impl JointVelocityConstraintBuilder<Real> {
         );
 
         let dist = self.lin_err.dot(&lin_jac);
-        let min_enabled = dist < limits[0];
-        let max_enabled = limits[1] < dist;
+        let min_enabled = dist <= limits[0];
+        let max_enabled = limits[1] <= dist;
 
         let erp_inv_dt = params.joint_erp_inv_dt();
         let rhs_bias = ((dist - limits[1]).max(0.0) - (limits[0] - dist).max(0.0)) * erp_inv_dt;
@@ -755,8 +755,8 @@ impl JointVelocityConstraintBuilder<Real> {
         let s_ang = (self.ang_err.angle() / 2.0).sin();
         #[cfg(feature = "dim3")]
         let s_ang = self.ang_err.imag()[_limited_axis];
-        let min_enabled = s_ang < s_limits[0];
-        let max_enabled = s_limits[1] < s_ang;
+        let min_enabled = s_ang <= s_limits[0];
+        let max_enabled = s_limits[1] <= s_ang;
         let impulse_bounds = [
             min_enabled as u32 as Real * -Real::MAX,
             max_enabled as u32 as Real * Real::MAX,
