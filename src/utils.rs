@@ -804,3 +804,12 @@ impl<T> IndexMut2<usize> for [T] {
         }
     }
 }
+
+#[repr(u8)]
+#[derive(Clone, Copy)]
+/// One of 3 spatial axes
+pub enum Axis {
+    X = 0,
+    Y = 1,
+    Z = 2,
+}
