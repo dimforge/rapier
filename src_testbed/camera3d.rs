@@ -64,7 +64,7 @@ impl OrbitCameraPlugin {
         mut query: Query<(&mut OrbitCamera, &mut Transform, &mut Camera)>,
     ) {
         let mut delta = Vec2::ZERO;
-        for event in mouse_motion_events.iter() {
+        for event in mouse_motion_events.read() {
             delta += event.delta;
         }
         for (mut camera, transform, _) in query.iter_mut() {
@@ -97,7 +97,7 @@ impl OrbitCameraPlugin {
         mut query: Query<&mut OrbitCamera, With<Camera>>,
     ) {
         let mut total = 0.0;
-        for event in mouse_wheel_events.iter() {
+        for event in mouse_wheel_events.read() {
             total += event.y
                 * match event.unit {
                     Line => 1.0,
