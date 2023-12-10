@@ -11,15 +11,10 @@ pub fn init_world(testbed: &mut Testbed) {
     let multibody_joints = MultibodyJointSet::new();
 
     /*
-     * The ground
+     * Fixed ground to attach one end of the joints.
      */
-    let ground_size = 5.0;
-    let ground_height = 0.1;
-
-    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
+    let rigid_body = RigidBodyBuilder::fixed();
     let ground_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
      * A rectangle on a motor with target position.
@@ -37,7 +32,7 @@ pub fn init_world(testbed: &mut Testbed) {
             .local_anchor1(point![x_pos, 1.5, 0.0])
             .local_anchor2(point![0.0, -0.5, 0.0])
             .motor_position(
-                -(std::f32::consts::PI - std::f32::consts::PI / 4.0 * num as f32),
+                -std::f32::consts::PI + std::f32::consts::PI / 4.0 * num as f32,
                 1000.0,
                 150.0,
             );
@@ -47,10 +42,10 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * A rectangle on a motor with limits.
      */
-    for num in 0..9 {
+    for num in 0..8 {
         let x_pos = -6.0 + 1.5 * num as f32;
         let rigid_body = RigidBodyBuilder::dynamic()
-            .translation(vector![x_pos, 5.0, 0.0])
+            .translation(vector![x_pos, 4.5, 0.0])
             .rotation(vector![0.0, 0.0, std::f32::consts::PI])
             .can_sleep(false);
         let handle = bodies.insert(rigid_body);
@@ -64,7 +59,7 @@ pub fn init_world(testbed: &mut Testbed) {
             .motor_max_force(100.0)
             .limits([
                 -std::f32::consts::PI,
-                std::f32::consts::PI / 4.0 * num as f32,
+                -std::f32::consts::PI + std::f32::consts::PI / 4.0 * num as f32,
             ]);
         impulse_joints.insert(ground_handle, handle, joint, true);
     }
