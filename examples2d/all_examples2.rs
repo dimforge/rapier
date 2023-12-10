@@ -17,6 +17,7 @@ mod damping2;
 mod debug_box_ball2;
 mod drum2;
 mod heightfield2;
+mod joint_motor_position2;
 mod joints2;
 mod locked_rotations2;
 mod one_way_platforms2;
@@ -79,6 +80,7 @@ pub fn main() {
         ("Rope Joints", rope_joints2::init_world),
         ("Sensor", sensor2::init_world),
         ("Trimesh", trimesh2::init_world),
+        ("Joint motor position", joint_motor_position2::init_world),
         ("(Debug) box ball", debug_box_ball2::init_world),
     ];
 

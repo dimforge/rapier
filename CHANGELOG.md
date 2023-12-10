@@ -1,4 +1,7 @@
 ## Unlereased
+### Fix
+- Fix bug causing angular joint limits and motor to sometimes only take into account half of the angles specified by the user.
+
 ### Added
 - Add `SphericalJoint::local_frame1/2`, `::set_local_frame1/2`, and `SphericalJointBuilder::local_frame1/2` to set both
   the joint’s anchor and reference orientation.
