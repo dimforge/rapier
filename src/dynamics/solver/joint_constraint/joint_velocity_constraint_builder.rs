@@ -282,7 +282,7 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         joint_id: [JointIndex; LANES],
         body1: &SolverBody<N, LANES>,
         body2: &SolverBody<N, LANES>,
-        limited_axis: usize,
+        _limited_axis: usize,
         limits: [N; 2],
         writeback_id: WritebackId,
     ) -> JointVelocityConstraint<N, LANES> {
@@ -292,7 +292,7 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         #[cfg(feature = "dim2")]
         let s_ang = (self.ang_err.angle() * half).simd_sin();
         #[cfg(feature = "dim3")]
-        let s_ang = self.ang_err.imag()[limited_axis];
+        let s_ang = self.ang_err.imag()[_limited_axis];
         let min_enabled = s_ang.simd_lt(s_limits[0]);
         let max_enabled = s_limits[1].simd_lt(s_ang);
 
@@ -302,9 +302,9 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         ];
 
         #[cfg(feature = "dim2")]
-        let ang_jac = self.ang_basis[limited_axis];
+        let ang_jac = N::one();
         #[cfg(feature = "dim3")]
-        let ang_jac = self.ang_basis.column(limited_axis).into_owned();
+        let ang_jac = self.ang_basis.column(_limited_axis).into_owned();
         let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
         let rhs_wo_bias = dvel;
 
@@ -346,7 +346,6 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         motor_params: &MotorParameters<N>,
         writeback_id: WritebackId,
     ) -> JointVelocityConstraint<N, LANES> {
-        // let mut ang_jac = self.ang_basis.column(_motor_axis).into_owned();
         #[cfg(feature = "dim2")]
         let ang_jac = N::one();
         #[cfg(feature = "dim3")]
@@ -397,13 +396,13 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         joint_id: [JointIndex; LANES],
         body1: &SolverBody<N, LANES>,
         body2: &SolverBody<N, LANES>,
-        locked_axis: usize,
+        _locked_axis: usize,
         writeback_id: WritebackId,
     ) -> JointVelocityConstraint<N, LANES> {
         #[cfg(feature = "dim2")]
-        let ang_jac = self.ang_basis[locked_axis];
+        let ang_jac = N::one();
         #[cfg(feature = "dim3")]
-        let ang_jac = self.ang_basis.column(locked_axis).into_owned();
+        let ang_jac = self.ang_basis.column(_locked_axis).into_owned();
 
         let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
         let rhs_wo_bias = dvel;
@@ -413,7 +412,7 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         #[cfg(feature = "dim2")]
         let rhs_bias = self.ang_err.im * erp_inv_dt;
         #[cfg(feature = "dim3")]
-        let rhs_bias = self.ang_err.imag()[locked_axis] * erp_inv_dt;
+        let rhs_bias = self.ang_err.imag()[_locked_axis] * erp_inv_dt;
 
         let ang_jac1 = body1.sqrt_ii * ang_jac;
         let ang_jac2 = body2.sqrt_ii * ang_jac;
@@ -790,7 +789,6 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         motor_params: &MotorParameters<N>,
         writeback_id: WritebackId,
     ) -> JointVelocityGroundConstraint<N, LANES> {
-        // let mut ang_jac = self.ang_basis.column(_motor_axis).into_owned();
         #[cfg(feature = "dim2")]
         let ang_jac = N::one();
         #[cfg(feature = "dim3")]
@@ -857,7 +855,7 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         ];
 
         #[cfg(feature = "dim2")]
-        let ang_jac = self.ang_basis[limited_axis];
+        let ang_jac = N::one();
         #[cfg(feature = "dim3")]
         let ang_jac = self.ang_basis.column(limited_axis).into_owned();
         let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
@@ -894,13 +892,14 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         joint_id: [JointIndex; LANES],
         body1: &SolverBody<N, LANES>,
         body2: &SolverBody<N, LANES>,
-        locked_axis: usize,
+        _locked_axis: usize,
         writeback_id: WritebackId,
     ) -> JointVelocityGroundConstraint<N, LANES> {
         #[cfg(feature = "dim2")]
-        let ang_jac = self.ang_basis[locked_axis];
+        let ang_jac = N::one();
         #[cfg(feature = "dim3")]
-        let ang_jac = self.ang_basis.column(locked_axis).into_owned();
+        let ang_jac = self.ang_basis.column(_locked_axis).into_owned();
+
         let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
         let rhs_wo_bias = dvel;
 
@@ -909,7 +908,7 @@ impl<N: WReal> JointVelocityConstraintBuilder<N> {
         #[cfg(feature = "dim2")]
         let rhs_bias = self.ang_err.im * erp_inv_dt;
         #[cfg(feature = "dim3")]
-        let rhs_bias = self.ang_err.imag()[locked_axis] * erp_inv_dt;
+        let rhs_bias = self.ang_err.imag()[_locked_axis] * erp_inv_dt;
 
         let ang_jac2 = body2.sqrt_ii * ang_jac;
 
