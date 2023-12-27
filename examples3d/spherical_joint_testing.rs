@@ -1,11 +1,11 @@
 use rapier3d::prelude::*;
-use rapier_testbed3d::{Testbed, TestbedApp};
+use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
 
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
+    let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
 
 

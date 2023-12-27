@@ -115,6 +115,9 @@ impl MultibodyJoint {
                 let angvel = Vector3::from_row_slice(&vels[curr_free_dof..curr_free_dof + 3]);
                 let disp = UnitQuaternion::new_eps(angvel * dt, 0.0);
                 self.joint_rot = disp * self.joint_rot;
+                self.coords[3] += angvel[0] * dt;
+                self.coords[4] += angvel[1] * dt;
+                self.coords[5] += angvel[2] * dt;
             }
             _ => unreachable!(),
         }
