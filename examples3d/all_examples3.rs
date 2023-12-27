@@ -53,6 +53,8 @@ mod trimesh3;
 mod vehicle_controller3;
 mod vehicle_joints3;
 
+mod spherical_joint_testing;
+
 fn demo_name_from_command_line() -> Option<String> {
     let mut args = std::env::args();
 
@@ -149,6 +151,7 @@ pub fn main() {
             debug_shape_modification3::init_world,
         ),
         ("(Debug) deserialize", debug_deserialize3::init_world),
+        ("Spherical Joint testing", spherical_joint_testing::init_world)
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
