@@ -927,6 +927,7 @@ impl NarrowPhase {
 
                 for manifold in &mut pair.manifolds {
                     let world_pos1 = manifold.subshape_pos1.prepend_to(&co1.pos);
+                    let world_pos2 = manifold.subshape_pos2.prepend_to(&co2.pos);
                     manifold.data.solver_contacts.clear();
                     manifold.data.rigid_body1 = co1.parent.map(|p| p.handle);
                     manifold.data.rigid_body2 = co2.parent.map(|p| p.handle);
@@ -944,10 +945,13 @@ impl NarrowPhase {
 
                         if contact.dist < prediction_distance {
                             // Generate the solver contact.
+                            let world_pt1 = world_pos1 * contact.local_p1;
+                            let world_pt2 = world_pos2 * contact.local_p2;
+                            let effective_point = na::center(&world_pt1, &world_pt2);
+
                             let solver_contact = SolverContact {
                                 contact_id: contact_id as u8,
-                                point: world_pos1 * contact.local_p1
-                                    + manifold.data.normal * contact.dist / 2.0,
+                                point: effective_point,
                                 dist: contact.dist,
                                 friction,
                                 restitution,

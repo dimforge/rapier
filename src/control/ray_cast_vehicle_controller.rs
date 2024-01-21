@@ -4,7 +4,7 @@ use crate::dynamics::{RigidBody, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Ray};
 use crate::math::{Point, Real, Rotation, Vector};
 use crate::pipeline::{QueryFilter, QueryPipeline};
-use crate::utils::{WCross, WDot};
+use crate::utils::{SimdCross, SimdDot};
 
 /// A character controller to simulate vehicles using ray-casting for the wheels.
 pub struct DynamicRayCastVehicleController {

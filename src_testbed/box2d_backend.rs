@@ -223,11 +223,8 @@ impl Box2dWorld {
 
     pub fn step(&mut self, counters: &mut Counters, params: &IntegrationParameters) {
         counters.step_started();
-        self.world.step(
-            params.dt,
-            params.max_velocity_iterations as i32,
-            params.max_stabilization_iterations as i32,
-        );
+        self.world
+            .step(params.dt, params.num_solver_iterations.get() as i32, 1);
         counters.step_completed();
     }
 

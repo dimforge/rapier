@@ -6,10 +6,10 @@ pub(crate) fn categorize_contacts(
     multibody_joints: &MultibodyJointSet,
     manifolds: &[&mut ContactManifold],
     manifold_indices: &[ContactManifoldIndex],
-    out_ground: &mut Vec<ContactManifoldIndex>,
-    out_not_ground: &mut Vec<ContactManifoldIndex>,
-    out_generic_ground: &mut Vec<ContactManifoldIndex>,
-    out_generic_not_ground: &mut Vec<ContactManifoldIndex>,
+    out_one_body: &mut Vec<ContactManifoldIndex>,
+    out_two_body: &mut Vec<ContactManifoldIndex>,
+    out_generic_one_body: &mut Vec<ContactManifoldIndex>,
+    out_generic_two_body: &mut Vec<ContactManifoldIndex>,
 ) {
     for manifold_i in manifold_indices {
         let manifold = &manifolds[*manifold_i];
@@ -26,14 +26,14 @@ pub(crate) fn categorize_contacts(
                 .is_some()
         {
             if manifold.data.relative_dominance != 0 {
-                out_generic_ground.push(*manifold_i);
+                out_generic_one_body.push(*manifold_i);
             } else {
-                out_generic_not_ground.push(*manifold_i);
+                out_generic_two_body.push(*manifold_i);
             }
         } else if manifold.data.relative_dominance != 0 {
-            out_ground.push(*manifold_i)
+            out_one_body.push(*manifold_i)
         } else {
-            out_not_ground.push(*manifold_i)
+            out_two_body.push(*manifold_i)
         }
     }
 }
@@ -43,10 +43,10 @@ pub(crate) fn categorize_joints(
     multibody_joints: &MultibodyJointSet,
     impulse_joints: &[JointGraphEdge],
     joint_indices: &[JointIndex],
-    ground_joints: &mut Vec<JointIndex>,
-    nonground_joints: &mut Vec<JointIndex>,
-    generic_ground_joints: &mut Vec<JointIndex>,
-    generic_nonground_joints: &mut Vec<JointIndex>,
+    one_body_joints: &mut Vec<JointIndex>,
+    two_body_joints: &mut Vec<JointIndex>,
+    generic_one_body_joints: &mut Vec<JointIndex>,
+    generic_two_body_joints: &mut Vec<JointIndex>,
 ) {
     for joint_i in joint_indices {
         let joint = &impulse_joints[*joint_i].weight;
@@ -57,14 +57,14 @@ pub(crate) fn categorize_joints(
             || multibody_joints.rigid_body_link(joint.body2).is_some()
         {
             if !rb1.is_dynamic() || !rb2.is_dynamic() {
-                generic_ground_joints.push(*joint_i);
+                generic_one_body_joints.push(*joint_i);
             } else {
-                generic_nonground_joints.push(*joint_i);
+                generic_two_body_joints.push(*joint_i);
             }
         } else if !rb1.is_dynamic() || !rb2.is_dynamic() {
-            ground_joints.push(*joint_i);
+            one_body_joints.push(*joint_i);
         } else {
-            nonground_joints.push(*joint_i);
+            two_body_joints.push(*joint_i);
         }
     }
 }

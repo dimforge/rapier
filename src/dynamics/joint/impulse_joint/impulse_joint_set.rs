@@ -214,7 +214,7 @@ impl ImpulseJointSet {
     //     //     .map(|e| &mut e.weight)
     // }
 
-    #[cfg(not(feature = "parallel"))]
+    // #[cfg(not(feature = "parallel"))]
     pub(crate) fn joints_mut(&mut self) -> &mut [JointGraphEdge] {
         &mut self.joint_graph.graph.edges[..]
     }

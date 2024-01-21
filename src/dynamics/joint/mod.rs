@@ -6,6 +6,7 @@ pub use self::multibody_joint::*;
 pub use self::prismatic_joint::*;
 pub use self::revolute_joint::*;
 pub use self::rope_joint::*;
+pub use self::spring_joint::*;
 
 #[cfg(feature = "dim3")]
 pub use self::spherical_joint::*;
@@ -21,3 +22,4 @@ mod rope_joint;
 
 #[cfg(feature = "dim3")]
 mod spherical_joint;
+mod spring_joint;

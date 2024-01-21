@@ -1,5 +1,6 @@
 use rapier::counters::Counters;
 use rapier::math::Real;
+use std::num::NonZeroUsize;
 
 use crate::debug_render::DebugRenderPipelineResource;
 use crate::harness::Harness;
@@ -98,43 +99,25 @@ pub fn update_ui(
 
         let integration_parameters = &mut harness.physics.integration_parameters;
 
-        ui.checkbox(
-            &mut integration_parameters.interleave_restitution_and_friction_resolution,
-            "interleave friction resolution",
-        );
-
         if state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
             || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
         {
-            ui.add(
-                Slider::new(&mut integration_parameters.max_velocity_iterations, 1..=200)
-                    .text("pos. iters."),
-            );
-            ui.add(
-                Slider::new(
-                    &mut integration_parameters.max_stabilization_iterations,
-                    1..=200,
-                )
-                .text("vel. iters."),
-            );
+            let mut num_iterations = integration_parameters.num_solver_iterations.get();
+            ui.add(Slider::new(&mut num_iterations, 1..=40).text("pos. iters."));
+            integration_parameters.num_solver_iterations =
+                NonZeroUsize::new(num_iterations).unwrap();
         } else {
-            ui.add(
-                Slider::new(&mut integration_parameters.max_velocity_iterations, 1..=200)
-                    .text("vel. rest. iters."),
-            );
-            ui.add(
-                Slider::new(
-                    &mut integration_parameters.max_velocity_friction_iterations,
-                    1..=200,
-                )
-                .text("vel. frict. iters."),
-            );
+            let mut num_iterations = integration_parameters.num_solver_iterations.get();
+            ui.add(Slider::new(&mut num_iterations, 1..=40).text("num solver iters."));
+            integration_parameters.num_solver_iterations =
+                NonZeroUsize::new(num_iterations).unwrap();
+
             ui.add(
                 Slider::new(
-                    &mut integration_parameters.max_stabilization_iterations,
-                    1..=200,
+                    &mut integration_parameters.num_friction_iteration_per_solver_iteration,
+                    1..=40,
                 )
-                .text("vel. stab. iters."),
+                .text("frict. iters. per solver iters."),
             );
         }
 

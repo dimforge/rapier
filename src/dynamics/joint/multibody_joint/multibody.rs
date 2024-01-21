@@ -1,16 +1,13 @@
 use super::multibody_link::{MultibodyLink, MultibodyLinkVec};
 use super::multibody_workspace::MultibodyWorkspace;
-use crate::dynamics::{
-    solver::AnyJointVelocityConstraint, IntegrationParameters, RigidBodyHandle, RigidBodySet,
-    RigidBodyType, RigidBodyVelocity,
-};
+use crate::dynamics::{RigidBodyHandle, RigidBodySet, RigidBodyType, RigidBodyVelocity};
 #[cfg(feature = "dim3")]
 use crate::math::Matrix;
 use crate::math::{
     AngDim, AngVector, Dim, Isometry, Jacobian, Point, Real, Vector, ANG_DIM, DIM, SPATIAL_DIM,
 };
 use crate::prelude::MultibodyJoint;
-use crate::utils::{IndexMut2, WAngularInertia, WCross, WCrossMatrix};
+use crate::utils::{IndexMut2, SimdAngularInertia, SimdCross, SimdCrossMatrix};
 use na::{self, DMatrix, DVector, DVectorView, DVectorViewMut, Dyn, OMatrix, SMatrix, SVector, LU};
 
 #[repr(C)]
@@ -372,6 +369,7 @@ impl Multibody {
 
         self.accelerations.fill(0.0);
 
+        // Eqn 42 to 45
         for i in 0..self.links.len() {
             let link = &self.links[i];
             let rb = &bodies[link.rigid_body];
@@ -400,7 +398,7 @@ impl Multibody {
             }
 
             acc.linvel += rb.vels.angvel.gcross(rb.vels.angvel.gcross(link.shift23));
-            acc.linvel += self.workspace.accs[i].angvel.gcross(link.shift23);
+            acc.linvel += acc.angvel.gcross(link.shift23);
 
             self.workspace.accs[i] = acc;
 
@@ -728,7 +726,7 @@ impl Multibody {
 
     /// The generalized velocity at the multibody_joint of the given link.
     #[inline]
-    pub(crate) fn joint_velocity(&self, link: &MultibodyLink) -> DVectorView<Real> {
+    pub fn joint_velocity(&self, link: &MultibodyLink) -> DVectorView<Real> {
         let ndofs = link.joint().ndofs();
         DVectorView::from_slice(
             &self.velocities.as_slice()[link.assembly_id..link.assembly_id + ndofs],
@@ -829,8 +827,10 @@ impl Multibody {
         }
     }
 
+    // TODO: make a version that doesn’t write back to bodies and doesn’t update the jacobians
+    //       (i.e. just something used by the velocity solver’s small steps).
     /// Apply forward-kinematics to this multibody and its related rigid-bodies.
-    pub fn forward_kinematics(&mut self, bodies: &mut RigidBodySet, update_mass_props: bool) {
+    pub fn forward_kinematics(&mut self, bodies: &mut RigidBodySet, update_rb_mass_props: bool) {
         // Special case for the root, which has no parent.
         {
             let link = &mut self.links[0];
@@ -839,7 +839,7 @@ impl Multibody {
 
             if let Some(rb) = bodies.get_mut_internal(link.rigid_body) {
                 rb.pos.next_position = link.local_to_world;
-                if update_mass_props {
+                if update_rb_mass_props {
                     rb.mprops.update_world_mass_properties(&link.local_to_world);
                 }
             }
@@ -873,7 +873,7 @@ impl Multibody {
                 "A rigid-body that is not at the root of a multibody must be dynamic."
             );
 
-            if update_mass_props {
+            if update_rb_mass_props {
                 link_rb
                     .mprops
                     .update_world_mass_properties(&link.local_to_world);
@@ -950,41 +950,5 @@ impl Multibody {
             .map(|l| l.joint().num_velocity_constraints())
             .sum();
         (num_constraints, num_constraints)
-    }
-
-    #[inline]
-    pub(crate) fn generate_internal_constraints(
-        &self,
-        params: &IntegrationParameters,
-        j_id: &mut usize,
-        jacobians: &mut DVector<Real>,
-        out: &mut Vec<AnyJointVelocityConstraint>,
-        mut insert_at: Option<usize>,
-    ) {
-        if !cfg!(feature = "parallel") {
-            let num_constraints: usize = self
-                .links
-                .iter()
-                .map(|l| l.joint().num_velocity_constraints())
-                .sum();
-
-            let required_jacobian_len = *j_id + num_constraints * self.ndofs * 2;
-            if jacobians.nrows() < required_jacobian_len {
-                jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
-            }
-        }
-
-        for link in self.links.iter() {
-            link.joint().velocity_constraints(
-                params,
-                self,
-                link,
-                0,
-                j_id,
-                jacobians,
-                out,
-                &mut insert_at,
-            );
-        }
     }
 }

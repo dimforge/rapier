@@ -1,5 +1,6 @@
 use std::env;
 use std::mem;
+use std::num::NonZeroUsize;
 
 use bevy::prelude::*;
 
@@ -147,6 +148,7 @@ pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     #[allow(dead_code)] // Dead in 2D but not in 3D.
     camera_transform: GlobalTransform,
     camera: &'a mut OrbitCamera,
+    keys: &'a Input<KeyCode>,
 }
 
 pub struct Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
@@ -284,11 +286,7 @@ impl TestbedApp {
                     self.harness
                         .physics
                         .integration_parameters
-                        .max_velocity_iterations = 4;
-                    self.harness
-                        .physics
-                        .integration_parameters
-                        .max_stabilization_iterations = 1;
+                        .num_solver_iterations = NonZeroUsize::new(4).unwrap();
 
                     // Init world.
                     let mut testbed = Testbed {
@@ -457,6 +455,10 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
             handle,
             colliders,
         )
+    }
+
+    pub fn keys(&self) -> &Input<KeyCode> {
+        &*self.keys
     }
 }
 
@@ -910,7 +912,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .multibody_joints
                         .iter()
                         .next()
-                        .map(|a| a.2.rigid_body_handle());
+                        .map(|(_, _, _, link)| link.rigid_body_handle());
                     if let Some(to_delete) = to_delete {
                         self.harness
                             .physics
@@ -1107,6 +1109,7 @@ fn update_testbed(
             components: &mut gfx_components,
             camera_transform: *cameras.single().1,
             camera: &mut cameras.single_mut().2,
+            keys: &*keys,
         };
 
         let mut testbed = Testbed {
@@ -1200,6 +1203,7 @@ fn update_testbed(
                 components: &mut gfx_components,
                 camera_transform: *cameras.single().1,
                 camera: &mut cameras.single_mut().2,
+                keys: &*keys,
             };
 
             let mut testbed = Testbed {
@@ -1351,6 +1355,7 @@ fn update_testbed(
                     components: &mut gfx_components,
                     camera_transform: *cameras.single().1,
                     camera: &mut cameras.single_mut().2,
+                    keys: &*keys,
                 };
                 harness.step_with_graphics(Some(&mut testbed_graphics));
 

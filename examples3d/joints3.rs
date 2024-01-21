@@ -20,7 +20,6 @@ fn create_coupled_joints(
     let joint1 = GenericJointBuilder::new(JointAxesMask::empty())
         .limits(JointAxis::X, [-3.0, 3.0])
         .limits(JointAxis::Y, [0.0, 3.0])
-        .limits(JointAxis::Z, [0.0, 3.0])
         .coupled_axes(JointAxesMask::Y | JointAxesMask::Z);
 
     if use_articulations {

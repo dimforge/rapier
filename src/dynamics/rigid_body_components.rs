@@ -7,7 +7,7 @@ use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector,
 };
 use crate::parry::partitioning::IndexedData;
-use crate::utils::{WAngularInertia, WCross, WDot};
+use crate::utils::{SimdAngularInertia, SimdCross, SimdDot};
 use num::Zero;
 
 /// The unique handle of a rigid body added to a `RigidBodySet`.
@@ -307,11 +307,52 @@ impl RigidBodyMassProps {
         self.effective_inv_mass.map(crate::utils::inv)
     }
 
+    /// The square root of the effective world-space angular inertia (that takes the potential rotation locking into account) of
+    /// this rigid-body.
+    #[must_use]
+    pub fn effective_angular_inertia_sqrt(&self) -> AngularInertia<Real> {
+        #[allow(unused_mut)] // mut needed in 3D.
+        let mut ang_inertia = self.effective_world_inv_inertia_sqrt;
+
+        // Make the matrix invertible.
+        #[cfg(feature = "dim3")]
+        {
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_X) {
+                ang_inertia.m11 = 1.0;
+            }
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_Y) {
+                ang_inertia.m22 = 1.0;
+            }
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_Z) {
+                ang_inertia.m33 = 1.0;
+            }
+        }
+
+        #[allow(unused_mut)] // mut needed in 3D.
+        let mut result = ang_inertia.inverse();
+
+        // Remove the locked axes again.
+        #[cfg(feature = "dim3")]
+        {
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_X) {
+                result.m11 = 0.0;
+            }
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_Y) {
+                result.m22 = 0.0;
+            }
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_Z) {
+                result.m33 = 0.0;
+            }
+        }
+
+        result
+    }
+
     /// The effective world-space angular inertia (that takes the potential rotation locking into account) of
     /// this rigid-body.
     #[must_use]
     pub fn effective_angular_inertia(&self) -> AngularInertia<Real> {
-        self.effective_world_inv_inertia_sqrt.squared().inverse()
+        self.effective_angular_inertia_sqrt().squared()
     }
 
     /// Recompute the mass-properties of this rigid-bodies based on its currently attached colliders.
