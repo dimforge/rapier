@@ -142,6 +142,7 @@ impl IslandManager {
     }
 
     #[cfg(feature = "parallel")]
+    #[allow(dead_code)] // That will likely be useful when we re-introduce intra-island parallelism.
     pub(crate) fn active_island_range(&self, island_id: usize) -> std::ops::Range<usize> {
         self.active_islands[island_id]..self.active_islands[island_id + 1]
     }

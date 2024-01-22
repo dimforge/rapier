@@ -262,7 +262,7 @@ impl PhysicsPipeline {
             //       Intra-island parallelism (that hasn’t been ported to the new
             //       solver yet) will be supported in the future.
             self.counters.solver.velocity_resolution_time.resume();
-            rayon::scope(|scope| {
+            rayon::scope(|_scope| {
                 enable_flush_to_zero!();
 
                 solvers
@@ -287,9 +287,9 @@ impl PhysicsPipeline {
                             islands,
                             bodies,
                             &mut manifolds[..],
-                            &self.manifold_indices[island_id],
+                            &manifold_indices[island_id],
                             impulse_joints,
-                            &self.joint_constraint_indices[island_id],
+                            &joint_constraint_indices[island_id],
                             multibody_joints,
                         )
                     });

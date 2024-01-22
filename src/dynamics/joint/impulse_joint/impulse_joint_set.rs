@@ -215,6 +215,7 @@ impl ImpulseJointSet {
     // }
 
     // #[cfg(not(feature = "parallel"))]
+    #[allow(dead_code)] // That will likely be useful when we re-introduce intra-island parallelism.
     pub(crate) fn joints_mut(&mut self) -> &mut [JointGraphEdge] {
         &mut self.joint_graph.graph.edges[..]
     }

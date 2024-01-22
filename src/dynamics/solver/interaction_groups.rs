@@ -32,6 +32,7 @@ impl<'a> PairInteraction for JointGraphEdge {
 }
 
 #[cfg(feature = "parallel")]
+#[allow(dead_code)] // That will likely be useful when we re-introduce intra-island parallelism.
 pub(crate) struct ParallelInteractionGroups {
     bodies_color: Vec<u128>,         // Workspace.
     interaction_indices: Vec<usize>, // Workspace.
@@ -41,6 +42,7 @@ pub(crate) struct ParallelInteractionGroups {
 }
 
 #[cfg(feature = "parallel")]
+#[allow(dead_code)] // That will likely be useful when we re-introduce intra-island parallelism.
 impl ParallelInteractionGroups {
     pub fn new() -> Self {
         Self {

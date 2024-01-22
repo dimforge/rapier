@@ -943,6 +943,7 @@ impl Multibody {
 
     #[cfg(feature = "parallel")]
     #[inline]
+    #[allow(dead_code)] // That will likely be useful when we re-introduce intra-island parallelism.
     pub(crate) fn num_active_internal_constraints_and_jacobian_lines(&self) -> (usize, usize) {
         let num_constraints: usize = self
             .links
