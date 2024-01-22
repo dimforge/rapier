@@ -55,7 +55,7 @@ impl IndexedData for MultibodyJointHandle {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 /// Indexes usable to get a multibody link from a `MultibodyJointSet`.
 ///
-/// ```rust
+/// ```.skip
 /// // With:
 /// //     multibody_joint_set: MultibodyJointSet
 /// //     multibody_link_id: MultibodyLinkId
