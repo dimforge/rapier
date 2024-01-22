@@ -1,17 +1,19 @@
 use crate::math::{AngVector, Vector, SPATIAL_DIM};
-use crate::utils::WReal;
+use crate::utils::SimdRealCopy;
 use na::{DVectorView, DVectorViewMut, Scalar};
 use std::ops::{AddAssign, Sub};
 
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
 //#[repr(align(64))]
-pub struct DeltaVel<N: Scalar + Copy> {
+pub struct SolverVel<N: Scalar + Copy> {
+    // The linear velocity of a solver body.
     pub linear: Vector<N>,
+    // The angular velocity, multiplied by the inverse sqrt angular inertia, of a solver body.
     pub angular: AngVector<N>,
 }
 
-impl<N: Scalar + Copy> DeltaVel<N> {
+impl<N: Scalar + Copy> SolverVel<N> {
     pub fn as_slice(&self) -> &[N; SPATIAL_DIM] {
         unsafe { std::mem::transmute(self) }
     }
@@ -29,7 +31,7 @@ impl<N: Scalar + Copy> DeltaVel<N> {
     }
 }
 
-impl<N: WReal> DeltaVel<N> {
+impl<N: SimdRealCopy> SolverVel<N> {
     pub fn zero() -> Self {
         Self {
             linear: na::zero(),
@@ -38,18 +40,18 @@ impl<N: WReal> DeltaVel<N> {
     }
 }
 
-impl<N: WReal> AddAssign for DeltaVel<N> {
+impl<N: SimdRealCopy> AddAssign for SolverVel<N> {
     fn add_assign(&mut self, rhs: Self) {
         self.linear += rhs.linear;
         self.angular += rhs.angular;
     }
 }
 
-impl<N: WReal> Sub for DeltaVel<N> {
+impl<N: SimdRealCopy> Sub for SolverVel<N> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
-        DeltaVel {
+        SolverVel {
             linear: self.linear - rhs.linear,
             angular: self.angular - rhs.angular,
         }

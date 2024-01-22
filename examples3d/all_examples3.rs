@@ -34,7 +34,10 @@ mod heightfield3;
 mod joints3;
 // mod joints3;
 mod character_controller3;
+mod debug_chain_high_mass_ratio3;
+mod debug_cube_high_mass_ratio3;
 mod debug_internal_edges3;
+mod debug_long_chain3;
 mod joint_motor_position3;
 mod keva3;
 mod locked_rotations3;
@@ -45,8 +48,10 @@ mod primitives3;
 mod restitution3;
 mod rope_joints3;
 mod sensor3;
+mod spring_joints3;
 mod trimesh3;
 mod vehicle_controller3;
+mod vehicle_joints3;
 
 fn demo_name_from_command_line() -> Option<String> {
     let mut args = std::env::args();
@@ -105,8 +110,10 @@ pub fn main() {
         ("Restitution", restitution3::init_world),
         ("Rope Joints", rope_joints3::init_world),
         ("Sensor", sensor3::init_world),
+        ("Spring Joints", spring_joints3::init_world),
         ("TriMesh", trimesh3::init_world),
         ("Vehicle controller", vehicle_controller3::init_world),
+        ("Vehicle joints", vehicle_joints3::init_world),
         ("Keva tower", keva3::init_world),
         ("Newton cradle", newton_cradle3::init_world),
         ("(Debug) multibody_joints", debug_articulations3::init_world),
@@ -122,6 +129,15 @@ pub fn main() {
         ),
         ("(Debug) friction", debug_friction3::init_world),
         ("(Debug) internal edges", debug_internal_edges3::init_world),
+        ("(Debug) long chain", debug_long_chain3::init_world),
+        (
+            "(Debug) high mass ratio: chain",
+            debug_chain_high_mass_ratio3::init_world,
+        ),
+        (
+            "(Debug) high mass ratio: cube",
+            debug_cube_high_mass_ratio3::init_world,
+        ),
         ("(Debug) triangle", debug_triangle3::init_world),
         ("(Debug) trimesh", debug_trimesh3::init_world),
         ("(Debug) cylinder", debug_cylinder3::init_world),

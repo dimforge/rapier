@@ -12,6 +12,7 @@ pub use crate::harness::plugin::HarnessPlugin;
 pub use crate::physics::PhysicsState;
 pub use crate::plugin::TestbedPlugin;
 pub use crate::testbed::{Testbed, TestbedApp, TestbedGraphics, TestbedState};
+pub use bevy::prelude::KeyCode;
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 mod box2d_backend;

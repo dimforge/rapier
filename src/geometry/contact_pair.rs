@@ -283,7 +283,7 @@ pub struct ContactManifoldData {
 pub struct SolverContact {
     /// The index of the manifold contact used to generate this solver contact.
     pub(crate) contact_id: u8,
-    /// The world-space contact point.
+    /// The contact point in world-space.
     pub point: Point<Real>,
     /// The distance between the two original contacts points along the contact normal.
     /// If negative, this is measures the penetration depth.

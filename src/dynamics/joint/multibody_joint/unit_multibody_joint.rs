@@ -1,9 +1,7 @@
 #![allow(missing_docs)] // For downcast.
 
 use crate::dynamics::joint::MultibodyLink;
-use crate::dynamics::solver::{
-    AnyJointVelocityConstraint, JointGenericVelocityGroundConstraint, WritebackId,
-};
+use crate::dynamics::solver::{JointGenericOneBodyConstraint, WritebackId};
 use crate::dynamics::{IntegrationParameters, JointMotor, Multibody};
 use crate::math::Real;
 use na::DVector;
@@ -19,18 +17,16 @@ pub fn unit_joint_limit_constraint(
     dof_id: usize,
     j_id: &mut usize,
     jacobians: &mut DVector<Real>,
-    constraints: &mut Vec<AnyJointVelocityConstraint>,
-    insert_at: &mut Option<usize>,
+    constraints: &mut [JointGenericOneBodyConstraint],
+    insert_at: &mut usize,
 ) {
     let ndofs = multibody.ndofs();
-    let joint_velocity = multibody.joint_velocity(link);
-
     let min_enabled = curr_pos < limits[0];
     let max_enabled = limits[1] < curr_pos;
     let erp_inv_dt = params.joint_erp_inv_dt();
     let cfm_coeff = params.joint_cfm_coeff();
     let rhs_bias = ((curr_pos - limits[1]).max(0.0) - (limits[0] - curr_pos).max(0.0)) * erp_inv_dt;
-    let rhs_wo_bias = joint_velocity[dof_id];
+    let rhs_wo_bias = 0.0;
 
     let dof_j_id = *j_id + dof_id + link.assembly_id;
     jacobians.rows_mut(*j_id, ndofs * 2).fill(0.0);
@@ -46,8 +42,8 @@ pub fn unit_joint_limit_constraint(
         max_enabled as u32 as Real * Real::MAX,
     ];
 
-    let constraint = JointGenericVelocityGroundConstraint {
-        mj_lambda2: multibody.solver_id,
+    let constraint = JointGenericOneBodyConstraint {
+        solver_vel2: multibody.solver_id,
         ndofs2: ndofs,
         j_id2: *j_id,
         joint_id: usize::MAX,
@@ -61,14 +57,9 @@ pub fn unit_joint_limit_constraint(
         writeback_id: WritebackId::Limit(dof_id),
     };
 
-    if let Some(at) = insert_at {
-        constraints[*at] = AnyJointVelocityConstraint::JointGenericGroundConstraint(constraint);
-        *at += 1;
-    } else {
-        constraints.push(AnyJointVelocityConstraint::JointGenericGroundConstraint(
-            constraint,
-        ));
-    }
+    constraints[*insert_at] = constraint;
+    *insert_at += 1;
+
     *j_id += 2 * ndofs;
 }
 
@@ -84,13 +75,11 @@ pub fn unit_joint_motor_constraint(
     dof_id: usize,
     j_id: &mut usize,
     jacobians: &mut DVector<Real>,
-    constraints: &mut Vec<AnyJointVelocityConstraint>,
-    insert_at: &mut Option<usize>,
+    constraints: &mut [JointGenericOneBodyConstraint],
+    insert_at: &mut usize,
 ) {
     let inv_dt = params.inv_dt();
     let ndofs = multibody.ndofs();
-    let joint_velocity = multibody.joint_velocity(link);
-
     let motor_params = motor.motor_params(params.dt);
 
     let dof_j_id = *j_id + dof_id + link.assembly_id;
@@ -117,11 +106,10 @@ pub fn unit_joint_motor_constraint(
         );
     };
 
-    let dvel = joint_velocity[dof_id];
-    rhs_wo_bias += dvel - target_vel;
+    rhs_wo_bias += -target_vel;
 
-    let constraint = JointGenericVelocityGroundConstraint {
-        mj_lambda2: multibody.solver_id,
+    let constraint = JointGenericOneBodyConstraint {
+        solver_vel2: multibody.solver_id,
         ndofs2: ndofs,
         j_id2: *j_id,
         joint_id: usize::MAX,
@@ -135,13 +123,8 @@ pub fn unit_joint_motor_constraint(
         writeback_id: WritebackId::Limit(dof_id),
     };
 
-    if let Some(at) = insert_at {
-        constraints[*at] = AnyJointVelocityConstraint::JointGenericGroundConstraint(constraint);
-        *at += 1;
-    } else {
-        constraints.push(AnyJointVelocityConstraint::JointGenericGroundConstraint(
-            constraint,
-        ));
-    }
+    constraints[*insert_at] = constraint;
+    *insert_at += 1;
+
     *j_id += 2 * ndofs;
 }

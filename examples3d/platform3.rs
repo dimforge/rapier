@@ -29,12 +29,12 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let shift = rad * 2.0;
     let centerx = shift * num as f32 / 2.0;
-    let centery = shift / 2.0 + 3.04;
     let centerz = shift * num as f32 / 2.0;
 
     for i in 0usize..num {
         for j in 0usize..num {
             for k in 0usize..num {
+                let centery = if j >= num / 2 { 5.0 } else { 3.0 };
                 let x = i as f32 * shift - centerx;
                 let y = j as f32 * shift + centery;
                 let z = k as f32 * shift - centerz;
@@ -51,11 +51,8 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Setup a velocity-based kinematic rigid body.
      */
-    let platform_body = RigidBodyBuilder::kinematic_velocity_based().translation(vector![
-        0.0,
-        1.5 + 0.8,
-        -10.0 * rad
-    ]);
+    let platform_body =
+        RigidBodyBuilder::kinematic_velocity_based().translation(vector![0.0, 1.5 + 0.8, 0.0]);
     let velocity_based_platform_handle = bodies.insert(platform_body);
     let collider = ColliderBuilder::cuboid(rad * 10.0, rad, rad * 10.0);
     colliders.insert_with_parent(collider, velocity_based_platform_handle, &mut bodies);
@@ -65,8 +62,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let platform_body = RigidBodyBuilder::kinematic_position_based().translation(vector![
         0.0,
-        2.0 + 1.5 + 0.8,
-        -10.0 * rad
+        3.0 + 1.5 + 0.8,
+        0.0
     ]);
     let position_based_platform_handle = bodies.insert(platform_body);
     let collider = ColliderBuilder::cuboid(rad * 10.0, rad, rad * 10.0);
@@ -75,22 +72,17 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Setup a callback to control the platform.
      */
-    let mut count = 0;
     testbed.add_callback(move |_, physics, _, run_state| {
-        count += 1;
-        if count % 100 > 50 {
-            return;
-        }
-
         let velocity = vector![
             0.0,
-            (run_state.time * 5.0).sin(),
-            run_state.time.sin() * 5.0
+            (run_state.time * 2.0).sin(),
+            run_state.time.sin() * 2.0
         ];
 
         // Update the velocity-based kinematic body by setting its velocity.
         if let Some(platform) = physics.bodies.get_mut(velocity_based_platform_handle) {
             platform.set_linvel(velocity, true);
+            platform.set_angvel(vector![0.0, 0.2, 0.0], true);
         }
 
         // Update the position-based kinematic body by setting its next position.

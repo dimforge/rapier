@@ -1,10 +1,9 @@
 use super::ParallelInteractionGroups;
-use super::{AnyJointVelocityConstraint, AnyVelocityConstraint, ThreadContext};
+use super::{ContactConstraintTypes, JointConstraintTypes, ThreadContext};
 use crate::dynamics::solver::categorization::{categorize_contacts, categorize_joints};
-use crate::dynamics::solver::generic_velocity_constraint::GenericVelocityConstraint;
+use crate::dynamics::solver::generic_two_body_constraint::GenericTwoBodyConstraint;
 use crate::dynamics::solver::{
-    GenericVelocityGroundConstraint, InteractionGroups, VelocityConstraint,
-    VelocityGroundConstraint,
+    GenericOneBodyConstraint, InteractionGroups, OneBodyConstraint, TwoBodyConstraint,
 };
 use crate::dynamics::{
     ImpulseJoint, IntegrationParameters, IslandManager, JointGraphEdge, MultibodyIndex,
@@ -14,7 +13,7 @@ use crate::geometry::ContactManifold;
 use crate::math::{Real, SPATIAL_DIM};
 #[cfg(feature = "simd-is-enabled")]
 use crate::{
-    dynamics::solver::{WVelocityConstraint, WVelocityGroundConstraint},
+    dynamics::solver::{OneBodyConstraintSimd, TwoBodyConstraintSimd},
     math::SIMD_WIDTH,
 };
 use na::DVector;
@@ -36,40 +35,40 @@ use std::sync::atomic::Ordering;
 // }
 
 pub(crate) enum ConstraintDesc {
-    NongroundNongrouped(usize),
-    GroundNongrouped(usize),
+    TwoBodyNongrouped(usize),
+    OneBodyNongrouped(usize),
     #[cfg(feature = "simd-is-enabled")]
-    NongroundGrouped([usize; SIMD_WIDTH]),
+    TwoBodyGrouped([usize; SIMD_WIDTH]),
     #[cfg(feature = "simd-is-enabled")]
-    GroundGrouped([usize; SIMD_WIDTH]),
-    GenericNongroundNongrouped(usize, usize),
-    GenericGroundNongrouped(usize, usize),
+    OneBodyGrouped([usize; SIMD_WIDTH]),
+    GenericTwoBodyNongrouped(usize, usize),
+    GenericOneBodyNongrouped(usize, usize),
     GenericMultibodyInternal(MultibodyIndex, usize),
 }
 
-pub(crate) struct ParallelSolverConstraints<VelocityConstraint> {
+pub(crate) struct ParallelSolverConstraints<TwoBodyConstraint> {
     pub generic_jacobians: DVector<Real>,
-    pub not_ground_interactions: Vec<usize>,
-    pub ground_interactions: Vec<usize>,
-    pub generic_not_ground_interactions: Vec<usize>,
-    pub generic_ground_interactions: Vec<usize>,
+    pub two_body_interactions: Vec<usize>,
+    pub one_body_interactions: Vec<usize>,
+    pub generic_two_body_interactions: Vec<usize>,
+    pub generic_one_body_interactions: Vec<usize>,
     pub interaction_groups: InteractionGroups,
-    pub ground_interaction_groups: InteractionGroups,
-    pub velocity_constraints: Vec<VelocityConstraint>,
+    pub one_body_interaction_groups: InteractionGroups,
+    pub velocity_constraints: Vec<TwoBodyConstraint>,
     pub constraint_descs: Vec<(usize, ConstraintDesc)>,
     pub parallel_desc_groups: Vec<usize>,
 }
 
-impl<VelocityConstraint> ParallelSolverConstraints<VelocityConstraint> {
+impl<TwoBodyConstraint> ParallelSolverConstraints<TwoBodyConstraint> {
     pub fn new() -> Self {
         Self {
             generic_jacobians: DVector::zeros(0),
-            not_ground_interactions: vec![],
-            ground_interactions: vec![],
-            generic_not_ground_interactions: vec![],
-            generic_ground_interactions: vec![],
+            two_body_interactions: vec![],
+            one_body_interactions: vec![],
+            generic_two_body_interactions: vec![],
+            generic_one_body_interactions: vec![],
             interaction_groups: InteractionGroups::new(),
-            ground_interaction_groups: InteractionGroups::new(),
+            one_body_interaction_groups: InteractionGroups::new(),
             velocity_constraints: vec![],
             constraint_descs: vec![],
             parallel_desc_groups: vec![],
@@ -78,14 +77,14 @@ impl<VelocityConstraint> ParallelSolverConstraints<VelocityConstraint> {
 }
 
 macro_rules! impl_init_constraints_group {
-    ($VelocityConstraint: ty, $Interaction: ty,
+    ($TwoBodyConstraint: ty, $Interaction: ty,
      $categorize: ident, $group: ident,
      $body1: ident,
      $body2: ident,
      $generate_internal_constraints: expr,
      $num_active_constraints_and_jacobian_lines: path,
      $empty_velocity_constraint: expr $(, $weight: ident)*) => {
-        impl ParallelSolverConstraints<$VelocityConstraint> {
+        impl ParallelSolverConstraints<$TwoBodyConstraint> {
             pub fn init_constraint_groups(
                 &mut self,
                 island_id: usize,
@@ -100,7 +99,7 @@ macro_rules! impl_init_constraints_group {
                 let num_groups = interaction_groups.num_groups();
 
                 self.interaction_groups.clear_groups();
-                self.ground_interaction_groups.clear_groups();
+                self.one_body_interaction_groups.clear_groups();
                 self.parallel_desc_groups.clear();
                 self.constraint_descs.clear();
                 self.parallel_desc_groups.push(0);
@@ -108,43 +107,43 @@ macro_rules! impl_init_constraints_group {
                 for i in 0..num_groups {
                     let group = interaction_groups.group(i);
 
-                    self.not_ground_interactions.clear();
-                    self.ground_interactions.clear();
-                    self.generic_not_ground_interactions.clear();
-                    self.generic_ground_interactions.clear();
+                    self.two_body_interactions.clear();
+                    self.one_body_interactions.clear();
+                    self.generic_two_body_interactions.clear();
+                    self.generic_one_body_interactions.clear();
 
                     $categorize(
                         bodies,
                         multibodies,
                         interactions,
                         group,
-                        &mut self.ground_interactions,
-                        &mut self.not_ground_interactions,
-                        &mut self.generic_ground_interactions,
-                        &mut self.generic_not_ground_interactions,
+                        &mut self.one_body_interactions,
+                        &mut self.two_body_interactions,
+                        &mut self.generic_one_body_interactions,
+                        &mut self.generic_two_body_interactions,
                     );
 
                     #[cfg(feature = "simd-is-enabled")]
-                    let start_grouped = self.interaction_groups.grouped_interactions.len();
+                    let start_grouped = self.interaction_groups.simd_interactions.len();
                     let start_nongrouped = self.interaction_groups.nongrouped_interactions.len();
 
                     #[cfg(feature = "simd-is-enabled")]
-                    let start_grouped_ground = self.ground_interaction_groups.grouped_interactions.len();
-                    let start_nongrouped_ground = self.ground_interaction_groups.nongrouped_interactions.len();
+                    let start_grouped_one_body = self.one_body_interaction_groups.simd_interactions.len();
+                    let start_nongrouped_one_body = self.one_body_interaction_groups.nongrouped_interactions.len();
 
                     self.interaction_groups.$group(
                         island_id,
                         islands,
                         bodies,
                         interactions,
-                        &self.not_ground_interactions,
+                        &self.two_body_interactions,
                     );
-                    self.ground_interaction_groups.$group(
+                    self.one_body_interaction_groups.$group(
                         island_id,
                         islands,
                         bodies,
                         interactions,
-                        &self.ground_interactions,
+                        &self.one_body_interactions,
                     );
 
                     // Compute constraint indices.
@@ -152,19 +151,19 @@ macro_rules! impl_init_constraints_group {
                         let interaction = &mut interactions[*interaction_i]$(.$weight)*;
                         self.constraint_descs.push((
                             total_num_constraints,
-                            ConstraintDesc::NongroundNongrouped(*interaction_i),
+                            ConstraintDesc::TwoBodyNongrouped(*interaction_i),
                         ));
                         total_num_constraints += $num_active_constraints_and_jacobian_lines(interaction).0;
                     }
 
                     #[cfg(feature = "simd-is-enabled")]
                     for interaction_i in
-                        self.interaction_groups.grouped_interactions[start_grouped..].chunks(SIMD_WIDTH)
+                        self.interaction_groups.simd_interactions[start_grouped..].chunks(SIMD_WIDTH)
                     {
                         let interaction = &mut interactions[interaction_i[0]]$(.$weight)*;
                         self.constraint_descs.push((
                             total_num_constraints,
-                            ConstraintDesc::NongroundGrouped(
+                            ConstraintDesc::TwoBodyGrouped(
                                 gather![|ii| interaction_i[ii]],
                             ),
                         ));
@@ -172,25 +171,25 @@ macro_rules! impl_init_constraints_group {
                     }
 
                     for interaction_i in
-                        &self.ground_interaction_groups.nongrouped_interactions[start_nongrouped_ground..]
+                        &self.one_body_interaction_groups.nongrouped_interactions[start_nongrouped_one_body..]
                     {
                         let interaction = &mut interactions[*interaction_i]$(.$weight)*;
                         self.constraint_descs.push((
                             total_num_constraints,
-                            ConstraintDesc::GroundNongrouped(*interaction_i),
+                            ConstraintDesc::OneBodyNongrouped(*interaction_i),
                         ));
                         total_num_constraints += $num_active_constraints_and_jacobian_lines(interaction).0;
                     }
 
                     #[cfg(feature = "simd-is-enabled")]
-                    for interaction_i in self.ground_interaction_groups.grouped_interactions
-                        [start_grouped_ground..]
+                    for interaction_i in self.one_body_interaction_groups.simd_interactions
+                        [start_grouped_one_body..]
                         .chunks(SIMD_WIDTH)
                     {
                         let interaction = &mut interactions[interaction_i[0]]$(.$weight)*;
                         self.constraint_descs.push((
                             total_num_constraints,
-                            ConstraintDesc::GroundGrouped(
+                            ConstraintDesc::OneBodyGrouped(
                                 gather![|ii| interaction_i[ii]],
                             ),
                         ));
@@ -208,11 +207,11 @@ macro_rules! impl_init_constraints_group {
                         }
                     };
 
-                    for interaction_i in &self.generic_not_ground_interactions[..] {
+                    for interaction_i in &self.generic_two_body_interactions[..] {
                         let interaction = &mut interactions[*interaction_i]$(.$weight)*;
                         self.constraint_descs.push((
                             total_num_constraints,
-                            ConstraintDesc::GenericNongroundNongrouped(*interaction_i, *j_id),
+                            ConstraintDesc::GenericTwoBodyNongrouped(*interaction_i, *j_id),
                         ));
                         let (num_constraints, num_jac_lines) = $num_active_constraints_and_jacobian_lines(interaction);
                         let ndofs1 = $body1(interaction).map(multibody_ndofs).unwrap_or(0);
@@ -222,11 +221,11 @@ macro_rules! impl_init_constraints_group {
                         total_num_constraints += num_constraints;
                     }
 
-                    for interaction_i in &self.generic_ground_interactions[..] {
+                    for interaction_i in &self.generic_one_body_interactions[..] {
                         let interaction = &mut interactions[*interaction_i]$(.$weight)*;
                         self.constraint_descs.push((
                             total_num_constraints,
-                            ConstraintDesc::GenericGroundNongrouped(*interaction_i, *j_id),
+                            ConstraintDesc::GenericOneBodyNongrouped(*interaction_i, *j_id),
                         ));
 
                         let (num_constraints, num_jac_lines) = $num_active_constraints_and_jacobian_lines(interaction);
@@ -289,31 +288,31 @@ fn manifold_body2(manifold: &ContactManifold) -> Option<RigidBodyHandle> {
 }
 
 impl_init_constraints_group!(
-    AnyVelocityConstraint,
+    ContactConstraintTypes,
     &mut ContactManifold,
     categorize_contacts,
     group_manifolds,
     manifold_body1,
     manifold_body2,
     false,
-    VelocityConstraint::num_active_constraints_and_jacobian_lines,
-    AnyVelocityConstraint::Empty
+    TwoBodyConstraint::num_active_constraints_and_jacobian_lines,
+    ContactConstraintTypes::Empty
 );
 
 impl_init_constraints_group!(
-    AnyJointVelocityConstraint,
+    JointConstraintTypes,
     JointGraphEdge,
     categorize_joints,
     group_joints,
     joint_body1,
     joint_body2,
     true,
-    AnyJointVelocityConstraint::num_active_constraints_and_jacobian_lines,
-    AnyJointVelocityConstraint::Empty,
+    JointConstraintTypes::num_active_constraints_and_jacobian_lines,
+    JointConstraintTypes::Empty,
     weight
 );
 
-impl ParallelSolverConstraints<AnyVelocityConstraint> {
+impl ParallelSolverConstraints<ContactConstraintTypes> {
     pub fn fill_constraints(
         &mut self,
         thread: &ThreadContext,
@@ -328,33 +327,33 @@ impl ParallelSolverConstraints<AnyVelocityConstraint> {
             let batch_size = thread.batch_size;
             for desc in descs[thread.constraint_initialization_index, thread.num_initialized_constraints] {
                 match &desc.1 {
-                    ConstraintDesc::NongroundNongrouped(manifold_id) => {
+                    ConstraintDesc::TwoBodyNongrouped(manifold_id) => {
                         let manifold = &*manifolds_all[*manifold_id];
-                        VelocityConstraint::generate(params, *manifold_id, manifold, bodies, &mut self.velocity_constraints, Some(desc.0));
+                        TwoBodyConstraint::generate(params, *manifold_id, manifold, bodies, &mut self.velocity_constraints, Some(desc.0));
                     }
-                    ConstraintDesc::GroundNongrouped(manifold_id) => {
+                    ConstraintDesc::OneBodyNongrouped(manifold_id) => {
                         let manifold = &*manifolds_all[*manifold_id];
-                        VelocityGroundConstraint::generate(params, *manifold_id, manifold, bodies, &mut self.velocity_constraints, Some(desc.0));
+                        OneBodyConstraint::generate(params, *manifold_id, manifold, bodies, &mut self.velocity_constraints, Some(desc.0));
                     }
                     #[cfg(feature = "simd-is-enabled")]
-                    ConstraintDesc::NongroundGrouped(manifold_id) => {
+                    ConstraintDesc::TwoBodyGrouped(manifold_id) => {
                         let manifolds = gather![|ii| &*manifolds_all[manifold_id[ii]]];
-                        WVelocityConstraint::generate(params, *manifold_id, manifolds, bodies, &mut self.velocity_constraints, Some(desc.0));
+                        TwoBodyConstraintSimd::generate(params, *manifold_id, manifolds, bodies, &mut self.velocity_constraints, Some(desc.0));
                     }
                     #[cfg(feature = "simd-is-enabled")]
-                    ConstraintDesc::GroundGrouped(manifold_id) => {
+                    ConstraintDesc::OneBodyGrouped(manifold_id) => {
                         let manifolds = gather![|ii| &*manifolds_all[manifold_id[ii]]];
-                        WVelocityGroundConstraint::generate(params, *manifold_id, manifolds, bodies, &mut self.velocity_constraints, Some(desc.0));
+                        OneBodyConstraintSimd::generate(params, *manifold_id, manifolds, bodies, &mut self.velocity_constraints, Some(desc.0));
                     }
-                    ConstraintDesc::GenericNongroundNongrouped(manifold_id, j_id) => {
+                    ConstraintDesc::GenericTwoBodyNongrouped(manifold_id, j_id) => {
                         let mut j_id = *j_id;
                         let manifold = &*manifolds_all[*manifold_id];
-                        GenericVelocityConstraint::generate(params, *manifold_id, manifold, bodies, multibodies,  &mut self.velocity_constraints, &mut self.generic_jacobians, &mut j_id, Some(desc.0));
+                        GenericTwoBodyConstraint::generate(params, *manifold_id, manifold, bodies, multibodies,  &mut self.velocity_constraints, &mut self.generic_jacobians, &mut j_id, Some(desc.0));
                     }
-                    ConstraintDesc::GenericGroundNongrouped(manifold_id, j_id) => {
+                    ConstraintDesc::GenericOneBodyNongrouped(manifold_id, j_id) => {
                         let mut j_id = *j_id;
                         let manifold = &*manifolds_all[*manifold_id];
-                        GenericVelocityGroundConstraint::generate(params, *manifold_id, manifold, bodies, multibodies, &mut self.velocity_constraints, &mut self.generic_jacobians, &mut j_id, Some(desc.0));
+                        GenericOneBodyConstraint::generate(params, *manifold_id, manifold, bodies, multibodies, &mut self.velocity_constraints, &mut self.generic_jacobians, &mut j_id, Some(desc.0));
                     }
                     ConstraintDesc::GenericMultibodyInternal(..) => unreachable!()
                 }
@@ -363,7 +362,7 @@ impl ParallelSolverConstraints<AnyVelocityConstraint> {
     }
 }
 
-impl ParallelSolverConstraints<AnyJointVelocityConstraint> {
+impl ParallelSolverConstraints<JointConstraintTypes> {
     pub fn fill_constraints(
         &mut self,
         thread: &ThreadContext,
@@ -378,33 +377,33 @@ impl ParallelSolverConstraints<AnyJointVelocityConstraint> {
             let batch_size = thread.batch_size;
             for desc in descs[thread.joint_constraint_initialization_index, thread.num_initialized_joint_constraints] {
                 match &desc.1 {
-                    ConstraintDesc::NongroundNongrouped(joint_id) => {
+                    ConstraintDesc::TwoBodyNongrouped(joint_id) => {
                         let joint = &joints_all[*joint_id].weight;
-                        AnyJointVelocityConstraint::from_joint(params, *joint_id, joint, bodies, multibodies, &mut 0, &mut self.generic_jacobians, &mut self.velocity_constraints, Some(desc.0));
+                        JointConstraintTypes::from_joint(params, *joint_id, joint, bodies, multibodies, &mut 0, &mut self.generic_jacobians, &mut self.velocity_constraints, Some(desc.0));
                     }
-                    ConstraintDesc::GroundNongrouped(joint_id) => {
+                    ConstraintDesc::OneBodyNongrouped(joint_id) => {
                         let joint = &joints_all[*joint_id].weight;
-                        AnyJointVelocityConstraint::from_joint_ground(params, *joint_id, joint, bodies, multibodies, &mut 0, &mut self.generic_jacobians, &mut self.velocity_constraints, Some(desc.0));
+                        JointConstraintTypes::from_joint_one_body(params, *joint_id, joint, bodies, multibodies, &mut 0, &mut self.generic_jacobians, &mut self.velocity_constraints, Some(desc.0));
                     }
                     #[cfg(feature = "simd-is-enabled")]
-                    ConstraintDesc::NongroundGrouped(joint_id) => {
+                    ConstraintDesc::TwoBodyGrouped(joint_id) => {
                         let impulse_joints = gather![|ii| &joints_all[joint_id[ii]].weight];
-                        AnyJointVelocityConstraint::from_wide_joint(params, *joint_id, impulse_joints, bodies, &mut self.velocity_constraints, Some(desc.0));
+                        JointConstraintTypes::from_wide_joint(params, *joint_id, impulse_joints, bodies, &mut self.velocity_constraints, Some(desc.0));
                     }
                     #[cfg(feature = "simd-is-enabled")]
-                    ConstraintDesc::GroundGrouped(joint_id) => {
+                    ConstraintDesc::OneBodyGrouped(joint_id) => {
                         let impulse_joints = gather![|ii| &joints_all[joint_id[ii]].weight];
-                        AnyJointVelocityConstraint::from_wide_joint_ground(params, *joint_id, impulse_joints, bodies, &mut self.velocity_constraints, Some(desc.0));
+                        JointConstraintTypes::from_wide_joint_one_body(params, *joint_id, impulse_joints, bodies, &mut self.velocity_constraints, Some(desc.0));
                     }
-                    ConstraintDesc::GenericNongroundNongrouped(joint_id, j_id) => {
+                    ConstraintDesc::GenericTwoBodyNongrouped(joint_id, j_id) => {
                         let mut j_id = *j_id;
                         let joint = &joints_all[*joint_id].weight;
-                        AnyJointVelocityConstraint::from_joint(params, *joint_id, joint, bodies, multibodies, &mut j_id, &mut self.generic_jacobians, &mut self.velocity_constraints, Some(desc.0));
+                        JointConstraintTypes::from_joint(params, *joint_id, joint, bodies, multibodies, &mut j_id, &mut self.generic_jacobians, &mut self.velocity_constraints, Some(desc.0));
                     }
-                    ConstraintDesc::GenericGroundNongrouped(joint_id, j_id) => {
+                    ConstraintDesc::GenericOneBodyNongrouped(joint_id, j_id) => {
                         let mut j_id = *j_id;
                         let joint = &joints_all[*joint_id].weight;
-                        AnyJointVelocityConstraint::from_joint_ground(params, *joint_id, joint, bodies, multibodies, &mut j_id, &mut self.generic_jacobians, &mut self.velocity_constraints, Some(desc.0));
+                        JointConstraintTypes::from_joint_one_body(params, *joint_id, joint, bodies, multibodies, &mut j_id, &mut self.generic_jacobians, &mut self.velocity_constraints, Some(desc.0));
                     }
                     ConstraintDesc::GenericMultibodyInternal(multibody_id, j_id) => {
                         let mut j_id = *j_id;

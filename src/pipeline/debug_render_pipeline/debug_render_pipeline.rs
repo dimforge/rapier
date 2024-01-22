@@ -8,7 +8,7 @@ use crate::geometry::{Cone, Cylinder};
 use crate::math::{Isometry, Point, Real, Vector, DIM};
 use crate::pipeline::debug_render_pipeline::debug_render_backend::DebugRenderObject;
 use crate::pipeline::debug_render_pipeline::DebugRenderStyle;
-use crate::utils::WBasis;
+use crate::utils::SimdBasis;
 use std::any::TypeId;
 use std::collections::HashMap;
 
@@ -221,7 +221,7 @@ impl DebugRenderPipeline {
         }
 
         if self.mode.contains(DebugRenderMode::MULTIBODY_JOINTS) {
-            for (handle, multibody, link) in multibody_joints.iter() {
+            for (handle, _, multibody, link) in multibody_joints.iter() {
                 let anc_color = self.style.multibody_joint_anchor_color;
                 let sep_color = self.style.multibody_joint_separation_color;
                 let parent = multibody.link(link.parent_id().unwrap()).unwrap();

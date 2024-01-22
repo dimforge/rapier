@@ -1,4 +1,5 @@
 use crate::math::Real;
+use std::num::NonZeroUsize;
 
 /// Parameters for a time-step of the physics engine.
 #[derive(Copy, Clone, Debug)]
@@ -43,15 +44,10 @@ pub struct IntegrationParameters {
     pub max_penetration_correction: Real,
     /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002`).
     pub prediction_distance: Real,
-    /// Maximum number of iterations performed to solve non-penetration and joint constraints (default: `4`).
-    pub max_velocity_iterations: usize,
-    /// Maximum number of iterations performed to solve friction constraints (default: `8`).
-    pub max_velocity_friction_iterations: usize,
-    /// Maximum number of iterations performed to remove the energy introduced by penetration corrections  (default: `1`).
-    pub max_stabilization_iterations: usize,
-    /// If `false`, friction and non-penetration constraints will be solved in the same loop. Otherwise,
-    /// non-penetration constraints are solved first, and friction constraints are solved after (default: `true`).
-    pub interleave_restitution_and_friction_resolution: bool,
+    /// Number of iterations performed to solve friction constraints at solver iteration (default: `2`).
+    pub num_friction_iteration_per_solver_iteration: usize,
+    /// The number of solver iterations run by the constraints solver for calculating forces (default: `4`).
+    pub num_solver_iterations: NonZeroUsize,
     /// Minimum number of dynamic bodies in each active island (default: `128`).
     pub min_island_size: usize,
     /// Maximum number of substeps performed by the  solver (default: `1`).
@@ -151,17 +147,15 @@ impl Default for IntegrationParameters {
         Self {
             dt: 1.0 / 60.0,
             min_ccd_dt: 1.0 / 60.0 / 100.0,
-            erp: 0.8,
-            damping_ratio: 0.25,
+            erp: 0.6,
+            damping_ratio: 1.0,
             joint_erp: 1.0,
             joint_damping_ratio: 1.0,
-            allowed_linear_error: 0.001, // 0.005
+            allowed_linear_error: 0.001,
             max_penetration_correction: Real::MAX,
             prediction_distance: 0.002,
-            max_velocity_iterations: 4,
-            max_velocity_friction_iterations: 8,
-            max_stabilization_iterations: 1,
-            interleave_restitution_and_friction_resolution: true, // Enabling this makes a big difference for 2D stability.
+            num_friction_iteration_per_solver_iteration: 2,
+            num_solver_iterations: NonZeroUsize::new(4).unwrap(),
             // TODO: what is the optimal value for min_island_size?
             // It should not be too big so that we don't end up with
             // huge islands that don't fit in cache.

@@ -209,10 +209,9 @@ impl PhysxWorld {
                     actor.set_linear_velocity(&linvel, true);
                     actor.set_angular_velocity(&angvel, true);
                     actor.set_solver_iteration_counts(
-                        // Use our number of velocity iterations as their number of position iterations.
-                        integration_parameters.max_velocity_iterations.max(1) as u32,
-                        // Use our number of velocity stabilization iterations as their number of velocity iterations.
-                        integration_parameters.max_stabilization_iterations.max(1) as u32,
+                        // Use our number of solver iterations as their number of position iterations.
+                        integration_parameters.num_solver_iterations.get() as u32,
+                        1,
                     );
 
                     rapier2dynamic.insert(rapier_handle, actor);

@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use rayon::Scope;
 
 use crate::dynamics::solver::{
-    AnyJointVelocityConstraint, AnyVelocityConstraint, ParallelSolverConstraints,
+    ContactConstraintTypes, JointConstraintTypes, ParallelSolverConstraints,
 };
 use crate::dynamics::{
     IntegrationParameters, IslandManager, JointGraphEdge, JointIndex, MultibodyJointSet,
@@ -12,7 +12,7 @@ use crate::dynamics::{
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use na::DVector;
 
-use super::{DeltaVel, ParallelInteractionGroups, ParallelVelocitySolver};
+use super::{ParallelInteractionGroups, ParallelVelocitySolver, SolverVel};
 
 #[macro_export]
 #[doc(hidden)]
@@ -137,8 +137,8 @@ pub struct ParallelIslandSolver {
     velocity_solver: ParallelVelocitySolver,
     parallel_groups: ParallelInteractionGroups,
     parallel_joint_groups: ParallelInteractionGroups,
-    parallel_contact_constraints: ParallelSolverConstraints<AnyVelocityConstraint>,
-    parallel_joint_constraints: ParallelSolverConstraints<AnyJointVelocityConstraint>,
+    parallel_contact_constraints: ParallelSolverConstraints<ContactConstraintTypes>,
+    parallel_joint_constraints: ParallelSolverConstraints<JointConstraintTypes>,
     thread: ThreadContext,
 }
 
@@ -247,16 +247,16 @@ impl ParallelIslandSolver {
                 }
             }
 
-            if self.velocity_solver.generic_mj_lambdas.len() < solver_id {
-                self.velocity_solver.generic_mj_lambdas = DVector::zeros(solver_id);
+            if self.velocity_solver.generic_solver_vels.len() < solver_id {
+                self.velocity_solver.generic_solver_vels = DVector::zeros(solver_id);
             } else {
-                self.velocity_solver.generic_mj_lambdas.fill(0.0);
+                self.velocity_solver.generic_solver_vels.fill(0.0);
             }
 
-            self.velocity_solver.mj_lambdas.clear();
+            self.velocity_solver.solver_vels.clear();
             self.velocity_solver
-                .mj_lambdas
-                .resize(islands.active_island(island_id).len(), DeltaVel::zero());
+                .solver_vels
+                .resize(islands.active_island(island_id).len(), SolverVel::zero());
         }
 
         for _ in 0..num_task_per_island {
@@ -286,16 +286,16 @@ impl ParallelIslandSolver {
                     unsafe { std::mem::transmute(manifolds.load(Ordering::Relaxed)) };
                 let impulse_joints: &mut Vec<JointGraphEdge> =
                     unsafe { std::mem::transmute(impulse_joints.load(Ordering::Relaxed)) };
-                let parallel_contact_constraints: &mut ParallelSolverConstraints<AnyVelocityConstraint> = unsafe {
+                let parallel_contact_constraints: &mut ParallelSolverConstraints<ContactConstraintTypes> = unsafe {
                     std::mem::transmute(parallel_contact_constraints.load(Ordering::Relaxed))
                 };
-                let parallel_joint_constraints: &mut ParallelSolverConstraints<AnyJointVelocityConstraint> = unsafe {
+                let parallel_joint_constraints: &mut ParallelSolverConstraints<JointConstraintTypes> = unsafe {
                     std::mem::transmute(parallel_joint_constraints.load(Ordering::Relaxed))
                 };
 
                 enable_flush_to_zero!(); // Ensure this is enabled on each thread.
 
-                // Initialize `mj_lambdas` (per-body velocity deltas) with external accelerations (gravity etc):
+                // Initialize `solver_vels` (per-body velocity deltas) with external accelerations (gravity etc):
                 {
                     let island_range = islands.active_island_range(island_id);
                     let active_bodies = &islands.active_dynamic_set[island_range];
@@ -309,14 +309,14 @@ impl ParallelIslandSolver {
                                     .unwrap();
 
                                 if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
-                                    let mut mj_lambdas = velocity_solver
-                                        .generic_mj_lambdas
+                                    let mut solver_vels = velocity_solver
+                                        .generic_solver_vels
                                         .rows_mut(multibody.solver_id, multibody.ndofs());
-                                    mj_lambdas.axpy(params.dt, &multibody.accelerations, 0.0);
+                                    solver_vels.axpy(params.dt, &multibody.accelerations, 0.0);
                                 }
                             } else {
                                 let rb = &bodies[*handle];
-                                let dvel = &mut velocity_solver.mj_lambdas[rb.ids.active_set_offset];
+                                let dvel = &mut velocity_solver.solver_vels[rb.ids.active_set_offset];
 
                                 // NOTE: `dvel.angular` is actually storing angular velocity delta multiplied
                                 //       by the square root of the inertia tensor:

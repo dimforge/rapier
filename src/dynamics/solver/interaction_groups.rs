@@ -32,6 +32,7 @@ impl<'a> PairInteraction for JointGraphEdge {
 }
 
 #[cfg(feature = "parallel")]
+#[allow(dead_code)] // That will likely be useful when we re-introduce intra-island parallelism.
 pub(crate) struct ParallelInteractionGroups {
     bodies_color: Vec<u128>,         // Workspace.
     interaction_indices: Vec<usize>, // Workspace.
@@ -41,6 +42,7 @@ pub(crate) struct ParallelInteractionGroups {
 }
 
 #[cfg(feature = "parallel")]
+#[allow(dead_code)] // That will likely be useful when we re-introduce intra-island parallelism.
 impl ParallelInteractionGroups {
     pub fn new() -> Self {
         Self {
@@ -171,7 +173,7 @@ pub(crate) struct InteractionGroups {
     #[cfg(feature = "simd-is-enabled")]
     body_masks: Vec<u128>,
     #[cfg(feature = "simd-is-enabled")]
-    pub grouped_interactions: Vec<usize>,
+    pub simd_interactions: Vec<usize>,
     pub nongrouped_interactions: Vec<usize>,
 }
 
@@ -183,7 +185,7 @@ impl InteractionGroups {
             #[cfg(feature = "simd-is-enabled")]
             body_masks: Vec::new(),
             #[cfg(feature = "simd-is-enabled")]
-            grouped_interactions: Vec::new(),
+            simd_interactions: Vec::new(),
             nongrouped_interactions: Vec::new(),
         }
     }
@@ -194,7 +196,7 @@ impl InteractionGroups {
     //     {
     //         self.buckets.clear();
     //         self.body_masks.clear();
-    //         self.grouped_interactions.clear();
+    //         self.simd_interactions.clear();
     //     }
     //     self.nongrouped_interactions.clear();
     // }
@@ -300,7 +302,7 @@ impl InteractionGroups {
             if bucket.1 == SIMD_LAST_INDEX {
                 // We completed our group.
                 (bucket.0)[SIMD_LAST_INDEX] = *interaction_i;
-                self.grouped_interactions.extend_from_slice(&bucket.0);
+                self.simd_interactions.extend_from_slice(&bucket.0);
                 bucket.1 = 0;
                 occupied_mask &= !target_mask_bit;
 
@@ -340,20 +342,20 @@ impl InteractionGroups {
         self.body_masks.iter_mut().for_each(|e| *e = 0);
 
         assert!(
-            self.grouped_interactions.len() % SIMD_WIDTH == 0,
+            self.simd_interactions.len() % SIMD_WIDTH == 0,
             "Invalid SIMD contact grouping."
         );
 
         //        println!(
         //            "Num grouped interactions: {}, nongrouped: {}",
-        //            self.grouped_interactions.len(),
+        //            self.simd_interactions.len(),
         //            self.nongrouped_interactions.len()
         //        );
     }
 
     pub fn clear_groups(&mut self) {
         #[cfg(feature = "simd-is-enabled")]
-        self.grouped_interactions.clear();
+        self.simd_interactions.clear();
         self.nongrouped_interactions.clear();
     }
 
@@ -466,7 +468,7 @@ impl InteractionGroups {
                 if bucket.1 == SIMD_LAST_INDEX {
                     // We completed our group.
                     (bucket.0)[SIMD_LAST_INDEX] = *interaction_i;
-                    self.grouped_interactions.extend_from_slice(&bucket.0);
+                    self.simd_interactions.extend_from_slice(&bucket.0);
                     bucket.1 = 0;
                     occupied_mask = occupied_mask & (!target_mask_bit);
                 } else {
@@ -497,7 +499,7 @@ impl InteractionGroups {
         }
 
         assert!(
-            self.grouped_interactions.len() % SIMD_WIDTH == 0,
+            self.simd_interactions.len() % SIMD_WIDTH == 0,
             "Invalid SIMD contact grouping."
         );
     }

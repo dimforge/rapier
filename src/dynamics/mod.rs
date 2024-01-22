@@ -8,10 +8,10 @@ pub(crate) use self::joint::JointGraphEdge;
 pub(crate) use self::joint::JointIndex;
 pub use self::joint::*;
 pub use self::rigid_body_components::*;
-#[cfg(not(feature = "parallel"))]
+// #[cfg(not(feature = "parallel"))]
 pub(crate) use self::solver::IslandSolver;
-#[cfg(feature = "parallel")]
-pub(crate) use self::solver::ParallelIslandSolver;
+// #[cfg(feature = "parallel")]
+// pub(crate) use self::solver::ParallelIslandSolver;
 pub use parry::mass_properties::MassProperties;
 
 pub use self::rigid_body::{RigidBody, RigidBodyBuilder};
