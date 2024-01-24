@@ -17,7 +17,9 @@ pub use self::narrow_phase::NarrowPhase;
 pub use self::collider::{Collider, ColliderBuilder};
 pub use self::collider_set::ColliderSet;
 
-pub use parry::query::TrackedContact;
+pub use parry::bounding_volume::BoundingVolume;
+pub use parry::query::{PointQuery, PointQueryWithLocation, RayCast, TrackedContact};
+pub use parry::shape::SharedShape;
 
 use crate::math::{Real, Vector};
 
@@ -53,7 +55,6 @@ pub type RayIntersection = parry::query::RayIntersection;
 pub type PointProjection = parry::query::PointProjection;
 /// The the time of impact between two shapes.
 pub type TOI = parry::query::TOI;
-pub use parry::shape::SharedShape;
 
 bitflags::bitflags! {
     /// Flags providing more information regarding a collision event.
