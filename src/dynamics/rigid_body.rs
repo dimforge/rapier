@@ -89,7 +89,7 @@ impl RigidBody {
     /// and every rigid-body interacting directly or indirectly with it (through joints
     /// or contacts). This implies a performance hit.
     ///
-    /// The default value is 0, meaning [`IntegrationParameters::num_solver_iterations`] will
+    /// The default value is 0, meaning exactly [`IntegrationParameters::num_solver_iterations`] will
     /// be used as number of solver iterations for this body.
     pub fn set_additional_solver_iterations(&mut self, additional_iterations: usize) {
         self.additional_solver_iterations = additional_iterations;

@@ -7,7 +7,7 @@ use crate::math::{Point, Real};
 #[repr(transparent)]
 /// A spring-damper joint, applies a force proportional to the distance between two objects.
 ///
-/// The spring is integrated implicitly, implying that an even undamped spring will still be subject to some
+/// The spring is integrated implicitly, implying that even an undamped spring will be subject to some
 /// amount of numerical damping (so it will eventually come to a rest). More solver iterations, or smaller
 /// timesteps, will lower the effect of numerical damping, providing a more realistic result.
 pub struct SpringJoint {

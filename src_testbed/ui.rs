@@ -5,8 +5,8 @@ use std::num::NonZeroUsize;
 use crate::debug_render::DebugRenderPipelineResource;
 use crate::harness::Harness;
 use crate::testbed::{
-    RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags, PHYSX_BACKEND_PATCH_FRICTION,
-    PHYSX_BACKEND_TWO_FRICTION_DIR,
+    RapierSolverType, RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags,
+    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR,
 };
 
 use crate::PhysicsState;
@@ -107,6 +107,34 @@ pub fn update_ui(
             integration_parameters.num_solver_iterations =
                 NonZeroUsize::new(num_iterations).unwrap();
         } else {
+            let mut changed = false;
+            egui::ComboBox::from_label("solver type")
+                .width(150.0)
+                .selected_text(format!("{:?}", state.solver_type))
+                .show_ui(ui, |ui| {
+                    let solver_types = [
+                        RapierSolverType::SmallStepsPgs,
+                        RapierSolverType::StandardPgs,
+                    ];
+                    for sty in solver_types {
+                        changed = ui
+                            .selectable_value(&mut state.solver_type, sty, format!("{sty:?}"))
+                            .changed()
+                            || changed;
+                    }
+                });
+
+            if changed {
+                match state.solver_type {
+                    RapierSolverType::SmallStepsPgs => {
+                        integration_parameters.switch_to_small_steps_pgs_solver()
+                    }
+                    RapierSolverType::StandardPgs => {
+                        integration_parameters.switch_to_standard_pgs_solver()
+                    }
+                }
+            }
+
             let mut num_iterations = integration_parameters.num_solver_iterations.get();
             ui.add(Slider::new(&mut num_iterations, 1..=40).text("num solver iters."));
             integration_parameters.num_solver_iterations =
@@ -114,10 +142,17 @@ pub fn update_ui(
 
             ui.add(
                 Slider::new(
-                    &mut integration_parameters.num_friction_iteration_per_solver_iteration,
+                    &mut integration_parameters.num_internal_pgs_iterations,
                     1..=40,
                 )
-                .text("frict. iters. per solver iters."),
+                .text("num internal PGS iters."),
+            );
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.num_additional_friction_iterations,
+                    1..=40,
+                )
+                .text("num additional frict. iters."),
             );
         }
 

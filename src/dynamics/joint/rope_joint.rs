@@ -118,8 +118,11 @@ impl RopeJoint {
 
     /// The maximum distance allowed between the attached objects.
     #[must_use]
-    pub fn max_distance(&self) -> Option<Real> {
-        self.data.limits(JointAxis::X).map(|l| l.max)
+    pub fn max_distance(&self) -> Real {
+        self.data
+            .limits(JointAxis::X)
+            .map(|l| l.max)
+            .unwrap_or(Real::MAX)
     }
 
     /// Sets the maximum allowed distance between the attached objects.
@@ -146,8 +149,6 @@ pub struct RopeJointBuilder(pub RopeJoint);
 
 impl RopeJointBuilder {
     /// Creates a new builder for rope joints.
-    ///
-    /// This axis is expressed in the local-space of both rigid-bodies.
     pub fn new(max_dist: Real) -> Self {
         Self(RopeJoint::new(max_dist))
     }

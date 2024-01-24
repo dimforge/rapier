@@ -152,14 +152,14 @@ impl VelocitySolver {
     pub fn solve_constraints(
         &mut self,
         params: &IntegrationParameters,
-        num_solver_iterations: usize,
+        num_substeps: usize,
         bodies: &mut RigidBodySet,
         multibodies: &mut MultibodyJointSet,
         contact_constraints: &mut SolverConstraintsSet<ContactConstraintTypes>,
         joint_constraints: &mut SolverConstraintsSet<JointConstraintTypes>,
     ) {
-        for small_step_id in 0..num_solver_iterations {
-            let is_last_small_step = small_step_id == num_solver_iterations - 1;
+        for substep_id in 0..num_substeps {
+            let is_last_substep = substep_id == num_substeps - 1;
 
             for (solver_vels, incr) in self
                 .solver_vels
@@ -176,28 +176,27 @@ impl VelocitySolver {
              * Update & solve constraints.
              */
             joint_constraints.update(&params, multibodies, &self.solver_bodies);
-            contact_constraints.update(&params, small_step_id, multibodies, &self.solver_bodies);
+            contact_constraints.update(&params, substep_id, multibodies, &self.solver_bodies);
 
-            joint_constraints.solve(&mut self.solver_vels, &mut self.generic_solver_vels);
-            contact_constraints
-                .solve_restitution(&mut self.solver_vels, &mut self.generic_solver_vels);
-
-            let num_friction_iterations = if is_last_small_step {
-                params.num_friction_iteration_per_solver_iteration * num_solver_iterations
-                    - (num_solver_iterations - 1)
-            } else {
-                1
-            };
-
-            for _ in 0..num_friction_iterations {
+            for _ in 0..params.num_internal_pgs_iterations {
+                joint_constraints.solve(&mut self.solver_vels, &mut self.generic_solver_vels);
+                contact_constraints
+                    .solve_restitution(&mut self.solver_vels, &mut self.generic_solver_vels);
                 contact_constraints
                     .solve_friction(&mut self.solver_vels, &mut self.generic_solver_vels);
+            }
+
+            if is_last_substep {
+                for _ in 0..params.num_additional_friction_iterations {
+                    contact_constraints
+                        .solve_friction(&mut self.solver_vels, &mut self.generic_solver_vels);
+                }
             }
 
             /*
              * Integrate positions.
              */
-            self.integrate_positions(&params, is_last_small_step, bodies, multibodies);
+            self.integrate_positions(&params, is_last_substep, bodies, multibodies);
 
             /*
              * Resolution without bias.
@@ -211,7 +210,7 @@ impl VelocitySolver {
     pub fn integrate_positions(
         &mut self,
         params: &IntegrationParameters,
-        is_last_small_step: bool,
+        is_last_substep: bool,
         bodies: &mut RigidBodySet,
         multibodies: &mut MultibodyJointSet,
     ) {
@@ -241,9 +240,9 @@ impl VelocitySolver {
             multibody.velocities.copy_from(&solver_vels);
             multibody.integrate(params.dt);
             // PERF: we could have a mode where it doesn’t write back to the `bodies` yet.
-            multibody.forward_kinematics(bodies, !is_last_small_step);
+            multibody.forward_kinematics(bodies, !is_last_substep);
 
-            if !is_last_small_step {
+            if !is_last_substep {
                 // These are very expensive and not needed if we don’t
                 // have to run another step.
                 multibody.update_dynamics(params.dt, bodies);
@@ -260,7 +259,7 @@ impl VelocitySolver {
     pub fn writeback_bodies(
         &mut self,
         params: &IntegrationParameters,
-        num_solver_iterations: usize,
+        num_substeps: usize,
         islands: &IslandManager,
         island_id: usize,
         bodies: &mut RigidBodySet,
@@ -302,9 +301,9 @@ impl VelocitySolver {
                 //       solver integrating at intermediate sub-steps. Should we just switch
                 //       to interpolation?
                 rb.integrated_vels.linvel =
-                    solver_body.integrated_vels.linvel / num_solver_iterations as Real;
+                    solver_body.integrated_vels.linvel / num_substeps as Real;
                 rb.integrated_vels.angvel =
-                    solver_body.integrated_vels.angvel / num_solver_iterations as Real;
+                    solver_body.integrated_vels.angvel / num_substeps as Real;
                 rb.vels = new_vels;
                 rb.pos.next_position = solver_body.position;
             }
