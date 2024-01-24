@@ -109,7 +109,10 @@ impl NarrowPhase {
     ///
     /// It is strongly recommended to use the [`NarrowPhase::contacts_with`] method instead. This
     /// method can be used if the generation number of the collider handle isn't known.
-    pub fn contacts_with_unknown_gen(&self, collider: u32) -> impl Iterator<Item = &ContactPair> {
+    pub fn contact_pairs_with_unknown_gen(
+        &self,
+        collider: u32,
+    ) -> impl Iterator<Item = &ContactPair> {
         self.graph_indices
             .get_unknown_gen(collider)
             .map(|id| id.contact_graph_index)
@@ -118,8 +121,12 @@ impl NarrowPhase {
             .map(|pair| pair.2)
     }
 
-    /// All the contacts involving the given collider.
-    pub fn contacts_with<'a>(
+    /// All the contact pairs involving the given collider.
+    ///
+    /// The returned contact pairs identify pairs of colliders with intersecting bounding-volumes.
+    /// To check if any geometric contact happened between the collider shapes, check
+    /// [`ContactPair::has_any_active_contact`].
+    pub fn contact_pairs_with<'a>(
         &self,
         collider: ColliderHandle,
     ) -> impl Iterator<Item = &ContactPair> {
@@ -131,11 +138,11 @@ impl NarrowPhase {
             .map(|pair| pair.2)
     }
 
-    /// All the intersections involving the given collider.
+    /// All the intersection pairs involving the given collider.
     ///
     /// It is strongly recommended to use the [`NarrowPhase::intersections_with`]  method instead.
     /// This method can be used if the generation number of the collider handle isn't known.
-    pub fn intersections_with_unknown_gen(
+    pub fn intersection_pairs_with_unknown_gen(
         &self,
         collider: u32,
     ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_ {
@@ -150,8 +157,13 @@ impl NarrowPhase {
             })
     }
 
-    /// All the intersections involving the given collider.
-    pub fn intersections_with(
+    /// All the intersection pairs involving the given collider, where at least one collider
+    /// involved in the intersection is a sensor.
+    ///
+    /// The returned contact pairs identify pairs of colliders (where at least one is a sensor) with
+    /// intersecting bounding-volumes. To check if any geometric overlap happened between the collider shapes, check
+    /// the returned boolean.
+    pub fn intersection_pairs_with(
         &self,
         collider: ColliderHandle,
     ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_ {
