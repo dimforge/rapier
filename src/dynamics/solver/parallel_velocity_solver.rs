@@ -105,7 +105,7 @@ impl ParallelVelocitySolver {
          */
         {
             for i in 0..params.num_velocity_iterations_per_small_step {
-                let solve_friction = params.num_friction_iteration_per_solver_iteration + i
+                let solve_friction = params.num_additional_friction_iterations + i
                     >= params.num_velocity_iterations_per_small_step;
                 // Solve joints.
                 solve!(
@@ -156,11 +156,10 @@ impl ParallelVelocitySolver {
             }
 
             // Solve the remaining friction iterations.
-            let remaining_friction_iterations = if params
-                .num_friction_iteration_per_solver_iteration
+            let remaining_friction_iterations = if params.num_additional_friction_iterations
                 > params.num_velocity_iterations_per_small_step
             {
-                params.num_friction_iteration_per_solver_iteration
+                params.num_additional_friction_iterations
                     - params.num_velocity_iterations_per_small_step
             } else {
                 0

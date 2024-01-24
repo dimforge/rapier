@@ -101,6 +101,12 @@ bitflags! {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RapierSolverType {
+    SmallStepsPgs,
+    StandardPgs,
+}
+
 #[derive(Resource)]
 pub struct TestbedState {
     pub running: RunMode,
@@ -121,6 +127,7 @@ pub struct TestbedState {
     pub example_names: Vec<&'static str>,
     pub selected_example: usize,
     pub selected_backend: usize,
+    pub solver_type: RapierSolverType,
     pub physx_use_two_friction_directions: bool,
     pub snapshot: Option<PhysicsSnapshot>,
     nsteps: usize,
@@ -204,6 +211,7 @@ impl TestbedApp {
             example_names: Vec::new(),
             selected_example: 0,
             selected_backend: RAPIER_BACKEND,
+            solver_type: RapierSolverType::SmallStepsPgs,
             physx_use_two_friction_directions: true,
             nsteps: 1,
             camera_locked: false,
@@ -1189,6 +1197,14 @@ fn update_testbed(
 
             if state.selected_example != prev_example {
                 harness.physics.integration_parameters = IntegrationParameters::default();
+
+                match state.solver_type {
+                    RapierSolverType::SmallStepsPgs => {} // It’s already the default.
+                    RapierSolverType::StandardPgs => harness
+                        .physics
+                        .integration_parameters
+                        .switch_to_standard_pgs_solver(),
+                }
             }
 
             let selected_example = state.selected_example;
