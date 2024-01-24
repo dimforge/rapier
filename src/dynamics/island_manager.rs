@@ -203,7 +203,7 @@ impl IslandManager {
             stack: &mut Vec<RigidBodyHandle>,
         ) {
             for collider_handle in &rb_colliders.0 {
-                for inter in narrow_phase.contacts_with(*collider_handle) {
+                for inter in narrow_phase.contact_pairs_with(*collider_handle) {
                     for manifold in &inter.manifolds {
                         if !manifold.data.solver_contacts.is_empty() {
                             let other = crate::utils::select_other(
