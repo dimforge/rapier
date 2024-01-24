@@ -1,6 +1,6 @@
 [package]
 name    = "rapier2d-f64"
-version = "0.17.2"
+version = "0.18.0"
 authors = [ "Sébastien Crozet <developer@crozet.re>" ]
 description = "2-dimensional physics engine in Rust."
 documentation = "https://docs.rs/rapier2d"
