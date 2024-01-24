@@ -38,6 +38,7 @@ mod debug_chain_high_mass_ratio3;
 mod debug_cube_high_mass_ratio3;
 mod debug_internal_edges3;
 mod debug_long_chain3;
+mod debug_multibody_ang_motor_pos3;
 mod joint_motor_position3;
 mod keva3;
 mod locked_rotations3;
@@ -52,8 +53,6 @@ mod spring_joints3;
 mod trimesh3;
 mod vehicle_controller3;
 mod vehicle_joints3;
-
-mod spherical_joint_testing;
 
 fn demo_name_from_command_line() -> Option<String> {
     let mut args = std::env::args();
@@ -151,7 +150,10 @@ pub fn main() {
             debug_shape_modification3::init_world,
         ),
         ("(Debug) deserialize", debug_deserialize3::init_world),
-        ("Spherical Joint testing", spherical_joint_testing::init_world)
+        (
+            "(Debug) multibody ang. motor pos.",
+            debug_multibody_ang_motor_pos3::init_world,
+        ),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
