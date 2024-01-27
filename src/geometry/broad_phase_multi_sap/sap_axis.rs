@@ -65,9 +65,8 @@ impl SAPAxis {
                 proxy.aabb,
                 self.min_bound
             );
-            let start_endpoint =
-                SAPEndpoint::start_endpoint(proxy.aabb.mins[dim], *proxy_id as u32);
-            let end_endpoint = SAPEndpoint::end_endpoint(proxy.aabb.maxs[dim], *proxy_id as u32);
+            let start_endpoint = SAPEndpoint::start_endpoint(proxy.aabb.mins[dim], *proxy_id);
+            let end_endpoint = SAPEndpoint::end_endpoint(proxy.aabb.maxs[dim], *proxy_id);
 
             self.new_endpoints.push((start_endpoint, 0));
             self.new_endpoints.push((end_endpoint, 0));

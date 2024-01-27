@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
+
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, VertexAttributeValues};
 

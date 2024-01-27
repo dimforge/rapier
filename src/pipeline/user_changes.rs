@@ -111,15 +111,13 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                     }
 
                     // Update the active kinematic set.
-                    if changes.contains(RigidBodyChanges::POSITION)
-                        || changes.contains(RigidBodyChanges::COLLIDERS)
+                    if (changes.contains(RigidBodyChanges::POSITION)
+                        || changes.contains(RigidBodyChanges::COLLIDERS))
+                        && rb.is_kinematic()
+                        && islands.active_kinematic_set.get(ids.active_set_id) != Some(handle)
                     {
-                        if rb.is_kinematic()
-                            && islands.active_kinematic_set.get(ids.active_set_id) != Some(handle)
-                        {
-                            ids.active_set_id = islands.active_kinematic_set.len();
-                            islands.active_kinematic_set.push(*handle);
-                        }
+                        ids.active_set_id = islands.active_kinematic_set.len();
+                        islands.active_kinematic_set.push(*handle);
                     }
 
                     // Push the body to the active set if it is not

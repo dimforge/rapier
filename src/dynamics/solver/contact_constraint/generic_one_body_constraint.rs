@@ -59,7 +59,7 @@ impl GenericOneBodyConstraintBuilder {
 
         let rb1 = handle1
             .map(|h| SolverBody::from(&bodies[h]))
-            .unwrap_or_else(SolverBody::default);
+            .unwrap_or_default();
 
         let rb2 = &bodies[handle2.unwrap()];
         let (vels2, mprops2) = (&rb2.vels, &rb2.mprops);
@@ -265,7 +265,7 @@ impl GenericOneBodyConstraint {
         solve_restitution: bool,
         solve_friction: bool,
     ) {
-        let solver_vel2 = self.inner.solver_vel2 as usize;
+        let solver_vel2 = self.inner.solver_vel2;
 
         let elements = &mut self.inner.elements[..self.inner.num_contacts as usize];
         OneBodyConstraintElement::generic_solve_group(

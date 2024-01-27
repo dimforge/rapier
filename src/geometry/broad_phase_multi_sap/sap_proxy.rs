@@ -15,10 +15,7 @@ pub enum SAPProxyData {
 
 impl SAPProxyData {
     pub fn is_region(&self) -> bool {
-        match self {
-            SAPProxyData::Region(_) => true,
-            _ => false,
-        }
+        matches!(self, SAPProxyData::Region(_))
     }
 
     pub fn as_region(&self) -> &SAPRegion {
@@ -102,7 +99,7 @@ impl SAPProxies {
     }
 
     pub fn insert(&mut self, proxy: SAPProxy) -> SAPProxyIndex {
-        let result = if self.first_free != NEXT_FREE_SENTINEL {
+        if self.first_free != NEXT_FREE_SENTINEL {
             let proxy_id = self.first_free;
             self.first_free = self.elements[proxy_id as usize].next_free;
             self.elements[proxy_id as usize] = proxy;
@@ -110,15 +107,13 @@ impl SAPProxies {
         } else {
             self.elements.push(proxy);
             self.elements.len() as u32 - 1
-        };
-
-        result
+        }
     }
 
     pub fn remove(&mut self, proxy_id: SAPProxyIndex) {
         let proxy = &mut self.elements[proxy_id as usize];
         proxy.next_free = self.first_free;
-        self.first_free = proxy_id as u32;
+        self.first_free = proxy_id;
     }
 
     // NOTE: this must not take holes into account.

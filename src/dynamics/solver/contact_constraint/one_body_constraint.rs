@@ -76,7 +76,7 @@ impl OneBodyConstraintBuilder {
 
         let rb1 = handle1
             .map(|h| SolverBody::from(&bodies[h]))
-            .unwrap_or_else(SolverBody::default);
+            .unwrap_or_default();
 
         let rb2 = &bodies[handle2.unwrap()];
         let vels2 = &rb2.vels;
@@ -334,7 +334,7 @@ impl OneBodyConstraint {
         solve_normal: bool,
         solve_friction: bool,
     ) {
-        let mut solver_vel2 = solver_vels[self.solver_vel2 as usize];
+        let mut solver_vel2 = solver_vels[self.solver_vel2];
 
         OneBodyConstraintElement::solve_group(
             self.cfm_factor,
@@ -349,7 +349,7 @@ impl OneBodyConstraint {
             solve_friction,
         );
 
-        solver_vels[self.solver_vel2 as usize] = solver_vel2;
+        solver_vels[self.solver_vel2] = solver_vel2;
     }
 
     // FIXME: duplicated code. This is exactly the same as in the two-body velocity constraint.

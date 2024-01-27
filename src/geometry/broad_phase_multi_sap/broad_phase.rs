@@ -445,9 +445,8 @@ impl BroadPhase {
             );
         }
 
-        let need_region_propagation = !layer.created_regions.is_empty();
-
-        need_region_propagation
+        // Returns true if propagation is needed.
+        !layer.created_regions.is_empty()
     }
 
     /// Updates the broad-phase, taking into account the new collider positions.

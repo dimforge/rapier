@@ -7,10 +7,11 @@ use crate::math::Real;
 /// Each collider has its combination rule of type
 /// `CoefficientCombineRule`. And the rule
 /// actually used is given by `max(first_combine_rule as usize, second_combine_rule as usize)`.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub enum CoefficientCombineRule {
     /// The two coefficients are averaged.
+    #[default]
     Average = 0,
     /// The smallest coefficient is chosen.
     Min,
@@ -18,12 +19,6 @@ pub enum CoefficientCombineRule {
     Multiply,
     /// The greatest coefficient is chosen.
     Max,
-}
-
-impl Default for CoefficientCombineRule {
-    fn default() -> Self {
-        CoefficientCombineRule::Average
-    }
 }
 
 impl CoefficientCombineRule {

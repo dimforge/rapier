@@ -399,7 +399,7 @@ impl RigidBodyMassProps {
 
     /// Update the world-space mass properties of `self`, taking into account the new position.
     pub fn update_world_mass_properties(&mut self, position: &Isometry<Real>) {
-        self.world_com = self.local_mprops.world_com(&position);
+        self.world_com = self.local_mprops.world_com(position);
         self.effective_inv_mass = Vector::repeat(self.local_mprops.inv_mass);
         self.effective_world_inv_inertia_sqrt =
             self.local_mprops.world_inv_inertia_sqrt(&position.rotation);
@@ -707,7 +707,6 @@ impl std::ops::Add<RigidBodyVelocity> for RigidBodyVelocity {
 }
 
 impl std::ops::AddAssign<RigidBodyVelocity> for RigidBodyVelocity {
-    #[must_use]
     fn add_assign(&mut self, rhs: Self) {
         self.linvel += rhs.linvel;
         self.angvel += rhs.angvel;
@@ -788,7 +787,7 @@ impl RigidBodyForces {
         gravity: &Vector<Real>,
         mass: &Vector<Real>,
     ) {
-        self.force = self.user_force + gravity.component_mul(&mass) * self.gravity_scale;
+        self.force = self.user_force + gravity.component_mul(mass) * self.gravity_scale;
         self.torque = self.user_torque;
     }
 
@@ -877,7 +876,7 @@ impl RigidBodyCcd {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
+#[derive(Default, Clone, Debug, Copy, PartialEq, Eq, Hash)]
 /// Internal identifiers used by the physics engine.
 pub struct RigidBodyIds {
     pub(crate) active_island_id: usize,
@@ -886,31 +885,14 @@ pub struct RigidBodyIds {
     pub(crate) active_set_timestamp: u32,
 }
 
-impl Default for RigidBodyIds {
-    fn default() -> Self {
-        Self {
-            active_island_id: 0,
-            active_set_id: 0,
-            active_set_offset: 0,
-            active_set_timestamp: 0,
-        }
-    }
-}
-
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 /// The set of colliders attached to this rigid-bodies.
 ///
 /// This should not be modified manually unless you really know what
 /// you are doing (for example if you are trying to integrate Rapier
 /// to a game engine using its component-based interface).
 pub struct RigidBodyColliders(pub Vec<ColliderHandle>);
-
-impl Default for RigidBodyColliders {
-    fn default() -> Self {
-        Self(vec![])
-    }
-}
 
 impl RigidBodyColliders {
     /// Detach a collider from this rigid-body.
@@ -987,15 +969,9 @@ impl RigidBodyColliders {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// The dominance groups of a rigid-body.
 pub struct RigidBodyDominance(pub i8);
-
-impl Default for RigidBodyDominance {
-    fn default() -> Self {
-        RigidBodyDominance(0)
-    }
-}
 
 impl RigidBodyDominance {
     /// The actual dominance group of this rigid-body, after taking into account its type.

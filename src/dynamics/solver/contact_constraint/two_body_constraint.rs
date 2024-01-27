@@ -380,8 +380,8 @@ impl TwoBodyConstraint {
         solve_normal: bool,
         solve_friction: bool,
     ) {
-        let mut solver_vel1 = solver_vels[self.solver_vel1 as usize];
-        let mut solver_vel2 = solver_vels[self.solver_vel2 as usize];
+        let mut solver_vel1 = solver_vels[self.solver_vel1];
+        let mut solver_vel2 = solver_vels[self.solver_vel2];
 
         TwoBodyConstraintElement::solve_group(
             self.cfm_factor,
@@ -398,8 +398,8 @@ impl TwoBodyConstraint {
             solve_friction,
         );
 
-        solver_vels[self.solver_vel1 as usize] = solver_vel1;
-        solver_vels[self.solver_vel2 as usize] = solver_vel2;
+        solver_vels[self.solver_vel1] = solver_vel1;
+        solver_vels[self.solver_vel2] = solver_vel2;
     }
 
     pub fn writeback_impulses(&self, manifolds_all: &mut [&mut ContactManifold]) {

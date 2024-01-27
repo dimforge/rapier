@@ -204,7 +204,7 @@ impl<N: SimdRealCopy> OneBodyConstraintElement<N> {
         AngVector<N>: SimdDot<AngVector<N>, Result = N>,
     {
         #[cfg(feature = "dim3")]
-        let tangents1 = [tangent1, &dir1.cross(&tangent1)];
+        let tangents1 = [tangent1, &dir1.cross(tangent1)];
         #[cfg(feature = "dim2")]
         let tangents1 = [&dir1.orthonormal_vector()];
 
@@ -213,7 +213,7 @@ impl<N: SimdRealCopy> OneBodyConstraintElement<N> {
             for element in elements.iter_mut() {
                 element
                     .normal_part
-                    .solve(cfm_factor, &dir1, im2, solver_vel2);
+                    .solve(cfm_factor, dir1, im2, solver_vel2);
                 let limit = limit * element.normal_part.impulse;
                 let part = &mut element.tangent_part;
                 part.apply_limit(tangents1, im2, limit, solver_vel2);

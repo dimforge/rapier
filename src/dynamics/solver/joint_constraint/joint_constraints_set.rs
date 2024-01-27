@@ -399,7 +399,7 @@ impl JointConstraintsSet {
     ) {
         for builder in &mut self.generic_velocity_constraints_builder {
             builder.update(
-                &params,
+                params,
                 multibodies,
                 solver_bodies,
                 &mut self.generic_jacobians,
@@ -409,7 +409,7 @@ impl JointConstraintsSet {
 
         for builder in &mut self.generic_velocity_one_body_constraints_builder {
             builder.update(
-                &params,
+                params,
                 multibodies,
                 solver_bodies,
                 &mut self.generic_jacobians,
@@ -418,17 +418,17 @@ impl JointConstraintsSet {
         }
 
         for builder in &mut self.velocity_constraints_builder {
-            builder.update(&params, solver_bodies, &mut self.velocity_constraints);
+            builder.update(params, solver_bodies, &mut self.velocity_constraints);
         }
 
         #[cfg(feature = "simd-is-enabled")]
         for builder in &mut self.simd_velocity_constraints_builder {
-            builder.update(&params, solver_bodies, &mut self.simd_velocity_constraints);
+            builder.update(params, solver_bodies, &mut self.simd_velocity_constraints);
         }
 
         for builder in &mut self.velocity_one_body_constraints_builder {
             builder.update(
-                &params,
+                params,
                 solver_bodies,
                 &mut self.velocity_one_body_constraints,
             );
@@ -437,7 +437,7 @@ impl JointConstraintsSet {
         #[cfg(feature = "simd-is-enabled")]
         for builder in &mut self.simd_velocity_one_body_constraints_builder {
             builder.update(
-                &params,
+                params,
                 solver_bodies,
                 &mut self.simd_velocity_one_body_constraints,
             );

@@ -105,8 +105,8 @@ impl ImpulseJointSet {
     }
 
     /// Iterates through all the impulse joints attached to the given rigid-body.
-    pub fn map_attached_joints_mut<'a>(
-        &'a mut self,
+    pub fn map_attached_joints_mut(
+        &mut self,
         body: RigidBodyHandle,
         mut f: impl FnMut(RigidBodyHandle, RigidBodyHandle, ImpulseJointHandle, &mut ImpulseJoint),
     ) {
@@ -282,7 +282,7 @@ impl ImpulseJointSet {
         &self,
         islands: &IslandManager,
         bodies: &RigidBodySet,
-        out: &mut Vec<Vec<JointIndex>>,
+        out: &mut [Vec<JointIndex>],
     ) {
         for out_island in &mut out[..islands.num_islands()] {
             out_island.clear();

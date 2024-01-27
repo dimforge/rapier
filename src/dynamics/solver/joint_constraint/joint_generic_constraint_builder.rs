@@ -219,6 +219,7 @@ impl JointGenericTwoBodyConstraintBuilder {
 }
 
 #[derive(Copy, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum JointGenericOneBodyConstraintBuilder {
     Internal(JointGenericVelocityOneBodyInternalConstraintBuilder),
     External(JointGenericVelocityOneBodyExternalConstraintBuilder),

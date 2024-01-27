@@ -300,16 +300,16 @@ impl RigidBody {
         wake_up: bool,
     ) {
         #[cfg(feature = "dim2")]
-        if self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_X) == !allow_translation_x
-            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Y) == !allow_translation_y
+        if self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_X) != allow_translation_x
+            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Y) != allow_translation_y
         {
             // Nothing to change.
             return;
         }
         #[cfg(feature = "dim3")]
-        if self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_X) == !allow_translation_x
-            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Y) == !allow_translation_y
-            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Z) == !allow_translation_z
+        if self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_X) != allow_translation_x
+            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Y) != allow_translation_y
+            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Z) != allow_translation_z
         {
             // Nothing to change.
             return;
@@ -850,13 +850,11 @@ impl RigidBody {
     ///
     /// This does nothing on non-dynamic bodies.
     pub fn add_force(&mut self, force: Vector<Real>, wake_up: bool) {
-        if !force.is_zero() {
-            if self.body_type == RigidBodyType::Dynamic {
-                self.forces.user_force += force;
+        if !force.is_zero() && self.body_type == RigidBodyType::Dynamic {
+            self.forces.user_force += force;
 
-                if wake_up {
-                    self.wake_up(true);
-                }
+            if wake_up {
+                self.wake_up(true);
             }
         }
     }
@@ -866,13 +864,11 @@ impl RigidBody {
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim2")]
     pub fn add_torque(&mut self, torque: Real, wake_up: bool) {
-        if !torque.is_zero() {
-            if self.body_type == RigidBodyType::Dynamic {
-                self.forces.user_torque += torque;
+        if !torque.is_zero() && self.body_type == RigidBodyType::Dynamic {
+            self.forces.user_torque += torque;
 
-                if wake_up {
-                    self.wake_up(true);
-                }
+            if wake_up {
+                self.wake_up(true);
             }
         }
     }
@@ -882,13 +878,11 @@ impl RigidBody {
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim3")]
     pub fn add_torque(&mut self, torque: Vector<Real>, wake_up: bool) {
-        if !torque.is_zero() {
-            if self.body_type == RigidBodyType::Dynamic {
-                self.forces.user_torque += torque;
+        if !torque.is_zero() && self.body_type == RigidBodyType::Dynamic {
+            self.forces.user_torque += torque;
 
-                if wake_up {
-                    self.wake_up(true);
-                }
+            if wake_up {
+                self.wake_up(true);
             }
         }
     }
@@ -897,14 +891,12 @@ impl RigidBody {
     ///
     /// This does nothing on non-dynamic bodies.
     pub fn add_force_at_point(&mut self, force: Vector<Real>, point: Point<Real>, wake_up: bool) {
-        if !force.is_zero() {
-            if self.body_type == RigidBodyType::Dynamic {
-                self.forces.user_force += force;
-                self.forces.user_torque += (point - self.mprops.world_com).gcross(force);
+        if !force.is_zero() && self.body_type == RigidBodyType::Dynamic {
+            self.forces.user_force += force;
+            self.forces.user_torque += (point - self.mprops.world_com).gcross(force);
 
-                if wake_up {
-                    self.wake_up(true);
-                }
+            if wake_up {
+                self.wake_up(true);
             }
         }
     }
@@ -1379,8 +1371,8 @@ impl RigidBodyBuilder {
     }
 }
 
-impl Into<RigidBody> for RigidBodyBuilder {
-    fn into(self) -> RigidBody {
-        self.build()
+impl From<RigidBodyBuilder> for RigidBody {
+    fn from(val: RigidBodyBuilder) -> RigidBody {
+        val.build()
     }
 }

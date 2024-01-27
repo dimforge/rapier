@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
+
 use crate::{
     physics::{PhysicsEvents, PhysicsState},
     TestbedGraphics,
@@ -22,6 +24,12 @@ pub struct RunState {
     pub time: f32,
 }
 
+impl Default for RunState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RunState {
     #[cfg(feature = "parallel")]
     pub fn new() -> Self {
@@ -33,7 +41,7 @@ impl RunState {
             .unwrap();
 
         Self {
-            thread_pool: thread_pool,
+            thread_pool,
             num_threads,
             timestep_id: 0,
             time: 0.0,

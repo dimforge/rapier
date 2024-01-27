@@ -292,21 +292,13 @@ impl TwoBodyConstraintSimd {
         solve_friction: bool,
     ) {
         let mut solver_vel1 = SolverVel {
-            linear: Vector::from(gather![
-                |ii| solver_vels[self.solver_vel1[ii] as usize].linear
-            ]),
-            angular: AngVector::from(gather![
-                |ii| solver_vels[self.solver_vel1[ii] as usize].angular
-            ]),
+            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel1[ii]].linear]),
+            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel1[ii]].angular]),
         };
 
         let mut solver_vel2 = SolverVel {
-            linear: Vector::from(gather![
-                |ii| solver_vels[self.solver_vel2[ii] as usize].linear
-            ]),
-            angular: AngVector::from(gather![
-                |ii| solver_vels[self.solver_vel2[ii] as usize].angular
-            ]),
+            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].linear]),
+            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].angular]),
         };
 
         TwoBodyConstraintElement::solve_group(
@@ -325,12 +317,12 @@ impl TwoBodyConstraintSimd {
         );
 
         for ii in 0..SIMD_WIDTH {
-            solver_vels[self.solver_vel1[ii] as usize].linear = solver_vel1.linear.extract(ii);
-            solver_vels[self.solver_vel1[ii] as usize].angular = solver_vel1.angular.extract(ii);
+            solver_vels[self.solver_vel1[ii]].linear = solver_vel1.linear.extract(ii);
+            solver_vels[self.solver_vel1[ii]].angular = solver_vel1.angular.extract(ii);
         }
         for ii in 0..SIMD_WIDTH {
-            solver_vels[self.solver_vel2[ii] as usize].linear = solver_vel2.linear.extract(ii);
-            solver_vels[self.solver_vel2[ii] as usize].angular = solver_vel2.angular.extract(ii);
+            solver_vels[self.solver_vel2[ii]].linear = solver_vel2.linear.extract(ii);
+            solver_vels[self.solver_vel2[ii]].angular = solver_vel2.angular.extract(ii);
         }
     }
 

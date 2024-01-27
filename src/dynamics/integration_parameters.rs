@@ -71,8 +71,7 @@ impl IntegrationParameters {
     /// NOTE: this resets [`Self::erp`], [`Self::damping_ratio`], [`Self::joint_erp`],
     ///       [`Self::joint_damping_ratio`] to their former default values.
     pub fn switch_to_standard_pgs_solver(&mut self) {
-        self.num_internal_pgs_iterations =
-            self.num_solver_iterations.get() * self.num_internal_pgs_iterations;
+        self.num_internal_pgs_iterations *= self.num_solver_iterations.get();
         self.num_solver_iterations = NonZeroUsize::new(1).unwrap();
         self.erp = 0.8;
         self.damping_ratio = 0.25;

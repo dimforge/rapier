@@ -12,6 +12,9 @@
 
 #![deny(bare_trait_objects)]
 #![warn(missing_docs)] // FIXME: deny that
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::needless_range_loop)] // TODO: remove this? I find that in the math code using indices adds clarity.
+#![allow(clippy::module_inception)]
 
 #[cfg(all(feature = "dim2", feature = "f32"))]
 pub extern crate parry2d as parry;

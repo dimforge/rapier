@@ -35,6 +35,7 @@ impl Default for OrbitCamera {
 // Adapted from the 3D orbit camera from bevy-orbit-controls
 pub struct OrbitCameraPlugin;
 impl OrbitCameraPlugin {
+    #[allow(clippy::type_complexity)]
     fn update_transform_system(
         mut query: Query<(&OrbitCamera, &mut Transform), (Changed<OrbitCamera>, With<Camera>)>,
     ) {
