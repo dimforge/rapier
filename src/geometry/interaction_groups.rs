@@ -1,3 +1,5 @@
+#![allow(clippy::bad_bit_mask)] // Clippy will complain about the bitmasks due to Group::NONE being 0.
+
 /// Pairwise filtering using bit masks.
 ///
 /// This filtering method is based on two 32-bit values:

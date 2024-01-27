@@ -7,17 +7,17 @@ pub(crate) use self::island_solver::IslandSolver;
 // #[cfg(feature = "parallel")]
 // pub(self) use self::parallel_velocity_solver::ParallelVelocitySolver;
 // #[cfg(not(feature = "parallel"))]
-pub(self) use self::solver_constraints_set::SolverConstraintsSet;
+use self::solver_constraints_set::SolverConstraintsSet;
 // #[cfg(not(feature = "parallel"))]
-pub(self) use self::velocity_solver::VelocitySolver;
+use self::velocity_solver::VelocitySolver;
 
-pub(self) use contact_constraint::*;
-pub(self) use interaction_groups::*;
+use contact_constraint::*;
+use interaction_groups::*;
 pub(crate) use joint_constraint::MotorParameters;
 pub use joint_constraint::*;
-pub(self) use solver_body::SolverBody;
-pub(self) use solver_constraints_set::{AnyConstraintMut, ConstraintTypes};
-pub(self) use solver_vel::SolverVel;
+use solver_body::SolverBody;
+use solver_constraints_set::{AnyConstraintMut, ConstraintTypes};
+use solver_vel::SolverVel;
 
 mod categorization;
 mod contact_constraint;

@@ -175,8 +175,8 @@ impl VelocitySolver {
             /*
              * Update & solve constraints.
              */
-            joint_constraints.update(&params, multibodies, &self.solver_bodies);
-            contact_constraints.update(&params, substep_id, multibodies, &self.solver_bodies);
+            joint_constraints.update(params, multibodies, &self.solver_bodies);
+            contact_constraints.update(params, substep_id, multibodies, &self.solver_bodies);
 
             for _ in 0..params.num_internal_pgs_iterations {
                 joint_constraints.solve(&mut self.solver_vels, &mut self.generic_solver_vels);
@@ -196,7 +196,7 @@ impl VelocitySolver {
             /*
              * Integrate positions.
              */
-            self.integrate_positions(&params, is_last_substep, bodies, multibodies);
+            self.integrate_positions(params, is_last_substep, bodies, multibodies);
 
             /*
              * Resolution without bias.

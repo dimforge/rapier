@@ -253,7 +253,7 @@ impl GraphicsManager {
         //     }
         // }
 
-        let nodes = self.b2sn.entry(handle).or_insert_with(Vec::new);
+        let nodes = self.b2sn.entry(handle).or_default();
 
         nodes.append(&mut new_nodes.clone());
 
@@ -276,10 +276,7 @@ impl GraphicsManager {
             .copied()
             .unwrap_or(self.ground_color);
         let color = self.c2color.get(&handle).copied().unwrap_or(color);
-        let mut nodes = std::mem::replace(
-            self.b2sn.entry(collider_parent).or_insert(vec![]),
-            Vec::new(),
-        );
+        let mut nodes = std::mem::take(self.b2sn.entry(collider_parent).or_default());
         self.add_shape(
             commands,
             meshes,

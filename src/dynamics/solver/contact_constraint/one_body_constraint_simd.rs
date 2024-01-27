@@ -308,12 +308,8 @@ impl OneBodyConstraintSimd {
         solve_friction: bool,
     ) {
         let mut solver_vel2 = SolverVel {
-            linear: Vector::from(gather![
-                |ii| solver_vels[self.solver_vel2[ii] as usize].linear
-            ]),
-            angular: AngVector::from(gather![
-                |ii| solver_vels[self.solver_vel2[ii] as usize].angular
-            ]),
+            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].linear]),
+            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].angular]),
         };
 
         OneBodyConstraintElement::solve_group(
@@ -330,8 +326,8 @@ impl OneBodyConstraintSimd {
         );
 
         for ii in 0..SIMD_WIDTH {
-            solver_vels[self.solver_vel2[ii] as usize].linear = solver_vel2.linear.extract(ii);
-            solver_vels[self.solver_vel2[ii] as usize].angular = solver_vel2.angular.extract(ii);
+            solver_vels[self.solver_vel2[ii]].linear = solver_vel2.linear.extract(ii);
+            solver_vels[self.solver_vel2[ii]].angular = solver_vel2.angular.extract(ii);
         }
     }
 

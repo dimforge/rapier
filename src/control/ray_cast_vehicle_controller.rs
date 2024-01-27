@@ -582,7 +582,7 @@ impl DynamicRayCastVehicleController {
                         wheel.side_impulse = resolve_single_bilateral(
                             &bodies[self.chassis],
                             &wheel.raycast_info.contact_point_ws,
-                            &ground_body,
+                            ground_body,
                             &wheel.raycast_info.contact_point_ws,
                             &self.axle[i],
                         );
@@ -664,11 +664,9 @@ impl DynamicRayCastVehicleController {
 
         if sliding {
             for wheel in &mut self.wheels {
-                if wheel.side_impulse != 0.0 {
-                    if wheel.skid_info < 1.0 {
-                        wheel.forward_impulse *= wheel.skid_info;
-                        wheel.side_impulse *= wheel.skid_info;
-                    }
+                if wheel.side_impulse != 0.0 && wheel.skid_info < 1.0 {
+                    wheel.forward_impulse *= wheel.skid_info;
+                    wheel.side_impulse *= wheel.skid_info;
                 }
             }
         }

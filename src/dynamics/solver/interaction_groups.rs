@@ -25,7 +25,7 @@ impl<'a> PairInteraction for &'a mut ContactManifold {
 }
 
 #[cfg(feature = "parallel")]
-impl<'a> PairInteraction for JointGraphEdge {
+impl PairInteraction for JointGraphEdge {
     fn body_pair(&self) -> (Option<RigidBodyHandle>, Option<RigidBodyHandle>) {
         (Some(self.weight.body1), Some(self.weight.body2))
     }
@@ -470,11 +470,11 @@ impl InteractionGroups {
                     (bucket.0)[SIMD_LAST_INDEX] = *interaction_i;
                     self.simd_interactions.extend_from_slice(&bucket.0);
                     bucket.1 = 0;
-                    occupied_mask = occupied_mask & (!target_mask_bit);
+                    occupied_mask &= !target_mask_bit;
                 } else {
                     (bucket.0)[bucket.1] = *interaction_i;
                     bucket.1 += 1;
-                    occupied_mask = occupied_mask | target_mask_bit;
+                    occupied_mask |= target_mask_bit;
                 }
 
                 // NOTE: fixed bodies don't transmit forces. Therefore they don't

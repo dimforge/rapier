@@ -73,6 +73,7 @@ impl SAPRegion {
         old
     }
 
+    #[allow(clippy::vec_box)] // PERF: see if Box actually makes it faster (due to less copying).
     pub fn recycle_or_new(bounds: Aabb, pool: &mut Vec<Box<Self>>) -> Box<Self> {
         if let Some(old) = pool.pop() {
             Self::recycle(bounds, old)

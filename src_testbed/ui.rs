@@ -44,22 +44,18 @@ pub fn update_ui(
         }
 
         ui.horizontal(|ui| {
-            if ui.button("<").clicked() {
-                if state.selected_example > 0 {
-                    state.selected_example -= 1;
-                    state
-                        .action_flags
-                        .set(TestbedActionFlags::EXAMPLE_CHANGED, true)
-                }
+            if ui.button("<").clicked() && state.selected_example > 0 {
+                state.selected_example -= 1;
+                state
+                    .action_flags
+                    .set(TestbedActionFlags::EXAMPLE_CHANGED, true)
             }
 
-            if ui.button(">").clicked() {
-                if state.selected_example + 1 < state.example_names.len() {
-                    state.selected_example += 1;
-                    state
-                        .action_flags
-                        .set(TestbedActionFlags::EXAMPLE_CHANGED, true)
-                }
+            if ui.button(">").clicked() && state.selected_example + 1 < state.example_names.len() {
+                state.selected_example += 1;
+                state
+                    .action_flags
+                    .set(TestbedActionFlags::EXAMPLE_CHANGED, true)
             }
 
             let mut changed = false;

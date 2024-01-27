@@ -79,12 +79,10 @@ pub trait DebugRenderBackend {
             self.draw_line(object, a, b, color);
         }
 
-        if closed {
-            if vertices.len() > 2 {
-                let a = transform * (Scale::from(*scale) * vertices[0]);
-                let b = transform * (Scale::from(*scale) * vertices.last().unwrap());
-                self.draw_line(object, a, b, color);
-            }
+        if closed && vertices.len() > 2 {
+            let a = transform * (Scale::from(*scale) * vertices[0]);
+            let b = transform * (Scale::from(*scale) * vertices.last().unwrap());
+            self.draw_line(object, a, b, color);
         }
     }
 }

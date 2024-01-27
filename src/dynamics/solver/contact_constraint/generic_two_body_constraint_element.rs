@@ -114,7 +114,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 j_id1,
                 ndofs1,
                 jacobians,
-                &tangents1[0],
+                tangents1[0],
                 &self.gcross1[0],
                 solver_vels,
             ) + solver_vel2.dvel(
@@ -135,7 +135,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 ndofs1,
                 dlambda,
                 jacobians,
-                &tangents1[0],
+                tangents1[0],
                 &self.gcross1[0],
                 solver_vels,
                 im1,
@@ -158,7 +158,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 j_id1,
                 ndofs1,
                 jacobians,
-                &tangents1[0],
+                tangents1[0],
                 &self.gcross1[0],
                 solver_vels,
             ) + solver_vel2.dvel(
@@ -173,7 +173,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 j_id1 + j_step,
                 ndofs1,
                 jacobians,
-                &tangents1[1],
+                tangents1[1],
                 &self.gcross1[1],
                 solver_vels,
             ) + solver_vel2.dvel(
@@ -199,7 +199,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 ndofs1,
                 dlambda[0],
                 jacobians,
-                &tangents1[0],
+                tangents1[0],
                 &self.gcross1[0],
                 solver_vels,
                 im1,
@@ -209,7 +209,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 ndofs1,
                 dlambda[1],
                 jacobians,
-                &tangents1[1],
+                tangents1[1],
                 &self.gcross1[1],
                 solver_vels,
                 im1,
@@ -258,7 +258,7 @@ impl TwoBodyConstraintNormalPart<Real> {
         let j_id1 = j_id1(j_id, ndofs1, ndofs2);
         let j_id2 = j_id2(j_id, ndofs1, ndofs2);
 
-        let dvel = solver_vel1.dvel(j_id1, ndofs1, jacobians, &dir1, &self.gcross1, solver_vels)
+        let dvel = solver_vel1.dvel(j_id1, ndofs1, jacobians, dir1, &self.gcross1, solver_vels)
             + solver_vel2.dvel(j_id2, ndofs2, jacobians, &-dir1, &self.gcross2, solver_vels)
             + self.rhs;
 
@@ -271,7 +271,7 @@ impl TwoBodyConstraintNormalPart<Real> {
             ndofs1,
             dlambda,
             jacobians,
-            &dir1,
+            dir1,
             &self.gcross1,
             solver_vels,
             im1,
@@ -323,7 +323,7 @@ impl TwoBodyConstraintElement<Real> {
                     cfm_factor,
                     nrm_j_id,
                     jacobians,
-                    &dir1,
+                    dir1,
                     im1,
                     im2,
                     ndofs1,
@@ -339,7 +339,7 @@ impl TwoBodyConstraintElement<Real> {
         // Solve friction.
         if solve_friction {
             #[cfg(feature = "dim3")]
-            let tangents1 = [tangent1, &dir1.cross(&tangent1)];
+            let tangents1 = [tangent1, &dir1.cross(tangent1)];
             #[cfg(feature = "dim2")]
             let tangents1 = [&dir1.orthonormal_vector()];
             let mut tng_j_id = tangent_j_id(j_id, ndofs1, ndofs2);

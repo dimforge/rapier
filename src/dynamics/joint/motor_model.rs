@@ -1,21 +1,16 @@
 use crate::math::Real;
 
 /// The spring-like model used for constraints resolution.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub enum MotorModel {
     /// The solved spring-like equation is:
     /// `acceleration = stiffness * (pos - target_pos) + damping * (vel - target_vel)`
+    #[default]
     AccelerationBased,
     /// The solved spring-like equation is:
     /// `force = stiffness * (pos - target_pos) + damping * (vel - target_vel)`
     ForceBased,
-}
-
-impl Default for MotorModel {
-    fn default() -> Self {
-        MotorModel::AccelerationBased
-    }
 }
 
 impl MotorModel {

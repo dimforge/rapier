@@ -36,7 +36,7 @@ fn parse_command_line() -> Command {
 
     while let Some(arg) = args.next() {
         if &arg[..] == "--example" {
-            return Command::Run(args.next().unwrap_or(String::new()));
+            return Command::Run(args.next().unwrap_or_default());
         } else if &arg[..] == "--list" {
             return Command::List;
         }
@@ -68,7 +68,7 @@ pub fn main() {
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
-    builders.sort_by(|a, b| match (a.0.starts_with("("), b.0.starts_with("(")) {
+    builders.sort_by(|a, b| match (a.0.starts_with('('), b.0.starts_with('(')) {
         (true, true) | (false, false) => a.0.cmp(b.0),
         (true, false) => Ordering::Greater,
         (false, true) => Ordering::Less,

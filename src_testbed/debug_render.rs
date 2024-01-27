@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
+
 use crate::harness::Harness;
 use bevy::gizmos::gizmos::Gizmos;
 use bevy::prelude::*;
@@ -36,8 +38,8 @@ impl<'a> DebugRenderBackend for BevyLinesRenderBackend<'a> {
     #[cfg(feature = "dim2")]
     fn draw_line(&mut self, _: DebugRenderObject, a: Point<Real>, b: Point<Real>, color: [f32; 4]) {
         self.gizmos.line(
-            [a.x as f32, a.y as f32, 1.0e-8 as f32].into(),
-            [b.x as f32, b.y as f32, 1.0e-8 as f32].into(),
+            [a.x as f32, a.y as f32, 1.0e-8].into(),
+            [b.x as f32, b.y as f32, 1.0e-8].into(),
             Color::hsla(color[0], color[1], color[2], color[3]),
         )
     }

@@ -192,7 +192,7 @@ impl ContactConstraintsSet {
             .interaction_groups
             .simd_interactions
             .chunks_exact(SIMD_WIDTH)
-            .map(|i| ConstraintsCounts::from_contacts(&manifolds_all[i[0]]).num_constraints)
+            .map(|i| ConstraintsCounts::from_contacts(manifolds_all[i[0]]).num_constraints)
             .sum();
 
         unsafe {
@@ -211,7 +211,7 @@ impl ContactConstraintsSet {
             .chunks_exact(SIMD_WIDTH)
         {
             let num_to_add =
-                ConstraintsCounts::from_contacts(&manifolds_all[manifolds_i[0]]).num_constraints;
+                ConstraintsCounts::from_contacts(manifolds_all[manifolds_i[0]]).num_constraints;
             let manifold_id = gather![|ii| manifolds_i[ii]];
             let manifolds = gather![|ii| &*manifolds_all[manifolds_i[ii]]];
 
@@ -238,7 +238,7 @@ impl ContactConstraintsSet {
             .interaction_groups
             .nongrouped_interactions
             .iter()
-            .map(|i| ConstraintsCounts::from_contacts(&manifolds_all[*i]).num_constraints)
+            .map(|i| ConstraintsCounts::from_contacts(manifolds_all[*i]).num_constraints)
             .sum();
 
         unsafe {
@@ -278,7 +278,7 @@ impl ContactConstraintsSet {
         let total_num_constraints = self
             .generic_two_body_interactions
             .iter()
-            .map(|i| ConstraintsCounts::from_contacts(&manifolds_all[*i]).num_constraints)
+            .map(|i| ConstraintsCounts::from_contacts(manifolds_all[*i]).num_constraints)
             .sum();
 
         self.generic_velocity_constraints_builder.resize(
@@ -321,7 +321,7 @@ impl ContactConstraintsSet {
         let total_num_constraints = self
             .generic_one_body_interactions
             .iter()
-            .map(|i| ConstraintsCounts::from_contacts(&manifolds_all[*i]).num_constraints)
+            .map(|i| ConstraintsCounts::from_contacts(manifolds_all[*i]).num_constraints)
             .sum();
         self.generic_velocity_one_body_constraints_builder.resize(
             total_num_constraints,
@@ -362,7 +362,7 @@ impl ContactConstraintsSet {
             .one_body_interaction_groups
             .simd_interactions
             .chunks_exact(SIMD_WIDTH)
-            .map(|i| ConstraintsCounts::from_contacts(&manifolds_all[i[0]]).num_constraints)
+            .map(|i| ConstraintsCounts::from_contacts(manifolds_all[i[0]]).num_constraints)
             .sum();
 
         unsafe {
@@ -384,7 +384,7 @@ impl ContactConstraintsSet {
             .chunks_exact(SIMD_WIDTH)
         {
             let num_to_add =
-                ConstraintsCounts::from_contacts(&manifolds_all[manifolds_i[0]]).num_constraints;
+                ConstraintsCounts::from_contacts(manifolds_all[manifolds_i[0]]).num_constraints;
             let manifold_id = gather![|ii| manifolds_i[ii]];
             let manifolds = gather![|ii| &*manifolds_all[manifolds_i[ii]]];
             SimdOneBodyConstraintBuilder::generate(
@@ -408,7 +408,7 @@ impl ContactConstraintsSet {
             .one_body_interaction_groups
             .nongrouped_interactions
             .iter()
-            .map(|i| ConstraintsCounts::from_contacts(&manifolds_all[*i]).num_constraints)
+            .map(|i| ConstraintsCounts::from_contacts(manifolds_all[*i]).num_constraints)
             .sum();
 
         unsafe {

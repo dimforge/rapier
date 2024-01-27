@@ -149,7 +149,7 @@ impl CollisionPipeline {
             bodies,
             colliders,
             &modified_colliders[..],
-            &mut removed_colliders,
+            &removed_colliders,
             hooks,
             events,
             true,

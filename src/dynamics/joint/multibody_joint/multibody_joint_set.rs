@@ -393,10 +393,10 @@ impl MultibodyJointSet {
 
     /// Iterate through the handles of all the rigid-bodies attached to this rigid-body
     /// by a multibody_joint.
-    pub fn attached_bodies<'a>(
-        &'a self,
+    pub fn attached_bodies(
+        &self,
         body: RigidBodyHandle,
-    ) -> impl Iterator<Item = RigidBodyHandle> + 'a {
+    ) -> impl Iterator<Item = RigidBodyHandle> + '_ {
         self.rb2mb
             .get(body.0)
             .into_iter()
@@ -406,10 +406,10 @@ impl MultibodyJointSet {
 
     /// Iterate through the handles of all the rigid-bodies attached to this rigid-body
     /// by an enabled multibody_joint.
-    pub fn bodies_attached_with_enabled_joint<'a>(
-        &'a self,
+    pub fn bodies_attached_with_enabled_joint(
+        &self,
         body: RigidBodyHandle,
-    ) -> impl Iterator<Item = RigidBodyHandle> + 'a {
+    ) -> impl Iterator<Item = RigidBodyHandle> + '_ {
         self.attached_bodies(body).filter(move |other| {
             if let Some((_, _, link)) = self.joint_between(body, *other) {
                 link.joint.data.is_enabled()

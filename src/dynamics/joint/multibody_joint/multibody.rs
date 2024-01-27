@@ -127,8 +127,9 @@ impl Multibody {
         let mut link_id2new_id = vec![usize::MAX; self.links.len()];
 
         for (i, mut link) in self.links.0.into_iter().enumerate() {
-            let is_new_root = (!joint_only && (i == 0 || link.parent_internal_id == to_remove))
-                || (joint_only && (i == 0 || i == to_remove));
+            let is_new_root = i == 0
+                || !joint_only && link.parent_internal_id == to_remove
+                || joint_only && i == to_remove;
 
             if !joint_only && i == to_remove {
                 continue;
@@ -492,7 +493,7 @@ impl Multibody {
                 parent_to_world = parent_link.local_to_world;
 
                 let (link_j, parent_j) = self.body_jacobians.index_mut_const(i, parent_id);
-                link_j.copy_from(&parent_j);
+                link_j.copy_from(parent_j);
 
                 {
                     let mut link_j_v = link_j.fixed_rows_mut::<DIM>(0);
@@ -602,12 +603,12 @@ impl Multibody {
                 let (coriolis_v, parent_coriolis_v) = self.coriolis_v.index_mut2(i, parent_id);
                 let (coriolis_w, parent_coriolis_w) = self.coriolis_w.index_mut2(i, parent_id);
 
-                coriolis_v.copy_from(&parent_coriolis_v);
-                coriolis_w.copy_from(&parent_coriolis_w);
+                coriolis_v.copy_from(parent_coriolis_v);
+                coriolis_w.copy_from(parent_coriolis_w);
 
                 // [c1 - c0].gcross() * (JDot + JDot/u * qdot)"
                 let shift_cross_tr = link.shift02.gcross_matrix_tr();
-                coriolis_v.gemm(1.0, &shift_cross_tr, &parent_coriolis_w, 1.0);
+                coriolis_v.gemm(1.0, &shift_cross_tr, parent_coriolis_w, 1.0);
 
                 // JDot (but the 2.0 originates from the sum of two identical terms in JDot and JDot/u * gdot)
                 let dvel_cross = (rb.vels.angvel.gcross(link.shift02)
@@ -663,7 +664,7 @@ impl Multibody {
             {
                 // [c3 - c2].gcross() * (JDot + JDot/u * qdot)
                 let shift_cross_tr = link.shift23.gcross_matrix_tr();
-                coriolis_v.gemm(1.0, &shift_cross_tr, &coriolis_w, 1.0);
+                coriolis_v.gemm(1.0, &shift_cross_tr, coriolis_w, 1.0);
 
                 // JDot
                 let dvel_cross = rb.vels.angvel.gcross(link.shift23).gcross_matrix_tr();
@@ -696,16 +697,16 @@ impl Multibody {
             {
                 let mut i_coriolis_dt_w = self.i_coriolis_dt.fixed_rows_mut::<ANG_DIM>(DIM);
                 // NOTE: this is just an axpy, but on row columns.
-                i_coriolis_dt_w.zip_apply(&coriolis_w, |o, x| *o = x * dt * rb_inertia);
+                i_coriolis_dt_w.zip_apply(coriolis_w, |o, x| *o = x * dt * rb_inertia);
             }
             #[cfg(feature = "dim3")]
             {
                 let mut i_coriolis_dt_w = self.i_coriolis_dt.fixed_rows_mut::<ANG_DIM>(DIM);
-                i_coriolis_dt_w.gemm(dt, &rb_inertia, &coriolis_w, 0.0);
+                i_coriolis_dt_w.gemm(dt, &rb_inertia, coriolis_w, 0.0);
             }
 
             self.acc_augmented_mass
-                .gemm_tr(1.0, &rb_j, &self.i_coriolis_dt, 1.0);
+                .gemm_tr(1.0, rb_j, &self.i_coriolis_dt, 1.0);
         }
 
         /*

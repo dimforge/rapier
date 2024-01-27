@@ -7,9 +7,7 @@ pub fn build_block(
     colliders: &mut ColliderSet,
     half_extents: Vector<f32>,
     shift: Vector<f32>,
-    mut numx: usize,
-    numy: usize,
-    mut numz: usize,
+    (mut numx, numy, mut numz): (usize, usize, usize),
 ) {
     let dimensions = [half_extents.xyz(), half_extents.zyx()];
     let block_width = 2.0 * half_extents.z * numx as f32;
@@ -56,8 +54,8 @@ pub fn build_block(
     // Close the top.
     let dim = half_extents.zxy();
 
-    for i in 0..(block_width / (dim.x as f32 * 2.0)) as usize {
-        for j in 0..(block_width / (dim.z as f32 * 2.0)) as usize {
+    for i in 0..(block_width / (dim.x * 2.0)) as usize {
+        for j in 0..(block_width / (dim.z * 2.0)) as usize {
             // Build the rigid body.
             let rigid_body = RigidBodyBuilder::dynamic().translation(vector![
                 i as f32 * dim.x * 2.0 + dim.x + shift.x,
@@ -114,9 +112,7 @@ pub fn init_world(testbed: &mut Testbed) {
             &mut colliders,
             half_extents,
             vector![-block_width / 2.0, block_height, -block_width / 2.0],
-            numx,
-            numy,
-            numz,
+            (numx, numy, numz),
         );
         block_height += numy as f32 * half_extents.y * 2.0 + half_extents.x * 2.0;
         num_blocks_built += numx * numy * numz;

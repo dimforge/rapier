@@ -157,10 +157,7 @@ impl Collider {
 
     /// Is this collider enabled?
     pub fn is_enabled(&self) -> bool {
-        match self.flags.enabled {
-            ColliderEnabled::Enabled => true,
-            _ => false,
-        }
+        matches!(self.flags.enabled, ColliderEnabled::Enabled)
     }
 
     /// Sets whether or not this collider is enabled.
@@ -916,8 +913,8 @@ impl ColliderBuilder {
     }
 }
 
-impl Into<Collider> for ColliderBuilder {
-    fn into(self) -> Collider {
-        self.build()
+impl From<ColliderBuilder> for Collider {
+    fn from(val: ColliderBuilder) -> Collider {
+        val.build()
     }
 }

@@ -212,7 +212,7 @@ impl PhysicsPipeline {
             rb.mprops.update_world_mass_properties(&rb.pos.position);
             let effective_mass = rb.mprops.effective_mass();
             rb.forces
-                .compute_effective_force_and_torque(&gravity, &effective_mass);
+                .compute_effective_force_and_torque(gravity, &effective_mass);
         }
         self.counters.stages.update_time.pause();
 
@@ -270,14 +270,13 @@ impl PhysicsPipeline {
                     .enumerate()
                     .for_each(|(island_id, solver)| {
                         let bodies: &mut RigidBodySet =
-                            unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };
+                            unsafe { &mut *bodies.load(Ordering::Relaxed) };
                         let manifolds: &mut Vec<&mut ContactManifold> =
-                            unsafe { std::mem::transmute(manifolds.load(Ordering::Relaxed)) };
+                            unsafe { &mut *manifolds.load(Ordering::Relaxed) };
                         let impulse_joints: &mut Vec<JointGraphEdge> =
-                            unsafe { std::mem::transmute(impulse_joints.load(Ordering::Relaxed)) };
-                        let multibody_joints: &mut MultibodyJointSet = unsafe {
-                            std::mem::transmute(multibody_joints.load(Ordering::Relaxed))
-                        };
+                            unsafe { &mut *impulse_joints.load(Ordering::Relaxed) };
+                        let multibody_joints: &mut MultibodyJointSet =
+                            unsafe { &mut *multibody_joints.load(Ordering::Relaxed) };
 
                         let mut counters = Counters::new(false);
                         solver.init_and_solve(
