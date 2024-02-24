@@ -52,32 +52,27 @@ impl CCDSolver {
     ///
     /// The `impacts` should be the result of a previous call to `self.predict_next_impacts`.
     pub fn clamp_motions(&self, dt: Real, bodies: &mut RigidBodySet, impacts: &PredictedImpacts) {
-        match impacts {
-            PredictedImpacts::Impacts(tois) => {
-                for (handle, toi) in tois {
-                    let rb = bodies.index_mut_internal(*handle);
-                    let local_com = &rb.mprops.local_mprops.local_com;
+        if let PredictedImpacts::Impacts(tois) = impacts {
+            for (handle, toi) in tois {
+                let rb = bodies.index_mut_internal(*handle);
+                let local_com = &rb.mprops.local_mprops.local_com;
 
-                    let min_toi = (rb.ccd.ccd_thickness
-                        * 0.15
-                        * crate::utils::inv(rb.ccd.max_point_velocity(&rb.integrated_vels)))
-                    .min(dt);
-                    // println!(
-                    //     "Min toi: {}, Toi: {}, thick: {}, max_vel: {}",
-                    //     min_toi,
-                    //     toi,
-                    //     rb.ccd.ccd_thickness,
-                    //     rb.ccd.max_point_velocity(&rb.integrated_vels)
-                    // );
-                    let new_pos = rb.integrated_vels.integrate(
-                        toi.max(min_toi),
-                        &rb.pos.position,
-                        &local_com,
-                    );
-                    rb.pos.next_position = new_pos;
-                }
+                let min_toi = (rb.ccd.ccd_thickness
+                    * 0.15
+                    * crate::utils::inv(rb.ccd.max_point_velocity(&rb.integrated_vels)))
+                .min(dt);
+                // println!(
+                //     "Min toi: {}, Toi: {}, thick: {}, max_vel: {}",
+                //     min_toi,
+                //     toi,
+                //     rb.ccd.ccd_thickness,
+                //     rb.ccd.max_point_velocity(&rb.integrated_vels)
+                // );
+                let new_pos =
+                    rb.integrated_vels
+                        .integrate(toi.max(min_toi), &rb.pos.position, local_com);
+                rb.pos.next_position = new_pos;
             }
-            _ => {}
         }
     }
 

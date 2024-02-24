@@ -1,15 +1,15 @@
-use super::DeltaVel;
+use crate::dynamics::solver::SolverVel;
 use crate::dynamics::solver::{
-    VelocityConstraintElement, VelocityConstraintNormalPart, VelocityConstraintTangentPart,
+    TwoBodyConstraintElement, TwoBodyConstraintNormalPart, TwoBodyConstraintTangentPart,
 };
 use crate::math::{AngVector, Real, Vector, DIM};
-use crate::utils::WDot;
+use crate::utils::SimdDot;
 use na::DVector;
 #[cfg(feature = "dim2")]
-use {crate::utils::WBasis, na::SimdPartialOrd};
+use {crate::utils::SimdBasis, na::SimdPartialOrd};
 
 pub(crate) enum GenericRhs {
-    DeltaVel(DeltaVel<Real>),
+    SolverVel(SolverVel<Real>),
     GenericId(usize),
 }
 
@@ -48,13 +48,13 @@ impl GenericRhs {
         jacobians: &DVector<Real>,
         dir: &Vector<Real>,
         gcross: &AngVector<Real>,
-        mj_lambdas: &DVector<Real>,
+        solver_vels: &DVector<Real>,
     ) -> Real {
         match self {
-            GenericRhs::DeltaVel(rhs) => dir.dot(&rhs.linear) + gcross.gdot(rhs.angular),
-            GenericRhs::GenericId(mj_lambda) => {
+            GenericRhs::SolverVel(rhs) => dir.dot(&rhs.linear) + gcross.gdot(rhs.angular),
+            GenericRhs::GenericId(solver_vel) => {
                 let j = jacobians.rows(j_id, ndofs);
-                let rhs = mj_lambdas.rows(*mj_lambda, ndofs);
+                let rhs = solver_vels.rows(*solver_vel, ndofs);
                 j.dot(&rhs)
             }
         }
@@ -69,25 +69,25 @@ impl GenericRhs {
         jacobians: &DVector<Real>,
         dir: &Vector<Real>,
         gcross: &AngVector<Real>,
-        mj_lambdas: &mut DVector<Real>,
+        solver_vels: &mut DVector<Real>,
         inv_mass: &Vector<Real>,
     ) {
         match self {
-            GenericRhs::DeltaVel(rhs) => {
+            GenericRhs::SolverVel(rhs) => {
                 rhs.linear += dir.component_mul(inv_mass) * impulse;
                 rhs.angular += gcross * impulse;
             }
-            GenericRhs::GenericId(mj_lambda) => {
+            GenericRhs::GenericId(solver_vel) => {
                 let wj_id = j_id + ndofs;
                 let wj = jacobians.rows(wj_id, ndofs);
-                let mut rhs = mj_lambdas.rows_mut(*mj_lambda, ndofs);
+                let mut rhs = solver_vels.rows_mut(*solver_vel, ndofs);
                 rhs.axpy(impulse, &wj, 1.0);
             }
         }
     }
 }
 
-impl VelocityConstraintTangentPart<Real> {
+impl TwoBodyConstraintTangentPart<Real> {
     #[inline]
     pub fn generic_solve(
         &mut self,
@@ -99,9 +99,9 @@ impl VelocityConstraintTangentPart<Real> {
         ndofs1: usize,
         ndofs2: usize,
         limit: Real,
-        mj_lambda1: &mut GenericRhs,
-        mj_lambda2: &mut GenericRhs,
-        mj_lambdas: &mut DVector<Real>,
+        solver_vel1: &mut GenericRhs,
+        solver_vel2: &mut GenericRhs,
+        solver_vels: &mut DVector<Real>,
     ) {
         let j_id1 = j_id1(j_id, ndofs1, ndofs2);
         let j_id2 = j_id2(j_id, ndofs1, ndofs2);
@@ -110,79 +110,79 @@ impl VelocityConstraintTangentPart<Real> {
 
         #[cfg(feature = "dim2")]
         {
-            let dvel_0 = mj_lambda1.dvel(
+            let dvel_0 = solver_vel1.dvel(
                 j_id1,
                 ndofs1,
                 jacobians,
-                &tangents1[0],
+                tangents1[0],
                 &self.gcross1[0],
-                mj_lambdas,
-            ) + mj_lambda2.dvel(
+                solver_vels,
+            ) + solver_vel2.dvel(
                 j_id2,
                 ndofs2,
                 jacobians,
                 &-tangents1[0],
                 &self.gcross2[0],
-                mj_lambdas,
+                solver_vels,
             ) + self.rhs[0];
 
             let new_impulse = (self.impulse[0] - self.r[0] * dvel_0).simd_clamp(-limit, limit);
             let dlambda = new_impulse - self.impulse[0];
             self.impulse[0] = new_impulse;
 
-            mj_lambda1.apply_impulse(
+            solver_vel1.apply_impulse(
                 j_id1,
                 ndofs1,
                 dlambda,
                 jacobians,
-                &tangents1[0],
+                tangents1[0],
                 &self.gcross1[0],
-                mj_lambdas,
+                solver_vels,
                 im1,
             );
-            mj_lambda2.apply_impulse(
+            solver_vel2.apply_impulse(
                 j_id2,
                 ndofs2,
                 dlambda,
                 jacobians,
                 &-tangents1[0],
                 &self.gcross2[0],
-                mj_lambdas,
+                solver_vels,
                 im2,
             );
         }
 
         #[cfg(feature = "dim3")]
         {
-            let dvel_0 = mj_lambda1.dvel(
+            let dvel_0 = solver_vel1.dvel(
                 j_id1,
                 ndofs1,
                 jacobians,
-                &tangents1[0],
+                tangents1[0],
                 &self.gcross1[0],
-                mj_lambdas,
-            ) + mj_lambda2.dvel(
+                solver_vels,
+            ) + solver_vel2.dvel(
                 j_id2,
                 ndofs2,
                 jacobians,
                 &-tangents1[0],
                 &self.gcross2[0],
-                mj_lambdas,
+                solver_vels,
             ) + self.rhs[0];
-            let dvel_1 = mj_lambda1.dvel(
+            let dvel_1 = solver_vel1.dvel(
                 j_id1 + j_step,
                 ndofs1,
                 jacobians,
-                &tangents1[1],
+                tangents1[1],
                 &self.gcross1[1],
-                mj_lambdas,
-            ) + mj_lambda2.dvel(
+                solver_vels,
+            ) + solver_vel2.dvel(
                 j_id2 + j_step,
                 ndofs2,
                 jacobians,
                 &-tangents1[1],
                 &self.gcross2[1],
-                mj_lambdas,
+                solver_vels,
             ) + self.rhs[1];
 
             let new_impulse = na::Vector2::new(
@@ -194,52 +194,52 @@ impl VelocityConstraintTangentPart<Real> {
             let dlambda = new_impulse - self.impulse;
             self.impulse = new_impulse;
 
-            mj_lambda1.apply_impulse(
+            solver_vel1.apply_impulse(
                 j_id1,
                 ndofs1,
                 dlambda[0],
                 jacobians,
-                &tangents1[0],
+                tangents1[0],
                 &self.gcross1[0],
-                mj_lambdas,
+                solver_vels,
                 im1,
             );
-            mj_lambda1.apply_impulse(
+            solver_vel1.apply_impulse(
                 j_id1 + j_step,
                 ndofs1,
                 dlambda[1],
                 jacobians,
-                &tangents1[1],
+                tangents1[1],
                 &self.gcross1[1],
-                mj_lambdas,
+                solver_vels,
                 im1,
             );
 
-            mj_lambda2.apply_impulse(
+            solver_vel2.apply_impulse(
                 j_id2,
                 ndofs2,
                 dlambda[0],
                 jacobians,
                 &-tangents1[0],
                 &self.gcross2[0],
-                mj_lambdas,
+                solver_vels,
                 im2,
             );
-            mj_lambda2.apply_impulse(
+            solver_vel2.apply_impulse(
                 j_id2 + j_step,
                 ndofs2,
                 dlambda[1],
                 jacobians,
                 &-tangents1[1],
                 &self.gcross2[1],
-                mj_lambdas,
+                solver_vels,
                 im2,
             );
         }
     }
 }
 
-impl VelocityConstraintNormalPart<Real> {
+impl TwoBodyConstraintNormalPart<Real> {
     #[inline]
     pub fn generic_solve(
         &mut self,
@@ -251,45 +251,45 @@ impl VelocityConstraintNormalPart<Real> {
         im2: &Vector<Real>,
         ndofs1: usize,
         ndofs2: usize,
-        mj_lambda1: &mut GenericRhs,
-        mj_lambda2: &mut GenericRhs,
-        mj_lambdas: &mut DVector<Real>,
+        solver_vel1: &mut GenericRhs,
+        solver_vel2: &mut GenericRhs,
+        solver_vels: &mut DVector<Real>,
     ) {
         let j_id1 = j_id1(j_id, ndofs1, ndofs2);
         let j_id2 = j_id2(j_id, ndofs1, ndofs2);
 
-        let dvel = mj_lambda1.dvel(j_id1, ndofs1, jacobians, &dir1, &self.gcross1, mj_lambdas)
-            + mj_lambda2.dvel(j_id2, ndofs2, jacobians, &-dir1, &self.gcross2, mj_lambdas)
+        let dvel = solver_vel1.dvel(j_id1, ndofs1, jacobians, dir1, &self.gcross1, solver_vels)
+            + solver_vel2.dvel(j_id2, ndofs2, jacobians, &-dir1, &self.gcross2, solver_vels)
             + self.rhs;
 
         let new_impulse = cfm_factor * (self.impulse - self.r * dvel).max(0.0);
         let dlambda = new_impulse - self.impulse;
         self.impulse = new_impulse;
 
-        mj_lambda1.apply_impulse(
+        solver_vel1.apply_impulse(
             j_id1,
             ndofs1,
             dlambda,
             jacobians,
-            &dir1,
+            dir1,
             &self.gcross1,
-            mj_lambdas,
+            solver_vels,
             im1,
         );
-        mj_lambda2.apply_impulse(
+        solver_vel2.apply_impulse(
             j_id2,
             ndofs2,
             dlambda,
             jacobians,
             &-dir1,
             &self.gcross2,
-            mj_lambdas,
+            solver_vels,
             im2,
         );
     }
 }
 
-impl VelocityConstraintElement<Real> {
+impl TwoBodyConstraintElement<Real> {
     #[inline]
     pub fn generic_solve_group(
         cfm_factor: Real,
@@ -306,9 +306,9 @@ impl VelocityConstraintElement<Real> {
         ndofs2: usize,
         // Jacobian index of the first constraint.
         j_id: usize,
-        mj_lambda1: &mut GenericRhs,
-        mj_lambda2: &mut GenericRhs,
-        mj_lambdas: &mut DVector<Real>,
+        solver_vel1: &mut GenericRhs,
+        solver_vel2: &mut GenericRhs,
+        solver_vels: &mut DVector<Real>,
         solve_restitution: bool,
         solve_friction: bool,
     ) {
@@ -320,8 +320,17 @@ impl VelocityConstraintElement<Real> {
 
             for element in elements.iter_mut() {
                 element.normal_part.generic_solve(
-                    cfm_factor, nrm_j_id, jacobians, &dir1, im1, im2, ndofs1, ndofs2, mj_lambda1,
-                    mj_lambda2, mj_lambdas,
+                    cfm_factor,
+                    nrm_j_id,
+                    jacobians,
+                    dir1,
+                    im1,
+                    im2,
+                    ndofs1,
+                    ndofs2,
+                    solver_vel1,
+                    solver_vel2,
+                    solver_vels,
                 );
                 nrm_j_id += j_step;
             }
@@ -330,7 +339,7 @@ impl VelocityConstraintElement<Real> {
         // Solve friction.
         if solve_friction {
             #[cfg(feature = "dim3")]
-            let tangents1 = [tangent1, &dir1.cross(&tangent1)];
+            let tangents1 = [tangent1, &dir1.cross(tangent1)];
             #[cfg(feature = "dim2")]
             let tangents1 = [&dir1.orthonormal_vector()];
             let mut tng_j_id = tangent_j_id(j_id, ndofs1, ndofs2);
@@ -339,8 +348,17 @@ impl VelocityConstraintElement<Real> {
                 let limit = limit * element.normal_part.impulse;
                 let part = &mut element.tangent_part;
                 part.generic_solve(
-                    tng_j_id, jacobians, tangents1, im1, im2, ndofs1, ndofs2, limit, mj_lambda1,
-                    mj_lambda2, mj_lambdas,
+                    tng_j_id,
+                    jacobians,
+                    tangents1,
+                    im1,
+                    im2,
+                    ndofs1,
+                    ndofs2,
+                    limit,
+                    solver_vel1,
+                    solver_vel2,
+                    solver_vels,
                 );
                 tng_j_id += j_step;
             }

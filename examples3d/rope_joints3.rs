@@ -67,7 +67,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(0.15, 0.3, 0.15);
     colliders.insert_with_parent(collider, character_handle, &mut bodies);
 
-    testbed.set_initial_body_color(character_handle, [255. / 255., 131. / 255., 244.0 / 255.]);
+    testbed.set_initial_body_color(character_handle, [1., 131. / 255., 244.0 / 255.]);
 
     /*
      * Tethered Ball
@@ -80,9 +80,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::ball(rad);
     colliders.insert_with_parent(collider, child_handle, &mut bodies);
 
-    let joint = RopeJointBuilder::new()
-        .local_anchor2(point![0.0, 0.0, 0.0])
-        .limits([2.0, 2.0]);
+    let joint = RopeJointBuilder::new(2.0);
     impulse_joints.insert(character_handle, child_handle, joint, true);
 
     /*

@@ -1,4 +1,4 @@
-use super::{AnyJointVelocityConstraint, AnyVelocityConstraint, DeltaVel, ThreadContext};
+use super::{ContactConstraintTypes, JointConstraintTypes, SolverVel, ThreadContext};
 use crate::concurrent_loop;
 use crate::dynamics::{
     solver::ParallelSolverConstraints, IntegrationParameters, IslandManager, JointGraphEdge,
@@ -6,21 +6,21 @@ use crate::dynamics::{
 };
 use crate::geometry::ContactManifold;
 use crate::math::Real;
-use crate::utils::WAngularInertia;
+use crate::utils::SimdAngularInertia;
 
 use na::DVector;
 use std::sync::atomic::Ordering;
 
 pub(crate) struct ParallelVelocitySolver {
-    pub mj_lambdas: Vec<DeltaVel<Real>>,
-    pub generic_mj_lambdas: DVector<Real>,
+    pub solver_vels: Vec<SolverVel<Real>>,
+    pub generic_solver_vels: DVector<Real>,
 }
 
 impl ParallelVelocitySolver {
     pub fn new() -> Self {
         Self {
-            mj_lambdas: Vec::new(),
-            generic_mj_lambdas: DVector::zeros(0),
+            solver_vels: Vec::new(),
+            generic_solver_vels: DVector::zeros(0),
         }
     }
 
@@ -34,8 +34,8 @@ impl ParallelVelocitySolver {
         multibodies: &mut MultibodyJointSet,
         manifolds_all: &mut [&mut ContactManifold],
         joints_all: &mut [JointGraphEdge],
-        contact_constraints: &mut ParallelSolverConstraints<AnyVelocityConstraint>,
-        joint_constraints: &mut ParallelSolverConstraints<AnyJointVelocityConstraint>,
+        contact_constraints: &mut ParallelSolverConstraints<ContactConstraintTypes>,
+        joint_constraints: &mut ParallelSolverConstraints<JointConstraintTypes>,
     ) {
         let mut start_index = thread
             .solve_interaction_index
@@ -104,16 +104,15 @@ impl ParallelVelocitySolver {
          * Solve constraints.
          */
         {
-            for i in 0..params.max_velocity_iterations {
-                let solve_friction = params.interleave_restitution_and_friction_resolution
-                    && params.max_velocity_friction_iterations + i
-                        >= params.max_velocity_iterations;
+            for i in 0..params.num_velocity_iterations_per_small_step {
+                let solve_friction = params.num_additional_friction_iterations + i
+                    >= params.num_velocity_iterations_per_small_step;
                 // Solve joints.
                 solve!(
                     joint_constraints,
                     &joint_constraints.generic_jacobians,
-                    &mut self.mj_lambdas,
-                    &mut self.generic_mj_lambdas
+                    &mut self.solver_vels,
+                    &mut self.generic_solver_vels
                 );
                 shift += joint_descs.len();
                 start_index -= joint_descs.len();
@@ -122,8 +121,8 @@ impl ParallelVelocitySolver {
                 solve!(
                     contact_constraints,
                     &contact_constraints.generic_jacobians,
-                    &mut self.mj_lambdas,
-                    &mut self.generic_mj_lambdas,
+                    &mut self.solver_vels,
+                    &mut self.generic_solver_vels,
                     true,
                     false
                 );
@@ -134,8 +133,8 @@ impl ParallelVelocitySolver {
                 solve!(
                     contact_constraints,
                     &contact_constraints.generic_jacobians,
-                    &mut self.mj_lambdas,
-                    &mut self.generic_mj_lambdas,
+                    &mut self.solver_vels,
+                    &mut self.generic_solver_vels,
                     true,
                     false
                 );
@@ -146,8 +145,8 @@ impl ParallelVelocitySolver {
                     solve!(
                         contact_constraints,
                         &contact_constraints.generic_jacobians,
-                        &mut self.mj_lambdas,
-                        &mut self.generic_mj_lambdas,
+                        &mut self.solver_vels,
+                        &mut self.generic_solver_vels,
                         false,
                         true
                     );
@@ -157,21 +156,21 @@ impl ParallelVelocitySolver {
             }
 
             // Solve the remaining friction iterations.
-            let remaining_friction_iterations =
-                if !params.interleave_restitution_and_friction_resolution {
-                    params.max_velocity_friction_iterations
-                } else if params.max_velocity_friction_iterations > params.max_velocity_iterations {
-                    params.max_velocity_friction_iterations - params.max_velocity_iterations
-                } else {
-                    0
-                };
+            let remaining_friction_iterations = if params.num_additional_friction_iterations
+                > params.num_velocity_iterations_per_small_step
+            {
+                params.num_additional_friction_iterations
+                    - params.num_velocity_iterations_per_small_step
+            } else {
+                0
+            };
 
             for _ in 0..remaining_friction_iterations {
                 solve!(
                     contact_constraints,
                     &contact_constraints.generic_jacobians,
-                    &mut self.mj_lambdas,
-                    &mut self.generic_mj_lambdas,
+                    &mut self.solver_vels,
+                    &mut self.generic_solver_vels,
                     false,
                     true
                 );
@@ -194,18 +193,18 @@ impl ParallelVelocitySolver {
                             .unwrap();
 
                         if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
-                            let mj_lambdas = self
-                                .generic_mj_lambdas
+                            let solver_vels = self
+                                .generic_solver_vels
                                 .rows(multibody.solver_id, multibody.ndofs());
                             let prev_vels = multibody.velocities.clone(); // FIXME: avoid allocations.
-                            multibody.velocities += mj_lambdas;
+                            multibody.velocities += solver_vels;
                             multibody.integrate(params.dt);
                             multibody.forward_kinematics(bodies, false);
                             multibody.velocities = prev_vels;
                         }
                     } else {
                         let rb = bodies.index_mut_internal(*handle);
-                        let dvel = self.mj_lambdas[rb.ids.active_set_offset];
+                        let dvel = self.solver_vels[rb.ids.active_set_offset];
                         let dangvel = rb.mprops
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(dvel.angular);
@@ -252,8 +251,8 @@ impl ParallelVelocitySolver {
                 solve!(
                     joint_constraints,
                     &joint_constraints.generic_jacobians,
-                    &mut self.mj_lambdas,
-                    &mut self.generic_mj_lambdas
+                    &mut self.solver_vels,
+                    &mut self.generic_solver_vels
                 );
                 shift += joint_descs.len();
                 start_index -= joint_descs.len();
@@ -261,8 +260,8 @@ impl ParallelVelocitySolver {
                 solve!(
                     contact_constraints,
                     &contact_constraints.generic_jacobians,
-                    &mut self.mj_lambdas,
-                    &mut self.generic_mj_lambdas,
+                    &mut self.solver_vels,
+                    &mut self.generic_solver_vels,
                     true,
                     false
                 );
@@ -272,8 +271,8 @@ impl ParallelVelocitySolver {
                 solve!(
                     contact_constraints,
                     &contact_constraints.generic_jacobians,
-                    &mut self.mj_lambdas,
-                    &mut self.generic_mj_lambdas,
+                    &mut self.solver_vels,
+                    &mut self.generic_solver_vels,
                     false,
                     true
                 );
@@ -296,14 +295,14 @@ impl ParallelVelocitySolver {
                             .unwrap();
 
                         if link.id == 0 || link.id == 1 && !multibody.root_is_dynamic {
-                            let mj_lambdas = self
-                                .generic_mj_lambdas
+                            let solver_vels = self
+                                .generic_solver_vels
                                 .rows(multibody.solver_id, multibody.ndofs());
-                            multibody.velocities += mj_lambdas;
+                            multibody.velocities += solver_vels;
                         }
                     } else {
                         let rb = bodies.index_mut_internal(*handle);
-                        let dvel = self.mj_lambdas[rb.ids.active_set_offset];
+                        let dvel = self.solver_vels[rb.ids.active_set_offset];
                         let dangvel = rb.mprops
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(dvel.angular);

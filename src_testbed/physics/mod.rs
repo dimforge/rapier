@@ -86,6 +86,12 @@ pub struct PhysicsState {
     pub hooks: Box<dyn PhysicsHooks>,
 }
 
+impl Default for PhysicsState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PhysicsState {
     pub fn new() -> Self {
         Self {
@@ -113,7 +119,7 @@ pub struct PhysicsEvents {
 
 impl PhysicsEvents {
     pub fn poll_all(&self) {
-        while let Ok(_) = self.collision_events.try_recv() {}
-        while let Ok(_) = self.contact_force_events.try_recv() {}
+        while self.collision_events.try_recv().is_ok() {}
+        while self.contact_force_events.try_recv().is_ok() {}
     }
 }

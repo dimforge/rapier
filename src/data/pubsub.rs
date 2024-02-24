@@ -106,8 +106,7 @@ impl<T> PubSub<T> {
     /// Read the i-th message not yet read by the given subsciber.
     pub fn read_ith(&self, sub: &Subscription<T>, i: usize) -> Option<&T> {
         let cursor = &self.cursors[sub.id as usize];
-        self.messages
-            .get(cursor.next(self.deleted_messages) as usize + i)
+        self.messages.get(cursor.next(self.deleted_messages) + i)
     }
 
     /// Get the messages not yet read by the given subscriber.

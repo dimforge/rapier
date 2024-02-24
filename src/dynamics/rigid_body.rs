@@ -7,7 +7,7 @@ use crate::geometry::{
     ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition, ColliderSet, ColliderShape,
 };
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector};
-use crate::utils::WCross;
+use crate::utils::SimdCross;
 use num::Zero;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -36,6 +36,7 @@ pub struct RigidBody {
     /// The dominance group this rigid-body is part of.
     pub(crate) dominance: RigidBodyDominance,
     pub(crate) enabled: bool,
+    pub(crate) additional_solver_iterations: usize,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
 }
@@ -64,12 +65,34 @@ impl RigidBody {
             dominance: RigidBodyDominance::default(),
             enabled: true,
             user_data: 0,
+            additional_solver_iterations: 0,
         }
     }
 
     pub(crate) fn reset_internal_references(&mut self) {
         self.colliders.0 = Vec::new();
         self.ids = Default::default();
+    }
+
+    /// Set the additional number of solver iterations run for this rigid-body and
+    /// everything interacting with it.
+    ///
+    /// See [`Self::set_additional_solver_iterations`] for additional information.
+    pub fn additional_solver_iterations(&self) -> usize {
+        self.additional_solver_iterations
+    }
+
+    /// Set the additional number of solver iterations run for this rigid-body and
+    /// everything interacting with it.
+    ///
+    /// Increasing this number will help improve simulation accuracy on this rigid-body
+    /// and every rigid-body interacting directly or indirectly with it (through joints
+    /// or contacts). This implies a performance hit.
+    ///
+    /// The default value is 0, meaning exactly [`IntegrationParameters::num_solver_iterations`] will
+    /// be used as number of solver iterations for this body.
+    pub fn set_additional_solver_iterations(&mut self, additional_iterations: usize) {
+        self.additional_solver_iterations = additional_iterations;
     }
 
     /// The activation status of this rigid-body.
@@ -277,16 +300,16 @@ impl RigidBody {
         wake_up: bool,
     ) {
         #[cfg(feature = "dim2")]
-        if self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_X) == !allow_translation_x
-            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Y) == !allow_translation_y
+        if self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_X) != allow_translation_x
+            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Y) != allow_translation_y
         {
             // Nothing to change.
             return;
         }
         #[cfg(feature = "dim3")]
-        if self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_X) == !allow_translation_x
-            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Y) == !allow_translation_y
-            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Z) == !allow_translation_z
+        if self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_X) != allow_translation_x
+            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Y) != allow_translation_y
+            && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Z) != allow_translation_z
         {
             // Nothing to change.
             return;
@@ -827,13 +850,11 @@ impl RigidBody {
     ///
     /// This does nothing on non-dynamic bodies.
     pub fn add_force(&mut self, force: Vector<Real>, wake_up: bool) {
-        if !force.is_zero() {
-            if self.body_type == RigidBodyType::Dynamic {
-                self.forces.user_force += force;
+        if !force.is_zero() && self.body_type == RigidBodyType::Dynamic {
+            self.forces.user_force += force;
 
-                if wake_up {
-                    self.wake_up(true);
-                }
+            if wake_up {
+                self.wake_up(true);
             }
         }
     }
@@ -843,13 +864,11 @@ impl RigidBody {
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim2")]
     pub fn add_torque(&mut self, torque: Real, wake_up: bool) {
-        if !torque.is_zero() {
-            if self.body_type == RigidBodyType::Dynamic {
-                self.forces.user_torque += torque;
+        if !torque.is_zero() && self.body_type == RigidBodyType::Dynamic {
+            self.forces.user_torque += torque;
 
-                if wake_up {
-                    self.wake_up(true);
-                }
+            if wake_up {
+                self.wake_up(true);
             }
         }
     }
@@ -859,13 +878,11 @@ impl RigidBody {
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim3")]
     pub fn add_torque(&mut self, torque: Vector<Real>, wake_up: bool) {
-        if !torque.is_zero() {
-            if self.body_type == RigidBodyType::Dynamic {
-                self.forces.user_torque += torque;
+        if !torque.is_zero() && self.body_type == RigidBodyType::Dynamic {
+            self.forces.user_torque += torque;
 
-                if wake_up {
-                    self.wake_up(true);
-                }
+            if wake_up {
+                self.wake_up(true);
             }
         }
     }
@@ -874,14 +891,12 @@ impl RigidBody {
     ///
     /// This does nothing on non-dynamic bodies.
     pub fn add_force_at_point(&mut self, force: Vector<Real>, point: Point<Real>, wake_up: bool) {
-        if !force.is_zero() {
-            if self.body_type == RigidBodyType::Dynamic {
-                self.forces.user_force += force;
-                self.forces.user_torque += (point - self.mprops.world_com).gcross(force);
+        if !force.is_zero() && self.body_type == RigidBodyType::Dynamic {
+            self.forces.user_force += force;
+            self.forces.user_torque += (point - self.mprops.world_com).gcross(force);
 
-                if wake_up {
-                    self.wake_up(true);
-                }
+            if wake_up {
+                self.wake_up(true);
             }
         }
     }
@@ -1030,6 +1045,11 @@ pub struct RigidBodyBuilder {
     pub enabled: bool,
     /// An arbitrary user-defined 128-bit integer associated to the rigid-bodies built by this builder.
     pub user_data: u128,
+    /// The additional number of solver iterations run for this rigid-body and
+    /// everything interacting with it.
+    ///
+    /// See [`RigidBody::set_additional_solver_iterations`] for additional information.
+    pub additional_solver_iterations: usize,
 }
 
 impl RigidBodyBuilder {
@@ -1051,6 +1071,7 @@ impl RigidBodyBuilder {
             dominance_group: 0,
             enabled: true,
             user_data: 0,
+            additional_solver_iterations: 0,
         }
     }
 
@@ -1088,6 +1109,15 @@ impl RigidBodyBuilder {
     /// Initializes the builder of a new dynamic rigid body.
     pub fn dynamic() -> Self {
         Self::new(RigidBodyType::Dynamic)
+    }
+
+    /// Sets the additional number of solver iterations run for this rigid-body and
+    /// everything interacting with it.
+    ///
+    /// See [`RigidBody::set_additional_solver_iterations`] for additional information.
+    pub fn additional_solver_iterations(mut self, additional_iterations: usize) -> Self {
+        self.additional_solver_iterations = additional_iterations;
+        self
     }
 
     /// Sets the scale applied to the gravity force affecting the rigid-body to be created.
@@ -1311,6 +1341,7 @@ impl RigidBodyBuilder {
         rb.vels.angvel = self.angvel;
         rb.body_type = self.body_type;
         rb.user_data = self.user_data;
+        rb.additional_solver_iterations = self.additional_solver_iterations;
 
         if self.additional_mass_properties
             != RigidBodyAdditionalMassProps::MassProps(MassProperties::zero())
@@ -1340,8 +1371,8 @@ impl RigidBodyBuilder {
     }
 }
 
-impl Into<RigidBody> for RigidBodyBuilder {
-    fn into(self) -> RigidBody {
-        self.build()
+impl From<RigidBodyBuilder> for RigidBody {
+    fn from(val: RigidBodyBuilder) -> RigidBody {
+        val.build()
     }
 }

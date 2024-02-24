@@ -149,7 +149,7 @@ impl CollisionPipeline {
             bodies,
             colliders,
             &modified_colliders[..],
-            &mut removed_colliders,
+            &removed_colliders,
             hooks,
             events,
             true,
@@ -210,7 +210,7 @@ mod tests {
 
         let mut hit = false;
 
-        for (_, _, intersecting) in narrow_phase.intersections_with(a_handle) {
+        for (_, _, intersecting) in narrow_phase.intersection_pairs_with(a_handle) {
             if intersecting {
                 hit = true;
             }
@@ -262,7 +262,7 @@ mod tests {
 
         let mut hit = false;
 
-        for (_, _, intersecting) in narrow_phase.intersections_with(a_handle) {
+        for (_, _, intersecting) in narrow_phase.intersection_pairs_with(a_handle) {
             if intersecting {
                 hit = true;
             }

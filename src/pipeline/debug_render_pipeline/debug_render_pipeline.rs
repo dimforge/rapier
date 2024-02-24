@@ -8,7 +8,7 @@ use crate::geometry::{Cone, Cylinder};
 use crate::math::{Isometry, Point, Real, Vector, DIM};
 use crate::pipeline::debug_render_pipeline::debug_render_backend::DebugRenderObject;
 use crate::pipeline::debug_render_pipeline::DebugRenderStyle;
-use crate::utils::WBasis;
+use crate::utils::SimdBasis;
 use std::any::TypeId;
 use std::collections::HashMap;
 
@@ -41,12 +41,17 @@ impl Default for DebugRenderMode {
     }
 }
 
+#[cfg(feature = "dim2")]
+type InstancesMap = HashMap<TypeId, Vec<Point<Real>>>;
+#[cfg(feature = "dim3")]
+type InstancesMap = HashMap<TypeId, (Vec<Point<Real>>, Vec<[u32; 2]>)>;
+
 /// Pipeline responsible for rendering the state of the physics engine for debugging purpose.
 pub struct DebugRenderPipeline {
     #[cfg(feature = "dim2")]
-    instances: HashMap<TypeId, Vec<Point<Real>>>,
+    instances: InstancesMap,
     #[cfg(feature = "dim3")]
-    instances: HashMap<TypeId, (Vec<Point<Real>>, Vec<[u32; 2]>)>,
+    instances: InstancesMap,
     /// The style used to compute the line colors for each element
     /// to render.
     pub style: DebugRenderStyle,
@@ -175,7 +180,9 @@ impl DebugRenderPipeline {
             }
 
             if let (Some(rb1), Some(rb2)) = (bodies.get(body1), bodies.get(body2)) {
-                let coeff = if (rb1.is_fixed() || rb1.is_sleeping())
+                let coeff = if !data.is_enabled() || !rb1.is_enabled() || !rb2.is_enabled() {
+                    self.style.disabled_color_multiplier
+                } else if (rb1.is_fixed() || rb1.is_sleeping())
                     && (rb2.is_fixed() || rb2.is_sleeping())
                 {
                     self.style.sleep_color_multiplier
@@ -219,7 +226,7 @@ impl DebugRenderPipeline {
         }
 
         if self.mode.contains(DebugRenderMode::MULTIBODY_JOINTS) {
-            for (handle, multibody, link) in multibody_joints.iter() {
+            for (handle, _, multibody, link) in multibody_joints.iter() {
                 let anc_color = self.style.multibody_joint_anchor_color;
                 let sep_color = self.style.multibody_joint_separation_color;
                 let parent = multibody.link(link.parent_id().unwrap()).unwrap();
@@ -250,7 +257,9 @@ impl DebugRenderPipeline {
                 && backend.filter_object(object)
             {
                 let basis = rb.rotation().to_rotation_matrix().into_inner();
-                let coeff = if rb.is_sleeping() {
+                let coeff = if !rb.is_enabled() {
+                    self.style.disabled_color_multiplier
+                } else if rb.is_sleeping() {
                     self.style.sleep_color_multiplier
                 } else {
                     [1.0; 4]
@@ -260,7 +269,10 @@ impl DebugRenderPipeline {
                     [120.0 * coeff[0], 1.0 * coeff[1], 0.1 * coeff[2], coeff[3]],
                     [240.0 * coeff[0], 1.0 * coeff[1], 0.2 * coeff[2], coeff[3]],
                 ];
-                let com = rb.mprops.world_com;
+
+                let com = rb
+                    .position()
+                    .transform_point(&rb.mprops.local_mprops.local_com);
 
                 for k in 0..DIM {
                     let axis = basis.column(k) * self.style.rigid_body_axes_length;
@@ -283,7 +295,9 @@ impl DebugRenderPipeline {
 
                 if backend.filter_object(object) {
                     let color = if let Some(parent) = co.parent().and_then(|p| bodies.get(p)) {
-                        let coeff = if parent.is_sleeping() {
+                        let coeff = if !parent.is_enabled() || !co.is_enabled() {
+                            self.style.disabled_color_multiplier
+                        } else if parent.is_sleeping() {
                             self.style.sleep_color_multiplier
                         } else {
                             [1.0; 4]

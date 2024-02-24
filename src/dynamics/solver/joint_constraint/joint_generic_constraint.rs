@@ -1,17 +1,19 @@
-use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::WritebackId;
-use crate::dynamics::solver::joint_constraint::{JointVelocityConstraintBuilder, SolverBody};
-use crate::dynamics::solver::DeltaVel;
+use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
+    JointFixedSolverBody, WritebackId,
+};
+use crate::dynamics::solver::joint_constraint::{JointSolverBody, JointTwoBodyConstraintHelper};
+use crate::dynamics::solver::SolverVel;
 use crate::dynamics::{GenericJoint, IntegrationParameters, JointGraphEdge, JointIndex, Multibody};
 use crate::math::{Isometry, Real, DIM};
 use crate::prelude::SPATIAL_DIM;
 use na::{DVector, DVectorView, DVectorViewMut};
 
 #[derive(Debug, Copy, Clone)]
-pub struct JointGenericVelocityConstraint {
+pub struct JointGenericTwoBodyConstraint {
     pub is_rigid_body1: bool,
     pub is_rigid_body2: bool,
-    pub mj_lambda1: usize,
-    pub mj_lambda2: usize,
+    pub solver_vel1: usize,
+    pub solver_vel2: usize,
 
     pub ndofs1: usize,
     pub j_id1: usize,
@@ -31,31 +33,31 @@ pub struct JointGenericVelocityConstraint {
     pub writeback_id: WritebackId,
 }
 
-impl Default for JointGenericVelocityConstraint {
+impl Default for JointGenericTwoBodyConstraint {
     fn default() -> Self {
-        JointGenericVelocityConstraint::invalid()
+        JointGenericTwoBodyConstraint::invalid()
     }
 }
 
-impl JointGenericVelocityConstraint {
+impl JointGenericTwoBodyConstraint {
     pub fn invalid() -> Self {
         Self {
             is_rigid_body1: false,
             is_rigid_body2: false,
-            mj_lambda1: 0,
-            mj_lambda2: 0,
-            ndofs1: 0,
-            j_id1: 0,
-            ndofs2: 0,
-            j_id2: 0,
-            joint_id: 0,
+            solver_vel1: usize::MAX,
+            solver_vel2: usize::MAX,
+            ndofs1: usize::MAX,
+            j_id1: usize::MAX,
+            ndofs2: usize::MAX,
+            j_id2: usize::MAX,
+            joint_id: usize::MAX,
             impulse: 0.0,
             impulse_bounds: [-Real::MAX, Real::MAX],
-            inv_lhs: 0.0,
-            rhs: 0.0,
-            rhs_wo_bias: 0.0,
-            cfm_coeff: 0.0,
-            cfm_gain: 0.0,
+            inv_lhs: Real::MAX,
+            rhs: Real::MAX,
+            rhs_wo_bias: Real::MAX,
+            cfm_coeff: Real::MAX,
+            cfm_gain: Real::MAX,
             writeback_id: WritebackId::Dof(0),
         }
     }
@@ -63,8 +65,8 @@ impl JointGenericVelocityConstraint {
     pub fn lock_axes(
         params: &IntegrationParameters,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>,
+        body1: &JointSolverBody<Real, 1>,
+        body2: &JointSolverBody<Real, 1>,
         mb1: Option<(&Multibody, usize)>,
         mb2: Option<(&Multibody, usize)>,
         frame1: &Isometry<Real>,
@@ -79,7 +81,7 @@ impl JointGenericVelocityConstraint {
         let motor_axes = joint.motor_axes.bits();
         let limit_axes = joint.limit_axes.bits();
 
-        let builder = JointVelocityConstraintBuilder::new(
+        let builder = JointTwoBodyConstraintHelper::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -89,9 +91,8 @@ impl JointGenericVelocityConstraint {
 
         let start = len;
         for i in DIM..SPATIAL_DIM {
-            if (motor_axes >> DIM) & (1 << i) != 0 {
+            if motor_axes & (1 << i) != 0 {
                 out[len] = builder.motor_angular_generic(
-                    params,
                     jacobians,
                     j_id,
                     joint_id,
@@ -109,7 +110,6 @@ impl JointGenericVelocityConstraint {
         for i in 0..DIM {
             if motor_axes & (1 << i) != 0 {
                 out[len] = builder.motor_linear_generic(
-                    params,
                     jacobians,
                     j_id,
                     joint_id,
@@ -125,10 +125,7 @@ impl JointGenericVelocityConstraint {
                 len += 1;
             }
         }
-        JointVelocityConstraintBuilder::finalize_generic_constraints(
-            jacobians,
-            &mut out[start..len],
-        );
+        JointTwoBodyConstraintHelper::finalize_generic_constraints(jacobians, &mut out[start..len]);
 
         let start = len;
         for i in DIM..SPATIAL_DIM {
@@ -203,10 +200,7 @@ impl JointGenericVelocityConstraint {
             }
         }
 
-        JointVelocityConstraintBuilder::finalize_generic_constraints(
-            jacobians,
-            &mut out[start..len],
-        );
+        JointTwoBodyConstraintHelper::finalize_generic_constraints(jacobians, &mut out[start..len]);
         len
     }
 
@@ -218,69 +212,69 @@ impl JointGenericVelocityConstraint {
         self.j_id2 + self.ndofs2
     }
 
-    fn mj_lambda1<'a>(
+    fn solver_vel1<'a>(
         &self,
-        mj_lambdas: &'a [DeltaVel<Real>],
-        generic_mj_lambdas: &'a DVector<Real>,
+        solver_vels: &'a [SolverVel<Real>],
+        generic_solver_vels: &'a DVector<Real>,
     ) -> DVectorView<'a, Real> {
         if self.is_rigid_body1 {
-            mj_lambdas[self.mj_lambda1].as_vector_slice()
+            solver_vels[self.solver_vel1].as_vector_slice()
         } else {
-            generic_mj_lambdas.rows(self.mj_lambda1, self.ndofs1)
+            generic_solver_vels.rows(self.solver_vel1, self.ndofs1)
         }
     }
 
-    fn mj_lambda1_mut<'a>(
+    fn solver_vel1_mut<'a>(
         &self,
-        mj_lambdas: &'a mut [DeltaVel<Real>],
-        generic_mj_lambdas: &'a mut DVector<Real>,
+        solver_vels: &'a mut [SolverVel<Real>],
+        generic_solver_vels: &'a mut DVector<Real>,
     ) -> DVectorViewMut<'a, Real> {
         if self.is_rigid_body1 {
-            mj_lambdas[self.mj_lambda1].as_vector_slice_mut()
+            solver_vels[self.solver_vel1].as_vector_slice_mut()
         } else {
-            generic_mj_lambdas.rows_mut(self.mj_lambda1, self.ndofs1)
+            generic_solver_vels.rows_mut(self.solver_vel1, self.ndofs1)
         }
     }
 
-    fn mj_lambda2<'a>(
+    fn solver_vel2<'a>(
         &self,
-        mj_lambdas: &'a [DeltaVel<Real>],
-        generic_mj_lambdas: &'a DVector<Real>,
+        solver_vels: &'a [SolverVel<Real>],
+        generic_solver_vels: &'a DVector<Real>,
     ) -> DVectorView<'a, Real> {
         if self.is_rigid_body2 {
-            mj_lambdas[self.mj_lambda2].as_vector_slice()
+            solver_vels[self.solver_vel2].as_vector_slice()
         } else {
-            generic_mj_lambdas.rows(self.mj_lambda2, self.ndofs2)
+            generic_solver_vels.rows(self.solver_vel2, self.ndofs2)
         }
     }
 
-    fn mj_lambda2_mut<'a>(
+    fn solver_vel2_mut<'a>(
         &self,
-        mj_lambdas: &'a mut [DeltaVel<Real>],
-        generic_mj_lambdas: &'a mut DVector<Real>,
+        solver_vels: &'a mut [SolverVel<Real>],
+        generic_solver_vels: &'a mut DVector<Real>,
     ) -> DVectorViewMut<'a, Real> {
         if self.is_rigid_body2 {
-            mj_lambdas[self.mj_lambda2].as_vector_slice_mut()
+            solver_vels[self.solver_vel2].as_vector_slice_mut()
         } else {
-            generic_mj_lambdas.rows_mut(self.mj_lambda2, self.ndofs2)
+            generic_solver_vels.rows_mut(self.solver_vel2, self.ndofs2)
         }
     }
 
     pub fn solve(
         &mut self,
         jacobians: &DVector<Real>,
-        mj_lambdas: &mut [DeltaVel<Real>],
-        generic_mj_lambdas: &mut DVector<Real>,
+        solver_vels: &mut [SolverVel<Real>],
+        generic_solver_vels: &mut DVector<Real>,
     ) {
         let jacobians = jacobians.as_slice();
 
-        let mj_lambda1 = self.mj_lambda1(mj_lambdas, generic_mj_lambdas);
+        let solver_vel1 = self.solver_vel1(solver_vels, generic_solver_vels);
         let j1 = DVectorView::from_slice(&jacobians[self.j_id1..], self.ndofs1);
-        let vel1 = j1.dot(&mj_lambda1);
+        let vel1 = j1.dot(&solver_vel1);
 
-        let mj_lambda2 = self.mj_lambda2(mj_lambdas, generic_mj_lambdas);
+        let solver_vel2 = self.solver_vel2(solver_vels, generic_solver_vels);
         let j2 = DVectorView::from_slice(&jacobians[self.j_id2..], self.ndofs2);
-        let vel2 = j2.dot(&mj_lambda2);
+        let vel2 = j2.dot(&solver_vel2);
 
         let dvel = self.rhs + (vel2 - vel1);
         let total_impulse = na::clamp(
@@ -291,13 +285,13 @@ impl JointGenericVelocityConstraint {
         let delta_impulse = total_impulse - self.impulse;
         self.impulse = total_impulse;
 
-        let mut mj_lambda1 = self.mj_lambda1_mut(mj_lambdas, generic_mj_lambdas);
+        let mut solver_vel1 = self.solver_vel1_mut(solver_vels, generic_solver_vels);
         let wj1 = DVectorView::from_slice(&jacobians[self.wj_id1()..], self.ndofs1);
-        mj_lambda1.axpy(delta_impulse, &wj1, 1.0);
+        solver_vel1.axpy(delta_impulse, &wj1, 1.0);
 
-        let mut mj_lambda2 = self.mj_lambda2_mut(mj_lambdas, generic_mj_lambdas);
+        let mut solver_vel2 = self.solver_vel2_mut(solver_vels, generic_solver_vels);
         let wj2 = DVectorView::from_slice(&jacobians[self.wj_id2()..], self.ndofs2);
-        mj_lambda2.axpy(-delta_impulse, &wj2, 1.0);
+        solver_vel2.axpy(-delta_impulse, &wj2, 1.0);
     }
 
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
@@ -315,8 +309,8 @@ impl JointGenericVelocityConstraint {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct JointGenericVelocityGroundConstraint {
-    pub mj_lambda2: usize,
+pub struct JointGenericOneBodyConstraint {
+    pub solver_vel2: usize,
     pub ndofs2: usize,
     pub j_id2: usize,
 
@@ -333,16 +327,16 @@ pub struct JointGenericVelocityGroundConstraint {
     pub writeback_id: WritebackId,
 }
 
-impl Default for JointGenericVelocityGroundConstraint {
+impl Default for JointGenericOneBodyConstraint {
     fn default() -> Self {
-        JointGenericVelocityGroundConstraint::invalid()
+        JointGenericOneBodyConstraint::invalid()
     }
 }
 
-impl JointGenericVelocityGroundConstraint {
+impl JointGenericOneBodyConstraint {
     pub fn invalid() -> Self {
         Self {
-            mj_lambda2: crate::INVALID_USIZE,
+            solver_vel2: crate::INVALID_USIZE,
             ndofs2: 0,
             j_id2: crate::INVALID_USIZE,
             joint_id: 0,
@@ -360,8 +354,8 @@ impl JointGenericVelocityGroundConstraint {
     pub fn lock_axes(
         params: &IntegrationParameters,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>,
+        body1: &JointFixedSolverBody<Real>,
+        body2: &JointSolverBody<Real, 1>,
         mb2: (&Multibody, usize),
         frame1: &Isometry<Real>,
         frame2: &Isometry<Real>,
@@ -375,7 +369,7 @@ impl JointGenericVelocityGroundConstraint {
         let motor_axes = joint.motor_axes.bits();
         let limit_axes = joint.limit_axes.bits();
 
-        let builder = JointVelocityConstraintBuilder::new(
+        let builder = JointTwoBodyConstraintHelper::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -385,14 +379,12 @@ impl JointGenericVelocityGroundConstraint {
 
         let start = len;
         for i in DIM..SPATIAL_DIM {
-            if (motor_axes >> DIM) & (1 << i) != 0 {
-                out[len] = builder.motor_angular_generic_ground(
-                    params,
+            if motor_axes & (1 << i) != 0 {
+                out[len] = builder.motor_angular_generic_one_body(
                     jacobians,
                     j_id,
                     joint_id,
                     body1,
-                    body2,
                     mb2,
                     i - DIM,
                     &joint.motors[i].motor_params(params.dt),
@@ -404,13 +396,11 @@ impl JointGenericVelocityGroundConstraint {
 
         for i in 0..DIM {
             if motor_axes & (1 << i) != 0 {
-                out[len] = builder.motor_linear_generic_ground(
-                    params,
+                out[len] = builder.motor_linear_generic_one_body(
                     jacobians,
                     j_id,
                     joint_id,
                     body1,
-                    body2,
                     mb2,
                     // locked_ang_axes,
                     i,
@@ -421,7 +411,7 @@ impl JointGenericVelocityGroundConstraint {
             }
         }
 
-        JointVelocityConstraintBuilder::finalize_generic_constraints_ground(
+        JointTwoBodyConstraintHelper::finalize_generic_constraints_one_body(
             jacobians,
             &mut out[start..len],
         );
@@ -429,7 +419,7 @@ impl JointGenericVelocityGroundConstraint {
         let start = len;
         for i in DIM..SPATIAL_DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] = builder.lock_angular_generic_ground(
+                out[len] = builder.lock_angular_generic_one_body(
                     params,
                     jacobians,
                     j_id,
@@ -444,7 +434,7 @@ impl JointGenericVelocityGroundConstraint {
         }
         for i in 0..DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] = builder.lock_linear_generic_ground(
+                out[len] = builder.lock_linear_generic_one_body(
                     params,
                     jacobians,
                     j_id,
@@ -460,7 +450,7 @@ impl JointGenericVelocityGroundConstraint {
 
         for i in DIM..SPATIAL_DIM {
             if limit_axes & (1 << i) != 0 {
-                out[len] = builder.limit_angular_generic_ground(
+                out[len] = builder.limit_angular_generic_one_body(
                     params,
                     jacobians,
                     j_id,
@@ -476,7 +466,7 @@ impl JointGenericVelocityGroundConstraint {
         }
         for i in 0..DIM {
             if limit_axes & (1 << i) != 0 {
-                out[len] = builder.limit_linear_generic_ground(
+                out[len] = builder.limit_linear_generic_one_body(
                     params,
                     jacobians,
                     j_id,
@@ -491,7 +481,7 @@ impl JointGenericVelocityGroundConstraint {
             }
         }
 
-        JointVelocityConstraintBuilder::finalize_generic_constraints_ground(
+        JointTwoBodyConstraintHelper::finalize_generic_constraints_one_body(
             jacobians,
             &mut out[start..len],
         );
@@ -502,33 +492,33 @@ impl JointGenericVelocityGroundConstraint {
         self.j_id2 + self.ndofs2
     }
 
-    fn mj_lambda2<'a>(
+    fn solver_vel2<'a>(
         &self,
-        _mj_lambdas: &'a [DeltaVel<Real>],
-        generic_mj_lambdas: &'a DVector<Real>,
+        _solver_vels: &'a [SolverVel<Real>],
+        generic_solver_vels: &'a DVector<Real>,
     ) -> DVectorView<'a, Real> {
-        generic_mj_lambdas.rows(self.mj_lambda2, self.ndofs2)
+        generic_solver_vels.rows(self.solver_vel2, self.ndofs2)
     }
 
-    fn mj_lambda2_mut<'a>(
+    fn solver_vel2_mut<'a>(
         &self,
-        _mj_lambdas: &'a mut [DeltaVel<Real>],
-        generic_mj_lambdas: &'a mut DVector<Real>,
+        _solver_vels: &'a mut [SolverVel<Real>],
+        generic_solver_vels: &'a mut DVector<Real>,
     ) -> DVectorViewMut<'a, Real> {
-        generic_mj_lambdas.rows_mut(self.mj_lambda2, self.ndofs2)
+        generic_solver_vels.rows_mut(self.solver_vel2, self.ndofs2)
     }
 
     pub fn solve(
         &mut self,
         jacobians: &DVector<Real>,
-        mj_lambdas: &mut [DeltaVel<Real>],
-        generic_mj_lambdas: &mut DVector<Real>,
+        solver_vels: &mut [SolverVel<Real>],
+        generic_solver_vels: &mut DVector<Real>,
     ) {
         let jacobians = jacobians.as_slice();
 
-        let mj_lambda2 = self.mj_lambda2(mj_lambdas, generic_mj_lambdas);
+        let solver_vel2 = self.solver_vel2(solver_vels, generic_solver_vels);
         let j2 = DVectorView::from_slice(&jacobians[self.j_id2..], self.ndofs2);
-        let vel2 = j2.dot(&mj_lambda2);
+        let vel2 = j2.dot(&solver_vel2);
 
         let dvel = self.rhs + vel2;
         let total_impulse = na::clamp(
@@ -539,9 +529,9 @@ impl JointGenericVelocityGroundConstraint {
         let delta_impulse = total_impulse - self.impulse;
         self.impulse = total_impulse;
 
-        let mut mj_lambda2 = self.mj_lambda2_mut(mj_lambdas, generic_mj_lambdas);
+        let mut solver_vel2 = self.solver_vel2_mut(solver_vels, generic_solver_vels);
         let wj2 = DVectorView::from_slice(&jacobians[self.wj_id2()..], self.ndofs2);
-        mj_lambda2.axpy(-delta_impulse, &wj2, 1.0);
+        solver_vel2.axpy(-delta_impulse, &wj2, 1.0);
     }
 
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {

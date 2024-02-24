@@ -32,9 +32,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(hw * 2.0, hh, hw).density(100.0);
     colliders.insert_with_parent(collider, vehicle_handle, &mut bodies);
 
-    let mut tuning = WheelTuning::default();
-    tuning.suspension_stiffness = 100.0;
-    tuning.suspension_damping = 10.0;
+    let tuning = WheelTuning {
+        suspension_stiffness: 100.0,
+        suspension_damping: 10.0,
+        ..WheelTuning::default()
+    };
     let mut vehicle = DynamicRayCastVehicleController::new(vehicle_handle);
     let wheel_positions = [
         point![hw * 1.5, -hh, hw],

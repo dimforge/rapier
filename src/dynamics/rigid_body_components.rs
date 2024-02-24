@@ -7,7 +7,7 @@ use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector,
 };
 use crate::parry::partitioning::IndexedData;
-use crate::utils::{WAngularInertia, WCross, WDot};
+use crate::utils::{SimdAngularInertia, SimdCross, SimdDot};
 use num::Zero;
 
 /// The unique handle of a rigid body added to a `RigidBodySet`.
@@ -307,11 +307,52 @@ impl RigidBodyMassProps {
         self.effective_inv_mass.map(crate::utils::inv)
     }
 
+    /// The square root of the effective world-space angular inertia (that takes the potential rotation locking into account) of
+    /// this rigid-body.
+    #[must_use]
+    pub fn effective_angular_inertia_sqrt(&self) -> AngularInertia<Real> {
+        #[allow(unused_mut)] // mut needed in 3D.
+        let mut ang_inertia = self.effective_world_inv_inertia_sqrt;
+
+        // Make the matrix invertible.
+        #[cfg(feature = "dim3")]
+        {
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_X) {
+                ang_inertia.m11 = 1.0;
+            }
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_Y) {
+                ang_inertia.m22 = 1.0;
+            }
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_Z) {
+                ang_inertia.m33 = 1.0;
+            }
+        }
+
+        #[allow(unused_mut)] // mut needed in 3D.
+        let mut result = ang_inertia.inverse();
+
+        // Remove the locked axes again.
+        #[cfg(feature = "dim3")]
+        {
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_X) {
+                result.m11 = 0.0;
+            }
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_Y) {
+                result.m22 = 0.0;
+            }
+            if self.flags.contains(LockedAxes::ROTATION_LOCKED_Z) {
+                result.m33 = 0.0;
+            }
+        }
+
+        result
+    }
+
     /// The effective world-space angular inertia (that takes the potential rotation locking into account) of
     /// this rigid-body.
     #[must_use]
     pub fn effective_angular_inertia(&self) -> AngularInertia<Real> {
-        self.effective_world_inv_inertia_sqrt.squared().inverse()
+        self.effective_angular_inertia_sqrt().squared()
     }
 
     /// Recompute the mass-properties of this rigid-bodies based on its currently attached colliders.
@@ -358,7 +399,7 @@ impl RigidBodyMassProps {
 
     /// Update the world-space mass properties of `self`, taking into account the new position.
     pub fn update_world_mass_properties(&mut self, position: &Isometry<Real>) {
-        self.world_com = self.local_mprops.world_com(&position);
+        self.world_com = self.local_mprops.world_com(position);
         self.effective_inv_mass = Vector::repeat(self.local_mprops.inv_mass);
         self.effective_world_inv_inertia_sqrt =
             self.local_mprops.world_inv_inertia_sqrt(&position.rotation);
@@ -666,7 +707,6 @@ impl std::ops::Add<RigidBodyVelocity> for RigidBodyVelocity {
 }
 
 impl std::ops::AddAssign<RigidBodyVelocity> for RigidBodyVelocity {
-    #[must_use]
     fn add_assign(&mut self, rhs: Self) {
         self.linvel += rhs.linvel;
         self.angvel += rhs.angvel;
@@ -747,7 +787,7 @@ impl RigidBodyForces {
         gravity: &Vector<Real>,
         mass: &Vector<Real>,
     ) {
-        self.force = self.user_force + gravity.component_mul(&mass) * self.gravity_scale;
+        self.force = self.user_force + gravity.component_mul(mass) * self.gravity_scale;
         self.torque = self.user_torque;
     }
 
@@ -836,7 +876,7 @@ impl RigidBodyCcd {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
+#[derive(Default, Clone, Debug, Copy, PartialEq, Eq, Hash)]
 /// Internal identifiers used by the physics engine.
 pub struct RigidBodyIds {
     pub(crate) active_island_id: usize,
@@ -845,31 +885,14 @@ pub struct RigidBodyIds {
     pub(crate) active_set_timestamp: u32,
 }
 
-impl Default for RigidBodyIds {
-    fn default() -> Self {
-        Self {
-            active_island_id: 0,
-            active_set_id: 0,
-            active_set_offset: 0,
-            active_set_timestamp: 0,
-        }
-    }
-}
-
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 /// The set of colliders attached to this rigid-bodies.
 ///
 /// This should not be modified manually unless you really know what
 /// you are doing (for example if you are trying to integrate Rapier
 /// to a game engine using its component-based interface).
 pub struct RigidBodyColliders(pub Vec<ColliderHandle>);
-
-impl Default for RigidBodyColliders {
-    fn default() -> Self {
-        Self(vec![])
-    }
-}
 
 impl RigidBodyColliders {
     /// Detach a collider from this rigid-body.
@@ -946,15 +969,9 @@ impl RigidBodyColliders {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// The dominance groups of a rigid-body.
 pub struct RigidBodyDominance(pub i8);
-
-impl Default for RigidBodyDominance {
-    fn default() -> Self {
-        RigidBodyDominance(0)
-    }
-}
 
 impl RigidBodyDominance {
     /// The actual dominance group of this rigid-body, after taking into account its type.

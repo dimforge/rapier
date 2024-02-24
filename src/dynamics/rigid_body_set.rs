@@ -44,7 +44,7 @@ impl RigidBodySet {
     }
 
     pub(crate) fn take_modified(&mut self) -> Vec<RigidBodyHandle> {
-        std::mem::replace(&mut self.modified_bodies, vec![])
+        std::mem::take(&mut self.modified_bodies)
     }
 
     /// The number of rigid bodies on this set.

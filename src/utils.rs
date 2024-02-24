@@ -18,33 +18,33 @@ use {
 /// The trait for real numbers used by Rapier.
 ///
 /// This includes `f32`, `f64` and their related SIMD types.
-pub trait WReal: SimdRealField<Element = Real> + Copy {}
-impl WReal for Real {}
-impl WReal for SimdReal {}
+pub trait SimdRealCopy: SimdRealField<Element = Real> + Copy {}
+impl SimdRealCopy for Real {}
+impl SimdRealCopy for SimdReal {}
 
 const INV_EPSILON: Real = 1.0e-20;
 
 pub(crate) fn inv(val: Real) -> Real {
-    if val >= -INV_EPSILON && val <= INV_EPSILON {
+    if (-INV_EPSILON..=INV_EPSILON).contains(&val) {
         0.0
     } else {
         1.0 / val
     }
 }
 
-pub(crate) fn simd_inv<N: WReal>(val: N) -> N {
+pub(crate) fn simd_inv<N: SimdRealCopy>(val: N) -> N {
     let eps = N::splat(INV_EPSILON);
     N::zero().select(val.simd_gt(-eps) & val.simd_lt(eps), N::one() / val)
 }
 
 /// Trait to copy the sign of each component of one scalar/vector/matrix to another.
-pub trait WSign<Rhs>: Sized {
+pub trait SimdSign<Rhs>: Sized {
     // See SIMD implementations of copy_sign there: https://stackoverflow.com/a/57872652
     /// Copy the sign of each component of `self` to the corresponding component of `to`.
     fn copy_sign_to(self, to: Rhs) -> Rhs;
 }
 
-impl WSign<Real> for Real {
+impl SimdSign<Real> for Real {
     fn copy_sign_to(self, to: Self) -> Self {
         const MINUS_ZERO: Real = -0.0;
         let signbit = MINUS_ZERO.to_bits();
@@ -52,13 +52,13 @@ impl WSign<Real> for Real {
     }
 }
 
-impl<N: Scalar + Copy + WSign<N>> WSign<Vector2<N>> for N {
+impl<N: Scalar + Copy + SimdSign<N>> SimdSign<Vector2<N>> for N {
     fn copy_sign_to(self, to: Vector2<N>) -> Vector2<N> {
         Vector2::new(self.copy_sign_to(to.x), self.copy_sign_to(to.y))
     }
 }
 
-impl<N: Scalar + Copy + WSign<N>> WSign<Vector3<N>> for N {
+impl<N: Scalar + Copy + SimdSign<N>> SimdSign<Vector3<N>> for N {
     fn copy_sign_to(self, to: Vector3<N>) -> Vector3<N> {
         Vector3::new(
             self.copy_sign_to(to.x),
@@ -68,13 +68,13 @@ impl<N: Scalar + Copy + WSign<N>> WSign<Vector3<N>> for N {
     }
 }
 
-impl<N: Scalar + Copy + WSign<N>> WSign<Vector2<N>> for Vector2<N> {
+impl<N: Scalar + Copy + SimdSign<N>> SimdSign<Vector2<N>> for Vector2<N> {
     fn copy_sign_to(self, to: Vector2<N>) -> Vector2<N> {
         Vector2::new(self.x.copy_sign_to(to.x), self.y.copy_sign_to(to.y))
     }
 }
 
-impl<N: Scalar + Copy + WSign<N>> WSign<Vector3<N>> for Vector3<N> {
+impl<N: Scalar + Copy + SimdSign<N>> SimdSign<Vector3<N>> for Vector3<N> {
     fn copy_sign_to(self, to: Vector3<N>) -> Vector3<N> {
         Vector3::new(
             self.x.copy_sign_to(to.x),
@@ -84,20 +84,20 @@ impl<N: Scalar + Copy + WSign<N>> WSign<Vector3<N>> for Vector3<N> {
     }
 }
 
-impl WSign<SimdReal> for SimdReal {
+impl SimdSign<SimdReal> for SimdReal {
     fn copy_sign_to(self, to: SimdReal) -> SimdReal {
         to.simd_copysign(self)
     }
 }
 
-pub(crate) trait WComponent: Sized {
+pub(crate) trait SimdComponent: Sized {
     type Element;
 
     fn min_component(self) -> Self::Element;
     fn max_component(self) -> Self::Element;
 }
 
-impl WComponent for Real {
+impl SimdComponent for Real {
     type Element = Real;
 
     fn min_component(self) -> Self::Element {
@@ -108,7 +108,7 @@ impl WComponent for Real {
     }
 }
 
-impl WComponent for SimdReal {
+impl SimdComponent for SimdReal {
     type Element = Real;
 
     fn min_component(self) -> Self::Element {
@@ -120,7 +120,7 @@ impl WComponent for SimdReal {
 }
 
 /// Trait to compute the orthonormal basis of a vector.
-pub trait WBasis: Sized {
+pub trait SimdBasis: Sized {
     /// The type of the array of orthonormal vectors.
     type Basis;
     /// Computes the vectors which, when combined with `self`, form an orthonormal basis.
@@ -129,7 +129,7 @@ pub trait WBasis: Sized {
     fn orthonormal_vector(self) -> Self;
 }
 
-impl<N: WReal> WBasis for Vector2<N> {
+impl<N: SimdRealCopy> SimdBasis for Vector2<N> {
     type Basis = [Vector2<N>; 1];
     fn orthonormal_basis(self) -> [Vector2<N>; 1] {
         [Vector2::new(-self.y, self.x)]
@@ -139,7 +139,7 @@ impl<N: WReal> WBasis for Vector2<N> {
     }
 }
 
-impl<N: WReal + WSign<N>> WBasis for Vector3<N> {
+impl<N: SimdRealCopy + SimdSign<N>> SimdBasis for Vector3<N> {
     type Basis = [Vector3<N>; 2];
     // Robust and branchless implementation from Pixar:
     // https://graphics.pixar.com/library/OrthonormalB/paper.pdf
@@ -166,14 +166,14 @@ impl<N: WReal + WSign<N>> WBasis for Vector3<N> {
     }
 }
 
-pub(crate) trait WVec: Sized {
+pub(crate) trait SimdVec: Sized {
     type Element;
 
     fn horizontal_inf(&self) -> Self::Element;
     fn horizontal_sup(&self) -> Self::Element;
 }
 
-impl<N: Scalar + Copy + WComponent> WVec for Vector2<N>
+impl<N: Scalar + Copy + SimdComponent> SimdVec for Vector2<N>
 where
     N::Element: Scalar,
 {
@@ -188,7 +188,7 @@ where
     }
 }
 
-impl<N: Scalar + Copy + WComponent> WVec for Point2<N>
+impl<N: Scalar + Copy + SimdComponent> SimdVec for Point2<N>
 where
     N::Element: Scalar,
 {
@@ -203,7 +203,7 @@ where
     }
 }
 
-impl<N: Scalar + Copy + WComponent> WVec for Vector3<N>
+impl<N: Scalar + Copy + SimdComponent> SimdVec for Vector3<N>
 where
     N::Element: Scalar,
 {
@@ -226,7 +226,7 @@ where
     }
 }
 
-impl<N: Scalar + Copy + WComponent> WVec for Point3<N>
+impl<N: Scalar + Copy + SimdComponent> SimdVec for Point3<N>
 where
     N::Element: Scalar,
 {
@@ -249,7 +249,7 @@ where
     }
 }
 
-pub(crate) trait WCrossMatrix: Sized {
+pub(crate) trait SimdCrossMatrix: Sized {
     type CrossMat;
     type CrossMatTr;
 
@@ -257,7 +257,7 @@ pub(crate) trait WCrossMatrix: Sized {
     fn gcross_matrix_tr(self) -> Self::CrossMatTr;
 }
 
-impl<N: WReal> WCrossMatrix for Vector3<N> {
+impl<N: SimdRealCopy> SimdCrossMatrix for Vector3<N> {
     type CrossMat = Matrix3<N>;
     type CrossMatTr = Matrix3<N>;
 
@@ -282,7 +282,7 @@ impl<N: WReal> WCrossMatrix for Vector3<N> {
     }
 }
 
-impl<N: WReal> WCrossMatrix for Vector2<N> {
+impl<N: SimdRealCopy> SimdCrossMatrix for Vector2<N> {
     type CrossMat = RowVector2<N>;
     type CrossMatTr = Vector2<N>;
 
@@ -295,7 +295,7 @@ impl<N: WReal> WCrossMatrix for Vector2<N> {
         Vector2::new(-self.y, self.x)
     }
 }
-impl WCrossMatrix for Real {
+impl SimdCrossMatrix for Real {
     type CrossMat = Matrix2<Real>;
     type CrossMatTr = Matrix2<Real>;
 
@@ -310,7 +310,7 @@ impl WCrossMatrix for Real {
     }
 }
 
-impl WCrossMatrix for SimdReal {
+impl SimdCrossMatrix for SimdReal {
     type CrossMat = Matrix2<SimdReal>;
     type CrossMatTr = Matrix2<SimdReal>;
 
@@ -325,12 +325,12 @@ impl WCrossMatrix for SimdReal {
     }
 }
 
-pub(crate) trait WCross<Rhs>: Sized {
+pub(crate) trait SimdCross<Rhs>: Sized {
     type Result;
     fn gcross(&self, rhs: Rhs) -> Self::Result;
 }
 
-impl WCross<Vector3<Real>> for Vector3<Real> {
+impl SimdCross<Vector3<Real>> for Vector3<Real> {
     type Result = Self;
 
     fn gcross(&self, rhs: Vector3<Real>) -> Self::Result {
@@ -338,7 +338,7 @@ impl WCross<Vector3<Real>> for Vector3<Real> {
     }
 }
 
-impl WCross<Vector2<Real>> for Vector2<Real> {
+impl SimdCross<Vector2<Real>> for Vector2<Real> {
     type Result = Real;
 
     fn gcross(&self, rhs: Vector2<Real>) -> Self::Result {
@@ -346,7 +346,7 @@ impl WCross<Vector2<Real>> for Vector2<Real> {
     }
 }
 
-impl WCross<Vector2<Real>> for Real {
+impl SimdCross<Vector2<Real>> for Real {
     type Result = Vector2<Real>;
 
     fn gcross(&self, rhs: Vector2<Real>) -> Self::Result {
@@ -354,12 +354,12 @@ impl WCross<Vector2<Real>> for Real {
     }
 }
 
-pub(crate) trait WDot<Rhs>: Sized {
+pub(crate) trait SimdDot<Rhs>: Sized {
     type Result;
     fn gdot(&self, rhs: Rhs) -> Self::Result;
 }
 
-impl<N: WReal> WDot<Vector3<N>> for Vector3<N> {
+impl<N: SimdRealCopy> SimdDot<Vector3<N>> for Vector3<N> {
     type Result = N;
 
     fn gdot(&self, rhs: Vector3<N>) -> Self::Result {
@@ -367,7 +367,7 @@ impl<N: WReal> WDot<Vector3<N>> for Vector3<N> {
     }
 }
 
-impl<N: WReal> WDot<Vector2<N>> for Vector2<N> {
+impl<N: SimdRealCopy> SimdDot<Vector2<N>> for Vector2<N> {
     type Result = N;
 
     fn gdot(&self, rhs: Vector2<N>) -> Self::Result {
@@ -375,7 +375,7 @@ impl<N: WReal> WDot<Vector2<N>> for Vector2<N> {
     }
 }
 
-impl<N: WReal> WDot<Vector1<N>> for N {
+impl<N: SimdRealCopy> SimdDot<Vector1<N>> for N {
     type Result = N;
 
     fn gdot(&self, rhs: Vector1<N>) -> Self::Result {
@@ -383,7 +383,7 @@ impl<N: WReal> WDot<Vector1<N>> for N {
     }
 }
 
-impl<N: WReal> WDot<N> for N {
+impl<N: SimdRealCopy> SimdDot<N> for N {
     type Result = N;
 
     fn gdot(&self, rhs: N) -> Self::Result {
@@ -391,7 +391,7 @@ impl<N: WReal> WDot<N> for N {
     }
 }
 
-impl<N: WReal> WDot<N> for Vector1<N> {
+impl<N: SimdRealCopy> SimdDot<N> for Vector1<N> {
     type Result = N;
 
     fn gdot(&self, rhs: N) -> Self::Result {
@@ -399,7 +399,7 @@ impl<N: WReal> WDot<N> for Vector1<N> {
     }
 }
 
-impl WCross<Vector3<SimdReal>> for Vector3<SimdReal> {
+impl SimdCross<Vector3<SimdReal>> for Vector3<SimdReal> {
     type Result = Vector3<SimdReal>;
 
     fn gcross(&self, rhs: Self) -> Self::Result {
@@ -407,7 +407,7 @@ impl WCross<Vector3<SimdReal>> for Vector3<SimdReal> {
     }
 }
 
-impl WCross<Vector2<SimdReal>> for SimdReal {
+impl SimdCross<Vector2<SimdReal>> for SimdReal {
     type Result = Vector2<SimdReal>;
 
     fn gcross(&self, rhs: Vector2<SimdReal>) -> Self::Result {
@@ -415,7 +415,7 @@ impl WCross<Vector2<SimdReal>> for SimdReal {
     }
 }
 
-impl WCross<Vector2<SimdReal>> for Vector2<SimdReal> {
+impl SimdCross<Vector2<SimdReal>> for Vector2<SimdReal> {
     type Result = SimdReal;
 
     fn gcross(&self, rhs: Self) -> Self::Result {
@@ -426,7 +426,7 @@ impl WCross<Vector2<SimdReal>> for Vector2<SimdReal> {
 }
 
 /// Trait implemented by quaternions.
-pub trait WQuat<N> {
+pub trait SimdQuat<N> {
     /// The result of quaternion differentiation.
     type Result;
 
@@ -434,7 +434,7 @@ pub trait WQuat<N> {
     fn diff_conj1_2(&self, rhs: &Self) -> Self::Result;
 }
 
-impl<N: WReal> WQuat<N> for UnitComplex<N> {
+impl<N: SimdRealCopy> SimdQuat<N> for UnitComplex<N> {
     type Result = Matrix1<N>;
 
     fn diff_conj1_2(&self, rhs: &Self) -> Self::Result {
@@ -443,7 +443,7 @@ impl<N: WReal> WQuat<N> for UnitComplex<N> {
     }
 }
 
-impl<N: WReal> WQuat<N> for UnitQuaternion<N> {
+impl<N: SimdRealCopy> SimdQuat<N> for UnitQuaternion<N> {
     type Result = Matrix3<N>;
 
     fn diff_conj1_2(&self, rhs: &Self) -> Self::Result {
@@ -461,7 +461,7 @@ impl<N: WReal> WQuat<N> for UnitQuaternion<N> {
     }
 }
 
-pub(crate) trait WAngularInertia<N> {
+pub(crate) trait SimdAngularInertia<N> {
     type AngVector;
     type LinVector;
     type AngMatrix;
@@ -473,7 +473,7 @@ pub(crate) trait WAngularInertia<N> {
     fn into_matrix(self) -> Self::AngMatrix;
 }
 
-impl<N: WReal> WAngularInertia<N> for N {
+impl<N: SimdRealCopy> SimdAngularInertia<N> for N {
     type AngVector = N;
     type LinVector = Vector2<N>;
     type AngMatrix = N;
@@ -502,7 +502,7 @@ impl<N: WReal> WAngularInertia<N> for N {
     }
 }
 
-impl WAngularInertia<Real> for SdpMatrix3<Real> {
+impl SimdAngularInertia<Real> for SdpMatrix3<Real> {
     type AngVector = Vector3<Real>;
     type LinVector = Vector3<Real>;
     type AngMatrix = Matrix3<Real>;
@@ -566,7 +566,7 @@ impl WAngularInertia<Real> for SdpMatrix3<Real> {
     }
 }
 
-impl WAngularInertia<SimdReal> for SdpMatrix3<SimdReal> {
+impl SimdAngularInertia<SimdReal> for SdpMatrix3<SimdReal> {
     type AngVector = Vector3<SimdReal>;
     type LinVector = Vector3<SimdReal>;
     type AngMatrix = Matrix3<SimdReal>;
@@ -668,6 +668,7 @@ impl FlushToZeroDenormalsAreZeroFlags {
         any(target_arch = "x86", target_arch = "x86_64"),
         target_feature = "sse"
     ))]
+    #[allow(deprecated)] // will address that later.
     pub fn flush_denormal_to_zero() -> Self {
         unsafe {
             #[cfg(target_arch = "x86")]
@@ -691,6 +692,7 @@ impl FlushToZeroDenormalsAreZeroFlags {
     target_feature = "sse"
 ))]
 impl Drop for FlushToZeroDenormalsAreZeroFlags {
+    #[allow(deprecated)] // will address that later.
     fn drop(&mut self) {
         #[cfg(target_arch = "x86")]
         unsafe {
@@ -803,4 +805,24 @@ impl<T> IndexMut2<usize> for [T] {
             (a, b)
         }
     }
+}
+
+/// Calculate the difference with smallest absolute value between the two given values.
+pub fn smallest_abs_diff_between_sin_angles<N: SimdRealCopy>(a: N, b: N) -> N {
+    // Select the smallest path among the two angles to reach the target.
+    let s_err = a - b;
+    let sgn = s_err.simd_signum();
+    let s_err_complement = s_err - sgn * N::splat(2.0);
+    let s_err_is_smallest = s_err.simd_abs().simd_lt(s_err_complement.simd_abs());
+    s_err.select(s_err_is_smallest, s_err_complement)
+}
+
+/// Calculate the difference with smallest absolute value between the two given angles.
+pub fn smallest_abs_diff_between_angles<N: SimdRealCopy>(a: N, b: N) -> N {
+    // Select the smallest path among the two angles to reach the target.
+    let s_err = a - b;
+    let sgn = s_err.simd_signum();
+    let s_err_complement = s_err - sgn * N::simd_two_pi();
+    let s_err_is_smallest = s_err.simd_abs().simd_lt(s_err_complement.simd_abs());
+    s_err.select(s_err_is_smallest, s_err_complement)
 }

@@ -1,17 +1,24 @@
 use rapier::counters::Counters;
 use rapier::math::Real;
+use std::num::NonZeroUsize;
 
+use crate::debug_render::DebugRenderPipelineResource;
 use crate::harness::Harness;
 use crate::testbed::{
-    RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags, PHYSX_BACKEND_PATCH_FRICTION,
-    PHYSX_BACKEND_TWO_FRICTION_DIR,
+    RapierSolverType, RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags,
+    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR,
 };
 
 use crate::PhysicsState;
 use bevy_egui::egui::Slider;
-use bevy_egui::{egui, EguiContext};
+use bevy_egui::{egui, EguiContexts};
 
-pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness: &mut Harness) {
+pub fn update_ui(
+    ui_context: &mut EguiContexts,
+    state: &mut TestbedState,
+    harness: &mut Harness,
+    debug_render: &mut DebugRenderPipelineResource,
+) {
     egui::Window::new("Parameters").show(ui_context.ctx_mut(), |ui| {
         if state.backend_names.len() > 1 && !state.example_names.is_empty() {
             let mut changed = false;
@@ -37,22 +44,18 @@ pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness
         }
 
         ui.horizontal(|ui| {
-            if ui.button("<").clicked() {
-                if state.selected_example > 0 {
-                    state.selected_example -= 1;
-                    state
-                        .action_flags
-                        .set(TestbedActionFlags::EXAMPLE_CHANGED, true)
-                }
+            if ui.button("<").clicked() && state.selected_example > 0 {
+                state.selected_example -= 1;
+                state
+                    .action_flags
+                    .set(TestbedActionFlags::EXAMPLE_CHANGED, true)
             }
 
-            if ui.button(">").clicked() {
-                if state.selected_example + 1 < state.example_names.len() {
-                    state.selected_example += 1;
-                    state
-                        .action_flags
-                        .set(TestbedActionFlags::EXAMPLE_CHANGED, true)
-                }
+            if ui.button(">").clicked() && state.selected_example + 1 < state.example_names.len() {
+                state.selected_example += 1;
+                state
+                    .action_flags
+                    .set(TestbedActionFlags::EXAMPLE_CHANGED, true)
             }
 
             let mut changed = false;
@@ -92,43 +95,60 @@ pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness
 
         let integration_parameters = &mut harness.physics.integration_parameters;
 
-        ui.checkbox(
-            &mut integration_parameters.interleave_restitution_and_friction_resolution,
-            "interleave friction resolution",
-        );
-
         if state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
             || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
         {
-            ui.add(
-                Slider::new(&mut integration_parameters.max_velocity_iterations, 1..=200)
-                    .text("pos. iters."),
-            );
-            ui.add(
-                Slider::new(
-                    &mut integration_parameters.max_stabilization_iterations,
-                    1..=200,
-                )
-                .text("vel. iters."),
-            );
+            let mut num_iterations = integration_parameters.num_solver_iterations.get();
+            ui.add(Slider::new(&mut num_iterations, 1..=40).text("pos. iters."));
+            integration_parameters.num_solver_iterations =
+                NonZeroUsize::new(num_iterations).unwrap();
         } else {
+            let mut changed = false;
+            egui::ComboBox::from_label("solver type")
+                .width(150.0)
+                .selected_text(format!("{:?}", state.solver_type))
+                .show_ui(ui, |ui| {
+                    let solver_types = [
+                        RapierSolverType::SmallStepsPgs,
+                        RapierSolverType::StandardPgs,
+                    ];
+                    for sty in solver_types {
+                        changed = ui
+                            .selectable_value(&mut state.solver_type, sty, format!("{sty:?}"))
+                            .changed()
+                            || changed;
+                    }
+                });
+
+            if changed {
+                match state.solver_type {
+                    RapierSolverType::SmallStepsPgs => {
+                        integration_parameters.switch_to_small_steps_pgs_solver()
+                    }
+                    RapierSolverType::StandardPgs => {
+                        integration_parameters.switch_to_standard_pgs_solver()
+                    }
+                }
+            }
+
+            let mut num_iterations = integration_parameters.num_solver_iterations.get();
+            ui.add(Slider::new(&mut num_iterations, 1..=40).text("num solver iters."));
+            integration_parameters.num_solver_iterations =
+                NonZeroUsize::new(num_iterations).unwrap();
+
             ui.add(
-                Slider::new(&mut integration_parameters.max_velocity_iterations, 1..=200)
-                    .text("vel. rest. iters."),
+                Slider::new(
+                    &mut integration_parameters.num_internal_pgs_iterations,
+                    1..=40,
+                )
+                .text("num internal PGS iters."),
             );
             ui.add(
                 Slider::new(
-                    &mut integration_parameters.max_velocity_friction_iterations,
-                    1..=200,
+                    &mut integration_parameters.num_additional_friction_iterations,
+                    1..=40,
                 )
-                .text("vel. frict. iters."),
-            );
-            ui.add(
-                Slider::new(
-                    &mut integration_parameters.max_stabilization_iterations,
-                    1..=200,
-                )
-                .text("vel. stab. iters."),
+                .text("num additional frict. iters."),
             );
         }
 
@@ -157,6 +177,7 @@ pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness
         ui.checkbox(&mut sleep, "sleep enabled");
         // ui.checkbox(&mut contact_points, "draw contacts");
         // ui.checkbox(&mut wireframe, "draw wireframes");
+        ui.checkbox(&mut debug_render.enabled, "debug render enabled");
 
         state.flags.set(TestbedStateFlags::SLEEP, sleep);
         // state

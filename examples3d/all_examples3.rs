@@ -34,7 +34,12 @@ mod heightfield3;
 mod joints3;
 // mod joints3;
 mod character_controller3;
+mod debug_chain_high_mass_ratio3;
+mod debug_cube_high_mass_ratio3;
 mod debug_internal_edges3;
+mod debug_long_chain3;
+mod debug_multibody_ang_motor_pos3;
+mod joint_motor_position3;
 mod keva3;
 mod locked_rotations3;
 mod newton_cradle3;
@@ -44,8 +49,10 @@ mod primitives3;
 mod restitution3;
 mod rope_joints3;
 mod sensor3;
+mod spring_joints3;
 mod trimesh3;
 mod vehicle_controller3;
+mod vehicle_joints3;
 
 fn demo_name_from_command_line() -> Option<String> {
     let mut args = std::env::args();
@@ -79,8 +86,8 @@ fn demo_name_from_url() -> Option<String> {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn main() {
     let demo = demo_name_from_command_line()
-        .or_else(|| demo_name_from_url())
-        .unwrap_or(String::new())
+        .or_else(demo_name_from_url)
+        .unwrap_or_default()
         .to_camel_case();
 
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
@@ -97,14 +104,17 @@ pub fn main() {
         ("Domino", domino3::init_world),
         ("Heightfield", heightfield3::init_world),
         ("Impulse Joints", joints3::init_world_with_joints),
+        ("Joint Motor Position", joint_motor_position3::init_world),
         ("Locked rotations", locked_rotations3::init_world),
         ("One-way platforms", one_way_platforms3::init_world),
         ("Platform", platform3::init_world),
         ("Restitution", restitution3::init_world),
         ("Rope Joints", rope_joints3::init_world),
         ("Sensor", sensor3::init_world),
+        ("Spring Joints", spring_joints3::init_world),
         ("TriMesh", trimesh3::init_world),
         ("Vehicle controller", vehicle_controller3::init_world),
+        ("Vehicle joints", vehicle_joints3::init_world),
         ("Keva tower", keva3::init_world),
         ("Newton cradle", newton_cradle3::init_world),
         ("(Debug) multibody_joints", debug_articulations3::init_world),
@@ -120,6 +130,15 @@ pub fn main() {
         ),
         ("(Debug) friction", debug_friction3::init_world),
         ("(Debug) internal edges", debug_internal_edges3::init_world),
+        ("(Debug) long chain", debug_long_chain3::init_world),
+        (
+            "(Debug) high mass ratio: chain",
+            debug_chain_high_mass_ratio3::init_world,
+        ),
+        (
+            "(Debug) high mass ratio: cube",
+            debug_cube_high_mass_ratio3::init_world,
+        ),
         ("(Debug) triangle", debug_triangle3::init_world),
         ("(Debug) trimesh", debug_trimesh3::init_world),
         ("(Debug) cylinder", debug_cylinder3::init_world),
@@ -131,10 +150,14 @@ pub fn main() {
             debug_shape_modification3::init_world,
         ),
         ("(Debug) deserialize", debug_deserialize3::init_world),
+        (
+            "(Debug) multibody ang. motor pos.",
+            debug_multibody_ang_motor_pos3::init_world,
+        ),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
-    builders.sort_by(|a, b| match (a.0.starts_with("("), b.0.starts_with("(")) {
+    builders.sort_by(|a, b| match (a.0.starts_with('('), b.0.starts_with('(')) {
         (true, true) | (false, false) => a.0.cmp(b.0),
         (true, false) => Ordering::Greater,
         (false, true) => Ordering::Less,

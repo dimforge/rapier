@@ -1,14 +1,14 @@
 //! Physics pipeline structures.
 
 use crate::counters::Counters;
-#[cfg(not(feature = "parallel"))]
+// #[cfg(not(feature = "parallel"))]
 use crate::dynamics::IslandSolver;
+#[cfg(feature = "parallel")]
+use crate::dynamics::JointGraphEdge;
 use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodyChanges, RigidBodyHandle, RigidBodyPosition, RigidBodyType,
 };
-#[cfg(feature = "parallel")]
-use crate::dynamics::{JointGraphEdge, ParallelIslandSolver as IslandSolver};
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
     ContactManifoldIndex, NarrowPhase, TemporaryInteractionIndex,
@@ -206,18 +206,13 @@ impl PhysicsPipeline {
 
         self.counters.stages.update_time.resume();
         for handle in islands.active_dynamic_bodies() {
+            // TODO: should that be moved to the solver (just like we moved
+            //       the multibody dynamics update) since it depends on dt?
             let rb = bodies.index_mut_internal(*handle);
             rb.mprops.update_world_mass_properties(&rb.pos.position);
             let effective_mass = rb.mprops.effective_mass();
             rb.forces
-                .compute_effective_force_and_torque(&gravity, &effective_mass);
-        }
-
-        for multibody in &mut multibody_joints.multibodies {
-            multibody
-                .1
-                .update_dynamics(integration_parameters.dt, bodies);
-            multibody.1.update_acceleration(bodies);
+                .compute_effective_force_and_torque(gravity, &effective_mass);
         }
         self.counters.stages.update_time.pause();
 
@@ -263,7 +258,11 @@ impl PhysicsPipeline {
             let manifold_indices = &self.manifold_indices[..];
             let joint_constraint_indices = &self.joint_constraint_indices[..];
 
-            rayon::scope(|scope| {
+            // PERF: right now, we are only doing islands-based parallelism.
+            //       Intra-island parallelism (that hasn’t been ported to the new
+            //       solver yet) will be supported in the future.
+            self.counters.solver.velocity_resolution_time.resume();
+            rayon::scope(|_scope| {
                 enable_flush_to_zero!();
 
                 solvers
@@ -271,22 +270,22 @@ impl PhysicsPipeline {
                     .enumerate()
                     .for_each(|(island_id, solver)| {
                         let bodies: &mut RigidBodySet =
-                            unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };
+                            unsafe { &mut *bodies.load(Ordering::Relaxed) };
                         let manifolds: &mut Vec<&mut ContactManifold> =
-                            unsafe { std::mem::transmute(manifolds.load(Ordering::Relaxed)) };
+                            unsafe { &mut *manifolds.load(Ordering::Relaxed) };
                         let impulse_joints: &mut Vec<JointGraphEdge> =
-                            unsafe { std::mem::transmute(impulse_joints.load(Ordering::Relaxed)) };
-                        let multibody_joints: &mut MultibodyJointSet = unsafe {
-                            std::mem::transmute(multibody_joints.load(Ordering::Relaxed))
-                        };
+                            unsafe { &mut *impulse_joints.load(Ordering::Relaxed) };
+                        let multibody_joints: &mut MultibodyJointSet =
+                            unsafe { &mut *multibody_joints.load(Ordering::Relaxed) };
 
+                        let mut counters = Counters::new(false);
                         solver.init_and_solve(
-                            scope,
                             island_id,
-                            islands,
+                            &mut counters,
                             integration_parameters,
+                            islands,
                             bodies,
-                            manifolds,
+                            &mut manifolds[..],
                             &manifold_indices[island_id],
                             impulse_joints,
                             &joint_constraint_indices[island_id],
@@ -294,6 +293,7 @@ impl PhysicsPipeline {
                         )
                     });
             });
+            self.counters.solver.velocity_resolution_time.pause();
         }
 
         // Generate contact force events if needed.

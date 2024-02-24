@@ -1,26 +1,460 @@
-use crate::dynamics::solver::joint_constraint::joint_generic_velocity_constraint::{
-    JointGenericVelocityConstraint, JointGenericVelocityGroundConstraint,
+use crate::dynamics::solver::joint_constraint::joint_generic_constraint::{
+    JointGenericOneBodyConstraint, JointGenericTwoBodyConstraint,
 };
-use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::WritebackId;
-use crate::dynamics::solver::joint_constraint::{JointVelocityConstraintBuilder, SolverBody};
+use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
+    JointFixedSolverBody, WritebackId,
+};
+use crate::dynamics::solver::joint_constraint::{JointSolverBody, JointTwoBodyConstraintHelper};
 use crate::dynamics::solver::MotorParameters;
-use crate::dynamics::{IntegrationParameters, JointIndex, Multibody};
+use crate::dynamics::{
+    GenericJoint, ImpulseJoint, IntegrationParameters, JointIndex, Multibody, MultibodyJointSet,
+    MultibodyLinkId, RigidBodySet,
+};
 use crate::math::{Real, Vector, ANG_DIM, DIM, SPATIAL_DIM};
+use crate::utils;
 use crate::utils::IndexMut2;
-use crate::utils::WDot;
+use crate::utils::SimdDot;
 use na::{DVector, SVector};
 
+use crate::dynamics::solver::solver_body::SolverBody;
+use crate::dynamics::solver::ConstraintsCounts;
 #[cfg(feature = "dim3")]
-use crate::utils::WAngularInertia;
+use crate::utils::SimdAngularInertia;
+#[cfg(feature = "dim2")]
+use na::Vector1;
+use parry::math::Isometry;
 
-impl SolverBody<Real, 1> {
+#[derive(Copy, Clone)]
+enum LinkOrBody {
+    Link(MultibodyLinkId),
+    Body(usize),
+}
+
+#[derive(Copy, Clone)]
+pub struct JointGenericTwoBodyConstraintBuilder {
+    link1: LinkOrBody,
+    link2: LinkOrBody,
+    joint_id: JointIndex,
+    joint: GenericJoint,
+    j_id: usize,
+    // These are solver body for both joints, except that
+    // the world_com is actually in local-space.
+    local_body1: JointSolverBody<Real, 1>,
+    local_body2: JointSolverBody<Real, 1>,
+    multibodies_ndof: usize,
+    constraint_id: usize,
+}
+
+impl JointGenericTwoBodyConstraintBuilder {
+    pub fn invalid() -> Self {
+        Self {
+            link1: LinkOrBody::Body(usize::MAX),
+            link2: LinkOrBody::Body(usize::MAX),
+            joint_id: JointIndex::MAX,
+            joint: GenericJoint::default(),
+            j_id: usize::MAX,
+            local_body1: JointSolverBody::invalid(),
+            local_body2: JointSolverBody::invalid(),
+            multibodies_ndof: usize::MAX,
+            constraint_id: usize::MAX,
+        }
+    }
+
+    pub fn generate(
+        joint_id: JointIndex,
+        joint: &ImpulseJoint,
+        bodies: &RigidBodySet,
+        multibodies: &MultibodyJointSet,
+        out_builder: &mut Self,
+        j_id: &mut usize,
+        jacobians: &mut DVector<Real>,
+        out_constraint_id: &mut usize,
+    ) {
+        let starting_j_id = *j_id;
+        let rb1 = &bodies[joint.body1];
+        let rb2 = &bodies[joint.body2];
+
+        let local_body1 = JointSolverBody {
+            im: rb1.mprops.effective_inv_mass,
+            sqrt_ii: rb1.mprops.effective_world_inv_inertia_sqrt,
+            world_com: rb1.mprops.local_mprops.local_com,
+            solver_vel: [rb1.ids.active_set_offset],
+        };
+        let local_body2 = JointSolverBody {
+            im: rb2.mprops.effective_inv_mass,
+            sqrt_ii: rb2.mprops.effective_world_inv_inertia_sqrt,
+            world_com: rb2.mprops.local_mprops.local_com,
+            solver_vel: [rb2.ids.active_set_offset],
+        };
+
+        let mut multibodies_ndof = 0;
+        let link1 = match multibodies.rigid_body_link(joint.body1) {
+            Some(link) => {
+                multibodies_ndof += multibodies[link.multibody].ndofs();
+                LinkOrBody::Link(*link)
+            }
+            None => {
+                multibodies_ndof += SPATIAL_DIM;
+                LinkOrBody::Body(rb2.ids.active_set_offset)
+            }
+        };
+        let link2 = match multibodies.rigid_body_link(joint.body2) {
+            Some(link) => {
+                multibodies_ndof += multibodies[link.multibody].ndofs();
+                LinkOrBody::Link(*link)
+            }
+            None => {
+                multibodies_ndof += SPATIAL_DIM;
+                LinkOrBody::Body(rb2.ids.active_set_offset)
+            }
+        };
+
+        if multibodies_ndof == 0 {
+            // Both multibodies are fixed, don’t generate any constraint.
+            out_builder.multibodies_ndof = multibodies_ndof;
+            return;
+        }
+
+        // For each solver contact we generate up to SPATIAL_DIM constraints, and each
+        // constraints appends the multibodies jacobian and weighted jacobians.
+        // Also note that for impulse_joints, the rigid-bodies will also add their jacobians
+        // to the generic DVector.
+        // TODO: is this count correct when we take both motors and limits into account?
+        let required_jacobian_len = *j_id + multibodies_ndof * 2 * SPATIAL_DIM;
+
+        // TODO: use a more precise increment.
+        *j_id += multibodies_ndof * 2 * SPATIAL_DIM;
+
+        if jacobians.nrows() < required_jacobian_len && !cfg!(feature = "parallel") {
+            jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
+        }
+
+        *out_builder = Self {
+            link1,
+            link2,
+            joint_id,
+            joint: joint.data,
+            j_id: starting_j_id,
+            local_body1,
+            local_body2,
+            multibodies_ndof,
+            constraint_id: *out_constraint_id,
+        };
+
+        *out_constraint_id += ConstraintsCounts::from_joint(joint).num_constraints;
+    }
+
+    pub fn update(
+        &self,
+        params: &IntegrationParameters,
+        multibodies: &MultibodyJointSet,
+        bodies: &[SolverBody],
+        jacobians: &mut DVector<Real>,
+        out: &mut [JointGenericTwoBodyConstraint],
+    ) {
+        if self.multibodies_ndof == 0 {
+            // The joint is between two static bodies, no constraint needed.
+            return;
+        }
+
+        // NOTE: right now, the "update", is basically reconstructing all the
+        //       constraints. Could we make this more incremental?
+        let pos1;
+        let pos2;
+        let mb1;
+        let mb2;
+
+        match self.link1 {
+            LinkOrBody::Link(link) => {
+                let mb = &multibodies[link.multibody];
+                pos1 = &mb.link(link.id).unwrap().local_to_world;
+                mb1 = Some((mb, link.id));
+            }
+            LinkOrBody::Body(body1) => {
+                pos1 = &bodies[body1].position;
+                mb1 = None;
+            }
+        };
+        match self.link2 {
+            LinkOrBody::Link(link) => {
+                let mb = &multibodies[link.multibody];
+                pos2 = &mb.link(link.id).unwrap().local_to_world;
+                mb2 = Some((mb, link.id));
+            }
+            LinkOrBody::Body(body2) => {
+                pos2 = &bodies[body2].position;
+                mb2 = None;
+            }
+        };
+
+        let frame1 = pos1 * self.joint.local_frame1;
+        let frame2 = pos2 * self.joint.local_frame2;
+
+        let joint_body1 = JointSolverBody {
+            world_com: pos1 * self.local_body1.world_com, // the world_com was stored in local-space.
+            ..self.local_body1
+        };
+        let joint_body2 = JointSolverBody {
+            world_com: pos2 * self.local_body2.world_com, // the world_com was stored in local-space.
+            ..self.local_body2
+        };
+
+        let mut j_id = self.j_id;
+
+        JointGenericTwoBodyConstraint::lock_axes(
+            params,
+            self.joint_id,
+            &joint_body1,
+            &joint_body2,
+            mb1,
+            mb2,
+            &frame1,
+            &frame2,
+            &self.joint,
+            jacobians,
+            &mut j_id,
+            &mut out[self.constraint_id..],
+        );
+    }
+}
+
+#[derive(Copy, Clone)]
+#[allow(clippy::large_enum_variant)]
+pub enum JointGenericOneBodyConstraintBuilder {
+    Internal(JointGenericVelocityOneBodyInternalConstraintBuilder),
+    External(JointGenericVelocityOneBodyExternalConstraintBuilder),
+    Empty,
+}
+
+#[derive(Copy, Clone)]
+pub struct JointGenericVelocityOneBodyInternalConstraintBuilder {
+    link: MultibodyLinkId,
+    j_id: usize,
+    constraint_id: usize,
+}
+
+impl JointGenericOneBodyConstraintBuilder {
+    pub fn invalid() -> Self {
+        Self::Empty
+    }
+
+    pub fn update(
+        &self,
+        params: &IntegrationParameters,
+        multibodies: &MultibodyJointSet,
+        bodies: &[SolverBody],
+        jacobians: &mut DVector<Real>,
+        out: &mut [JointGenericOneBodyConstraint],
+    ) {
+        match self {
+            Self::Empty => {}
+            Self::Internal(builder) => builder.update(params, multibodies, jacobians, out),
+            Self::External(builder) => builder.update(params, multibodies, bodies, jacobians, out),
+        }
+    }
+}
+
+impl JointGenericVelocityOneBodyInternalConstraintBuilder {
+    pub fn num_constraints(multibodies: &MultibodyJointSet, link_id: &MultibodyLinkId) -> usize {
+        let multibody = &multibodies[link_id.multibody];
+        let link = multibody.link(link_id.id).unwrap();
+        link.joint().num_velocity_constraints()
+    }
+
+    pub fn generate(
+        multibodies: &MultibodyJointSet,
+        link_id: &MultibodyLinkId,
+        out_builder: &mut JointGenericOneBodyConstraintBuilder,
+        j_id: &mut usize,
+        jacobians: &mut DVector<Real>,
+        out_constraint_id: &mut usize,
+    ) {
+        let multibody = &multibodies[link_id.multibody];
+        let link = multibody.link(link_id.id).unwrap();
+        let num_constraints = link.joint().num_velocity_constraints();
+
+        if num_constraints == 0 {
+            return;
+        }
+
+        *out_builder = JointGenericOneBodyConstraintBuilder::Internal(Self {
+            link: *link_id,
+            j_id: *j_id,
+            constraint_id: *out_constraint_id,
+        });
+
+        *j_id += num_constraints * multibody.ndofs() * 2;
+        if jacobians.nrows() < *j_id {
+            jacobians.resize_vertically_mut(*j_id, 0.0);
+        }
+
+        *out_constraint_id += num_constraints;
+    }
+
+    pub fn update(
+        &self,
+        params: &IntegrationParameters,
+        multibodies: &MultibodyJointSet,
+        jacobians: &mut DVector<Real>,
+        out: &mut [JointGenericOneBodyConstraint],
+    ) {
+        let mb = &multibodies[self.link.multibody];
+        let link = mb.link(self.link.id).unwrap();
+        link.joint().velocity_constraints(
+            params,
+            mb,
+            link,
+            self.j_id,
+            jacobians,
+            &mut out[self.constraint_id..],
+        );
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct JointGenericVelocityOneBodyExternalConstraintBuilder {
+    body1: JointFixedSolverBody<Real>,
+    frame1: Isometry<Real>,
+    link2: MultibodyLinkId,
+    joint_id: JointIndex,
+    joint: GenericJoint,
+    j_id: usize,
+    flipped: bool,
+    constraint_id: usize,
+    // These are solver body for both joints, except that
+    // the world_com is actually in local-space.
+    local_body2: JointSolverBody<Real, 1>,
+}
+
+impl JointGenericVelocityOneBodyExternalConstraintBuilder {
+    pub fn generate(
+        joint_id: JointIndex,
+        joint: &ImpulseJoint,
+        bodies: &RigidBodySet,
+        multibodies: &MultibodyJointSet,
+        out_builder: &mut JointGenericOneBodyConstraintBuilder,
+        j_id: &mut usize,
+        jacobians: &mut DVector<Real>,
+        out_constraint_id: &mut usize,
+    ) {
+        let mut handle1 = joint.body1;
+        let mut handle2 = joint.body2;
+        let flipped = !bodies[handle2].is_dynamic();
+
+        let local_frame1 = if flipped {
+            std::mem::swap(&mut handle1, &mut handle2);
+            joint.data.local_frame2
+        } else {
+            joint.data.local_frame1
+        };
+
+        let rb1 = &bodies[handle1];
+        let rb2 = &bodies[handle2];
+
+        let frame1 = rb1.pos.position * local_frame1;
+
+        let starting_j_id = *j_id;
+
+        let body1 = JointFixedSolverBody {
+            linvel: rb1.vels.linvel,
+            angvel: rb1.vels.angvel,
+            world_com: rb1.mprops.world_com,
+        };
+        let local_body2 = JointSolverBody {
+            im: rb2.mprops.effective_inv_mass,
+            sqrt_ii: rb2.mprops.effective_world_inv_inertia_sqrt,
+            world_com: rb2.mprops.local_mprops.local_com,
+            solver_vel: [rb2.ids.active_set_offset],
+        };
+
+        let link2 = *multibodies.rigid_body_link(handle2).unwrap();
+        let mb2 = &multibodies[link2.multibody];
+        let multibodies_ndof = mb2.ndofs();
+
+        if multibodies_ndof == 0 {
+            // The multibody is fixed, don’t generate any constraint.
+            *out_builder = JointGenericOneBodyConstraintBuilder::Empty;
+            return;
+        }
+
+        // For each solver contact we generate up to SPATIAL_DIM constraints, and each
+        // constraints appends the multibodies jacobian and weighted jacobians.
+        // Also note that for impulse_joints, the rigid-bodies will also add their jacobians
+        // to the generic DVector.
+        // TODO: is this count correct when we take both motors and limits into account?
+        let required_jacobian_len = *j_id + multibodies_ndof * 2 * SPATIAL_DIM;
+        // TODO: use a more precise increment.
+        *j_id += multibodies_ndof * 2 * SPATIAL_DIM;
+
+        if jacobians.nrows() < required_jacobian_len && !cfg!(feature = "parallel") {
+            jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
+        }
+
+        *out_builder = JointGenericOneBodyConstraintBuilder::External(Self {
+            body1,
+            link2,
+            joint_id,
+            joint: joint.data,
+            j_id: starting_j_id,
+            frame1,
+            local_body2,
+            flipped,
+            constraint_id: *out_constraint_id,
+        });
+
+        *out_constraint_id += ConstraintsCounts::from_joint(joint).num_constraints;
+    }
+
+    pub fn update(
+        &self,
+        params: &IntegrationParameters,
+        multibodies: &MultibodyJointSet,
+        _bodies: &[SolverBody],
+        jacobians: &mut DVector<Real>,
+        out: &mut [JointGenericOneBodyConstraint],
+    ) {
+        // NOTE: right now, the "update", is basically reconstructing all the
+        //       constraints. Could we make this more incremental?
+        let mb2 = &multibodies[self.link2.multibody];
+        let pos2 = &mb2.link(self.link2.id).unwrap().local_to_world;
+        let frame2 = pos2
+            * if self.flipped {
+                self.joint.local_frame1
+            } else {
+                self.joint.local_frame2
+            };
+
+        let joint_body2 = JointSolverBody {
+            world_com: pos2 * self.local_body2.world_com, // the world_com was stored in local-space.
+            ..self.local_body2
+        };
+
+        let mut j_id = self.j_id;
+
+        JointGenericOneBodyConstraint::lock_axes(
+            params,
+            self.joint_id,
+            &self.body1,
+            &joint_body2,
+            (mb2, self.link2.id),
+            &self.frame1,
+            &frame2,
+            &self.joint,
+            jacobians,
+            &mut j_id,
+            &mut out[self.constraint_id..],
+        );
+    }
+}
+
+impl JointSolverBody<Real, 1> {
     pub fn fill_jacobians(
         &self,
         unit_force: Vector<Real>,
         unit_torque: SVector<Real, ANG_DIM>,
         j_id: &mut usize,
         jacobians: &mut DVector<Real>,
-    ) -> Real {
+    ) {
         let wj_id = *j_id + SPATIAL_DIM;
         jacobians
             .fixed_rows_mut::<DIM>(*j_id)
@@ -51,26 +485,24 @@ impl SolverBody<Real, 1> {
         }
 
         *j_id += SPATIAL_DIM * 2;
-        unit_force.dot(&self.linvel) + unit_torque.gdot(self.angvel)
     }
 }
 
-impl JointVelocityConstraintBuilder<Real> {
+impl JointTwoBodyConstraintHelper<Real> {
     pub fn lock_jacobians_generic(
         &self,
-        _params: &IntegrationParameters,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>,
+        body1: &JointSolverBody<Real, 1>,
+        body2: &JointSolverBody<Real, 1>,
         mb1: Option<(&Multibody, usize)>,
         mb2: Option<(&Multibody, usize)>,
         writeback_id: WritebackId,
         lin_jac: Vector<Real>,
         ang_jac1: SVector<Real, ANG_DIM>,
         ang_jac2: SVector<Real, ANG_DIM>,
-    ) -> JointGenericVelocityConstraint {
+    ) -> JointGenericTwoBodyConstraint {
         let is_rigid_body1 = mb1.is_none();
         let is_rigid_body2 = mb2.is_none();
 
@@ -78,19 +510,17 @@ impl JointVelocityConstraintBuilder<Real> {
         let ndofs2 = mb2.map(|(m, _)| m.ndofs()).unwrap_or(SPATIAL_DIM);
 
         let j_id1 = *j_id;
-        let vel1 = if let Some((mb1, link_id1)) = mb1 {
-            mb1.fill_jacobians(link_id1, lin_jac, ang_jac1, j_id, jacobians)
-                .1
+        if let Some((mb1, link_id1)) = mb1 {
+            mb1.fill_jacobians(link_id1, lin_jac, ang_jac1, j_id, jacobians);
         } else {
-            body1.fill_jacobians(lin_jac, ang_jac1, j_id, jacobians)
+            body1.fill_jacobians(lin_jac, ang_jac1, j_id, jacobians);
         };
 
         let j_id2 = *j_id;
-        let vel2 = if let Some((mb2, link_id2)) = mb2 {
-            mb2.fill_jacobians(link_id2, lin_jac, ang_jac2, j_id, jacobians)
-                .1
+        if let Some((mb2, link_id2)) = mb2 {
+            mb2.fill_jacobians(link_id2, lin_jac, ang_jac2, j_id, jacobians);
         } else {
-            body2.fill_jacobians(lin_jac, ang_jac2, j_id, jacobians)
+            body2.fill_jacobians(lin_jac, ang_jac2, j_id, jacobians);
         };
 
         if is_rigid_body1 {
@@ -113,16 +543,16 @@ impl JointVelocityConstraintBuilder<Real> {
             j.copy_from(&wj);
         }
 
-        let rhs_wo_bias = vel2 - vel1;
+        let rhs_wo_bias = 0.0;
 
-        let mj_lambda1 = mb1.map(|m| m.0.solver_id).unwrap_or(body1.mj_lambda[0]);
-        let mj_lambda2 = mb2.map(|m| m.0.solver_id).unwrap_or(body2.mj_lambda[0]);
+        let solver_vel1 = mb1.map(|m| m.0.solver_id).unwrap_or(body1.solver_vel[0]);
+        let solver_vel2 = mb2.map(|m| m.0.solver_id).unwrap_or(body2.solver_vel[0]);
 
-        JointGenericVelocityConstraint {
+        JointGenericTwoBodyConstraint {
             is_rigid_body1,
             is_rigid_body2,
-            mj_lambda1,
-            mj_lambda2,
+            solver_vel1,
+            solver_vel2,
             ndofs1,
             j_id1,
             ndofs2,
@@ -145,19 +575,18 @@ impl JointVelocityConstraintBuilder<Real> {
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>,
+        body1: &JointSolverBody<Real, 1>,
+        body2: &JointSolverBody<Real, 1>,
         mb1: Option<(&Multibody, usize)>,
         mb2: Option<(&Multibody, usize)>,
         locked_axis: usize,
         writeback_id: WritebackId,
-    ) -> JointGenericVelocityConstraint {
+    ) -> JointGenericTwoBodyConstraint {
         let lin_jac = self.basis.column(locked_axis).into_owned();
         let ang_jac1 = self.cmat1_basis.column(locked_axis).into_owned();
         let ang_jac2 = self.cmat2_basis.column(locked_axis).into_owned();
 
         let mut c = self.lock_jacobians_generic(
-            params,
             jacobians,
             j_id,
             joint_id,
@@ -183,20 +612,19 @@ impl JointVelocityConstraintBuilder<Real> {
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>,
+        body1: &JointSolverBody<Real, 1>,
+        body2: &JointSolverBody<Real, 1>,
         mb1: Option<(&Multibody, usize)>,
         mb2: Option<(&Multibody, usize)>,
         limited_axis: usize,
         limits: [Real; 2],
         writeback_id: WritebackId,
-    ) -> JointGenericVelocityConstraint {
+    ) -> JointGenericTwoBodyConstraint {
         let lin_jac = self.basis.column(limited_axis).into_owned();
         let ang_jac1 = self.cmat1_basis.column(limited_axis).into_owned();
         let ang_jac2 = self.cmat2_basis.column(limited_axis).into_owned();
 
         let mut constraint = self.lock_jacobians_generic(
-            params,
             jacobians,
             j_id,
             joint_id,
@@ -211,8 +639,8 @@ impl JointVelocityConstraintBuilder<Real> {
         );
 
         let dist = self.lin_err.dot(&lin_jac);
-        let min_enabled = dist < limits[0];
-        let max_enabled = limits[1] < dist;
+        let min_enabled = dist <= limits[0];
+        let max_enabled = limits[1] <= dist;
 
         let erp_inv_dt = params.joint_erp_inv_dt();
         let rhs_bias = ((dist - limits[1]).max(0.0) - (limits[0] - dist).max(0.0)) * erp_inv_dt;
@@ -227,18 +655,17 @@ impl JointVelocityConstraintBuilder<Real> {
 
     pub fn motor_linear_generic(
         &self,
-        params: &IntegrationParameters,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>,
+        body1: &JointSolverBody<Real, 1>,
+        body2: &JointSolverBody<Real, 1>,
         mb1: Option<(&Multibody, usize)>,
         mb2: Option<(&Multibody, usize)>,
         motor_axis: usize,
         motor_params: &MotorParameters<Real>,
         writeback_id: WritebackId,
-    ) -> JointGenericVelocityConstraint {
+    ) -> JointGenericTwoBodyConstraint {
         let lin_jac = self.basis.column(motor_axis).into_owned();
         let ang_jac1 = self.cmat1_basis.column(motor_axis).into_owned();
         let ang_jac2 = self.cmat2_basis.column(motor_axis).into_owned();
@@ -252,7 +679,6 @@ impl JointVelocityConstraintBuilder<Real> {
         // }
 
         let mut constraint = self.lock_jacobians_generic(
-            params,
             jacobians,
             j_id,
             joint_id,
@@ -272,9 +698,7 @@ impl JointVelocityConstraintBuilder<Real> {
             rhs_wo_bias += (dist - motor_params.target_pos) * motor_params.erp_inv_dt;
         }
 
-        let dvel = lin_jac.dot(&(body2.linvel - body1.linvel))
-            + (ang_jac2.gdot(body2.angvel) - ang_jac1.gdot(body1.angvel));
-        rhs_wo_bias += dvel - motor_params.target_vel;
+        rhs_wo_bias += -motor_params.target_vel;
 
         constraint.impulse_bounds = [-motor_params.max_impulse, motor_params.max_impulse];
         constraint.rhs = rhs_wo_bias;
@@ -290,17 +714,19 @@ impl JointVelocityConstraintBuilder<Real> {
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>,
+        body1: &JointSolverBody<Real, 1>,
+        body2: &JointSolverBody<Real, 1>,
         mb1: Option<(&Multibody, usize)>,
         mb2: Option<(&Multibody, usize)>,
-        locked_axis: usize,
+        _locked_axis: usize,
         writeback_id: WritebackId,
-    ) -> JointGenericVelocityConstraint {
-        let ang_jac = self.ang_basis.column(locked_axis).into_owned();
+    ) -> JointGenericTwoBodyConstraint {
+        #[cfg(feature = "dim2")]
+        let ang_jac = Vector1::new(1.0);
+        #[cfg(feature = "dim3")]
+        let ang_jac = self.ang_basis.column(_locked_axis).into_owned();
 
         let mut constraint = self.lock_jacobians_generic(
-            params,
             jacobians,
             j_id,
             joint_id,
@@ -318,7 +744,7 @@ impl JointVelocityConstraintBuilder<Real> {
         #[cfg(feature = "dim2")]
         let rhs_bias = self.ang_err.im * erp_inv_dt;
         #[cfg(feature = "dim3")]
-        let rhs_bias = self.ang_err.imag()[locked_axis] * erp_inv_dt;
+        let rhs_bias = self.ang_err.imag()[_locked_axis] * erp_inv_dt;
         constraint.rhs += rhs_bias;
         constraint
     }
@@ -329,18 +755,20 @@ impl JointVelocityConstraintBuilder<Real> {
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>,
+        body1: &JointSolverBody<Real, 1>,
+        body2: &JointSolverBody<Real, 1>,
         mb1: Option<(&Multibody, usize)>,
         mb2: Option<(&Multibody, usize)>,
-        limited_axis: usize,
+        _limited_axis: usize,
         limits: [Real; 2],
         writeback_id: WritebackId,
-    ) -> JointGenericVelocityConstraint {
-        let ang_jac = self.ang_basis.column(limited_axis).into_owned();
+    ) -> JointGenericTwoBodyConstraint {
+        #[cfg(feature = "dim2")]
+        let ang_jac = Vector1::new(1.0);
+        #[cfg(feature = "dim3")]
+        let ang_jac = self.ang_basis.column(_limited_axis).into_owned();
 
         let mut constraint = self.lock_jacobians_generic(
-            params,
             jacobians,
             j_id,
             joint_id,
@@ -356,11 +784,11 @@ impl JointVelocityConstraintBuilder<Real> {
 
         let s_limits = [(limits[0] / 2.0).sin(), (limits[1] / 2.0).sin()];
         #[cfg(feature = "dim2")]
-        let s_ang = self.ang_err.im;
+        let s_ang = (self.ang_err.angle() / 2.0).sin();
         #[cfg(feature = "dim3")]
-        let s_ang = self.ang_err.imag()[limited_axis];
-        let min_enabled = s_ang < s_limits[0];
-        let max_enabled = s_limits[1] < s_ang;
+        let s_ang = self.ang_err.imag()[_limited_axis];
+        let min_enabled = s_ang <= s_limits[0];
+        let max_enabled = s_limits[1] <= s_ang;
         let impulse_bounds = [
             min_enabled as u32 as Real * -Real::MAX,
             max_enabled as u32 as Real * Real::MAX,
@@ -377,26 +805,23 @@ impl JointVelocityConstraintBuilder<Real> {
 
     pub fn motor_angular_generic(
         &self,
-        params: &IntegrationParameters,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>,
+        body1: &JointSolverBody<Real, 1>,
+        body2: &JointSolverBody<Real, 1>,
         mb1: Option<(&Multibody, usize)>,
         mb2: Option<(&Multibody, usize)>,
         _motor_axis: usize,
         motor_params: &MotorParameters<Real>,
         writeback_id: WritebackId,
-    ) -> JointGenericVelocityConstraint {
-        // let mut ang_jac = self.ang_basis.column(motor_axis).into_owned();
+    ) -> JointGenericTwoBodyConstraint {
         #[cfg(feature = "dim2")]
         let ang_jac = na::Vector1::new(1.0);
         #[cfg(feature = "dim3")]
         let ang_jac = self.basis.column(_motor_axis).into_owned();
 
         let mut constraint = self.lock_jacobians_generic(
-            params,
             jacobians,
             j_id,
             joint_id,
@@ -413,15 +838,15 @@ impl JointVelocityConstraintBuilder<Real> {
         let mut rhs_wo_bias = 0.0;
         if motor_params.erp_inv_dt != 0.0 {
             #[cfg(feature = "dim2")]
-            let s_ang_dist = self.ang_err.im;
+            let s_ang_dist = (self.ang_err.angle() / 2.0).sin();
             #[cfg(feature = "dim3")]
             let s_ang_dist = self.ang_err.imag()[_motor_axis];
-            let s_target_ang = motor_params.target_pos.sin();
-            rhs_wo_bias += (s_ang_dist - s_target_ang) * motor_params.erp_inv_dt;
+            let s_target_ang = (motor_params.target_pos / 2.0).sin();
+            rhs_wo_bias += utils::smallest_abs_diff_between_sin_angles(s_ang_dist, s_target_ang)
+                * motor_params.erp_inv_dt;
         }
 
-        let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
-        rhs_wo_bias += dvel - motor_params.target_vel;
+        rhs_wo_bias += -motor_params.target_vel;
 
         constraint.rhs_wo_bias = rhs_wo_bias;
         constraint.rhs = rhs_wo_bias;
@@ -433,7 +858,7 @@ impl JointVelocityConstraintBuilder<Real> {
 
     pub fn finalize_generic_constraints(
         jacobians: &mut DVector<Real>,
-        constraints: &mut [JointGenericVelocityConstraint],
+        constraints: &mut [JointGenericTwoBodyConstraint],
     ) {
         // TODO: orthogonalization doesn’t seem to give good results for multibodies?
         const ORTHOGONALIZE: bool = false;
@@ -497,34 +922,30 @@ impl JointVelocityConstraintBuilder<Real> {
     }
 }
 
-impl JointVelocityConstraintBuilder<Real> {
-    pub fn lock_jacobians_generic_ground(
+impl JointTwoBodyConstraintHelper<Real> {
+    pub fn lock_jacobians_generic_one_body(
         &self,
-        _params: &IntegrationParameters,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
+        body1: &JointFixedSolverBody<Real>,
         (mb2, link_id2): (&Multibody, usize),
         writeback_id: WritebackId,
         lin_jac: Vector<Real>,
         ang_jac1: SVector<Real, ANG_DIM>,
         ang_jac2: SVector<Real, ANG_DIM>,
-    ) -> JointGenericVelocityGroundConstraint {
+    ) -> JointGenericOneBodyConstraint {
         let ndofs2 = mb2.ndofs();
 
-        let vel1 = lin_jac.dot(&body1.linvel) + ang_jac1.gdot(body1.angvel);
-
+        let proj_vel1 = lin_jac.dot(&body1.linvel) + ang_jac1.gdot(body1.angvel);
         let j_id2 = *j_id;
-        let vel2 = mb2
-            .fill_jacobians(link_id2, lin_jac, ang_jac2, j_id, jacobians)
-            .1;
-        let rhs_wo_bias = vel2 - vel1;
+        mb2.fill_jacobians(link_id2, lin_jac, ang_jac2, j_id, jacobians);
+        let rhs_wo_bias = -proj_vel1;
 
-        let mj_lambda2 = mb2.solver_id;
+        let solver_vel2 = mb2.solver_id;
 
-        JointGenericVelocityGroundConstraint {
-            mj_lambda2,
+        JointGenericOneBodyConstraint {
+            solver_vel2,
             ndofs2,
             j_id2,
             joint_id,
@@ -539,23 +960,22 @@ impl JointVelocityConstraintBuilder<Real> {
         }
     }
 
-    pub fn lock_linear_generic_ground(
+    pub fn lock_linear_generic_one_body(
         &self,
         params: &IntegrationParameters,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
+        body1: &JointFixedSolverBody<Real>,
         mb2: (&Multibody, usize),
         locked_axis: usize,
         writeback_id: WritebackId,
-    ) -> JointGenericVelocityGroundConstraint {
+    ) -> JointGenericOneBodyConstraint {
         let lin_jac = self.basis.column(locked_axis).into_owned();
         let ang_jac1 = self.cmat1_basis.column(locked_axis).into_owned();
         let ang_jac2 = self.cmat2_basis.column(locked_axis).into_owned();
 
-        let mut c = self.lock_jacobians_generic_ground(
-            params,
+        let mut c = self.lock_jacobians_generic_one_body(
             jacobians,
             j_id,
             joint_id,
@@ -573,24 +993,23 @@ impl JointVelocityConstraintBuilder<Real> {
         c
     }
 
-    pub fn limit_linear_generic_ground(
+    pub fn limit_linear_generic_one_body(
         &self,
         params: &IntegrationParameters,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
+        body1: &JointFixedSolverBody<Real>,
         mb2: (&Multibody, usize),
         limited_axis: usize,
         limits: [Real; 2],
         writeback_id: WritebackId,
-    ) -> JointGenericVelocityGroundConstraint {
+    ) -> JointGenericOneBodyConstraint {
         let lin_jac = self.basis.column(limited_axis).into_owned();
         let ang_jac1 = self.cmat1_basis.column(limited_axis).into_owned();
         let ang_jac2 = self.cmat2_basis.column(limited_axis).into_owned();
 
-        let mut constraint = self.lock_jacobians_generic_ground(
-            params,
+        let mut constraint = self.lock_jacobians_generic_one_body(
             jacobians,
             j_id,
             joint_id,
@@ -603,8 +1022,8 @@ impl JointVelocityConstraintBuilder<Real> {
         );
 
         let dist = self.lin_err.dot(&lin_jac);
-        let min_enabled = dist < limits[0];
-        let max_enabled = limits[1] < dist;
+        let min_enabled = dist <= limits[0];
+        let max_enabled = limits[1] <= dist;
 
         let erp_inv_dt = params.joint_erp_inv_dt();
         let rhs_bias = ((dist - limits[1]).max(0.0) - (limits[0] - dist).max(0.0)) * erp_inv_dt;
@@ -617,19 +1036,17 @@ impl JointVelocityConstraintBuilder<Real> {
         constraint
     }
 
-    pub fn motor_linear_generic_ground(
+    pub fn motor_linear_generic_one_body(
         &self,
-        params: &IntegrationParameters,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>, // TODO: we shouldn’t need this.
+        body1: &JointFixedSolverBody<Real>,
         mb2: (&Multibody, usize),
         motor_axis: usize,
         motor_params: &MotorParameters<Real>,
         writeback_id: WritebackId,
-    ) -> JointGenericVelocityGroundConstraint {
+    ) -> JointGenericOneBodyConstraint {
         let lin_jac = self.basis.column(motor_axis).into_owned();
         let ang_jac1 = self.cmat1_basis.column(motor_axis).into_owned();
         let ang_jac2 = self.cmat2_basis.column(motor_axis).into_owned();
@@ -642,8 +1059,7 @@ impl JointVelocityConstraintBuilder<Real> {
         //     constraint.ang_jac2.fill(0.0);
         // }
 
-        let mut constraint = self.lock_jacobians_generic_ground(
-            params,
+        let mut constraint = self.lock_jacobians_generic_one_body(
             jacobians,
             j_id,
             joint_id,
@@ -661,9 +1077,8 @@ impl JointVelocityConstraintBuilder<Real> {
             rhs_wo_bias += (dist - motor_params.target_pos) * motor_params.erp_inv_dt;
         }
 
-        let dvel = lin_jac.dot(&(body2.linvel - body1.linvel))
-            + (ang_jac2.gdot(body2.angvel) - ang_jac1.gdot(body1.angvel));
-        rhs_wo_bias += dvel - motor_params.target_vel;
+        let proj_vel1 = -lin_jac.dot(&body1.linvel) - ang_jac1.gdot(body1.angvel);
+        rhs_wo_bias += proj_vel1 - motor_params.target_vel;
 
         constraint.impulse_bounds = [-motor_params.max_impulse, motor_params.max_impulse];
         constraint.rhs = rhs_wo_bias;
@@ -673,21 +1088,23 @@ impl JointVelocityConstraintBuilder<Real> {
         constraint
     }
 
-    pub fn lock_angular_generic_ground(
+    pub fn lock_angular_generic_one_body(
         &self,
         params: &IntegrationParameters,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
+        body1: &JointFixedSolverBody<Real>,
         mb2: (&Multibody, usize),
-        locked_axis: usize,
+        _locked_axis: usize,
         writeback_id: WritebackId,
-    ) -> JointGenericVelocityGroundConstraint {
-        let ang_jac = self.ang_basis.column(locked_axis).into_owned();
+    ) -> JointGenericOneBodyConstraint {
+        #[cfg(feature = "dim2")]
+        let ang_jac = Vector1::new(1.0);
+        #[cfg(feature = "dim3")]
+        let ang_jac = self.ang_basis.column(_locked_axis).into_owned();
 
-        let mut constraint = self.lock_jacobians_generic_ground(
-            params,
+        let mut constraint = self.lock_jacobians_generic_one_body(
             jacobians,
             j_id,
             joint_id,
@@ -703,27 +1120,29 @@ impl JointVelocityConstraintBuilder<Real> {
         #[cfg(feature = "dim2")]
         let rhs_bias = self.ang_err.im * erp_inv_dt;
         #[cfg(feature = "dim3")]
-        let rhs_bias = self.ang_err.imag()[locked_axis] * erp_inv_dt;
+        let rhs_bias = self.ang_err.imag()[_locked_axis] * erp_inv_dt;
         constraint.rhs += rhs_bias;
         constraint
     }
 
-    pub fn limit_angular_generic_ground(
+    pub fn limit_angular_generic_one_body(
         &self,
         params: &IntegrationParameters,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
+        body1: &JointFixedSolverBody<Real>,
         mb2: (&Multibody, usize),
-        limited_axis: usize,
+        _limited_axis: usize,
         limits: [Real; 2],
         writeback_id: WritebackId,
-    ) -> JointGenericVelocityGroundConstraint {
-        let ang_jac = self.ang_basis.column(limited_axis).into_owned();
+    ) -> JointGenericOneBodyConstraint {
+        #[cfg(feature = "dim2")]
+        let ang_jac = Vector1::new(1.0);
+        #[cfg(feature = "dim3")]
+        let ang_jac = self.ang_basis.column(_limited_axis).into_owned();
 
-        let mut constraint = self.lock_jacobians_generic_ground(
-            params,
+        let mut constraint = self.lock_jacobians_generic_one_body(
             jacobians,
             j_id,
             joint_id,
@@ -737,11 +1156,11 @@ impl JointVelocityConstraintBuilder<Real> {
 
         let s_limits = [(limits[0] / 2.0).sin(), (limits[1] / 2.0).sin()];
         #[cfg(feature = "dim2")]
-        let s_ang = self.ang_err.im;
+        let s_ang = (self.ang_err.angle() / 2.0).sin();
         #[cfg(feature = "dim3")]
-        let s_ang = self.ang_err.imag()[limited_axis];
-        let min_enabled = s_ang < s_limits[0];
-        let max_enabled = s_limits[1] < s_ang;
+        let s_ang = self.ang_err.imag()[_limited_axis];
+        let min_enabled = s_ang <= s_limits[0];
+        let max_enabled = s_limits[1] <= s_ang;
         let impulse_bounds = [
             min_enabled as u32 as Real * -Real::MAX,
             max_enabled as u32 as Real * Real::MAX,
@@ -756,27 +1175,23 @@ impl JointVelocityConstraintBuilder<Real> {
         constraint
     }
 
-    pub fn motor_angular_generic_ground(
+    pub fn motor_angular_generic_one_body(
         &self,
-        params: &IntegrationParameters,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>, // TODO: we shouldn’t need this.
+        body1: &JointFixedSolverBody<Real>,
         mb2: (&Multibody, usize),
         _motor_axis: usize,
         motor_params: &MotorParameters<Real>,
         writeback_id: WritebackId,
-    ) -> JointGenericVelocityGroundConstraint {
-        // let mut ang_jac = self.ang_basis.column(_motor_axis).into_owned();
+    ) -> JointGenericOneBodyConstraint {
         #[cfg(feature = "dim2")]
         let ang_jac = na::Vector1::new(1.0);
         #[cfg(feature = "dim3")]
         let ang_jac = self.basis.column(_motor_axis).into_owned();
 
-        let mut constraint = self.lock_jacobians_generic_ground(
-            params,
+        let mut constraint = self.lock_jacobians_generic_one_body(
             jacobians,
             j_id,
             joint_id,
@@ -791,15 +1206,16 @@ impl JointVelocityConstraintBuilder<Real> {
         let mut rhs = 0.0;
         if motor_params.erp_inv_dt != 0.0 {
             #[cfg(feature = "dim2")]
-            let s_ang_dist = self.ang_err.im;
+            let s_ang_dist = (self.ang_err.angle() / 2.0).sin();
             #[cfg(feature = "dim3")]
             let s_ang_dist = self.ang_err.imag()[_motor_axis];
-            let s_target_ang = motor_params.target_pos.sin();
-            rhs += (s_ang_dist - s_target_ang) * motor_params.erp_inv_dt;
+            let s_target_ang = (motor_params.target_pos / 2.0).sin();
+            rhs += utils::smallest_abs_diff_between_sin_angles(s_ang_dist, s_target_ang)
+                * motor_params.erp_inv_dt;
         }
 
-        let dvel = ang_jac.gdot(body2.angvel) - ang_jac.gdot(body1.angvel);
-        rhs += dvel - motor_params.target_vel;
+        let proj_vel1 = -ang_jac.gdot(body1.angvel);
+        rhs += proj_vel1 - motor_params.target_vel;
 
         constraint.rhs_wo_bias = rhs;
         constraint.rhs = rhs;
@@ -809,9 +1225,9 @@ impl JointVelocityConstraintBuilder<Real> {
         constraint
     }
 
-    pub fn finalize_generic_constraints_ground(
+    pub fn finalize_generic_constraints_one_body(
         jacobians: &mut DVector<Real>,
-        constraints: &mut [JointGenericVelocityGroundConstraint],
+        constraints: &mut [JointGenericOneBodyConstraint],
     ) {
         // TODO: orthogonalization doesn’t seem to give good results for multibodies?
         const ORTHOGONALIZE: bool = false;

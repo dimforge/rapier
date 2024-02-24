@@ -17,6 +17,7 @@ pub fn instances(nsubdivs: u32) -> HashMap<TypeId, Vec<Point<Real>>> {
 }
 
 #[cfg(feature = "dim3")]
+#[allow(clippy::type_complexity)]
 pub fn instances(nsubdivs: u32) -> HashMap<TypeId, (Vec<Point<Real>>, Vec<[u32; 2]>)> {
     let mut result = HashMap::new();
     result.insert(

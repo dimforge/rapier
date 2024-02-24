@@ -1,19 +1,18 @@
 #![allow(dead_code)]
 
 use na::{Isometry3, Matrix4, Point3, Quaternion, Translation3, Unit, UnitQuaternion, Vector3};
-use physx::articulation_joint_base::JointMap;
 use physx::cooking::{
-    ConvexMeshCookingResult, PxConvexMeshDesc, PxCooking, PxCookingParams, PxHeightFieldDesc,
+    ConvexMeshCookingResult, PxConvexMeshDesc, PxCookingParams, PxHeightFieldDesc,
     PxTriangleMeshDesc, TriangleMeshCookingResult,
 };
 use physx::foundation::DefaultAllocator;
 use physx::prelude::*;
-use physx::scene::FrictionType;
+use physx::scene::{FrictionType, SceneFlags};
 use physx::traits::Class;
+use physx_sys::PxFilterFlags;
 use physx_sys::{
-    FilterShaderCallbackInfo, PxArticulationLink_getInboundJoint, PxBitAndByte, PxConvexFlags,
-    PxConvexMeshGeometryFlags, PxHeightFieldSample, PxMeshGeometryFlags, PxMeshScale_new,
-    PxRigidActor,
+    FilterShaderCallbackInfo, PxBitAndByte, PxConvexFlags, PxConvexMeshGeometryFlags,
+    PxHeightFieldSample, PxMeshGeometryFlags, PxMeshScale_new, PxRigidActor,
 };
 use rapier::counters::Counters;
 use rapier::dynamics::{
@@ -134,7 +133,6 @@ pub static FOUNDATION: std::cell::RefCell<PxPhysicsFoundation> = std::cell::RefC
 
 pub struct PhysxWorld {
     // physics: Physics,
-    // cooking: Cooking,
     materials: Vec<Owner<PxMaterial>>,
     shapes: Vec<Owner<PxShape>>,
     scene: Option<Owner<PxScene>>,
@@ -173,7 +171,7 @@ impl PhysxWorld {
             let mut scene_desc = SceneDescriptor {
                 gravity: gravity.into_physx(),
                 thread_count: num_threads as u32,
-                broad_phase_type: BroadPhaseType::AutomaticBoxPruning,
+                broad_phase_type: BroadPhaseType::Abp,
                 solver_type: SolverType::Pgs,
                 friction_type,
                 ccd_max_passes: integration_parameters.max_ccd_substeps as u32,
@@ -185,17 +183,13 @@ impl PhysxWorld {
             if ccd_enabled {
                 scene_desc.simulation_filter_shader =
                     FilterShaderDescriptor::CallDefaultFirst(ccd_filter_shader);
-                scene_desc.flags.insert(SceneFlag::EnableCcd);
+                scene_desc.flags.insert(SceneFlags::EnableCcd);
             }
 
             let mut scene: Owner<PxScene> = physics.create(scene_desc).unwrap();
             let mut rapier2dynamic = HashMap::new();
             let mut rapier2static = HashMap::new();
             let mut rapier2link = HashMap::new();
-            let cooking_params =
-                PxCookingParams::new(&*physics).expect("Failed to init PhysX cooking.");
-            let mut cooking = PxCooking::new(physics.foundation_mut(), &cooking_params)
-                .expect("Failed to init PhysX cooking");
 
             /*
              *
@@ -215,10 +209,9 @@ impl PhysxWorld {
                     actor.set_linear_velocity(&linvel, true);
                     actor.set_angular_velocity(&angvel, true);
                     actor.set_solver_iteration_counts(
-                        // Use our number of velocity iterations as their number of position iterations.
-                        integration_parameters.max_velocity_iterations.max(1) as u32,
-                        // Use our number of velocity stabilization iterations as their number of velocity iterations.
-                        integration_parameters.max_stabilization_iterations.max(1) as u32,
+                        // Use our number of solver iterations as their number of position iterations.
+                        integration_parameters.num_solver_iterations.get() as u32,
+                        1,
                     );
 
                     rapier2dynamic.insert(rapier_handle, actor);
@@ -231,6 +224,7 @@ impl PhysxWorld {
             /*
              * Articulations.
              */
+            /*
             for multibody in multibody_joints.multibodies() {
                 let mut articulation: Owner<PxArticulationReducedCoordinate> =
                     physics.create_articulation_reduced_coordinate(()).unwrap();
@@ -251,12 +245,9 @@ impl PhysxWorld {
                         .unwrap();
 
                     // TODO: there is no get_inbound_joint_mut?
-                    if let Some(px_inbound_joint) = unsafe {
-                        (PxArticulationLink_getInboundJoint(px_link.as_ptr())
-                            as *mut physx_sys::PxArticulationJointBase
-                            as *mut JointMap)
-                            .as_mut()
-                    } {
+                    if let Some(px_inbound_joint) =
+                        unsafe { (PxArticulationLink_getInboundJoint(px_link.as_ptr())).as_mut() }
+                    {
                         let frame1 = link.joint().data.local_frame1.into_physx();
                         let frame2 = link.joint().data.local_frame2.into_physx();
 
@@ -301,6 +292,8 @@ impl PhysxWorld {
                 scene.add_articulation(articulation);
             }
 
+             */
+
             /*
              *
              * Colliders
@@ -308,7 +301,7 @@ impl PhysxWorld {
              */
             for (_, collider) in colliders.iter() {
                 if let Some((mut px_shape, px_material, collider_pos)) =
-                    physx_collider_from_rapier_collider(&mut *physics, &mut cooking, &collider)
+                    physx_collider_from_rapier_collider(&mut *physics, &collider)
                 {
                     if let Some(parent_handle) = collider.parent() {
                         let parent_body = &bodies[parent_handle];
@@ -360,7 +353,7 @@ impl PhysxWorld {
                         continue;
                     };
 
-                    physx_sys::PxRigidBodyExt_updateMassAndInertia_mut(
+                    physx_sys::PxRigidBodyExt_updateMassAndInertia(
                         actor,
                         densities.as_ptr(),
                         densities.len() as u32,
@@ -371,7 +364,7 @@ impl PhysxWorld {
                     if rb.is_ccd_enabled() {
                         physx_sys::PxRigidBody_setRigidBodyFlag_mut(
                             actor,
-                            RigidBodyFlag::EnableCcd as u32,
+                            RigidBodyFlag::EnableCcd,
                             true,
                         );
                     }
@@ -449,64 +442,60 @@ impl PhysxWorld {
                 );
 
                 let motion_x = if joint.1.data.limit_axes.contains(JointAxesMask::X) {
-                    physx_sys::PxD6Motion::eLIMITED
+                    physx_sys::PxD6Motion::Limited
                 } else if !joint.1.data.locked_axes.contains(JointAxesMask::X) {
-                    physx_sys::PxD6Motion::eFREE
+                    physx_sys::PxD6Motion::Free
                 } else {
-                    physx_sys::PxD6Motion::eLOCKED
+                    physx_sys::PxD6Motion::Locked
                 };
                 let motion_y = if joint.1.data.limit_axes.contains(JointAxesMask::Y) {
-                    physx_sys::PxD6Motion::eLIMITED
+                    physx_sys::PxD6Motion::Limited
                 } else if !joint.1.data.locked_axes.contains(JointAxesMask::Y) {
-                    physx_sys::PxD6Motion::eFREE
+                    physx_sys::PxD6Motion::Free
                 } else {
-                    physx_sys::PxD6Motion::eLOCKED
+                    physx_sys::PxD6Motion::Locked
                 };
                 let motion_z = if joint.1.data.limit_axes.contains(JointAxesMask::Z) {
-                    physx_sys::PxD6Motion::eLIMITED
+                    physx_sys::PxD6Motion::Limited
                 } else if !joint.1.data.locked_axes.contains(JointAxesMask::Z) {
-                    physx_sys::PxD6Motion::eFREE
+                    physx_sys::PxD6Motion::Free
                 } else {
-                    physx_sys::PxD6Motion::eLOCKED
+                    physx_sys::PxD6Motion::Locked
                 };
                 let motion_ax = if joint.1.data.limit_axes.contains(JointAxesMask::ANG_X) {
-                    physx_sys::PxD6Motion::eLIMITED
+                    physx_sys::PxD6Motion::Limited
                 } else if !joint.1.data.locked_axes.contains(JointAxesMask::ANG_X) {
-                    physx_sys::PxD6Motion::eFREE
+                    physx_sys::PxD6Motion::Free
                 } else {
-                    physx_sys::PxD6Motion::eLOCKED
+                    physx_sys::PxD6Motion::Locked
                 };
                 let motion_ay = if joint.1.data.limit_axes.contains(JointAxesMask::ANG_Y) {
-                    physx_sys::PxD6Motion::eLIMITED
+                    physx_sys::PxD6Motion::Limited
                 } else if !joint.1.data.locked_axes.contains(JointAxesMask::ANG_Y) {
-                    physx_sys::PxD6Motion::eFREE
+                    physx_sys::PxD6Motion::Free
                 } else {
-                    physx_sys::PxD6Motion::eLOCKED
+                    physx_sys::PxD6Motion::Locked
                 };
                 let motion_az = if joint.1.data.limit_axes.contains(JointAxesMask::ANG_Z) {
-                    physx_sys::PxD6Motion::eLIMITED
+                    physx_sys::PxD6Motion::Limited
                 } else if !joint.1.data.locked_axes.contains(JointAxesMask::ANG_Z) {
-                    physx_sys::PxD6Motion::eFREE
+                    physx_sys::PxD6Motion::Free
                 } else {
-                    physx_sys::PxD6Motion::eLOCKED
+                    physx_sys::PxD6Motion::Locked
                 };
 
-                physx_sys::PxD6Joint_setMotion_mut(px_joint, physx_sys::PxD6Axis::eX, motion_x);
-                physx_sys::PxD6Joint_setMotion_mut(px_joint, physx_sys::PxD6Axis::eY, motion_y);
-                physx_sys::PxD6Joint_setMotion_mut(px_joint, physx_sys::PxD6Axis::eZ, motion_z);
+                physx_sys::PxD6Joint_setMotion_mut(px_joint, physx_sys::PxD6Axis::X, motion_x);
+                physx_sys::PxD6Joint_setMotion_mut(px_joint, physx_sys::PxD6Axis::Y, motion_y);
+                physx_sys::PxD6Joint_setMotion_mut(px_joint, physx_sys::PxD6Axis::Z, motion_z);
+                physx_sys::PxD6Joint_setMotion_mut(px_joint, physx_sys::PxD6Axis::Twist, motion_ax);
                 physx_sys::PxD6Joint_setMotion_mut(
                     px_joint,
-                    physx_sys::PxD6Axis::eTWIST,
-                    motion_ax,
-                );
-                physx_sys::PxD6Joint_setMotion_mut(
-                    px_joint,
-                    physx_sys::PxD6Axis::eSWING1,
+                    physx_sys::PxD6Axis::Swing1,
                     motion_ay,
                 );
                 physx_sys::PxD6Joint_setMotion_mut(
                     px_joint,
-                    physx_sys::PxD6Axis::eSWING2,
+                    physx_sys::PxD6Axis::Swing2,
                     motion_az,
                 );
             }
@@ -549,6 +538,7 @@ impl PhysxWorld {
             sync_pos(handle, pos);
         }
 
+        /*
         for articulation in self.scene.as_mut().unwrap().get_articulations() {
             if let Some(articulation) = articulation.as_articulation_reduced_coordinate() {
                 for link in articulation.get_links() {
@@ -558,20 +548,22 @@ impl PhysxWorld {
                 }
             }
         }
+
+         */
     }
 }
 
 fn physx_collider_from_rapier_collider(
     physics: &mut PxPhysicsFoundation,
-    cooking: &PxCooking,
     collider: &Collider,
 ) -> Option<(Owner<PxShape>, Owner<PxMaterial>, Isometry3<f32>)> {
     let mut local_pose = collider.position_wrt_parent().copied().unwrap_or(na::one());
+    let cooking_params = PxCookingParams::new(physics).unwrap();
     let shape = collider.shape();
     let shape_flags = if collider.is_sensor() {
-        ShapeFlag::TriggerShape.into()
+        ShapeFlags::TriggerShape
     } else {
-        ShapeFlag::SimulationShape.into()
+        ShapeFlags::SimulationShape
     };
     let mut material = physics
         .create_material(
@@ -618,8 +610,12 @@ fn physx_collider_from_rapier_collider(
                 .iter()
                 .map(|h| PxHeightFieldSample {
                     height: (*h * Y_FACTOR) as i16,
-                    materialIndex0: PxBitAndByte { mData: 0 },
-                    materialIndex1: PxBitAndByte { mData: 0 },
+                    materialIndex0: PxBitAndByte {
+                        structgen_pad0: [0; 1],
+                    },
+                    materialIndex1: PxBitAndByte {
+                        structgen_pad0: [0; 1],
+                    },
                 })
                 .collect();
             heightfield_desc = physx_sys::PxHeightFieldDesc_new();
@@ -632,12 +628,10 @@ fn physx_collider_from_rapier_collider(
         let heightfield_desc = PxHeightFieldDesc {
             obj: heightfield_desc,
         };
-        let heightfield = cooking.create_height_field(physics, &heightfield_desc);
+        let heightfield = physx::cooking::create_height_field(physics, &heightfield_desc);
 
         if let Some(mut heightfield) = heightfield {
-            let flags = PxMeshGeometryFlags {
-                mBits: physx_sys::PxMeshGeometryFlag::eDOUBLE_SIDED as u8,
-            };
+            let flags = PxMeshGeometryFlags::DoubleSided;
             let geometry = PxHeightFieldGeometry::new(
                 &mut *heightfield,
                 flags,
@@ -661,16 +655,14 @@ fn physx_collider_from_rapier_collider(
             convex_desc.points.count = vertices.len() as u32;
             convex_desc.points.stride = (3 * std::mem::size_of::<f32>()) as u32;
             convex_desc.points.data = vertices.as_ptr() as *const std::ffi::c_void;
-            convex_desc.flags = PxConvexFlags {
-                mBits: physx_sys::PxConvexFlag::eCOMPUTE_CONVEX as u16,
-            };
+            convex_desc.flags = PxConvexFlags::ComputeConvex;
         }
 
         let convex_desc = PxConvexMeshDesc { obj: convex_desc };
-        let convex = cooking.create_convex_mesh(physics, &convex_desc);
+        let convex = physx::cooking::create_convex_mesh(physics, &cooking_params, &convex_desc);
 
         if let ConvexMeshCookingResult::Success(mut convex) = convex {
-            let flags = PxConvexMeshGeometryFlags { mBits: 0 };
+            let flags = PxConvexMeshGeometryFlags::empty();
             let scaling = unsafe { PxMeshScale_new() };
             let geometry = PxConvexMeshGeometry::new(&mut convex, &scaling, flags);
             physics.create_shape(&geometry, materials, true, shape_flags, ())
@@ -696,13 +688,10 @@ fn physx_collider_from_rapier_collider(
         }
 
         let mesh_desc = PxTriangleMeshDesc { obj: mesh_desc };
-        let trimesh = cooking.create_triangle_mesh(physics, &mesh_desc);
+        let trimesh = physx::cooking::create_triangle_mesh(physics, &cooking_params, &mesh_desc);
 
         if let TriangleMeshCookingResult::Success(mut trimesh) = trimesh {
-            let flags = PxMeshGeometryFlags {
-                mBits: physx_sys::PxMeshGeometryFlag::eDOUBLE_SIDED as u8,
-            };
-
+            let flags = PxMeshGeometryFlags::DoubleSided;
             let scaling = unsafe { PxMeshScale_new() };
             let geometry = PxTriangleMeshGeometry::new(&mut trimesh, &scaling, flags);
             physics.create_shape(&geometry, materials, true, shape_flags, ())
@@ -724,7 +713,6 @@ type PxShape = physx::shape::PxShape<(), PxMaterial>;
 type PxArticulationLink = physx::articulation_link::PxArticulationLink<RigidBodyHandle, PxShape>;
 type PxRigidStatic = physx::rigid_static::PxRigidStatic<(), PxShape>;
 type PxRigidDynamic = physx::rigid_dynamic::PxRigidDynamic<RigidBodyHandle, PxShape>;
-type PxArticulation = physx::articulation::PxArticulation<(), PxArticulationLink>;
 type PxArticulationReducedCoordinate =
     physx::articulation_reduced_coordinate::PxArticulationReducedCoordinate<(), PxArticulationLink>;
 type PxScene = physx::scene::PxScene<
@@ -732,7 +720,6 @@ type PxScene = physx::scene::PxScene<
     PxArticulationLink,
     PxRigidStatic,
     PxRigidDynamic,
-    PxArticulation,
     PxArticulationReducedCoordinate,
     OnCollision,
     OnTrigger,
@@ -781,7 +768,7 @@ impl AdvanceCallback<PxArticulationLink, PxRigidDynamic> for OnAdvance {
     }
 }
 
-unsafe extern "C" fn ccd_filter_shader(data: *mut FilterShaderCallbackInfo) -> u16 {
-    (*(*data).pairFlags).mBits |= physx_sys::PxPairFlag::eDETECT_CCD_CONTACT as u16;
-    0
+unsafe extern "C" fn ccd_filter_shader(data: *mut FilterShaderCallbackInfo) -> PxFilterFlags {
+    (*(*data).pairFlags) |= physx_sys::PxPairFlags::DetectCcdContact;
+    PxFilterFlags::empty()
 }

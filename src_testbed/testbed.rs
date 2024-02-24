@@ -1,11 +1,15 @@
+#![allow(clippy::bad_bit_mask)] // otherwsie clippy complains because of TestbedStateFlags::NONE which is 0.
+
 use std::env;
 use std::mem;
+use std::num::NonZeroUsize;
 
 use bevy::prelude::*;
 
+use crate::debug_render::{DebugRenderPipelineResource, RapierDebugRenderPlugin};
 use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
-use crate::{debug_render, ui};
+use crate::ui;
 use crate::{graphics::GraphicsManager, harness::RunState};
 
 use na::{self, Point2, Point3, Vector3};
@@ -27,9 +31,11 @@ use crate::box2d_backend::Box2dWorld;
 use crate::harness::Harness;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 use crate::physx_backend::PhysxWorld;
-use bevy::pbr::wireframe::WireframePlugin;
 use bevy::render::camera::Camera;
-use bevy_egui::EguiContext;
+use bevy_core_pipeline::prelude::ClearColor;
+use bevy_egui::EguiContexts;
+use bevy_pbr::wireframe::WireframePlugin;
+use bevy_pbr::AmbientLight;
 
 #[cfg(feature = "dim2")]
 use crate::camera2d::{OrbitCamera, OrbitCameraPlugin};
@@ -97,6 +103,14 @@ bitflags! {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RapierSolverType {
+    SmallStepsPgs,
+    StandardPgs,
+}
+
+pub type SimulationBuilders = Vec<(&'static str, fn(&mut Testbed))>;
+
 #[derive(Resource)]
 pub struct TestbedState {
     pub running: RunMode,
@@ -117,6 +131,7 @@ pub struct TestbedState {
     pub example_names: Vec<&'static str>,
     pub selected_example: usize,
     pub selected_backend: usize,
+    pub solver_type: RapierSolverType,
     pub physx_use_two_friction_directions: bool,
     pub snapshot: Option<PhysicsSnapshot>,
     nsteps: usize,
@@ -124,7 +139,7 @@ pub struct TestbedState {
 }
 
 #[derive(Resource)]
-struct SceneBuilders(Vec<(&'static str, fn(&mut Testbed))>);
+struct SceneBuilders(SimulationBuilders);
 
 #[cfg(feature = "other-backends")]
 struct OtherBackends {
@@ -144,6 +159,7 @@ pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     #[allow(dead_code)] // Dead in 2D but not in 3D.
     camera_transform: GlobalTransform,
     camera: &'a mut OrbitCamera,
+    keys: &'a Input<KeyCode>,
 }
 
 pub struct Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
@@ -199,6 +215,7 @@ impl TestbedApp {
             example_names: Vec::new(),
             selected_example: 0,
             selected_backend: RAPIER_BACKEND,
+            solver_type: RapierSolverType::SmallStepsPgs,
             physx_use_two_friction_directions: true,
             nsteps: 1,
             camera_locked: false,
@@ -224,7 +241,7 @@ impl TestbedApp {
         }
     }
 
-    pub fn from_builders(default: usize, builders: Vec<(&'static str, fn(&mut Testbed))>) -> Self {
+    pub fn from_builders(default: usize, builders: SimulationBuilders) -> Self {
         let mut res = TestbedApp::new_empty();
         res.state
             .action_flags
@@ -234,7 +251,7 @@ impl TestbedApp {
         res
     }
 
-    pub fn set_builders(&mut self, builders: Vec<(&'static str, fn(&mut Testbed))>) {
+    pub fn set_builders(&mut self, builders: SimulationBuilders) {
         self.state.example_names = builders.iter().map(|e| e.0).collect();
         self.builders = SceneBuilders(builders)
     }
@@ -267,7 +284,7 @@ impl TestbedApp {
             use std::io::{BufWriter, Write};
             // Don't enter the main loop. We will just step the simulation here.
             let mut results = Vec::new();
-            let builders = mem::replace(&mut self.builders.0, Vec::new());
+            let builders = mem::take(&mut self.builders.0);
             let backend_names = self.state.backend_names.clone();
 
             for builder in builders {
@@ -281,11 +298,7 @@ impl TestbedApp {
                     self.harness
                         .physics
                         .integration_parameters
-                        .max_velocity_iterations = 4;
-                    self.harness
-                        .physics
-                        .integration_parameters
-                        .max_stabilization_iterations = 1;
+                        .num_solver_iterations = NonZeroUsize::new(4).unwrap();
 
                     // Init world.
                     let mut testbed = Testbed {
@@ -372,25 +385,25 @@ impl TestbedApp {
             };
 
             let window_plugin = WindowPlugin {
-                window: WindowDescriptor {
+                primary_window: Some(Window {
                     title,
                     ..Default::default()
-                },
+                }),
                 ..Default::default()
             };
 
             let mut app = App::new();
             app.insert_resource(ClearColor(Color::rgb(0.15, 0.15, 0.15)))
-                .insert_resource(Msaa { samples: 4 })
+                .insert_resource(Msaa::Sample4)
                 .insert_resource(AmbientLight {
                     brightness: 0.3,
                     ..Default::default()
                 })
                 .add_plugins(DefaultPlugins.set(window_plugin))
-                .add_plugin(OrbitCameraPlugin)
-                .add_plugin(WireframePlugin)
-                .add_plugin(bevy_egui::EguiPlugin)
-                .add_plugin(debug_render::RapierDebugRenderPlugin::default());
+                .add_plugins(OrbitCameraPlugin)
+                .add_plugins(WireframePlugin)
+                .add_plugins(RapierDebugRenderPlugin::default())
+                .add_plugins(bevy_egui::EguiPlugin);
 
             #[cfg(target_arch = "wasm32")]
             app.add_plugin(bevy_webgl2::WebGL2Plugin);
@@ -398,15 +411,14 @@ impl TestbedApp {
             #[cfg(feature = "other-backends")]
             app.insert_non_send_resource(self.other_backends);
 
-            app.add_startup_system(setup_graphics_environment)
+            app.add_systems(Startup, setup_graphics_environment)
                 .insert_non_send_resource(self.graphics)
                 .insert_resource(self.state)
                 .insert_non_send_resource(self.harness)
                 .insert_resource(self.builders)
                 .insert_non_send_resource(self.plugins)
-                .add_stage_before(CoreStage::Update, "physics", SystemStage::single_threaded())
-                .add_system_to_stage("physics", update_testbed)
-                .add_system(egui_focus);
+                .add_systems(Update, update_testbed)
+                .add_systems(Update, egui_focus);
             init(&mut app);
             app.run();
         }
@@ -415,8 +427,7 @@ impl TestbedApp {
 
 impl<'a, 'b, 'c, 'd, 'e, 'f> TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     pub fn set_body_color(&mut self, body: RigidBodyHandle, color: [f32; 3]) {
-        self.graphics
-            .set_body_color(&mut self.materials, body, color);
+        self.graphics.set_body_color(self.materials, body, color);
     }
 
     pub fn add_body(
@@ -456,6 +467,10 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
             colliders,
         )
     }
+
+    pub fn keys(&self) -> &Input<KeyCode> {
+        self.keys
+    }
 }
 
 impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
@@ -485,7 +500,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
     }
 
     pub fn harness_mut(&mut self) -> &mut Harness {
-        &mut self.harness
+        self.harness
     }
 
     pub fn set_world(
@@ -709,10 +724,10 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                     KeyCode::Space => {
                         desired_movement += Vector::y() * 2.0;
                     }
-                    KeyCode::RControl => {
+                    KeyCode::ControlRight => {
                         desired_movement -= Vector::y();
                     }
-                    KeyCode::RShift => {
+                    KeyCode::ShiftRight => {
                         speed /= 10.0;
                     }
                     _ => {}
@@ -750,10 +765,10 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         KeyCode::Space => {
                             desired_movement += Vector::y() * 2.0;
                         }
-                        KeyCode::RControl => {
+                        KeyCode::ControlRight => {
                             desired_movement -= Vector::y();
                         }
-                        KeyCode::RShift => {
+                        KeyCode::ShiftLeft => {
                             speed /= 10.0;
                         }
                         _ => {}
@@ -908,7 +923,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .multibody_joints
                         .iter()
                         .next()
-                        .map(|a| a.2.rigid_body_handle());
+                        .map(|(_, _, _, link)| link.rigid_body_handle());
                     if let Some(to_delete) = to_delete {
                         self.harness
                             .physics
@@ -998,21 +1013,9 @@ fn draw_contacts(_nf: &NarrowPhase, _colliders: &ColliderSet) {
 
 #[cfg(feature = "dim3")]
 fn setup_graphics_environment(mut commands: Commands) {
-    const HALF_SIZE: f32 = 100.0;
-
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             illuminance: 10000.0,
-            // Configure the projection to better fit the scene
-            shadow_projection: OrthographicProjection {
-                left: -HALF_SIZE,
-                right: HALF_SIZE,
-                bottom: -HALF_SIZE,
-                top: HALF_SIZE,
-                near: -10.0 * HALF_SIZE,
-                far: 100.0 * HALF_SIZE,
-                ..Default::default()
-            },
             shadows_enabled: true,
             ..Default::default()
         },
@@ -1073,7 +1076,7 @@ fn setup_graphics_environment(mut commands: Commands) {
         });
 }
 
-fn egui_focus(mut ui_context: ResMut<EguiContext>, mut cameras: Query<&mut OrbitCamera>) {
+fn egui_focus(mut ui_context: EguiContexts, mut cameras: Query<&mut OrbitCamera>) {
     let mut camera_enabled = true;
     if ui_context.ctx_mut().wants_pointer_input() {
         camera_enabled = false;
@@ -1083,19 +1086,22 @@ fn egui_focus(mut ui_context: ResMut<EguiContext>, mut cameras: Query<&mut Orbit
     }
 }
 
+use bevy::window::PrimaryWindow;
+
 fn update_testbed(
     mut commands: Commands,
-    windows: Res<Windows>,
+    windows: Query<&Window, With<PrimaryWindow>>,
     // mut pipelines: ResMut<Assets<RenderPipelineDescriptor>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<BevyMaterial>>,
-    builders: NonSendMut<SceneBuilders>,
+    builders: ResMut<SceneBuilders>,
     mut graphics: NonSendMut<GraphicsManager>,
     mut state: ResMut<TestbedState>,
+    mut debug_render: ResMut<DebugRenderPipelineResource>,
     mut harness: NonSendMut<Harness>,
     #[cfg(feature = "other-backends")] mut other_backends: NonSendMut<OtherBackends>,
     mut plugins: NonSendMut<Plugins>,
-    mut ui_context: ResMut<EguiContext>,
+    mut ui_context: EguiContexts,
     mut gfx_components: Query<(&mut Transform,)>,
     mut cameras: Query<(&Camera, &GlobalTransform, &mut OrbitCamera)>,
     keys: Res<Input<KeyCode>>,
@@ -1107,40 +1113,41 @@ fn update_testbed(
     // Handle inputs
     {
         let graphics_context = TestbedGraphics {
-            graphics: &mut *graphics,
+            graphics: &mut graphics,
             commands: &mut commands,
             meshes: &mut *meshes,
             materials: &mut *materials,
             components: &mut gfx_components,
             camera_transform: *cameras.single().1,
             camera: &mut cameras.single_mut().2,
+            keys: &keys,
         };
 
         let mut testbed = Testbed {
             graphics: Some(graphics_context),
-            state: &mut *state,
-            harness: &mut *harness,
+            state: &mut state,
+            harness: &mut harness,
             #[cfg(feature = "other-backends")]
-            other_backends: &mut *other_backends,
-            plugins: &mut *plugins,
+            other_backends: &mut other_backends,
+            plugins: &mut plugins,
         };
 
-        testbed.handle_common_events(&*keys);
-        testbed.update_character_controller(&*keys);
+        testbed.handle_common_events(&keys);
+        testbed.update_character_controller(&keys);
         #[cfg(feature = "dim3")]
         {
-            testbed.update_vehicle_controller(&*keys);
+            testbed.update_vehicle_controller(&keys);
         }
     }
 
     // Update UI
     {
         let harness = &mut *harness;
-        ui::update_ui(&mut ui_context, &mut state, harness);
+        ui::update_ui(&mut ui_context, &mut state, harness, &mut debug_render);
 
         for plugin in &mut plugins.0 {
             plugin.update_ui(
-                &mut ui_context,
+                &ui_context,
                 harness,
                 &mut graphics,
                 &mut commands,
@@ -1186,13 +1193,21 @@ fn update_testbed(
                 .set(TestbedActionFlags::EXAMPLE_CHANGED, false);
             clear(&mut commands, &mut state, &mut graphics, &mut plugins);
             harness.clear_callbacks();
-            for plugin in (*plugins).0.iter_mut() {
+            for plugin in plugins.0.iter_mut() {
                 plugin.clear_graphics(&mut graphics, &mut commands);
             }
-            (*plugins).0.clear();
+            plugins.0.clear();
 
             if state.selected_example != prev_example {
                 harness.physics.integration_parameters = IntegrationParameters::default();
+
+                match state.solver_type {
+                    RapierSolverType::SmallStepsPgs => {} // It’s already the default.
+                    RapierSolverType::StandardPgs => harness
+                        .physics
+                        .integration_parameters
+                        .switch_to_standard_pgs_solver(),
+                }
             }
 
             let selected_example = state.selected_example;
@@ -1207,15 +1222,16 @@ fn update_testbed(
                 components: &mut gfx_components,
                 camera_transform: *cameras.single().1,
                 camera: &mut cameras.single_mut().2,
+                keys: &keys,
             };
 
             let mut testbed = Testbed {
                 graphics: Some(graphics_context),
-                state: &mut *state,
-                harness: &mut *harness,
+                state: &mut state,
+                harness: &mut harness,
                 #[cfg(feature = "other-backends")]
-                other_backends: &mut *other_backends,
-                plugins: &mut *plugins,
+                other_backends: &mut other_backends,
+                plugins: &mut plugins,
             };
 
             builders.0[selected_example].1(&mut testbed);
@@ -1358,6 +1374,7 @@ fn update_testbed(
                     components: &mut gfx_components,
                     camera_transform: *cameras.single().1,
                     camera: &mut cameras.single_mut().2,
+                    keys: &keys,
                 };
                 harness.step_with_graphics(Some(&mut testbed_graphics));
 
@@ -1407,19 +1424,19 @@ fn update_testbed(
         }
     }
 
-    if let Some(window) = windows.get_primary() {
+    if let Ok(window) = windows.get_single() {
         for (camera, camera_pos, _) in cameras.iter_mut() {
             highlight_hovered_body(
                 &mut *materials,
-                &mut *graphics,
-                &mut *state,
+                &mut graphics,
+                &mut state,
                 &harness.physics,
                 window,
                 camera,
                 camera_pos,
             );
         }
-    }
+    };
 
     graphics.draw(
         &harness.physics.bodies,
@@ -1494,7 +1511,10 @@ fn highlight_hovered_body(
     }
 
     if let Some(cursor) = window.cursor_position() {
-        let ndc_cursor = (cursor / Vec2::new(window.width(), window.height()) * 2.0) - Vec2::ONE;
+        let ndc_cursor = Vec2::new(
+            cursor.x / window.width() * 2.0 - 1.0,
+            1.0 - cursor.y / window.height() * 2.0,
+        );
         let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
         let ray_pt1 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, -1.0));
         let ray_pt2 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 1.0));

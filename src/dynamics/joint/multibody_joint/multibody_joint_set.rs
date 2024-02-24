@@ -53,13 +53,24 @@ impl IndexedData for MultibodyJointHandle {
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct MultibodyJointLink {
-    pub graph_id: RigidBodyGraphIndex,
+/// Indexes usable to get a multibody link from a `MultibodyJointSet`.
+///
+/// ```.skip
+/// // With:
+/// //     multibody_joint_set: MultibodyJointSet
+/// //     multibody_link_id: MultibodyLinkId
+/// let multibody = &multibody_joint_set[multibody_link_id.multibody];
+/// let link = multibody.link(multibody_link_id.id).expect("Link not found.");
+pub struct MultibodyLinkId {
+    pub(crate) graph_id: RigidBodyGraphIndex,
+    /// The multibody index to be used as `&multibody_joint_set[multibody]` to
+    /// retrieve the multibody reference.
     pub multibody: MultibodyIndex,
+    /// The multibody link index to be given to [`Multibody::link`].
     pub id: usize,
 }
 
-impl Default for MultibodyJointLink {
+impl Default for MultibodyLinkId {
     fn default() -> Self {
         Self {
             graph_id: RigidBodyGraphIndex::new(crate::INVALID_U32),
@@ -78,7 +89,7 @@ impl Default for MultibodyJointLink {
 #[derive(Clone)]
 pub struct MultibodyJointSet {
     pub(crate) multibodies: Arena<Multibody>, // NOTE: a Slab would be sufficient.
-    pub(crate) rb2mb: Coarena<MultibodyJointLink>,
+    pub(crate) rb2mb: Coarena<MultibodyLinkId>,
     // NOTE: this is mostly for the island extraction. So perhaps we won’t need
     //       that any more in the future when we improve our island builder.
     pub(crate) connectivity_graph: InteractionGraph<RigidBodyHandle, ()>,
@@ -97,13 +108,22 @@ impl MultibodyJointSet {
     }
 
     /// Iterates through all the multibody joints from this set.
-    pub fn iter(&self) -> impl Iterator<Item = (MultibodyJointHandle, &Multibody, &MultibodyLink)> {
+    pub fn iter(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            MultibodyJointHandle,
+            &MultibodyLinkId,
+            &Multibody,
+            &MultibodyLink,
+        ),
+    > {
         self.rb2mb
             .iter()
             .filter(|(_, link)| link.id > 0) // The first link of a rigid-body hasn’t been added by the user.
             .map(|(h, link)| {
                 let mb = &self.multibodies[link.multibody.0];
-                (MultibodyJointHandle(h), mb, mb.link(link.id).unwrap())
+                (MultibodyJointHandle(h), link, mb, mb.link(link.id).unwrap())
             })
     }
 
@@ -118,7 +138,7 @@ impl MultibodyJointSet {
         let data = data.into();
         let link1 = self.rb2mb.get(body1.0).copied().unwrap_or_else(|| {
             let mb_handle = self.multibodies.insert(Multibody::with_root(body1));
-            MultibodyJointLink {
+            MultibodyLinkId {
                 graph_id: self.connectivity_graph.graph.add_node(body1),
                 multibody: MultibodyIndex(mb_handle),
                 id: 0,
@@ -127,7 +147,7 @@ impl MultibodyJointSet {
 
         let link2 = self.rb2mb.get(body2.0).copied().unwrap_or_else(|| {
             let mb_handle = self.multibodies.insert(Multibody::with_root(body2));
-            MultibodyJointLink {
+            MultibodyLinkId {
                 graph_id: self.connectivity_graph.graph.add_node(body2),
                 multibody: MultibodyIndex(mb_handle),
                 id: 0,
@@ -257,7 +277,7 @@ impl MultibodyJointSet {
     /// Returns the link of this multibody attached to the given rigid-body.
     ///
     /// Returns `None` if `rb` isn’t part of any rigid-body.
-    pub fn rigid_body_link(&self, rb: RigidBodyHandle) -> Option<&MultibodyJointLink> {
+    pub fn rigid_body_link(&self, rb: RigidBodyHandle) -> Option<&MultibodyLinkId> {
         self.rb2mb.get(rb.0)
     }
 
@@ -340,15 +360,15 @@ impl MultibodyJointSet {
         // NOTE: if there is a joint between these two bodies, then
         //       one of the bodies must be the parent of the other.
         let link1 = mb.link(id1.id)?;
-        let parent1 = link1.parent_id()?;
+        let parent1 = link1.parent_id();
 
-        if parent1 == id2.id {
+        if parent1 == Some(id2.id) {
             Some((MultibodyJointHandle(rb1.0), mb, &link1))
         } else {
             let link2 = mb.link(id2.id)?;
-            let parent2 = link2.parent_id()?;
+            let parent2 = link2.parent_id();
 
-            if parent2 == id1.id {
+            if parent2 == Some(id1.id) {
                 Some((MultibodyJointHandle(rb2.0), mb, &link2))
             } else {
                 None
@@ -373,10 +393,10 @@ impl MultibodyJointSet {
 
     /// Iterate through the handles of all the rigid-bodies attached to this rigid-body
     /// by a multibody_joint.
-    pub fn attached_bodies<'a>(
-        &'a self,
+    pub fn attached_bodies(
+        &self,
         body: RigidBodyHandle,
-    ) -> impl Iterator<Item = RigidBodyHandle> + 'a {
+    ) -> impl Iterator<Item = RigidBodyHandle> + '_ {
         self.rb2mb
             .get(body.0)
             .into_iter()
@@ -386,10 +406,10 @@ impl MultibodyJointSet {
 
     /// Iterate through the handles of all the rigid-bodies attached to this rigid-body
     /// by an enabled multibody_joint.
-    pub fn bodies_attached_with_enabled_joint<'a>(
-        &'a self,
+    pub fn bodies_attached_with_enabled_joint(
+        &self,
         body: RigidBodyHandle,
-    ) -> impl Iterator<Item = RigidBodyHandle> + 'a {
+    ) -> impl Iterator<Item = RigidBodyHandle> + '_ {
         self.attached_bodies(body).filter(move |other| {
             if let Some((_, _, link)) = self.joint_between(body, *other) {
                 link.joint.data.is_enabled()

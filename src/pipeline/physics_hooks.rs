@@ -69,7 +69,7 @@ impl<'a> ContactModificationContext<'a> {
 
         // Test the allowed normal with the local-space contact normal that
         // points towards the exterior of context.collider1.
-        let contact_is_ok = self.manifold.local_n1.dot(&allowed_local_n1) >= cang;
+        let contact_is_ok = self.manifold.local_n1.dot(allowed_local_n1) >= cang;
 
         match *self.user_data {
             CONTACT_CONFIGURATION_UNKNOWN => {

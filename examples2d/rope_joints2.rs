@@ -51,9 +51,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::ball(rad);
     colliders.insert_with_parent(collider, child_handle, &mut bodies);
 
-    let joint = RopeJointBuilder::new()
-        .local_anchor2(point![0.0, 0.0])
-        .limits([2.0, 2.0]);
+    let joint = RopeJointBuilder::new(2.0).local_anchor2(point![0.0, 0.0]);
     impulse_joints.insert(character_handle, child_handle, joint, true);
 
     /*

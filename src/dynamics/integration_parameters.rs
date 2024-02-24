@@ -1,4 +1,5 @@
 use crate::math::Real;
+use std::num::NonZeroUsize;
 
 /// Parameters for a time-step of the physics engine.
 #[derive(Copy, Clone, Debug)]
@@ -43,15 +44,12 @@ pub struct IntegrationParameters {
     pub max_penetration_correction: Real,
     /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002`).
     pub prediction_distance: Real,
-    /// Maximum number of iterations performed to solve non-penetration and joint constraints (default: `4`).
-    pub max_velocity_iterations: usize,
-    /// Maximum number of iterations performed to solve friction constraints (default: `8`).
-    pub max_velocity_friction_iterations: usize,
-    /// Maximum number of iterations performed to remove the energy introduced by penetration corrections  (default: `1`).
-    pub max_stabilization_iterations: usize,
-    /// If `false`, friction and non-penetration constraints will be solved in the same loop. Otherwise,
-    /// non-penetration constraints are solved first, and friction constraints are solved after (default: `true`).
-    pub interleave_restitution_and_friction_resolution: bool,
+    /// The number of solver iterations run by the constraints solver for calculating forces (default: `4`).
+    pub num_solver_iterations: NonZeroUsize,
+    /// Number of addition friction resolution iteration run during the last solver sub-step (default: `4`).
+    pub num_additional_friction_iterations: usize,
+    /// Number of internal Project Gauss Seidel (PGS) iterations run at each solver iteration (default: `1`).
+    pub num_internal_pgs_iterations: usize,
     /// Minimum number of dynamic bodies in each active island (default: `128`).
     pub min_island_size: usize,
     /// Maximum number of substeps performed by the  solver (default: `1`).
@@ -59,6 +57,51 @@ pub struct IntegrationParameters {
 }
 
 impl IntegrationParameters {
+    /// Configures the integration parameters to match the old PGS solver
+    /// from Rapier version <= 0.17.
+    ///
+    /// This solver was slightly faster than the new one but resulted
+    /// in less stable joints and worse convergence rates.
+    ///
+    /// This should only be used for comparison purpose or if you are
+    /// experiencing problems with the new solver.
+    ///
+    /// NOTE: this does not affect any [`RigidBody::additional_solver_iterations`] that will
+    ///       still create solver iterations based on the new "small-steps" PGS solver.
+    /// NOTE: this resets [`Self::erp`], [`Self::damping_ratio`], [`Self::joint_erp`],
+    ///       [`Self::joint_damping_ratio`] to their former default values.
+    pub fn switch_to_standard_pgs_solver(&mut self) {
+        self.num_internal_pgs_iterations *= self.num_solver_iterations.get();
+        self.num_solver_iterations = NonZeroUsize::new(1).unwrap();
+        self.erp = 0.8;
+        self.damping_ratio = 0.25;
+        self.joint_erp = 1.0;
+        self.joint_damping_ratio = 1.0;
+    }
+
+    /// Configures the integration parameters to match the new "small-steps" PGS solver
+    /// from Rapier version >= 0.18.
+    ///
+    /// The "small-steps" PGS solver is the default one given by [`Self::default()`] so
+    /// calling this function is generally not needed unless
+    /// [`Self::switch_to_standard_pgs_solver()`] was called.
+    ///
+    /// This solver results in more stable joints and significantly better convergence
+    /// rates but is slightly slower in its default settings.
+    ///
+    /// NOTE: this resets [`Self::erp`], [`Self::damping_ratio`], [`Self::joint_erp`],
+    ///       [`Self::joint_damping_ratio`] to their default values.
+    pub fn switch_to_small_steps_pgs_solver(&mut self) {
+        self.num_solver_iterations = NonZeroUsize::new(self.num_internal_pgs_iterations).unwrap();
+        self.num_internal_pgs_iterations = 1;
+
+        let default = Self::default();
+        self.erp = default.erp;
+        self.damping_ratio = default.damping_ratio;
+        self.joint_erp = default.joint_erp;
+        self.joint_damping_ratio = default.joint_damping_ratio;
+    }
+
     /// The inverse of the time-stepping length, i.e. the steps per seconds (Hz).
     ///
     /// This is zero if `self.dt` is zero.
@@ -151,17 +194,16 @@ impl Default for IntegrationParameters {
         Self {
             dt: 1.0 / 60.0,
             min_ccd_dt: 1.0 / 60.0 / 100.0,
-            erp: 0.8,
-            damping_ratio: 0.25,
+            erp: 0.6,
+            damping_ratio: 1.0,
             joint_erp: 1.0,
             joint_damping_ratio: 1.0,
-            allowed_linear_error: 0.001, // 0.005
+            allowed_linear_error: 0.001,
             max_penetration_correction: Real::MAX,
             prediction_distance: 0.002,
-            max_velocity_iterations: 4,
-            max_velocity_friction_iterations: 8,
-            max_stabilization_iterations: 1,
-            interleave_restitution_and_friction_resolution: true, // Enabling this makes a big difference for 2D stability.
+            num_internal_pgs_iterations: 1,
+            num_additional_friction_iterations: 4,
+            num_solver_iterations: NonZeroUsize::new(4).unwrap(),
             // TODO: what is the optimal value for min_island_size?
             // It should not be too big so that we don't end up with
             // huge islands that don't fit in cache.

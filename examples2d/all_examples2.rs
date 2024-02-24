@@ -17,6 +17,7 @@ mod damping2;
 mod debug_box_ball2;
 mod drum2;
 mod heightfield2;
+mod joint_motor_position2;
 mod joints2;
 mod locked_rotations2;
 mod one_way_platforms2;
@@ -56,8 +57,8 @@ fn demo_name_from_url() -> Option<String> {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn main() {
     let demo = demo_name_from_command_line()
-        .or_else(|| demo_name_from_url())
-        .unwrap_or(String::new())
+        .or_else(demo_name_from_url)
+        .unwrap_or_default()
         .to_camel_case();
 
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
@@ -79,11 +80,12 @@ pub fn main() {
         ("Rope Joints", rope_joints2::init_world),
         ("Sensor", sensor2::init_world),
         ("Trimesh", trimesh2::init_world),
+        ("Joint motor position", joint_motor_position2::init_world),
         ("(Debug) box ball", debug_box_ball2::init_world),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
-    builders.sort_by(|a, b| match (a.0.starts_with("("), b.0.starts_with("(")) {
+    builders.sort_by(|a, b| match (a.0.starts_with('('), b.0.starts_with('(')) {
         (true, true) | (false, false) => a.0.cmp(b.0),
         (true, false) => Ordering::Greater,
         (false, true) => Ordering::Less,

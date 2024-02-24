@@ -2,7 +2,9 @@
 
 pub use self::multibody::Multibody;
 pub use self::multibody_joint::MultibodyJoint;
-pub use self::multibody_joint_set::{MultibodyIndex, MultibodyJointHandle, MultibodyJointSet};
+pub use self::multibody_joint_set::{
+    MultibodyIndex, MultibodyJointHandle, MultibodyJointSet, MultibodyLinkId,
+};
 pub use self::multibody_link::MultibodyLink;
 pub use self::unit_multibody_joint::{unit_joint_limit_constraint, unit_joint_motor_constraint};
 

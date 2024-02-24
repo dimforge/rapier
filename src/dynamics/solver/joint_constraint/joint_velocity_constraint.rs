@@ -1,10 +1,11 @@
-use crate::dynamics::solver::joint_constraint::JointVelocityConstraintBuilder;
-use crate::dynamics::solver::DeltaVel;
+use crate::dynamics::solver::joint_constraint::JointTwoBodyConstraintHelper;
+use crate::dynamics::solver::SolverVel;
 use crate::dynamics::{
     GenericJoint, IntegrationParameters, JointAxesMask, JointGraphEdge, JointIndex,
 };
 use crate::math::{AngVector, AngularInertia, Isometry, Point, Real, Vector, DIM, SPATIAL_DIM};
-use crate::utils::{WDot, WReal};
+use crate::num::Zero;
+use crate::utils::{SimdDot, SimdRealCopy};
 
 #[cfg(feature = "simd-is-enabled")]
 use {
@@ -13,7 +14,7 @@ use {
 };
 
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub struct MotorParameters<N: WReal> {
+pub struct MotorParameters<N: SimdRealCopy> {
     pub erp_inv_dt: N,
     pub cfm_coeff: N,
     pub cfm_gain: N,
@@ -22,7 +23,7 @@ pub struct MotorParameters<N: WReal> {
     pub max_impulse: N,
 }
 
-impl<N: WReal> Default for MotorParameters<N> {
+impl<N: SimdRealCopy> Default for MotorParameters<N> {
     fn default() -> Self {
         Self {
             erp_inv_dt: N::zero(),
@@ -47,19 +48,46 @@ pub enum WritebackId {
 // the solver, to avoid fetching data from the rigid-body set
 // every time.
 #[derive(Copy, Clone)]
-pub struct SolverBody<N: WReal, const LANES: usize> {
-    pub linvel: Vector<N>,
-    pub angvel: AngVector<N>,
+pub struct JointSolverBody<N: SimdRealCopy, const LANES: usize> {
     pub im: Vector<N>,
     pub sqrt_ii: AngularInertia<N>,
     pub world_com: Point<N>,
-    pub mj_lambda: [usize; LANES],
+    pub solver_vel: [usize; LANES],
+}
+
+impl<N: SimdRealCopy, const LANES: usize> JointSolverBody<N, LANES> {
+    pub fn invalid() -> Self {
+        Self {
+            im: Vector::zeros(),
+            sqrt_ii: AngularInertia::zero(),
+            world_com: Point::origin(),
+            solver_vel: [usize::MAX; LANES],
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct JointFixedSolverBody<N: SimdRealCopy> {
+    pub linvel: Vector<N>,
+    pub angvel: AngVector<N>,
+    // TODO: is this really needed?
+    pub world_com: Point<N>,
+}
+
+impl<N: SimdRealCopy> JointFixedSolverBody<N> {
+    pub fn invalid() -> Self {
+        Self {
+            linvel: Vector::zeros(),
+            angvel: AngVector::zero(),
+            world_com: Point::origin(),
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct JointVelocityConstraint<N: WReal, const LANES: usize> {
-    pub mj_lambda1: [usize; LANES],
-    pub mj_lambda2: [usize; LANES],
+pub struct JointTwoBodyConstraint<N: SimdRealCopy, const LANES: usize> {
+    pub solver_vel1: [usize; LANES],
+    pub solver_vel2: [usize; LANES],
 
     pub joint_id: [JointIndex; LANES],
 
@@ -81,32 +109,15 @@ pub struct JointVelocityConstraint<N: WReal, const LANES: usize> {
     pub writeback_id: WritebackId,
 }
 
-impl<N: WReal, const LANES: usize> JointVelocityConstraint<N, LANES> {
-    pub fn invalid() -> Self {
-        Self {
-            mj_lambda1: [crate::INVALID_USIZE; LANES],
-            mj_lambda2: [crate::INVALID_USIZE; LANES],
-            joint_id: [crate::INVALID_USIZE; LANES],
-            impulse: N::zero(),
-            impulse_bounds: [N::zero(), N::zero()],
-            lin_jac: Vector::zeros(),
-            ang_jac1: na::zero(),
-            ang_jac2: na::zero(),
-            inv_lhs: N::zero(),
-            cfm_gain: N::zero(),
-            cfm_coeff: N::zero(),
-            rhs: N::zero(),
-            rhs_wo_bias: N::zero(),
-            im1: na::zero(),
-            im2: na::zero(),
-            writeback_id: WritebackId::Dof(0),
-        }
-    }
-
-    pub fn solve_generic(&mut self, mj_lambda1: &mut DeltaVel<N>, mj_lambda2: &mut DeltaVel<N>) {
-        let dlinvel = self.lin_jac.dot(&(mj_lambda2.linear - mj_lambda1.linear));
+impl<N: SimdRealCopy, const LANES: usize> JointTwoBodyConstraint<N, LANES> {
+    pub fn solve_generic(
+        &mut self,
+        solver_vel1: &mut SolverVel<N>,
+        solver_vel2: &mut SolverVel<N>,
+    ) {
+        let dlinvel = self.lin_jac.dot(&(solver_vel2.linear - solver_vel1.linear));
         let dangvel =
-            self.ang_jac2.gdot(mj_lambda2.angular) - self.ang_jac1.gdot(mj_lambda1.angular);
+            self.ang_jac2.gdot(solver_vel2.angular) - self.ang_jac1.gdot(solver_vel1.angular);
 
         let rhs = dlinvel + dangvel + self.rhs;
         let total_impulse = (self.impulse + self.inv_lhs * (rhs - self.cfm_gain * self.impulse))
@@ -118,10 +129,10 @@ impl<N: WReal, const LANES: usize> JointVelocityConstraint<N, LANES> {
         let ang_impulse1 = self.ang_jac1 * delta_impulse;
         let ang_impulse2 = self.ang_jac2 * delta_impulse;
 
-        mj_lambda1.linear += lin_impulse.component_mul(&self.im1);
-        mj_lambda1.angular += ang_impulse1;
-        mj_lambda2.linear -= lin_impulse.component_mul(&self.im2);
-        mj_lambda2.angular -= ang_impulse2;
+        solver_vel1.linear += lin_impulse.component_mul(&self.im1);
+        solver_vel1.angular += ang_impulse1;
+        solver_vel2.linear -= lin_impulse.component_mul(&self.im2);
+        solver_vel2.angular -= ang_impulse2;
     }
 
     pub fn remove_bias_from_rhs(&mut self) {
@@ -129,12 +140,12 @@ impl<N: WReal, const LANES: usize> JointVelocityConstraint<N, LANES> {
     }
 }
 
-impl JointVelocityConstraint<Real, 1> {
+impl JointTwoBodyConstraint<Real, 1> {
     pub fn lock_axes(
         params: &IntegrationParameters,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>,
+        body1: &JointSolverBody<Real, 1>,
+        body2: &JointSolverBody<Real, 1>,
         frame1: &Isometry<Real>,
         frame2: &Isometry<Real>,
         joint: &GenericJoint,
@@ -146,7 +157,18 @@ impl JointVelocityConstraint<Real, 1> {
         let limit_axes = joint.limit_axes.bits() & !locked_axes;
         let coupled_axes = joint.coupled_axes.bits();
 
-        let builder = JointVelocityConstraintBuilder::new(
+        // The has_lin/ang_coupling test is needed to avoid shl overflow later.
+        let has_lin_coupling = (coupled_axes & JointAxesMask::LIN_AXES.bits()) != 0;
+        let first_coupled_lin_axis_id =
+            (coupled_axes & JointAxesMask::LIN_AXES.bits()).trailing_zeros() as usize;
+
+        #[cfg(feature = "dim3")]
+        let has_ang_coupling = (coupled_axes & JointAxesMask::ANG_AXES.bits()) != 0;
+        #[cfg(feature = "dim3")]
+        let first_coupled_ang_axis_id =
+            (coupled_axes & JointAxesMask::ANG_AXES.bits()).trailing_zeros() as usize;
+
+        let builder = JointTwoBodyConstraintHelper::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -195,20 +217,31 @@ impl JointVelocityConstraint<Real, 1> {
         }
 
         if (motor_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0 {
-            // TODO: coupled linear motor constraint.
-            // out[len] = builder.motor_linear_coupled(
-            //     params,
-            //     [joint_id],
-            //     body1,
-            //     body2,
-            //     limit_axes & coupled_axes,
-            //     &joint.limits,
-            //     WritebackId::Limit(0), // TODO: writeback
-            // );
-            // len += 1;
+            // if (motor_axes & !coupled_axes) & (1 << first_coupled_lin_axis_id) != 0 {
+            //     let limits = if limit_axes & (1 << first_coupled_lin_axis_id) != 0 {
+            //         Some([
+            //             joint.limits[first_coupled_lin_axis_id].min,
+            //             joint.limits[first_coupled_lin_axis_id].max,
+            //         ])
+            //     } else {
+            //         None
+            //     };
+            //
+            //     out[len] = builder.motor_linear_coupled
+            //         params,
+            //         [joint_id],
+            //         body1,
+            //         body2,
+            //         coupled_axes,
+            //         &joint.motors[first_coupled_lin_axis_id].motor_params(params.dt),
+            //         limits,
+            //         WritebackId::Motor(first_coupled_lin_axis_id),
+            //     );
+            //     len += 1;
+            // }
         }
 
-        JointVelocityConstraintBuilder::finalize_constraints(&mut out[start..len]);
+        JointTwoBodyConstraintHelper::finalize_constraints(&mut out[start..len]);
 
         let start = len;
         for i in DIM..SPATIAL_DIM {
@@ -262,44 +295,50 @@ impl JointVelocityConstraint<Real, 1> {
         }
 
         #[cfg(feature = "dim3")]
-        if (limit_axes & coupled_axes) & JointAxesMask::ANG_AXES.bits() != 0 {
+        if has_ang_coupling && (limit_axes & (1 << first_coupled_ang_axis_id)) != 0 {
             out[len] = builder.limit_angular_coupled(
                 params,
                 [joint_id],
                 body1,
                 body2,
-                limit_axes & coupled_axes,
-                &joint.limits,
-                WritebackId::Limit(0), // TODO: writeback
+                coupled_axes,
+                [
+                    joint.limits[first_coupled_ang_axis_id].min,
+                    joint.limits[first_coupled_ang_axis_id].max,
+                ],
+                WritebackId::Limit(first_coupled_ang_axis_id),
             );
             len += 1;
         }
 
-        if (limit_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0 {
+        if has_lin_coupling && (limit_axes & (1 << first_coupled_lin_axis_id)) != 0 {
             out[len] = builder.limit_linear_coupled(
                 params,
                 [joint_id],
                 body1,
                 body2,
-                limit_axes & coupled_axes,
-                &joint.limits,
-                WritebackId::Limit(0), // TODO: writeback
+                coupled_axes,
+                [
+                    joint.limits[first_coupled_lin_axis_id].min,
+                    joint.limits[first_coupled_lin_axis_id].max,
+                ],
+                WritebackId::Limit(first_coupled_lin_axis_id),
             );
             len += 1;
         }
-        JointVelocityConstraintBuilder::finalize_constraints(&mut out[start..len]);
+        JointTwoBodyConstraintHelper::finalize_constraints(&mut out[start..len]);
 
         len
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda1 = mj_lambdas[self.mj_lambda1[0] as usize];
-        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2[0] as usize];
+    pub fn solve(&mut self, solver_vels: &mut [SolverVel<Real>]) {
+        let mut solver_vel1 = solver_vels[self.solver_vel1[0]];
+        let mut solver_vel2 = solver_vels[self.solver_vel2[0]];
 
-        self.solve_generic(&mut mj_lambda1, &mut mj_lambda2);
+        self.solve_generic(&mut solver_vel1, &mut solver_vel2);
 
-        mj_lambdas[self.mj_lambda1[0] as usize] = mj_lambda1;
-        mj_lambdas[self.mj_lambda2[0] as usize] = mj_lambda2;
+        solver_vels[self.solver_vel1[0]] = solver_vel1;
+        solver_vels[self.solver_vel2[0]] = solver_vel2;
     }
 
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
@@ -312,18 +351,18 @@ impl JointVelocityConstraint<Real, 1> {
     }
 }
 #[cfg(feature = "simd-is-enabled")]
-impl JointVelocityConstraint<SimdReal, SIMD_WIDTH> {
+impl JointTwoBodyConstraint<SimdReal, SIMD_WIDTH> {
     pub fn lock_axes(
         params: &IntegrationParameters,
         joint_id: [JointIndex; SIMD_WIDTH],
-        body1: &SolverBody<SimdReal, SIMD_WIDTH>,
-        body2: &SolverBody<SimdReal, SIMD_WIDTH>,
+        body1: &JointSolverBody<SimdReal, SIMD_WIDTH>,
+        body2: &JointSolverBody<SimdReal, SIMD_WIDTH>,
         frame1: &Isometry<SimdReal>,
         frame2: &Isometry<SimdReal>,
         locked_axes: u8,
         out: &mut [Self],
     ) -> usize {
-        let builder = JointVelocityConstraintBuilder::new(
+        let builder = JointTwoBodyConstraintHelper::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -354,31 +393,27 @@ impl JointVelocityConstraint<SimdReal, SIMD_WIDTH> {
             }
         }
 
-        JointVelocityConstraintBuilder::finalize_constraints(&mut out[..len]);
+        JointTwoBodyConstraintHelper::finalize_constraints(&mut out[..len]);
         len
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda1 = DeltaVel {
-            linear: Vector::from(gather![|ii| mj_lambdas[self.mj_lambda1[ii] as usize].linear]),
-            angular: AngVector::from(gather![
-                |ii| mj_lambdas[self.mj_lambda1[ii] as usize].angular
-            ]),
+    pub fn solve(&mut self, solver_vels: &mut [SolverVel<Real>]) {
+        let mut solver_vel1 = SolverVel {
+            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel1[ii]].linear]),
+            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel1[ii]].angular]),
         };
-        let mut mj_lambda2 = DeltaVel {
-            linear: Vector::from(gather![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear]),
-            angular: AngVector::from(gather![
-                |ii| mj_lambdas[self.mj_lambda2[ii] as usize].angular
-            ]),
+        let mut solver_vel2 = SolverVel {
+            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].linear]),
+            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].angular]),
         };
 
-        self.solve_generic(&mut mj_lambda1, &mut mj_lambda2);
+        self.solve_generic(&mut solver_vel1, &mut solver_vel2);
 
         for ii in 0..SIMD_WIDTH {
-            mj_lambdas[self.mj_lambda1[ii] as usize].linear = mj_lambda1.linear.extract(ii);
-            mj_lambdas[self.mj_lambda1[ii] as usize].angular = mj_lambda1.angular.extract(ii);
-            mj_lambdas[self.mj_lambda2[ii] as usize].linear = mj_lambda2.linear.extract(ii);
-            mj_lambdas[self.mj_lambda2[ii] as usize].angular = mj_lambda2.angular.extract(ii);
+            solver_vels[self.solver_vel1[ii]].linear = solver_vel1.linear.extract(ii);
+            solver_vels[self.solver_vel1[ii]].angular = solver_vel1.angular.extract(ii);
+            solver_vels[self.solver_vel2[ii]].linear = solver_vel2.linear.extract(ii);
+            solver_vels[self.solver_vel2[ii]].angular = solver_vel2.angular.extract(ii);
         }
     }
 
@@ -398,8 +433,8 @@ impl JointVelocityConstraint<SimdReal, SIMD_WIDTH> {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct JointVelocityGroundConstraint<N: WReal, const LANES: usize> {
-    pub mj_lambda2: [usize; LANES],
+pub struct JointOneBodyConstraint<N: SimdRealCopy, const LANES: usize> {
+    pub solver_vel2: [usize; LANES],
 
     pub joint_id: [JointIndex; LANES],
 
@@ -419,28 +454,10 @@ pub struct JointVelocityGroundConstraint<N: WReal, const LANES: usize> {
     pub writeback_id: WritebackId,
 }
 
-impl<N: WReal, const LANES: usize> JointVelocityGroundConstraint<N, LANES> {
-    pub fn invalid() -> Self {
-        Self {
-            mj_lambda2: [crate::INVALID_USIZE; LANES],
-            joint_id: [crate::INVALID_USIZE; LANES],
-            impulse: N::zero(),
-            impulse_bounds: [N::zero(), N::zero()],
-            lin_jac: Vector::zeros(),
-            ang_jac2: na::zero(),
-            inv_lhs: N::zero(),
-            cfm_coeff: N::zero(),
-            cfm_gain: N::zero(),
-            rhs: N::zero(),
-            rhs_wo_bias: N::zero(),
-            im2: na::zero(),
-            writeback_id: WritebackId::Dof(0),
-        }
-    }
-
-    pub fn solve_generic(&mut self, mj_lambda2: &mut DeltaVel<N>) {
-        let dlinvel = mj_lambda2.linear;
-        let dangvel = mj_lambda2.angular;
+impl<N: SimdRealCopy, const LANES: usize> JointOneBodyConstraint<N, LANES> {
+    pub fn solve_generic(&mut self, solver_vel2: &mut SolverVel<N>) {
+        let dlinvel = solver_vel2.linear;
+        let dangvel = solver_vel2.angular;
 
         let dvel = self.lin_jac.dot(&dlinvel) + self.ang_jac2.gdot(dangvel) + self.rhs;
         let total_impulse = (self.impulse + self.inv_lhs * (dvel - self.cfm_gain * self.impulse))
@@ -451,8 +468,8 @@ impl<N: WReal, const LANES: usize> JointVelocityGroundConstraint<N, LANES> {
         let lin_impulse = self.lin_jac * delta_impulse;
         let ang_impulse = self.ang_jac2 * delta_impulse;
 
-        mj_lambda2.linear -= lin_impulse.component_mul(&self.im2);
-        mj_lambda2.angular -= ang_impulse;
+        solver_vel2.linear -= lin_impulse.component_mul(&self.im2);
+        solver_vel2.angular -= ang_impulse;
     }
 
     pub fn remove_bias_from_rhs(&mut self) {
@@ -460,12 +477,12 @@ impl<N: WReal, const LANES: usize> JointVelocityGroundConstraint<N, LANES> {
     }
 }
 
-impl JointVelocityGroundConstraint<Real, 1> {
+impl JointOneBodyConstraint<Real, 1> {
     pub fn lock_axes(
         params: &IntegrationParameters,
         joint_id: JointIndex,
-        body1: &SolverBody<Real, 1>,
-        body2: &SolverBody<Real, 1>,
+        body1: &JointFixedSolverBody<Real>,
+        body2: &JointSolverBody<Real, 1>,
         frame1: &Isometry<Real>,
         frame2: &Isometry<Real>,
         joint: &GenericJoint,
@@ -477,7 +494,18 @@ impl JointVelocityGroundConstraint<Real, 1> {
         let limit_axes = joint.limit_axes.bits() & !locked_axes;
         let coupled_axes = joint.coupled_axes.bits();
 
-        let builder = JointVelocityConstraintBuilder::new(
+        // The has_lin/ang_coupling test is needed to avoid shl overflow later.
+        let has_lin_coupling = (coupled_axes & JointAxesMask::LIN_AXES.bits()) != 0;
+        let first_coupled_lin_axis_id =
+            (coupled_axes & JointAxesMask::LIN_AXES.bits()).trailing_zeros() as usize;
+
+        #[cfg(feature = "dim3")]
+        let has_ang_coupling = (coupled_axes & JointAxesMask::ANG_AXES.bits()) != 0;
+        #[cfg(feature = "dim3")]
+        let first_coupled_ang_axis_id =
+            (coupled_axes & JointAxesMask::ANG_AXES.bits()).trailing_zeros() as usize;
+
+        let builder = JointTwoBodyConstraintHelper::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -488,7 +516,7 @@ impl JointVelocityGroundConstraint<Real, 1> {
         let start = len;
         for i in DIM..SPATIAL_DIM {
             if (motor_axes & !coupled_axes) & (1 << i) != 0 {
-                out[len] = builder.motor_angular_ground(
+                out[len] = builder.motor_angular_one_body(
                     [joint_id],
                     body1,
                     body2,
@@ -507,7 +535,7 @@ impl JointVelocityGroundConstraint<Real, 1> {
                     None
                 };
 
-                out[len] = builder.motor_linear_ground(
+                out[len] = builder.motor_linear_one_body(
                     params,
                     [joint_id],
                     body1,
@@ -521,35 +549,40 @@ impl JointVelocityGroundConstraint<Real, 1> {
             }
         }
 
-        if (motor_axes & coupled_axes) & JointAxesMask::ANG_AXES.bits() != 0 {
+        #[cfg(feature = "dim3")]
+        if has_ang_coupling && (motor_axes & (1 << first_coupled_ang_axis_id)) != 0 {
             // TODO: coupled angular motor constraint.
         }
 
-        if (motor_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0 {
-            /*
-            // TODO: coupled linear motor constraint.
-            out[len] = builder.motor_linear_coupled_ground(
+        if has_lin_coupling && (motor_axes & (1 << first_coupled_lin_axis_id)) != 0 {
+            let limits = if (limit_axes & (1 << first_coupled_lin_axis_id)) != 0 {
+                Some([
+                    joint.limits[first_coupled_lin_axis_id].min,
+                    joint.limits[first_coupled_lin_axis_id].max,
+                ])
+            } else {
+                None
+            };
+
+            out[len] = builder.motor_linear_coupled_one_body(
                 params,
                 [joint_id],
                 body1,
                 body2,
-                motor_axes & coupled_axes,
-                &joint.motors,
-                limit_axes & coupled_axes,
-                &joint.limits,
-                WritebackId::Limit(0), // TODO: writeback
+                coupled_axes,
+                &joint.motors[first_coupled_lin_axis_id].motor_params(params.dt),
+                limits,
+                WritebackId::Motor(first_coupled_lin_axis_id),
             );
             len += 1;
-            */
-            todo!()
         }
 
-        JointVelocityConstraintBuilder::finalize_ground_constraints(&mut out[start..len]);
+        JointTwoBodyConstraintHelper::finalize_one_body_constraints(&mut out[start..len]);
 
         let start = len;
         for i in DIM..SPATIAL_DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] = builder.lock_angular_ground(
+                out[len] = builder.lock_angular_one_body(
                     params,
                     [joint_id],
                     body1,
@@ -562,7 +595,7 @@ impl JointVelocityGroundConstraint<Real, 1> {
         }
         for i in 0..DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] = builder.lock_linear_ground(
+                out[len] = builder.lock_linear_one_body(
                     params,
                     [joint_id],
                     body1,
@@ -576,7 +609,7 @@ impl JointVelocityGroundConstraint<Real, 1> {
 
         for i in DIM..SPATIAL_DIM {
             if (limit_axes & !coupled_axes) & (1 << i) != 0 {
-                out[len] = builder.limit_angular_ground(
+                out[len] = builder.limit_angular_one_body(
                     params,
                     [joint_id],
                     body1,
@@ -590,7 +623,7 @@ impl JointVelocityGroundConstraint<Real, 1> {
         }
         for i in 0..DIM {
             if (limit_axes & !coupled_axes) & (1 << i) != 0 {
-                out[len] = builder.limit_linear_ground(
+                out[len] = builder.limit_linear_one_body(
                     params,
                     [joint_id],
                     body1,
@@ -604,40 +637,46 @@ impl JointVelocityGroundConstraint<Real, 1> {
         }
 
         #[cfg(feature = "dim3")]
-        if (limit_axes & coupled_axes) & JointAxesMask::ANG_AXES.bits() != 0 {
-            out[len] = builder.limit_angular_coupled_ground(
+        if has_ang_coupling && (limit_axes & (1 << first_coupled_ang_axis_id)) != 0 {
+            out[len] = builder.limit_angular_coupled_one_body(
                 params,
                 [joint_id],
                 body1,
                 body2,
-                limit_axes & coupled_axes,
-                &joint.limits,
-                WritebackId::Limit(0), // TODO: writeback
+                coupled_axes,
+                [
+                    joint.limits[first_coupled_ang_axis_id].min,
+                    joint.limits[first_coupled_ang_axis_id].max,
+                ],
+                WritebackId::Limit(first_coupled_ang_axis_id),
             );
             len += 1;
         }
 
-        if (limit_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0 {
-            out[len] = builder.limit_linear_coupled_ground(
+        if has_lin_coupling && (limit_axes & (1 << first_coupled_lin_axis_id)) != 0 {
+            out[len] = builder.limit_linear_coupled_one_body(
                 params,
                 [joint_id],
                 body1,
                 body2,
-                limit_axes & coupled_axes,
-                &joint.limits,
-                WritebackId::Limit(0), // TODO: writeback
+                coupled_axes,
+                [
+                    joint.limits[first_coupled_lin_axis_id].min,
+                    joint.limits[first_coupled_lin_axis_id].max,
+                ],
+                WritebackId::Limit(first_coupled_lin_axis_id),
             );
             len += 1;
         }
-        JointVelocityConstraintBuilder::finalize_ground_constraints(&mut out[start..len]);
+        JointTwoBodyConstraintHelper::finalize_one_body_constraints(&mut out[start..len]);
 
         len
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda2 = mj_lambdas[self.mj_lambda2[0] as usize];
-        self.solve_generic(&mut mj_lambda2);
-        mj_lambdas[self.mj_lambda2[0] as usize] = mj_lambda2;
+    pub fn solve(&mut self, solver_vels: &mut [SolverVel<Real>]) {
+        let mut solver_vel2 = solver_vels[self.solver_vel2[0]];
+        self.solve_generic(&mut solver_vel2);
+        solver_vels[self.solver_vel2[0]] = solver_vel2;
     }
 
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
@@ -651,19 +690,19 @@ impl JointVelocityGroundConstraint<Real, 1> {
 }
 
 #[cfg(feature = "simd-is-enabled")]
-impl JointVelocityGroundConstraint<SimdReal, SIMD_WIDTH> {
+impl JointOneBodyConstraint<SimdReal, SIMD_WIDTH> {
     pub fn lock_axes(
         params: &IntegrationParameters,
         joint_id: [JointIndex; SIMD_WIDTH],
-        body1: &SolverBody<SimdReal, SIMD_WIDTH>,
-        body2: &SolverBody<SimdReal, SIMD_WIDTH>,
+        body1: &JointFixedSolverBody<SimdReal>,
+        body2: &JointSolverBody<SimdReal, SIMD_WIDTH>,
         frame1: &Isometry<SimdReal>,
         frame2: &Isometry<SimdReal>,
         locked_axes: u8,
         out: &mut [Self],
     ) -> usize {
         let mut len = 0;
-        let builder = JointVelocityConstraintBuilder::new(
+        let builder = JointTwoBodyConstraintHelper::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -673,7 +712,7 @@ impl JointVelocityGroundConstraint<SimdReal, SIMD_WIDTH> {
 
         for i in 0..DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] = builder.lock_linear_ground(
+                out[len] = builder.lock_linear_one_body(
                     params,
                     joint_id,
                     body1,
@@ -686,7 +725,7 @@ impl JointVelocityGroundConstraint<SimdReal, SIMD_WIDTH> {
         }
         for i in DIM..SPATIAL_DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] = builder.lock_angular_ground(
+                out[len] = builder.lock_angular_one_body(
                     params,
                     joint_id,
                     body1,
@@ -698,23 +737,21 @@ impl JointVelocityGroundConstraint<SimdReal, SIMD_WIDTH> {
             }
         }
 
-        JointVelocityConstraintBuilder::finalize_ground_constraints(&mut out[..len]);
+        JointTwoBodyConstraintHelper::finalize_one_body_constraints(&mut out[..len]);
         len
     }
 
-    pub fn solve(&mut self, mj_lambdas: &mut [DeltaVel<Real>]) {
-        let mut mj_lambda2 = DeltaVel {
-            linear: Vector::from(gather![|ii| mj_lambdas[self.mj_lambda2[ii] as usize].linear]),
-            angular: AngVector::from(gather![
-                |ii| mj_lambdas[self.mj_lambda2[ii] as usize].angular
-            ]),
+    pub fn solve(&mut self, solver_vels: &mut [SolverVel<Real>]) {
+        let mut solver_vel2 = SolverVel {
+            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].linear]),
+            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].angular]),
         };
 
-        self.solve_generic(&mut mj_lambda2);
+        self.solve_generic(&mut solver_vel2);
 
         for ii in 0..SIMD_WIDTH {
-            mj_lambdas[self.mj_lambda2[ii] as usize].linear = mj_lambda2.linear.extract(ii);
-            mj_lambdas[self.mj_lambda2[ii] as usize].angular = mj_lambda2.angular.extract(ii);
+            solver_vels[self.solver_vel2[ii]].linear = solver_vel2.linear.extract(ii);
+            solver_vels[self.solver_vel2[ii]].angular = solver_vel2.angular.extract(ii);
         }
     }
 

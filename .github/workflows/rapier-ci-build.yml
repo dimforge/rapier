@@ -23,6 +23,12 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - run: sudo apt-get install -y cmake libxcb-composite0-dev
+    - name: Clippy
+      run: cargo clippy
+    - name: Clippy rapier2d
+      run: cargo clippy -p rapier-examples-2d --features parallel,simd-stable
+    - name: Clippy rapier3d
+      run: cargo clippy -p rapier-examples-3d --features parallel,simd-stable
     - name: Build rapier2d
       run: cargo build --verbose -p rapier2d;
     - name: Build rapier3d

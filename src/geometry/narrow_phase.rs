@@ -109,7 +109,10 @@ impl NarrowPhase {
     ///
     /// It is strongly recommended to use the [`NarrowPhase::contacts_with`] method instead. This
     /// method can be used if the generation number of the collider handle isn't known.
-    pub fn contacts_with_unknown_gen(&self, collider: u32) -> impl Iterator<Item = &ContactPair> {
+    pub fn contact_pairs_with_unknown_gen(
+        &self,
+        collider: u32,
+    ) -> impl Iterator<Item = &ContactPair> {
         self.graph_indices
             .get_unknown_gen(collider)
             .map(|id| id.contact_graph_index)
@@ -118,8 +121,12 @@ impl NarrowPhase {
             .map(|pair| pair.2)
     }
 
-    /// All the contacts involving the given collider.
-    pub fn contacts_with<'a>(
+    /// All the contact pairs involving the given collider.
+    ///
+    /// The returned contact pairs identify pairs of colliders with intersecting bounding-volumes.
+    /// To check if any geometric contact happened between the collider shapes, check
+    /// [`ContactPair::has_any_active_contact`].
+    pub fn contact_pairs_with(
         &self,
         collider: ColliderHandle,
     ) -> impl Iterator<Item = &ContactPair> {
@@ -131,11 +138,11 @@ impl NarrowPhase {
             .map(|pair| pair.2)
     }
 
-    /// All the intersections involving the given collider.
+    /// All the intersection pairs involving the given collider.
     ///
     /// It is strongly recommended to use the [`NarrowPhase::intersections_with`]  method instead.
     /// This method can be used if the generation number of the collider handle isn't known.
-    pub fn intersections_with_unknown_gen(
+    pub fn intersection_pairs_with_unknown_gen(
         &self,
         collider: u32,
     ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_ {
@@ -150,8 +157,13 @@ impl NarrowPhase {
             })
     }
 
-    /// All the intersections involving the given collider.
-    pub fn intersections_with(
+    /// All the intersection pairs involving the given collider, where at least one collider
+    /// involved in the intersection is a sensor.
+    ///
+    /// The returned contact pairs identify pairs of colliders (where at least one is a sensor) with
+    /// intersecting bounding-volumes. To check if any geometric overlap happened between the collider shapes, check
+    /// the returned boolean.
+    pub fn intersection_pairs_with(
         &self,
         collider: ColliderHandle,
     ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_ {
@@ -312,7 +324,7 @@ impl NarrowPhase {
         &mut self,
         intersection_graph_id: ColliderGraphIndex,
         contact_graph_id: ColliderGraphIndex,
-        mut islands: Option<&mut IslandManager>,
+        islands: Option<&mut IslandManager>,
         colliders: &mut ColliderSet,
         bodies: &mut RigidBodySet,
         prox_id_remap: &mut HashMap<ColliderHandle, ColliderGraphIndex>,
@@ -320,7 +332,7 @@ impl NarrowPhase {
         events: &dyn EventHandler,
     ) {
         // Wake up every body in contact with the deleted collider and generate Stopped collision events.
-        if let Some(islands) = islands.as_deref_mut() {
+        if let Some(islands) = islands {
             for (a, b, pair) in self.contact_graph.interactions_with(contact_graph_id) {
                 if let Some(parent) = colliders.get(a).and_then(|c| c.parent.as_ref()) {
                     islands.wake_up(bodies, parent.handle, true)
@@ -527,18 +539,17 @@ impl NarrowPhase {
 
                     // Emit an intersection lost event if we had an intersection before removing the edge.
                     if let Some(mut intersection) = intersection {
-                        if intersection.intersecting {
-                            if (co1.flags.active_events | co2.flags.active_events)
+                        if intersection.intersecting
+                            && (co1.flags.active_events | co2.flags.active_events)
                                 .contains(ActiveEvents::COLLISION_EVENTS)
-                            {
-                                intersection.emit_stop_event(
-                                    bodies,
-                                    colliders,
-                                    pair.collider1,
-                                    pair.collider2,
-                                    events,
-                                )
-                            }
+                        {
+                            intersection.emit_stop_event(
+                                bodies,
+                                colliders,
+                                pair.collider1,
+                                pair.collider2,
+                                events,
+                            )
                         }
                     }
                 } else {
@@ -576,14 +587,13 @@ impl NarrowPhase {
         if let (Some(co1), Some(co2)) =
             (colliders.get(pair.collider1), colliders.get(pair.collider2))
         {
-            if co1.parent.map(|p| p.handle) == co2.parent.map(|p| p.handle) {
-                if co1.parent.is_some() {
-                    // Same parents. Ignore collisions.
-                    return;
-                }
-
-                // These colliders have no parents - continue.
+            if co1.parent.map(|p| p.handle) == co2.parent.map(|p| p.handle) && co1.parent.is_some()
+            {
+                // Same parents. Ignore collisions.
+                return;
             }
+
+            // These colliders have no parents - continue.
 
             let (gid1, gid2) = self.graph_indices.ensure_pair_exists(
                 pair.collider1.0,
@@ -700,7 +710,7 @@ impl NarrowPhase {
             let co2 = &colliders[handle2];
 
             // TODO: remove the `loop` once labels on blocks is stabilized.
-            'emit_events: loop {
+            'emit_events: {
                 if !co1.changes.needs_narrow_phase_update()
                     && !co2.changes.needs_narrow_phase_update()
                 {
@@ -801,7 +811,7 @@ impl NarrowPhase {
             let co2 = &colliders[pair.collider2];
 
             // TODO: remove the `loop` once labels on blocks are supported.
-            'emit_events: loop {
+            'emit_events: {
                 if !co1.changes.needs_narrow_phase_update()
                     && !co2.changes.needs_narrow_phase_update()
                 {
@@ -927,6 +937,7 @@ impl NarrowPhase {
 
                 for manifold in &mut pair.manifolds {
                     let world_pos1 = manifold.subshape_pos1.prepend_to(&co1.pos);
+                    let world_pos2 = manifold.subshape_pos2.prepend_to(&co2.pos);
                     manifold.data.solver_contacts.clear();
                     manifold.data.rigid_body1 = co1.parent.map(|p| p.handle);
                     manifold.data.rigid_body2 = co2.parent.map(|p| p.handle);
@@ -944,10 +955,13 @@ impl NarrowPhase {
 
                         if contact.dist < prediction_distance {
                             // Generate the solver contact.
+                            let world_pt1 = world_pos1 * contact.local_p1;
+                            let world_pt2 = world_pos2 * contact.local_p2;
+                            let effective_point = na::center(&world_pt1, &world_pt2);
+
                             let solver_contact = SolverContact {
                                 contact_id: contact_id as u8,
-                                point: world_pos1 * contact.local_p1
-                                    + manifold.data.normal * contact.dist / 2.0,
+                                point: effective_point,
                                 dist: contact.dist,
                                 friction,
                                 restitution,
@@ -963,7 +977,7 @@ impl NarrowPhase {
                     // Apply the user-defined contact modification.
                     if active_hooks.contains(ActiveHooks::MODIFY_SOLVER_CONTACTS) {
                         let mut modifiable_solver_contacts =
-                            std::mem::replace(&mut manifold.data.solver_contacts, Vec::new());
+                            std::mem::take(&mut manifold.data.solver_contacts);
                         let mut modifiable_user_data = manifold.data.user_data;
                         let mut modifiable_normal = manifold.data.normal;
 
@@ -993,13 +1007,13 @@ impl NarrowPhase {
 
             let active_events = co1.flags.active_events | co2.flags.active_events;
 
-            if pair.has_any_active_contact != had_any_active_contact {
-                if active_events.contains(ActiveEvents::COLLISION_EVENTS) {
-                    if pair.has_any_active_contact {
-                        pair.emit_start_event(bodies, colliders, events);
-                    } else {
-                        pair.emit_stop_event(bodies, colliders, events);
-                    }
+            if pair.has_any_active_contact != had_any_active_contact
+                && active_events.contains(ActiveEvents::COLLISION_EVENTS)
+            {
+                if pair.has_any_active_contact {
+                    pair.emit_start_event(bodies, colliders, events);
+                } else {
+                    pair.emit_stop_event(bodies, colliders, events);
                 }
             }
         });
@@ -1013,7 +1027,7 @@ impl NarrowPhase {
         bodies: &RigidBodySet,
         out_contact_pairs: &mut Vec<TemporaryInteractionIndex>,
         out_manifolds: &mut Vec<&'a mut ContactManifold>,
-        out: &mut Vec<Vec<ContactManifoldIndex>>,
+        out: &mut [Vec<ContactManifoldIndex>],
     ) {
         for out_island in &mut out[..islands.num_islands()] {
             out_island.clear();

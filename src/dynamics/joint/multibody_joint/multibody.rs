@@ -1,16 +1,13 @@
 use super::multibody_link::{MultibodyLink, MultibodyLinkVec};
 use super::multibody_workspace::MultibodyWorkspace;
-use crate::dynamics::{
-    solver::AnyJointVelocityConstraint, IntegrationParameters, RigidBodyHandle, RigidBodySet,
-    RigidBodyType, RigidBodyVelocity,
-};
+use crate::dynamics::{RigidBodyHandle, RigidBodySet, RigidBodyType, RigidBodyVelocity};
 #[cfg(feature = "dim3")]
 use crate::math::Matrix;
 use crate::math::{
     AngDim, AngVector, Dim, Isometry, Jacobian, Point, Real, Vector, ANG_DIM, DIM, SPATIAL_DIM,
 };
 use crate::prelude::MultibodyJoint;
-use crate::utils::{IndexMut2, WAngularInertia, WCross, WCrossMatrix};
+use crate::utils::{IndexMut2, SimdAngularInertia, SimdCross, SimdCrossMatrix};
 use na::{self, DMatrix, DVector, DVectorView, DVectorViewMut, Dyn, OMatrix, SMatrix, SVector, LU};
 
 #[repr(C)]
@@ -130,8 +127,9 @@ impl Multibody {
         let mut link_id2new_id = vec![usize::MAX; self.links.len()];
 
         for (i, mut link) in self.links.0.into_iter().enumerate() {
-            let is_new_root = (!joint_only && (i == 0 || link.parent_internal_id == to_remove))
-                || (joint_only && (i == 0 || i == to_remove));
+            let is_new_root = i == 0
+                || !joint_only && link.parent_internal_id == to_remove
+                || joint_only && i == to_remove;
 
             if !joint_only && i == to_remove {
                 continue;
@@ -372,6 +370,7 @@ impl Multibody {
 
         self.accelerations.fill(0.0);
 
+        // Eqn 42 to 45
         for i in 0..self.links.len() {
             let link = &self.links[i];
             let rb = &bodies[link.rigid_body];
@@ -400,7 +399,7 @@ impl Multibody {
             }
 
             acc.linvel += rb.vels.angvel.gcross(rb.vels.angvel.gcross(link.shift23));
-            acc.linvel += self.workspace.accs[i].angvel.gcross(link.shift23);
+            acc.linvel += acc.angvel.gcross(link.shift23);
 
             self.workspace.accs[i] = acc;
 
@@ -494,7 +493,7 @@ impl Multibody {
                 parent_to_world = parent_link.local_to_world;
 
                 let (link_j, parent_j) = self.body_jacobians.index_mut_const(i, parent_id);
-                link_j.copy_from(&parent_j);
+                link_j.copy_from(parent_j);
 
                 {
                     let mut link_j_v = link_j.fixed_rows_mut::<DIM>(0);
@@ -604,12 +603,12 @@ impl Multibody {
                 let (coriolis_v, parent_coriolis_v) = self.coriolis_v.index_mut2(i, parent_id);
                 let (coriolis_w, parent_coriolis_w) = self.coriolis_w.index_mut2(i, parent_id);
 
-                coriolis_v.copy_from(&parent_coriolis_v);
-                coriolis_w.copy_from(&parent_coriolis_w);
+                coriolis_v.copy_from(parent_coriolis_v);
+                coriolis_w.copy_from(parent_coriolis_w);
 
                 // [c1 - c0].gcross() * (JDot + JDot/u * qdot)"
                 let shift_cross_tr = link.shift02.gcross_matrix_tr();
-                coriolis_v.gemm(1.0, &shift_cross_tr, &parent_coriolis_w, 1.0);
+                coriolis_v.gemm(1.0, &shift_cross_tr, parent_coriolis_w, 1.0);
 
                 // JDot (but the 2.0 originates from the sum of two identical terms in JDot and JDot/u * gdot)
                 let dvel_cross = (rb.vels.angvel.gcross(link.shift02)
@@ -665,7 +664,7 @@ impl Multibody {
             {
                 // [c3 - c2].gcross() * (JDot + JDot/u * qdot)
                 let shift_cross_tr = link.shift23.gcross_matrix_tr();
-                coriolis_v.gemm(1.0, &shift_cross_tr, &coriolis_w, 1.0);
+                coriolis_v.gemm(1.0, &shift_cross_tr, coriolis_w, 1.0);
 
                 // JDot
                 let dvel_cross = rb.vels.angvel.gcross(link.shift23).gcross_matrix_tr();
@@ -698,16 +697,16 @@ impl Multibody {
             {
                 let mut i_coriolis_dt_w = self.i_coriolis_dt.fixed_rows_mut::<ANG_DIM>(DIM);
                 // NOTE: this is just an axpy, but on row columns.
-                i_coriolis_dt_w.zip_apply(&coriolis_w, |o, x| *o = x * dt * rb_inertia);
+                i_coriolis_dt_w.zip_apply(coriolis_w, |o, x| *o = x * dt * rb_inertia);
             }
             #[cfg(feature = "dim3")]
             {
                 let mut i_coriolis_dt_w = self.i_coriolis_dt.fixed_rows_mut::<ANG_DIM>(DIM);
-                i_coriolis_dt_w.gemm(dt, &rb_inertia, &coriolis_w, 0.0);
+                i_coriolis_dt_w.gemm(dt, &rb_inertia, coriolis_w, 0.0);
             }
 
             self.acc_augmented_mass
-                .gemm_tr(1.0, &rb_j, &self.i_coriolis_dt, 1.0);
+                .gemm_tr(1.0, rb_j, &self.i_coriolis_dt, 1.0);
         }
 
         /*
@@ -728,7 +727,7 @@ impl Multibody {
 
     /// The generalized velocity at the multibody_joint of the given link.
     #[inline]
-    pub(crate) fn joint_velocity(&self, link: &MultibodyLink) -> DVectorView<Real> {
+    pub fn joint_velocity(&self, link: &MultibodyLink) -> DVectorView<Real> {
         let ndofs = link.joint().ndofs();
         DVectorView::from_slice(
             &self.velocities.as_slice()[link.assembly_id..link.assembly_id + ndofs],
@@ -829,8 +828,10 @@ impl Multibody {
         }
     }
 
+    // TODO: make a version that doesn’t write back to bodies and doesn’t update the jacobians
+    //       (i.e. just something used by the velocity solver’s small steps).
     /// Apply forward-kinematics to this multibody and its related rigid-bodies.
-    pub fn forward_kinematics(&mut self, bodies: &mut RigidBodySet, update_mass_props: bool) {
+    pub fn forward_kinematics(&mut self, bodies: &mut RigidBodySet, update_rb_mass_props: bool) {
         // Special case for the root, which has no parent.
         {
             let link = &mut self.links[0];
@@ -839,7 +840,7 @@ impl Multibody {
 
             if let Some(rb) = bodies.get_mut_internal(link.rigid_body) {
                 rb.pos.next_position = link.local_to_world;
-                if update_mass_props {
+                if update_rb_mass_props {
                     rb.mprops.update_world_mass_properties(&link.local_to_world);
                 }
             }
@@ -873,7 +874,7 @@ impl Multibody {
                 "A rigid-body that is not at the root of a multibody must be dynamic."
             );
 
-            if update_mass_props {
+            if update_rb_mass_props {
                 link_rb
                     .mprops
                     .update_world_mass_properties(&link.local_to_world);
@@ -943,6 +944,7 @@ impl Multibody {
 
     #[cfg(feature = "parallel")]
     #[inline]
+    #[allow(dead_code)] // That will likely be useful when we re-introduce intra-island parallelism.
     pub(crate) fn num_active_internal_constraints_and_jacobian_lines(&self) -> (usize, usize) {
         let num_constraints: usize = self
             .links
@@ -950,41 +952,5 @@ impl Multibody {
             .map(|l| l.joint().num_velocity_constraints())
             .sum();
         (num_constraints, num_constraints)
-    }
-
-    #[inline]
-    pub(crate) fn generate_internal_constraints(
-        &self,
-        params: &IntegrationParameters,
-        j_id: &mut usize,
-        jacobians: &mut DVector<Real>,
-        out: &mut Vec<AnyJointVelocityConstraint>,
-        mut insert_at: Option<usize>,
-    ) {
-        if !cfg!(feature = "parallel") {
-            let num_constraints: usize = self
-                .links
-                .iter()
-                .map(|l| l.joint().num_velocity_constraints())
-                .sum();
-
-            let required_jacobian_len = *j_id + num_constraints * self.ndofs * 2;
-            if jacobians.nrows() < required_jacobian_len {
-                jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
-            }
-        }
-
-        for link in self.links.iter() {
-            link.joint().velocity_constraints(
-                params,
-                self,
-                link,
-                0,
-                j_id,
-                jacobians,
-                out,
-                &mut insert_at,
-            );
-        }
     }
 }
