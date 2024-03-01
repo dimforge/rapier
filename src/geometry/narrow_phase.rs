@@ -508,7 +508,7 @@ impl NarrowPhase {
 
         // Add the paid removed pair to the relevant graph.
         for pair in pairs_to_remove {
-            self.add_pair(colliders, &pair.0);
+            self.add_pair(islands.as_deref_mut(), colliders, bodies, &pair.0);
         }
     }
 
@@ -583,7 +583,8 @@ impl NarrowPhase {
         }
     }
 
-    fn add_pair(&mut self, colliders: &ColliderSet, pair: &ColliderPair) {
+    fn add_pair(&mut self, islands: Option<&mut IslandManager>, colliders: &ColliderSet, bodies: &mut RigidBodySet, pair: &ColliderPair)
+    {
         if let (Some(co1), Some(co2)) =
             (colliders.get(pair.collider1), colliders.get(pair.collider2))
         {
@@ -656,6 +657,16 @@ impl NarrowPhase {
                     );
                 }
             }
+
+            if let Some(islands) = islands {
+                if let Some(co_parent1) = co1.parent {
+                    islands.wake_up(bodies, co_parent1.handle, true);
+                }
+
+                if let Some(co_parent2) = co2.parent {
+                    islands.wake_up(bodies, co_parent2.handle, true);
+                }
+            }
         }
     }
 
@@ -670,7 +681,7 @@ impl NarrowPhase {
         for event in broad_phase_events {
             match event {
                 BroadPhasePairEvent::AddPair(pair) => {
-                    self.add_pair(colliders, pair);
+                    self.add_pair(islands.as_deref_mut(), colliders, bodies, pair);
                 }
                 BroadPhasePairEvent::DeletePair(pair) => {
                     self.remove_pair(
