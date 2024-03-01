@@ -24,7 +24,7 @@ use rapier::dynamics::{
 use rapier::geometry::Ray;
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 use rapier::math::{Real, Vector};
-use rapier::pipeline::{PhysicsHooks, QueryFilter};
+use rapier::pipeline::{PhysicsHooks, QueryFilter, QueryPipeline};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
@@ -1250,9 +1250,11 @@ fn update_testbed(
                 harness.state.timestep_id,
                 &harness.physics.broad_phase,
                 &harness.physics.narrow_phase,
+                &harness.physics.islands,
                 &harness.physics.bodies,
                 &harness.physics.colliders,
                 &harness.physics.impulse_joints,
+                &harness.physics.multibody_joints,
             )
             .ok();
 
@@ -1269,17 +1271,36 @@ fn update_testbed(
                 .action_flags
                 .set(TestbedActionFlags::RESTORE_SNAPSHOT, false);
             if let Some(snapshot) = &state.snapshot {
-                if let Ok(w) = snapshot.restore() {
+                if let Ok((
+                    timestep_id,
+                    broad_phase,
+                    narrow_phase,
+                    island_manager,
+                    bodies,
+                    colliders,
+                    impulse_joints,
+                    multibody_joints,
+                )) = snapshot.restore()
+                {
                     clear(&mut commands, &mut state, &mut graphics, &mut plugins);
 
                     for plugin in &mut plugins.0 {
                         plugin.clear_graphics(&mut graphics, &mut commands);
                     }
 
-                    // set_world(w.3, w.4, w.5);
-                    harness.physics.broad_phase = w.1;
-                    harness.physics.narrow_phase = w.2;
-                    harness.state.timestep_id = w.0;
+                    harness.state.timestep_id = timestep_id;
+                    harness.physics.broad_phase = broad_phase;
+                    harness.physics.narrow_phase = narrow_phase;
+                    harness.physics.islands = island_manager;
+                    harness.physics.bodies = bodies;
+                    harness.physics.colliders = colliders;
+                    harness.physics.impulse_joints = impulse_joints;
+                    harness.physics.multibody_joints = multibody_joints;
+                    harness.physics.query_pipeline = QueryPipeline::new();
+
+                    state
+                        .action_flags
+                        .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
                 }
             }
         }
