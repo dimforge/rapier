@@ -14,6 +14,8 @@ pub struct PhysicsSnapshot {
     bodies: Vec<u8>,
     colliders: Vec<u8>,
     impulse_joints: Vec<u8>,
+    multibody_joints: Vec<u8>,
+    island_manager: Vec<u8>,
 }
 
 impl PhysicsSnapshot {
@@ -21,17 +23,21 @@ impl PhysicsSnapshot {
         timestep_id: usize,
         broad_phase: &BroadPhase,
         narrow_phase: &NarrowPhase,
+        island_manager: &IslandManager,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
         impulse_joints: &ImpulseJointSet,
+        multibody_joints: &MultibodyJointSet,
     ) -> bincode::Result<Self> {
         Ok(Self {
             timestep_id,
             broad_phase: bincode::serialize(broad_phase)?,
             narrow_phase: bincode::serialize(narrow_phase)?,
+            island_manager: bincode::serialize(island_manager)?,
             bodies: bincode::serialize(bodies)?,
             colliders: bincode::serialize(colliders)?,
             impulse_joints: bincode::serialize(impulse_joints)?,
+            multibody_joints: bincode::serialize(multibody_joints)?,
         })
     }
 
@@ -41,32 +47,40 @@ impl PhysicsSnapshot {
         usize,
         BroadPhase,
         NarrowPhase,
+        IslandManager,
         RigidBodySet,
         ColliderSet,
         ImpulseJointSet,
+        MultibodyJointSet,
     )> {
         Ok((
             self.timestep_id,
             bincode::deserialize(&self.broad_phase)?,
             bincode::deserialize(&self.narrow_phase)?,
+            bincode::deserialize(&self.island_manager)?,
             bincode::deserialize(&self.bodies)?,
             bincode::deserialize(&self.colliders)?,
             bincode::deserialize(&self.impulse_joints)?,
+            bincode::deserialize(&self.multibody_joints)?,
         ))
     }
 
     pub fn print_snapshot_len(&self) {
         let total = self.broad_phase.len()
             + self.narrow_phase.len()
+            + self.island_manager.len()
             + self.bodies.len()
             + self.colliders.len()
-            + self.impulse_joints.len();
+            + self.impulse_joints.len()
+            + self.multibody_joints.len();
         println!("Snapshot length: {}B", total);
         println!("|_ broad_phase: {}B", self.broad_phase.len());
         println!("|_ narrow_phase: {}B", self.narrow_phase.len());
+        println!("|_ island_manager: {}B", self.island_manager.len());
         println!("|_ bodies: {}B", self.bodies.len());
         println!("|_ colliders: {}B", self.colliders.len());
         println!("|_ impulse_joints: {}B", self.impulse_joints.len());
+        println!("|_ multibody_joints: {}B", self.multibody_joints.len());
     }
 }
 
