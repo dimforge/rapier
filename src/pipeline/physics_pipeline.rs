@@ -653,7 +653,7 @@ mod test {
     use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
     use crate::math::Vector;
     use crate::pipeline::PhysicsPipeline;
-    use crate::prelude::MultibodyJointSet;
+    use crate::prelude::{MultibodyJointSet, RigidBodyType};
 
     #[test]
     fn kinematic_and_fixed_contact_crash() {
@@ -851,5 +851,74 @@ mod test {
                 &event_handler,
             );
         }
+    }
+
+    #[test]
+    fn rigid_body_type_changed_dynamic_is_in_active_set() {
+        let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
+        let mut pipeline = PhysicsPipeline::new();
+        let mut bf = BroadPhase::new();
+        let mut nf = NarrowPhase::new();
+        let mut islands = IslandManager::new();
+
+        let mut bodies = RigidBodySet::new();
+
+        // Initialize body as kinematic with mass
+        let rb = RigidBodyBuilder::kinematic_position_based()
+            .additional_mass(1.0)
+            .build();
+        let h = bodies.insert(rb.clone());
+
+        // Step once
+        let gravity = Vector::y() * -9.81;
+        pipeline.step(
+            &gravity,
+            &IntegrationParameters::default(),
+            &mut islands,
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut CCDSolver::new(),
+            None,
+            &(),
+            &(),
+        );
+
+        // Switch body type to Dynamic
+        bodies
+            .get_mut(h)
+            .unwrap()
+            .set_body_type(RigidBodyType::Dynamic, true);
+
+        // Step again
+        pipeline.step(
+            &gravity,
+            &IntegrationParameters::default(),
+            &mut islands,
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut CCDSolver::new(),
+            None,
+            &(),
+            &(),
+        );
+
+        let body = bodies.get(h).unwrap();
+        let h_y = body.pos.position.translation.y;
+
+        // Expect gravity to be applied on second step after switching to Dynamic
+        assert!(h_y < 0.0);
+
+        // Expect body to now be in active_dynamic_set
+        assert!(islands.active_dynamic_set.contains(&h));
     }
 }
