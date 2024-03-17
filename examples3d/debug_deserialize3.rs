@@ -3,7 +3,7 @@ use rapier_testbed3d::Testbed;
 
 #[derive(serde::Deserialize)]
 struct PhysicsState {
-    pub gravity: Vector<f32>,
+    pub gravity: Vector,
     pub integration_parameters: IntegrationParameters,
     pub islands: IslandManager,
     pub broad_phase: BroadPhase,

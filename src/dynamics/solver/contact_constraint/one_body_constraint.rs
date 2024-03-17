@@ -1,5 +1,5 @@
 use super::{OneBodyConstraintElement, OneBodyConstraintNormalPart};
-use crate::math::{Point, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
+use crate::math::*;
 #[cfg(feature = "dim2")]
 use crate::utils::SimdBasis;
 use crate::utils::{self, SimdAngularInertia, SimdCross, SimdDot, SimdRealCopy};
@@ -7,36 +7,24 @@ use parry::math::Isometry;
 
 use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::solver::SolverVel;
-use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet, RigidBodyVelocity};
+use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet, Velocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
 // TODO: move this struct somewhere else.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct ContactPointInfos<N: SimdRealCopy> {
-    pub tangent_vel: Vector<N>,
-    pub local_p1: Point<N>,
-    pub local_p2: Point<N>,
+    pub tangent_vel: N::Vector,
+    pub local_p1: N::Point,
+    pub local_p2: N::Point,
     pub dist: N,
     pub normal_rhs_wo_bias: N,
-}
-
-impl<N: SimdRealCopy> Default for ContactPointInfos<N> {
-    fn default() -> Self {
-        Self {
-            tangent_vel: Vector::zeros(),
-            local_p1: Point::origin(),
-            local_p2: Point::origin(),
-            dist: N::zero(),
-            normal_rhs_wo_bias: N::zero(),
-        }
-    }
 }
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct OneBodyConstraintBuilder {
     // PERF: only store what’s necessary for the bias updates instead of the complete solver body.
     pub rb1: SolverBody,
-    pub vels1: RigidBodyVelocity,
+    pub vels1: Velocity,
     pub infos: [ContactPointInfos<Real>; MAX_MANIFOLD_POINTS],
 }
 
@@ -44,7 +32,7 @@ impl OneBodyConstraintBuilder {
     pub fn invalid() -> Self {
         Self {
             rb1: SolverBody::default(),
-            vels1: RigidBodyVelocity::zero(),
+            vels1: Velocity::zero(),
             infos: [ContactPointInfos::default(); MAX_MANIFOLD_POINTS],
         }
     }
@@ -71,7 +59,7 @@ impl OneBodyConstraintBuilder {
             let rb1 = &bodies[handle1];
             (rb1.vels, rb1.mprops.world_com)
         } else {
-            (RigidBodyVelocity::zero(), Point::origin())
+            (Velocity::zero(), Point::origin())
         };
 
         let rb1 = handle1
@@ -131,14 +119,14 @@ impl OneBodyConstraintBuilder {
                         .transform_vector(dp2.gcross(-force_dir1));
 
                     let projected_mass = utils::inv(
-                        force_dir1.dot(&mprops2.effective_inv_mass.component_mul(&force_dir1))
+                        force_dir1.dot(mprops2.effective_inv_mass.component_mul(&force_dir1))
                             + gcross2.gdot(gcross2),
                     );
 
                     let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
 
-                    let proj_vel1 = vel1.dot(&force_dir1);
-                    let proj_vel2 = vel2.dot(&force_dir1);
+                    let proj_vel1 = vel1.dot(force_dir1);
+                    let proj_vel2 = vel2.dot(force_dir1);
                     let dvel = proj_vel1 - proj_vel2;
                     // NOTE: we add proj_vel1 since it’s not accessible through solver_vel.
                     normal_rhs_wo_bias =
@@ -156,18 +144,18 @@ impl OneBodyConstraintBuilder {
 
                 // Tangent parts.
                 {
-                    constraint.elements[k].tangent_part.impulse = na::zero();
+                    constraint.elements[k].tangent_part.impulse = Default::default();
 
                     for j in 0..DIM - 1 {
                         let gcross2 = mprops2
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(dp2.gcross(-tangents1[j]));
                         let r = tangents1[j]
-                            .dot(&mprops2.effective_inv_mass.component_mul(&tangents1[j]))
+                            .dot(mprops2.effective_inv_mass.component_mul(&tangents1[j]))
                             + gcross2.gdot(gcross2);
                         let rhs_wo_bias = (vel1
                             + flipped_multiplier * manifold_point.tangent_velocity)
-                            .dot(&tangents1[j]);
+                            .dot(tangents1[j]);
 
                         constraint.elements[k].tangent_part.gcross2[j] = gcross2;
                         constraint.elements[k].tangent_part.rhs_wo_bias[j] = rhs_wo_bias;
@@ -232,7 +220,7 @@ impl OneBodyConstraintBuilder {
         &self,
         params: &IntegrationParameters,
         solved_dt: Real,
-        rb2_pos: &Isometry<Real>,
+        rb2_pos: &Isometry,
         ccd_thickness: Real,
         constraint: &mut OneBodyConstraint,
     ) {
@@ -254,14 +242,14 @@ impl OneBodyConstraintBuilder {
         #[cfg(feature = "dim3")]
         let tangents1 = [
             constraint.tangent1,
-            constraint.dir1.cross(&constraint.tangent1),
+            constraint.dir1.cross(constraint.tangent1),
         ];
 
         for (info, element) in all_infos.iter().zip(all_elements.iter_mut()) {
             // NOTE: the tangent velocity is equivalent to an additional movement of the first body’s surface.
-            let p1 = new_pos1 * info.local_p1 + info.tangent_vel * solved_dt;
-            let p2 = rb2_pos * info.local_p2;
-            let dist = info.dist + (p1 - p2).dot(&constraint.dir1);
+            let p1 = new_pos1.transform_point(&info.local_p1) + info.tangent_vel * solved_dt;
+            let p2 = rb2_pos.transform_point(&info.local_p2);
+            let dist = info.dist + (p1 - p2).dot(constraint.dir1);
 
             // Normal part.
             {
@@ -282,10 +270,10 @@ impl OneBodyConstraintBuilder {
             // Tangent part.
             {
                 element.tangent_part.total_impulse += element.tangent_part.impulse;
-                element.tangent_part.impulse = na::zero();
+                element.tangent_part.impulse = Default::default();
 
                 for j in 0..DIM - 1 {
-                    let bias = (p1 - p2).dot(&tangents1[j]) * inv_dt;
+                    let bias = (p1 - p2).dot(tangents1[j]) * inv_dt;
                     element.tangent_part.rhs[j] = element.tangent_part.rhs_wo_bias[j] + bias;
                 }
             }
@@ -298,10 +286,10 @@ impl OneBodyConstraintBuilder {
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct OneBodyConstraint {
     pub solver_vel2: usize,
-    pub dir1: Vector<Real>, // Non-penetration force direction for the first body.
+    pub dir1: Vector, // Non-penetration force direction for the first body.
     #[cfg(feature = "dim3")]
-    pub tangent1: Vector<Real>, // One of the friction force directions.
-    pub im2: Vector<Real>,
+    pub tangent1: Vector, // One of the friction force directions.
+    pub im2: Vector,
     pub cfm_factor: Real,
     pub limit: Real,
     pub elements: [OneBodyConstraintElement<Real>; MAX_MANIFOLD_POINTS],
@@ -363,7 +351,7 @@ impl OneBodyConstraint {
 
             #[cfg(feature = "dim2")]
             {
-                active_contact.data.tangent_impulse = self.elements[k].tangent_part.impulse[0];
+                active_contact.data.tangent_impulse = self.elements[k].tangent_part.impulse;
             }
             #[cfg(feature = "dim3")]
             {

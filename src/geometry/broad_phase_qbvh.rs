@@ -56,7 +56,7 @@ impl BroadPhase {
 
         if full_rebuild {
             self.qbvh.clear_and_rebuild(
-                colliders.iter().map(|(handle, collider)| {
+                colliders.iter_internal().map(|(handle, collider)| {
                     (
                         handle,
                         collider.compute_aabb().loosened(prediction_distance / 2.0),

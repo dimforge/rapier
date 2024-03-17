@@ -13,7 +13,7 @@ use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
     ContactManifoldIndex, NarrowPhase, TemporaryInteractionIndex,
 };
-use crate::math::{Real, Vector};
+use crate::math::*;
 use crate::pipeline::{EventHandler, PhysicsHooks, QueryPipeline};
 use {crate::dynamics::RigidBodySet, crate::geometry::ColliderSet};
 
@@ -158,7 +158,7 @@ impl PhysicsPipeline {
 
     fn build_islands_and_solve_velocity_constraints(
         &mut self,
-        gravity: &Vector<Real>,
+        gravity: &Vector,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
         narrow_phase: &mut NarrowPhase,
@@ -403,7 +403,7 @@ impl PhysicsPipeline {
     /// Executes one timestep of the physics simulation.
     pub fn step(
         &mut self,
-        gravity: &Vector<Real>,
+        gravity: &Vector,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
         broad_phase: &mut BroadPhase,
@@ -564,6 +564,7 @@ impl PhysicsPipeline {
             self.counters.ccd.num_substeps += 1;
 
             self.interpolate_kinematic_velocities(&integration_parameters, islands, bodies);
+
             self.build_islands_and_solve_velocity_constraints(
                 gravity,
                 &integration_parameters,

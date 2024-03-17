@@ -28,7 +28,7 @@ pub struct EntityWithGraphics {
     pub color: Point3<f32>,
     pub base_color: Point3<f32>,
     pub collider: Option<ColliderHandle>,
-    pub delta: Isometry<Real>,
+    pub delta: Isometry,
     pub opacity: f32,
     material: Handle<BevyMaterial>,
 }
@@ -41,8 +41,8 @@ impl EntityWithGraphics {
         prefab_meshs: &HashMap<ShapeType, Handle<Mesh>>,
         shape: &dyn Shape,
         collider: Option<ColliderHandle>,
-        collider_pos: Isometry<Real>,
-        delta: Isometry<Real>,
+        collider_pos: Isometry,
+        delta: Isometry,
         color: Point3<f32>,
         sensor: bool,
     ) -> Self {
@@ -174,7 +174,7 @@ impl EntityWithGraphics {
         &mut self,
         colliders: &ColliderSet,
         components: &mut Query<(&mut Transform,)>,
-        gfx_shift: &Vector<Real>,
+        gfx_shift: &Vector,
     ) {
         if let Some(Some(co)) = self.collider.map(|c| colliders.get(c)) {
             if let Ok(mut pos) = components.get_component_mut::<Transform>(self.entity) {

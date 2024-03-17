@@ -2,9 +2,8 @@ use crate::dynamics::{
     ImpulseJoint, ImpulseJointHandle, Multibody, MultibodyLink, RigidBody, RigidBodyHandle,
 };
 use crate::geometry::{Aabb, Collider, ContactPair};
-use crate::math::{Isometry, Point, Real, Vector};
+use crate::math::*;
 use crate::prelude::{ColliderHandle, MultibodyJointHandle};
-use na::Scale;
 
 /// The object currently being rendered by the debug-renderer.
 #[derive(Copy, Clone)]
@@ -38,27 +37,25 @@ pub trait DebugRenderBackend {
     /// Draws a colored line.
     ///
     /// Note that this method can be called multiple time for the same `object`.
-    fn draw_line(
-        &mut self,
-        object: DebugRenderObject,
-        a: Point<Real>,
-        b: Point<Real>,
-        color: [f32; 4],
-    );
+    fn draw_line(&mut self, object: DebugRenderObject, a: Point, b: Point, color: [f32; 4]);
 
     /// Draws a set of line.
     fn draw_polyline(
         &mut self,
         object: DebugRenderObject,
-        vertices: &[Point<Real>],
+        vertices: &[Point],
         indices: &[[u32; 2]],
-        transform: &Isometry<Real>,
-        scale: &Vector<Real>,
+        transform: &Isometry,
+        scale: &Vector,
         color: [f32; 4],
     ) {
         for idx in indices {
-            let a = transform * (Scale::from(*scale) * vertices[idx[0] as usize]);
-            let b = transform * (Scale::from(*scale) * vertices[idx[1] as usize]);
+            let a = transform.transform_point(&Point::from(
+                vertices[idx[0] as usize].as_vector().component_mul(scale),
+            ));
+            let b = transform.transform_point(&Point::from(
+                vertices[idx[1] as usize].as_vector().component_mul(scale),
+            ));
             self.draw_line(object, a, b, color);
         }
     }
@@ -67,21 +64,26 @@ pub trait DebugRenderBackend {
     fn draw_line_strip(
         &mut self,
         object: DebugRenderObject,
-        vertices: &[Point<Real>],
-        transform: &Isometry<Real>,
-        scale: &Vector<Real>,
+        vertices: &[Point],
+        transform: &Isometry,
+        scale: &Vector,
         color: [f32; 4],
         closed: bool,
     ) {
         for vtx in vertices.windows(2) {
-            let a = transform * (Scale::from(*scale) * vtx[0]);
-            let b = transform * (Scale::from(*scale) * vtx[1]);
+            let a =
+                transform.transform_point(&Point::from(vtx[0].as_vector().component_mul(scale)));
+            let b =
+                transform.transform_point(&Point::from(vtx[1].as_vector().component_mul(scale)));
             self.draw_line(object, a, b, color);
         }
 
         if closed && vertices.len() > 2 {
-            let a = transform * (Scale::from(*scale) * vertices[0]);
-            let b = transform * (Scale::from(*scale) * vertices.last().unwrap());
+            let a = transform
+                .transform_point(&Point::from(vertices[0].as_vector().component_mul(scale)));
+            let b = transform.transform_point(&Point::from(
+                vertices.last().unwrap().as_vector().component_mul(scale),
+            ));
             self.draw_line(object, a, b, color);
         }
     }

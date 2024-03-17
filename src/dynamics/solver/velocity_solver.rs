@@ -6,8 +6,8 @@ use crate::dynamics::{
     MultibodyLinkId, RigidBodySet,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::Real;
-use crate::prelude::RigidBodyVelocity;
+use crate::math::*;
+use crate::prelude::Velocity;
 use crate::utils::SimdAngularInertia;
 use na::DVector;
 
@@ -81,10 +81,10 @@ impl VelocitySolver {
 
         self.solver_vels_increment.clear();
         self.solver_vels_increment
-            .resize(islands.active_island(island_id).len(), SolverVel::zero());
+            .resize(islands.active_island(island_id).len(), SolverVel::default());
         self.solver_vels.clear();
         self.solver_vels
-            .resize(islands.active_island(island_id).len(), SolverVel::zero());
+            .resize(islands.active_island(island_id).len(), SolverVel::default());
 
         /*
          * Initialize solver bodies and delta-velocities (`solver_vels_increment`) with external forces (gravity etc):
@@ -220,13 +220,13 @@ impl VelocitySolver {
             let linvel = solver_vels.linear;
             let angvel = solver_body.sqrt_ii.transform_vector(solver_vels.angular);
 
-            let mut new_vels = RigidBodyVelocity { linvel, angvel };
+            let mut new_vels = Velocity { linvel, angvel };
             new_vels = new_vels.apply_damping(params.dt, &solver_body.damping);
             let new_pos =
                 new_vels.integrate(params.dt, &solver_body.position, &solver_body.local_com);
             solver_body.integrated_vels += new_vels;
             solver_body.position = new_pos;
-            solver_body.world_com = new_pos * solver_body.local_com;
+            solver_body.world_com = new_pos.transform_point(&solver_body.local_com);
         }
 
         // Integrate multibody positions.
@@ -290,7 +290,7 @@ impl VelocitySolver {
 
                 let dangvel = solver_body.sqrt_ii.transform_vector(solver_vels.angular);
 
-                let mut new_vels = RigidBodyVelocity {
+                let mut new_vels = Velocity {
                     linvel: solver_vels.linear,
                     angvel: dangvel,
                 };

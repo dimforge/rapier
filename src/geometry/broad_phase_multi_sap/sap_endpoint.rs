@@ -1,5 +1,5 @@
 use super::SENTINEL_VALUE;
-use crate::math::Real;
+use crate::math::*;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]

@@ -25,17 +25,17 @@ impl ColliderPair {
     }
 
     /// Constructs a pair of artificial handles that are not guaranteed to be valid..
-    pub fn zero() -> Self {
+    pub fn invalid() -> Self {
         Self {
-            collider1: ColliderHandle::from_raw_parts(0, 0),
-            collider2: ColliderHandle::from_raw_parts(0, 0),
+            collider1: ColliderHandle::PLACEHOLDER,
+            collider2: ColliderHandle::PLACEHOLDER,
         }
     }
 }
 
 impl Default for ColliderPair {
     fn default() -> Self {
-        ColliderPair::zero()
+        ColliderPair::invalid()
     }
 }
 

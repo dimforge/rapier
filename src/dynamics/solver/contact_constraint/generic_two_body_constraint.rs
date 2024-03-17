@@ -1,7 +1,7 @@
 use crate::dynamics::solver::{GenericRhs, TwoBodyConstraint};
 use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{Real, DIM, MAX_MANIFOLD_POINTS};
+use crate::math::*;
 use crate::utils::{SimdAngularInertia, SimdCross, SimdDot};
 
 use super::{TwoBodyConstraintBuilder, TwoBodyConstraintElement, TwoBodyConstraintNormalPart};
@@ -23,8 +23,8 @@ pub(crate) struct GenericTwoBodyConstraintBuilder {
 impl GenericTwoBodyConstraintBuilder {
     pub fn invalid() -> Self {
         Self {
-            handle1: RigidBodyHandle::invalid(),
-            handle2: RigidBodyHandle::invalid(),
+            handle1: RigidBodyHandle::PLACEHOLDER,
+            handle2: RigidBodyHandle::PLACEHOLDER,
             ccd_thickness: Real::MAX,
             inner: TwoBodyConstraintBuilder::invalid(),
         }
@@ -102,12 +102,12 @@ impl GenericTwoBodyConstraintBuilder {
             constraint.inner.im1 = if type1.is_dynamic() {
                 mprops1.effective_inv_mass
             } else {
-                na::zero()
+                Default::default()
             };
             constraint.inner.im2 = if type2.is_dynamic() {
                 mprops2.effective_inv_mass
             } else {
-                na::zero()
+                Default::default()
             };
             constraint.inner.solver_vel1 = solver_vel1;
             constraint.inner.solver_vel2 = solver_vel2;
@@ -141,14 +141,14 @@ impl GenericTwoBodyConstraintBuilder {
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(torque_dir1)
                     } else {
-                        na::zero()
+                        Default::default()
                     };
                     let gcross2 = if type2.is_dynamic() {
                         mprops2
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(torque_dir2)
                     } else {
-                        na::zero()
+                        Default::default()
                     };
 
                     let inv_r1 = if let Some((mb1, link_id1)) = multibody1.as_ref() {
@@ -158,13 +158,13 @@ impl GenericTwoBodyConstraintBuilder {
                             #[cfg(feature = "dim2")]
                             na::vector!(torque_dir1),
                             #[cfg(feature = "dim3")]
-                            torque_dir1,
+                            torque_dir1.into(),
                             jacobian_id,
                             jacobians,
                         )
                         .0
                     } else if type1.is_dynamic() {
-                        force_dir1.dot(&mprops1.effective_inv_mass.component_mul(&force_dir1))
+                        force_dir1.dot(mprops1.effective_inv_mass.component_mul(&force_dir1))
                             + gcross1.gdot(gcross1)
                     } else {
                         0.0
@@ -177,13 +177,13 @@ impl GenericTwoBodyConstraintBuilder {
                             #[cfg(feature = "dim2")]
                             na::vector!(torque_dir2),
                             #[cfg(feature = "dim3")]
-                            torque_dir2,
+                            torque_dir2.into(),
                             jacobian_id,
                             jacobians,
                         )
                         .0
                     } else if type2.is_dynamic() {
-                        force_dir1.dot(&mprops2.effective_inv_mass.component_mul(&force_dir1))
+                        force_dir1.dot(mprops2.effective_inv_mass.component_mul(&force_dir1))
                             + gcross2.gdot(gcross2)
                     } else {
                         0.0
@@ -194,22 +194,22 @@ impl GenericTwoBodyConstraintBuilder {
                     let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
 
                     normal_rhs_wo_bias =
-                        (is_bouncy * manifold_point.restitution) * (vel1 - vel2).dot(&force_dir1);
+                        (is_bouncy * manifold_point.restitution) * (vel1 - vel2).dot(force_dir1);
 
                     constraint.inner.elements[k].normal_part = TwoBodyConstraintNormalPart {
                         gcross1,
                         gcross2,
-                        rhs: na::zero(),
-                        rhs_wo_bias: na::zero(),
-                        total_impulse: na::zero(),
-                        impulse: na::zero(),
+                        rhs: Default::default(),
+                        rhs_wo_bias: Default::default(),
+                        total_impulse: Default::default(),
+                        impulse: Default::default(),
                         r,
                     };
                 }
 
                 // Tangent parts.
                 {
-                    constraint.inner.elements[k].tangent_part.impulse = na::zero();
+                    constraint.inner.elements[k].tangent_part.impulse = Default::default();
 
                     for j in 0..DIM - 1 {
                         let torque_dir1 = dp1.gcross(tangents1[j]);
@@ -218,7 +218,7 @@ impl GenericTwoBodyConstraintBuilder {
                                 .effective_world_inv_inertia_sqrt
                                 .transform_vector(torque_dir1)
                         } else {
-                            na::zero()
+                            Default::default()
                         };
                         constraint.inner.elements[k].tangent_part.gcross1[j] = gcross1;
 
@@ -228,7 +228,7 @@ impl GenericTwoBodyConstraintBuilder {
                                 .effective_world_inv_inertia_sqrt
                                 .transform_vector(torque_dir2)
                         } else {
-                            na::zero()
+                            Default::default()
                         };
                         constraint.inner.elements[k].tangent_part.gcross2[j] = gcross2;
 
@@ -239,13 +239,13 @@ impl GenericTwoBodyConstraintBuilder {
                                 #[cfg(feature = "dim2")]
                                 na::vector![torque_dir1],
                                 #[cfg(feature = "dim3")]
-                                torque_dir1,
+                                torque_dir1.into(),
                                 jacobian_id,
                                 jacobians,
                             )
                             .0
                         } else if type1.is_dynamic() {
-                            force_dir1.dot(&mprops1.effective_inv_mass.component_mul(&force_dir1))
+                            force_dir1.dot(mprops1.effective_inv_mass.component_mul(&force_dir1))
                                 + gcross1.gdot(gcross1)
                         } else {
                             0.0
@@ -258,20 +258,20 @@ impl GenericTwoBodyConstraintBuilder {
                                 #[cfg(feature = "dim2")]
                                 na::vector![torque_dir2],
                                 #[cfg(feature = "dim3")]
-                                torque_dir2,
+                                torque_dir2.into(),
                                 jacobian_id,
                                 jacobians,
                             )
                             .0
                         } else if type2.is_dynamic() {
-                            force_dir1.dot(&mprops2.effective_inv_mass.component_mul(&force_dir1))
+                            force_dir1.dot(mprops2.effective_inv_mass.component_mul(&force_dir1))
                                 + gcross2.gdot(gcross2)
                         } else {
                             0.0
                         };
 
                         let r = crate::utils::inv(inv_r1 + inv_r2);
-                        let rhs_wo_bias = manifold_point.tangent_velocity.dot(&tangents1[j]);
+                        let rhs_wo_bias = manifold_point.tangent_velocity.dot(tangents1[j]);
 
                         constraint.inner.elements[k].tangent_part.rhs_wo_bias[j] = rhs_wo_bias;
                         constraint.inner.elements[k].tangent_part.rhs[j] = rhs_wo_bias;

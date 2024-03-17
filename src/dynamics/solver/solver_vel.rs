@@ -1,42 +1,39 @@
-use crate::math::{AngVector, Vector, SPATIAL_DIM};
+use crate::math::*;
 use crate::utils::SimdRealCopy;
-use na::{DVectorView, DVectorViewMut, Scalar};
+use na::{DVectorView, DVectorViewMut};
 use std::ops::{AddAssign, Sub};
 
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
 //#[repr(align(64))]
-pub struct SolverVel<N: Scalar + Copy> {
+pub struct SolverVel<N: SimdRealCopy> {
     // The linear velocity of a solver body.
-    pub linear: Vector<N>,
+    pub linear: N::Vector,
     // The angular velocity, multiplied by the inverse sqrt angular inertia, of a solver body.
-    pub angular: AngVector<N>,
+    pub angular: N::AngVector,
 }
 
-impl<N: Scalar + Copy> SolverVel<N> {
-    pub fn as_slice(&self) -> &[N; SPATIAL_DIM] {
+impl SolverVel<Real> {
+    pub fn as_slice(&self) -> &[Real; SPATIAL_DIM] {
         unsafe { std::mem::transmute(self) }
     }
 
-    pub fn as_mut_slice(&mut self) -> &mut [N; SPATIAL_DIM] {
+    pub fn as_mut_slice(&mut self) -> &mut [Real; SPATIAL_DIM] {
         unsafe { std::mem::transmute(self) }
     }
 
-    pub fn as_vector_slice(&self) -> DVectorView<N> {
+    pub fn as_vector_slice(&self) -> DVectorView<Real> {
         DVectorView::from_slice(&self.as_slice()[..], SPATIAL_DIM)
     }
 
-    pub fn as_vector_slice_mut(&mut self) -> DVectorViewMut<N> {
+    pub fn as_vector_slice_mut(&mut self) -> DVectorViewMut<Real> {
         DVectorViewMut::from_slice(&mut self.as_mut_slice()[..], SPATIAL_DIM)
     }
 }
 
 impl<N: SimdRealCopy> SolverVel<N> {
     pub fn zero() -> Self {
-        Self {
-            linear: na::zero(),
-            angular: na::zero(),
-        }
+        Self::default()
     }
 }
 

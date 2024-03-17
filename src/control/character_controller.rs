@@ -1,6 +1,6 @@
 use crate::dynamics::RigidBodySet;
 use crate::geometry::{ColliderHandle, ColliderSet, ContactManifold, Shape, TOI};
-use crate::math::{Isometry, Point, Real, UnitVector, Vector};
+use crate::math::*;
 use crate::pipeline::{QueryFilter, QueryFilterFlags, QueryPipeline};
 use crate::utils;
 use na::{RealField, Vector2};
@@ -78,16 +78,16 @@ impl Default for CharacterAutostep {
 }
 
 /// A collision between the character and its environment during its movement.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct CharacterCollision {
     /// The collider hit by the character.
     pub handle: ColliderHandle,
     /// The position of the character when the collider was hit.
-    pub character_pos: Isometry<Real>,
+    pub character_pos: Isometry,
     /// The translation that was already applied to the character when the hit happens.
-    pub translation_applied: Vector<Real>,
+    pub translation_applied: Vector,
     /// The translations that was still waiting to be applied to the character when the hit happens.
-    pub translation_remaining: Vector<Real>,
+    pub translation_remaining: Vector,
     /// Geometric information about the hit.
     pub toi: TOI,
 }
@@ -97,7 +97,7 @@ pub struct CharacterCollision {
 #[derive(Copy, Clone, Debug)]
 pub struct KinematicCharacterController {
     /// The direction that goes "up". Used to determine where the floor is, and the floor’s angle.
-    pub up: UnitVector<Real>,
+    pub up: UnitVector,
     /// A small gap to preserve between the character and its surroundings.
     ///
     /// This value should not be too large to avoid visual artifacts, but shouldn’t be too small
@@ -135,7 +135,7 @@ impl Default for KinematicCharacterController {
 /// The effective movement computed by the character controller.
 pub struct EffectiveCharacterMovement {
     /// The movement to apply.
-    pub translation: Vector<Real>,
+    pub translation: Vector,
     /// Is the character touching the ground after applying `EffectiveKineamticMovement::translation`?
     pub grounded: bool,
     /// Is the character sliding down a slope due to slope angle being larger than `min_slope_slide_angle`?
@@ -181,8 +181,8 @@ impl KinematicCharacterController {
         colliders: &ColliderSet,
         queries: &QueryPipeline,
         character_shape: &dyn Shape,
-        character_pos: &Isometry<Real>,
-        desired_translation: Vector<Real>,
+        character_pos: &Isometry,
+        desired_translation: Vector,
         filter: QueryFilter,
         mut events: impl FnMut(CharacterCollision),
     ) -> EffectiveCharacterMovement {
@@ -237,8 +237,8 @@ impl KinematicCharacterController {
             ) {
                 // We hit something, compute the allowed self.
                 let allowed_dist =
-                    (toi.toi - (-toi.normal1.dot(&translation_dir)) * offset).max(0.0);
-                let allowed_translation = *translation_dir * allowed_dist;
+                    (toi.toi - (-toi.normal1.dot(translation_dir)) * offset).max(0.0);
+                let allowed_translation = translation_dir.into_inner() * allowed_dist;
                 result.translation += allowed_translation;
                 translation_remaining -= allowed_translation;
 
@@ -315,13 +315,13 @@ impl KinematicCharacterController {
         colliders: &ColliderSet,
         queries: &QueryPipeline,
         character_shape: &dyn Shape,
-        character_pos: &Isometry<Real>,
+        character_pos: &Isometry,
         dims: &Vector2<Real>,
         filter: QueryFilter,
         result: &mut EffectiveCharacterMovement,
     ) -> Option<(ColliderHandle, TOI)> {
         if let Some(snap_distance) = self.snap_to_ground {
-            if result.translation.dot(&self.up) < -1.0e-5 {
+            if result.translation.dot(self.up) < -1.0e-5 {
                 let snap_distance = snap_distance.eval(dims.y);
                 let offset = self.offset.eval(dims.y);
                 if let Some((hit_handle, hit)) = queries.cast_shape(
@@ -335,7 +335,7 @@ impl KinematicCharacterController {
                     filter,
                 ) {
                     // Apply the snap.
-                    result.translation -= *self.up * (hit.toi - offset).max(0.0);
+                    result.translation -= self.up.into_inner() * (hit.toi - offset).max(0.0);
                     result.grounded = true;
                     return Some((hit_handle, hit));
                 }
@@ -356,11 +356,11 @@ impl KinematicCharacterController {
         colliders: &ColliderSet,
         queries: &QueryPipeline,
         character_shape: &dyn Shape,
-        character_pos: &Isometry<Real>,
+        character_pos: &Isometry,
         dims: &Vector2<Real>,
         filter: QueryFilter,
-        mut kinematic_friction_translation: Option<&mut Vector<Real>>,
-        mut translation_remaining: Option<&mut Vector<Real>>,
+        mut kinematic_friction_translation: Option<&mut Vector>,
+        mut translation_remaining: Option<&mut Vector>,
     ) -> bool {
         let prediction = self.predict_ground(dims.y);
 
@@ -406,19 +406,20 @@ impl KinematicCharacterController {
                             if let Some(kinematic_parent) = kinematic_parent {
                                 let mut num_active_contacts = 0;
                                 let mut manifold_center = Point::origin();
-                                let normal = -(character_pos * m.local_n1);
+                                let normal = -(character_pos.rotation * m.local_n1);
 
                                 for contact in &m.points {
                                     if contact.dist <= prediction {
                                         num_active_contacts += 1;
-                                        let contact_point = collider.position() * contact.local_p2;
+                                        let contact_point =
+                                            collider.position().transform_point(&contact.local_p2);
                                         let target_vel =
                                             kinematic_parent.velocity_at_point(&contact_point);
 
-                                        let normal_target_mvt = target_vel.dot(&normal) * dt;
-                                        let normal_current_mvt = translation_remaining.dot(&normal);
+                                        let normal_target_mvt = target_vel.dot(normal) * dt;
+                                        let normal_current_mvt = translation_remaining.dot(normal);
 
-                                        manifold_center += contact_point.coords;
+                                        manifold_center += contact_point.as_vector();
                                         *translation_remaining +=
                                             normal * (normal_target_mvt - normal_current_mvt);
                                     }
@@ -429,7 +430,7 @@ impl KinematicCharacterController {
                                         &(manifold_center / num_active_contacts as Real),
                                     );
                                     let tangent_platform_mvt =
-                                        (target_vel - normal * target_vel.dot(&normal)) * dt;
+                                        (target_vel - normal * target_vel.dot(normal)) * dt;
                                     kinematic_friction_translation.zip_apply(
                                         &tangent_platform_mvt,
                                         |y, x| {
@@ -463,12 +464,12 @@ impl KinematicCharacterController {
     fn is_grounded_at_contact_manifold(
         &self,
         manifold: &ContactManifold,
-        character_pos: &Isometry<Real>,
+        character_pos: &Isometry,
         dims: &Vector2<Real>,
     ) -> bool {
-        let normal = -(character_pos * manifold.local_n1);
+        let normal = -(character_pos.rotation * manifold.local_n1);
 
-        if normal.dot(&self.up) >= 1.0e-5 {
+        if normal.dot(self.up) >= 1.0e-5 {
             let prediction = self.predict_ground(dims.y);
             for contact in &manifold.points {
                 if contact.dist <= prediction {
@@ -482,9 +483,9 @@ impl KinematicCharacterController {
     fn handle_slopes(
         &self,
         hit: &TOI,
-        translation_remaining: &Vector<Real>,
+        translation_remaining: &Vector,
         result: &mut EffectiveCharacterMovement,
-    ) -> Vector<Real> {
+    ) -> Vector {
         let [vertical_translation, horizontal_translation] =
             self.split_into_components(translation_remaining);
         let slope_translation = subtract_hit(*translation_remaining, hit);
@@ -498,7 +499,7 @@ impl KinematicCharacterController {
         // NOTE: part of the slope will already be handled by auto-stepping if it was enabled.
         //       Therefore, `climbing` may not always be `true` when climbing on a slope at
         //       slow speed.
-        let climbing = self.up.dot(&slope_translation) >= 0.0 && self.up.dot(&hit.normal1) > 0.0;
+        let climbing = self.up.dot(slope_translation) >= 0.0 && self.up.dot(hit.normal1) > 0.0;
 
         if climbing && angle_with_floor >= self.max_slope_climb_angle {
             // Prevent horizontal movement from pushing through the slope.
@@ -513,16 +514,16 @@ impl KinematicCharacterController {
         }
     }
 
-    fn split_into_components(&self, translation: &Vector<Real>) -> [Vector<Real>; 2] {
-        let vertical_translation = *self.up * (self.up.dot(translation));
+    fn split_into_components(&self, translation: &Vector) -> [Vector; 2] {
+        let vertical_translation = self.up.into_inner() * (self.up.dot(*translation));
         let horizontal_translation = *translation - vertical_translation;
         [vertical_translation, horizontal_translation]
     }
 
     fn compute_dims(&self, character_shape: &dyn Shape) -> Vector2<Real> {
         let extents = character_shape.compute_local_aabb().extents();
-        let up_extent = extents.dot(&self.up.abs());
-        let side_extent = (extents - (*self.up).abs() * up_extent).norm();
+        let up_extent = extents.dot(self.up.abs());
+        let side_extent = (extents - self.up.into_inner().abs() * up_extent).norm();
         Vector2::new(side_extent, up_extent)
     }
 
@@ -532,11 +533,11 @@ impl KinematicCharacterController {
         colliders: &ColliderSet,
         queries: &QueryPipeline,
         character_shape: &dyn Shape,
-        character_pos: &Isometry<Real>,
+        character_pos: &Isometry,
         dims: &Vector2<Real>,
         mut filter: QueryFilter,
         stair_handle: ColliderHandle,
-        translation_remaining: &mut Vector<Real>,
+        translation_remaining: &mut Vector,
         result: &mut EffectiveCharacterMovement,
     ) -> bool {
         let autostep = match self.autostep {
@@ -563,11 +564,12 @@ impl KinematicCharacterController {
             filter.flags |= QueryFilterFlags::EXCLUDE_DYNAMIC;
         }
 
-        let shifted_character_pos = Translation::from(*self.up * max_height) * character_pos;
+        let shifted_character_pos =
+            Translation::from(self.up.into_inner() * max_height) * character_pos;
 
         let horizontal_dir = match (*translation_remaining
-            - *self.up * translation_remaining.dot(&self.up))
-        .try_normalize(1.0e-5)
+            - self.up.into_inner() * translation_remaining.dot(self.up))
+        .try_normalize_eps(1.0e-5)
         {
             Some(dir) => dir,
             None => return false,
@@ -626,7 +628,7 @@ impl KinematicCharacterController {
             let slope_translation = horizontal_slope_translation + vertical_slope_translation;
 
             let angle_with_floor = self.up.angle(&hit.normal1);
-            let climbing = self.up.dot(&slope_translation) >= 0.0;
+            let climbing = self.up.dot(slope_translation) >= 0.0;
 
             if climbing && angle_with_floor > self.max_slope_climb_angle {
                 return false; // The target ramp is too steep.
@@ -650,13 +652,13 @@ impl KinematicCharacterController {
                 .unwrap_or(max_height);
 
         // Remove the step height from the vertical part of the self.
-        let step = *self.up * step_height;
+        let step = self.up.into_inner() * step_height;
         *translation_remaining -= step;
 
         // Advance the collider on the step horizontally, to make sure further
         // movement won’t just get stuck on its edge.
         let horizontal_nudge =
-            horizontal_dir * horizontal_dir.dot(translation_remaining).min(min_width);
+            horizontal_dir * horizontal_dir.dot(*translation_remaining).min(min_width);
         *translation_remaining -= horizontal_nudge;
 
         result.translation += step + horizontal_nudge;
@@ -679,9 +681,9 @@ impl KinematicCharacterController {
         filter: QueryFilter,
     ) {
         let extents = character_shape.compute_local_aabb().extents();
-        let up_extent = extents.dot(&self.up.abs());
-        let movement_to_transfer =
-            *collision.toi.normal1 * collision.translation_remaining.dot(&collision.toi.normal1);
+        let up_extent = extents.dot(self.up.abs());
+        let movement_to_transfer = collision.toi.normal1.into_inner()
+            * collision.translation_remaining.dot(collision.toi.normal1);
         let prediction = self.predict_ground(up_extent);
 
         // TODO: allow custom dispatchers.
@@ -712,7 +714,7 @@ impl KinematicCharacterController {
 
                                 for m in &mut manifolds[prev_manifolds_len..] {
                                     m.data.rigid_body2 = Some(parent.handle);
-                                    m.data.normal = collision.character_pos * m.local_n1;
+                                    m.data.normal = collision.character_pos.rotation * m.local_n1;
                                 }
                             }
                         }
@@ -726,15 +728,23 @@ impl KinematicCharacterController {
 
         for manifold in &manifolds {
             let body_handle = manifold.data.rigid_body2.unwrap();
-            let body = &mut bodies[body_handle];
+
+            // NOTE: we are calling get_mut_internal_with_modification_tracking because this is part
+            //       of the internal rapier codebase (and we use this function to make sure we are
+            //       triggering modification tracking on purpose), but a copy-paste on this character
+            //       controller outside of the rapier codebase could just use
+            //       `&mut bodies[body_handle]` instead.
+            let Some(body) = bodies.get_mut_internal_with_modification_tracking(body_handle) else {
+                continue;
+            };
 
             for pt in &manifold.points {
                 if pt.dist <= prediction {
                     let body_mass = body.mass();
-                    let contact_point = body.position() * pt.local_p2;
+                    let contact_point = body.position().transform_point(&pt.local_p2);
                     let delta_vel_per_contact = (velocity_to_transfer
                         - body.velocity_at_point(&contact_point))
-                    .dot(&manifold.data.normal);
+                    .dot(manifold.data.normal);
                     let mass_ratio = body_mass * character_mass / (body_mass + character_mass);
 
                     body.apply_impulse_at_point(
@@ -748,9 +758,9 @@ impl KinematicCharacterController {
     }
 }
 
-fn subtract_hit(translation: Vector<Real>, hit: &TOI) -> Vector<Real> {
-    let surface_correction = (-translation).dot(&hit.normal1).max(0.0);
+fn subtract_hit(translation: Vector, hit: &TOI) -> Vector {
+    let surface_correction = (-translation).dot(hit.normal1).max(0.0);
     // This fixes some instances of moving through walls
     let surface_correction = surface_correction * (1.0 + 1.0e-5);
-    translation + *hit.normal1 * surface_correction
+    translation + hit.normal1.into_inner() * surface_correction
 }

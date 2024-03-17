@@ -10,7 +10,7 @@ use crate::dynamics::{
     MultibodyJointSet, RigidBodyHandle, RigidBodySet,
 };
 use crate::geometry::ContactManifold;
-use crate::math::{Real, SPATIAL_DIM};
+use crate::math::*;
 #[cfg(feature = "simd-is-enabled")]
 use crate::{
     dynamics::solver::{OneBodyConstraintSimd, TwoBodyConstraintSimd},

@@ -1,7 +1,7 @@
 use super::{SAPEndpoint, SAPProxies, NUM_SENTINELS};
 use crate::geometry::broad_phase_multi_sap::DELETED_AABB_VALUE;
 use crate::geometry::SAPProxyIndex;
-use crate::math::Real;
+use crate::math::*;
 use bit_vec::BitVec;
 use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::HashMap;

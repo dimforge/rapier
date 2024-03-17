@@ -47,7 +47,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
                 let mut points = Vec::new();
                 for _ in 0..10 {
-                    let pt: Point<f32> = distribution.sample(&mut rng);
+                    let pt: Point = distribution.sample(&mut rng);
                     points.push(pt * scale);
                 }
 

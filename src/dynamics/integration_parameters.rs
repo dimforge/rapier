@@ -1,4 +1,4 @@
-use crate::math::Real;
+use crate::math::*;
 use std::num::NonZeroUsize;
 
 /// Parameters for a time-step of the physics engine.

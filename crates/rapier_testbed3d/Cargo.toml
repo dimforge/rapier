@@ -21,6 +21,8 @@ required-features = [ "dim3" ]
 [features]
 default = [ "dim3" ]
 dim3 = [ ]
+linalg-nalgebra = [ "rapier/linalg-nalgebra" ]
+linalg-glam = [ "rapier/linalg-glam" ]
 parallel = [ "rapier/parallel", "num_cpus" ]
 other-backends = [ "physx", "physx-sys", "glam" ]
 

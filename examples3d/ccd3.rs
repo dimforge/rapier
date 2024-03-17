@@ -5,9 +5,9 @@ fn create_wall(
     testbed: &mut Testbed,
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
-    offset: Vector<f32>,
+    offset: Vector,
     stack_height: usize,
-    half_extents: Vector<f32>,
+    half_extents: Vector,
 ) {
     let shift = half_extents * 2.0;
     let mut k = 0;

@@ -1,4 +1,4 @@
-use crate::math::{Point, Real, Vector};
+use crate::math::*;
 use parry::bounding_volume::Aabb;
 
 pub(crate) const NUM_SENTINELS: usize = 1;
@@ -19,19 +19,17 @@ pub(crate) fn sort2(a: u32, b: u32) -> (u32, u32) {
     }
 }
 
-pub(crate) fn clamp_point(point: Point<Real>) -> Point<Real> {
+pub(crate) fn clamp_point(point: Point) -> Point {
     point.map(|e| na::clamp(e, -MAX_AABB_EXTENT, MAX_AABB_EXTENT))
 }
 
-pub(crate) fn point_key(point: Point<Real>, region_width: Real) -> Point<i32> {
-    (point / region_width)
-        .coords
-        .map(|e| e.floor() as i32)
-        .into()
+pub(crate) fn point_key(point: Point, region_width: Real) -> [i32; DIM] {
+    let array: [Real; DIM] = (point / region_width).into_vector().into();
+    array.map(|e| e.floor() as i32)
 }
 
-pub(crate) fn region_aabb(index: Point<i32>, region_width: Real) -> Aabb {
-    let mins = index.coords.map(|i| i as Real * region_width).into();
+pub(crate) fn region_aabb(index: [i32; DIM], region_width: Real) -> Aabb {
+    let mins = index.map(|i| i as Real * region_width).into();
     let maxs = mins + Vector::repeat(region_width);
     Aabb::new(mins, maxs)
 }
@@ -43,7 +41,7 @@ pub(crate) fn region_width(depth: i8) -> Real {
 /// Computes the depth of the layer the given Aabb should be part of.
 ///
 /// The idea here is that an Aabb should be part of a layer which has
-/// regions large enough so that one Aabb doesn't crosses too many
+/// regions large enough so that one Aabb doesn't cross too many
 /// regions. But the regions must also not be too large, otherwise
 /// we are loosing the benefits of Multi-SAP.
 ///

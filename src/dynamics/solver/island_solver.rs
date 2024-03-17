@@ -44,7 +44,6 @@ impl IslandSolver {
         counters.solver.velocity_resolution_time.resume();
         let num_solver_iterations = base_params.num_solver_iterations.get()
             + islands.active_island_additional_solver_iterations(island_id);
-
         let mut params = *base_params;
         params.dt /= num_solver_iterations as Real;
         params.damping_ratio /= num_solver_iterations as Real;
@@ -64,6 +63,7 @@ impl IslandSolver {
                 bodies,
                 multibodies,
             );
+
         self.velocity_solver.init_constraints(
             island_id,
             islands,

@@ -3,13 +3,10 @@ use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::solver::{ContactPointInfos, SolverVel};
 use crate::dynamics::{
     IntegrationParameters, MultibodyJointSet, RigidBodyIds, RigidBodyMassProps, RigidBodySet,
-    RigidBodyVelocity,
+    Velocity,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{
-    AngVector, AngularInertia, Isometry, Point, Real, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS,
-    SIMD_WIDTH,
-};
+use crate::math::*;
 #[cfg(feature = "dim2")]
 use crate::utils::SimdBasis;
 use crate::utils::{self, SimdAngularInertia, SimdCross, SimdDot};
@@ -21,7 +18,7 @@ use simba::simd::{SimdPartialOrd, SimdValue};
 pub(crate) struct SimdOneBodyConstraintBuilder {
     // PERF: only store what’s needed, and store it in simd form.
     rb1: [SolverBody; SIMD_WIDTH],
-    vels1: [RigidBodyVelocity; SIMD_WIDTH],
+    vels1: [Velocity; SIMD_WIDTH],
     infos: [ContactPointInfos<SimdReal>; MAX_MANIFOLD_POINTS],
 }
 
@@ -50,37 +47,37 @@ impl SimdOneBodyConstraintBuilder {
                 .unwrap_or_else(SolverBody::default)
         }];
 
-        let vels1: [RigidBodyVelocity; SIMD_WIDTH] = gather![|ii| {
+        let vels1: [Velocity; SIMD_WIDTH] = gather![|ii| {
             handles1[ii]
                 .map(|h| bodies[h].vels)
-                .unwrap_or_else(RigidBodyVelocity::default)
+                .unwrap_or_else(Velocity::default)
         }];
 
-        let world_com1 = Point::from(gather![|ii| { rb1[ii].world_com }]);
-        let poss1 = Isometry::from(gather![|ii| rb1[ii].position]);
+        let world_com1 = SimdPoint::from(gather![|ii| { rb1[ii].world_com }]);
+        let poss1 = SimdIsometry::from(gather![|ii| rb1[ii].position]);
 
         let bodies2 = gather![|ii| &bodies[handles2[ii].unwrap()]];
 
-        let vels2: [&RigidBodyVelocity; SIMD_WIDTH] = gather![|ii| &bodies2[ii].vels];
+        let vels2: [&Velocity; SIMD_WIDTH] = gather![|ii| &bodies2[ii].vels];
         let ids2: [&RigidBodyIds; SIMD_WIDTH] = gather![|ii| &bodies2[ii].ids];
         let mprops2: [&RigidBodyMassProps; SIMD_WIDTH] = gather![|ii| &bodies2[ii].mprops];
 
         let flipped_sign = SimdReal::from(flipped);
 
-        let im2 = Vector::from(gather![|ii| mprops2[ii].effective_inv_mass]);
+        let im2 = SimdVector::from(gather![|ii| mprops2[ii].effective_inv_mass]);
         let ii2: AngularInertia<SimdReal> =
             AngularInertia::from(gather![|ii| mprops2[ii].effective_world_inv_inertia_sqrt]);
 
-        let linvel1 = Vector::from(gather![|ii| vels1[ii].linvel]);
-        let angvel1 = AngVector::<SimdReal>::from(gather![|ii| vels1[ii].angvel]);
+        let linvel1 = SimdVector::from(gather![|ii| vels1[ii].linvel]);
+        let angvel1 = SimdAngVector::from(gather![|ii| vels1[ii].angvel]);
 
-        let linvel2 = Vector::from(gather![|ii| vels2[ii].linvel]);
-        let angvel2 = AngVector::<SimdReal>::from(gather![|ii| vels2[ii].angvel]);
+        let linvel2 = SimdVector::from(gather![|ii| vels2[ii].linvel]);
+        let angvel2 = SimdAngVector::from(gather![|ii| vels2[ii].angvel]);
 
-        let poss2 = Isometry::from(gather![|ii| bodies2[ii].pos.position]);
-        let world_com2 = Point::from(gather![|ii| mprops2[ii].world_com]);
+        let poss2 = SimdIsometry::from(gather![|ii| bodies2[ii].pos.position]);
+        let world_com2 = SimdPoint::from(gather![|ii| mprops2[ii].world_com]);
 
-        let normal1 = Vector::from(gather![|ii| manifolds[ii].data.normal]);
+        let normal1 = SimdVector::from(gather![|ii| manifolds[ii].data.normal]);
         let force_dir1 = normal1 * -flipped_sign;
 
         let solver_vel2 = gather![|ii| ids2[ii].active_set_offset];
@@ -90,7 +87,8 @@ impl SimdOneBodyConstraintBuilder {
         #[cfg(feature = "dim2")]
         let tangents1 = force_dir1.orthonormal_basis();
         #[cfg(feature = "dim3")]
-        let tangents1 = super::compute_tangent_contact_directions(&force_dir1, &linvel1, &linvel2);
+        let tangents1 =
+            super::compute_tangent_contact_directions_simd(&force_dir1, &linvel1, &linvel2);
 
         for l in (0..num_active_contacts).step_by(MAX_MANIFOLD_POINTS) {
             let manifold_points = gather![|ii| &manifolds[ii].data.solver_contacts[l..]];
@@ -120,10 +118,10 @@ impl SimdOneBodyConstraintBuilder {
                 ]);
 
                 let dist = SimdReal::from(gather![|ii| manifold_points[ii][k].dist]);
-                let point = Point::from(gather![|ii| manifold_points[ii][k].point]);
+                let point = SimdPoint::from(gather![|ii| manifold_points[ii][k].point]);
 
                 let tangent_velocity =
-                    Vector::from(gather![|ii| manifold_points[ii][k].tangent_velocity]);
+                    SimdVector::from(gather![|ii| manifold_points[ii][k].tangent_velocity]);
 
                 let dp1 = point - world_com1;
                 let dp2 = point - world_com2;
@@ -140,11 +138,11 @@ impl SimdOneBodyConstraintBuilder {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-force_dir1));
 
                     let projected_mass = utils::simd_inv(
-                        force_dir1.dot(&im2.component_mul(&force_dir1)) + gcross2.gdot(gcross2),
+                        force_dir1.dot(im2.component_mul(&force_dir1)) + gcross2.gdot(gcross2),
                     );
 
-                    let projected_vel1 = vel1.dot(&force_dir1);
-                    let projected_vel2 = vel2.dot(&force_dir1);
+                    let projected_vel1 = vel1.dot(force_dir1);
+                    let projected_vel2 = vel2.dot(force_dir1);
                     let projected_velocity = projected_vel1 - projected_vel2;
                     normal_rhs_wo_bias =
                         (is_bouncy * restitution) * projected_velocity + projected_vel1; // Add projected_vel1 since it’s not accessible through solver_vel.
@@ -160,13 +158,13 @@ impl SimdOneBodyConstraintBuilder {
                 }
 
                 // tangent parts.
-                constraint.elements[k].tangent_part.impulse = na::zero();
+                constraint.elements[k].tangent_part.impulse = Default::default();
 
                 for j in 0..DIM - 1 {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-tangents1[j]));
                     let r =
-                        tangents1[j].dot(&im2.component_mul(&tangents1[j])) + gcross2.gdot(gcross2);
-                    let rhs_wo_bias = (vel1 + tangent_velocity * flipped_sign).dot(&tangents1[j]);
+                        tangents1[j].dot(im2.component_mul(&tangents1[j])) + gcross2.gdot(gcross2);
+                    let rhs_wo_bias = (vel1 + tangent_velocity * flipped_sign).dot(tangents1[j]);
 
                     constraint.elements[k].tangent_part.gcross2[j] = gcross2;
                     constraint.elements[k].tangent_part.rhs_wo_bias[j] = rhs_wo_bias;
@@ -187,8 +185,8 @@ impl SimdOneBodyConstraintBuilder {
 
                 // Builder.
                 {
-                    let local_p1 = poss1.inverse_transform_point(&point);
-                    let local_p2 = poss2.inverse_transform_point(&point);
+                    let local_p1 = poss1.inverse_transform_point(point);
+                    let local_p2 = poss2.inverse_transform_point(point);
                     let infos = ContactPointInfos {
                         local_p1,
                         local_p2,
@@ -222,13 +220,13 @@ impl SimdOneBodyConstraintBuilder {
 
         let rb2 = gather![|ii| &bodies[constraint.solver_vel2[ii]]];
         let ccd_thickness = SimdReal::from(gather![|ii| rb2[ii].ccd_thickness]);
-        let poss2 = Isometry::from(gather![|ii| rb2[ii].position]);
+        let poss2 = SimdIsometry::from(gather![|ii| rb2[ii].position]);
 
         let all_infos = &self.infos[..constraint.num_contacts as usize];
         let all_elements = &mut constraint.elements[..constraint.num_contacts as usize];
 
         // Integrate the velocity of the static rigid-body, if it’s kinematic.
-        let new_pos1 = Isometry::from(gather![|ii| self.vels1[ii].integrate(
+        let new_pos1 = SimdIsometry::from(gather![|ii| self.vels1[ii].integrate(
             solved_dt,
             &self.rb1[ii].position,
             &self.rb1[ii].local_com
@@ -239,7 +237,7 @@ impl SimdOneBodyConstraintBuilder {
         #[cfg(feature = "dim3")]
         let tangents1 = [
             constraint.tangent1,
-            constraint.dir1.cross(&constraint.tangent1),
+            constraint.dir1.cross(constraint.tangent1),
         ];
 
         let mut is_fast_contact = SimdBool::splat(false);
@@ -247,9 +245,9 @@ impl SimdOneBodyConstraintBuilder {
 
         for (info, element) in all_infos.iter().zip(all_elements.iter_mut()) {
             // NOTE: the tangent velocity is equivalent to an additional movement of the first body’s surface.
-            let p1 = new_pos1 * info.local_p1 + info.tangent_vel * solved_dt;
-            let p2 = poss2 * info.local_p2;
-            let dist = info.dist + (p1 - p2).dot(&constraint.dir1);
+            let p1 = new_pos1.transform_point(info.local_p1) + info.tangent_vel * solved_dt;
+            let p2 = poss2.transform_point(info.local_p2);
+            let dist = info.dist + (p1 - p2).dot(constraint.dir1);
 
             // Normal part.
             {
@@ -272,10 +270,10 @@ impl SimdOneBodyConstraintBuilder {
             // tangent parts.
             {
                 element.tangent_part.total_impulse += element.tangent_part.impulse;
-                element.tangent_part.impulse = na::zero();
+                element.tangent_part.impulse = Default::default();
 
                 for j in 0..DIM - 1 {
-                    let bias = (p1 - p2).dot(&tangents1[j]) * inv_dt;
+                    let bias = (p1 - p2).dot(tangents1[j]) * inv_dt;
                     element.tangent_part.rhs[j] = element.tangent_part.rhs_wo_bias[j] + bias;
                 }
             }
@@ -287,12 +285,12 @@ impl SimdOneBodyConstraintBuilder {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct OneBodyConstraintSimd {
-    pub dir1: Vector<SimdReal>, // Non-penetration force direction for the first body.
+    pub dir1: SimdVector, // Non-penetration force direction for the first body.
     #[cfg(feature = "dim3")]
-    pub tangent1: Vector<SimdReal>, // One of the friction force directions.
+    pub tangent1: SimdVector, // One of the friction force directions.
     pub elements: [OneBodyConstraintElement<SimdReal>; MAX_MANIFOLD_POINTS],
     pub num_contacts: u8,
-    pub im2: Vector<SimdReal>,
+    pub im2: SimdVector,
     pub cfm_factor: SimdReal,
     pub limit: SimdReal,
     pub solver_vel2: [usize; SIMD_WIDTH],
@@ -308,8 +306,8 @@ impl OneBodyConstraintSimd {
         solve_friction: bool,
     ) {
         let mut solver_vel2 = SolverVel {
-            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].linear]),
-            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].angular]),
+            linear: SimdVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].linear]),
+            angular: SimdAngVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].angular]),
         };
 
         OneBodyConstraintElement::solve_group(
@@ -336,7 +334,7 @@ impl OneBodyConstraintSimd {
         for k in 0..self.num_contacts as usize {
             let impulses: [_; SIMD_WIDTH] = self.elements[k].normal_part.impulse.into();
             #[cfg(feature = "dim2")]
-            let tangent_impulses: [_; SIMD_WIDTH] = self.elements[k].tangent_part.impulse[0].into();
+            let tangent_impulses: [_; SIMD_WIDTH] = self.elements[k].tangent_part.impulse.into();
             #[cfg(feature = "dim3")]
             let tangent_impulses = self.elements[k].tangent_part.impulse;
 

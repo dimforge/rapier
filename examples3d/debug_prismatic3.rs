@@ -5,7 +5,7 @@ fn prismatic_repro(
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
     impulse_joints: &mut ImpulseJointSet,
-    box_center: Point<f32>,
+    box_center: Point,
 ) {
     let box_rb = bodies.insert(RigidBodyBuilder::dynamic().translation(vector![
         box_center.x,

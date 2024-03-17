@@ -1,14 +1,14 @@
-use crate::dynamics::solver::joint_constraint::JointTwoBodyConstraintHelper;
+use crate::dynamics::solver::joint_constraint::JointConstraintHelper;
 use crate::dynamics::solver::SolverVel;
 use crate::dynamics::{
     GenericJoint, IntegrationParameters, JointAxesMask, JointGraphEdge, JointIndex,
 };
-use crate::math::{AngVector, AngularInertia, Isometry, Point, Real, Vector, DIM, SPATIAL_DIM};
-use crate::num::Zero;
-use crate::utils::{SimdDot, SimdRealCopy};
+use crate::math::*;
+use crate::utils::{SimdDot, SimdRealCopy, SimdVec};
 
 #[cfg(feature = "simd-is-enabled")]
 use {
+    crate::dynamics::solver::joint_constraint::JointConstraintHelperSimd,
     crate::math::{SimdReal, SIMD_WIDTH},
     na::SimdValue,
 };
@@ -49,38 +49,34 @@ pub enum WritebackId {
 // every time.
 #[derive(Copy, Clone)]
 pub struct JointSolverBody<N: SimdRealCopy, const LANES: usize> {
-    pub im: Vector<N>,
+    pub im: N::Vector,
     pub sqrt_ii: AngularInertia<N>,
-    pub world_com: Point<N>,
+    pub world_com: N::Point,
     pub solver_vel: [usize; LANES],
 }
 
 impl<N: SimdRealCopy, const LANES: usize> JointSolverBody<N, LANES> {
     pub fn invalid() -> Self {
         Self {
-            im: Vector::zeros(),
-            sqrt_ii: AngularInertia::zero(),
-            world_com: Point::origin(),
+            im: Default::default(),
+            sqrt_ii: AngularInertia::default(),
+            world_com: Default::default(),
             solver_vel: [usize::MAX; LANES],
         }
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct JointFixedSolverBody<N: SimdRealCopy> {
-    pub linvel: Vector<N>,
-    pub angvel: AngVector<N>,
+    pub linvel: N::Vector,
+    pub angvel: N::AngVector,
     // TODO: is this really needed?
-    pub world_com: Point<N>,
+    pub world_com: N::Point,
 }
 
 impl<N: SimdRealCopy> JointFixedSolverBody<N> {
     pub fn invalid() -> Self {
-        Self {
-            linvel: Vector::zeros(),
-            angvel: AngVector::zero(),
-            world_com: Point::origin(),
-        }
+        Self::default()
     }
 }
 
@@ -93,9 +89,9 @@ pub struct JointTwoBodyConstraint<N: SimdRealCopy, const LANES: usize> {
 
     pub impulse: N,
     pub impulse_bounds: [N; 2],
-    pub lin_jac: Vector<N>,
-    pub ang_jac1: AngVector<N>,
-    pub ang_jac2: AngVector<N>,
+    pub lin_jac: N::Vector,
+    pub ang_jac1: N::AngVector,
+    pub ang_jac2: N::AngVector,
 
     pub inv_lhs: N,
     pub rhs: N,
@@ -103,8 +99,8 @@ pub struct JointTwoBodyConstraint<N: SimdRealCopy, const LANES: usize> {
     pub cfm_gain: N,
     pub cfm_coeff: N,
 
-    pub im1: Vector<N>,
-    pub im2: Vector<N>,
+    pub im1: N::Vector,
+    pub im2: N::Vector,
 
     pub writeback_id: WritebackId,
 }
@@ -115,7 +111,7 @@ impl<N: SimdRealCopy, const LANES: usize> JointTwoBodyConstraint<N, LANES> {
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) {
-        let dlinvel = self.lin_jac.dot(&(solver_vel2.linear - solver_vel1.linear));
+        let dlinvel = self.lin_jac.gdot(solver_vel2.linear - solver_vel1.linear);
         let dangvel =
             self.ang_jac2.gdot(solver_vel2.angular) - self.ang_jac1.gdot(solver_vel1.angular);
 
@@ -129,9 +125,9 @@ impl<N: SimdRealCopy, const LANES: usize> JointTwoBodyConstraint<N, LANES> {
         let ang_impulse1 = self.ang_jac1 * delta_impulse;
         let ang_impulse2 = self.ang_jac2 * delta_impulse;
 
-        solver_vel1.linear += lin_impulse.component_mul(&self.im1);
+        solver_vel1.linear += lin_impulse.component_mul_simd(&self.im1);
         solver_vel1.angular += ang_impulse1;
-        solver_vel2.linear -= lin_impulse.component_mul(&self.im2);
+        solver_vel2.linear -= lin_impulse.component_mul_simd(&self.im2);
         solver_vel2.angular -= ang_impulse2;
     }
 
@@ -146,8 +142,8 @@ impl JointTwoBodyConstraint<Real, 1> {
         joint_id: JointIndex,
         body1: &JointSolverBody<Real, 1>,
         body2: &JointSolverBody<Real, 1>,
-        frame1: &Isometry<Real>,
-        frame2: &Isometry<Real>,
+        frame1: &Isometry,
+        frame2: &Isometry,
         joint: &GenericJoint,
         out: &mut [Self],
     ) -> usize {
@@ -168,7 +164,7 @@ impl JointTwoBodyConstraint<Real, 1> {
         let first_coupled_ang_axis_id =
             (coupled_axes & JointAxesMask::ANG_AXES.bits()).trailing_zeros() as usize;
 
-        let builder = JointTwoBodyConstraintHelper::new(
+        let builder = JointConstraintHelper::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -241,7 +237,7 @@ impl JointTwoBodyConstraint<Real, 1> {
             // }
         }
 
-        JointTwoBodyConstraintHelper::finalize_constraints(&mut out[start..len]);
+        JointConstraintHelper::finalize_constraints(&mut out[start..len]);
 
         let start = len;
         for i in DIM..SPATIAL_DIM {
@@ -326,7 +322,7 @@ impl JointTwoBodyConstraint<Real, 1> {
             );
             len += 1;
         }
-        JointTwoBodyConstraintHelper::finalize_constraints(&mut out[start..len]);
+        JointConstraintHelper::finalize_constraints(&mut out[start..len]);
 
         len
     }
@@ -357,12 +353,12 @@ impl JointTwoBodyConstraint<SimdReal, SIMD_WIDTH> {
         joint_id: [JointIndex; SIMD_WIDTH],
         body1: &JointSolverBody<SimdReal, SIMD_WIDTH>,
         body2: &JointSolverBody<SimdReal, SIMD_WIDTH>,
-        frame1: &Isometry<SimdReal>,
-        frame2: &Isometry<SimdReal>,
+        frame1: &SimdIsometry,
+        frame2: &SimdIsometry,
         locked_axes: u8,
         out: &mut [Self],
     ) -> usize {
-        let builder = JointTwoBodyConstraintHelper::new(
+        let builder = JointConstraintHelperSimd::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -393,18 +389,18 @@ impl JointTwoBodyConstraint<SimdReal, SIMD_WIDTH> {
             }
         }
 
-        JointTwoBodyConstraintHelper::finalize_constraints(&mut out[..len]);
+        JointConstraintHelperSimd::finalize_constraints(&mut out[..len]);
         len
     }
 
     pub fn solve(&mut self, solver_vels: &mut [SolverVel<Real>]) {
         let mut solver_vel1 = SolverVel {
-            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel1[ii]].linear]),
-            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel1[ii]].angular]),
+            linear: SimdVector::from(gather![|ii| solver_vels[self.solver_vel1[ii]].linear]),
+            angular: SimdAngVector::from(gather![|ii| solver_vels[self.solver_vel1[ii]].angular]),
         };
         let mut solver_vel2 = SolverVel {
-            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].linear]),
-            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].angular]),
+            linear: SimdVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].linear]),
+            angular: SimdAngVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].angular]),
         };
 
         self.solve_generic(&mut solver_vel1, &mut solver_vel2);
@@ -440,8 +436,8 @@ pub struct JointOneBodyConstraint<N: SimdRealCopy, const LANES: usize> {
 
     pub impulse: N,
     pub impulse_bounds: [N; 2],
-    pub lin_jac: Vector<N>,
-    pub ang_jac2: AngVector<N>,
+    pub lin_jac: N::Vector,
+    pub ang_jac2: N::AngVector,
 
     pub inv_lhs: N,
     pub cfm_coeff: N,
@@ -449,7 +445,7 @@ pub struct JointOneBodyConstraint<N: SimdRealCopy, const LANES: usize> {
     pub rhs: N,
     pub rhs_wo_bias: N,
 
-    pub im2: Vector<N>,
+    pub im2: N::Vector,
 
     pub writeback_id: WritebackId,
 }
@@ -459,7 +455,7 @@ impl<N: SimdRealCopy, const LANES: usize> JointOneBodyConstraint<N, LANES> {
         let dlinvel = solver_vel2.linear;
         let dangvel = solver_vel2.angular;
 
-        let dvel = self.lin_jac.dot(&dlinvel) + self.ang_jac2.gdot(dangvel) + self.rhs;
+        let dvel = self.lin_jac.gdot(dlinvel) + self.ang_jac2.gdot(dangvel) + self.rhs;
         let total_impulse = (self.impulse + self.inv_lhs * (dvel - self.cfm_gain * self.impulse))
             .simd_clamp(self.impulse_bounds[0], self.impulse_bounds[1]);
         let delta_impulse = total_impulse - self.impulse;
@@ -468,7 +464,7 @@ impl<N: SimdRealCopy, const LANES: usize> JointOneBodyConstraint<N, LANES> {
         let lin_impulse = self.lin_jac * delta_impulse;
         let ang_impulse = self.ang_jac2 * delta_impulse;
 
-        solver_vel2.linear -= lin_impulse.component_mul(&self.im2);
+        solver_vel2.linear -= lin_impulse.component_mul_simd(&self.im2);
         solver_vel2.angular -= ang_impulse;
     }
 
@@ -483,8 +479,8 @@ impl JointOneBodyConstraint<Real, 1> {
         joint_id: JointIndex,
         body1: &JointFixedSolverBody<Real>,
         body2: &JointSolverBody<Real, 1>,
-        frame1: &Isometry<Real>,
-        frame2: &Isometry<Real>,
+        frame1: &Isometry,
+        frame2: &Isometry,
         joint: &GenericJoint,
         out: &mut [Self],
     ) -> usize {
@@ -505,7 +501,7 @@ impl JointOneBodyConstraint<Real, 1> {
         let first_coupled_ang_axis_id =
             (coupled_axes & JointAxesMask::ANG_AXES.bits()).trailing_zeros() as usize;
 
-        let builder = JointTwoBodyConstraintHelper::new(
+        let builder = JointConstraintHelper::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -577,7 +573,7 @@ impl JointOneBodyConstraint<Real, 1> {
             len += 1;
         }
 
-        JointTwoBodyConstraintHelper::finalize_one_body_constraints(&mut out[start..len]);
+        JointConstraintHelper::finalize_one_body_constraints(&mut out[start..len]);
 
         let start = len;
         for i in DIM..SPATIAL_DIM {
@@ -668,7 +664,7 @@ impl JointOneBodyConstraint<Real, 1> {
             );
             len += 1;
         }
-        JointTwoBodyConstraintHelper::finalize_one_body_constraints(&mut out[start..len]);
+        JointConstraintHelper::finalize_one_body_constraints(&mut out[start..len]);
 
         len
     }
@@ -696,13 +692,13 @@ impl JointOneBodyConstraint<SimdReal, SIMD_WIDTH> {
         joint_id: [JointIndex; SIMD_WIDTH],
         body1: &JointFixedSolverBody<SimdReal>,
         body2: &JointSolverBody<SimdReal, SIMD_WIDTH>,
-        frame1: &Isometry<SimdReal>,
-        frame2: &Isometry<SimdReal>,
+        frame1: &SimdIsometry,
+        frame2: &SimdIsometry,
         locked_axes: u8,
         out: &mut [Self],
     ) -> usize {
         let mut len = 0;
-        let builder = JointTwoBodyConstraintHelper::new(
+        let builder = JointConstraintHelperSimd::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -737,14 +733,14 @@ impl JointOneBodyConstraint<SimdReal, SIMD_WIDTH> {
             }
         }
 
-        JointTwoBodyConstraintHelper::finalize_one_body_constraints(&mut out[..len]);
+        JointConstraintHelperSimd::finalize_one_body_constraints(&mut out[..len]);
         len
     }
 
     pub fn solve(&mut self, solver_vels: &mut [SolverVel<Real>]) {
         let mut solver_vel2 = SolverVel {
-            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].linear]),
-            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].angular]),
+            linear: SimdVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].linear]),
+            angular: SimdAngVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].angular]),
         };
 
         self.solve_generic(&mut solver_vel2);

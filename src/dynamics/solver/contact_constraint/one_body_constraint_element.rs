@@ -1,20 +1,20 @@
 use crate::dynamics::solver::SolverVel;
-use crate::math::{AngVector, Vector, DIM};
-use crate::utils::{SimdBasis, SimdDot, SimdRealCopy};
+use crate::math::*;
+use crate::utils::{SimdBasis, SimdCapMagnitude, SimdCross, SimdDot, SimdRealCopy, SimdVec};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub(crate) struct OneBodyConstraintTangentPart<N: SimdRealCopy> {
-    pub gcross2: [AngVector<N>; DIM - 1],
+    pub gcross2: [N::AngVector; DIM - 1],
     pub rhs: [N; DIM - 1],
     pub rhs_wo_bias: [N; DIM - 1],
     #[cfg(feature = "dim2")]
-    pub impulse: na::Vector1<N>,
+    pub impulse: N,
     #[cfg(feature = "dim3")]
-    pub impulse: na::Vector2<N>,
+    pub impulse: N::Vector2,
     #[cfg(feature = "dim2")]
-    pub total_impulse: na::Vector1<N>,
+    pub total_impulse: N,
     #[cfg(feature = "dim3")]
-    pub total_impulse: na::Vector2<N>,
+    pub total_impulse: N::Vector2,
     #[cfg(feature = "dim2")]
     pub r: [N; 1],
     #[cfg(feature = "dim3")]
@@ -23,36 +23,26 @@ pub(crate) struct OneBodyConstraintTangentPart<N: SimdRealCopy> {
 
 impl<N: SimdRealCopy> OneBodyConstraintTangentPart<N> {
     fn zero() -> Self {
-        Self {
-            gcross2: [na::zero(); DIM - 1],
-            rhs: [na::zero(); DIM - 1],
-            rhs_wo_bias: [na::zero(); DIM - 1],
-            impulse: na::zero(),
-            total_impulse: na::zero(),
-            #[cfg(feature = "dim2")]
-            r: [na::zero(); 1],
-            #[cfg(feature = "dim3")]
-            r: [na::zero(); DIM],
-        }
+        Self::default()
     }
 
     #[inline]
     pub fn apply_limit(
         &mut self,
-        tangents1: [&Vector<N>; DIM - 1],
-        im2: &Vector<N>,
+        tangents1: [&N::Vector; DIM - 1],
+        im2: &N::Vector,
         limit: N,
         solver_vel2: &mut SolverVel<N>,
     ) where
-        AngVector<N>: SimdDot<AngVector<N>, Result = N>,
+        N::AngVector: SimdDot<N::AngVector, Result = N>,
     {
         #[cfg(feature = "dim2")]
         {
-            let new_impulse = self.impulse[0].simd_clamp(-limit, limit);
-            let dlambda = new_impulse - self.impulse[0];
-            self.impulse[0] = new_impulse;
+            let new_impulse = self.impulse.simd_clamp(-limit, limit);
+            let dlambda = new_impulse - self.impulse;
+            self.impulse = new_impulse;
 
-            solver_vel2.linear += tangents1[0].component_mul(im2) * -dlambda;
+            solver_vel2.linear += tangents1[0].component_mul_simd(im2) * -dlambda;
             solver_vel2.angular += self.gcross2[0] * dlambda;
         }
 
@@ -68,8 +58,8 @@ impl<N: SimdRealCopy> OneBodyConstraintTangentPart<N> {
             let dlambda = new_impulse - self.impulse;
             self.impulse = new_impulse;
 
-            solver_vel2.linear += tangents1[0].component_mul(im2) * -dlambda[0]
-                + tangents1[1].component_mul(im2) * -dlambda[1];
+            solver_vel2.linear += tangents1[0].component_mul_simd(im2) * -dlambda[0]
+                + tangents1[1].component_mul_simd(im2) * -dlambda[1];
             solver_vel2.angular += self.gcross2[0] * dlambda[0] + self.gcross2[1] * dlambda[1];
         }
     }
@@ -77,32 +67,32 @@ impl<N: SimdRealCopy> OneBodyConstraintTangentPart<N> {
     #[inline]
     pub fn solve(
         &mut self,
-        tangents1: [&Vector<N>; DIM - 1],
-        im2: &Vector<N>,
+        tangents1: [&N::Vector; DIM - 1],
+        im2: &N::Vector,
         limit: N,
         solver_vel2: &mut SolverVel<N>,
     ) where
-        AngVector<N>: SimdDot<AngVector<N>, Result = N>,
+        N::AngVector: SimdDot<N::AngVector, Result = N>,
     {
         #[cfg(feature = "dim2")]
         {
-            let dvel = -tangents1[0].dot(&solver_vel2.linear)
+            let dvel = -tangents1[0].gdot(solver_vel2.linear)
                 + self.gcross2[0].gdot(solver_vel2.angular)
                 + self.rhs[0];
-            let new_impulse = (self.impulse[0] - self.r[0] * dvel).simd_clamp(-limit, limit);
-            let dlambda = new_impulse - self.impulse[0];
-            self.impulse[0] = new_impulse;
+            let new_impulse = (self.impulse - self.r[0] * dvel).simd_clamp(-limit, limit);
+            let dlambda = new_impulse - self.impulse;
+            self.impulse = new_impulse;
 
-            solver_vel2.linear += tangents1[0].component_mul(im2) * -dlambda;
+            solver_vel2.linear += tangents1[0].component_mul_simd(im2) * -dlambda;
             solver_vel2.angular += self.gcross2[0] * dlambda;
         }
 
         #[cfg(feature = "dim3")]
         {
-            let dvel_0 = -tangents1[0].dot(&solver_vel2.linear)
+            let dvel_0 = -tangents1[0].gdot(solver_vel2.linear)
                 + self.gcross2[0].gdot(solver_vel2.angular)
                 + self.rhs[0];
-            let dvel_1 = -tangents1[1].dot(&solver_vel2.linear)
+            let dvel_1 = -tangents1[1].gdot(solver_vel2.linear)
                 + self.gcross2[1].gdot(solver_vel2.angular)
                 + self.rhs[1];
 
@@ -113,7 +103,7 @@ impl<N: SimdRealCopy> OneBodyConstraintTangentPart<N> {
                 * crate::utils::simd_inv(
                     dvel_00 * self.r[0] + dvel_11 * self.r[1] + dvel_01 * self.r[2],
                 );
-            let delta_impulse = na::vector![inv_lhs * dvel_0, inv_lhs * dvel_1];
+            let delta_impulse = N::Vector2::from([inv_lhs * dvel_0, inv_lhs * dvel_1]);
             let new_impulse = self.impulse - delta_impulse;
             let new_impulse = {
                 let _disable_fe_except =
@@ -124,16 +114,16 @@ impl<N: SimdRealCopy> OneBodyConstraintTangentPart<N> {
             let dlambda = new_impulse - self.impulse;
             self.impulse = new_impulse;
 
-            solver_vel2.linear += tangents1[0].component_mul(im2) * -dlambda[0]
-                + tangents1[1].component_mul(im2) * -dlambda[1];
+            solver_vel2.linear += tangents1[0].component_mul_simd(im2) * -dlambda[0]
+                + tangents1[1].component_mul_simd(im2) * -dlambda[1];
             solver_vel2.angular += self.gcross2[0] * dlambda[0] + self.gcross2[1] * dlambda[1];
         }
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub(crate) struct OneBodyConstraintNormalPart<N: SimdRealCopy> {
-    pub gcross2: AngVector<N>,
+    pub gcross2: N::AngVector,
     pub rhs: N,
     pub rhs_wo_bias: N,
     pub impulse: N,
@@ -143,33 +133,26 @@ pub(crate) struct OneBodyConstraintNormalPart<N: SimdRealCopy> {
 
 impl<N: SimdRealCopy> OneBodyConstraintNormalPart<N> {
     fn zero() -> Self {
-        Self {
-            gcross2: na::zero(),
-            rhs: na::zero(),
-            rhs_wo_bias: na::zero(),
-            impulse: na::zero(),
-            total_impulse: na::zero(),
-            r: na::zero(),
-        }
+        Self::default()
     }
 
     #[inline]
     pub fn solve(
         &mut self,
         cfm_factor: N,
-        dir1: &Vector<N>,
-        im2: &Vector<N>,
+        dir1: &N::Vector,
+        im2: &N::Vector,
         solver_vel2: &mut SolverVel<N>,
     ) where
-        AngVector<N>: SimdDot<AngVector<N>, Result = N>,
+        N::AngVector: SimdDot<N::AngVector, Result = N>,
     {
         let dvel =
-            -dir1.dot(&solver_vel2.linear) + self.gcross2.gdot(solver_vel2.angular) + self.rhs;
+            -dir1.gdot(solver_vel2.linear) + self.gcross2.gdot(solver_vel2.angular) + self.rhs;
         let new_impulse = cfm_factor * (self.impulse - self.r * dvel).simd_max(N::zero());
         let dlambda = new_impulse - self.impulse;
         self.impulse = new_impulse;
 
-        solver_vel2.linear += dir1.component_mul(im2) * -dlambda;
+        solver_vel2.linear += dir1.component_mul_simd(im2) * -dlambda;
         solver_vel2.angular += self.gcross2 * dlambda;
     }
 }
@@ -192,19 +175,19 @@ impl<N: SimdRealCopy> OneBodyConstraintElement<N> {
     pub fn solve_group(
         cfm_factor: N,
         elements: &mut [Self],
-        dir1: &Vector<N>,
-        #[cfg(feature = "dim3")] tangent1: &Vector<N>,
-        im2: &Vector<N>,
+        dir1: &N::Vector,
+        #[cfg(feature = "dim3")] tangent1: &N::Vector,
+        im2: &N::Vector,
         limit: N,
         solver_vel2: &mut SolverVel<N>,
         solve_normal: bool,
         solve_friction: bool,
     ) where
-        Vector<N>: SimdBasis,
-        AngVector<N>: SimdDot<AngVector<N>, Result = N>,
+        N::Vector: SimdBasis,
+        N::AngVector: SimdDot<N::AngVector, Result = N>,
     {
         #[cfg(feature = "dim3")]
-        let tangents1 = [tangent1, &dir1.cross(tangent1)];
+        let tangents1 = [tangent1, &dir1.cross_(tangent1)];
         #[cfg(feature = "dim2")]
         let tangents1 = [&dir1.orthonormal_vector()];
 

@@ -1,6 +1,6 @@
 use crate::dynamics::{RigidBody, RigidBodyHandle};
 use crate::geometry::{Collider, ColliderHandle};
-use crate::math::Real;
+use crate::math::*;
 use parry::query::{NonlinearRigidMotion, QueryDispatcher};
 
 #[derive(Copy, Clone, Debug)]
@@ -57,13 +57,13 @@ impl TOIEntry {
         }
 
         let linvel1 = frozen1.is_none() as u32 as Real
-            * rb1.map(|b| b.integrated_vels.linvel).unwrap_or(na::zero());
+            * rb1.map(|b| b.integrated_vels.linvel).unwrap_or_default();
         let linvel2 = frozen2.is_none() as u32 as Real
-            * rb2.map(|b| b.integrated_vels.linvel).unwrap_or(na::zero());
+            * rb2.map(|b| b.integrated_vels.linvel).unwrap_or_default();
         let angvel1 = frozen1.is_none() as u32 as Real
-            * rb1.map(|b| b.integrated_vels.angvel).unwrap_or(na::zero());
+            * rb1.map(|b| b.integrated_vels.angvel).unwrap_or_default();
         let angvel2 = frozen2.is_none() as u32 as Real
-            * rb2.map(|b| b.integrated_vels.angvel).unwrap_or(na::zero());
+            * rb2.map(|b| b.integrated_vels.angvel).unwrap_or_default();
 
         #[cfg(feature = "dim2")]
         let vel12 = (linvel2 - linvel1).norm()
@@ -154,7 +154,7 @@ impl TOIEntry {
     }
 
     fn body_motion(rb: &RigidBody) -> NonlinearRigidMotion {
-        if rb.ccd.ccd_active {
+        if rb.ccd.active {
             NonlinearRigidMotion::new(
                 rb.pos.position,
                 rb.mprops.local_mprops.local_com,

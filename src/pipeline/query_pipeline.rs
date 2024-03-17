@@ -2,7 +2,7 @@ use crate::dynamics::RigidBodyHandle;
 use crate::geometry::{
     Aabb, Collider, ColliderHandle, InteractionGroups, PointProjection, Qbvh, Ray, RayIntersection,
 };
-use crate::math::{Isometry, Point, Real, Vector};
+use crate::math::*;
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 use parry::partitioning::{QbvhDataGenerator, QbvhUpdateWorkspace};
 use parry::query::details::{
@@ -252,7 +252,7 @@ impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
     fn map_typed_part_at(
         &self,
         shape_id: Self::PartId,
-        mut f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape),
+        mut f: impl FnMut(Option<&Isometry>, &Self::PartShape),
     ) {
         if let Some(co) = self.colliders.get(shape_id) {
             if self.filter.test(self.bodies, shape_id, co) {
@@ -264,7 +264,7 @@ impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
     fn map_untyped_part_at(
         &self,
         shape_id: Self::PartId,
-        f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape),
+        f: impl FnMut(Option<&Isometry>, &Self::PartShape),
     ) {
         self.map_typed_part_at(shape_id, f);
     }
@@ -380,12 +380,12 @@ impl QueryPipeline {
             fn for_each(&mut self, mut f: impl FnMut(ColliderHandle, Aabb)) {
                 match self.mode {
                     QueryPipelineMode::CurrentPosition => {
-                        for (h, co) in self.colliders.iter_enabled() {
+                        for (h, co) in self.colliders.iter_enabled_internal() {
                             f(h, co.shape.compute_aabb(&co.pos))
                         }
                     }
                     QueryPipelineMode::SweepTestWithNextPosition => {
-                        for (h, co) in self.colliders.iter_enabled() {
+                        for (h, co) in self.colliders.iter_enabled_internal() {
                             if let Some(co_parent) = co.parent {
                                 let rb_next_pos = &self.bodies[co_parent.handle].pos.next_position;
                                 let next_position = rb_next_pos * co_parent.pos_wrt_parent;
@@ -396,7 +396,7 @@ impl QueryPipeline {
                         }
                     }
                     QueryPipelineMode::SweepTestWithPredictedPosition { dt } => {
-                        for (h, co) in self.colliders.iter_enabled() {
+                        for (h, co) in self.colliders.iter_enabled_internal() {
                             if let Some(co_parent) = co.parent {
                                 let rb = &self.bodies[co_parent.handle];
                                 let predicted_pos = rb.pos.integrate_forces_and_velocities(
@@ -534,7 +534,7 @@ impl QueryPipeline {
         &self,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        shape_pos: &Isometry<Real>,
+        shape_pos: &Isometry,
         shape: &dyn Shape,
         filter: QueryFilter,
     ) -> Option<ColliderHandle> {
@@ -570,7 +570,7 @@ impl QueryPipeline {
         &self,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        point: &Point<Real>,
+        point: &Point,
         solid: bool,
         filter: QueryFilter,
     ) -> Option<(ColliderHandle, PointProjection)> {
@@ -595,7 +595,7 @@ impl QueryPipeline {
         &self,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        point: &Point<Real>,
+        point: &Point,
         filter: QueryFilter,
         mut callback: impl FnMut(ColliderHandle) -> bool,
     ) {
@@ -631,7 +631,7 @@ impl QueryPipeline {
         &self,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        point: &Point<Real>,
+        point: &Point,
         filter: QueryFilter,
     ) -> Option<(ColliderHandle, PointProjection, FeatureId)> {
         let pipeline_shape = self.as_composite_shape(bodies, colliders, filter);
@@ -673,8 +673,8 @@ impl QueryPipeline {
         &self,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        shape_pos: &Isometry<Real>,
-        shape_vel: &Vector<Real>,
+        shape_pos: &Isometry,
+        shape_vel: &Vector,
         shape: &dyn Shape,
         max_toi: Real,
         stop_at_penetration: bool,
@@ -751,7 +751,7 @@ impl QueryPipeline {
         &self,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        shape_pos: &Isometry<Real>,
+        shape_pos: &Isometry,
         shape: &dyn Shape,
         filter: QueryFilter,
         mut callback: impl FnMut(ColliderHandle) -> bool,

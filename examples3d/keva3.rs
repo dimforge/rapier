@@ -5,8 +5,8 @@ pub fn build_block(
     testbed: &mut Testbed,
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
-    half_extents: Vector<f32>,
-    shift: Vector<f32>,
+    half_extents: Vector,
+    shift: Vector,
     (mut numx, numy, mut numz): (usize, usize, usize),
 ) {
     let dimensions = [half_extents.xyz(), half_extents.zyx()];

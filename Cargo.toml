@@ -1,6 +1,6 @@
 [workspace]
-members = [ "crates/rapier2d", "crates/rapier2d-f64", "crates/rapier_testbed2d", "crates/rapier_testbed2d-f64", "examples2d", "benchmarks2d",
-            "crates/rapier3d", "crates/rapier3d-f64", "crates/rapier_testbed3d", "crates/rapier_testbed3d-f64", "examples3d", "examples3d-f64", "benchmarks3d" ]
+members = ["crates/rapier2d", "crates/rapier2d-f64", "crates/rapier_testbed2d", "crates/rapier_testbed2d-f64", "examples2d", "benchmarks2d",
+    "crates/rapier3d", "crates/rapier3d-f64", "crates/rapier_testbed3d", "crates/rapier_testbed3d-f64", "examples3d", "examples3d-f64", "benchmarks3d"]
 resolver = "2"
 
 [patch.crates-io]
@@ -12,15 +12,14 @@ resolver = "2"
 #parry3d = { path = "../parry/crates/parry3d" }
 #parry2d-f64 = { path = "../parry/crates/parry2d-f64" }
 #parry3d-f64 = { path = "../parry/crates/parry3d-f64" }
-# nalgebra = { path = "../nalgebra" }
+#nalgebra = { path = "../nalgebra" }
 
-
-#kiss3d = { git = "https://github.com/sebcrozet/kiss3d" }
-#nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "dev" }
-#parry2d = { git = "https://github.com/dimforge/parry", branch = "master" }
-#parry3d = { git = "https://github.com/dimforge/parry", branch = "master" }
-#parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
-#parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
+simba = { git = "https://github.com/dimforge/simba", rev = "7b50b3eb568e9c551431286a95c913a7057de58f" }
+nalgebra = { git = "https://github.com/dimforge/nalgebra", rev = "25032f089bb2e8a8bd2c1d419f1613911a042895" }
+parry2d = { git = "https://github.com/dimforge/parry", rev = "c0e6f8032396396f93b5ad687504bed9d676aaee" }
+parry3d = { git = "https://github.com/dimforge/parry", rev = "c0e6f8032396396f93b5ad687504bed9d676aaee" }
+parry2d-f64 = { git = "https://github.com/dimforge/parry", rev = "c0e6f8032396396f93b5ad687504bed9d676aaee" }
+parry3d-f64 = { git = "https://github.com/dimforge/parry", rev = "c0e6f8032396396f93b5ad687504bed9d676aaee" }
 
 [profile.release]
 #debug = true

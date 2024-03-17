@@ -3,8 +3,16 @@ use crate::geometry::{ColliderSet, CollisionEvent, ContactForceEvent, ContactPai
 use crate::math::Real;
 use crossbeam::channel::Sender;
 
+#[cfg(feature = "bevy")]
+use bevy::prelude::{Component, Reflect, ReflectComponent};
+
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[cfg_attr(
+        feature = "bevy",
+        derive(Component, Reflect),
+        reflect(Component, PartialEq)
+    )]
     /// Flags affecting the events generated for this collider.
     pub struct ActiveEvents: u32 {
         /// If set, Rapier will call `EventHandler::handle_collision_event`

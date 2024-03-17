@@ -1,8 +1,8 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::dynamics::{MultibodyJoint, RigidBodyHandle};
-use crate::math::{Isometry, Real, Vector};
-use crate::prelude::RigidBodyVelocity;
+use crate::math::*;
+use crate::prelude::Velocity;
 
 /// One link of a multibody.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -21,13 +21,13 @@ pub struct MultibodyLink {
     /// The multibody joint of this link.
     pub joint: MultibodyJoint,
     // TODO: should this be removed in favor of the rigid-body position?
-    pub(crate) local_to_world: Isometry<Real>,
-    pub(crate) local_to_parent: Isometry<Real>,
-    pub(crate) shift02: Vector<Real>,
-    pub(crate) shift23: Vector<Real>,
+    pub(crate) local_to_world: Isometry,
+    pub(crate) local_to_parent: Isometry,
+    pub(crate) shift02: Vector,
+    pub(crate) shift23: Vector,
 
     /// The velocity added by the joint, in world-space.
-    pub(crate) joint_velocity: RigidBodyVelocity,
+    pub(crate) joint_velocity: Velocity,
 }
 
 impl MultibodyLink {
@@ -38,10 +38,10 @@ impl MultibodyLink {
         assembly_id: usize,
         parent_internal_id: usize,
         joint: MultibodyJoint,
-        local_to_world: Isometry<Real>,
-        local_to_parent: Isometry<Real>,
+        local_to_world: Isometry,
+        local_to_parent: Isometry,
     ) -> Self {
-        let joint_velocity = RigidBodyVelocity::zero();
+        let joint_velocity = Velocity::zero();
 
         MultibodyLink {
             internal_id,
@@ -50,8 +50,8 @@ impl MultibodyLink {
             joint,
             local_to_world,
             local_to_parent,
-            shift02: na::zero(),
-            shift23: na::zero(),
+            shift02: Default::default(),
+            shift23: Default::default(),
             joint_velocity,
             rigid_body,
         }
@@ -91,13 +91,13 @@ impl MultibodyLink {
 
     /// The world-space transform of the rigid-body attached to this link.
     #[inline]
-    pub fn local_to_world(&self) -> &Isometry<Real> {
+    pub fn local_to_world(&self) -> &Isometry {
         &self.local_to_world
     }
 
     /// The position of the rigid-body attached to this link relative to its parent.
     #[inline]
-    pub fn local_to_parent(&self) -> &Isometry<Real> {
+    pub fn local_to_parent(&self) -> &Isometry {
         &self.local_to_parent
     }
 }

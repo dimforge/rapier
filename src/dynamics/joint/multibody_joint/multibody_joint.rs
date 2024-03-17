@@ -1,12 +1,9 @@
 use crate::dynamics::solver::JointGenericOneBodyConstraint;
 use crate::dynamics::{
     joint, FixedJointBuilder, GenericJoint, IntegrationParameters, Multibody, MultibodyLink,
-    RigidBodyVelocity,
+    Velocity,
 };
-use crate::math::{
-    Isometry, JacobianViewMut, Real, Rotation, SpacialVector, Translation, Vector, ANG_DIM, DIM,
-    SPATIAL_DIM,
-};
+use crate::math::*;
 use na::{DVector, DVectorViewMut};
 #[cfg(feature = "dim3")]
 use na::{UnitQuaternion, Vector3};
@@ -17,8 +14,8 @@ use na::{UnitQuaternion, Vector3};
 pub struct MultibodyJoint {
     /// The joint’s description.
     pub data: GenericJoint,
-    pub(crate) coords: SpacialVector<Real>,
-    pub(crate) joint_rot: Rotation<Real>,
+    pub(crate) coords: SpatialVector<Real>,
+    pub(crate) joint_rot: Rotation,
 }
 
 impl MultibodyJoint {
@@ -31,24 +28,24 @@ impl MultibodyJoint {
         }
     }
 
-    pub(crate) fn free(pos: Isometry<Real>) -> Self {
+    pub(crate) fn free(pos: Isometry) -> Self {
         let mut result = Self::new(GenericJoint::default());
         result.set_free_pos(pos);
         result
     }
 
-    pub(crate) fn fixed(pos: Isometry<Real>) -> Self {
+    pub(crate) fn fixed(pos: Isometry) -> Self {
         Self::new(FixedJointBuilder::new().local_frame1(pos).build().into())
     }
 
-    pub(crate) fn set_free_pos(&mut self, pos: Isometry<Real>) {
+    pub(crate) fn set_free_pos(&mut self, pos: Isometry) {
         self.coords
             .fixed_rows_mut::<DIM>(0)
-            .copy_from(&pos.translation.vector);
+            .copy_from(&pos.translation.into_vector().into());
         self.joint_rot = pos.rotation;
     }
 
-    // pub(crate) fn local_joint_rot(&self) -> &Rotation<Real> {
+    // pub(crate) fn local_joint_rot(&self) -> &Rotation {
     //     &self.joint_rot
     // }
 
@@ -63,7 +60,7 @@ impl MultibodyJoint {
     }
 
     /// The position of the multibody link containing this multibody_joint relative to its parent.
-    pub fn body_to_parent(&self) -> Isometry<Real> {
+    pub fn body_to_parent(&self) -> Isometry {
         let locked_bits = self.data.locked_axes.bits();
         let mut transform = self.joint_rot * self.data.local_frame2.inverse();
 
@@ -97,12 +94,12 @@ impl MultibodyJoint {
                 self.coords[DIM + dof_id] += vels[curr_free_dof] * dt;
                 #[cfg(feature = "dim2")]
                 {
-                    self.joint_rot = Rotation::new(self.coords[DIM + dof_id]);
+                    self.joint_rot = Rotation::from_scaled_axis(self.coords[DIM + dof_id].into());
                 }
                 #[cfg(feature = "dim3")]
                 {
                     self.joint_rot = Rotation::from_axis_angle(
-                        &Vector::ith_axis(dof_id),
+                        Vector::ith_axis(dof_id),
                         self.coords[DIM + dof_id],
                     );
                 }
@@ -112,8 +109,8 @@ impl MultibodyJoint {
             }
             #[cfg(feature = "dim3")]
             3 => {
-                let angvel = Vector3::from_row_slice(&vels[curr_free_dof..curr_free_dof + 3]);
-                let disp = UnitQuaternion::new_eps(angvel * dt, 0.0);
+                let angvel = Vector::from_row_slice(&vels[curr_free_dof..curr_free_dof + 3]);
+                let disp = Rotation::new_eps(angvel * dt, 0.0);
                 self.joint_rot = disp * self.joint_rot;
                 self.coords[3] += angvel[0] * dt;
                 self.coords[4] += angvel[1] * dt;
@@ -129,15 +126,15 @@ impl MultibodyJoint {
     }
 
     /// Sets in `out` the non-zero entries of the multibody_joint jacobian transformed by `transform`.
-    pub fn jacobian(&self, transform: &Rotation<Real>, out: &mut JacobianViewMut<Real>) {
+    pub fn jacobian(&self, transform: &Rotation, out: &mut JacobianViewMut<Real>) {
         let locked_bits = self.data.locked_axes.bits();
         let mut curr_free_dof = 0;
 
         for i in 0..DIM {
             if (locked_bits & (1 << i)) == 0 {
-                let transformed_axis = transform * Vector::ith(i, 1.0);
+                let transformed_axis = *transform * Vector::ith(i, 1.0);
                 out.fixed_view_mut::<DIM, 1>(0, curr_free_dof)
-                    .copy_from(&transformed_axis);
+                    .copy_from(&transformed_axis.into());
                 curr_free_dof += 1;
             }
         }
@@ -157,7 +154,7 @@ impl MultibodyJoint {
                     let dof_id = (!locked_ang_bits).trailing_zeros() as usize;
                     let rotmat = transform.to_rotation_matrix().into_inner();
                     out.fixed_view_mut::<ANG_DIM, 1>(DIM, curr_free_dof)
-                        .copy_from(&rotmat.column(dof_id));
+                        .copy_from(&na::Vector3::from(rotmat.column(dof_id)));
                 }
             }
             2 => {
@@ -167,7 +164,7 @@ impl MultibodyJoint {
             3 => {
                 let rotmat = transform.to_rotation_matrix();
                 out.fixed_view_mut::<3, 3>(3, curr_free_dof)
-                    .copy_from(rotmat.matrix());
+                    .copy_from(&rotmat.into_inner().into());
             }
             _ => unreachable!(),
         }
@@ -175,9 +172,9 @@ impl MultibodyJoint {
 
     /// Multiply the multibody_joint jacobian by generalized velocities to obtain the
     /// relative velocity of the multibody link containing this multibody_joint.
-    pub fn jacobian_mul_coordinates(&self, acc: &[Real]) -> RigidBodyVelocity {
+    pub fn jacobian_mul_coordinates(&self, acc: &[Real]) -> Velocity {
         let locked_bits = self.data.locked_axes.bits();
-        let mut result = RigidBodyVelocity::zero();
+        let mut result = Velocity::zero();
         let mut curr_free_dof = 0;
 
         for i in 0..DIM {
@@ -207,7 +204,7 @@ impl MultibodyJoint {
             }
             #[cfg(feature = "dim3")]
             3 => {
-                let angvel = Vector3::from_row_slice(&acc[curr_free_dof..curr_free_dof + 3]);
+                let angvel = Vector::from_row_slice(&acc[curr_free_dof..curr_free_dof + 3]);
                 result.angvel += angvel;
             }
             _ => unreachable!(),

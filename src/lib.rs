@@ -26,6 +26,8 @@ pub extern crate parry3d as parry;
 pub extern crate parry3d_f64 as parry;
 
 pub extern crate crossbeam;
+#[cfg(feature = "linalg-glam")]
+pub extern crate glam;
 pub extern crate nalgebra as na;
 #[cfg(feature = "serde")]
 #[macro_use]
@@ -138,6 +140,7 @@ pub mod counters;
 pub mod data;
 pub mod dynamics;
 pub mod geometry;
+pub mod linalg;
 pub mod pipeline;
 pub mod utils;
 
@@ -173,6 +176,45 @@ pub mod math {
     /// The maximum number of rotational degrees of freedom of a rigid-body.
     #[cfg(feature = "dim2")]
     pub const ANG_DIM: usize = 1;
+
+    #[cfg(all(feature = "linalg-glam", feature = "dim2"))]
+    #[doc(hidden)]
+    pub trait IntoOwned: Sized {
+        fn into_owned(self) -> Self {
+            self
+        }
+    }
+
+    #[cfg(all(feature = "linalg-glam", feature = "dim2"))]
+    impl IntoOwned for Real {}
+
+    #[cfg(all(feature = "linalg-glam", feature = "dim2"))]
+    impl IntoOwned for SimdReal {}
+
+    #[cfg(all(feature = "linalg-glam", feature = "dim2"))]
+    #[doc(hidden)]
+    pub trait Vec2Ops {
+        type Element;
+        fn column(self, i: usize) -> Self::Element;
+    }
+
+    #[cfg(all(feature = "linalg-glam", feature = "dim2"))]
+    impl Vec2Ops for glam::Vec2 {
+        type Element = Real;
+        #[inline]
+        fn column(self, i: usize) -> Real {
+            self[i]
+        }
+    }
+
+    #[cfg(all(feature = "linalg-glam", feature = "dim2"))]
+    impl Vec2Ops for SimdVec2 {
+        type Element = SimdReal;
+        #[inline]
+        fn column(self, i: usize) -> SimdReal {
+            self[i]
+        }
+    }
 
     /*
      * 3D

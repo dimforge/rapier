@@ -256,7 +256,7 @@ impl ParallelIslandSolver {
             self.velocity_solver.solver_vels.clear();
             self.velocity_solver
                 .solver_vels
-                .resize(islands.active_island(island_id).len(), SolverVel::zero());
+                .resize(islands.active_island(island_id).len(), SolverVel::default());
         }
 
         for _ in 0..num_task_per_island {

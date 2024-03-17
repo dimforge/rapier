@@ -1,9 +1,6 @@
 use crate::dynamics::joint::{GenericJoint, GenericJointBuilder, JointAxesMask};
 use crate::dynamics::{JointAxis, JointLimits, JointMotor, MotorModel};
-use crate::math::{Point, Real};
-
-#[cfg(feature = "dim3")]
-use crate::math::UnitVector;
+use crate::math::*;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -27,7 +24,7 @@ impl RevoluteJoint {
     ///
     /// This axis is expressed in the local-space of both rigid-bodies.
     #[cfg(feature = "dim3")]
-    pub fn new(axis: UnitVector<Real>) -> Self {
+    pub fn new(axis: UnitVector) -> Self {
         let data = GenericJointBuilder::new(JointAxesMask::LOCKED_REVOLUTE_AXES)
             .local_axis1(axis)
             .local_axis2(axis)
@@ -53,24 +50,24 @@ impl RevoluteJoint {
 
     /// The joint’s anchor, expressed in the local-space of the first rigid-body.
     #[must_use]
-    pub fn local_anchor1(&self) -> Point<Real> {
+    pub fn local_anchor1(&self) -> Point {
         self.data.local_anchor1()
     }
 
     /// Sets the joint’s anchor, expressed in the local-space of the first rigid-body.
-    pub fn set_local_anchor1(&mut self, anchor1: Point<Real>) -> &mut Self {
+    pub fn set_local_anchor1(&mut self, anchor1: Point) -> &mut Self {
         self.data.set_local_anchor1(anchor1);
         self
     }
 
     /// The joint’s anchor, expressed in the local-space of the second rigid-body.
     #[must_use]
-    pub fn local_anchor2(&self) -> Point<Real> {
+    pub fn local_anchor2(&self) -> Point {
         self.data.local_anchor2()
     }
 
     /// Sets the joint’s anchor, expressed in the local-space of the second rigid-body.
-    pub fn set_local_anchor2(&mut self, anchor2: Point<Real>) -> &mut Self {
+    pub fn set_local_anchor2(&mut self, anchor2: Point) -> &mut Self {
         self.data.set_local_anchor2(anchor2);
         self
     }
@@ -163,7 +160,7 @@ impl RevoluteJointBuilder {
     ///
     /// This axis is expressed in the local-space of both rigid-bodies.
     #[cfg(feature = "dim3")]
-    pub fn new(axis: UnitVector<Real>) -> Self {
+    pub fn new(axis: UnitVector) -> Self {
         Self(RevoluteJoint::new(axis))
     }
 
@@ -176,14 +173,14 @@ impl RevoluteJointBuilder {
 
     /// Sets the joint’s anchor, expressed in the local-space of the first rigid-body.
     #[must_use]
-    pub fn local_anchor1(mut self, anchor1: Point<Real>) -> Self {
+    pub fn local_anchor1(mut self, anchor1: Point) -> Self {
         self.0.set_local_anchor1(anchor1);
         self
     }
 
     /// Sets the joint’s anchor, expressed in the local-space of the second rigid-body.
     #[must_use]
-    pub fn local_anchor2(mut self, anchor2: Point<Real>) -> Self {
+    pub fn local_anchor2(mut self, anchor2: Point) -> Self {
         self.0.set_local_anchor2(anchor2);
         self
     }

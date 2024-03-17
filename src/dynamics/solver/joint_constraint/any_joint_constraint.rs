@@ -6,7 +6,7 @@ use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
 };
 use crate::dynamics::solver::{AnyConstraintMut, ConstraintTypes};
 use crate::dynamics::JointGraphEdge;
-use crate::math::Real;
+use crate::math::*;
 use na::DVector;
 
 use crate::dynamics::solver::joint_constraint::joint_generic_constraint_builder::{

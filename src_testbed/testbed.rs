@@ -526,7 +526,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         colliders: ColliderSet,
         impulse_joints: ImpulseJointSet,
         multibody_joints: MultibodyJointSet,
-        gravity: Vector<Real>,
+        gravity: Vector,
         hooks: impl PhysicsHooks + 'static,
     ) {
         self.harness.set_world_with_params(
@@ -580,7 +580,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         }
     }
 
-    pub fn set_graphics_shift(&mut self, shift: Vector<Real>) {
+    pub fn set_graphics_shift(&mut self, shift: Vector) {
         if !self.state.camera_locked {
             if let Some(graphics) = &mut self.graphics {
                 graphics.graphics.gfx_shift = shift;

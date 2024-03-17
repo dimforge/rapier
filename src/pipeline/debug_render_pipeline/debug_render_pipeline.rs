@@ -5,7 +5,7 @@ use crate::dynamics::{
 use crate::geometry::{Ball, ColliderSet, Cuboid, NarrowPhase, Shape, TypedShape};
 #[cfg(feature = "dim3")]
 use crate::geometry::{Cone, Cylinder};
-use crate::math::{Isometry, Point, Real, Vector, DIM};
+use crate::math::*;
 use crate::pipeline::debug_render_pipeline::debug_render_backend::DebugRenderObject;
 use crate::pipeline::debug_render_pipeline::DebugRenderStyle;
 use crate::utils::SimdBasis;
@@ -42,9 +42,9 @@ impl Default for DebugRenderMode {
 }
 
 #[cfg(feature = "dim2")]
-type InstancesMap = HashMap<TypeId, Vec<Point<Real>>>;
+type InstancesMap = HashMap<TypeId, Vec<Point>>;
 #[cfg(feature = "dim3")]
-type InstancesMap = HashMap<TypeId, (Vec<Point<Real>>, Vec<[u32; 2]>)>;
+type InstancesMap = HashMap<TypeId, (Vec<Point>, Vec<[u32; 2]>)>;
 
 /// Pipeline responsible for rendering the state of the physics engine for debugging purpose.
 pub struct DebugRenderPipeline {
@@ -117,16 +117,17 @@ impl DebugRenderPipeline {
                             for contact in manifold.contacts() {
                                 backend.draw_line(
                                     object,
-                                    co1.position() * contact.local_p1,
-                                    co2.position() * contact.local_p2,
+                                    co1.position().transform_point(&contact.local_p1),
+                                    co2.position().transform_point(&contact.local_p2),
                                     self.style.contact_depth_color,
                                 );
                                 backend.draw_line(
                                     object,
-                                    co1.position() * contact.local_p1,
-                                    co1.position()
-                                        * (contact.local_p1
+                                    co1.position().transform_point(&contact.local_p1),
+                                    co1.position().transform_point(
+                                        &(contact.local_p1
                                             + manifold.local_n1 * self.style.contact_normal_length),
+                                    ),
                                     self.style.contact_normal_color,
                                 );
                             }
@@ -193,10 +194,10 @@ impl DebugRenderPipeline {
                 let frame1 = rb1.position() * data.local_frame1;
                 let frame2 = rb2.position() * data.local_frame2;
 
-                let a = *rb1.translation();
-                let b = frame1.translation.vector;
-                let c = frame2.translation.vector;
-                let d = *rb2.translation();
+                let a = rb1.translation();
+                let b = frame1.translation.into_vector();
+                let c = frame2.translation.into_vector();
+                let d = rb2.translation();
 
                 for k in 0..4 {
                     anchor_color[k] *= coeff[k];
@@ -351,7 +352,7 @@ impl DebugRenderPipeline {
         object: DebugRenderObject,
         backend: &mut impl DebugRenderBackend,
         shape: &dyn Shape,
-        pos: &Isometry<Real>,
+        pos: &Isometry,
         color: [f32; 4],
     ) {
         match shape.as_typed_shape() {
@@ -451,7 +452,7 @@ impl DebugRenderPipeline {
         object: DebugRenderObject,
         backend: &mut impl DebugRenderBackend,
         shape: &dyn Shape,
-        pos: &Isometry<Real>,
+        pos: &Isometry,
         color: [f32; 4],
     ) {
         match shape.as_typed_shape() {

@@ -1,9 +1,9 @@
 use crate::dynamics::{
-    ImpulseJointSet, MultibodyJointSet, RigidBodyActivation, RigidBodyChanges, RigidBodyColliders,
-    RigidBodyHandle, RigidBodyIds, RigidBodySet, RigidBodyType, RigidBodyVelocity,
+    ImpulseJointSet, MultibodyJointSet, RigidBodyChanges, RigidBodyColliders, RigidBodyHandle,
+    RigidBodyIds, RigidBodySet, RigidBodyType, SleepState, Velocity,
 };
 use crate::geometry::{ColliderSet, NarrowPhase};
-use crate::math::Real;
+use crate::math::*;
 use crate::utils::SimdDot;
 
 /// Structure responsible for maintaining the set of active rigid-bodies, and
@@ -317,14 +317,14 @@ impl IslandManager {
         for handle in &self.can_sleep {
             let rb = bodies.index_mut_internal(*handle);
             if rb.activation.sleeping {
-                rb.vels = RigidBodyVelocity::zero();
+                rb.vels = Velocity::zero();
                 rb.activation.sleep();
             }
         }
     }
 }
 
-fn update_energy(activation: &mut RigidBodyActivation, sq_linvel: Real, sq_angvel: Real, dt: Real) {
+fn update_energy(activation: &mut SleepState, sq_linvel: Real, sq_angvel: Real, dt: Real) {
     if sq_linvel < activation.linear_threshold * activation.linear_threshold.abs()
         && sq_angvel < activation.angular_threshold * activation.angular_threshold.abs()
     {

@@ -6,7 +6,7 @@ fn create_coupled_joints(
     colliders: &mut ColliderSet,
     impulse_joints: &mut ImpulseJointSet,
     multibody_joints: &mut MultibodyJointSet,
-    origin: Point<f32>,
+    origin: Point,
     use_articulations: bool,
 ) {
     let ground = bodies.insert(RigidBodyBuilder::fixed().translation(origin.coords));
@@ -34,7 +34,7 @@ fn create_prismatic_joints(
     colliders: &mut ColliderSet,
     impulse_joints: &mut ImpulseJointSet,
     multibody_joints: &mut MultibodyJointSet,
-    origin: Point<f32>,
+    origin: Point,
     num: usize,
     use_articulations: bool,
 ) {
@@ -78,7 +78,7 @@ fn create_actuated_prismatic_joints(
     colliders: &mut ColliderSet,
     impulse_joints: &mut ImpulseJointSet,
     multibody_joints: &mut MultibodyJointSet,
-    origin: Point<f32>,
+    origin: Point,
     num: usize,
     use_articulations: bool,
 ) {
@@ -143,7 +143,7 @@ fn create_revolute_joints(
     colliders: &mut ColliderSet,
     impulse_joints: &mut ImpulseJointSet,
     multibody_joints: &mut MultibodyJointSet,
-    origin: Point<f32>,
+    origin: Point,
     num: usize,
     use_articulations: bool,
 ) {
@@ -204,7 +204,7 @@ fn create_revolute_joints_with_limits(
     colliders: &mut ColliderSet,
     impulse_joints: &mut ImpulseJointSet,
     multibody_joints: &mut MultibodyJointSet,
-    origin: Point<f32>,
+    origin: Point,
     use_articulations: bool,
 ) {
     let ground = bodies.insert(RigidBodyBuilder::fixed().translation(origin.coords));
@@ -275,7 +275,7 @@ fn create_fixed_joints(
     colliders: &mut ColliderSet,
     impulse_joints: &mut ImpulseJointSet,
     multibody_joints: &mut MultibodyJointSet,
-    origin: Point<f32>,
+    origin: Point,
     num: usize,
     use_articulations: bool,
 ) {
@@ -397,7 +397,7 @@ fn create_spherical_joints_with_limits(
     colliders: &mut ColliderSet,
     impulse_joints: &mut ImpulseJointSet,
     multibody_joints: &mut MultibodyJointSet,
-    origin: Point<f32>,
+    origin: Point,
     use_articulations: bool,
 ) {
     let shift = vector![0.0, 0.0, 3.0];
@@ -438,7 +438,7 @@ fn create_actuated_revolute_joints(
     colliders: &mut ColliderSet,
     impulse_joints: &mut ImpulseJointSet,
     multibody_joints: &mut MultibodyJointSet,
-    origin: Point<f32>,
+    origin: Point,
     num: usize,
     use_articulations: bool,
 ) {
@@ -507,7 +507,7 @@ fn create_actuated_spherical_joints(
     colliders: &mut ColliderSet,
     impulse_joints: &mut ImpulseJointSet,
     multibody_joints: &mut MultibodyJointSet,
-    origin: Point<f32>,
+    origin: Point,
     num: usize,
     use_articulations: bool,
 ) {

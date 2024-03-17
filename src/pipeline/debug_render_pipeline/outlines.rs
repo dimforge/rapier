@@ -1,12 +1,12 @@
 use crate::geometry::{Ball, Cuboid};
 #[cfg(feature = "dim3")]
 use crate::geometry::{Cone, Cylinder};
-use crate::math::{Point, Real, Vector};
+use crate::math::*;
 use std::any::TypeId;
 use std::collections::HashMap;
 
 #[cfg(feature = "dim2")]
-pub fn instances(nsubdivs: u32) -> HashMap<TypeId, Vec<Point<Real>>> {
+pub fn instances(nsubdivs: u32) -> HashMap<TypeId, Vec<Point>> {
     let mut result = HashMap::new();
     result.insert(
         TypeId::of::<Cuboid>(),
@@ -18,7 +18,7 @@ pub fn instances(nsubdivs: u32) -> HashMap<TypeId, Vec<Point<Real>>> {
 
 #[cfg(feature = "dim3")]
 #[allow(clippy::type_complexity)]
-pub fn instances(nsubdivs: u32) -> HashMap<TypeId, (Vec<Point<Real>>, Vec<[u32; 2]>)> {
+pub fn instances(nsubdivs: u32) -> HashMap<TypeId, (Vec<Point>, Vec<[u32; 2]>)> {
     let mut result = HashMap::new();
     result.insert(
         TypeId::of::<Cuboid>(),

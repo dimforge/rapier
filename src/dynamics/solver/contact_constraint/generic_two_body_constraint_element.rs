@@ -2,8 +2,8 @@ use crate::dynamics::solver::SolverVel;
 use crate::dynamics::solver::{
     TwoBodyConstraintElement, TwoBodyConstraintNormalPart, TwoBodyConstraintTangentPart,
 };
-use crate::math::{AngVector, Real, Vector, DIM};
-use crate::utils::SimdDot;
+use crate::math::*;
+use crate::utils::{SimdCapMagnitude, SimdDot};
 use na::DVector;
 #[cfg(feature = "dim2")]
 use {crate::utils::SimdBasis, na::SimdPartialOrd};
@@ -46,16 +46,16 @@ impl GenericRhs {
         j_id: usize,
         ndofs: usize,
         jacobians: &DVector<Real>,
-        dir: &Vector<Real>,
-        gcross: &AngVector<Real>,
+        dir: &Vector,
+        gcross: &AngVector,
         solver_vels: &DVector<Real>,
     ) -> Real {
         match self {
-            GenericRhs::SolverVel(rhs) => dir.dot(&rhs.linear) + gcross.gdot(rhs.angular),
+            GenericRhs::SolverVel(rhs) => dir.dot(rhs.linear) + gcross.gdot(rhs.angular),
             GenericRhs::GenericId(solver_vel) => {
                 let j = jacobians.rows(j_id, ndofs);
                 let rhs = solver_vels.rows(*solver_vel, ndofs);
-                j.dot(&rhs)
+                j.dot(rhs)
             }
         }
     }
@@ -67,15 +67,15 @@ impl GenericRhs {
         ndofs: usize,
         impulse: Real,
         jacobians: &DVector<Real>,
-        dir: &Vector<Real>,
-        gcross: &AngVector<Real>,
+        dir: &Vector,
+        gcross: &AngVector,
         solver_vels: &mut DVector<Real>,
-        inv_mass: &Vector<Real>,
+        inv_mass: &Vector,
     ) {
         match self {
             GenericRhs::SolverVel(rhs) => {
                 rhs.linear += dir.component_mul(inv_mass) * impulse;
-                rhs.angular += gcross * impulse;
+                rhs.angular += *gcross * impulse;
             }
             GenericRhs::GenericId(solver_vel) => {
                 let wj_id = j_id + ndofs;
@@ -93,9 +93,9 @@ impl TwoBodyConstraintTangentPart<Real> {
         &mut self,
         j_id: usize,
         jacobians: &DVector<Real>,
-        tangents1: [&Vector<Real>; DIM - 1],
-        im1: &Vector<Real>,
-        im2: &Vector<Real>,
+        tangents1: [&Vector; DIM - 1],
+        im1: &Vector,
+        im2: &Vector,
         ndofs1: usize,
         ndofs2: usize,
         limit: Real,
@@ -121,14 +121,14 @@ impl TwoBodyConstraintTangentPart<Real> {
                 j_id2,
                 ndofs2,
                 jacobians,
-                &-tangents1[0],
+                &-*tangents1[0],
                 &self.gcross2[0],
                 solver_vels,
             ) + self.rhs[0];
 
-            let new_impulse = (self.impulse[0] - self.r[0] * dvel_0).simd_clamp(-limit, limit);
-            let dlambda = new_impulse - self.impulse[0];
-            self.impulse[0] = new_impulse;
+            let new_impulse = (self.impulse - self.r[0] * dvel_0).simd_clamp(-limit, limit);
+            let dlambda = new_impulse - self.impulse;
+            self.impulse = new_impulse;
 
             solver_vel1.apply_impulse(
                 j_id1,
@@ -145,7 +145,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 ndofs2,
                 dlambda,
                 jacobians,
-                &-tangents1[0],
+                &-*tangents1[0],
                 &self.gcross2[0],
                 solver_vels,
                 im2,
@@ -165,7 +165,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 j_id2,
                 ndofs2,
                 jacobians,
-                &-tangents1[0],
+                &-*tangents1[0],
                 &self.gcross2[0],
                 solver_vels,
             ) + self.rhs[0];
@@ -180,16 +180,16 @@ impl TwoBodyConstraintTangentPart<Real> {
                 j_id2 + j_step,
                 ndofs2,
                 jacobians,
-                &-tangents1[1],
+                &-*tangents1[1],
                 &self.gcross2[1],
                 solver_vels,
             ) + self.rhs[1];
 
-            let new_impulse = na::Vector2::new(
+            let new_impulse = Vector2::new(
                 self.impulse[0] - self.r[0] * dvel_0,
                 self.impulse[1] - self.r[1] * dvel_1,
             );
-            let new_impulse = new_impulse.cap_magnitude(limit);
+            let new_impulse = new_impulse.simd_cap_magnitude(limit);
 
             let dlambda = new_impulse - self.impulse;
             self.impulse = new_impulse;
@@ -220,7 +220,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 ndofs2,
                 dlambda[0],
                 jacobians,
-                &-tangents1[0],
+                &-*tangents1[0],
                 &self.gcross2[0],
                 solver_vels,
                 im2,
@@ -230,7 +230,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 ndofs2,
                 dlambda[1],
                 jacobians,
-                &-tangents1[1],
+                &-*tangents1[1],
                 &self.gcross2[1],
                 solver_vels,
                 im2,
@@ -246,9 +246,9 @@ impl TwoBodyConstraintNormalPart<Real> {
         cfm_factor: Real,
         j_id: usize,
         jacobians: &DVector<Real>,
-        dir1: &Vector<Real>,
-        im1: &Vector<Real>,
-        im2: &Vector<Real>,
+        dir1: &Vector,
+        im1: &Vector,
+        im2: &Vector,
         ndofs1: usize,
         ndofs2: usize,
         solver_vel1: &mut GenericRhs,
@@ -259,7 +259,14 @@ impl TwoBodyConstraintNormalPart<Real> {
         let j_id2 = j_id2(j_id, ndofs1, ndofs2);
 
         let dvel = solver_vel1.dvel(j_id1, ndofs1, jacobians, dir1, &self.gcross1, solver_vels)
-            + solver_vel2.dvel(j_id2, ndofs2, jacobians, &-dir1, &self.gcross2, solver_vels)
+            + solver_vel2.dvel(
+                j_id2,
+                ndofs2,
+                jacobians,
+                &-*dir1,
+                &self.gcross2,
+                solver_vels,
+            )
             + self.rhs;
 
         let new_impulse = cfm_factor * (self.impulse - self.r * dvel).max(0.0);
@@ -281,7 +288,7 @@ impl TwoBodyConstraintNormalPart<Real> {
             ndofs2,
             dlambda,
             jacobians,
-            &-dir1,
+            &-*dir1,
             &self.gcross2,
             solver_vels,
             im2,
@@ -295,10 +302,10 @@ impl TwoBodyConstraintElement<Real> {
         cfm_factor: Real,
         elements: &mut [Self],
         jacobians: &DVector<Real>,
-        dir1: &Vector<Real>,
-        #[cfg(feature = "dim3")] tangent1: &Vector<Real>,
-        im1: &Vector<Real>,
-        im2: &Vector<Real>,
+        dir1: &Vector,
+        #[cfg(feature = "dim3")] tangent1: &Vector,
+        im1: &Vector,
+        im2: &Vector,
         limit: Real,
         // ndofs is 0 for a non-multibody body, or a multibody with zero
         // degrees of freedom.
@@ -339,7 +346,7 @@ impl TwoBodyConstraintElement<Real> {
         // Solve friction.
         if solve_friction {
             #[cfg(feature = "dim3")]
-            let tangents1 = [tangent1, &dir1.cross(tangent1)];
+            let tangents1 = [tangent1, &dir1.cross(*tangent1)];
             #[cfg(feature = "dim2")]
             let tangents1 = [&dir1.orthonormal_vector()];
             let mut tng_j_id = tangent_j_id(j_id, ndofs1, ndofs2);

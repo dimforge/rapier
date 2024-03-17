@@ -4,13 +4,13 @@ use crate::dynamics::solver::joint_constraint::joint_generic_constraint::{
 use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
     JointFixedSolverBody, WritebackId,
 };
-use crate::dynamics::solver::joint_constraint::{JointSolverBody, JointTwoBodyConstraintHelper};
+use crate::dynamics::solver::joint_constraint::{JointConstraintHelper, JointSolverBody};
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{
     GenericJoint, ImpulseJoint, IntegrationParameters, JointIndex, Multibody, MultibodyJointSet,
     MultibodyLinkId, RigidBodySet,
 };
-use crate::math::{Real, Vector, ANG_DIM, DIM, SPATIAL_DIM};
+use crate::math::*;
 use crate::utils;
 use crate::utils::IndexMut2;
 use crate::utils::SimdDot;
@@ -191,11 +191,11 @@ impl JointGenericTwoBodyConstraintBuilder {
         let frame2 = pos2 * self.joint.local_frame2;
 
         let joint_body1 = JointSolverBody {
-            world_com: pos1 * self.local_body1.world_com, // the world_com was stored in local-space.
+            world_com: pos1.transform_point(&self.local_body1.world_com), // the world_com was stored in local-space.
             ..self.local_body1
         };
         let joint_body2 = JointSolverBody {
-            world_com: pos2 * self.local_body2.world_com, // the world_com was stored in local-space.
+            world_com: pos2.transform_point(&self.local_body2.world_com), // the world_com was stored in local-space.
             ..self.local_body2
         };
 
@@ -314,7 +314,7 @@ impl JointGenericVelocityOneBodyInternalConstraintBuilder {
 #[derive(Copy, Clone)]
 pub struct JointGenericVelocityOneBodyExternalConstraintBuilder {
     body1: JointFixedSolverBody<Real>,
-    frame1: Isometry<Real>,
+    frame1: Isometry,
     link2: MultibodyLinkId,
     joint_id: JointIndex,
     joint: GenericJoint,
@@ -425,7 +425,7 @@ impl JointGenericVelocityOneBodyExternalConstraintBuilder {
             };
 
         let joint_body2 = JointSolverBody {
-            world_com: pos2 * self.local_body2.world_com, // the world_com was stored in local-space.
+            world_com: pos2.transform_point(&self.local_body2.world_com), // the world_com was stored in local-space.
             ..self.local_body2
         };
 
@@ -450,7 +450,7 @@ impl JointGenericVelocityOneBodyExternalConstraintBuilder {
 impl JointSolverBody<Real, 1> {
     pub fn fill_jacobians(
         &self,
-        unit_force: Vector<Real>,
+        unit_force: Vector,
         unit_torque: SVector<Real, ANG_DIM>,
         j_id: &mut usize,
         jacobians: &mut DVector<Real>,
@@ -458,16 +458,16 @@ impl JointSolverBody<Real, 1> {
         let wj_id = *j_id + SPATIAL_DIM;
         jacobians
             .fixed_rows_mut::<DIM>(*j_id)
-            .copy_from(&unit_force);
+            .copy_from(&unit_force.into());
         jacobians
             .fixed_rows_mut::<ANG_DIM>(*j_id + DIM)
-            .copy_from(&unit_torque);
+            .copy_from(&unit_torque.into());
 
         {
             let mut out_invm_j = jacobians.fixed_rows_mut::<SPATIAL_DIM>(wj_id);
             out_invm_j
                 .fixed_rows_mut::<DIM>(0)
-                .copy_from(&self.im.component_mul(&unit_force));
+                .copy_from(&self.im.component_mul(&unit_force).into());
 
             #[cfg(feature = "dim2")]
             {
@@ -477,7 +477,7 @@ impl JointSolverBody<Real, 1> {
             {
                 out_invm_j.fixed_rows_mut::<ANG_DIM>(DIM).gemv(
                     1.0,
-                    &self.sqrt_ii.into_matrix(),
+                    &self.sqrt_ii.into_matrix().into(),
                     &unit_torque,
                     0.0,
                 );
@@ -488,7 +488,7 @@ impl JointSolverBody<Real, 1> {
     }
 }
 
-impl JointTwoBodyConstraintHelper<Real> {
+impl JointConstraintHelper {
     pub fn lock_jacobians_generic(
         &self,
         jacobians: &mut DVector<Real>,
@@ -499,7 +499,7 @@ impl JointTwoBodyConstraintHelper<Real> {
         mb1: Option<(&Multibody, usize)>,
         mb2: Option<(&Multibody, usize)>,
         writeback_id: WritebackId,
-        lin_jac: Vector<Real>,
+        lin_jac: Vector,
         ang_jac1: SVector<Real, ANG_DIM>,
         ang_jac2: SVector<Real, ANG_DIM>,
     ) -> JointGenericTwoBodyConstraint {
@@ -596,12 +596,12 @@ impl JointTwoBodyConstraintHelper<Real> {
             mb2,
             writeback_id,
             lin_jac,
-            ang_jac1,
-            ang_jac2,
+            ang_jac1.into(),
+            ang_jac2.into(),
         );
 
         let erp_inv_dt = params.joint_erp_inv_dt();
-        let rhs_bias = lin_jac.dot(&self.lin_err) * erp_inv_dt;
+        let rhs_bias = lin_jac.dot(self.lin_err) * erp_inv_dt;
         c.rhs += rhs_bias;
         c
     }
@@ -634,11 +634,11 @@ impl JointTwoBodyConstraintHelper<Real> {
             mb2,
             writeback_id,
             lin_jac,
-            ang_jac1,
-            ang_jac2,
+            ang_jac1.into(),
+            ang_jac2.into(),
         );
 
-        let dist = self.lin_err.dot(&lin_jac);
+        let dist = self.lin_err.dot(lin_jac);
         let min_enabled = dist <= limits[0];
         let max_enabled = limits[1] <= dist;
 
@@ -688,13 +688,13 @@ impl JointTwoBodyConstraintHelper<Real> {
             mb2,
             writeback_id,
             lin_jac,
-            ang_jac1,
-            ang_jac2,
+            ang_jac1.into(),
+            ang_jac2.into(),
         );
 
         let mut rhs_wo_bias = 0.0;
         if motor_params.erp_inv_dt != 0.0 {
-            let dist = self.lin_err.dot(&lin_jac);
+            let dist = self.lin_err.dot(lin_jac);
             rhs_wo_bias += (dist - motor_params.target_pos) * motor_params.erp_inv_dt;
         }
 
@@ -735,14 +735,14 @@ impl JointTwoBodyConstraintHelper<Real> {
             mb1,
             mb2,
             writeback_id,
-            na::zero(),
-            ang_jac,
-            ang_jac,
+            Default::default(),
+            ang_jac.into(),
+            ang_jac.into(),
         );
 
         let erp_inv_dt = params.joint_erp_inv_dt();
         #[cfg(feature = "dim2")]
-        let rhs_bias = self.ang_err.im * erp_inv_dt;
+        let rhs_bias = self.ang_err.imag() * erp_inv_dt;
         #[cfg(feature = "dim3")]
         let rhs_bias = self.ang_err.imag()[_locked_axis] * erp_inv_dt;
         constraint.rhs += rhs_bias;
@@ -777,9 +777,9 @@ impl JointTwoBodyConstraintHelper<Real> {
             mb1,
             mb2,
             writeback_id,
-            na::zero(),
-            ang_jac,
-            ang_jac,
+            Default::default(),
+            ang_jac.into(),
+            ang_jac.into(),
         );
 
         let s_limits = [(limits[0] / 2.0).sin(), (limits[1] / 2.0).sin()];
@@ -830,9 +830,9 @@ impl JointTwoBodyConstraintHelper<Real> {
             mb1,
             mb2,
             writeback_id,
-            na::zero(),
-            ang_jac,
-            ang_jac,
+            Default::default(),
+            ang_jac.into(),
+            ang_jac.into(),
         );
 
         let mut rhs_wo_bias = 0.0;
@@ -922,7 +922,7 @@ impl JointTwoBodyConstraintHelper<Real> {
     }
 }
 
-impl JointTwoBodyConstraintHelper<Real> {
+impl JointConstraintHelper {
     pub fn lock_jacobians_generic_one_body(
         &self,
         jacobians: &mut DVector<Real>,
@@ -931,13 +931,13 @@ impl JointTwoBodyConstraintHelper<Real> {
         body1: &JointFixedSolverBody<Real>,
         (mb2, link_id2): (&Multibody, usize),
         writeback_id: WritebackId,
-        lin_jac: Vector<Real>,
+        lin_jac: Vector,
         ang_jac1: SVector<Real, ANG_DIM>,
         ang_jac2: SVector<Real, ANG_DIM>,
     ) -> JointGenericOneBodyConstraint {
         let ndofs2 = mb2.ndofs();
 
-        let proj_vel1 = lin_jac.dot(&body1.linvel) + ang_jac1.gdot(body1.angvel);
+        let proj_vel1 = lin_jac.dot(body1.linvel) + ang_jac1.gdot(body1.angvel.into());
         let j_id2 = *j_id;
         mb2.fill_jacobians(link_id2, lin_jac, ang_jac2, j_id, jacobians);
         let rhs_wo_bias = -proj_vel1;
@@ -983,12 +983,12 @@ impl JointTwoBodyConstraintHelper<Real> {
             mb2,
             writeback_id,
             lin_jac,
-            ang_jac1,
-            ang_jac2,
+            ang_jac1.into(),
+            ang_jac2.into(),
         );
 
         let erp_inv_dt = params.joint_erp_inv_dt();
-        let rhs_bias = lin_jac.dot(&self.lin_err) * erp_inv_dt;
+        let rhs_bias = lin_jac.dot(self.lin_err) * erp_inv_dt;
         c.rhs += rhs_bias;
         c
     }
@@ -1017,11 +1017,11 @@ impl JointTwoBodyConstraintHelper<Real> {
             mb2,
             writeback_id,
             lin_jac,
-            ang_jac1,
-            ang_jac2,
+            ang_jac1.into(),
+            ang_jac2.into(),
         );
 
-        let dist = self.lin_err.dot(&lin_jac);
+        let dist = self.lin_err.dot(lin_jac);
         let min_enabled = dist <= limits[0];
         let max_enabled = limits[1] <= dist;
 
@@ -1067,17 +1067,17 @@ impl JointTwoBodyConstraintHelper<Real> {
             mb2,
             writeback_id,
             lin_jac,
-            ang_jac1,
-            ang_jac2,
+            ang_jac1.into(),
+            ang_jac2.into(),
         );
 
         let mut rhs_wo_bias = 0.0;
         if motor_params.erp_inv_dt != 0.0 {
-            let dist = self.lin_err.dot(&lin_jac);
+            let dist = self.lin_err.dot(lin_jac);
             rhs_wo_bias += (dist - motor_params.target_pos) * motor_params.erp_inv_dt;
         }
 
-        let proj_vel1 = -lin_jac.dot(&body1.linvel) - ang_jac1.gdot(body1.angvel);
+        let proj_vel1 = -lin_jac.gdot(body1.linvel) - ang_jac1.gdot(body1.angvel);
         rhs_wo_bias += proj_vel1 - motor_params.target_vel;
 
         constraint.impulse_bounds = [-motor_params.max_impulse, motor_params.max_impulse];
@@ -1111,14 +1111,14 @@ impl JointTwoBodyConstraintHelper<Real> {
             body1,
             mb2,
             writeback_id,
-            na::zero(),
-            ang_jac,
-            ang_jac,
+            Default::default(),
+            ang_jac.into(),
+            ang_jac.into(),
         );
 
         let erp_inv_dt = params.joint_erp_inv_dt();
         #[cfg(feature = "dim2")]
-        let rhs_bias = self.ang_err.im * erp_inv_dt;
+        let rhs_bias = self.ang_err.imag() * erp_inv_dt;
         #[cfg(feature = "dim3")]
         let rhs_bias = self.ang_err.imag()[_locked_axis] * erp_inv_dt;
         constraint.rhs += rhs_bias;
@@ -1149,9 +1149,9 @@ impl JointTwoBodyConstraintHelper<Real> {
             body1,
             mb2,
             writeback_id,
-            na::zero(),
-            ang_jac,
-            ang_jac,
+            Default::default(),
+            ang_jac.into(),
+            ang_jac.into(),
         );
 
         let s_limits = [(limits[0] / 2.0).sin(), (limits[1] / 2.0).sin()];
@@ -1198,9 +1198,9 @@ impl JointTwoBodyConstraintHelper<Real> {
             body1,
             mb2,
             writeback_id,
-            na::zero(),
-            ang_jac,
-            ang_jac,
+            Default::default(),
+            ang_jac.into(),
+            ang_jac.into(),
         );
 
         let mut rhs = 0.0;

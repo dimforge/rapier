@@ -4,22 +4,21 @@ use rayon::prelude::*;
 use crate::data::graph::EdgeIndex;
 use crate::data::Coarena;
 use crate::dynamics::{
-    CoefficientCombineRule, ImpulseJointSet, IslandManager, RigidBodyDominance, RigidBodySet,
-    RigidBodyType,
+    CoefficientCombineRule, Dominance, ImpulseJointSet, IslandManager, RigidBodySet, RigidBodyType,
 };
 use crate::geometry::{
     BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle, ColliderPair,
     ColliderSet, CollisionEvent, ContactData, ContactManifold, ContactManifoldData, ContactPair,
     InteractionGraph, IntersectionPair, SolverContact, SolverFlags, TemporaryInteractionIndex,
 };
-use crate::math::{Real, Vector};
+use crate::math::*;
 use crate::pipeline::{
     ActiveEvents, ActiveHooks, ContactModificationContext, EventHandler, PairFilterContext,
     PhysicsHooks,
 };
 use crate::prelude::{CollisionEventFlags, MultibodyJointSet};
+use parry::math::center;
 use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
-use parry::utils::IsometryOpt;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -131,7 +130,7 @@ impl NarrowPhase {
         collider: ColliderHandle,
     ) -> impl Iterator<Item = &ContactPair> {
         self.graph_indices
-            .get(collider.0)
+            .get(collider.into())
             .map(|id| id.contact_graph_index)
             .into_iter()
             .flat_map(move |id| self.contact_graph.interactions_with(id))
@@ -168,7 +167,7 @@ impl NarrowPhase {
         collider: ColliderHandle,
     ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_ {
         self.graph_indices
-            .get(collider.0)
+            .get(collider.into())
             .map(|id| id.intersection_graph_index)
             .into_iter()
             .flat_map(move |id| {
@@ -209,8 +208,8 @@ impl NarrowPhase {
         collider1: ColliderHandle,
         collider2: ColliderHandle,
     ) -> Option<&ContactPair> {
-        let id1 = self.graph_indices.get(collider1.0)?;
-        let id2 = self.graph_indices.get(collider2.0)?;
+        let id1 = self.graph_indices.get(collider1.into())?;
+        let id2 = self.graph_indices.get(collider2.into())?;
         self.contact_graph
             .interaction_pair(id1.contact_graph_index, id2.contact_graph_index)
             .map(|c| c.2)
@@ -240,8 +239,8 @@ impl NarrowPhase {
         collider1: ColliderHandle,
         collider2: ColliderHandle,
     ) -> Option<bool> {
-        let id1 = self.graph_indices.get(collider1.0)?;
-        let id2 = self.graph_indices.get(collider2.0)?;
+        let id1 = self.graph_indices.get(collider1.into())?;
+        let id2 = self.graph_indices.get(collider2.into())?;
         self.intersection_graph
             .interaction_pair(id1.intersection_graph_index, id2.intersection_graph_index)
             .map(|c| c.2.intersecting)
@@ -287,7 +286,7 @@ impl NarrowPhase {
             // to remove in the narrow-phase for this collider.
             if let Some(graph_idx) = self
                 .graph_indices
-                .remove(collider.0, ColliderGraphIndices::invalid())
+                .remove((*collider).into(), ColliderGraphIndices::invalid())
             {
                 let intersection_graph_id = prox_id_remap
                     .get(collider)
@@ -387,7 +386,7 @@ impl NarrowPhase {
         // We have to manage the fact that one other collider will
         // have its graph index changed because of the node's swap-remove.
         if let Some(replacement) = self.intersection_graph.remove_node(intersection_graph_id) {
-            if let Some(replacement) = self.graph_indices.get_mut(replacement.0) {
+            if let Some(replacement) = self.graph_indices.get_mut(replacement.into()) {
                 replacement.intersection_graph_index = intersection_graph_id;
             } else {
                 prox_id_remap.insert(replacement, intersection_graph_id);
@@ -399,7 +398,7 @@ impl NarrowPhase {
         }
 
         if let Some(replacement) = self.contact_graph.remove_node(contact_graph_id) {
-            if let Some(replacement) = self.graph_indices.get_mut(replacement.0) {
+            if let Some(replacement) = self.graph_indices.get_mut(replacement.into()) {
                 replacement.contact_graph_index = contact_graph_id;
             } else {
                 contact_id_remap.insert(replacement, contact_graph_id);
@@ -430,7 +429,7 @@ impl NarrowPhase {
                     continue;
                 }
 
-                if let Some(gid) = self.graph_indices.get(handle.0) {
+                if let Some(gid) = self.graph_indices.get((*handle).into()) {
                     // For each modified colliders, we need to wake-up the bodies it is in contact with
                     // so that the narrow-phase properly takes into account the change in, e.g.,
                     // collision groups. Waking up the modified collider's parent isn't enough because
@@ -527,8 +526,8 @@ impl NarrowPhase {
             // TODO: could we just unwrap here?
             // Don't we have the guarantee that we will get a `AddPair` before a `DeletePair`?
             if let (Some(gid1), Some(gid2)) = (
-                self.graph_indices.get(pair.collider1.0),
-                self.graph_indices.get(pair.collider2.0),
+                self.graph_indices.get(pair.collider1.into()),
+                self.graph_indices.get(pair.collider2.into()),
             ) {
                 if mode == PairRemovalMode::FromIntersectionGraph
                     || (mode == PairRemovalMode::Auto && (co1.is_sensor() || co2.is_sensor()))
@@ -596,8 +595,8 @@ impl NarrowPhase {
             // These colliders have no parents - continue.
 
             let (gid1, gid2) = self.graph_indices.ensure_pair_exists(
-                pair.collider1.0,
-                pair.collider2.0,
+                pair.collider1.into(),
+                pair.collider2.into(),
                 ColliderGraphIndices::invalid(),
             );
 
@@ -911,19 +910,19 @@ impl NarrowPhase {
                 );
 
                 let friction = CoefficientCombineRule::combine(
-                    co1.material.friction,
-                    co2.material.friction,
-                    co1.material.friction_combine_rule as u8,
-                    co2.material.friction_combine_rule as u8,
+                    co1.friction.coefficient,
+                    co2.friction.coefficient,
+                    co1.friction.combine_rule as u8,
+                    co2.friction.combine_rule as u8,
                 );
                 let restitution = CoefficientCombineRule::combine(
-                    co1.material.restitution,
-                    co2.material.restitution,
-                    co1.material.restitution_combine_rule as u8,
-                    co2.material.restitution_combine_rule as u8,
+                    co1.restitution.coefficient,
+                    co2.restitution.coefficient,
+                    co1.restitution.combine_rule as u8,
+                    co2.restitution.combine_rule as u8,
                 );
 
-                let zero = RigidBodyDominance(0); // The value doesn't matter, it will be MAX because of the effective groups.
+                let zero = Dominance { groups: 0 }; // The value doesn't matter, it will be MAX because of the effective groups.
                 let dominance1 = co1
                     .parent
                     .map(|p1| bodies[p1.handle].dominance)
@@ -944,7 +943,7 @@ impl NarrowPhase {
                     manifold.data.solver_flags = solver_flags;
                     manifold.data.relative_dominance = dominance1.effective_group(&rb_type1)
                         - dominance2.effective_group(&rb_type2);
-                    manifold.data.normal = world_pos1 * manifold.local_n1;
+                    manifold.data.normal = world_pos1.rotation * manifold.local_n1;
 
                     // Generate solver contacts.
                     for (contact_id, contact) in manifold.points.iter().enumerate() {
@@ -955,9 +954,9 @@ impl NarrowPhase {
 
                         if contact.dist < prediction_distance {
                             // Generate the solver contact.
-                            let world_pt1 = world_pos1 * contact.local_p1;
-                            let world_pt2 = world_pos2 * contact.local_p2;
-                            let effective_point = na::center(&world_pt1, &world_pt2);
+                            let world_pt1 = world_pos1.transform_point(&contact.local_p1);
+                            let world_pt2 = world_pos2.transform_point(&contact.local_p2);
+                            let effective_point = center(world_pt1, world_pt2);
 
                             let solver_contact = SolverContact {
                                 contact_id: contact_id as u8,

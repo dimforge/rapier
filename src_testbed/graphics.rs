@@ -30,7 +30,7 @@ pub struct GraphicsManager {
     b2wireframe: HashMap<RigidBodyHandle, bool>,
     ground_color: Point3<f32>,
     prefab_meshes: HashMap<ShapeType, Handle<Mesh>>,
-    pub gfx_shift: Vector<Real>,
+    pub gfx_shift: Vector,
 }
 
 impl GraphicsManager {
@@ -300,8 +300,8 @@ impl GraphicsManager {
         handle: Option<ColliderHandle>,
         shape: &dyn Shape,
         sensor: bool,
-        pos: &Isometry<Real>,
-        delta: &Isometry<Real>,
+        pos: &Isometry,
+        delta: &Isometry,
         color: Point3<f32>,
         out: &mut Vec<EntityWithGraphics>,
     ) {

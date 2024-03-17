@@ -1,20 +1,38 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle, RigidBodyType};
 use crate::geometry::{InteractionGroups, SAPProxyIndex, Shape, SharedShape};
-use crate::math::{Isometry, Real};
+use crate::math::*;
 use crate::parry::partitioning::IndexedData;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
 use std::ops::{Deref, DerefMut};
+
+use crate::data::Index;
+#[cfg(feature = "bevy")]
+use bevy::prelude::{Component, Reflect, ReflectComponent};
 
 /// The unique identifier of a collider added to a collider set.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[repr(transparent)]
+#[cfg(not(feature = "bevy"))]
 pub struct ColliderHandle(pub crate::data::arena::Index);
 
+#[cfg(feature = "bevy")]
+pub type ColliderHandle = bevy::prelude::Entity;
+
+#[cfg(not(feature = "bevy"))]
 impl ColliderHandle {
+    pub const PLACEHOLDER: Self = Self(Index::from_raw_parts(
+        crate::INVALID_U32,
+        crate::INVALID_U32,
+    ));
+
     /// Converts this handle into its (index, generation) components.
     pub fn into_raw_parts(self) -> (u32, u32) {
         self.0.into_raw_parts()
+    }
+
+    pub fn index(&self) -> u32 {
+        self.0.into_raw_parts().0
     }
 
     /// Reconstructs an handle from its (index, generation) components.
@@ -24,13 +42,25 @@ impl ColliderHandle {
 
     /// An always-invalid collider handle.
     pub fn invalid() -> Self {
-        Self(crate::data::arena::Index::from_raw_parts(
-            crate::INVALID_U32,
-            crate::INVALID_U32,
-        ))
+        Self::PLACEHOLDER
     }
 }
 
+#[cfg(not(feature = "bevy"))]
+impl From<crate::data::arena::Index> for ColliderHandle {
+    fn from(value: Index) -> Self {
+        Self(value)
+    }
+}
+
+#[cfg(not(feature = "bevy"))]
+impl From<ColliderHandle> for crate::data::arena::Index {
+    fn from(value: ColliderHandle) -> Self {
+        value.0
+    }
+}
+
+#[cfg(not(feature = "bevy"))]
 impl IndexedData for ColliderHandle {
     fn default() -> Self {
         Self(IndexedData::default())
@@ -134,8 +164,15 @@ pub type ColliderShape = SharedShape;
 
 #[derive(Clone, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    feature = "bevy",
+    derive(Component),
+    // TODO: Reflect doesn’t like Box?
+    // derive(Component, Reflect),
+    // reflect(Component, PartialEq)
+)]
 /// The mass-properties of a collider.
-pub enum ColliderMassProps {
+pub enum ColliderMassProperties {
     /// The collider is given a density.
     ///
     /// Its actual `MassProperties` are computed automatically with
@@ -149,19 +186,19 @@ pub enum ColliderMassProps {
     MassProperties(Box<MassProperties>),
 }
 
-impl Default for ColliderMassProps {
+impl Default for ColliderMassProperties {
     fn default() -> Self {
-        ColliderMassProps::Density(1.0)
+        ColliderMassProperties::Density(1.0)
     }
 }
 
-impl From<MassProperties> for ColliderMassProps {
+impl From<MassProperties> for ColliderMassProperties {
     fn from(mprops: MassProperties) -> Self {
-        ColliderMassProps::MassProperties(Box::new(mprops))
+        ColliderMassProperties::MassProperties(Box::new(mprops))
     }
 }
 
-impl ColliderMassProps {
+impl ColliderMassProperties {
     /// The mass-properties of this collider.
     ///
     /// If `self` is the `Density` variant, then this computes the mass-properties based
@@ -170,14 +207,14 @@ impl ColliderMassProps {
     /// If `self` is the `MassProperties` variant, then this returns the stored mass-properties.
     pub fn mass_properties(&self, shape: &dyn Shape) -> MassProperties {
         match self {
-            ColliderMassProps::Density(density) => {
+            ColliderMassProperties::Density(density) => {
                 if *density != 0.0 {
                     shape.mass_properties(*density)
                 } else {
                     MassProperties::default()
                 }
             }
-            ColliderMassProps::Mass(mass) => {
+            ColliderMassProperties::Mass(mass) => {
                 if *mass != 0.0 {
                     let mut mprops = shape.mass_properties(1.0);
                     mprops.set_mass(*mass, true);
@@ -186,7 +223,7 @@ impl ColliderMassProps {
                     MassProperties::default()
                 }
             }
-            ColliderMassProps::MassProperties(mass_properties) => **mass_properties,
+            ColliderMassProperties::MassProperties(mass_properties) => **mass_properties,
         }
     }
 }
@@ -198,31 +235,31 @@ pub struct ColliderParent {
     /// Handle of the rigid-body this collider is attached to.
     pub handle: RigidBodyHandle,
     /// Const position of this collider relative to its parent rigid-body.
-    pub pos_wrt_parent: Isometry<Real>,
+    pub pos_wrt_parent: Isometry,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// The position of a collider.
-pub struct ColliderPosition(pub Isometry<Real>);
+pub struct ColliderPosition(pub Isometry);
 
-impl AsRef<Isometry<Real>> for ColliderPosition {
+impl AsRef<Isometry> for ColliderPosition {
     #[inline]
-    fn as_ref(&self) -> &Isometry<Real> {
+    fn as_ref(&self) -> &Isometry {
         &self.0
     }
 }
 
-impl AsMut<Isometry<Real>> for ColliderPosition {
-    fn as_mut(&mut self) -> &mut Isometry<Real> {
+impl AsMut<Isometry> for ColliderPosition {
+    fn as_mut(&mut self) -> &mut Isometry {
         &mut self.0
     }
 }
 
 impl Deref for ColliderPosition {
-    type Target = Isometry<Real>;
+    type Target = Isometry;
     #[inline]
-    fn deref(&self) -> &Isometry<Real> {
+    fn deref(&self) -> &Isometry {
         &self.0
     }
 }
@@ -249,7 +286,7 @@ impl ColliderPosition {
 
 impl<T> From<T> for ColliderPosition
 where
-    Isometry<Real>: From<T>,
+    Isometry: From<T>,
 {
     fn from(position: T) -> Self {
         Self(position.into())
@@ -258,49 +295,88 @@ where
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-/// The constraints solver-related properties of this collider (friction, restitution, etc.)
-pub struct ColliderMaterial {
+#[cfg_attr(
+    feature = "bevy",
+    derive(Component, Reflect),
+    reflect(Component, PartialEq)
+)]
+/// The collider’s friction properties.
+pub struct Friction {
     /// The friction coefficient of this collider.
     ///
     /// The greater the value, the stronger the friction forces will be.
     /// Should be `>= 0`.
-    pub friction: Real,
-    /// The restitution coefficient of this collider.
-    ///
-    /// Increase this value to make contacts with this collider more "bouncy".
-    /// Should be `>= 0` and should generally not be greater than `1` (perfectly elastic
-    /// collision).
-    pub restitution: Real,
+    pub coefficient: Real,
     /// The rule applied to combine the friction coefficients of two colliders in contact.
-    pub friction_combine_rule: CoefficientCombineRule,
-    /// The rule applied to combine the restitution coefficients of two colliders.
-    pub restitution_combine_rule: CoefficientCombineRule,
+    pub combine_rule: CoefficientCombineRule,
 }
 
-impl ColliderMaterial {
-    /// Creates a new collider material with the given friction and restitution coefficients.
-    pub fn new(friction: Real, restitution: Real) -> Self {
+impl Default for Friction {
+    fn default() -> Self {
         Self {
-            friction,
-            restitution,
+            coefficient: 1.0,
+            combine_rule: CoefficientCombineRule::default(),
+        }
+    }
+}
+
+impl Friction {
+    /// Inits the Friction component with the specified friction coefficient
+    /// and the default friction [`CoefficientCombineRule`].
+    pub fn coefficient(coefficient: Real) -> Self {
+        Self {
+            coefficient,
             ..Default::default()
         }
     }
 }
 
-impl Default for ColliderMaterial {
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    feature = "bevy",
+    derive(Component, Reflect),
+    reflect(Component, PartialEq)
+)]
+/// The collider’s restitution properties.
+pub struct Restitution {
+    /// The restitution coefficient of this collider.
+    ///
+    /// Increase this value to make contacts with this collider more "bouncy".
+    /// Should be `>= 0` and should generally not be greater than `1` (perfectly elastic
+    /// collision).
+    pub coefficient: Real,
+    /// The rule applied to combine the restitution coefficients of two colliders.
+    pub combine_rule: CoefficientCombineRule,
+}
+
+impl Default for Restitution {
     fn default() -> Self {
         Self {
-            friction: 1.0,
-            restitution: 0.0,
-            friction_combine_rule: CoefficientCombineRule::default(),
-            restitution_combine_rule: CoefficientCombineRule::default(),
+            coefficient: 1.0,
+            combine_rule: CoefficientCombineRule::default(),
+        }
+    }
+}
+
+impl Restitution {
+    /// Inits the Restitution component with the specified friction coefficient
+    /// and the default friction [`CoefficientCombineRule`].
+    pub fn coefficient(coefficient: Real) -> Self {
+        Self {
+            coefficient,
+            ..Default::default()
         }
     }
 }
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[cfg_attr(
+        feature = "bevy",
+        derive(Component, Reflect),
+        reflect(Component, Hash, PartialEq)
+    )]
     /// Flags affecting whether or not collision-detection happens between two colliders
     /// depending on the type of rigid-bodies they are attached to.
     pub struct ActiveCollisionTypes: u16 {

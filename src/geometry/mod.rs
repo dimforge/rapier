@@ -21,7 +21,7 @@ pub use parry::bounding_volume::BoundingVolume;
 pub use parry::query::{PointQuery, PointQueryWithLocation, RayCast, TrackedContact};
 pub use parry::shape::SharedShape;
 
-use crate::math::{Real, Vector};
+use crate::math::*;
 
 /// A contact between two colliders.
 pub type Contact = parry::query::TrackedContact<ContactData>;
@@ -70,6 +70,7 @@ bitflags::bitflags! {
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Event))]
 #[derive(Copy, Clone, Hash, Debug)]
 /// Events occurring when two colliders start or stop colliding
 pub enum CollisionEvent {
@@ -123,7 +124,8 @@ impl CollisionEvent {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Debug, Default)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Event))]
+#[derive(Copy, Clone, PartialEq, Debug)]
 /// Event occurring when the sum of the magnitudes of the contact forces
 /// between two colliders exceed a threshold.
 pub struct ContactForceEvent {
@@ -132,7 +134,7 @@ pub struct ContactForceEvent {
     /// The second collider involved in the contact.
     pub collider2: ColliderHandle,
     /// The sum of all the forces between the two colliders.
-    pub total_force: Vector<Real>,
+    pub total_force: Vector,
     /// The sum of the magnitudes of each force between the two colliders.
     ///
     /// Note that this is **not** the same as the magnitude of `self.total_force`.
@@ -140,9 +142,23 @@ pub struct ContactForceEvent {
     /// the magnitude of their sum.
     pub total_force_magnitude: Real,
     /// The world-space (unit) direction of the force with strongest magnitude.
-    pub max_force_direction: Vector<Real>,
+    pub max_force_direction: Vector,
     /// The magnitude of the largest force at a contact point of this contact pair.
     pub max_force_magnitude: Real,
+}
+
+impl Default for ContactForceEvent {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            collider1: ColliderHandle::PLACEHOLDER,
+            collider2: ColliderHandle::PLACEHOLDER,
+            total_force: Default::default(),
+            total_force_magnitude: Default::default(),
+            max_force_direction: Default::default(),
+            max_force_magnitude: Default::default(),
+        }
+    }
 }
 
 impl ContactForceEvent {

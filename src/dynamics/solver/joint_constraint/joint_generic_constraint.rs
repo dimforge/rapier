@@ -1,10 +1,10 @@
 use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
     JointFixedSolverBody, WritebackId,
 };
-use crate::dynamics::solver::joint_constraint::{JointSolverBody, JointTwoBodyConstraintHelper};
+use crate::dynamics::solver::joint_constraint::{JointConstraintHelper, JointSolverBody};
 use crate::dynamics::solver::SolverVel;
 use crate::dynamics::{GenericJoint, IntegrationParameters, JointGraphEdge, JointIndex, Multibody};
-use crate::math::{Isometry, Real, DIM};
+use crate::math::*;
 use crate::prelude::SPATIAL_DIM;
 use na::{DVector, DVectorView, DVectorViewMut};
 
@@ -69,8 +69,8 @@ impl JointGenericTwoBodyConstraint {
         body2: &JointSolverBody<Real, 1>,
         mb1: Option<(&Multibody, usize)>,
         mb2: Option<(&Multibody, usize)>,
-        frame1: &Isometry<Real>,
-        frame2: &Isometry<Real>,
+        frame1: &Isometry,
+        frame2: &Isometry,
         joint: &GenericJoint,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
@@ -81,7 +81,7 @@ impl JointGenericTwoBodyConstraint {
         let motor_axes = joint.motor_axes.bits();
         let limit_axes = joint.limit_axes.bits();
 
-        let builder = JointTwoBodyConstraintHelper::new(
+        let builder = JointConstraintHelper::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -125,7 +125,7 @@ impl JointGenericTwoBodyConstraint {
                 len += 1;
             }
         }
-        JointTwoBodyConstraintHelper::finalize_generic_constraints(jacobians, &mut out[start..len]);
+        JointConstraintHelper::finalize_generic_constraints(jacobians, &mut out[start..len]);
 
         let start = len;
         for i in DIM..SPATIAL_DIM {
@@ -200,7 +200,7 @@ impl JointGenericTwoBodyConstraint {
             }
         }
 
-        JointTwoBodyConstraintHelper::finalize_generic_constraints(jacobians, &mut out[start..len]);
+        JointConstraintHelper::finalize_generic_constraints(jacobians, &mut out[start..len]);
         len
     }
 
@@ -357,8 +357,8 @@ impl JointGenericOneBodyConstraint {
         body1: &JointFixedSolverBody<Real>,
         body2: &JointSolverBody<Real, 1>,
         mb2: (&Multibody, usize),
-        frame1: &Isometry<Real>,
-        frame2: &Isometry<Real>,
+        frame1: &Isometry,
+        frame2: &Isometry,
         joint: &GenericJoint,
         jacobians: &mut DVector<Real>,
         j_id: &mut usize,
@@ -369,7 +369,7 @@ impl JointGenericOneBodyConstraint {
         let motor_axes = joint.motor_axes.bits();
         let limit_axes = joint.limit_axes.bits();
 
-        let builder = JointTwoBodyConstraintHelper::new(
+        let builder = JointConstraintHelper::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -411,7 +411,7 @@ impl JointGenericOneBodyConstraint {
             }
         }
 
-        JointTwoBodyConstraintHelper::finalize_generic_constraints_one_body(
+        JointConstraintHelper::finalize_generic_constraints_one_body(
             jacobians,
             &mut out[start..len],
         );
@@ -481,7 +481,7 @@ impl JointGenericOneBodyConstraint {
             }
         }
 
-        JointTwoBodyConstraintHelper::finalize_generic_constraints_one_body(
+        JointConstraintHelper::finalize_generic_constraints_one_body(
             jacobians,
             &mut out[start..len],
         );

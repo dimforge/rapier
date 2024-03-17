@@ -12,17 +12,13 @@ use crate::dynamics::{
     RigidBodySet,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{Real, MAX_MANIFOLD_POINTS};
+use crate::math::*;
 use na::DVector;
-use parry::math::DIM;
 
 #[cfg(feature = "simd-is-enabled")]
-use {
-    crate::dynamics::solver::contact_constraint::{
-        OneBodyConstraintSimd, SimdOneBodyConstraintBuilder, TwoBodyConstraintBuilderSimd,
-        TwoBodyConstraintSimd,
-    },
-    crate::math::SIMD_WIDTH,
+use crate::dynamics::solver::contact_constraint::{
+    OneBodyConstraintSimd, SimdOneBodyConstraintBuilder, TwoBodyConstraintBuilderSimd,
+    TwoBodyConstraintSimd,
 };
 
 pub struct ConstraintsCounts {
@@ -174,6 +170,7 @@ impl ContactConstraintsSet {
             self.simd_compute_one_body_constraints(bodies, manifolds);
         }
         self.compute_one_body_constraints(bodies, manifolds);
+
         self.compute_generic_one_body_constraints(
             bodies,
             multibody_joints,
@@ -438,6 +435,7 @@ impl ContactConstraintsSet {
 
             curr_start += num_to_add;
         }
+
         assert_eq!(curr_start, total_num_constraints);
     }
 

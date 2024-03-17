@@ -1,4 +1,7 @@
-use crate::math::Real;
+use crate::math::*;
+
+#[cfg(feature = "bevy")]
+use bevy::prelude::{Component, Reflect, ReflectComponent};
 
 /// Rules used to combine two coefficients.
 ///
@@ -9,6 +12,11 @@ use crate::math::Real;
 /// actually used is given by `max(first_combine_rule as usize, second_combine_rule as usize)`.
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    feature = "bevy",
+    derive(Component, Reflect),
+    reflect(Component, PartialEq)
+)]
 pub enum CoefficientCombineRule {
     /// The two coefficients are averaged.
     #[default]

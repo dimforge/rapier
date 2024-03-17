@@ -4,8 +4,8 @@ use crate::dynamics::solver::{AnyConstraintMut, SolverBody};
 
 use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{Isometry, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
-use crate::utils::{self, SimdAngularInertia, SimdBasis, SimdCross, SimdDot};
+use crate::math::*;
+use crate::utils::{self, SimdAngularInertia, SimdBasis, SimdCross, SimdDot, SimdRealCopy};
 use na::DVector;
 
 use super::{TwoBodyConstraintElement, TwoBodyConstraintNormalPart};
@@ -88,11 +88,11 @@ impl<'a> AnyConstraintMut<'a, ContactConstraintTypes> {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct TwoBodyConstraint {
-    pub dir1: Vector<Real>, // Non-penetration force direction for the first body.
+    pub dir1: Vector, // Non-penetration force direction for the first body.
     #[cfg(feature = "dim3")]
-    pub tangent1: Vector<Real>, // One of the friction force directions.
-    pub im1: Vector<Real>,
-    pub im2: Vector<Real>,
+    pub tangent1: Vector, // One of the friction force directions.
+    pub im1: Vector,
+    pub im2: Vector,
     pub cfm_factor: Real,
     pub limit: Real,
     pub solver_vel1: usize,
@@ -207,7 +207,7 @@ impl TwoBodyConstraintBuilder {
 
                     let imsum = mprops1.effective_inv_mass + mprops2.effective_inv_mass;
                     let projected_mass = utils::inv(
-                        force_dir1.dot(&imsum.component_mul(&force_dir1))
+                        force_dir1.dot(imsum.component_mul(&force_dir1))
                             + gcross1.gdot(gcross1)
                             + gcross2.gdot(gcross2),
                     );
@@ -215,7 +215,7 @@ impl TwoBodyConstraintBuilder {
                     let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
 
                     normal_rhs_wo_bias =
-                        (is_bouncy * manifold_point.restitution) * (vel1 - vel2).dot(&force_dir1);
+                        (is_bouncy * manifold_point.restitution) * (vel1 - vel2).dot(force_dir1);
 
                     constraint.elements[k].normal_part = TwoBodyConstraintNormalPart {
                         gcross1,
@@ -230,7 +230,7 @@ impl TwoBodyConstraintBuilder {
 
                 // Tangent parts.
                 {
-                    constraint.elements[k].tangent_part.impulse = na::zero();
+                    constraint.elements[k].tangent_part.impulse = Default::default();
 
                     for j in 0..DIM - 1 {
                         let gcross1 = mprops1
@@ -240,10 +240,10 @@ impl TwoBodyConstraintBuilder {
                             .effective_world_inv_inertia_sqrt
                             .transform_vector(dp2.gcross(-tangents1[j]));
                         let imsum = mprops1.effective_inv_mass + mprops2.effective_inv_mass;
-                        let r = tangents1[j].dot(&imsum.component_mul(&tangents1[j]))
+                        let r = tangents1[j].dot(imsum.component_mul(&tangents1[j]))
                             + gcross1.gdot(gcross1)
                             + gcross2.gdot(gcross2);
-                        let rhs_wo_bias = manifold_point.tangent_velocity.dot(&tangents1[j]);
+                        let rhs_wo_bias = manifold_point.tangent_velocity.dot(tangents1[j]);
 
                         constraint.elements[k].tangent_part.gcross1[j] = gcross1;
                         constraint.elements[k].tangent_part.gcross2[j] = gcross2;
@@ -313,8 +313,8 @@ impl TwoBodyConstraintBuilder {
         &self,
         params: &IntegrationParameters,
         solved_dt: Real,
-        rb1_pos: &Isometry<Real>,
-        rb2_pos: &Isometry<Real>,
+        rb1_pos: &Isometry,
+        rb2_pos: &Isometry,
         ccd_thickness: Real,
         constraint: &mut TwoBodyConstraint,
     ) {
@@ -332,14 +332,14 @@ impl TwoBodyConstraintBuilder {
         #[cfg(feature = "dim3")]
         let tangents1 = [
             constraint.tangent1,
-            constraint.dir1.cross(&constraint.tangent1),
+            constraint.dir1.cross(constraint.tangent1),
         ];
 
         for (info, element) in all_infos.iter().zip(all_elements.iter_mut()) {
             // Tangent velocity is equivalent to the first body’s surface moving artificially.
-            let p1 = rb1_pos * info.local_p1 + info.tangent_vel * solved_dt;
-            let p2 = rb2_pos * info.local_p2;
-            let dist = info.dist + (p1 - p2).dot(&constraint.dir1);
+            let p1 = rb1_pos.transform_point(&info.local_p1) + info.tangent_vel * solved_dt;
+            let p2 = rb2_pos.transform_point(&info.local_p2);
+            let dist = info.dist + (p1 - p2).dot(constraint.dir1);
 
             // Normal part.
             {
@@ -360,10 +360,10 @@ impl TwoBodyConstraintBuilder {
             // Tangent part.
             {
                 element.tangent_part.total_impulse += element.tangent_part.impulse;
-                element.tangent_part.impulse = na::zero();
+                element.tangent_part.impulse = Default::default();
 
                 for j in 0..DIM - 1 {
-                    let bias = (p1 - p2).dot(&tangents1[j]) * inv_dt;
+                    let bias = (p1 - p2).dot(tangents1[j]) * inv_dt;
                     element.tangent_part.rhs[j] = element.tangent_part.rhs_wo_bias[j] + bias;
                 }
             }
@@ -412,7 +412,7 @@ impl TwoBodyConstraint {
 
             #[cfg(feature = "dim2")]
             {
-                active_contact.data.tangent_impulse = self.elements[k].tangent_part.impulse[0];
+                active_contact.data.tangent_impulse = self.elements[k].tangent_part.impulse;
             }
             #[cfg(feature = "dim3")]
             {
@@ -433,38 +433,48 @@ impl TwoBodyConstraint {
     }
 }
 
-#[inline(always)]
-#[cfg(feature = "dim3")]
-pub(crate) fn compute_tangent_contact_directions<N>(
-    force_dir1: &Vector<N>,
-    linvel1: &Vector<N>,
-    linvel2: &Vector<N>,
-) -> [Vector<N>; DIM - 1]
-where
-    N: utils::SimdRealCopy,
-    Vector<N>: SimdBasis,
-{
-    use na::SimdValue;
+macro_rules! specialize_tangents_calculation {
+    ($fn_name: ident, $SimdVector: ty, $SimdReal: ty) => {
+        #[inline(always)]
+        #[cfg(feature = "dim3")]
+        pub(crate) fn $fn_name(
+            force_dir1: &$SimdVector,
+            linvel1: &$SimdVector,
+            linvel2: &$SimdVector,
+        ) -> [$SimdVector; DIM - 1]
+        {
+            use na::SimdValue;
+            use na::SimdPartialOrd;
 
-    // Compute the tangent direction. Pick the direction of
-    // the linear relative velocity, if it is not too small.
-    // Otherwise use a fallback direction.
-    let relative_linvel = linvel1 - linvel2;
-    let mut tangent_relative_linvel =
-        relative_linvel - force_dir1 * (force_dir1.dot(&relative_linvel));
+            // Compute the tangent direction. Pick the direction of
+            // the linear relative velocity, if it is not too small.
+            // Otherwise use a fallback direction.
+            let relative_linvel = *linvel1 - *linvel2;
 
-    let tangent_linvel_norm = {
-        let _disable_fe_except =
-            crate::utils::DisableFloatingPointExceptionsFlags::disable_floating_point_exceptions();
-        tangent_relative_linvel.normalize_mut()
+            let mut tangent_relative_linvel =
+                relative_linvel - *force_dir1 * (force_dir1.gdot(relative_linvel));
+
+            let tangent_linvel_norm = {
+                let _disable_fe_except =
+                    crate::utils::DisableFloatingPointExceptionsFlags::disable_floating_point_exceptions();
+                tangent_relative_linvel.normalize_mut()
+            };
+
+            const THRESHOLD: Real = 1.0e-4;
+            let use_fallback = tangent_linvel_norm.simd_lt(<$SimdReal>::splat(THRESHOLD));
+            let tangent_fallback = force_dir1.orthonormal_vector();
+
+            let tangent1 = tangent_fallback.select(use_fallback, tangent_relative_linvel);
+            let bitangent1 = force_dir1.gcross(tangent1);
+
+            [tangent1, bitangent1]
+        }
     };
-
-    const THRESHOLD: Real = 1.0e-4;
-    let use_fallback = tangent_linvel_norm.simd_lt(N::splat(THRESHOLD));
-    let tangent_fallback = force_dir1.orthonormal_vector();
-
-    let tangent1 = tangent_fallback.select(use_fallback, tangent_relative_linvel);
-    let bitangent1 = force_dir1.cross(&tangent1);
-
-    [tangent1, bitangent1]
 }
+
+specialize_tangents_calculation!(compute_tangent_contact_directions, Vector, Real);
+specialize_tangents_calculation!(
+    compute_tangent_contact_directions_simd,
+    SimdVector,
+    SimdReal
+);

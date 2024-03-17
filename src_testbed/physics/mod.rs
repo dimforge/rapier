@@ -82,7 +82,7 @@ pub struct PhysicsState {
     pub pipeline: PhysicsPipeline,
     pub query_pipeline: QueryPipeline,
     pub integration_parameters: IntegrationParameters,
-    pub gravity: Vector<Real>,
+    pub gravity: Vector,
     pub hooks: Box<dyn PhysicsHooks>,
 }
 

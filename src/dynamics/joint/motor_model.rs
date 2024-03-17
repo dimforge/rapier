@@ -1,4 +1,4 @@
-use crate::math::Real;
+use crate::math::*;
 
 /// The spring-like model used for constraints resolution.
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]

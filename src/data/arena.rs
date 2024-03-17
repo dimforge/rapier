@@ -76,7 +76,7 @@ impl Index {
     ///
     /// Providing arbitrary values will lead to malformed indices and ultimately
     /// panics.
-    pub fn from_raw_parts(index: u32, generation: u32) -> Index {
+    pub const fn from_raw_parts(index: u32, generation: u32) -> Index {
         Index { index, generation }
     }
 

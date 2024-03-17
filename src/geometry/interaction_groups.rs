@@ -1,5 +1,8 @@
 #![allow(clippy::bad_bit_mask)] // Clippy will complain about the bitmasks due to Group::NONE being 0.
 
+#[cfg(feature = "bevy")]
+use bevy::prelude::{Component, Reflect, ReflectComponent};
+
 /// Pairwise filtering using bit masks.
 ///
 /// This filtering method is based on two 32-bit values:
@@ -16,6 +19,7 @@
 /// (self.memberships & rhs.filter) != 0 && (rhs.memberships & self.filter) != 0
 /// ```
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bevy", derive(Reflect), reflect(PartialEq))]
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 #[repr(C)]
 pub struct InteractionGroups {
@@ -80,6 +84,12 @@ use bitflags::bitflags;
 bitflags! {
     /// A bit mask identifying groups for interaction.
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[cfg_attr(
+        feature = "bevy",
+        derive(Component, Reflect),
+        reflect(Component, Hash, PartialEq)
+    )]
+    #[derive(Default)]
     pub struct Group: u32 {
         /// The group n°1.
         const GROUP_1 = 1 << 0;

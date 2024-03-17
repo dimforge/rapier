@@ -5,7 +5,7 @@ use crate::dynamics::{
     MultibodyJointSet, RigidBodySet,
 };
 use crate::geometry::ContactManifold;
-use crate::math::Real;
+use crate::math::*;
 use crate::utils::SimdAngularInertia;
 
 use na::DVector;

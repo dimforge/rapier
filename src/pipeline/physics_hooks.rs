@@ -1,7 +1,10 @@
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, ContactManifold, SolverContact, SolverFlags};
-use crate::math::{Real, Vector};
+use crate::math::*;
 use na::ComplexField;
+
+#[cfg(feature = "bevy")]
+use bevy::prelude::{Component, Reflect, ReflectComponent};
 
 /// Context given to custom collision filters to filter-out collisions.
 pub struct PairFilterContext<'a> {
@@ -38,7 +41,7 @@ pub struct ContactModificationContext<'a> {
     /// The solver contacts that can be modified.
     pub solver_contacts: &'a mut Vec<SolverContact>,
     /// The contact normal that can be modified.
-    pub normal: &'a mut Vector<Real>,
+    pub normal: &'a mut Vector,
     /// User-defined data attached to the manifold.
     // NOTE: we keep this a &'a mut u32 to emphasize the
     // fact that this can be modified.
@@ -56,11 +59,7 @@ impl<'a> ContactModificationContext<'a> {
     /// `PhysicsHooks::modify_solver_contacts` method at each timestep, for each
     /// contact manifold involving a one-way platform. The `self.user_data` field
     /// must not be modified from the outside of this method.
-    pub fn update_as_oneway_platform(
-        &mut self,
-        allowed_local_n1: &Vector<Real>,
-        allowed_angle: Real,
-    ) {
+    pub fn update_as_oneway_platform(&mut self, allowed_local_n1: &Vector, allowed_angle: Real) {
         const CONTACT_CONFIGURATION_UNKNOWN: u32 = 0;
         const CONTACT_CURRENTLY_ALLOWED: u32 = 1;
         const CONTACT_CURRENTLY_FORBIDDEN: u32 = 2;
@@ -69,7 +68,7 @@ impl<'a> ContactModificationContext<'a> {
 
         // Test the allowed normal with the local-space contact normal that
         // points towards the exterior of context.collider1.
-        let contact_is_ok = self.manifold.local_n1.dot(allowed_local_n1) >= cang;
+        let contact_is_ok = self.manifold.local_n1.dot(*allowed_local_n1) >= cang;
 
         match *self.user_data {
             CONTACT_CONFIGURATION_UNKNOWN => {
@@ -118,6 +117,11 @@ impl<'a> ContactModificationContext<'a> {
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[cfg_attr(
+        feature = "bevy",
+        derive(Component, Reflect),
+        reflect(Component, Hash, PartialEq)
+    )]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
     pub struct ActiveHooks: u32 {
         /// If set, Rapier will call `PhysicsHooks::filter_contact_pair` whenever relevant.

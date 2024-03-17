@@ -1,5 +1,5 @@
 use super::InteractionGroups;
-use crate::math::Real;
+use crate::math::*;
 use na::DVector;
 
 pub(crate) trait ConstraintTypes {

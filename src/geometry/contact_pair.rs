@@ -1,6 +1,6 @@
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Contact, ContactManifold};
-use crate::math::{Point, Real, Vector};
+use crate::math::*;
 use crate::pipeline::EventHandler;
 use crate::prelude::CollisionEventFlags;
 use parry::query::ContactManifoldsWorkspace;
@@ -23,7 +23,7 @@ impl Default for SolverFlags {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A single contact between two collider.
 pub struct ContactData {
@@ -38,20 +38,11 @@ pub struct ContactData {
     /// The friction impulses along the basis orthonormal to the contact normal, applied to the first
     /// collider's rigid-body.
     #[cfg(feature = "dim3")]
-    pub tangent_impulse: na::Vector2<Real>,
-}
-
-impl Default for ContactData {
-    fn default() -> Self {
-        Self {
-            impulse: 0.0,
-            tangent_impulse: na::zero(),
-        }
-    }
+    pub tangent_impulse: Vector2,
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 /// The description of all the contacts between a pair of colliders.
 pub struct IntersectionPair {
     /// Are the colliders intersecting?
@@ -142,7 +133,7 @@ impl ContactPair {
     }
 
     /// The sum of all the impulses applied by contacts on this contact pair.
-    pub fn total_impulse(&self) -> Vector<Real> {
+    pub fn total_impulse(&self) -> Vector {
         self.manifolds
             .iter()
             .map(|m| m.total_impulse() * m.data.normal)
@@ -157,7 +148,7 @@ impl ContactPair {
     }
 
     /// The magnitude and (unit) direction of the maximum impulse on this contact pair.
-    pub fn max_impulse(&self) -> (Real, Vector<Real>) {
+    pub fn max_impulse(&self) -> (Real, Vector) {
         let mut result = (0.0, Vector::zeros());
 
         for m in &self.manifolds {
@@ -252,7 +243,7 @@ pub struct ContactManifoldData {
     /// The world-space contact normal shared by all the contact in this contact manifold.
     // NOTE: read the comment of `solver_contacts` regarding serialization. It applies
     // to this field as well.
-    pub normal: Vector<Real>,
+    pub normal: Vector,
     /// The contacts that will be seen by the constraints solver for computing forces.
     // NOTE: unfortunately, we can't ignore this field when serialize
     // the contact manifold data. The reason is that the solver contacts
@@ -284,7 +275,7 @@ pub struct SolverContact {
     /// The index of the manifold contact used to generate this solver contact.
     pub(crate) contact_id: u8,
     /// The contact point in world-space.
-    pub point: Point<Real>,
+    pub point: Point,
     /// The distance between the two original contacts points along the contact normal.
     /// If negative, this is measures the penetration depth.
     pub dist: Real,
@@ -296,7 +287,7 @@ pub struct SolverContact {
     ///
     /// This is set to zero by default. Set to a non-zero value to
     /// simulate, e.g., conveyor belts.
-    pub tangent_velocity: Vector<Real>,
+    pub tangent_velocity: Vector,
     /// Whether or not this contact existed during the last timestep.
     pub is_new: bool,
 }

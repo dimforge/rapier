@@ -166,7 +166,7 @@ impl Harness {
         colliders: ColliderSet,
         impulse_joints: ImpulseJointSet,
         multibody_joints: MultibodyJointSet,
-        gravity: Vector<Real>,
+        gravity: Vector,
         hooks: impl PhysicsHooks + 'static,
     ) {
         // println!("Num bodies: {}", bodies.len());

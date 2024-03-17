@@ -1,10 +1,16 @@
 use crate::data::arena::Index;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 /// A container for data associated to item existing into another Arena.
 pub struct Coarena<T> {
     data: Vec<(u32, T)>,
+}
+
+impl<T> Default for Coarena<T> {
+    fn default() -> Self {
+        Self { data: Vec::new() }
+    }
 }
 
 impl<T> Coarena<T> {
@@ -69,10 +75,21 @@ impl<T> Coarena<T> {
     where
         T: Clone + Default,
     {
+        self.insert_with_default(a, value, T::default())
+    }
+
+    /// Inserts an element into this coarena.
+    ///
+    /// The provided `default` value is used for any empty slots created
+    /// by this insertion.
+    pub fn insert_with_default(&mut self, a: Index, value: T, default: T)
+    where
+        T: Clone,
+    {
         let (i1, g1) = a.into_raw_parts();
 
         if self.data.len() <= i1 as usize {
-            self.data.resize(i1 as usize + 1, (u32::MAX, T::default()));
+            self.data.resize(i1 as usize + 1, (u32::MAX, default));
         }
 
         self.data[i1 as usize] = (g1, value);

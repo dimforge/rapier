@@ -11,6 +11,8 @@ simd-stable = [ "rapier3d/simd-stable" ]
 simd-nightly = [ "rapier3d/simd-nightly" ]
 other-backends = [ "rapier_testbed3d/other-backends" ]
 enhanced-determinism = [ "rapier3d/enhanced-determinism" ]
+linalg-nalgebra = [ "rapier_testbed3d/linalg-nalgebra" ]
+linalg-glam = [ "rapier_testbed3d/linalg-glam" ]
 
 [dependencies]
 rand = "0.8"

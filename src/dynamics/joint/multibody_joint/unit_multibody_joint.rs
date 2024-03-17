@@ -3,7 +3,7 @@
 use crate::dynamics::joint::MultibodyLink;
 use crate::dynamics::solver::{JointGenericOneBodyConstraint, WritebackId};
 use crate::dynamics::{IntegrationParameters, JointMotor, Multibody};
-use crate::math::Real;
+use crate::math::*;
 use na::DVector;
 
 /// Initializes and generate the velocity constraints applicable to the multibody links attached

@@ -1,7 +1,7 @@
 use super::{SAPProxies, SAPProxy, SAPRegion, SAPRegionPool};
 use crate::geometry::broad_phase_multi_sap::DELETED_AABB_VALUE;
 use crate::geometry::{Aabb, SAPProxyIndex};
-use crate::math::{Point, Real};
+use crate::math::*;
 use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::{Entry, HashMap};
 
@@ -13,9 +13,9 @@ pub(crate) struct SAPLayer {
     pub smaller_layer: Option<u8>,
     pub larger_layer: Option<u8>,
     region_width: Real,
-    pub regions: HashMap<Point<i32>, SAPProxyIndex>,
+    pub regions: HashMap<[i32; DIM], SAPProxyIndex>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    regions_to_potentially_remove: Vec<Point<i32>>, // Workspace
+    regions_to_potentially_remove: Vec<[i32; DIM]>, // Workspace
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub created_regions: Vec<SAPProxyIndex>,
 }
@@ -188,7 +188,7 @@ impl SAPLayer {
     /// of the new region if it did not exist and has been created by this method.
     pub fn ensure_region_exists(
         &mut self,
-        region_key: Point<i32>,
+        region_key: [i32; DIM],
         proxies: &mut SAPProxies,
         pool: &mut SAPRegionPool,
     ) -> SAPProxyIndex {
@@ -227,15 +227,15 @@ impl SAPLayer {
         #[cfg(feature = "dim2")]
         let k_range = 0..1;
         #[cfg(feature = "dim3")]
-        let k_range = start.z..=end.z;
+        let k_range = start[2]..=end[2];
 
-        for i in start.x..=end.x {
-            for j in start.y..=end.y {
+        for i in start[0]..=end[0] {
+            for j in start[1]..=end[1] {
                 for _k in k_range.clone() {
                     #[cfg(feature = "dim2")]
-                    let region_key = Point::new(i, j);
+                    let region_key = [i, j];
                     #[cfg(feature = "dim3")]
-                    let region_key = Point::new(i, j, _k);
+                    let region_key = [i, j, _k];
                     let region_id = self.ensure_region_exists(region_key, proxies, pool);
                     let region_proxy = &mut proxies[region_id];
                     let region = region_proxy.data.as_region_mut();
@@ -273,21 +273,21 @@ impl SAPLayer {
         let end = super::point_key(proxy_aabb.maxs, self.region_width);
 
         // Set the Aabb of the proxy to a very large value.
-        proxy_aabb.mins.coords.fill(DELETED_AABB_VALUE);
-        proxy_aabb.maxs.coords.fill(DELETED_AABB_VALUE);
+        proxy_aabb.mins.as_vector_mut().fill(DELETED_AABB_VALUE);
+        proxy_aabb.maxs.as_vector_mut().fill(DELETED_AABB_VALUE);
 
         #[cfg(feature = "dim2")]
         let k_range = 0..1;
         #[cfg(feature = "dim3")]
-        let k_range = start.z..=end.z;
+        let k_range = start[2]..=end[2];
 
-        for i in start.x..=end.x {
-            for j in start.y..=end.y {
+        for i in start[0]..=end[0] {
+            for j in start[1]..=end[1] {
                 for _k in k_range.clone() {
                     #[cfg(feature = "dim2")]
-                    let key = Point::new(i, j);
+                    let key = [i, j];
                     #[cfg(feature = "dim3")]
-                    let key = Point::new(i, j, _k);
+                    let key = [i, j, _k];
                     if let Some(region_id) = self.regions.get(&key) {
                         let region = proxies[*region_id].data.as_region_mut();
                         region.predelete_proxy(proxy_index);
@@ -362,8 +362,8 @@ impl SAPLayer {
 
                         // Move the proxy to infinity.
                         let proxy = &mut proxies[region_id];
-                        proxy.aabb.mins.coords.fill(DELETED_AABB_VALUE);
-                        proxy.aabb.maxs.coords.fill(DELETED_AABB_VALUE);
+                        proxy.aabb.mins.as_vector_mut().fill(DELETED_AABB_VALUE);
+                        proxy.aabb.maxs.as_vector_mut().fill(DELETED_AABB_VALUE);
 
                         // Mark the proxy as deleted.
                         proxies.remove(region_id);

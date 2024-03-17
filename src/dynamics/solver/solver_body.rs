@@ -1,42 +1,27 @@
-use crate::dynamics::{RigidBody, RigidBodyVelocity};
-use crate::math::{AngularInertia, Isometry, Point, Real, Vector};
-use crate::prelude::RigidBodyDamping;
+use crate::dynamics::{RigidBody, Velocity};
+use crate::math::*;
+use crate::prelude::Damping;
 
 #[cfg(feature = "dim2")]
 use crate::num::Zero;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub(crate) struct SolverBody {
-    pub position: Isometry<Real>,
-    pub integrated_vels: RigidBodyVelocity,
-    pub im: Vector<Real>,
+    pub position: Isometry,
+    pub integrated_vels: Velocity,
+    pub im: Vector,
     pub sqrt_ii: AngularInertia<Real>,
-    pub world_com: Point<Real>,
+    pub world_com: Point,
     pub ccd_thickness: Real,
-    pub damping: RigidBodyDamping,
-    pub local_com: Point<Real>,
-}
-
-impl Default for SolverBody {
-    fn default() -> Self {
-        Self {
-            position: Isometry::identity(),
-            integrated_vels: RigidBodyVelocity::zero(),
-            im: na::zero(),
-            sqrt_ii: AngularInertia::zero(),
-            world_com: Point::origin(),
-            ccd_thickness: 0.0,
-            damping: RigidBodyDamping::default(),
-            local_com: Point::origin(),
-        }
-    }
+    pub damping: Damping,
+    pub local_com: Point,
 }
 
 impl SolverBody {
     pub fn from(rb: &RigidBody) -> Self {
         Self {
             position: rb.pos.position,
-            integrated_vels: RigidBodyVelocity::zero(),
+            integrated_vels: Velocity::zero(),
             im: rb.mprops.effective_inv_mass,
             sqrt_ii: rb.mprops.effective_world_inv_inertia_sqrt,
             world_com: rb.mprops.world_com,
@@ -48,7 +33,7 @@ impl SolverBody {
 
     pub fn copy_from(&mut self, rb: &RigidBody) {
         self.position = rb.pos.position;
-        self.integrated_vels = RigidBodyVelocity::zero();
+        self.integrated_vels = Velocity::zero();
         self.im = rb.mprops.effective_inv_mass;
         self.sqrt_ii = rb.mprops.effective_world_inv_inertia_sqrt;
         self.world_com = rb.mprops.world_com;

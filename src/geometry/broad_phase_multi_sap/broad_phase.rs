@@ -6,7 +6,7 @@ use crate::geometry::{
     ColliderBroadPhaseData, ColliderChanges, ColliderHandle, ColliderPosition, ColliderSet,
     ColliderShape,
 };
-use crate::math::Real;
+use crate::math::*;
 use crate::utils::IndexMut2;
 use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::HashMap;
@@ -361,8 +361,8 @@ impl BroadPhase {
             .compute_aabb(co_pos)
             .loosened(prediction_distance / 2.0);
 
-        if aabb.mins.coords.iter().any(|e| !e.is_finite())
-            || aabb.maxs.coords.iter().any(|e| !e.is_finite())
+        if aabb.mins.as_vector().iter().any(|e| !e.is_finite())
+            || aabb.maxs.as_vector().iter().any(|e| !e.is_finite())
         {
             // Reject Aabbs with non-finite values.
             return false;

@@ -1,9 +1,9 @@
 use crate::dynamics::solver::OneBodyConstraint;
 use crate::dynamics::{
-    IntegrationParameters, MultibodyJointSet, MultibodyLinkId, RigidBodySet, RigidBodyVelocity,
+    IntegrationParameters, MultibodyJointSet, MultibodyLinkId, RigidBodySet, Velocity,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{Point, Real, DIM, MAX_MANIFOLD_POINTS};
+use crate::math::*;
 use crate::utils::SimdCross;
 
 use super::{OneBodyConstraintElement, OneBodyConstraintNormalPart};
@@ -54,7 +54,7 @@ impl GenericOneBodyConstraintBuilder {
             let rb1 = &bodies[handle1];
             (rb1.vels, rb1.mprops.world_com)
         } else {
-            (RigidBodyVelocity::zero(), Point::origin())
+            (Velocity::zero(), Point::origin())
         };
 
         let rb1 = handle1
@@ -131,7 +131,7 @@ impl GenericOneBodyConstraintBuilder {
                             #[cfg(feature = "dim2")]
                             na::vector!(torque_dir2),
                             #[cfg(feature = "dim3")]
-                            torque_dir2,
+                            torque_dir2.into(),
                             jacobian_id,
                             jacobians,
                         )
@@ -141,26 +141,26 @@ impl GenericOneBodyConstraintBuilder {
 
                     let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
 
-                    let proj_vel1 = vel1.dot(&force_dir1);
-                    let proj_vel2 = vel2.dot(&force_dir1);
+                    let proj_vel1 = vel1.dot(force_dir1);
+                    let proj_vel2 = vel2.dot(force_dir1);
                     let dvel = proj_vel1 - proj_vel2;
                     // NOTE: we add proj_vel1 since it’s not accessible through solver_vel.
                     normal_rhs_wo_bias =
                         proj_vel1 + (is_bouncy * manifold_point.restitution) * dvel;
 
                     constraint.inner.elements[k].normal_part = OneBodyConstraintNormalPart {
-                        gcross2: na::zero(), // Unused for generic constraints.
-                        rhs: na::zero(),
-                        rhs_wo_bias: na::zero(),
-                        impulse: na::zero(),
-                        total_impulse: na::zero(),
+                        gcross2: Default::default(), // Unused for generic constraints.
+                        rhs: Default::default(),
+                        rhs_wo_bias: Default::default(),
+                        impulse: Default::default(),
+                        total_impulse: Default::default(),
                         r,
                     };
                 }
 
                 // Tangent parts.
                 {
-                    constraint.inner.elements[k].tangent_part.impulse = na::zero();
+                    constraint.inner.elements[k].tangent_part.impulse = Default::default();
 
                     for j in 0..DIM - 1 {
                         let torque_dir2 = dp2.gcross(-tangents1[j]);
@@ -171,7 +171,7 @@ impl GenericOneBodyConstraintBuilder {
                                 #[cfg(feature = "dim2")]
                                 na::vector![torque_dir2],
                                 #[cfg(feature = "dim3")]
-                                torque_dir2,
+                                torque_dir2.into(),
                                 jacobian_id,
                                 jacobians,
                             )
@@ -181,7 +181,7 @@ impl GenericOneBodyConstraintBuilder {
 
                         let rhs_wo_bias = (vel1
                             + flipped_multiplier * manifold_point.tangent_velocity)
-                            .dot(&tangents1[j]);
+                            .dot(tangents1[j]);
 
                         constraint.inner.elements[k].tangent_part.rhs_wo_bias[j] = rhs_wo_bias;
                         constraint.inner.elements[k].tangent_part.rhs[j] = rhs_wo_bias;
