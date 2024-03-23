@@ -201,7 +201,7 @@ impl GenericTwoBodyConstraintBuilder {
                         gcross2,
                         rhs: na::zero(),
                         rhs_wo_bias: na::zero(),
-                        total_impulse: na::zero(),
+                        impulse_accumulator: na::zero(),
                         impulse: na::zero(),
                         r,
                     };
