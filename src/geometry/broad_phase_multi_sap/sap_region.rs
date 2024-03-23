@@ -1,5 +1,5 @@
 use super::{SAPAxis, SAPProxies};
-use crate::geometry::SAPProxyIndex;
+use crate::geometry::BroadPhaseProxyIndex;
 use crate::math::DIM;
 use bit_vec::BitVec;
 use parry::bounding_volume::Aabb;
@@ -13,8 +13,8 @@ pub struct SAPRegion {
     pub axes: [SAPAxis; DIM],
     pub existing_proxies: BitVec,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    pub to_insert: Vec<SAPProxyIndex>, // Workspace
-    pub subregions: Vec<SAPProxyIndex>,
+    pub to_insert: Vec<BroadPhaseProxyIndex>, // Workspace
+    pub subregions: Vec<BroadPhaseProxyIndex>,
     pub id_in_parent_subregion: u32,
     pub update_count: u8,
     pub needs_update_after_subregion_removal: bool,
@@ -90,7 +90,7 @@ impl SAPRegion {
     /// If this region contains the given proxy, this will decrement this region's proxy count.
     ///
     /// Returns `true` if this region contained the proxy. Returns `false` otherwise.
-    pub fn proper_proxy_moved_to_a_bigger_layer(&mut self, proxy_id: SAPProxyIndex) -> bool {
+    pub fn proper_proxy_moved_to_a_bigger_layer(&mut self, proxy_id: BroadPhaseProxyIndex) -> bool {
         if self.existing_proxies.get(proxy_id as usize) == Some(true) {
             // NOTE: we are just registering the fact that that proxy isn't a
             //       subproper proxy anymore. But it is still part of this region
@@ -142,7 +142,7 @@ impl SAPRegion {
         self.subproper_proxy_count -= num_deleted_subregion_endpoints[0] / 2;
     }
 
-    pub fn predelete_proxy(&mut self, _proxy_id: SAPProxyIndex) {
+    pub fn predelete_proxy(&mut self, _proxy_id: BroadPhaseProxyIndex) {
         // We keep the proxy_id as argument for uniformity with the "preupdate"
         // method. However we don't actually need it because the deletion will be
         // handled transparently during the next update.
@@ -153,14 +153,18 @@ impl SAPRegion {
         self.update_count = self.update_count.max(1);
     }
 
-    pub fn register_subregion(&mut self, proxy_id: SAPProxyIndex) -> usize {
+    pub fn register_subregion(&mut self, proxy_id: BroadPhaseProxyIndex) -> usize {
         let subregion_index = self.subregions.len();
         self.subregions.push(proxy_id);
         self.preupdate_proxy(proxy_id, true);
         subregion_index
     }
 
-    pub fn preupdate_proxy(&mut self, proxy_id: SAPProxyIndex, is_subproper_proxy: bool) -> bool {
+    pub fn preupdate_proxy(
+        &mut self,
+        proxy_id: BroadPhaseProxyIndex,
+        is_subproper_proxy: bool,
+    ) -> bool {
         let mask_len = self.existing_proxies.len();
         if proxy_id as usize >= mask_len {
             self.existing_proxies

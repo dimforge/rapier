@@ -1,5 +1,5 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle, RigidBodyType};
-use crate::geometry::{InteractionGroups, SAPProxyIndex, Shape, SharedShape};
+use crate::geometry::{BroadPhaseProxyIndex, InteractionGroups, Shape, SharedShape};
 use crate::math::{Isometry, Real};
 use crate::parry::partitioning::IndexedData;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
@@ -118,7 +118,7 @@ impl ColliderType {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// Data associated to a collider that takes part to a broad-phase algorithm.
 pub struct ColliderBroadPhaseData {
-    pub(crate) proxy_index: SAPProxyIndex,
+    pub(crate) proxy_index: BroadPhaseProxyIndex,
 }
 
 impl Default for ColliderBroadPhaseData {

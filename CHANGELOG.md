@@ -11,6 +11,12 @@
   based only on its current velocity.
 - Add `Collider::copy_from` to copy most collider attributes to an existing collider.
 - Add `RigidBody::copy_from` to copy most rigid-body attributes to an existing rigid-body.
+- Add the `BroadPhase` trait and expect an implementor of this trait as input to `PhysicsPipeline::step`.
+
+### Modified
+
+- Renamed `BroadPhase` to `BroadPhaseMultiSap`. The `BroadPhase` is no a trait that can be
+  implemented for providing a custom broad-phase to rapier.
 
 ## v0.18.0 (24 Jan. 2024)
 

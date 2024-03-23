@@ -1,12 +1,12 @@
 use super::{
     BroadPhasePairEvent, ColliderPair, SAPLayer, SAPProxies, SAPProxy, SAPProxyData, SAPRegionPool,
 };
-use crate::geometry::broad_phase_multi_sap::SAPProxyIndex;
 use crate::geometry::{
-    ColliderBroadPhaseData, ColliderChanges, ColliderHandle, ColliderPosition, ColliderSet,
-    ColliderShape,
+    BroadPhaseProxyIndex, ColliderBroadPhaseData, ColliderChanges, ColliderHandle,
+    ColliderPosition, ColliderSet, ColliderShape,
 };
 use crate::math::Real;
+use crate::prelude::BroadPhase;
 use crate::utils::IndexMut2;
 use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::HashMap;
@@ -90,7 +90,7 @@ pub struct BroadPhaseMultiSap {
     //       Another alternative would be to remove ColliderProxyId and
     //       just use a Coarena. But this seems like it could use too
     //       much memory.
-    colliders_proxy_ids: HashMap<ColliderHandle, SAPProxyIndex>,
+    colliders_proxy_ids: HashMap<ColliderHandle, BroadPhaseProxyIndex>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     region_pool: SAPRegionPool, // To avoid repeated allocations.
     // We could think serializing this workspace is useless.
@@ -156,7 +156,7 @@ impl BroadPhaseMultiSap {
     /// remove, the `complete_removal` method MUST be called to
     /// complete the removal of these proxies, by actually removing them
     /// from all the relevant layers/regions/axes.
-    fn predelete_proxy(&mut self, proxy_index: SAPProxyIndex) {
+    fn predelete_proxy(&mut self, proxy_index: BroadPhaseProxyIndex) {
         if proxy_index == crate::INVALID_U32 {
             // This collider has not been added to the broad-phase yet.
             return;
@@ -449,65 +449,6 @@ impl BroadPhaseMultiSap {
         !layer.created_regions.is_empty()
     }
 
-    /// Updates the broad-phase, taking into account the new collider positions.
-    pub fn update(
-        &mut self,
-        prediction_distance: Real,
-        colliders: &mut ColliderSet,
-        modified_colliders: &[ColliderHandle],
-        removed_colliders: &[ColliderHandle],
-        events: &mut Vec<BroadPhasePairEvent>,
-    ) {
-        // Phase 1: pre-delete the collisions that have been deleted.
-        self.handle_removed_colliders(removed_colliders);
-
-        let mut need_region_propagation = false;
-
-        // Phase 2: pre-delete the collisions that have been deleted.
-        for handle in modified_colliders {
-            // NOTE: we use `get` because the collider may no longer
-            //       exist if it has been removed.
-            if let Some(co) = colliders.get_mut_internal(*handle) {
-                if !co.is_enabled() || !co.changes.needs_broad_phase_update() {
-                    continue;
-                }
-
-                let mut new_proxy_id = co.bf_data.proxy_index;
-
-                if self.handle_modified_collider(
-                    prediction_distance,
-                    *handle,
-                    &mut new_proxy_id,
-                    (&co.pos, &co.shape, &co.changes),
-                ) {
-                    need_region_propagation = true;
-                }
-
-                if co.bf_data.proxy_index != new_proxy_id {
-                    self.colliders_proxy_ids.insert(*handle, new_proxy_id);
-
-                    // Make sure we have the new proxy index in case
-                    // the collider was added for the first time.
-                    co.bf_data = ColliderBroadPhaseData {
-                        proxy_index: new_proxy_id,
-                    };
-                }
-            }
-        }
-
-        // Phase 3: bottom-up pass to propagate new regions from smaller layers to larger layers.
-        if need_region_propagation {
-            self.propagate_created_regions();
-        }
-
-        // Phase 4: top-down pass to propagate proxies from larger layers to smaller layers.
-        self.update_layers_and_find_pairs(events);
-
-        // Phase 5: bottom-up pass to remove proxies, and propagate region removed from smaller
-        // layers to possible remove regions from larger layers that would become empty that way.
-        self.complete_removals(colliders, removed_colliders);
-    }
-
     /// Propagate regions from the smallest layers up to the larger layers.
     ///
     /// Whenever a region is created on a layer `n`, then its Aabb must be
@@ -615,6 +556,67 @@ impl BroadPhaseMultiSap {
 
             self.reporting.clear();
         }
+    }
+}
+
+impl BroadPhase for BroadPhaseMultiSap {
+    /// Updates the broad-phase, taking into account the new collider positions.
+    fn update(
+        &mut self,
+        prediction_distance: Real,
+        colliders: &mut ColliderSet,
+        modified_colliders: &[ColliderHandle],
+        removed_colliders: &[ColliderHandle],
+        events: &mut Vec<BroadPhasePairEvent>,
+    ) {
+        // Phase 1: pre-delete the collisions that have been deleted.
+        self.handle_removed_colliders(removed_colliders);
+
+        let mut need_region_propagation = false;
+
+        // Phase 2: pre-delete the collisions that have been deleted.
+        for handle in modified_colliders {
+            // NOTE: we use `get` because the collider may no longer
+            //       exist if it has been removed.
+            if let Some(co) = colliders.get_mut_internal(*handle) {
+                if !co.is_enabled() || !co.changes.needs_broad_phase_update() {
+                    continue;
+                }
+
+                let mut new_proxy_id = co.bf_data.proxy_index;
+
+                if self.handle_modified_collider(
+                    prediction_distance,
+                    *handle,
+                    &mut new_proxy_id,
+                    (&co.pos, &co.shape, &co.changes),
+                ) {
+                    need_region_propagation = true;
+                }
+
+                if co.bf_data.proxy_index != new_proxy_id {
+                    self.colliders_proxy_ids.insert(*handle, new_proxy_id);
+
+                    // Make sure we have the new proxy index in case
+                    // the collider was added for the first time.
+                    co.bf_data = ColliderBroadPhaseData {
+                        proxy_index: new_proxy_id,
+                    };
+                }
+            }
+        }
+
+        // Phase 3: bottom-up pass to propagate new regions from smaller layers to larger layers.
+        if need_region_propagation {
+            self.propagate_created_regions();
+        }
+
+        // Phase 4: top-down pass to propagate proxies from larger layers to smaller layers.
+        self.update_layers_and_find_pairs(events);
+
+        // Phase 5: bottom-up pass to remove proxies, and propagate region removed from smaller
+        // layers to possible remove regions from larger layers that would become empty that way.
+        self.complete_removals(colliders, removed_colliders);
     }
 }
 
