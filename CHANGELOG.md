@@ -9,6 +9,8 @@
 
 - Add `RigidBody::predict_position_using_velocity` to predict the next position of the rigid-body
   based only on its current velocity.
+- Add `Collider::copy_from` to copy most collider attributes to an existing collider.
+- Add `RigidBody::copy_from` to copy most rigid-body attributes to an existing rigid-body.
 
 ## v0.18.0 (24 Jan. 2024)
 

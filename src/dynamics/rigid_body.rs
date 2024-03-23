@@ -74,6 +74,61 @@ impl RigidBody {
         self.ids = Default::default();
     }
 
+    /// Copy all the characteristics from `other` to `self`.
+    ///
+    /// If you have a mutable reference to a rigid-body `rigid_body: &mut RigidBody`, attempting to
+    /// assign it a whole new rigid-body instance, e.g., `*rigid_body = RigidBodyBuilder::dynamic().build()`,
+    /// will crash due to some internal indices being overwritten. Instead, use
+    /// `rigid_body.copy_from(&RigidBodyBuilder::dynamic().build())`.
+    ///
+    /// This method will allow you to set most characteristics of this rigid-body from another
+    /// rigid-body instance without causing any breakage.
+    ///
+    /// This method **cannot** be used for editing the list of colliders attached to this rigid-body.
+    /// Therefore, the list of colliders attached to `self` won’t be replaced by the one attached
+    /// to `other`.
+    ///
+    /// The pose of `other` will only copied into `self` if `self` doesn’t have a parent (if it has
+    /// a parent, its position is directly controlled by the parent rigid-body).
+    pub fn copy_from(&mut self, other: &RigidBody) {
+        // NOTE: we deconstruct the rigid-body struct to be sure we don’t forget to
+        //       add some copies here if we add more field to RigidBody in the future.
+        let RigidBody {
+            pos,
+            mprops,
+            integrated_vels,
+            vels,
+            damping,
+            forces,
+            ccd,
+            ids: _ids,             // Internal ids must not be overwritten.
+            colliders: _colliders, // This function cannot be used to edit collider sets.
+            activation,
+            changes: _changes, // Will be set to ALL.
+            body_type,
+            dominance,
+            enabled,
+            additional_solver_iterations,
+            user_data,
+        } = other;
+
+        self.pos = *pos;
+        self.mprops = mprops.clone();
+        self.integrated_vels = *integrated_vels;
+        self.vels = *vels;
+        self.damping = *damping;
+        self.forces = *forces;
+        self.ccd = *ccd;
+        self.activation = *activation;
+        self.body_type = *body_type;
+        self.dominance = *dominance;
+        self.enabled = *enabled;
+        self.additional_solver_iterations = *additional_solver_iterations;
+        self.user_data = *user_data;
+
+        self.changes = RigidBodyChanges::all();
+    }
+
     /// Set the additional number of solver iterations run for this rigid-body and
     /// everything interacting with it.
     ///
