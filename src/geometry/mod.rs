@@ -49,10 +49,12 @@ pub type Aabb = parry::bounding_volume::Aabb;
 pub type Ray = parry::query::Ray;
 /// The intersection between a ray and a  collider.
 pub type RayIntersection = parry::query::RayIntersection;
-/// The the projection of a point on a collider.
+/// The projection of a point on a collider.
 pub type PointProjection = parry::query::PointProjection;
-/// The the time of impact between two shapes.
+/// The time of impact between two shapes.
 pub type TOI = parry::query::TOI;
+/// The default broad-phase implementation provided by Rapier.
+pub type DefaultBroadPhase = BroadPhaseMultiSap;
 
 bitflags::bitflags! {
     /// Flags providing more information regarding a collision event.
