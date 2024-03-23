@@ -53,7 +53,7 @@ pub type RayIntersection = parry::query::RayIntersection;
 pub type PointProjection = parry::query::PointProjection;
 /// The time of impact between two shapes.
 pub type TOI = parry::query::TOI;
-/// The default broad-phase implementation provided by Rapier.
+/// The default broad-phase implementation recommended for general-purpose usage.
 pub type DefaultBroadPhase = BroadPhaseMultiSap;
 
 bitflags::bitflags! {
