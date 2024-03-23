@@ -1,6 +1,6 @@
 use super::{SAPEndpoint, SAPProxies, NUM_SENTINELS};
 use crate::geometry::broad_phase_multi_sap::DELETED_AABB_VALUE;
-use crate::geometry::SAPProxyIndex;
+use crate::geometry::BroadPhaseProxyIndex;
 use crate::math::Real;
 use bit_vec::BitVec;
 use parry::bounding_volume::BoundingVolume;
@@ -39,7 +39,7 @@ impl SAPAxis {
     pub fn batch_insert(
         &mut self,
         dim: usize,
-        new_proxies: &[SAPProxyIndex],
+        new_proxies: &[BroadPhaseProxyIndex],
         proxies: &SAPProxies,
         reporting: Option<&mut HashMap<(u32, u32), bool>>,
     ) {

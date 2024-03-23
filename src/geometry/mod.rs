@@ -1,9 +1,7 @@
 //! Structures related to geometry: colliders, shapes, etc.
 
-pub use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair};
-
-pub use self::broad_phase_multi_sap::BroadPhaseMultiSap;
-// pub use self::broad_phase_qbvh::BroadPhaseMultiSap;
+pub use self::broad_phase::BroadPhase;
+pub use self::broad_phase_multi_sap::{BroadPhaseMultiSap, BroadPhasePairEvent, ColliderPair};
 pub use self::collider_components::*;
 pub use self::contact_pair::{
     ContactData, ContactManifoldData, ContactPair, IntersectionPair, SolverContact, SolverFlags,
@@ -180,7 +178,7 @@ impl ContactForceEvent {
     }
 }
 
-pub(crate) use self::broad_phase_multi_sap::SAPProxyIndex;
+pub(crate) use self::broad_phase::BroadPhaseProxyIndex;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
 pub(crate) use parry::partitioning::Qbvh;
 pub use parry::shape::*;
@@ -203,6 +201,7 @@ mod interaction_graph;
 mod interaction_groups;
 mod narrow_phase;
 
+mod broad_phase;
 mod broad_phase_qbvh;
 mod collider;
 mod collider_set;

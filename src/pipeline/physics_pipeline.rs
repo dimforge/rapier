@@ -10,7 +10,7 @@ use crate::dynamics::{
     RigidBodyChanges, RigidBodyHandle, RigidBodyPosition, RigidBodyType,
 };
 use crate::geometry::{
-    BroadPhaseMultiSap, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
+    BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
     ContactManifoldIndex, NarrowPhase, TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
@@ -93,7 +93,7 @@ impl PhysicsPipeline {
         &mut self,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
-        broad_phase: &mut BroadPhaseMultiSap,
+        broad_phase: &mut dyn BroadPhase,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
@@ -406,7 +406,7 @@ impl PhysicsPipeline {
         gravity: &Vector<Real>,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
-        broad_phase: &mut BroadPhaseMultiSap,
+        broad_phase: &mut dyn BroadPhase,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,

@@ -1,8 +1,8 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
 use crate::geometry::{
-    ActiveCollisionTypes, ColliderBroadPhaseData, ColliderChanges, ColliderFlags,
-    ColliderMassProps, ColliderMaterial, ColliderParent, ColliderPosition, ColliderShape,
-    ColliderType, InteractionGroups, SharedShape,
+    ActiveCollisionTypes, BroadPhaseProxyIndex, ColliderBroadPhaseData, ColliderChanges,
+    ColliderFlags, ColliderMassProps, ColliderMaterial, ColliderParent, ColliderPosition,
+    ColliderShape, ColliderType, InteractionGroups, SharedShape,
 };
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
@@ -48,6 +48,21 @@ impl Collider {
         } else {
             Real::MAX
         }
+    }
+
+    /// An internal index associated to this collider by the broad-phase algorithm.
+    pub fn internal_broad_phase_proxy_index(&self) -> BroadPhaseProxyIndex {
+        self.bf_data.proxy_index
+    }
+
+    /// Sets the internal index associated to this collider by the broad-phase algorithm.
+    ///
+    /// This must **not** be called, unless you are implementing your own custom broad-phase
+    /// that require storing an index in the collider struct.
+    /// Modifying that index outside of a custom broad-phase code will most certainly break
+    /// the physics engine.
+    pub fn set_internal_broad_phase_proxy_index(&mut self, id: BroadPhaseProxyIndex) {
+        self.bf_data.proxy_index = id;
     }
 
     /// The rigid body this collider is attached to.
