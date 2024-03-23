@@ -817,6 +817,17 @@ impl RigidBody {
             .integrate_forces_and_velocities(dt, &self.forces, &self.vels, &self.mprops)
     }
 
+    /// Predicts the next position of this rigid-body, by integrating only its velocity
+    /// by a time of `dt`.
+    ///
+    /// The forces that were applied to this rigid-body since the last physics step will
+    /// be ignored by this function. Use [`Self::predict_position_using_velocity_and_forces`]
+    /// instead to take forces into account.
+    pub fn predict_position_using_velocity(&self, dt: Real) -> Isometry<Real> {
+        self.vels
+            .integrate(dt, &self.pos.position, &self.mprops.local_mprops.local_com)
+    }
+
     pub(crate) fn update_world_mass_properties(&mut self) {
         self.mprops.update_world_mass_properties(&self.pos.position);
     }
