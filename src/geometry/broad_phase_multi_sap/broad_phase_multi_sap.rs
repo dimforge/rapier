@@ -74,7 +74,7 @@ use parry::utils::hashmap::HashMap;
 ///   broad-phase, as well as the Aabbs of all the regions part of this broad-phase.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
-pub struct BroadPhase {
+pub struct BroadPhaseMultiSap {
     proxies: SAPProxies,
     layers: Vec<SAPLayer>,
     smallest_layer: u8,
@@ -114,16 +114,16 @@ pub struct BroadPhase {
     reporting: HashMap<(u32, u32), bool>, // Workspace
 }
 
-impl Default for BroadPhase {
+impl Default for BroadPhaseMultiSap {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl BroadPhase {
+impl BroadPhaseMultiSap {
     /// Create a new empty broad-phase.
     pub fn new() -> Self {
-        BroadPhase {
+        BroadPhaseMultiSap {
             proxies: SAPProxies::new(),
             layers: Vec::new(),
             smallest_layer: 0,
@@ -138,7 +138,7 @@ impl BroadPhase {
     ///
     /// For each colliders marked as removed, we make their containing layer mark
     /// its proxy as pre-deleted. The actual proxy removal will happen at the end
-    /// of the `BroadPhase::update`.
+    /// of the `BroadPhaseMultiSap::update`.
     fn handle_removed_colliders(&mut self, removed_colliders: &[ColliderHandle]) {
         // For each removed collider, remove the corresponding proxy.
         for removed in removed_colliders {
@@ -623,11 +623,11 @@ mod test {
     use crate::dynamics::{
         ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodyBuilder, RigidBodySet,
     };
-    use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet};
+    use crate::geometry::{BroadPhaseMultiSap, ColliderBuilder, ColliderSet};
 
     #[test]
     fn test_add_update_remove() {
-        let mut broad_phase = BroadPhase::new();
+        let mut broad_phase = BroadPhaseMultiSap::new();
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
         let mut impulse_joints = ImpulseJointSet::new();

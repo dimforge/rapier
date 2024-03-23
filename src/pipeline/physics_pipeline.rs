@@ -10,7 +10,7 @@ use crate::dynamics::{
     RigidBodyChanges, RigidBodyHandle, RigidBodyPosition, RigidBodyType,
 };
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
+    BroadPhaseMultiSap, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
     ContactManifoldIndex, NarrowPhase, TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
@@ -93,7 +93,7 @@ impl PhysicsPipeline {
         &mut self,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
-        broad_phase: &mut BroadPhase,
+        broad_phase: &mut BroadPhaseMultiSap,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
@@ -406,7 +406,7 @@ impl PhysicsPipeline {
         gravity: &Vector<Real>,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
-        broad_phase: &mut BroadPhase,
+        broad_phase: &mut BroadPhaseMultiSap,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
@@ -650,7 +650,7 @@ mod test {
         CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, RigidBodyBuilder,
         RigidBodySet,
     };
-    use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
+    use crate::geometry::{BroadPhaseMultiSap, ColliderBuilder, ColliderSet, NarrowPhase};
     use crate::math::Vector;
     use crate::pipeline::PhysicsPipeline;
     use crate::prelude::{MultibodyJointSet, RigidBodyType};
@@ -661,7 +661,7 @@ mod test {
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
         let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhase::new();
+        let mut bf = BroadPhaseMultiSap::new();
         let mut nf = NarrowPhase::new();
         let mut bodies = RigidBodySet::new();
         let mut islands = IslandManager::new();
@@ -699,7 +699,7 @@ mod test {
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
         let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhase::new();
+        let mut bf = BroadPhaseMultiSap::new();
         let mut nf = NarrowPhase::new();
         let mut islands = IslandManager::new();
 
@@ -809,7 +809,7 @@ mod test {
         let mut pipeline = PhysicsPipeline::new();
         let gravity = Vector::y() * -9.81;
         let integration_parameters = IntegrationParameters::default();
-        let mut broad_phase = BroadPhase::new();
+        let mut broad_phase = BroadPhaseMultiSap::new();
         let mut narrow_phase = NarrowPhase::new();
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
@@ -859,7 +859,7 @@ mod test {
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
         let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhase::new();
+        let mut bf = BroadPhaseMultiSap::new();
         let mut nf = NarrowPhase::new();
         let mut islands = IslandManager::new();
 
