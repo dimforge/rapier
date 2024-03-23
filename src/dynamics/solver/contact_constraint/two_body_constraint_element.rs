@@ -13,9 +13,9 @@ pub(crate) struct TwoBodyConstraintTangentPart<N: SimdRealCopy> {
     #[cfg(feature = "dim3")]
     pub impulse: na::Vector2<N>,
     #[cfg(feature = "dim2")]
-    pub total_impulse: na::Vector1<N>,
+    pub impulse_accumulator: na::Vector1<N>,
     #[cfg(feature = "dim3")]
-    pub total_impulse: na::Vector2<N>,
+    pub impulse_accumulator: na::Vector2<N>,
     #[cfg(feature = "dim2")]
     pub r: [N; 1],
     #[cfg(feature = "dim3")]
@@ -30,12 +30,26 @@ impl<N: SimdRealCopy> TwoBodyConstraintTangentPart<N> {
             rhs: [na::zero(); DIM - 1],
             rhs_wo_bias: [na::zero(); DIM - 1],
             impulse: na::zero(),
-            total_impulse: na::zero(),
+            impulse_accumulator: na::zero(),
             #[cfg(feature = "dim2")]
             r: [na::zero(); 1],
             #[cfg(feature = "dim3")]
             r: [na::zero(); DIM],
         }
+    }
+
+    /// Total impulse applied across all the solver substeps.
+    #[inline]
+    #[cfg(feature = "dim2")]
+    pub fn total_impulse(&self) -> na::Vector1<N> {
+        self.impulse_accumulator + self.impulse
+    }
+
+    /// Total impulse applied across all the solver substeps.
+    #[inline]
+    #[cfg(feature = "dim3")]
+    pub fn total_impulse(&self) -> na::Vector2<N> {
+        self.impulse_accumulator + self.impulse
     }
 
     #[inline]
@@ -166,7 +180,7 @@ pub(crate) struct TwoBodyConstraintNormalPart<N: SimdRealCopy> {
     pub rhs: N,
     pub rhs_wo_bias: N,
     pub impulse: N,
-    pub total_impulse: N,
+    pub impulse_accumulator: N,
     pub r: N,
 }
 
@@ -178,9 +192,15 @@ impl<N: SimdRealCopy> TwoBodyConstraintNormalPart<N> {
             rhs: na::zero(),
             rhs_wo_bias: na::zero(),
             impulse: na::zero(),
-            total_impulse: na::zero(),
+            impulse_accumulator: na::zero(),
             r: na::zero(),
         }
+    }
+
+    /// Total impulse applied across all the solver substeps.
+    #[inline]
+    pub fn total_impulse(&self) -> N {
+        self.impulse_accumulator + self.impulse
     }
 
     #[inline]

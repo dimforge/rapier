@@ -153,7 +153,7 @@ impl GenericOneBodyConstraintBuilder {
                         rhs: na::zero(),
                         rhs_wo_bias: na::zero(),
                         impulse: na::zero(),
-                        total_impulse: na::zero(),
+                        impulse_accumulator: na::zero(),
                         r,
                     };
                 }
