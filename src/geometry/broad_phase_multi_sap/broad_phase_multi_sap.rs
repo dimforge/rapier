@@ -625,7 +625,7 @@ mod test {
     use crate::dynamics::{
         ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodyBuilder, RigidBodySet,
     };
-    use crate::geometry::{BroadPhaseMultiSap, ColliderBuilder, ColliderSet};
+    use crate::geometry::{BroadPhase, BroadPhaseMultiSap, ColliderBuilder, ColliderSet};
 
     #[test]
     fn test_add_update_remove() {
