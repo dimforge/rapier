@@ -60,6 +60,53 @@ impl Collider {
         self.coll_type.is_sensor()
     }
 
+    /// Copy all the characteristics from `other` to `self`.
+    ///
+    /// If you have a mutable reference to a collider `collider: &mut Collider`, attempting to
+    /// assign it a whole new collider instance, e.g., `*collider = ColliderBuilder::ball(0.5).build()`,
+    /// will crash due to some internal indices being overwritten. Instead, use
+    /// `collider.copy_from(&ColliderBuilder::ball(0.5).build())`.
+    ///
+    /// This method will allow you to set most characteristics of this collider from another
+    /// collider instance without causing any breakage.
+    ///
+    /// This method **cannot** be used for reparenting a collider. Therefore, the parent of the
+    /// `other` (if any), as well as its relative position to that parent will not be copied into
+    /// `self`.
+    ///
+    /// The pose of `other` will only copied into `self` if `self` doesn’t have a parent (if it has
+    /// a parent, its position is directly controlled by the parent rigid-body).
+    pub fn copy_from(&mut self, other: &Collider) {
+        // NOTE: we deconstruct the collider struct to be sure we don’t forget to
+        //       add some copies here if we add more field to Collider in the future.
+        let Collider {
+            coll_type,
+            shape,
+            mprops,
+            changes: _changes, // Will be set to ALL.
+            parent: _parent,   // This function cannot be used to reparent the collider.
+            pos,
+            material,
+            flags,
+            bf_data: _bf_data, // Internal ids must not be overwritten.
+            contact_force_event_threshold,
+            user_data,
+        } = other;
+
+        if self.parent.is_none() {
+            self.pos = *pos;
+        }
+
+        self.coll_type = *coll_type;
+        self.shape = shape.clone();
+        self.mprops = mprops.clone();
+        self.material = *material;
+        self.contact_force_event_threshold = *contact_force_event_threshold;
+        self.user_data = *user_data;
+        self.flags = *flags;
+        self.changes = ColliderChanges::all();
+    }
+
     /// The physics hooks enabled for this collider.
     pub fn active_hooks(&self) -> ActiveHooks {
         self.flags.active_hooks
