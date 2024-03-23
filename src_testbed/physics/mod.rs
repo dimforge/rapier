@@ -18,6 +18,17 @@ pub struct PhysicsSnapshot {
     island_manager: Vec<u8>,
 }
 
+pub struct DeserializedPhysicsSnapshot {
+    pub timestep_id: usize,
+    pub broad_phase: BroadPhase,
+    pub narrow_phase: NarrowPhase,
+    pub island_manager: IslandManager,
+    pub bodies: RigidBodySet,
+    pub colliders: ColliderSet,
+    pub impulse_joints: ImpulseJointSet,
+    pub multibody_joints: MultibodyJointSet,
+}
+
 impl PhysicsSnapshot {
     pub fn new(
         timestep_id: usize,
@@ -41,28 +52,17 @@ impl PhysicsSnapshot {
         })
     }
 
-    pub fn restore(
-        &self,
-    ) -> bincode::Result<(
-        usize,
-        BroadPhase,
-        NarrowPhase,
-        IslandManager,
-        RigidBodySet,
-        ColliderSet,
-        ImpulseJointSet,
-        MultibodyJointSet,
-    )> {
-        Ok((
-            self.timestep_id,
-            bincode::deserialize(&self.broad_phase)?,
-            bincode::deserialize(&self.narrow_phase)?,
-            bincode::deserialize(&self.island_manager)?,
-            bincode::deserialize(&self.bodies)?,
-            bincode::deserialize(&self.colliders)?,
-            bincode::deserialize(&self.impulse_joints)?,
-            bincode::deserialize(&self.multibody_joints)?,
-        ))
+    pub fn restore(&self) -> bincode::Result<DeserializedPhysicsSnapshot> {
+        Ok(DeserializedPhysicsSnapshot {
+            timestep_id: self.timestep_id,
+            broad_phase: bincode::deserialize(&self.broad_phase)?,
+            narrow_phase: bincode::deserialize(&self.narrow_phase)?,
+            island_manager: bincode::deserialize(&self.island_manager)?,
+            bodies: bincode::deserialize(&self.bodies)?,
+            colliders: bincode::deserialize(&self.colliders)?,
+            impulse_joints: bincode::deserialize(&self.impulse_joints)?,
+            multibody_joints: bincode::deserialize(&self.multibody_joints)?,
+        })
     }
 
     pub fn print_snapshot_len(&self) {

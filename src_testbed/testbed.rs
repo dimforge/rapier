@@ -7,7 +7,7 @@ use std::num::NonZeroUsize;
 use bevy::prelude::*;
 
 use crate::debug_render::{DebugRenderPipelineResource, RapierDebugRenderPlugin};
-use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
+use crate::physics::{DeserializedPhysicsSnapshot, PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
 use crate::ui;
 use crate::{graphics::GraphicsManager, harness::RunState};
@@ -1271,7 +1271,7 @@ fn update_testbed(
                 .action_flags
                 .set(TestbedActionFlags::RESTORE_SNAPSHOT, false);
             if let Some(snapshot) = &state.snapshot {
-                if let Ok((
+                if let Ok(DeserializedPhysicsSnapshot {
                     timestep_id,
                     broad_phase,
                     narrow_phase,
@@ -1280,7 +1280,7 @@ fn update_testbed(
                     colliders,
                     impulse_joints,
                     multibody_joints,
-                )) = snapshot.restore()
+                }) = snapshot.restore()
                 {
                     clear(&mut commands, &mut state, &mut graphics, &mut plugins);
 
