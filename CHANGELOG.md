@@ -5,6 +5,11 @@
 - Fix crash when simulating a spring joint between two dynamic bodies.
 - Fix kinematic bodies not being affected by gravity after being switched back to dynamic.
 
+### Added
+
+- Add `RigidBody::predict_position_using_velocity` to predict the next position of the rigid-body
+  based only on its current velocity.
+
 ## v0.18.0 (24 Jan. 2024)
 
 The main highlight of this release is the implementation of a new non-linear constraints solver for better stability
