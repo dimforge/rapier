@@ -3,6 +3,7 @@
 ### Fix
 
 - Fix crash when simulating a spring joint between two dynamic bodies.
+- Fix kinematic bodies not being affected by gravity after being switched back to dynamic.
 
 ## v0.18.0 (24 Jan. 2024)
 
