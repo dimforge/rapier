@@ -71,7 +71,7 @@ impl SAPLayer {
     ///
     /// This method must be called in a bottom-up loop, propagating new regions from the
     /// smallest layer, up to the largest layer. That loop is done by the Phase 3 of the
-    /// BroadPhase::update.
+    /// BroadPhaseMultiSap::update.
     pub fn propagate_created_regions(
         &mut self,
         larger_layer: &mut Self,
@@ -182,7 +182,7 @@ impl SAPLayer {
     /// If the region with the given region key does not exist yet, it is created.
     /// When a region is created, it creates a new proxy for that region, and its
     /// proxy ID is added to `self.created_region` so it can be propagated during
-    /// the Phase 3 of `BroadPhase::update`.
+    /// the Phase 3 of `BroadPhaseMultiSap::update`.
     ///
     /// This returns the proxy ID of the already existing region if it existed, or
     /// of the new region if it did not exist and has been created by this method.

@@ -2,8 +2,8 @@
 
 pub use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair};
 
-pub use self::broad_phase_multi_sap::BroadPhase;
-// pub use self::broad_phase_qbvh::BroadPhase;
+pub use self::broad_phase_multi_sap::BroadPhaseMultiSap;
+// pub use self::broad_phase_qbvh::BroadPhaseMultiSap;
 pub use self::collider_components::*;
 pub use self::contact_pair::{
     ContactData, ContactManifoldData, ContactPair, IntersectionPair, SolverContact, SolverFlags,
