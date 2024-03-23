@@ -25,6 +25,7 @@ use {
     crate::math::SIMD_WIDTH,
 };
 
+#[derive(Debug)]
 pub struct ConstraintsCounts {
     pub num_constraints: usize,
     pub num_jacobian_lines: usize,
