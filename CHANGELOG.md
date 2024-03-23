@@ -16,7 +16,8 @@
 ### Modified
 
 - Renamed `BroadPhase` to `BroadPhaseMultiSap`. The `BroadPhase` is no a trait that can be
-  implemented for providing a custom broad-phase to rapier.
+  implemented for providing a custom broad-phase to rapier. Equivalently, the `DefaultBroadPhase` type
+  alias can be used in place of `BroadPhaseMultiSap`.
 
 ## v0.18.0 (24 Jan. 2024)
 

@@ -2,8 +2,7 @@
 
 use crate::dynamics::{ImpulseJointSet, MultibodyJointSet};
 use crate::geometry::{
-    BroadPhase, BroadPhaseMultiSap, BroadPhasePairEvent, ColliderChanges, ColliderHandle,
-    ColliderPair, NarrowPhase,
+    BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair, NarrowPhase,
 };
 use crate::math::Real;
 use crate::pipeline::{EventHandler, PhysicsHooks, QueryPipeline};
@@ -108,7 +107,7 @@ impl CollisionPipeline {
     pub fn step(
         &mut self,
         prediction_distance: Real,
-        broad_phase: &mut BroadPhaseMultiSap,
+        broad_phase: &mut dyn BroadPhase,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,

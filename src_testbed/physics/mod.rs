@@ -4,7 +4,7 @@ use rapier::dynamics::{
     RigidBodySet,
 };
 use rapier::geometry::{
-    BroadPhaseMultiSap, ColliderSet, CollisionEvent, ContactForceEvent, NarrowPhase,
+    ColliderSet, CollisionEvent, ContactForceEvent, DefaultBroadPhase, NarrowPhase,
 };
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{PhysicsHooks, PhysicsPipeline, QueryPipeline};
@@ -22,7 +22,7 @@ pub struct PhysicsSnapshot {
 
 pub struct DeserializedPhysicsSnapshot {
     pub timestep_id: usize,
-    pub broad_phase: BroadPhaseMultiSap,
+    pub broad_phase: DefaultBroadPhase,
     pub narrow_phase: NarrowPhase,
     pub island_manager: IslandManager,
     pub bodies: RigidBodySet,
@@ -34,7 +34,7 @@ pub struct DeserializedPhysicsSnapshot {
 impl PhysicsSnapshot {
     pub fn new(
         timestep_id: usize,
-        broad_phase: &BroadPhaseMultiSap,
+        broad_phase: &DefaultBroadPhase,
         narrow_phase: &NarrowPhase,
         island_manager: &IslandManager,
         bodies: &RigidBodySet,
@@ -88,7 +88,7 @@ impl PhysicsSnapshot {
 
 pub struct PhysicsState {
     pub islands: IslandManager,
-    pub broad_phase: BroadPhaseMultiSap,
+    pub broad_phase: DefaultBroadPhase,
     pub narrow_phase: NarrowPhase,
     pub bodies: RigidBodySet,
     pub colliders: ColliderSet,
@@ -112,7 +112,7 @@ impl PhysicsState {
     pub fn new() -> Self {
         Self {
             islands: IslandManager::new(),
-            broad_phase: BroadPhaseMultiSap::new(),
+            broad_phase: DefaultBroadPhase::new(),
             narrow_phase: NarrowPhase::new(),
             bodies: RigidBodySet::new(),
             colliders: ColliderSet::new(),
