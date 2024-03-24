@@ -247,7 +247,7 @@ impl EntityWithGraphics {
         //
         // Ball mesh
         //
-        let ball = Mesh::try_from(bevy::math::primitives::Sphere::new(1.0)).unwrap();
+        let ball = Mesh::from(bevy::math::primitives::Sphere::new(1.0));
         out.insert(ShapeType::Ball, meshes.add(ball));
 
         //
