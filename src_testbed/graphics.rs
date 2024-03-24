@@ -22,6 +22,9 @@ pub type BevyMaterial = ColorMaterial;
 #[cfg(feature = "dim3")]
 pub type BevyMaterial = StandardMaterial;
 
+pub type InstancedMaterials = HashMap<Point3<usize>, Handle<BevyMaterial>>;
+pub const SELECTED_OBJECT_MATERIAL_KEY: Point3<usize> = point![42, 42, 42];
+
 pub struct GraphicsManager {
     rand: Pcg32,
     b2sn: HashMap<RigidBodyHandle, Vec<EntityWithGraphics>>,
@@ -30,6 +33,7 @@ pub struct GraphicsManager {
     b2wireframe: HashMap<RigidBodyHandle, bool>,
     ground_color: Point3<f32>,
     prefab_meshes: HashMap<ShapeType, Handle<Mesh>>,
+    instanced_materials: InstancedMaterials,
     pub gfx_shift: Vector<Real>,
 }
 
@@ -43,8 +47,13 @@ impl GraphicsManager {
             ground_color: point![0.5, 0.5, 0.5],
             b2wireframe: HashMap::new(),
             prefab_meshes: HashMap::new(),
+            instanced_materials: HashMap::new(),
             gfx_shift: Vector::zeros(),
         }
+    }
+
+    pub fn selection_material(&self) -> Handle<BevyMaterial> {
+        self.instanced_materials[&SELECTED_OBJECT_MATERIAL_KEY].clone_weak()
     }
 
     pub fn clear(&mut self, commands: &mut Commands) {
@@ -54,6 +63,7 @@ impl GraphicsManager {
             }
         }
 
+        self.instanced_materials.clear();
         self.b2sn.clear();
         self.c2color.clear();
         self.b2color.clear();
@@ -159,10 +169,11 @@ impl GraphicsManager {
 
     fn gen_color(rng: &mut Pcg32) -> Point3<f32> {
         let mut color: Point3<f32> = rng.gen();
-        color *= 1.5;
-        color.x = color.x.min(1.0);
-        color.y = color.y.min(1.0);
-        color.z = color.z.min(1.0);
+
+        // Quantize the colors a bit to get some amount of auto-instancing from bevy.
+        color.x = (color.x * 5.0).round() / 5.0;
+        color.y = (color.y * 5.0).round() / 5.0;
+        color.z = (color.z * 5.0).round() / 5.0;
         color
     }
 
@@ -191,7 +202,7 @@ impl GraphicsManager {
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<BevyMaterial>,
-        components: &mut Query<(&mut Transform,)>,
+        components: &mut Query<&mut Transform>,
         handle: RigidBodyHandle,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
@@ -214,7 +225,7 @@ impl GraphicsManager {
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<BevyMaterial>,
-        components: &mut Query<(&mut Transform,)>,
+        components: &mut Query<&mut Transform>,
         handle: RigidBodyHandle,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
@@ -330,6 +341,7 @@ impl GraphicsManager {
                 meshes,
                 materials,
                 &self.prefab_meshes,
+                &mut self.instanced_materials,
                 shape,
                 handle,
                 *pos,
@@ -345,7 +357,7 @@ impl GraphicsManager {
         &mut self,
         _bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        components: &mut Query<(&mut Transform,)>,
+        components: &mut Query<&mut Transform>,
         _materials: &mut Assets<BevyMaterial>,
     ) {
         for (_, ns) in self.b2sn.iter_mut() {

@@ -61,7 +61,7 @@ impl OrbitCameraPlugin {
     fn mouse_motion_system(
         time: Res<Time>,
         mut mouse_motion_events: EventReader<MouseMotion>,
-        mouse_button_input: Res<Input<MouseButton>>,
+        mouse_button_input: Res<ButtonInput<MouseButton>>,
         mut query: Query<(&mut OrbitCamera, &mut Transform, &mut Camera)>,
     ) {
         let mut delta = Vec2::ZERO;

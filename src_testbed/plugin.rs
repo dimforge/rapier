@@ -14,7 +14,7 @@ pub trait TestbedPlugin {
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<BevyMaterial>,
-        components: &mut Query<(&mut Transform,)>,
+        components: &mut Query<&mut Transform>,
         harness: &mut Harness,
     );
     fn clear_graphics(&mut self, graphics: &mut GraphicsManager, commands: &mut Commands);
@@ -26,7 +26,7 @@ pub trait TestbedPlugin {
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<BevyMaterial>,
-        components: &mut Query<(&mut Transform,)>,
+        components: &mut Query<&mut Transform>,
         harness: &mut Harness,
     );
     fn update_ui(
@@ -37,7 +37,7 @@ pub trait TestbedPlugin {
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<BevyMaterial>,
-        components: &mut Query<(&mut Transform,)>,
+        components: &mut Query<&mut Transform>,
     );
     fn profiling_string(&self) -> String;
 }

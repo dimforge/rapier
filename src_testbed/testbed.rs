@@ -31,8 +31,7 @@ use crate::box2d_backend::Box2dWorld;
 use crate::harness::Harness;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 use crate::physx_backend::PhysxWorld;
-use bevy::render::camera::Camera;
-use bevy_core_pipeline::prelude::ClearColor;
+use bevy::render::camera::{Camera, ClearColor};
 use bevy_egui::EguiContexts;
 use bevy_pbr::wireframe::WireframePlugin;
 use bevy_pbr::AmbientLight;
@@ -155,11 +154,11 @@ pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     commands: &'a mut Commands<'d, 'e>,
     meshes: &'a mut Assets<Mesh>,
     materials: &'a mut Assets<BevyMaterial>,
-    components: &'a mut Query<'b, 'f, (&'c mut Transform,)>,
+    components: &'a mut Query<'b, 'f, &'c mut Transform>,
     #[allow(dead_code)] // Dead in 2D but not in 3D.
     camera_transform: GlobalTransform,
     camera: &'a mut OrbitCamera,
-    keys: &'a Input<KeyCode>,
+    keys: &'a ButtonInput<KeyCode>,
 }
 
 pub struct Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
@@ -468,7 +467,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
         )
     }
 
-    pub fn keys(&self) -> &Input<KeyCode> {
+    pub fn keys(&self) -> &ButtonInput<KeyCode> {
         self.keys
     }
 }
@@ -660,7 +659,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
     }
 
     #[cfg(feature = "dim3")]
-    fn update_vehicle_controller(&mut self, events: &Input<KeyCode>) {
+    fn update_vehicle_controller(&mut self, events: &ButtonInput<KeyCode>) {
         if self.state.running == RunMode::Stop {
             return;
         }
@@ -671,16 +670,16 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
 
             for key in events.get_pressed() {
                 match *key {
-                    KeyCode::Right => {
+                    KeyCode::ArrowRight => {
                         steering_angle += -0.7;
                     }
-                    KeyCode::Left => {
+                    KeyCode::ArrowLeft => {
                         steering_angle += 0.7;
                     }
-                    KeyCode::Up => {
+                    KeyCode::ArrowUp => {
                         engine_force += 30.0;
                     }
-                    KeyCode::Down => {
+                    KeyCode::ArrowDown => {
                         engine_force += -30.0;
                     }
                     _ => {}
@@ -703,7 +702,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         }
     }
 
-    fn update_character_controller(&mut self, events: &Input<KeyCode>) {
+    fn update_character_controller(&mut self, events: &ButtonInput<KeyCode>) {
         if self.state.running == RunMode::Stop {
             return;
         }
@@ -715,10 +714,10 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
             #[cfg(feature = "dim2")]
             for key in events.get_pressed() {
                 match *key {
-                    KeyCode::Right => {
+                    KeyCode::ArrowRight => {
                         desired_movement += Vector::x();
                     }
-                    KeyCode::Left => {
+                    KeyCode::ArrowLeft => {
                         desired_movement -= Vector::x();
                     }
                     KeyCode::Space => {
@@ -750,16 +749,16 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
 
                 for key in events.get_pressed() {
                     match *key {
-                        KeyCode::Right => {
+                        KeyCode::ArrowRight => {
                             desired_movement += rot_x;
                         }
-                        KeyCode::Left => {
+                        KeyCode::ArrowLeft => {
                             desired_movement -= rot_x;
                         }
-                        KeyCode::Up => {
+                        KeyCode::ArrowUp => {
                             desired_movement -= rot_z;
                         }
-                        KeyCode::Down => {
+                        KeyCode::ArrowDown => {
                             desired_movement += rot_z;
                         }
                         KeyCode::Space => {
@@ -818,22 +817,22 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         }
     }
 
-    fn handle_common_events(&mut self, events: &Input<KeyCode>) {
+    fn handle_common_events(&mut self, events: &ButtonInput<KeyCode>) {
         for key in events.get_just_released() {
             match *key {
-                KeyCode::T => {
+                KeyCode::KeyT => {
                     if self.state.running == RunMode::Stop {
                         self.state.running = RunMode::Running;
                     } else {
                         self.state.running = RunMode::Stop;
                     }
                 }
-                KeyCode::S => self.state.running = RunMode::Step,
-                KeyCode::R => self
+                KeyCode::KeyS => self.state.running = RunMode::Step,
+                KeyCode::KeyR => self
                     .state
                     .action_flags
                     .set(TestbedActionFlags::EXAMPLE_CHANGED, true),
-                KeyCode::C => {
+                KeyCode::KeyC => {
                     // Delete 1 collider of 10% of the remaining dynamic bodies.
                     let mut colliders: Vec<_> = self
                         .harness
@@ -859,7 +858,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         );
                     }
                 }
-                KeyCode::D => {
+                KeyCode::KeyD => {
                     // Delete 10% of the remaining dynamic bodies.
                     let dynamic_bodies: Vec<_> = self
                         .harness
@@ -884,7 +883,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         );
                     }
                 }
-                KeyCode::J => {
+                KeyCode::KeyJ => {
                     // Delete 10% of the remaining impulse_joints.
                     let impulse_joints: Vec<_> = self
                         .harness
@@ -898,7 +897,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         self.harness.physics.impulse_joints.remove(*to_delete, true);
                     }
                 }
-                KeyCode::A => {
+                KeyCode::KeyA => {
                     // Delete 10% of the remaining multibody_joints.
                     let multibody_joints: Vec<_> = self
                         .harness
@@ -915,7 +914,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                             .remove(*to_delete, true);
                     }
                 }
-                KeyCode::M => {
+                KeyCode::KeyM => {
                     // Delete one remaining multibody.
                     let to_delete = self
                         .harness
@@ -1013,10 +1012,14 @@ fn draw_contacts(_nf: &NarrowPhase, _colliders: &ColliderSet) {
 
 #[cfg(feature = "dim3")]
 fn setup_graphics_environment(mut commands: Commands) {
+    commands.insert_resource(AmbientLight {
+        brightness: 100.0,
+        ..Default::default()
+    });
+
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
-            illuminance: 10000.0,
-            shadows_enabled: true,
+            shadows_enabled: false,
             ..Default::default()
         },
         transform: Transform {
@@ -1102,9 +1105,10 @@ fn update_testbed(
     #[cfg(feature = "other-backends")] mut other_backends: NonSendMut<OtherBackends>,
     mut plugins: NonSendMut<Plugins>,
     mut ui_context: EguiContexts,
-    mut gfx_components: Query<(&mut Transform,)>,
+    mut gfx_components: Query<&mut Transform>,
     mut cameras: Query<(&Camera, &GlobalTransform, &mut OrbitCamera)>,
-    keys: Res<Input<KeyCode>>,
+    mut material_handles: Query<&mut Handle<BevyMaterial>>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     let meshes = &mut *meshes;
     let materials = &mut *materials;
@@ -1448,7 +1452,7 @@ fn update_testbed(
     if let Ok(window) = windows.get_single() {
         for (camera, camera_pos, _) in cameras.iter_mut() {
             highlight_hovered_body(
-                &mut *materials,
+                &mut material_handles,
                 &mut graphics,
                 &mut state,
                 &harness.physics,
@@ -1502,7 +1506,7 @@ fn clear(
 
 #[cfg(feature = "dim2")]
 fn highlight_hovered_body(
-    _materials: &mut Assets<BevyMaterial>,
+    _material_handles: &mut Query<&mut Handle<BevyMaterial>>,
     _graphics_manager: &mut GraphicsManager,
     _testbed_state: &mut TestbedState,
     _physics: &PhysicsState,
@@ -1515,7 +1519,7 @@ fn highlight_hovered_body(
 
 #[cfg(feature = "dim3")]
 fn highlight_hovered_body(
-    materials: &mut Assets<BevyMaterial>,
+    material_handles: &mut Query<&mut Handle<BevyMaterial>>,
     graphics_manager: &mut GraphicsManager,
     testbed_state: &mut TestbedState,
     physics: &PhysicsState,
@@ -1526,7 +1530,9 @@ fn highlight_hovered_body(
     if let Some(highlighted_body) = testbed_state.highlighted_body {
         if let Some(nodes) = graphics_manager.body_nodes_mut(highlighted_body) {
             for node in nodes {
-                node.unselect(materials)
+                if let Ok(mut handle) = material_handles.get_mut(node.entity) {
+                    *handle = node.material.clone_weak()
+                };
             }
         }
     }
@@ -1558,8 +1564,12 @@ fn highlight_hovered_body(
 
             if let Some(parent_handle) = collider.parent() {
                 testbed_state.highlighted_body = Some(parent_handle);
+                let selection_material = graphics_manager.selection_material();
+
                 for node in graphics_manager.body_nodes_mut(parent_handle).unwrap() {
-                    node.select(materials)
+                    if let Ok(mut handle) = material_handles.get_mut(node.entity) {
+                        *handle = selection_material.clone_weak();
+                    }
                 }
             }
         }
