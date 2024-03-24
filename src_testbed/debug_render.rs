@@ -30,11 +30,11 @@ impl Plugin for RapierDebugRenderPlugin {
     }
 }
 
-struct BevyLinesRenderBackend<'a> {
-    gizmos: Gizmos<'a>,
+struct BevyLinesRenderBackend<'w, 's> {
+    gizmos: Gizmos<'w, 's>,
 }
 
-impl<'a> DebugRenderBackend for BevyLinesRenderBackend<'a> {
+impl<'w, 's> DebugRenderBackend for BevyLinesRenderBackend<'w, 's> {
     #[cfg(feature = "dim2")]
     fn draw_line(&mut self, _: DebugRenderObject, a: Point<Real>, b: Point<Real>, color: [f32; 4]) {
         self.gizmos.line(
