@@ -132,7 +132,7 @@ impl Default for ColliderBroadPhaseData {
 /// The shape of a collider.
 pub type ColliderShape = SharedShape;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// The mass-properties of a collider.
 pub enum ColliderMassProps {
