@@ -67,7 +67,7 @@
             "name": "Debug executable 'all_examples2'",
             "cargo": {
                 "args": [
-                    "build",
+                    "run",
                     "--bin=all_examples2",
                     "--package=rapier-examples-2d"
                 ],
@@ -104,7 +104,8 @@
             "name": "Debug executable 'all_benchmarks2'",
             "cargo": {
                 "args": [
-                    "build",
+                    "run",
+                    "--release",
                     "--bin=all_benchmarks2",
                     "--package=rapier-benchmarks-2d"
                 ],
