@@ -500,7 +500,7 @@ impl KinematicCharacterController {
         //       slow speed.
         let climbing = self.up.dot(&slope_translation) >= 0.0 && self.up.dot(&hit.normal1) > 0.0;
 
-        if climbing && angle_with_floor >= self.max_slope_climb_angle {
+        if climbing && angle_with_floor <= self.max_slope_climb_angle {
             // Prevent horizontal movement from pushing through the slope.
             vertical_translation
         } else if !climbing && angle_with_floor <= self.min_slope_slide_angle {
