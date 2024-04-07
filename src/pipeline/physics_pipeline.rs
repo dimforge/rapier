@@ -142,6 +142,7 @@ impl PhysicsPipeline {
         );
         narrow_phase.compute_contacts(
             integration_parameters.prediction_distance,
+            integration_parameters.dt,
             bodies,
             colliders,
             impulse_joints,
@@ -178,7 +179,6 @@ impl PhysicsPipeline {
             multibody_joints,
             integration_parameters.min_island_size,
         );
-        self.counters.stages.island_construction_time.pause();
 
         if self.manifold_indices.len() < islands.num_islands() {
             self.manifold_indices
@@ -203,6 +203,7 @@ impl PhysicsPipeline {
             bodies,
             &mut self.joint_constraint_indices,
         );
+        self.counters.stages.island_construction_time.pause();
 
         self.counters.stages.update_time.resume();
         for handle in islands.active_dynamic_bodies() {
@@ -421,6 +422,7 @@ impl PhysicsPipeline {
         self.counters.step_started();
 
         // Apply some of delayed wake-ups.
+        self.counters.stages.user_changes.start();
         for handle in impulse_joints
             .to_wake_up
             .drain(..)
@@ -459,6 +461,7 @@ impl PhysicsPipeline {
                 .copied()
                 .filter(|h| colliders.get(*h).map(|c| !c.is_enabled()).unwrap_or(false)),
         );
+        self.counters.stages.user_changes.pause();
 
         // TODO: do this only on user-change.
         // TODO: do we want some kind of automatic inverse kinematics?
@@ -486,12 +489,16 @@ impl PhysicsPipeline {
         );
 
         if let Some(queries) = query_pipeline.as_deref_mut() {
+            self.counters.stages.query_pipeline_time.start();
             queries.update_incremental(colliders, &modified_colliders, &removed_colliders, false);
+            self.counters.stages.query_pipeline_time.pause();
         }
 
+        self.counters.stages.user_changes.resume();
         self.clear_modified_colliders(colliders, &mut modified_colliders);
         self.clear_modified_bodies(bodies, &mut modified_bodies);
         removed_colliders.clear();
+        self.counters.stages.user_changes.pause();
 
         let mut remaining_time = integration_parameters.dt;
         let mut integration_parameters = *integration_parameters;
@@ -508,7 +515,7 @@ impl PhysicsPipeline {
             // the timestep into multiple intervals. First, estimate the
             // size of the time slice we will integrate for this substep.
             //
-            // Note that we must do this now, before the constrains resolution
+            // Note that we must do this now, before the constraints resolution
             // because we need to use the correct timestep length for the
             // integration of external forces.
             //
@@ -599,7 +606,9 @@ impl PhysicsPipeline {
                 }
             }
 
+            self.counters.stages.update_time.resume();
             self.advance_to_final_positions(islands, bodies, colliders, &mut modified_colliders);
+            self.counters.stages.update_time.pause();
 
             self.detect_collisions(
                 &integration_parameters,
@@ -618,12 +627,14 @@ impl PhysicsPipeline {
             );
 
             if let Some(queries) = query_pipeline.as_deref_mut() {
+                self.counters.stages.query_pipeline_time.resume();
                 queries.update_incremental(
                     colliders,
                     &modified_colliders,
                     &[],
                     remaining_substeps == 0,
                 );
+                self.counters.stages.query_pipeline_time.pause();
             }
 
             self.clear_modified_colliders(colliders, &mut modified_colliders);
@@ -635,10 +646,12 @@ impl PhysicsPipeline {
         // TODO: avoid updating the world mass properties twice (here, and
         //       at the beginning of the next timestep) for bodies that were
         //       not modified by the user in the mean time.
+        self.counters.stages.update_time.resume();
         for handle in islands.active_dynamic_bodies() {
             let rb = bodies.index_mut_internal(*handle);
             rb.mprops.update_world_mass_properties(&rb.pos.position);
         }
+        self.counters.stages.update_time.pause();
 
         self.counters.step_completed();
     }
