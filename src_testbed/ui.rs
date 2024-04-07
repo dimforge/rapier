@@ -227,20 +227,21 @@ fn profiling_string(counters: &Counters) -> String {
         r#"Total: {:.2}ms
 Collision detection: {:.2}ms
 |_ Broad-phase: {:.2}ms
-   Narrow-phase: {:.2}ms
+    Narrow-phase: {:.2}ms
 Island computation: {:.2}ms
 Solver: {:.2}ms
 |_ Velocity assembly: {:.2}ms
-   Velocity resolution: {:.2}ms
-   Velocity integration: {:.2}ms
-   Position assembly: {:.2}ms
-   Position resolution: {:.2}ms
+    Velocity resolution: {:.2}ms
+    Velocity integration: {:.2}ms
+    Writeback: {:.2}ms
 CCD: {:.2}ms
 |_ # of substeps: {}
-   TOI computation: {:.2}ms
-   Broad-phase: {:.2}ms
-   Narrow-phase: {:.2}ms
-   Solver: {:.2}ms"#,
+    TOI computation: {:.2}ms
+    Broad-phase: {:.2}ms
+    Narrow-phase: {:.2}ms
+    Solver: {:.2}ms
+Query pipeline: {:.2}ms
+User changes: {:.2}ms"#,
         counters.step_time(),
         counters.collision_detection_time(),
         counters.broad_phase_time(),
@@ -250,14 +251,15 @@ CCD: {:.2}ms
         counters.solver.velocity_assembly_time.time(),
         counters.velocity_resolution_time(),
         counters.solver.velocity_update_time.time(),
-        counters.solver.position_assembly_time.time(),
-        counters.position_resolution_time(),
+        counters.solver.velocity_writeback_time.time(),
         counters.ccd_time(),
         counters.ccd.num_substeps,
         counters.ccd.toi_computation_time.time(),
         counters.ccd.broad_phase_time.time(),
         counters.ccd.narrow_phase_time.time(),
         counters.ccd.solver_time.time(),
+        counters.query_pipeline_update_time(),
+        counters.stages.user_changes.time(),
     )
 }
 
