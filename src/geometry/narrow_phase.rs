@@ -789,6 +789,7 @@ impl NarrowPhase {
     pub(crate) fn compute_contacts(
         &mut self,
         prediction_distance: Real,
+        dt: Real,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
         impulse_joints: &ImpulseJointSet,
@@ -819,17 +820,11 @@ impl NarrowPhase {
                     return;
                 }
 
-                // TODO: avoid lookup into bodies.
-                let mut rb_type1 = RigidBodyType::Fixed;
-                let mut rb_type2 = RigidBodyType::Fixed;
+                let rb1 = co1.parent.map(|co_parent1| &bodies[co_parent1.handle]);
+                let rb2 = co2.parent.map(|co_parent2| &bodies[co_parent2.handle]);
 
-                if let Some(co_parent1) = &co1.parent {
-                    rb_type1 = bodies[co_parent1.handle].body_type;
-                }
-
-                if let Some(co_parent2) = &co2.parent {
-                    rb_type2 = bodies[co_parent2.handle].body_type;
-                }
+                let rb_type1 = rb1.map(|rb| rb.body_type).unwrap_or(RigidBodyType::Fixed);
+                let rb_type2 = rb2.map(|rb| rb.body_type).unwrap_or(RigidBodyType::Fixed);
 
                 // Deal with contacts disabled between bodies attached by joints.
                 if let (Some(co_parent1), Some(co_parent2)) = (&co1.parent, &co2.parent) {
@@ -924,14 +919,8 @@ impl NarrowPhase {
                 );
 
                 let zero = RigidBodyDominance(0); // The value doesn't matter, it will be MAX because of the effective groups.
-                let dominance1 = co1
-                    .parent
-                    .map(|p1| bodies[p1.handle].dominance)
-                    .unwrap_or(zero);
-                let dominance2 = co2
-                    .parent
-                    .map(|p2| bodies[p2.handle].dominance)
-                    .unwrap_or(zero);
+                let dominance1 = rb1.map(|rb| rb.dominance).unwrap_or(zero);
+                let dominance2 = rb2.map(|rb| rb.dominance).unwrap_or(zero);
 
                 pair.has_any_active_contact = false;
 
@@ -948,12 +937,20 @@ impl NarrowPhase {
 
                     // Generate solver contacts.
                     for (contact_id, contact) in manifold.points.iter().enumerate() {
-                        assert!(
-                            contact_id <= u8::MAX as usize,
-                            "A contact manifold cannot contain more than 255 contacts currently."
-                        );
+                        if contact_id > u8::MAX as usize {
+                            log::warn!("A contact manifold cannot contain more than 255 contacts currently, dropping contact in excess.");
+                            break;
+                        }
 
-                        if contact.dist < prediction_distance {
+                        let keep_solver_contact = contact.dist < prediction_distance || {
+                            let world_pt1 = world_pos1 * contact.local_p1;
+                            let world_pt2 = world_pos2 * contact.local_p2;
+                            let vel1 = rb1.map(|rb| rb.velocity_at_point(&world_pt1)).unwrap_or_default();
+                            let vel2 = rb2.map(|rb| rb.velocity_at_point(&world_pt2)).unwrap_or_default();
+                            contact.dist + (vel2 - vel1).dot(&manifold.data.normal) * dt < prediction_distance
+                        };
+
+                        if keep_solver_contact {
                             // Generate the solver contact.
                             let world_pt1 = world_pos1 * contact.local_p1;
                             let world_pt2 = world_pos2 * contact.local_p2;
