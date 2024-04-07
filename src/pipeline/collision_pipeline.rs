@@ -80,6 +80,7 @@ impl CollisionPipeline {
         narrow_phase.register_pairs(None, colliders, bodies, &self.broad_phase_events, events);
         narrow_phase.compute_contacts(
             prediction_distance,
+            0.0,
             bodies,
             colliders,
             &ImpulseJointSet::new(),

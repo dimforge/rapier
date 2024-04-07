@@ -12,6 +12,9 @@ use na::Unit;
 use parry::bounding_volume::Aabb;
 use parry::shape::{Shape, TriMeshFlags};
 
+#[cfg(feature = "dim3")]
+use crate::geometry::HeightFieldFlags;
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 /// A geometric entity that can be attached to a body so it can be affected by contacts and proximity queries.
@@ -758,6 +761,17 @@ impl ColliderBuilder {
     #[cfg(feature = "dim3")]
     pub fn heightfield(heights: na::DMatrix<Real>, scale: Vector<Real>) -> Self {
         Self::new(SharedShape::heightfield(heights, scale))
+    }
+
+    /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
+    /// factor along each coordinate axis.
+    #[cfg(feature = "dim3")]
+    pub fn heightfield_with_flags(
+        heights: na::DMatrix<Real>,
+        scale: Vector<Real>,
+        flags: HeightFieldFlags,
+    ) -> Self {
+        Self::new(SharedShape::heightfield_with_flags(heights, scale, flags))
     }
 
     /// The default friction coefficient used by the collider builder.
