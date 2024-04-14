@@ -25,6 +25,7 @@ pub(crate) trait ConstraintTypes {
     type SimdBuilderTwoBodies;
 }
 
+#[derive(Debug)]
 pub enum AnyConstraintMut<'a, Constraints: ConstraintTypes> {
     OneBody(&'a mut Constraints::OneBody),
     TwoBodies(&'a mut Constraints::TwoBodies),

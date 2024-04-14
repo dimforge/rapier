@@ -150,6 +150,13 @@ pub fn update_ui(
                 )
                 .text("num additional frict. iters."),
             );
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.max_internal_stabilization_iterations,
+                    1..=100,
+                )
+                .text("max internal stabilization iters."),
+            );
         }
 
         #[cfg(feature = "parallel")]
