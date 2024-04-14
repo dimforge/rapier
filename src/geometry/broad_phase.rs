@@ -1,3 +1,4 @@
+use crate::dynamics::RigidBodySet;
 use crate::geometry::{BroadPhasePairEvent, ColliderHandle, ColliderSet};
 use parry::math::Real;
 
@@ -38,8 +39,10 @@ pub trait BroadPhase {
     ///   are still touching or closer than `prediction_distance`.
     fn update(
         &mut self,
+        dt: Real,
         prediction_distance: Real,
         colliders: &mut ColliderSet,
+        bodies: &RigidBodySet,
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
         events: &mut Vec<BroadPhasePairEvent>,

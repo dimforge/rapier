@@ -5,8 +5,8 @@ use crate::geometry::{
     BroadPhaseProxyIndex, ColliderBroadPhaseData, ColliderChanges, ColliderHandle,
     ColliderPosition, ColliderSet, ColliderShape,
 };
-use crate::math::Real;
-use crate::prelude::BroadPhase;
+use crate::math::{Isometry, Real};
+use crate::prelude::{BroadPhase, RigidBodySet};
 use crate::utils::IndexMut2;
 use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::HashMap;
@@ -354,12 +354,20 @@ impl BroadPhaseMultiSap {
         handle: ColliderHandle,
         proxy_index: &mut u32,
         collider: (&ColliderPosition, &ColliderShape, &ColliderChanges),
+        next_position: Option<&Isometry<Real>>,
     ) -> bool {
         let (co_pos, co_shape, co_changes) = collider;
 
         let mut aabb = co_shape
             .compute_aabb(co_pos)
             .loosened(prediction_distance / 2.0);
+
+        if let Some(next_position) = next_position {
+            let next_aabb = co_shape
+                .compute_aabb(next_position)
+                .loosened(prediction_distance / 2.0);
+            aabb.merge(&next_aabb);
+        }
 
         if aabb.mins.coords.iter().any(|e| !e.is_finite())
             || aabb.maxs.coords.iter().any(|e| !e.is_finite())
@@ -563,8 +571,10 @@ impl BroadPhase for BroadPhaseMultiSap {
     /// Updates the broad-phase, taking into account the new collider positions.
     fn update(
         &mut self,
+        dt: Real,
         prediction_distance: Real,
         colliders: &mut ColliderSet,
+        bodies: &RigidBodySet,
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
         events: &mut Vec<BroadPhasePairEvent>,
@@ -585,11 +595,19 @@ impl BroadPhase for BroadPhaseMultiSap {
 
                 let mut new_proxy_id = co.bf_data.proxy_index;
 
+                let next_pos = co.parent.and_then(|p| {
+                    let parent = bodies.get(p.handle)?;
+                    parent.is_soft_ccd_enabled().then(|| {
+                        parent.predict_position_using_velocity_and_forces(dt) * p.pos_wrt_parent
+                    })
+                });
+
                 if self.handle_modified_collider(
                     prediction_distance,
                     *handle,
                     &mut new_proxy_id,
                     (&co.pos, &co.shape, &co.changes),
+                    next_pos.as_ref(),
                 ) {
                     need_region_propagation = true;
                 }

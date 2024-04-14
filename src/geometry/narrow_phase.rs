@@ -8,9 +8,10 @@ use crate::dynamics::{
     RigidBodyType,
 };
 use crate::geometry::{
-    BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle, ColliderPair,
-    ColliderSet, CollisionEvent, ContactData, ContactManifold, ContactManifoldData, ContactPair,
-    InteractionGraph, IntersectionPair, SolverContact, SolverFlags, TemporaryInteractionIndex,
+    BoundingVolume, BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle,
+    ColliderPair, ColliderSet, CollisionEvent, ContactData, ContactManifold, ContactManifoldData,
+    ContactPair, InteractionGraph, IntersectionPair, SolverContact, SolverFlags,
+    TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{
@@ -896,11 +897,33 @@ impl NarrowPhase {
                 }
 
                 let pos12 = co1.pos.inv_mul(&co2.pos);
+
+                let effective_prediction_distance = if rb1.map(|rb| rb.is_soft_ccd_enabled()) == Some(true) ||
+                    rb2.map(|rb| rb.is_soft_ccd_enabled()) == Some(true) {
+
+                    let aabb1 = co1.compute_aabb();
+                    let aabb2 = co2.compute_aabb();
+
+                    let linvel1 = rb1.map(|rb| *rb.linvel()).unwrap_or_default();
+                    let linvel2 = rb2.map(|rb| *rb.linvel()).unwrap_or_default();
+
+                    if !aabb1.intersects(&aabb2) && !aabb1.intersects_moving_aabb(&aabb2, linvel2 - linvel1) {
+                        pair.clear();
+                        break 'emit_events;
+                    }
+
+
+                    prediction_distance.max(
+                        dt * (linvel1 - linvel2).norm())
+                } else {
+                    prediction_distance
+                };
+
                 let _ = query_dispatcher.contact_manifolds(
                     &pos12,
                     &*co1.shape,
                     &*co2.shape,
-                    prediction_distance,
+                    effective_prediction_distance,
                     &mut pair.manifolds,
                     &mut pair.workspace,
                 );
