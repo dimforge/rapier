@@ -112,8 +112,10 @@ impl PhysicsPipeline {
         self.broad_phase_events.clear();
         self.broadphase_collider_pairs.clear();
         broad_phase.update(
+            integration_parameters.dt,
             integration_parameters.prediction_distance,
             colliders,
+            bodies,
             modified_colliders,
             removed_colliders,
             &mut self.broad_phase_events,

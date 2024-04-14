@@ -436,7 +436,7 @@ impl RigidBody {
         ]
     }
 
-    /// Enables of disable CCD (continuous collision-detection) for this rigid-body.
+    /// Enables of disable CCD (Continuous Collision-Detection) for this rigid-body.
     ///
     /// CCD prevents tunneling, but may still allow limited interpenetration of colliders.
     pub fn enable_ccd(&mut self, enabled: bool) {
@@ -446,6 +446,19 @@ impl RigidBody {
     /// Is CCD (continous collision-detection) enabled for this rigid-body?
     pub fn is_ccd_enabled(&self) -> bool {
         self.ccd.ccd_enabled
+    }
+
+    /// Enables of disable soft CCD (soft Continuous Collision-Detection) for this rigid-body.
+    ///
+    /// Soft-CCD helps prevent tunneling, but may still let tunnelling happen depending on solver
+    /// convergence. This is cheaper than the full ccd enabled by [`RigidBody::enable_ccd`].
+    pub fn enable_soft_ccd(&mut self, enabled: bool) {
+        self.ccd.soft_ccd_enabled = enabled;
+    }
+
+    /// Is Soft-CCD (Soft Continous Collision-Detection) enabled for this rigid-body?
+    pub fn is_soft_ccd_enabled(&self) -> bool {
+        self.ccd.soft_ccd_enabled
     }
 
     // This is different from `is_ccd_enabled`. This checks that CCD
@@ -1101,10 +1114,15 @@ pub struct RigidBodyBuilder {
     pub can_sleep: bool,
     /// Whether or not the rigid-body is to be created asleep.
     pub sleeping: bool,
-    /// Whether continuous collision-detection is enabled for the rigid-body to be built.
+    /// Whether Continuous Collision-Detection is enabled for the rigid-body to be built.
     ///
     /// CCD prevents tunneling, but may still allow limited interpenetration of colliders.
     pub ccd_enabled: bool,
+    /// Whether Soft Continuous Collision-Detection is enabled for the rigid-body to be built.
+    ///
+    /// Soft-CCD helps prevent tunneling, but may still let tunnelling happen depending on solver
+    /// convergence. This is cheaper than the full ccd enabled by [`RigidBodyBuilder::ccd_enabled`].
+    pub soft_ccd_enabled: bool,
     /// The dominance group of the rigid-body to be built.
     pub dominance_group: i8,
     /// Will the rigid-body being built be enabled?
@@ -1134,6 +1152,7 @@ impl RigidBodyBuilder {
             can_sleep: true,
             sleeping: false,
             ccd_enabled: false,
+            soft_ccd_enabled: false,
             dominance_group: 0,
             enabled: true,
             user_data: 0,
@@ -1378,11 +1397,20 @@ impl RigidBodyBuilder {
         self
     }
 
-    /// Sets whether or not continuous collision-detection is enabled for this rigid-body.
+    /// Sets whether or not Continuous Collision-Detection is enabled for this rigid-body.
     ///
     /// CCD prevents tunneling, but may still allow limited interpenetration of colliders.
     pub fn ccd_enabled(mut self, enabled: bool) -> Self {
         self.ccd_enabled = enabled;
+        self
+    }
+
+    /// Sets whether or not Soft Continuous Collision-Detection is enabled for this rigid-body.
+    ///
+    /// Soft-CCD helps prevent tunneling, but may still let tunnelling happen depending on solver
+    /// convergence. This is cheaper than the full ccd enabled by [`RigidBodyBuilder::ccd_enabled`].
+    pub fn soft_ccd_enabled(mut self, enabled: bool) -> Self {
+        self.soft_ccd_enabled = enabled;
         self
     }
 
@@ -1423,6 +1451,7 @@ impl RigidBodyBuilder {
         rb.dominance = RigidBodyDominance(self.dominance_group);
         rb.enabled = self.enabled;
         rb.enable_ccd(self.ccd_enabled);
+        rb.enable_soft_ccd(self.soft_ccd_enabled);
 
         if self.can_sleep && self.sleeping {
             rb.sleep();

@@ -58,8 +58,10 @@ impl CollisionPipeline {
         self.broadphase_collider_pairs.clear();
 
         broad_phase.update(
+            0.0,
             prediction_distance,
             colliders,
+            bodies,
             modified_colliders,
             removed_colliders,
             &mut self.broad_phase_events,
