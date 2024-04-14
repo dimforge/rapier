@@ -10,10 +10,14 @@ pub fn init_world(testbed: &mut Testbed) {
     let impulse_joints = ImpulseJointSet::new();
     let multibody_joints = MultibodyJointSet::new();
 
+
+    let num = 40;
+    let rad = 50.0 / 2.0; // 0.5;
+
     /*
      * Ground
      */
-    let ground_size = 100.0;
+    let ground_size = num as f32 * rad * 10.0;
     let ground_thickness = 1.0;
 
     let rigid_body = RigidBodyBuilder::fixed();
@@ -24,24 +28,29 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create the cubes
      */
-    let num = 30;
-    let rad = 0.5;
 
-    let shift = rad * 2.0;
-    let centery = shift / 2.0 + ground_thickness;
+    let shiftx_centerx = [
+        (rad * 2.0, -(num as f32) * rad * 2.0 * 1.5),
+         (rad * 2.0 + rad, num as f32 * rad * 2.0 * 1.5),
+    ];
 
-    for i in 0..num {
-        for j in 0usize..1 + i * 2 {
-            let fj = j as f32;
-            let fi = i as f32;
-            let x = (fj - fi) * shift; // (shift + rad / 2.0);
-            let y = (num as f32 - fi - 1.0) * shift + centery;
+    for (shiftx, centerx) in shiftx_centerx {
+        let shifty = rad * 2.0;
+        let centery = shifty / 2.0 + ground_thickness;
 
-            // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
-            let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad);
-            colliders.insert_with_parent(collider, handle, &mut bodies);
+        for i in 0..num {
+            for j in 0usize..1 + i * 2 {
+                let fj = j as f32;
+                let fi = i as f32;
+                let x = (fj - fi) * shiftx + centerx;
+                let y = (num as f32 - fi - 1.0) * shifty + centery;
+
+                // Build the rigid body.
+                let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
+                let handle = bodies.insert(rigid_body);
+                let collider = ColliderBuilder::cuboid(rad, rad);
+                colliders.insert_with_parent(collider, handle, &mut bodies);
+            }
         }
     }
 

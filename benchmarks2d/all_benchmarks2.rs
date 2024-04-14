@@ -58,7 +58,7 @@ pub fn main() {
         ("Convex polygons", convex_polygons2::init_world),
         ("Heightfield", heightfield2::init_world),
         ("Pyramid", pyramid2::init_world),
-        ("Verticals tacks", vertical_stacks2::init_world),
+        ("Verticals stacks", vertical_stacks2::init_world),
         ("(Stress test) joint ball", joint_ball2::init_world),
         ("(Stress test) joint fixed", joint_fixed2::init_world),
         (
