@@ -15,6 +15,7 @@ mod collision_groups2;
 mod convex_polygons2;
 mod damping2;
 mod debug_box_ball2;
+mod debug_compression2;
 mod debug_total_overlap2;
 mod drum2;
 mod heightfield2;
@@ -83,6 +84,7 @@ pub fn main() {
         ("Trimesh", trimesh2::init_world),
         ("Joint motor position", joint_motor_position2::init_world),
         ("(Debug) box ball", debug_box_ball2::init_world),
+        ("(Debug) compression", debug_compression2::init_world),
         ("(Debug) total overlap", debug_total_overlap2::init_world),
     ];
 
