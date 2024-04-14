@@ -1,6 +1,8 @@
 use crate::math::Real;
 use std::num::NonZeroUsize;
 
+// TODO: enabling the block solver in 3d introduces a lot of jitters in
+//       the 3D domino demo. So for now we dont enable it in 3D.
 pub(crate) static BLOCK_SOLVER_ENABLED: bool = cfg!(feature = "dim2");
 pub(crate) static DISABLE_FRICTION_LIMIT_REAPPLY: bool = false;
 
