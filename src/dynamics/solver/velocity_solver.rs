@@ -1,4 +1,5 @@
 use super::{JointConstraintTypes, SolverConstraintsSet};
+use crate::dynamics::integration_parameters::DISABLE_FRICTION_LIMIT_REAPPLY;
 use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::{
     solver::{ContactConstraintTypes, SolverVel},
@@ -10,6 +11,7 @@ use crate::math::Real;
 use crate::prelude::RigidBodyVelocity;
 use crate::utils::SimdAngularInertia;
 use na::DVector;
+use ordered_float::OrderedFloat;
 
 pub(crate) struct VelocitySolver {
     pub solver_bodies: Vec<SolverBody>,
@@ -201,9 +203,60 @@ impl VelocitySolver {
             /*
              * Resolution without bias.
              */
-            joint_constraints.solve_wo_bias(&mut self.solver_vels, &mut self.generic_solver_vels);
-            contact_constraints
-                .solve_restitution_wo_bias(&mut self.solver_vels, &mut self.generic_solver_vels);
+            let compute_max_dlinvel = |vels: &[SolverVel<Real>]| {
+                vels.iter()
+                    .map(|v| v.linear.norm())
+                    .max_by_key(|v| OrderedFloat(*v))
+                    .unwrap_or_default()
+            };
+
+            let mut prev_dlinvel = f32::MAX;
+            let mut prev_solver_vels = self.solver_vels.clone();
+
+            for kk in 0..params.max_internal_stabilization_iterations {
+                prev_solver_vels.clone_from_slice(&self.solver_vels);
+                joint_constraints
+                    .solve_wo_bias(&mut self.solver_vels, &mut self.generic_solver_vels);
+                contact_constraints.solve_restitution_wo_bias(
+                    &mut self.solver_vels,
+                    &mut self.generic_solver_vels,
+                );
+
+                if DISABLE_FRICTION_LIMIT_REAPPLY {
+                    contact_constraints
+                        .solve_friction(&mut self.solver_vels, &mut self.generic_solver_vels);
+                }
+
+                for (prev, new) in prev_solver_vels.iter_mut().zip(self.solver_vels.iter()) {
+                    *prev -= *new;
+                }
+
+                let new_max_linvel = compute_max_dlinvel(&self.solver_vels);
+
+                println!(">> {} >> max_linvel: {}", kk, new_max_linvel);
+
+                if new_max_linvel > prev_dlinvel {
+                    break;
+                }
+
+                prev_dlinvel = new_max_linvel;
+
+                if prev_solver_vels
+                    .iter()
+                    .zip(self.solver_vels.iter())
+                    .all(|(diff, vels)| {
+                        diff.linear.norm() < 1.0e-3
+                            || diff.linear.norm() <= 0.2 * vels.linear.norm()
+                    })
+                {
+                    break;
+                }
+
+                // if (new_max_dlinvel - max_dlinvel).abs() <= 0.2 * max_dlinvel {
+                //     println!("Num effective stab steps: {}", kk + 1);
+                //     break;
+                // }
+            }
         }
     }
 
