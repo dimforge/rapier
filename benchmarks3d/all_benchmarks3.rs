@@ -20,6 +20,7 @@ mod joint_fixed3;
 mod joint_prismatic3;
 mod joint_revolute3;
 mod keva3;
+mod many_sleep3;
 mod many_static3;
 mod pyramid3;
 mod stacks3;
@@ -56,6 +57,7 @@ pub fn main() {
         ("Compound", compound3::init_world),
         ("Convex polyhedron", convex_polyhedron3::init_world),
         ("Many static", many_static3::init_world),
+        ("Many sleep", many_sleep3::init_world),
         ("Heightfield", heightfield3::init_world),
         ("Stacks", stacks3::init_world),
         ("Pyramid", pyramid3::init_world),
