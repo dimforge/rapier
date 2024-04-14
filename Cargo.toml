@@ -1,6 +1,6 @@
 [workspace]
-members = [ "crates/rapier2d", "crates/rapier2d-f64", "crates/rapier_testbed2d", "crates/rapier_testbed2d-f64", "examples2d", "benchmarks2d",
-            "crates/rapier3d", "crates/rapier3d-f64", "crates/rapier_testbed3d", "crates/rapier_testbed3d-f64", "examples3d", "examples3d-f64", "benchmarks3d" ]
+members = ["crates/rapier2d", "crates/rapier2d-f64", "crates/rapier_testbed2d", "crates/rapier_testbed2d-f64", "examples2d", "benchmarks2d",
+    "crates/rapier3d", "crates/rapier3d-f64", "crates/rapier_testbed3d", "crates/rapier_testbed3d-f64", "examples3d", "examples3d-f64", "benchmarks3d"]
 resolver = "2"
 
 [patch.crates-io]
@@ -8,8 +8,8 @@ resolver = "2"
 
 #simba = { path = "../simba" }
 #kiss3d = { path = "../kiss3d" }
-#parry2d = { path = "../parry/crates/parry2d" }
-#parry3d = { path = "../parry/crates/parry3d" }
+parry2d = { path = "../parry/crates/parry2d" }
+parry3d = { path = "../parry/crates/parry3d" }
 #parry2d-f64 = { path = "../parry/crates/parry2d-f64" }
 #parry3d-f64 = { path = "../parry/crates/parry3d-f64" }
 # nalgebra = { path = "../nalgebra" }
