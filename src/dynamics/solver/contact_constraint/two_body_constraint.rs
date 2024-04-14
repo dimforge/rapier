@@ -2,11 +2,13 @@ use super::{ContactConstraintTypes, ContactPointInfos};
 use crate::dynamics::solver::SolverVel;
 use crate::dynamics::solver::{AnyConstraintMut, SolverBody};
 
+use crate::dynamics::integration_parameters::BLOCK_SOLVER_ENABLED;
 use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Isometry, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{self, SimdAngularInertia, SimdBasis, SimdCross, SimdDot};
-use na::DVector;
+use na::{DVector, Matrix2};
+use num::Pow;
 
 use super::{TwoBodyConstraintElement, TwoBodyConstraintNormalPart};
 
@@ -225,6 +227,7 @@ impl TwoBodyConstraintBuilder {
                         impulse: na::zero(),
                         impulse_accumulator: na::zero(),
                         r: projected_mass,
+                        r_mat_elts: [0.0; 2],
                     };
                 }
 
@@ -283,6 +286,48 @@ impl TwoBodyConstraintBuilder {
 
                 builder.infos[k] = infos;
                 constraint.manifold_contact_id[k] = manifold_point.contact_id;
+            }
+
+            if BLOCK_SOLVER_ENABLED {
+                // Coupling between consecutive pairs.
+                for k in 0..manifold_points.len() / 2 {
+                    let k0 = k * 2;
+                    let k1 = k * 2 + 1;
+
+                    let mut r_mat = Matrix2::zeros();
+                    let imsum = mprops1.effective_inv_mass + mprops2.effective_inv_mass;
+                    let r0 = constraint.elements[k0].normal_part.r;
+                    let r1 = constraint.elements[k1].normal_part.r;
+                    r_mat.m12 = force_dir1.dot(&imsum.component_mul(&force_dir1))
+                        + constraint.elements[k0]
+                            .normal_part
+                            .gcross1
+                            .gdot(constraint.elements[k1].normal_part.gcross1)
+                        + constraint.elements[k0]
+                            .normal_part
+                            .gcross2
+                            .gdot(constraint.elements[k1].normal_part.gcross2);
+                    r_mat.m21 = r_mat.m12;
+                    r_mat.m11 = utils::inv(r0);
+                    r_mat.m22 = utils::inv(r1);
+
+                    if let Some(inv) = r_mat.try_inverse() {
+                        constraint.elements[k0].normal_part.r_mat_elts = [inv.m11, inv.m22];
+                        constraint.elements[k1].normal_part.r_mat_elts = [inv.m12, r_mat.m12];
+                    } else {
+                        // If inversion failed, the contacts are redundant.
+                        // Ignore the one with the smallest depth (it is too late to
+                        // have the constraint removed from the constraint set, so just
+                        // set the mass (r) matrix elements to 0.
+                        constraint.elements[k0].normal_part.r_mat_elts =
+                            if manifold_points[k0].dist <= manifold_points[k1].dist {
+                                [r0, 0.0]
+                            } else {
+                                [0.0, r1]
+                            };
+                        constraint.elements[k1].normal_part.r_mat_elts = [0.0; 2];
+                    }
+                }
             }
         }
     }

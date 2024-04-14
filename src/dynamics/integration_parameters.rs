@@ -1,6 +1,9 @@
 use crate::math::Real;
 use std::num::NonZeroUsize;
 
+pub(crate) static BLOCK_SOLVER_ENABLED: bool = cfg!(feature = "dim2");
+pub(crate) static DISABLE_FRICTION_LIMIT_REAPPLY: bool = false;
+
 /// Parameters for a time-step of the physics engine.
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -50,6 +53,8 @@ pub struct IntegrationParameters {
     pub num_additional_friction_iterations: usize,
     /// Number of internal Project Gauss Seidel (PGS) iterations run at each solver iteration (default: `1`).
     pub num_internal_pgs_iterations: usize,
+    /// The maximum number of stabilization iterations run at each solver iterations (default: `10`).
+    pub max_internal_stabilization_iterations: usize,
     /// Minimum number of dynamic bodies in each active island (default: `128`).
     pub min_island_size: usize,
     /// Maximum number of substeps performed by the  solver (default: `1`).
@@ -194,7 +199,7 @@ impl Default for IntegrationParameters {
         Self {
             dt: 1.0 / 60.0,
             min_ccd_dt: 1.0 / 60.0 / 100.0,
-            erp: 0.6,
+            erp: 0.8,
             damping_ratio: 1.0,
             joint_erp: 1.0,
             joint_damping_ratio: 1.0,
@@ -202,6 +207,7 @@ impl Default for IntegrationParameters {
             max_penetration_correction: Real::MAX,
             prediction_distance: 0.002,
             num_internal_pgs_iterations: 1,
+            max_internal_stabilization_iterations: 10,
             num_additional_friction_iterations: 4,
             num_solver_iterations: NonZeroUsize::new(4).unwrap(),
             // TODO: what is the optimal value for min_island_size?

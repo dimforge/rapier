@@ -155,6 +155,7 @@ impl GenericOneBodyConstraintBuilder {
                         impulse: na::zero(),
                         impulse_accumulator: na::zero(),
                         r,
+                        r_mat_elts: [0.0; 2],
                     };
                 }
 
