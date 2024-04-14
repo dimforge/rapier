@@ -23,9 +23,11 @@ mod debug_deserialize3;
 mod debug_dynamic_collider_add3;
 mod debug_friction3;
 mod debug_infinite_fall3;
+mod debug_pop3;
 mod debug_prismatic3;
 mod debug_rollback3;
 mod debug_shape_modification3;
+mod debug_thin_cube_on_mesh3;
 mod debug_triangle3;
 mod debug_trimesh3;
 mod domino3;
@@ -124,6 +126,7 @@ pub fn main() {
         ),
         ("(Debug) big colliders", debug_big_colliders3::init_world),
         ("(Debug) boxes", debug_boxes3::init_world),
+        ("(Debug) pop", debug_pop3::init_world),
         (
             "(Debug) dyn. coll. add",
             debug_dynamic_collider_add3::init_world,
@@ -141,6 +144,7 @@ pub fn main() {
         ),
         ("(Debug) triangle", debug_triangle3::init_world),
         ("(Debug) trimesh", debug_trimesh3::init_world),
+        ("(Debug) thin cube", debug_thin_cube_on_mesh3::init_world),
         ("(Debug) cylinder", debug_cylinder3::init_world),
         ("(Debug) infinite fall", debug_infinite_fall3::init_world),
         ("(Debug) prismatic", debug_prismatic3::init_world),

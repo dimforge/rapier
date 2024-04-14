@@ -11,7 +11,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let multibody_joints = MultibodyJointSet::new();
 
     let heights = DMatrix::zeros(100, 100);
-    let heightfield = HeightField::new(heights, vector![60.0, 1.0, 60.0]);
+    let heightfield =
+        HeightField::with_flags(heights, vector![60.0, 1.0, 60.0], HeightFieldFlags::all());
     let rotation = vector![0.0, 0.0, 0.0]; // vector![-0.1, 0.0, 0.0];
     colliders
         .insert(ColliderBuilder::new(SharedShape::new(heightfield.clone())).rotation(rotation));
