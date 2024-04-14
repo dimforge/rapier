@@ -997,6 +997,35 @@ impl NarrowPhase {
                         manifold.data.normal = modifiable_normal;
                         manifold.data.user_data = modifiable_user_data;
                     }
+
+                    /*
+                     * TODO: When using the block solver in 3D, I’d expect this sort to help, but
+                     *       it makes the domino demo worse. Needs more investigation.
+                    fn sort_solver_contacts(mut contacts: &mut [SolverContact]) {
+                        while contacts.len() > 2 {
+                            let first = contacts[0];
+                            let mut furthest_id = 1;
+                            let mut furthest_dist = na::distance(&first.point, &contacts[1].point);
+
+                            for (candidate_id, candidate) in contacts.iter().enumerate().skip(2) {
+                                let candidate_dist = na::distance(&first.point, &candidate.point);
+
+                                if candidate_dist > furthest_dist {
+                                    furthest_dist = candidate_dist;
+                                    furthest_id = candidate_id;
+                                }
+                            }
+
+                            if furthest_id > 1 {
+                                contacts.swap(1, furthest_id);
+                            }
+
+                            contacts = &mut contacts[2..];
+                        }
+                    }
+
+                    sort_solver_contacts(&mut manifold.data.solver_contacts);
+                    */
                 }
 
                 break 'emit_events;

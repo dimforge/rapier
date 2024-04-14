@@ -1,6 +1,13 @@
+use crate::dynamics::integration_parameters::{
+    BLOCK_SOLVER_ENABLED, DISABLE_FRICTION_LIMIT_REAPPLY,
+};
+use crate::dynamics::solver::contact_constraint::OneBodyConstraintNormalPart;
 use crate::dynamics::solver::SolverVel;
 use crate::math::{AngVector, Vector, DIM};
 use crate::utils::{SimdBasis, SimdDot, SimdRealCopy};
+use na::{Matrix2, Vector2};
+use num::Zero;
+use simba::simd::{SimdPartialOrd, SimdValue};
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct TwoBodyConstraintTangentPart<N: SimdRealCopy> {
@@ -64,6 +71,10 @@ impl<N: SimdRealCopy> TwoBodyConstraintTangentPart<N> {
     ) where
         AngVector<N>: SimdDot<AngVector<N>, Result = N>,
     {
+        if DISABLE_FRICTION_LIMIT_REAPPLY {
+            return;
+        }
+
         #[cfg(feature = "dim2")]
         {
             let new_impulse = self.impulse[0].simd_clamp(-limit, limit);
@@ -182,6 +193,11 @@ pub(crate) struct TwoBodyConstraintNormalPart<N: SimdRealCopy> {
     pub impulse: N,
     pub impulse_accumulator: N,
     pub r: N,
+    // For coupled constraint pairs, even constraints store the
+    // diagonal of the projected mass matrix. Odd constraints
+    // store the off-diagonal element of the projected mass matrix,
+    // as well as the off-diagonal element of the inverse projected mass matrix.
+    pub r_mat_elts: [N; 2],
 }
 
 impl<N: SimdRealCopy> TwoBodyConstraintNormalPart<N> {
@@ -194,6 +210,7 @@ impl<N: SimdRealCopy> TwoBodyConstraintNormalPart<N> {
             impulse: na::zero(),
             impulse_accumulator: na::zero(),
             r: na::zero(),
+            r_mat_elts: [N::zero(); 2],
         }
     }
 
@@ -228,6 +245,83 @@ impl<N: SimdRealCopy> TwoBodyConstraintNormalPart<N> {
 
         solver_vel2.linear += dir1.component_mul(im2) * -dlambda;
         solver_vel2.angular += self.gcross2 * dlambda;
+    }
+
+    #[inline(always)]
+    pub(crate) fn solve_mlcp_two_constraints(
+        dvel: Vector2<N>,
+        prev_impulse: Vector2<N>,
+        r_a: N,
+        r_b: N,
+        [r_mat11, r_mat22]: [N; 2],
+        [r_mat12, r_mat_inv12]: [N; 2],
+        cfm_factor: N,
+    ) -> Vector2<N> {
+        let r_dvel = Vector2::new(
+            r_mat11 * dvel.x + r_mat12 * dvel.y,
+            r_mat12 * dvel.x + r_mat22 * dvel.y,
+        );
+        let new_impulse0 = prev_impulse - r_dvel;
+        let new_impulse1 = Vector2::new(prev_impulse.x - r_a * dvel.x, N::zero());
+        let new_impulse2 = Vector2::new(N::zero(), prev_impulse.y - r_b * dvel.y);
+        let new_impulse3 = Vector2::new(N::zero(), N::zero());
+
+        let keep0 = new_impulse0.x.simd_ge(N::zero()) & new_impulse0.y.simd_ge(N::zero());
+        let keep1 = new_impulse1.x.simd_ge(N::zero())
+            & (dvel.y + r_mat_inv12 * new_impulse1.x).simd_ge(N::zero());
+        let keep2 = new_impulse2.y.simd_ge(N::zero())
+            & (dvel.x + r_mat_inv12 * new_impulse2.y).simd_ge(N::zero());
+        let keep3 = dvel.x.simd_ge(N::zero()) & dvel.y.simd_ge(N::zero());
+
+        let selected3 = (new_impulse3 * cfm_factor).select(keep3, prev_impulse);
+        let selected2 = (new_impulse2 * cfm_factor).select(keep2, selected3);
+        let selected1 = (new_impulse1 * cfm_factor).select(keep1, selected2);
+        (new_impulse0 * cfm_factor).select(keep0, selected1)
+    }
+
+    #[inline]
+    pub fn solve_pair(
+        constraint_a: &mut Self,
+        constraint_b: &mut Self,
+        cfm_factor: N,
+        dir1: &Vector<N>,
+        im1: &Vector<N>,
+        im2: &Vector<N>,
+        solver_vel1: &mut SolverVel<N>,
+        solver_vel2: &mut SolverVel<N>,
+    ) where
+        AngVector<N>: SimdDot<AngVector<N>, Result = N>,
+    {
+        let dvel_lin = dir1.dot(&solver_vel1.linear) - dir1.dot(&solver_vel2.linear);
+        let dvel_a = dvel_lin
+            + constraint_a.gcross1.gdot(solver_vel1.angular)
+            + constraint_a.gcross2.gdot(solver_vel2.angular)
+            + constraint_a.rhs;
+        let dvel_b = dvel_lin
+            + constraint_b.gcross1.gdot(solver_vel1.angular)
+            + constraint_b.gcross2.gdot(solver_vel2.angular)
+            + constraint_b.rhs;
+
+        let prev_impulse = Vector2::new(constraint_a.impulse, constraint_b.impulse);
+        let new_impulse = Self::solve_mlcp_two_constraints(
+            Vector2::new(dvel_a, dvel_b),
+            prev_impulse,
+            constraint_a.r,
+            constraint_b.r,
+            constraint_a.r_mat_elts,
+            constraint_b.r_mat_elts,
+            cfm_factor,
+        );
+
+        let dlambda = new_impulse - prev_impulse;
+
+        constraint_a.impulse = new_impulse.x;
+        constraint_b.impulse = new_impulse.y;
+
+        solver_vel1.linear += dir1.component_mul(im1) * (dlambda.x + dlambda.y);
+        solver_vel1.angular += constraint_a.gcross1 * dlambda.x + constraint_b.gcross1 * dlambda.y;
+        solver_vel2.linear += dir1.component_mul(im2) * (-dlambda.x - dlambda.y);
+        solver_vel2.angular += constraint_a.gcross2 * dlambda.x + constraint_b.gcross2 * dlambda.y;
     }
 }
 
@@ -269,13 +363,49 @@ impl<N: SimdRealCopy> TwoBodyConstraintElement<N> {
 
         // Solve penetration.
         if solve_normal {
-            for element in elements.iter_mut() {
-                element
-                    .normal_part
-                    .solve(cfm_factor, dir1, im1, im2, solver_vel1, solver_vel2);
-                let limit = limit * element.normal_part.impulse;
-                let part = &mut element.tangent_part;
-                part.apply_limit(tangents1, im1, im2, limit, solver_vel1, solver_vel2);
+            if BLOCK_SOLVER_ENABLED {
+                for elements in elements.chunks_exact_mut(2) {
+                    let [element_a, element_b] = elements else {
+                        unreachable!()
+                    };
+
+                    TwoBodyConstraintNormalPart::solve_pair(
+                        &mut element_a.normal_part,
+                        &mut element_b.normal_part,
+                        cfm_factor,
+                        dir1,
+                        im1,
+                        im2,
+                        solver_vel1,
+                        solver_vel2,
+                    );
+
+                    for i in 0..2 {
+                        let limit = limit * elements[i].normal_part.impulse;
+                        let part = &mut elements[i].tangent_part;
+                        part.apply_limit(tangents1, im1, im2, limit, solver_vel1, solver_vel2);
+                    }
+                }
+
+                // There is one constraint left to solve if there isn’t an even number.
+                if elements.len() % 2 == 1 {
+                    let element = elements.last_mut().unwrap();
+                    element
+                        .normal_part
+                        .solve(cfm_factor, dir1, im1, im2, solver_vel1, solver_vel2);
+                    let limit = limit * element.normal_part.impulse;
+                    let part = &mut element.tangent_part;
+                    part.apply_limit(tangents1, im1, im2, limit, solver_vel1, solver_vel2);
+                }
+            } else {
+                for element in elements.iter_mut() {
+                    element
+                        .normal_part
+                        .solve(cfm_factor, dir1, im1, im2, solver_vel1, solver_vel2);
+                    let limit = limit * element.normal_part.impulse;
+                    let part = &mut element.tangent_part;
+                    part.apply_limit(tangents1, im1, im2, limit, solver_vel1, solver_vel2);
+                }
             }
         }
 

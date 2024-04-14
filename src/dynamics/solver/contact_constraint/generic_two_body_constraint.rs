@@ -204,6 +204,7 @@ impl GenericTwoBodyConstraintBuilder {
                         impulse_accumulator: na::zero(),
                         impulse: na::zero(),
                         r,
+                        r_mat_elts: [0.0; 2],
                     };
                 }
 

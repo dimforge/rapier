@@ -1,4 +1,5 @@
 use super::{TwoBodyConstraintElement, TwoBodyConstraintNormalPart};
+use crate::dynamics::integration_parameters::BLOCK_SOLVER_ENABLED;
 use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::solver::{ContactPointInfos, SolverVel};
 use crate::dynamics::{
@@ -13,8 +14,10 @@ use crate::math::{
 #[cfg(feature = "dim2")]
 use crate::utils::SimdBasis;
 use crate::utils::{self, SimdAngularInertia, SimdCross, SimdDot};
+use na::Matrix2;
 use num::Zero;
 use parry::math::SimdBool;
+use parry::utils::SdpMatrix2;
 use simba::simd::{SimdPartialOrd, SimdValue};
 
 #[derive(Copy, Clone, Debug)]
@@ -140,6 +143,7 @@ impl TwoBodyConstraintBuilderSimd {
                         impulse: SimdReal::splat(0.0),
                         impulse_accumulator: SimdReal::splat(0.0),
                         r: projected_mass,
+                        r_mat_elts: [SimdReal::zero(); 2],
                     };
                 }
 
@@ -185,6 +189,52 @@ impl TwoBodyConstraintBuilderSimd {
                 };
 
                 builder.infos[k] = infos;
+            }
+
+            if BLOCK_SOLVER_ENABLED {
+                // Coupling between consecutive pairs.
+                for k in 0..num_points / 2 {
+                    let k0 = k * 2;
+                    let k1 = k * 2 + 1;
+
+                    let imsum = im1 + im2;
+                    let r0 = constraint.elements[k0].normal_part.r;
+                    let r1 = constraint.elements[k1].normal_part.r;
+
+                    let mut r_mat = SdpMatrix2::zero();
+                    r_mat.m12 = force_dir1.dot(&imsum.component_mul(&force_dir1))
+                        + constraint.elements[k0]
+                            .normal_part
+                            .gcross1
+                            .gdot(constraint.elements[k1].normal_part.gcross1)
+                        + constraint.elements[k0]
+                            .normal_part
+                            .gcross2
+                            .gdot(constraint.elements[k1].normal_part.gcross2);
+                    r_mat.m11 = utils::simd_inv(r0);
+                    r_mat.m22 = utils::simd_inv(r1);
+
+                    let (inv, det) = {
+                        let _disable_fe_except =
+                            crate::utils::DisableFloatingPointExceptionsFlags::
+                            disable_floating_point_exceptions();
+                        r_mat.inverse_and_get_determinant_unchecked()
+                    };
+                    let is_invertible = det.simd_gt(SimdReal::zero());
+
+                    // If inversion failed, the contacts are redundant.
+                    // Ignore the one with the smallest depth (it is too late to
+                    // have the constraint removed from the constraint set, so just
+                    // set the mass (r) matrix elements to 0.
+                    constraint.elements[k0].normal_part.r_mat_elts = [
+                        inv.m11.select(is_invertible, r0),
+                        inv.m22.select(is_invertible, SimdReal::zero()),
+                    ];
+                    constraint.elements[k1].normal_part.r_mat_elts = [
+                        inv.m12.select(is_invertible, SimdReal::zero()),
+                        r_mat.m12.select(is_invertible, SimdReal::zero()),
+                    ];
+                }
             }
         }
     }

@@ -1,7 +1,7 @@
 use crate::math::{AngVector, Vector, SPATIAL_DIM};
 use crate::utils::SimdRealCopy;
 use na::{DVectorView, DVectorViewMut, Scalar};
-use std::ops::{AddAssign, Sub};
+use std::ops::{AddAssign, Sub, SubAssign};
 
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
@@ -44,6 +44,13 @@ impl<N: SimdRealCopy> AddAssign for SolverVel<N> {
     fn add_assign(&mut self, rhs: Self) {
         self.linear += rhs.linear;
         self.angular += rhs.angular;
+    }
+}
+
+impl<N: SimdRealCopy> SubAssign for SolverVel<N> {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.linear -= rhs.linear;
+        self.angular -= rhs.angular;
     }
 }
 
