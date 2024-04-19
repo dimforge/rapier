@@ -13,7 +13,7 @@ jobs:
   check-fmt:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Check formatting
       run: cargo fmt -- --check
   build-native:
@@ -21,7 +21,7 @@ jobs:
     env:
       RUSTFLAGS: -D warnings
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - run: sudo apt-get install -y cmake libxcb-composite0-dev
     - name: Clippy
       run: cargo clippy
@@ -60,7 +60,7 @@ jobs:
     env:
       RUSTFLAGS: -D warnings
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: rustup target add wasm32-unknown-unknown
       - name: build rapier2d
         run: cd crates/rapier2d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
@@ -71,7 +71,7 @@ jobs:
     env:
       RUSTFLAGS: -D warnings
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: rustup target add wasm32-unknown-emscripten
       - name: build rapier2d
         run: cd crates/rapier2d && cargo build --verbose --target wasm32-unknown-emscripten;
