@@ -269,7 +269,7 @@ without affecting performance of the other parts of the simulation.
 - Joint motors no longer have a `VelocityBased` model. The new choices are `AccelerationBased` and `ForceBased`
   which are more stable.
 - Calling the `.build()` function from builders (`RigidBodyBuilder`, `ColliderBuilder`, etc.) is no longer necessary
-  whan adding them to sets. It is automatically called thanks to `Into<_>` implementations.
+  when adding them to sets. It is automatically called thanks to `Into<_>` implementations.
 - The `ComponentSet` abstractions (and related `_generic` methods like `PhysicsPipeline::step_generic`) have been
   removed. Custom storage for colliders and rigid-bodies are no longer possible: use the built-in `RigidBodySet` and
   `ColliderSet` instead.
@@ -309,7 +309,7 @@ reflected by an API change. See [#304](https://github.com/dimforge/rapier/pull/3
 
 - All the impulse-based joints have been replaced by a single generic 6-Dofs joint in 3D
   (or 3-Dofs joint in 2D) named `ImpulseJoint`. The `RevoluteJoint, PrismaticJoint, FixedJoint`,
-  and `SphericalJoint` (formely named `BallJoint`) structures still exist but are just convenient
+  and `SphericalJoint` (formerly named `BallJoint`) structures still exist but are just convenient
   ways to initialize the generic `ImpulseJoint`.
 - Our constraints solver has been modified. Before we used one velocity-based resolution followed
   by one position-based resolution. We are now using two velocity-based resolution: the first one

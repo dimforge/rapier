@@ -17,7 +17,7 @@ mod timer;
 /// Aggregation of all the performances counters tracked by rapier.
 #[derive(Clone, Copy)]
 pub struct Counters {
-    /// Whether thi counter is enabled or not.
+    /// Whether this counter is enabled or not.
     pub enabled: bool,
     /// Timer for a whole timestep.
     pub step_time: Timer,
@@ -69,7 +69,7 @@ impl Counters {
         }
     }
 
-    /// Notfy that the time-step has finished.
+    /// Notify that the time-step has finished.
     pub fn step_completed(&mut self) {
         if self.enabled {
             self.step_time.pause();
@@ -88,7 +88,7 @@ impl Counters {
         }
     }
 
-    /// Notfy that the custom operation has finished.
+    /// Notify that the custom operation has finished.
     pub fn custom_completed(&mut self) {
         if self.enabled {
             self.custom.pause();

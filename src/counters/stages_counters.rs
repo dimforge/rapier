@@ -17,7 +17,7 @@ pub struct StagesCounters {
 }
 
 impl StagesCounters {
-    /// Create a new counter intialized to zero.
+    /// Create a new counter initialized to zero.
     pub fn new() -> Self {
         StagesCounters {
             update_time: Timer::new(),

@@ -286,7 +286,7 @@ impl Collider {
         }
     }
 
-    /// Sets the rotational part of this collider's rotaiton relative to its parent rigid-body.
+    /// Sets the rotational part of this collider's rotation relative to its parent rigid-body.
     pub fn set_rotation_wrt_parent(&mut self, rotation: AngVector<Real>) {
         if let Some(parent) = self.parent.as_mut() {
             self.changes.insert(ColliderChanges::PARENT);

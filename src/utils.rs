@@ -647,7 +647,7 @@ impl SimdAngularInertia<SimdReal> for SdpMatrix3<SimdReal> {
 }
 
 // This is an RAII structure that enables flushing denormal numbers
-// to zero, and automatically reseting previous flags once it is dropped.
+// to zero, and automatically resetting previous flags once it is dropped.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FlushToZeroDenormalsAreZeroFlags {
     original_flags: u32,

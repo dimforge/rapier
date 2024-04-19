@@ -95,7 +95,7 @@ impl<Constraints: ConstraintTypes> SolverConstraintsSet<Constraints> {
         }
     }
 
-    #[allow(dead_code)] // Useful for debuging.
+    #[allow(dead_code)] // Useful for debugging.
     pub fn print_counts(&self) {
         println!("Solver constraints:");
         println!(

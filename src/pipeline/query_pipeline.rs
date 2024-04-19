@@ -101,7 +101,7 @@ impl QueryFilterFlags {
     }
 }
 
-/// A filter tha describes what collider should be included or excluded from a scene query.
+/// A filter that describes what collider should be included or excluded from a scene query.
 #[derive(Copy, Clone, Default)]
 pub struct QueryFilter<'a> {
     /// Flags indicating what particular type of colliders should be excluded from the scene query.

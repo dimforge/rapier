@@ -154,7 +154,7 @@ impl IntegrationParameters {
         // let damping = 4.0 * damping_ratio * damping_ratio * projected_mass
         //     / (dt * inv_erp_minus_one);
         // let cfm = 1.0 / (dt * dt * stiffness + dt * damping);
-        // NOTE: This simplies to cfm = cfm_coefff / projected_mass:
+        // NOTE: This simplifies to cfm = cfm_coefff / projected_mass:
         let cfm_coeff = inv_erp_minus_one * inv_erp_minus_one
             / ((1.0 + inv_erp_minus_one) * 4.0 * self.damping_ratio * self.damping_ratio);
 

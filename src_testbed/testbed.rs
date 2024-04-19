@@ -1,4 +1,4 @@
-#![allow(clippy::bad_bit_mask)] // otherwsie clippy complains because of TestbedStateFlags::NONE which is 0.
+#![allow(clippy::bad_bit_mask)] // otherwise clippy complains because of TestbedStateFlags::NONE which is 0.
 
 use std::env;
 use std::mem;
