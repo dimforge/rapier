@@ -1,8 +1,9 @@
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Contact, ContactManifold};
-use crate::math::{Point, Real, Vector};
+use crate::math::{Point, Real, TangentImpulse, Vector, ANG_DIM};
 use crate::pipeline::EventHandler;
 use crate::prelude::CollisionEventFlags;
+use parry::math::AngVector;
 use parry::query::ContactManifoldsWorkspace;
 
 use super::CollisionEvent;
@@ -33,12 +34,11 @@ pub struct ContactData {
     pub impulse: Real,
     /// The friction impulse along the vector orthonormal to the contact normal, applied to the first
     /// collider's rigid-body.
-    #[cfg(feature = "dim2")]
-    pub tangent_impulse: Real,
-    /// The friction impulses along the basis orthonormal to the contact normal, applied to the first
-    /// collider's rigid-body.
-    #[cfg(feature = "dim3")]
-    pub tangent_impulse: na::Vector2<Real>,
+    pub tangent_impulse: TangentImpulse<Real>,
+    /// The impulse retained for warmstarting the next simulation step.
+    pub warmstart_impulse: Real,
+    /// The friction impulse retained for warmstarting the next simulation step.
+    pub warmstart_tangent_impulse: TangentImpulse<Real>,
 }
 
 impl Default for ContactData {
@@ -46,6 +46,8 @@ impl Default for ContactData {
         Self {
             impulse: 0.0,
             tangent_impulse: na::zero(),
+            warmstart_impulse: 0.0,
+            warmstart_tangent_impulse: na::zero(),
         }
     }
 }
@@ -299,6 +301,8 @@ pub struct SolverContact {
     pub tangent_velocity: Vector<Real>,
     /// Whether or not this contact existed during the last timestep.
     pub is_new: bool,
+    pub warmstart_impulse: Real,
+    pub warmstart_tangent_impulse: TangentImpulse<Real>,
 }
 
 impl SolverContact {

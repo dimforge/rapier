@@ -1,9 +1,7 @@
-use crate::dynamics::integration_parameters::{
-    BLOCK_SOLVER_ENABLED, DISABLE_FRICTION_LIMIT_REAPPLY,
-};
+use crate::dynamics::integration_parameters::BLOCK_SOLVER_ENABLED;
 use crate::dynamics::solver::contact_constraint::OneBodyConstraintNormalPart;
 use crate::dynamics::solver::SolverVel;
-use crate::math::{AngVector, Vector, DIM};
+use crate::math::{AngVector, TangentImpulse, Vector, DIM};
 use crate::utils::{SimdBasis, SimdDot, SimdRealCopy};
 use na::{Matrix2, Vector2};
 use num::Zero;
@@ -47,67 +45,41 @@ impl<N: SimdRealCopy> TwoBodyConstraintTangentPart<N> {
 
     /// Total impulse applied across all the solver substeps.
     #[inline]
-    #[cfg(feature = "dim2")]
-    pub fn total_impulse(&self) -> na::Vector1<N> {
-        self.impulse_accumulator + self.impulse
-    }
-
-    /// Total impulse applied across all the solver substeps.
-    #[inline]
-    #[cfg(feature = "dim3")]
-    pub fn total_impulse(&self) -> na::Vector2<N> {
+    pub fn total_impulse(&self) -> TangentImpulse<N> {
         self.impulse_accumulator + self.impulse
     }
 
     #[inline]
-    pub fn apply_limit(
+    pub fn warmstart(
         &mut self,
         tangents1: [&Vector<N>; DIM - 1],
         im1: &Vector<N>,
         im2: &Vector<N>,
-        limit: N,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) where
         AngVector<N>: SimdDot<AngVector<N>, Result = N>,
     {
-        if DISABLE_FRICTION_LIMIT_REAPPLY {
-            return;
-        }
-
         #[cfg(feature = "dim2")]
         {
-            let new_impulse = self.impulse[0].simd_clamp(-limit, limit);
-            let dlambda = new_impulse - self.impulse[0];
-            self.impulse[0] = new_impulse;
+            solver_vel1.linear += tangents1[0].component_mul(im1) * self.impulse[0];
+            solver_vel1.angular += self.gcross1[0] * self.impulse[0];
 
-            solver_vel1.linear += tangents1[0].component_mul(im1) * dlambda;
-            solver_vel1.angular += self.gcross1[0] * dlambda;
-
-            solver_vel2.linear += tangents1[0].component_mul(im2) * -dlambda;
-            solver_vel2.angular += self.gcross2[0] * dlambda;
+            solver_vel2.linear += tangents1[0].component_mul(im2) * -self.impulse[0];
+            solver_vel2.angular += self.gcross2[0] * self.impulse[0];
         }
 
         #[cfg(feature = "dim3")]
         {
-            let new_impulse = self.impulse;
-            let new_impulse = {
-                let _disable_fe_except =
-                    crate::utils::DisableFloatingPointExceptionsFlags::
-                    disable_floating_point_exceptions();
-                new_impulse.simd_cap_magnitude(limit)
-            };
+            solver_vel1.linear += tangents1[0].component_mul(im1) * self.impulse[0]
+                + tangents1[1].component_mul(im1) * self.impulse[1];
+            solver_vel1.angular +=
+                self.gcross1[0] * self.impulse[0] + self.gcross1[1] * self.impulse[1];
 
-            let dlambda = new_impulse - self.impulse;
-            self.impulse = new_impulse;
-
-            solver_vel1.linear += tangents1[0].component_mul(im1) * dlambda[0]
-                + tangents1[1].component_mul(im1) * dlambda[1];
-            solver_vel1.angular += self.gcross1[0] * dlambda[0] + self.gcross1[1] * dlambda[1];
-
-            solver_vel2.linear += tangents1[0].component_mul(im2) * -dlambda[0]
-                + tangents1[1].component_mul(im2) * -dlambda[1];
-            solver_vel2.angular += self.gcross2[0] * dlambda[0] + self.gcross2[1] * dlambda[1];
+            solver_vel2.linear += tangents1[0].component_mul(im2) * -self.impulse[0]
+                + tangents1[1].component_mul(im2) * -self.impulse[1];
+            solver_vel2.angular +=
+                self.gcross2[0] * self.impulse[0] + self.gcross2[1] * self.impulse[1];
         }
     }
 
@@ -218,6 +190,22 @@ impl<N: SimdRealCopy> TwoBodyConstraintNormalPart<N> {
     #[inline]
     pub fn total_impulse(&self) -> N {
         self.impulse_accumulator + self.impulse
+    }
+
+    #[inline]
+    pub fn warmstart(
+        &mut self,
+        dir1: &Vector<N>,
+        im1: &Vector<N>,
+        im2: &Vector<N>,
+        solver_vel1: &mut SolverVel<N>,
+        solver_vel2: &mut SolverVel<N>,
+    ) {
+        solver_vel1.linear += dir1.component_mul(im1) * self.impulse;
+        solver_vel1.angular += self.gcross1 * self.impulse;
+
+        solver_vel2.linear += dir1.component_mul(im2) * -self.impulse;
+        solver_vel2.angular += self.gcross2 * self.impulse;
     }
 
     #[inline]
@@ -340,6 +328,31 @@ impl<N: SimdRealCopy> TwoBodyConstraintElement<N> {
     }
 
     #[inline]
+    pub fn warmstart_group(
+        elements: &mut [Self],
+        dir1: &Vector<N>,
+        #[cfg(feature = "dim3")] tangent1: &Vector<N>,
+        im1: &Vector<N>,
+        im2: &Vector<N>,
+        solver_vel1: &mut SolverVel<N>,
+        solver_vel2: &mut SolverVel<N>,
+    ) {
+        #[cfg(feature = "dim3")]
+        let tangents1 = [tangent1, &dir1.cross(tangent1)];
+        #[cfg(feature = "dim2")]
+        let tangents1 = [&dir1.orthonormal_vector()];
+
+        for element in elements.iter_mut() {
+            element
+                .normal_part
+                .warmstart(dir1, im1, im2, solver_vel1, solver_vel2);
+            element
+                .tangent_part
+                .warmstart(tangents1, im1, im2, solver_vel1, solver_vel2);
+        }
+    }
+
+    #[inline]
     pub fn solve_group(
         cfm_factor: N,
         elements: &mut [Self],
@@ -350,19 +363,13 @@ impl<N: SimdRealCopy> TwoBodyConstraintElement<N> {
         limit: N,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
-        solve_normal: bool,
+        solve_restitution: bool,
         solve_friction: bool,
     ) where
         Vector<N>: SimdBasis,
         AngVector<N>: SimdDot<AngVector<N>, Result = N>,
     {
-        #[cfg(feature = "dim3")]
-        let tangents1 = [tangent1, &dir1.cross(tangent1)];
-        #[cfg(feature = "dim2")]
-        let tangents1 = [&dir1.orthonormal_vector()];
-
-        // Solve penetration.
-        if solve_normal {
+        if solve_restitution {
             if BLOCK_SOLVER_ENABLED {
                 for elements in elements.chunks_exact_mut(2) {
                     let [element_a, element_b] = elements else {
@@ -379,12 +386,6 @@ impl<N: SimdRealCopy> TwoBodyConstraintElement<N> {
                         solver_vel1,
                         solver_vel2,
                     );
-
-                    for i in 0..2 {
-                        let limit = limit * elements[i].normal_part.impulse;
-                        let part = &mut elements[i].tangent_part;
-                        part.apply_limit(tangents1, im1, im2, limit, solver_vel1, solver_vel2);
-                    }
                 }
 
                 // There is one constraint left to solve if there isn’t an even number.
@@ -393,24 +394,22 @@ impl<N: SimdRealCopy> TwoBodyConstraintElement<N> {
                     element
                         .normal_part
                         .solve(cfm_factor, dir1, im1, im2, solver_vel1, solver_vel2);
-                    let limit = limit * element.normal_part.impulse;
-                    let part = &mut element.tangent_part;
-                    part.apply_limit(tangents1, im1, im2, limit, solver_vel1, solver_vel2);
                 }
             } else {
                 for element in elements.iter_mut() {
                     element
                         .normal_part
                         .solve(cfm_factor, dir1, im1, im2, solver_vel1, solver_vel2);
-                    let limit = limit * element.normal_part.impulse;
-                    let part = &mut element.tangent_part;
-                    part.apply_limit(tangents1, im1, im2, limit, solver_vel1, solver_vel2);
                 }
             }
         }
 
-        // Solve friction.
         if solve_friction {
+            #[cfg(feature = "dim3")]
+            let tangents1 = [tangent1, &dir1.cross(tangent1)];
+            #[cfg(feature = "dim2")]
+            let tangents1 = [&dir1.orthonormal_vector()];
+
             for element in elements.iter_mut() {
                 let limit = limit * element.normal_part.impulse;
                 let part = &mut element.tangent_part;

@@ -89,6 +89,95 @@ impl GenericRhs {
 
 impl TwoBodyConstraintTangentPart<Real> {
     #[inline]
+    pub fn generic_warmstart(
+        &mut self,
+        j_id: usize,
+        jacobians: &DVector<Real>,
+        tangents1: [&Vector<Real>; DIM - 1],
+        im1: &Vector<Real>,
+        im2: &Vector<Real>,
+        ndofs1: usize,
+        ndofs2: usize,
+        solver_vel1: &mut GenericRhs,
+        solver_vel2: &mut GenericRhs,
+        solver_vels: &mut DVector<Real>,
+    ) {
+        let j_id1 = j_id1(j_id, ndofs1, ndofs2);
+        let j_id2 = j_id2(j_id, ndofs1, ndofs2);
+        #[cfg(feature = "dim3")]
+        let j_step = j_step(ndofs1, ndofs2);
+
+        #[cfg(feature = "dim2")]
+        {
+            solver_vel1.apply_impulse(
+                j_id1,
+                ndofs1,
+                self.impulse[0],
+                jacobians,
+                tangents1[0],
+                &self.gcross1[0],
+                solver_vels,
+                im1,
+            );
+            solver_vel2.apply_impulse(
+                j_id2,
+                ndofs2,
+                self.impulse[0],
+                jacobians,
+                &-tangents1[0],
+                &self.gcross2[0],
+                solver_vels,
+                im2,
+            );
+        }
+
+        #[cfg(feature = "dim3")]
+        {
+            solver_vel1.apply_impulse(
+                j_id1,
+                ndofs1,
+                self.impulse[0],
+                jacobians,
+                tangents1[0],
+                &self.gcross1[0],
+                solver_vels,
+                im1,
+            );
+            solver_vel1.apply_impulse(
+                j_id1 + j_step,
+                ndofs1,
+                self.impulse[1],
+                jacobians,
+                tangents1[1],
+                &self.gcross1[1],
+                solver_vels,
+                im1,
+            );
+
+            solver_vel2.apply_impulse(
+                j_id2,
+                ndofs2,
+                self.impulse[0],
+                jacobians,
+                &-tangents1[0],
+                &self.gcross2[0],
+                solver_vels,
+                im2,
+            );
+            solver_vel2.apply_impulse(
+                j_id2 + j_step,
+                ndofs2,
+                self.impulse[1],
+                jacobians,
+                &-tangents1[1],
+                &self.gcross2[1],
+                solver_vels,
+                im2,
+            );
+        }
+    }
+
+    #[inline]
     pub fn generic_solve(
         &mut self,
         j_id: usize,
@@ -241,6 +330,45 @@ impl TwoBodyConstraintTangentPart<Real> {
 
 impl TwoBodyConstraintNormalPart<Real> {
     #[inline]
+    pub fn generic_warmstart(
+        &mut self,
+        j_id: usize,
+        jacobians: &DVector<Real>,
+        dir1: &Vector<Real>,
+        im1: &Vector<Real>,
+        im2: &Vector<Real>,
+        ndofs1: usize,
+        ndofs2: usize,
+        solver_vel1: &mut GenericRhs,
+        solver_vel2: &mut GenericRhs,
+        solver_vels: &mut DVector<Real>,
+    ) {
+        let j_id1 = j_id1(j_id, ndofs1, ndofs2);
+        let j_id2 = j_id2(j_id, ndofs1, ndofs2);
+
+        solver_vel1.apply_impulse(
+            j_id1,
+            ndofs1,
+            self.impulse,
+            jacobians,
+            dir1,
+            &self.gcross1,
+            solver_vels,
+            im1,
+        );
+        solver_vel2.apply_impulse(
+            j_id2,
+            ndofs2,
+            self.impulse,
+            jacobians,
+            &-dir1,
+            &self.gcross2,
+            solver_vels,
+            im2,
+        );
+    }
+
+    #[inline]
     pub fn generic_solve(
         &mut self,
         cfm_factor: Real,
@@ -290,6 +418,74 @@ impl TwoBodyConstraintNormalPart<Real> {
 }
 
 impl TwoBodyConstraintElement<Real> {
+    #[inline]
+    pub fn generic_warmstart_group(
+        elements: &mut [Self],
+        jacobians: &DVector<Real>,
+        dir1: &Vector<Real>,
+        #[cfg(feature = "dim3")] tangent1: &Vector<Real>,
+        im1: &Vector<Real>,
+        im2: &Vector<Real>,
+        // ndofs is 0 for a non-multibody body, or a multibody with zero
+        // degrees of freedom.
+        ndofs1: usize,
+        ndofs2: usize,
+        // Jacobian index of the first constraint.
+        j_id: usize,
+        solver_vel1: &mut GenericRhs,
+        solver_vel2: &mut GenericRhs,
+        solver_vels: &mut DVector<Real>,
+    ) {
+        let j_step = j_step(ndofs1, ndofs2) * DIM;
+
+        // Solve penetration.
+        {
+            let mut nrm_j_id = normal_j_id(j_id, ndofs1, ndofs2);
+
+            for element in elements.iter_mut() {
+                element.normal_part.generic_warmstart(
+                    nrm_j_id,
+                    jacobians,
+                    dir1,
+                    im1,
+                    im2,
+                    ndofs1,
+                    ndofs2,
+                    solver_vel1,
+                    solver_vel2,
+                    solver_vels,
+                );
+                nrm_j_id += j_step;
+            }
+        }
+
+        // Solve friction.
+        {
+            #[cfg(feature = "dim3")]
+            let tangents1 = [tangent1, &dir1.cross(tangent1)];
+            #[cfg(feature = "dim2")]
+            let tangents1 = [&dir1.orthonormal_vector()];
+            let mut tng_j_id = tangent_j_id(j_id, ndofs1, ndofs2);
+
+            for element in elements.iter_mut() {
+                let part = &mut element.tangent_part;
+                part.generic_warmstart(
+                    tng_j_id,
+                    jacobians,
+                    tangents1,
+                    im1,
+                    im2,
+                    ndofs1,
+                    ndofs2,
+                    solver_vel1,
+                    solver_vel2,
+                    solver_vels,
+                );
+                tng_j_id += j_step;
+            }
+        }
+    }
+
     #[inline]
     pub fn generic_solve_group(
         cfm_factor: Real,

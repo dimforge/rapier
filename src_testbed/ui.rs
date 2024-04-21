@@ -12,6 +12,7 @@ use crate::testbed::{
 use crate::PhysicsState;
 use bevy_egui::egui::Slider;
 use bevy_egui::{egui, EguiContexts};
+use rapier::dynamics::IntegrationParameters;
 
 pub fn update_ui(
     ui_context: &mut EguiContexts,
@@ -109,8 +110,9 @@ pub fn update_ui(
                 .selected_text(format!("{:?}", state.solver_type))
                 .show_ui(ui, |ui| {
                     let solver_types = [
-                        RapierSolverType::SmallStepsPgs,
-                        RapierSolverType::StandardPgs,
+                        RapierSolverType::TgsSoft,
+                        RapierSolverType::TgsSoftNoWarmstart,
+                        RapierSolverType::PgsLegacy,
                     ];
                     for sty in solver_types {
                         changed = ui
@@ -122,11 +124,15 @@ pub fn update_ui(
 
             if changed {
                 match state.solver_type {
-                    RapierSolverType::SmallStepsPgs => {
-                        integration_parameters.switch_to_small_steps_pgs_solver()
+                    RapierSolverType::TgsSoft => {
+                        *integration_parameters = IntegrationParameters::tgs_soft();
                     }
-                    RapierSolverType::StandardPgs => {
-                        integration_parameters.switch_to_standard_pgs_solver()
+                    RapierSolverType::TgsSoftNoWarmstart => {
+                        *integration_parameters =
+                            IntegrationParameters::tgs_soft_without_warmstart();
+                    }
+                    RapierSolverType::PgsLegacy => {
+                        *integration_parameters = IntegrationParameters::pgs_legacy();
                     }
                 }
             }
@@ -146,16 +152,30 @@ pub fn update_ui(
             ui.add(
                 Slider::new(
                     &mut integration_parameters.num_additional_friction_iterations,
-                    1..=40,
+                    0..=40,
                 )
                 .text("num additional frict. iters."),
             );
             ui.add(
                 Slider::new(
-                    &mut integration_parameters.max_internal_stabilization_iterations,
+                    &mut integration_parameters.num_internal_stabilization_iterations,
                     1..=100,
                 )
                 .text("max internal stabilization iters."),
+            );
+            ui.add(
+                Slider::new(&mut integration_parameters.warmstart_coefficient, 0.0..=1.0)
+                    .text("warmstart coefficient"),
+            );
+            ui.add(Slider::new(&mut integration_parameters.erp, 0.0..=1.0).text("erp"));
+            ui.add(
+                Slider::new(&mut integration_parameters.damping_ratio, 0.0..=20.0)
+                    .text("damping ratio"),
+            );
+            ui.add(Slider::new(&mut integration_parameters.joint_erp, 0.0..=1.0).text("joint erp"));
+            ui.add(
+                Slider::new(&mut integration_parameters.joint_damping_ratio, 0.0..=20.0)
+                    .text("joint damping ratio"),
             );
         }
 

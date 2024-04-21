@@ -8,8 +8,8 @@ use crate::dynamics::{
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
-    AngVector, AngularInertia, Isometry, Point, Real, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS,
-    SIMD_WIDTH,
+    AngVector, AngularInertia, Isometry, Point, Real, SimdReal, TangentImpulse, Vector, DIM,
+    MAX_MANIFOLD_POINTS, SIMD_WIDTH,
 };
 #[cfg(feature = "dim2")]
 use crate::utils::SimdBasis;
@@ -120,6 +120,11 @@ impl SimdOneBodyConstraintBuilder {
                 let is_bouncy = SimdReal::from(gather![
                     |ii| manifold_points[ii][k].is_bouncy() as u32 as Real
                 ]);
+                let warmstart_impulse =
+                    SimdReal::from(gather![|ii| manifold_points[ii][k].warmstart_impulse]);
+                let warmstart_tangent_impulse = TangentImpulse::from(gather![|ii| manifold_points
+                    [ii][k]
+                    .warmstart_tangent_impulse]);
 
                 let dist = SimdReal::from(gather![|ii| manifold_points[ii][k].dist]);
                 let point = Point::from(gather![|ii| manifold_points[ii][k].point]);
@@ -155,7 +160,7 @@ impl SimdOneBodyConstraintBuilder {
                         gcross2,
                         rhs: na::zero(),
                         rhs_wo_bias: na::zero(),
-                        impulse: na::zero(),
+                        impulse: warmstart_impulse,
                         impulse_accumulator: na::zero(),
                         r: projected_mass,
                         r_mat_elts: [SimdReal::zero(); 2],
@@ -163,7 +168,7 @@ impl SimdOneBodyConstraintBuilder {
                 }
 
                 // tangent parts.
-                constraint.elements[k].tangent_part.impulse = na::zero();
+                constraint.elements[k].tangent_part.impulse = warmstart_tangent_impulse;
 
                 for j in 0..DIM - 1 {
                     let gcross2 = ii2.transform_vector(dp2.gcross(-tangents1[j]));
@@ -263,6 +268,7 @@ impl SimdOneBodyConstraintBuilder {
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
         let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
         let max_penetration_correction = SimdReal::splat(params.max_penetration_correction);
+        let warmstart_coeff = SimdReal::splat(params.warmstart_coefficient);
 
         let rb2 = gather![|ii| &bodies[constraint.solver_vel2[ii]]];
         let ccd_thickness = SimdReal::from(gather![|ii| rb2[ii].ccd_thickness]);
@@ -309,13 +315,13 @@ impl SimdOneBodyConstraintBuilder {
                 element.normal_part.rhs_wo_bias = rhs_wo_bias;
                 element.normal_part.rhs = new_rhs;
                 element.normal_part.impulse_accumulator += element.normal_part.impulse;
-                element.normal_part.impulse = na::zero();
+                element.normal_part.impulse *= warmstart_coeff;
             }
 
             // tangent parts.
             {
                 element.tangent_part.impulse_accumulator += element.tangent_part.impulse;
-                element.tangent_part.impulse = na::zero();
+                element.tangent_part.impulse *= warmstart_coeff;
 
                 for j in 0..DIM - 1 {
                     let bias = (p1 - p2).dot(&tangents1[j]) * inv_dt;
@@ -344,6 +350,27 @@ pub(crate) struct OneBodyConstraintSimd {
 }
 
 impl OneBodyConstraintSimd {
+    pub fn warmstart(&mut self, solver_vels: &mut [SolverVel<Real>]) {
+        let mut solver_vel2 = SolverVel {
+            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].linear]),
+            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].angular]),
+        };
+
+        OneBodyConstraintElement::warmstart_group(
+            &mut self.elements[..self.num_contacts as usize],
+            &self.dir1,
+            #[cfg(feature = "dim3")]
+            &self.tangent1,
+            &self.im2,
+            &mut solver_vel2,
+        );
+
+        for ii in 0..SIMD_WIDTH {
+            solver_vels[self.solver_vel2[ii]].linear = solver_vel2.linear.extract(ii);
+            solver_vels[self.solver_vel2[ii]].angular = solver_vel2.angular.extract(ii);
+        }
+    }
+
     pub fn solve(
         &mut self,
         solver_vels: &mut [SolverVel<Real>],
@@ -377,27 +404,21 @@ impl OneBodyConstraintSimd {
     // FIXME: duplicated code. This is exactly the same as in the two-body velocity constraint.
     pub fn writeback_impulses(&self, manifolds_all: &mut [&mut ContactManifold]) {
         for k in 0..self.num_contacts as usize {
+            let warmstart_impulses: [_; SIMD_WIDTH] = self.elements[k].normal_part.impulse.into();
+            let warmstart_tangent_impulses = self.elements[k].tangent_part.impulse;
             let impulses: [_; SIMD_WIDTH] = self.elements[k].normal_part.total_impulse().into();
-            #[cfg(feature = "dim2")]
-            let tangent_impulses: [_; SIMD_WIDTH] =
-                self.elements[k].tangent_part.total_impulse()[0].into();
-            #[cfg(feature = "dim3")]
             let tangent_impulses = self.elements[k].tangent_part.total_impulse();
 
             for ii in 0..SIMD_WIDTH {
                 let manifold = &mut manifolds_all[self.manifold_id[ii]];
                 let contact_id = self.manifold_contact_id[k][ii];
                 let active_contact = &mut manifold.points[contact_id as usize];
-                active_contact.data.impulse = impulses[ii];
 
-                #[cfg(feature = "dim2")]
-                {
-                    active_contact.data.tangent_impulse = tangent_impulses[ii];
-                }
-                #[cfg(feature = "dim3")]
-                {
-                    active_contact.data.tangent_impulse = tangent_impulses.extract(ii);
-                }
+                active_contact.data.warmstart_impulse = warmstart_impulses[ii];
+                active_contact.data.warmstart_tangent_impulse =
+                    warmstart_tangent_impulses.extract(ii);
+                active_contact.data.impulse = impulses[ii];
+                active_contact.data.tangent_impulse = tangent_impulses.extract(ii);
             }
         }
     }
