@@ -19,16 +19,20 @@ pub fn init_world(testbed: &mut Testbed) {
      * Ground
      */
     let collider =
-        ColliderBuilder::capsule(point![-10.5, 0.0], point![10.5, 0.0], radius).friction(friction);
-    colliders.insert(collider);
-    let collider = ColliderBuilder::capsule(point![-10.5, 0.0], point![-10.5, 20.5], radius)
-        .friction(friction);
+        ColliderBuilder::capsule_from_endpoints(point![-10.5, 0.0], point![10.5, 0.0], radius)
+            .friction(friction);
     colliders.insert(collider);
     let collider =
-        ColliderBuilder::capsule(point![10.5, 0.0], point![10.5, 20.5], radius).friction(friction);
+        ColliderBuilder::capsule_from_endpoints(point![-10.5, 0.0], point![-10.5, 20.5], radius)
+            .friction(friction);
     colliders.insert(collider);
-    let collider = ColliderBuilder::capsule(point![-10.5, 20.5], point![10.5, 20.5], radius)
-        .friction(friction);
+    let collider =
+        ColliderBuilder::capsule_from_endpoints(point![10.5, 0.0], point![10.5, 20.5], radius)
+            .friction(friction);
+    colliders.insert(collider);
+    let collider =
+        ColliderBuilder::capsule_from_endpoints(point![-10.5, 20.5], point![10.5, 20.5], radius)
+            .friction(friction);
     colliders.insert(collider);
 
     /*
