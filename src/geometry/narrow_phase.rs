@@ -710,7 +710,6 @@ impl NarrowPhase {
             let co1 = &colliders[handle1];
             let co2 = &colliders[handle2];
 
-            // TODO: remove the `loop` once labels on blocks is stabilized.
             'emit_events: {
                 if !co1.changes.needs_narrow_phase_update()
                     && !co2.changes.needs_narrow_phase_update()
@@ -768,7 +767,6 @@ impl NarrowPhase {
                 edge.weight.intersecting = query_dispatcher
                     .intersection_test(&pos12, &*co1.shape, &*co2.shape)
                     .unwrap_or(false);
-                break 'emit_events;
             }
 
             let active_events = co1.flags.active_events | co2.flags.active_events;
@@ -812,7 +810,6 @@ impl NarrowPhase {
             let co1 = &colliders[pair.collider1];
             let co2 = &colliders[pair.collider2];
 
-            // TODO: remove the `loop` once labels on blocks are supported.
             'emit_events: {
                 if !co1.changes.needs_narrow_phase_update()
                     && !co2.changes.needs_narrow_phase_update()
@@ -1058,8 +1055,6 @@ impl NarrowPhase {
                     sort_solver_contacts(&mut manifold.data.solver_contacts);
                     */
                 }
-
-                break 'emit_events;
             }
 
             let active_events = co1.flags.active_events | co2.flags.active_events;
