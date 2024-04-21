@@ -25,6 +25,25 @@ impl<'a> AnyConstraintMut<'a, ContactConstraintTypes> {
             Self::SimdTwoBodies(c) => c.remove_cfm_and_bias_from_rhs(),
         }
     }
+    pub fn warmstart(
+        &mut self,
+        generic_jacobians: &DVector<Real>,
+        solver_vels: &mut [SolverVel<Real>],
+        generic_solver_vels: &mut DVector<Real>,
+    ) {
+        match self {
+            Self::OneBody(c) => c.warmstart(solver_vels),
+            Self::TwoBodies(c) => c.warmstart(solver_vels),
+            Self::GenericOneBody(c) => c.warmstart(generic_jacobians, generic_solver_vels),
+            Self::GenericTwoBodies(c) => {
+                c.warmstart(generic_jacobians, solver_vels, generic_solver_vels)
+            }
+            #[cfg(feature = "simd-is-enabled")]
+            Self::SimdOneBody(c) => c.warmstart(solver_vels),
+            #[cfg(feature = "simd-is-enabled")]
+            Self::SimdTwoBodies(c) => c.warmstart(solver_vels),
+        }
+    }
 
     pub fn solve_restitution(
         &mut self,
@@ -224,7 +243,7 @@ impl TwoBodyConstraintBuilder {
                         gcross2,
                         rhs: na::zero(),
                         rhs_wo_bias: na::zero(),
-                        impulse: na::zero(),
+                        impulse: manifold_point.warmstart_impulse,
                         impulse_accumulator: na::zero(),
                         r: projected_mass,
                         r_mat_elts: [0.0; 2],
@@ -233,7 +252,8 @@ impl TwoBodyConstraintBuilder {
 
                 // Tangent parts.
                 {
-                    constraint.elements[k].tangent_part.impulse = na::zero();
+                    constraint.elements[k].tangent_part.impulse =
+                        manifold_point.warmstart_tangent_impulse;
 
                     for j in 0..DIM - 1 {
                         let gcross1 = mprops1
@@ -398,13 +418,13 @@ impl TwoBodyConstraintBuilder {
                 element.normal_part.rhs_wo_bias = rhs_wo_bias;
                 element.normal_part.rhs = new_rhs;
                 element.normal_part.impulse_accumulator += element.normal_part.impulse;
-                element.normal_part.impulse = na::zero();
+                element.normal_part.impulse *= params.warmstart_coefficient;
             }
 
             // Tangent part.
             {
                 element.tangent_part.impulse_accumulator += element.tangent_part.impulse;
-                element.tangent_part.impulse = na::zero();
+                element.tangent_part.impulse *= params.warmstart_coefficient;
 
                 for j in 0..DIM - 1 {
                     let bias = (p1 - p2).dot(&tangents1[j]) * inv_dt;
@@ -418,6 +438,25 @@ impl TwoBodyConstraintBuilder {
 }
 
 impl TwoBodyConstraint {
+    pub fn warmstart(&mut self, solver_vels: &mut [SolverVel<Real>]) {
+        let mut solver_vel1 = solver_vels[self.solver_vel1];
+        let mut solver_vel2 = solver_vels[self.solver_vel2];
+
+        TwoBodyConstraintElement::warmstart_group(
+            &mut self.elements[..self.num_contacts as usize],
+            &self.dir1,
+            #[cfg(feature = "dim3")]
+            &self.tangent1,
+            &self.im1,
+            &self.im2,
+            &mut solver_vel1,
+            &mut solver_vel2,
+        );
+
+        solver_vels[self.solver_vel1] = solver_vel1;
+        solver_vels[self.solver_vel2] = solver_vel2;
+    }
+
     pub fn solve(
         &mut self,
         solver_vels: &mut [SolverVel<Real>],
@@ -452,17 +491,10 @@ impl TwoBodyConstraint {
         for k in 0..self.num_contacts as usize {
             let contact_id = self.manifold_contact_id[k];
             let active_contact = &mut manifold.points[contact_id as usize];
+            active_contact.data.warmstart_impulse = self.elements[k].normal_part.impulse;
+            active_contact.data.warmstart_tangent_impulse = self.elements[k].tangent_part.impulse;
             active_contact.data.impulse = self.elements[k].normal_part.total_impulse();
-
-            #[cfg(feature = "dim2")]
-            {
-                active_contact.data.tangent_impulse =
-                    self.elements[k].tangent_part.total_impulse()[0];
-            }
-            #[cfg(feature = "dim3")]
-            {
-                active_contact.data.tangent_impulse = self.elements[k].tangent_part.total_impulse();
-            }
+            active_contact.data.tangent_impulse = self.elements[k].tangent_part.total_impulse();
         }
     }
 

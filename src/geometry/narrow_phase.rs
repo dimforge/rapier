@@ -987,6 +987,8 @@ impl NarrowPhase {
                                 restitution,
                                 tangent_velocity: Vector::zeros(),
                                 is_new: contact.data.impulse == 0.0,
+                                warmstart_impulse: contact.data.warmstart_impulse,
+                                warmstart_tangent_impulse: contact.data.warmstart_tangent_impulse,
                             };
 
                             manifold.data.solver_contacts.push(solver_contact);

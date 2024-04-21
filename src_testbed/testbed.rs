@@ -102,10 +102,12 @@ bitflags! {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum RapierSolverType {
-    SmallStepsPgs,
-    StandardPgs,
+    #[default]
+    TgsSoft,
+    TgsSoftNoWarmstart,
+    PgsLegacy,
 }
 
 pub type SimulationBuilders = Vec<(&'static str, fn(&mut Testbed))>;
@@ -214,7 +216,7 @@ impl TestbedApp {
             example_names: Vec::new(),
             selected_example: 0,
             selected_backend: RAPIER_BACKEND,
-            solver_type: RapierSolverType::SmallStepsPgs,
+            solver_type: RapierSolverType::default(),
             physx_use_two_friction_directions: true,
             nsteps: 1,
             camera_locked: false,
@@ -1201,18 +1203,6 @@ fn update_testbed(
                 plugin.clear_graphics(&mut graphics, &mut commands);
             }
             plugins.0.clear();
-
-            if state.selected_example != prev_example {
-                harness.physics.integration_parameters = IntegrationParameters::default();
-
-                match state.solver_type {
-                    RapierSolverType::SmallStepsPgs => {} // It’s already the default.
-                    RapierSolverType::StandardPgs => harness
-                        .physics
-                        .integration_parameters
-                        .switch_to_standard_pgs_solver(),
-                }
-            }
 
             let selected_example = state.selected_example;
             let graphics = &mut *graphics;

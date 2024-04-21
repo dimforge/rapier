@@ -4,7 +4,6 @@ use std::num::NonZeroUsize;
 // TODO: enabling the block solver in 3d introduces a lot of jitters in
 //       the 3D domino demo. So for now we dont enable it in 3D.
 pub(crate) static BLOCK_SOLVER_ENABLED: bool = cfg!(feature = "dim2");
-pub(crate) static DISABLE_FRICTION_LIMIT_REAPPLY: bool = false;
 
 /// Parameters for a time-step of the physics engine.
 #[derive(Copy, Clone, Debug)]
@@ -26,12 +25,12 @@ pub struct IntegrationParameters {
 
     /// 0-1: multiplier for how much of the constraint violation (e.g. contact penetration)
     /// will be compensated for during the velocity solve.
-    /// (default `0.8`).
+    /// (default `0.1`).
     pub erp: Real,
     /// 0-1: the damping ratio used by the springs for Baumgarte constraints stabilization.
     /// Lower values make the constraints more compliant (more "springy", allowing more visible penetrations
     /// before stabilization).
-    /// (default `0.25`).
+    /// (default `20.0`).
     pub damping_ratio: Real,
 
     /// 0-1: multiplier for how much of the joint violation
@@ -40,14 +39,21 @@ pub struct IntegrationParameters {
     pub joint_erp: Real,
 
     /// The fraction of critical damping applied to the joint for constraints regularization.
-    /// (default `0.25`).
+    /// (default `1.0`).
     pub joint_damping_ratio: Real,
 
-    /// Amount of penetration the engine wont attempt to correct (default: `0.001m`).
+    /// The coefficient in `[0, 1]` applied to warmstart impulses, i.e., impulses that are used as the
+    /// initial solution (instead of 0) at the next simulation step.
+    ///
+    /// This should generally be set to 1. Can be set to 0 if using a large [`Self::erp`] value.
+    /// (default `1.0`).
+    pub warmstart_coefficient: Real,
+
+    /// Amount of penetration the engine won’t attempt to correct (default: `0.001m`).
     pub allowed_linear_error: Real,
     /// Maximum amount of penetration the solver will attempt to resolve in one timestep.
     pub max_penetration_correction: Real,
-    /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002`).
+    /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002m`).
     pub prediction_distance: Real,
     /// The number of solver iterations run by the constraints solver for calculating forces (default: `4`).
     pub num_solver_iterations: NonZeroUsize,
@@ -55,8 +61,8 @@ pub struct IntegrationParameters {
     pub num_additional_friction_iterations: usize,
     /// Number of internal Project Gauss Seidel (PGS) iterations run at each solver iteration (default: `1`).
     pub num_internal_pgs_iterations: usize,
-    /// The maximum number of stabilization iterations run at each solver iterations (default: `10`).
-    pub max_internal_stabilization_iterations: usize,
+    /// The number of stabilization iterations run at each solver iterations (default: `2`).
+    pub num_internal_stabilization_iterations: usize,
     /// Minimum number of dynamic bodies in each active island (default: `128`).
     pub min_island_size: usize,
     /// Maximum number of substeps performed by the  solver (default: `1`).
@@ -64,51 +70,6 @@ pub struct IntegrationParameters {
 }
 
 impl IntegrationParameters {
-    /// Configures the integration parameters to match the old PGS solver
-    /// from Rapier version <= 0.17.
-    ///
-    /// This solver was slightly faster than the new one but resulted
-    /// in less stable joints and worse convergence rates.
-    ///
-    /// This should only be used for comparison purpose or if you are
-    /// experiencing problems with the new solver.
-    ///
-    /// NOTE: this does not affect any [`RigidBody::additional_solver_iterations`] that will
-    ///       still create solver iterations based on the new "small-steps" PGS solver.
-    /// NOTE: this resets [`Self::erp`], [`Self::damping_ratio`], [`Self::joint_erp`],
-    ///       [`Self::joint_damping_ratio`] to their former default values.
-    pub fn switch_to_standard_pgs_solver(&mut self) {
-        self.num_internal_pgs_iterations *= self.num_solver_iterations.get();
-        self.num_solver_iterations = NonZeroUsize::new(1).unwrap();
-        self.erp = 0.8;
-        self.damping_ratio = 0.25;
-        self.joint_erp = 1.0;
-        self.joint_damping_ratio = 1.0;
-    }
-
-    /// Configures the integration parameters to match the new "small-steps" PGS solver
-    /// from Rapier version >= 0.18.
-    ///
-    /// The "small-steps" PGS solver is the default one given by [`Self::default()`] so
-    /// calling this function is generally not needed unless
-    /// [`Self::switch_to_standard_pgs_solver()`] was called.
-    ///
-    /// This solver results in more stable joints and significantly better convergence
-    /// rates but is slightly slower in its default settings.
-    ///
-    /// NOTE: this resets [`Self::erp`], [`Self::damping_ratio`], [`Self::joint_erp`],
-    ///       [`Self::joint_damping_ratio`] to their default values.
-    pub fn switch_to_small_steps_pgs_solver(&mut self) {
-        self.num_solver_iterations = NonZeroUsize::new(self.num_internal_pgs_iterations).unwrap();
-        self.num_internal_pgs_iterations = 1;
-
-        let default = Self::default();
-        self.erp = default.erp;
-        self.damping_ratio = default.damping_ratio;
-        self.joint_erp = default.joint_erp;
-        self.joint_damping_ratio = default.joint_damping_ratio;
-    }
-
     /// The inverse of the time-stepping length, i.e. the steps per seconds (Hz).
     ///
     /// This is zero if `self.dt` is zero.
@@ -161,7 +122,7 @@ impl IntegrationParameters {
         // let damping = 4.0 * damping_ratio * damping_ratio * projected_mass
         //     / (dt * inv_erp_minus_one);
         // let cfm = 1.0 / (dt * dt * stiffness + dt * damping);
-        // NOTE: This simplies to cfm = cfm_coefff / projected_mass:
+        // NOTE: This simplifies to cfm = cfm_coeff / projected_mass:
         let cfm_coeff = inv_erp_minus_one * inv_erp_minus_one
             / ((1.0 + inv_erp_minus_one) * 4.0 * self.damping_ratio * self.damping_ratio);
 
@@ -180,13 +141,14 @@ impl IntegrationParameters {
         // new_impulse = cfm_factor * (old_impulse - m * delta_vel)
         //
         // The value returned by this function is this cfm_factor that can be used directly
-        // in the constraints solver.
+        // in the constraint solver.
         1.0 / (1.0 + cfm_coeff)
     }
 
     /// The CFM (constraints force mixing) coefficient applied to all joints for constraints regularization
     pub fn joint_cfm_coeff(&self) -> Real {
         // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
+        // The logic is similar to `Self::cfm_factor`.
         let inv_erp_minus_one = 1.0 / self.joint_erp - 1.0;
         inv_erp_minus_one * inv_erp_minus_one
             / ((1.0 + inv_erp_minus_one)
@@ -194,23 +156,23 @@ impl IntegrationParameters {
                 * self.joint_damping_ratio
                 * self.joint_damping_ratio)
     }
-}
 
-impl Default for IntegrationParameters {
-    fn default() -> Self {
+    /// Initialize the simulation paramaters with settings matching the TGS-soft solver
+    /// with warmstarting.
+    ///
+    /// This is the default configuration, equivalent to [`IntegrationParameters::default()`].
+    pub fn tgs_soft() -> Self {
         Self {
             dt: 1.0 / 60.0,
             min_ccd_dt: 1.0 / 60.0 / 100.0,
-            erp: 0.8,
-            damping_ratio: 1.0,
+            erp: 0.1,
+            damping_ratio: 20.0,
             joint_erp: 1.0,
             joint_damping_ratio: 1.0,
-            allowed_linear_error: 0.001,
-            max_penetration_correction: Real::MAX,
-            prediction_distance: 0.002,
+            warmstart_coefficient: 1.0,
             num_internal_pgs_iterations: 1,
-            max_internal_stabilization_iterations: 10,
-            num_additional_friction_iterations: 4,
+            num_internal_stabilization_iterations: 2,
+            num_additional_friction_iterations: 0,
             num_solver_iterations: NonZeroUsize::new(4).unwrap(),
             // TODO: what is the optimal value for min_island_size?
             // It should not be too big so that we don't end up with
@@ -218,7 +180,45 @@ impl Default for IntegrationParameters {
             // However we don't want it to be too small and end up with
             // tons of islands, reducing SIMD parallelism opportunities.
             min_island_size: 128,
+            allowed_linear_error: 0.001,
+            max_penetration_correction: Real::MAX,
+            prediction_distance: 0.002,
             max_ccd_substeps: 1,
         }
+    }
+
+    /// Initialize the simulation paramaters with settings matching the TGS-soft solver
+    /// **without** warmstarting.
+    ///
+    /// The [`IntegrationParameters::tgs_soft()`] configuration should be preferred unless
+    /// warmstarting proves to be undesirable for your use-case.
+    pub fn tgs_soft_without_warmstart() -> Self {
+        Self {
+            erp: 0.8,
+            damping_ratio: 1.0,
+            warmstart_coefficient: 0.0,
+            num_additional_friction_iterations: 4,
+            ..Self::tgs_soft()
+        }
+    }
+
+    /// Initializes the integration parameters to match the legacy PGS solver from Rapier version <= 0.17.
+    ///
+    /// This exists mainly for testing and comparison purpose.
+    pub fn pgs_legacy() -> Self {
+        Self {
+            erp: 0.8,
+            damping_ratio: 0.25,
+            warmstart_coefficient: 0.0,
+            num_additional_friction_iterations: 4,
+            num_solver_iterations: NonZeroUsize::new(1).unwrap(),
+            ..Self::tgs_soft()
+        }
+    }
+}
+
+impl Default for IntegrationParameters {
+    fn default() -> Self {
+        Self::tgs_soft()
     }
 }

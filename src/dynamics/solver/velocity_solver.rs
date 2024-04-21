@@ -1,5 +1,4 @@
 use super::{JointConstraintTypes, SolverConstraintsSet};
-use crate::dynamics::integration_parameters::DISABLE_FRICTION_LIMIT_REAPPLY;
 use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::{
     solver::{ContactConstraintTypes, SolverVel},
@@ -180,6 +179,10 @@ impl VelocitySolver {
             joint_constraints.update(params, multibodies, &self.solver_bodies);
             contact_constraints.update(params, substep_id, multibodies, &self.solver_bodies);
 
+            if params.warmstart_coefficient != 0.0 {
+                contact_constraints.warmstart(&mut self.solver_vels, &mut self.generic_solver_vels);
+            }
+
             for _ in 0..params.num_internal_pgs_iterations {
                 joint_constraints.solve(&mut self.solver_vels, &mut self.generic_solver_vels);
                 contact_constraints
@@ -203,60 +206,17 @@ impl VelocitySolver {
             /*
              * Resolution without bias.
              */
-            let compute_max_dlinvel = |vels: &[SolverVel<Real>]| {
-                vels.iter()
-                    .map(|v| v.linear.norm())
-                    .max_by_key(|v| OrderedFloat(*v))
-                    .unwrap_or_default()
-            };
-
-            let mut prev_dlinvel = f32::MAX;
-            let mut prev_solver_vels = self.solver_vels.clone();
-
-            for kk in 0..params.max_internal_stabilization_iterations {
-                prev_solver_vels.clone_from_slice(&self.solver_vels);
+            for _ in 0..params.num_internal_stabilization_iterations {
                 joint_constraints
                     .solve_wo_bias(&mut self.solver_vels, &mut self.generic_solver_vels);
                 contact_constraints.solve_restitution_wo_bias(
                     &mut self.solver_vels,
                     &mut self.generic_solver_vels,
                 );
-
-                if DISABLE_FRICTION_LIMIT_REAPPLY {
-                    contact_constraints
-                        .solve_friction(&mut self.solver_vels, &mut self.generic_solver_vels);
-                }
-
-                for (prev, new) in prev_solver_vels.iter_mut().zip(self.solver_vels.iter()) {
-                    *prev -= *new;
-                }
-
-                let new_max_linvel = compute_max_dlinvel(&self.solver_vels);
-
-                println!(">> {} >> max_linvel: {}", kk, new_max_linvel);
-
-                if new_max_linvel > prev_dlinvel {
-                    break;
-                }
-
-                prev_dlinvel = new_max_linvel;
-
-                if prev_solver_vels
-                    .iter()
-                    .zip(self.solver_vels.iter())
-                    .all(|(diff, vels)| {
-                        diff.linear.norm() < 1.0e-3
-                            || diff.linear.norm() <= 0.2 * vels.linear.norm()
-                    })
-                {
-                    break;
-                }
-
-                // if (new_max_dlinvel - max_dlinvel).abs() <= 0.2 * max_dlinvel {
-                //     println!("Num effective stab steps: {}", kk + 1);
-                //     break;
-                // }
             }
+
+            contact_constraints
+                .solve_friction(&mut self.solver_vels, &mut self.generic_solver_vels);
         }
     }
 
