@@ -319,7 +319,6 @@ pub struct JointGenericVelocityOneBodyExternalConstraintBuilder {
     joint_id: JointIndex,
     joint: GenericJoint,
     j_id: usize,
-    flipped: bool,
     constraint_id: usize,
     // These are solver body for both joints, except that
     // the world_com is actually in local-space.
@@ -337,21 +336,20 @@ impl JointGenericVelocityOneBodyExternalConstraintBuilder {
         jacobians: &mut DVector<Real>,
         out_constraint_id: &mut usize,
     ) {
+        let mut joint_data = joint.data;
         let mut handle1 = joint.body1;
         let mut handle2 = joint.body2;
         let flipped = !bodies[handle2].is_dynamic();
 
-        let local_frame1 = if flipped {
+        if flipped {
             std::mem::swap(&mut handle1, &mut handle2);
-            joint.data.local_frame2
-        } else {
-            joint.data.local_frame1
-        };
+            joint_data.flip();
+        }
 
         let rb1 = &bodies[handle1];
         let rb2 = &bodies[handle2];
 
-        let frame1 = rb1.pos.position * local_frame1;
+        let frame1 = rb1.pos.position * joint_data.local_frame1;
 
         let starting_j_id = *j_id;
 
@@ -394,11 +392,10 @@ impl JointGenericVelocityOneBodyExternalConstraintBuilder {
             body1,
             link2,
             joint_id,
-            joint: joint.data,
+            joint: joint_data,
             j_id: starting_j_id,
             frame1,
             local_body2,
-            flipped,
             constraint_id: *out_constraint_id,
         });
 
@@ -417,12 +414,7 @@ impl JointGenericVelocityOneBodyExternalConstraintBuilder {
         //       constraints. Could we make this more incremental?
         let mb2 = &multibodies[self.link2.multibody];
         let pos2 = &mb2.link(self.link2.id).unwrap().local_to_world;
-        let frame2 = pos2
-            * if self.flipped {
-                self.joint.local_frame1
-            } else {
-                self.joint.local_frame2
-            };
+        let frame2 = pos2 * self.joint.local_frame2;
 
         let joint_body2 = JointSolverBody {
             world_com: pos2 * self.local_body2.world_com, // the world_com was stored in local-space.

@@ -198,7 +198,7 @@ impl JointOneBodyConstraintBuilder {
 
         if flipped {
             std::mem::swap(&mut handle1, &mut handle2);
-            std::mem::swap(&mut joint_data.local_frame1, &mut joint_data.local_frame2);
+            joint_data.flip();
         };
 
         let rb1 = &bodies[handle1];
