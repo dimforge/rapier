@@ -583,6 +583,15 @@ impl ColliderBuilder {
         Self::new(SharedShape::round_cuboid(hx, hy, border_radius))
     }
 
+    /// Initialize a new collider builder with a capsule defined from its endpoints.
+    ///
+    /// See also [`ColliderBuilder::capsule_x`], [`ColliderBuilder::capsule_y`], and
+    /// [`ColliderBuilder::capsule_z`], for a simpler way to build capsules with common
+    /// orientations.
+    pub fn capsule_from_endpoints(a: Point<Real>, b: Point<Real>, radius: Real) -> Self {
+        Self::new(SharedShape::capsule(a, b, radius))
+    }
+
     /// Initialize a new collider builder with a capsule shape aligned with the `x` axis.
     pub fn capsule_x(half_height: Real, radius: Real) -> Self {
         Self::new(SharedShape::capsule_x(half_height, radius))
@@ -781,7 +790,7 @@ impl ColliderBuilder {
 
     /// The default density used by the collider builder.
     pub fn default_density() -> Real {
-        1.0
+        100.0
     }
 
     /// Sets an arbitrary user-defined 128-bit integer associated to the colliders built by this builder.
