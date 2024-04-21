@@ -46,9 +46,9 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(vector![0.0, 5.0, 0.0])
         .rotation(vector![0.5, 0.0, 0.5])
         .linvel(vector![0.0, -100.0, 0.0])
-        .soft_ccd_enabled(true);
+        .soft_ccd_prediction(10.0);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(0.01, 0.015, 5.0);
+    let collider = ColliderBuilder::cuboid(5.0, 0.015, 5.0);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*

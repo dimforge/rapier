@@ -597,8 +597,11 @@ impl BroadPhase for BroadPhaseMultiSap {
 
                 let next_pos = co.parent.and_then(|p| {
                     let parent = bodies.get(p.handle)?;
-                    parent.is_soft_ccd_enabled().then(|| {
-                        parent.predict_position_using_velocity_and_forces(dt) * p.pos_wrt_parent
+                    (parent.soft_ccd_prediction() > 0.0).then(|| {
+                        parent.predict_position_using_velocity_and_forces_with_max_dist(
+                            dt,
+                            parent.soft_ccd_prediction(),
+                        ) * p.pos_wrt_parent
                     })
                 });
 

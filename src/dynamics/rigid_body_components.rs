@@ -821,8 +821,8 @@ pub struct RigidBodyCcd {
     pub ccd_active: bool,
     /// Is CCD enabled for this rigid-body?
     pub ccd_enabled: bool,
-    /// Is soft-CCD enabled for this rigid-body?
-    pub soft_ccd_enabled: bool,
+    /// The soft-CCD prediction distance for this rigid-body.
+    pub soft_ccd_prediction: Real,
 }
 
 impl Default for RigidBodyCcd {
@@ -832,7 +832,7 @@ impl Default for RigidBodyCcd {
             ccd_max_dist: 0.0,
             ccd_active: false,
             ccd_enabled: false,
-            soft_ccd_enabled: false,
+            soft_ccd_prediction: 0.0,
         }
     }
 }

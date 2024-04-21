@@ -898,19 +898,22 @@ impl NarrowPhase {
 
                 let pos12 = co1.pos.inv_mul(&co2.pos);
 
-                let effective_prediction_distance = if rb1.map(|rb| rb.is_soft_ccd_enabled()) == Some(true) ||
-                    rb2.map(|rb| rb.is_soft_ccd_enabled()) == Some(true) {
+                let soft_ccd_prediction1 = rb1.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
+                let soft_ccd_prediction2 = rb2.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
+                let effective_prediction_distance = if soft_ccd_prediction1 > 0.0 || soft_ccd_prediction2 > 0.0 {
+                        let aabb1 = co1.compute_aabb();
+                        let aabb2 = co2.compute_aabb();
+                        let inv_dt = crate::utils::inv(dt);
 
-                    let aabb1 = co1.compute_aabb();
-                    let aabb2 = co2.compute_aabb();
+                        let linvel1 = rb1.map(|rb| rb.linvel()
+                            .cap_magnitude(soft_ccd_prediction1 * inv_dt)).unwrap_or_default();
+                        let linvel2 = rb2.map(|rb| rb.linvel()
+                            .cap_magnitude(soft_ccd_prediction2 * inv_dt)).unwrap_or_default();
 
-                    let linvel1 = rb1.map(|rb| *rb.linvel()).unwrap_or_default();
-                    let linvel2 = rb2.map(|rb| *rb.linvel()).unwrap_or_default();
-
-                    if !aabb1.intersects(&aabb2) && !aabb1.intersects_moving_aabb(&aabb2, linvel2 - linvel1) {
-                        pair.clear();
-                        break 'emit_events;
-                    }
+                        if !aabb1.intersects(&aabb2) && !aabb1.intersects_moving_aabb(&aabb2, linvel2 - linvel1) {
+                            pair.clear();
+                            break 'emit_events;
+                        }
 
 
                     prediction_distance.max(
