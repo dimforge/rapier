@@ -410,8 +410,8 @@ impl TwoBodyConstraintBuilder {
             {
                 let rhs_wo_bias = info.normal_rhs_wo_bias + dist.max(0.0) * inv_dt;
                 let rhs_bias = erp_inv_dt
-                    * (dist + params.allowed_linear_error)
-                        .clamp(-params.max_penetration_correction, 0.0);
+                    * (dist + params.allowed_linear_error())
+                        .clamp(-params.max_penetration_correction(), 0.0);
                 let new_rhs = rhs_wo_bias + rhs_bias;
                 is_fast_contact = is_fast_contact || (-new_rhs * params.dt > ccd_thickness * 0.5);
 

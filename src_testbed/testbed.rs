@@ -1355,15 +1355,15 @@ fn update_testbed(
         {
             if state.flags.contains(TestbedStateFlags::SLEEP) {
                 for (_, body) in harness.physics.bodies.iter_mut() {
-                    body.activation_mut().linear_threshold =
-                        RigidBodyActivation::default_linear_threshold();
+                    body.activation_mut().normalized_linear_threshold =
+                        RigidBodyActivation::default_normalized_linear_threshold();
                     body.activation_mut().angular_threshold =
                         RigidBodyActivation::default_angular_threshold();
                 }
             } else {
                 for (_, body) in harness.physics.bodies.iter_mut() {
                     body.wake_up(true);
-                    body.activation_mut().linear_threshold = -1.0;
+                    body.activation_mut().normalized_linear_threshold = -1.0;
                 }
             }
         }

@@ -113,7 +113,7 @@ impl PhysicsPipeline {
         self.broadphase_collider_pairs.clear();
         broad_phase.update(
             integration_parameters.dt,
-            integration_parameters.prediction_distance,
+            integration_parameters.prediction_distance(),
             colliders,
             bodies,
             modified_colliders,
@@ -143,7 +143,7 @@ impl PhysicsPipeline {
             events,
         );
         narrow_phase.compute_contacts(
-            integration_parameters.prediction_distance,
+            integration_parameters.prediction_distance(),
             integration_parameters.dt,
             bodies,
             colliders,
@@ -174,6 +174,7 @@ impl PhysicsPipeline {
         self.counters.stages.island_construction_time.resume();
         islands.update_active_set_with_contacts(
             integration_parameters.dt,
+            integration_parameters.length_unit,
             bodies,
             colliders,
             narrow_phase,

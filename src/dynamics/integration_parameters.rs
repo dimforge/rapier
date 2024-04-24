@@ -49,12 +49,33 @@ pub struct IntegrationParameters {
     /// (default `1.0`).
     pub warmstart_coefficient: Real,
 
+    /// The approximate size of most dynamic objects in the scale.
+    ///
+    /// This value is used internally to estimate some length-based tolerance. In particular, the
+    /// values [`IntegrationParametres::allowed_linear_error`],
+    /// [`IntegrationParametres::max_penetration_correction`],
+    /// [`IntegrationParametres::prediction_distance`], [`RigidBodyActivation::linear_threshold`]
+    /// are scaled by this value implicitly.
+    ///
+    /// This value can be understood as the number of units-per-meter in your physical world compared
+    /// to a human-sized world in meter. For example, in a 2d game, if your typical object size is 100
+    /// pixels, set the `[`Self::length_unit`]` parameter to 100.0. The physics engine will interpret
+    /// it as if 100 pixels is equivalent to 1 meter in its various internal threshold.
+    /// (default `1.0`).
+    pub length_unit: Real,
+
     /// Amount of penetration the engine won’t attempt to correct (default: `0.001m`).
-    pub allowed_linear_error: Real,
+    ///
+    /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
+    pub normalized_allowed_linear_error: Real,
     /// Maximum amount of penetration the solver will attempt to resolve in one timestep.
-    pub max_penetration_correction: Real,
+    ///
+    /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
+    pub normalized_max_penetration_correction: Real,
     /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002m`).
-    pub prediction_distance: Real,
+    ///
+    /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
+    pub normalized_prediction_distance: Real,
     /// The number of solver iterations run by the constraints solver for calculating forces (default: `4`).
     pub num_solver_iterations: NonZeroUsize,
     /// Number of addition friction resolution iteration run during the last solver sub-step (default: `4`).
@@ -157,6 +178,22 @@ impl IntegrationParameters {
                 * self.joint_damping_ratio)
     }
 
+    pub fn allowed_linear_error(&self) -> Real {
+        self.normalized_allowed_linear_error * self.length_unit
+    }
+
+    pub fn max_penetration_correction(&self) -> Real {
+        if self.normalized_max_penetration_correction != Real::MAX {
+            self.normalized_max_penetration_correction * self.length_unit
+        } else {
+            Real::MAX
+        }
+    }
+
+    pub fn prediction_distance(&self) -> Real {
+        self.normalized_prediction_distance * self.length_unit
+    }
+
     /// Initialize the simulation paramaters with settings matching the TGS-soft solver
     /// with warmstarting.
     ///
@@ -180,21 +217,22 @@ impl IntegrationParameters {
             // However we don't want it to be too small and end up with
             // tons of islands, reducing SIMD parallelism opportunities.
             min_island_size: 128,
-            allowed_linear_error: 0.001,
-            max_penetration_correction: Real::MAX,
-            prediction_distance: 0.002,
+            normalized_allowed_linear_error: 0.001,
+            normalized_max_penetration_correction: Real::MAX,
+            normalized_prediction_distance: 0.002,
             max_ccd_substeps: 1,
+            length_unit: 1.0,
         }
     }
 
-    /// Initialize the simulation paramaters with settings matching the TGS-soft solver
+    /// Initialize the simulation parameters with settings matching the TGS-soft solver
     /// **without** warmstarting.
     ///
     /// The [`IntegrationParameters::tgs_soft()`] configuration should be preferred unless
     /// warmstarting proves to be undesirable for your use-case.
     pub fn tgs_soft_without_warmstart() -> Self {
         Self {
-            erp: 0.8,
+            erp: 0.6,
             damping_ratio: 1.0,
             warmstart_coefficient: 0.0,
             num_additional_friction_iterations: 4,
