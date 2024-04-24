@@ -255,9 +255,9 @@ impl TwoBodyConstraintBuilderSimd {
         let cfm_factor = SimdReal::splat(params.cfm_factor());
         let dt = SimdReal::splat(params.dt);
         let inv_dt = SimdReal::splat(params.inv_dt());
-        let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
+        let allowed_lin_err = SimdReal::splat(params.allowed_linear_error());
         let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
-        let max_penetration_correction = SimdReal::splat(params.max_penetration_correction);
+        let max_penetration_correction = SimdReal::splat(params.max_penetration_correction());
         let warmstart_coeff = SimdReal::splat(params.warmstart_coefficient);
 
         let rb1 = gather![|ii| &bodies[constraint.solver_vel1[ii]]];

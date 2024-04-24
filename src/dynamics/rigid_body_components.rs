@@ -995,7 +995,10 @@ impl RigidBodyDominance {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct RigidBodyActivation {
     /// The threshold linear velocity bellow which the body can fall asleep.
-    pub linear_threshold: Real,
+    ///
+    /// The value is "normalized", i.e., the actual threshold applied by the physics engine
+    /// is equal to this value multiplied by [`IntegrationParameters::length_unit`].
+    pub normalized_linear_threshold: Real,
     /// The angular linear velocity bellow which the body can fall asleep.
     pub angular_threshold: Real,
     /// The amount of time the rigid-body must remain below the thresholds to be put to sleep.
@@ -1014,7 +1017,7 @@ impl Default for RigidBodyActivation {
 
 impl RigidBodyActivation {
     /// The default linear velocity bellow which a body can be put to sleep.
-    pub fn default_linear_threshold() -> Real {
+    pub fn default_normalized_linear_threshold() -> Real {
         0.4
     }
 
@@ -1032,7 +1035,7 @@ impl RigidBodyActivation {
     /// Create a new rb_activation status initialised with the default rb_activation threshold and is active.
     pub fn active() -> Self {
         RigidBodyActivation {
-            linear_threshold: Self::default_linear_threshold(),
+            normalized_linear_threshold: Self::default_normalized_linear_threshold(),
             angular_threshold: Self::default_angular_threshold(),
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: 0.0,
@@ -1043,7 +1046,7 @@ impl RigidBodyActivation {
     /// Create a new rb_activation status initialised with the default rb_activation threshold and is inactive.
     pub fn inactive() -> Self {
         RigidBodyActivation {
-            linear_threshold: Self::default_linear_threshold(),
+            normalized_linear_threshold: Self::default_normalized_linear_threshold(),
             angular_threshold: Self::default_angular_threshold(),
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: Self::default_time_until_sleep(),
@@ -1054,7 +1057,7 @@ impl RigidBodyActivation {
     /// Create a new activation status that prevents the rigid-body from sleeping.
     pub fn cannot_sleep() -> Self {
         RigidBodyActivation {
-            linear_threshold: -1.0,
+            normalized_linear_threshold: -1.0,
             angular_threshold: -1.0,
             ..Self::active()
         }
