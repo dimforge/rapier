@@ -116,6 +116,9 @@ pub struct ContactPair {
     /// The set of contact manifolds between the two colliders.
     ///
     /// All contact manifold contain themselves contact points between the colliders.
+    /// Note that contact points in the contact manifold do not take into account the
+    /// [`Collider::collision_skin`] which only affects the constraint solver and the
+    /// [`SolverContact`].
     pub manifolds: Vec<ContactManifold>,
     /// Is there any active contact in this contact pair?
     pub has_any_active_contact: bool,
