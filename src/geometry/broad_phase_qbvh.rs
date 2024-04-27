@@ -59,7 +59,7 @@ impl BroadPhaseQbvh {
                 colliders.iter().map(|(handle, collider)| {
                     (
                         handle,
-                        collider.compute_aabb().loosened(prediction_distance / 2.0),
+                        collider.compute_collision_aabb(prediction_distance / 2.0),
                     )
                 }),
                 margin,
@@ -76,9 +76,7 @@ impl BroadPhaseQbvh {
             }
 
             let _ = self.qbvh.refit(margin, &mut self.workspace, |handle| {
-                colliders[*handle]
-                    .compute_aabb()
-                    .loosened(prediction_distance / 2.0)
+                colliders[*handle].compute_collision_aabb(prediction_distance / 2.0)
             });
             self.qbvh
                 .traverse_modified_bvtt_with_stack(&self.qbvh, &mut visitor, &mut self.stack);

@@ -898,11 +898,12 @@ impl NarrowPhase {
 
                 let pos12 = co1.pos.inv_mul(&co2.pos);
 
+                let collision_skin_sum = co1.collision_skin() + co2.collision_skin();
                 let soft_ccd_prediction1 = rb1.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
                 let soft_ccd_prediction2 = rb2.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
                 let effective_prediction_distance = if soft_ccd_prediction1 > 0.0 || soft_ccd_prediction2 > 0.0 {
-                        let aabb1 = co1.compute_aabb();
-                        let aabb2 = co2.compute_aabb();
+                        let aabb1 = co1.compute_collision_aabb(0.0);
+                        let aabb2 = co2.compute_collision_aabb(0.0);
                         let inv_dt = crate::utils::inv(dt);
 
                         let linvel1 = rb1.map(|rb| rb.linvel()
@@ -917,9 +918,9 @@ impl NarrowPhase {
 
 
                     prediction_distance.max(
-                        dt * (linvel1 - linvel2).norm())
+                        dt * (linvel1 - linvel2).norm()) + collision_skin_sum
                 } else {
-                    prediction_distance
+                    prediction_distance + collision_skin_sum
                 };
 
                 let _ = query_dispatcher.contact_manifolds(
@@ -968,12 +969,14 @@ impl NarrowPhase {
                             break;
                         }
 
-                        let keep_solver_contact = contact.dist < prediction_distance || {
+                        let effective_contact_dist = contact.dist - co1.collision_skin() - co2.collision_skin();
+
+                        let keep_solver_contact = effective_contact_dist < prediction_distance || {
                             let world_pt1 = world_pos1 * contact.local_p1;
                             let world_pt2 = world_pos2 * contact.local_p2;
                             let vel1 = rb1.map(|rb| rb.velocity_at_point(&world_pt1)).unwrap_or_default();
                             let vel2 = rb2.map(|rb| rb.velocity_at_point(&world_pt2)).unwrap_or_default();
-                            contact.dist + (vel2 - vel1).dot(&manifold.data.normal) * dt < prediction_distance
+                            effective_contact_dist + (vel2 - vel1).dot(&manifold.data.normal) * dt < prediction_distance
                         };
 
                         if keep_solver_contact {
@@ -985,7 +988,7 @@ impl NarrowPhase {
                             let solver_contact = SolverContact {
                                 contact_id: contact_id as u8,
                                 point: effective_point,
-                                dist: contact.dist,
+                                dist: effective_contact_dist,
                                 friction,
                                 restitution,
                                 tangent_velocity: Vector::zeros(),

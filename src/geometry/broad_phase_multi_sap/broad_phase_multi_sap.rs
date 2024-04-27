@@ -2,7 +2,7 @@ use super::{
     BroadPhasePairEvent, ColliderPair, SAPLayer, SAPProxies, SAPProxy, SAPProxyData, SAPRegionPool,
 };
 use crate::geometry::{
-    BroadPhaseProxyIndex, ColliderBroadPhaseData, ColliderChanges, ColliderHandle,
+    BroadPhaseProxyIndex, Collider, ColliderBroadPhaseData, ColliderChanges, ColliderHandle,
     ColliderPosition, ColliderSet, ColliderShape,
 };
 use crate::math::{Isometry, Real};
@@ -353,19 +353,16 @@ impl BroadPhaseMultiSap {
         prediction_distance: Real,
         handle: ColliderHandle,
         proxy_index: &mut u32,
-        collider: (&ColliderPosition, &ColliderShape, &ColliderChanges),
+        collider: &Collider,
         next_position: Option<&Isometry<Real>>,
     ) -> bool {
-        let (co_pos, co_shape, co_changes) = collider;
-
-        let mut aabb = co_shape
-            .compute_aabb(co_pos)
-            .loosened(prediction_distance / 2.0);
+        let mut aabb = collider.compute_collision_aabb(prediction_distance / 2.0);
 
         if let Some(next_position) = next_position {
-            let next_aabb = co_shape
+            let next_aabb = collider
+                .shape
                 .compute_aabb(next_position)
-                .loosened(prediction_distance / 2.0);
+                .loosened(collider.collision_skin() + prediction_distance / 2.0);
             aabb.merge(&next_aabb);
         }
 
@@ -386,7 +383,7 @@ impl BroadPhaseMultiSap {
             prev_aabb = proxy.aabb;
             proxy.aabb = aabb;
 
-            if co_changes.contains(ColliderChanges::SHAPE) {
+            if collider.changes.contains(ColliderChanges::SHAPE) {
                 // If the shape was changed, then we need to see if this proxy should be
                 // migrated to a larger layer. Indeed, if the shape was replaced by
                 // a much larger shape, we need to promote the proxy to a bigger layer
@@ -609,7 +606,7 @@ impl BroadPhase for BroadPhaseMultiSap {
                     prediction_distance,
                     *handle,
                     &mut new_proxy_id,
-                    (&co.pos, &co.shape, &co.changes),
+                    &co,
                     next_pos.as_ref(),
                 ) {
                     need_region_propagation = true;
