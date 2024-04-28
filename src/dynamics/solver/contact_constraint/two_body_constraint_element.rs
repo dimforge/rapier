@@ -1,11 +1,9 @@
 use crate::dynamics::integration_parameters::BLOCK_SOLVER_ENABLED;
-use crate::dynamics::solver::contact_constraint::OneBodyConstraintNormalPart;
 use crate::dynamics::solver::SolverVel;
 use crate::math::{AngVector, TangentImpulse, Vector, DIM};
 use crate::utils::{SimdBasis, SimdDot, SimdRealCopy};
-use na::{Matrix2, Vector2};
-use num::Zero;
-use simba::simd::{SimdPartialOrd, SimdValue};
+use na::Vector2;
+use simba::simd::SimdValue;
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct TwoBodyConstraintTangentPart<N: SimdRealCopy> {

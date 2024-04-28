@@ -14,7 +14,6 @@ use crate::math::{
 #[cfg(feature = "dim2")]
 use crate::utils::SimdBasis;
 use crate::utils::{self, SimdAngularInertia, SimdCross, SimdDot};
-use na::Matrix2;
 use num::Zero;
 use parry::math::SimdBool;
 use parry::utils::SdpMatrix2;

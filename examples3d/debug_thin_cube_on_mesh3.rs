@@ -16,9 +16,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_size = 100.1;
-    let ground_height = 0.1;
-
     // let vertices = vec![
     //     point![-50.0, 0.0, -50.0],
     //     point![-50.0, 0.0, 50.0],

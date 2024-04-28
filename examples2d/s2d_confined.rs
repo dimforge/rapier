@@ -38,13 +38,13 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create the spheres
      */
-    let mut row = 0;
+    let mut row;
     let mut count = 0;
     let mut column = 0;
 
     while count < max_count {
         row = 0;
-        for i in 0..grid_count {
+        for _ in 0..grid_count {
             let x = -8.75 + column as f32 * 18.0 / (grid_count as f32);
             let y = 1.5 + row as f32 * 18.0 / (grid_count as f32);
             let body = RigidBodyBuilder::dynamic()

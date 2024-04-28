@@ -10,7 +10,6 @@ use crate::math::Real;
 use crate::prelude::RigidBodyVelocity;
 use crate::utils::SimdAngularInertia;
 use na::DVector;
-use ordered_float::OrderedFloat;
 
 pub(crate) struct VelocitySolver {
     pub solver_bodies: Vec<SolverBody>,

@@ -8,7 +8,6 @@ use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Isometry, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{self, SimdAngularInertia, SimdBasis, SimdCross, SimdDot};
 use na::{DVector, Matrix2};
-use num::Pow;
 
 use super::{TwoBodyConstraintElement, TwoBodyConstraintNormalPart};
 

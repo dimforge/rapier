@@ -1114,7 +1114,6 @@ fn update_testbed(
 ) {
     let meshes = &mut *meshes;
     let materials = &mut *materials;
-    let prev_example = state.selected_example;
 
     // Handle inputs
     {

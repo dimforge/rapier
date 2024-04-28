@@ -16,8 +16,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_width = 66.0 * extent;
-
     let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -2.0]);
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(40.0, 2.0).friction(friction);

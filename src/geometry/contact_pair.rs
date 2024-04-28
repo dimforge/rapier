@@ -1,9 +1,8 @@
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Contact, ContactManifold};
-use crate::math::{Point, Real, TangentImpulse, Vector, ANG_DIM};
+use crate::math::{Point, Real, TangentImpulse, Vector};
 use crate::pipeline::EventHandler;
 use crate::prelude::CollisionEventFlags;
-use parry::math::AngVector;
 use parry::query::ContactManifoldsWorkspace;
 
 use super::CollisionEvent;
@@ -304,7 +303,9 @@ pub struct SolverContact {
     pub tangent_velocity: Vector<Real>,
     /// Whether or not this contact existed during the last timestep.
     pub is_new: bool,
+    /// Impulse used to warmstart the solve for the normal constraint.
     pub warmstart_impulse: Real,
+    /// Impulse used to warmstart the solve for the friction constraints.
     pub warmstart_tangent_impulse: TangentImpulse<Real>,
 }
 

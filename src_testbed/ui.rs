@@ -10,7 +10,6 @@ use crate::testbed::{
 };
 
 use crate::PhysicsState;
-use bevy_egui::egui::WidgetType::CollapsingHeader;
 use bevy_egui::egui::{Slider, Ui};
 use bevy_egui::{egui, EguiContexts};
 use rapier::dynamics::IntegrationParameters;
