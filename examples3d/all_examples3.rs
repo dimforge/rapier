@@ -31,6 +31,7 @@ mod debug_thin_cube_on_mesh3;
 mod debug_triangle3;
 mod debug_trimesh3;
 mod domino3;
+mod dynamic_trimesh3;
 mod fountain3;
 mod heightfield3;
 mod joints3;
@@ -104,6 +105,7 @@ pub fn main() {
         ("Convex polyhedron", convex_polyhedron3::init_world),
         ("Damping", damping3::init_world),
         ("Domino", domino3::init_world),
+        ("Dynamic trimeshes", dynamic_trimesh3::init_world),
         ("Heightfield", heightfield3::init_world),
         ("Impulse Joints", joints3::init_world_with_joints),
         ("Joint Motor Position", joint_motor_position3::init_world),
