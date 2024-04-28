@@ -24,10 +24,23 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
     let ground_size = 50.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
-    let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    //// OPTION 1: floor made of a single big box.
+    // let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
+    // let handle = bodies.insert(rigid_body);
+    // let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
+    // colliders.insert_with_parent(collider, handle, &mut bodies);
+
+    //// OPTION 2: floor made of a wavy mesh.
+    let nsubdivs = 100;
+    let heights = DMatrix::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
+        -(i as f32 * 40.0 / (nsubdivs as f32) / 2.0).cos()
+            - (j as f32 * 40.0 / (nsubdivs as f32) / 2.0).cos()
+    });
+    let heightfield =
+        HeightField::new(heights, vector![100.0, 2.0, 100.0]);
+    let mut trimesh = TriMesh::from(heightfield);
+    trimesh.set_flags(TriMeshFlags::FIX_INTERNAL_EDGES);
+    colliders.insert(ColliderBuilder::new(SharedShape::new(trimesh.clone())));
 
     /*
      * Create the convex decompositions.
@@ -36,7 +49,8 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
     let ngeoms = geoms.len();
     let width = (ngeoms as f32).sqrt() as usize;
     let num_duplications = 4;
-    let shift = 5.0f32;
+    let shift_y = 8.0f32;
+    let shift_xz = 9.0f32;
 
     for (igeom, obj_path) in geoms.into_iter().enumerate() {
         let deltas = Isometry::identity();
@@ -69,7 +83,7 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
 
             vertices
                 .iter_mut()
-                .for_each(|p| *p = (*p - center.coords) * 6.0 / diag);
+                .for_each(|p| *p = (*p - center.coords) * 10.0 / diag);
 
             let indices: Vec<_> = indices
                 .chunks(3)
@@ -79,6 +93,7 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
             let decomposed_shape = if use_convex_decomposition {
                 SharedShape::convex_decomposition(&vertices, &indices)
             } else {
+                // SharedShape::trimesh(vertices, indices)
                 SharedShape::trimesh_with_flags(vertices, indices, TriMeshFlags::FIX_INTERNAL_EDGES)
             };
             shapes.push(decomposed_shape);
@@ -86,15 +101,15 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
             // let compound = SharedShape::compound(compound_parts);
 
             for k in 1..num_duplications + 1 {
-                let x = (igeom % width) as f32 * shift;
-                let y = (igeom / width) as f32 * shift + 4.0;
-                let z = k as f32 * shift;
+                let x = (igeom % width) as f32 * shift_xz - num_duplications as f32 * shift_xz / 2.0;
+                let y = (igeom / width) as f32 * shift_y + 7.0;
+                let z = k as f32 * shift_xz - num_duplications as f32 * shift_xz / 2.0;
 
                 let body = RigidBodyBuilder::dynamic().translation(vector![x, y, z]);
                 let handle = bodies.insert(body);
 
                 for shape in &shapes {
-                    let collider = ColliderBuilder::new(shape.clone()).collision_skin(0.02);
+                    let collider = ColliderBuilder::new(shape.clone()).collision_skin(0.1);
                     colliders.insert_with_parent(collider, handle, &mut bodies);
                 }
             }
@@ -114,18 +129,18 @@ fn models() -> Vec<String> {
         "assets/3d/chair.obj".to_string(),
         "assets/3d/cup_decimated.obj".to_string(),
         "assets/3d/dilo_decimated.obj".to_string(),
+        "assets/3d/tstTorusModel2.obj".to_string(),
         "assets/3d/feline_decimated.obj".to_string(),
         "assets/3d/genus3_decimated.obj".to_string(),
         // "assets/3d/hand2_decimated.obj".to_string(),
         // "assets/3d/hand_decimated.obj".to_string(),
         "assets/3d/hornbug.obj".to_string(),
+        "assets/3d/tstTorusModel.obj".to_string(),
         "assets/3d/octopus_decimated.obj".to_string(),
         "assets/3d/rabbit_decimated.obj".to_string(),
         "assets/3d/rust_logo_simplified.obj".to_string(),
-        // "assets/3d/screwdriver_decimated.obj".to_string(),
+        "assets/3d/screwdriver_decimated.obj".to_string(),
         "assets/3d/table.obj".to_string(),
-        "assets/3d/tstTorusModel.obj".to_string(),
-        "assets/3d/tstTorusModel2.obj".to_string(),
         "assets/3d/tstTorusModel3.obj".to_string(),
     ]
 }
