@@ -660,7 +660,7 @@ mod test {
         let coh = colliders.insert_with_parent(co, hrb, &mut bodies);
 
         let mut events = Vec::new();
-        broad_phase.update(0.0, &mut colliders, &[coh], &[], &mut events);
+        broad_phase.update(0.0, 0.0, &mut colliders, &bodies, &[coh], &[], &mut events);
 
         bodies.remove(
             hrb,
@@ -670,7 +670,7 @@ mod test {
             &mut multibody_joints,
             true,
         );
-        broad_phase.update(0.0, &mut colliders, &[], &[coh], &mut events);
+        broad_phase.update(0.0, 0.0, &mut colliders, &bodies, &[], &[coh], &mut events);
 
         // Create another body.
         let rb = RigidBodyBuilder::dynamic().build();
@@ -679,6 +679,6 @@ mod test {
         let coh = colliders.insert_with_parent(co, hrb, &mut bodies);
 
         // Make sure the proxy handles is recycled properly.
-        broad_phase.update(0.0, &mut colliders, &[coh], &[], &mut events);
+        broad_phase.update(0.0, 0.0, &mut colliders, &bodies, &[coh], &[], &mut events);
     }
 }
