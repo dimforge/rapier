@@ -10,6 +10,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let impulse_joints = ImpulseJointSet::new();
     let multibody_joints = MultibodyJointSet::new();
 
+    #[allow(clippy::excessive_precision)]
     let mut ps1 = [
         Point::new(16.0, 0.0),
         Point::new(14.93803712795643, 5.133601056842984),
@@ -22,6 +23,7 @@ pub fn init_world(testbed: &mut Testbed) {
         Point::new(2.405937953536585, 39.09554102558315),
     ];
 
+    #[allow(clippy::excessive_precision)]
     let mut ps2 = [
         Point::new(24.0, 0.0),
         Point::new(22.33619528222415, 6.02299846205841),

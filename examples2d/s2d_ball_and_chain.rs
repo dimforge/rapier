@@ -24,7 +24,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let friction = 0.6;
     let capsule = ColliderBuilder::capsule_x(hx, 0.125)
         .friction(friction)
-        .density(20.0);
+        .density(density);
 
     let mut prev = ground;
     for i in 0..count {
@@ -55,7 +55,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::ball(radius)
         .friction(friction)
-        .density(20.0);
+        .density(density);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let pivot = point![(2.0 * count as f32) * hx, count as f32 * hx];
@@ -64,7 +64,6 @@ pub fn init_world(testbed: &mut Testbed) {
         .local_anchor2(bodies[handle].position().inverse_transform_point(&pivot))
         .contacts_enabled(false);
     impulse_joints.insert(prev, handle, joint, true);
-    prev = handle;
 
     /*
      * Set up the testbed.

@@ -178,10 +178,16 @@ impl IntegrationParameters {
                 * self.joint_damping_ratio)
     }
 
+    /// Amount of penetration the engine won’t attempt to correct (default: `0.001` multiplied by
+    /// [`Self::length_unit`]).
     pub fn allowed_linear_error(&self) -> Real {
         self.normalized_allowed_linear_error * self.length_unit
     }
 
+    /// Maximum amount of penetration the solver will attempt to resolve in one timestep.
+    ///
+    /// This is equal to [`Self::normalized_max_penetration_correction`] multiplied by
+    /// [`Self::length_unit`].
     pub fn max_penetration_correction(&self) -> Real {
         if self.normalized_max_penetration_correction != Real::MAX {
             self.normalized_max_penetration_correction * self.length_unit
@@ -190,11 +196,13 @@ impl IntegrationParameters {
         }
     }
 
+    /// The maximal distance separating two objects that will generate predictive contacts
+    /// (default: `0.002m` multiped by [`Self::length_unit`]).
     pub fn prediction_distance(&self) -> Real {
         self.normalized_prediction_distance * self.length_unit
     }
 
-    /// Initialize the simulation paramaters with settings matching the TGS-soft solver
+    /// Initialize the simulation parameters with settings matching the TGS-soft solver
     /// with warmstarting.
     ///
     /// This is the default configuration, equivalent to [`IntegrationParameters::default()`].

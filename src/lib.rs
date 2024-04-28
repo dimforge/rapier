@@ -166,6 +166,7 @@ pub mod math {
     #[cfg(feature = "dim2")]
     pub type JacobianViewMut<'a, N> = na::MatrixViewMut3xX<'a, N>;
 
+    /// The type of impulse applied for friction constraints.
     #[cfg(feature = "dim2")]
     pub type TangentImpulse<N> = na::Vector1<N>;
 
@@ -198,6 +199,7 @@ pub mod math {
     #[cfg(feature = "dim3")]
     pub type JacobianViewMut<'a, N> = na::MatrixViewMut6xX<'a, N>;
 
+    /// The type of impulse applied for friction constraints.
     #[cfg(feature = "dim3")]
     pub type TangentImpulse<N> = na::Vector2<N>;
 

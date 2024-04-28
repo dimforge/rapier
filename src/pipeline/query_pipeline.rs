@@ -16,7 +16,6 @@ use parry::query::visitors::{
 };
 use parry::query::{DefaultQueryDispatcher, NonlinearRigidMotion, QueryDispatcher, TOI};
 use parry::shape::{FeatureId, Shape, TypedSimdCompositeShape};
-use parry::utils::DefaultStorage;
 use std::sync::Arc;
 
 /// A pipeline for performing queries on all the colliders of a scene.
@@ -248,7 +247,6 @@ impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
     type PartShape = dyn Shape;
     type PartNormalConstraints = dyn NormalConstraints;
     type PartId = ColliderHandle;
-    type QbvhStorage = DefaultStorage;
 
     fn map_typed_part_at(
         &self,

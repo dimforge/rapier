@@ -3,7 +3,7 @@ use super::{
 };
 use crate::geometry::{
     BroadPhaseProxyIndex, Collider, ColliderBroadPhaseData, ColliderChanges, ColliderHandle,
-    ColliderPosition, ColliderSet, ColliderShape,
+    ColliderSet,
 };
 use crate::math::{Isometry, Real};
 use crate::prelude::{BroadPhase, RigidBodySet};
@@ -606,7 +606,7 @@ impl BroadPhase for BroadPhaseMultiSap {
                     prediction_distance,
                     *handle,
                     &mut new_proxy_id,
-                    &co,
+                    co,
                     next_pos.as_ref(),
                 ) {
                     need_region_propagation = true;

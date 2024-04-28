@@ -11,12 +11,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let multibody_joints = MultibodyJointSet::new();
 
     /*
-     * Ground
-     */
-    let ground = bodies.insert(RigidBodyBuilder::fixed());
-
-    /*
-     * Create the bridge.
+     * Create the joint grid.
      */
     let rad = 0.4;
     let numi = 100;

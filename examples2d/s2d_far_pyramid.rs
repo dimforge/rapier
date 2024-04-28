@@ -11,7 +11,6 @@ pub fn init_world(testbed: &mut Testbed) {
     let multibody_joints = MultibodyJointSet::new();
 
     let origin = vector![100_000.0, -80_000.0];
-    let extent = 1.0;
     let friction = 0.6;
 
     /*

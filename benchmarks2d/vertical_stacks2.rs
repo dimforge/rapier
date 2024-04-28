@@ -10,15 +10,14 @@ pub fn init_world(testbed: &mut Testbed) {
     let impulse_joints = ImpulseJointSet::new();
     let multibody_joints = MultibodyJointSet::new();
 
-
-    let rad = 0.5; // 50.0 / 2.0; // 0.5;
-    let rad = 50.0 / 2.0; // 0.5;
+    let num = 80;
+    let rad = 0.5;
 
     /*
      * Ground
      */
     let ground_size = num as f32 * rad * 10.0;
-    let ground_thickness = 25.0;
+    let ground_thickness = 1.0;
 
     let rigid_body = RigidBodyBuilder::fixed();
     let ground_handle = bodies.insert(rigid_body);
@@ -31,7 +30,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let shiftx_centerx = [
         (rad * 2.0 + 0.0002, -(num as f32) * rad * 2.0 * 1.5),
-         (rad * 2.0 + rad, num as f32 * rad * 2.0 * 1.5),
+        (rad * 2.0 + rad, num as f32 * rad * 2.0 * 1.5),
     ];
 
     for (shiftx, centerx) in shiftx_centerx {

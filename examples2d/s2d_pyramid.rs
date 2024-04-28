@@ -10,8 +10,6 @@ pub fn init_world(testbed: &mut Testbed) {
     let impulse_joints = ImpulseJointSet::new();
     let multibody_joints = MultibodyJointSet::new();
 
-    let extent = 1.0;
-
     /*
      * Ground
      */

@@ -128,7 +128,7 @@ impl OneBodyConstraintBuilder {
                 // Normal part.
                 let normal_rhs_wo_bias;
                 {
-                    let mut gcross2 = mprops2
+                    let gcross2 = mprops2
                         .effective_world_inv_inertia_sqrt
                         .transform_vector(dp2.gcross(-force_dir1));
 

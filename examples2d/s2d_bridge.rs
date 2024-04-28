@@ -29,7 +29,7 @@ pub fn init_world(testbed: &mut Testbed) {
             .angular_damping(0.1)
             .translation(vector![x_base + 0.5 + 1.0 * i as f32, 20.0]);
         let handle = bodies.insert(rigid_body);
-        let collider = ColliderBuilder::cuboid(0.5, 0.125).density(20.0);
+        let collider = ColliderBuilder::cuboid(0.5, 0.125).density(density);
         colliders.insert_with_parent(collider, handle, &mut bodies);
 
         let pivot = point![x_base + 1.0 * i as f32, 20.0];

@@ -21,10 +21,9 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
     /*
      * Ground
      */
-    let ground_size = 50.0;
-    let ground_height = 0.1;
-
     //// OPTION 1: floor made of a single big box.
+    // let ground_size = 50.0;
+    // let ground_height = 0.1;
     // let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
     // let handle = bodies.insert(rigid_body);
     // let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
@@ -38,7 +37,7 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
     });
     let heightfield = HeightField::new(heights, vector![100.0, 2.0, 100.0]);
     let mut trimesh = TriMesh::from(heightfield);
-    trimesh.set_flags(TriMeshFlags::FIX_INTERNAL_EDGES);
+    let _ = trimesh.set_flags(TriMeshFlags::FIX_INTERNAL_EDGES);
     colliders.insert(ColliderBuilder::new(SharedShape::new(trimesh.clone())));
 
     /*
