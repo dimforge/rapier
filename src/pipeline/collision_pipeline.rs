@@ -201,7 +201,7 @@ mod tests {
         let physics_hooks = ();
 
         collision_pipeline.step(
-            integration_parameters.prediction_distance,
+            integration_parameters.prediction_distance(),
             &mut broad_phase,
             &mut narrow_phase,
             &mut rigid_body_set,
@@ -253,7 +253,7 @@ mod tests {
         let physics_hooks = ();
 
         collision_pipeline.step(
-            integration_parameters.prediction_distance,
+            integration_parameters.prediction_distance(),
             &mut broad_phase,
             &mut narrow_phase,
             &mut rigid_body_set,
