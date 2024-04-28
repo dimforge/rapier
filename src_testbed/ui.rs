@@ -10,7 +10,8 @@ use crate::testbed::{
 };
 
 use crate::PhysicsState;
-use bevy_egui::egui::Slider;
+use bevy_egui::egui::WidgetType::CollapsingHeader;
+use bevy_egui::egui::{Slider, Ui};
 use bevy_egui::{egui, EguiContexts};
 use rapier::dynamics::IntegrationParameters;
 
@@ -80,9 +81,12 @@ pub fn update_ui(
 
         ui.separator();
 
+        ui.collapsing("Scene infos", |ui| {
+            scene_infos_ui(ui, &harness.physics);
+        });
         ui.collapsing("Profile infos", |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label(profiling_string(&harness.physics.pipeline.counters))
+                profiling_ui(ui, &harness.physics.pipeline.counters);
             });
         });
         ui.collapsing("Serialization infos", |ui| {
@@ -249,45 +253,87 @@ pub fn update_ui(
     });
 }
 
-fn profiling_string(counters: &Counters) -> String {
-    format!(
-        r#"Total: {:.2}ms
-Collision detection: {:.2}ms
-|_ Broad-phase: {:.2}ms
-    Narrow-phase: {:.2}ms
-Island computation: {:.2}ms
-Solver: {:.2}ms
-|_ Velocity assembly: {:.2}ms
-    Velocity resolution: {:.2}ms
-    Velocity integration: {:.2}ms
-    Writeback: {:.2}ms
-CCD: {:.2}ms
-|_ # of substeps: {}
-    TOI computation: {:.2}ms
-    Broad-phase: {:.2}ms
-    Narrow-phase: {:.2}ms
-    Solver: {:.2}ms
-Query pipeline: {:.2}ms
-User changes: {:.2}ms"#,
+fn scene_infos_ui(ui: &mut Ui, physics: &PhysicsState) {
+    ui.label(format!("# rigid-bodies: {}", physics.bodies.len()));
+    ui.label(format!("# colliders: {}", physics.colliders.len()));
+    ui.label(format!("# impulse joint: {}", physics.impulse_joints.len()));
+    // ui.label(format!(
+    //     "# multibody joint: {}",
+    //     physics.multibody_joints.len()
+    // ));
+}
+
+fn profiling_ui(ui: &mut Ui, counters: &Counters) {
+    egui::CollapsingHeader::new(format!(
+        "Total: {:.2}ms - {} fps",
         counters.step_time(),
-        counters.collision_detection_time(),
-        counters.broad_phase_time(),
-        counters.narrow_phase_time(),
-        counters.island_construction_time(),
-        counters.solver_time(),
-        counters.solver.velocity_assembly_time.time(),
-        counters.velocity_resolution_time(),
-        counters.solver.velocity_update_time.time(),
-        counters.solver.velocity_writeback_time.time(),
-        counters.ccd_time(),
-        counters.ccd.num_substeps,
-        counters.ccd.toi_computation_time.time(),
-        counters.ccd.broad_phase_time.time(),
-        counters.ccd.narrow_phase_time.time(),
-        counters.ccd.solver_time.time(),
-        counters.query_pipeline_update_time(),
-        counters.stages.user_changes.time(),
-    )
+        (1000.0 / counters.step_time()).round()
+    ))
+    .id_source("total")
+    .show(ui, |ui| {
+        egui::CollapsingHeader::new(format!(
+            "Collision detection: {:.2}ms",
+            counters.collision_detection_time()
+        ))
+        .id_source("collision detection")
+        .show(ui, |ui| {
+            ui.label(format!("Broad-phase: {:.2}ms", counters.broad_phase_time()));
+            ui.label(format!(
+                "Narrow-phase: {:.2}ms",
+                counters.narrow_phase_time()
+            ));
+        });
+        egui::CollapsingHeader::new(format!("Solver: {:.2}ms", counters.solver_time()))
+            .id_source("solver")
+            .show(ui, |ui| {
+                ui.label(format!(
+                    "Velocity assembly: {:.2}ms",
+                    counters.solver.velocity_assembly_time.time()
+                ));
+                ui.label(format!(
+                    "Velocity resolution: {:.2}ms",
+                    counters.velocity_resolution_time()
+                ));
+                ui.label(format!(
+                    "Velocity integration: {:.2}ms",
+                    counters.solver.velocity_update_time.time()
+                ));
+                ui.label(format!(
+                    "Writeback: {:.2}ms",
+                    counters.solver.velocity_writeback_time.time()
+                ));
+            });
+        egui::CollapsingHeader::new(format!("CCD: {:.2}ms", counters.ccd_time()))
+            .id_source("ccd")
+            .show(ui, |ui| {
+                ui.label(format!("# of substeps: {}", counters.ccd.num_substeps));
+                ui.label(format!(
+                    "TOI computation: {:.2}ms",
+                    counters.ccd.toi_computation_time.time(),
+                ));
+                ui.label(format!(
+                    "Broad-phase: {:.2}ms",
+                    counters.ccd.broad_phase_time.time()
+                ));
+                ui.label(format!(
+                    "Narrow-phase: {:.2}ms",
+                    counters.ccd.narrow_phase_time.time(),
+                ));
+                ui.label(format!("Solver: {:.2}ms", counters.ccd.solver_time.time()));
+            });
+        ui.label(format!(
+            "Island computation: {:.2}ms",
+            counters.island_construction_time()
+        ));
+        ui.label(format!(
+            "Query pipeline: {:.2}ms",
+            counters.query_pipeline_update_time()
+        ));
+        ui.label(format!(
+            "User changes: {:.2}ms",
+            counters.stages.user_changes.time()
+        ));
+    });
 }
 
 fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
