@@ -36,8 +36,7 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
         -(i as f32 * 40.0 / (nsubdivs as f32) / 2.0).cos()
             - (j as f32 * 40.0 / (nsubdivs as f32) / 2.0).cos()
     });
-    let heightfield =
-        HeightField::new(heights, vector![100.0, 2.0, 100.0]);
+    let heightfield = HeightField::new(heights, vector![100.0, 2.0, 100.0]);
     let mut trimesh = TriMesh::from(heightfield);
     trimesh.set_flags(TriMeshFlags::FIX_INTERNAL_EDGES);
     colliders.insert(ColliderBuilder::new(SharedShape::new(trimesh.clone())));
@@ -101,7 +100,8 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
             // let compound = SharedShape::compound(compound_parts);
 
             for k in 1..num_duplications + 1 {
-                let x = (igeom % width) as f32 * shift_xz - num_duplications as f32 * shift_xz / 2.0;
+                let x =
+                    (igeom % width) as f32 * shift_xz - num_duplications as f32 * shift_xz / 2.0;
                 let y = (igeom / width) as f32 * shift_y + 7.0;
                 let z = k as f32 * shift_xz - num_duplications as f32 * shift_xz / 2.0;
 
@@ -109,7 +109,7 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
                 let handle = bodies.insert(body);
 
                 for shape in &shapes {
-                    let collider = ColliderBuilder::new(shape.clone()).collision_skin(0.1);
+                    let collider = ColliderBuilder::new(shape.clone()).contact_skin(0.1);
                     colliders.insert_with_parent(collider, handle, &mut bodies);
                 }
             }

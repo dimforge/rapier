@@ -362,7 +362,7 @@ impl BroadPhaseMultiSap {
             let next_aabb = collider
                 .shape
                 .compute_aabb(next_position)
-                .loosened(collider.collision_skin() + prediction_distance / 2.0);
+                .loosened(collider.contact_skin() + prediction_distance / 2.0);
             aabb.merge(&next_aabb);
         }
 
