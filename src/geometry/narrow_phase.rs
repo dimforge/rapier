@@ -898,7 +898,7 @@ impl NarrowPhase {
 
                 let pos12 = co1.pos.inv_mul(&co2.pos);
 
-                let collision_skin_sum = co1.collision_skin() + co2.collision_skin();
+                let contact_skin_sum = co1.contact_skin() + co2.contact_skin();
                 let soft_ccd_prediction1 = rb1.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
                 let soft_ccd_prediction2 = rb2.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
                 let effective_prediction_distance = if soft_ccd_prediction1 > 0.0 || soft_ccd_prediction2 > 0.0 {
@@ -918,9 +918,9 @@ impl NarrowPhase {
 
 
                     prediction_distance.max(
-                        dt * (linvel1 - linvel2).norm()) + collision_skin_sum
+                        dt * (linvel1 - linvel2).norm()) + contact_skin_sum
                 } else {
-                    prediction_distance + collision_skin_sum
+                    prediction_distance + contact_skin_sum
                 };
 
                 let _ = query_dispatcher.contact_manifolds(
@@ -969,7 +969,7 @@ impl NarrowPhase {
                             break;
                         }
 
-                        let effective_contact_dist = contact.dist - co1.collision_skin() - co2.collision_skin();
+                        let effective_contact_dist = contact.dist - co1.contact_skin() - co2.contact_skin();
 
                         let keep_solver_contact = effective_contact_dist < prediction_distance || {
                             let world_pt1 = world_pos1 * contact.local_p1;

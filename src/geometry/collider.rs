@@ -30,7 +30,7 @@ pub struct Collider {
     pub(crate) material: ColliderMaterial,
     pub(crate) flags: ColliderFlags,
     pub(crate) bf_data: ColliderBroadPhaseData,
-    collision_skin: Real,
+    contact_skin: Real,
     contact_force_event_threshold: Real,
     /// User-defined data associated to this collider.
     pub user_data: u128,
@@ -110,7 +110,7 @@ impl Collider {
             bf_data: _bf_data, // Internal ids must not be overwritten.
             contact_force_event_threshold,
             user_data,
-            collision_skin,
+            contact_skin,
         } = other;
 
         if self.parent.is_none() {
@@ -125,7 +125,7 @@ impl Collider {
         self.user_data = *user_data;
         self.flags = *flags;
         self.changes = ColliderChanges::all();
-        self.collision_skin = *collision_skin;
+        self.contact_skin = *contact_skin;
     }
 
     /// The physics hooks enabled for this collider.
@@ -159,13 +159,13 @@ impl Collider {
     }
 
     /// The collision skin of this collider.
-    pub fn collision_skin(&self) -> Real {
-        self.collision_skin
+    pub fn contact_skin(&self) -> Real {
+        self.contact_skin
     }
 
     /// Sets the collision skin of this collider.
-    pub fn set_collision_skin(&mut self, skin_thickness: Real) {
-        self.collision_skin = skin_thickness;
+    pub fn set_contact_skin(&mut self, skin_thickness: Real) {
+        self.contact_skin = skin_thickness;
     }
 
     /// The friction coefficient of this collider.
@@ -452,17 +452,17 @@ impl Collider {
     /// Compute the axis-aligned bounding box of this collider.
     ///
     /// This AABB doesn’t take into account the collider’s collision skin.
-    /// [`Collider::collision_skin`].
+    /// [`Collider::contact_skin`].
     pub fn compute_aabb(&self) -> Aabb {
         self.shape.compute_aabb(&self.pos)
     }
 
     /// Compute the axis-aligned bounding box of this collider, taking into account the
-    /// [`Collider::collision_skin`] and prediction distance.
+    /// [`Collider::contact_skin`] and prediction distance.
     pub fn compute_collision_aabb(&self, prediction: Real) -> Aabb {
         self.shape
             .compute_aabb(&self.pos)
-            .loosened(self.collision_skin + prediction)
+            .loosened(self.contact_skin + prediction)
     }
 
     /// Compute the axis-aligned bounding box of this collider moving from its current position
@@ -520,7 +520,7 @@ pub struct ColliderBuilder {
     /// The total force magnitude beyond which a contact force event can be emitted.
     pub contact_force_event_threshold: Real,
     /// An extract thickness around the collider shape to keep them further apart when in collision.
-    pub collision_skin: Real,
+    pub contact_skin: Real,
 }
 
 impl ColliderBuilder {
@@ -543,7 +543,7 @@ impl ColliderBuilder {
             active_events: ActiveEvents::empty(),
             enabled: true,
             contact_force_event_threshold: 0.0,
-            collision_skin: 0.0,
+            contact_skin: 0.0,
         }
     }
 
@@ -982,8 +982,8 @@ impl ColliderBuilder {
     /// it creates a small gap between colliding object (equal to the sum of their skin). If the
     /// skin is sufficiently small, this might not be visually significant or can be hidden by the
     /// rendering assets.
-    pub fn collision_skin(mut self, skin_thickness: Real) -> Self {
-        self.collision_skin = skin_thickness;
+    pub fn contact_skin(mut self, skin_thickness: Real) -> Self {
+        self.contact_skin = skin_thickness;
         self
     }
 
@@ -1034,7 +1034,7 @@ impl ColliderBuilder {
             flags,
             coll_type,
             contact_force_event_threshold: self.contact_force_event_threshold,
-            collision_skin: self.collision_skin,
+            contact_skin: self.contact_skin,
             user_data: self.user_data,
         }
     }
