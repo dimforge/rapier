@@ -571,10 +571,11 @@ impl RigidBodyVelocity {
     /// The approximate kinetic energy of this rigid-body.
     ///
     /// This approximation does not take the rigid-body's mass and angular inertia
-    /// into account.
+    /// into account. Some physics engines call this the "mass-normalized kinetic
+    /// energy".
     #[must_use]
     pub fn pseudo_kinetic_energy(&self) -> Real {
-        self.linvel.norm_squared() + self.angvel.gdot(self.angvel)
+        0.5 * (self.linvel.norm_squared() + self.angvel.gdot(self.angvel))
     }
 
     /// Returns the update velocities after applying the given damping.
