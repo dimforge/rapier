@@ -51,8 +51,8 @@ pub type Ray = parry::query::Ray;
 pub type RayIntersection = parry::query::RayIntersection;
 /// The projection of a point on a collider.
 pub type PointProjection = parry::query::PointProjection;
-/// The time of impact between two shapes.
-pub type TOI = parry::query::TOI;
+/// The result of a shape-cast between two shapes.
+pub type ShapeCastHit = parry::query::ShapeCastHit;
 /// The default broad-phase implementation recommended for general-purpose usage.
 pub type DefaultBroadPhase = BroadPhaseMultiSap;
 

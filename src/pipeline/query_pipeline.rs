@@ -9,12 +9,12 @@ use parry::query::details::{
     NonlinearTOICompositeShapeShapeBestFirstVisitor, NormalConstraints,
     PointCompositeShapeProjBestFirstVisitor, PointCompositeShapeProjWithFeatureBestFirstVisitor,
     RayCompositeShapeToiAndNormalBestFirstVisitor, RayCompositeShapeToiBestFirstVisitor,
-    TOICompositeShapeShapeBestFirstVisitor,
+    ShapeCastOptions, TOICompositeShapeShapeBestFirstVisitor,
 };
 use parry::query::visitors::{
     BoundingVolumeIntersectionsVisitor, PointIntersectionsVisitor, RayIntersectionsVisitor,
 };
-use parry::query::{DefaultQueryDispatcher, NonlinearRigidMotion, QueryDispatcher, TOI};
+use parry::query::{DefaultQueryDispatcher, NonlinearRigidMotion, QueryDispatcher, ShapeCastHit};
 use parry::shape::{FeatureId, Shape, TypedSimdCompositeShape};
 use std::sync::Arc;
 
@@ -679,10 +679,9 @@ impl QueryPipeline {
         shape_pos: &Isometry<Real>,
         shape_vel: &Vector<Real>,
         shape: &dyn Shape,
-        max_toi: Real,
-        stop_at_penetration: bool,
+        options: ShapeCastOptions,
         filter: QueryFilter,
-    ) -> Option<(ColliderHandle, TOI)> {
+    ) -> Option<(ColliderHandle, ShapeCastHit)> {
         let pipeline_shape = self.as_composite_shape(bodies, colliders, filter);
         let mut visitor = TOICompositeShapeShapeBestFirstVisitor::new(
             &*self.query_dispatcher,
@@ -690,8 +689,7 @@ impl QueryPipeline {
             shape_vel,
             &pipeline_shape,
             shape,
-            max_toi,
-            stop_at_penetration,
+            options,
         );
         self.qbvh.traverse_best_first(&mut visitor).map(|h| h.1)
     }
@@ -725,7 +723,7 @@ impl QueryPipeline {
         end_time: Real,
         stop_at_penetration: bool,
         filter: QueryFilter,
-    ) -> Option<(ColliderHandle, TOI)> {
+    ) -> Option<(ColliderHandle, ShapeCastHit)> {
         let pipeline_shape = self.as_composite_shape(bodies, colliders, filter);
         let pipeline_motion = NonlinearRigidMotion::identity();
         let mut visitor = NonlinearTOICompositeShapeShapeBestFirstVisitor::new(
