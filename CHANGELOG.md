@@ -16,9 +16,20 @@
 
 ### Modified
 
-- Renamed `BroadPhase` to `BroadPhaseMultiSap`. The `BroadPhase` is no a trait that can be
+**May shape-casting related functions/structs were renamed. Check out the CHANGELOG for parry 0.15.0 for
+additional details.**
+
+- Renamed `BroadPhase` to `BroadPhaseMultiSap`. The `BroadPhase` is now a trait that can be
   implemented for providing a custom broad-phase to rapier. Equivalently, the `DefaultBroadPhase` type
   alias can be used in place of `BroadPhaseMultiSap`.
+- The kinematic character controller autostepping is now disabled by default.
+- Add `KinematicCharacterController::normal_nudge_factor` used to help getting the character unstuck
+  due to rounding errors.
+- Rename `TOI` to `ShapeCastHit`.
+- Rename many fields from `toi` to `time_of_impact`.
+- The `QueryPipeline::cast_shape` method now takes a `ShapeCastOptions` instead of the `max_toi`
+  and `stop_at_penetration` parameters. This allows a couple of extra configurations, including the
+  ability to have the shape-cast target a specific distance instead of actual shape overlap.
 
 ## v0.18.0 (24 Jan. 2024)
 
