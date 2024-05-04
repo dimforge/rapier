@@ -12,7 +12,7 @@ pub type BroadPhaseProxyIndex = u32;
 /// two objects don’t actually touch, but it is incorrect to remove a pair between two objects
 /// that are still touching. In other words, it can have false-positive (though these induce
 /// some computational overhead on the narrow-phase), but cannot have false-negative.
-pub trait BroadPhase {
+pub trait BroadPhase: Send + Sync + 'static {
     /// Updates the broad-phase.
     ///
     /// The results must be output through the `events` struct. The broad-phase algorithm is only
