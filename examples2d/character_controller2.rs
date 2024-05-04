@@ -27,7 +27,7 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let rigid_body = RigidBodyBuilder::kinematic_position_based().translation(vector![-3.0, 5.0]);
     let character_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(0.15, 0.3);
+    let collider = ColliderBuilder::capsule_y(0.3, 0.15);
     colliders.insert_with_parent(collider, character_handle, &mut bodies);
 
     /*
@@ -94,12 +94,16 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let wall_angle = PI / 2.;
     let wall_size = 2.0;
+    let wall_pos = vector![
+        ground_size + slope_size * 2.0 + impossible_slope_size + 0.35,
+        -ground_height + 2.5 * 2.3
+    ];
     let collider = ColliderBuilder::cuboid(wall_size, ground_height)
-        .translation(vector![
-            ground_size + slope_size * 2.0 + impossible_slope_size + 0.35,
-            -ground_height + 2.5 * 2.3
-        ])
+        .translation(wall_pos)
         .rotation(wall_angle);
+    colliders.insert(collider);
+
+    let collider = ColliderBuilder::cuboid(wall_size, ground_height).translation(wall_pos);
     colliders.insert(collider);
 
     /*
