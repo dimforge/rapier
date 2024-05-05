@@ -5,6 +5,7 @@
 - Fix crash when simulating a spring joint between two dynamic bodies.
 - Fix kinematic bodies not being affected by gravity after being switched back to dynamic.
 - Fix regression on contact force reporting from contact force events.
+- Fix kinematic character controller getting stuck against vertical walls.
 
 ### Added
 
@@ -16,7 +17,7 @@
 
 ### Modified
 
-**May shape-casting related functions/structs were renamed. Check out the CHANGELOG for parry 0.15.0 for
+**Many shape-casting related functions/structs were renamed. Check out the CHANGELOG for parry 0.15.0 for
 additional details.**
 
 - Renamed `BroadPhase` to `BroadPhaseMultiSap`. The `BroadPhase` is now a trait that can be
