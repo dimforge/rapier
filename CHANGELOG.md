@@ -1,4 +1,4 @@
-## Unreleased
+## v0.19.0 (05 May 2024)
 
 ### Fix
 
@@ -8,14 +8,32 @@
 - Fix kinematic character controller getting stuck against vertical walls.
 - Fix joint limits/motors occasionally not being applied properly when one of the attached
   rigid-bodies is fixed.
+- Fix an issue where contacts would be completely ignored between two convex shapes.
 
 ### Added
+
+**Many stability improvements were added as part of this release. To see illustrations of some of these
+changes, see [#625](https://github.com/dimforge/rapier/pull/625).**
 
 - Add `RigidBody::predict_position_using_velocity` to predict the next position of the rigid-body
   based only on its current velocity.
 - Add `Collider::copy_from` to copy most collider attributes to an existing collider.
 - Add `RigidBody::copy_from` to copy most rigid-body attributes to an existing rigid-body.
 - Add the `BroadPhase` trait and expect an implementor of this trait as input to `PhysicsPipeline::step`.
+- Implement a 2D block-solver as well as warmstarting. Significantly improves stacking capabilities. Generally reduces
+  the "pop" effect that can happen due to penetration corrections.
+- Add `RigidBodyBuilder::soft_ccd_prediction` and `RigidBody::set_soft_ccd_prediction` to enable `soft-ccd`: a form of
+  CCD based on predictive contacts. This is helpful for objects moving moderately fast. This form of CCD is generally
+  cheaper than the normal (time-dropping) CCD implemented so far. It is possible to combine both soft-ccd and
+  time-dropping ccd.
+- Add a `ColliderBuilder::contact_skin`, `Collider::set_contact_skin`, and `Collider::contact_skin`. This forces the
+  solver te maintain a gap between colliders with non-zero contact skin, as if they had a slight margin around them.
+  This helps performance and stability for thin objects (like triangle meshes).
+- Internal edges were reworked to avoid dropping contacts that would help with stability, and improve stability of
+  collisions between two triangle meshes. The `TriMeshFlags::FIX_INTERNAL_EDGES` and
+  `HeightFieldFlags::FIX_INTERNAL_EDGES` flags were added to enable internal edges handling.
+- Add `IntegrationParameters::length_units` to automatically adjust internal thresholds when the user relies on custom
+  length units (e.g. pixels in 2D).
 
 ### Modified
 
