@@ -595,7 +595,7 @@ impl RigidBodyVelocity {
     }
 
     /// Integrate the velocities in `self` to compute obtain new positions when moving from the given
-    /// inital position `init_pos`.
+    /// initial position `init_pos`.
     #[must_use]
     pub fn integrate(
         &self,

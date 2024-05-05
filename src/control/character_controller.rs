@@ -18,7 +18,7 @@ pub enum CharacterLength {
     /// for a shape with an height equal to 20.0 will result in a maximum step height
     /// of `0.1 * 20.0 = 2.0`.
     Relative(Real),
-    /// The length is specified as an aboslute value, independent from the character shape’s size.
+    /// The length is specified as an absolute value, independent from the character shape’s size.
     ///
     /// For example setting `CharacterAutostep::max_height` to `CharacterLength::Relative(0.1)`
     /// for a shape with an height equal to 20.0 will result in a maximum step height

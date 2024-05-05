@@ -443,7 +443,7 @@ impl RigidBody {
         self.ccd.ccd_enabled = enabled;
     }
 
-    /// Is CCD (continous collision-detection) enabled for this rigid-body?
+    /// Is CCD (continuous collision-detection) enabled for this rigid-body?
     pub fn is_ccd_enabled(&self) -> bool {
         self.ccd.ccd_enabled
     }

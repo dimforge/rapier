@@ -8,7 +8,7 @@ pub type BroadPhaseProxyIndex = u32;
 /// Trait implemented by broad-phase algorithms supported by Rapier.
 ///
 /// The task of a broad-phase algorithm is to detect potential collision pairs, usually based on
-/// bounding volumes. The pairs must be concervative: it is OK to create a collision pair if
+/// bounding volumes. The pairs must be conservative: it is OK to create a collision pair if
 /// two objects don’t actually touch, but it is incorrect to remove a pair between two objects
 /// that are still touching. In other words, it can have false-positive (though these induce
 /// some computational overhead on the narrow-phase), but cannot have false-negative.
