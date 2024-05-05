@@ -17,10 +17,10 @@ resolver = "2"
 
 #kiss3d = { git = "https://github.com/sebcrozet/kiss3d" }
 #nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "dev" }
-parry2d = { git = "https://github.com/dimforge/parry", branch = "shape-cast-renamings" }
-parry3d = { git = "https://github.com/dimforge/parry", branch = "shape-cast-renamings" }
-parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "shape-cast-renamings" }
-parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "shape-cast-renamings" }
+parry2d = { git = "https://github.com/dimforge/parry", branch = "master" }
+parry3d = { git = "https://github.com/dimforge/parry", branch = "master" }
+parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
+parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
 
 [profile.release]
 #debug = true
