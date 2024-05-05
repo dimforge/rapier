@@ -498,7 +498,7 @@ impl GenericJoint {
     }
 
     /// Flips the orientation of the joint, including limits and motors.
-    pub fn flip(&mut self) -> &mut Self {
+    pub fn flip(&mut self) {
         std::mem::swap(&mut self.local_frame1, &mut self.local_frame2);
 
         let coupled_bits = self.coupled_axes.bits();
@@ -513,8 +513,6 @@ impl GenericJoint {
             self.motors[dim].target_vel = -self.motors[dim].target_vel;
             self.motors[dim].target_pos = -self.motors[dim].target_pos;
         }
-
-        self
     }
 }
 
