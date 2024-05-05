@@ -158,12 +158,16 @@ impl Collider {
         self.flags.active_collision_types = active_collision_types;
     }
 
-    /// The collision skin of this collider.
+    /// The contact skin of this collider.
+    ///
+    /// See the documentation of [`ColliderBuilder::contact_skin`] for details.
     pub fn contact_skin(&self) -> Real {
         self.contact_skin
     }
 
-    /// Sets the collision skin of this collider.
+    /// Sets the contact skin of this collider.
+    ///
+    /// See the documentation of [`ColliderBuilder::contact_skin`] for details.
     pub fn set_contact_skin(&mut self, skin_thickness: Real) {
         self.contact_skin = skin_thickness;
     }
@@ -451,7 +455,7 @@ impl Collider {
 
     /// Compute the axis-aligned bounding box of this collider.
     ///
-    /// This AABB doesn’t take into account the collider’s collision skin.
+    /// This AABB doesn’t take into account the collider’s contact skin.
     /// [`Collider::contact_skin`].
     pub fn compute_aabb(&self) -> Aabb {
         self.shape.compute_aabb(&self.pos)
@@ -519,7 +523,7 @@ pub struct ColliderBuilder {
     pub enabled: bool,
     /// The total force magnitude beyond which a contact force event can be emitted.
     pub contact_force_event_threshold: Real,
-    /// An extract thickness around the collider shape to keep them further apart when in collision.
+    /// An extra thickness around the collider shape to keep them further apart when colliding.
     pub contact_skin: Real,
 }
 
@@ -973,12 +977,12 @@ impl ColliderBuilder {
         self
     }
 
-    /// Sets the collision skin of the collider.
+    /// Sets the contact skin of the collider.
     ///
-    /// The collision skin acts as if the collider was enlarged with a skin of width `skin_thickness`
+    /// The contact skin acts as if the collider was enlarged with a skin of width `skin_thickness`
     /// around it, keeping objects further apart when colliding.
     ///
-    /// A non-zero collision skin can increase performance, and in some cases, stability. However
+    /// A non-zero contact skin can increase performance, and in some cases, stability. However
     /// it creates a small gap between colliding object (equal to the sum of their skin). If the
     /// skin is sufficiently small, this might not be visually significant or can be hidden by the
     /// rendering assets.
