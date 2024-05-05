@@ -112,7 +112,7 @@ pub struct CharacterCollision {
     /// The translations that was still waiting to be applied to the character when the hit happens.
     pub translation_remaining: Vector<Real>,
     /// Geometric information about the hit.
-    pub toi: ShapeCastHit,
+    pub hit: ShapeCastHit,
 }
 
 /// A character controller for kinematic bodies.
@@ -261,7 +261,7 @@ impl KinematicCharacterController {
             }
 
             // 2. Cast towards the movement direction.
-            if let Some((handle, toi)) = queries.cast_shape(
+            if let Some((handle, hit)) = queries.cast_shape(
                 bodies,
                 colliders,
                 &(Translation::from(result.translation) * character_pos),
@@ -276,7 +276,7 @@ impl KinematicCharacterController {
                 filter,
             ) {
                 // We hit something, compute and apply the allowed interference-free translation.
-                let allowed_dist = toi.time_of_impact;
+                let allowed_dist = hit.time_of_impact;
                 let allowed_translation = *translation_dir * allowed_dist;
                 result.translation += allowed_translation;
                 translation_remaining -= allowed_translation;
@@ -286,10 +286,10 @@ impl KinematicCharacterController {
                     character_pos: Translation::from(result.translation) * character_pos,
                     translation_applied: result.translation,
                     translation_remaining,
-                    toi,
+                    hit,
                 });
 
-                let hit_info = self.compute_hit_info(toi);
+                let hit_info = self.compute_hit_info(hit);
 
                 // Try to go upstairs.
                 if !self.handle_stairs(
@@ -800,7 +800,7 @@ impl KinematicCharacterController {
         let extents = character_shape.compute_local_aabb().extents();
         let up_extent = extents.dot(&self.up.abs());
         let movement_to_transfer =
-            *collision.toi.normal1 * collision.translation_remaining.dot(&collision.toi.normal1);
+            *collision.hit.normal1 * collision.translation_remaining.dot(&collision.hit.normal1);
         let prediction = self.predict_ground(up_extent);
 
         // TODO: allow custom dispatchers.
