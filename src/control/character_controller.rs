@@ -145,7 +145,7 @@ pub struct KinematicCharacterController {
     /// Increase this number if your character appears to get stuck when sliding against surfaces.
     ///
     /// This is a small distance applied to the movement toward the contact normals of shapes hit
-    /// by the character controller. This helps shape-casting not getting stuck in an alway-penetrating
+    /// by the character controller. This helps shape-casting not getting stuck in an always-penetrating
     /// state during the sliding calculation.
     ///
     /// This value should remain fairly small since it can introduce artificial "bumps" when sliding

@@ -49,12 +49,12 @@ pub struct IntegrationParameters {
     /// (default `1.0`).
     pub warmstart_coefficient: Real,
 
-    /// The approximate size of most dynamic objects in the scale.
+    /// The approximate size of most dynamic objects in the scene.
     ///
     /// This value is used internally to estimate some length-based tolerance. In particular, the
-    /// values [`IntegrationParametres::allowed_linear_error`],
-    /// [`IntegrationParametres::max_penetration_correction`],
-    /// [`IntegrationParametres::prediction_distance`], [`RigidBodyActivation::linear_threshold`]
+    /// values [`IntegrationParameters::allowed_linear_error`],
+    /// [`IntegrationParameters::max_penetration_correction`],
+    /// [`IntegrationParameters::prediction_distance`], [`RigidBodyActivation::linear_threshold`]
     /// are scaled by this value implicitly.
     ///
     /// This value can be understood as the number of units-per-meter in your physical world compared
