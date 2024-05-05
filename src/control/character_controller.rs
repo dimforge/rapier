@@ -540,9 +540,9 @@ impl KinematicCharacterController {
     ) -> Vector<Real> {
         let [_vertical_input, horizontal_input] = self.split_into_components(movement_input);
         let horiz_input_decomp = self.decompose_hit(&horizontal_input, &hit.toi);
-        let input_decomp = self.decompose_hit(&movement_input, &hit.toi);
+        let input_decomp = self.decompose_hit(movement_input, &hit.toi);
 
-        let decomp = self.decompose_hit(&translation_remaining, &hit.toi);
+        let decomp = self.decompose_hit(translation_remaining, &hit.toi);
 
         // An object is trying to slip if the tangential movement induced by its vertical movement
         // points downward.
