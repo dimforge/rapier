@@ -6,6 +6,8 @@
 - Fix kinematic bodies not being affected by gravity after being switched back to dynamic.
 - Fix regression on contact force reporting from contact force events.
 - Fix kinematic character controller getting stuck against vertical walls.
+- Fix joint limits/motors occasionally not being applied properly when one of the attached
+  rigid-bodies is fixed.
 
 ### Added
 
