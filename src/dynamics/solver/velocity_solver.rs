@@ -178,6 +178,10 @@ impl VelocitySolver {
             joint_constraints.update(params, multibodies, &self.solver_bodies);
             contact_constraints.update(params, substep_id, multibodies, &self.solver_bodies);
 
+            if params.warmstart_coefficient != 0.0 {
+                contact_constraints.warmstart(&mut self.solver_vels, &mut self.generic_solver_vels);
+            }
+
             for _ in 0..params.num_internal_pgs_iterations {
                 joint_constraints.solve(&mut self.solver_vels, &mut self.generic_solver_vels);
                 contact_constraints
@@ -201,9 +205,17 @@ impl VelocitySolver {
             /*
              * Resolution without bias.
              */
-            joint_constraints.solve_wo_bias(&mut self.solver_vels, &mut self.generic_solver_vels);
+            for _ in 0..params.num_internal_stabilization_iterations {
+                joint_constraints
+                    .solve_wo_bias(&mut self.solver_vels, &mut self.generic_solver_vels);
+                contact_constraints.solve_restitution_wo_bias(
+                    &mut self.solver_vels,
+                    &mut self.generic_solver_vels,
+                );
+            }
+
             contact_constraints
-                .solve_restitution_wo_bias(&mut self.solver_vels, &mut self.generic_solver_vels);
+                .solve_friction(&mut self.solver_vels, &mut self.generic_solver_vels);
         }
     }
 

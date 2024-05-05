@@ -150,6 +150,7 @@ impl IslandManager {
     pub(crate) fn update_active_set_with_contacts(
         &mut self,
         dt: Real,
+        length_unit: Real,
         bodies: &mut RigidBodySet,
         colliders: &ColliderSet,
         narrow_phase: &NarrowPhase,
@@ -181,7 +182,7 @@ impl IslandManager {
             let sq_linvel = rb.vels.linvel.norm_squared();
             let sq_angvel = rb.vels.angvel.gdot(rb.vels.angvel);
 
-            update_energy(&mut rb.activation, sq_linvel, sq_angvel, dt);
+            update_energy(length_unit, &mut rb.activation, sq_linvel, sq_angvel, dt);
 
             if rb.activation.time_since_can_sleep >= rb.activation.time_until_sleep {
                 // Mark them as sleeping for now. This will
@@ -324,8 +325,15 @@ impl IslandManager {
     }
 }
 
-fn update_energy(activation: &mut RigidBodyActivation, sq_linvel: Real, sq_angvel: Real, dt: Real) {
-    if sq_linvel < activation.linear_threshold * activation.linear_threshold.abs()
+fn update_energy(
+    length_unit: Real,
+    activation: &mut RigidBodyActivation,
+    sq_linvel: Real,
+    sq_angvel: Real,
+    dt: Real,
+) {
+    let linear_threshold = activation.normalized_linear_threshold * length_unit;
+    if sq_linvel < linear_threshold * linear_threshold.abs()
         && sq_angvel < activation.angular_threshold * activation.angular_threshold.abs()
     {
         activation.time_since_can_sleep += dt;

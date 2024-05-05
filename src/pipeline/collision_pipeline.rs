@@ -58,8 +58,10 @@ impl CollisionPipeline {
         self.broadphase_collider_pairs.clear();
 
         broad_phase.update(
+            0.0,
             prediction_distance,
             colliders,
+            bodies,
             modified_colliders,
             removed_colliders,
             &mut self.broad_phase_events,
@@ -80,6 +82,7 @@ impl CollisionPipeline {
         narrow_phase.register_pairs(None, colliders, bodies, &self.broad_phase_events, events);
         narrow_phase.compute_contacts(
             prediction_distance,
+            0.0,
             bodies,
             colliders,
             &ImpulseJointSet::new(),
@@ -198,7 +201,7 @@ mod tests {
         let physics_hooks = ();
 
         collision_pipeline.step(
-            integration_parameters.prediction_distance,
+            integration_parameters.prediction_distance(),
             &mut broad_phase,
             &mut narrow_phase,
             &mut rigid_body_set,
@@ -250,7 +253,7 @@ mod tests {
         let physics_hooks = ();
 
         collision_pipeline.step(
-            integration_parameters.prediction_distance,
+            integration_parameters.prediction_distance(),
             &mut broad_phase,
             &mut narrow_phase,
             &mut rigid_body_set,

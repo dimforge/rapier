@@ -9,8 +9,11 @@ use crate::parry::transformation::vhacd::VHACDParameters;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
 use crate::prelude::ColliderEnabled;
 use na::Unit;
-use parry::bounding_volume::Aabb;
+use parry::bounding_volume::{Aabb, BoundingVolume};
 use parry::shape::{Shape, TriMeshFlags};
+
+#[cfg(feature = "dim3")]
+use crate::geometry::HeightFieldFlags;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
@@ -27,6 +30,7 @@ pub struct Collider {
     pub(crate) material: ColliderMaterial,
     pub(crate) flags: ColliderFlags,
     pub(crate) bf_data: ColliderBroadPhaseData,
+    contact_skin: Real,
     contact_force_event_threshold: Real,
     /// User-defined data associated to this collider.
     pub user_data: u128,
@@ -106,6 +110,7 @@ impl Collider {
             bf_data: _bf_data, // Internal ids must not be overwritten.
             contact_force_event_threshold,
             user_data,
+            contact_skin,
         } = other;
 
         if self.parent.is_none() {
@@ -120,6 +125,7 @@ impl Collider {
         self.user_data = *user_data;
         self.flags = *flags;
         self.changes = ColliderChanges::all();
+        self.contact_skin = *contact_skin;
     }
 
     /// The physics hooks enabled for this collider.
@@ -150,6 +156,16 @@ impl Collider {
     /// Sets the collision types enabled for this collider.
     pub fn set_active_collision_types(&mut self, active_collision_types: ActiveCollisionTypes) {
         self.flags.active_collision_types = active_collision_types;
+    }
+
+    /// The collision skin of this collider.
+    pub fn contact_skin(&self) -> Real {
+        self.contact_skin
+    }
+
+    /// Sets the collision skin of this collider.
+    pub fn set_contact_skin(&mut self, skin_thickness: Real) {
+        self.contact_skin = skin_thickness;
     }
 
     /// The friction coefficient of this collider.
@@ -434,8 +450,19 @@ impl Collider {
     }
 
     /// Compute the axis-aligned bounding box of this collider.
+    ///
+    /// This AABB doesn’t take into account the collider’s collision skin.
+    /// [`Collider::contact_skin`].
     pub fn compute_aabb(&self) -> Aabb {
         self.shape.compute_aabb(&self.pos)
+    }
+
+    /// Compute the axis-aligned bounding box of this collider, taking into account the
+    /// [`Collider::contact_skin`] and prediction distance.
+    pub fn compute_collision_aabb(&self, prediction: Real) -> Aabb {
+        self.shape
+            .compute_aabb(&self.pos)
+            .loosened(self.contact_skin + prediction)
     }
 
     /// Compute the axis-aligned bounding box of this collider moving from its current position
@@ -492,6 +519,8 @@ pub struct ColliderBuilder {
     pub enabled: bool,
     /// The total force magnitude beyond which a contact force event can be emitted.
     pub contact_force_event_threshold: Real,
+    /// An extract thickness around the collider shape to keep them further apart when in collision.
+    pub contact_skin: Real,
 }
 
 impl ColliderBuilder {
@@ -514,6 +543,7 @@ impl ColliderBuilder {
             active_events: ActiveEvents::empty(),
             enabled: true,
             contact_force_event_threshold: 0.0,
+            contact_skin: 0.0,
         }
     }
 
@@ -578,6 +608,15 @@ impl ColliderBuilder {
     #[cfg(feature = "dim2")]
     pub fn round_cuboid(hx: Real, hy: Real, border_radius: Real) -> Self {
         Self::new(SharedShape::round_cuboid(hx, hy, border_radius))
+    }
+
+    /// Initialize a new collider builder with a capsule defined from its endpoints.
+    ///
+    /// See also [`ColliderBuilder::capsule_x`], [`ColliderBuilder::capsule_y`], and
+    /// [`ColliderBuilder::capsule_z`], for a simpler way to build capsules with common
+    /// orientations.
+    pub fn capsule_from_endpoints(a: Point<Real>, b: Point<Real>, radius: Real) -> Self {
+        Self::new(SharedShape::capsule(a, b, radius))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `x` axis.
@@ -760,6 +799,17 @@ impl ColliderBuilder {
         Self::new(SharedShape::heightfield(heights, scale))
     }
 
+    /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
+    /// factor along each coordinate axis.
+    #[cfg(feature = "dim3")]
+    pub fn heightfield_with_flags(
+        heights: na::DMatrix<Real>,
+        scale: Vector<Real>,
+        flags: HeightFieldFlags,
+    ) -> Self {
+        Self::new(SharedShape::heightfield_with_flags(heights, scale, flags))
+    }
+
     /// The default friction coefficient used by the collider builder.
     pub fn default_friction() -> Real {
         0.5
@@ -767,7 +817,7 @@ impl ColliderBuilder {
 
     /// The default density used by the collider builder.
     pub fn default_density() -> Real {
-        1.0
+        100.0
     }
 
     /// Sets an arbitrary user-defined 128-bit integer associated to the colliders built by this builder.
@@ -923,6 +973,20 @@ impl ColliderBuilder {
         self
     }
 
+    /// Sets the collision skin of the collider.
+    ///
+    /// The collision skin acts as if the collider was enlarged with a skin of width `skin_thickness`
+    /// around it, keeping objects further apart when colliding.
+    ///
+    /// A non-zero collision skin can increase performance, and in some cases, stability. However
+    /// it creates a small gap between colliding object (equal to the sum of their skin). If the
+    /// skin is sufficiently small, this might not be visually significant or can be hidden by the
+    /// rendering assets.
+    pub fn contact_skin(mut self, skin_thickness: Real) -> Self {
+        self.contact_skin = skin_thickness;
+        self
+    }
+
     /// Enable or disable the collider after its creation.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
@@ -970,6 +1034,7 @@ impl ColliderBuilder {
             flags,
             coll_type,
             contact_force_event_threshold: self.contact_force_event_threshold,
+            contact_skin: self.contact_skin,
             user_data: self.user_data,
         }
     }

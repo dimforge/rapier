@@ -56,8 +56,8 @@ pub fn init_world(testbed: &mut Testbed) {
                     1 => ColliderBuilder::ball(rad),
                     // Rounded cylinders are much more efficient that cylinder, even if the
                     // rounding margin is small.
-                    // 2 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0),
-                    // 3 => ColliderBuilder::cone(rad, rad),
+                    2 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0),
+                    3 => ColliderBuilder::cone(rad, rad),
                     _ => ColliderBuilder::capsule_y(rad, rad),
                 };
 

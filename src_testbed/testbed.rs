@@ -102,10 +102,12 @@ bitflags! {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum RapierSolverType {
-    SmallStepsPgs,
-    StandardPgs,
+    #[default]
+    TgsSoft,
+    TgsSoftNoWarmstart,
+    PgsLegacy,
 }
 
 pub type SimulationBuilders = Vec<(&'static str, fn(&mut Testbed))>;
@@ -214,7 +216,7 @@ impl TestbedApp {
             example_names: Vec::new(),
             selected_example: 0,
             selected_backend: RAPIER_BACKEND,
-            solver_type: RapierSolverType::SmallStepsPgs,
+            solver_type: RapierSolverType::default(),
             physx_use_two_friction_directions: true,
             nsteps: 1,
             camera_locked: false,
@@ -1112,7 +1114,6 @@ fn update_testbed(
 ) {
     let meshes = &mut *meshes;
     let materials = &mut *materials;
-    let prev_example = state.selected_example;
 
     // Handle inputs
     {
@@ -1201,18 +1202,6 @@ fn update_testbed(
                 plugin.clear_graphics(&mut graphics, &mut commands);
             }
             plugins.0.clear();
-
-            if state.selected_example != prev_example {
-                harness.physics.integration_parameters = IntegrationParameters::default();
-
-                match state.solver_type {
-                    RapierSolverType::SmallStepsPgs => {} // It’s already the default.
-                    RapierSolverType::StandardPgs => harness
-                        .physics
-                        .integration_parameters
-                        .switch_to_standard_pgs_solver(),
-                }
-            }
 
             let selected_example = state.selected_example;
             let graphics = &mut *graphics;
@@ -1365,15 +1354,15 @@ fn update_testbed(
         {
             if state.flags.contains(TestbedStateFlags::SLEEP) {
                 for (_, body) in harness.physics.bodies.iter_mut() {
-                    body.activation_mut().linear_threshold =
-                        RigidBodyActivation::default_linear_threshold();
+                    body.activation_mut().normalized_linear_threshold =
+                        RigidBodyActivation::default_normalized_linear_threshold();
                     body.activation_mut().angular_threshold =
                         RigidBodyActivation::default_angular_threshold();
                 }
             } else {
                 for (_, body) in harness.physics.bodies.iter_mut() {
                     body.wake_up(true);
-                    body.activation_mut().linear_threshold = -1.0;
+                    body.activation_mut().normalized_linear_threshold = -1.0;
                 }
             }
         }

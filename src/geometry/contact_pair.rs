@@ -1,6 +1,6 @@
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Contact, ContactManifold};
-use crate::math::{Point, Real, Vector};
+use crate::math::{Point, Real, TangentImpulse, Vector};
 use crate::pipeline::EventHandler;
 use crate::prelude::CollisionEventFlags;
 use parry::query::ContactManifoldsWorkspace;
@@ -33,12 +33,11 @@ pub struct ContactData {
     pub impulse: Real,
     /// The friction impulse along the vector orthonormal to the contact normal, applied to the first
     /// collider's rigid-body.
-    #[cfg(feature = "dim2")]
-    pub tangent_impulse: Real,
-    /// The friction impulses along the basis orthonormal to the contact normal, applied to the first
-    /// collider's rigid-body.
-    #[cfg(feature = "dim3")]
-    pub tangent_impulse: na::Vector2<Real>,
+    pub tangent_impulse: TangentImpulse<Real>,
+    /// The impulse retained for warmstarting the next simulation step.
+    pub warmstart_impulse: Real,
+    /// The friction impulse retained for warmstarting the next simulation step.
+    pub warmstart_tangent_impulse: TangentImpulse<Real>,
 }
 
 impl Default for ContactData {
@@ -46,6 +45,8 @@ impl Default for ContactData {
         Self {
             impulse: 0.0,
             tangent_impulse: na::zero(),
+            warmstart_impulse: 0.0,
+            warmstart_tangent_impulse: na::zero(),
         }
     }
 }
@@ -114,6 +115,9 @@ pub struct ContactPair {
     /// The set of contact manifolds between the two colliders.
     ///
     /// All contact manifold contain themselves contact points between the colliders.
+    /// Note that contact points in the contact manifold do not take into account the
+    /// [`Collider::contact_skin`] which only affects the constraint solver and the
+    /// [`SolverContact`].
     pub manifolds: Vec<ContactManifold>,
     /// Is there any active contact in this contact pair?
     pub has_any_active_contact: bool,
@@ -299,6 +303,10 @@ pub struct SolverContact {
     pub tangent_velocity: Vector<Real>,
     /// Whether or not this contact existed during the last timestep.
     pub is_new: bool,
+    /// Impulse used to warmstart the solve for the normal constraint.
+    pub warmstart_impulse: Real,
+    /// Impulse used to warmstart the solve for the friction constraints.
+    pub warmstart_tangent_impulse: TangentImpulse<Real>,
 }
 
 impl SolverContact {

@@ -8,9 +8,10 @@ use crate::dynamics::{
     RigidBodyType,
 };
 use crate::geometry::{
-    BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle, ColliderPair,
-    ColliderSet, CollisionEvent, ContactData, ContactManifold, ContactManifoldData, ContactPair,
-    InteractionGraph, IntersectionPair, SolverContact, SolverFlags, TemporaryInteractionIndex,
+    BoundingVolume, BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle,
+    ColliderPair, ColliderSet, CollisionEvent, ContactData, ContactManifold, ContactManifoldData,
+    ContactPair, InteractionGraph, IntersectionPair, SolverContact, SolverFlags,
+    TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{
@@ -789,6 +790,7 @@ impl NarrowPhase {
     pub(crate) fn compute_contacts(
         &mut self,
         prediction_distance: Real,
+        dt: Real,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
         impulse_joints: &ImpulseJointSet,
@@ -819,17 +821,11 @@ impl NarrowPhase {
                     return;
                 }
 
-                // TODO: avoid lookup into bodies.
-                let mut rb_type1 = RigidBodyType::Fixed;
-                let mut rb_type2 = RigidBodyType::Fixed;
+                let rb1 = co1.parent.map(|co_parent1| &bodies[co_parent1.handle]);
+                let rb2 = co2.parent.map(|co_parent2| &bodies[co_parent2.handle]);
 
-                if let Some(co_parent1) = &co1.parent {
-                    rb_type1 = bodies[co_parent1.handle].body_type;
-                }
-
-                if let Some(co_parent2) = &co2.parent {
-                    rb_type2 = bodies[co_parent2.handle].body_type;
-                }
+                let rb_type1 = rb1.map(|rb| rb.body_type).unwrap_or(RigidBodyType::Fixed);
+                let rb_type2 = rb2.map(|rb| rb.body_type).unwrap_or(RigidBodyType::Fixed);
 
                 // Deal with contacts disabled between bodies attached by joints.
                 if let (Some(co_parent1), Some(co_parent2)) = (&co1.parent, &co2.parent) {
@@ -901,11 +897,37 @@ impl NarrowPhase {
                 }
 
                 let pos12 = co1.pos.inv_mul(&co2.pos);
+
+                let contact_skin_sum = co1.contact_skin() + co2.contact_skin();
+                let soft_ccd_prediction1 = rb1.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
+                let soft_ccd_prediction2 = rb2.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
+                let effective_prediction_distance = if soft_ccd_prediction1 > 0.0 || soft_ccd_prediction2 > 0.0 {
+                        let aabb1 = co1.compute_collision_aabb(0.0);
+                        let aabb2 = co2.compute_collision_aabb(0.0);
+                        let inv_dt = crate::utils::inv(dt);
+
+                        let linvel1 = rb1.map(|rb| rb.linvel()
+                            .cap_magnitude(soft_ccd_prediction1 * inv_dt)).unwrap_or_default();
+                        let linvel2 = rb2.map(|rb| rb.linvel()
+                            .cap_magnitude(soft_ccd_prediction2 * inv_dt)).unwrap_or_default();
+
+                        if !aabb1.intersects(&aabb2) && !aabb1.intersects_moving_aabb(&aabb2, linvel2 - linvel1) {
+                            pair.clear();
+                            break 'emit_events;
+                        }
+
+
+                    prediction_distance.max(
+                        dt * (linvel1 - linvel2).norm()) + contact_skin_sum
+                } else {
+                    prediction_distance + contact_skin_sum
+                };
+
                 let _ = query_dispatcher.contact_manifolds(
                     &pos12,
                     &*co1.shape,
                     &*co2.shape,
-                    prediction_distance,
+                    effective_prediction_distance,
                     &mut pair.manifolds,
                     &mut pair.workspace,
                 );
@@ -924,14 +946,8 @@ impl NarrowPhase {
                 );
 
                 let zero = RigidBodyDominance(0); // The value doesn't matter, it will be MAX because of the effective groups.
-                let dominance1 = co1
-                    .parent
-                    .map(|p1| bodies[p1.handle].dominance)
-                    .unwrap_or(zero);
-                let dominance2 = co2
-                    .parent
-                    .map(|p2| bodies[p2.handle].dominance)
-                    .unwrap_or(zero);
+                let dominance1 = rb1.map(|rb| rb.dominance).unwrap_or(zero);
+                let dominance2 = rb2.map(|rb| rb.dominance).unwrap_or(zero);
 
                 pair.has_any_active_contact = false;
 
@@ -948,12 +964,22 @@ impl NarrowPhase {
 
                     // Generate solver contacts.
                     for (contact_id, contact) in manifold.points.iter().enumerate() {
-                        assert!(
-                            contact_id <= u8::MAX as usize,
-                            "A contact manifold cannot contain more than 255 contacts currently."
-                        );
+                        if contact_id > u8::MAX as usize {
+                            log::warn!("A contact manifold cannot contain more than 255 contacts currently, dropping contact in excess.");
+                            break;
+                        }
 
-                        if contact.dist < prediction_distance {
+                        let effective_contact_dist = contact.dist - co1.contact_skin() - co2.contact_skin();
+
+                        let keep_solver_contact = effective_contact_dist < prediction_distance || {
+                            let world_pt1 = world_pos1 * contact.local_p1;
+                            let world_pt2 = world_pos2 * contact.local_p2;
+                            let vel1 = rb1.map(|rb| rb.velocity_at_point(&world_pt1)).unwrap_or_default();
+                            let vel2 = rb2.map(|rb| rb.velocity_at_point(&world_pt2)).unwrap_or_default();
+                            effective_contact_dist + (vel2 - vel1).dot(&manifold.data.normal) * dt < prediction_distance
+                        };
+
+                        if keep_solver_contact {
                             // Generate the solver contact.
                             let world_pt1 = world_pos1 * contact.local_p1;
                             let world_pt2 = world_pos2 * contact.local_p2;
@@ -962,11 +988,13 @@ impl NarrowPhase {
                             let solver_contact = SolverContact {
                                 contact_id: contact_id as u8,
                                 point: effective_point,
-                                dist: contact.dist,
+                                dist: effective_contact_dist,
                                 friction,
                                 restitution,
                                 tangent_velocity: Vector::zeros(),
                                 is_new: contact.data.impulse == 0.0,
+                                warmstart_impulse: contact.data.warmstart_impulse,
+                                warmstart_tangent_impulse: contact.data.warmstart_tangent_impulse,
                             };
 
                             manifold.data.solver_contacts.push(solver_contact);
@@ -1000,6 +1028,35 @@ impl NarrowPhase {
                         manifold.data.normal = modifiable_normal;
                         manifold.data.user_data = modifiable_user_data;
                     }
+
+                    /*
+                     * TODO: When using the block solver in 3D, I’d expect this sort to help, but
+                     *       it makes the domino demo worse. Needs more investigation.
+                    fn sort_solver_contacts(mut contacts: &mut [SolverContact]) {
+                        while contacts.len() > 2 {
+                            let first = contacts[0];
+                            let mut furthest_id = 1;
+                            let mut furthest_dist = na::distance(&first.point, &contacts[1].point);
+
+                            for (candidate_id, candidate) in contacts.iter().enumerate().skip(2) {
+                                let candidate_dist = na::distance(&first.point, &candidate.point);
+
+                                if candidate_dist > furthest_dist {
+                                    furthest_dist = candidate_dist;
+                                    furthest_id = candidate_id;
+                                }
+                            }
+
+                            if furthest_id > 1 {
+                                contacts.swap(1, furthest_id);
+                            }
+
+                            contacts = &mut contacts[2..];
+                        }
+                    }
+
+                    sort_solver_contacts(&mut manifold.data.solver_contacts);
+                    */
                 }
 
                 break 'emit_events;

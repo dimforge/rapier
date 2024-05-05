@@ -155,6 +155,7 @@ impl GenericOneBodyConstraintBuilder {
                         impulse: na::zero(),
                         impulse_accumulator: na::zero(),
                         r,
+                        r_mat_elts: [0.0; 2],
                     };
                 }
 
@@ -256,6 +257,24 @@ impl GenericOneBodyConstraint {
             j_id: usize::MAX,
             ndofs2: usize::MAX,
         }
+    }
+
+    pub fn warmstart(
+        &mut self,
+        jacobians: &DVector<Real>,
+        generic_solver_vels: &mut DVector<Real>,
+    ) {
+        let solver_vel2 = self.inner.solver_vel2;
+
+        let elements = &mut self.inner.elements[..self.inner.num_contacts as usize];
+        OneBodyConstraintElement::generic_warmstart_group(
+            elements,
+            jacobians,
+            self.ndofs2,
+            self.j_id,
+            solver_vel2,
+            generic_solver_vels,
+        );
     }
 
     pub fn solve(

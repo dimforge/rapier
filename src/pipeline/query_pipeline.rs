@@ -6,8 +6,8 @@ use crate::math::{Isometry, Point, Real, Vector};
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 use parry::partitioning::{QbvhDataGenerator, QbvhUpdateWorkspace};
 use parry::query::details::{
-    NonlinearTOICompositeShapeShapeBestFirstVisitor, PointCompositeShapeProjBestFirstVisitor,
-    PointCompositeShapeProjWithFeatureBestFirstVisitor,
+    NonlinearTOICompositeShapeShapeBestFirstVisitor, NormalConstraints,
+    PointCompositeShapeProjBestFirstVisitor, PointCompositeShapeProjWithFeatureBestFirstVisitor,
     RayCompositeShapeToiAndNormalBestFirstVisitor, RayCompositeShapeToiBestFirstVisitor,
     TOICompositeShapeShapeBestFirstVisitor,
 };
@@ -16,7 +16,6 @@ use parry::query::visitors::{
 };
 use parry::query::{DefaultQueryDispatcher, NonlinearRigidMotion, QueryDispatcher, TOI};
 use parry::shape::{FeatureId, Shape, TypedSimdCompositeShape};
-use parry::utils::DefaultStorage;
 use std::sync::Arc;
 
 /// A pipeline for performing queries on all the colliders of a scene.
@@ -246,17 +245,21 @@ pub enum QueryPipelineMode {
 
 impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
     type PartShape = dyn Shape;
+    type PartNormalConstraints = dyn NormalConstraints;
     type PartId = ColliderHandle;
-    type QbvhStorage = DefaultStorage;
 
     fn map_typed_part_at(
         &self,
         shape_id: Self::PartId,
-        mut f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape),
+        mut f: impl FnMut(
+            Option<&Isometry<Real>>,
+            &Self::PartShape,
+            Option<&Self::PartNormalConstraints>,
+        ),
     ) {
         if let Some(co) = self.colliders.get(shape_id) {
             if self.filter.test(self.bodies, shape_id, co) {
-                f(Some(&co.pos), &*co.shape)
+                f(Some(&co.pos), &*co.shape, None)
             }
         }
     }
@@ -264,7 +267,7 @@ impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
     fn map_untyped_part_at(
         &self,
         shape_id: Self::PartId,
-        f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape),
+        f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape, Option<&dyn NormalConstraints>),
     ) {
         self.map_typed_part_at(shape_id, f);
     }

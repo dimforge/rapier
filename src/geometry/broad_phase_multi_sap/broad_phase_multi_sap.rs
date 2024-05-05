@@ -2,11 +2,11 @@ use super::{
     BroadPhasePairEvent, ColliderPair, SAPLayer, SAPProxies, SAPProxy, SAPProxyData, SAPRegionPool,
 };
 use crate::geometry::{
-    BroadPhaseProxyIndex, ColliderBroadPhaseData, ColliderChanges, ColliderHandle,
-    ColliderPosition, ColliderSet, ColliderShape,
+    BroadPhaseProxyIndex, Collider, ColliderBroadPhaseData, ColliderChanges, ColliderHandle,
+    ColliderSet,
 };
-use crate::math::Real;
-use crate::prelude::BroadPhase;
+use crate::math::{Isometry, Real};
+use crate::prelude::{BroadPhase, RigidBodySet};
 use crate::utils::IndexMut2;
 use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::HashMap;
@@ -353,13 +353,18 @@ impl BroadPhaseMultiSap {
         prediction_distance: Real,
         handle: ColliderHandle,
         proxy_index: &mut u32,
-        collider: (&ColliderPosition, &ColliderShape, &ColliderChanges),
+        collider: &Collider,
+        next_position: Option<&Isometry<Real>>,
     ) -> bool {
-        let (co_pos, co_shape, co_changes) = collider;
+        let mut aabb = collider.compute_collision_aabb(prediction_distance / 2.0);
 
-        let mut aabb = co_shape
-            .compute_aabb(co_pos)
-            .loosened(prediction_distance / 2.0);
+        if let Some(next_position) = next_position {
+            let next_aabb = collider
+                .shape
+                .compute_aabb(next_position)
+                .loosened(collider.contact_skin() + prediction_distance / 2.0);
+            aabb.merge(&next_aabb);
+        }
 
         if aabb.mins.coords.iter().any(|e| !e.is_finite())
             || aabb.maxs.coords.iter().any(|e| !e.is_finite())
@@ -378,7 +383,7 @@ impl BroadPhaseMultiSap {
             prev_aabb = proxy.aabb;
             proxy.aabb = aabb;
 
-            if co_changes.contains(ColliderChanges::SHAPE) {
+            if collider.changes.contains(ColliderChanges::SHAPE) {
                 // If the shape was changed, then we need to see if this proxy should be
                 // migrated to a larger layer. Indeed, if the shape was replaced by
                 // a much larger shape, we need to promote the proxy to a bigger layer
@@ -563,8 +568,10 @@ impl BroadPhase for BroadPhaseMultiSap {
     /// Updates the broad-phase, taking into account the new collider positions.
     fn update(
         &mut self,
+        dt: Real,
         prediction_distance: Real,
         colliders: &mut ColliderSet,
+        bodies: &RigidBodySet,
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
         events: &mut Vec<BroadPhasePairEvent>,
@@ -585,11 +592,22 @@ impl BroadPhase for BroadPhaseMultiSap {
 
                 let mut new_proxy_id = co.bf_data.proxy_index;
 
+                let next_pos = co.parent.and_then(|p| {
+                    let parent = bodies.get(p.handle)?;
+                    (parent.soft_ccd_prediction() > 0.0).then(|| {
+                        parent.predict_position_using_velocity_and_forces_with_max_dist(
+                            dt,
+                            parent.soft_ccd_prediction(),
+                        ) * p.pos_wrt_parent
+                    })
+                });
+
                 if self.handle_modified_collider(
                     prediction_distance,
                     *handle,
                     &mut new_proxy_id,
-                    (&co.pos, &co.shape, &co.changes),
+                    co,
+                    next_pos.as_ref(),
                 ) {
                     need_region_propagation = true;
                 }
@@ -642,7 +660,7 @@ mod test {
         let coh = colliders.insert_with_parent(co, hrb, &mut bodies);
 
         let mut events = Vec::new();
-        broad_phase.update(0.0, &mut colliders, &[coh], &[], &mut events);
+        broad_phase.update(0.0, 0.0, &mut colliders, &bodies, &[coh], &[], &mut events);
 
         bodies.remove(
             hrb,
@@ -652,7 +670,7 @@ mod test {
             &mut multibody_joints,
             true,
         );
-        broad_phase.update(0.0, &mut colliders, &[], &[coh], &mut events);
+        broad_phase.update(0.0, 0.0, &mut colliders, &bodies, &[], &[coh], &mut events);
 
         // Create another body.
         let rb = RigidBodyBuilder::dynamic().build();
@@ -661,6 +679,6 @@ mod test {
         let coh = colliders.insert_with_parent(co, hrb, &mut bodies);
 
         // Make sure the proxy handles is recycled properly.
-        broad_phase.update(0.0, &mut colliders, &[coh], &[], &mut events);
+        broad_phase.update(0.0, 0.0, &mut colliders, &bodies, &[coh], &[], &mut events);
     }
 }

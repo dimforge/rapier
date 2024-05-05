@@ -182,6 +182,12 @@ measure_method!(
     stages.solver_time
 );
 measure_method!(ccd_started, ccd_completed, ccd_time, stages.ccd_time);
+measure_method!(
+    query_pipeline_update_started,
+    query_pipeline_update_completed,
+    query_pipeline_update_time,
+    stages.query_pipeline_time
+);
 
 measure_method!(
     assembly_started,
@@ -200,12 +206,6 @@ measure_method!(
     velocity_update_completed,
     velocity_update_time,
     solver.velocity_update_time
-);
-measure_method!(
-    position_resolution_started,
-    position_resolution_completed,
-    position_resolution_time,
-    solver.position_resolution_time
 );
 measure_method!(
     broad_phase_started,
