@@ -9,8 +9,8 @@ use bevy::prelude::*;
 use crate::debug_render::{DebugRenderPipelineResource, RapierDebugRenderPlugin};
 use crate::physics::{DeserializedPhysicsSnapshot, PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
-use crate::ui;
 use crate::{graphics::GraphicsManager, harness::RunState};
+use crate::{mouse, ui};
 
 use na::{self, Point2, Point3, Vector3};
 #[cfg(feature = "dim3")]
@@ -135,7 +135,7 @@ pub struct TestbedState {
     pub solver_type: RapierSolverType,
     pub physx_use_two_friction_directions: bool,
     pub snapshot: Option<PhysicsSnapshot>,
-    nsteps: usize,
+    pub nsteps: usize,
     camera_locked: bool, // Used so that the camera can remain the same before and after we change backend or press the restart button.
 }
 
@@ -161,6 +161,7 @@ pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     camera_transform: GlobalTransform,
     camera: &'a mut OrbitCamera,
     keys: &'a ButtonInput<KeyCode>,
+    mouse: &'a SceneMouse,
 }
 
 pub struct Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
@@ -400,6 +401,7 @@ impl TestbedApp {
                     brightness: 0.3,
                     ..Default::default()
                 })
+                .init_resource::<mouse::SceneMouse>()
                 .add_plugins(DefaultPlugins.set(window_plugin))
                 .add_plugins(OrbitCameraPlugin)
                 .add_plugins(WireframePlugin)
@@ -419,7 +421,9 @@ impl TestbedApp {
                 .insert_resource(self.builders)
                 .insert_non_send_resource(self.plugins)
                 .add_systems(Update, update_testbed)
-                .add_systems(Update, egui_focus);
+                .add_systems(Update, egui_focus)
+                .add_systems(Update, track_mouse_state);
+
             init(&mut app);
             app.run();
         }
@@ -471,6 +475,10 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
 
     pub fn keys(&self) -> &ButtonInput<KeyCode> {
         self.keys
+    }
+
+    pub fn mouse(&self) -> &SceneMouse {
+        self.mouse
     }
 }
 
@@ -1047,7 +1055,8 @@ fn setup_graphics_environment(mut commands: Commands) {
         .insert(OrbitCamera {
             rotate_sensitivity: 0.05,
             ..OrbitCamera::default()
-        });
+        })
+        .insert(MainCamera);
 }
 
 #[cfg(feature = "dim2")]
@@ -1078,7 +1087,8 @@ fn setup_graphics_environment(mut commands: Commands) {
             zoom: 100.0,
             pan_sensitivity: 0.02,
             ..OrbitCamera::default()
-        });
+        })
+        .insert(MainCamera);
 }
 
 fn egui_focus(mut ui_context: EguiContexts, mut cameras: Query<&mut OrbitCamera>) {
@@ -1091,12 +1101,15 @@ fn egui_focus(mut ui_context: EguiContexts, mut cameras: Query<&mut OrbitCamera>
     }
 }
 
+use crate::math::Point;
+use crate::mouse::{track_mouse_state, MainCamera, SceneMouse};
 use bevy::window::PrimaryWindow;
 
 fn update_testbed(
     mut commands: Commands,
     windows: Query<&Window, With<PrimaryWindow>>,
     // mut pipelines: ResMut<Assets<RenderPipelineDescriptor>>,
+    mouse: Res<SceneMouse>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<BevyMaterial>>,
     builders: ResMut<SceneBuilders>,
@@ -1126,6 +1139,7 @@ fn update_testbed(
             camera_transform: *cameras.single().1,
             camera: &mut cameras.single_mut().2,
             keys: &keys,
+            mouse: &mouse,
         };
 
         let mut testbed = Testbed {
@@ -1216,6 +1230,7 @@ fn update_testbed(
                 camera_transform: *cameras.single().1,
                 camera: &mut cameras.single_mut().2,
                 keys: &keys,
+                mouse: &mouse,
             };
 
             let mut testbed = Testbed {
@@ -1389,6 +1404,7 @@ fn update_testbed(
                     camera_transform: *cameras.single().1,
                     camera: &mut cameras.single_mut().2,
                     keys: &keys,
+                    mouse: &mouse,
                 };
                 harness.step_with_graphics(Some(&mut testbed_graphics));
 
