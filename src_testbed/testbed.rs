@@ -480,6 +480,11 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     pub fn mouse(&self) -> &SceneMouse {
         self.mouse
     }
+
+    #[cfg(feature = "dim3")]
+    pub fn camera_fwd_dir(&self) -> Vector<Real> {
+        (self.camera_transform * -Vec3::Z).normalize().into()
+    }
 }
 
 impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {

@@ -1,5 +1,5 @@
-use rapier2d::prelude::*;
-use rapier_testbed2d::Testbed;
+use rapier3d::prelude::*;
+use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -13,12 +13,12 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_size = 1.0;
+    let ground_size = 0.2;
     let ground_height = 0.01;
 
-    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height]);
+    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
     let floor_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height);
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, floor_handle, &mut bodies);
 
     /*
@@ -35,14 +35,14 @@ pub fn init_world(testbed: &mut Testbed) {
         let new_body = bodies.insert(body);
         // NOTE: we add a sensor collider just to make the destbed draw a rectangle to make
         //       the demo look nicer. IK could be used without cuboid.
-        let collider = ColliderBuilder::cuboid(size / 8.0, size / 2.0)
+        let collider = ColliderBuilder::cuboid(size / 8.0, size / 2.0, size / 8.0)
             .density(0.0)
             .sensor(true);
         colliders.insert_with_parent(collider, new_body, &mut bodies);
 
-        let link_ab = RevoluteJointBuilder::new()
-            .local_anchor1(point![0.0, size / 2.0 * (i != 0) as usize as f32])
-            .local_anchor2(point![0.0, -size / 2.0])
+        let link_ab = SphericalJointBuilder::new()
+            .local_anchor1(point![0.0, size / 2.0 * (i != 0) as usize as f32, 0.0])
+            .local_anchor2(point![0.0, -size / 2.0, 0.0])
             .build()
             .data;
 
@@ -65,12 +65,19 @@ pub fn init_world(testbed: &mut Testbed) {
                 displacements.fill(0.0);
             }
 
-            let Some(mouse_point) = graphics.mouse().point else {
+            let Some(mouse_ray) = graphics.mouse().ray else {
                 return;
             };
 
-            // We will have the endpoint track the mouse position.
-            let target_point = mouse_point.coords;
+            // Cast a ray on a plane aligned with the camera passing through the origin.
+            let halfspace = HalfSpace {
+                normal: -UnitVector::new_normalize(graphics.camera_fwd_dir()),
+            };
+            let mouse_ray = Ray::new(mouse_ray.0, mouse_ray.1);
+            let Some(hit) = halfspace.cast_local_ray(&mouse_ray, f32::MAX, false) else {
+                return;
+            };
+            let target_point = mouse_ray.point_at(hit);
 
             let options = JacobianIkOptions {
                 constrained_axes: JointAxesMask::LIN_AXES,
@@ -92,5 +99,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 0.0], 300.0);
+    testbed.look_at(point![0.0, 0.5, 2.5], point![0.0, 0.5, 0.0]);
 }

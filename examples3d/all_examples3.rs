@@ -42,6 +42,7 @@ mod debug_cube_high_mass_ratio3;
 mod debug_internal_edges3;
 mod debug_long_chain3;
 mod debug_multibody_ang_motor_pos3;
+mod inverse_kinematics3;
 mod joint_motor_position3;
 mod keva3;
 mod locked_rotations3;
@@ -108,6 +109,7 @@ pub fn main() {
         ("Dynamic trimeshes", dynamic_trimesh3::init_world),
         ("Heightfield", heightfield3::init_world),
         ("Impulse Joints", joints3::init_world_with_joints),
+        ("Inverse kinematics", inverse_kinematics3::init_world),
         ("Joint Motor Position", joint_motor_position3::init_world),
         ("Locked rotations", locked_rotations3::init_world),
         ("One-way platforms", one_way_platforms3::init_world),
