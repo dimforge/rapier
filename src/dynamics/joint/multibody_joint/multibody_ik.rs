@@ -189,16 +189,15 @@ mod test {
         }
 
         let (multibody, last_id) = multibodies.get_mut(last_link).unwrap();
-        multibody.update_root_type(&mut bodies); // TODO: we should make it so that call isn’t needed.
-        multibody.forward_kinematics(&mut bodies, false);
-        assert_eq!(multibody.ndofs, num_segments);
+        multibody.forward_kinematics(&bodies, true); // Be sure all the dofs are up to date.
+        assert_eq!(multibody.ndofs(), num_segments);
 
         /*
          * No displacement.
          */
         let mut jacobian2 = Jacobian::zeros(0);
         let link_pose1 = *multibody.link(last_id).unwrap().local_to_world();
-        let jacobian1 = &multibody.body_jacobians[last_id];
+        let jacobian1 = &multibody.body_jacobians()[last_id];
         let link_pose2 =
             multibody.forward_kinematics_single_link(&bodies, last_id, None, Some(&mut jacobian2));
         assert_eq!(link_pose1, link_pose2);
@@ -208,7 +207,7 @@ mod test {
          * Arbitrary displacement.
          */
         let niter = 100;
-        let displacement_part: Vec<_> = (0..multibody.ndofs)
+        let displacement_part: Vec<_> = (0..multibody.ndofs())
             .map(|i| i as Real * -0.1 / niter as Real)
             .collect();
         let displacement_total: Vec<_> = displacement_part
@@ -224,11 +223,11 @@ mod test {
 
         for i in 0..niter {
             multibody.apply_displacements(&displacement_part);
-            multibody.forward_kinematics(&mut bodies, true);
+            multibody.forward_kinematics(&bodies, false);
         }
 
         let link_pose1 = *multibody.link(last_id).unwrap().local_to_world();
-        let jacobian1 = &multibody.body_jacobians[last_id];
+        let jacobian1 = &multibody.body_jacobians()[last_id];
         assert_relative_eq!(link_pose1, link_pose2, epsilon = 1.0e-5);
         assert_relative_eq!(jacobian1, &jacobian2, epsilon = 1.0e-5);
     }

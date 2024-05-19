@@ -469,10 +469,10 @@ impl PhysicsPipeline {
         // TODO: do this only on user-change.
         // TODO: do we want some kind of automatic inverse kinematics?
         for multibody in &mut multibody_joints.multibodies {
-            multibody.1.update_root_type(bodies);
-            // FIXME: what should we do here? We should not
-            //        rely on the next state here.
             multibody.1.forward_kinematics(bodies, true);
+            multibody
+                .1
+                .update_rigid_bodies_internal(bodies, true, false, false);
         }
 
         self.detect_collisions(

@@ -251,8 +251,9 @@ impl VelocitySolver {
                 .rows(multibody.solver_id, multibody.ndofs());
             multibody.velocities.copy_from(&solver_vels);
             multibody.integrate(params.dt);
-            // PERF: we could have a mode where it doesn’t write back to the `bodies` yet.
-            multibody.forward_kinematics(bodies, !is_last_substep);
+            // PERF: don’t write back to the rigid-body poses `bodies` before the last step?
+            multibody.forward_kinematics(bodies, false);
+            multibody.update_rigid_bodies_internal(bodies, !is_last_substep, true, false);
 
             if !is_last_substep {
                 // These are very expensive and not needed if we don’t
