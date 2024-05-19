@@ -1,16 +1,6 @@
-use super::multibody_link::{MultibodyLink, MultibodyLinkVec};
-use super::multibody_workspace::MultibodyWorkspace;
-use crate::dynamics::{
-    JointAxesMask, Multibody, RigidBodyHandle, RigidBodySet, RigidBodyType, RigidBodyVelocity,
-};
-#[cfg(feature = "dim3")]
-use crate::math::Matrix;
-use crate::math::{
-    AngDim, AngVector, Dim, Isometry, Jacobian, Point, Real, Vector, ANG_DIM, DIM, SPATIAL_DIM,
-};
-use crate::prelude::MultibodyJoint;
-use crate::utils::{IndexMut2, SimdAngularInertia, SimdCross, SimdCrossMatrix};
-use na::{self, DMatrix, DVector, DVectorView, DVectorViewMut, Dyn, OMatrix, SMatrix, SVector, LU};
+use crate::dynamics::{JointAxesMask, Multibody, RigidBodySet};
+use crate::math::{Isometry, Jacobian, Real, ANG_DIM, DIM, SPATIAL_DIM};
+use na::{self, DVector, SMatrix};
 use parry::math::SpacialVector;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -63,7 +53,7 @@ impl Multibody {
     ) {
         let body_jacobian = self.body_jacobian(link_id);
         Self::inverse_kinematics_delta_with_jacobian(
-            &body_jacobian,
+            body_jacobian,
             desired_movement,
             damping,
             displacements,

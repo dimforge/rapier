@@ -72,7 +72,7 @@ pub fn init_world(testbed: &mut Testbed) {
             // We will have the endpoint track the mouse position.
             let target_point = mouse_point.coords;
 
-            let options = JacobianIkOptions {
+            let options = InverseKinematicsOption {
                 constrained_axes: JointAxesMask::LIN_AXES,
                 ..Default::default()
             };

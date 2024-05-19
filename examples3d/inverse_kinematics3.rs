@@ -79,7 +79,7 @@ pub fn init_world(testbed: &mut Testbed) {
             };
             let target_point = mouse_ray.point_at(hit);
 
-            let options = JacobianIkOptions {
+            let options = InverseKinematicsOption {
                 constrained_axes: JointAxesMask::LIN_AXES,
                 ..Default::default()
             };

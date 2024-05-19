@@ -1,8 +1,6 @@
 use super::multibody_link::{MultibodyLink, MultibodyLinkVec};
 use super::multibody_workspace::MultibodyWorkspace;
-use crate::dynamics::{
-    JointAxesMask, RigidBodyHandle, RigidBodySet, RigidBodyType, RigidBodyVelocity,
-};
+use crate::dynamics::{RigidBodyHandle, RigidBodySet, RigidBodyType, RigidBodyVelocity};
 #[cfg(feature = "dim3")]
 use crate::math::Matrix;
 use crate::math::{
@@ -11,7 +9,6 @@ use crate::math::{
 use crate::prelude::MultibodyJoint;
 use crate::utils::{IndexMut2, SimdAngularInertia, SimdCross, SimdCrossMatrix};
 use na::{self, DMatrix, DVector, DVectorView, DVectorViewMut, Dyn, OMatrix, SMatrix, SVector, LU};
-use parry::math::SpacialVector;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default)]
