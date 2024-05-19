@@ -172,8 +172,8 @@ pub fn update_ui(
             );
 
             let mut substep_params = *integration_parameters;
-            substep_params.dt /= substep_params.num_solver_iterations.get() as f32;
-            let curr_erp =  substep_params.erp();
+            substep_params.dt /= substep_params.num_solver_iterations.get() as Real;
+            let curr_erp = substep_params.erp();
             let curr_cfm_factor = substep_params.cfm_factor();
             ui.add(
                 Slider::new(
@@ -220,6 +220,8 @@ pub fn update_ui(
             Slider::new(&mut integration_parameters.min_island_size, 1..=10_000)
                 .text("min island size"),
         );
+        ui.add(Slider::new(&mut state.nsteps, 1..=100).text("sims. per frame"));
+
         let mut frequency = integration_parameters.inv_dt().round() as u32;
         ui.add(Slider::new(&mut frequency, 0..=240).text("frequency (Hz)"));
         integration_parameters.set_inv_dt(frequency as Real);
