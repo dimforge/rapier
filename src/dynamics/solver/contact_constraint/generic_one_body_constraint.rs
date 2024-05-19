@@ -231,13 +231,8 @@ impl GenericOneBodyConstraintBuilder {
             .unwrap()
             .local_to_world;
 
-        self.inner.update_with_positions(
-            params,
-            solved_dt,
-            pos2,
-            self.ccd_thickness,
-            &mut constraint.inner,
-        );
+        self.inner
+            .update_with_positions(params, solved_dt, pos2, &mut constraint.inner);
     }
 }
 

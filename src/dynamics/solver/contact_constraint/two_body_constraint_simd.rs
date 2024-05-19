@@ -15,7 +15,6 @@ use crate::math::{
 use crate::utils::SimdBasis;
 use crate::utils::{self, SimdAngularInertia, SimdCross, SimdDot};
 use num::Zero;
-use parry::math::SimdBool;
 use parry::utils::SdpMatrix2;
 use simba::simd::{SimdPartialOrd, SimdValue};
 
@@ -252,18 +251,14 @@ impl TwoBodyConstraintBuilderSimd {
         constraint: &mut TwoBodyConstraintSimd,
     ) {
         let cfm_factor = SimdReal::splat(params.cfm_factor());
-        let dt = SimdReal::splat(params.dt);
         let inv_dt = SimdReal::splat(params.inv_dt());
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error());
         let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
-        let max_penetration_correction = SimdReal::splat(params.max_penetration_correction());
+        let max_corrective_velocity = SimdReal::splat(params.max_corrective_velocity());
         let warmstart_coeff = SimdReal::splat(params.warmstart_coefficient);
 
         let rb1 = gather![|ii| &bodies[constraint.solver_vel1[ii]]];
         let rb2 = gather![|ii| &bodies[constraint.solver_vel2[ii]]];
-
-        let ccd_thickness = SimdReal::from(gather![|ii| rb1[ii].ccd_thickness])
-            + SimdReal::from(gather![|ii| rb2[ii].ccd_thickness]);
 
         let poss1 = Isometry::from(gather![|ii| rb1[ii].position]);
         let poss2 = Isometry::from(gather![|ii| rb2[ii].position]);
@@ -279,7 +274,6 @@ impl TwoBodyConstraintBuilderSimd {
             constraint.dir1.cross(&constraint.tangent1),
         ];
 
-        let mut is_fast_contact = SimdBool::splat(false);
         let solved_dt = SimdReal::splat(solved_dt);
 
         for (info, element) in all_infos.iter().zip(all_elements.iter_mut()) {
@@ -292,12 +286,9 @@ impl TwoBodyConstraintBuilderSimd {
             {
                 let rhs_wo_bias =
                     info.normal_rhs_wo_bias + dist.simd_max(SimdReal::zero()) * inv_dt;
-                let rhs_bias = (dist + allowed_lin_err)
-                    .simd_clamp(-max_penetration_correction, SimdReal::zero())
-                    * erp_inv_dt;
+                let rhs_bias = ((dist + allowed_lin_err) * erp_inv_dt)
+                    .simd_clamp(-max_corrective_velocity, SimdReal::zero());
                 let new_rhs = rhs_wo_bias + rhs_bias;
-                is_fast_contact =
-                    is_fast_contact | (-new_rhs * dt).simd_gt(ccd_thickness * SimdReal::splat(0.5));
 
                 element.normal_part.rhs_wo_bias = rhs_wo_bias;
                 element.normal_part.rhs = new_rhs;
@@ -318,7 +309,6 @@ impl TwoBodyConstraintBuilderSimd {
         }
 
         constraint.cfm_factor = cfm_factor;
-        // constraint.cfm_factor = SimdReal::splat(1.0).select(is_fast_contact, cfm_factor);
     }
 }
 
