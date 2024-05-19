@@ -20,6 +20,7 @@ mod joint_fixed3;
 mod joint_prismatic3;
 mod joint_revolute3;
 mod keva3;
+mod many_pyramids3;
 mod many_sleep3;
 mod many_static3;
 mod pyramid3;
@@ -66,6 +67,7 @@ pub fn main() {
         ("ImpulseJoint fixed", joint_fixed3::init_world),
         ("ImpulseJoint revolute", joint_revolute3::init_world),
         ("ImpulseJoint prismatic", joint_prismatic3::init_world),
+        ("Many pyramids", many_pyramids3::init_world),
         ("Keva tower", keva3::init_world),
     ];
 
