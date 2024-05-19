@@ -361,15 +361,7 @@ impl TwoBodyConstraintBuilder {
     ) {
         let rb1 = &bodies[constraint.solver_vel1];
         let rb2 = &bodies[constraint.solver_vel2];
-        let ccd_thickness = rb1.ccd_thickness + rb2.ccd_thickness;
-        self.update_with_positions(
-            params,
-            solved_dt,
-            &rb1.position,
-            &rb2.position,
-            ccd_thickness,
-            constraint,
-        )
+        self.update_with_positions(params, solved_dt, &rb1.position, &rb2.position, constraint)
     }
 
     // Used by both generic and non-generic builders..
@@ -379,7 +371,6 @@ impl TwoBodyConstraintBuilder {
         solved_dt: Real,
         rb1_pos: &Isometry<Real>,
         rb2_pos: &Isometry<Real>,
-        ccd_thickness: Real,
         constraint: &mut TwoBodyConstraint,
     ) {
         let cfm_factor = params.cfm_factor();
@@ -388,8 +379,6 @@ impl TwoBodyConstraintBuilder {
 
         let all_infos = &self.infos[..constraint.num_contacts as usize];
         let all_elements = &mut constraint.elements[..constraint.num_contacts as usize];
-
-        let mut is_fast_contact = false;
 
         #[cfg(feature = "dim2")]
         let tangents1 = constraint.dir1.orthonormal_basis();
@@ -408,11 +397,9 @@ impl TwoBodyConstraintBuilder {
             // Normal part.
             {
                 let rhs_wo_bias = info.normal_rhs_wo_bias + dist.max(0.0) * inv_dt;
-                let rhs_bias = erp_inv_dt
-                    * (dist + params.allowed_linear_error())
-                        .clamp(-params.max_penetration_correction(), 0.0);
+                let rhs_bias = (erp_inv_dt * (dist + params.allowed_linear_error()))
+                    .clamp(-params.max_corrective_velocity(), 0.0);
                 let new_rhs = rhs_wo_bias + rhs_bias;
-                is_fast_contact = is_fast_contact || (-new_rhs * params.dt > ccd_thickness * 0.5);
 
                 element.normal_part.rhs_wo_bias = rhs_wo_bias;
                 element.normal_part.rhs = new_rhs;
@@ -433,7 +420,6 @@ impl TwoBodyConstraintBuilder {
         }
 
         constraint.cfm_factor = cfm_factor;
-        // constraint.cfm_factor = if is_fast_contact { 1.0 } else { cfm_factor };
     }
 }
 

@@ -260,13 +260,7 @@ impl OneBodyConstraintBuilder {
         constraint: &mut OneBodyConstraint,
     ) {
         let rb2 = &bodies[constraint.solver_vel2];
-        self.update_with_positions(
-            params,
-            solved_dt,
-            &rb2.position,
-            rb2.ccd_thickness,
-            constraint,
-        )
+        self.update_with_positions(params, solved_dt, &rb2.position, constraint)
     }
 
     // TODO: this code is SOOOO similar to TwoBodyConstraint::update.
@@ -276,7 +270,6 @@ impl OneBodyConstraintBuilder {
         params: &IntegrationParameters,
         solved_dt: Real,
         rb2_pos: &Isometry<Real>,
-        ccd_thickness: Real,
         constraint: &mut OneBodyConstraint,
     ) {
         let cfm_factor = params.cfm_factor();
@@ -290,7 +283,6 @@ impl OneBodyConstraintBuilder {
         let new_pos1 = self
             .vels1
             .integrate(solved_dt, &rb1.position, &rb1.local_com);
-        let mut is_fast_contact = false;
 
         #[cfg(feature = "dim2")]
         let tangents1 = constraint.dir1.orthonormal_basis();
@@ -309,11 +301,9 @@ impl OneBodyConstraintBuilder {
             // Normal part.
             {
                 let rhs_wo_bias = info.normal_rhs_wo_bias + dist.max(0.0) * inv_dt;
-                let rhs_bias = erp_inv_dt
-                    * (dist + params.allowed_linear_error())
-                        .clamp(-params.max_penetration_correction(), 0.0);
+                let rhs_bias = (erp_inv_dt * (dist + params.allowed_linear_error()))
+                    .clamp(-params.max_corrective_velocity(), 0.0);
                 let new_rhs = rhs_wo_bias + rhs_bias;
-                is_fast_contact = is_fast_contact || (-new_rhs * params.dt > ccd_thickness * 0.5);
 
                 element.normal_part.rhs_wo_bias = rhs_wo_bias;
                 element.normal_part.rhs = new_rhs;
@@ -334,7 +324,6 @@ impl OneBodyConstraintBuilder {
         }
 
         constraint.cfm_factor = cfm_factor;
-        // constraint.cfm_factor = if is_fast_contact { 1.0 } else { cfm_factor };
     }
 }
 

@@ -342,14 +342,8 @@ impl GenericTwoBodyConstraintBuilder {
             .map(|m| &multibodies[m.multibody].link(m.id).unwrap().local_to_world)
             .unwrap_or_else(|| &bodies[constraint.inner.solver_vel2].position);
 
-        self.inner.update_with_positions(
-            params,
-            solved_dt,
-            pos1,
-            pos2,
-            self.ccd_thickness,
-            &mut constraint.inner,
-        );
+        self.inner
+            .update_with_positions(params, solved_dt, pos1, pos2, &mut constraint.inner);
     }
 }
 
