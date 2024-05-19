@@ -1,7 +1,7 @@
 //! MultibodyJoints using the reduced-coordinates formalism or using constraints.
 
 pub use self::multibody::Multibody;
-pub use self::multibody_ik::JacobianIkOptions;
+pub use self::multibody_ik::InverseKinematicsOption;
 pub use self::multibody_joint::MultibodyJoint;
 pub use self::multibody_joint_set::{
     MultibodyIndex, MultibodyJointHandle, MultibodyJointSet, MultibodyLinkId,

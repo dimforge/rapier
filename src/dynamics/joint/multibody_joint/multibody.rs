@@ -895,7 +895,7 @@ impl Multibody {
     ///
     /// This will update the [`MultibodyLink`] pose information as wall as the body jacobians.
     /// This will also ensure that the multibody has the proper number of degrees of freedom if
-    /// its root node changed between fixed and dynamic.
+    /// its root node changed between dynamic and non-dynamic.
     ///
     /// Note that this does **not** update the poses of the [`RigidBody`] attached to the joints.
     /// Run [`Self::update_rigid_bodies`] to trigger that update.
@@ -959,6 +959,8 @@ impl Multibody {
     /// Apply forward-kinematics to compute the position of a single link of this multibody.
     ///
     /// If `out_jacobian` is `Some`, this will simultaneously compute the new jacobian of this link.
+    /// If `displacement` is `Some`, the generalized position considered during transform propagation
+    /// is the sum of the current position of `self` and this `displacement`.
     // TODO: this shares a lot of code with `forward_kinematics` and `update_body_jacobians`, except
     //       that we are only traversing a single kinematic chain. Could this be refactored?
     pub fn forward_kinematics_single_link(

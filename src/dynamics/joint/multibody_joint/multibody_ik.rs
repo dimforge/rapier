@@ -15,7 +15,7 @@ use parry::math::SpacialVector;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 /// Options for the jacobian-based Inverse Kinematics solver for multibodies.
-pub struct JacobianIkOptions {
+pub struct InverseKinematicsOption {
     /// A damping coefficient.
     ///
     /// Small value can lead to overshooting preventing convergence. Large
@@ -37,7 +37,7 @@ pub struct JacobianIkOptions {
     pub epsilon_angular: f32,
 }
 
-impl Default for JacobianIkOptions {
+impl Default for InverseKinematicsOption {
     fn default() -> Self {
         Self {
             damping: 1.0,
@@ -50,6 +50,10 @@ impl Default for JacobianIkOptions {
 }
 
 impl Multibody {
+    /// Computes the displacement needed to have the link identified by `link_id` move by the
+    /// desired transform.
+    ///
+    /// The displacement calculated by this function is added to the `displacement` vector.
     pub fn inverse_kinematics_delta(
         &self,
         link_id: usize,
@@ -66,6 +70,10 @@ impl Multibody {
         );
     }
 
+    /// Computes the displacement needed to have a link with the given jacobian move by the
+    /// desired transform.
+    ///
+    /// The displacement calculated by this function is added to the `displacement` vector.
     pub fn inverse_kinematics_delta_with_jacobian(
         jacobian: &Jacobian<Real>,
         desired_movement: &SpacialVector<Real>,
@@ -78,11 +86,18 @@ impl Multibody {
         displacements.gemv_tr(1.0, jacobian, &(inv_jj * desired_movement), 1.0);
     }
 
+    /// Computes the displacement needed to have the link identified by `link_id` have a pose
+    /// equal (or as close as possible) to `target_pose`.
+    ///
+    /// If `displacement` is given non-zero, the current pose of the rigid-body is considered to be
+    /// obtained from its current generalized coordinates summed with the `displacement` vector.
+    ///
+    /// The `displacements` vector is overwritten with the new displacement.
     pub fn inverse_kinematics(
         &self,
         bodies: &RigidBodySet,
         link_id: usize,
-        options: &JacobianIkOptions,
+        options: &InverseKinematicsOption,
         target_pose: &Isometry<Real>,
         displacements: &mut DVector<Real>,
     ) {

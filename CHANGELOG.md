@@ -1,3 +1,26 @@
+## Unreleased
+
+### Added
+
+- Add `Multibody::inverse_kinematics`, `Multibody::inverse_kinematics_delta`,
+  and `::inverse_kinematics_delta_with_jacobian`
+  for running inverse kinematics on a multibody to align one its links pose to the given prescribed pose.
+- Add `InverseKinematicsOption` to customize some behaviors of the inverse-kinematics solver.
+- Add `Multibody::body_jacobian` to get the jacobian of a specific link.
+- Add `Multibody::update_rigid_bodies` to update rigid-bodies based on the multibody links poses.
+- Add `Multibody::forward_kinematics_single_link` to run forward-kinematics to compute the new pose and jacobian of a
+  single link without mutating the multibody. This can take an optional displacement on generalized coordinates that are
+  taken into account during transform propagation.
+
+### Modified
+
+- The `Multibody::forward_kinematics` method will no longer automatically update the poses of the `RigidBody` associated
+  to each joint. Instead `Multibody::update_rigid_bodies` has to be called explicitly.
+- The `Multibody::forward_kinematics` method will automatically adjust the multibody’s degrees of freedom if the root
+  rigid-body changed type (between dynamic and non-dynamic). It can also optionally apply the root’s rigid-body pose
+  instead of the root link’s pose (useful for example if you modified the root rigid-body pose externally and wanted
+  to propagate it to the multibody).
+
 ## v0.19.0 (05 May 2024)
 
 ### Fix
