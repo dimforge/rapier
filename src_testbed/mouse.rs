@@ -1,4 +1,4 @@
-use crate::math::{Point, Vector};
+use crate::math::Point;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
@@ -10,7 +10,7 @@ pub struct SceneMouse {
     #[cfg(feature = "dim2")]
     pub point: Option<Point<f32>>,
     #[cfg(feature = "dim3")]
-    pub ray: Option<(Point<f32>, Vector<f32>)>,
+    pub ray: Option<(Point<f32>, crate::math::Vector<f32>)>,
 }
 
 pub fn track_mouse_state(

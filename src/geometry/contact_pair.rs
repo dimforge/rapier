@@ -359,16 +359,10 @@ impl ContactManifoldData {
 pub trait ContactManifoldExt {
     /// Computes the sum of all the impulses applied by contacts from this contact manifold.
     fn total_impulse(&self) -> Real;
-    /// Computes the maximum impulse applied by contacts from this contact manifold.
-    fn max_impulse(&self) -> Real;
 }
 
 impl ContactManifoldExt for ContactManifold {
     fn total_impulse(&self) -> Real {
         self.points.iter().map(|pt| pt.data.impulse).sum()
-    }
-
-    fn max_impulse(&self) -> Real {
-        self.points.iter().fold(0.0, |a, pt| a.max(pt.data.impulse))
     }
 }

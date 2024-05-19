@@ -292,9 +292,9 @@ impl RigidBody {
         allow_rotations_z: bool,
         wake_up: bool,
     ) {
-        if self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_X) != !allow_rotations_x
-            || self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Y) != !allow_rotations_y
-            || self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z) != !allow_rotations_z
+        if self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_X) == allow_rotations_x
+            || self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Y) == allow_rotations_y
+            || self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z) == allow_rotations_z
         {
             if self.is_dynamic() && wake_up {
                 self.wake_up(true);

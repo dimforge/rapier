@@ -55,7 +55,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let mut displacements = DVector::zeros(0);
 
-    testbed.add_callback(move |graphics, physics, _, state| {
+    testbed.add_callback(move |graphics, physics, _, _| {
         let Some(graphics) = graphics else { return };
         if let Some((multibody, link_id)) = physics.multibody_joints.get_mut(last_link) {
             // Ensure our displacement vector has the right number of elements.

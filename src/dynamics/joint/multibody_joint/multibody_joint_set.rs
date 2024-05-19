@@ -370,13 +370,13 @@ impl MultibodyJointSet {
         let parent1 = link1.parent_id();
 
         if parent1 == Some(id2.id) {
-            Some((MultibodyJointHandle(rb1.0), mb, &link1))
+            Some((MultibodyJointHandle(rb1.0), mb, link1))
         } else {
             let link2 = mb.link(id2.id)?;
             let parent2 = link2.parent_id();
 
             if parent2 == Some(id1.id) {
-                Some((MultibodyJointHandle(rb2.0), mb, &link2))
+                Some((MultibodyJointHandle(rb2.0), mb, link2))
             } else {
                 None
             }

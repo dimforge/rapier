@@ -482,7 +482,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     }
 
     #[cfg(feature = "dim3")]
-    pub fn camera_fwd_dir(&self) -> Vector<Real> {
+    pub fn camera_fwd_dir(&self) -> Vector<f32> {
         (self.camera_transform * -Vec3::Z).normalize().into()
     }
 }
@@ -1106,7 +1106,6 @@ fn egui_focus(mut ui_context: EguiContexts, mut cameras: Query<&mut OrbitCamera>
     }
 }
 
-use crate::math::Point;
 use crate::mouse::{track_mouse_state, MainCamera, SceneMouse};
 use bevy::window::PrimaryWindow;
 

@@ -19,12 +19,12 @@ pub struct InverseKinematicsOption {
     ///
     /// If errors on both linear and angular parts fall below this
     /// threshold, the iterative resolution will stop.
-    pub epsilon_linear: f32,
+    pub epsilon_linear: Real,
     /// The error threshold on the angular error.
     ///
     /// If errors on both linear and angular parts fall below this
     /// threshold, the iterative resolution will stop.
-    pub epsilon_angular: f32,
+    pub epsilon_angular: Real,
 }
 
 impl Default for InverseKinematicsOption {
@@ -72,7 +72,7 @@ impl Multibody {
     ) {
         let identity = SMatrix::<Real, SPATIAL_DIM, SPATIAL_DIM>::identity();
         let jj = jacobian * &jacobian.transpose() + identity * (damping * damping);
-        let inv_jj = jj.pseudo_inverse(1.0e-5).unwrap_or_else(|_| identity);
+        let inv_jj = jj.pseudo_inverse(1.0e-5).unwrap_or(identity);
         displacements.gemv_tr(1.0, jacobian, &(inv_jj * desired_movement), 1.0);
     }
 
