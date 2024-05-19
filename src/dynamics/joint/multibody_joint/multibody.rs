@@ -1,6 +1,8 @@
 use super::multibody_link::{MultibodyLink, MultibodyLinkVec};
 use super::multibody_workspace::MultibodyWorkspace;
-use crate::dynamics::{RigidBodyHandle, RigidBodySet, RigidBodyType, RigidBodyVelocity};
+use crate::dynamics::{
+    JointAxesMask, RigidBodyHandle, RigidBodySet, RigidBodyType, RigidBodyVelocity,
+};
 #[cfg(feature = "dim3")]
 use crate::math::Matrix;
 use crate::math::{
@@ -9,6 +11,7 @@ use crate::math::{
 use crate::prelude::MultibodyJoint;
 use crate::utils::{IndexMut2, SimdAngularInertia, SimdCross, SimdCrossMatrix};
 use na::{self, DMatrix, DVector, DVectorView, DVectorViewMut, Dyn, OMatrix, SMatrix, SVector, LU};
+use parry::math::SpacialVector;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default)]
@@ -747,6 +750,12 @@ impl Multibody {
         self.velocities.rows(0, self.ndofs)
     }
 
+    /// The body jacobian for link `link_id` calculated by the last call to [`Multibody::forward_kinematics`].
+    #[inline]
+    pub fn body_jacobian(&self, link_id: usize) -> &Jacobian<Real> {
+        &self.body_jacobians[link_id]
+    }
+
     /// The mutable generalized velocities of this multibodies.
     #[inline]
     pub fn generalized_velocity_mut(&mut self) -> DVectorViewMut<Real> {
@@ -831,6 +840,10 @@ impl Multibody {
     // TODO: make a version that doesn’t write back to bodies and doesn’t update the jacobians
     //       (i.e. just something used by the velocity solver’s small steps).
     /// Apply forward-kinematics to this multibody and its related rigid-bodies.
+    ///
+    /// Note that this method updates `self` with the result of the forward-kinematics operation.
+    /// For a non-mutable version running forward kinematics on a single link, see
+    /// [`Self::forward_kinematics_single_link`].
     pub fn forward_kinematics(&mut self, bodies: &mut RigidBodySet, update_rb_mass_props: bool) {
         // Special case for the root, which has no parent.
         {
@@ -885,6 +898,105 @@ impl Multibody {
          * Compute body jacobians.
          */
         self.update_body_jacobians();
+    }
+
+    /// Apply forward-kinematics to compute the position of a single link of this multibody.
+    ///
+    /// If `out_jacobian` is `Some`, this will simultaneously compute the new jacobian of this link.
+    // TODO: this shares a lot of code with `forward_kinematics` and `update_body_jacobians`, except
+    //       that we are only traversing a single kinematic chain. Could this be refactored?
+    pub fn forward_kinematics_single_link(
+        &self,
+        bodies: &RigidBodySet,
+        link_id: usize,
+        displacement: Option<&[Real]>,
+        mut out_jacobian: Option<&mut Jacobian<Real>>,
+    ) -> Isometry<Real> {
+        let mut branch = vec![]; // Perf: avoid allocation.
+        let mut curr_id = Some(link_id);
+
+        while let Some(id) = curr_id {
+            branch.push(id);
+            curr_id = self.links[id].parent_id();
+        }
+
+        branch.reverse();
+
+        if let Some(out_jacobian) = out_jacobian.as_deref_mut() {
+            if out_jacobian.ncols() != self.ndofs {
+                *out_jacobian = Jacobian::zeros(self.ndofs);
+            } else {
+                out_jacobian.fill(0.0);
+            }
+        }
+
+        let mut parent_link: Option<MultibodyLink> = None;
+
+        for i in branch {
+            let mut link = self.links[i];
+
+            if let Some(displacement) = displacement {
+                link.joint
+                    .apply_displacement(&displacement[link.assembly_id..]);
+            }
+
+            let parent_to_world;
+
+            if let Some(parent_link) = parent_link {
+                link.local_to_parent = link.joint.body_to_parent();
+                link.local_to_world = parent_link.local_to_world * link.local_to_parent;
+
+                {
+                    let parent_rb = &bodies[parent_link.rigid_body];
+                    let link_rb = &bodies[link.rigid_body];
+                    let c0 = parent_link.local_to_world * parent_rb.mprops.local_mprops.local_com;
+                    let c2 = link.local_to_world
+                        * Point::from(link.joint.data.local_frame2.translation.vector);
+                    let c3 = link.local_to_world * link_rb.mprops.local_mprops.local_com;
+
+                    link.shift02 = c2 - c0;
+                    link.shift23 = c3 - c2;
+                }
+
+                parent_to_world = parent_link.local_to_world;
+
+                if let Some(out_jacobian) = out_jacobian.as_deref_mut() {
+                    let (mut link_j_v, parent_j_w) =
+                        out_jacobian.rows_range_pair_mut(0..DIM, DIM..DIM + ANG_DIM);
+                    let shift_tr = (link.shift02).gcross_matrix_tr();
+                    link_j_v.gemm(1.0, &shift_tr, &parent_j_w, 1.0);
+                }
+            } else {
+                link.local_to_parent = link.joint.body_to_parent();
+                link.local_to_world = link.local_to_parent;
+                parent_to_world = Isometry::identity();
+            }
+
+            if let Some(out_jacobian) = out_jacobian.as_deref_mut() {
+                let ndofs = link.joint.ndofs();
+                let mut tmp = SMatrix::<Real, SPATIAL_DIM, SPATIAL_DIM>::zeros();
+                let mut link_joint_j = tmp.columns_mut(0, ndofs);
+                let mut link_j_part = out_jacobian.columns_mut(link.assembly_id, ndofs);
+                link.joint.jacobian(
+                    &(parent_to_world.rotation * link.joint.data.local_frame1.rotation),
+                    &mut link_joint_j,
+                );
+                link_j_part += link_joint_j;
+
+                {
+                    let (mut link_j_v, link_j_w) =
+                        out_jacobian.rows_range_pair_mut(0..DIM, DIM..DIM + ANG_DIM);
+                    let shift_tr = link.shift23.gcross_matrix_tr();
+                    link_j_v.gemm(1.0, &shift_tr, &link_j_w, 1.0);
+                }
+            }
+
+            parent_link = Some(link);
+        }
+
+        parent_link
+            .map(|link| link.local_to_world)
+            .unwrap_or_else(Isometry::identity)
     }
 
     /// The total number of freedoms of this multibody.

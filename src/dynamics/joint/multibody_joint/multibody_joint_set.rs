@@ -287,6 +287,13 @@ impl MultibodyJointSet {
     }
 
     /// Gets a mutable reference to a multibody, based on its temporary index.
+    /// `MultibodyJointSet`.
+    pub fn get_multibody_mut(&mut self, index: MultibodyIndex) -> Option<&mut Multibody> {
+        // TODO: modification tracking.
+        self.multibodies.get_mut(index.0)
+    }
+
+    /// Gets a mutable reference to a multibody, based on its temporary index.
     ///
     /// This method will bypass any modification-detection automatically done by the
     /// `MultibodyJointSet`.
