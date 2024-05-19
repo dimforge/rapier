@@ -163,7 +163,6 @@ mod test {
     };
     use crate::math::{Jacobian, Real, Vector};
     use approx::assert_relative_eq;
-    use na::DVector;
 
     #[test]
     fn one_link_fwd_kinematics() {
@@ -180,9 +179,9 @@ mod test {
             let new_body = bodies.insert(body);
 
             #[cfg(feature = "dim2")]
-            let mut builder = RevoluteJointBuilder::new();
+            let builder = RevoluteJointBuilder::new();
             #[cfg(feature = "dim3")]
-            let mut builder = RevoluteJointBuilder::new(Vector::z_axis());
+            let builder = RevoluteJointBuilder::new(Vector::z_axis());
             let link_ab = builder
                 .local_anchor1((Vector::y() * (0.5 / num_segments as Real)).into())
                 .local_anchor2((Vector::y() * (-0.5 / num_segments as Real)).into());
@@ -202,7 +201,7 @@ mod test {
          */
         let mut jacobian2 = Jacobian::zeros(0);
         let link_pose1 = *multibody.link(last_id).unwrap().local_to_world();
-        let jacobian1 = &multibody.body_jacobians()[last_id];
+        let jacobian1 = multibody.body_jacobian(last_id);
         let link_pose2 =
             multibody.forward_kinematics_single_link(&bodies, last_id, None, Some(&mut jacobian2));
         assert_eq!(link_pose1, link_pose2);
@@ -226,13 +225,13 @@ mod test {
             Some(&mut jacobian2),
         );
 
-        for i in 0..niter {
+        for _ in 0..niter {
             multibody.apply_displacements(&displacement_part);
             multibody.forward_kinematics(&bodies, false);
         }
 
         let link_pose1 = *multibody.link(last_id).unwrap().local_to_world();
-        let jacobian1 = &multibody.body_jacobians()[last_id];
+        let jacobian1 = multibody.body_jacobian(last_id);
         assert_relative_eq!(link_pose1, link_pose2, epsilon = 1.0e-5);
         assert_relative_eq!(jacobian1, &jacobian2, epsilon = 1.0e-5);
     }
