@@ -373,9 +373,9 @@ impl TwoBodyConstraintBuilder {
         rb2_pos: &Isometry<Real>,
         constraint: &mut TwoBodyConstraint,
     ) {
-        let cfm_factor = params.cfm_factor();
+        let cfm_factor = params.contact_cfm_factor();
         let inv_dt = params.inv_dt();
-        let erp_inv_dt = params.erp_inv_dt();
+        let erp_inv_dt = params.contact_erp_inv_dt();
 
         let all_infos = &self.infos[..constraint.num_contacts as usize];
         let all_elements = &mut constraint.elements[..constraint.num_contacts as usize];
