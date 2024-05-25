@@ -261,10 +261,10 @@ impl SimdOneBodyConstraintBuilder {
         _multibodies: &MultibodyJointSet,
         constraint: &mut OneBodyConstraintSimd,
     ) {
-        let cfm_factor = SimdReal::splat(params.cfm_factor());
+        let cfm_factor = SimdReal::splat(params.contact_cfm_factor());
         let inv_dt = SimdReal::splat(params.inv_dt());
         let allowed_lin_err = SimdReal::splat(params.allowed_linear_error());
-        let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
+        let erp_inv_dt = SimdReal::splat(params.contact_erp_inv_dt());
         let max_corrective_velocity = SimdReal::splat(params.max_corrective_velocity());
         let warmstart_coeff = SimdReal::splat(params.warmstart_coefficient);
 

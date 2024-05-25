@@ -25,25 +25,31 @@ pub struct IntegrationParameters {
     pub min_ccd_dt: Real,
 
     /// > 0: the damping ratio used by the springs for contact constraint stabilization.
-    /// Lower values make the constraints more compliant (more "springy", allowing more visible
+    ///
+    /// Larger values make the constraints more compliant (allowing more visible
     /// penetrations before stabilization).
     /// (default `5.0`).
     pub contact_damping_ratio: Real,
 
     /// > 0: the natural frequency used by the springs for contact constraint regularization.
+    ///
     /// Increasing this value will make it so that penetrations get fixed more quickly at the
     /// expense of potential jitter effects due to overshooting. In order to make the simulation
-    /// look stiffer, it is recommended to increase the [`Self::damping_ratio`] instead of this
+    /// look stiffer, it is recommended to increase the [`Self::contact_damping_ratio`] instead of this
     /// value.
     /// (default: `30.0`).
     pub contact_natural_frequency: Real,
 
     /// > 0: the natural frequency used by the springs for joint constraint regularization.
+    ///
     /// Increasing this value will make it so that penetrations get fixed more quickly.
     /// (default: `1.0e6`).
     pub joint_natural_frequency: Real,
 
     /// The fraction of critical damping applied to the joint for constraints regularization.
+    ///
+    /// Larger values make the constraints more compliant (allowing more joint
+    /// drift before stabilization).
     /// (default `1.0`).
     pub joint_damping_ratio: Real,
 
@@ -65,7 +71,7 @@ pub struct IntegrationParameters {
     ///
     /// This value can be understood as the number of units-per-meter in your physical world compared
     /// to a human-sized world in meter. For example, in a 2d game, if your typical object size is 100
-    /// pixels, set the `[`Self::length_unit`]` parameter to 100.0. The physics engine will interpret
+    /// pixels, set the [`Self::length_unit`] parameter to 100.0. The physics engine will interpret
     /// it as if 100 pixels is equivalent to 1 meter in its various internal threshold.
     /// (default `1.0`).
     pub length_unit: Real,
@@ -74,7 +80,7 @@ pub struct IntegrationParameters {
     ///
     /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
     pub normalized_allowed_linear_error: Real,
-    /// Maximum amount of penetration the solver will attempt to resolve in one timestep.
+    /// Maximum amount of penetration the solver will attempt to resolve in one timestep (default: `10.0`).
     ///
     /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
     pub normalized_max_corrective_velocity: Real,
@@ -84,7 +90,7 @@ pub struct IntegrationParameters {
     pub normalized_prediction_distance: Real,
     /// The number of solver iterations run by the constraints solver for calculating forces (default: `4`).
     pub num_solver_iterations: NonZeroUsize,
-    /// Number of addition friction resolution iteration run during the last solver sub-step (default: `4`).
+    /// Number of addition friction resolution iteration run during the last solver sub-step (default: `0`).
     pub num_additional_friction_iterations: usize,
     /// Number of internal Project Gauss Seidel (PGS) iterations run at each solver iteration (default: `1`).
     pub num_internal_pgs_iterations: usize,
@@ -130,23 +136,23 @@ impl IntegrationParameters {
     }
 
     /// The contact’s spring angular frequency for constraints regularization.
-    pub fn angular_frequency(&self) -> Real {
+    pub fn contact_angular_frequency(&self) -> Real {
         self.contact_natural_frequency * Real::two_pi()
     }
 
-    /// The [`Self::erp`] coefficient, multiplied by the inverse timestep length.
-    pub fn erp_inv_dt(&self) -> Real {
-        let ang_freq = self.angular_frequency();
+    /// The [`Self::contact_erp`] coefficient, multiplied by the inverse timestep length.
+    pub fn contact_erp_inv_dt(&self) -> Real {
+        let ang_freq = self.contact_angular_frequency();
         ang_freq / (self.dt * ang_freq + 2.0 * self.contact_damping_ratio)
     }
 
     /// The effective Error Reduction Parameter applied for calculating regularization forces
     /// on contacts.
     ///
-    /// This parameter is computed automatically from [`Self::natural_frequency`],
-    /// [`Self::damping_ratio`] and the substep length.
-    pub fn erp(&self) -> Real {
-        self.dt * self.erp_inv_dt()
+    /// This parameter is computed automatically from [`Self::contact_natural_frequency`],
+    /// [`Self::contact_damping_ratio`] and the substep length.
+    pub fn contact_erp(&self) -> Real {
+        self.dt * self.contact_erp_inv_dt()
     }
 
     /// The joint’s spring angular frequency for constraint regularization.
@@ -171,11 +177,11 @@ impl IntegrationParameters {
 
     /// The CFM factor to be used in the constraint resolution.
     ///
-    /// This parameter is computed automatically from [`Self::natural_frequency`],
-    /// [`Self::damping_ratio`] and the substep length.
-    pub fn cfm_factor(&self) -> Real {
+    /// This parameter is computed automatically from [`Self::contact_natural_frequency`],
+    /// [`Self::contact_damping_ratio`] and the substep length.
+    pub fn contact_cfm_factor(&self) -> Real {
         // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
-        let inv_erp_minus_one = 1.0 / self.erp() - 1.0;
+        let inv_erp_minus_one = 1.0 / self.contact_erp() - 1.0;
 
         // let stiffness = 4.0 * damping_ratio * damping_ratio * projected_mass
         //     / (dt * dt * inv_erp_minus_one * inv_erp_minus_one);
