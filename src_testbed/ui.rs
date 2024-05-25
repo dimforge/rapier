@@ -162,7 +162,7 @@ pub fn update_ui(
             ui.add(
                 Slider::new(
                     &mut integration_parameters.num_internal_stabilization_iterations,
-                    1..=100,
+                    0..=100,
                 )
                 .text("max internal stabilization iters."),
             );
@@ -170,12 +170,35 @@ pub fn update_ui(
                 Slider::new(&mut integration_parameters.warmstart_coefficient, 0.0..=1.0)
                     .text("warmstart coefficient"),
             );
-            ui.add(Slider::new(&mut integration_parameters.erp, 0.0..=1.0).text("erp"));
+
+            let mut substep_params = *integration_parameters;
+            substep_params.dt /= substep_params.num_solver_iterations.get() as f32;
+            let curr_erp =  substep_params.erp();
+            let curr_cfm_factor = substep_params.cfm_factor();
             ui.add(
-                Slider::new(&mut integration_parameters.damping_ratio, 0.0..=20.0)
-                    .text("damping ratio"),
+                Slider::new(
+                    &mut integration_parameters.contact_natural_frequency,
+                    0.0..=120.0,
+                )
+                .text(format!("contacts Hz (erp = {:.3})", curr_erp)),
             );
-            ui.add(Slider::new(&mut integration_parameters.joint_erp, 0.0..=1.0).text("joint erp"));
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.contact_damping_ratio,
+                    0.0..=20.0,
+                )
+                .text(format!(
+                    "damping ratio (cfm-factor = {:.3})",
+                    curr_cfm_factor
+                )),
+            );
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.joint_natural_frequency,
+                    0.0..=1200000.0,
+                )
+                .text("joint erp"),
+            );
             ui.add(
                 Slider::new(&mut integration_parameters.joint_damping_ratio, 0.0..=20.0)
                     .text("joint damping ratio"),

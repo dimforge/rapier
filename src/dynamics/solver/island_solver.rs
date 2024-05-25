@@ -47,8 +47,6 @@ impl IslandSolver {
 
         let mut params = *base_params;
         params.dt /= num_solver_iterations as Real;
-        params.damping_ratio /= num_solver_iterations as Real;
-        // params.joint_damping_ratio /= num_solver_iterations as Real;
 
         /*
          *

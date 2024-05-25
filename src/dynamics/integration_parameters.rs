@@ -1,4 +1,5 @@
 use crate::math::Real;
+use na::RealField;
 use std::num::NonZeroUsize;
 
 // TODO: enabling the block solver in 3d introduces a lot of jitters in
@@ -9,9 +10,9 @@ pub(crate) static BLOCK_SOLVER_ENABLED: bool = cfg!(feature = "dim2");
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct IntegrationParameters {
-    /// The timestep length (default: `1.0 / 60.0`)
+    /// The timestep length (default: `1.0 / 60.0`).
     pub dt: Real,
-    /// Minimum timestep size when using CCD with multiple substeps (default `1.0 / 60.0 / 100.0`)
+    /// Minimum timestep size when using CCD with multiple substeps (default: `1.0 / 60.0 / 100.0`).
     ///
     /// When CCD with multiple substeps is enabled, the timestep is subdivided
     /// into smaller pieces. This timestep subdivision won't generate timestep
@@ -23,20 +24,24 @@ pub struct IntegrationParameters {
     /// to numerical instabilities.
     pub min_ccd_dt: Real,
 
-    /// 0-1: multiplier for how much of the constraint violation (e.g. contact penetration)
-    /// will be compensated for during the velocity solve.
-    /// (default `0.1`).
-    pub erp: Real,
-    /// 0-1: the damping ratio used by the springs for Baumgarte constraints stabilization.
-    /// Lower values make the constraints more compliant (more "springy", allowing more visible penetrations
-    /// before stabilization).
-    /// (default `20.0`).
-    pub damping_ratio: Real,
+    /// > 0: the damping ratio used by the springs for contact constraint stabilization.
+    /// Lower values make the constraints more compliant (more "springy", allowing more visible
+    /// penetrations before stabilization).
+    /// (default `5.0`).
+    pub contact_damping_ratio: Real,
 
-    /// 0-1: multiplier for how much of the joint violation
-    /// will be compensated for during the velocity solve.
-    /// (default `1.0`).
-    pub joint_erp: Real,
+    /// > 0: the natural frequency used by the springs for contact constraint regularization.
+    /// Increasing this value will make it so that penetrations get fixed more quickly at the
+    /// expense of potential jitter effects due to overshooting. In order to make the simulation
+    /// look stiffer, it is recommended to increase the [`Self::damping_ratio`] instead of this
+    /// value.
+    /// (default: `30.0`).
+    pub contact_natural_frequency: Real,
+
+    /// > 0: the natural frequency used by the springs for joint constraint regularization.
+    /// Increasing this value will make it so that penetrations get fixed more quickly.
+    /// (default: `1.0e6`).
+    pub joint_natural_frequency: Real,
 
     /// The fraction of critical damping applied to the joint for constraints regularization.
     /// (default `1.0`).
@@ -45,7 +50,8 @@ pub struct IntegrationParameters {
     /// The coefficient in `[0, 1]` applied to warmstart impulses, i.e., impulses that are used as the
     /// initial solution (instead of 0) at the next simulation step.
     ///
-    /// This should generally be set to 1. Can be set to 0 if using a large [`Self::erp`] value.
+    /// This should generally be set to 1.
+    ///
     /// (default `1.0`).
     pub warmstart_coefficient: Real,
 
@@ -53,7 +59,7 @@ pub struct IntegrationParameters {
     ///
     /// This value is used internally to estimate some length-based tolerance. In particular, the
     /// values [`IntegrationParameters::allowed_linear_error`],
-    /// [`IntegrationParameters::max_penetration_correction`],
+    /// [`IntegrationParameters::max_corrective_velocity`],
     /// [`IntegrationParameters::prediction_distance`], [`RigidBodyActivation::linear_threshold`]
     /// are scaled by this value implicitly.
     ///
@@ -71,7 +77,7 @@ pub struct IntegrationParameters {
     /// Maximum amount of penetration the solver will attempt to resolve in one timestep.
     ///
     /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
-    pub normalized_max_penetration_correction: Real,
+    pub normalized_max_corrective_velocity: Real,
     /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002m`).
     ///
     /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
@@ -123,20 +129,53 @@ impl IntegrationParameters {
         }
     }
 
-    /// The ERP coefficient, multiplied by the inverse timestep length.
+    /// The contact’s spring angular frequency for constraints regularization.
+    pub fn angular_frequency(&self) -> Real {
+        self.contact_natural_frequency * Real::two_pi()
+    }
+
+    /// The [`Self::erp`] coefficient, multiplied by the inverse timestep length.
     pub fn erp_inv_dt(&self) -> Real {
-        self.erp * self.inv_dt()
+        let ang_freq = self.angular_frequency();
+        ang_freq / (self.dt * ang_freq + 2.0 * self.contact_damping_ratio)
     }
 
-    /// The joint ERP coefficient, multiplied by the inverse timestep length.
+    /// The effective Error Reduction Parameter applied for calculating regularization forces
+    /// on contacts.
+    ///
+    /// This parameter is computed automatically from [`Self::natural_frequency`],
+    /// [`Self::damping_ratio`] and the substep length.
+    pub fn erp(&self) -> Real {
+        self.dt * self.erp_inv_dt()
+    }
+
+    /// The joint’s spring angular frequency for constraint regularization.
+    pub fn joint_angular_frequency(&self) -> Real {
+        self.joint_natural_frequency * Real::two_pi()
+    }
+
+    /// The [`Self::joint_erp`] coefficient, multiplied by the inverse timestep length.
     pub fn joint_erp_inv_dt(&self) -> Real {
-        self.joint_erp * self.inv_dt()
+        let ang_freq = self.joint_angular_frequency();
+        ang_freq / (self.dt * ang_freq + 2.0 * self.joint_damping_ratio)
     }
 
-    /// The CFM factor to be used in the constraints resolution.
+    /// The effective Error Reduction Parameter applied for calculating regularization forces
+    /// on joints.
+    ///
+    /// This parameter is computed automatically from [`Self::joint_natural_frequency`],
+    /// [`Self::joint_damping_ratio`] and the substep length.
+    pub fn joint_erp(&self) -> Real {
+        self.dt * self.joint_erp_inv_dt()
+    }
+
+    /// The CFM factor to be used in the constraint resolution.
+    ///
+    /// This parameter is computed automatically from [`Self::natural_frequency`],
+    /// [`Self::damping_ratio`] and the substep length.
     pub fn cfm_factor(&self) -> Real {
         // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
-        let inv_erp_minus_one = 1.0 / self.erp - 1.0;
+        let inv_erp_minus_one = 1.0 / self.erp() - 1.0;
 
         // let stiffness = 4.0 * damping_ratio * damping_ratio * projected_mass
         //     / (dt * dt * inv_erp_minus_one * inv_erp_minus_one);
@@ -145,7 +184,10 @@ impl IntegrationParameters {
         // let cfm = 1.0 / (dt * dt * stiffness + dt * damping);
         // NOTE: This simplifies to cfm = cfm_coeff / projected_mass:
         let cfm_coeff = inv_erp_minus_one * inv_erp_minus_one
-            / ((1.0 + inv_erp_minus_one) * 4.0 * self.damping_ratio * self.damping_ratio);
+            / ((1.0 + inv_erp_minus_one)
+                * 4.0
+                * self.contact_damping_ratio
+                * self.contact_damping_ratio);
 
         // Furthermore, we use this coefficient inside of the impulse resolution.
         // Surprisingly, several simplifications happen there.
@@ -166,11 +208,14 @@ impl IntegrationParameters {
         1.0 / (1.0 + cfm_coeff)
     }
 
-    /// The CFM (constraints force mixing) coefficient applied to all joints for constraints regularization
+    /// The CFM (constraints force mixing) coefficient applied to all joints for constraints regularization.
+    ///
+    /// This parameter is computed automatically from [`Self::joint_natural_frequency`],
+    /// [`Self::joint_damping_ratio`] and the substep length.
     pub fn joint_cfm_coeff(&self) -> Real {
         // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
         // The logic is similar to `Self::cfm_factor`.
-        let inv_erp_minus_one = 1.0 / self.joint_erp - 1.0;
+        let inv_erp_minus_one = 1.0 / self.joint_erp() - 1.0;
         inv_erp_minus_one * inv_erp_minus_one
             / ((1.0 + inv_erp_minus_one)
                 * 4.0
@@ -186,11 +231,11 @@ impl IntegrationParameters {
 
     /// Maximum amount of penetration the solver will attempt to resolve in one timestep.
     ///
-    /// This is equal to [`Self::normalized_max_penetration_correction`] multiplied by
+    /// This is equal to [`Self::normalized_max_corrective_velocity`] multiplied by
     /// [`Self::length_unit`].
-    pub fn max_penetration_correction(&self) -> Real {
-        if self.normalized_max_penetration_correction != Real::MAX {
-            self.normalized_max_penetration_correction * self.length_unit
+    pub fn max_corrective_velocity(&self) -> Real {
+        if self.normalized_max_corrective_velocity != Real::MAX {
+            self.normalized_max_corrective_velocity * self.length_unit
         } else {
             Real::MAX
         }
@@ -210,9 +255,9 @@ impl IntegrationParameters {
         Self {
             dt: 1.0 / 60.0,
             min_ccd_dt: 1.0 / 60.0 / 100.0,
-            erp: 0.1,
-            damping_ratio: 20.0,
-            joint_erp: 1.0,
+            contact_natural_frequency: 30.0,
+            contact_damping_ratio: 5.0,
+            joint_natural_frequency: 1.0e6,
             joint_damping_ratio: 1.0,
             warmstart_coefficient: 1.0,
             num_internal_pgs_iterations: 1,
@@ -226,7 +271,7 @@ impl IntegrationParameters {
             // tons of islands, reducing SIMD parallelism opportunities.
             min_island_size: 128,
             normalized_allowed_linear_error: 0.001,
-            normalized_max_penetration_correction: Real::MAX,
+            normalized_max_corrective_velocity: 10.0,
             normalized_prediction_distance: 0.002,
             max_ccd_substeps: 1,
             length_unit: 1.0,
@@ -240,8 +285,7 @@ impl IntegrationParameters {
     /// warmstarting proves to be undesirable for your use-case.
     pub fn tgs_soft_without_warmstart() -> Self {
         Self {
-            erp: 0.6,
-            damping_ratio: 1.0,
+            contact_damping_ratio: 0.25,
             warmstart_coefficient: 0.0,
             num_additional_friction_iterations: 4,
             ..Self::tgs_soft()
@@ -253,12 +297,9 @@ impl IntegrationParameters {
     /// This exists mainly for testing and comparison purpose.
     pub fn pgs_legacy() -> Self {
         Self {
-            erp: 0.8,
-            damping_ratio: 0.25,
-            warmstart_coefficient: 0.0,
-            num_additional_friction_iterations: 4,
             num_solver_iterations: NonZeroUsize::new(1).unwrap(),
-            ..Self::tgs_soft()
+            num_internal_pgs_iterations: 4,
+            ..Self::tgs_soft_without_warmstart()
         }
     }
 }

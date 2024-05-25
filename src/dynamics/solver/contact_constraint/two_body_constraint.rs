@@ -432,7 +432,8 @@ impl TwoBodyConstraintBuilder {
             }
         }
 
-        constraint.cfm_factor = if is_fast_contact { 1.0 } else { cfm_factor };
+        constraint.cfm_factor = cfm_factor;
+        // constraint.cfm_factor = if is_fast_contact { 1.0 } else { cfm_factor };
     }
 }
 
