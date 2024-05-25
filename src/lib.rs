@@ -15,6 +15,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::needless_range_loop)] // TODO: remove this? I find that in the math code using indices adds clarity.
 #![allow(clippy::module_inception)]
+#![allow(unexpected_cfgs)] // This happens due to the dim2/dim3/f32/f64 cfg.
 
 #[cfg(all(feature = "dim2", feature = "f32"))]
 pub extern crate parry2d as parry;
