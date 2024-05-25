@@ -7,5 +7,6 @@ description = "Load urdf files into rapier"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bitflags = "2"
 urdf-rs = "0.8"
-rapier3d = {  version = "0.19", path = "../rapier3d" }
+rapier3d = { version = "0.19", path = "../rapier3d" }

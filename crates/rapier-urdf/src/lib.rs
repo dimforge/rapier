@@ -2,9 +2,9 @@ use rapier3d::{
     dynamics::{
         GenericJoint, GenericJointBuilder, ImpulseJointHandle, ImpulseJointSet, JointAxesMask,
         JointAxis, MassProperties, MultibodyJointHandle, MultibodyJointSet, RigidBody,
-        RigidBodyBuilder, RigidBodyHandle, RigidBodySet,
+        RigidBodyBuilder, RigidBodyHandle, RigidBodySet, RigidBodyType,
     },
-    geometry::{Collider, ColliderBuilder, ColliderHandle, ColliderSet},
+    geometry::{Collider, ColliderBuilder, ColliderHandle, ColliderSet, SharedShape},
     math::{Isometry, Point, Vector},
     na,
 };
@@ -13,6 +13,31 @@ use std::path::Path;
 use urdf_rs::{Collision, Geometry, Inertial, Joint, JointType, Pose, Robot, UrdfError};
 
 pub type LinkId = usize;
+
+#[derive(Clone, Debug)]
+pub struct UrdfLoaderOptions {
+    pub create_colliders_from_collision_shapes: bool,
+    pub create_colliders_from_visual_shapes: bool,
+    pub apply_imported_mass_props: bool,
+    pub enable_joint_collisions: bool,
+    pub make_roots_fixed: bool,
+    pub collider_blueprint: ColliderBuilder,
+    pub rigid_body_blueprint: RigidBodyBuilder,
+}
+
+impl Default for UrdfLoaderOptions {
+    fn default() -> Self {
+        Self {
+            create_colliders_from_collision_shapes: true,
+            create_colliders_from_visual_shapes: false,
+            apply_imported_mass_props: true,
+            enable_joint_collisions: false,
+            make_roots_fixed: false,
+            collider_blueprint: ColliderBuilder::ball(0.0).density(0.0),
+            rigid_body_blueprint: RigidBodyBuilder::dynamic(),
+        }
+    }
+}
 
 /// An urdf link loaded as a rapier [`RigidBody`] and its [`Collider`]s.
 #[derive(Clone)]
@@ -64,31 +89,48 @@ pub struct RapierRobotHandles<JointHandle> {
 }
 
 impl RapierRobot {
-    pub fn from_file(path: impl AsRef<Path>) -> urdf_rs::Result<(Self, Robot)> {
+    pub fn from_file(
+        path: impl AsRef<Path>,
+        options: UrdfLoaderOptions,
+    ) -> urdf_rs::Result<(Self, Robot)> {
         let robot = urdf_rs::read_file(path)?;
-        Ok((Self::from_robot(&robot), robot))
+        Ok((Self::from_robot(&robot, options), robot))
     }
 
-    pub fn from_str(str: &str) -> urdf_rs::Result<(Self, Robot)> {
+    pub fn from_str(str: &str, options: UrdfLoaderOptions) -> urdf_rs::Result<(Self, Robot)> {
         let robot = urdf_rs::read_from_string(str)?;
-        Ok((Self::from_robot(&robot), robot))
+        Ok((Self::from_robot(&robot, options), robot))
     }
 
-    pub fn from_robot(robot: &Robot) -> Self {
+    pub fn from_robot(robot: &Robot, options: UrdfLoaderOptions) -> Self {
         let mut name_to_link_id = HashMap::new();
+        println!("Num links: {}", robot.links.len());
+        println!("Robot: {:?}", robot);
 
-        let links: Vec<_> = robot
+        let mut link_is_root = vec![true; robot.links.len()];
+        let mut links: Vec<_> = robot
             .links
             .iter()
             .enumerate()
             .map(|(id, link)| {
                 name_to_link_id.insert(&link.name, id);
-                let colliders: Vec<_> = link
-                    .collision
-                    .iter()
-                    .map(|co| urdf_to_collider(co))
-                    .collect();
-                let body = urdf_to_rigid_body(&link.inertial);
+                println!("Num collisions: {}", link.collision.len());
+                let mut colliders = vec![];
+                if options.create_colliders_from_collision_shapes {
+                    colliders.extend(
+                        link.collision
+                            .iter()
+                            .map(|co| urdf_to_collider(&options, &co.geometry, &co.origin)),
+                    )
+                }
+                if options.create_colliders_from_visual_shapes {
+                    colliders.extend(
+                        link.visual
+                            .iter()
+                            .map(|vis| urdf_to_collider(&options, &vis.geometry, &vis.origin)),
+                    )
+                }
+                let body = urdf_to_rigid_body(&options, &link.inertial);
                 RapierLink { body, colliders }
             })
             .collect();
@@ -98,7 +140,9 @@ impl RapierRobot {
             .map(|joint| {
                 let link1 = name_to_link_id[&joint.parent.link];
                 let link2 = name_to_link_id[&joint.child.link];
-                let joint = urdf_to_joint(joint);
+                let joint = urdf_to_joint(&options, joint);
+                link_is_root[link2] = false;
+
                 RapierJoint {
                     joint,
                     link1,
@@ -106,6 +150,15 @@ impl RapierRobot {
                 }
             })
             .collect();
+        println!("{:?}", name_to_link_id);
+
+        if options.make_roots_fixed {
+            for (link, is_root) in links.iter_mut().zip(link_is_root.into_iter()) {
+                if is_root {
+                    link.body.set_body_type(RigidBodyType::Fixed, true)
+                }
+            }
+        }
 
         Self { links, joints }
     }
@@ -184,10 +237,14 @@ impl RapierRobot {
     }
 }
 
-fn urdf_to_rigid_body(inertial: &Inertial) -> RigidBody {
-    RigidBodyBuilder::dynamic()
-        .position(urdf_to_isometry(&inertial.origin))
-        .additional_mass_properties(MassProperties::with_inertia_matrix(
+fn urdf_to_rigid_body(options: &UrdfLoaderOptions, inertial: &Inertial) -> RigidBody {
+    let mut builder = options
+        .rigid_body_blueprint
+        .clone()
+        .position(urdf_to_isometry(&inertial.origin));
+
+    if options.apply_imported_mass_props {
+        builder = builder.additional_mass_properties(MassProperties::with_inertia_matrix(
             Point::origin(),
             inertial.mass.value as f32,
             na::Matrix3::new(
@@ -202,30 +259,34 @@ fn urdf_to_rigid_body(inertial: &Inertial) -> RigidBody {
                 inertial.inertia.izz as f32,
             ),
         ))
-        .build()
+    }
+
+    builder.build()
 }
 
-fn urdf_to_collider(co: &Collision) -> Collider {
-    let builder = match &co.geometry {
-        Geometry::Box { size } => ColliderBuilder::cuboid(
+fn urdf_to_collider(options: &UrdfLoaderOptions, geometry: &Geometry, origin: &Pose) -> Collider {
+    let mut builder = options.collider_blueprint.clone();
+    let shape = match &geometry {
+        Geometry::Box { size } => SharedShape::cuboid(
             size[0] as f32 / 2.0,
             size[1] as f32 / 2.0,
             size[2] as f32 / 2.0,
         ),
         Geometry::Cylinder { radius, length } => {
-            ColliderBuilder::cylinder(*length as f32 / 2.0, *radius as f32)
+            SharedShape::cylinder(*length as f32 / 2.0, *radius as f32)
         }
         Geometry::Capsule { radius, length } => {
-            ColliderBuilder::capsule_y(*length as f32 / 2.0, *radius as f32)
+            SharedShape::capsule_y(*length as f32 / 2.0, *radius as f32)
         }
-        Geometry::Sphere { radius } => ColliderBuilder::ball(*radius as f32),
+        Geometry::Sphere { radius } => SharedShape::ball(*radius as f32),
         Geometry::Mesh { filename, scale } => todo!(),
     };
 
-    builder
-        .position(urdf_to_isometry(&co.origin))
-        .density(0.0)
-        .build()
+    builder.shape = shape;
+
+    println!("Collider: {:?}", builder);
+
+    builder.position(urdf_to_isometry(origin)).build()
 }
 
 fn urdf_to_isometry(pose: &Pose) -> Isometry<f32> {
@@ -239,7 +300,7 @@ fn urdf_to_isometry(pose: &Pose) -> Isometry<f32> {
     )
 }
 
-fn urdf_to_joint(joint: &Joint) -> GenericJoint {
+fn urdf_to_joint(options: &UrdfLoaderOptions, joint: &Joint) -> GenericJoint {
     let locked_axes = match joint.joint_type {
         JointType::Fixed => JointAxesMask::LOCKED_FIXED_AXES,
         JointType::Continuous | JointType::Revolute => JointAxesMask::LOCKED_REVOLUTE_AXES,
@@ -258,7 +319,8 @@ fn urdf_to_joint(joint: &Joint) -> GenericJoint {
     let mut builder = GenericJointBuilder::new(locked_axes)
         .local_axis1(joint_to_parent * joint_axis)
         .local_axis2(joint_axis)
-        .local_anchor1(joint_to_parent.translation.vector.into());
+        .local_anchor1(joint_to_parent.translation.vector.into())
+        .contacts_enabled(options.enable_joint_collisions);
 
     match joint.joint_type {
         JointType::Revolute | JointType::Prismatic => {
