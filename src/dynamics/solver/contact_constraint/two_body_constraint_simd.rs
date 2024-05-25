@@ -317,7 +317,8 @@ impl TwoBodyConstraintBuilderSimd {
             }
         }
 
-        constraint.cfm_factor = SimdReal::splat(1.0).select(is_fast_contact, cfm_factor);
+        constraint.cfm_factor = cfm_factor;
+        // constraint.cfm_factor = SimdReal::splat(1.0).select(is_fast_contact, cfm_factor);
     }
 }
 

@@ -205,17 +205,19 @@ impl VelocitySolver {
             /*
              * Resolution without bias.
              */
-            for _ in 0..params.num_internal_stabilization_iterations {
-                joint_constraints
-                    .solve_wo_bias(&mut self.solver_vels, &mut self.generic_solver_vels);
-                contact_constraints.solve_restitution_wo_bias(
-                    &mut self.solver_vels,
-                    &mut self.generic_solver_vels,
-                );
-            }
+            if params.num_internal_stabilization_iterations > 0 {
+                for _ in 0..params.num_internal_stabilization_iterations {
+                    joint_constraints
+                        .solve_wo_bias(&mut self.solver_vels, &mut self.generic_solver_vels);
+                    contact_constraints.solve_restitution_wo_bias(
+                        &mut self.solver_vels,
+                        &mut self.generic_solver_vels,
+                    );
+                }
 
-            contact_constraints
-                .solve_friction(&mut self.solver_vels, &mut self.generic_solver_vels);
+                contact_constraints
+                    .solve_friction(&mut self.solver_vels, &mut self.generic_solver_vels);
+            }
         }
     }
 
