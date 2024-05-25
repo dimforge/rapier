@@ -1,23 +1,23 @@
 [package]
-name    = "rapier-examples-3d"
+name = "rapier-examples-3d"
 version = "0.1.0"
-authors = [ "Sébastien Crozet <developer@crozet.re>" ]
+authors = ["Sébastien Crozet <developer@crozet.re>"]
 edition = "2021"
 default-run = "all_examples3"
 
 [features]
-parallel = [ "rapier3d/parallel", "rapier_testbed3d/parallel" ]
-simd-stable = [ "rapier3d/simd-stable" ]
-simd-nightly = [ "rapier3d/simd-nightly" ]
-other-backends = [ "rapier_testbed3d/other-backends" ]
-enhanced-determinism = [ "rapier3d/enhanced-determinism" ]
+parallel = ["rapier3d/parallel", "rapier_testbed3d/parallel"]
+simd-stable = ["rapier3d/simd-stable"]
+simd-nightly = ["rapier3d/simd-nightly"]
+other-backends = ["rapier_testbed3d/other-backends"]
+enhanced-determinism = ["rapier3d/enhanced-determinism"]
 
 [dependencies]
 rand = "0.8"
-getrandom = { version = "0.2", features = [ "js" ] } 
-Inflector  = "0.11"
+getrandom = { version = "0.2", features = ["js"] }
+Inflector = "0.11"
 wasm-bindgen = "0.2"
-obj-rs = { version =  "0.7", default-features = false }
+obj-rs = { version = "0.7", default-features = false }
 serde = "1"
 bincode = "1"
 
@@ -26,6 +26,9 @@ path = "../crates/rapier_testbed3d"
 
 [dependencies.rapier3d]
 path = "../crates/rapier3d"
+
+[dependencies.rapier-urdf]
+path = "../crates/rapier-urdf"
 
 [[bin]]
 name = "all_examples3"

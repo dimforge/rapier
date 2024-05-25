@@ -55,6 +55,7 @@ mod rope_joints3;
 mod sensor3;
 mod spring_joints3;
 mod trimesh3;
+mod urdf3;
 mod vehicle_controller3;
 mod vehicle_joints3;
 
@@ -119,6 +120,7 @@ pub fn main() {
         ("Sensor", sensor3::init_world),
         ("Spring Joints", spring_joints3::init_world),
         ("TriMesh", trimesh3::init_world),
+        ("Urdf", urdf3::init_world),
         ("Vehicle controller", vehicle_controller3::init_world),
         ("Vehicle joints", vehicle_joints3::init_world),
         ("Keva tower", keva3::init_world),
