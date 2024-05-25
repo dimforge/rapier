@@ -89,6 +89,7 @@ impl Default for Multibody {
         Multibody::new()
     }
 }
+
 impl Multibody {
     /// Creates a new multibody with no link.
     pub fn new() -> Self {
@@ -115,6 +116,8 @@ impl Multibody {
 
     pub(crate) fn with_root(handle: RigidBodyHandle) -> Self {
         let mut mb = Multibody::new();
+        // NOTE: we have no way of knowing if the root in fixed at this point, so
+        //       we mark it as dynamic and will fixe later with `Self::update_root_type`.
         mb.root_is_dynamic = true;
         let joint = MultibodyJoint::free(Isometry::identity());
         mb.add_link(None, joint, handle);
@@ -747,6 +750,12 @@ impl Multibody {
         self.velocities.rows(0, self.ndofs)
     }
 
+    /// The body jacobian for link `link_id` calculated by the last call to [`Multibody::forward_kinematics`].
+    #[inline]
+    pub fn body_jacobian(&self, link_id: usize) -> &Jacobian<Real> {
+        &self.body_jacobians[link_id]
+    }
+
     /// The mutable generalized velocities of this multibodies.
     #[inline]
     pub fn generalized_velocity_mut(&mut self) -> DVectorViewMut<Real> {
@@ -762,17 +771,27 @@ impl Multibody {
     }
 
     /// Apply displacements, in generalized coordinates, to this multibody.
+    ///
+    /// Note this does **not** updates the link poses, only their generalized coordinates.
+    /// To update the link poses and associated rigid-bodies, call [`Self::forward_kinematics`]
+    /// or [`Self::finalize`].
     pub fn apply_displacements(&mut self, disp: &[Real]) {
         for link in self.links.iter_mut() {
             link.joint.apply_displacement(&disp[link.assembly_id..])
         }
     }
 
-    pub(crate) fn update_root_type(&mut self, bodies: &mut RigidBodySet) {
+    pub(crate) fn update_root_type(&mut self, bodies: &RigidBodySet, take_body_pose: bool) {
         if let Some(rb) = bodies.get(self.links[0].rigid_body) {
             if rb.is_dynamic() != self.root_is_dynamic {
+                let root_pose = if take_body_pose {
+                    *rb.position()
+                } else {
+                    self.links[0].local_to_world
+                };
+
                 if rb.is_dynamic() {
-                    let free_joint = MultibodyJoint::free(*rb.position());
+                    let free_joint = MultibodyJoint::free(root_pose);
                     let prev_root_ndofs = self.links[0].joint().ndofs();
                     self.links[0].joint = free_joint;
                     self.links[0].assembly_id = 0;
@@ -791,7 +810,7 @@ impl Multibody {
                     assert!(self.damping.len() >= SPATIAL_DIM);
                     assert!(self.accelerations.len() >= SPATIAL_DIM);
 
-                    let fixed_joint = MultibodyJoint::fixed(*rb.position());
+                    let fixed_joint = MultibodyJoint::fixed(root_pose);
                     let prev_root_ndofs = self.links[0].joint().ndofs();
                     self.links[0].joint = fixed_joint;
                     self.links[0].assembly_id = 0;
@@ -820,30 +839,86 @@ impl Multibody {
             }
 
             // Make sure the positions are properly set to match the rigid-body’s.
-            if self.links[0].joint.data.locked_axes.is_empty() {
-                self.links[0].joint.set_free_pos(*rb.position());
+            if take_body_pose {
+                if self.links[0].joint.data.locked_axes.is_empty() {
+                    self.links[0].joint.set_free_pos(*rb.position());
+                } else {
+                    self.links[0].joint.data.local_frame1 = *rb.position();
+                }
+            }
+        }
+    }
+
+    /// Update the rigid-body poses based on this multibody joint poses.
+    ///
+    /// This is typically called after [`Self::forward_kinematics`] to apply the new joint poses
+    /// to the rigid-bodies.
+    pub fn update_rigid_bodies(&self, bodies: &mut RigidBodySet, update_mass_properties: bool) {
+        self.update_rigid_bodies_internal(bodies, update_mass_properties, false, true)
+    }
+
+    pub(crate) fn update_rigid_bodies_internal(
+        &self,
+        bodies: &mut RigidBodySet,
+        update_mass_properties: bool,
+        update_next_positions_only: bool,
+        change_tracking: bool,
+    ) {
+        // Handle the children. They all have a parent within this multibody.
+        for link in self.links.iter() {
+            let rb = if change_tracking {
+                bodies.get_mut_internal_with_modification_tracking(link.rigid_body)
             } else {
-                self.links[0].joint.data.local_frame1 = *rb.position();
+                bodies.get_mut_internal(link.rigid_body)
+            };
+
+            if let Some(rb) = rb {
+                rb.pos.next_position = link.local_to_world;
+
+                if !update_next_positions_only {
+                    rb.pos.position = link.local_to_world;
+                }
+
+                if update_mass_properties {
+                    rb.mprops.update_world_mass_properties(&link.local_to_world);
+                }
             }
         }
     }
 
     // TODO: make a version that doesn’t write back to bodies and doesn’t update the jacobians
     //       (i.e. just something used by the velocity solver’s small steps).
-    /// Apply forward-kinematics to this multibody and its related rigid-bodies.
-    pub fn forward_kinematics(&mut self, bodies: &mut RigidBodySet, update_rb_mass_props: bool) {
+    /// Apply forward-kinematics to this multibody.
+    ///
+    /// This will update the [`MultibodyLink`] pose information as wall as the body jacobians.
+    /// This will also ensure that the multibody has the proper number of degrees of freedom if
+    /// its root node changed between dynamic and non-dynamic.
+    ///
+    /// Note that this does **not** update the poses of the [`RigidBody`] attached to the joints.
+    /// Run [`Self::update_rigid_bodies`] to trigger that update.
+    ///
+    /// This method updates `self` with the result of the forward-kinematics operation.
+    /// For a non-mutable version running forward kinematics on a single link, see
+    /// [`Self::forward_kinematics_single_link`].
+    ///
+    /// ## Parameters
+    /// - `bodies`: the set of rigid-bodies.
+    /// - `read_root_pose_from_rigid_body`: if set to `true`, the root joint (either a fixed joint,
+    ///   or a free joint) will have its pose set to its associated-rigid-body pose. Set this to `true`
+    ///   when the root rigid-body pose has been modified and needs to affect the multibody.
+    pub fn forward_kinematics(
+        &mut self,
+        bodies: &RigidBodySet,
+        read_root_pose_from_rigid_body: bool,
+    ) {
+        // Be sure the degrees of freedom match and take the root position if needed.
+        self.update_root_type(bodies, read_root_pose_from_rigid_body);
+
         // Special case for the root, which has no parent.
         {
             let link = &mut self.links[0];
             link.local_to_parent = link.joint.body_to_parent();
             link.local_to_world = link.local_to_parent;
-
-            if let Some(rb) = bodies.get_mut_internal(link.rigid_body) {
-                rb.pos.next_position = link.local_to_world;
-                if update_rb_mass_props {
-                    rb.mprops.update_world_mass_properties(&link.local_to_world);
-                }
-            }
         }
 
         // Handle the children. They all have a parent within this multibody.
@@ -865,26 +940,118 @@ impl Multibody {
                 link.shift23 = c3 - c2;
             }
 
-            let link_rb = bodies.index_mut_internal(link.rigid_body);
-            link_rb.pos.next_position = link.local_to_world;
-
             assert_eq!(
-                link_rb.body_type,
+                bodies[link.rigid_body].body_type,
                 RigidBodyType::Dynamic,
                 "A rigid-body that is not at the root of a multibody must be dynamic."
             );
-
-            if update_rb_mass_props {
-                link_rb
-                    .mprops
-                    .update_world_mass_properties(&link.local_to_world);
-            }
         }
 
         /*
          * Compute body jacobians.
          */
         self.update_body_jacobians();
+    }
+
+    /// Apply forward-kinematics to compute the position of a single link of this multibody.
+    ///
+    /// If `out_jacobian` is `Some`, this will simultaneously compute the new jacobian of this link.
+    /// If `displacement` is `Some`, the generalized position considered during transform propagation
+    /// is the sum of the current position of `self` and this `displacement`.
+    // TODO: this shares a lot of code with `forward_kinematics` and `update_body_jacobians`, except
+    //       that we are only traversing a single kinematic chain. Could this be refactored?
+    pub fn forward_kinematics_single_link(
+        &self,
+        bodies: &RigidBodySet,
+        link_id: usize,
+        displacement: Option<&[Real]>,
+        mut out_jacobian: Option<&mut Jacobian<Real>>,
+    ) -> Isometry<Real> {
+        let mut branch = vec![]; // Perf: avoid allocation.
+        let mut curr_id = Some(link_id);
+
+        while let Some(id) = curr_id {
+            branch.push(id);
+            curr_id = self.links[id].parent_id();
+        }
+
+        branch.reverse();
+
+        if let Some(out_jacobian) = out_jacobian.as_deref_mut() {
+            if out_jacobian.ncols() != self.ndofs {
+                *out_jacobian = Jacobian::zeros(self.ndofs);
+            } else {
+                out_jacobian.fill(0.0);
+            }
+        }
+
+        let mut parent_link: Option<MultibodyLink> = None;
+
+        for i in branch {
+            let mut link = self.links[i];
+
+            if let Some(displacement) = displacement {
+                link.joint
+                    .apply_displacement(&displacement[link.assembly_id..]);
+            }
+
+            let parent_to_world;
+
+            if let Some(parent_link) = parent_link {
+                link.local_to_parent = link.joint.body_to_parent();
+                link.local_to_world = parent_link.local_to_world * link.local_to_parent;
+
+                {
+                    let parent_rb = &bodies[parent_link.rigid_body];
+                    let link_rb = &bodies[link.rigid_body];
+                    let c0 = parent_link.local_to_world * parent_rb.mprops.local_mprops.local_com;
+                    let c2 = link.local_to_world
+                        * Point::from(link.joint.data.local_frame2.translation.vector);
+                    let c3 = link.local_to_world * link_rb.mprops.local_mprops.local_com;
+
+                    link.shift02 = c2 - c0;
+                    link.shift23 = c3 - c2;
+                }
+
+                parent_to_world = parent_link.local_to_world;
+
+                if let Some(out_jacobian) = out_jacobian.as_deref_mut() {
+                    let (mut link_j_v, parent_j_w) =
+                        out_jacobian.rows_range_pair_mut(0..DIM, DIM..DIM + ANG_DIM);
+                    let shift_tr = (link.shift02).gcross_matrix_tr();
+                    link_j_v.gemm(1.0, &shift_tr, &parent_j_w, 1.0);
+                }
+            } else {
+                link.local_to_parent = link.joint.body_to_parent();
+                link.local_to_world = link.local_to_parent;
+                parent_to_world = Isometry::identity();
+            }
+
+            if let Some(out_jacobian) = out_jacobian.as_deref_mut() {
+                let ndofs = link.joint.ndofs();
+                let mut tmp = SMatrix::<Real, SPATIAL_DIM, SPATIAL_DIM>::zeros();
+                let mut link_joint_j = tmp.columns_mut(0, ndofs);
+                let mut link_j_part = out_jacobian.columns_mut(link.assembly_id, ndofs);
+                link.joint.jacobian(
+                    &(parent_to_world.rotation * link.joint.data.local_frame1.rotation),
+                    &mut link_joint_j,
+                );
+                link_j_part += link_joint_j;
+
+                {
+                    let (mut link_j_v, link_j_w) =
+                        out_jacobian.rows_range_pair_mut(0..DIM, DIM..DIM + ANG_DIM);
+                    let shift_tr = link.shift23.gcross_matrix_tr();
+                    link_j_v.gemm(1.0, &shift_tr, &link_j_w, 1.0);
+                }
+            }
+
+            parent_link = Some(link);
+        }
+
+        parent_link
+            .map(|link| link.local_to_world)
+            .unwrap_or_else(Isometry::identity)
     }
 
     /// The total number of freedoms of this multibody.

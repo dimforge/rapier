@@ -287,6 +287,13 @@ impl MultibodyJointSet {
     }
 
     /// Gets a mutable reference to a multibody, based on its temporary index.
+    /// `MultibodyJointSet`.
+    pub fn get_multibody_mut(&mut self, index: MultibodyIndex) -> Option<&mut Multibody> {
+        // TODO: modification tracking.
+        self.multibodies.get_mut(index.0)
+    }
+
+    /// Gets a mutable reference to a multibody, based on its temporary index.
     ///
     /// This method will bypass any modification-detection automatically done by the
     /// `MultibodyJointSet`.
@@ -363,13 +370,13 @@ impl MultibodyJointSet {
         let parent1 = link1.parent_id();
 
         if parent1 == Some(id2.id) {
-            Some((MultibodyJointHandle(rb1.0), mb, &link1))
+            Some((MultibodyJointHandle(rb1.0), mb, link1))
         } else {
             let link2 = mb.link(id2.id)?;
             let parent2 = link2.parent_id();
 
             if parent2 == Some(id1.id) {
-                Some((MultibodyJointHandle(rb2.0), mb, &link2))
+                Some((MultibodyJointHandle(rb2.0), mb, link2))
             } else {
                 None
             }
