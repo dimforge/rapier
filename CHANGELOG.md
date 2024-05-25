@@ -14,12 +14,21 @@
 
 ### Modified
 
+- The contact constraints regularization parameters have been changed from `erp/damping_ratio` to
+  `natural_frequency/damping_ratio`. This helps define them in a timestep-length independent way. The new variables
+  are named `IntegrationParameters::contact_natural_frequency` and `IntegrationParameters::contact_damping_ratio`.
+- The `IntegrationParameters::normalized_max_penetration_correction` has been replaced
+  by `::normalized_max_corrective_velocity`
+  to make the parameter more timestep-length independent. It is now set to a non-infinite value to eliminate aggressive
+  "popping effects".
 - The `Multibody::forward_kinematics` method will no longer automatically update the poses of the `RigidBody` associated
   to each joint. Instead `Multibody::update_rigid_bodies` has to be called explicitly.
 - The `Multibody::forward_kinematics` method will automatically adjust the multibody’s degrees of freedom if the root
   rigid-body changed type (between dynamic and non-dynamic). It can also optionally apply the root’s rigid-body pose
   instead of the root link’s pose (useful for example if you modified the root rigid-body pose externally and wanted
   to propagate it to the multibody).
+- Remove an internal special-case for contact constraints on fast contacts. The doesn’t seem necessary with the substep
+  solver.
 
 ## v0.19.0 (05 May 2024)
 
