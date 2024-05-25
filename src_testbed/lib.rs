@@ -1,4 +1,5 @@
 #![allow(clippy::too_many_arguments)]
+#![allow(unexpected_cfgs)] // This happens due to the dim2/dim3/f32/f64 cfg.
 
 extern crate nalgebra as na;
 
