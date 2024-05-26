@@ -96,15 +96,17 @@ pub fn init_world(testbed: &mut Testbed) {
             wheel_pos_in_car_space - body_position_in_car_space;
 
         // Suspension between the body and the axle.
-        let mut locked_axes =
-            JointAxesMask::X | JointAxesMask::Z | JointAxesMask::ANG_X | JointAxesMask::ANG_Z;
+        let mut locked_axes = JointAxesMask::LIN_X
+            | JointAxesMask::LIN_Z
+            | JointAxesMask::ANG_X
+            | JointAxesMask::ANG_Z;
         if !is_front {
             locked_axes |= JointAxesMask::ANG_Y;
         }
 
         let mut suspension_joint = GenericJointBuilder::new(locked_axes)
-            .limits(JointAxis::Y, [0.0, suspension_height])
-            .motor_position(JointAxis::Y, 0.0, 1.0e4, 1.0e3)
+            .limits(JointAxis::LinY, [0.0, suspension_height])
+            .motor_position(JointAxis::LinY, 0.0, 1.0e4, 1.0e3)
             .local_anchor1(suspension_attachment_in_body_space.into());
 
         if is_front {

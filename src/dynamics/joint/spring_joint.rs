@@ -22,8 +22,8 @@ impl SpringJoint {
     pub fn new(rest_length: Real, stiffness: Real, damping: Real) -> Self {
         let data = GenericJointBuilder::new(JointAxesMask::empty())
             .coupled_axes(JointAxesMask::LIN_AXES)
-            .motor_position(JointAxis::X, rest_length, stiffness, damping)
-            .motor_model(JointAxis::X, MotorModel::ForceBased)
+            .motor_position(JointAxis::LinX, rest_length, stiffness, damping)
+            .motor_model(JointAxis::LinX, MotorModel::ForceBased)
             .build();
         Self { data }
     }
@@ -75,7 +75,7 @@ impl SpringJoint {
     /// `MotorModel::AccelerationBased`, the spring constants will be automatically scaled by the attached masses,
     /// making the spring more mass-independent.
     pub fn set_spring_model(&mut self, model: MotorModel) -> &mut Self {
-        self.data.set_motor_model(JointAxis::X, model);
+        self.data.set_motor_model(JointAxis::LinX, model);
         self
     }
 
