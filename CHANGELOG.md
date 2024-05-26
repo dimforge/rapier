@@ -1,5 +1,11 @@
 ## Unreleased
 
+This release introduces two new crates:
+
+- `rapier-urdf` for loading URDF files into rapier3d. This will load the rigid-bodies,
+  colliders, and joints.
+- `rapier-stl` for loading an STL file as a collision shape.
+
 ### Added
 
 - Add `Multibody::inverse_kinematics`, `Multibody::inverse_kinematics_delta`,
@@ -12,9 +18,17 @@
   single link without mutating the multibody. This can take an optional displacement on generalized coordinates that are
   taken into account during transform propagation.
 - Implement `Debug` for `ColliderBuilder`.
+- Add `Collider::converted_trimesh` and `MeshConverter` for building a collider with a shape computed from a mesh’s
+  index and vertex buffers. That computed shape can currently be a `TriMesh`, a `Cuboid` (covering the mesh’s AABB or
+  OBB), a convex hull, or a convex decomposition.
+- Implement `Default` for `RigidBodyBuilder`. This is equivalent to `RigidBodyBuilder::dynamic()`.
+- Implement `Default` for `ColliderBuilder`. This is equivalent to `ColliderBuilder::ball(0.5)`.
 
 ### Modified
 
+- Renamed `JointAxesMask::X/Y/Z` to `::LIN_X/LIN_Y/LIN_Z`; and renamed `JointAxisMask::X/Y/Z` to `::LinX/LinY/LynZ` to
+  make it clear it is not to be used as angular axes (the angular axis are `JointAxesMask::ANG_X/ANG_Y/AngZ` and
+  `JointAxisMask::AngX/AngY/AngZ`).
 - The contact constraints regularization parameters have been changed from `erp/damping_ratio` to
   `natural_frequency/damping_ratio`. This helps define them in a timestep-length independent way. The new variables
   are named `IntegrationParameters::contact_natural_frequency` and `IntegrationParameters::contact_damping_ratio`.
@@ -30,6 +44,12 @@
   to propagate it to the multibody).
 - Remove an internal special-case for contact constraints on fast contacts. The doesn’t seem necessary with the substep
   solver.
+- Remove `RigidBody::add_collider`. This was an implementation detail previously needed by `bevy_rapier`. To attach
+  a collider to a rigid-body, use `ColliderSet::insert_with_parent` or `ColliderSet::set_parent`.
+- Rename `JointAxis::X/Y/Z` to `::LinX/LinY/LinZ` to avoid confusing it with `::AngX/AngY/AngZ`.
+- Rename `JointAxesMask::X/Y/Z` to `::LIN_X/LIN_Y/LIN_Z` to avoid confusing it with `::ANG_X/ANG_Y/ANG_Z`.
+- The function `RigidBody::add_collider` is now private. It was only public because it was needed for some internal
+  `bevy_rapier` plumbings, but it is no longer useful. Adding a collider must always go througthe `ColliderSet`.
 
 ## v0.19.0 (05 May 2024)
 
