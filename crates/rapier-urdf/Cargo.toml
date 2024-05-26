@@ -2,11 +2,15 @@
 name = "rapier-urdf"
 version = "0.1.0"
 edition = "2021"
-description = "Load urdf files into rapier"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+stl = ["rapier-stl"]
 
 [dependencies]
-bitflags = "2"
-urdf-rs = "0.8"
-rapier3d = { version = "0.19", path = "../rapier3d" }
+log = "0.4"
+anyhow = "1"
+# NOTE: we are not using the (more recent) urdf-rs crate because of https://github.com/openrr/urdf-rs/issues/94
+xurdf = "0.2"
+
+rapier3d = { versions = "0.19", path = "../rapier3d" }
+rapier-stl = { version = "0.1.0", path = "../rapier-stl", optional = true }

@@ -1,0 +1,10 @@
+[package]
+name = "rapier-stl"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror = "1.0.61"
+stl_io = "0.7"
+
+rapier3d = { versions = "0.19", path = "../rapier3d" }

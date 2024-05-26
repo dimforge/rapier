@@ -29,6 +29,7 @@ path = "../crates/rapier3d"
 
 [dependencies.rapier-urdf]
 path = "../crates/rapier-urdf"
+features = ["stl"]
 
 [[bin]]
 name = "all_examples3"
