@@ -636,8 +636,7 @@ impl RigidBody {
     }
 
     /// Adds a collider to this rigid-body.
-    // TODO ECS: we keep this public for now just to simply our experiments on bevy_rapier.
-    pub fn add_collider(
+    pub(crate) fn add_collider_internal(
         &mut self,
         co_handle: ColliderHandle,
         co_parent: &ColliderParent,
