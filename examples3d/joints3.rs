@@ -18,9 +18,9 @@ fn create_coupled_joints(
     colliders.insert_with_parent(ColliderBuilder::cuboid(1.0, 1.0, 1.0), body1, bodies);
 
     let joint1 = GenericJointBuilder::new(JointAxesMask::empty())
-        .limits(JointAxis::X, [-3.0, 3.0])
-        .limits(JointAxis::Y, [0.0, 3.0])
-        .coupled_axes(JointAxesMask::Y | JointAxesMask::Z);
+        .limits(JointAxis::LinX, [-3.0, 3.0])
+        .limits(JointAxis::LinY, [0.0, 3.0])
+        .coupled_axes(JointAxesMask::LIN_Y | JointAxesMask::LIN_Z);
 
     if use_articulations {
         multibody_joints.insert(ground, body1, joint1, true);
@@ -416,13 +416,13 @@ fn create_spherical_joints_with_limits(
 
     let joint1 = SphericalJointBuilder::new()
         .local_anchor2(Point::from(-shift))
-        .limits(JointAxis::X, [-0.2, 0.2])
-        .limits(JointAxis::Y, [-0.2, 0.2]);
+        .limits(JointAxis::LinX, [-0.2, 0.2])
+        .limits(JointAxis::LinY, [-0.2, 0.2]);
 
     let joint2 = SphericalJointBuilder::new()
         .local_anchor2(Point::from(-shift))
-        .limits(JointAxis::X, [-0.3, 0.3])
-        .limits(JointAxis::Y, [-0.3, 0.3]);
+        .limits(JointAxis::LinX, [-0.3, 0.3])
+        .limits(JointAxis::LinY, [-0.3, 0.3]);
 
     if use_articulations {
         multibody_joints.insert(ground, ball1, joint1, true);

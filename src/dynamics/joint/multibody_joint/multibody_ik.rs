@@ -116,14 +116,14 @@ impl Multibody {
                 delta_ang.z
             ];
 
-            if !options.constrained_axes.contains(JointAxesMask::X) {
+            if !options.constrained_axes.contains(JointAxesMask::LIN_X) {
                 delta[0] = 0.0;
             }
-            if !options.constrained_axes.contains(JointAxesMask::Y) {
+            if !options.constrained_axes.contains(JointAxesMask::LIN_Y) {
                 delta[1] = 0.0;
             }
             #[cfg(feature = "dim3")]
-            if !options.constrained_axes.contains(JointAxesMask::Z) {
+            if !options.constrained_axes.contains(JointAxesMask::LIN_Z) {
                 delta[2] = 0.0;
             }
             if !options.constrained_axes.contains(JointAxesMask::ANG_X) {

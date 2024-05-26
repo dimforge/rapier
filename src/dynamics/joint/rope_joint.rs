@@ -74,14 +74,14 @@ impl RopeJoint {
 
     /// Set the spring-like model used by the motor to reach the desired target velocity and position.
     pub fn set_motor_model(&mut self, model: MotorModel) -> &mut Self {
-        self.data.set_motor_model(JointAxis::X, model);
+        self.data.set_motor_model(JointAxis::LinX, model);
         self
     }
 
     /// Sets the target velocity this motor needs to reach.
     pub fn set_motor_velocity(&mut self, target_vel: Real, factor: Real) -> &mut Self {
         self.data
-            .set_motor_velocity(JointAxis::X, target_vel, factor);
+            .set_motor_velocity(JointAxis::LinX, target_vel, factor);
         self
     }
 
@@ -93,7 +93,7 @@ impl RopeJoint {
         damping: Real,
     ) -> &mut Self {
         self.data
-            .set_motor_position(JointAxis::X, target_pos, stiffness, damping);
+            .set_motor_position(JointAxis::LinX, target_pos, stiffness, damping);
         self
     }
 
@@ -106,13 +106,13 @@ impl RopeJoint {
         damping: Real,
     ) -> &mut Self {
         self.data
-            .set_motor(JointAxis::X, target_pos, target_vel, stiffness, damping);
+            .set_motor(JointAxis::LinX, target_pos, target_vel, stiffness, damping);
         self
     }
 
     /// Sets the maximum force the motor can deliver.
     pub fn set_motor_max_force(&mut self, max_force: Real) -> &mut Self {
-        self.data.set_motor_max_force(JointAxis::X, max_force);
+        self.data.set_motor_max_force(JointAxis::LinX, max_force);
         self
     }
 
@@ -120,7 +120,7 @@ impl RopeJoint {
     #[must_use]
     pub fn max_distance(&self) -> Real {
         self.data
-            .limits(JointAxis::X)
+            .limits(JointAxis::LinX)
             .map(|l| l.max)
             .unwrap_or(Real::MAX)
     }
@@ -129,7 +129,7 @@ impl RopeJoint {
     ///
     /// The `max_dist` must be strictly greater than 0.0.
     pub fn set_max_distance(&mut self, max_dist: Real) -> &mut Self {
-        self.data.set_limits(JointAxis::X, [0.0, max_dist]);
+        self.data.set_limits(JointAxis::LinX, [0.0, max_dist]);
         self
     }
 }
