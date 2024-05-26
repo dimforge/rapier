@@ -2,7 +2,9 @@
 
 pub use self::broad_phase::BroadPhase;
 pub use self::broad_phase_multi_sap::{BroadPhaseMultiSap, BroadPhasePairEvent, ColliderPair};
+pub use self::collider::{Collider, ColliderBuilder};
 pub use self::collider_components::*;
+pub use self::collider_set::ColliderSet;
 pub use self::contact_pair::{
     ContactData, ContactManifoldData, ContactPair, IntersectionPair, SolverContact, SolverFlags,
 };
@@ -10,10 +12,8 @@ pub use self::interaction_graph::{
     ColliderGraphIndex, InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex,
 };
 pub use self::interaction_groups::{Group, InteractionGroups};
+pub use self::mesh_converter::{MeshConverter, MeshConverterError};
 pub use self::narrow_phase::NarrowPhase;
-
-pub use self::collider::{Collider, ColliderBuilder};
-pub use self::collider_set::ColliderSet;
 
 pub use parry::bounding_volume::BoundingVolume;
 pub use parry::query::{PointQuery, PointQueryWithLocation, RayCast, TrackedContact};
@@ -207,3 +207,4 @@ mod broad_phase;
 mod broad_phase_qbvh;
 mod collider;
 mod collider_set;
+mod mesh_converter;
