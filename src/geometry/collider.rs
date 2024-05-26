@@ -2,7 +2,7 @@ use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
 use crate::geometry::{
     ActiveCollisionTypes, BroadPhaseProxyIndex, ColliderBroadPhaseData, ColliderChanges,
     ColliderFlags, ColliderMassProps, ColliderMaterial, ColliderParent, ColliderPosition,
-    ColliderShape, ColliderType, InteractionGroups, SharedShape,
+    ColliderShape, ColliderType, InteractionGroups, MeshConverter, MeshConverterError, SharedShape,
 };
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
@@ -696,6 +696,21 @@ impl ColliderBuilder {
         flags: TriMeshFlags,
     ) -> Self {
         Self::new(SharedShape::trimesh_with_flags(vertices, indices, flags))
+    }
+
+    /// Initializes a collider builder with a shape converted from the given triangle mesh index
+    /// and vertex buffer.
+    ///
+    /// All the conversion variants could be achieved with other constructors of [`ColliderBuilder`]
+    /// but having this specified by an enum can occasionally be easier or more flexible (determined
+    /// at runtime).
+    pub fn converted_trimesh(
+        vertices: Vec<Point<Real>>,
+        indices: Vec<[u32; 3]>,
+        converter: MeshConverter,
+    ) -> Result<Self, MeshConverterError> {
+        let (shape, pose) = converter.convert(vertices, indices)?;
+        Ok(Self::new(shape).position(pose))
     }
 
     /// Initializes a collider builder with a compound shape obtained from the decomposition of
