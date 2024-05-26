@@ -16,7 +16,7 @@ use parry::shape::{Shape, TriMeshFlags};
 use crate::geometry::HeightFieldFlags;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 /// A geometric entity that can be attached to a body so it can be affected by contacts and proximity queries.
 ///
 /// To build a new collider, use the [`ColliderBuilder`] structure.
@@ -525,6 +525,12 @@ pub struct ColliderBuilder {
     pub contact_force_event_threshold: Real,
     /// An extra thickness around the collider shape to keep them further apart when colliding.
     pub contact_skin: Real,
+}
+
+impl Default for ColliderBuilder {
+    fn default() -> Self {
+        Self::ball(0.5)
+    }
 }
 
 impl ColliderBuilder {
