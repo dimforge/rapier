@@ -123,7 +123,7 @@ impl ColliderSet {
         self.modified_colliders.push(handle);
 
         let coll = self.colliders.get_mut(handle.0).unwrap();
-        parent.add_collider(
+        parent.add_collider_internal(
             handle,
             coll.parent.as_mut().unwrap(),
             &mut coll.pos,
@@ -167,7 +167,7 @@ impl ColliderSet {
                     };
 
                     if let Some(rb) = bodies.get_mut(new_parent_handle) {
-                        rb.add_collider(
+                        rb.add_collider_internal(
                             handle,
                             collider.parent.as_ref().unwrap(),
                             &mut collider.pos,
