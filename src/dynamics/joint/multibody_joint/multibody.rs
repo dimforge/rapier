@@ -75,6 +75,7 @@ pub struct Multibody {
     ndofs: usize,
     pub(crate) root_is_dynamic: bool,
     pub(crate) solver_id: usize,
+    self_contacts_enabled: bool,
 
     /*
      * Workspaces.
@@ -93,6 +94,10 @@ impl Default for Multibody {
 impl Multibody {
     /// Creates a new multibody with no link.
     pub fn new() -> Self {
+        Self::with_self_contacts(true)
+    }
+
+    pub(crate) fn with_self_contacts(self_contacts_enabled: bool) -> Self {
         Multibody {
             links: MultibodyLinkVec(Vec::new()),
             velocities: DVector::zeros(0),
@@ -103,6 +108,7 @@ impl Multibody {
             inv_augmented_mass: LU::new(DMatrix::zeros(0, 0)),
             acc_augmented_mass: DMatrix::zeros(0, 0),
             acc_inv_augmented_mass: LU::new(DMatrix::zeros(0, 0)),
+            augmented_mass_indices: IndexSequence::new(),
             ndofs: 0,
             solver_id: 0,
             workspace: MultibodyWorkspace::new(),
@@ -110,12 +116,13 @@ impl Multibody {
             coriolis_w: Vec::new(),
             i_coriolis_dt: Jacobian::zeros(0),
             root_is_dynamic: false,
+            self_contacts_enabled,
             // solver_workspace: Some(SolverWorkspace::new()),
         }
     }
 
-    pub(crate) fn with_root(handle: RigidBodyHandle) -> Self {
-        let mut mb = Multibody::new();
+    pub(crate) fn with_root(handle: RigidBodyHandle, self_contacts_enabled: bool) -> Self {
+        let mut mb = Multibody::with_self_contacts(self_contacts_enabled);
         // NOTE: we have no way of knowing if the root in fixed at this point, so
         //       we mark it as dynamic and will fixe later with `Self::update_root_type`.
         mb.root_is_dynamic = true;
@@ -138,7 +145,7 @@ impl Multibody {
                 continue;
             } else if is_new_root {
                 link2mb[i] = result.len();
-                result.push(Multibody::new());
+                result.push(Multibody::with_self_contacts(self.self_contacts_enabled));
             } else {
                 link2mb[i] = link2mb[link.parent_internal_id]
             }
@@ -230,6 +237,22 @@ impl Multibody {
         self.links.append(&mut rhs.links);
         self.ndofs = self.velocities.len();
         self.workspace.resize(self.links.len(), self.ndofs);
+    }
+
+    /// Whether self-contacts are enabled on this multibody.
+    ///
+    /// If set to `false` no two link from this multibody can generate contacts, even
+    /// if the contact is enabled on the individual joint with [`GenericJoint::contacts_enabled`].
+    pub fn self_contacts_enabled(&self) -> bool {
+        self.self_contacts_enabled
+    }
+
+    /// Sets whether self-contacts are enabled on this multibody.
+    ///
+    /// If set to `false` no two link from this multibody can generate contacts, even
+    /// if the contact is enabled on the individual joint with [`GenericJoint::contacts_enabled`].
+    pub fn set_self_contacts_enabled(&mut self, enabled: bool) {
+        self.self_contacts_enabled = enabled;
     }
 
     /// The inverse augmented mass matrix of this multibody.
