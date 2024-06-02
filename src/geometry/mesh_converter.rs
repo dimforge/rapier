@@ -1,5 +1,5 @@
 use parry::bounding_volume;
-use parry::math::{Isometry, Point, Real};
+use parry::math::{Isometry, Point, Real, DIM};
 use parry::shape::{Cuboid, SharedShape, TriMeshFlags};
 use parry::transformation::vhacd::VHACDParameters;
 
@@ -38,9 +38,11 @@ pub enum MeshConverter {
     /// With this option, the mesh’s index buffer is ignored.
     ConvexHull,
     /// The mesh is replaced by its convex decomposition.
+    #[cfg(feature = "dim3")]
     ConvexDecomposition,
     /// The mesh is replaced by its convex decomposition with parameters specified to adjust
     /// the convex decomposition algorithm.
+    #[cfg(feature = "dim3")]
     ConvexDecompositionWithParams(VHACDParameters),
 }
 
@@ -70,9 +72,11 @@ impl MeshConverter {
             MeshConverter::ConvexHull => {
                 SharedShape::convex_hull(&vertices).ok_or(MeshConverterError::ConvexHullFailed)?
             }
+            #[cfg(feature = "dim3")]
             MeshConverter::ConvexDecomposition => {
                 SharedShape::convex_decomposition(&vertices, &indices)
             }
+            #[cfg(feature = "dim3")]
             MeshConverter::ConvexDecompositionWithParams(params) => {
                 SharedShape::convex_decomposition_with_params(&vertices, &indices, &params)
             }
