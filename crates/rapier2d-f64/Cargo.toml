@@ -66,6 +66,7 @@ num-derive = "0.4"
 bitflags = "1"
 log = "0.4"
 ordered-float = "4"
+thiserror = "1"
 
 [dev-dependencies]
 bincode = "1"
