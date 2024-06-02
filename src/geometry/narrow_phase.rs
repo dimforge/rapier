@@ -835,12 +835,30 @@ impl NarrowPhase {
                         }
                     }
 
-                    if let Some((_, _, mb_link)) =
-                        multibody_joints.joint_between(co_parent1.handle, co_parent2.handle)
-                    {
-                        if !mb_link.joint.data.contacts_enabled {
-                            pair.clear();
-                            break 'emit_events;
+                    let link1 = multibody_joints.rigid_body_link(co_parent1.handle);
+                    let link2 = multibody_joints.rigid_body_link(co_parent2.handle);
+
+                    if let (Some(link1),Some(link2)) = (link1, link2) {
+                        // If both bodies belong to the same multibody, apply some additional built-in
+                        // contact filtering rules.
+                        if link1.multibody == link2.multibody {
+                            // 1) check if self-contacts is enabled.
+                            if let Some(mb) = multibody_joints.get_multibody(link1.multibody) {
+                                if !mb.self_contacts_enabled() {
+                                    pair.clear();
+                                    break 'emit_events;
+                                }
+                            }
+
+                            // 2) if they are attached by a joint, check if  contacts is disabled.
+                            if let Some((_, _, mb_link)) =
+                                multibody_joints.joint_between(co_parent1.handle, co_parent2.handle)
+                            {
+                                if !mb_link.joint.data.contacts_enabled {
+                                    pair.clear();
+                                    break 'emit_events;
+                                }
+                            }
                         }
                     }
                 }
