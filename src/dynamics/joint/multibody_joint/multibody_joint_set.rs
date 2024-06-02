@@ -127,7 +127,18 @@ impl MultibodyJointSet {
             })
     }
 
-    /// Inserts a new multibody_joint into this set.
+    /// Inserts a new kinematic multibody joint into this set.
+    pub fn insert_kinematic(
+        &mut self,
+        body1: RigidBodyHandle,
+        body2: RigidBodyHandle,
+        data: impl Into<GenericJoint>,
+        wake_up: bool,
+    ) -> Option<MultibodyJointHandle> {
+        self.do_insert(body1, body2, data, true, wake_up)
+    }
+
+    /// Inserts a new multibody joint into this set.
     pub fn insert(
         &mut self,
         body1: RigidBodyHandle,
@@ -135,9 +146,21 @@ impl MultibodyJointSet {
         data: impl Into<GenericJoint>,
         wake_up: bool,
     ) -> Option<MultibodyJointHandle> {
-        let data = data.into();
+        self.do_insert(body1, body2, data, false, wake_up)
+    }
+
+    /// Inserts a new multibody_joint into this set.
+    fn do_insert(
+        &mut self,
+        body1: RigidBodyHandle,
+        body2: RigidBodyHandle,
+        data: impl Into<GenericJoint>,
+        kinematic: bool,
+        wake_up: bool,
+    ) -> Option<MultibodyJointHandle> {
+        println!("Inserting kinematic: {}", kinematic);
         let link1 = self.rb2mb.get(body1.0).copied().unwrap_or_else(|| {
-            let mb_handle = self.multibodies.insert(Multibody::with_root(body1));
+            let mb_handle = self.multibodies.insert(Multibody::with_root(body1, true));
             MultibodyLinkId {
                 graph_id: self.connectivity_graph.graph.add_node(body1),
                 multibody: MultibodyIndex(mb_handle),
@@ -146,7 +169,7 @@ impl MultibodyJointSet {
         });
 
         let link2 = self.rb2mb.get(body2.0).copied().unwrap_or_else(|| {
-            let mb_handle = self.multibodies.insert(Multibody::with_root(body2));
+            let mb_handle = self.multibodies.insert(Multibody::with_root(body2, true));
             MultibodyLinkId {
                 graph_id: self.connectivity_graph.graph.add_node(body2),
                 multibody: MultibodyIndex(mb_handle),
@@ -174,7 +197,7 @@ impl MultibodyJointSet {
             link.id += multibody1.num_links();
         }
 
-        multibody1.append(mb2, link1.id, MultibodyJoint::new(data));
+        multibody1.append(mb2, link1.id, MultibodyJoint::new(data.into(), kinematic));
 
         if wake_up {
             self.to_wake_up.push(body1);
