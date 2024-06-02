@@ -8,7 +8,10 @@ use crate::math::{
 };
 use crate::prelude::MultibodyJoint;
 use crate::utils::{IndexMut2, SimdAngularInertia, SimdCross, SimdCrossMatrix};
-use na::{self, DMatrix, DVector, DVectorView, DVectorViewMut, Dyn, OMatrix, SMatrix, SVector, LU};
+use na::{
+    self, DMatrix, DVector, DVectorView, DVectorViewMut, Dyn, OMatrix, SMatrix, SVector,
+    StorageMut, LU,
+};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default)]
@@ -59,15 +62,21 @@ fn concat_rb_mass_matrix(
 #[derive(Clone)]
 pub struct Multibody {
     // TODO: serialization: skip the workspace fields.
-    links: MultibodyLinkVec,
+    pub(crate) links: MultibodyLinkVec,
     pub(crate) velocities: DVector<Real>,
     pub(crate) damping: DVector<Real>,
     pub(crate) accelerations: DVector<Real>,
 
     body_jacobians: Vec<Jacobian<Real>>,
+    // NOTE: the mass matrices are dimentionned based on the non-kinematic degrees of
+    //       freedoms only. The `Self::augmented_mass_permutation` sequence can be used to
+    //       move dofs from/to a format that matches the augmented mass.
     // TODO: use sparse matrices?
     augmented_mass: DMatrix<Real>,
     inv_augmented_mass: LU<Real, Dyn, Dyn>,
+    // The indexing sequence for moving all kinematics degrees of
+    // freedoms to the end of the generalized coordinates vector.
+    augmented_mass_indices: IndexSequence,
 
     acc_augmented_mass: DMatrix<Real>,
     acc_inv_augmented_mass: LU<Real, Dyn, Dyn>,
@@ -321,7 +330,7 @@ impl Multibody {
 
     pub(crate) fn add_link(
         &mut self,
-        parent: Option<usize>, // FIXME: should be a RigidBodyHandle?
+        parent: Option<usize>, // TODO: should be a RigidBodyHandle?
         dof: MultibodyJoint,
         body: RigidBodyHandle,
     ) -> &mut MultibodyLink {
@@ -459,8 +468,10 @@ impl Multibody {
         self.accelerations
             .cmpy(-1.0, &self.damping, &self.velocities, 1.0);
 
-        self.acc_inv_augmented_mass
-            .solve_mut(&mut self.accelerations);
+        self.augmented_mass_indices
+            .with_rearranged_rows_mut(&mut self.accelerations, |accs| {
+                self.acc_inv_augmented_mass.solve_mut(accs);
+            });
     }
 
     /// Computes the constant terms of the dynamics.
@@ -507,7 +518,7 @@ impl Multibody {
             let link = &self.links[i];
 
             if self.body_jacobians[i].ncols() != self.ndofs {
-                // FIXME: use a resize instead.
+                // TODO: use a resize instead.
                 self.body_jacobians[i] = Jacobian::zeros(self.ndofs);
             }
 
@@ -558,6 +569,8 @@ impl Multibody {
             return; // Nothing to do.
         }
 
+        let mut kinematic_ndofs = 0;
+
         if self.augmented_mass.ncols() != self.ndofs {
             // TODO: do a resize instead of a full reallocation.
             self.augmented_mass = DMatrix::zeros(self.ndofs, self.ndofs);
@@ -566,6 +579,8 @@ impl Multibody {
             self.augmented_mass.fill(0.0);
             self.acc_augmented_mass.fill(0.0);
         }
+
+        self.augmented_mass_indices.clear();
 
         if self.coriolis_v.len() != self.links.len() {
             self.coriolis_v.resize(
@@ -579,13 +594,33 @@ impl Multibody {
             self.i_coriolis_dt = Jacobian::zeros(self.ndofs);
         }
 
+        let mut curr_assembly_id = 0;
+
         for i in 0..self.links.len() {
             let link = &self.links[i];
             let rb = &bodies[link.rigid_body];
             let rb_mass = rb.mprops.effective_mass();
             let rb_inertia = rb.mprops.effective_angular_inertia().into_matrix();
-
             let body_jacobian = &self.body_jacobians[i];
+
+            // NOTE: the mass matrix index reordering operates on the assumption that the assembly
+            //       ids are traversed in order. This assert is here to ensure the assumption always
+            //       hold.
+            assert_eq!(
+                curr_assembly_id, link.assembly_id,
+                "Internal error: contiguity assumption on assembly_id does not hold."
+            );
+            curr_assembly_id += link.joint.ndofs();
+
+            if link.joint.kinematic {
+                for k in link.assembly_id..link.assembly_id + link.joint.ndofs() {
+                    self.augmented_mass_indices.remove(k);
+                }
+            } else {
+                for k in link.assembly_id..link.assembly_id + link.joint.ndofs() {
+                    self.augmented_mass_indices.keep(k);
+                }
+            }
 
             #[allow(unused_mut)] // mut is needed for 3D but not for 2D.
             let mut augmented_inertia = rb_inertia;
@@ -658,7 +693,7 @@ impl Multibody {
                 }
 
                 // JDot (but the 2.0 originates from the sum of two identical terms in JDot and JDot/u * gdot)
-                {
+                if !link.joint.kinematic {
                     let mut coriolis_v_part = coriolis_v.columns_mut(link.assembly_id, ndofs);
 
                     let mut tmp1 = SMatrix::<Real, SPATIAL_DIM, SPATIAL_DIM>::zeros();
@@ -743,12 +778,33 @@ impl Multibody {
             self.augmented_mass[(i, i)] += self.damping[i] * dt;
         }
 
-        // FIXME: avoid allocation inside LU at each timestep.
-        self.acc_inv_augmented_mass = LU::new(self.acc_augmented_mass.clone());
-        self.inv_augmented_mass = LU::new(self.augmented_mass.clone());
-        // self.acc_inv_augmented_mass = self.inv_augmented_mass.clone();
-        // self.augmented_mass = self.acc_augmented_mass.clone();
-        // self.inv_augmented_mass = self.acc_inv_augmented_mass.clone();
+        let effective_dim = self
+            .augmented_mass_indices
+            .dim_after_removal(self.acc_augmented_mass.nrows());
+
+        // PERF: since we clone the matrix anyway for LU, should be directly output
+        //       a new matrix instead of applying permutations?
+        self.augmented_mass_indices
+            .rearrange_columns(&mut self.acc_augmented_mass, true);
+        self.augmented_mass_indices
+            .rearrange_columns(&mut self.augmented_mass, true);
+
+        self.augmented_mass_indices
+            .rearrange_rows(&mut self.acc_augmented_mass, true);
+        self.augmented_mass_indices
+            .rearrange_rows(&mut self.augmented_mass, true);
+
+        // TODO: avoid allocation inside LU at each timestep.
+        self.acc_inv_augmented_mass = LU::new(
+            self.acc_augmented_mass
+                .view((0, 0), (effective_dim, effective_dim))
+                .into_owned(),
+        );
+        self.inv_augmented_mass = LU::new(
+            self.augmented_mass
+                .view((0, 0), (effective_dim, effective_dim))
+                .into_owned(),
+        );
     }
 
     /// The generalized velocity at the multibody_joint of the given link.
@@ -976,6 +1032,20 @@ impl Multibody {
         self.update_body_jacobians();
     }
 
+    /// Computes the ids of all the linkes betheen the root and the link identified by `link_id`.
+    pub fn kinematic_branch(&self, link_id: usize) -> Vec<usize> {
+        let mut branch = vec![]; // Perf: avoid allocation.
+        let mut curr_id = Some(link_id);
+
+        while let Some(id) = curr_id {
+            branch.push(id);
+            curr_id = self.links[id].parent_id();
+        }
+
+        branch.reverse();
+        branch
+    }
+
     /// Apply forward-kinematics to compute the position of a single link of this multibody.
     ///
     /// If `out_jacobian` is `Some`, this will simultaneously compute the new jacobian of this link.
@@ -990,16 +1060,36 @@ impl Multibody {
         displacement: Option<&[Real]>,
         mut out_jacobian: Option<&mut Jacobian<Real>>,
     ) -> Isometry<Real> {
-        let mut branch = vec![]; // Perf: avoid allocation.
-        let mut curr_id = Some(link_id);
+        let branch = self.kinematic_branch(link_id);
+        self.forward_kinematics_single_branch(bodies, &branch, displacement, out_jacobian)
+    }
 
-        while let Some(id) = curr_id {
-            branch.push(id);
-            curr_id = self.links[id].parent_id();
-        }
-
-        branch.reverse();
-
+    /// Apply forward-kinematics to compute the position of a single sorted branch of this multibody.
+    ///
+    /// The given `branch` must have the following properties:
+    /// - It must be sorted, i.e., `branch[i] < branch[i + 1]`.
+    /// - All the indices must be part of the same kinematic branch.
+    /// - If a link is `branch[i]`, then `branch[i - 1]` must be its parent.
+    ///
+    /// In general, this method shouldn’t be used directly and [`Self::forward_kinematics_single_link`̦]
+    /// should be preferred since it computes the branch indices automatically.
+    ///
+    /// If you watn to calculate the branch indices manually, see [`Self::kinematic_branch`].
+    ///
+    /// If `out_jacobian` is `Some`, this will simultaneously compute the new jacobian of this branch.
+    /// This represents the body jacobian for the last link in the branch.
+    ///
+    /// If `displacement` is `Some`, the generalized position considered during transform propagation
+    /// is the sum of the current position of `self` and this `displacement`.
+    // TODO: this shares a lot of code with `forward_kinematics` and `update_body_jacobians`, except
+    //       that we are only traversing a single kinematic chain. Could this be refactored?
+    pub fn forward_kinematics_single_branch(
+        &self,
+        bodies: &RigidBodySet,
+        branch: &[usize],
+        displacement: Option<&[Real]>,
+        mut out_jacobian: Option<&mut Jacobian<Real>>,
+    ) -> Isometry<Real> {
         if let Some(out_jacobian) = out_jacobian.as_deref_mut() {
             if out_jacobian.ncols() != self.ndofs {
                 *out_jacobian = Jacobian::zeros(self.ndofs);
@@ -1011,7 +1101,7 @@ impl Multibody {
         let mut parent_link: Option<MultibodyLink> = None;
 
         for i in branch {
-            let mut link = self.links[i];
+            let mut link = self.links[*i];
 
             if let Some(displacement) = displacement {
                 link.joint
@@ -1115,7 +1205,10 @@ impl Multibody {
 
         {
             let mut out_invm_j = jacobians.rows_mut(wj_id, self.ndofs);
-            self.inv_augmented_mass.solve_mut(&mut out_invm_j);
+            self.augmented_mass_indices
+                .with_rearranged_rows_mut(&mut out_invm_j, |out_invm_j| {
+                    self.inv_augmented_mass.solve_mut(out_invm_j);
+                });
         }
 
         let j = jacobians.rows(*j_id, self.ndofs);
@@ -1142,5 +1235,187 @@ impl Multibody {
             .map(|l| l.joint().num_velocity_constraints())
             .sum();
         (num_constraints, num_constraints)
+    }
+}
+
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
+struct IndexSequence {
+    first_to_remove: usize,
+    index_map: Vec<usize>,
+}
+
+impl IndexSequence {
+    fn new() -> Self {
+        Self {
+            first_to_remove: usize::MAX,
+            index_map: vec![],
+        }
+    }
+
+    fn clear(&mut self) {
+        self.first_to_remove = usize::MAX;
+        self.index_map.clear();
+    }
+
+    fn keep(&mut self, i: usize) {
+        if self.first_to_remove == usize::MAX {
+            // Nothing got removed yet. No need to register any
+            // special indexing.
+            return;
+        }
+
+        self.index_map.push(i);
+    }
+
+    fn remove(&mut self, i: usize) {
+        if self.first_to_remove == usize::MAX {
+            self.first_to_remove = i;
+        }
+    }
+
+    fn dim_after_removal(&self, original_dim: usize) -> usize {
+        if self.first_to_remove == usize::MAX {
+            original_dim
+        } else {
+            self.first_to_remove + self.index_map.len()
+        }
+    }
+
+    fn rearrange_columns<R: na::Dim, C: na::Dim, S: StorageMut<Real, R, C>>(
+        &self,
+        mat: &mut na::Matrix<Real, R, C, S>,
+        clear_removed: bool,
+    ) {
+        if self.first_to_remove == usize::MAX {
+            // Nothing to rearrange.
+            return;
+        }
+
+        for (target_shift, source) in self.index_map.iter().enumerate() {
+            let target = self.first_to_remove + target_shift;
+            let (mut target_col, source_col) = mat.columns_range_pair_mut(target, *source);
+            target_col.copy_from(&source_col);
+        }
+
+        if clear_removed {
+            mat.columns_range_mut(self.first_to_remove + self.index_map.len()..)
+                .fill(0.0);
+        }
+    }
+
+    fn rearrange_rows<R: na::Dim, C: na::Dim, S: StorageMut<Real, R, C>>(
+        &self,
+        mat: &mut na::Matrix<Real, R, C, S>,
+        clear_removed: bool,
+    ) {
+        if self.first_to_remove == usize::MAX {
+            // Nothing to rearrange.
+            return;
+        }
+
+        for mut col in mat.column_iter_mut() {
+            for (target_shift, source) in self.index_map.iter().enumerate() {
+                let target = self.first_to_remove + target_shift;
+                col[target] = col[*source];
+            }
+
+            if clear_removed {
+                col.rows_range_mut(self.first_to_remove + self.index_map.len()..)
+                    .fill(0.0);
+            }
+        }
+    }
+
+    fn inv_rearrange_rows<R: na::Dim, C: na::Dim, S: StorageMut<Real, R, C>>(
+        &self,
+        mat: &mut na::Matrix<Real, R, C, S>,
+    ) {
+        if self.first_to_remove == usize::MAX {
+            // Nothing to rearrange.
+            return;
+        }
+
+        for mut col in mat.column_iter_mut() {
+            for (target_shift, source) in self.index_map.iter().enumerate().rev() {
+                let target = self.first_to_remove + target_shift;
+                col[*source] = col[target];
+                col[target] = 0.0;
+            }
+        }
+    }
+
+    fn with_rearranged_rows_mut<C: na::Dim, S: StorageMut<Real, Dyn, C>>(
+        &self,
+        mat: &mut na::Matrix<Real, Dyn, C, S>,
+        mut f: impl FnMut(&mut na::MatrixViewMut<Real, Dyn, C, S::RStride, S::CStride>),
+    ) {
+        self.rearrange_rows(mat, true);
+        let effective_dim = self.dim_after_removal(mat.nrows());
+        if effective_dim > 0 {
+            f(&mut mat.rows_mut(0, effective_dim));
+        }
+        self.inv_rearrange_rows(mat);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::IndexSequence;
+    use crate::math::Real;
+    use na::{DVector, RowDVector};
+
+    fn test_sequence() -> IndexSequence {
+        let mut seq = IndexSequence::new();
+        seq.remove(2);
+        seq.remove(3);
+        seq.remove(4);
+        seq.keep(5);
+        seq.keep(6);
+        seq.remove(7);
+        seq.keep(8);
+        seq
+    }
+
+    #[test]
+    fn index_sequence_rearrange_columns() {
+        let mut seq = test_sequence();
+        let mut vec = RowDVector::from_fn(10, |_, c| c as Real);
+        seq.rearrange_columns(&mut vec, true);
+        assert_eq!(
+            vec,
+            RowDVector::from(vec![0.0, 1.0, 5.0, 6.0, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        );
+    }
+
+    #[test]
+    fn index_sequence_rearrange_rows() {
+        let mut seq = test_sequence();
+        let mut vec = DVector::from_fn(10, |r, _| r as Real);
+        seq.rearrange_rows(&mut vec, true);
+        assert_eq!(
+            vec,
+            DVector::from(vec![0.0, 1.0, 5.0, 6.0, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        );
+        seq.inv_rearrange_rows(&mut vec);
+        assert_eq!(
+            vec,
+            DVector::from(vec![0.0, 1.0, 0.0, 0.0, 0.0, 5.0, 6.0, 0.0, 8.0, 0.0])
+        );
+    }
+
+    #[test]
+    fn index_sequence_with_rearranged_rows_mut() {
+        let mut seq = test_sequence();
+        let mut vec = DVector::from_fn(10, |r, _| r as Real);
+        seq.with_rearranged_rows_mut(&mut vec, |v| {
+            assert_eq!(v.len(), 5);
+            assert_eq!(*v, DVector::from(vec![0.0, 1.0, 5.0, 6.0, 8.0]));
+            *v *= 10.0;
+        });
+        assert_eq!(
+            vec,
+            DVector::from(vec![0.0, 10.0, 0.0, 0.0, 0.0, 50.0, 60.0, 0.0, 80.0, 0.0])
+        );
     }
 }

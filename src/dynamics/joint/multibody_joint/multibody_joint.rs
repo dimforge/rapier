@@ -17,28 +17,33 @@ use na::{UnitQuaternion, Vector3};
 pub struct MultibodyJoint {
     /// The joint’s description.
     pub data: GenericJoint,
+    pub kinematic: bool,
     pub(crate) coords: SpacialVector<Real>,
     pub(crate) joint_rot: Rotation<Real>,
 }
 
 impl MultibodyJoint {
     /// Creates a new multibody joint from its description.
-    pub fn new(data: GenericJoint) -> Self {
+    pub fn new(data: GenericJoint, kinematic: bool) -> Self {
         Self {
             data,
+            kinematic,
             coords: na::zero(),
             joint_rot: Rotation::identity(),
         }
     }
 
     pub(crate) fn free(pos: Isometry<Real>) -> Self {
-        let mut result = Self::new(GenericJoint::default());
+        let mut result = Self::new(GenericJoint::default(), false);
         result.set_free_pos(pos);
         result
     }
 
     pub(crate) fn fixed(pos: Isometry<Real>) -> Self {
-        Self::new(FixedJointBuilder::new().local_frame1(pos).build().into())
+        Self::new(
+            FixedJointBuilder::new().local_frame1(pos).build().into(),
+            false,
+        )
     }
 
     pub(crate) fn set_free_pos(&mut self, pos: Isometry<Real>) {
