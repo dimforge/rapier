@@ -1,4 +1,4 @@
-use crate::dynamics::{JointAxesMask, Multibody, RigidBodySet};
+use crate::dynamics::{JointAxesMask, Multibody, MultibodyLink, RigidBodySet};
 use crate::math::{Isometry, Jacobian, Real, ANG_DIM, DIM, SPATIAL_DIM};
 use na::{self, DVector, SMatrix};
 use parry::math::SpacialVector;
@@ -83,23 +83,44 @@ impl Multibody {
     /// obtained from its current generalized coordinates summed with the `displacement` vector.
     ///
     /// The `displacements` vector is overwritten with the new displacement.
+    ///
+    /// The `joint_can_move` argument is a closure that lets you indicate which joint
+    /// can be moved throug the inverse-kinematics process. Any joint for which `joint_can_move`
+    /// returns `false` will have its corresponding displacement constrained to 0.
+    /// Set the closure to `|_| true` if all the joints are free to move.
     pub fn inverse_kinematics(
         &self,
         bodies: &RigidBodySet,
         link_id: usize,
         options: &InverseKinematicsOption,
         target_pose: &Isometry<Real>,
+        joint_can_move: impl Fn(&MultibodyLink) -> bool,
         displacements: &mut DVector<Real>,
     ) {
         let mut jacobian = Jacobian::zeros(0);
+        let branch = self.kinematic_branch(link_id);
+        let can_move: Vec<_> = branch
+            .iter()
+            .map(|id| joint_can_move(&self.links[*id]))
+            .collect();
 
         for _ in 0..options.max_iters {
-            let pose = self.forward_kinematics_single_link(
+            let pose = self.forward_kinematics_single_branch(
                 bodies,
-                link_id,
+                &branch,
                 Some(displacements.as_slice()),
                 Some(&mut jacobian),
             );
+
+            // Adjust the jacobian to account for non-movable joints.
+            for (id, can_move) in branch.iter().zip(can_move.iter()) {
+                if !*can_move {
+                    let link = &self.links[*id];
+                    jacobian
+                        .columns_mut(link.assembly_id, link.joint.ndofs())
+                        .fill(0.0);
+                }
+            }
 
             let delta_lin = target_pose.translation.vector - pose.translation.vector;
             let delta_ang = (target_pose.rotation * pose.rotation.inverse()).scaled_axis();
