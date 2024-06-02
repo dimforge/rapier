@@ -1,6 +1,7 @@
 use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
-use rapier_urdf::{UrdfLoaderOptions, UrdfRobot};
+use rapier_urdf::{UrdfLoaderOptions, UrdfMultibodyOptions, UrdfRobot};
+use std::path::Path;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -17,28 +18,28 @@ pub fn init_world(testbed: &mut Testbed) {
     let options = UrdfLoaderOptions {
         create_colliders_from_visual_shapes: true,
         create_colliders_from_collision_shapes: false,
-        apply_imported_mass_props: false,
         make_roots_fixed: true,
         // Z-up to Y-up.
         shift: Isometry::rotation(Vector::x() * std::f32::consts::FRAC_PI_2),
-        rigid_body_blueprint: RigidBodyBuilder::default().gravity_scale(1.0),
-        collider_blueprint: ColliderBuilder::default()
-            .density(1.0)
-            .active_collision_types(ActiveCollisionTypes::empty()),
         ..Default::default()
     };
+
     let (mut robot, _) =
         UrdfRobot::from_file("assets/3d/T12/urdf/T12.URDF", options, None).unwrap();
-    // let (mut robot, _) = UrdfRobot::from_file("assets/3d/sample.urdf", options).unwrap();
 
-    // robot.insert_using_impulse_joints(&mut bodies, &mut colliders, &mut impulse_joints);
-    robot.insert_using_multibody_joints(&mut bodies, &mut colliders, &mut multibody_joints);
-
-    testbed.add_callback(move |mut graphics, physics, _, state| {
-        for (_, body) in physics.bodies.iter() {
-            println!("pose: {:?}", body.position());
-        }
-    });
+    // The robot can be inserted using impulse joints.
+    // (We clone because we want to insert the same robot once more afterward.)
+    robot
+        .clone()
+        .insert_using_impulse_joints(&mut bodies, &mut colliders, &mut impulse_joints);
+    // Insert the robot a second time, but using multibody joints this time.
+    robot.append_transform(&Isometry::translation(10.0, 0.0, 0.0));
+    robot.insert_using_multibody_joints(
+        &mut bodies,
+        &mut colliders,
+        &mut multibody_joints,
+        UrdfMultibodyOptions::DISABLE_SELF_CONTACTS,
+    );
 
     /*
      * Set up the testbed.

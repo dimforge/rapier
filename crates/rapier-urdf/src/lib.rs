@@ -7,6 +7,7 @@ use rapier3d::{
     },
     geometry::{
         Collider, ColliderBuilder, ColliderHandle, ColliderSet, MeshConverter, SharedShape,
+        TriMeshFlags,
     },
     math::{Isometry, Point, Real, Vector},
     na,
@@ -14,6 +15,15 @@ use rapier3d::{
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use xurdf::{Collision, Geometry, Inertial, Joint, Pose, Robot};
+
+bitflags::bitflags! {
+    #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+    pub struct UrdfMultibodyOptions: u8 {
+        const JOINTS_ARE_KINEMATIC = 0b0001;
+        const DISABLE_SELF_CONTACTS = 0b0010;
+    }
+}
 
 pub type LinkId = usize;
 
@@ -24,6 +34,7 @@ pub struct UrdfLoaderOptions {
     pub apply_imported_mass_props: bool,
     pub enable_joint_collisions: bool,
     pub make_roots_fixed: bool,
+    pub trimesh_flags: TriMeshFlags,
     pub shift: Isometry<Real>,
     pub collider_blueprint: ColliderBuilder,
     pub rigid_body_blueprint: RigidBodyBuilder,
@@ -37,6 +48,7 @@ impl Default for UrdfLoaderOptions {
             apply_imported_mass_props: true,
             enable_joint_collisions: false,
             make_roots_fixed: false,
+            trimesh_flags: TriMeshFlags::all(),
             shift: Isometry::identity(),
             collider_blueprint: ColliderBuilder::ball(0.0).density(0.0),
             rigid_body_blueprint: RigidBodyBuilder::dynamic(),
@@ -75,6 +87,15 @@ pub struct UrdfRobot {
     ///
     /// This vector matches the order of [`Robot::joints`].
     pub joints: Vec<UrdfJoint>,
+}
+
+impl UrdfRobot {
+    pub fn append_transform(&mut self, transform: &Isometry<Real>) {
+        for link in &mut self.links {
+            link.body
+                .set_position(transform * link.body.position(), true);
+        }
+    }
 }
 
 pub struct UrdfJointHandle<JointHandle> {
@@ -237,6 +258,7 @@ impl UrdfRobot {
         rigid_body_set: &mut RigidBodySet,
         collider_set: &mut ColliderSet,
         joint_set: &mut MultibodyJointSet,
+        multibody_options: UrdfMultibodyOptions,
     ) -> UrdfRobotHandles<Option<MultibodyJointHandle>> {
         let links: Vec<_> = self
             .links
@@ -257,7 +279,20 @@ impl UrdfRobot {
             .map(|joint| {
                 let link1 = links[joint.link1].body;
                 let link2 = links[joint.link2].body;
-                let joint = joint_set.insert(link1, link2, joint.joint, false);
+                let joint =
+                    if multibody_options.contains(UrdfMultibodyOptions::JOINTS_ARE_KINEMATIC) {
+                        joint_set.insert_kinematic(link1, link2, joint.joint, false)
+                    } else {
+                        joint_set.insert(link1, link2, joint.joint, false)
+                    };
+
+                if let Some(joint) = joint {
+                    let (multibody, _) = joint_set.get_mut(joint).unwrap_or_else(|| unreachable!());
+                    multibody.set_self_contacts_enabled(
+                        !multibody_options.contains(UrdfMultibodyOptions::DISABLE_SELF_CONTACTS),
+                    );
+                }
+
                 UrdfJointHandle {
                     joint,
                     link1,
@@ -304,7 +339,7 @@ fn urdf_to_collider(
 ) -> Option<Collider> {
     let mut builder = options.collider_blueprint.clone();
     let mut shape_transform = Isometry::identity();
-    let shape = match &geometry {
+    let mut shape = match &geometry {
         Geometry::Box { size } => SharedShape::cuboid(
             size[0] as Real / 2.0,
             size[1] as Real / 2.0,
@@ -326,7 +361,11 @@ fn urdf_to_collider(
                 #[cfg(feature = "stl")]
                 Some("stl") | Some("STL") => {
                     let full_path = mesh_dir.map(|dir| dir.join(filename)).unwrap_or_default();
-                    match rapier_stl::load_from_path(&full_path, MeshConverter::TriMesh, scale) {
+                    match rapier_stl::load_from_path(
+                        &full_path,
+                        MeshConverter::TriMeshWithFlags(options.trimesh_flags),
+                        scale,
+                    ) {
                         Ok(stl_shape) => {
                             shape_transform = stl_shape.pose;
                             stl_shape.shape
