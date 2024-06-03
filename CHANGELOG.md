@@ -11,6 +11,7 @@
 - Add `Multibody::forward_kinematics_single_link` to run forward-kinematics to compute the new pose and jacobian of a
   single link without mutating the multibody. This can take an optional displacement on generalized coordinates that are
   taken into account during transform propagation.
+- Implement `Debug` for `ColliderBuilder`.
 
 ### Modified
 

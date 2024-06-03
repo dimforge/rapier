@@ -487,7 +487,7 @@ impl Collider {
 }
 
 /// A structure responsible for building a new collider.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[must_use = "Builder functions return the updated builder"]
 pub struct ColliderBuilder {
