@@ -1,8 +1,8 @@
 //! Miscellaneous utilities.
 
 use na::{
-    Matrix1, Matrix2, Matrix3, Point2, Point3, RowVector2, Scalar, SimdRealField, UnitComplex,
-    UnitQuaternion, Vector1, Vector2, Vector3,
+    Matrix1, Matrix2, Matrix3, RowVector2, Scalar, SimdRealField, UnitComplex, UnitQuaternion,
+    Vector1, Vector2, Vector3,
 };
 use num::Zero;
 use simba::simd::SimdValue;
@@ -90,35 +90,6 @@ impl SimdSign<SimdReal> for SimdReal {
     }
 }
 
-pub(crate) trait SimdComponent: Sized {
-    type Element;
-
-    fn min_component(self) -> Self::Element;
-    fn max_component(self) -> Self::Element;
-}
-
-impl SimdComponent for Real {
-    type Element = Real;
-
-    fn min_component(self) -> Self::Element {
-        self
-    }
-    fn max_component(self) -> Self::Element {
-        self
-    }
-}
-
-impl SimdComponent for SimdReal {
-    type Element = Real;
-
-    fn min_component(self) -> Self::Element {
-        self.simd_horizontal_min()
-    }
-    fn max_component(self) -> Self::Element {
-        self.simd_horizontal_max()
-    }
-}
-
 /// Trait to compute the orthonormal basis of a vector.
 pub trait SimdBasis: Sized {
     /// The type of the array of orthonormal vectors.
@@ -163,89 +134,6 @@ impl<N: SimdRealCopy + SimdSign<N>> SimdBasis for Vector3<N> {
         let a = -N::one() / (sign + self.z);
         let b = self.x * self.y * a;
         Vector3::new(b, sign + self.y * self.y * a, -self.y)
-    }
-}
-
-pub(crate) trait SimdVec: Sized {
-    type Element;
-
-    fn horizontal_inf(&self) -> Self::Element;
-    fn horizontal_sup(&self) -> Self::Element;
-}
-
-impl<N: Scalar + Copy + SimdComponent> SimdVec for Vector2<N>
-where
-    N::Element: Scalar,
-{
-    type Element = Vector2<N::Element>;
-
-    fn horizontal_inf(&self) -> Self::Element {
-        Vector2::new(self.x.min_component(), self.y.min_component())
-    }
-
-    fn horizontal_sup(&self) -> Self::Element {
-        Vector2::new(self.x.max_component(), self.y.max_component())
-    }
-}
-
-impl<N: Scalar + Copy + SimdComponent> SimdVec for Point2<N>
-where
-    N::Element: Scalar,
-{
-    type Element = Point2<N::Element>;
-
-    fn horizontal_inf(&self) -> Self::Element {
-        Point2::new(self.x.min_component(), self.y.min_component())
-    }
-
-    fn horizontal_sup(&self) -> Self::Element {
-        Point2::new(self.x.max_component(), self.y.max_component())
-    }
-}
-
-impl<N: Scalar + Copy + SimdComponent> SimdVec for Vector3<N>
-where
-    N::Element: Scalar,
-{
-    type Element = Vector3<N::Element>;
-
-    fn horizontal_inf(&self) -> Self::Element {
-        Vector3::new(
-            self.x.min_component(),
-            self.y.min_component(),
-            self.z.min_component(),
-        )
-    }
-
-    fn horizontal_sup(&self) -> Self::Element {
-        Vector3::new(
-            self.x.max_component(),
-            self.y.max_component(),
-            self.z.max_component(),
-        )
-    }
-}
-
-impl<N: Scalar + Copy + SimdComponent> SimdVec for Point3<N>
-where
-    N::Element: Scalar,
-{
-    type Element = Point3<N::Element>;
-
-    fn horizontal_inf(&self) -> Self::Element {
-        Point3::new(
-            self.x.min_component(),
-            self.y.min_component(),
-            self.z.min_component(),
-        )
-    }
-
-    fn horizontal_sup(&self) -> Self::Element {
-        Point3::new(
-            self.x.max_component(),
-            self.y.max_component(),
-            self.z.max_component(),
-        )
     }
 }
 
@@ -463,38 +351,27 @@ impl<N: SimdRealCopy> SimdQuat<N> for UnitQuaternion<N> {
 
 pub(crate) trait SimdAngularInertia<N> {
     type AngVector;
-    type LinVector;
     type AngMatrix;
     fn inverse(&self) -> Self;
-    fn transform_lin_vector(&self, pt: Self::LinVector) -> Self::LinVector;
     fn transform_vector(&self, pt: Self::AngVector) -> Self::AngVector;
     fn squared(&self) -> Self;
-    fn transform_matrix(&self, mat: &Self::AngMatrix) -> Self::AngMatrix;
     fn into_matrix(self) -> Self::AngMatrix;
 }
 
 impl<N: SimdRealCopy> SimdAngularInertia<N> for N {
     type AngVector = N;
-    type LinVector = Vector2<N>;
     type AngMatrix = N;
 
     fn inverse(&self) -> Self {
         simd_inv(*self)
     }
 
-    fn transform_lin_vector(&self, pt: Vector2<N>) -> Vector2<N> {
-        pt * *self
-    }
     fn transform_vector(&self, pt: N) -> N {
         pt * *self
     }
 
     fn squared(&self) -> N {
         *self * *self
-    }
-
-    fn transform_matrix(&self, mat: &Self::AngMatrix) -> Self::AngMatrix {
-        *mat * *self
     }
 
     fn into_matrix(self) -> Self::AngMatrix {
@@ -504,7 +381,6 @@ impl<N: SimdRealCopy> SimdAngularInertia<N> for N {
 
 impl SimdAngularInertia<Real> for SdpMatrix3<Real> {
     type AngVector = Vector3<Real>;
-    type LinVector = Vector3<Real>;
     type AngMatrix = Matrix3<Real>;
 
     fn inverse(&self) -> Self {
@@ -540,10 +416,6 @@ impl SimdAngularInertia<Real> for SdpMatrix3<Real> {
         }
     }
 
-    fn transform_lin_vector(&self, v: Vector3<Real>) -> Vector3<Real> {
-        self.transform_vector(v)
-    }
-
     fn transform_vector(&self, v: Vector3<Real>) -> Vector3<Real> {
         let x = self.m11 * v.x + self.m12 * v.y + self.m13 * v.z;
         let y = self.m12 * v.x + self.m22 * v.y + self.m23 * v.z;
@@ -559,16 +431,10 @@ impl SimdAngularInertia<Real> for SdpMatrix3<Real> {
             self.m13, self.m23, self.m33,
         )
     }
-
-    #[rustfmt::skip]
-    fn transform_matrix(&self, m: &Matrix3<Real>) -> Matrix3<Real> {
-        *self * *m
-    }
 }
 
 impl SimdAngularInertia<SimdReal> for SdpMatrix3<SimdReal> {
     type AngVector = Vector3<SimdReal>;
-    type LinVector = Vector3<SimdReal>;
     type AngMatrix = Matrix3<SimdReal>;
 
     fn inverse(&self) -> Self {
@@ -591,10 +457,6 @@ impl SimdAngularInertia<SimdReal> for SdpMatrix3<SimdReal> {
             m23: (self.m13 * self.m12 - self.m23 * self.m11) * inv_det,
             m33: (self.m11 * self.m22 - self.m12 * self.m12) * inv_det,
         }
-    }
-
-    fn transform_lin_vector(&self, v: Vector3<SimdReal>) -> Vector3<SimdReal> {
-        self.transform_vector(v)
     }
 
     fn transform_vector(&self, v: Vector3<SimdReal>) -> Vector3<SimdReal> {
@@ -623,31 +485,10 @@ impl SimdAngularInertia<SimdReal> for SdpMatrix3<SimdReal> {
             self.m13, self.m23, self.m33,
         )
     }
-
-    #[rustfmt::skip]
-    fn transform_matrix(&self, m: &Matrix3<SimdReal>) -> Matrix3<SimdReal> {
-        let x0 = self.m11 * m.m11 + self.m12 * m.m21 + self.m13 * m.m31;
-        let y0 = self.m12 * m.m11 + self.m22 * m.m21 + self.m23 * m.m31;
-        let z0 = self.m13 * m.m11 + self.m23 * m.m21 + self.m33 * m.m31;
-
-        let x1 = self.m11 * m.m12 + self.m12 * m.m22 + self.m13 * m.m32;
-        let y1 = self.m12 * m.m12 + self.m22 * m.m22 + self.m23 * m.m32;
-        let z1 = self.m13 * m.m12 + self.m23 * m.m22 + self.m33 * m.m32;
-
-        let x2 = self.m11 * m.m13 + self.m12 * m.m23 + self.m13 * m.m33;
-        let y2 = self.m12 * m.m13 + self.m22 * m.m23 + self.m23 * m.m33;
-        let z2 = self.m13 * m.m13 + self.m23 * m.m23 + self.m33 * m.m33;
-
-        Matrix3::new(
-            x0, x1, x2,
-            y0, y1, y2,
-            z0, z1, z2,
-        )
-    }
 }
 
 // This is an RAII structure that enables flushing denormal numbers
-// to zero, and automatically reseting previous flags once it is dropped.
+// to zero, and automatically resetting previous flags once it is dropped.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FlushToZeroDenormalsAreZeroFlags {
     original_flags: u32,

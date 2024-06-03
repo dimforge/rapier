@@ -1,4 +1,5 @@
 use super::{TwoBodyConstraintElement, TwoBodyConstraintNormalPart};
+use crate::dynamics::integration_parameters::BLOCK_SOLVER_ENABLED;
 use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::solver::{ContactPointInfos, SolverVel};
 use crate::dynamics::{
@@ -7,14 +8,14 @@ use crate::dynamics::{
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
-    AngVector, AngularInertia, Isometry, Point, Real, SimdReal, Vector, DIM, MAX_MANIFOLD_POINTS,
-    SIMD_WIDTH,
+    AngVector, AngularInertia, Isometry, Point, Real, SimdReal, TangentImpulse, Vector, DIM,
+    MAX_MANIFOLD_POINTS, SIMD_WIDTH,
 };
 #[cfg(feature = "dim2")]
 use crate::utils::SimdBasis;
 use crate::utils::{self, SimdAngularInertia, SimdCross, SimdDot};
 use num::Zero;
-use parry::math::SimdBool;
+use parry::utils::SdpMatrix2;
 use simba::simd::{SimdPartialOrd, SimdValue};
 
 #[derive(Copy, Clone, Debug)]
@@ -101,6 +102,11 @@ impl TwoBodyConstraintBuilderSimd {
                 let is_bouncy = SimdReal::from(gather![
                     |ii| manifold_points[ii][k].is_bouncy() as u32 as Real
                 ]);
+                let warmstart_impulse =
+                    SimdReal::from(gather![|ii| manifold_points[ii][k].warmstart_impulse]);
+                let warmstart_tangent_impulse = TangentImpulse::from(gather![|ii| manifold_points
+                    [ii][k]
+                    .warmstart_tangent_impulse]);
 
                 let dist = SimdReal::from(gather![|ii| manifold_points[ii][k].dist]);
                 let point = Point::from(gather![|ii| manifold_points[ii][k].point]);
@@ -137,14 +143,15 @@ impl TwoBodyConstraintBuilderSimd {
                         gcross2,
                         rhs: na::zero(),
                         rhs_wo_bias: na::zero(),
-                        impulse: SimdReal::splat(0.0),
-                        total_impulse: SimdReal::splat(0.0),
+                        impulse: warmstart_impulse,
+                        impulse_accumulator: SimdReal::splat(0.0),
                         r: projected_mass,
+                        r_mat_elts: [SimdReal::zero(); 2],
                     };
                 }
 
                 // tangent parts.
-                constraint.elements[k].tangent_part.impulse = na::zero();
+                constraint.elements[k].tangent_part.impulse = warmstart_tangent_impulse;
 
                 for j in 0..DIM - 1 {
                     let gcross1 = ii1.transform_vector(dp1.gcross(tangents1[j]));
@@ -186,6 +193,52 @@ impl TwoBodyConstraintBuilderSimd {
 
                 builder.infos[k] = infos;
             }
+
+            if BLOCK_SOLVER_ENABLED {
+                // Coupling between consecutive pairs.
+                for k in 0..num_points / 2 {
+                    let k0 = k * 2;
+                    let k1 = k * 2 + 1;
+
+                    let imsum = im1 + im2;
+                    let r0 = constraint.elements[k0].normal_part.r;
+                    let r1 = constraint.elements[k1].normal_part.r;
+
+                    let mut r_mat = SdpMatrix2::zero();
+                    r_mat.m12 = force_dir1.dot(&imsum.component_mul(&force_dir1))
+                        + constraint.elements[k0]
+                            .normal_part
+                            .gcross1
+                            .gdot(constraint.elements[k1].normal_part.gcross1)
+                        + constraint.elements[k0]
+                            .normal_part
+                            .gcross2
+                            .gdot(constraint.elements[k1].normal_part.gcross2);
+                    r_mat.m11 = utils::simd_inv(r0);
+                    r_mat.m22 = utils::simd_inv(r1);
+
+                    let (inv, det) = {
+                        let _disable_fe_except =
+                            crate::utils::DisableFloatingPointExceptionsFlags::
+                            disable_floating_point_exceptions();
+                        r_mat.inverse_and_get_determinant_unchecked()
+                    };
+                    let is_invertible = det.simd_gt(SimdReal::zero());
+
+                    // If inversion failed, the contacts are redundant.
+                    // Ignore the one with the smallest depth (it is too late to
+                    // have the constraint removed from the constraint set, so just
+                    // set the mass (r) matrix elements to 0.
+                    constraint.elements[k0].normal_part.r_mat_elts = [
+                        inv.m11.select(is_invertible, r0),
+                        inv.m22.select(is_invertible, SimdReal::zero()),
+                    ];
+                    constraint.elements[k1].normal_part.r_mat_elts = [
+                        inv.m12.select(is_invertible, SimdReal::zero()),
+                        r_mat.m12.select(is_invertible, SimdReal::zero()),
+                    ];
+                }
+            }
         }
     }
 
@@ -197,18 +250,15 @@ impl TwoBodyConstraintBuilderSimd {
         _multibodies: &MultibodyJointSet,
         constraint: &mut TwoBodyConstraintSimd,
     ) {
-        let cfm_factor = SimdReal::splat(params.cfm_factor());
-        let dt = SimdReal::splat(params.dt);
+        let cfm_factor = SimdReal::splat(params.contact_cfm_factor());
         let inv_dt = SimdReal::splat(params.inv_dt());
-        let allowed_lin_err = SimdReal::splat(params.allowed_linear_error);
-        let erp_inv_dt = SimdReal::splat(params.erp_inv_dt());
-        let max_penetration_correction = SimdReal::splat(params.max_penetration_correction);
+        let allowed_lin_err = SimdReal::splat(params.allowed_linear_error());
+        let erp_inv_dt = SimdReal::splat(params.contact_erp_inv_dt());
+        let max_corrective_velocity = SimdReal::splat(params.max_corrective_velocity());
+        let warmstart_coeff = SimdReal::splat(params.warmstart_coefficient);
 
         let rb1 = gather![|ii| &bodies[constraint.solver_vel1[ii]]];
         let rb2 = gather![|ii| &bodies[constraint.solver_vel2[ii]]];
-
-        let ccd_thickness = SimdReal::from(gather![|ii| rb1[ii].ccd_thickness])
-            + SimdReal::from(gather![|ii| rb2[ii].ccd_thickness]);
 
         let poss1 = Isometry::from(gather![|ii| rb1[ii].position]);
         let poss2 = Isometry::from(gather![|ii| rb2[ii].position]);
@@ -224,7 +274,6 @@ impl TwoBodyConstraintBuilderSimd {
             constraint.dir1.cross(&constraint.tangent1),
         ];
 
-        let mut is_fast_contact = SimdBool::splat(false);
         let solved_dt = SimdReal::splat(solved_dt);
 
         for (info, element) in all_infos.iter().zip(all_elements.iter_mut()) {
@@ -237,24 +286,20 @@ impl TwoBodyConstraintBuilderSimd {
             {
                 let rhs_wo_bias =
                     info.normal_rhs_wo_bias + dist.simd_max(SimdReal::zero()) * inv_dt;
-                let rhs_bias = (dist + allowed_lin_err)
-                    .simd_clamp(-max_penetration_correction, SimdReal::zero())
-                    * erp_inv_dt;
+                let rhs_bias = ((dist + allowed_lin_err) * erp_inv_dt)
+                    .simd_clamp(-max_corrective_velocity, SimdReal::zero());
                 let new_rhs = rhs_wo_bias + rhs_bias;
-                let total_impulse = element.normal_part.total_impulse + element.normal_part.impulse;
-                is_fast_contact =
-                    is_fast_contact | (-new_rhs * dt).simd_gt(ccd_thickness * SimdReal::splat(0.5));
 
                 element.normal_part.rhs_wo_bias = rhs_wo_bias;
                 element.normal_part.rhs = new_rhs;
-                element.normal_part.total_impulse = total_impulse;
-                element.normal_part.impulse = na::zero();
+                element.normal_part.impulse_accumulator += element.normal_part.impulse;
+                element.normal_part.impulse *= warmstart_coeff;
             }
 
             // tangent parts.
             {
-                element.tangent_part.total_impulse += element.tangent_part.impulse;
-                element.tangent_part.impulse = na::zero();
+                element.tangent_part.impulse_accumulator += element.tangent_part.impulse;
+                element.tangent_part.impulse *= warmstart_coeff;
 
                 for j in 0..DIM - 1 {
                     let bias = (p1 - p2).dot(&tangents1[j]) * inv_dt;
@@ -263,7 +308,7 @@ impl TwoBodyConstraintBuilderSimd {
             }
         }
 
-        constraint.cfm_factor = SimdReal::splat(1.0).select(is_fast_contact, cfm_factor);
+        constraint.cfm_factor = cfm_factor;
     }
 }
 
@@ -285,6 +330,38 @@ pub(crate) struct TwoBodyConstraintSimd {
 }
 
 impl TwoBodyConstraintSimd {
+    pub fn warmstart(&mut self, solver_vels: &mut [SolverVel<Real>]) {
+        let mut solver_vel1 = SolverVel {
+            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel1[ii]].linear]),
+            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel1[ii]].angular]),
+        };
+
+        let mut solver_vel2 = SolverVel {
+            linear: Vector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].linear]),
+            angular: AngVector::from(gather![|ii| solver_vels[self.solver_vel2[ii]].angular]),
+        };
+
+        TwoBodyConstraintElement::warmstart_group(
+            &mut self.elements[..self.num_contacts as usize],
+            &self.dir1,
+            #[cfg(feature = "dim3")]
+            &self.tangent1,
+            &self.im1,
+            &self.im2,
+            &mut solver_vel1,
+            &mut solver_vel2,
+        );
+
+        for ii in 0..SIMD_WIDTH {
+            solver_vels[self.solver_vel1[ii]].linear = solver_vel1.linear.extract(ii);
+            solver_vels[self.solver_vel1[ii]].angular = solver_vel1.angular.extract(ii);
+        }
+        for ii in 0..SIMD_WIDTH {
+            solver_vels[self.solver_vel2[ii]].linear = solver_vel2.linear.extract(ii);
+            solver_vels[self.solver_vel2[ii]].angular = solver_vel2.angular.extract(ii);
+        }
+    }
+
     pub fn solve(
         &mut self,
         solver_vels: &mut [SolverVel<Real>],
@@ -328,26 +405,20 @@ impl TwoBodyConstraintSimd {
 
     pub fn writeback_impulses(&self, manifolds_all: &mut [&mut ContactManifold]) {
         for k in 0..self.num_contacts as usize {
-            let impulses: [_; SIMD_WIDTH] = self.elements[k].normal_part.impulse.into();
-            #[cfg(feature = "dim2")]
-            let tangent_impulses: [_; SIMD_WIDTH] = self.elements[k].tangent_part.impulse[0].into();
-            #[cfg(feature = "dim3")]
-            let tangent_impulses = self.elements[k].tangent_part.impulse;
+            let warmstart_impulses: [_; SIMD_WIDTH] = self.elements[k].normal_part.impulse.into();
+            let warmstart_tangent_impulses = self.elements[k].tangent_part.impulse;
+            let impulses: [_; SIMD_WIDTH] = self.elements[k].normal_part.total_impulse().into();
+            let tangent_impulses = self.elements[k].tangent_part.total_impulse();
 
             for ii in 0..SIMD_WIDTH {
                 let manifold = &mut manifolds_all[self.manifold_id[ii]];
                 let contact_id = self.manifold_contact_id[k][ii];
                 let active_contact = &mut manifold.points[contact_id as usize];
+                active_contact.data.warmstart_impulse = warmstart_impulses[ii];
+                active_contact.data.warmstart_tangent_impulse =
+                    warmstart_tangent_impulses.extract(ii);
                 active_contact.data.impulse = impulses[ii];
-
-                #[cfg(feature = "dim2")]
-                {
-                    active_contact.data.tangent_impulse = tangent_impulses[ii];
-                }
-                #[cfg(feature = "dim3")]
-                {
-                    active_contact.data.tangent_impulse = tangent_impulses.extract(ii);
-                }
+                active_contact.data.tangent_impulse = tangent_impulses.extract(ii);
             }
         }
     }

@@ -15,8 +15,12 @@ mod collision_groups2;
 mod convex_polygons2;
 mod damping2;
 mod debug_box_ball2;
+mod debug_compression2;
+mod debug_total_overlap2;
+mod debug_vertical_column2;
 mod drum2;
 mod heightfield2;
+mod inverse_kinematics2;
 mod joint_motor_position2;
 mod joints2;
 mod locked_rotations2;
@@ -26,6 +30,17 @@ mod polyline2;
 mod pyramid2;
 mod restitution2;
 mod rope_joints2;
+mod s2d_arch;
+mod s2d_ball_and_chain;
+mod s2d_bridge;
+mod s2d_card_house;
+mod s2d_confined;
+mod s2d_far_pyramid;
+mod s2d_high_mass_ratio_1;
+mod s2d_high_mass_ratio_2;
+mod s2d_high_mass_ratio_3;
+mod s2d_joint_grid;
+mod s2d_pyramid;
 mod sensor2;
 mod trimesh2;
 
@@ -70,6 +85,7 @@ pub fn main() {
         ("Damping", damping2::init_world),
         ("Drum", drum2::init_world),
         ("Heightfield", heightfield2::init_world),
+        ("Inverse kinematics", inverse_kinematics2::init_world),
         ("Joints", joints2::init_world),
         ("Locked rotations", locked_rotations2::init_world),
         ("One-way platforms", one_way_platforms2::init_world),
@@ -82,6 +98,23 @@ pub fn main() {
         ("Trimesh", trimesh2::init_world),
         ("Joint motor position", joint_motor_position2::init_world),
         ("(Debug) box ball", debug_box_ball2::init_world),
+        ("(Debug) compression", debug_compression2::init_world),
+        ("(Debug) total overlap", debug_total_overlap2::init_world),
+        (
+            "(Debug) vertical column",
+            debug_vertical_column2::init_world,
+        ),
+        ("(s2d) high mass ratio 1", s2d_high_mass_ratio_1::init_world),
+        ("(s2d) high mass ratio 2", s2d_high_mass_ratio_2::init_world),
+        ("(s2d) high mass ratio 3", s2d_high_mass_ratio_3::init_world),
+        ("(s2d) confined", s2d_confined::init_world),
+        ("(s2d) pyramid", s2d_pyramid::init_world),
+        ("(s2d) card house", s2d_card_house::init_world),
+        ("(s2d) arch", s2d_arch::init_world),
+        ("(s2d) bridge", s2d_bridge::init_world),
+        ("(s2d) ball and chain", s2d_ball_and_chain::init_world),
+        ("(s2d) joint grid", s2d_joint_grid::init_world),
+        ("(s2d) far pyramid", s2d_far_pyramid::init_world),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.

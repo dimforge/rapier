@@ -217,28 +217,26 @@ impl JointTwoBodyConstraint<Real, 1> {
         }
 
         if (motor_axes & coupled_axes) & JointAxesMask::LIN_AXES.bits() != 0 {
-            // if (motor_axes & !coupled_axes) & (1 << first_coupled_lin_axis_id) != 0 {
-            //     let limits = if limit_axes & (1 << first_coupled_lin_axis_id) != 0 {
-            //         Some([
-            //             joint.limits[first_coupled_lin_axis_id].min,
-            //             joint.limits[first_coupled_lin_axis_id].max,
-            //         ])
-            //     } else {
-            //         None
-            //     };
-            //
-            //     out[len] = builder.motor_linear_coupled
-            //         params,
-            //         [joint_id],
-            //         body1,
-            //         body2,
-            //         coupled_axes,
-            //         &joint.motors[first_coupled_lin_axis_id].motor_params(params.dt),
-            //         limits,
-            //         WritebackId::Motor(first_coupled_lin_axis_id),
-            //     );
-            //     len += 1;
-            // }
+            let limits = if (limit_axes & (1 << first_coupled_lin_axis_id)) != 0 {
+                Some([
+                    joint.limits[first_coupled_lin_axis_id].min,
+                    joint.limits[first_coupled_lin_axis_id].max,
+                ])
+            } else {
+                None
+            };
+
+            out[len] = builder.motor_linear_coupled(
+                params,
+                [joint_id],
+                body1,
+                body2,
+                coupled_axes,
+                &joint.motors[first_coupled_lin_axis_id].motor_params(params.dt),
+                limits,
+                WritebackId::Motor(first_coupled_lin_axis_id),
+            );
+            len += 1;
         }
 
         JointTwoBodyConstraintHelper::finalize_constraints(&mut out[start..len]);
@@ -350,6 +348,7 @@ impl JointTwoBodyConstraint<Real, 1> {
         }
     }
 }
+
 #[cfg(feature = "simd-is-enabled")]
 impl JointTwoBodyConstraint<SimdReal, SIMD_WIDTH> {
     pub fn lock_axes(

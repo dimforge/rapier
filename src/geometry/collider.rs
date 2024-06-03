@@ -1,16 +1,19 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
 use crate::geometry::{
-    ActiveCollisionTypes, ColliderBroadPhaseData, ColliderChanges, ColliderFlags,
-    ColliderMassProps, ColliderMaterial, ColliderParent, ColliderPosition, ColliderShape,
-    ColliderType, InteractionGroups, SharedShape,
+    ActiveCollisionTypes, BroadPhaseProxyIndex, ColliderBroadPhaseData, ColliderChanges,
+    ColliderFlags, ColliderMassProps, ColliderMaterial, ColliderParent, ColliderPosition,
+    ColliderShape, ColliderType, InteractionGroups, SharedShape,
 };
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
 use crate::prelude::ColliderEnabled;
 use na::Unit;
-use parry::bounding_volume::Aabb;
+use parry::bounding_volume::{Aabb, BoundingVolume};
 use parry::shape::{Shape, TriMeshFlags};
+
+#[cfg(feature = "dim3")]
+use crate::geometry::HeightFieldFlags;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
@@ -27,6 +30,7 @@ pub struct Collider {
     pub(crate) material: ColliderMaterial,
     pub(crate) flags: ColliderFlags,
     pub(crate) bf_data: ColliderBroadPhaseData,
+    contact_skin: Real,
     contact_force_event_threshold: Real,
     /// User-defined data associated to this collider.
     pub user_data: u128,
@@ -50,6 +54,21 @@ impl Collider {
         }
     }
 
+    /// An internal index associated to this collider by the broad-phase algorithm.
+    pub fn internal_broad_phase_proxy_index(&self) -> BroadPhaseProxyIndex {
+        self.bf_data.proxy_index
+    }
+
+    /// Sets the internal index associated to this collider by the broad-phase algorithm.
+    ///
+    /// This must **not** be called, unless you are implementing your own custom broad-phase
+    /// that require storing an index in the collider struct.
+    /// Modifying that index outside of a custom broad-phase code will most certainly break
+    /// the physics engine.
+    pub fn set_internal_broad_phase_proxy_index(&mut self, id: BroadPhaseProxyIndex) {
+        self.bf_data.proxy_index = id;
+    }
+
     /// The rigid body this collider is attached to.
     pub fn parent(&self) -> Option<RigidBodyHandle> {
         self.parent.map(|parent| parent.handle)
@@ -58,6 +77,55 @@ impl Collider {
     /// Is this collider a sensor?
     pub fn is_sensor(&self) -> bool {
         self.coll_type.is_sensor()
+    }
+
+    /// Copy all the characteristics from `other` to `self`.
+    ///
+    /// If you have a mutable reference to a collider `collider: &mut Collider`, attempting to
+    /// assign it a whole new collider instance, e.g., `*collider = ColliderBuilder::ball(0.5).build()`,
+    /// will crash due to some internal indices being overwritten. Instead, use
+    /// `collider.copy_from(&ColliderBuilder::ball(0.5).build())`.
+    ///
+    /// This method will allow you to set most characteristics of this collider from another
+    /// collider instance without causing any breakage.
+    ///
+    /// This method **cannot** be used for reparenting a collider. Therefore, the parent of the
+    /// `other` (if any), as well as its relative position to that parent will not be copied into
+    /// `self`.
+    ///
+    /// The pose of `other` will only copied into `self` if `self` doesn’t have a parent (if it has
+    /// a parent, its position is directly controlled by the parent rigid-body).
+    pub fn copy_from(&mut self, other: &Collider) {
+        // NOTE: we deconstruct the collider struct to be sure we don’t forget to
+        //       add some copies here if we add more field to Collider in the future.
+        let Collider {
+            coll_type,
+            shape,
+            mprops,
+            changes: _changes, // Will be set to ALL.
+            parent: _parent,   // This function cannot be used to reparent the collider.
+            pos,
+            material,
+            flags,
+            bf_data: _bf_data, // Internal ids must not be overwritten.
+            contact_force_event_threshold,
+            user_data,
+            contact_skin,
+        } = other;
+
+        if self.parent.is_none() {
+            self.pos = *pos;
+        }
+
+        self.coll_type = *coll_type;
+        self.shape = shape.clone();
+        self.mprops = mprops.clone();
+        self.material = *material;
+        self.contact_force_event_threshold = *contact_force_event_threshold;
+        self.user_data = *user_data;
+        self.flags = *flags;
+        self.changes = ColliderChanges::all();
+        self.contact_skin = *contact_skin;
     }
 
     /// The physics hooks enabled for this collider.
@@ -88,6 +156,20 @@ impl Collider {
     /// Sets the collision types enabled for this collider.
     pub fn set_active_collision_types(&mut self, active_collision_types: ActiveCollisionTypes) {
         self.flags.active_collision_types = active_collision_types;
+    }
+
+    /// The contact skin of this collider.
+    ///
+    /// See the documentation of [`ColliderBuilder::contact_skin`] for details.
+    pub fn contact_skin(&self) -> Real {
+        self.contact_skin
+    }
+
+    /// Sets the contact skin of this collider.
+    ///
+    /// See the documentation of [`ColliderBuilder::contact_skin`] for details.
+    pub fn set_contact_skin(&mut self, skin_thickness: Real) {
+        self.contact_skin = skin_thickness;
     }
 
     /// The friction coefficient of this collider.
@@ -224,7 +306,7 @@ impl Collider {
         }
     }
 
-    /// Sets the rotational part of this collider's rotaiton relative to its parent rigid-body.
+    /// Sets the rotational part of this collider's rotation relative to its parent rigid-body.
     pub fn set_rotation_wrt_parent(&mut self, rotation: AngVector<Real>) {
         if let Some(parent) = self.parent.as_mut() {
             self.changes.insert(ColliderChanges::PARENT);
@@ -372,8 +454,19 @@ impl Collider {
     }
 
     /// Compute the axis-aligned bounding box of this collider.
+    ///
+    /// This AABB doesn’t take into account the collider’s contact skin.
+    /// [`Collider::contact_skin`].
     pub fn compute_aabb(&self) -> Aabb {
         self.shape.compute_aabb(&self.pos)
+    }
+
+    /// Compute the axis-aligned bounding box of this collider, taking into account the
+    /// [`Collider::contact_skin`] and prediction distance.
+    pub fn compute_collision_aabb(&self, prediction: Real) -> Aabb {
+        self.shape
+            .compute_aabb(&self.pos)
+            .loosened(self.contact_skin + prediction)
     }
 
     /// Compute the axis-aligned bounding box of this collider moving from its current position
@@ -430,6 +523,8 @@ pub struct ColliderBuilder {
     pub enabled: bool,
     /// The total force magnitude beyond which a contact force event can be emitted.
     pub contact_force_event_threshold: Real,
+    /// An extra thickness around the collider shape to keep them further apart when colliding.
+    pub contact_skin: Real,
 }
 
 impl ColliderBuilder {
@@ -452,6 +547,7 @@ impl ColliderBuilder {
             active_events: ActiveEvents::empty(),
             enabled: true,
             contact_force_event_threshold: 0.0,
+            contact_skin: 0.0,
         }
     }
 
@@ -516,6 +612,15 @@ impl ColliderBuilder {
     #[cfg(feature = "dim2")]
     pub fn round_cuboid(hx: Real, hy: Real, border_radius: Real) -> Self {
         Self::new(SharedShape::round_cuboid(hx, hy, border_radius))
+    }
+
+    /// Initialize a new collider builder with a capsule defined from its endpoints.
+    ///
+    /// See also [`ColliderBuilder::capsule_x`], [`ColliderBuilder::capsule_y`], and
+    /// [`ColliderBuilder::capsule_z`], for a simpler way to build capsules with common
+    /// orientations.
+    pub fn capsule_from_endpoints(a: Point<Real>, b: Point<Real>, radius: Real) -> Self {
+        Self::new(SharedShape::capsule(a, b, radius))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `x` axis.
@@ -698,6 +803,17 @@ impl ColliderBuilder {
         Self::new(SharedShape::heightfield(heights, scale))
     }
 
+    /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
+    /// factor along each coordinate axis.
+    #[cfg(feature = "dim3")]
+    pub fn heightfield_with_flags(
+        heights: na::DMatrix<Real>,
+        scale: Vector<Real>,
+        flags: HeightFieldFlags,
+    ) -> Self {
+        Self::new(SharedShape::heightfield_with_flags(heights, scale, flags))
+    }
+
     /// The default friction coefficient used by the collider builder.
     pub fn default_friction() -> Real {
         0.5
@@ -705,7 +821,7 @@ impl ColliderBuilder {
 
     /// The default density used by the collider builder.
     pub fn default_density() -> Real {
-        1.0
+        100.0
     }
 
     /// Sets an arbitrary user-defined 128-bit integer associated to the colliders built by this builder.
@@ -861,6 +977,20 @@ impl ColliderBuilder {
         self
     }
 
+    /// Sets the contact skin of the collider.
+    ///
+    /// The contact skin acts as if the collider was enlarged with a skin of width `skin_thickness`
+    /// around it, keeping objects further apart when colliding.
+    ///
+    /// A non-zero contact skin can increase performance, and in some cases, stability. However
+    /// it creates a small gap between colliding object (equal to the sum of their skin). If the
+    /// skin is sufficiently small, this might not be visually significant or can be hidden by the
+    /// rendering assets.
+    pub fn contact_skin(mut self, skin_thickness: Real) -> Self {
+        self.contact_skin = skin_thickness;
+        self
+    }
+
     /// Enable or disable the collider after its creation.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
@@ -908,6 +1038,7 @@ impl ColliderBuilder {
             flags,
             coll_type,
             contact_force_event_threshold: self.contact_force_event_threshold,
+            contact_skin: self.contact_skin,
             user_data: self.user_data,
         }
     }

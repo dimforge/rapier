@@ -74,6 +74,61 @@ impl RigidBody {
         self.ids = Default::default();
     }
 
+    /// Copy all the characteristics from `other` to `self`.
+    ///
+    /// If you have a mutable reference to a rigid-body `rigid_body: &mut RigidBody`, attempting to
+    /// assign it a whole new rigid-body instance, e.g., `*rigid_body = RigidBodyBuilder::dynamic().build()`,
+    /// will crash due to some internal indices being overwritten. Instead, use
+    /// `rigid_body.copy_from(&RigidBodyBuilder::dynamic().build())`.
+    ///
+    /// This method will allow you to set most characteristics of this rigid-body from another
+    /// rigid-body instance without causing any breakage.
+    ///
+    /// This method **cannot** be used for editing the list of colliders attached to this rigid-body.
+    /// Therefore, the list of colliders attached to `self` won’t be replaced by the one attached
+    /// to `other`.
+    ///
+    /// The pose of `other` will only copied into `self` if `self` doesn’t have a parent (if it has
+    /// a parent, its position is directly controlled by the parent rigid-body).
+    pub fn copy_from(&mut self, other: &RigidBody) {
+        // NOTE: we deconstruct the rigid-body struct to be sure we don’t forget to
+        //       add some copies here if we add more field to RigidBody in the future.
+        let RigidBody {
+            pos,
+            mprops,
+            integrated_vels,
+            vels,
+            damping,
+            forces,
+            ccd,
+            ids: _ids,             // Internal ids must not be overwritten.
+            colliders: _colliders, // This function cannot be used to edit collider sets.
+            activation,
+            changes: _changes, // Will be set to ALL.
+            body_type,
+            dominance,
+            enabled,
+            additional_solver_iterations,
+            user_data,
+        } = other;
+
+        self.pos = *pos;
+        self.mprops = mprops.clone();
+        self.integrated_vels = *integrated_vels;
+        self.vels = *vels;
+        self.damping = *damping;
+        self.forces = *forces;
+        self.ccd = *ccd;
+        self.activation = *activation;
+        self.body_type = *body_type;
+        self.dominance = *dominance;
+        self.enabled = *enabled;
+        self.additional_solver_iterations = *additional_solver_iterations;
+        self.user_data = *user_data;
+
+        self.changes = RigidBodyChanges::all();
+    }
+
     /// Set the additional number of solver iterations run for this rigid-body and
     /// everything interacting with it.
     ///
@@ -237,9 +292,9 @@ impl RigidBody {
         allow_rotations_z: bool,
         wake_up: bool,
     ) {
-        if self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_X) != !allow_rotations_x
-            || self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Y) != !allow_rotations_y
-            || self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z) != !allow_rotations_z
+        if self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_X) == allow_rotations_x
+            || self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Y) == allow_rotations_y
+            || self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z) == allow_rotations_z
         {
             if self.is_dynamic() && wake_up {
                 self.wake_up(true);
@@ -381,16 +436,38 @@ impl RigidBody {
         ]
     }
 
-    /// Enables of disable CCD (continuous collision-detection) for this rigid-body.
+    /// Enables of disable CCD (Continuous Collision-Detection) for this rigid-body.
     ///
     /// CCD prevents tunneling, but may still allow limited interpenetration of colliders.
     pub fn enable_ccd(&mut self, enabled: bool) {
         self.ccd.ccd_enabled = enabled;
     }
 
-    /// Is CCD (continous collision-detection) enabled for this rigid-body?
+    /// Is CCD (continuous collision-detection) enabled for this rigid-body?
     pub fn is_ccd_enabled(&self) -> bool {
         self.ccd.ccd_enabled
+    }
+
+    /// Sets the maximum prediction distance Soft Continuous Collision-Detection.
+    ///
+    /// When set to 0, soft-CCD is disabled. Soft-CCD helps prevent tunneling especially of
+    /// slow-but-thin to moderately fast objects. The soft CCD prediction distance indicates how
+    /// far in the object’s path the CCD algorithm is allowed to inspect. Large values can impact
+    /// performance badly by increasing the work needed from the broad-phase.
+    ///
+    /// It is a generally cheaper variant of regular CCD (that can be enabled with
+    /// [`RigidBody::enable_ccd`] since it relies on predictive constraints instead of
+    /// shape-cast and substeps.
+    pub fn set_soft_ccd_prediction(&mut self, prediction_distance: Real) {
+        self.ccd.soft_ccd_prediction = prediction_distance;
+    }
+
+    /// The soft-CCD prediction distance for this rigid-body.
+    ///
+    /// See the documentation of [`RigidBody::set_soft_ccd_prediction`] for additional details on
+    /// soft-CCD.
+    pub fn soft_ccd_prediction(&self) -> Real {
+        self.ccd.soft_ccd_prediction
     }
 
     // This is different from `is_ccd_enabled`. This checks that CCD
@@ -812,9 +889,39 @@ impl RigidBody {
 
     /// Predicts the next position of this rigid-body, by integrating its velocity and forces
     /// by a time of `dt`.
+    pub(crate) fn predict_position_using_velocity_and_forces_with_max_dist(
+        &self,
+        dt: Real,
+        max_dist: Real,
+    ) -> Isometry<Real> {
+        let new_vels = self.forces.integrate(dt, &self.vels, &self.mprops);
+        // Compute the clamped dt such that the body doesn’t travel more than `max_dist`.
+        let linvel_norm = new_vels.linvel.norm();
+        let clamped_linvel = linvel_norm.min(max_dist * crate::utils::inv(dt));
+        let clamped_dt = dt * clamped_linvel * crate::utils::inv(linvel_norm);
+        new_vels.integrate(
+            clamped_dt,
+            &self.pos.position,
+            &self.mprops.local_mprops.local_com,
+        )
+    }
+
+    /// Predicts the next position of this rigid-body, by integrating its velocity and forces
+    /// by a time of `dt`.
     pub fn predict_position_using_velocity_and_forces(&self, dt: Real) -> Isometry<Real> {
         self.pos
             .integrate_forces_and_velocities(dt, &self.forces, &self.vels, &self.mprops)
+    }
+
+    /// Predicts the next position of this rigid-body, by integrating only its velocity
+    /// by a time of `dt`.
+    ///
+    /// The forces that were applied to this rigid-body since the last physics step will
+    /// be ignored by this function. Use [`Self::predict_position_using_velocity_and_forces`]
+    /// instead to take forces into account.
+    pub fn predict_position_using_velocity(&self, dt: Real) -> Isometry<Real> {
+        self.vels
+            .integrate(dt, &self.pos.position, &self.mprops.local_mprops.local_com)
     }
 
     pub(crate) fn update_world_mass_properties(&mut self) {
@@ -1031,14 +1138,25 @@ pub struct RigidBodyBuilder {
     mprops_flags: LockedAxes,
     /// The additional mass-properties of the rigid-body being built. See [`RigidBodyBuilder::additional_mass_properties`] for more information.
     additional_mass_properties: RigidBodyAdditionalMassProps,
-    /// Whether or not the rigid-body to be created can sleep if it reaches a dynamic equilibrium.
+    /// Whether the rigid-body to be created can sleep if it reaches a dynamic equilibrium.
     pub can_sleep: bool,
-    /// Whether or not the rigid-body is to be created asleep.
+    /// Whether the rigid-body is to be created asleep.
     pub sleeping: bool,
-    /// Whether continuous collision-detection is enabled for the rigid-body to be built.
+    /// Whether Continuous Collision-Detection is enabled for the rigid-body to be built.
     ///
     /// CCD prevents tunneling, but may still allow limited interpenetration of colliders.
     pub ccd_enabled: bool,
+    /// The maximum prediction distance Soft Continuous Collision-Detection.
+    ///
+    /// When set to 0, soft CCD is disabled. Soft-CCD helps prevent tunneling especially of
+    /// slow-but-thin to moderately fast objects. The soft CCD prediction distance indicates how
+    /// far in the object’s path the CCD algorithm is allowed to inspect. Large values can impact
+    /// performance badly by increasing the work needed from the broad-phase.
+    ///
+    /// It is a generally cheaper variant of regular CCD (that can be enabled with
+    /// [`RigidBodyBuilder::ccd_enabled`] since it relies on predictive constraints instead of
+    /// shape-cast and substeps.
+    pub soft_ccd_prediction: Real,
     /// The dominance group of the rigid-body to be built.
     pub dominance_group: i8,
     /// Will the rigid-body being built be enabled?
@@ -1068,6 +1186,7 @@ impl RigidBodyBuilder {
             can_sleep: true,
             sleeping: false,
             ccd_enabled: false,
+            soft_ccd_prediction: 0.0,
             dominance_group: 0,
             enabled: true,
             user_data: 0,
@@ -1306,13 +1425,13 @@ impl RigidBodyBuilder {
         self
     }
 
-    /// Sets whether or not the rigid-body to be created can sleep if it reaches a dynamic equilibrium.
+    /// Sets whether the rigid-body to be created can sleep if it reaches a dynamic equilibrium.
     pub fn can_sleep(mut self, can_sleep: bool) -> Self {
         self.can_sleep = can_sleep;
         self
     }
 
-    /// Sets whether or not continuous collision-detection is enabled for this rigid-body.
+    /// Sets whether Continuous Collision-Detection is enabled for this rigid-body.
     ///
     /// CCD prevents tunneling, but may still allow limited interpenetration of colliders.
     pub fn ccd_enabled(mut self, enabled: bool) -> Self {
@@ -1320,7 +1439,22 @@ impl RigidBodyBuilder {
         self
     }
 
-    /// Sets whether or not the rigid-body is to be created asleep.
+    /// Sets the maximum prediction distance Soft Continuous Collision-Detection.
+    ///
+    /// When set to 0, soft-CCD is disabled. Soft-CCD helps prevent tunneling especially of
+    /// slow-but-thin to moderately fast objects. The soft CCD prediction distance indicates how
+    /// far in the object’s path the CCD algorithm is allowed to inspect. Large values can impact
+    /// performance badly by increasing the work needed from the broad-phase.
+    ///
+    /// It is a generally cheaper variant of regular CCD (that can be enabled with
+    /// [`RigidBodyBuilder::ccd_enabled`] since it relies on predictive constraints instead of
+    /// shape-cast and substeps.
+    pub fn soft_ccd_prediction(mut self, prediction_distance: Real) -> Self {
+        self.soft_ccd_prediction = prediction_distance;
+        self
+    }
+
+    /// Sets whether the rigid-body is to be created asleep.
     pub fn sleeping(mut self, sleeping: bool) -> Self {
         self.sleeping = sleeping;
         self
@@ -1357,13 +1491,14 @@ impl RigidBodyBuilder {
         rb.dominance = RigidBodyDominance(self.dominance_group);
         rb.enabled = self.enabled;
         rb.enable_ccd(self.ccd_enabled);
+        rb.set_soft_ccd_prediction(self.soft_ccd_prediction);
 
         if self.can_sleep && self.sleeping {
             rb.sleep();
         }
 
         if !self.can_sleep {
-            rb.activation.linear_threshold = -1.0;
+            rb.activation.normalized_linear_threshold = -1.0;
             rb.activation.angular_threshold = -1.0;
         }
 

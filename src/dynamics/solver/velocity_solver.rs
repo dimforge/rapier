@@ -178,6 +178,10 @@ impl VelocitySolver {
             joint_constraints.update(params, multibodies, &self.solver_bodies);
             contact_constraints.update(params, substep_id, multibodies, &self.solver_bodies);
 
+            if params.warmstart_coefficient != 0.0 {
+                contact_constraints.warmstart(&mut self.solver_vels, &mut self.generic_solver_vels);
+            }
+
             for _ in 0..params.num_internal_pgs_iterations {
                 joint_constraints.solve(&mut self.solver_vels, &mut self.generic_solver_vels);
                 contact_constraints
@@ -201,9 +205,19 @@ impl VelocitySolver {
             /*
              * Resolution without bias.
              */
-            joint_constraints.solve_wo_bias(&mut self.solver_vels, &mut self.generic_solver_vels);
-            contact_constraints
-                .solve_restitution_wo_bias(&mut self.solver_vels, &mut self.generic_solver_vels);
+            if params.num_internal_stabilization_iterations > 0 {
+                for _ in 0..params.num_internal_stabilization_iterations {
+                    joint_constraints
+                        .solve_wo_bias(&mut self.solver_vels, &mut self.generic_solver_vels);
+                    contact_constraints.solve_restitution_wo_bias(
+                        &mut self.solver_vels,
+                        &mut self.generic_solver_vels,
+                    );
+                }
+
+                contact_constraints
+                    .solve_friction(&mut self.solver_vels, &mut self.generic_solver_vels);
+            }
         }
     }
 
@@ -239,8 +253,9 @@ impl VelocitySolver {
                 .rows(multibody.solver_id, multibody.ndofs());
             multibody.velocities.copy_from(&solver_vels);
             multibody.integrate(params.dt);
-            // PERF: we could have a mode where it doesn’t write back to the `bodies` yet.
-            multibody.forward_kinematics(bodies, !is_last_substep);
+            // PERF: don’t write back to the rigid-body poses `bodies` before the last step?
+            multibody.forward_kinematics(bodies, false);
+            multibody.update_rigid_bodies_internal(bodies, !is_last_substep, true, false);
 
             if !is_last_substep {
                 // These are very expensive and not needed if we don’t

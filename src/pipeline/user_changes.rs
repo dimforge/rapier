@@ -120,9 +120,9 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                         islands.active_kinematic_set.push(*handle);
                     }
 
-                    // Push the body to the active set if it is not
-                    // sleeping and if it is not already inside of the active set.
-                    if changes.contains(RigidBodyChanges::SLEEP)
+                    // Push the body to the active set if it is not inside the active set yet, and
+                    // is either not longer sleeping or became dynamic.
+                    if (changes.contains(RigidBodyChanges::SLEEP) || changes.contains(RigidBodyChanges::TYPE))
                         && rb.is_enabled()
                         && !rb.activation.sleeping // May happen if the body was put to sleep manually.
                         && rb.is_dynamic() // Only dynamic bodies are in the active dynamic set.

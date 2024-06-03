@@ -25,6 +25,7 @@ pub(crate) trait ConstraintTypes {
     type SimdBuilderTwoBodies;
 }
 
+#[derive(Debug)]
 pub enum AnyConstraintMut<'a, Constraints: ConstraintTypes> {
     OneBody(&'a mut Constraints::OneBody),
     TwoBodies(&'a mut Constraints::TwoBodies),
@@ -95,7 +96,7 @@ impl<Constraints: ConstraintTypes> SolverConstraintsSet<Constraints> {
         }
     }
 
-    #[allow(dead_code)] // Useful for debuging.
+    #[allow(dead_code)] // Useful for debugging.
     pub fn print_counts(&self) {
         println!("Solver constraints:");
         println!(

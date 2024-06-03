@@ -1,4 +1,5 @@
 #![allow(clippy::too_many_arguments)]
+#![allow(unexpected_cfgs)] // This happens due to the dim2/dim3/f32/f64 cfg.
 
 extern crate nalgebra as na;
 
@@ -25,6 +26,7 @@ mod camera3d;
 mod debug_render;
 mod graphics;
 pub mod harness;
+mod mouse;
 pub mod objects;
 pub mod physics;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]

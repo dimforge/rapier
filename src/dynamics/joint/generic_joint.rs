@@ -496,6 +496,24 @@ impl GenericJoint {
         self.motors[i].damping = damping;
         self
     }
+
+    /// Flips the orientation of the joint, including limits and motors.
+    pub fn flip(&mut self) {
+        std::mem::swap(&mut self.local_frame1, &mut self.local_frame2);
+
+        let coupled_bits = self.coupled_axes.bits();
+
+        for dim in 0..SPATIAL_DIM {
+            if coupled_bits & (1 << dim) == 0 {
+                let limit = self.limits[dim];
+                self.limits[dim].min = -limit.max;
+                self.limits[dim].max = -limit.min;
+            }
+
+            self.motors[dim].target_vel = -self.motors[dim].target_vel;
+            self.motors[dim].target_pos = -self.motors[dim].target_pos;
+        }
+    }
 }
 
 macro_rules! joint_conversion_methods(

@@ -138,16 +138,16 @@ pub fn init_world(testbed: &mut Testbed) {
 
         for key in gfx.keys().get_pressed() {
             match *key {
-                KeyCode::Right => {
+                KeyCode::ArrowRight => {
                     steering = -1.0;
                 }
-                KeyCode::Left => {
+                KeyCode::ArrowLeft => {
                     steering = 1.0;
                 }
-                KeyCode::Up => {
+                KeyCode::ArrowUp => {
                     thrust = -drive_strength;
                 }
-                KeyCode::Down => {
+                KeyCode::ArrowDown => {
                     thrust = drive_strength;
                 }
                 KeyCode::ShiftRight => {

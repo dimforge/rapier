@@ -15,6 +15,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::needless_range_loop)] // TODO: remove this? I find that in the math code using indices adds clarity.
 #![allow(clippy::module_inception)]
+#![allow(unexpected_cfgs)] // This happens due to the dim2/dim3/f32/f64 cfg.
 
 #[cfg(all(feature = "dim2", feature = "f32"))]
 pub extern crate parry2d as parry;
@@ -166,6 +167,10 @@ pub mod math {
     #[cfg(feature = "dim2")]
     pub type JacobianViewMut<'a, N> = na::MatrixViewMut3xX<'a, N>;
 
+    /// The type of impulse applied for friction constraints.
+    #[cfg(feature = "dim2")]
+    pub type TangentImpulse<N> = na::Vector1<N>;
+
     /// The maximum number of possible rotations and translations of a rigid body.
     #[cfg(feature = "dim2")]
     pub const SPATIAL_DIM: usize = 3;
@@ -194,6 +199,10 @@ pub mod math {
     /// The type of a mutable slice of the constraint Jacobian in twist coordinates.
     #[cfg(feature = "dim3")]
     pub type JacobianViewMut<'a, N> = na::MatrixViewMut6xX<'a, N>;
+
+    /// The type of impulse applied for friction constraints.
+    #[cfg(feature = "dim3")]
+    pub type TangentImpulse<N> = na::Vector2<N>;
 
     /// The maximum number of possible rotations and translations of a rigid body.
     #[cfg(feature = "dim3")]

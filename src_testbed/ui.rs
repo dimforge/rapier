@@ -10,8 +10,9 @@ use crate::testbed::{
 };
 
 use crate::PhysicsState;
-use bevy_egui::egui::Slider;
+use bevy_egui::egui::{Slider, Ui};
 use bevy_egui::{egui, EguiContexts};
+use rapier::dynamics::IntegrationParameters;
 
 pub fn update_ui(
     ui_context: &mut EguiContexts,
@@ -79,9 +80,12 @@ pub fn update_ui(
 
         ui.separator();
 
+        ui.collapsing("Scene infos", |ui| {
+            scene_infos_ui(ui, &harness.physics);
+        });
         ui.collapsing("Profile infos", |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label(profiling_string(&harness.physics.pipeline.counters))
+                profiling_ui(ui, &harness.physics.pipeline.counters);
             });
         });
         ui.collapsing("Serialization infos", |ui| {
@@ -109,8 +113,9 @@ pub fn update_ui(
                 .selected_text(format!("{:?}", state.solver_type))
                 .show_ui(ui, |ui| {
                     let solver_types = [
-                        RapierSolverType::SmallStepsPgs,
-                        RapierSolverType::StandardPgs,
+                        RapierSolverType::TgsSoft,
+                        RapierSolverType::TgsSoftNoWarmstart,
+                        RapierSolverType::PgsLegacy,
                     ];
                     for sty in solver_types {
                         changed = ui
@@ -122,11 +127,15 @@ pub fn update_ui(
 
             if changed {
                 match state.solver_type {
-                    RapierSolverType::SmallStepsPgs => {
-                        integration_parameters.switch_to_small_steps_pgs_solver()
+                    RapierSolverType::TgsSoft => {
+                        *integration_parameters = IntegrationParameters::tgs_soft();
                     }
-                    RapierSolverType::StandardPgs => {
-                        integration_parameters.switch_to_standard_pgs_solver()
+                    RapierSolverType::TgsSoftNoWarmstart => {
+                        *integration_parameters =
+                            IntegrationParameters::tgs_soft_without_warmstart();
+                    }
+                    RapierSolverType::PgsLegacy => {
+                        *integration_parameters = IntegrationParameters::pgs_legacy();
                     }
                 }
             }
@@ -146,9 +155,53 @@ pub fn update_ui(
             ui.add(
                 Slider::new(
                     &mut integration_parameters.num_additional_friction_iterations,
-                    1..=40,
+                    0..=40,
                 )
                 .text("num additional frict. iters."),
+            );
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.num_internal_stabilization_iterations,
+                    0..=100,
+                )
+                .text("max internal stabilization iters."),
+            );
+            ui.add(
+                Slider::new(&mut integration_parameters.warmstart_coefficient, 0.0..=1.0)
+                    .text("warmstart coefficient"),
+            );
+
+            let mut substep_params = *integration_parameters;
+            substep_params.dt /= substep_params.num_solver_iterations.get() as Real;
+            let curr_erp = substep_params.contact_erp();
+            let curr_cfm_factor = substep_params.contact_cfm_factor();
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.contact_natural_frequency,
+                    0.01..=120.0,
+                )
+                .text(format!("contacts Hz (erp = {:.3})", curr_erp)),
+            );
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.contact_damping_ratio,
+                    0.01..=20.0,
+                )
+                .text(format!(
+                    "damping ratio (cfm-factor = {:.3})",
+                    curr_cfm_factor
+                )),
+            );
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.joint_natural_frequency,
+                    0.0..=1200000.0,
+                )
+                .text("joint erp"),
+            );
+            ui.add(
+                Slider::new(&mut integration_parameters.joint_damping_ratio, 0.0..=20.0)
+                    .text("joint damping ratio"),
             );
         }
 
@@ -167,6 +220,8 @@ pub fn update_ui(
             Slider::new(&mut integration_parameters.min_island_size, 1..=10_000)
                 .text("min island size"),
         );
+        ui.add(Slider::new(&mut state.nsteps, 1..=100).text("sims. per frame"));
+
         let mut frequency = integration_parameters.inv_dt().round() as u32;
         ui.add(Slider::new(&mut frequency, 0..=240).text("frequency (Hz)"));
         integration_parameters.set_inv_dt(frequency as Real);
@@ -222,43 +277,87 @@ pub fn update_ui(
     });
 }
 
-fn profiling_string(counters: &Counters) -> String {
-    format!(
-        r#"Total: {:.2}ms
-Collision detection: {:.2}ms
-|_ Broad-phase: {:.2}ms
-   Narrow-phase: {:.2}ms
-Island computation: {:.2}ms
-Solver: {:.2}ms
-|_ Velocity assembly: {:.2}ms
-   Velocity resolution: {:.2}ms
-   Velocity integration: {:.2}ms
-   Position assembly: {:.2}ms
-   Position resolution: {:.2}ms
-CCD: {:.2}ms
-|_ # of substeps: {}
-   TOI computation: {:.2}ms
-   Broad-phase: {:.2}ms
-   Narrow-phase: {:.2}ms
-   Solver: {:.2}ms"#,
+fn scene_infos_ui(ui: &mut Ui, physics: &PhysicsState) {
+    ui.label(format!("# rigid-bodies: {}", physics.bodies.len()));
+    ui.label(format!("# colliders: {}", physics.colliders.len()));
+    ui.label(format!("# impulse joint: {}", physics.impulse_joints.len()));
+    // ui.label(format!(
+    //     "# multibody joint: {}",
+    //     physics.multibody_joints.len()
+    // ));
+}
+
+fn profiling_ui(ui: &mut Ui, counters: &Counters) {
+    egui::CollapsingHeader::new(format!(
+        "Total: {:.2}ms - {} fps",
         counters.step_time(),
-        counters.collision_detection_time(),
-        counters.broad_phase_time(),
-        counters.narrow_phase_time(),
-        counters.island_construction_time(),
-        counters.solver_time(),
-        counters.solver.velocity_assembly_time.time(),
-        counters.velocity_resolution_time(),
-        counters.solver.velocity_update_time.time(),
-        counters.solver.position_assembly_time.time(),
-        counters.position_resolution_time(),
-        counters.ccd_time(),
-        counters.ccd.num_substeps,
-        counters.ccd.toi_computation_time.time(),
-        counters.ccd.broad_phase_time.time(),
-        counters.ccd.narrow_phase_time.time(),
-        counters.ccd.solver_time.time(),
-    )
+        (1000.0 / counters.step_time()).round()
+    ))
+    .id_source("total")
+    .show(ui, |ui| {
+        egui::CollapsingHeader::new(format!(
+            "Collision detection: {:.2}ms",
+            counters.collision_detection_time()
+        ))
+        .id_source("collision detection")
+        .show(ui, |ui| {
+            ui.label(format!("Broad-phase: {:.2}ms", counters.broad_phase_time()));
+            ui.label(format!(
+                "Narrow-phase: {:.2}ms",
+                counters.narrow_phase_time()
+            ));
+        });
+        egui::CollapsingHeader::new(format!("Solver: {:.2}ms", counters.solver_time()))
+            .id_source("solver")
+            .show(ui, |ui| {
+                ui.label(format!(
+                    "Velocity assembly: {:.2}ms",
+                    counters.solver.velocity_assembly_time.time()
+                ));
+                ui.label(format!(
+                    "Velocity resolution: {:.2}ms",
+                    counters.velocity_resolution_time()
+                ));
+                ui.label(format!(
+                    "Velocity integration: {:.2}ms",
+                    counters.solver.velocity_update_time.time()
+                ));
+                ui.label(format!(
+                    "Writeback: {:.2}ms",
+                    counters.solver.velocity_writeback_time.time()
+                ));
+            });
+        egui::CollapsingHeader::new(format!("CCD: {:.2}ms", counters.ccd_time()))
+            .id_source("ccd")
+            .show(ui, |ui| {
+                ui.label(format!("# of substeps: {}", counters.ccd.num_substeps));
+                ui.label(format!(
+                    "TOI computation: {:.2}ms",
+                    counters.ccd.toi_computation_time.time(),
+                ));
+                ui.label(format!(
+                    "Broad-phase: {:.2}ms",
+                    counters.ccd.broad_phase_time.time()
+                ));
+                ui.label(format!(
+                    "Narrow-phase: {:.2}ms",
+                    counters.ccd.narrow_phase_time.time(),
+                ));
+                ui.label(format!("Solver: {:.2}ms", counters.ccd.solver_time.time()));
+            });
+        ui.label(format!(
+            "Island computation: {:.2}ms",
+            counters.island_construction_time()
+        ));
+        ui.label(format!(
+            "Query pipeline: {:.2}ms",
+            counters.query_pipeline_update_time()
+        ));
+        ui.label(format!(
+            "User changes: {:.2}ms",
+            counters.stages.user_changes.time()
+        ));
+    });
 }
 
 fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {

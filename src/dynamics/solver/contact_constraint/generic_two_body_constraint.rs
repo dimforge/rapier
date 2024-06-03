@@ -201,15 +201,17 @@ impl GenericTwoBodyConstraintBuilder {
                         gcross2,
                         rhs: na::zero(),
                         rhs_wo_bias: na::zero(),
-                        total_impulse: na::zero(),
-                        impulse: na::zero(),
+                        impulse_accumulator: na::zero(),
+                        impulse: manifold_point.warmstart_impulse,
                         r,
+                        r_mat_elts: [0.0; 2],
                     };
                 }
 
                 // Tangent parts.
                 {
-                    constraint.inner.elements[k].tangent_part.impulse = na::zero();
+                    constraint.inner.elements[k].tangent_part.impulse =
+                        manifold_point.warmstart_tangent_impulse;
 
                     for j in 0..DIM - 1 {
                         let torque_dir1 = dp1.gcross(tangents1[j]);
@@ -340,14 +342,8 @@ impl GenericTwoBodyConstraintBuilder {
             .map(|m| &multibodies[m.multibody].link(m.id).unwrap().local_to_world)
             .unwrap_or_else(|| &bodies[constraint.inner.solver_vel2].position);
 
-        self.inner.update_with_positions(
-            params,
-            solved_dt,
-            pos1,
-            pos2,
-            self.ccd_thickness,
-            &mut constraint.inner,
-        );
+        self.inner
+            .update_with_positions(params, solved_dt, pos1, pos2, &mut constraint.inner);
     }
 }
 
@@ -370,6 +366,50 @@ impl GenericTwoBodyConstraint {
             ndofs1: usize::MAX,
             ndofs2: usize::MAX,
             generic_constraint_mask: u8::MAX,
+        }
+    }
+
+    pub fn warmstart(
+        &mut self,
+        jacobians: &DVector<Real>,
+        solver_vels: &mut [SolverVel<Real>],
+        generic_solver_vels: &mut DVector<Real>,
+    ) {
+        let mut solver_vel1 = if self.generic_constraint_mask & 0b01 == 0 {
+            GenericRhs::SolverVel(solver_vels[self.inner.solver_vel1])
+        } else {
+            GenericRhs::GenericId(self.inner.solver_vel1)
+        };
+
+        let mut solver_vel2 = if self.generic_constraint_mask & 0b10 == 0 {
+            GenericRhs::SolverVel(solver_vels[self.inner.solver_vel2])
+        } else {
+            GenericRhs::GenericId(self.inner.solver_vel2)
+        };
+
+        let elements = &mut self.inner.elements[..self.inner.num_contacts as usize];
+        TwoBodyConstraintElement::generic_warmstart_group(
+            elements,
+            jacobians,
+            &self.inner.dir1,
+            #[cfg(feature = "dim3")]
+            &self.inner.tangent1,
+            &self.inner.im1,
+            &self.inner.im2,
+            self.ndofs1,
+            self.ndofs2,
+            self.j_id,
+            &mut solver_vel1,
+            &mut solver_vel2,
+            generic_solver_vels,
+        );
+
+        if let GenericRhs::SolverVel(solver_vel1) = solver_vel1 {
+            solver_vels[self.inner.solver_vel1] = solver_vel1;
+        }
+
+        if let GenericRhs::SolverVel(solver_vel2) = solver_vel2 {
+            solver_vels[self.inner.solver_vel2] = solver_vel2;
         }
     }
 

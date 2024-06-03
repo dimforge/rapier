@@ -9,7 +9,7 @@ use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodySet,
 };
-use rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
+use rapier::geometry::{ColliderSet, DefaultBroadPhase, NarrowPhase};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
 
@@ -179,7 +179,7 @@ impl Harness {
         self.physics.hooks = Box::new(hooks);
 
         self.physics.islands = IslandManager::new();
-        self.physics.broad_phase = BroadPhase::new();
+        self.physics.broad_phase = DefaultBroadPhase::new();
         self.physics.narrow_phase = NarrowPhase::new();
         self.state.timestep_id = 0;
         self.state.time = 0.0;

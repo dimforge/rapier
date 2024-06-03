@@ -43,7 +43,7 @@ impl CollisionPipeline {
     fn detect_collisions(
         &mut self,
         prediction_distance: Real,
-        broad_phase: &mut BroadPhase,
+        broad_phase: &mut dyn BroadPhase,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
@@ -58,8 +58,10 @@ impl CollisionPipeline {
         self.broadphase_collider_pairs.clear();
 
         broad_phase.update(
+            0.0,
             prediction_distance,
             colliders,
+            bodies,
             modified_colliders,
             removed_colliders,
             &mut self.broad_phase_events,
@@ -80,6 +82,7 @@ impl CollisionPipeline {
         narrow_phase.register_pairs(None, colliders, bodies, &self.broad_phase_events, events);
         narrow_phase.compute_contacts(
             prediction_distance,
+            0.0,
             bodies,
             colliders,
             &ImpulseJointSet::new(),
@@ -107,7 +110,7 @@ impl CollisionPipeline {
     pub fn step(
         &mut self,
         prediction_distance: Real,
-        broad_phase: &mut BroadPhase,
+        broad_phase: &mut dyn BroadPhase,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
@@ -192,13 +195,13 @@ mod tests {
         let _ = collider_set.insert(collider_b);
 
         let integration_parameters = IntegrationParameters::default();
-        let mut broad_phase = BroadPhase::new();
+        let mut broad_phase = BroadPhaseMultiSap::new();
         let mut narrow_phase = NarrowPhase::new();
         let mut collision_pipeline = CollisionPipeline::new();
         let physics_hooks = ();
 
         collision_pipeline.step(
-            integration_parameters.prediction_distance,
+            integration_parameters.prediction_distance(),
             &mut broad_phase,
             &mut narrow_phase,
             &mut rigid_body_set,
@@ -244,13 +247,13 @@ mod tests {
         let _ = collider_set.insert(collider_b);
 
         let integration_parameters = IntegrationParameters::default();
-        let mut broad_phase = BroadPhase::new();
+        let mut broad_phase = BroadPhaseMultiSap::new();
         let mut narrow_phase = NarrowPhase::new();
         let mut collision_pipeline = CollisionPipeline::new();
         let physics_hooks = ();
 
         collision_pipeline.step(
-            integration_parameters.prediction_distance,
+            integration_parameters.prediction_distance(),
             &mut broad_phase,
             &mut narrow_phase,
             &mut rigid_body_set,

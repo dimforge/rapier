@@ -1,9 +1,7 @@
 //! Structures related to geometry: colliders, shapes, etc.
 
-pub use self::broad_phase_multi_sap::{BroadPhasePairEvent, ColliderPair};
-
-pub use self::broad_phase_multi_sap::BroadPhase;
-// pub use self::broad_phase_qbvh::BroadPhase;
+pub use self::broad_phase::BroadPhase;
+pub use self::broad_phase_multi_sap::{BroadPhaseMultiSap, BroadPhasePairEvent, ColliderPair};
 pub use self::collider_components::*;
 pub use self::contact_pair::{
     ContactData, ContactManifoldData, ContactPair, IntersectionPair, SolverContact, SolverFlags,
@@ -51,10 +49,12 @@ pub type Aabb = parry::bounding_volume::Aabb;
 pub type Ray = parry::query::Ray;
 /// The intersection between a ray and a  collider.
 pub type RayIntersection = parry::query::RayIntersection;
-/// The the projection of a point on a collider.
+/// The projection of a point on a collider.
 pub type PointProjection = parry::query::PointProjection;
-/// The the time of impact between two shapes.
-pub type TOI = parry::query::TOI;
+/// The result of a shape-cast between two shapes.
+pub type ShapeCastHit = parry::query::ShapeCastHit;
+/// The default broad-phase implementation recommended for general-purpose usage.
+pub type DefaultBroadPhase = BroadPhaseMultiSap;
 
 bitflags::bitflags! {
     /// Flags providing more information regarding a collision event.
@@ -180,7 +180,7 @@ impl ContactForceEvent {
     }
 }
 
-pub(crate) use self::broad_phase_multi_sap::SAPProxyIndex;
+pub(crate) use self::broad_phase::BroadPhaseProxyIndex;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
 pub(crate) use parry::partitioning::Qbvh;
 pub use parry::shape::*;
@@ -203,6 +203,7 @@ mod interaction_graph;
 mod interaction_groups;
 mod narrow_phase;
 
+mod broad_phase;
 mod broad_phase_qbvh;
 mod collider;
 mod collider_set;

@@ -2,11 +2,12 @@ use super::{ContactConstraintTypes, ContactPointInfos};
 use crate::dynamics::solver::SolverVel;
 use crate::dynamics::solver::{AnyConstraintMut, SolverBody};
 
+use crate::dynamics::integration_parameters::BLOCK_SOLVER_ENABLED;
 use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{Isometry, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
 use crate::utils::{self, SimdAngularInertia, SimdBasis, SimdCross, SimdDot};
-use na::DVector;
+use na::{DVector, Matrix2};
 
 use super::{TwoBodyConstraintElement, TwoBodyConstraintNormalPart};
 
@@ -21,6 +22,25 @@ impl<'a> AnyConstraintMut<'a, ContactConstraintTypes> {
             Self::SimdOneBody(c) => c.remove_cfm_and_bias_from_rhs(),
             #[cfg(feature = "simd-is-enabled")]
             Self::SimdTwoBodies(c) => c.remove_cfm_and_bias_from_rhs(),
+        }
+    }
+    pub fn warmstart(
+        &mut self,
+        generic_jacobians: &DVector<Real>,
+        solver_vels: &mut [SolverVel<Real>],
+        generic_solver_vels: &mut DVector<Real>,
+    ) {
+        match self {
+            Self::OneBody(c) => c.warmstart(solver_vels),
+            Self::TwoBodies(c) => c.warmstart(solver_vels),
+            Self::GenericOneBody(c) => c.warmstart(generic_jacobians, generic_solver_vels),
+            Self::GenericTwoBodies(c) => {
+                c.warmstart(generic_jacobians, solver_vels, generic_solver_vels)
+            }
+            #[cfg(feature = "simd-is-enabled")]
+            Self::SimdOneBody(c) => c.warmstart(solver_vels),
+            #[cfg(feature = "simd-is-enabled")]
+            Self::SimdTwoBodies(c) => c.warmstart(solver_vels),
         }
     }
 
@@ -222,15 +242,17 @@ impl TwoBodyConstraintBuilder {
                         gcross2,
                         rhs: na::zero(),
                         rhs_wo_bias: na::zero(),
-                        impulse: na::zero(),
-                        total_impulse: na::zero(),
+                        impulse: manifold_point.warmstart_impulse,
+                        impulse_accumulator: na::zero(),
                         r: projected_mass,
+                        r_mat_elts: [0.0; 2],
                     };
                 }
 
                 // Tangent parts.
                 {
-                    constraint.elements[k].tangent_part.impulse = na::zero();
+                    constraint.elements[k].tangent_part.impulse =
+                        manifold_point.warmstart_tangent_impulse;
 
                     for j in 0..DIM - 1 {
                         let gcross1 = mprops1
@@ -284,6 +306,48 @@ impl TwoBodyConstraintBuilder {
                 builder.infos[k] = infos;
                 constraint.manifold_contact_id[k] = manifold_point.contact_id;
             }
+
+            if BLOCK_SOLVER_ENABLED {
+                // Coupling between consecutive pairs.
+                for k in 0..manifold_points.len() / 2 {
+                    let k0 = k * 2;
+                    let k1 = k * 2 + 1;
+
+                    let mut r_mat = Matrix2::zeros();
+                    let imsum = mprops1.effective_inv_mass + mprops2.effective_inv_mass;
+                    let r0 = constraint.elements[k0].normal_part.r;
+                    let r1 = constraint.elements[k1].normal_part.r;
+                    r_mat.m12 = force_dir1.dot(&imsum.component_mul(&force_dir1))
+                        + constraint.elements[k0]
+                            .normal_part
+                            .gcross1
+                            .gdot(constraint.elements[k1].normal_part.gcross1)
+                        + constraint.elements[k0]
+                            .normal_part
+                            .gcross2
+                            .gdot(constraint.elements[k1].normal_part.gcross2);
+                    r_mat.m21 = r_mat.m12;
+                    r_mat.m11 = utils::inv(r0);
+                    r_mat.m22 = utils::inv(r1);
+
+                    if let Some(inv) = r_mat.try_inverse() {
+                        constraint.elements[k0].normal_part.r_mat_elts = [inv.m11, inv.m22];
+                        constraint.elements[k1].normal_part.r_mat_elts = [inv.m12, r_mat.m12];
+                    } else {
+                        // If inversion failed, the contacts are redundant.
+                        // Ignore the one with the smallest depth (it is too late to
+                        // have the constraint removed from the constraint set, so just
+                        // set the mass (r) matrix elements to 0.
+                        constraint.elements[k0].normal_part.r_mat_elts =
+                            if manifold_points[k0].dist <= manifold_points[k1].dist {
+                                [r0, 0.0]
+                            } else {
+                                [0.0, r1]
+                            };
+                        constraint.elements[k1].normal_part.r_mat_elts = [0.0; 2];
+                    }
+                }
+            }
         }
     }
 
@@ -297,15 +361,7 @@ impl TwoBodyConstraintBuilder {
     ) {
         let rb1 = &bodies[constraint.solver_vel1];
         let rb2 = &bodies[constraint.solver_vel2];
-        let ccd_thickness = rb1.ccd_thickness + rb2.ccd_thickness;
-        self.update_with_positions(
-            params,
-            solved_dt,
-            &rb1.position,
-            &rb2.position,
-            ccd_thickness,
-            constraint,
-        )
+        self.update_with_positions(params, solved_dt, &rb1.position, &rb2.position, constraint)
     }
 
     // Used by both generic and non-generic builders..
@@ -315,17 +371,14 @@ impl TwoBodyConstraintBuilder {
         solved_dt: Real,
         rb1_pos: &Isometry<Real>,
         rb2_pos: &Isometry<Real>,
-        ccd_thickness: Real,
         constraint: &mut TwoBodyConstraint,
     ) {
-        let cfm_factor = params.cfm_factor();
+        let cfm_factor = params.contact_cfm_factor();
         let inv_dt = params.inv_dt();
-        let erp_inv_dt = params.erp_inv_dt();
+        let erp_inv_dt = params.contact_erp_inv_dt();
 
         let all_infos = &self.infos[..constraint.num_contacts as usize];
         let all_elements = &mut constraint.elements[..constraint.num_contacts as usize];
-
-        let mut is_fast_contact = false;
 
         #[cfg(feature = "dim2")]
         let tangents1 = constraint.dir1.orthonormal_basis();
@@ -344,23 +397,20 @@ impl TwoBodyConstraintBuilder {
             // Normal part.
             {
                 let rhs_wo_bias = info.normal_rhs_wo_bias + dist.max(0.0) * inv_dt;
-                let rhs_bias = erp_inv_dt
-                    * (dist + params.allowed_linear_error)
-                        .clamp(-params.max_penetration_correction, 0.0);
+                let rhs_bias = (erp_inv_dt * (dist + params.allowed_linear_error()))
+                    .clamp(-params.max_corrective_velocity(), 0.0);
                 let new_rhs = rhs_wo_bias + rhs_bias;
-                let total_impulse = element.normal_part.total_impulse + element.normal_part.impulse;
-                is_fast_contact = is_fast_contact || (-new_rhs * params.dt > ccd_thickness * 0.5);
 
                 element.normal_part.rhs_wo_bias = rhs_wo_bias;
                 element.normal_part.rhs = new_rhs;
-                element.normal_part.total_impulse = total_impulse;
-                element.normal_part.impulse = na::zero();
+                element.normal_part.impulse_accumulator += element.normal_part.impulse;
+                element.normal_part.impulse *= params.warmstart_coefficient;
             }
 
             // Tangent part.
             {
-                element.tangent_part.total_impulse += element.tangent_part.impulse;
-                element.tangent_part.impulse = na::zero();
+                element.tangent_part.impulse_accumulator += element.tangent_part.impulse;
+                element.tangent_part.impulse *= params.warmstart_coefficient;
 
                 for j in 0..DIM - 1 {
                     let bias = (p1 - p2).dot(&tangents1[j]) * inv_dt;
@@ -369,11 +419,30 @@ impl TwoBodyConstraintBuilder {
             }
         }
 
-        constraint.cfm_factor = if is_fast_contact { 1.0 } else { cfm_factor };
+        constraint.cfm_factor = cfm_factor;
     }
 }
 
 impl TwoBodyConstraint {
+    pub fn warmstart(&mut self, solver_vels: &mut [SolverVel<Real>]) {
+        let mut solver_vel1 = solver_vels[self.solver_vel1];
+        let mut solver_vel2 = solver_vels[self.solver_vel2];
+
+        TwoBodyConstraintElement::warmstart_group(
+            &mut self.elements[..self.num_contacts as usize],
+            &self.dir1,
+            #[cfg(feature = "dim3")]
+            &self.tangent1,
+            &self.im1,
+            &self.im2,
+            &mut solver_vel1,
+            &mut solver_vel2,
+        );
+
+        solver_vels[self.solver_vel1] = solver_vel1;
+        solver_vels[self.solver_vel2] = solver_vel2;
+    }
+
     pub fn solve(
         &mut self,
         solver_vels: &mut [SolverVel<Real>],
@@ -408,16 +477,10 @@ impl TwoBodyConstraint {
         for k in 0..self.num_contacts as usize {
             let contact_id = self.manifold_contact_id[k];
             let active_contact = &mut manifold.points[contact_id as usize];
-            active_contact.data.impulse = self.elements[k].normal_part.impulse;
-
-            #[cfg(feature = "dim2")]
-            {
-                active_contact.data.tangent_impulse = self.elements[k].tangent_part.impulse[0];
-            }
-            #[cfg(feature = "dim3")]
-            {
-                active_contact.data.tangent_impulse = self.elements[k].tangent_part.impulse;
-            }
+            active_contact.data.warmstart_impulse = self.elements[k].normal_part.impulse;
+            active_contact.data.warmstart_tangent_impulse = self.elements[k].tangent_part.impulse;
+            active_contact.data.impulse = self.elements[k].normal_part.total_impulse();
+            active_contact.data.tangent_impulse = self.elements[k].tangent_part.total_impulse();
         }
     }
 

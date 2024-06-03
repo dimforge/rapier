@@ -198,7 +198,7 @@ impl JointOneBodyConstraintBuilder {
 
         if flipped {
             std::mem::swap(&mut handle1, &mut handle2);
-            std::mem::swap(&mut joint_data.local_frame1, &mut joint_data.local_frame2);
+            joint_data.flip();
         };
 
         let rb1 = &bodies[handle1];
@@ -549,6 +549,82 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         constraint.rhs = rhs_wo_bias;
         constraint.rhs_wo_bias = rhs_wo_bias;
         constraint
+    }
+
+    pub fn motor_linear_coupled<const LANES: usize>(
+        &self,
+        params: &IntegrationParameters,
+        joint_id: [JointIndex; LANES],
+        body1: &JointSolverBody<N, LANES>,
+        body2: &JointSolverBody<N, LANES>,
+        coupled_axes: u8,
+        motor_params: &MotorParameters<N>,
+        limits: Option<[N; 2]>,
+        writeback_id: WritebackId,
+    ) -> JointTwoBodyConstraint<N, LANES> {
+        let inv_dt = N::splat(params.inv_dt());
+
+        let mut lin_jac = Vector::zeros();
+        let mut ang_jac1: AngVector<N> = na::zero();
+        let mut ang_jac2: AngVector<N> = na::zero();
+
+        for i in 0..DIM {
+            if coupled_axes & (1 << i) != 0 {
+                let coeff = self.basis.column(i).dot(&self.lin_err);
+                lin_jac += self.basis.column(i) * coeff;
+                #[cfg(feature = "dim2")]
+                {
+                    ang_jac1 += self.cmat1_basis[i] * coeff;
+                    ang_jac2 += self.cmat2_basis[i] * coeff;
+                }
+                #[cfg(feature = "dim3")]
+                {
+                    ang_jac1 += self.cmat1_basis.column(i) * coeff;
+                    ang_jac2 += self.cmat2_basis.column(i) * coeff;
+                }
+            }
+        }
+
+        let dist = lin_jac.norm();
+        let inv_dist = crate::utils::simd_inv(dist);
+        lin_jac *= inv_dist;
+        ang_jac1 *= inv_dist;
+        ang_jac2 *= inv_dist;
+
+        let mut rhs_wo_bias = N::zero();
+        if motor_params.erp_inv_dt != N::zero() {
+            rhs_wo_bias += (dist - motor_params.target_pos) * motor_params.erp_inv_dt;
+        }
+
+        let mut target_vel = motor_params.target_vel;
+        if let Some(limits) = limits {
+            target_vel =
+                target_vel.simd_clamp((limits[0] - dist) * inv_dt, (limits[1] - dist) * inv_dt);
+        };
+
+        rhs_wo_bias += -target_vel;
+
+        ang_jac1 = body1.sqrt_ii * ang_jac1;
+        ang_jac2 = body2.sqrt_ii * ang_jac2;
+
+        JointTwoBodyConstraint {
+            joint_id,
+            solver_vel1: body1.solver_vel,
+            solver_vel2: body2.solver_vel,
+            im1: body1.im,
+            im2: body2.im,
+            impulse: N::zero(),
+            impulse_bounds: [-motor_params.max_impulse, motor_params.max_impulse],
+            lin_jac,
+            ang_jac1,
+            ang_jac2,
+            inv_lhs: N::zero(), // Will be set during ortogonalization.
+            cfm_coeff: motor_params.cfm_coeff,
+            cfm_gain: motor_params.cfm_gain,
+            rhs: rhs_wo_bias,
+            rhs_wo_bias,
+            writeback_id,
+        }
     }
 
     pub fn lock_linear<const LANES: usize>(

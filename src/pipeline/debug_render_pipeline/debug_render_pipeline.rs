@@ -9,6 +9,7 @@ use crate::math::{Isometry, Point, Real, Vector, DIM};
 use crate::pipeline::debug_render_pipeline::debug_render_backend::DebugRenderObject;
 use crate::pipeline::debug_render_pipeline::DebugRenderStyle;
 use crate::utils::SimdBasis;
+use parry::utils::IsometryOpt;
 use std::any::TypeId;
 use std::collections::HashMap;
 
@@ -115,16 +116,19 @@ impl DebugRenderPipeline {
                     if backend.filter_object(object) {
                         for manifold in &pair.manifolds {
                             for contact in manifold.contacts() {
+                                let world_subshape_pos1 =
+                                    manifold.subshape_pos1.prepend_to(co1.position());
                                 backend.draw_line(
                                     object,
-                                    co1.position() * contact.local_p1,
-                                    co2.position() * contact.local_p2,
+                                    world_subshape_pos1 * contact.local_p1,
+                                    manifold.subshape_pos2.prepend_to(co2.position())
+                                        * contact.local_p2,
                                     self.style.contact_depth_color,
                                 );
                                 backend.draw_line(
                                     object,
-                                    co1.position() * contact.local_p1,
-                                    co1.position()
+                                    world_subshape_pos1 * contact.local_p1,
+                                    world_subshape_pos1
                                         * (contact.local_p1
                                             + manifold.local_n1 * self.style.contact_normal_length),
                                     self.style.contact_normal_color,

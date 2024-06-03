@@ -3,7 +3,9 @@ use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodySet,
 };
-use rapier::geometry::{BroadPhase, ColliderSet, CollisionEvent, ContactForceEvent, NarrowPhase};
+use rapier::geometry::{
+    ColliderSet, CollisionEvent, ContactForceEvent, DefaultBroadPhase, NarrowPhase,
+};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{PhysicsHooks, PhysicsPipeline, QueryPipeline};
 
@@ -14,65 +16,79 @@ pub struct PhysicsSnapshot {
     bodies: Vec<u8>,
     colliders: Vec<u8>,
     impulse_joints: Vec<u8>,
+    multibody_joints: Vec<u8>,
+    island_manager: Vec<u8>,
+}
+
+pub struct DeserializedPhysicsSnapshot {
+    pub timestep_id: usize,
+    pub broad_phase: DefaultBroadPhase,
+    pub narrow_phase: NarrowPhase,
+    pub island_manager: IslandManager,
+    pub bodies: RigidBodySet,
+    pub colliders: ColliderSet,
+    pub impulse_joints: ImpulseJointSet,
+    pub multibody_joints: MultibodyJointSet,
 }
 
 impl PhysicsSnapshot {
     pub fn new(
         timestep_id: usize,
-        broad_phase: &BroadPhase,
+        broad_phase: &DefaultBroadPhase,
         narrow_phase: &NarrowPhase,
+        island_manager: &IslandManager,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
         impulse_joints: &ImpulseJointSet,
+        multibody_joints: &MultibodyJointSet,
     ) -> bincode::Result<Self> {
         Ok(Self {
             timestep_id,
             broad_phase: bincode::serialize(broad_phase)?,
             narrow_phase: bincode::serialize(narrow_phase)?,
+            island_manager: bincode::serialize(island_manager)?,
             bodies: bincode::serialize(bodies)?,
             colliders: bincode::serialize(colliders)?,
             impulse_joints: bincode::serialize(impulse_joints)?,
+            multibody_joints: bincode::serialize(multibody_joints)?,
         })
     }
 
-    pub fn restore(
-        &self,
-    ) -> bincode::Result<(
-        usize,
-        BroadPhase,
-        NarrowPhase,
-        RigidBodySet,
-        ColliderSet,
-        ImpulseJointSet,
-    )> {
-        Ok((
-            self.timestep_id,
-            bincode::deserialize(&self.broad_phase)?,
-            bincode::deserialize(&self.narrow_phase)?,
-            bincode::deserialize(&self.bodies)?,
-            bincode::deserialize(&self.colliders)?,
-            bincode::deserialize(&self.impulse_joints)?,
-        ))
+    pub fn restore(&self) -> bincode::Result<DeserializedPhysicsSnapshot> {
+        Ok(DeserializedPhysicsSnapshot {
+            timestep_id: self.timestep_id,
+            broad_phase: bincode::deserialize(&self.broad_phase)?,
+            narrow_phase: bincode::deserialize(&self.narrow_phase)?,
+            island_manager: bincode::deserialize(&self.island_manager)?,
+            bodies: bincode::deserialize(&self.bodies)?,
+            colliders: bincode::deserialize(&self.colliders)?,
+            impulse_joints: bincode::deserialize(&self.impulse_joints)?,
+            multibody_joints: bincode::deserialize(&self.multibody_joints)?,
+        })
     }
 
     pub fn print_snapshot_len(&self) {
         let total = self.broad_phase.len()
             + self.narrow_phase.len()
+            + self.island_manager.len()
             + self.bodies.len()
             + self.colliders.len()
-            + self.impulse_joints.len();
+            + self.impulse_joints.len()
+            + self.multibody_joints.len();
         println!("Snapshot length: {}B", total);
         println!("|_ broad_phase: {}B", self.broad_phase.len());
         println!("|_ narrow_phase: {}B", self.narrow_phase.len());
+        println!("|_ island_manager: {}B", self.island_manager.len());
         println!("|_ bodies: {}B", self.bodies.len());
         println!("|_ colliders: {}B", self.colliders.len());
         println!("|_ impulse_joints: {}B", self.impulse_joints.len());
+        println!("|_ multibody_joints: {}B", self.multibody_joints.len());
     }
 }
 
 pub struct PhysicsState {
     pub islands: IslandManager,
-    pub broad_phase: BroadPhase,
+    pub broad_phase: DefaultBroadPhase,
     pub narrow_phase: NarrowPhase,
     pub bodies: RigidBodySet,
     pub colliders: ColliderSet,
@@ -96,7 +112,7 @@ impl PhysicsState {
     pub fn new() -> Self {
         Self {
             islands: IslandManager::new(),
-            broad_phase: BroadPhase::new(),
+            broad_phase: DefaultBroadPhase::new(),
             narrow_phase: NarrowPhase::new(),
             bodies: RigidBodySet::new(),
             colliders: ColliderSet::new(),

@@ -1,11 +1,12 @@
 use crate::dynamics::RigidBodySet;
-use crate::geometry::{ColliderHandle, ColliderSet, ContactManifold, Shape, TOI};
+use crate::geometry::{ColliderHandle, ColliderSet, ContactManifold, Shape, ShapeCastHit};
 use crate::math::{Isometry, Point, Real, UnitVector, Vector};
 use crate::pipeline::{QueryFilter, QueryFilterFlags, QueryPipeline};
 use crate::utils;
 use na::{RealField, Vector2};
 use parry::bounding_volume::BoundingVolume;
 use parry::math::Translation;
+use parry::query::details::ShapeCastOptions;
 use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -15,13 +16,13 @@ pub enum CharacterLength {
     /// The length is specified relative to some of the character shape’s size.
     ///
     /// For example setting `CharacterAutostep::max_height` to `CharacterLength::Relative(0.1)`
-    /// for a shape with an height equal to 20.0 will result in a maximum step height
+    /// for a shape with a height equal to 20.0 will result in a maximum step height
     /// of `0.1 * 20.0 = 2.0`.
     Relative(Real),
-    /// The length is specified as an aboslute value, independent from the character shape’s size.
+    /// The length is specified as an absolute value, independent from the character shape’s size.
     ///
     /// For example setting `CharacterAutostep::max_height` to `CharacterLength::Relative(0.1)`
-    /// for a shape with an height equal to 20.0 will result in a maximum step height
+    /// for a shape with a height equal to 20.0 will result in a maximum step height
     /// of `0.1` (the shape height is ignored in for this value).
     Absolute(Real),
 }
@@ -55,6 +56,13 @@ impl CharacterLength {
     }
 }
 
+#[derive(Debug)]
+struct HitInfo {
+    toi: ShapeCastHit,
+    is_wall: bool,
+    is_nonslip_slope: bool,
+}
+
 /// Configuration for the auto-stepping character controller feature.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -77,6 +85,21 @@ impl Default for CharacterAutostep {
     }
 }
 
+#[derive(Debug)]
+struct HitDecomposition {
+    normal_part: Vector<Real>,
+    horizontal_tangent: Vector<Real>,
+    vertical_tangent: Vector<Real>,
+    // NOTE: we don’t store the penetration part since we don’t really need it
+    //       for anything.
+}
+
+impl HitDecomposition {
+    pub fn unconstrained_slide_part(&self) -> Vector<Real> {
+        self.normal_part + self.horizontal_tangent + self.vertical_tangent
+    }
+}
+
 /// A collision between the character and its environment during its movement.
 #[derive(Copy, Clone, Debug)]
 pub struct CharacterCollision {
@@ -89,7 +112,7 @@ pub struct CharacterCollision {
     /// The translations that was still waiting to be applied to the character when the hit happens.
     pub translation_remaining: Vector<Real>,
     /// Geometric information about the hit.
-    pub toi: TOI,
+    pub hit: ShapeCastHit,
 }
 
 /// A character controller for kinematic bodies.
@@ -105,7 +128,10 @@ pub struct KinematicCharacterController {
     pub offset: CharacterLength,
     /// Should the character try to slide against the floor if it hits it?
     pub slide: bool,
-    /// Should the character automatically step over small obstacles?
+    /// Should the character automatically step over small obstacles? (disabled by default)
+    ///
+    /// Note that autostepping is currently a very computationally expensive feature, so it
+    /// is disabled by default.
     pub autostep: Option<CharacterAutostep>,
     /// The maximum angle (radians) between the floor’s normal and the `up` vector that the
     /// character is able to climb.
@@ -116,6 +142,15 @@ pub struct KinematicCharacterController {
     /// Should the character be automatically snapped to the ground if the distance between
     /// the ground and its feed are smaller than the specified threshold?
     pub snap_to_ground: Option<CharacterLength>,
+    /// Increase this number if your character appears to get stuck when sliding against surfaces.
+    ///
+    /// This is a small distance applied to the movement toward the contact normals of shapes hit
+    /// by the character controller. This helps shape-casting not getting stuck in an always-penetrating
+    /// state during the sliding calculation.
+    ///
+    /// This value should remain fairly small since it can introduce artificial "bumps" when sliding
+    /// along a flat surface.
+    pub normal_nudge_factor: Real,
 }
 
 impl Default for KinematicCharacterController {
@@ -124,10 +159,11 @@ impl Default for KinematicCharacterController {
             up: Vector::y_axis(),
             offset: CharacterLength::Relative(0.01),
             slide: true,
-            autostep: Some(CharacterAutostep::default()),
+            autostep: None,
             max_slope_climb_angle: Real::frac_pi_4(),
             min_slope_slide_angle: Real::frac_pi_4(),
             snap_to_ground: Some(CharacterLength::Relative(0.2)),
+            normal_nudge_factor: 1.0e-4,
         }
     }
 }
@@ -225,19 +261,22 @@ impl KinematicCharacterController {
             }
 
             // 2. Cast towards the movement direction.
-            if let Some((handle, toi)) = queries.cast_shape(
+            if let Some((handle, hit)) = queries.cast_shape(
                 bodies,
                 colliders,
                 &(Translation::from(result.translation) * character_pos),
                 &translation_dir,
                 character_shape,
-                translation_dist + offset,
-                false,
+                ShapeCastOptions {
+                    target_distance: offset,
+                    stop_at_penetration: false,
+                    max_time_of_impact: translation_dist,
+                    compute_impact_geometry_on_penetration: true,
+                },
                 filter,
             ) {
-                // We hit something, compute the allowed self.
-                let allowed_dist =
-                    (toi.toi - (-toi.normal1.dot(&translation_dir)) * offset).max(0.0);
+                // We hit something, compute and apply the allowed interference-free translation.
+                let allowed_dist = hit.time_of_impact;
                 let allowed_translation = *translation_dir * allowed_dist;
                 result.translation += allowed_translation;
                 translation_remaining -= allowed_translation;
@@ -247,10 +286,12 @@ impl KinematicCharacterController {
                     character_pos: Translation::from(result.translation) * character_pos,
                     translation_applied: result.translation,
                     translation_remaining,
-                    toi,
+                    hit,
                 });
 
-                // Try to go up stairs.
+                let hit_info = self.compute_hit_info(hit);
+
+                // Try to go upstairs.
                 if !self.handle_stairs(
                     bodies,
                     colliders,
@@ -260,12 +301,18 @@ impl KinematicCharacterController {
                     &dims,
                     filter,
                     handle,
+                    &hit_info,
                     &mut translation_remaining,
                     &mut result,
                 ) {
                     // No stairs, try to move along slopes.
-                    translation_remaining =
-                        self.handle_slopes(&toi, &translation_remaining, &mut result);
+                    translation_remaining = self.handle_slopes(
+                        &hit_info,
+                        &desired_translation,
+                        &translation_remaining,
+                        self.normal_nudge_factor,
+                        &mut result,
+                    );
                 }
             } else {
                 // No interference along the path.
@@ -319,7 +366,7 @@ impl KinematicCharacterController {
         dims: &Vector2<Real>,
         filter: QueryFilter,
         result: &mut EffectiveCharacterMovement,
-    ) -> Option<(ColliderHandle, TOI)> {
+    ) -> Option<(ColliderHandle, ShapeCastHit)> {
         if let Some(snap_distance) = self.snap_to_ground {
             if result.translation.dot(&self.up) < -1.0e-5 {
                 let snap_distance = snap_distance.eval(dims.y);
@@ -330,12 +377,16 @@ impl KinematicCharacterController {
                     character_pos,
                     &-self.up,
                     character_shape,
-                    snap_distance + offset,
-                    false,
+                    ShapeCastOptions {
+                        target_distance: offset,
+                        stop_at_penetration: false,
+                        max_time_of_impact: snap_distance,
+                        compute_impact_geometry_on_penetration: true,
+                    },
                     filter,
                 ) {
                     // Apply the snap.
-                    result.translation -= *self.up * (hit.toi - offset).max(0.0);
+                    result.translation -= *self.up * hit.time_of_impact;
                     result.grounded = true;
                     return Some((hit_handle, hit));
                 }
@@ -481,42 +532,91 @@ impl KinematicCharacterController {
 
     fn handle_slopes(
         &self,
-        hit: &TOI,
+        hit: &HitInfo,
+        movement_input: &Vector<Real>,
         translation_remaining: &Vector<Real>,
+        normal_nudge_factor: Real,
         result: &mut EffectiveCharacterMovement,
     ) -> Vector<Real> {
-        let [vertical_translation, horizontal_translation] =
-            self.split_into_components(translation_remaining);
-        let slope_translation = subtract_hit(*translation_remaining, hit);
+        let [_vertical_input, horizontal_input] = self.split_into_components(movement_input);
+        let horiz_input_decomp = self.decompose_hit(&horizontal_input, &hit.toi);
+        let input_decomp = self.decompose_hit(movement_input, &hit.toi);
 
-        // Check if there is a slope to climb.
-        let angle_with_floor = self.up.angle(&hit.normal1);
+        let decomp = self.decompose_hit(translation_remaining, &hit.toi);
 
-        // We are climbing if the movement along the slope goes upward, and the angle with the
-        // floor is smaller than pi/2 (in which case we hit some some sort of ceiling).
-        //
-        // NOTE: part of the slope will already be handled by auto-stepping if it was enabled.
-        //       Therefore, `climbing` may not always be `true` when climbing on a slope at
-        //       slow speed.
-        let climbing = self.up.dot(&slope_translation) >= 0.0 && self.up.dot(&hit.normal1) > 0.0;
+        // An object is trying to slip if the tangential movement induced by its vertical movement
+        // points downward.
+        let slipping_intent = self.up.dot(&horiz_input_decomp.vertical_tangent) < 0.0;
+        let slipping = self.up.dot(&decomp.vertical_tangent) < 0.0;
 
-        if climbing && angle_with_floor >= self.max_slope_climb_angle {
-            // Prevent horizontal movement from pushing through the slope.
-            vertical_translation
-        } else if !climbing && angle_with_floor <= self.min_slope_slide_angle {
+        // An object is trying to climb if its indirect vertical motion points upward.
+        let climbing_intent = self.up.dot(&input_decomp.vertical_tangent) > 0.0;
+        let climbing = self.up.dot(&decomp.vertical_tangent) > 0.0;
+
+        let allowed_movement = if hit.is_wall && climbing && !climbing_intent {
+            // Can’t climb the slope, remove the vertical tangent motion induced by the forward motion.
+            decomp.horizontal_tangent + decomp.normal_part
+        } else if hit.is_nonslip_slope && slipping && !slipping_intent {
             // Prevent the vertical movement from sliding down.
-            horizontal_translation
+            decomp.horizontal_tangent + decomp.normal_part
         } else {
-            // Let it slide
+            // Let it slide (including climbing the slope).
             result.is_sliding_down_slope = true;
-            slope_translation
-        }
+            decomp.unconstrained_slide_part()
+        };
+
+        allowed_movement + *hit.toi.normal1 * normal_nudge_factor
     }
 
     fn split_into_components(&self, translation: &Vector<Real>) -> [Vector<Real>; 2] {
         let vertical_translation = *self.up * (self.up.dot(translation));
         let horizontal_translation = *translation - vertical_translation;
         [vertical_translation, horizontal_translation]
+    }
+
+    fn compute_hit_info(&self, toi: ShapeCastHit) -> HitInfo {
+        let angle_with_floor = self.up.angle(&toi.normal1);
+        let is_ceiling = self.up.dot(&toi.normal1) < 0.0;
+        let is_wall = angle_with_floor >= self.max_slope_climb_angle && !is_ceiling;
+        let is_nonslip_slope = angle_with_floor <= self.min_slope_slide_angle;
+
+        HitInfo {
+            toi,
+            is_wall,
+            is_nonslip_slope,
+        }
+    }
+
+    fn decompose_hit(&self, translation: &Vector<Real>, hit: &ShapeCastHit) -> HitDecomposition {
+        let dist_to_surface = translation.dot(&hit.normal1);
+        let normal_part;
+        let penetration_part;
+
+        if dist_to_surface < 0.0 {
+            normal_part = Vector::zeros();
+            penetration_part = dist_to_surface * *hit.normal1;
+        } else {
+            penetration_part = Vector::zeros();
+            normal_part = dist_to_surface * *hit.normal1;
+        }
+
+        let tangent = translation - normal_part - penetration_part;
+        #[cfg(feature = "dim3")]
+        let horizontal_tangent_dir = hit.normal1.cross(&self.up);
+        #[cfg(feature = "dim2")]
+        let horizontal_tangent_dir = Vector::zeros();
+
+        let horizontal_tangent_dir = horizontal_tangent_dir
+            .try_normalize(1.0e-5)
+            .unwrap_or_default();
+        let horizontal_tangent = tangent.dot(&horizontal_tangent_dir) * horizontal_tangent_dir;
+        let vertical_tangent = tangent - horizontal_tangent;
+
+        HitDecomposition {
+            normal_part,
+            horizontal_tangent,
+            vertical_tangent,
+        }
     }
 
     fn compute_dims(&self, character_shape: &dyn Shape) -> Vector2<Real> {
@@ -536,13 +636,18 @@ impl KinematicCharacterController {
         dims: &Vector2<Real>,
         mut filter: QueryFilter,
         stair_handle: ColliderHandle,
+        hit: &HitInfo,
         translation_remaining: &mut Vector<Real>,
         result: &mut EffectiveCharacterMovement,
     ) -> bool {
-        let autostep = match self.autostep {
-            Some(autostep) => autostep,
-            None => return false,
+        let Some(autostep) = self.autostep else {
+            return false;
         };
+
+        // Only try to autostep on walls.
+        if !hit.is_wall {
+            return false;
+        }
 
         let offset = self.offset.eval(dims.y);
         let min_width = autostep.min_width.eval(dims.x) + offset;
@@ -565,12 +670,10 @@ impl KinematicCharacterController {
 
         let shifted_character_pos = Translation::from(*self.up * max_height) * character_pos;
 
-        let horizontal_dir = match (*translation_remaining
+        let Some(horizontal_dir) = (*translation_remaining
             - *self.up * translation_remaining.dot(&self.up))
-        .try_normalize(1.0e-5)
-        {
-            Some(dir) => dir,
-            None => return false,
+        .try_normalize(1.0e-5) else {
+            return false;
         };
 
         if queries
@@ -580,8 +683,12 @@ impl KinematicCharacterController {
                 character_pos,
                 &self.up,
                 character_shape,
-                max_height,
-                false,
+                ShapeCastOptions {
+                    target_distance: offset,
+                    stop_at_penetration: false,
+                    max_time_of_impact: max_height,
+                    compute_impact_geometry_on_penetration: true,
+                },
                 filter,
             )
             .is_some()
@@ -597,8 +704,12 @@ impl KinematicCharacterController {
                 &shifted_character_pos,
                 &horizontal_dir,
                 character_shape,
-                min_width,
-                false,
+                ShapeCastOptions {
+                    target_distance: offset,
+                    stop_at_penetration: false,
+                    max_time_of_impact: min_width,
+                    compute_impact_geometry_on_penetration: true,
+                },
                 filter,
             )
             .is_some()
@@ -615,8 +726,12 @@ impl KinematicCharacterController {
             &(Translation::from(horizontal_dir * min_width) * shifted_character_pos),
             &-self.up,
             character_shape,
-            max_height,
-            false,
+            ShapeCastOptions {
+                target_distance: offset,
+                stop_at_penetration: false,
+                max_time_of_impact: max_height,
+                compute_impact_geometry_on_penetration: true,
+            },
             filter,
         ) {
             let [vertical_slope_translation, horizontal_slope_translation] = self
@@ -642,11 +757,15 @@ impl KinematicCharacterController {
                     &(Translation::from(horizontal_dir * min_width) * shifted_character_pos),
                     &-self.up,
                     character_shape,
-                    max_height,
-                    false,
+                    ShapeCastOptions {
+                        target_distance: offset,
+                        stop_at_penetration: false,
+                        max_time_of_impact: max_height,
+                        compute_impact_geometry_on_penetration: true,
+                    },
                     filter,
                 )
-                .map(|hit| hit.1.toi)
+                .map(|hit| hit.1.time_of_impact)
                 .unwrap_or(max_height);
 
         // Remove the step height from the vertical part of the self.
@@ -681,7 +800,7 @@ impl KinematicCharacterController {
         let extents = character_shape.compute_local_aabb().extents();
         let up_extent = extents.dot(&self.up.abs());
         let movement_to_transfer =
-            *collision.toi.normal1 * collision.translation_remaining.dot(&collision.toi.normal1);
+            *collision.hit.normal1 * collision.translation_remaining.dot(&collision.hit.normal1);
         let prediction = self.predict_ground(up_extent);
 
         // TODO: allow custom dispatchers.
@@ -748,7 +867,7 @@ impl KinematicCharacterController {
     }
 }
 
-fn subtract_hit(translation: Vector<Real>, hit: &TOI) -> Vector<Real> {
+fn subtract_hit(translation: Vector<Real>, hit: &ShapeCastHit) -> Vector<Real> {
     let surface_correction = (-translation).dot(&hit.normal1).max(0.0);
     // This fixes some instances of moving through walls
     let surface_correction = surface_correction * (1.0 + 1.0e-5);

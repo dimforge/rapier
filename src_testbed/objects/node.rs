@@ -14,7 +14,7 @@ use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
 use rapier::geometry::{Cone, Cylinder};
 use rapier::math::{Isometry, Real, Vector};
 
-use crate::graphics::BevyMaterial;
+use crate::graphics::{BevyMaterial, InstancedMaterials, SELECTED_OBJECT_MATERIAL_KEY};
 #[cfg(feature = "dim2")]
 use {
     bevy_sprite::MaterialMesh2dBundle,
@@ -30,15 +30,43 @@ pub struct EntityWithGraphics {
     pub collider: Option<ColliderHandle>,
     pub delta: Isometry<Real>,
     pub opacity: f32,
-    material: Handle<BevyMaterial>,
+    pub material: Handle<BevyMaterial>,
 }
 
 impl EntityWithGraphics {
+    pub fn register_selected_object_material(
+        materials: &mut Assets<BevyMaterial>,
+        instanced_materials: &mut InstancedMaterials,
+    ) {
+        if instanced_materials.contains_key(&SELECTED_OBJECT_MATERIAL_KEY) {
+            return; // Already added.
+        }
+
+        #[cfg(feature = "dim2")]
+        let selection_material = ColorMaterial {
+            color: Color::rgb(1.0, 0.0, 0.0),
+            texture: None,
+        };
+        #[cfg(feature = "dim3")]
+        let selection_material = StandardMaterial {
+            metallic: 0.5,
+            perceptual_roughness: 0.5,
+            double_sided: true, // TODO: this doesn't do anything?
+            ..StandardMaterial::from(Color::rgb(1.0, 0.0, 0.0))
+        };
+
+        instanced_materials.insert(
+            SELECTED_OBJECT_MATERIAL_KEY,
+            materials.add(selection_material),
+        );
+    }
+
     pub fn spawn(
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<BevyMaterial>,
         prefab_meshs: &HashMap<ShapeType, Handle<Mesh>>,
+        instanced_materials: &mut InstancedMaterials,
         shape: &dyn Shape,
         collider: Option<ColliderHandle>,
         collider_pos: Isometry<Real>,
@@ -46,6 +74,8 @@ impl EntityWithGraphics {
         color: Point3<f32>,
         sensor: bool,
     ) -> Self {
+        Self::register_selected_object_material(materials, instanced_materials);
+
         let entity = commands.spawn_empty().id();
 
         let scale = collider_mesh_scale(shape);
@@ -90,21 +120,23 @@ impl EntityWithGraphics {
             double_sided: true, // TODO: this doesn't do anything?
             ..StandardMaterial::from(bevy_color)
         };
-        let material_handle = materials.add(material);
+        let material_handle = instanced_materials
+            .entry(color.coords.map(|c| (c * 255.0) as usize).into())
+            .or_insert_with(|| materials.add(material));
         let material_weak_handle = material_handle.clone_weak();
 
         if let Some(mesh) = mesh {
             #[cfg(feature = "dim2")]
             let bundle = MaterialMesh2dBundle {
                 mesh: mesh.into(),
-                material: material_handle,
+                material: material_handle.clone_weak(),
                 transform,
                 ..Default::default()
             };
             #[cfg(feature = "dim3")]
             let bundle = PbrBundle {
                 mesh,
-                material: material_handle,
+                material: material_handle.clone_weak(),
                 transform,
                 ..Default::default()
             };
@@ -133,28 +165,6 @@ impl EntityWithGraphics {
         commands.entity(self.entity).despawn();
     }
 
-    pub fn select(&mut self, materials: &mut Assets<BevyMaterial>) {
-        // NOTE: we don't just call `self.set_color` because that would
-        //       overwrite self.base_color too.
-        self.color = point![1.0, 0.0, 0.0];
-        if let Some(material) = materials.get_mut(&self.material) {
-            #[cfg(feature = "dim2")]
-            {
-                material.color =
-                    Color::rgba(self.color.x, self.color.y, self.color.z, self.opacity);
-            }
-            #[cfg(feature = "dim3")]
-            {
-                material.base_color =
-                    Color::rgba(self.color.x, self.color.y, self.color.z, self.opacity);
-            }
-        }
-    }
-
-    pub fn unselect(&mut self, materials: &mut Assets<BevyMaterial>) {
-        self.set_color(materials, self.base_color);
-    }
-
     pub fn set_color(&mut self, materials: &mut Assets<BevyMaterial>, color: Point3<f32>) {
         if let Some(material) = materials.get_mut(&self.material) {
             #[cfg(feature = "dim2")]
@@ -173,11 +183,11 @@ impl EntityWithGraphics {
     pub fn update(
         &mut self,
         colliders: &ColliderSet,
-        components: &mut Query<(&mut Transform,)>,
+        components: &mut Query<&mut Transform>,
         gfx_shift: &Vector<Real>,
     ) {
         if let Some(Some(co)) = self.collider.map(|c| colliders.get(c)) {
-            if let Ok(mut pos) = components.get_component_mut::<Transform>(self.entity) {
+            if let Ok(mut pos) = components.get_mut(self.entity) {
                 let co_pos = co.position() * self.delta;
                 pos.translation.x = (co_pos.translation.vector.x + gfx_shift.x) as f32;
                 pos.translation.y = (co_pos.translation.vector.y + gfx_shift.y) as f32;
@@ -230,18 +240,14 @@ impl EntityWithGraphics {
         //
         // Cuboid mesh
         //
-        let cuboid = Mesh::from(shape::Cube { size: 2.0 });
+        let cuboid = Mesh::from(bevy::math::primitives::Cuboid::new(2.0, 2.0, 2.0));
         out.insert(ShapeType::Cuboid, meshes.add(cuboid.clone()));
         out.insert(ShapeType::RoundCuboid, meshes.add(cuboid));
 
         //
         // Ball mesh
         //
-        let ball = Mesh::try_from(shape::Icosphere {
-            subdivisions: 2,
-            radius: 1.0,
-        })
-        .unwrap();
+        let ball = Mesh::from(bevy::math::primitives::Sphere::new(1.0));
         out.insert(ShapeType::Ball, meshes.add(ball));
 
         //
@@ -309,14 +315,14 @@ fn bevy_polyline(buffers: (Vec<Point2<Real>>, Option<Vec<[u32; 2]>>)) -> Mesh {
     let normals: Vec<_> = (0..vertices.len()).map(|_| [0.0, 0.0, 1.0]).collect();
 
     // Generate the mesh
-    let mut mesh = Mesh::new(PrimitiveTopology::LineStrip);
+    let mut mesh = Mesh::new(PrimitiveTopology::LineStrip, Default::default());
     mesh.insert_attribute(
         Mesh::ATTRIBUTE_POSITION,
         VertexAttributeValues::from(vertices),
     );
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, VertexAttributeValues::from(normals));
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::from(uvs));
-    mesh.set_indices(Some(Indices::U32(indices)));
+    mesh.insert_indices(Indices::U32(indices));
     mesh
 }
 
@@ -352,14 +358,14 @@ fn bevy_mesh(buffers: (Vec<Point3<Real>>, Vec<[u32; 3]>)) -> Mesh {
     let uvs: Vec<_> = (0..vertices.len()).map(|_| [0.0, 0.0]).collect();
 
     // Generate the mesh
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, Default::default());
     mesh.insert_attribute(
         Mesh::ATTRIBUTE_POSITION,
         VertexAttributeValues::from(vertices),
     );
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, VertexAttributeValues::from(normals));
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::from(uvs));
-    mesh.set_indices(Some(Indices::U32(indices)));
+    mesh.insert_indices(Indices::U32(indices));
     mesh
 }
 

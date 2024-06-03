@@ -153,8 +153,9 @@ impl GenericOneBodyConstraintBuilder {
                         rhs: na::zero(),
                         rhs_wo_bias: na::zero(),
                         impulse: na::zero(),
-                        total_impulse: na::zero(),
+                        impulse_accumulator: na::zero(),
                         r,
+                        r_mat_elts: [0.0; 2],
                     };
                 }
 
@@ -230,13 +231,8 @@ impl GenericOneBodyConstraintBuilder {
             .unwrap()
             .local_to_world;
 
-        self.inner.update_with_positions(
-            params,
-            solved_dt,
-            pos2,
-            self.ccd_thickness,
-            &mut constraint.inner,
-        );
+        self.inner
+            .update_with_positions(params, solved_dt, pos2, &mut constraint.inner);
     }
 }
 
@@ -256,6 +252,24 @@ impl GenericOneBodyConstraint {
             j_id: usize::MAX,
             ndofs2: usize::MAX,
         }
+    }
+
+    pub fn warmstart(
+        &mut self,
+        jacobians: &DVector<Real>,
+        generic_solver_vels: &mut DVector<Real>,
+    ) {
+        let solver_vel2 = self.inner.solver_vel2;
+
+        let elements = &mut self.inner.elements[..self.inner.num_contacts as usize];
+        OneBodyConstraintElement::generic_warmstart_group(
+            elements,
+            jacobians,
+            self.ndofs2,
+            self.j_id,
+            solver_vel2,
+            generic_solver_vels,
+        );
     }
 
     pub fn solve(

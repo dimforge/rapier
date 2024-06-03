@@ -6,17 +6,16 @@ use crate::math::{Isometry, Point, Real, Vector};
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 use parry::partitioning::{QbvhDataGenerator, QbvhUpdateWorkspace};
 use parry::query::details::{
-    NonlinearTOICompositeShapeShapeBestFirstVisitor, PointCompositeShapeProjBestFirstVisitor,
-    PointCompositeShapeProjWithFeatureBestFirstVisitor,
+    NonlinearTOICompositeShapeShapeBestFirstVisitor, NormalConstraints,
+    PointCompositeShapeProjBestFirstVisitor, PointCompositeShapeProjWithFeatureBestFirstVisitor,
     RayCompositeShapeToiAndNormalBestFirstVisitor, RayCompositeShapeToiBestFirstVisitor,
-    TOICompositeShapeShapeBestFirstVisitor,
+    ShapeCastOptions, TOICompositeShapeShapeBestFirstVisitor,
 };
 use parry::query::visitors::{
     BoundingVolumeIntersectionsVisitor, PointIntersectionsVisitor, RayIntersectionsVisitor,
 };
-use parry::query::{DefaultQueryDispatcher, NonlinearRigidMotion, QueryDispatcher, TOI};
+use parry::query::{DefaultQueryDispatcher, NonlinearRigidMotion, QueryDispatcher, ShapeCastHit};
 use parry::shape::{FeatureId, Shape, TypedSimdCompositeShape};
-use parry::utils::DefaultStorage;
 use std::sync::Arc;
 
 /// A pipeline for performing queries on all the colliders of a scene.
@@ -101,7 +100,7 @@ impl QueryFilterFlags {
     }
 }
 
-/// A filter tha describes what collider should be included or excluded from a scene query.
+/// A filter that describes what collider should be included or excluded from a scene query.
 #[derive(Copy, Clone, Default)]
 pub struct QueryFilter<'a> {
     /// Flags indicating what particular type of colliders should be excluded from the scene query.
@@ -246,17 +245,21 @@ pub enum QueryPipelineMode {
 
 impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
     type PartShape = dyn Shape;
+    type PartNormalConstraints = dyn NormalConstraints;
     type PartId = ColliderHandle;
-    type QbvhStorage = DefaultStorage;
 
     fn map_typed_part_at(
         &self,
         shape_id: Self::PartId,
-        mut f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape),
+        mut f: impl FnMut(
+            Option<&Isometry<Real>>,
+            &Self::PartShape,
+            Option<&Self::PartNormalConstraints>,
+        ),
     ) {
         if let Some(co) = self.colliders.get(shape_id) {
             if self.filter.test(self.bodies, shape_id, co) {
-                f(Some(&co.pos), &*co.shape)
+                f(Some(&co.pos), &*co.shape, None)
             }
         }
     }
@@ -264,7 +267,7 @@ impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
     fn map_untyped_part_at(
         &self,
         shape_id: Self::PartId,
-        f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape),
+        f: impl FnMut(Option<&Isometry<Real>>, &Self::PartShape, Option<&dyn NormalConstraints>),
     ) {
         self.map_typed_part_at(shape_id, f);
     }
@@ -676,10 +679,9 @@ impl QueryPipeline {
         shape_pos: &Isometry<Real>,
         shape_vel: &Vector<Real>,
         shape: &dyn Shape,
-        max_toi: Real,
-        stop_at_penetration: bool,
+        options: ShapeCastOptions,
         filter: QueryFilter,
-    ) -> Option<(ColliderHandle, TOI)> {
+    ) -> Option<(ColliderHandle, ShapeCastHit)> {
         let pipeline_shape = self.as_composite_shape(bodies, colliders, filter);
         let mut visitor = TOICompositeShapeShapeBestFirstVisitor::new(
             &*self.query_dispatcher,
@@ -687,8 +689,7 @@ impl QueryPipeline {
             shape_vel,
             &pipeline_shape,
             shape,
-            max_toi,
-            stop_at_penetration,
+            options,
         );
         self.qbvh.traverse_best_first(&mut visitor).map(|h| h.1)
     }
@@ -722,7 +723,7 @@ impl QueryPipeline {
         end_time: Real,
         stop_at_penetration: bool,
         filter: QueryFilter,
-    ) -> Option<(ColliderHandle, TOI)> {
+    ) -> Option<(ColliderHandle, ShapeCastHit)> {
         let pipeline_shape = self.as_composite_shape(bodies, colliders, filter);
         let pipeline_motion = NonlinearRigidMotion::identity();
         let mut visitor = NonlinearTOICompositeShapeShapeBestFirstVisitor::new(

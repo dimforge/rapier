@@ -17,6 +17,7 @@ mod joint_ball2;
 mod joint_fixed2;
 mod joint_prismatic2;
 mod pyramid2;
+mod vertical_stacks2;
 
 fn demo_name_from_command_line() -> Option<String> {
     let mut args = std::env::args();
@@ -57,6 +58,7 @@ pub fn main() {
         ("Convex polygons", convex_polygons2::init_world),
         ("Heightfield", heightfield2::init_world),
         ("Pyramid", pyramid2::init_world),
+        ("Verticals stacks", vertical_stacks2::init_world),
         ("(Stress test) joint ball", joint_ball2::init_world),
         ("(Stress test) joint fixed", joint_fixed2::init_world),
         (
@@ -66,7 +68,7 @@ pub fn main() {
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
-    builders.sort_by(|a, b| match (a.0.starts_with('('), b.0.starts_with(')')) {
+    builders.sort_by(|a, b| match (a.0.starts_with('('), b.0.starts_with('(')) {
         (true, true) | (false, false) => a.0.cmp(b.0),
         (true, false) => Ordering::Greater,
         (false, true) => Ordering::Less,

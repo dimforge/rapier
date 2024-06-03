@@ -103,7 +103,7 @@ impl<T> PubSub<T> {
         subscription
     }
 
-    /// Read the i-th message not yet read by the given subsciber.
+    /// Read the i-th message not yet read by the given subscriber.
     pub fn read_ith(&self, sub: &Subscription<T>, i: usize) -> Option<&T> {
         let cursor = &self.cursors[sub.id as usize];
         self.messages.get(cursor.next(self.deleted_messages) + i)
@@ -114,11 +114,7 @@ impl<T> PubSub<T> {
         let cursor = &self.cursors[sub.id as usize];
         let next = cursor.next(self.deleted_messages);
 
-        // TODO: use self.queue.range(next..) once it is stabilised.
-        MessageRange {
-            queue: &self.messages,
-            next,
-        }
+        self.messages.range(next..)
     }
 
     /// Makes the given subscribe acknowledge all the messages in the queue.
@@ -157,21 +153,5 @@ impl<T> PubSub<T> {
             // they will end up overflowing, breaking everything.
             self.reset_shifts();
         }
-    }
-}
-
-struct MessageRange<'a, T> {
-    queue: &'a VecDeque<T>,
-    next: usize,
-}
-
-impl<'a, T> Iterator for MessageRange<'a, T> {
-    type Item = &'a T;
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<&'a T> {
-        let result = self.queue.get(self.next);
-        self.next += 1;
-        result
     }
 }

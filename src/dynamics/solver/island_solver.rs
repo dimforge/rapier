@@ -41,14 +41,12 @@ impl IslandSolver {
         joint_indices: &[JointIndex],
         multibodies: &mut MultibodyJointSet,
     ) {
-        counters.solver.velocity_resolution_time.resume();
+        counters.solver.velocity_assembly_time.resume();
         let num_solver_iterations = base_params.num_solver_iterations.get()
             + islands.active_island_additional_solver_iterations(island_id);
 
         let mut params = *base_params;
         params.dt /= num_solver_iterations as Real;
-        params.damping_ratio /= num_solver_iterations as Real;
-        // params.joint_damping_ratio /= num_solver_iterations as Real;
 
         /*
          *
@@ -76,8 +74,10 @@ impl IslandSolver {
             &mut self.contact_constraints,
             &mut self.joint_constraints,
         );
+        counters.solver.velocity_assembly_time.pause();
 
         // SOLVE
+        counters.solver.velocity_resolution_time.resume();
         self.velocity_solver.solve_constraints(
             &params,
             num_solver_iterations,
@@ -86,8 +86,10 @@ impl IslandSolver {
             &mut self.contact_constraints,
             &mut self.joint_constraints,
         );
+        counters.solver.velocity_resolution_time.pause();
 
         // WRITEBACK
+        counters.solver.velocity_writeback_time.resume();
         self.joint_constraints.writeback_impulses(impulse_joints);
         self.contact_constraints.writeback_impulses(manifolds);
         self.velocity_solver.writeback_bodies(
@@ -98,6 +100,6 @@ impl IslandSolver {
             bodies,
             multibodies,
         );
-        counters.solver.velocity_resolution_time.pause();
+        counters.solver.velocity_writeback_time.pause();
     }
 }

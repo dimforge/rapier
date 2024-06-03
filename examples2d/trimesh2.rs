@@ -41,7 +41,7 @@ pub fn init_world(testbed: &mut Testbed) {
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
-     * Create the trimeshes from a tesselated SVG.
+     * Create the trimeshes from a tessellated SVG.
      */
     let mut fill_tess = FillTessellator::new();
     let opt = usvg::Options::default();
@@ -67,7 +67,7 @@ pub fn init_world(testbed: &mut Testbed) {
                         &FillOptions::tolerance(0.01),
                         &mut BuffersBuilder::new(&mut mesh, VertexCtor { prim_id: 0 }),
                     )
-                    .expect("Tesselation failed.");
+                    .expect("Tessellation failed.");
 
                 let angle = transform.get_rotate() as f32;
 
@@ -84,7 +84,8 @@ pub fn init_world(testbed: &mut Testbed) {
                     .collect();
 
                 for k in 0..5 {
-                    let collider = ColliderBuilder::trimesh(vertices.clone(), indices.clone());
+                    let collider = ColliderBuilder::trimesh(vertices.clone(), indices.clone())
+                        .contact_skin(0.2);
                     let rigid_body = RigidBodyBuilder::dynamic()
                         .translation(vector![ith as f32 * 8.0 - 20.0, 20.0 + k as f32 * 11.0])
                         .rotation(angle);

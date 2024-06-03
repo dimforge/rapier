@@ -25,6 +25,7 @@ use {
     crate::math::SIMD_WIDTH,
 };
 
+#[derive(Debug)]
 pub struct ConstraintsCounts {
     pub num_constraints: usize,
     pub num_jacobian_lines: usize,
@@ -439,6 +440,17 @@ impl ContactConstraintsSet {
             curr_start += num_to_add;
         }
         assert_eq!(curr_start, total_num_constraints);
+    }
+
+    pub fn warmstart(
+        &mut self,
+        solver_vels: &mut [SolverVel<Real>],
+        generic_solver_vels: &mut DVector<Real>,
+    ) {
+        let (jac, constraints) = self.iter_constraints_mut();
+        for mut c in constraints {
+            c.warmstart(jac, solver_vels, generic_solver_vels);
+        }
     }
 
     pub fn solve_restitution(

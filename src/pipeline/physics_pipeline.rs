@@ -93,7 +93,7 @@ impl PhysicsPipeline {
         &mut self,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
-        broad_phase: &mut BroadPhase,
+        broad_phase: &mut dyn BroadPhase,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
@@ -112,8 +112,10 @@ impl PhysicsPipeline {
         self.broad_phase_events.clear();
         self.broadphase_collider_pairs.clear();
         broad_phase.update(
-            integration_parameters.prediction_distance,
+            integration_parameters.dt,
+            integration_parameters.prediction_distance(),
             colliders,
+            bodies,
             modified_colliders,
             removed_colliders,
             &mut self.broad_phase_events,
@@ -141,7 +143,8 @@ impl PhysicsPipeline {
             events,
         );
         narrow_phase.compute_contacts(
-            integration_parameters.prediction_distance,
+            integration_parameters.prediction_distance(),
+            integration_parameters.dt,
             bodies,
             colliders,
             impulse_joints,
@@ -171,6 +174,7 @@ impl PhysicsPipeline {
         self.counters.stages.island_construction_time.resume();
         islands.update_active_set_with_contacts(
             integration_parameters.dt,
+            integration_parameters.length_unit,
             bodies,
             colliders,
             narrow_phase,
@@ -178,7 +182,6 @@ impl PhysicsPipeline {
             multibody_joints,
             integration_parameters.min_island_size,
         );
-        self.counters.stages.island_construction_time.pause();
 
         if self.manifold_indices.len() < islands.num_islands() {
             self.manifold_indices
@@ -203,6 +206,7 @@ impl PhysicsPipeline {
             bodies,
             &mut self.joint_constraint_indices,
         );
+        self.counters.stages.island_construction_time.pause();
 
         self.counters.stages.update_time.resume();
         for handle in islands.active_dynamic_bodies() {
@@ -406,7 +410,7 @@ impl PhysicsPipeline {
         gravity: &Vector<Real>,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
-        broad_phase: &mut BroadPhase,
+        broad_phase: &mut dyn BroadPhase,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
@@ -421,6 +425,7 @@ impl PhysicsPipeline {
         self.counters.step_started();
 
         // Apply some of delayed wake-ups.
+        self.counters.stages.user_changes.start();
         for handle in impulse_joints
             .to_wake_up
             .drain(..)
@@ -459,14 +464,15 @@ impl PhysicsPipeline {
                 .copied()
                 .filter(|h| colliders.get(*h).map(|c| !c.is_enabled()).unwrap_or(false)),
         );
+        self.counters.stages.user_changes.pause();
 
         // TODO: do this only on user-change.
         // TODO: do we want some kind of automatic inverse kinematics?
         for multibody in &mut multibody_joints.multibodies {
-            multibody.1.update_root_type(bodies);
-            // FIXME: what should we do here? We should not
-            //        rely on the next state here.
             multibody.1.forward_kinematics(bodies, true);
+            multibody
+                .1
+                .update_rigid_bodies_internal(bodies, true, false, false);
         }
 
         self.detect_collisions(
@@ -486,12 +492,16 @@ impl PhysicsPipeline {
         );
 
         if let Some(queries) = query_pipeline.as_deref_mut() {
+            self.counters.stages.query_pipeline_time.start();
             queries.update_incremental(colliders, &modified_colliders, &removed_colliders, false);
+            self.counters.stages.query_pipeline_time.pause();
         }
 
+        self.counters.stages.user_changes.resume();
         self.clear_modified_colliders(colliders, &mut modified_colliders);
         self.clear_modified_bodies(bodies, &mut modified_bodies);
         removed_colliders.clear();
+        self.counters.stages.user_changes.pause();
 
         let mut remaining_time = integration_parameters.dt;
         let mut integration_parameters = *integration_parameters;
@@ -508,7 +518,7 @@ impl PhysicsPipeline {
             // the timestep into multiple intervals. First, estimate the
             // size of the time slice we will integrate for this substep.
             //
-            // Note that we must do this now, before the constrains resolution
+            // Note that we must do this now, before the constraints resolution
             // because we need to use the correct timestep length for the
             // integration of external forces.
             //
@@ -599,7 +609,9 @@ impl PhysicsPipeline {
                 }
             }
 
+            self.counters.stages.update_time.resume();
             self.advance_to_final_positions(islands, bodies, colliders, &mut modified_colliders);
+            self.counters.stages.update_time.pause();
 
             self.detect_collisions(
                 &integration_parameters,
@@ -618,12 +630,14 @@ impl PhysicsPipeline {
             );
 
             if let Some(queries) = query_pipeline.as_deref_mut() {
+                self.counters.stages.query_pipeline_time.resume();
                 queries.update_incremental(
                     colliders,
                     &modified_colliders,
                     &[],
                     remaining_substeps == 0,
                 );
+                self.counters.stages.query_pipeline_time.pause();
             }
 
             self.clear_modified_colliders(colliders, &mut modified_colliders);
@@ -635,10 +649,12 @@ impl PhysicsPipeline {
         // TODO: avoid updating the world mass properties twice (here, and
         //       at the beginning of the next timestep) for bodies that were
         //       not modified by the user in the mean time.
+        self.counters.stages.update_time.resume();
         for handle in islands.active_dynamic_bodies() {
             let rb = bodies.index_mut_internal(*handle);
             rb.mprops.update_world_mass_properties(&rb.pos.position);
         }
+        self.counters.stages.update_time.pause();
 
         self.counters.step_completed();
     }
@@ -650,10 +666,10 @@ mod test {
         CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, RigidBodyBuilder,
         RigidBodySet,
     };
-    use crate::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
+    use crate::geometry::{BroadPhaseMultiSap, ColliderBuilder, ColliderSet, NarrowPhase};
     use crate::math::Vector;
     use crate::pipeline::PhysicsPipeline;
-    use crate::prelude::MultibodyJointSet;
+    use crate::prelude::{MultibodyJointSet, RigidBodyType};
 
     #[test]
     fn kinematic_and_fixed_contact_crash() {
@@ -661,7 +677,7 @@ mod test {
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
         let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhase::new();
+        let mut bf = BroadPhaseMultiSap::new();
         let mut nf = NarrowPhase::new();
         let mut bodies = RigidBodySet::new();
         let mut islands = IslandManager::new();
@@ -699,7 +715,7 @@ mod test {
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
         let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhase::new();
+        let mut bf = BroadPhaseMultiSap::new();
         let mut nf = NarrowPhase::new();
         let mut islands = IslandManager::new();
 
@@ -809,7 +825,7 @@ mod test {
         let mut pipeline = PhysicsPipeline::new();
         let gravity = Vector::y() * -9.81;
         let integration_parameters = IntegrationParameters::default();
-        let mut broad_phase = BroadPhase::new();
+        let mut broad_phase = BroadPhaseMultiSap::new();
         let mut narrow_phase = NarrowPhase::new();
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
@@ -851,5 +867,74 @@ mod test {
                 &event_handler,
             );
         }
+    }
+
+    #[test]
+    fn rigid_body_type_changed_dynamic_is_in_active_set() {
+        let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
+        let mut pipeline = PhysicsPipeline::new();
+        let mut bf = BroadPhaseMultiSap::new();
+        let mut nf = NarrowPhase::new();
+        let mut islands = IslandManager::new();
+
+        let mut bodies = RigidBodySet::new();
+
+        // Initialize body as kinematic with mass
+        let rb = RigidBodyBuilder::kinematic_position_based()
+            .additional_mass(1.0)
+            .build();
+        let h = bodies.insert(rb.clone());
+
+        // Step once
+        let gravity = Vector::y() * -9.81;
+        pipeline.step(
+            &gravity,
+            &IntegrationParameters::default(),
+            &mut islands,
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut CCDSolver::new(),
+            None,
+            &(),
+            &(),
+        );
+
+        // Switch body type to Dynamic
+        bodies
+            .get_mut(h)
+            .unwrap()
+            .set_body_type(RigidBodyType::Dynamic, true);
+
+        // Step again
+        pipeline.step(
+            &gravity,
+            &IntegrationParameters::default(),
+            &mut islands,
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut CCDSolver::new(),
+            None,
+            &(),
+            &(),
+        );
+
+        let body = bodies.get(h).unwrap();
+        let h_y = body.pos.position.translation.y;
+
+        // Expect gravity to be applied on second step after switching to Dynamic
+        assert!(h_y < 0.0);
+
+        // Expect body to now be in active_dynamic_set
+        assert!(islands.active_dynamic_set.contains(&h));
     }
 }

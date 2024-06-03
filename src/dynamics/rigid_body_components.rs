@@ -571,10 +571,11 @@ impl RigidBodyVelocity {
     /// The approximate kinetic energy of this rigid-body.
     ///
     /// This approximation does not take the rigid-body's mass and angular inertia
-    /// into account.
+    /// into account. Some physics engines call this the "mass-normalized kinetic
+    /// energy".
     #[must_use]
     pub fn pseudo_kinetic_energy(&self) -> Real {
-        self.linvel.norm_squared() + self.angvel.gdot(self.angvel)
+        0.5 * (self.linvel.norm_squared() + self.angvel.gdot(self.angvel))
     }
 
     /// Returns the update velocities after applying the given damping.
@@ -594,7 +595,7 @@ impl RigidBodyVelocity {
     }
 
     /// Integrate the velocities in `self` to compute obtain new positions when moving from the given
-    /// inital position `init_pos`.
+    /// initial position `init_pos`.
     #[must_use]
     pub fn integrate(
         &self,
@@ -821,6 +822,8 @@ pub struct RigidBodyCcd {
     pub ccd_active: bool,
     /// Is CCD enabled for this rigid-body?
     pub ccd_enabled: bool,
+    /// The soft-CCD prediction distance for this rigid-body.
+    pub soft_ccd_prediction: Real,
 }
 
 impl Default for RigidBodyCcd {
@@ -830,6 +833,7 @@ impl Default for RigidBodyCcd {
             ccd_max_dist: 0.0,
             ccd_active: false,
             ccd_enabled: false,
+            soft_ccd_prediction: 0.0,
         }
     }
 }
@@ -992,7 +996,10 @@ impl RigidBodyDominance {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct RigidBodyActivation {
     /// The threshold linear velocity bellow which the body can fall asleep.
-    pub linear_threshold: Real,
+    ///
+    /// The value is "normalized", i.e., the actual threshold applied by the physics engine
+    /// is equal to this value multiplied by [`IntegrationParameters::length_unit`].
+    pub normalized_linear_threshold: Real,
     /// The angular linear velocity bellow which the body can fall asleep.
     pub angular_threshold: Real,
     /// The amount of time the rigid-body must remain below the thresholds to be put to sleep.
@@ -1011,7 +1018,7 @@ impl Default for RigidBodyActivation {
 
 impl RigidBodyActivation {
     /// The default linear velocity bellow which a body can be put to sleep.
-    pub fn default_linear_threshold() -> Real {
+    pub fn default_normalized_linear_threshold() -> Real {
         0.4
     }
 
@@ -1029,7 +1036,7 @@ impl RigidBodyActivation {
     /// Create a new rb_activation status initialised with the default rb_activation threshold and is active.
     pub fn active() -> Self {
         RigidBodyActivation {
-            linear_threshold: Self::default_linear_threshold(),
+            normalized_linear_threshold: Self::default_normalized_linear_threshold(),
             angular_threshold: Self::default_angular_threshold(),
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: 0.0,
@@ -1040,7 +1047,7 @@ impl RigidBodyActivation {
     /// Create a new rb_activation status initialised with the default rb_activation threshold and is inactive.
     pub fn inactive() -> Self {
         RigidBodyActivation {
-            linear_threshold: Self::default_linear_threshold(),
+            normalized_linear_threshold: Self::default_normalized_linear_threshold(),
             angular_threshold: Self::default_angular_threshold(),
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: Self::default_time_until_sleep(),
@@ -1051,7 +1058,7 @@ impl RigidBodyActivation {
     /// Create a new activation status that prevents the rigid-body from sleeping.
     pub fn cannot_sleep() -> Self {
         RigidBodyActivation {
-            linear_threshold: -1.0,
+            normalized_linear_threshold: -1.0,
             angular_threshold: -1.0,
             ..Self::active()
         }

@@ -8,6 +8,40 @@ use na::SimdPartialOrd;
 
 impl OneBodyConstraintTangentPart<Real> {
     #[inline]
+    pub fn generic_warmstart(
+        &mut self,
+        j_id2: usize,
+        jacobians: &DVector<Real>,
+        ndofs2: usize,
+        solver_vel2: usize,
+        solver_vels: &mut DVector<Real>,
+    ) {
+        #[cfg(feature = "dim2")]
+        {
+            solver_vels.rows_mut(solver_vel2, ndofs2).axpy(
+                self.impulse[0],
+                &jacobians.rows(j_id2 + ndofs2, ndofs2),
+                1.0,
+            );
+        }
+
+        #[cfg(feature = "dim3")]
+        {
+            let j_step = ndofs2 * 2;
+            solver_vels.rows_mut(solver_vel2, ndofs2).axpy(
+                self.impulse[0],
+                &jacobians.rows(j_id2 + ndofs2, ndofs2),
+                1.0,
+            );
+            solver_vels.rows_mut(solver_vel2, ndofs2).axpy(
+                self.impulse[1],
+                &jacobians.rows(j_id2 + j_step + ndofs2, ndofs2),
+                1.0,
+            );
+        }
+    }
+
+    #[inline]
     pub fn generic_solve(
         &mut self,
         j_id2: usize,
@@ -72,6 +106,22 @@ impl OneBodyConstraintTangentPart<Real> {
 
 impl OneBodyConstraintNormalPart<Real> {
     #[inline]
+    pub fn generic_warmstart(
+        &mut self,
+        j_id2: usize,
+        jacobians: &DVector<Real>,
+        ndofs2: usize,
+        solver_vel2: usize,
+        solver_vels: &mut DVector<Real>,
+    ) {
+        solver_vels.rows_mut(solver_vel2, ndofs2).axpy(
+            self.impulse,
+            &jacobians.rows(j_id2 + ndofs2, ndofs2),
+            1.0,
+        );
+    }
+
+    #[inline]
     pub fn generic_solve(
         &mut self,
         cfm_factor: Real,
@@ -99,6 +149,42 @@ impl OneBodyConstraintNormalPart<Real> {
 }
 
 impl OneBodyConstraintElement<Real> {
+    #[inline]
+    pub fn generic_warmstart_group(
+        elements: &mut [Self],
+        jacobians: &DVector<Real>,
+        ndofs2: usize,
+        // Jacobian index of the first constraint.
+        j_id: usize,
+        solver_vel2: usize,
+        solver_vels: &mut DVector<Real>,
+    ) {
+        let j_step = ndofs2 * 2 * DIM;
+
+        // Solve penetration.
+        let mut nrm_j_id = j_id;
+
+        for element in elements.iter_mut() {
+            element.normal_part.generic_warmstart(
+                nrm_j_id,
+                jacobians,
+                ndofs2,
+                solver_vel2,
+                solver_vels,
+            );
+            nrm_j_id += j_step;
+        }
+
+        // Solve friction.
+        let mut tng_j_id = j_id + ndofs2 * 2;
+
+        for element in elements.iter_mut() {
+            let part = &mut element.tangent_part;
+            part.generic_warmstart(tng_j_id, jacobians, ndofs2, solver_vel2, solver_vels);
+            tng_j_id += j_step;
+        }
+    }
+
     #[inline]
     pub fn generic_solve_group(
         cfm_factor: Real,

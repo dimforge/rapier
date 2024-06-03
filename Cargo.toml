@@ -1,6 +1,6 @@
 [workspace]
-members = [ "crates/rapier2d", "crates/rapier2d-f64", "crates/rapier_testbed2d", "crates/rapier_testbed2d-f64", "examples2d", "benchmarks2d",
-            "crates/rapier3d", "crates/rapier3d-f64", "crates/rapier_testbed3d", "crates/rapier_testbed3d-f64", "examples3d", "examples3d-f64", "benchmarks3d" ]
+members = ["crates/rapier2d", "crates/rapier2d-f64", "crates/rapier_testbed2d", "crates/rapier_testbed2d-f64", "examples2d", "benchmarks2d",
+    "crates/rapier3d", "crates/rapier3d-f64", "crates/rapier_testbed3d", "crates/rapier_testbed3d-f64", "examples3d", "examples3d-f64", "benchmarks3d"]
 resolver = "2"
 
 [patch.crates-io]
