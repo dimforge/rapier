@@ -58,14 +58,14 @@ pub struct IntersectionPair {
     /// Are the colliders intersecting?
     pub intersecting: bool,
     /// Was a `CollisionEvent::Started` emitted for this collider?
-    pub(crate) start_event_emited: bool,
+    pub(crate) start_event_emitted: bool,
 }
 
 impl IntersectionPair {
     pub(crate) fn new() -> Self {
         Self {
             intersecting: false,
-            start_event_emited: false,
+            start_event_emitted: false,
         }
     }
 
@@ -77,7 +77,7 @@ impl IntersectionPair {
         collider2: ColliderHandle,
         events: &dyn EventHandler,
     ) {
-        self.start_event_emited = true;
+        self.start_event_emitted = true;
         events.handle_collision_event(
             bodies,
             colliders,
@@ -94,7 +94,7 @@ impl IntersectionPair {
         collider2: ColliderHandle,
         events: &dyn EventHandler,
     ) {
-        self.start_event_emited = false;
+        self.start_event_emitted = false;
         events.handle_collision_event(
             bodies,
             colliders,
@@ -122,7 +122,7 @@ pub struct ContactPair {
     /// Is there any active contact in this contact pair?
     pub has_any_active_contact: bool,
     /// Was a `CollisionEvent::Started` emitted for this collider?
-    pub(crate) start_event_emited: bool,
+    pub(crate) start_event_emitted: bool,
     pub(crate) workspace: Option<ContactManifoldsWorkspace>,
 }
 
@@ -133,7 +133,7 @@ impl ContactPair {
             collider2,
             has_any_active_contact: false,
             manifolds: Vec::new(),
-            start_event_emited: false,
+            start_event_emitted: false,
             workspace: None,
         }
     }
@@ -210,7 +210,7 @@ impl ContactPair {
         colliders: &ColliderSet,
         events: &dyn EventHandler,
     ) {
-        self.start_event_emited = true;
+        self.start_event_emitted = true;
 
         events.handle_collision_event(
             bodies,
@@ -226,7 +226,7 @@ impl ContactPair {
         colliders: &ColliderSet,
         events: &dyn EventHandler,
     ) {
-        self.start_event_emited = false;
+        self.start_event_emitted = false;
 
         events.handle_collision_event(
             bodies,
