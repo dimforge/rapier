@@ -50,6 +50,8 @@ This release introduces two new crates:
 - Rename `JointAxesMask::X/Y/Z` to `::LIN_X/LIN_Y/LIN_Z` to avoid confusing it with `::ANG_X/ANG_Y/ANG_Z`.
 - The function `RigidBody::add_collider` is now private. It was only public because it was needed for some internal
   `bevy_rapier` plumbings, but it is no longer useful. Adding a collider must always go througthe `ColliderSet`.
+- `CharacterController::solve_character_collision_impulses` now takes multiple `CharacterCollision` as parameter:
+  this change will allow further internal optimizations.
 
 ## v0.19.0 (05 May 2024)
 
