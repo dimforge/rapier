@@ -880,7 +880,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .physics
                         .bodies
                         .iter()
-                        .filter(|e| !e.1.is_fixed())
+                        .filter(|e| e.1.is_dynamic())
                         .map(|e| e.0)
                         .collect();
                     let num_to_delete = (dynamic_bodies.len() / 10).max(0);
