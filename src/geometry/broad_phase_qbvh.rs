@@ -1,5 +1,4 @@
 use crate::geometry::{BroadPhasePairEvent, ColliderHandle, ColliderPair, ColliderSet};
-use parry::bounding_volume::BoundingVolume;
 use parry::math::Real;
 use parry::partitioning::Qbvh;
 use parry::partitioning::QbvhUpdateWorkspace;
@@ -7,20 +6,20 @@ use parry::query::visitors::BoundingVolumeIntersectionsSimultaneousVisitor;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
-pub struct BroadPhase {
+pub struct BroadPhaseQbvh {
     qbvh: Qbvh<ColliderHandle>,
     stack: Vec<(u32, u32)>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     workspace: QbvhUpdateWorkspace,
 }
 
-impl Default for BroadPhase {
+impl Default for BroadPhaseQbvh {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl BroadPhase {
+impl BroadPhaseQbvh {
     pub fn new() -> Self {
         Self {
             qbvh: Qbvh::new(),
@@ -59,7 +58,7 @@ impl BroadPhase {
                 colliders.iter().map(|(handle, collider)| {
                     (
                         handle,
-                        collider.compute_aabb().loosened(prediction_distance / 2.0),
+                        collider.compute_collision_aabb(prediction_distance / 2.0),
                     )
                 }),
                 margin,
@@ -76,9 +75,7 @@ impl BroadPhase {
             }
 
             let _ = self.qbvh.refit(margin, &mut self.workspace, |handle| {
-                colliders[*handle]
-                    .compute_aabb()
-                    .loosened(prediction_distance / 2.0)
+                colliders[*handle].compute_collision_aabb(prediction_distance / 2.0)
             });
             self.qbvh
                 .traverse_modified_bvtt_with_stack(&self.qbvh, &mut visitor, &mut self.stack);

@@ -17,7 +17,7 @@ mod timer;
 /// Aggregation of all the performances counters tracked by rapier.
 #[derive(Clone, Copy)]
 pub struct Counters {
-    /// Whether thi counter is enabled or not.
+    /// Whether this counter is enabled or not.
     pub enabled: bool,
     /// Timer for a whole timestep.
     pub step_time: Timer,
@@ -69,7 +69,7 @@ impl Counters {
         }
     }
 
-    /// Notfy that the time-step has finished.
+    /// Notify that the time-step has finished.
     pub fn step_completed(&mut self) {
         if self.enabled {
             self.step_time.pause();
@@ -88,7 +88,7 @@ impl Counters {
         }
     }
 
-    /// Notfy that the custom operation has finished.
+    /// Notify that the custom operation has finished.
     pub fn custom_completed(&mut self) {
         if self.enabled {
             self.custom.pause();
@@ -182,6 +182,12 @@ measure_method!(
     stages.solver_time
 );
 measure_method!(ccd_started, ccd_completed, ccd_time, stages.ccd_time);
+measure_method!(
+    query_pipeline_update_started,
+    query_pipeline_update_completed,
+    query_pipeline_update_time,
+    stages.query_pipeline_time
+);
 
 measure_method!(
     assembly_started,
@@ -200,12 +206,6 @@ measure_method!(
     velocity_update_completed,
     velocity_update_time,
     solver.velocity_update_time
-);
-measure_method!(
-    position_resolution_started,
-    position_resolution_completed,
-    position_resolution_time,
-    solver.position_resolution_time
 );
 measure_method!(
     broad_phase_started,

@@ -129,7 +129,7 @@ impl TOIEntry {
         //     .ok();
 
         let res_toi = query_dispatcher
-            .nonlinear_time_of_impact(
+            .cast_shapes_nonlinear(
                 &motion_c1,
                 co1.shape.as_ref(),
                 &motion_c2,
@@ -143,7 +143,7 @@ impl TOIEntry {
         let toi = res_toi??;
 
         Some(Self::new(
-            toi.toi,
+            toi.time_of_impact,
             ch1,
             co1.parent.map(|p| p.handle),
             ch2,
@@ -169,13 +169,15 @@ impl TOIEntry {
 
 impl PartialOrd for TOIEntry {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        (-self.toi).partial_cmp(&(-other.toi))
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for TOIEntry {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
+        (-self.toi)
+            .partial_cmp(&(-other.toi))
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 

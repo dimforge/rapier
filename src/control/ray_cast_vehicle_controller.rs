@@ -4,7 +4,7 @@ use crate::dynamics::{RigidBody, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Ray};
 use crate::math::{Point, Real, Rotation, Vector};
 use crate::pipeline::{QueryFilter, QueryPipeline};
-use crate::utils::{WCross, WDot};
+use crate::utils::{SimdCross, SimdDot};
 
 /// A character controller to simulate vehicles using ray-casting for the wheels.
 pub struct DynamicRayCastVehicleController {
@@ -200,6 +200,12 @@ impl Wheel {
         }
     }
 
+    /// Information about suspension and the ground obtained from the ray-casting
+    /// for this wheel.
+    pub fn raycast_info(&self) -> &RayCastInfo {
+        &self.raycast_info
+    }
+
     /// The world-space center of the wheel.
     pub fn center(&self) -> Point<Real> {
         self.center
@@ -216,15 +222,22 @@ impl Wheel {
     }
 }
 
+/// Information about suspension and the ground obtained from the ray-casting
+/// to simulate a wheel’s suspension.
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
-struct RayCastInfo {
-    // set by raycaster
-    contact_normal_ws: Vector<Real>, //contact normal
-    contact_point_ws: Point<Real>,   //raycast hitpoint
-    suspension_length: Real,
-    hard_point_ws: Point<Real>, //raycast starting point
-    is_in_contact: bool,
-    ground_object: Option<ColliderHandle>,
+pub struct RayCastInfo {
+    /// The (world-space) contact normal between the wheel and the floor.
+    pub contact_normal_ws: Vector<Real>,
+    /// The (world-space) point hit by the wheel’s ray-cast.
+    pub contact_point_ws: Point<Real>,
+    /// The suspension length for the wheel.
+    pub suspension_length: Real,
+    /// The (world-space) starting point of the ray-cast.
+    pub hard_point_ws: Point<Real>,
+    /// Is the wheel in contact with the ground?
+    pub is_in_contact: bool,
+    /// The collider hit by the ray-cast.
+    pub ground_object: Option<ColliderHandle>,
 }
 
 impl DynamicRayCastVehicleController {
@@ -328,7 +341,7 @@ impl DynamicRayCastVehicleController {
         wheel.raycast_info.ground_object = None;
 
         if let Some((collider_hit, mut hit)) = hit {
-            if hit.toi == 0.0 {
+            if hit.time_of_impact == 0.0 {
                 let collider = &colliders[collider_hit];
                 let up_ray = Ray::new(source + rayvector, -rayvector);
                 if let Some(hit2) =
@@ -349,7 +362,7 @@ impl DynamicRayCastVehicleController {
             wheel.raycast_info.is_in_contact = true;
             wheel.raycast_info.ground_object = Some(collider_hit);
 
-            let hit_distance = hit.toi * raylen;
+            let hit_distance = hit.time_of_impact * raylen;
             wheel.raycast_info.suspension_length = hit_distance - wheel.radius;
 
             // clamp on max suspension travel
@@ -359,7 +372,7 @@ impl DynamicRayCastVehicleController {
                 .raycast_info
                 .suspension_length
                 .clamp(min_suspension_length, max_suspension_length);
-            wheel.raycast_info.contact_point_ws = ray.point_at(hit.toi);
+            wheel.raycast_info.contact_point_ws = ray.point_at(hit.time_of_impact);
 
             let denominator = wheel
                 .raycast_info
@@ -569,7 +582,7 @@ impl DynamicRayCastVehicleController {
                         wheel.side_impulse = resolve_single_bilateral(
                             &bodies[self.chassis],
                             &wheel.raycast_info.contact_point_ws,
-                            &ground_body,
+                            ground_body,
                             &wheel.raycast_info.contact_point_ws,
                             &self.axle[i],
                         );
@@ -651,11 +664,9 @@ impl DynamicRayCastVehicleController {
 
         if sliding {
             for wheel in &mut self.wheels {
-                if wheel.side_impulse != 0.0 {
-                    if wheel.skid_info < 1.0 {
-                        wheel.forward_impulse *= wheel.skid_info;
-                        wheel.side_impulse *= wheel.skid_info;
-                    }
+                if wheel.side_impulse != 0.0 && wheel.skid_info < 1.0 {
+                    wheel.forward_impulse *= wheel.skid_info;
+                    wheel.side_impulse *= wheel.skid_info;
                 }
             }
         }

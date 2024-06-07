@@ -44,7 +44,7 @@ impl RigidBodySet {
     }
 
     pub(crate) fn take_modified(&mut self) -> Vec<RigidBodyHandle> {
-        std::mem::replace(&mut self.modified_bodies, vec![])
+        std::mem::take(&mut self.modified_bodies)
     }
 
     /// The number of rigid bodies on this set.
@@ -209,7 +209,7 @@ impl RigidBodySet {
     /// Update colliders positions after rigid-bodies moved.
     ///
     /// When a rigid-body moves, the positions of the colliders attached to it need to be updated.
-    /// This update is generally automatically done at the beggining and the end of each simulation
+    /// This update is generally automatically done at the beginning and the end of each simulation
     /// step with `PhysicsPipeline::step`. If the positions need to be updated without running a
     /// simulation step (for example when using the `QueryPipeline` alone), this method can be called
     /// manually.  

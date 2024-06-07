@@ -35,6 +35,7 @@ impl Default for OrbitCamera {
 // Adapted from the 3D orbit camera from bevy-orbit-controls
 pub struct OrbitCameraPlugin;
 impl OrbitCameraPlugin {
+    #[allow(clippy::type_complexity)]
     fn update_transform_system(
         mut query: Query<(&OrbitCamera, &mut Transform), (Changed<OrbitCamera>, With<Camera>)>,
     ) {
@@ -47,11 +48,11 @@ impl OrbitCameraPlugin {
     fn mouse_motion_system(
         _time: Res<Time>,
         mut mouse_motion_events: EventReader<MouseMotion>,
-        mouse_button_input: Res<Input<MouseButton>>,
+        mouse_button_input: Res<ButtonInput<MouseButton>>,
         mut query: Query<(&mut OrbitCamera, &mut Transform, &mut Camera)>,
     ) {
         let mut delta = Vec2::ZERO;
-        for event in mouse_motion_events.iter() {
+        for event in mouse_motion_events.read() {
             delta += event.delta;
         }
         for (mut camera, _, _) in query.iter_mut() {
@@ -71,7 +72,7 @@ impl OrbitCameraPlugin {
         mut query: Query<&mut OrbitCamera, With<Camera>>,
     ) {
         let mut total = 0.0;
-        for event in mouse_wheel_events.iter() {
+        for event in mouse_wheel_events.read() {
             total -= event.y
                 * match event.unit {
                     Line => 1.0,
@@ -87,8 +88,8 @@ impl OrbitCameraPlugin {
 }
 impl Plugin for OrbitCameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(Self::mouse_motion_system)
-            .add_system(Self::zoom_system)
-            .add_system(Self::update_transform_system);
+        app.add_systems(Update, Self::mouse_motion_system)
+            .add_systems(Update, Self::zoom_system)
+            .add_systems(Update, Self::update_transform_system);
     }
 }

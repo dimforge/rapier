@@ -1,3 +1,6 @@
+#![allow(clippy::too_many_arguments)]
+#![allow(unexpected_cfgs)] // This happens due to the dim2/dim3/f32/f64 cfg.
+
 extern crate nalgebra as na;
 
 #[macro_use]
@@ -12,6 +15,7 @@ pub use crate::harness::plugin::HarnessPlugin;
 pub use crate::physics::PhysicsState;
 pub use crate::plugin::TestbedPlugin;
 pub use crate::testbed::{Testbed, TestbedApp, TestbedGraphics, TestbedState};
+pub use bevy::prelude::KeyCode;
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 mod box2d_backend;
@@ -22,7 +26,7 @@ mod camera3d;
 mod debug_render;
 mod graphics;
 pub mod harness;
-mod lines;
+mod mouse;
 pub mod objects;
 pub mod physics;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]

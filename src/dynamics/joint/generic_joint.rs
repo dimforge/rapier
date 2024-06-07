@@ -1,7 +1,9 @@
+#![allow(clippy::bad_bit_mask)] // Clippy will complain about the bitmasks due to JointAxesMask::FREE_FIXED_AXES being 0.
+
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RopeJoint};
 use crate::math::{Isometry, Point, Real, Rotation, UnitVector, Vector, SPATIAL_DIM};
-use crate::utils::{WBasis, WReal};
+use crate::utils::{SimdBasis, SimdRealCopy};
 
 #[cfg(feature = "dim3")]
 use crate::dynamics::SphericalJoint;
@@ -121,11 +123,21 @@ pub struct JointLimits<N> {
     pub impulse: N,
 }
 
-impl<N: WReal> Default for JointLimits<N> {
+impl<N: SimdRealCopy> Default for JointLimits<N> {
     fn default() -> Self {
         Self {
             min: -N::splat(Real::MAX),
             max: N::splat(Real::MAX),
+            impulse: N::splat(0.0),
+        }
+    }
+}
+
+impl<N: SimdRealCopy> From<[N; 2]> for JointLimits<N> {
+    fn from(value: [N; 2]) -> Self {
+        Self {
+            min: value[0],
+            max: value[1],
             impulse: N::splat(0.0),
         }
     }
@@ -210,19 +222,30 @@ pub struct GenericJoint {
     /// The degrees-of-freedoms motorised by this joint.
     pub motor_axes: JointAxesMask,
     /// The coupled degrees of freedom of this joint.
+    ///
+    /// Note that coupling degrees of freedoms (DoF) changes the interpretation of the coupled joint’s limits and motors.
+    /// If multiple linear DoF are limited/motorized, only the limits/motor configuration for the first
+    /// coupled linear DoF is applied to all coupled linear DoF. Similarly, if multiple angular DoF are limited/motorized
+    /// only the limits/motor configuration for the first coupled angular DoF is applied to all coupled angular DoF.
     pub coupled_axes: JointAxesMask,
     /// The limits, along each degrees of freedoms of this joint.
     ///
     /// Note that the limit must also be explicitly enabled by the `limit_axes` bitmask.
+    /// For coupled degrees of freedoms (DoF), only the first linear (resp. angular) coupled DoF limit and `limit_axis`
+    /// bitmask is applied to the coupled linear (resp. angular) axes.
     pub limits: [JointLimits<Real>; SPATIAL_DIM],
     /// The motors, along each degrees of freedoms of this joint.
     ///
-    /// Note that the mostor must also be explicitly enabled by the `motors` bitmask.
+    /// Note that the motor must also be explicitly enabled by the `motor_axes` bitmask.
+    /// For coupled degrees of freedoms (DoF), only the first linear (resp. angular) coupled DoF motor and `motor_axes`
+    /// bitmask is applied to the coupled linear (resp. angular) axes.
     pub motors: [JointMotor; SPATIAL_DIM],
     /// Are contacts between the attached rigid-bodies enabled?
     pub contacts_enabled: bool,
     /// Whether or not the joint is enabled.
     pub enabled: JointEnabled,
+    /// User-defined data associated to this joint.
+    pub user_data: u128,
 }
 
 impl Default for GenericJoint {
@@ -238,6 +261,7 @@ impl Default for GenericJoint {
             motors: [JointMotor::default(); SPATIAL_DIM],
             contacts_enabled: true,
             enabled: JointEnabled::Enabled,
+            user_data: 0,
         }
     }
 }
@@ -472,6 +496,24 @@ impl GenericJoint {
         self.motors[i].damping = damping;
         self
     }
+
+    /// Flips the orientation of the joint, including limits and motors.
+    pub fn flip(&mut self) {
+        std::mem::swap(&mut self.local_frame1, &mut self.local_frame2);
+
+        let coupled_bits = self.coupled_axes.bits();
+
+        for dim in 0..SPATIAL_DIM {
+            if coupled_bits & (1 << dim) == 0 {
+                let limit = self.limits[dim];
+                self.limits[dim].min = -limit.max;
+                self.limits[dim].max = -limit.min;
+            }
+
+            self.motors[dim].target_vel = -self.motors[dim].target_vel;
+            self.motors[dim].target_pos = -self.motors[dim].target_pos;
+        }
+    }
 }
 
 macro_rules! joint_conversion_methods(
@@ -669,6 +711,12 @@ impl GenericJointBuilder {
         self
     }
 
+    /// An arbitrary user-defined 128-bit integer associated to the joints built by this builder.
+    pub fn user_data(mut self, data: u128) -> Self {
+        self.0.user_data = data;
+        self
+    }
+
     /// Builds the generic joint.
     #[must_use]
     pub fn build(self) -> GenericJoint {
@@ -676,8 +724,8 @@ impl GenericJointBuilder {
     }
 }
 
-impl Into<GenericJoint> for GenericJointBuilder {
-    fn into(self) -> GenericJoint {
-        self.0
+impl From<GenericJointBuilder> for GenericJoint {
+    fn from(val: GenericJointBuilder) -> GenericJoint {
+        val.0
     }
 }

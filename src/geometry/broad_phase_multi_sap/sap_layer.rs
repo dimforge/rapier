@@ -1,6 +1,6 @@
 use super::{SAPProxies, SAPProxy, SAPRegion, SAPRegionPool};
 use crate::geometry::broad_phase_multi_sap::DELETED_AABB_VALUE;
-use crate::geometry::{Aabb, SAPProxyIndex};
+use crate::geometry::{Aabb, BroadPhaseProxyIndex};
 use crate::math::{Point, Real};
 use parry::bounding_volume::BoundingVolume;
 use parry::utils::hashmap::{Entry, HashMap};
@@ -13,11 +13,11 @@ pub(crate) struct SAPLayer {
     pub smaller_layer: Option<u8>,
     pub larger_layer: Option<u8>,
     region_width: Real,
-    pub regions: HashMap<Point<i32>, SAPProxyIndex>,
+    pub regions: HashMap<Point<i32>, BroadPhaseProxyIndex>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     regions_to_potentially_remove: Vec<Point<i32>>, // Workspace
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    pub created_regions: Vec<SAPProxyIndex>,
+    pub created_regions: Vec<BroadPhaseProxyIndex>,
 }
 
 impl SAPLayer {
@@ -71,7 +71,7 @@ impl SAPLayer {
     ///
     /// This method must be called in a bottom-up loop, propagating new regions from the
     /// smallest layer, up to the largest layer. That loop is done by the Phase 3 of the
-    /// BroadPhase::update.
+    /// BroadPhaseMultiSap::update.
     pub fn propagate_created_regions(
         &mut self,
         larger_layer: &mut Self,
@@ -103,7 +103,7 @@ impl SAPLayer {
     /// one region on its parent "larger" layer.
     fn register_subregion(
         &mut self,
-        proxy_id: SAPProxyIndex,
+        proxy_id: BroadPhaseProxyIndex,
         proxies: &mut SAPProxies,
         pool: &mut SAPRegionPool,
     ) {
@@ -140,7 +140,7 @@ impl SAPLayer {
 
     fn unregister_subregion(
         &mut self,
-        proxy_id: SAPProxyIndex,
+        proxy_id: BroadPhaseProxyIndex,
         proxy_region: &SAPRegion,
         proxies: &mut SAPProxies,
     ) {
@@ -182,7 +182,7 @@ impl SAPLayer {
     /// If the region with the given region key does not exist yet, it is created.
     /// When a region is created, it creates a new proxy for that region, and its
     /// proxy ID is added to `self.created_region` so it can be propagated during
-    /// the Phase 3 of `BroadPhase::update`.
+    /// the Phase 3 of `BroadPhaseMultiSap::update`.
     ///
     /// This returns the proxy ID of the already existing region if it existed, or
     /// of the new region if it did not exist and has been created by this method.
@@ -191,7 +191,7 @@ impl SAPLayer {
         region_key: Point<i32>,
         proxies: &mut SAPProxies,
         pool: &mut SAPRegionPool,
-    ) -> SAPProxyIndex {
+    ) -> BroadPhaseProxyIndex {
         match self.regions.entry(region_key) {
             // Yay, the region already exists!
             Entry::Occupied(occupied) => *occupied.get(),
@@ -266,7 +266,7 @@ impl SAPLayer {
         }
     }
 
-    pub fn predelete_proxy(&mut self, proxies: &mut SAPProxies, proxy_index: SAPProxyIndex) {
+    pub fn predelete_proxy(&mut self, proxies: &mut SAPProxies, proxy_index: BroadPhaseProxyIndex) {
         // Discretize the Aabb to find the regions that need to be invalidated.
         let proxy_aabb = &mut proxies[proxy_index].aabb;
         let start = super::point_key(proxy_aabb.mins, self.region_width);
@@ -379,7 +379,7 @@ impl SAPLayer {
     pub fn proper_proxy_moved_to_bigger_layer(
         &mut self,
         proxies: &mut SAPProxies,
-        proxy_id: SAPProxyIndex,
+        proxy_id: BroadPhaseProxyIndex,
     ) {
         for (point, region_id) in &self.regions {
             let region = &mut proxies[*region_id].data.as_region_mut();

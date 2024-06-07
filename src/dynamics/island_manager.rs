@@ -4,7 +4,7 @@ use crate::dynamics::{
 };
 use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
-use crate::utils::WDot;
+use crate::utils::SimdDot;
 
 /// Structure responsible for maintaining the set of active rigid-bodies, and
 /// putting non-moving rigid-bodies to sleep to save computation times.
@@ -14,6 +14,7 @@ pub struct IslandManager {
     pub(crate) active_dynamic_set: Vec<RigidBodyHandle>,
     pub(crate) active_kinematic_set: Vec<RigidBodyHandle>,
     pub(crate) active_islands: Vec<usize>,
+    pub(crate) active_islands_additional_solver_iterations: Vec<usize>,
     active_set_timestamp: u32,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     can_sleep: Vec<RigidBodyHandle>, // Workspace.
@@ -28,6 +29,7 @@ impl IslandManager {
             active_dynamic_set: vec![],
             active_kinematic_set: vec![],
             active_islands: vec![],
+            active_islands_additional_solver_iterations: vec![],
             active_set_timestamp: 0,
             can_sleep: vec![],
             stack: vec![],
@@ -127,8 +129,12 @@ impl IslandManager {
         &self.active_dynamic_set[island_range]
     }
 
+    pub(crate) fn active_island_additional_solver_iterations(&self, island_id: usize) -> usize {
+        self.active_islands_additional_solver_iterations[island_id]
+    }
+
     #[inline(always)]
-    pub(crate) fn iter_active_bodies<'a>(&'a self) -> impl Iterator<Item = RigidBodyHandle> + 'a {
+    pub(crate) fn iter_active_bodies(&self) -> impl Iterator<Item = RigidBodyHandle> + '_ {
         self.active_dynamic_set
             .iter()
             .copied()
@@ -136,6 +142,7 @@ impl IslandManager {
     }
 
     #[cfg(feature = "parallel")]
+    #[allow(dead_code)] // That will likely be useful when we re-introduce intra-island parallelism.
     pub(crate) fn active_island_range(&self, island_id: usize) -> std::ops::Range<usize> {
         self.active_islands[island_id]..self.active_islands[island_id + 1]
     }
@@ -143,6 +150,7 @@ impl IslandManager {
     pub(crate) fn update_active_set_with_contacts(
         &mut self,
         dt: Real,
+        length_unit: Real,
         bodies: &mut RigidBodySet,
         colliders: &ColliderSet,
         narrow_phase: &NarrowPhase,
@@ -174,7 +182,7 @@ impl IslandManager {
             let sq_linvel = rb.vels.linvel.norm_squared();
             let sq_angvel = rb.vels.angvel.gdot(rb.vels.angvel);
 
-            update_energy(&mut rb.activation, sq_linvel, sq_angvel, dt);
+            update_energy(length_unit, &mut rb.activation, sq_linvel, sq_angvel, dt);
 
             if rb.activation.time_since_can_sleep >= rb.activation.time_until_sleep {
                 // Mark them as sleeping for now. This will
@@ -196,7 +204,7 @@ impl IslandManager {
             stack: &mut Vec<RigidBodyHandle>,
         ) {
             for collider_handle in &rb_colliders.0 {
-                for inter in narrow_phase.contacts_with(*collider_handle) {
+                for inter in narrow_phase.contact_pairs_with(*collider_handle) {
                     for manifold in &inter.manifolds {
                         if !manifold.data.solver_contacts.is_empty() {
                             let other = crate::utils::select_other(
@@ -232,11 +240,20 @@ impl IslandManager {
         //        let t = instant::now();
         // Propagation of awake state and awake island computation through the
         // traversal of the interaction graph.
+        self.active_islands_additional_solver_iterations.clear();
         self.active_islands.clear();
         self.active_islands.push(0);
 
         // The max avoid underflow when the stack is empty.
         let mut island_marker = self.stack.len().max(1) - 1;
+
+        // NOTE: islands containing a body with non-standard number of iterations won’t
+        //       be merged with another island, unless another island with standard
+        //       iterations number already started before and got continued due to the
+        //       `min_island_size`. That could be avoided by pushing bodies with non-standard
+        //       iterations on top of the stack (and other bodies on the back). Not sure it’s
+        //       worth it though.
+        let mut additional_solver_iterations = 0;
 
         while let Some(handle) = self.stack.pop() {
             let rb = bodies.index_mut_internal(handle);
@@ -248,15 +265,22 @@ impl IslandManager {
             }
 
             if self.stack.len() < island_marker {
-                if self.active_dynamic_set.len() - *self.active_islands.last().unwrap()
-                    >= min_island_size
+                if additional_solver_iterations != rb.additional_solver_iterations
+                    || self.active_dynamic_set.len() - *self.active_islands.last().unwrap()
+                        >= min_island_size
                 {
                     // We are starting a new island.
+                    self.active_islands_additional_solver_iterations
+                        .push(additional_solver_iterations);
                     self.active_islands.push(self.active_dynamic_set.len());
+                    additional_solver_iterations = 0;
                 }
 
                 island_marker = self.stack.len();
             }
+
+            additional_solver_iterations =
+                additional_solver_iterations.max(rb.additional_solver_iterations);
 
             // Transmit the active state to all the rigid-bodies with colliders
             // in contact or joined with this collider.
@@ -281,6 +305,8 @@ impl IslandManager {
             self.active_dynamic_set.push(handle);
         }
 
+        self.active_islands_additional_solver_iterations
+            .push(additional_solver_iterations);
         self.active_islands.push(self.active_dynamic_set.len());
         //        println!(
         //            "Extraction: {}, num islands: {}",
@@ -299,8 +325,15 @@ impl IslandManager {
     }
 }
 
-fn update_energy(activation: &mut RigidBodyActivation, sq_linvel: Real, sq_angvel: Real, dt: Real) {
-    if sq_linvel < activation.linear_threshold * activation.linear_threshold.abs()
+fn update_energy(
+    length_unit: Real,
+    activation: &mut RigidBodyActivation,
+    sq_linvel: Real,
+    sq_angvel: Real,
+    dt: Real,
+) {
+    let linear_threshold = activation.normalized_linear_threshold * length_unit;
+    if sq_linvel < linear_threshold * linear_threshold.abs()
         && sq_angvel < activation.angular_threshold * activation.angular_threshold.abs()
     {
         activation.time_since_can_sleep += dt;

@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
+
 use crate::{
     physics::{PhysicsEvents, PhysicsState},
     TestbedGraphics,
@@ -7,7 +9,7 @@ use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodySet,
 };
-use rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
+use rapier::geometry::{ColliderSet, DefaultBroadPhase, NarrowPhase};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
 
@@ -22,6 +24,12 @@ pub struct RunState {
     pub time: f32,
 }
 
+impl Default for RunState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RunState {
     #[cfg(feature = "parallel")]
     pub fn new() -> Self {
@@ -33,7 +41,7 @@ impl RunState {
             .unwrap();
 
         Self {
-            thread_pool: thread_pool,
+            thread_pool,
             num_threads,
             timestep_id: 0,
             time: 0.0,
@@ -171,7 +179,7 @@ impl Harness {
         self.physics.hooks = Box::new(hooks);
 
         self.physics.islands = IslandManager::new();
-        self.physics.broad_phase = BroadPhase::new();
+        self.physics.broad_phase = DefaultBroadPhase::new();
         self.physics.narrow_phase = NarrowPhase::new();
         self.state.timestep_id = 0;
         self.state.time = 0.0;

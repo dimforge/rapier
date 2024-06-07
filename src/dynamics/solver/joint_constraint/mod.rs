@@ -1,13 +1,18 @@
-pub use joint_velocity_constraint::{MotorParameters, SolverBody, WritebackId};
+pub use joint_velocity_constraint::{JointSolverBody, MotorParameters, WritebackId};
 
-pub use joint_constraint::AnyJointVelocityConstraint;
-pub use joint_generic_velocity_constraint::{
-    JointGenericVelocityConstraint, JointGenericVelocityGroundConstraint,
+pub use any_joint_constraint::JointConstraintTypes;
+pub use joint_constraint_builder::JointTwoBodyConstraintHelper;
+pub use joint_constraints_set::JointConstraintsSet;
+pub use joint_generic_constraint::{JointGenericOneBodyConstraint, JointGenericTwoBodyConstraint};
+pub use joint_generic_constraint_builder::{
+    JointGenericOneBodyConstraintBuilder, JointGenericTwoBodyConstraintBuilder,
+    JointGenericVelocityOneBodyExternalConstraintBuilder,
+    JointGenericVelocityOneBodyInternalConstraintBuilder,
 };
-pub use joint_velocity_constraint_builder::JointVelocityConstraintBuilder;
 
-mod joint_constraint;
-mod joint_generic_velocity_constraint;
-mod joint_generic_velocity_constraint_builder;
+mod any_joint_constraint;
+mod joint_constraint_builder;
+mod joint_constraints_set;
+mod joint_generic_constraint;
+mod joint_generic_constraint_builder;
 mod joint_velocity_constraint;
-mod joint_velocity_constraint_builder;

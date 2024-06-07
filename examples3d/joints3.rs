@@ -20,7 +20,6 @@ fn create_coupled_joints(
     let joint1 = GenericJointBuilder::new(JointAxesMask::empty())
         .limits(JointAxis::X, [-3.0, 3.0])
         .limits(JointAxis::Y, [0.0, 3.0])
-        .limits(JointAxis::Z, [0.0, 3.0])
         .coupled_axes(JointAxesMask::Y | JointAxesMask::Z);
 
     if use_articulations {
@@ -483,7 +482,7 @@ fn create_actuated_revolute_joints(
             } else if i == num - 1 {
                 let stiffness = 200.0;
                 let damping = 100.0;
-                joint = joint.motor_position(3.14 / 2.0, stiffness, damping);
+                joint = joint.motor_position(std::f32::consts::FRAC_PI_2, stiffness, damping);
             }
 
             if i == 1 {
@@ -542,7 +541,7 @@ fn create_actuated_spherical_joints(
         colliders.insert_with_parent(collider, child_handle, bodies);
 
         if i > 0 {
-            let mut joint = joint_template.clone();
+            let mut joint = joint_template;
 
             if i == 1 {
                 joint = joint
@@ -555,7 +554,12 @@ fn create_actuated_spherical_joints(
                 joint = joint
                     .motor_position(JointAxis::AngX, 0.0, stiffness, damping)
                     .motor_position(JointAxis::AngY, 1.0, stiffness, damping)
-                    .motor_position(JointAxis::AngZ, 3.14 / 2.0, stiffness, damping);
+                    .motor_position(
+                        JointAxis::AngZ,
+                        std::f32::consts::FRAC_PI_2,
+                        stiffness,
+                        damping,
+                    );
             }
 
             if use_articulations {

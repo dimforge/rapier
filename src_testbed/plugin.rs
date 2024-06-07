@@ -4,7 +4,7 @@ use crate::physics::PhysicsState;
 use crate::GraphicsManager;
 use bevy::prelude::*;
 // use bevy::render::render_resource::RenderPipelineDescriptor;
-use bevy_egui::EguiContext;
+use bevy_egui::EguiContexts;
 
 pub trait TestbedPlugin {
     fn init_plugin(&mut self);
@@ -14,7 +14,7 @@ pub trait TestbedPlugin {
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<BevyMaterial>,
-        components: &mut Query<(&mut Transform,)>,
+        components: &mut Query<&mut Transform>,
         harness: &mut Harness,
     );
     fn clear_graphics(&mut self, graphics: &mut GraphicsManager, commands: &mut Commands);
@@ -26,18 +26,18 @@ pub trait TestbedPlugin {
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<BevyMaterial>,
-        components: &mut Query<(&mut Transform,)>,
+        components: &mut Query<&mut Transform>,
         harness: &mut Harness,
     );
     fn update_ui(
         &mut self,
-        ui_context: &EguiContext,
+        ui_context: &EguiContexts,
         harness: &mut Harness,
         graphics: &mut GraphicsManager,
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<BevyMaterial>,
-        components: &mut Query<(&mut Transform,)>,
+        components: &mut Query<&mut Transform>,
     );
     fn profiling_string(&self) -> String;
 }

@@ -164,9 +164,9 @@ impl SphericalJoint {
     }
 }
 
-impl Into<GenericJoint> for SphericalJoint {
-    fn into(self) -> GenericJoint {
-        self.data
+impl From<SphericalJoint> for GenericJoint {
+    fn from(val: SphericalJoint) -> GenericJoint {
+        val.data
     }
 }
 
@@ -288,8 +288,8 @@ impl SphericalJointBuilder {
     }
 }
 
-impl Into<GenericJoint> for SphericalJointBuilder {
-    fn into(self) -> GenericJoint {
-        self.0.into()
+impl From<SphericalJointBuilder> for GenericJoint {
+    fn from(val: SphericalJointBuilder) -> GenericJoint {
+        val.0.into()
     }
 }

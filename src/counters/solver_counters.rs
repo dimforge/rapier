@@ -14,10 +14,8 @@ pub struct SolverCounters {
     pub velocity_assembly_time: Timer,
     /// Time spent for the update of the velocity of the bodies.
     pub velocity_update_time: Timer,
-    /// Time spent for the assembly of all the position constraints.
-    pub position_assembly_time: Timer,
-    /// Time spent for the update of the position of the bodies.
-    pub position_resolution_time: Timer,
+    /// Time spent to write force back to user-accessible data.
+    pub velocity_writeback_time: Timer,
 }
 
 impl SolverCounters {
@@ -29,8 +27,7 @@ impl SolverCounters {
             velocity_assembly_time: Timer::new(),
             velocity_resolution_time: Timer::new(),
             velocity_update_time: Timer::new(),
-            position_assembly_time: Timer::new(),
-            position_resolution_time: Timer::new(),
+            velocity_writeback_time: Timer::new(),
         }
     }
 
@@ -41,8 +38,7 @@ impl SolverCounters {
         self.velocity_resolution_time.reset();
         self.velocity_assembly_time.reset();
         self.velocity_update_time.reset();
-        self.position_assembly_time.reset();
-        self.position_resolution_time.reset();
+        self.velocity_writeback_time.reset();
     }
 }
 
@@ -57,11 +53,10 @@ impl Display for SolverCounters {
             self.velocity_resolution_time
         )?;
         writeln!(f, "Velocity update time: {}", self.velocity_update_time)?;
-        writeln!(f, "Position assembly time: {}", self.position_assembly_time)?;
         writeln!(
             f,
-            "Position resolution time: {}",
-            self.position_resolution_time
+            "Velocity writeback time: {}",
+            self.velocity_writeback_time
         )
     }
 }

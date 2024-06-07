@@ -6,7 +6,7 @@ struct PhysicsState {
     pub gravity: Vector<f32>,
     pub integration_parameters: IntegrationParameters,
     pub islands: IslandManager,
-    pub broad_phase: BroadPhase,
+    pub broad_phase: DefaultBroadPhase,
     pub narrow_phase: NarrowPhase,
     pub bodies: RigidBodySet,
     pub colliders: ColliderSet,

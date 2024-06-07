@@ -6,7 +6,7 @@ use crate::prelude::RigidBodyVelocity;
 
 /// One link of a multibody.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct MultibodyLink {
     // FIXME: make all those private.
     pub(crate) internal_id: usize,

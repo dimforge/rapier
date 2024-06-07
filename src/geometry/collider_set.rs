@@ -24,11 +24,11 @@ impl ColliderSet {
     }
 
     pub(crate) fn take_modified(&mut self) -> Vec<ColliderHandle> {
-        std::mem::replace(&mut self.modified_colliders, vec![])
+        std::mem::take(&mut self.modified_colliders)
     }
 
     pub(crate) fn take_removed(&mut self) -> Vec<ColliderHandle> {
-        std::mem::replace(&mut self.removed_colliders, vec![])
+        std::mem::take(&mut self.removed_colliders)
     }
 
     /// An always-invalid collider handle.

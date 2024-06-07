@@ -84,9 +84,9 @@ impl FixedJoint {
     }
 }
 
-impl Into<GenericJoint> for FixedJoint {
-    fn into(self) -> GenericJoint {
-        self.data
+impl From<FixedJoint> for GenericJoint {
+    fn from(val: FixedJoint) -> GenericJoint {
+        val.data
     }
 }
 
@@ -143,8 +143,8 @@ impl FixedJointBuilder {
     }
 }
 
-impl Into<GenericJoint> for FixedJointBuilder {
-    fn into(self) -> GenericJoint {
-        self.0.into()
+impl From<FixedJointBuilder> for GenericJoint {
+    fn from(val: FixedJointBuilder) -> GenericJoint {
+        val.0.into()
     }
 }

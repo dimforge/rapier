@@ -41,7 +41,7 @@ pub fn init_world(testbed: &mut Testbed) {
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
-     * Create the trimeshes from a tesselated SVG.
+     * Create the trimeshes from a tessellated SVG.
      */
     let mut fill_tess = FillTessellator::new();
     let opt = usvg::Options::default();
@@ -67,7 +67,7 @@ pub fn init_world(testbed: &mut Testbed) {
                         &FillOptions::tolerance(0.01),
                         &mut BuffersBuilder::new(&mut mesh, VertexCtor { prim_id: 0 }),
                     )
-                    .expect("Tesselation failed.");
+                    .expect("Tessellation failed.");
 
                 let angle = transform.get_rotate() as f32;
 
@@ -84,7 +84,8 @@ pub fn init_world(testbed: &mut Testbed) {
                     .collect();
 
                 for k in 0..5 {
-                    let collider = ColliderBuilder::trimesh(vertices.clone(), indices.clone());
+                    let collider = ColliderBuilder::trimesh(vertices.clone(), indices.clone())
+                        .contact_skin(0.2);
                     let rigid_body = RigidBodyBuilder::dynamic()
                         .translation(vector![ith as f32 * 8.0 - 20.0, 20.0 + k as f32 * 11.0])
                         .rotation(angle);
@@ -104,7 +105,7 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.look_at(point![0.0, 20.0], 17.0);
 }
 
-const RAPIER_SVG_STR: &'static str = r#"
+const RAPIER_SVG_STR: &str = r#"
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg width="100%" height="100%" viewBox="0 0 527 131" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
     <g transform="matrix(1,0,0,1,1,-673)">

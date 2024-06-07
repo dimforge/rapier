@@ -4,7 +4,7 @@ use rapier_testbed3d::Testbed;
 #[derive(serde::Deserialize)]
 struct State {
     pub islands: IslandManager,
-    pub broad_phase: BroadPhase,
+    pub broad_phase: DefaultBroadPhase,
     pub narrow_phase: NarrowPhase,
     pub bodies: RigidBodySet,
     pub colliders: ColliderSet,

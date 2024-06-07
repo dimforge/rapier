@@ -1,12 +1,16 @@
+#![allow(clippy::bad_bit_mask)] // otherwise clippy complains because of TestbedStateFlags::NONE which is 0.
+
 use std::env;
 use std::mem;
+use std::num::NonZeroUsize;
 
 use bevy::prelude::*;
 
-use crate::physics::{PhysicsEvents, PhysicsSnapshot, PhysicsState};
+use crate::debug_render::{DebugRenderPipelineResource, RapierDebugRenderPlugin};
+use crate::physics::{DeserializedPhysicsSnapshot, PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
-use crate::{debug_render, ui};
 use crate::{graphics::GraphicsManager, harness::RunState};
+use crate::{mouse, ui};
 
 use na::{self, Point2, Point3, Vector3};
 #[cfg(feature = "dim3")]
@@ -20,16 +24,17 @@ use rapier::dynamics::{
 use rapier::geometry::Ray;
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 use rapier::math::{Real, Vector};
-use rapier::pipeline::{PhysicsHooks, QueryFilter};
+use rapier::pipeline::{PhysicsHooks, QueryFilter, QueryPipeline};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
 use crate::harness::Harness;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 use crate::physx_backend::PhysxWorld;
-use bevy::pbr::wireframe::WireframePlugin;
-use bevy::render::camera::Camera;
-use bevy_egui::EguiContext;
+use bevy::render::camera::{Camera, ClearColor};
+use bevy_egui::EguiContexts;
+use bevy_pbr::wireframe::WireframePlugin;
+use bevy_pbr::AmbientLight;
 
 #[cfg(feature = "dim2")]
 use crate::camera2d::{OrbitCamera, OrbitCameraPlugin};
@@ -97,6 +102,16 @@ bitflags! {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub enum RapierSolverType {
+    #[default]
+    TgsSoft,
+    TgsSoftNoWarmstart,
+    PgsLegacy,
+}
+
+pub type SimulationBuilders = Vec<(&'static str, fn(&mut Testbed))>;
+
 #[derive(Resource)]
 pub struct TestbedState {
     pub running: RunMode,
@@ -117,14 +132,15 @@ pub struct TestbedState {
     pub example_names: Vec<&'static str>,
     pub selected_example: usize,
     pub selected_backend: usize,
+    pub solver_type: RapierSolverType,
     pub physx_use_two_friction_directions: bool,
     pub snapshot: Option<PhysicsSnapshot>,
-    nsteps: usize,
+    pub nsteps: usize,
     camera_locked: bool, // Used so that the camera can remain the same before and after we change backend or press the restart button.
 }
 
 #[derive(Resource)]
-struct SceneBuilders(Vec<(&'static str, fn(&mut Testbed))>);
+struct SceneBuilders(SimulationBuilders);
 
 #[cfg(feature = "other-backends")]
 struct OtherBackends {
@@ -140,10 +156,12 @@ pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     commands: &'a mut Commands<'d, 'e>,
     meshes: &'a mut Assets<Mesh>,
     materials: &'a mut Assets<BevyMaterial>,
-    components: &'a mut Query<'b, 'f, (&'c mut Transform,)>,
+    components: &'a mut Query<'b, 'f, &'c mut Transform>,
     #[allow(dead_code)] // Dead in 2D but not in 3D.
     camera_transform: GlobalTransform,
     camera: &'a mut OrbitCamera,
+    keys: &'a ButtonInput<KeyCode>,
+    mouse: &'a SceneMouse,
 }
 
 pub struct Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
@@ -199,6 +217,7 @@ impl TestbedApp {
             example_names: Vec::new(),
             selected_example: 0,
             selected_backend: RAPIER_BACKEND,
+            solver_type: RapierSolverType::default(),
             physx_use_two_friction_directions: true,
             nsteps: 1,
             camera_locked: false,
@@ -224,7 +243,7 @@ impl TestbedApp {
         }
     }
 
-    pub fn from_builders(default: usize, builders: Vec<(&'static str, fn(&mut Testbed))>) -> Self {
+    pub fn from_builders(default: usize, builders: SimulationBuilders) -> Self {
         let mut res = TestbedApp::new_empty();
         res.state
             .action_flags
@@ -234,7 +253,7 @@ impl TestbedApp {
         res
     }
 
-    pub fn set_builders(&mut self, builders: Vec<(&'static str, fn(&mut Testbed))>) {
+    pub fn set_builders(&mut self, builders: SimulationBuilders) {
         self.state.example_names = builders.iter().map(|e| e.0).collect();
         self.builders = SceneBuilders(builders)
     }
@@ -267,7 +286,7 @@ impl TestbedApp {
             use std::io::{BufWriter, Write};
             // Don't enter the main loop. We will just step the simulation here.
             let mut results = Vec::new();
-            let builders = mem::replace(&mut self.builders.0, Vec::new());
+            let builders = mem::take(&mut self.builders.0);
             let backend_names = self.state.backend_names.clone();
 
             for builder in builders {
@@ -281,11 +300,7 @@ impl TestbedApp {
                     self.harness
                         .physics
                         .integration_parameters
-                        .max_velocity_iterations = 4;
-                    self.harness
-                        .physics
-                        .integration_parameters
-                        .max_stabilization_iterations = 1;
+                        .num_solver_iterations = NonZeroUsize::new(4).unwrap();
 
                     // Init world.
                     let mut testbed = Testbed {
@@ -372,25 +387,26 @@ impl TestbedApp {
             };
 
             let window_plugin = WindowPlugin {
-                window: WindowDescriptor {
+                primary_window: Some(Window {
                     title,
                     ..Default::default()
-                },
+                }),
                 ..Default::default()
             };
 
             let mut app = App::new();
             app.insert_resource(ClearColor(Color::rgb(0.15, 0.15, 0.15)))
-                .insert_resource(Msaa { samples: 4 })
+                .insert_resource(Msaa::Sample4)
                 .insert_resource(AmbientLight {
                     brightness: 0.3,
                     ..Default::default()
                 })
+                .init_resource::<mouse::SceneMouse>()
                 .add_plugins(DefaultPlugins.set(window_plugin))
-                .add_plugin(OrbitCameraPlugin)
-                .add_plugin(WireframePlugin)
-                .add_plugin(bevy_egui::EguiPlugin)
-                .add_plugin(debug_render::RapierDebugRenderPlugin::default());
+                .add_plugins(OrbitCameraPlugin)
+                .add_plugins(WireframePlugin)
+                .add_plugins(RapierDebugRenderPlugin::default())
+                .add_plugins(bevy_egui::EguiPlugin);
 
             #[cfg(target_arch = "wasm32")]
             app.add_plugin(bevy_webgl2::WebGL2Plugin);
@@ -398,15 +414,16 @@ impl TestbedApp {
             #[cfg(feature = "other-backends")]
             app.insert_non_send_resource(self.other_backends);
 
-            app.add_startup_system(setup_graphics_environment)
+            app.add_systems(Startup, setup_graphics_environment)
                 .insert_non_send_resource(self.graphics)
                 .insert_resource(self.state)
                 .insert_non_send_resource(self.harness)
                 .insert_resource(self.builders)
                 .insert_non_send_resource(self.plugins)
-                .add_stage_before(CoreStage::Update, "physics", SystemStage::single_threaded())
-                .add_system_to_stage("physics", update_testbed)
-                .add_system(egui_focus);
+                .add_systems(Update, update_testbed)
+                .add_systems(Update, egui_focus)
+                .add_systems(Update, track_mouse_state);
+
             init(&mut app);
             app.run();
         }
@@ -415,8 +432,7 @@ impl TestbedApp {
 
 impl<'a, 'b, 'c, 'd, 'e, 'f> TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     pub fn set_body_color(&mut self, body: RigidBodyHandle, color: [f32; 3]) {
-        self.graphics
-            .set_body_color(&mut self.materials, body, color);
+        self.graphics.set_body_color(self.materials, body, color);
     }
 
     pub fn add_body(
@@ -456,6 +472,19 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
             colliders,
         )
     }
+
+    pub fn keys(&self) -> &ButtonInput<KeyCode> {
+        self.keys
+    }
+
+    pub fn mouse(&self) -> &SceneMouse {
+        self.mouse
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn camera_fwd_dir(&self) -> Vector<f32> {
+        (self.camera_transform * -Vec3::Z).normalize().into()
+    }
 }
 
 impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
@@ -485,7 +514,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
     }
 
     pub fn harness_mut(&mut self) -> &mut Harness {
-        &mut self.harness
+        self.harness
     }
 
     pub fn set_world(
@@ -645,7 +674,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
     }
 
     #[cfg(feature = "dim3")]
-    fn update_vehicle_controller(&mut self, events: &Input<KeyCode>) {
+    fn update_vehicle_controller(&mut self, events: &ButtonInput<KeyCode>) {
         if self.state.running == RunMode::Stop {
             return;
         }
@@ -656,16 +685,16 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
 
             for key in events.get_pressed() {
                 match *key {
-                    KeyCode::Right => {
+                    KeyCode::ArrowRight => {
                         steering_angle += -0.7;
                     }
-                    KeyCode::Left => {
+                    KeyCode::ArrowLeft => {
                         steering_angle += 0.7;
                     }
-                    KeyCode::Up => {
+                    KeyCode::ArrowUp => {
                         engine_force += 30.0;
                     }
-                    KeyCode::Down => {
+                    KeyCode::ArrowDown => {
                         engine_force += -30.0;
                     }
                     _ => {}
@@ -688,7 +717,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         }
     }
 
-    fn update_character_controller(&mut self, events: &Input<KeyCode>) {
+    fn update_character_controller(&mut self, events: &ButtonInput<KeyCode>) {
         if self.state.running == RunMode::Stop {
             return;
         }
@@ -700,19 +729,19 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
             #[cfg(feature = "dim2")]
             for key in events.get_pressed() {
                 match *key {
-                    KeyCode::Right => {
+                    KeyCode::ArrowRight => {
                         desired_movement += Vector::x();
                     }
-                    KeyCode::Left => {
+                    KeyCode::ArrowLeft => {
                         desired_movement -= Vector::x();
                     }
                     KeyCode::Space => {
                         desired_movement += Vector::y() * 2.0;
                     }
-                    KeyCode::RControl => {
+                    KeyCode::ControlRight => {
                         desired_movement -= Vector::y();
                     }
-                    KeyCode::RShift => {
+                    KeyCode::ShiftRight => {
                         speed /= 10.0;
                     }
                     _ => {}
@@ -735,25 +764,25 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
 
                 for key in events.get_pressed() {
                     match *key {
-                        KeyCode::Right => {
+                        KeyCode::ArrowRight => {
                             desired_movement += rot_x;
                         }
-                        KeyCode::Left => {
+                        KeyCode::ArrowLeft => {
                             desired_movement -= rot_x;
                         }
-                        KeyCode::Up => {
+                        KeyCode::ArrowUp => {
                             desired_movement -= rot_z;
                         }
-                        KeyCode::Down => {
+                        KeyCode::ArrowDown => {
                             desired_movement += rot_z;
                         }
                         KeyCode::Space => {
                             desired_movement += Vector::y() * 2.0;
                         }
-                        KeyCode::RControl => {
+                        KeyCode::ControlRight => {
                             desired_movement -= Vector::y();
                         }
-                        KeyCode::RShift => {
+                        KeyCode::ShiftLeft => {
                             speed /= 10.0;
                         }
                         _ => {}
@@ -803,22 +832,22 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         }
     }
 
-    fn handle_common_events(&mut self, events: &Input<KeyCode>) {
+    fn handle_common_events(&mut self, events: &ButtonInput<KeyCode>) {
         for key in events.get_just_released() {
             match *key {
-                KeyCode::T => {
+                KeyCode::KeyT => {
                     if self.state.running == RunMode::Stop {
                         self.state.running = RunMode::Running;
                     } else {
                         self.state.running = RunMode::Stop;
                     }
                 }
-                KeyCode::S => self.state.running = RunMode::Step,
-                KeyCode::R => self
+                KeyCode::KeyS => self.state.running = RunMode::Step,
+                KeyCode::KeyR => self
                     .state
                     .action_flags
                     .set(TestbedActionFlags::EXAMPLE_CHANGED, true),
-                KeyCode::C => {
+                KeyCode::KeyC => {
                     // Delete 1 collider of 10% of the remaining dynamic bodies.
                     let mut colliders: Vec<_> = self
                         .harness
@@ -831,7 +860,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .collect();
                     colliders.sort_by_key(|co| -(co.len() as isize));
 
-                    let num_to_delete = (colliders.len() / 10).max(1);
+                    let num_to_delete = (colliders.len() / 10).max(0);
                     for to_delete in &colliders[..num_to_delete] {
                         if let Some(graphics) = self.graphics.as_mut() {
                             graphics.remove_collider(to_delete[0], &self.harness.physics.colliders);
@@ -844,7 +873,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         );
                     }
                 }
-                KeyCode::D => {
+                KeyCode::KeyD => {
                     // Delete 10% of the remaining dynamic bodies.
                     let dynamic_bodies: Vec<_> = self
                         .harness
@@ -854,7 +883,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .filter(|e| !e.1.is_fixed())
                         .map(|e| e.0)
                         .collect();
-                    let num_to_delete = (dynamic_bodies.len() / 10).max(1);
+                    let num_to_delete = (dynamic_bodies.len() / 10).max(0);
                     for to_delete in &dynamic_bodies[..num_to_delete] {
                         if let Some(graphics) = self.graphics.as_mut() {
                             graphics.remove_body(*to_delete);
@@ -869,7 +898,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         );
                     }
                 }
-                KeyCode::J => {
+                KeyCode::KeyJ => {
                     // Delete 10% of the remaining impulse_joints.
                     let impulse_joints: Vec<_> = self
                         .harness
@@ -878,12 +907,12 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .iter()
                         .map(|e| e.0)
                         .collect();
-                    let num_to_delete = (impulse_joints.len() / 10).max(1);
+                    let num_to_delete = (impulse_joints.len() / 10).max(0);
                     for to_delete in &impulse_joints[..num_to_delete] {
                         self.harness.physics.impulse_joints.remove(*to_delete, true);
                     }
                 }
-                KeyCode::A => {
+                KeyCode::KeyA => {
                     // Delete 10% of the remaining multibody_joints.
                     let multibody_joints: Vec<_> = self
                         .harness
@@ -892,7 +921,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .iter()
                         .map(|e| e.0)
                         .collect();
-                    let num_to_delete = (multibody_joints.len() / 10).max(1);
+                    let num_to_delete = (multibody_joints.len() / 10).max(0);
                     for to_delete in &multibody_joints[..num_to_delete] {
                         self.harness
                             .physics
@@ -900,7 +929,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                             .remove(*to_delete, true);
                     }
                 }
-                KeyCode::M => {
+                KeyCode::KeyM => {
                     // Delete one remaining multibody.
                     let to_delete = self
                         .harness
@@ -908,7 +937,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                         .multibody_joints
                         .iter()
                         .next()
-                        .map(|a| a.2.rigid_body_handle());
+                        .map(|(_, _, _, link)| link.rigid_body_handle());
                     if let Some(to_delete) = to_delete {
                         self.harness
                             .physics
@@ -998,22 +1027,14 @@ fn draw_contacts(_nf: &NarrowPhase, _colliders: &ColliderSet) {
 
 #[cfg(feature = "dim3")]
 fn setup_graphics_environment(mut commands: Commands) {
-    const HALF_SIZE: f32 = 100.0;
+    commands.insert_resource(AmbientLight {
+        brightness: 100.0,
+        ..Default::default()
+    });
 
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
-            illuminance: 10000.0,
-            // Configure the projection to better fit the scene
-            shadow_projection: OrthographicProjection {
-                left: -HALF_SIZE,
-                right: HALF_SIZE,
-                bottom: -HALF_SIZE,
-                top: HALF_SIZE,
-                near: -10.0 * HALF_SIZE,
-                far: 100.0 * HALF_SIZE,
-                ..Default::default()
-            },
-            shadows_enabled: true,
+            shadows_enabled: false,
             ..Default::default()
         },
         transform: Transform {
@@ -1039,7 +1060,8 @@ fn setup_graphics_environment(mut commands: Commands) {
         .insert(OrbitCamera {
             rotate_sensitivity: 0.05,
             ..OrbitCamera::default()
-        });
+        })
+        .insert(MainCamera);
 }
 
 #[cfg(feature = "dim2")]
@@ -1070,10 +1092,11 @@ fn setup_graphics_environment(mut commands: Commands) {
             zoom: 100.0,
             pan_sensitivity: 0.02,
             ..OrbitCamera::default()
-        });
+        })
+        .insert(MainCamera);
 }
 
-fn egui_focus(mut ui_context: ResMut<EguiContext>, mut cameras: Query<&mut OrbitCamera>) {
+fn egui_focus(mut ui_context: EguiContexts, mut cameras: Query<&mut OrbitCamera>) {
     let mut camera_enabled = true;
     if ui_context.ctx_mut().wants_pointer_input() {
         camera_enabled = false;
@@ -1083,64 +1106,71 @@ fn egui_focus(mut ui_context: ResMut<EguiContext>, mut cameras: Query<&mut Orbit
     }
 }
 
+use crate::mouse::{track_mouse_state, MainCamera, SceneMouse};
+use bevy::window::PrimaryWindow;
+
 fn update_testbed(
     mut commands: Commands,
-    windows: Res<Windows>,
+    windows: Query<&Window, With<PrimaryWindow>>,
     // mut pipelines: ResMut<Assets<RenderPipelineDescriptor>>,
+    mouse: Res<SceneMouse>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<BevyMaterial>>,
-    builders: NonSendMut<SceneBuilders>,
+    builders: ResMut<SceneBuilders>,
     mut graphics: NonSendMut<GraphicsManager>,
     mut state: ResMut<TestbedState>,
+    mut debug_render: ResMut<DebugRenderPipelineResource>,
     mut harness: NonSendMut<Harness>,
     #[cfg(feature = "other-backends")] mut other_backends: NonSendMut<OtherBackends>,
     mut plugins: NonSendMut<Plugins>,
-    mut ui_context: ResMut<EguiContext>,
-    mut gfx_components: Query<(&mut Transform,)>,
+    mut ui_context: EguiContexts,
+    mut gfx_components: Query<&mut Transform>,
     mut cameras: Query<(&Camera, &GlobalTransform, &mut OrbitCamera)>,
-    keys: Res<Input<KeyCode>>,
+    mut material_handles: Query<&mut Handle<BevyMaterial>>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     let meshes = &mut *meshes;
     let materials = &mut *materials;
-    let prev_example = state.selected_example;
 
     // Handle inputs
     {
         let graphics_context = TestbedGraphics {
-            graphics: &mut *graphics,
+            graphics: &mut graphics,
             commands: &mut commands,
             meshes: &mut *meshes,
             materials: &mut *materials,
             components: &mut gfx_components,
             camera_transform: *cameras.single().1,
             camera: &mut cameras.single_mut().2,
+            keys: &keys,
+            mouse: &mouse,
         };
 
         let mut testbed = Testbed {
             graphics: Some(graphics_context),
-            state: &mut *state,
-            harness: &mut *harness,
+            state: &mut state,
+            harness: &mut harness,
             #[cfg(feature = "other-backends")]
-            other_backends: &mut *other_backends,
-            plugins: &mut *plugins,
+            other_backends: &mut other_backends,
+            plugins: &mut plugins,
         };
 
-        testbed.handle_common_events(&*keys);
-        testbed.update_character_controller(&*keys);
+        testbed.handle_common_events(&keys);
+        testbed.update_character_controller(&keys);
         #[cfg(feature = "dim3")]
         {
-            testbed.update_vehicle_controller(&*keys);
+            testbed.update_vehicle_controller(&keys);
         }
     }
 
     // Update UI
     {
         let harness = &mut *harness;
-        ui::update_ui(&mut ui_context, &mut state, harness);
+        ui::update_ui(&mut ui_context, &mut state, harness, &mut debug_render);
 
         for plugin in &mut plugins.0 {
             plugin.update_ui(
-                &mut ui_context,
+                &ui_context,
                 harness,
                 &mut graphics,
                 &mut commands,
@@ -1186,14 +1216,10 @@ fn update_testbed(
                 .set(TestbedActionFlags::EXAMPLE_CHANGED, false);
             clear(&mut commands, &mut state, &mut graphics, &mut plugins);
             harness.clear_callbacks();
-            for plugin in (*plugins).0.iter_mut() {
+            for plugin in plugins.0.iter_mut() {
                 plugin.clear_graphics(&mut graphics, &mut commands);
             }
-            (*plugins).0.clear();
-
-            if state.selected_example != prev_example {
-                harness.physics.integration_parameters = IntegrationParameters::default();
-            }
+            plugins.0.clear();
 
             let selected_example = state.selected_example;
             let graphics = &mut *graphics;
@@ -1207,15 +1233,17 @@ fn update_testbed(
                 components: &mut gfx_components,
                 camera_transform: *cameras.single().1,
                 camera: &mut cameras.single_mut().2,
+                keys: &keys,
+                mouse: &mouse,
             };
 
             let mut testbed = Testbed {
                 graphics: Some(graphics_context),
-                state: &mut *state,
-                harness: &mut *harness,
+                state: &mut state,
+                harness: &mut harness,
                 #[cfg(feature = "other-backends")]
-                other_backends: &mut *other_backends,
-                plugins: &mut *plugins,
+                other_backends: &mut other_backends,
+                plugins: &mut plugins,
             };
 
             builders.0[selected_example].1(&mut testbed);
@@ -1234,9 +1262,11 @@ fn update_testbed(
                 harness.state.timestep_id,
                 &harness.physics.broad_phase,
                 &harness.physics.narrow_phase,
+                &harness.physics.islands,
                 &harness.physics.bodies,
                 &harness.physics.colliders,
                 &harness.physics.impulse_joints,
+                &harness.physics.multibody_joints,
             )
             .ok();
 
@@ -1253,17 +1283,36 @@ fn update_testbed(
                 .action_flags
                 .set(TestbedActionFlags::RESTORE_SNAPSHOT, false);
             if let Some(snapshot) = &state.snapshot {
-                if let Ok(w) = snapshot.restore() {
+                if let Ok(DeserializedPhysicsSnapshot {
+                    timestep_id,
+                    broad_phase,
+                    narrow_phase,
+                    island_manager,
+                    bodies,
+                    colliders,
+                    impulse_joints,
+                    multibody_joints,
+                }) = snapshot.restore()
+                {
                     clear(&mut commands, &mut state, &mut graphics, &mut plugins);
 
                     for plugin in &mut plugins.0 {
                         plugin.clear_graphics(&mut graphics, &mut commands);
                     }
 
-                    // set_world(w.3, w.4, w.5);
-                    harness.physics.broad_phase = w.1;
-                    harness.physics.narrow_phase = w.2;
-                    harness.state.timestep_id = w.0;
+                    harness.state.timestep_id = timestep_id;
+                    harness.physics.broad_phase = broad_phase;
+                    harness.physics.narrow_phase = narrow_phase;
+                    harness.physics.islands = island_manager;
+                    harness.physics.bodies = bodies;
+                    harness.physics.colliders = colliders;
+                    harness.physics.impulse_joints = impulse_joints;
+                    harness.physics.multibody_joints = multibody_joints;
+                    harness.physics.query_pipeline = QueryPipeline::new();
+
+                    state
+                        .action_flags
+                        .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
                 }
             }
         }
@@ -1324,15 +1373,15 @@ fn update_testbed(
         {
             if state.flags.contains(TestbedStateFlags::SLEEP) {
                 for (_, body) in harness.physics.bodies.iter_mut() {
-                    body.activation_mut().linear_threshold =
-                        RigidBodyActivation::default_linear_threshold();
+                    body.activation_mut().normalized_linear_threshold =
+                        RigidBodyActivation::default_normalized_linear_threshold();
                     body.activation_mut().angular_threshold =
                         RigidBodyActivation::default_angular_threshold();
                 }
             } else {
                 for (_, body) in harness.physics.bodies.iter_mut() {
                     body.wake_up(true);
-                    body.activation_mut().linear_threshold = -1.0;
+                    body.activation_mut().normalized_linear_threshold = -1.0;
                 }
             }
         }
@@ -1358,6 +1407,8 @@ fn update_testbed(
                     components: &mut gfx_components,
                     camera_transform: *cameras.single().1,
                     camera: &mut cameras.single_mut().2,
+                    keys: &keys,
+                    mouse: &mouse,
                 };
                 harness.step_with_graphics(Some(&mut testbed_graphics));
 
@@ -1407,19 +1458,19 @@ fn update_testbed(
         }
     }
 
-    if let Some(window) = windows.get_primary() {
+    if let Ok(window) = windows.get_single() {
         for (camera, camera_pos, _) in cameras.iter_mut() {
             highlight_hovered_body(
-                &mut *materials,
-                &mut *graphics,
-                &mut *state,
+                &mut material_handles,
+                &mut graphics,
+                &mut state,
                 &harness.physics,
                 window,
                 camera,
                 camera_pos,
             );
         }
-    }
+    };
 
     graphics.draw(
         &harness.physics.bodies,
@@ -1464,7 +1515,7 @@ fn clear(
 
 #[cfg(feature = "dim2")]
 fn highlight_hovered_body(
-    _materials: &mut Assets<BevyMaterial>,
+    _material_handles: &mut Query<&mut Handle<BevyMaterial>>,
     _graphics_manager: &mut GraphicsManager,
     _testbed_state: &mut TestbedState,
     _physics: &PhysicsState,
@@ -1477,7 +1528,7 @@ fn highlight_hovered_body(
 
 #[cfg(feature = "dim3")]
 fn highlight_hovered_body(
-    materials: &mut Assets<BevyMaterial>,
+    material_handles: &mut Query<&mut Handle<BevyMaterial>>,
     graphics_manager: &mut GraphicsManager,
     testbed_state: &mut TestbedState,
     physics: &PhysicsState,
@@ -1488,13 +1539,18 @@ fn highlight_hovered_body(
     if let Some(highlighted_body) = testbed_state.highlighted_body {
         if let Some(nodes) = graphics_manager.body_nodes_mut(highlighted_body) {
             for node in nodes {
-                node.unselect(materials)
+                if let Ok(mut handle) = material_handles.get_mut(node.entity) {
+                    *handle = node.material.clone_weak()
+                };
             }
         }
     }
 
     if let Some(cursor) = window.cursor_position() {
-        let ndc_cursor = (cursor / Vec2::new(window.width(), window.height()) * 2.0) - Vec2::ONE;
+        let ndc_cursor = Vec2::new(
+            cursor.x / window.width() * 2.0 - 1.0,
+            1.0 - cursor.y / window.height() * 2.0,
+        );
         let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
         let ray_pt1 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, -1.0));
         let ray_pt2 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 1.0));
@@ -1517,8 +1573,12 @@ fn highlight_hovered_body(
 
             if let Some(parent_handle) = collider.parent() {
                 testbed_state.highlighted_body = Some(parent_handle);
+                let selection_material = graphics_manager.selection_material();
+
                 for node in graphics_manager.body_nodes_mut(parent_handle).unwrap() {
-                    node.select(materials)
+                    if let Ok(mut handle) = material_handles.get_mut(node.entity) {
+                        *handle = selection_material.clone_weak();
+                    }
                 }
             }
         }

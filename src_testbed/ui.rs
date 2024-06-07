@@ -1,17 +1,25 @@
 use rapier::counters::Counters;
 use rapier::math::Real;
+use std::num::NonZeroUsize;
 
+use crate::debug_render::DebugRenderPipelineResource;
 use crate::harness::Harness;
 use crate::testbed::{
-    RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags, PHYSX_BACKEND_PATCH_FRICTION,
-    PHYSX_BACKEND_TWO_FRICTION_DIR,
+    RapierSolverType, RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags,
+    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR,
 };
 
 use crate::PhysicsState;
-use bevy_egui::egui::Slider;
-use bevy_egui::{egui, EguiContext};
+use bevy_egui::egui::{Slider, Ui};
+use bevy_egui::{egui, EguiContexts};
+use rapier::dynamics::IntegrationParameters;
 
-pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness: &mut Harness) {
+pub fn update_ui(
+    ui_context: &mut EguiContexts,
+    state: &mut TestbedState,
+    harness: &mut Harness,
+    debug_render: &mut DebugRenderPipelineResource,
+) {
     egui::Window::new("Parameters").show(ui_context.ctx_mut(), |ui| {
         if state.backend_names.len() > 1 && !state.example_names.is_empty() {
             let mut changed = false;
@@ -37,22 +45,18 @@ pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness
         }
 
         ui.horizontal(|ui| {
-            if ui.button("<").clicked() {
-                if state.selected_example > 0 {
-                    state.selected_example -= 1;
-                    state
-                        .action_flags
-                        .set(TestbedActionFlags::EXAMPLE_CHANGED, true)
-                }
+            if ui.button("<").clicked() && state.selected_example > 0 {
+                state.selected_example -= 1;
+                state
+                    .action_flags
+                    .set(TestbedActionFlags::EXAMPLE_CHANGED, true)
             }
 
-            if ui.button(">").clicked() {
-                if state.selected_example + 1 < state.example_names.len() {
-                    state.selected_example += 1;
-                    state
-                        .action_flags
-                        .set(TestbedActionFlags::EXAMPLE_CHANGED, true)
-                }
+            if ui.button(">").clicked() && state.selected_example + 1 < state.example_names.len() {
+                state.selected_example += 1;
+                state
+                    .action_flags
+                    .set(TestbedActionFlags::EXAMPLE_CHANGED, true)
             }
 
             let mut changed = false;
@@ -76,9 +80,12 @@ pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness
 
         ui.separator();
 
+        ui.collapsing("Scene infos", |ui| {
+            scene_infos_ui(ui, &harness.physics);
+        });
         ui.collapsing("Profile infos", |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label(profiling_string(&harness.physics.pipeline.counters))
+                profiling_ui(ui, &harness.physics.pipeline.counters);
             });
         });
         ui.collapsing("Serialization infos", |ui| {
@@ -92,43 +99,109 @@ pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness
 
         let integration_parameters = &mut harness.physics.integration_parameters;
 
-        ui.checkbox(
-            &mut integration_parameters.interleave_restitution_and_friction_resolution,
-            "interleave friction resolution",
-        );
-
         if state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
             || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
         {
-            ui.add(
-                Slider::new(&mut integration_parameters.max_velocity_iterations, 1..=200)
-                    .text("pos. iters."),
-            );
-            ui.add(
-                Slider::new(
-                    &mut integration_parameters.max_stabilization_iterations,
-                    1..=200,
-                )
-                .text("vel. iters."),
-            );
+            let mut num_iterations = integration_parameters.num_solver_iterations.get();
+            ui.add(Slider::new(&mut num_iterations, 1..=40).text("pos. iters."));
+            integration_parameters.num_solver_iterations =
+                NonZeroUsize::new(num_iterations).unwrap();
         } else {
+            let mut changed = false;
+            egui::ComboBox::from_label("solver type")
+                .width(150.0)
+                .selected_text(format!("{:?}", state.solver_type))
+                .show_ui(ui, |ui| {
+                    let solver_types = [
+                        RapierSolverType::TgsSoft,
+                        RapierSolverType::TgsSoftNoWarmstart,
+                        RapierSolverType::PgsLegacy,
+                    ];
+                    for sty in solver_types {
+                        changed = ui
+                            .selectable_value(&mut state.solver_type, sty, format!("{sty:?}"))
+                            .changed()
+                            || changed;
+                    }
+                });
+
+            if changed {
+                match state.solver_type {
+                    RapierSolverType::TgsSoft => {
+                        *integration_parameters = IntegrationParameters::tgs_soft();
+                    }
+                    RapierSolverType::TgsSoftNoWarmstart => {
+                        *integration_parameters =
+                            IntegrationParameters::tgs_soft_without_warmstart();
+                    }
+                    RapierSolverType::PgsLegacy => {
+                        *integration_parameters = IntegrationParameters::pgs_legacy();
+                    }
+                }
+            }
+
+            let mut num_iterations = integration_parameters.num_solver_iterations.get();
+            ui.add(Slider::new(&mut num_iterations, 1..=40).text("num solver iters."));
+            integration_parameters.num_solver_iterations =
+                NonZeroUsize::new(num_iterations).unwrap();
+
             ui.add(
-                Slider::new(&mut integration_parameters.max_velocity_iterations, 1..=200)
-                    .text("vel. rest. iters."),
+                Slider::new(
+                    &mut integration_parameters.num_internal_pgs_iterations,
+                    1..=40,
+                )
+                .text("num internal PGS iters."),
             );
             ui.add(
                 Slider::new(
-                    &mut integration_parameters.max_velocity_friction_iterations,
-                    1..=200,
+                    &mut integration_parameters.num_additional_friction_iterations,
+                    0..=40,
                 )
-                .text("vel. frict. iters."),
+                .text("num additional frict. iters."),
             );
             ui.add(
                 Slider::new(
-                    &mut integration_parameters.max_stabilization_iterations,
-                    1..=200,
+                    &mut integration_parameters.num_internal_stabilization_iterations,
+                    0..=100,
                 )
-                .text("vel. stab. iters."),
+                .text("max internal stabilization iters."),
+            );
+            ui.add(
+                Slider::new(&mut integration_parameters.warmstart_coefficient, 0.0..=1.0)
+                    .text("warmstart coefficient"),
+            );
+
+            let mut substep_params = *integration_parameters;
+            substep_params.dt /= substep_params.num_solver_iterations.get() as Real;
+            let curr_erp = substep_params.contact_erp();
+            let curr_cfm_factor = substep_params.contact_cfm_factor();
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.contact_natural_frequency,
+                    0.01..=120.0,
+                )
+                .text(format!("contacts Hz (erp = {:.3})", curr_erp)),
+            );
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.contact_damping_ratio,
+                    0.01..=20.0,
+                )
+                .text(format!(
+                    "damping ratio (cfm-factor = {:.3})",
+                    curr_cfm_factor
+                )),
+            );
+            ui.add(
+                Slider::new(
+                    &mut integration_parameters.joint_natural_frequency,
+                    0.0..=1200000.0,
+                )
+                .text("joint erp"),
+            );
+            ui.add(
+                Slider::new(&mut integration_parameters.joint_damping_ratio, 0.0..=20.0)
+                    .text("joint damping ratio"),
             );
         }
 
@@ -147,6 +220,8 @@ pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness
             Slider::new(&mut integration_parameters.min_island_size, 1..=10_000)
                 .text("min island size"),
         );
+        ui.add(Slider::new(&mut state.nsteps, 1..=100).text("sims. per frame"));
+
         let mut frequency = integration_parameters.inv_dt().round() as u32;
         ui.add(Slider::new(&mut frequency, 0..=240).text("frequency (Hz)"));
         integration_parameters.set_inv_dt(frequency as Real);
@@ -157,6 +232,7 @@ pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness
         ui.checkbox(&mut sleep, "sleep enabled");
         // ui.checkbox(&mut contact_points, "draw contacts");
         // ui.checkbox(&mut wireframe, "draw wireframes");
+        ui.checkbox(&mut debug_render.enabled, "debug render enabled");
 
         state.flags.set(TestbedStateFlags::SLEEP, sleep);
         // state
@@ -201,43 +277,87 @@ pub fn update_ui(ui_context: &mut EguiContext, state: &mut TestbedState, harness
     });
 }
 
-fn profiling_string(counters: &Counters) -> String {
-    format!(
-        r#"Total: {:.2}ms
-Collision detection: {:.2}ms
-|_ Broad-phase: {:.2}ms
-   Narrow-phase: {:.2}ms
-Island computation: {:.2}ms
-Solver: {:.2}ms
-|_ Velocity assembly: {:.2}ms
-   Velocity resolution: {:.2}ms
-   Velocity integration: {:.2}ms
-   Position assembly: {:.2}ms
-   Position resolution: {:.2}ms
-CCD: {:.2}ms
-|_ # of substeps: {}
-   TOI computation: {:.2}ms
-   Broad-phase: {:.2}ms
-   Narrow-phase: {:.2}ms
-   Solver: {:.2}ms"#,
+fn scene_infos_ui(ui: &mut Ui, physics: &PhysicsState) {
+    ui.label(format!("# rigid-bodies: {}", physics.bodies.len()));
+    ui.label(format!("# colliders: {}", physics.colliders.len()));
+    ui.label(format!("# impulse joint: {}", physics.impulse_joints.len()));
+    // ui.label(format!(
+    //     "# multibody joint: {}",
+    //     physics.multibody_joints.len()
+    // ));
+}
+
+fn profiling_ui(ui: &mut Ui, counters: &Counters) {
+    egui::CollapsingHeader::new(format!(
+        "Total: {:.2}ms - {} fps",
         counters.step_time(),
-        counters.collision_detection_time(),
-        counters.broad_phase_time(),
-        counters.narrow_phase_time(),
-        counters.island_construction_time(),
-        counters.solver_time(),
-        counters.solver.velocity_assembly_time.time(),
-        counters.velocity_resolution_time(),
-        counters.solver.velocity_update_time.time(),
-        counters.solver.position_assembly_time.time(),
-        counters.position_resolution_time(),
-        counters.ccd_time(),
-        counters.ccd.num_substeps,
-        counters.ccd.toi_computation_time.time(),
-        counters.ccd.broad_phase_time.time(),
-        counters.ccd.narrow_phase_time.time(),
-        counters.ccd.solver_time.time(),
-    )
+        (1000.0 / counters.step_time()).round()
+    ))
+    .id_source("total")
+    .show(ui, |ui| {
+        egui::CollapsingHeader::new(format!(
+            "Collision detection: {:.2}ms",
+            counters.collision_detection_time()
+        ))
+        .id_source("collision detection")
+        .show(ui, |ui| {
+            ui.label(format!("Broad-phase: {:.2}ms", counters.broad_phase_time()));
+            ui.label(format!(
+                "Narrow-phase: {:.2}ms",
+                counters.narrow_phase_time()
+            ));
+        });
+        egui::CollapsingHeader::new(format!("Solver: {:.2}ms", counters.solver_time()))
+            .id_source("solver")
+            .show(ui, |ui| {
+                ui.label(format!(
+                    "Velocity assembly: {:.2}ms",
+                    counters.solver.velocity_assembly_time.time()
+                ));
+                ui.label(format!(
+                    "Velocity resolution: {:.2}ms",
+                    counters.velocity_resolution_time()
+                ));
+                ui.label(format!(
+                    "Velocity integration: {:.2}ms",
+                    counters.solver.velocity_update_time.time()
+                ));
+                ui.label(format!(
+                    "Writeback: {:.2}ms",
+                    counters.solver.velocity_writeback_time.time()
+                ));
+            });
+        egui::CollapsingHeader::new(format!("CCD: {:.2}ms", counters.ccd_time()))
+            .id_source("ccd")
+            .show(ui, |ui| {
+                ui.label(format!("# of substeps: {}", counters.ccd.num_substeps));
+                ui.label(format!(
+                    "TOI computation: {:.2}ms",
+                    counters.ccd.toi_computation_time.time(),
+                ));
+                ui.label(format!(
+                    "Broad-phase: {:.2}ms",
+                    counters.ccd.broad_phase_time.time()
+                ));
+                ui.label(format!(
+                    "Narrow-phase: {:.2}ms",
+                    counters.ccd.narrow_phase_time.time(),
+                ));
+                ui.label(format!("Solver: {:.2}ms", counters.ccd.solver_time.time()));
+            });
+        ui.label(format!(
+            "Island computation: {:.2}ms",
+            counters.island_construction_time()
+        ));
+        ui.label(format!(
+            "Query pipeline: {:.2}ms",
+            counters.query_pipeline_update_time()
+        ));
+        ui.label(format!(
+            "User changes: {:.2}ms",
+            counters.stages.user_changes.time()
+        ));
+    });
 }
 
 fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {

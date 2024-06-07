@@ -1,5 +1,5 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle, RigidBodyType};
-use crate::geometry::{InteractionGroups, SAPProxyIndex, Shape, SharedShape};
+use crate::geometry::{BroadPhaseProxyIndex, InteractionGroups, Shape, SharedShape};
 use crate::math::{Isometry, Real};
 use crate::parry::partitioning::IndexedData;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
@@ -79,7 +79,10 @@ impl ColliderChanges {
     /// Do these changes justify a broad-phase update?
     pub fn needs_broad_phase_update(self) -> bool {
         self.intersects(
-            ColliderChanges::PARENT | ColliderChanges::POSITION | ColliderChanges::SHAPE,
+            ColliderChanges::PARENT
+                | ColliderChanges::POSITION
+                | ColliderChanges::SHAPE
+                | ColliderChanges::ENABLED_OR_DISABLED,
         )
     }
 
@@ -115,7 +118,7 @@ impl ColliderType {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// Data associated to a collider that takes part to a broad-phase algorithm.
 pub struct ColliderBroadPhaseData {
-    pub(crate) proxy_index: SAPProxyIndex,
+    pub(crate) proxy_index: BroadPhaseProxyIndex,
 }
 
 impl Default for ColliderBroadPhaseData {
@@ -129,14 +132,14 @@ impl Default for ColliderBroadPhaseData {
 /// The shape of a collider.
 pub type ColliderShape = SharedShape;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// The mass-properties of a collider.
 pub enum ColliderMassProps {
     /// The collider is given a density.
     ///
     /// Its actual `MassProperties` are computed automatically with
-    /// the help of [`SharedShape::mass_properties`].
+    /// the help of [`Shape::mass_properties`].
     Density(Real),
     /// The collider is given a mass.
     ///
