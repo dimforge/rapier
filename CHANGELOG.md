@@ -30,7 +30,7 @@
   to propagate it to the multibody).
 - Remove an internal special-case for contact constraints on fast contacts. The doesn’t seem necessary with the substep
   solver.
-- Character controller's snap to ground now triggers with a movement orthogonal to the up vector.
+- Character controller's snap to ground can now trigger with a movement orthogonal to the up vector.
 
 ## v0.19.0 (05 May 2024)
 
