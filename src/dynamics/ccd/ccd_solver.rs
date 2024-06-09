@@ -3,8 +3,8 @@ use crate::dynamics::{IslandManager, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderParent, ColliderSet, CollisionEvent, NarrowPhase};
 use crate::math::Real;
 use crate::parry::utils::SortedPair;
-use crate::pipeline::{EventHandler, QueryPipeline, QueryPipelineMode};
-use crate::prelude::{ActiveEvents, CollisionEventFlags};
+use crate::pipeline::{EventHandler, QueryPipeline};
+use crate::prelude::{query_pipeline_generators, ActiveEvents, CollisionEventFlags};
 use parry::query::{DefaultQueryDispatcher, QueryDispatcher};
 use parry::utils::hashmap::HashMap;
 use std::collections::BinaryHeap;
@@ -117,10 +117,12 @@ impl CCDSolver {
         narrow_phase: &NarrowPhase,
     ) -> Option<Real> {
         // Update the query pipeline.
-        self.query_pipeline.update_with_mode(
-            bodies,
-            colliders,
-            QueryPipelineMode::SweepTestWithPredictedPosition { dt },
+        self.query_pipeline.update_with_generator(
+            query_pipeline_generators::SweptAabbWithPredictedPosition {
+                bodies,
+                colliders,
+                dt,
+            },
         );
 
         let mut pairs_seen = HashMap::default();
@@ -238,10 +240,8 @@ impl CCDSolver {
         let mut min_overstep = dt;
 
         // Update the query pipeline.
-        self.query_pipeline.update_with_mode(
-            bodies,
-            colliders,
-            QueryPipelineMode::SweepTestWithNextPosition,
+        self.query_pipeline.update_with_generator(
+            query_pipeline_generators::SweptAabbWithNextPosition { bodies, colliders },
         );
 
         /*

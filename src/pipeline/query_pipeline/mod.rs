@@ -1,3 +1,5 @@
+pub mod generators;
+
 use crate::dynamics::RigidBodyHandle;
 use crate::geometry::{
     Aabb, Collider, ColliderHandle, InteractionGroups, PointProjection, Qbvh, Ray, RayIntersection,
@@ -227,22 +229,6 @@ impl<'a> QueryFilter<'a> {
     }
 }
 
-/// Indicates how the colliders position should be taken into account when
-/// updating the query pipeline.
-pub enum QueryPipelineMode {
-    /// The `Collider::position` is taken into account.
-    CurrentPosition,
-    /// The `RigidBody::next_position * Collider::position_wrt_parent` is taken into account for
-    /// the colliders positions.
-    SweepTestWithNextPosition,
-    /// The `RigidBody::predict_position_using_velocity_and_forces * Collider::position_wrt_parent`
-    /// is taken into account for the colliders position.
-    SweepTestWithPredictedPosition {
-        /// The time used to integrate the rigid-body's velocity and acceleration.
-        dt: Real,
-    },
-}
-
 impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
     type PartShape = dyn Shape;
     type PartNormalConstraints = dyn NormalConstraints;
@@ -357,72 +343,18 @@ impl QueryPipeline {
     }
 
     /// Update the acceleration structure on the query pipeline.
-    pub fn update(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet) {
-        self.update_with_mode(bodies, colliders, QueryPipelineMode::CurrentPosition)
+    ///
+    /// Uses [`generators::CurrentAabb`] to update.
+    pub fn update(&mut self, colliders: &ColliderSet) {
+        self.update_with_generator(generators::CurrentAabb { colliders })
     }
 
-    /// Update the acceleration structure on the query pipeline.
-    pub fn update_with_mode(
-        &mut self,
-        bodies: &RigidBodySet,
-        colliders: &ColliderSet,
-        mode: QueryPipelineMode,
-    ) {
-        struct DataGenerator<'a> {
-            bodies: &'a RigidBodySet,
-            colliders: &'a ColliderSet,
-            mode: QueryPipelineMode,
-        }
-
-        impl<'a> QbvhDataGenerator<ColliderHandle> for DataGenerator<'a> {
-            fn size_hint(&self) -> usize {
-                self.colliders.len()
-            }
-
-            #[inline(always)]
-            fn for_each(&mut self, mut f: impl FnMut(ColliderHandle, Aabb)) {
-                match self.mode {
-                    QueryPipelineMode::CurrentPosition => {
-                        for (h, co) in self.colliders.iter_enabled() {
-                            f(h, co.shape.compute_aabb(&co.pos))
-                        }
-                    }
-                    QueryPipelineMode::SweepTestWithNextPosition => {
-                        for (h, co) in self.colliders.iter_enabled() {
-                            if let Some(co_parent) = co.parent {
-                                let rb_next_pos = &self.bodies[co_parent.handle].pos.next_position;
-                                let next_position = rb_next_pos * co_parent.pos_wrt_parent;
-                                f(h, co.shape.compute_swept_aabb(&co.pos, &next_position))
-                            } else {
-                                f(h, co.shape.compute_aabb(&co.pos))
-                            }
-                        }
-                    }
-                    QueryPipelineMode::SweepTestWithPredictedPosition { dt } => {
-                        for (h, co) in self.colliders.iter_enabled() {
-                            if let Some(co_parent) = co.parent {
-                                let rb = &self.bodies[co_parent.handle];
-                                let predicted_pos = rb.pos.integrate_forces_and_velocities(
-                                    dt, &rb.forces, &rb.vels, &rb.mprops,
-                                );
-
-                                let next_position = predicted_pos * co_parent.pos_wrt_parent;
-                                f(h, co.shape.compute_swept_aabb(&co.pos, &next_position))
-                            } else {
-                                f(h, co.shape.compute_aabb(&co.pos))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        let generator = DataGenerator {
-            bodies,
-            colliders,
-            mode,
-        };
-        self.qbvh.clear_and_rebuild(generator, self.dilation_factor);
+    /// Update the acceleration structure on the query pipeline using a custom collider bounding
+    /// volume generator.
+    ///
+    /// See [`generators`] for available generators.
+    pub fn update_with_generator(&mut self, mode: impl QbvhDataGenerator<ColliderHandle>) {
+        self.qbvh.clear_and_rebuild(mode, self.dilation_factor);
     }
 
     /// Find the closest intersection between a ray and a set of collider.
