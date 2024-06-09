@@ -2,9 +2,9 @@
 
 This release introduces two new crates:
 
-- `rapier-urdf` for loading URDF files into rapier3d. This will load the rigid-bodies,
+- `rapier3d-urdf` for loading URDF files into rapier3d. This will load the rigid-bodies,
   colliders, and joints.
-- `rapier-stl` for loading an STL file as a collision shape.
+- `rapier3d-stl` for loading an STL file as a collision shape.
 
 ### Added
 

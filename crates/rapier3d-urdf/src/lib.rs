@@ -1,4 +1,31 @@
-use na::{RealField, UnitQuaternion};
+//! ## STL loader for the Rapier physics engine
+//!
+//! Rapier is a set of 2D and 3D physics engines for games, animation, and robotics. The `rapier3d-urdf`
+//! crate lets you convert an URDF file into a set of rigid-bodies, colliders, and joints, for usage with the
+//! `rapier3d` physics engine.
+//!
+//! ## Optional cargo features
+//!
+//! - `stl`: enables loading STL meshes referenced by the URDF file.
+//!
+//! ## Limitations
+//!
+//! Are listed below some known limitations you might want to be aware of before picking this library. Contributions to
+//! improve
+//! these elements are very welcome!
+//!
+//! - Mesh file types other than `stl` are not supported yet. Contributions are welcome. You my check the `rapier3d-stl`
+//! repository for an example of mesh loader.
+//! - When inserting joints as multibody joints, they will be reset to their neutral position (all coordinates = 0).
+//! - The following fields are currently ignored:
+//!     - `Joint::dynamics`
+//!     - `Joint::limit.effort` / `limit.velocity`
+//!     - `Joint::mimic`
+//!     - `Joint::safety_controller`
+
+#![warn(missing_docs)]
+
+use na::RealField;
 use rapier3d::{
     dynamics::{
         GenericJoint, GenericJointBuilder, ImpulseJointHandle, ImpulseJointSet, JointAxesMask,
@@ -13,30 +40,88 @@ use rapier3d::{
     na,
 };
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use xurdf::{Collision, Geometry, Inertial, Joint, Pose, Robot};
+use std::path::Path;
+use xurdf::{Geometry, Inertial, Joint, Pose, Robot};
 
 bitflags::bitflags! {
-    #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    /// Options applied to multibody joints created from the URDF joints.
     #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
     pub struct UrdfMultibodyOptions: u8 {
+        /// If this flag is set, the created multibody joint will be marked as kinematic.
+        ///
+        /// A kinematic joint is entirely controlled by the user (it is not affected by any force).
+        /// This particularly useful if you intend to control the robot through inverse-kinematics.
         const JOINTS_ARE_KINEMATIC = 0b0001;
+        /// If enabled, any contact between two links belonging to the same generated multibody robot will
+        /// be ignored.
+        ///
+        /// This is useful if the generated colliders are known to be overlapping (e.g. if creating colliders
+        /// from visual meshes was enabled) or that collision detection is not needed a computationally
+        /// expensive (e.g. if any of these colliders is a high-quality triangle mesh).
         const DISABLE_SELF_CONTACTS = 0b0010;
     }
 }
 
+/// The index of an urdf link.
 pub type LinkId = usize;
 
+/// A set of configurable options for loading URDF files.
 #[derive(Clone, Debug)]
 pub struct UrdfLoaderOptions {
+    /// If `true` one collider will be created for each **collision** shape from the urdf file (default: `true`).
     pub create_colliders_from_collision_shapes: bool,
+    /// If `true` one collider will be created for each **visual** shape from the urdf file (default: `false`).
+    ///
+    /// Note that visual shapes are usually significantly higher-resolution than collision shapes.
+    /// Most of the time they might also overlap, or generate a lot of contacts due to them being
+    /// thin triangle meshes.
+    ///
+    /// So if this option is set to `true`, it is recommended to also keep
+    /// [`UrdfLoaderOptions::enable_joint_collisions`] set to `false`. If the model is then added
+    /// to the physics sets using multibody joints, it is recommended to call
+    /// [`UrdfRobot::insert_with_multibody_joints`] with the [`UrdfMultibodyOptions::DISABLE_SELF_CONTACTS`]
+    /// flag enabled.
     pub create_colliders_from_visual_shapes: bool,
+    /// If `true`, the mass properties (center-of-mass, mass, and angular inertia) read from the urdf
+    /// file will be added to the corresponding rigid-body (default: `true`).
+    ///
+    /// Note that by default, all colliders created will be given a density of 0.0, meaning that,
+    /// by default, the imported mass properties are the only ones added to the created rigid-bodies.
+    /// To give colliders a non-zero density, see [`UrdfLoaderOptions::collider_blueprint`].
     pub apply_imported_mass_props: bool,
+    /// If `true`, collisions between two links sharing a joint will be disabled (default: `false`).
+    ///
+    /// It is strongly recommended to leave this to `false` unless you are certain adjacent links
+    /// colliders don’t overlap.
     pub enable_joint_collisions: bool,
+    /// If `true`, the rigid-body at the root of the kinematic chains will be initialized as [`RigidBodyType::Fixed`]
+    /// (default: `false`).
     pub make_roots_fixed: bool,
+    /// This is the set of flags set on all the loaded triangle meshes (default: [`TriMeshFlags::all`]).
+    ///
+    /// Note that the default enables all the flags. This is operating under the assumption that the provided
+    /// mesh are generally well-formed and properly oriented (2-manifolds with outward normals).
     pub trimesh_flags: TriMeshFlags,
+    /// The transform appended to every created rigid-bodies (default: [`Isometry::identity`]).
     pub shift: Isometry<Real>,
+    /// A description of the collider properties that need to be applied to every collider created
+    /// by the loader (default: `ColliderBuilder::default().density(0.0)`).
+    ///
+    /// This collider builder will be used for initializing every collider created by the loader.
+    /// The shape specified by this builder isn’t important and will be replaced by the shape read
+    /// from the urdf file.
+    ///
+    /// Note that by default, the collider is given a density of 0.0 so that it doesn’t contribute
+    /// to its parent rigid-body’s mass properties (since they should be already provided by the
+    /// urdf file assuming the [`UrdfLoaderOptions::apply_imported_mass_props`] wasn’t set `false`).
     pub collider_blueprint: ColliderBuilder,
+    /// A description of the rigid-body properties that need to be applied to every rigid-body
+    /// created by the loader (default: `RigidBodyBuilder::dynamic()`).
+    ///
+    /// This rigid-body builder will be used for initializing every rigid-body created by the loader.
+    /// The rigid-body type is not important as it will always be set to [`RigidBodyType::Dynamic`]
+    /// for non-root links. Root links will be set to [`RigidBodyType::Fixed`] instead of
+    /// [`RigidBodyType::Dynamic`] if the [`UrdfLoaderOptions::make_roots_fixed`] is set to `true`.
     pub rigid_body_blueprint: RigidBodyBuilder,
 }
 
@@ -50,7 +135,7 @@ impl Default for UrdfLoaderOptions {
             make_roots_fixed: false,
             trimesh_flags: TriMeshFlags::all(),
             shift: Isometry::identity(),
-            collider_blueprint: ColliderBuilder::ball(0.0).density(0.0),
+            collider_blueprint: ColliderBuilder::default().density(0.0),
             rigid_body_blueprint: RigidBodyBuilder::dynamic(),
         }
     }
@@ -59,7 +144,10 @@ impl Default for UrdfLoaderOptions {
 /// An urdf link loaded as a rapier [`RigidBody`] and its [`Collider`]s.
 #[derive(Clone, Debug)]
 pub struct UrdfLink {
+    /// The rigid-body created for this link.
     pub body: RigidBody,
+    /// All the colliders build from the URDF visual and/or collision shapes (if the corresponding
+    /// [`UrdfLoaderOptions`] option is enabled).
     pub colliders: Vec<Collider>,
 }
 
@@ -89,28 +177,32 @@ pub struct UrdfRobot {
     pub joints: Vec<UrdfJoint>,
 }
 
-impl UrdfRobot {
-    pub fn append_transform(&mut self, transform: &Isometry<Real>) {
-        for link in &mut self.links {
-            link.body
-                .set_position(transform * link.body.position(), true);
-        }
-    }
-}
-
+/// Handle of a joint read from the URDF file and inserted into rapier’s `ImpulseJointSet`
+/// or a `MultibodyJointSet`.
 pub struct UrdfJointHandle<JointHandle> {
+    /// The inserted joint handle.
     pub joint: JointHandle,
+    /// The handle of the first rigid-body attached by this joint.
     pub link1: RigidBodyHandle,
+    /// The handle of the second rigid-body attached by this joint.
     pub link2: RigidBodyHandle,
 }
 
+/// The handles related to a link read from the URDF file and inserted into Rapier’s
+/// `RigidBodySet` and `ColliderSet`.
 pub struct UrdfLinkHandle {
+    /// Handle of the inserted link’s rigid-body.
     pub body: RigidBodyHandle,
+    /// Handle of the colliders attached to [`Self::body`].
     pub colliders: Vec<ColliderHandle>,
 }
 
+/// Handles to all the Rapier objects created when inserting this robot into Rapier’s
+/// `RigidBodySet`, `ColliderSet`, `ImpulseJointSet`, `MultibodyJointSet`.
 pub struct UrdfRobotHandles<JointHandle> {
+    /// The handles related to each URDF robot link.
     pub links: Vec<UrdfLinkHandle>,
+    /// The handles related to each URDF robot joint.
     pub joints: Vec<UrdfJointHandle<JointHandle>>,
 }
 
@@ -142,27 +234,72 @@ impl JointType {
 }
 
 impl UrdfRobot {
+    /// Parses a URDF file and returns both the rapier objects (`UrdfRobot`) and the original urdf
+    /// structures (`Robot`). Both structures are arranged the same way, with matching indices for each part.
+    ///
+    /// If the URDF file references external meshes, they will be loaded automatically if the format
+    /// is supported. The format is detected from the file’s extension. All the mesh formats are
+    /// disabled by default and can be enabled through cargo features (e.g. the `stl` feature of
+    /// this crate enabled loading referenced meshes in stl format).
+    ///
+    /// # Parameters
+    /// - `path`: the path of the URDF file.
+    /// - `options`: customize the creation of rapier objects from the URDF description.
+    /// - `mesh_dir`: the base directory containing the meshes referenced by the URDF file. When
+    ///               a mesh reference is found in the URDF file, this `mesh_dir` is appended
+    ///               to the file path. If `mesh_dir` is `None` then the mesh directory is assumed
+    ///               to be the same directory as the one containing the URDF file.
     pub fn from_file(
         path: impl AsRef<Path>,
         options: UrdfLoaderOptions,
         mesh_dir: Option<&Path>,
     ) -> anyhow::Result<(Self, Robot)> {
-        let path = path.as_ref();
-        let mesh_dir = mesh_dir.or_else(|| path.parent());
-        let robot = xurdf::parse_urdf_from_file(path)?;
+        let path = path.as_ref().canonicalize()?;
+        let mesh_dir = mesh_dir
+            .or_else(|| path.parent())
+            .unwrap_or_else(|| Path::new("./"));
+        let robot = xurdf::parse_urdf_from_file(&path)?;
         Ok((Self::from_robot(&robot, options, mesh_dir), robot))
     }
 
+    /// Parses a string in URDF format and returns both the rapier objects (`UrdfRobot`) and the original urdf
+    /// structures (`Robot`). Both structures are arranged the same way, with matching indices for each part.
+    ///
+    /// If the URDF file references external meshes, they will be loaded automatically if the format
+    /// is supported. The format is detected from the file’s extension. All the mesh formats are
+    /// disabled by default and can be enabled through cargo features (e.g. the `stl` feature of
+    /// this crate enabled loading referenced meshes in stl format).
+    ///
+    /// # Parameters
+    /// - `str`: the string content of an URDF file.
+    /// - `options`: customize the creation of rapier objects from the URDF description.
+    /// - `mesh_dir`: the base directory containing the meshes referenced by the URDF file. When
+    ///               a mesh reference is found in the URDF file, this `mesh_dir` is appended
+    ///               to the file path.
     pub fn from_str(
         str: &str,
         options: UrdfLoaderOptions,
-        mesh_dir: Option<&Path>,
+        mesh_dir: &Path,
     ) -> anyhow::Result<(Self, Robot)> {
         let robot = xurdf::parse_urdf_from_string(str)?;
         Ok((Self::from_robot(&robot, options, mesh_dir), robot))
     }
 
-    pub fn from_robot(robot: &Robot, options: UrdfLoaderOptions, mesh_dir: Option<&Path>) -> Self {
+    /// From an already loaded urdf file as a `Robot`, this creates the matching rapier objects
+    /// (`UrdfRobot`). Both structures are arranged the same way, with matching indices for each part.
+    ///
+    /// If the URDF file references external meshes, they will be loaded automatically if the format
+    /// is supported. The format is detected from the file’s extension. All the mesh formats are
+    /// disabled by default and can be enabled through cargo features (e.g. the `stl` feature of
+    /// this crate enabled loading referenced meshes in stl format).
+    ///
+    /// # Parameters
+    /// - `robot`: the robot loaded from an URDF file.
+    /// - `options`: customize the creation of rapier objects from the URDF description.
+    /// - `mesh_dir`: the base directory containing the meshes referenced by the URDF file. When
+    ///               a mesh reference is found in the URDF file, this `mesh_dir` is appended
+    ///               to the file path.
+    pub fn from_robot(robot: &Robot, options: UrdfLoaderOptions, mesh_dir: &Path) -> Self {
         let mut name_to_link_id = HashMap::new();
         let mut link_is_root = vec![true; robot.links.len()];
         let mut links: Vec<_> = robot
@@ -217,6 +354,11 @@ impl UrdfRobot {
         Self { links, joints }
     }
 
+    /// Inserts all the robots elements to the rapier rigid-body, collider, and impulse joint, sets.
+    ///
+    /// Joints are represented as impulse joints. This implies that joint constraints are simulated
+    /// in full coordinates using impulses. For a reduced-coordinates approach, see
+    /// [`UrdfRobot::insert_using_multibody_joints`].
     pub fn insert_using_impulse_joints(
         self,
         rigid_body_set: &mut RigidBodySet,
@@ -253,6 +395,13 @@ impl UrdfRobot {
 
         UrdfRobotHandles { links, joints }
     }
+
+    /// Inserts all the robots elements to the rapier rigid-body, collider, and multibody joint, sets.
+    ///
+    /// Joints are represented as multibody joints. This implies that the robot as a whole can be
+    /// accessed as a single [`Multibody`] from the [`MultibodyJointSet`]. That multibody uses reduced
+    /// coordinates for modeling joints, meaning that it will be very close to the way they are usually
+    /// represented for robotics applications. Multibodies also support inverse kinematics.
     pub fn insert_using_multibody_joints(
         self,
         rigid_body_set: &mut RigidBodySet,
@@ -303,6 +452,14 @@ impl UrdfRobot {
 
         UrdfRobotHandles { links, joints }
     }
+
+    /// Appends a transform to all the rigid-bodie of this robot.
+    pub fn append_transform(&mut self, transform: &Isometry<Real>) {
+        for link in &mut self.links {
+            link.body
+                .set_position(transform * link.body.position(), true);
+        }
+    }
 }
 
 fn urdf_to_rigid_body(options: &UrdfLoaderOptions, inertial: &Inertial) -> RigidBody {
@@ -333,13 +490,13 @@ fn urdf_to_rigid_body(options: &UrdfLoaderOptions, inertial: &Inertial) -> Rigid
 
 fn urdf_to_collider(
     options: &UrdfLoaderOptions,
-    mesh_dir: Option<&Path>,
+    mesh_dir: &Path,
     geometry: &Geometry,
     origin: &Pose,
 ) -> Option<Collider> {
     let mut builder = options.collider_blueprint.clone();
     let mut shape_transform = Isometry::identity();
-    let mut shape = match &geometry {
+    let shape = match &geometry {
         Geometry::Box { size } => SharedShape::cuboid(
             size[0] as Real / 2.0,
             size[1] as Real / 2.0,
@@ -360,8 +517,8 @@ fn urdf_to_collider(
             match path.extension().and_then(|ext| ext.to_str()) {
                 #[cfg(feature = "stl")]
                 Some("stl") | Some("STL") => {
-                    let full_path = mesh_dir.map(|dir| dir.join(filename)).unwrap_or_default();
-                    match rapier_stl::load_from_path(
+                    let full_path = mesh_dir.join(filename);
+                    match rapier3d_stl::load_from_path(
                         &full_path,
                         MeshConverter::TriMeshWithFlags(options.trimesh_flags),
                         scale,
@@ -445,7 +602,6 @@ fn urdf_to_joint(
             .local_axis2(joint_axis);
     }
 
-    /* TODO: panics the multibody
     match joint_type {
         JointType::Prismatic => {
             builder = builder.limits(
@@ -461,7 +617,6 @@ fn urdf_to_joint(
         }
         _ => {}
     }
-     */
 
     // TODO: the following fields are currently ignored:
     //       - Joint::dynamics

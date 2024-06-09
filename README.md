@@ -40,12 +40,6 @@ are `rapier2d`, `rapier3d`, `rapier2d-f64`, and `rapier3d-f64`. They are written
 programming language, by the [Dimforge](https://dimforge.com) organization. It is forever free
 and open-source!
 
-## Roadmap
-
-We update our roadmap at the beginning of each year. Our 2021 roadmap can be seen
-[there](https://www.dimforge.com/blog/2021/01/01/physics-simulation-with-rapier-2021-roadmap/#rapier-roadmap-for-2021).
-We regularly give updates about our progress on [our blog](https://www.dimforge.com/blog).
-
 ## Getting started
 
 The easiest way to get started with Rapier is to:

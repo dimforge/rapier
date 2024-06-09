@@ -1,7 +1,6 @@
 use rapier3d::prelude::*;
+use rapier3d_urdf::{UrdfLoaderOptions, UrdfMultibodyOptions, UrdfRobot};
 use rapier_testbed3d::Testbed;
-use rapier_urdf::{UrdfLoaderOptions, UrdfMultibodyOptions, UrdfRobot};
-use std::path::Path;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -45,5 +44,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
+    testbed.look_at(point![20.0, 20.0, 20.0], point![5.0, 0.0, 0.0]);
 }

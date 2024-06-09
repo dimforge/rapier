@@ -9,11 +9,11 @@ use crate::dynamics::{GenericJoint, ImpulseJoint, IntegrationParameters, JointIn
 use crate::math::{AngVector, Isometry, Matrix, Point, Real, Rotation, Vector, ANG_DIM, DIM};
 use crate::prelude::RigidBodySet;
 use crate::utils;
-use crate::utils::{IndexMut2, SimdCrossMatrix, SimdDot, SimdQuat, SimdRealCopy};
+use crate::utils::{IndexMut2, SimdCrossMatrix, SimdDot, SimdRealCopy};
 use na::SMatrix;
 
 #[cfg(feature = "dim3")]
-use crate::utils::SimdBasis;
+use crate::utils::{SimdBasis, SimdQuat};
 
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::{SimdReal, SIMD_WIDTH};
@@ -345,9 +345,11 @@ impl JointOneBodyConstraintBuilderSimd {
 #[derive(Debug, Copy, Clone)]
 pub struct JointTwoBodyConstraintHelper<N: SimdRealCopy> {
     pub basis: Matrix<N>,
+    #[cfg(feature = "dim3")]
     pub basis2: Matrix<N>, // TODO: used for angular coupling. Can we avoid storing this?
     pub cmat1_basis: SMatrix<N, ANG_DIM, DIM>,
     pub cmat2_basis: SMatrix<N, ANG_DIM, DIM>,
+    #[cfg(feature = "dim3")]
     pub ang_basis: SMatrix<N, ANG_DIM, ANG_DIM>,
     pub lin_err: Vector<N>,
     pub ang_err: Rotation<N>,
@@ -387,7 +389,7 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         let cmat1 = r1.gcross_matrix();
         let cmat2 = r2.gcross_matrix();
 
-        #[allow(unused_mut)] // The mut is needed for 3D
+        #[cfg(feature = "dim3")]
         let mut ang_basis = frame1.rotation.diff_conj1_2(&frame2.rotation).transpose();
         #[allow(unused_mut)] // The mut is needed for 3D
         let mut ang_err = frame1.rotation.inverse() * frame2.rotation;
@@ -401,9 +403,11 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
 
         Self {
             basis,
+            #[cfg(feature = "dim3")]
             basis2: frame2.rotation.to_rotation_matrix().into_inner(),
             cmat1_basis: cmat1 * basis,
             cmat2_basis: cmat2 * basis,
+            #[cfg(feature = "dim3")]
             ang_basis,
             lin_err,
             ang_err,

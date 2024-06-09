@@ -1,7 +1,7 @@
 [package]
 name = "rapier-examples-3d"
 version = "0.1.0"
-authors = ["Sébastien Crozet <developer@crozet.re>"]
+authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 edition = "2021"
 default-run = "all_examples3"
 
@@ -27,8 +27,8 @@ path = "../crates/rapier_testbed3d"
 [dependencies.rapier3d]
 path = "../crates/rapier3d"
 
-[dependencies.rapier-urdf]
-path = "../crates/rapier-urdf"
+[dependencies.rapier3d-urdf]
+path = "../crates/rapier3d-urdf"
 features = ["stl"]
 
 [[bin]]

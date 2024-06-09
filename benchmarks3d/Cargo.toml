@@ -1,19 +1,19 @@
 [package]
-name    = "rapier-benchmarks-3d"
+name = "rapier-benchmarks-3d"
 version = "0.1.0"
-authors = [ "Sébastien Crozet <developer@crozet.re>" ]
+authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 edition = "2021"
 
 [features]
-parallel = [ "rapier3d/parallel", "rapier_testbed3d/parallel" ]
-simd-stable = [ "rapier3d/simd-stable" ]
-simd-nightly = [ "rapier3d/simd-nightly" ]
-other-backends = [ "rapier_testbed3d/other-backends" ]
-enhanced-determinism = [ "rapier3d/enhanced-determinism" ]
+parallel = ["rapier3d/parallel", "rapier_testbed3d/parallel"]
+simd-stable = ["rapier3d/simd-stable"]
+simd-nightly = ["rapier3d/simd-nightly"]
+other-backends = ["rapier_testbed3d/other-backends"]
+enhanced-determinism = ["rapier3d/enhanced-determinism"]
 
 [dependencies]
-rand       = "0.8"
-Inflector  = "0.11"
+rand = "0.8"
+Inflector = "0.11"
 
 [dependencies.rapier_testbed3d]
 path = "../crates/rapier_testbed3d"
