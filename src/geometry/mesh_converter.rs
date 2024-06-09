@@ -84,7 +84,7 @@ impl MeshConverter {
             }
             #[cfg(feature = "dim3")]
             MeshConverter::ConvexDecompositionWithParams(params) => {
-                SharedShape::convex_decomposition_with_params(&vertices, &indices, &params)
+                SharedShape::convex_decomposition_with_params(&vertices, &indices, params)
             }
         };
         Ok((shape, transform))
