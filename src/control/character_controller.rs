@@ -782,11 +782,40 @@ impl KinematicCharacterController {
         true
     }
 
-    /// For a given collision between a character and its environment, this method will apply
-    /// impulses to the rigid-bodies surrounding the character shape at the time of the collision.
+    /// For the given collisions between a character and its environment, this method will apply
+    /// impulses to the rigid-bodies surrounding the character shape at the time of the collisions.
     /// Note that the impulse calculation is only approximate as it is not based on a global
     /// constraints resolution scheme.
     pub fn solve_character_collision_impulses(
+        &self,
+        dt: Real,
+        bodies: &mut RigidBodySet,
+        colliders: &ColliderSet,
+        queries: &QueryPipeline,
+        character_shape: &dyn Shape,
+        character_mass: Real,
+        collisions: impl IntoIterator<Item = CharacterCollision>,
+        filter: QueryFilter,
+    ) {
+        for collision in collisions {
+            self.solve_single_character_collision_impulse(
+                dt,
+                bodies,
+                colliders,
+                queries,
+                character_shape,
+                character_mass,
+                &collision,
+                filter,
+            );
+        }
+    }
+
+    /// For the given collision between a character and its environment, this method will apply
+    /// impulses to the rigid-bodies surrounding the character shape at the time of the collision.
+    /// Note that the impulse calculation is only approximate as it is not based on a global
+    /// constraints resolution scheme.
+    fn solve_single_character_collision_impulse(
         &self,
         dt: Real,
         bodies: &mut RigidBodySet,
