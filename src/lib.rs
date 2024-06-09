@@ -11,7 +11,7 @@
 //! User documentation for Rapier is on [the official Rapier site](https://rapier.rs/docs/).
 
 #![deny(bare_trait_objects)]
-#![warn(missing_docs)] // FIXME: deny that
+#![warn(missing_docs)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::needless_range_loop)] // TODO: remove this? I find that in the math code using indices adds clarity.
 #![allow(clippy::module_inception)]

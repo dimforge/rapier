@@ -17,6 +17,10 @@ use na::{UnitQuaternion, Vector3};
 pub struct MultibodyJoint {
     /// The joint’s description.
     pub data: GenericJoint,
+    /// Is the joint a kinematic joint?
+    ///
+    /// Kinematic joint velocities are never changed by the physics engine. This gives the user
+    /// total control over the values of their degrees of freedoms.
     pub kinematic: bool,
     pub(crate) coords: SpacialVector<Real>,
     pub(crate) joint_rot: Rotation<Real>,

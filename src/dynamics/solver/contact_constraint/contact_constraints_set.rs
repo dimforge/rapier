@@ -28,6 +28,7 @@ use {
 #[derive(Debug)]
 pub struct ConstraintsCounts {
     pub num_constraints: usize,
+    #[allow(dead_code)] // Keep this around for now. Might be useful once we rework parallelism.
     pub num_jacobian_lines: usize,
 }
 

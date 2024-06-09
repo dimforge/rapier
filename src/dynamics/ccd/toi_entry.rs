@@ -13,7 +13,6 @@ pub struct TOIEntry {
     // We call this "pseudo" intersection because this also
     // includes colliders pairs with mismatching solver_groups.
     pub is_pseudo_intersection_test: bool,
-    pub timestamp: usize,
 }
 
 impl TOIEntry {
@@ -24,7 +23,6 @@ impl TOIEntry {
         c2: ColliderHandle,
         b2: Option<RigidBodyHandle>,
         is_pseudo_intersection_test: bool,
-        timestamp: usize,
     ) -> Self {
         Self {
             toi,
@@ -33,7 +31,6 @@ impl TOIEntry {
             c2,
             b2,
             is_pseudo_intersection_test,
-            timestamp,
         }
     }
 
@@ -149,7 +146,6 @@ impl TOIEntry {
             ch2,
             co2.parent.map(|p| p.handle),
             is_pseudo_intersection_test,
-            0,
         ))
     }
 

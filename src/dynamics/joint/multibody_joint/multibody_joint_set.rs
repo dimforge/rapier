@@ -158,7 +158,6 @@ impl MultibodyJointSet {
         kinematic: bool,
         wake_up: bool,
     ) -> Option<MultibodyJointHandle> {
-        println!("Inserting kinematic: {}", kinematic);
         let link1 = self.rb2mb.get(body1.0).copied().unwrap_or_else(|| {
             let mb_handle = self.multibodies.insert(Multibody::with_root(body1, true));
             MultibodyLinkId {

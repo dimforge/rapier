@@ -569,8 +569,6 @@ impl Multibody {
             return; // Nothing to do.
         }
 
-        let mut kinematic_ndofs = 0;
-
         if self.augmented_mass.ncols() != self.ndofs {
             // TODO: do a resize instead of a full reallocation.
             self.augmented_mass = DMatrix::zeros(self.ndofs, self.ndofs);
@@ -1058,7 +1056,7 @@ impl Multibody {
         bodies: &RigidBodySet,
         link_id: usize,
         displacement: Option<&[Real]>,
-        mut out_jacobian: Option<&mut Jacobian<Real>>,
+        out_jacobian: Option<&mut Jacobian<Real>>,
     ) -> Isometry<Real> {
         let branch = self.kinematic_branch(link_id);
         self.forward_kinematics_single_branch(bodies, &branch, displacement, out_jacobian)

@@ -82,6 +82,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 link_id,
                 &options,
                 &Isometry::from(target_point),
+                |_| true,
                 &mut displacements,
             );
             multibody.apply_displacements(displacements.as_slice());
