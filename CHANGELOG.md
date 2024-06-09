@@ -23,6 +23,7 @@ This release introduces two new crates:
   OBB), a convex hull, or a convex decomposition.
 - Implement `Default` for `RigidBodyBuilder`. This is equivalent to `RigidBodyBuilder::dynamic()`.
 - Implement `Default` for `ColliderBuilder`. This is equivalent to `ColliderBuilder::ball(0.5)`.
+- Add `RevoluteJoint::angle` to compute the joint’s angle given the rotation of its attached rigid-bodies.
 
 ### Modified
 
