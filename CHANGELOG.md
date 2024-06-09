@@ -1,4 +1,4 @@
-## Unreleased
+## v0.20.0 (9 June 2024)
 
 This release introduces two new crates:
 
