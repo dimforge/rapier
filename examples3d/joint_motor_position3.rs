@@ -15,6 +15,7 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let rigid_body = RigidBodyBuilder::fixed();
     let ground_handle = bodies.insert(rigid_body);
+    let mut target_angles = vec![];
 
     /*
      * A rectangle on a motor with target position.
@@ -28,15 +29,13 @@ pub fn init_world(testbed: &mut Testbed) {
         let collider = ColliderBuilder::cuboid(0.1, 0.5, 0.1);
         colliders.insert_with_parent(collider, handle, &mut bodies);
 
+        let target_angle = -std::f32::consts::PI + std::f32::consts::PI / 4.0 * num as f32;
         let joint = RevoluteJointBuilder::new(Vector::z_axis())
             .local_anchor1(point![x_pos, 1.5, 0.0])
             .local_anchor2(point![0.0, -0.5, 0.0])
-            .motor_position(
-                -std::f32::consts::PI + std::f32::consts::PI / 4.0 * num as f32,
-                1000.0,
-                150.0,
-            );
+            .motor_position(target_angle, 1000.0, 150.0);
         impulse_joints.insert(ground_handle, handle, joint, true);
+        target_angles.push(target_angle);
     }
 
     /*
@@ -52,17 +51,30 @@ pub fn init_world(testbed: &mut Testbed) {
         let collider = ColliderBuilder::cuboid(0.1, 0.5, 0.1);
         colliders.insert_with_parent(collider, handle, &mut bodies);
 
+        let max_angle_limit = -std::f32::consts::PI + std::f32::consts::PI / 4.0 * num as f32;
         let joint = RevoluteJointBuilder::new(Vector::z_axis())
             .local_anchor1(point![x_pos, 5.0, 0.0])
             .local_anchor2(point![0.0, -0.5, 0.0])
             .motor_velocity(1.5, 30.0)
             .motor_max_force(100.0)
-            .limits([
-                -std::f32::consts::PI,
-                -std::f32::consts::PI + std::f32::consts::PI / 4.0 * num as f32,
-            ]);
+            .limits([-std::f32::consts::PI, max_angle_limit]);
         impulse_joints.insert(ground_handle, handle, joint, true);
+        target_angles.push(max_angle_limit);
     }
+
+    testbed.add_callback(move |_, physics, _, state| {
+        for ((_, joint), target) in physics.impulse_joints.iter().zip(target_angles.iter()) {
+            let rb1 = &physics.bodies[joint.body1];
+            let rb2 = &physics.bodies[joint.body2];
+            let revolute = joint.data.as_revolute().unwrap();
+            println!(
+                "[Step {}] rev angle: {} (target = {})",
+                state.timestep_id,
+                revolute.angle(rb1.rotation(), rb2.rotation()),
+                target
+            );
+        }
+    });
 
     /*
      * Set up the testbed.
