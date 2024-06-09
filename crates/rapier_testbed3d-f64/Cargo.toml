@@ -23,6 +23,9 @@ default = ["dim3"]
 dim3 = []
 parallel = ["rapier/parallel", "num_cpus"]
 
+[lints.rust]
+unexpected_cfgs = "allow"
+
 [package.metadata.docs.rs]
 features = ["parallel"]
 

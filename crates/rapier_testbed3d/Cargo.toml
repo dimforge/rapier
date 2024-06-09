@@ -24,6 +24,9 @@ dim3 = []
 parallel = ["rapier/parallel", "num_cpus"]
 other-backends = ["physx", "physx-sys", "glam"]
 
+[lints.rust]
+unexpected_cfgs = "allow"
+
 [package.metadata.docs.rs]
 features = ["parallel", "other-backends"]
 

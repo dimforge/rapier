@@ -24,6 +24,9 @@ dim2 = []
 parallel = ["rapier/parallel", "num_cpus"]
 other-backends = ["wrapped2d"]
 
+[lints.rust]
+unexpected_cfgs = "allow"
+
 [package.metadata.docs.rs]
 features = ["parallel", "other-backends"]
 
