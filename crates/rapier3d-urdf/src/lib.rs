@@ -220,7 +220,7 @@ enum JointType {
 
 impl JointType {
     fn from_str(str: &str) -> Option<Self> {
-        match str.as_ref() {
+        match str {
             "fixed" | "Fixed" => Some(Self::Fixed),
             "continuous" | "Continuous" => Some(Self::Continuous),
             "revolute" | "Revolute" => Some(Self::Revolute),
@@ -519,7 +519,7 @@ fn urdf_to_collider(
                 Some("stl") | Some("STL") => {
                     let full_path = mesh_dir.join(filename);
                     match rapier3d_stl::load_from_path(
-                        &full_path,
+                        full_path,
                         MeshConverter::TriMeshWithFlags(options.trimesh_flags),
                         scale,
                     ) {
