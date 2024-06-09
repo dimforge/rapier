@@ -1377,7 +1377,7 @@ mod test {
 
     #[test]
     fn index_sequence_rearrange_columns() {
-        let mut seq = test_sequence();
+        let seq = test_sequence();
         let mut vec = RowDVector::from_fn(10, |_, c| c as Real);
         seq.rearrange_columns(&mut vec, true);
         assert_eq!(
@@ -1388,7 +1388,7 @@ mod test {
 
     #[test]
     fn index_sequence_rearrange_rows() {
-        let mut seq = test_sequence();
+        let seq = test_sequence();
         let mut vec = DVector::from_fn(10, |r, _| r as Real);
         seq.rearrange_rows(&mut vec, true);
         assert_eq!(
@@ -1404,7 +1404,7 @@ mod test {
 
     #[test]
     fn index_sequence_with_rearranged_rows_mut() {
-        let mut seq = test_sequence();
+        let seq = test_sequence();
         let mut vec = DVector::from_fn(10, |r, _| r as Real);
         seq.with_rearranged_rows_mut(&mut vec, |v| {
             assert_eq!(v.len(), 5);
