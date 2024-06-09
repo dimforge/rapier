@@ -55,8 +55,8 @@ This release introduces two new crates:
   this change will allow further internal optimizations.
 - `QueryPipeline::update` now doesn't need the `RigidBodySet` as parameter.
 - Removed `QueryPipelineMode`.
-- `QueryPipeline::update_with_mode` now takes `impl QbvhDataGenerator<ColliderHandle>` as parameter.
-  see [`QueryPipeline::updaters`] module for more information.
+- `QueryPipeline::update_with_mode` was renamed to `::update_with_generator` and now takes
+  `impl QbvhDataGenerator<ColliderHandle>` as parameter see [`QueryPipeline::updaters`] module for more information.
 
 ## v0.19.0 (05 May 2024)
 

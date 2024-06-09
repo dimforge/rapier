@@ -1,28 +1,35 @@
-//! This module contains structs implementing [`QbvhDataGenerator<ColliderHandle>`].
-//!
-//! These structs are designed to be passed as a parameters to
-//! [`super::QueryPipeline::update_with_mode`] to update the query pipeline.
+//! Structs implementing [`QbvhDataGenerator<ColliderHandle>`] to be used with [`QueryPipeline::update_with_generator`].
 
 use parry::partitioning::QbvhDataGenerator;
 
 use crate::math::Real;
 use crate::prelude::{Aabb, ColliderHandle, ColliderSet, RigidBodySet};
 
-/// Designed to be passed as a parameters to
-/// [`super::QueryPipeline::update_with_mode`] to update the query pipeline.
+#[cfg(doc)]
+use crate::{
+    dynamics::{IntegrationParameters, RigidBodyPosition},
+    pipeline::QueryPipeline,
+};
+
+/// Generates collider AABBs based on the union of their current AABB and the AABB predicted
+/// from the velocity and forces of their parent rigid-body.
 ///
-/// The `RigidBody::predict_position_using_velocity_and_forces * Collider::position_wrt_parent`
-/// is taken into account for the colliders position.
-pub struct SweepTestWithPredictedPosition<'a> {
+/// The main purpose of this struct is to be passed as a parameters to
+/// [`QueryPipeline::update_with_generator`] to update the [`QueryPipeline`].
+///
+/// The predicted position is calculated as
+/// `RigidBody::predict_position_using_velocity_and_forces * Collider::position_wrt_parent`.
+pub struct SweptAabbWithPredictedPosition<'a> {
     /// The rigid bodies of your simulation.
     pub bodies: &'a RigidBodySet,
     /// The colliders of your simulation.
     pub colliders: &'a ColliderSet,
     /// The delta time to compute predicted position.
-    /// You probably want to set it to [`crate::dynamics::IntegrationParameter::dt`].
+    ///
+    /// You probably want to set it to [`IntegrationParameter::dt`].
     pub dt: Real,
 }
-impl<'a> QbvhDataGenerator<ColliderHandle> for SweepTestWithPredictedPosition<'a> {
+impl<'a> QbvhDataGenerator<ColliderHandle> for SweptAabbWithPredictedPosition<'a> {
     fn size_hint(&self) -> usize {
         self.colliders.len()
     }
@@ -45,19 +52,22 @@ impl<'a> QbvhDataGenerator<ColliderHandle> for SweepTestWithPredictedPosition<'a
     }
 }
 
-/// Designed to be passed as a parameters to update the query pipeline,
-/// through [`super::QueryPipeline::update_with_mode`].
+/// Generates collider AABBs based on the union of their AABB at their current [`Collider::position`]
+/// and the AABB predicted from their parent’s [`RigidBody::next_position`].
 ///
-/// The `RigidBody::next_position * Collider::position_wrt_parent` is taken into account for
-/// the colliders positions.
-pub struct SweepTestWithNextPosition<'a> {
+/// The main purpose of this struct is to be passed as a parameters to
+/// [`QueryPipeline::update_with_generator`] to update the [`QueryPipeline`].
+///
+/// The predicted position is calculated as
+/// `RigidBody::next_position * Collider::position_wrt_parent`.
+pub struct SweptAabbWithNextPosition<'a> {
     /// The rigid bodies of your simulation.
     pub bodies: &'a RigidBodySet,
     /// The colliders of your simulation.
     pub colliders: &'a ColliderSet,
 }
 
-impl<'a> QbvhDataGenerator<ColliderHandle> for SweepTestWithNextPosition<'a> {
+impl<'a> QbvhDataGenerator<ColliderHandle> for SweptAabbWithNextPosition<'a> {
     fn size_hint(&self) -> usize {
         self.colliders.len()
     }
@@ -76,16 +86,16 @@ impl<'a> QbvhDataGenerator<ColliderHandle> for SweepTestWithNextPosition<'a> {
     }
 }
 
-/// Designed to be passed as a parameters to update the query pipeline,
-/// through [`super::QueryPipeline::update_with_mode`].
+/// Generates collider AABBs based on the AABB at their current [`Collider::position`].
 ///
-/// The [`super::Collider::position`] is taken into account.
-pub struct CurrentPosition<'a> {
+/// The main purpose of this struct is to be passed as a parameters to
+/// [`QueryPipeline::update_with_generator`] to update the [`QueryPipeline`].
+pub struct CurrentAabb<'a> {
     /// The colliders of your simulation.
     pub colliders: &'a ColliderSet,
 }
 
-impl<'a> QbvhDataGenerator<ColliderHandle> for CurrentPosition<'a> {
+impl<'a> QbvhDataGenerator<ColliderHandle> for CurrentAabb<'a> {
     fn size_hint(&self) -> usize {
         self.colliders.len()
     }

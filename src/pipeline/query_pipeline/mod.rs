@@ -1,4 +1,4 @@
-pub mod updaters;
+pub mod generators;
 
 use crate::dynamics::RigidBodyHandle;
 use crate::geometry::{
@@ -344,15 +344,16 @@ impl QueryPipeline {
 
     /// Update the acceleration structure on the query pipeline.
     ///
-    /// Uses [`updaters::CurrentPosition`] to update.
+    /// Uses [`generators::CurrentAabb`] to update.
     pub fn update(&mut self, colliders: &ColliderSet) {
-        self.update_with_mode(updaters::CurrentPosition { colliders })
+        self.update_with_generator(generators::CurrentAabb { colliders })
     }
 
-    /// Update the acceleration structure on the query pipeline.
+    /// Update the acceleration structure on the query pipeline using a custom collider bounding
+    /// volume generator.
     ///
-    /// See [`updaters`] for available modes.
-    pub fn update_with_mode(&mut self, mode: impl QbvhDataGenerator<ColliderHandle>) {
+    /// See [`generators`] for available generators.
+    pub fn update_with_generator(&mut self, mode: impl QbvhDataGenerator<ColliderHandle>) {
         self.qbvh.clear_and_rebuild(mode, self.dilation_factor);
     }
 
