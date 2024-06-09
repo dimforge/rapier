@@ -798,7 +798,7 @@ impl KinematicCharacterController {
         filter: QueryFilter,
     ) {
         for collision in collisions {
-            self.solve_character_collision_impulse(
+            self.solve_single_character_collision_impulse(
                 dt,
                 bodies,
                 colliders,
@@ -815,7 +815,7 @@ impl KinematicCharacterController {
     /// impulses to the rigid-bodies surrounding the character shape at the time of the collision.
     /// Note that the impulse calculation is only approximate as it is not based on a global
     /// constraints resolution scheme.
-    fn solve_character_collision_impulse(
+    fn solve_single_character_collision_impulse(
         &self,
         dt: Real,
         bodies: &mut RigidBodySet,
