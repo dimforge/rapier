@@ -818,7 +818,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                 &phx.query_pipeline,
                 character_collider.shape(),
                 character_mass,
-                collisions,
+                &*collisions,
                 QueryFilter::new().exclude_rigid_body(character_handle),
             );
 
