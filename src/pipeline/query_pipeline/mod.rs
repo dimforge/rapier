@@ -599,7 +599,7 @@ impl QueryPipeline {
     /// * `shape_vel` - The constant velocity of the shape to cast (i.e. the cast direction).
     /// * `shape` - The shape to cast.
     /// * `max_toi` - The maximum time-of-impact that can be reported by this cast. This effectively
-    ///   limits the distance traveled by the shape to `shapeVel.norm() * maxToi`.
+    ///   limits the distance traveled by the shape to `shape_vel.norm() * maxToi`.
     /// * `stop_at_penetration` - If set to `false`, the linear shape-cast won’t immediately stop if
     ///   the shape is penetrating another shape at its starting point **and** its trajectory is such
     ///   that it’s on a path to exit that penetration state.
