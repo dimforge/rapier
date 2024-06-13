@@ -4,6 +4,10 @@
 
 - Fix `NaN` values appearing in bodies translation and rotation after a simulation step with a delta time equal to 0 ([#660](https://github.com/dimforge/rapier/pull/660)).
 
+### Modified
+
+- `solve_character_collision_impulses` collisions parameter is now an iterator over references.
+
 ## v0.20.0 (9 June 2024)
 
 This release introduces two new crates:
