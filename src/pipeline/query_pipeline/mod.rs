@@ -602,7 +602,7 @@ impl QueryPipeline {
     ///   limits the distance traveled by the shape to `shapeVel.norm() * maxToi`.
     /// * `stop_at_penetration` - If set to `false`, the linear shape-cast won’t immediately stop if
     ///   the shape is penetrating another shape at its starting point **and** its trajectory is such
-    ///   that it’s on a path to exist that penetration state.
+    ///   that it’s on a path to exit that penetration state.
     /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     pub fn cast_shape(
         &self,

@@ -248,7 +248,7 @@ without affecting performance of the other parts of the simulation.
 - The method `QueryFilter::exclude_dynamic` is now a static method (the `self` argument was removed).
 - The `QueryPipeline::cast_shape` method has a new argument `stop_at_penertation`. If set to `false`, the linear
   shape-cast won’t immediately stop if the shape is penetrating another shape at its starting point **and** its
-  trajectory is such that it’s on a path to exist that penetration state.
+  trajectory is such that it’s on a path to exit that penetration state.
 - The `InteractionGroups` is now a set of explicit bit flags instead of a raw `u32`.
 - The world-space mass properties of rigid-bodies are now updated automatically whenever the user changes their
   position.
