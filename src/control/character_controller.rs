@@ -519,7 +519,7 @@ impl KinematicCharacterController {
     ) -> bool {
         let normal = -(character_pos * manifold.local_n1);
 
-        if normal.dot(&self.up) >= 1.0e-5 {
+        if normal.dot(&self.up) >= 1.0e-3 {
             let prediction = self.predict_ground(dims.y);
             for contact in &manifold.points {
                 if contact.dist <= prediction {
