@@ -519,7 +519,9 @@ impl KinematicCharacterController {
     ) -> bool {
         let normal = -(character_pos * manifold.local_n1);
 
-        if normal.dot(&self.up) >= 1.0e-5 {
+        // For the controller to be grounded, the angle between the contact normal and the up vector
+        // has to be smaller than acos(1.0e-3) = 89.94 degrees.
+        if normal.dot(&self.up) >= 1.0e-3 {
             let prediction = self.predict_ground(dims.y);
             for contact in &manifold.points {
                 if contact.dist <= prediction {
