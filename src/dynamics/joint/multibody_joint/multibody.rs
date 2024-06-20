@@ -68,7 +68,7 @@ pub struct Multibody {
     pub(crate) accelerations: DVector<Real>,
 
     body_jacobians: Vec<Jacobian<Real>>,
-    // NOTE: the mass matrices are dimentionned based on the non-kinematic degrees of
+    // NOTE: the mass matrices are dimensioned based on the non-kinematic degrees of
     //       freedoms only. The `Self::augmented_mass_permutation` sequence can be used to
     //       move dofs from/to a format that matches the augmented mass.
     // TODO: use sparse matrices?
@@ -133,7 +133,7 @@ impl Multibody {
     pub(crate) fn with_root(handle: RigidBodyHandle, self_contacts_enabled: bool) -> Self {
         let mut mb = Multibody::with_self_contacts(self_contacts_enabled);
         // NOTE: we have no way of knowing if the root in fixed at this point, so
-        //       we mark it as dynamic and will fixe later with `Self::update_root_type`.
+        //       we mark it as dynamic and will fix later with `Self::update_root_type`.
         mb.root_is_dynamic = true;
         let joint = MultibodyJoint::free(Isometry::identity());
         mb.add_link(None, joint, handle);
@@ -1030,7 +1030,7 @@ impl Multibody {
         self.update_body_jacobians();
     }
 
-    /// Computes the ids of all the linkes betheen the root and the link identified by `link_id`.
+    /// Computes the ids of all the links between the root and the link identified by `link_id`.
     pub fn kinematic_branch(&self, link_id: usize) -> Vec<usize> {
         let mut branch = vec![]; // Perf: avoid allocation.
         let mut curr_id = Some(link_id);
@@ -1072,7 +1072,7 @@ impl Multibody {
     /// In general, this method shouldn’t be used directly and [`Self::forward_kinematics_single_link`̦]
     /// should be preferred since it computes the branch indices automatically.
     ///
-    /// If you watn to calculate the branch indices manually, see [`Self::kinematic_branch`].
+    /// If you want to calculate the branch indices manually, see [`Self::kinematic_branch`].
     ///
     /// If `out_jacobian` is `Some`, this will simultaneously compute the new jacobian of this branch.
     /// This represents the body jacobian for the last link in the branch.
