@@ -44,7 +44,7 @@ use parry::utils::hashmap::HashMap;
 /// For example a 20x20x20 object will be inserted in the layer with region
 /// of size 10x10x10, resulting in only 8 regions being intersect by the Aabb.
 /// (If it was inserted in the layer with regions of size 1x1x1, it would have intersected
-/// 8000 regions, which is a problem performancewise.)
+/// 8000 regions, which is a problem performance-wise.)
 ///
 /// We call this new method the Hierarchical-SAP.
 ///

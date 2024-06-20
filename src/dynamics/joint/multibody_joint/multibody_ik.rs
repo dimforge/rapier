@@ -9,7 +9,7 @@ pub struct InverseKinematicsOption {
     /// A damping coefficient.
     ///
     /// Small value can lead to overshooting preventing convergence. Large
-    /// values can slown down convergence, requiring more iterations to converge.
+    /// values can slow down convergence, requiring more iterations to converge.
     pub damping: Real,
     /// The maximum number of iterations the iterative IK solver can take.
     pub max_iters: usize,
@@ -85,7 +85,7 @@ impl Multibody {
     /// The `displacements` vector is overwritten with the new displacement.
     ///
     /// The `joint_can_move` argument is a closure that lets you indicate which joint
-    /// can be moved throug the inverse-kinematics process. Any joint for which `joint_can_move`
+    /// can be moved through the inverse-kinematics process. Any joint for which `joint_can_move`
     /// returns `false` will have its corresponding displacement constrained to 0.
     /// Set the closure to `|_| true` if all the joints are free to move.
     pub fn inverse_kinematics(
