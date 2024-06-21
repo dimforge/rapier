@@ -219,13 +219,13 @@ impl IntegrationParameters {
     /// This parameter is computed automatically from [`Self::joint_natural_frequency`],
     /// [`Self::joint_damping_ratio`] and the substep length.
     pub fn joint_cfm_coeff(&self) -> Real {
+        let joint_erp = self.joint_erp();
+        if joint_erp == 0.0 {
+            return 0.0;
+        }
         // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
         // The logic is similar to `Self::cfm_factor`.
-        let inv_erp_minus_one = if self.joint_erp() == 0.0 {
-            0.0
-        } else {
-            1.0 / self.joint_erp() - 1.0
-        };
+        let inv_erp_minus_one = 1.0 / joint_erp - 1.0;
         inv_erp_minus_one * inv_erp_minus_one
             / ((1.0 + inv_erp_minus_one)
                 * 4.0
