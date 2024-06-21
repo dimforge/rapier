@@ -2,7 +2,7 @@
 
 ### Fix
 
-- Fix `NaN` values appearin in bodies translation and rotation after a simulation step with a delta time equal to 0 ([#660](https://github.com/dimforge/rapier/pull/660)).
+- Fix `NaN` values appearing in bodies translation and rotation after a simulation step with a delta time equal to 0 ([#660](https://github.com/dimforge/rapier/pull/660)).
 
 ## v0.20.0 (9 June 2024)
 

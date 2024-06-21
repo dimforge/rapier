@@ -961,16 +961,16 @@ mod test {
         // Add joint
         #[cfg(feature = "dim2")]
         let joint = RevoluteJointBuilder::new()
-            .local_anchor1(point![0.0, 1.0].into())
-            .local_anchor2(point![0.0, -3.0].into());
+            .local_anchor1(point![0.0, 1.0])
+            .local_anchor2(point![0.0, -3.0]);
         #[cfg(feature = "dim3")]
         let joint = RevoluteJointBuilder::new(Vector::z_axis())
-            .local_anchor1(point![0.0, 1.0, 0.0].into())
-            .local_anchor2(point![0.0, -3.0, 0.0].into());
+            .local_anchor1(point![0.0, 1.0, 0.0])
+            .local_anchor2(point![0.0, -3.0, 0.0]);
         impulse_joints.insert(h, h_dynamic, joint, true);
 
         let mut parameters = IntegrationParameters::default();
-        parameters.dt = 0f32.into();
+        parameters.dt = 0.0;
         // Step once
         let gravity = Vector::y() * -9.81;
         pipeline.step(
@@ -988,8 +988,8 @@ mod test {
             &(),
             &(),
         );
-        let translation = bodies.get(h_dynamic).unwrap().translation();
-        let rotation = bodies.get(h_dynamic).unwrap().rotation();
+        let translation = bodies[h_dynamic].translation();
+        let rotation = bodies[h_dynamic].rotation();
         assert!(translation.x.is_finite());
         assert!(translation.y.is_finite());
         #[cfg(feature = "dim2")]
