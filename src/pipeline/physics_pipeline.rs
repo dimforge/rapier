@@ -662,6 +662,10 @@ impl PhysicsPipeline {
 
 #[cfg(test)]
 mod test {
+    use std::f64::NAN;
+
+    use na::point;
+
     use crate::dynamics::{
         CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, RigidBodyBuilder,
         RigidBodySet,
@@ -669,7 +673,7 @@ mod test {
     use crate::geometry::{BroadPhaseMultiSap, ColliderBuilder, ColliderSet, NarrowPhase};
     use crate::math::Vector;
     use crate::pipeline::PhysicsPipeline;
-    use crate::prelude::{MultibodyJointSet, RigidBodyType};
+    use crate::prelude::{MultibodyJointSet, RevoluteJointBuilder, RigidBodyType};
 
     #[test]
     fn kinematic_and_fixed_contact_crash() {
@@ -936,5 +940,69 @@ mod test {
 
         // Expect body to now be in active_dynamic_set
         assert!(islands.active_dynamic_set.contains(&h));
+    }
+
+    #[test]
+    fn joint_step_delta_time_0() {
+        let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
+        let mut pipeline = PhysicsPipeline::new();
+        let mut bf = BroadPhaseMultiSap::new();
+        let mut nf = NarrowPhase::new();
+        let mut islands = IslandManager::new();
+
+        let mut bodies = RigidBodySet::new();
+
+        // Initialize bodies
+        let rb = RigidBodyBuilder::fixed().additional_mass(1.0).build();
+        let h = bodies.insert(rb.clone());
+        let rb_dynamic = RigidBodyBuilder::dynamic().additional_mass(1.0).build();
+        let h_dynamic = bodies.insert(rb_dynamic.clone());
+
+        // Add joint
+        #[cfg(feature = "dim2")]
+        let joint = RevoluteJointBuilder::new()
+            .local_anchor1(point![0.0, 1.0].into())
+            .local_anchor2(point![0.0, -3.0].into());
+        #[cfg(feature = "dim3")]
+        let joint = RevoluteJointBuilder::new(Vector::z_axis())
+            .local_anchor1(point![0.0, 1.0, 0.0].into())
+            .local_anchor2(point![0.0, -3.0, 0.0].into());
+        impulse_joints.insert(h, h_dynamic, joint, true);
+
+        let mut parameters = IntegrationParameters::default();
+        parameters.dt = 0f32.into();
+        // Step once
+        let gravity = Vector::y() * -9.81;
+        pipeline.step(
+            &gravity,
+            &parameters,
+            &mut islands,
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut CCDSolver::new(),
+            None,
+            &(),
+            &(),
+        );
+        let translation = bodies.get(h_dynamic).unwrap().translation();
+        let rotation = bodies.get(h_dynamic).unwrap().rotation();
+        assert!(translation.x.is_finite());
+        assert!(translation.y.is_finite());
+        #[cfg(feature = "dim2")]
+        assert!(rotation.is_finite());
+        #[cfg(feature = "dim3")]
+        (|| {
+            assert!(translation.z.is_finite());
+            let rotation = rotation.scaled_axis();
+            assert!(rotation.x.is_finite());
+            assert!(rotation.y.is_finite());
+            assert!(rotation.z.is_finite());
+        })();
     }
 }
