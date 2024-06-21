@@ -221,7 +221,11 @@ impl IntegrationParameters {
     pub fn joint_cfm_coeff(&self) -> Real {
         // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
         // The logic is similar to `Self::cfm_factor`.
-        let inv_erp_minus_one = 1.0 / self.joint_erp() - 1.0;
+        let inv_erp_minus_one = if self.joint_erp() == 0.0 {
+            0.0
+        } else {
+            1.0 / self.joint_erp() - 1.0
+        };
         inv_erp_minus_one * inv_erp_minus_one
             / ((1.0 + inv_erp_minus_one)
                 * 4.0

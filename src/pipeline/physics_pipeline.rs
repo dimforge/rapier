@@ -662,8 +662,6 @@ impl PhysicsPipeline {
 
 #[cfg(test)]
 mod test {
-    use std::f64::NAN;
-
     use na::point;
 
     use crate::dynamics::{
