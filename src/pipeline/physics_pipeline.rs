@@ -995,12 +995,12 @@ mod test {
         #[cfg(feature = "dim2")]
         assert!(rotation.is_finite());
         #[cfg(feature = "dim3")]
-        (|| {
+        {
             assert!(translation.z.is_finite());
-            let rotation = rotation.scaled_axis();
-            assert!(rotation.x.is_finite());
-            assert!(rotation.y.is_finite());
-            assert!(rotation.z.is_finite());
-        })();
+            assert!(rotation.i.is_finite());
+            assert!(rotation.j.is_finite());
+            assert!(rotation.k.is_finite());
+            assert!(rotation.w.is_finite());
+        }
     }
 }
