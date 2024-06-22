@@ -192,12 +192,13 @@ impl SAPRegion {
     pub fn update_after_subregion_removal(&mut self, proxies: &SAPProxies, layer_depth: i8) {
         if self.needs_update_after_subregion_removal {
             for axis in &mut self.axes {
-                self.subproper_proxy_count -= axis
-                    .delete_deleted_proxies_and_endpoints_after_subregion_removal(
+                self.subproper_proxy_count = self.subproper_proxy_count.saturating_sub(
+                    axis.delete_deleted_proxies_and_endpoints_after_subregion_removal(
                         proxies,
                         &mut self.existing_proxies,
                         layer_depth,
-                    );
+                    ),
+                );
             }
             self.needs_update_after_subregion_removal = false;
         }
