@@ -9,6 +9,7 @@ use super::CollisionEvent;
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
     pub struct SolverFlags: u32 {
         /// The constraint solver will take this contact manifold into

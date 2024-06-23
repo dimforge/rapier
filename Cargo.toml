@@ -5,6 +5,7 @@ resolver = "2"
 
 [patch.crates-io]
 #wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }
+#xurdf = { path = "../xurdf/xurdf" }
 
 #simba = { path = "../simba" }
 #kiss3d = { path = "../kiss3d" }
@@ -12,7 +13,7 @@ resolver = "2"
 #parry3d = { path = "../parry/crates/parry3d" }
 #parry2d-f64 = { path = "../parry/crates/parry2d-f64" }
 #parry3d-f64 = { path = "../parry/crates/parry3d-f64" }
-# nalgebra = { path = "../nalgebra" }
+#nalgebra = { path = "../nalgebra" }
 
 
 #kiss3d = { git = "https://github.com/sebcrozet/kiss3d" }
