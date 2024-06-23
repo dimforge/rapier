@@ -192,12 +192,23 @@ impl SAPRegion {
     pub fn update_after_subregion_removal(&mut self, proxies: &SAPProxies, layer_depth: i8) {
         if self.needs_update_after_subregion_removal {
             for axis in &mut self.axes {
-                self.subproper_proxy_count -= axis
+                let removed_count = axis
                     .delete_deleted_proxies_and_endpoints_after_subregion_removal(
                         proxies,
                         &mut self.existing_proxies,
                         layer_depth,
                     );
+
+                if removed_count > self.subproper_proxy_count {
+                    log::debug!(
+                        "Reached unexpected state: attempted to remove more sub-proper proxies than added (removing: {}, total: {}).",
+                        removed_count,
+                        self.subproper_proxy_count
+                    );
+                    self.subproper_proxy_count = 0;
+                } else {
+                    self.subproper_proxy_count -= removed_count;
+                }
             }
             self.needs_update_after_subregion_removal = false;
         }
