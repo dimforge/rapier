@@ -181,7 +181,12 @@ impl IntegrationParameters {
     /// [`Self::contact_damping_ratio`] and the substep length.
     pub fn contact_cfm_factor(&self) -> Real {
         // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
-        let inv_erp_minus_one = 1.0 / self.contact_erp() - 1.0;
+        // The logic is similar to [`Self::joint_cfm_coeff`].
+        let contact_erp = self.contact_erp();
+        if contact_erp == 0.0 {
+            return 0.0;
+        }
+        let inv_erp_minus_one = 1.0 / contact_erp - 1.0;
 
         // let stiffness = 4.0 * damping_ratio * damping_ratio * projected_mass
         //     / (dt * dt * inv_erp_minus_one * inv_erp_minus_one);
@@ -220,8 +225,12 @@ impl IntegrationParameters {
     /// [`Self::joint_damping_ratio`] and the substep length.
     pub fn joint_cfm_coeff(&self) -> Real {
         // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
-        // The logic is similar to `Self::cfm_factor`.
-        let inv_erp_minus_one = 1.0 / self.joint_erp() - 1.0;
+        // The logic is similar to `Self::contact_cfm_factor`.
+        let joint_erp = self.joint_erp();
+        if joint_erp == 0.0 {
+            return 0.0;
+        }
+        let inv_erp_minus_one = 1.0 / joint_erp - 1.0;
         inv_erp_minus_one * inv_erp_minus_one
             / ((1.0 + inv_erp_minus_one)
                 * 4.0
