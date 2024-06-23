@@ -1,6 +1,6 @@
 [package]
 name = "rapier3d-urdf"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "URDF file loader for the 3D rapier physics engine."
 documentation = "https://docs.rs/rapier3d-urdf"
@@ -22,5 +22,5 @@ bitflags = "2"
 # NOTE: we are not using the (more recent) urdf-rs crate because of https://github.com/openrr/urdf-rs/issues/94
 xurdf = "0.2"
 
-rapier3d = { version = "0.20", path = "../rapier3d" }
-rapier3d-stl = { version = "0.1.0", path = "../rapier3d-stl", optional = true }
+rapier3d = { version = "0.21", path = "../rapier3d" }
+rapier3d-stl = { version = "0.2.0", path = "../rapier3d-stl", optional = true }
