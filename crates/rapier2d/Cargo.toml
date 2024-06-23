@@ -21,7 +21,7 @@ dim2 = []
 f32 = []
 parallel = ["rayon"]
 simd-stable = ["simba/wide", "simd-is-enabled"]
-simd-nightly = ["simba/packed_simd", "simd-is-enabled"]
+simd-nightly = ["simba/portable_simd", "simd-is-enabled"]
 # Do not enable this feature directly. It is automatically
 # enabled with the "simd-stable" or "simd-nightly" feature.
 simd-is-enabled = ["vec_map"]
@@ -51,19 +51,19 @@ required-features = ["dim2", "f32"]
 vec_map = { version = "0.8", optional = true }
 instant = { version = "0.1", features = ["now"], optional = true }
 num-traits = "0.2"
-nalgebra = "0.32"
-parry2d = "0.15.0"
-simba = "0.8"
+nalgebra = "0.33"
+parry2d = "0.16.0"
+simba = "0.9"
 approx = "0.5"
 rayon = { version = "1", optional = true }
 crossbeam = "0.8"
 arrayvec = "0.7"
 bit-vec = "0.6"
-rustc-hash = "1"
+rustc-hash = "2"
 serde = { version = "1", features = ["derive"], optional = true }
 downcast-rs = "1.2"
 num-derive = "0.4"
-bitflags = "1"
+bitflags = "2"
 log = "0.4"
 ordered-float = "4"
 thiserror = "1"

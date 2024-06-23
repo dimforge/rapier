@@ -118,6 +118,7 @@ impl<'a> ContactModificationContext<'a> {
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
     pub struct ActiveHooks: u32 {
         /// If set, Rapier will call `PhysicsHooks::filter_contact_pair` whenever relevant.

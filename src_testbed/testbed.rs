@@ -75,7 +75,7 @@ fn usage(exe_name: &str) {
 }
 
 bitflags! {
-    #[derive(Default)]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
     pub struct TestbedStateFlags: u32 {
         const NONE = 0;
         const SLEEP = 1 << 0;
@@ -92,6 +92,7 @@ bitflags! {
 }
 
 bitflags! {
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     pub struct TestbedActionFlags: u32 {
         const RESET_WORLD_GRAPHICS = 1 << 0;
         const EXAMPLE_CHANGED = 1 << 1;
@@ -1106,6 +1107,7 @@ fn egui_focus(mut ui_context: EguiContexts, mut cameras: Query<&mut OrbitCamera>
 use crate::mouse::{track_mouse_state, MainCamera, SceneMouse};
 use bevy::window::PrimaryWindow;
 
+#[allow(clippy::type_complexity)]
 fn update_testbed(
     mut commands: Commands,
     windows: Query<&Window, With<PrimaryWindow>>,
@@ -1121,9 +1123,11 @@ fn update_testbed(
     #[cfg(feature = "other-backends")] mut other_backends: NonSendMut<OtherBackends>,
     mut plugins: NonSendMut<Plugins>,
     mut ui_context: EguiContexts,
-    mut gfx_components: Query<&mut Transform>,
-    mut cameras: Query<(&Camera, &GlobalTransform, &mut OrbitCamera)>,
-    mut material_handles: Query<&mut Handle<BevyMaterial>>,
+    (mut gfx_components, mut cameras, mut material_handles): (
+        Query<&mut Transform>,
+        Query<(&Camera, &GlobalTransform, &mut OrbitCamera)>,
+        Query<&mut Handle<BevyMaterial>>,
+    ),
     keys: Res<ButtonInput<KeyCode>>,
 ) {
     let meshes = &mut *meshes;

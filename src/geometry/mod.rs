@@ -59,6 +59,7 @@ pub type DefaultBroadPhase = BroadPhaseMultiSap;
 bitflags::bitflags! {
     /// Flags providing more information regarding a collision event.
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
     pub struct CollisionEventFlags: u32 {
         /// Flag set if at least one of the colliders involved in the
         /// collision was a sensor when the event was fired.

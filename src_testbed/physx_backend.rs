@@ -441,23 +441,23 @@ impl PhysxWorld {
                     px_frame2.as_ptr(),
                 );
 
-                let motion_x = if joint.1.data.limit_axes.contains(JointAxesMask::X) {
+                let motion_x = if joint.1.data.limit_axes.contains(JointAxesMask::LIN_X) {
                     physx_sys::PxD6Motion::Limited
-                } else if !joint.1.data.locked_axes.contains(JointAxesMask::X) {
+                } else if !joint.1.data.locked_axes.contains(JointAxesMask::LIN_X) {
                     physx_sys::PxD6Motion::Free
                 } else {
                     physx_sys::PxD6Motion::Locked
                 };
-                let motion_y = if joint.1.data.limit_axes.contains(JointAxesMask::Y) {
+                let motion_y = if joint.1.data.limit_axes.contains(JointAxesMask::LIN_Y) {
                     physx_sys::PxD6Motion::Limited
-                } else if !joint.1.data.locked_axes.contains(JointAxesMask::Y) {
+                } else if !joint.1.data.locked_axes.contains(JointAxesMask::LIN_Y) {
                     physx_sys::PxD6Motion::Free
                 } else {
                     physx_sys::PxD6Motion::Locked
                 };
-                let motion_z = if joint.1.data.limit_axes.contains(JointAxesMask::Z) {
+                let motion_z = if joint.1.data.limit_axes.contains(JointAxesMask::LIN_Z) {
                     physx_sys::PxD6Motion::Limited
-                } else if !joint.1.data.locked_axes.contains(JointAxesMask::Z) {
+                } else if !joint.1.data.locked_axes.contains(JointAxesMask::LIN_Z) {
                     physx_sys::PxD6Motion::Free
                 } else {
                     physx_sys::PxD6Motion::Locked

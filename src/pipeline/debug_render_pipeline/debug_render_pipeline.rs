@@ -16,6 +16,7 @@ use std::collections::HashMap;
 bitflags::bitflags! {
     /// Flags indicating what part of the physics engine should be rendered
     /// by the debug-renderer.
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     pub struct DebugRenderMode: u32 {
         /// If this flag is set, the collider shapes will be rendered.
         const COLLIDER_SHAPES = 1 << 0;
@@ -26,7 +27,7 @@ bitflags::bitflags! {
         /// If this flag is set, the impulse joints will be rendered.
         const IMPULSE_JOINTS = 1 << 3;
         /// If this flag is set, all the joints will be rendered.
-        const JOINTS = Self::MULTIBODY_JOINTS.bits | Self::IMPULSE_JOINTS.bits;
+        const JOINTS = Self::MULTIBODY_JOINTS.bits() | Self::IMPULSE_JOINTS.bits();
         /// If this flag is set, the solver contacts will be rendered.
         const SOLVER_CONTACTS = 1 << 4;
         /// If this flag is set, the geometric contacts will be rendered.

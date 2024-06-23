@@ -43,6 +43,7 @@ impl IndexedData for ColliderHandle {
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     /// Flags describing how the collider has been modified by the user.
     pub struct ColliderChanges: u32 {
         /// Flag indicating that any component of the collider has been modified.
@@ -301,6 +302,7 @@ impl Default for ColliderMaterial {
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
     /// Flags affecting whether or not collision-detection happens between two colliders
     /// depending on the type of rigid-bodies they are attached to.
     pub struct ActiveCollisionTypes: u16 {
@@ -364,8 +366,8 @@ impl ActiveCollisionTypes {
         //
         //       Because that test must be symmetric, we perform two similar tests by swapping
         //       rb_type1 and rb_type2.
-        ((self.bits >> (rb_type1 as u32 * 4)) & 0b0000_1111) & (1 << rb_type2 as u32) != 0
-            || ((self.bits >> (rb_type2 as u32 * 4)) & 0b0000_1111) & (1 << rb_type1 as u32) != 0
+        ((self.bits() >> (rb_type1 as u32 * 4)) & 0b0000_1111) & (1 << rb_type2 as u32) != 0
+            || ((self.bits() >> (rb_type2 as u32 * 4)) & 0b0000_1111) & (1 << rb_type1 as u32) != 0
     }
 }
 

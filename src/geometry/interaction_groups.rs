@@ -80,6 +80,7 @@ use bitflags::bitflags;
 bitflags! {
     /// A bit mask identifying groups for interaction.
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
     pub struct Group: u32 {
         /// The group n°1.
         const GROUP_1 = 1 << 0;
@@ -156,7 +157,7 @@ bitflags! {
 impl From<u32> for Group {
     #[inline]
     fn from(val: u32) -> Self {
-        unsafe { Self::from_bits_unchecked(val) }
+        Self::from_bits_retain(val)
     }
 }
 

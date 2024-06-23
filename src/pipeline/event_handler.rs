@@ -5,6 +5,7 @@ use crossbeam::channel::Sender;
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
     /// Flags affecting the events generated for this collider.
     pub struct ActiveEvents: u32 {
         /// If set, Rapier will call `EventHandler::handle_collision_event`
