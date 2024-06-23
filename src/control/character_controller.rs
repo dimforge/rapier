@@ -788,7 +788,7 @@ impl KinematicCharacterController {
     /// impulses to the rigid-bodies surrounding the character shape at the time of the collisions.
     /// Note that the impulse calculation is only approximate as it is not based on a global
     /// constraints resolution scheme.
-    pub fn solve_character_collision_impulses(
+    pub fn solve_character_collision_impulses<'a>(
         &self,
         dt: Real,
         bodies: &mut RigidBodySet,
@@ -796,7 +796,7 @@ impl KinematicCharacterController {
         queries: &QueryPipeline,
         character_shape: &dyn Shape,
         character_mass: Real,
-        collisions: impl IntoIterator<Item = CharacterCollision>,
+        collisions: impl IntoIterator<Item = &'a CharacterCollision>,
         filter: QueryFilter,
     ) {
         for collision in collisions {
@@ -807,7 +807,7 @@ impl KinematicCharacterController {
                 queries,
                 character_shape,
                 character_mass,
-                &collision,
+                collision,
                 filter,
             );
         }
