@@ -1,3 +1,8 @@
+## Unreleased
+
+### Added
+- Implement rotation gizmo for Ball 2D shape (as radius line) in Debug renderer if `DebugRenderMode::COLLIDER_SHAPES` enabled
+
 ## v0.21.0 (23 June 2024)
 
 ### Fix

@@ -369,6 +369,13 @@ impl DebugRenderPipeline {
                     &Vector::repeat(s.radius * 2.0),
                     color,
                     true,
+                );
+                // Draw a radius line to visualize rotation
+                backend.draw_line(
+                    object,
+                    pos * Point::new(s.radius * 0.2, 0.0),
+                    pos * Point::new(s.radius * 0.8, 0.0),
+                    color,
                 )
             }
             TypedShape::Cuboid(s) => {
