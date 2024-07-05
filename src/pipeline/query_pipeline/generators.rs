@@ -7,8 +7,9 @@ use crate::prelude::{Aabb, ColliderHandle, ColliderSet, RigidBodySet};
 
 #[cfg(doc)]
 use crate::{
-    dynamics::{IntegrationParameters, RigidBodyPosition},
+    dynamics::{IntegrationParameters, RigidBody, RigidBodyPosition},
     pipeline::QueryPipeline,
+    prelude::Collider,
 };
 
 /// Generates collider AABBs based on the union of their current AABB and the AABB predicted
@@ -26,7 +27,7 @@ pub struct SweptAabbWithPredictedPosition<'a> {
     pub colliders: &'a ColliderSet,
     /// The delta time to compute predicted position.
     ///
-    /// You probably want to set it to [`IntegrationParameter::dt`].
+    /// You probably want to set it to [`IntegrationParameters::dt`].
     pub dt: Real,
 }
 impl<'a> QbvhDataGenerator<ColliderHandle> for SweptAabbWithPredictedPosition<'a> {

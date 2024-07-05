@@ -13,6 +13,9 @@ use na::{
     StorageMut, LU,
 };
 
+#[cfg(doc)]
+use crate::prelude::{GenericJoint, RigidBody};
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default)]
 struct Force {

@@ -10,6 +10,9 @@ use crate::parry::partitioning::IndexedData;
 use crate::utils::{SimdAngularInertia, SimdCross, SimdDot};
 use num::Zero;
 
+#[cfg(doc)]
+use super::IntegrationParameters;
+
 /// The unique handle of a rigid body added to a `RigidBodySet`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
