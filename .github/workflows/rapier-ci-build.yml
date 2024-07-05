@@ -22,8 +22,8 @@ jobs:
       RUSTDOCFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
-      - name: Cargo doc -p rapier3d -p rapier2d -p rapier3d-stl -p rapier3d-urdf
-        run: cargo doc
+      - name: Cargo doc
+        run: cargo doc -p rapier3d -p rapier2d -p rapier3d-stl -p rapier3d-urdf
   build-native:
     runs-on: ubuntu-latest
     env:
