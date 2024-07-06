@@ -1374,7 +1374,8 @@ mod test {
     use crate::dynamics::{ImpulseJointSet, IslandManager};
     use crate::math::{Real, SPATIAL_DIM};
     use crate::prelude::{
-        ColliderSet, MultibodyJointSet, RevoluteJoint, RigidBodyBuilder, RigidBodySet,
+        ColliderSet, MultibodyJointHandle, MultibodyJointSet, RevoluteJoint, RigidBodyBuilder,
+        RigidBodySet,
     };
     use na::{DVector, RowDVector};
 
@@ -1398,6 +1399,57 @@ mod test {
         joints.insert(b, c, joint, true).unwrap();
 
         assert_eq!(joints.get(mb_handle).unwrap().0.ndofs, SPATIAL_DIM + 3);
+    }
+
+    #[test]
+    fn test_multibody_insert() {
+        let mut rnd = oorandom::Rand32::new(1234);
+
+        for k in 0..10 {
+            let mut bodies = RigidBodySet::new();
+            let mut multibody_joints = MultibodyJointSet::new();
+
+            let num_links = 100;
+            let mut handles = vec![];
+
+            for _ in 0..num_links {
+                handles.push(bodies.insert(RigidBodyBuilder::dynamic()));
+            }
+
+            let mut insertion_id: Vec<_> = (0..num_links - 1).collect();
+
+            #[cfg(feature = "dim2")]
+            let joint = RevoluteJoint::new();
+            #[cfg(feature = "dim3")]
+            let joint = RevoluteJoint::new(na::Vector::x_axis());
+
+            match k {
+                0 => {} // Remove in insertion order.
+                1 => {
+                    // Remove from leaf to root.
+                    insertion_id.reverse();
+                }
+                _ => {
+                    // Shuffle the vector a bit.
+                    // (This test checks multiple shuffle arrangements due to k > 2).
+                    for l in 0..num_links - 1 {
+                        insertion_id.swap(l, rnd.rand_range(0..num_links as u32 - 1) as usize);
+                    }
+                }
+            }
+
+            let mut mb_handle = MultibodyJointHandle::invalid();
+            for i in insertion_id {
+                mb_handle = multibody_joints
+                    .insert(handles[i], handles[i + 1], joint, true)
+                    .unwrap();
+            }
+
+            assert_eq!(
+                multibody_joints.get(mb_handle).unwrap().0.ndofs,
+                SPATIAL_DIM + num_links - 1
+            );
+        }
     }
 
     #[test]
