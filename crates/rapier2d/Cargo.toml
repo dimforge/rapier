@@ -71,3 +71,4 @@ thiserror = "1"
 [dev-dependencies]
 bincode = "1"
 serde = { version = "1", features = ["derive"] }
+oorandom = { version = "11", default-features = false }

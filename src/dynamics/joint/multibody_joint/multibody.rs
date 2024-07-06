@@ -145,6 +145,7 @@ impl Multibody {
         let mut link2mb = vec![usize::MAX; self.links.len()];
         let mut link_id2new_id = vec![usize::MAX; self.links.len()];
 
+        // Split multibody and update the set of links and ndofs.
         for (i, mut link) in self.links.0.into_iter().enumerate() {
             let is_new_root = i == 0
                 || !joint_only && link.parent_internal_id == to_remove
@@ -192,7 +193,14 @@ impl Multibody {
 
                 link.internal_id = i;
                 link.assembly_id = assembly_id;
-                link.parent_internal_id = link_id2new_id[link.parent_internal_id];
+
+                // NOTE: for the root, the current`link.parent_internal_id` is invalid since that
+                //       parent lies in a different multibody now.
+                link.parent_internal_id = if i != 0 {
+                    link_id2new_id[link.parent_internal_id]
+                } else {
+                    0
+                };
                 assembly_id += link_ndofs;
             }
         }
@@ -1363,8 +1371,11 @@ impl IndexSequence {
 #[cfg(test)]
 mod test {
     use super::IndexSequence;
+    use crate::dynamics::{ImpulseJointSet, IslandManager};
     use crate::math::{Real, SPATIAL_DIM};
-    use crate::prelude::{MultibodyJointSet, RevoluteJoint, RigidBodyBuilder, RigidBodySet};
+    use crate::prelude::{
+        ColliderSet, MultibodyJointSet, RevoluteJoint, RigidBodyBuilder, RigidBodySet,
+    };
     use na::{DVector, RowDVector};
 
     #[test]
@@ -1387,6 +1398,63 @@ mod test {
         joints.insert(b, c, joint, true).unwrap();
 
         assert_eq!(joints.get(mb_handle).unwrap().0.ndofs, SPATIAL_DIM + 3);
+    }
+
+    #[test]
+    fn test_multibody_remove() {
+        let mut rnd = oorandom::Rand32::new(1234);
+
+        for k in 0..10 {
+            let mut bodies = RigidBodySet::new();
+            let mut multibody_joints = MultibodyJointSet::new();
+            let mut colliders = ColliderSet::new();
+            let mut impulse_joints = ImpulseJointSet::new();
+            let mut islands = IslandManager::new();
+
+            let num_links = 100;
+            let mut handles = vec![];
+
+            for _ in 0..num_links {
+                handles.push(bodies.insert(RigidBodyBuilder::dynamic()));
+            }
+
+            #[cfg(feature = "dim2")]
+            let joint = RevoluteJoint::new();
+            #[cfg(feature = "dim3")]
+            let joint = RevoluteJoint::new(na::Vector::x_axis());
+
+            for i in 0..num_links - 1 {
+                multibody_joints
+                    .insert(handles[i], handles[i + 1], joint, true)
+                    .unwrap();
+            }
+
+            match k {
+                0 => {} // Remove in insertion order.
+                1 => {
+                    // Remove from leaf to root.
+                    handles.reverse();
+                }
+                _ => {
+                    // Shuffle the vector a bit.
+                    // (This test checks multiple shuffle arrangements due to k > 2).
+                    for l in 0..num_links {
+                        handles.swap(l, rnd.rand_range(0..num_links as u32) as usize);
+                    }
+                }
+            }
+
+            for handle in handles {
+                bodies.remove(
+                    handle,
+                    &mut islands,
+                    &mut colliders,
+                    &mut impulse_joints,
+                    &mut multibody_joints,
+                    true,
+                );
+            }
+        }
     }
 
     fn test_sequence() -> IndexSequence {
