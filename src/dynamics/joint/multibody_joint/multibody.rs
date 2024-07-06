@@ -202,7 +202,10 @@ impl Multibody {
 
     pub(crate) fn append(&mut self, mut rhs: Multibody, parent: usize, joint: MultibodyJoint) {
         let rhs_root_ndofs = rhs.links[0].joint.ndofs();
-        let rhs_copy_shift = self.ndofs + rhs_root_ndofs;
+        // Values for rhs will be copied into the buffers of `self` starting at this index.
+        let rhs_copy_shift = self.ndofs + joint.ndofs();
+        // Number of dofs to copy from rhs. The root’s dofs isn’t included because it will be
+        // replaced by `joint.
         let rhs_copy_ndofs = rhs.ndofs - rhs_root_ndofs;
 
         // Adjust the ids of all the rhs links except the first one.
@@ -224,7 +227,7 @@ impl Multibody {
             rhs.links[0].parent_internal_id = parent;
         }
 
-        // Grow buffers and append data from rhs.
+        // Grow buffers then append data from rhs.
         self.grow_buffers(rhs_copy_ndofs + rhs.links[0].joint.ndofs(), rhs.links.len());
 
         if rhs_copy_ndofs > 0 {
@@ -1360,8 +1363,31 @@ impl IndexSequence {
 #[cfg(test)]
 mod test {
     use super::IndexSequence;
-    use crate::math::Real;
+    use crate::math::{Real, SPATIAL_DIM};
+    use crate::prelude::{MultibodyJointSet, RevoluteJoint, RigidBodyBuilder, RigidBodySet};
     use na::{DVector, RowDVector};
+
+    #[test]
+    fn test_multibody_append() {
+        let mut bodies = RigidBodySet::new();
+        let mut joints = MultibodyJointSet::new();
+
+        let a = bodies.insert(RigidBodyBuilder::dynamic());
+        let b = bodies.insert(RigidBodyBuilder::dynamic());
+        let c = bodies.insert(RigidBodyBuilder::dynamic());
+        let d = bodies.insert(RigidBodyBuilder::dynamic());
+
+        #[cfg(feature = "dim2")]
+        let joint = RevoluteJoint::new();
+        #[cfg(feature = "dim3")]
+        let joint = RevoluteJoint::new(na::Vector::x_axis());
+
+        let mb_handle = joints.insert(a, b, joint, true).unwrap();
+        joints.insert(c, d, joint, true).unwrap();
+        joints.insert(b, c, joint, true).unwrap();
+
+        assert_eq!(joints.get(mb_handle).unwrap().0.ndofs, SPATIAL_DIM + 3);
+    }
 
     fn test_sequence() -> IndexSequence {
         let mut seq = IndexSequence::new();
