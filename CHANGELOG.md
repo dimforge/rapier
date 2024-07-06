@@ -1,7 +1,14 @@
 ## Unreleased
 
+### Fix
+
+- Fix crash when removing a multibody joint, or a rigid-body with a multipody-joint attached to it.
+- Fix crash when inserting multibody joints in an arbitrary order (instead of incrementally from root to leaf).
+
 ### Added
-- Implement rotation gizmo for Ball 2D shape (as radius line) in Debug renderer if `DebugRenderMode::COLLIDER_SHAPES` enabled
+
+- Implement rotation gizmo for Ball 2D shape (as radius line) in Debug renderer if `DebugRenderMode::COLLIDER_SHAPES`
+  enabled
 
 ## v0.21.0 (23 June 2024)
 
