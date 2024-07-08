@@ -4,6 +4,8 @@
 
 - Fix crash when removing a multibody joint, or a rigid-body with a multipody-joint attached to it.
 - Fix crash when inserting multibody joints in an arbitrary order (instead of incrementally from root to leaf).
+- Fix `QueryFilterFlags` constants being bit-shifted once too much. \
+See [#673](https://github.com/dimforge/rapier/pull/660) for details.
 
 ### Added
 
