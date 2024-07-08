@@ -10,6 +10,11 @@
 - Implement rotation gizmo for Ball 2D shape (as radius line) in Debug renderer if `DebugRenderMode::COLLIDER_SHAPES`
   enabled
 
+### Modified
+
+- Divided by two the value of each `QueryFilterFlags` variant so that
+  the smallest one is 1 instead of 2 (fixes a bug in rapier.js).
+
 ## v0.21.0 (23 June 2024)
 
 ### Fix
