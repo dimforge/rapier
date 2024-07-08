@@ -47,15 +47,15 @@ bitflags::bitflags! {
     /// Flags for excluding whole sets of colliders from a scene query.
     pub struct QueryFilterFlags: u32 {
         /// Exclude from the query any collider attached to a fixed rigid-body and colliders with no rigid-body attached.
-        const EXCLUDE_FIXED = 1 << 1;
+        const EXCLUDE_FIXED = 1 << 0;
         /// Exclude from the query any collider attached to a kinematic rigid-body.
-        const EXCLUDE_KINEMATIC = 1 << 2;
+        const EXCLUDE_KINEMATIC = 1 << 1;
         /// Exclude from the query any collider attached to a dynamic rigid-body.
-        const EXCLUDE_DYNAMIC = 1 << 3;
+        const EXCLUDE_DYNAMIC = 1 << 2;
         /// Exclude from the query any collider that is a sensor.
-        const EXCLUDE_SENSORS = 1 << 4;
+        const EXCLUDE_SENSORS = 1 << 3;
         /// Exclude from the query any collider that is not a sensor.
-        const EXCLUDE_SOLIDS = 1 << 5;
+        const EXCLUDE_SOLIDS = 1 << 4;
         /// Excludes all colliders not attached to a dynamic rigid-body.
         const ONLY_DYNAMIC = Self::EXCLUDE_FIXED.bits() | Self::EXCLUDE_KINEMATIC.bits();
         /// Excludes all colliders not attached to a kinematic rigid-body.
