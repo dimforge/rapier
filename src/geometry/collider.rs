@@ -620,21 +620,10 @@ impl ColliderBuilder {
         Self::new(SharedShape::round_cuboid(hx, hy, border_radius))
     }
 
-    #[cfg(feature = "dim2")]
-    /// Initialize a new collider builder with a capsule defined from its endpoints.
-    ///
-    /// See also [`ColliderBuilder::capsule_x`], and [`ColliderBuilder::capsule_y`],
-    /// for a simpler way to build capsules with common
-    /// orientations.
-    pub fn capsule_from_endpoints(a: Point<Real>, b: Point<Real>, radius: Real) -> Self {
-        Self::new(SharedShape::capsule(a, b, radius))
-    }
-
-    #[cfg(feature = "dim3")]
     /// Initialize a new collider builder with a capsule defined from its endpoints.
     ///
     /// See also [`ColliderBuilder::capsule_x`], [`ColliderBuilder::capsule_y`],
-    /// and [`ColliderBuilder::capsule_z`],
+    /// (and `ColliderBuilder::capsule_z` in 3D only)
     /// for a simpler way to build capsules with common
     /// orientations.
     pub fn capsule_from_endpoints(a: Point<Real>, b: Point<Real>, radius: Real) -> Self {
