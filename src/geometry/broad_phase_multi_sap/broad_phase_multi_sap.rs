@@ -93,8 +93,8 @@ pub struct BroadPhaseMultiSap {
     #[cfg_attr(
         feature = "serde-serialize",
         serde(
-            serialize_with = "parry::utils::hashmap::serialize_hashmap_capacity",
-            deserialize_with = "parry::utils::hashmap::deserialize_hashmap_capacity"
+            serialize_with = "crate::utils::serde::serialize_to_vec_tuple",
+            deserialize_with = "crate::utils::serde::deserialize_from_vec_tuple"
         )
     )]
     colliders_proxy_ids: HashMap<ColliderHandle, BroadPhaseProxyIndex>,
