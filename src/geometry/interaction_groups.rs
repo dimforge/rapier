@@ -75,9 +75,7 @@ impl Default for InteractionGroups {
     }
 }
 
-use bitflags::bitflags;
-
-bitflags! {
+bitflags::bitflags! {
     /// A bit mask identifying groups for interaction.
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
