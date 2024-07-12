@@ -3,9 +3,6 @@
 
 extern crate nalgebra as na;
 
-#[macro_use]
-extern crate bitflags;
-
 #[cfg(feature = "log")]
 #[macro_use]
 extern crate log;

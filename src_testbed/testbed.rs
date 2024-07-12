@@ -74,7 +74,7 @@ fn usage(exe_name: &str) {
     info!("    --pause - do not start the simulation right away.");
 }
 
-bitflags! {
+bitflags::bitflags! {
     #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
     pub struct TestbedStateFlags: u32 {
         const NONE = 0;
@@ -91,7 +91,7 @@ bitflags! {
     }
 }
 
-bitflags! {
+bitflags::bitflags! {
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     pub struct TestbedActionFlags: u32 {
         const RESET_WORLD_GRAPHICS = 1 << 0;
