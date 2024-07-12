@@ -43,6 +43,9 @@ use std::collections::HashMap;
 use std::path::Path;
 use xurdf::{Geometry, Inertial, Joint, Pose, Robot};
 
+#[cfg(doc)]
+use rapier3d::dynamics::Multibody;
+
 bitflags::bitflags! {
     /// Options applied to multibody joints created from the URDF joints.
     #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -79,7 +82,7 @@ pub struct UrdfLoaderOptions {
     /// So if this option is set to `true`, it is recommended to also keep
     /// [`UrdfLoaderOptions::enable_joint_collisions`] set to `false`. If the model is then added
     /// to the physics sets using multibody joints, it is recommended to call
-    /// [`UrdfRobot::insert_with_multibody_joints`] with the [`UrdfMultibodyOptions::DISABLE_SELF_CONTACTS`]
+    /// [`UrdfRobot::insert_using_multibody_joints`] with the [`UrdfMultibodyOptions::DISABLE_SELF_CONTACTS`]
     /// flag enabled.
     pub create_colliders_from_visual_shapes: bool,
     /// If `true`, the mass properties (center-of-mass, mass, and angular inertia) read from the urdf

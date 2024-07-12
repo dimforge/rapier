@@ -108,7 +108,7 @@ impl NarrowPhase {
 
     /// All the contacts involving the given collider.
     ///
-    /// It is strongly recommended to use the [`NarrowPhase::contacts_with`] method instead. This
+    /// It is strongly recommended to use the [`NarrowPhase::contact_pairs_with`] method instead. This
     /// method can be used if the generation number of the collider handle isn't known.
     pub fn contact_pairs_with_unknown_gen(
         &self,
@@ -141,7 +141,7 @@ impl NarrowPhase {
 
     /// All the intersection pairs involving the given collider.
     ///
-    /// It is strongly recommended to use the [`NarrowPhase::intersections_with`]  method instead.
+    /// It is strongly recommended to use the [`NarrowPhase::intersection_pairs_with`]  method instead.
     /// This method can be used if the generation number of the collider handle isn't known.
     pub fn intersection_pairs_with_unknown_gen(
         &self,

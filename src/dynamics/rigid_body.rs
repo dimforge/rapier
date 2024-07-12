@@ -10,6 +10,9 @@ use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector};
 use crate::utils::SimdCross;
 use num::Zero;
 
+#[cfg(doc)]
+use super::IntegrationParameters;
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A rigid body.
 ///

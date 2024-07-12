@@ -7,6 +7,9 @@ use parry::query::ContactManifoldsWorkspace;
 
 use super::CollisionEvent;
 
+#[cfg(doc)]
+use super::Collider;
+
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
