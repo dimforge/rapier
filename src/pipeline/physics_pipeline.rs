@@ -767,7 +767,7 @@ mod test {
         );
     }
 
-    #[cfg(feature = "serde")]
+    #[cfg(feature = "serde-serialize")]
     #[test]
     fn rigid_body_removal_snapshot_handle_determinism() {
         let mut colliders = ColliderSet::new();

@@ -19,17 +19,17 @@ maintenance = { status = "actively-developed" }
 default = ["dim3", "f64"]
 dim3 = []
 f64 = []
-parallel = ["rayon"]
+parallel = ["dep:rayon"]
 simd-stable = ["parry3d-f64/simd-stable", "simba/wide", "simd-is-enabled"]
 simd-nightly = ["parry3d-f64/simd-nightly", "simba/portable_simd", "simd-is-enabled"]
 # Do not enable this feature directly. It is automatically
 # enabled with the "simd-stable" or "simd-nightly" feature.
-simd-is-enabled = ["vec_map"]
+simd-is-enabled = ["dep:vec_map"]
 wasm-bindgen = ["instant/wasm-bindgen"]
-serde-serialize = ["nalgebra/serde-serialize", "parry3d-f64/serde-serialize", "serde", "bit-vec/serde"]
+serde-serialize = ["nalgebra/serde-serialize", "parry3d-f64/serde-serialize", "dep:serde", "bit-vec/serde"]
 enhanced-determinism = ["simba/libm_force", "parry3d-f64/enhanced-determinism"]
 debug-render = []
-profiler = ["instant"] # Enables the internal profiler.
+profiler = ["dep:instant"] # Enables the internal profiler.
 
 # Feature used for debugging only.
 debug-disable-legitimate-fe-exceptions = []
