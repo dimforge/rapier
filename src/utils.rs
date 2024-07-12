@@ -707,7 +707,7 @@ pub mod serde {
         d: D,
     ) -> Result<T, D::Error> {
         let hashmap_as_vec: Vec<(K, V)> = Deserialize::deserialize(d)?;
-        Ok(T::from_iter(hashmap_as_vec.into_iter()))
+        Ok(T::from_iter(hashmap_as_vec))
     }
 
     #[cfg(test)]
