@@ -32,8 +32,6 @@ pub extern crate nalgebra as na;
 #[macro_use]
 extern crate serde;
 extern crate num_traits as num;
-// #[macro_use]
-// extern crate array_macro;
 
 #[cfg(feature = "parallel")]
 pub use rayon;
