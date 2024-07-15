@@ -3,9 +3,15 @@ name = "rapier_testbed2d-f64"
 version = "0.21.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "Testbed for the Rapier 2-dimensional physics engine in Rust."
-homepage = "http://rapier.org"
+homepage = "http://rapier.rs"
 repository = "https://github.com/dimforge/rapier"
-categories = ["science", "game-development", "mathematics", "simulation", "wasm"]
+categories = [
+    "science",
+    "game-development",
+    "mathematics",
+    "simulation",
+    "wasm",
+]
 keywords = ["physics", "dynamics", "rigid", "real-time", "impulse_joints"]
 license = "Apache-2.0"
 edition = "2021"
@@ -49,11 +55,30 @@ bevy_sprite = "0.13"
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = { version = "0.13", default-features = false, features = ["bevy_asset", "bevy_winit", "x11", "tonemapping_luts", "ktx2", "zstd", "bevy_render", "bevy_pbr", "bevy_gizmos"] }
+bevy = { version = "0.13", default-features = false, features = [
+    "bevy_asset",
+    "bevy_winit",
+    "x11",
+    "tonemapping_luts",
+    "ktx2",
+    "zstd",
+    "bevy_render",
+    "bevy_pbr",
+    "bevy_gizmos",
+] }
 
 # Dependencies for WASM only.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy = { version = "0.13", default-features = false, features = ["bevy_asset", "bevy_winit", "tonemapping_luts", "ktx2", "zstd", "bevy_render", "bevy_pbr", "bevy_gizmos"] }
+bevy = { version = "0.13", default-features = false, features = [
+    "bevy_asset",
+    "bevy_winit",
+    "tonemapping_luts",
+    "ktx2",
+    "zstd",
+    "bevy_render",
+    "bevy_pbr",
+    "bevy_gizmos",
+] }
 #bevy_webgl2 = "0.5"
 
 [dependencies.rapier]

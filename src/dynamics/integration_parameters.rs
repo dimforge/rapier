@@ -2,6 +2,9 @@ use crate::math::Real;
 use na::RealField;
 use std::num::NonZeroUsize;
 
+#[cfg(doc)]
+use super::RigidBodyActivation;
+
 // TODO: enabling the block solver in 3d introduces a lot of jitters in
 //       the 3D domino demo. So for now we dont enable it in 3D.
 pub(crate) static BLOCK_SOLVER_ENABLED: bool = cfg!(feature = "dim2");
@@ -66,7 +69,7 @@ pub struct IntegrationParameters {
     /// This value is used internally to estimate some length-based tolerance. In particular, the
     /// values [`IntegrationParameters::allowed_linear_error`],
     /// [`IntegrationParameters::max_corrective_velocity`],
-    /// [`IntegrationParameters::prediction_distance`], [`RigidBodyActivation::linear_threshold`]
+    /// [`IntegrationParameters::prediction_distance`], [`RigidBodyActivation::normalized_linear_threshold`]
     /// are scaled by this value implicitly.
     ///
     /// This value can be understood as the number of units-per-meter in your physical world compared

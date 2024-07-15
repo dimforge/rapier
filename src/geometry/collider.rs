@@ -622,8 +622,9 @@ impl ColliderBuilder {
 
     /// Initialize a new collider builder with a capsule defined from its endpoints.
     ///
-    /// See also [`ColliderBuilder::capsule_x`], [`ColliderBuilder::capsule_y`], and
-    /// [`ColliderBuilder::capsule_z`], for a simpler way to build capsules with common
+    /// See also [`ColliderBuilder::capsule_x`], [`ColliderBuilder::capsule_y`],
+    /// (and `ColliderBuilder::capsule_z` in 3D only)
+    /// for a simpler way to build capsules with common
     /// orientations.
     pub fn capsule_from_endpoints(a: Point<Real>, b: Point<Real>, radius: Real) -> Self {
         Self::new(SharedShape::capsule(a, b, radius))
