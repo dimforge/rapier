@@ -4,6 +4,7 @@
 
 - Fix crash when removing a multibody joint, or a rigid-body with a multipody-joint attached to it.
 - Fix crash when inserting multibody joints in an arbitrary order (instead of incrementally from root to leaf).
+- Fix `BroadphaseMultiSap` not being able to serialize correctly with serde_json.
 
 ### Added
 
@@ -14,6 +15,7 @@
 
 - Divided by two the value of each `QueryFilterFlags` variant so that
   the smallest one is 1 instead of 2 (fixes a bug in rapier.js).
+- `BroadphaseMultiSap` now serializes its `colliders_proxy_ids` as `Vec[(ColliderHandle, BroadPhaseProxyIndex)]`.
 
 ## v0.21.0 (23 June 2024)
 
