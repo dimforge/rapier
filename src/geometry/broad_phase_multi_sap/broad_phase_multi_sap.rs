@@ -90,6 +90,13 @@ pub struct BroadPhaseMultiSap {
     //       Another alternative would be to remove ColliderProxyId and
     //       just use a Coarena. But this seems like it could use too
     //       much memory.
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(
+            serialize_with = "crate::utils::serde::serialize_to_vec_tuple",
+            deserialize_with = "crate::utils::serde::deserialize_from_vec_tuple"
+        )
+    )]
     colliders_proxy_ids: HashMap<ColliderHandle, BroadPhaseProxyIndex>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     region_pool: SAPRegionPool, // To avoid repeated allocations.

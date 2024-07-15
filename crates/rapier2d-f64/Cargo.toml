@@ -7,7 +7,13 @@ documentation = "https://docs.rs/rapier2d"
 homepage = "https://rapier.rs"
 repository = "https://github.com/dimforge/rapier"
 readme = "README.md"
-categories = ["science", "game-development", "mathematics", "simulation", "wasm"]
+categories = [
+    "science",
+    "game-development",
+    "mathematics",
+    "simulation",
+    "wasm",
+]
 keywords = ["physics", "dynamics", "rigid", "real-time", "impulse_joints"]
 license = "Apache-2.0"
 edition = "2021"
@@ -26,7 +32,13 @@ simd-nightly = ["simba/portable_simd", "simd-is-enabled"]
 # enabled with the "simd-stable" or "simd-nightly" feature.
 simd-is-enabled = ["dep:vec_map"]
 wasm-bindgen = ["instant/wasm-bindgen"]
-serde-serialize = ["nalgebra/serde-serialize", "parry2d-f64/serde-serialize", "dep:serde", "bit-vec/serde", "arrayvec/serde"]
+serde-serialize = [
+    "nalgebra/serde-serialize",
+    "parry2d-f64/serde-serialize",
+    "dep:serde",
+    "bit-vec/serde",
+    "arrayvec/serde",
+]
 enhanced-determinism = ["simba/libm_force", "parry2d-f64/enhanced-determinism"]
 debug-render = []
 profiler = ["dep:instant"] # Enables the internal profiler.
@@ -70,5 +82,6 @@ thiserror = "1"
 
 [dev-dependencies]
 bincode = "1"
+serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 oorandom = { version = "11", default-features = false }

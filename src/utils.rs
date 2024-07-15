@@ -667,3 +667,75 @@ pub fn smallest_abs_diff_between_angles<N: SimdRealCopy>(a: N, b: N) -> N {
     let s_err_is_smallest = s_err.simd_abs().simd_lt(s_err_complement.simd_abs());
     s_err.select(s_err_is_smallest, s_err_complement)
 }
+
+/// Helpers around serialization.
+#[cfg(feature = "serde-serialize")]
+pub mod serde {
+    use serde::{Deserialize, Serialize};
+    use std::iter::FromIterator;
+
+    /// Serializes to a `Vec<(K, V)>`.
+    ///
+    /// Useful for [`std::collections::HashMap`] with a non-string key,
+    /// which is unsupported by [`serde_json`].
+    pub fn serialize_to_vec_tuple<
+        'a,
+        S: serde::Serializer,
+        T: IntoIterator<Item = (&'a K, &'a V)>,
+        K: Serialize + 'a,
+        V: Serialize + 'a,
+    >(
+        target: T,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
+        let container: Vec<_> = target.into_iter().collect();
+        serde::Serialize::serialize(&container, s)
+    }
+
+    /// Deserializes from a `Vec<(K, V)>`.
+    ///
+    /// Useful for [`std::collections::HashMap`] with a non-string key,
+    /// which is unsupported by [`serde_json`].
+    pub fn deserialize_from_vec_tuple<
+        'de,
+        D: serde::Deserializer<'de>,
+        T: FromIterator<(K, V)>,
+        K: Deserialize<'de>,
+        V: Deserialize<'de>,
+    >(
+        d: D,
+    ) -> Result<T, D::Error> {
+        let hashmap_as_vec: Vec<(K, V)> = Deserialize::deserialize(d)?;
+        Ok(T::from_iter(hashmap_as_vec))
+    }
+
+    #[cfg(test)]
+    mod test {
+        use std::collections::HashMap;
+
+        /// This test uses serde_json because json doesn't support non string
+        /// keys in hashmaps, which requires a custom serialization.
+        #[test]
+        fn serde_json_hashmap() {
+            #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+            struct Test {
+                #[cfg_attr(
+                    feature = "serde-serialize",
+                    serde(
+                        serialize_with = "crate::utils::serde::serialize_to_vec_tuple",
+                        deserialize_with = "crate::utils::serde::deserialize_from_vec_tuple"
+                    )
+                )]
+                pub map: HashMap<usize, String>,
+            }
+
+            let s = Test {
+                map: [(42, "Forty-Two".to_string())].into(),
+            };
+            let j = serde_json::to_string(&s).unwrap();
+            assert_eq!(&j, "{\"map\":[[42,\"Forty-Two\"]]}");
+            let p: Test = serde_json::from_str(&j).unwrap();
+            assert_eq!(&p, &s);
+        }
+    }
+}
