@@ -696,7 +696,6 @@ pub mod serde {
     ///
     /// Useful for [`std::collections::HashMap`] with a non-string key,
     /// which is unsupported by [`serde_json`].
-    #[cfg(feature = "serde-serialize")]
     pub fn deserialize_from_vec_tuple<
         'de,
         D: serde::Deserializer<'de>,
@@ -714,6 +713,8 @@ pub mod serde {
     mod test {
         use std::collections::HashMap;
 
+        /// This test uses serde_json because json doesn't support non string
+        /// keys in hashmaps, which requires a custom serialization.
         #[test]
         fn serde_json_hashmap() {
             #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
