@@ -62,7 +62,7 @@ fn concat_rb_mass_matrix(
 
 /// An articulated body simulated using the reduced-coordinates approach.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Multibody {
     // TODO: serialization: skip the workspace fields.
     pub(crate) links: MultibodyLinkVec,

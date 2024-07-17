@@ -36,7 +36,7 @@ pub(crate) type JointIndex = usize;
 pub(crate) type JointGraphEdge = crate::data::graph::Edge<ImpulseJoint>;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 /// A set of impulse_joints that can be handled by a physics `World`.
 pub struct ImpulseJointSet {
     rb_graph_ids: Coarena<RigidBodyGraphIndex>,
