@@ -969,8 +969,10 @@ mod test {
             .local_anchor2(point![0.0, -3.0, 0.0]);
         impulse_joints.insert(h, h_dynamic, joint, true);
 
-        let mut parameters = IntegrationParameters::default();
-        parameters.dt = 0.0;
+        let parameters = IntegrationParameters {
+            dt: 0.0,
+            ..Default::default()
+        };
         // Step once
         let gravity = Vector::y() * -9.81;
         pipeline.step(
