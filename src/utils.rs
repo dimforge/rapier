@@ -677,7 +677,7 @@ pub mod serde {
     /// Serializes to a `Vec<(K, V)>`.
     ///
     /// Useful for [`std::collections::HashMap`] with a non-string key,
-    /// which is unsupported by [`serde_json`].
+    /// which is unsupported by [`serde_json`](https://docs.rs/serde_json/).
     pub fn serialize_to_vec_tuple<
         'a,
         S: serde::Serializer,
@@ -695,7 +695,7 @@ pub mod serde {
     /// Deserializes from a `Vec<(K, V)>`.
     ///
     /// Useful for [`std::collections::HashMap`] with a non-string key,
-    /// which is unsupported by [`serde_json`].
+    /// which is unsupported by [`serde_json`](https://docs.rs/serde_json/).
     pub fn deserialize_from_vec_tuple<
         'de,
         D: serde::Deserializer<'de>,
