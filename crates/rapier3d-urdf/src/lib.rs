@@ -15,7 +15,7 @@
 //! these elements are very welcome!
 //!
 //! - Mesh file types other than `stl` are not supported yet. Contributions are welcome. You my check the `rapier3d-stl`
-//! repository for an example of mesh loader.
+//!   repository for an example of mesh loader.
 //! - When inserting joints as multibody joints, they will be reset to their neutral position (all coordinates = 0).
 //! - The following fields are currently ignored:
 //!     - `Joint::dynamics`

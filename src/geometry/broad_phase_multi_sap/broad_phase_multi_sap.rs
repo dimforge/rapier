@@ -57,6 +57,7 @@ use parry::utils::hashmap::HashMap;
 ///   of the layer `n + 1`.
 /// - When an Aabb in the region of the layer `n + 1` intersects the Aabb corresponding to one of the
 ///   regions at the smaller layer `n`, we add that Aabb to that smaller region.
+///
 /// So in the end it means that a given Aabb will be inserted into all the region it intersects at
 /// the layer `n`. And it will also be inserted into all the regions it intersects at the smaller layers
 /// (the layers `< n`), but only for the regions that already exist (so we don't have to discretize
