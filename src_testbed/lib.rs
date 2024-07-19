@@ -3,10 +3,6 @@
 
 extern crate nalgebra as na;
 
-#[cfg(feature = "log")]
-#[macro_use]
-extern crate log;
-
 pub use crate::graphics::{BevyMaterial, GraphicsManager};
 pub use crate::harness::plugin::HarnessPlugin;
 pub use crate::physics::PhysicsState;

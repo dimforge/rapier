@@ -56,22 +56,12 @@ pub enum RunMode {
     Step,
 }
 
-#[cfg(not(feature = "log"))]
 fn usage(exe_name: &str) {
     println!("Usage: {} [OPTION] ", exe_name);
     println!();
     println!("Options:");
     println!("    --help  - prints this help message and exits.");
     println!("    --pause - do not start the simulation right away.");
-}
-
-#[cfg(feature = "log")]
-fn usage(exe_name: &str) {
-    info!("Usage: {} [OPTION] ", exe_name);
-    info!("");
-    info!("Options:");
-    info!("    --help  - prints this help message and exits.");
-    info!("    --pause - do not start the simulation right away.");
 }
 
 bitflags::bitflags! {
