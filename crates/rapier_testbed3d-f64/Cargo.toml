@@ -20,7 +20,7 @@ edition = "2021"
 maintenance = { status = "actively-developed" }
 
 [lib]
-name = "rapier_testbed3d"
+name = "rapier_testbed3d_f64"
 path = "../../src_testbed/lib.rs"
 required-features = ["dim3"]
 
