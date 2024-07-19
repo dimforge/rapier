@@ -5,7 +5,7 @@ use crate::math::Isometry;
 use std::ops::{Index, IndexMut};
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 /// A set of colliders that can be handled by a physics `World`.
 pub struct ColliderSet {
     pub(crate) colliders: Arena<Collider>,

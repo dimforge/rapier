@@ -10,6 +10,8 @@
 
 - Implement rotation gizmo for Ball 2D shape (as radius line) in Debug renderer if `DebugRenderMode::COLLIDER_SHAPES`
   enabled
+- Implement `Debug` for `ColliderSet`, `InteractionGraph`,
+  `MultibodyLink`, `MultibodyJointSet`, `Multibody`, `ImpulseJointSet`
 
 ### Modified
 
