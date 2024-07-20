@@ -16,4 +16,4 @@ edition = "2021"
 thiserror = "1.0.61"
 stl_io = "0.7"
 
-rapier3d = { version = "0.21", path = "../rapier3d" }
+rapier3d = { version = "0.22", path = "../rapier3d" }
