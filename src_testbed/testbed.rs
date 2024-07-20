@@ -1,4 +1,5 @@
 #![allow(clippy::bad_bit_mask)] // otherwise clippy complains because of TestbedStateFlags::NONE which is 0.
+#![allow(clippy::unnecessary_cast)] // allowed for f32 -> f64 cast for the f64 testbed.
 
 use std::env;
 use std::mem;
