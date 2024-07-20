@@ -90,7 +90,7 @@ pub fn load_from_raw_mesh(
     let mut vertices: Vec<_> = raw_mesh
         .vertices
         .iter()
-        .map(|xyz| Point::new(xyz[0] as Real, xyz[1] as Real, xyz[2] as Real))
+        .map(|xyz| Point::new(xyz[0], xyz[1], xyz[2]))
         .collect();
     vertices
         .iter_mut()

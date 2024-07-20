@@ -1,4 +1,4 @@
-## Unreleased
+## v0.22.0 (20 July 2024)
 
 ### Fix
 
@@ -15,6 +15,8 @@
 
 ### Modified
 
+- Update parry to v0.17. Refer to [its changelog](https://github.com/dimforge/parry/blob/master/CHANGELOG.md#v0170) for
+  further details.
 - Divided by two the value of each `QueryFilterFlags` variant so that
   the smallest one is 1 instead of 2 (fixes a bug in rapier.js).
 - `BroadphaseMultiSap` now serializes its `colliders_proxy_ids` as `Vec[(ColliderHandle, BroadPhaseProxyIndex)]`.
