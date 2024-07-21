@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Cargo doc
-        run: cargo doc -p rapier3d -p rapier2d -p rapier3d-stl -p rapier3d-urdf
+        run: cargo doc --features parallel,simd-stable,serde-serialize,debug-render -p rapier3d -p rapier2d -p rapier3d-stl -p rapier3d-urdf
   build-native:
     runs-on: ubuntu-latest
     env:
