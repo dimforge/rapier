@@ -577,7 +577,7 @@ impl QueryPipeline {
             .map(|h| (h.1 .1 .0, h.1 .0, h.1 .1 .1))
     }
 
-    /// Finds all handles of all the colliders with an `Aabb` intersecting the given `Aabb`.
+    /// Finds all handles of all the colliders with an [`Aabb`] intersecting the given [`Aabb`].
     pub fn colliders_with_aabb_intersecting_aabb(
         &self,
         aabb: &Aabb,
