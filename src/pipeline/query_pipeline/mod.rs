@@ -357,7 +357,7 @@ impl QueryPipeline {
         self.qbvh.clear_and_rebuild(mode, self.dilation_factor);
     }
 
-    /// Find the closest intersection between a ray and a set of collider.
+    /// Find the closest intersection between a ray and a set of colliders.
     ///
     /// # Parameters
     /// * `colliders` - The set of colliders taking part in this pipeline.
@@ -384,7 +384,7 @@ impl QueryPipeline {
         self.qbvh.traverse_best_first(&mut visitor).map(|h| h.1)
     }
 
-    /// Find the closest intersection between a ray and a set of collider.
+    /// Find the closest intersection between a ray and a set of colliders.
     ///
     /// # Parameters
     /// * `colliders` - The set of colliders taking part in this pipeline.
@@ -415,7 +415,7 @@ impl QueryPipeline {
         self.qbvh.traverse_best_first(&mut visitor).map(|h| h.1)
     }
 
-    /// Find the all intersections between a ray and a set of collider and passes them to a callback.
+    /// Find the all intersections between a ray and a set of colliders and passes them to a callback.
     ///
     /// # Parameters
     /// * `colliders` - The set of colliders taking part in this pipeline.
@@ -577,7 +577,7 @@ impl QueryPipeline {
             .map(|h| (h.1 .1 .0, h.1 .0, h.1 .1 .1))
     }
 
-    /// Finds all handles of all the colliders with an Aabb intersecting the given Aabb.
+    /// Finds all handles of all the colliders with an [`Aabb`] intersecting the given [`Aabb`].
     pub fn colliders_with_aabb_intersecting_aabb(
         &self,
         aabb: &Aabb,

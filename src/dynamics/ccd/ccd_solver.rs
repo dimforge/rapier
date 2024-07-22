@@ -398,7 +398,7 @@ impl CCDSolver {
 
             let start_time = toi.toi;
 
-            // NOTE: the 1 and 2 indices (e.g., `ch1`, `ch2`) bellow are unrelated to the
+            // NOTE: the 1 and 2 indices (e.g., `ch1`, `ch2`) below are unrelated to the
             //       ones we used above.
             for ch1 in &colliders_to_check {
                 let co1 = &colliders[*ch1];

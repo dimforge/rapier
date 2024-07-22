@@ -46,7 +46,7 @@ pub trait DebugRenderBackend {
         color: [f32; 4],
     );
 
-    /// Draws a set of line.
+    /// Draws a set of lines.
     fn draw_polyline(
         &mut self,
         object: DebugRenderObject,
@@ -63,7 +63,7 @@ pub trait DebugRenderBackend {
         }
     }
 
-    /// Draws a chain of line.
+    /// Draws a chain of lines.
     fn draw_line_strip(
         &mut self,
         object: DebugRenderObject,
