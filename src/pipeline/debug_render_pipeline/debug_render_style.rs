@@ -48,7 +48,7 @@ pub struct DebugRenderStyle {
     pub contact_normal_color: DebugColor,
     /// The length of the contact normals.
     pub contact_normal_length: Real,
-    /// The color of the colliders' [`Aabb`]s.
+    /// The color of the colliders' [`Aabb`](crate::geometry::Aabb)s.
     pub collider_aabb_color: DebugColor,
 }
 
