@@ -89,3 +89,11 @@ jobs:
         run: cd crates/rapier2d && cargo build --verbose --target wasm32-unknown-emscripten --features simd-stable;
       - name: build rapier3d --features simd-stable
         run: cd crates/rapier3d && cargo build --verbose --target wasm32-unknown-emscripten --features simd-stable;
+  # If this fails, consider changing your text or adding something to .typos.toml
+  # You can find typos here: https://crates.io/crates/typos'
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: check typos
+        uses: crate-ci/typos@v1.23.2
