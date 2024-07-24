@@ -1,4 +1,4 @@
-use rapier3d::prelude::*;
+use rapier3d::{control::KinematicCharacterController, prelude::*};
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -45,7 +45,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let character_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::capsule_y(0.3 * scale, 0.15 * scale); // 0.15, 0.3, 0.15);
     colliders.insert_with_parent(collider, character_handle, &mut bodies);
-
+    testbed.set_character_controller(Some(KinematicCharacterController::default()));
     /*
      * Create the cubes
      */
@@ -106,7 +106,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create a slope we can’t climb.
      */
-    let impossible_slope_angle = 0.9;
+    let impossible_slope_angle = 0.5;
     let impossible_slope_size = 2.0;
     let collider = ColliderBuilder::cuboid(
         slope_size * scale,

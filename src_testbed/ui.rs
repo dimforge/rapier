@@ -1,3 +1,4 @@
+use rapier::control::CharacterLength;
 use rapier::counters::Counters;
 use rapier::math::Real;
 use std::num::NonZeroUsize;
@@ -240,7 +241,57 @@ pub fn update_ui(
         //     .set(TestbedStateFlags::CONTACT_POINTS, contact_points);
         // state.flags.set(TestbedStateFlags::WIREFRAME, wireframe);
         ui.separator();
+        if let Some(character_controller) = &mut state.character_controller {
+            ui.checkbox(&mut character_controller.slide, "slide").on_hover_text("Should the character try to slide against the floor if it hits it?");
+            ui.add(Slider::new(&mut character_controller.max_slope_climb_angle, 0.0..=6.2831).text("max_slope_climb_angle"))
+            .on_hover_text("The maximum angle (radians) between the floor’s normal and the `up` vector that the character is able to climb.");
+        ui.add(Slider::new(&mut character_controller.min_slope_slide_angle, 0.0..=1.57079).text("min_slope_slide_angle"))
+        .on_hover_text("The minimum angle (radians) between the floor’s normal and the `up` vector before the character starts to slide down automatically.");
+        let mut is_snapped = character_controller.snap_to_ground.is_some();
+        if ui.checkbox(&mut is_snapped, "snap_to_ground").changed {
+            match is_snapped {
+                true => {
+                    character_controller.snap_to_ground = Some(CharacterLength::Relative(0.1));
+                },
+                false => {
+                    character_controller.snap_to_ground = None;
+                },
+            }
+        }
+        if let Some(snapped) = &mut character_controller.snap_to_ground {
+            match snapped {
+                CharacterLength::Relative(val) => {
+                    ui.add(Slider::new(val, 0.0..=10.0).text("Snapped Relative Character Length"));
+                },
+                CharacterLength::Absolute(val) => {
+                    ui.add(Slider::new(val, 0.0..=10.0).text("Snapped Absolute Character Length"));
+                },
+            }
+        
+        }
+        /*
+            pub offset: CharacterLength,
 
+    /// Should the character automatically step over small obstacles? (disabled by default)
+    ///
+    /// Note that autostepping is currently a very computationally expensive feature, so it
+    /// is disabled by default.
+    pub autostep: Option<CharacterAutostep>,
+    /// Should the character be automatically snapped to the ground if the distance between
+    /// the ground and its feed are smaller than the specified threshold?
+    pub snap_to_ground: Option<CharacterLength>,
+    /// Increase this number if your character appears to get stuck when sliding against surfaces.
+    ///
+    /// This is a small distance applied to the movement toward the contact normals of shapes hit
+    /// by the character controller. This helps shape-casting not getting stuck in an always-penetrating
+    /// state during the sliding calculation.
+    ///
+    /// This value should remain fairly small since it can introduce artificial "bumps" when sliding
+    /// along a flat surface.
+    pub normal_nudge_factor: Real,
+*/
+        }
+        ui.separator();
         let label = if state.running == RunMode::Stop {
             "Start (T)"
         } else {

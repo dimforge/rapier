@@ -34,7 +34,7 @@ other-backends = ["wrapped2d"]
 features = ["parallel", "other-backends"]
 
 [dependencies]
-nalgebra = { version = "0.33", features = ["rand", "glam025"] }
+nalgebra = { version = "0.33", features = ["rand", "glam027"] }
 rand = "0.8"
 rand_pcg = "0.3"
 instant = { version = "0.1", features = ["web-sys", "now"] }

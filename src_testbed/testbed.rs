@@ -110,6 +110,7 @@ pub struct TestbedState {
     pub draw_colls: bool,
     pub highlighted_body: Option<RigidBodyHandle>,
     pub character_body: Option<RigidBodyHandle>,
+    pub character_controller: Option<KinematicCharacterController>,
     #[cfg(feature = "dim3")]
     pub vehicle_controller: Option<DynamicRayCastVehicleController>,
     //    pub grabbed_object: Option<DefaultBodyPartHandle>,
@@ -194,6 +195,7 @@ impl TestbedApp {
             draw_colls: false,
             highlighted_body: None,
             character_body: None,
+            character_controller: None,
             #[cfg(feature = "dim3")]
             vehicle_controller: None,
             //            grabbed_object: None,
@@ -387,7 +389,7 @@ impl TestbedApp {
             };
 
             let mut app = App::new();
-            app.insert_resource(ClearColor(Color::rgb(0.15, 0.15, 0.15)))
+            app.insert_resource(ClearColor(Color::from(Srgba::rgb(0.15, 0.15, 0.15))))
                 .insert_resource(Msaa::Sample4)
                 .insert_resource(AmbientLight {
                     brightness: 0.3,
@@ -486,6 +488,10 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
 
     pub fn set_character_body(&mut self, handle: RigidBodyHandle) {
         self.state.character_body = Some(handle);
+    }
+
+    pub fn set_character_controller(&mut self, controller: Option<KinematicCharacterController>) {
+        self.state.character_controller = controller;
     }
 
     #[cfg(feature = "dim3")]
@@ -785,7 +791,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
             desired_movement *= speed;
             desired_movement -= Vector::y() * speed;
 
-            let controller = KinematicCharacterController::default();
+            let controller = self.state.character_controller.unwrap_or_default();
             let phx = &mut self.harness.physics;
             let character_body = &phx.bodies[character_handle];
             let character_collider = &phx.colliders[character_body.colliders()[0]];
@@ -1543,7 +1549,7 @@ fn highlight_hovered_body(
             cursor.x / window.width() * 2.0 - 1.0,
             1.0 - cursor.y / window.height() * 2.0,
         );
-        let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
+        let ndc_to_world = camera_transform.compute_matrix() * camera.clip_from_view().inverse();
         let ray_pt1 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, -1.0));
         let ray_pt2 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 1.0));
         let ray_dir = ray_pt2 - ray_pt1;
