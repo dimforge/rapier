@@ -50,7 +50,7 @@ impl IslandSolver {
 
         /*
          *
-         * Bellow this point, the `params` is using the "small step" settings.
+         * Below this point, the `params` is using the "small step" settings.
          *
          */
         // INIT
