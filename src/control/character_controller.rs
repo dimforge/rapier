@@ -565,7 +565,7 @@ impl KinematicCharacterController {
         // An object is climbing if the tangential movement induced by its vertical movement points upward.
         let climbing = self.up.dot(&decomp.vertical_tangent) > 0.001;
 
-        let allowed_movement = if hit.is_wall && (climbing && !climbing_intent) {
+        let allowed_movement = if hit.is_wall && climbing && !climbing_intent {
             // Can’t climb the slope, remove the vertical tangent motion induced by the forward motion.
             decomp.horizontal_tangent + decomp.normal_part
         } else if hit.is_nonslip_slope && slipping && !slipping_intent {
