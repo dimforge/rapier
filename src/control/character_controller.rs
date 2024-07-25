@@ -169,6 +169,7 @@ impl Default for KinematicCharacterController {
 }
 
 /// The effective movement computed by the character controller.
+#[derive(Debug)]
 pub struct EffectiveCharacterMovement {
     /// The movement to apply.
     pub translation: Vector<Real>,
@@ -903,4 +904,136 @@ fn subtract_hit(translation: Vector<Real>, hit: &ShapeCastHit) -> Vector<Real> {
     // This fixes some instances of moving through walls
     let surface_correction = surface_correction * (1.0 + 1.0e-5);
     translation + *hit.normal1 * surface_correction
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{control::KinematicCharacterController, prelude::*};
+
+    //#[cfg(feature = "dim3")]
+    #[test]
+    fn character_controller_cannot_climb() {
+        let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
+        let mut pipeline = PhysicsPipeline::new();
+        let mut bf = BroadPhaseMultiSap::new();
+        let mut nf = NarrowPhase::new();
+        let mut islands = IslandManager::new();
+        let mut query_pipeline = QueryPipeline::new();
+
+        let mut bodies = RigidBodySet::new();
+
+        let gravity = Vector::y() * -9.81;
+
+        let ground_size = 5.0;
+        let ground_height = 0.1;
+        /*
+         * Create a flat ground
+         */
+        let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
+        let floor_handle = bodies.insert(rigid_body);
+        let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
+        colliders.insert_with_parent(collider, floor_handle, &mut bodies);
+
+        /*
+         * Create a slope we can climb.
+         */
+        let slope_angle = 0.2;
+        let slope_size = 2.0;
+        let collider = ColliderBuilder::cuboid(slope_size, ground_height, slope_size)
+            .translation(vector![ground_size + slope_size, -ground_height + 0.4, 0.0])
+            .rotation(Vector::z() * slope_angle);
+        colliders.insert(collider);
+
+        /*
+         * Create a slope we can’t climb.
+         */
+        let impossible_slope_angle = 0.6;
+        let impossible_slope_size = 2.0;
+        let collider = ColliderBuilder::cuboid(slope_size, ground_height, ground_size)
+            .translation(vector![
+                ground_size + slope_size * 2.0 + impossible_slope_size - 0.9,
+                -ground_height + 1.7,
+                0.0
+            ])
+            .rotation(Vector::z() * impossible_slope_angle);
+        colliders.insert(collider);
+
+        // Initialize body as kinematic with mass
+        let mut character_body = RigidBodyBuilder::kinematic_position_based()
+            .additional_mass(1.0)
+            .build();
+        character_body.set_translation(Vector::new(0f32, 0f32, 0f32), false);
+        let character_mass = character_body.mass();
+        let character_handle = bodies.insert(character_body);
+
+        let integration_parameters = IntegrationParameters::default();
+
+        let collider = ColliderBuilder::ball(0.5).build();
+        let character_shape = collider.shape();
+        colliders.insert_with_parent(collider.clone(), character_handle, &mut bodies);
+
+        query_pipeline.update(&colliders);
+
+        for i in 0..1000 {
+            let character_controller = KinematicCharacterController::default();
+            let character_body = bodies.get(character_handle).unwrap();
+            // Use a closure to handle or collect the collisions while
+            // the character is being moved.
+            let mut collisions = vec![];
+            let filter_character_controller =
+                QueryFilter::new().exclude_rigid_body(character_handle);
+            let effective_movement: crate::control::EffectiveCharacterMovement =
+                character_controller.move_shape(
+                    integration_parameters.dt,
+                    &bodies,
+                    &colliders,
+                    &query_pipeline,
+                    character_shape,
+                    character_body.position(),
+                    Vector::new(0.1, 0.0, 0.0),
+                    filter_character_controller,
+                    |collision| collisions.push(collision),
+                );
+
+            // TODO: apply collision impulses to other bodies.
+
+            character_controller.solve_character_collision_impulses(
+                integration_parameters.dt,
+                &mut bodies,
+                &colliders,
+                &query_pipeline,
+                character_shape,
+                character_mass,
+                &collisions,
+                filter_character_controller,
+            );
+
+            let character_body = bodies.get_mut(character_handle).unwrap();
+            let translation = character_body.translation();
+            character_body
+                .set_next_kinematic_translation(translation + effective_movement.translation);
+
+            // Step once
+            pipeline.step(
+                &gravity,
+                &integration_parameters,
+                &mut islands,
+                &mut bf,
+                &mut nf,
+                &mut bodies,
+                &mut colliders,
+                &mut impulse_joints,
+                &mut multibody_joints,
+                &mut CCDSolver::new(),
+                Some(&mut query_pipeline),
+                &(),
+                &(),
+            );
+        }
+        let character_body = bodies.get(character_handle).unwrap();
+        dbg!(character_body.translation());
+        assert!(character_body.translation().x < 50.0);
+    }
 }

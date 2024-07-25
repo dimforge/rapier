@@ -106,7 +106,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create a slope we can’t climb.
      */
-    let impossible_slope_angle = 0.5;
+    let impossible_slope_angle = 0.9;
     let impossible_slope_size = 2.0;
     let collider = ColliderBuilder::cuboid(
         slope_size * scale,
