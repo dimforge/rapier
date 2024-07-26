@@ -252,7 +252,6 @@ impl KinematicCharacterController {
         let mut kinematic_friction_translation = Vector::zeros();
         let offset = self.offset.eval(dims.y);
 
-        let mut iter_index = 0;
         while let Some((translation_dir, translation_dist)) =
             UnitVector::try_new_and_get(translation_remaining, 1.0e-5)
         {
@@ -271,13 +270,7 @@ impl KinematicCharacterController {
                 character_shape,
                 ShapeCastOptions {
                     target_distance: offset,
-                    stop_at_penetration:
-                    // We want to know the collision we're currently in,
-                    // otherwise we risk ignoring useful collision information (walls / ground...)
-                    iter_index == 0
-                    // If we stop at penetration while not allowing sliding alongside shapes, 
-                    // it will be impossible to get away of a collision.
-                    && self.slide,
+                    stop_at_penetration: false,
                     max_time_of_impact: translation_dist,
                     compute_impact_geometry_on_penetration: true,
                 },
@@ -329,24 +322,23 @@ impl KinematicCharacterController {
                 break;
             }
 
-            result.grounded = self.detect_grounded_status_and_apply_friction(
-                dt,
-                bodies,
-                colliders,
-                queries,
-                character_shape,
-                &(Translation::from(result.translation) * character_pos),
-                &dims,
-                filter,
-                Some(&mut kinematic_friction_translation),
-                Some(&mut translation_remaining),
-            );
-
             if !self.slide {
                 break;
             }
-            iter_index += 1;
         }
+
+        result.grounded = self.detect_grounded_status_and_apply_friction(
+            dt,
+            bodies,
+            colliders,
+            queries,
+            character_shape,
+            &(Translation::from(result.translation) * character_pos),
+            &dims,
+            filter,
+            Some(&mut kinematic_friction_translation),
+            Some(&mut translation_remaining),
+        );
         // If needed, and if we are not already grounded, snap to the ground.
         if grounded_at_starting_pos {
             self.snap_to_ground(
@@ -548,9 +540,7 @@ impl KinematicCharacterController {
         normal_nudge_factor: Real,
         result: &mut EffectiveCharacterMovement,
     ) -> Vector<Real> {
-        let [_vertical_input, horizontal_input] = self.split_into_components(movement_input);
-        let horiz_input_decomp = self.decompose_hit(&horizontal_input, &hit.toi);
-        let input_decomp = self.decompose_hit(movement_input, &hit.toi);
+        let [_vertical_input, _horizontal_input] = self.split_into_components(movement_input);
 
         let decomp = self.decompose_hit(translation_remaining, &hit.toi);
 
@@ -565,7 +555,7 @@ impl KinematicCharacterController {
         // An object is climbing if the tangential movement induced by its vertical movement points upward.
         let climbing = self.up.dot(&decomp.vertical_tangent) > 0.001;
 
-        let allowed_movement = if hit.is_wall && (climbing && !climbing_intent) {
+        if hit.is_wall && climbing && !climbing_intent {
             // Can’t climb the slope, remove the vertical tangent motion induced by the forward motion.
             decomp.horizontal_tangent + decomp.normal_part
         } else if hit.is_nonslip_slope && slipping && !slipping_intent {
@@ -575,8 +565,7 @@ impl KinematicCharacterController {
             // Let it slide (including climbing the slope).
             result.is_sliding_down_slope = true;
             decomp.unconstrained_slide_part() + *hit.toi.normal1 * normal_nudge_factor
-        };
-        allowed_movement
+        }
     }
 
     fn split_into_components(&self, translation: &Vector<Real>) -> [Vector<Real>; 2] {
@@ -936,7 +925,7 @@ mod test {
 
         let gravity = Vector::y() * -9.81;
 
-        let ground_size = 5.0;
+        let ground_size = 100.0;
         let ground_height = 0.1;
         /*
          * Create a flat ground
@@ -1004,22 +993,25 @@ mod test {
                     // the character is being moved.
                     let mut collisions = vec![];
                     let filter_character_controller = QueryFilter::new().exclude_rigid_body(handle);
-                    let effective_movement: crate::control::EffectiveCharacterMovement = controller
-                        .move_shape(
-                            integration_parameters.dt,
-                            &bodies,
-                            &colliders,
-                            &query_pipeline,
-                            character_shape,
-                            character_body.position(),
-                            Vector::new(0.1, -0.1, 0.0),
-                            filter_character_controller,
-                            |collision| collisions.push(collision),
-                        );
+                    let effective_movement = controller.move_shape(
+                        integration_parameters.dt,
+                        &bodies,
+                        &colliders,
+                        &query_pipeline,
+                        character_shape,
+                        character_body.position(),
+                        Vector::new(0.1, -0.1, 0.0),
+                        filter_character_controller,
+                        |collision| collisions.push(collision),
+                    );
                     let character_body = bodies.get_mut(handle).unwrap();
                     let translation = character_body.translation();
                     character_body.set_next_kinematic_translation(
                         translation + effective_movement.translation,
+                    );
+                    assert_eq!(
+                        effective_movement.grounded, true,
+                        "movement should be grounded at all times for current setup."
                     );
 
                     // TODO: apply collision impulses to other bodies.
