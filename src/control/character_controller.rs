@@ -553,19 +553,20 @@ impl KinematicCharacterController {
         // An object is trying to climb if its vertical (according to self.up) input motion points upward.
         let climbing_intent = self.up.dot(&_vertical_input) > 0.0;
         // An object is climbing if the tangential movement induced by its vertical movement points upward.
-        let climbing = self.up.dot(&decomp.vertical_tangent) > 0.001;
+        let climbing = self.up.dot(&decomp.vertical_tangent) > 0.0;
 
-        if hit.is_wall && climbing && !climbing_intent {
+        let allowed_movement = if hit.is_wall && climbing && !climbing_intent {
             // Can’t climb the slope, remove the vertical tangent motion induced by the forward motion.
             decomp.horizontal_tangent + decomp.normal_part
         } else if hit.is_nonslip_slope && slipping && !slipping_intent {
             // Prevent the vertical movement from sliding down.
-            decomp.horizontal_tangent + decomp.normal_part + *hit.toi.normal1 * normal_nudge_factor
+            decomp.horizontal_tangent + decomp.normal_part
         } else {
             // Let it slide (including climbing the slope).
             result.is_sliding_down_slope = true;
-            decomp.unconstrained_slide_part() + *hit.toi.normal1 * normal_nudge_factor
-        }
+            decomp.unconstrained_slide_part()
+        };
+        allowed_movement + *hit.toi.normal1 * normal_nudge_factor
     }
 
     fn split_into_components(&self, translation: &Vector<Real>) -> [Vector<Real>; 2] {
