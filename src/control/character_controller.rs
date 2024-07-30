@@ -321,6 +321,7 @@ impl KinematicCharacterController {
                 translation_remaining.fill(0.0);
                 break;
             }
+
             result.grounded = self.detect_grounded_status_and_apply_friction(
                 dt,
                 bodies,
@@ -333,11 +334,11 @@ impl KinematicCharacterController {
                 Some(&mut kinematic_friction_translation),
                 Some(&mut translation_remaining),
             );
+
             if !self.slide {
                 break;
             }
         }
-
         // If needed, and if we are not already grounded, snap to the ground.
         if grounded_at_starting_pos {
             self.snap_to_ground(
@@ -351,6 +352,7 @@ impl KinematicCharacterController {
                 &mut result,
             );
         }
+
         // Return the result.
         result
     }
@@ -546,7 +548,6 @@ impl KinematicCharacterController {
         // An object is trying to slip if the tangential movement induced by its vertical movement
         // points downward.
         let slipping_intent = self.up.dot(&horiz_input_decomp.vertical_tangent) < 0.0;
-
         // An object is slipping if its vertical movement points downward.
         let slipping = self.up.dot(&decomp.vertical_tangent) < 0.0;
 
@@ -566,6 +567,7 @@ impl KinematicCharacterController {
             result.is_sliding_down_slope = true;
             decomp.unconstrained_slide_part()
         };
+
         allowed_movement + *hit.toi.normal1 * normal_nudge_factor
     }
 
@@ -578,7 +580,6 @@ impl KinematicCharacterController {
     fn compute_hit_info(&self, toi: ShapeCastHit) -> HitInfo {
         let angle_with_floor = self.up.angle(&toi.normal1);
         let is_ceiling = self.up.dot(&toi.normal1) < 0.0;
-
         let is_wall = angle_with_floor >= self.max_slope_climb_angle && !is_ceiling;
         let is_nonslip_slope = angle_with_floor <= self.min_slope_slide_angle;
 
@@ -1016,21 +1017,6 @@ mod test {
                     character_body.set_next_kinematic_translation(
                         translation + effective_movement.translation,
                     );
-
-                    // TODO: apply collision impulses to other bodies.
-                    /*
-                                character_controller.solve_character_collision_impulses(
-                                    integration_parameters.dt,
-                                    &mut bodies,
-                                    &colliders,
-                                    &query_pipeline,
-                                    character_shape,
-                                    character_mass,
-                                    &collisions,
-                                    filter_character_controller,
-                                );
-
-                    */
                 };
 
             let character_controller_cannot_climb = KinematicCharacterController {
