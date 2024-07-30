@@ -251,9 +251,9 @@ impl TestbedApp {
         let mut benchmark_mode = false;
 
         let cmds = [
-            ("--help", Some("-h"), "Print this help message and exit"),
-            ("--pause", None, "Do not start the simulation right away"),
-            ("--bench", None, "Run benchmark mode without rendering"),
+            ("--help", Some("-h"), "Print this help message and exit."),
+            ("--pause", None, "Do not start the simulation right away."),
+            ("--bench", None, "Run benchmark mode without rendering."),
             (
                 "--bench-iters <num:u32>",
                 None,
