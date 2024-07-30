@@ -807,13 +807,13 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
             if let Some(graphics) = &mut self.graphics {
                 if mvt.grounded {
                     graphics.graphics.set_body_color(
-                        &mut graphics.materials,
+                        graphics.materials,
                         character_handle,
                         [0.1, 0.8, 0.1],
                     );
                 } else {
                     graphics.graphics.set_body_color(
-                        &mut graphics.materials,
+                        graphics.materials,
                         character_handle,
                         [0.8, 0.1, 0.1],
                     );
