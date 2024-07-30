@@ -163,7 +163,7 @@ impl Default for KinematicCharacterController {
             max_slope_climb_angle: Real::frac_pi_4(),
             min_slope_slide_angle: Real::frac_pi_4(),
             snap_to_ground: Some(CharacterLength::Relative(0.2)),
-            normal_nudge_factor: 1.0e-4,
+            normal_nudge_factor: 1.0e-5,
         }
     }
 }
@@ -1013,7 +1013,8 @@ mod test {
                     );
                     assert_eq!(
                         effective_movement.grounded, true,
-                        "movement should be grounded at all times for current setup."
+                        "movement should be grounded at all times for current setup (iter: {}).",
+                        i
                     );
 
                     // TODO: apply collision impulses to other bodies.
