@@ -321,24 +321,23 @@ impl KinematicCharacterController {
                 translation_remaining.fill(0.0);
                 break;
             }
-
+            result.grounded = self.detect_grounded_status_and_apply_friction(
+                dt,
+                bodies,
+                colliders,
+                queries,
+                character_shape,
+                &(Translation::from(result.translation) * character_pos),
+                &dims,
+                filter,
+                Some(&mut kinematic_friction_translation),
+                Some(&mut translation_remaining),
+            );
             if !self.slide {
                 break;
             }
         }
 
-        result.grounded = self.detect_grounded_status_and_apply_friction(
-            dt,
-            bodies,
-            colliders,
-            queries,
-            character_shape,
-            &(Translation::from(result.translation) * character_pos),
-            &dims,
-            filter,
-            Some(&mut kinematic_friction_translation),
-            Some(&mut translation_remaining),
-        );
         // If needed, and if we are not already grounded, snap to the ground.
         if grounded_at_starting_pos {
             self.snap_to_ground(
@@ -988,7 +987,7 @@ mod test {
         colliders.insert_with_parent(collider.clone(), character_handle_cannot_climb, &mut bodies);
 
         query_pipeline.update(&colliders);
-        for i in 0..3000 {
+        for i in 0..200 {
             let mut update_character_controller =
                 |controller: KinematicCharacterController, handle: RigidBodyHandle| {
                     let character_body = bodies.get(handle).unwrap();
@@ -1009,13 +1008,13 @@ mod test {
                     );
                     let character_body = bodies.get_mut(handle).unwrap();
                     let translation = character_body.translation();
-                    character_body.set_next_kinematic_translation(
-                        translation + effective_movement.translation,
-                    );
                     assert_eq!(
                         effective_movement.grounded, true,
-                        "movement should be grounded at all times for current setup (iter: {}).",
-                        i
+                        "movement should be grounded at all times for current setup (iter: {}), pos: {}.",
+                        i, translation + effective_movement.translation
+                    );
+                    character_body.set_next_kinematic_translation(
+                        translation + effective_movement.translation,
                     );
 
                     // TODO: apply collision impulses to other bodies.
@@ -1065,8 +1064,10 @@ mod test {
             );
         }
         let character_body = bodies.get(character_handle_can_climb).unwrap();
-        assert!(character_body.translation().x > 4.0);
+        assert!(character_body.translation().x > 6.0);
+        assert!(character_body.translation().y > 3.0);
         let character_body = bodies.get(character_handle_cannot_climb).unwrap();
         assert!(character_body.translation().x < 4.0);
+        assert!(dbg!(character_body.translation().y) < 2.0);
     }
 }
