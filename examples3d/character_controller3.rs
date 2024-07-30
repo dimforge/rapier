@@ -181,7 +181,8 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.set_character_body(character_handle);
     testbed.set_character_controller(Some(KinematicCharacterController {
-        max_slope_climb_angle: impossible_slope_angle - 0.001,
+        max_slope_climb_angle: impossible_slope_angle - 0.02,
+        min_slope_slide_angle: impossible_slope_angle - 0.02,
         slide: true,
         ..Default::default()
     }));

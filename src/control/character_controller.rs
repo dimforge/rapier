@@ -540,12 +540,12 @@ impl KinematicCharacterController {
         normal_nudge_factor: Real,
         result: &mut EffectiveCharacterMovement,
     ) -> Vector<Real> {
-        let [_vertical_input, _horizontal_input] = self.split_into_components(movement_input);
-
+        let [_vertical_input, horizontal_input] = self.split_into_components(movement_input);
+        let horiz_input_decomp = self.decompose_hit(&horizontal_input, &hit.toi);
         let decomp = self.decompose_hit(translation_remaining, &hit.toi);
 
         // An object is trying to slip if its vertical (according to self.up) input motion points downward.
-        let slipping_intent = self.up.dot(&_vertical_input) < 0.0;
+        let slipping_intent = self.up.dot(&horiz_input_decomp.vertical_tangent) < 0.0;
 
         // An object is slipping if the tangential movement induced by its vertical movement points downward.
         let slipping = self.up.dot(&decomp.vertical_tangent) < 0.0;
@@ -578,6 +578,7 @@ impl KinematicCharacterController {
     fn compute_hit_info(&self, toi: ShapeCastHit) -> HitInfo {
         let angle_with_floor = self.up.angle(&toi.normal1);
         let is_ceiling = self.up.dot(&toi.normal1) < 0.0;
+
         let is_wall = angle_with_floor >= self.max_slope_climb_angle && !is_ceiling;
         let is_nonslip_slope = angle_with_floor <= self.min_slope_slide_angle;
 
