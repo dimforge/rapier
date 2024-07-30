@@ -163,7 +163,7 @@ impl Default for KinematicCharacterController {
             max_slope_climb_angle: Real::frac_pi_4(),
             min_slope_slide_angle: Real::frac_pi_4(),
             snap_to_ground: Some(CharacterLength::Relative(0.2)),
-            normal_nudge_factor: 1.0e-5,
+            normal_nudge_factor: 1.0e-4,
         }
     }
 }
@@ -544,13 +544,14 @@ impl KinematicCharacterController {
         let horiz_input_decomp = self.decompose_hit(&horizontal_input, &hit.toi);
         let decomp = self.decompose_hit(translation_remaining, &hit.toi);
 
-        // An object is trying to slip if its vertical (according to self.up) input motion points downward.
+        // An object is trying to slip if the tangential movement induced by its vertical movement
+        // points downward.
         let slipping_intent = self.up.dot(&horiz_input_decomp.vertical_tangent) < 0.0;
 
-        // An object is slipping if the tangential movement induced by its vertical movement points downward.
+        // An object is slipping if its vertical movement points downward.
         let slipping = self.up.dot(&decomp.vertical_tangent) < 0.0;
 
-        // An object is trying to climb if its vertical (according to self.up) input motion points upward.
+        // An object is trying to climb if its vertical input motion points upward.
         let climbing_intent = self.up.dot(&_vertical_input) > 0.0;
         // An object is climbing if the tangential movement induced by its vertical movement points upward.
         let climbing = self.up.dot(&decomp.vertical_tangent) > 0.0;
