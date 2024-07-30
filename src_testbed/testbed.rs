@@ -57,14 +57,6 @@ pub enum RunMode {
     Step,
 }
 
-fn usage(exe_name: &str) {
-    println!("Usage: {} [OPTION] ", exe_name);
-    println!();
-    println!("Options:");
-    println!("    --help  - prints this help message and exits.");
-    println!("    --pause - do not start the simulation right away.");
-}
-
 bitflags::bitflags! {
     #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
     pub struct TestbedStateFlags: u32 {
@@ -258,16 +250,67 @@ impl TestbedApp {
         let mut args = env::args();
         let mut benchmark_mode = false;
 
+        let cmds = [
+            ("--help", Some("-h"), "Print this help message and exit"),
+            ("--pause", None, "Do not start the simulation right away"),
+            ("--bench", None, "Run benchmark mode without rendering"),
+            (
+                "--bench-iters <num:u32>",
+                None,
+                "Number of frames to run in benchmarking.",
+            ),
+        ];
+        let usage = |exe_name: &str, err: Option<&str>| {
+            println!("Usage: {} [OPTION] ", exe_name);
+            println!();
+            println!("Options:");
+            for (long, s, desc) in cmds {
+                let s_str = if let Some(s) = s {
+                    format!(", {s}")
+                } else {
+                    String::new()
+                };
+                println!("    {long}{s_str} - {desc}",)
+            }
+            if let Some(err) = err {
+                eprintln!("Error: {err}");
+            }
+        };
+
+        let mut num_bench_iters = 1000;
         if args.len() > 1 {
             let exname = args.next().unwrap();
-            for arg in args {
-                if &arg[..] == "--help" || &arg[..] == "-h" {
-                    usage(&exname[..]);
-                    return;
-                } else if &arg[..] == "--pause" {
-                    self.state.running = RunMode::Stop;
-                } else if &arg[..] == "--bench" {
-                    benchmark_mode = true;
+            while let Some(arg) = args.next() {
+                match arg.as_str() {
+                    "--help" | "-h" => {
+                        usage(&exname[..], None);
+                        return;
+                    }
+                    "--pause" => {
+                        self.state.running = RunMode::Stop;
+                    }
+                    "--bench" => {
+                        benchmark_mode = true;
+                    }
+                    "--bench-iters" => {
+                        let Some(n) = args.next() else {
+                            usage(
+                                &exname[..],
+                                Some("Missing number of iterations for --bench-iters"),
+                            );
+                            return;
+                        };
+                        let Ok(n) = n.parse::<u32>() else {
+                            usage(
+                                &exname[..],
+                                Some(&format!("Couldn't parse --bench-iters <arg:u32>, got {n}")),
+                            );
+                            return;
+                        };
+                        num_bench_iters = n;
+                    }
+                    // ignore extra arguments
+                    _ => {}
                 }
             }
         }
@@ -284,7 +327,6 @@ impl TestbedApp {
             for builder in builders {
                 results.clear();
                 println!("Running benchmark for {}", builder.0);
-                const NUM_ITERS: usize = 1000;
 
                 for (backend_id, backend) in backend_names.iter().enumerate() {
                     println!("|_ using backend {}", backend);
@@ -306,7 +348,7 @@ impl TestbedApp {
                     (builder.1)(&mut testbed);
                     // Run the simulation.
                     let mut timings = Vec::new();
-                    for k in 0..=NUM_ITERS {
+                    for k in 0..num_bench_iters {
                         {
                             if self.state.selected_backend == RAPIER_BACKEND {
                                 self.harness.step();
