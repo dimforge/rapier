@@ -268,7 +268,6 @@ pub fn update_ui(
                         ui.add(Slider::new(val, 0.0..=10.0).text("Snapped Absolute Character Length"));
                     },
                 }
-            
             }
             ui.separator();
         }
