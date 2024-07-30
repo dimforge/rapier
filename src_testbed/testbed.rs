@@ -417,7 +417,6 @@ impl TestbedApp {
                 .add_systems(Update, track_mouse_state);
 
             init(&mut app);
-
             app.run();
         }
     }
