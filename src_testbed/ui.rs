@@ -242,6 +242,7 @@ pub fn update_ui(
         // state.flags.set(TestbedStateFlags::WIREFRAME, wireframe);
         ui.separator();
         if let Some(character_controller) = &mut state.character_controller {
+            ui.label("Character controller");
             ui.checkbox(&mut character_controller.slide, "slide").on_hover_text("Should the character try to slide against the floor if it hits it?");
             ui.add(Slider::new(&mut character_controller.max_slope_climb_angle, 0.0..=Real::from(std::f32::consts::TAU)).text("max_slope_climb_angle"))
             .on_hover_text("The maximum angle (radians) between the floor’s normal and the `up` vector that the character is able to climb.");
@@ -269,8 +270,8 @@ pub fn update_ui(
                 }
             
             }
+            ui.separator();
         }
-        ui.separator();
         let label = if state.running == RunMode::Stop {
             "Start (T)"
         } else {
