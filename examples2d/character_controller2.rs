@@ -29,6 +29,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let character_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::capsule_y(0.3, 0.15);
     colliders.insert_with_parent(collider, character_handle, &mut bodies);
+    testbed.set_initial_body_color(character_handle, [0.8, 0.2, 0.2]);
 
     /*
      * Create the cubes
