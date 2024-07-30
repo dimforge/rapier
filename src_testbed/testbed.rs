@@ -417,6 +417,7 @@ impl TestbedApp {
                 .add_systems(Update, track_mouse_state);
 
             init(&mut app);
+
             app.run();
         }
     }
@@ -803,6 +804,21 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
                 QueryFilter::new().exclude_rigid_body(character_handle),
                 |c| collisions.push(c),
             );
+            if let Some(graphics) = &mut self.graphics {
+                if mvt.grounded {
+                    graphics.graphics.set_body_color(
+                        &mut graphics.materials,
+                        character_handle,
+                        [0.1, 0.8, 0.1],
+                    );
+                } else {
+                    graphics.graphics.set_body_color(
+                        &mut graphics.materials,
+                        character_handle,
+                        [0.8, 0.1, 0.1],
+                    );
+                }
+            }
             controller.solve_character_collision_impulses(
                 phx.integration_parameters.dt,
                 &mut phx.bodies,
