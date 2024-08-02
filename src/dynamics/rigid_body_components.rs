@@ -1000,12 +1000,12 @@ impl RigidBodyDominance {
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct RigidBodyActivation {
-    /// The threshold linear velocity bellow which the body can fall asleep.
+    /// The threshold linear velocity below which the body can fall asleep.
     ///
     /// The value is "normalized", i.e., the actual threshold applied by the physics engine
     /// is equal to this value multiplied by [`IntegrationParameters::length_unit`].
     pub normalized_linear_threshold: Real,
-    /// The angular linear velocity bellow which the body can fall asleep.
+    /// The angular linear velocity below which the body can fall asleep.
     pub angular_threshold: Real,
     /// The amount of time the rigid-body must remain below the thresholds to be put to sleep.
     pub time_until_sleep: Real,
@@ -1022,17 +1022,17 @@ impl Default for RigidBodyActivation {
 }
 
 impl RigidBodyActivation {
-    /// The default linear velocity bellow which a body can be put to sleep.
+    /// The default linear velocity below which a body can be put to sleep.
     pub fn default_normalized_linear_threshold() -> Real {
         0.4
     }
 
-    /// The default angular velocity bellow which a body can be put to sleep.
+    /// The default angular velocity below which a body can be put to sleep.
     pub fn default_angular_threshold() -> Real {
         0.5
     }
 
-    /// The amount of time the rigid-body must remain bellow it’s linear and angular velocity
+    /// The amount of time the rigid-body must remain below it’s linear and angular velocity
     /// threshold before falling to sleep.
     pub fn default_time_until_sleep() -> Real {
         2.0

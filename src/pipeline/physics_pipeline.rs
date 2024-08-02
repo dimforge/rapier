@@ -523,7 +523,7 @@ impl PhysicsPipeline {
             // integration of external forces.
             //
             // If there is only one or zero CCD substep, there is no need
-            // to split the timetsep interval. So we can just skip this part.
+            // to split the timestep interval. So we can just skip this part.
             if ccd_is_enabled && remaining_substeps > 1 {
                 // NOTE: Take forces into account when updating the bodies CCD activation flags
                 //       these forces have not been integrated to the body's velocity yet.
@@ -725,7 +725,7 @@ mod test {
 
         // Check that removing the body right after inserting it works.
         // We add two dynamic bodies, one kinematic body and one fixed body before removing
-        // them. This include a non-regression test where deleting a kimenatic body crashes.
+        // them. This include a non-regression test where deleting a kinematic body crashes.
         let rb = RigidBodyBuilder::dynamic().build();
         let h1 = bodies.insert(rb.clone());
         let h2 = bodies.insert(rb.clone());

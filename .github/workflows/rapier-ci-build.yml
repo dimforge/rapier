@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Cargo doc
-        run: cargo doc -p rapier3d -p rapier2d -p rapier3d-stl -p rapier3d-urdf
+        run: cargo doc --features parallel,simd-stable,serde-serialize,debug-render -p rapier3d -p rapier2d -p rapier3d-stl -p rapier3d-urdf
   build-native:
     runs-on: ubuntu-latest
     env:
@@ -89,3 +89,11 @@ jobs:
         run: cd crates/rapier2d && cargo build --verbose --target wasm32-unknown-emscripten --features simd-stable;
       - name: build rapier3d --features simd-stable
         run: cd crates/rapier3d && cargo build --verbose --target wasm32-unknown-emscripten --features simd-stable;
+  # If this fails, consider changing your text or adding something to .typos.toml
+  # You can find typos here: https://crates.io/crates/typos'
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: check typos
+        uses: crate-ci/typos@v1.23.2

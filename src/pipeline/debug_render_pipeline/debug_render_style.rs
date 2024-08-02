@@ -8,10 +8,10 @@ pub type DebugColor = [f32; 4];
 /// Style used for computing colors when rendering the scene.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct DebugRenderStyle {
-    /// The number of subdivision used to approximate the curved
+    /// The number of subdivisions used to approximate the curved
     /// parts of a shape with smooth faces.
     pub subdivisions: u32,
-    /// The number of subdivision used to approimate the curved
+    /// The number of subdivisions used to approximate the curved
     /// borders of round shapes.
     pub border_subdivisions: u32,
     /// The color of colliders attached to dynamic rigid-bodies.
@@ -42,13 +42,13 @@ pub struct DebugRenderStyle {
     pub disabled_color_multiplier: [f32; 4],
     /// The length of the local coordinate axes rendered for a rigid-body.
     pub rigid_body_axes_length: Real,
-    /// The collor for the segments joining the two contact points.
+    /// The color for the segments joining the two contact points.
     pub contact_depth_color: DebugColor,
     /// The color of the contact normals.
     pub contact_normal_color: DebugColor,
     /// The length of the contact normals.
     pub contact_normal_length: Real,
-    /// The color of the colliders Aabbs.
+    /// The color of the colliders' [`Aabb`](crate::geometry::Aabb)s.
     pub collider_aabb_color: DebugColor,
 }
 

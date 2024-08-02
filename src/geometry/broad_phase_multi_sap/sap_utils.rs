@@ -40,15 +40,15 @@ pub(crate) fn region_width(depth: i8) -> Real {
     (REGION_WIDTH_BASE * REGION_WIDTH_POWER_BASIS.powi(depth as i32)).min(MAX_AABB_EXTENT)
 }
 
-/// Computes the depth of the layer the given Aabb should be part of.
+/// Computes the depth of the layer the given [`Aabb`] should be part of.
 ///
-/// The idea here is that an Aabb should be part of a layer which has
-/// regions large enough so that one Aabb doesn't crosses too many
+/// The idea here is that an [`Aabb`] should be part of a layer which has
+/// regions large enough so that one [`Aabb`] doesn't crosses too many
 /// regions. But the regions must also not be too large, otherwise
 /// we are loosing the benefits of Multi-SAP.
 ///
-/// If the code bellow, we select a layer such that each region can
-/// contain at least a chain of 10 contiguous objects with that Aabb.
+/// If the code below, we select a layer such that each region can
+/// contain at least a chain of 10 contiguous objects with that [`Aabb`].
 pub(crate) fn layer_containing_aabb(aabb: &Aabb) -> i8 {
     // Max number of elements of this size we would like one region to be able to contain.
     const NUM_ELEMENTS_PER_DIMENSION: Real = 10.0;
