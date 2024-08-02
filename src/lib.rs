@@ -33,6 +33,9 @@ pub extern crate nalgebra as na;
 extern crate serde;
 extern crate num_traits as num;
 
+#[cfg(all(target_family = "wasm", feature = "parallel"))]
+std::compile_error!("Rapier does not currently support parallelism on WebAssembly.");
+
 #[cfg(feature = "parallel")]
 pub use rayon;
 
