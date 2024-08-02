@@ -1,6 +1,4 @@
-use na::Point3;
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -9,7 +7,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Ground.
@@ -17,12 +16,10 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 200.1;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
-        .build();
+    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
     let ground_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, ground_handle, &mut bodies);
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
+    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
      * Create some boxes.
@@ -41,12 +38,12 @@ pub fn init_world(testbed: &mut Testbed) {
             let z = k as f32 * shift - centerz;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
+            let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y, z]);
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
-            colliders.insert(collider, handle, &mut bodies);
+            let collider = ColliderBuilder::cuboid(rad, rad, rad);
+            colliders.insert_with_parent(collider, handle, &mut bodies);
 
-            testbed.set_body_color(handle, Point3::new(0.5, 0.5, 1.0));
+            testbed.set_initial_body_color(handle, [0.5, 0.5, 1.0]);
         }
     }
 
@@ -55,34 +52,35 @@ pub fn init_world(testbed: &mut Testbed) {
      */
 
     // Rigid body so that the sensor can move.
-    let sensor = RigidBodyBuilder::new_dynamic()
-        .translation(0.0, 5.0, 0.0)
-        .build();
+    let sensor = RigidBodyBuilder::dynamic().translation(vector![0.0, 5.0, 0.0]);
     let sensor_handle = bodies.insert(sensor);
 
     // Solid cube attached to the sensor which
     // other colliders can touch.
-    let collider = ColliderBuilder::cuboid(rad, rad, rad).build();
-    colliders.insert(collider, sensor_handle, &mut bodies);
+    let collider = ColliderBuilder::cuboid(rad, rad, rad);
+    colliders.insert_with_parent(collider, sensor_handle, &mut bodies);
 
     // We create a collider desc without density because we don't
     // want it to contribute to the rigid body mass.
-    let sensor_collider = ColliderBuilder::ball(rad * 5.0).sensor(true).build();
-    colliders.insert(sensor_collider, sensor_handle, &mut bodies);
+    let sensor_collider = ColliderBuilder::ball(rad * 5.0)
+        .density(0.0)
+        .sensor(true)
+        .active_events(ActiveEvents::COLLISION_EVENTS);
+    colliders.insert_with_parent(sensor_collider, sensor_handle, &mut bodies);
 
-    testbed.set_body_color(sensor_handle, Point3::new(0.5, 1.0, 1.0));
+    testbed.set_initial_body_color(sensor_handle, [0.5, 1.0, 1.0]);
 
     // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |_, mut graphics, physics, events, _| {
-        while let Ok(prox) = events.intersection_events.try_recv() {
-            let color = if prox.intersecting {
-                Point3::new(1.0, 1.0, 0.0)
+    testbed.add_callback(move |mut graphics, physics, events, _| {
+        while let Ok(prox) = events.collision_events.try_recv() {
+            let color = if prox.started() {
+                [1.0, 1.0, 0.0]
             } else {
-                Point3::new(0.5, 0.5, 1.0)
+                [0.5, 0.5, 1.0]
             };
 
-            let parent_handle1 = physics.colliders.get(prox.collider1).unwrap().parent();
-            let parent_handle2 = physics.colliders.get(prox.collider2).unwrap().parent();
+            let parent_handle1 = physics.colliders[prox.collider1()].parent().unwrap();
+            let parent_handle2 = physics.colliders[prox.collider2()].parent().unwrap();
 
             if let Some(graphics) = &mut graphics {
                 if parent_handle1 != ground_handle && parent_handle1 != sensor_handle {
@@ -98,11 +96,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(-6.0, 4.0, -6.0), Point3::new(0.0, 1.0, 0.0));
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Sensor", init_world)]);
-    testbed.run()
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.look_at(point![-6.0, 4.0, -6.0], point![0.0, 1.0, 0.0]);
 }

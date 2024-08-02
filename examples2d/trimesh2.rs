@@ -1,6 +1,4 @@
-use na::Point2;
-use rapier2d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier2d::geometry::{ColliderBuilder, ColliderSet};
+use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 
 use lyon::math::Point;
@@ -15,36 +13,35 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Ground
      */
     let ground_size = 25.0;
 
-    let rigid_body = RigidBodyBuilder::new_static().build();
+    let rigid_body = RigidBodyBuilder::fixed();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, 1.2).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::cuboid(ground_size, 1.2);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
-    let rigid_body = RigidBodyBuilder::new_static()
+    let rigid_body = RigidBodyBuilder::fixed()
         .rotation(std::f32::consts::FRAC_PI_2)
-        .translation(ground_size, ground_size)
-        .build();
+        .translation(vector![ground_size, ground_size]);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, 1.2).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::cuboid(ground_size, 1.2);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
-    let rigid_body = RigidBodyBuilder::new_static()
+    let rigid_body = RigidBodyBuilder::fixed()
         .rotation(std::f32::consts::FRAC_PI_2)
-        .translation(-ground_size, ground_size)
-        .build();
+        .translation(vector![-ground_size, ground_size]);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, 1.2).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::cuboid(ground_size, 1.2);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
-     * Create the trimeshes from a tesselated SVG.
+     * Create the trimeshes from a tessellated SVG.
      */
     let mut fill_tess = FillTessellator::new();
     let opt = usvg::Options::default();
@@ -70,7 +67,7 @@ pub fn init_world(testbed: &mut Testbed) {
                         &FillOptions::tolerance(0.01),
                         &mut BuffersBuilder::new(&mut mesh, VertexCtor { prim_id: 0 }),
                     )
-                    .expect("Tesselation failed.");
+                    .expect("Tessellation failed.");
 
                 let angle = transform.get_rotate() as f32;
 
@@ -83,18 +80,17 @@ pub fn init_world(testbed: &mut Testbed) {
                 let vertices: Vec<_> = mesh
                     .vertices
                     .iter()
-                    .map(|v| Point2::new(v.position[0] * sx, v.position[1] * -sy))
+                    .map(|v| point![v.position[0] * sx, v.position[1] * -sy])
                     .collect();
 
                 for k in 0..5 {
-                    let collider =
-                        ColliderBuilder::trimesh(vertices.clone(), indices.clone()).build();
-                    let rigid_body = RigidBodyBuilder::new_dynamic()
-                        .translation(ith as f32 * 8.0 - 20.0, 20.0 + k as f32 * 11.0)
-                        .rotation(angle)
-                        .build();
+                    let collider = ColliderBuilder::trimesh(vertices.clone(), indices.clone())
+                        .contact_skin(0.2);
+                    let rigid_body = RigidBodyBuilder::dynamic()
+                        .translation(vector![ith as f32 * 8.0 - 20.0, 20.0 + k as f32 * 11.0])
+                        .rotation(angle);
                     let handle = bodies.insert(rigid_body);
-                    colliders.insert(collider, handle, &mut bodies);
+                    colliders.insert_with_parent(collider, handle, &mut bodies);
                 }
 
                 ith += 1;
@@ -105,16 +101,11 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point2::new(0.0, 20.0), 17.0);
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.look_at(point![0.0, 20.0], 17.0);
 }
 
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Balls", init_world)]);
-    testbed.run()
-}
-
-const RAPIER_SVG_STR: &'static str = r#"
+const RAPIER_SVG_STR: &str = r#"
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg width="100%" height="100%" viewBox="0 0 527 131" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
     <g transform="matrix(1,0,0,1,1,-673)">

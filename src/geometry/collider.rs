@@ -1,153 +1,500 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
-use crate::geometry::{InteractionGroups, SharedShape, SolverFlags};
+use crate::geometry::{
+    ActiveCollisionTypes, BroadPhaseProxyIndex, ColliderBroadPhaseData, ColliderChanges,
+    ColliderFlags, ColliderMassProps, ColliderMaterial, ColliderParent, ColliderPosition,
+    ColliderShape, ColliderType, InteractionGroups, MeshConverter, MeshConverterError, SharedShape,
+};
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector, DIM};
 use crate::parry::transformation::vhacd::VHACDParameters;
-use parry::bounding_volume::AABB;
-use parry::shape::Shape;
+use crate::pipeline::{ActiveEvents, ActiveHooks};
+use crate::prelude::ColliderEnabled;
+use na::Unit;
+use parry::bounding_volume::{Aabb, BoundingVolume};
+use parry::shape::{Shape, TriMeshFlags};
 
-bitflags::bitflags! {
-    #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-    /// Flags affecting the behavior of the constraints solver for a given contact manifold.
-    pub(crate) struct ColliderFlags: u8 {
-        const SENSOR = 1 << 0;
-        const FRICTION_COMBINE_RULE_01 = 1 << 1;
-        const FRICTION_COMBINE_RULE_10 = 1 << 2;
-        const RESTITUTION_COMBINE_RULE_01 = 1 << 3;
-        const RESTITUTION_COMBINE_RULE_10 = 1 << 4;
-    }
-}
-
-impl ColliderFlags {
-    pub fn is_sensor(self) -> bool {
-        self.contains(ColliderFlags::SENSOR)
-    }
-
-    pub fn friction_combine_rule_value(self) -> u8 {
-        (self.bits & 0b0000_0110) >> 1
-    }
-
-    pub fn restitution_combine_rule_value(self) -> u8 {
-        (self.bits & 0b0001_1000) >> 3
-    }
-
-    pub fn with_friction_combine_rule(mut self, rule: CoefficientCombineRule) -> Self {
-        self.bits = (self.bits & !0b0000_0110) | ((rule as u8) << 1);
-        self
-    }
-
-    pub fn with_restitution_combine_rule(mut self, rule: CoefficientCombineRule) -> Self {
-        self.bits = (self.bits & !0b0001_1000) | ((rule as u8) << 3);
-        self
-    }
-}
+#[cfg(feature = "dim3")]
+use crate::geometry::HeightFieldFlags;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 /// A geometric entity that can be attached to a body so it can be affected by contacts and proximity queries.
 ///
-/// To build a new collider, use the `ColliderBuilder` structure.
+/// To build a new collider, use the [`ColliderBuilder`] structure.
 pub struct Collider {
-    shape: SharedShape,
-    density: Real,
+    pub(crate) coll_type: ColliderType,
+    pub(crate) shape: ColliderShape,
+    pub(crate) mprops: ColliderMassProps,
+    pub(crate) changes: ColliderChanges,
+    pub(crate) parent: Option<ColliderParent>,
+    pub(crate) pos: ColliderPosition,
+    pub(crate) material: ColliderMaterial,
     pub(crate) flags: ColliderFlags,
-    pub(crate) solver_flags: SolverFlags,
-    pub(crate) parent: RigidBodyHandle,
-    pub(crate) delta: Isometry<Real>,
-    pub(crate) position: Isometry<Real>,
-    pub(crate) predicted_position: Isometry<Real>,
-    /// The friction coefficient of this collider.
-    pub friction: Real,
-    /// The restitution coefficient of this collider.
-    pub restitution: Real,
-    pub(crate) collision_groups: InteractionGroups,
-    pub(crate) solver_groups: InteractionGroups,
-    pub(crate) proxy_index: usize,
-    /// User-defined data associated to this rigid-body.
+    pub(crate) bf_data: ColliderBroadPhaseData,
+    contact_skin: Real,
+    contact_force_event_threshold: Real,
+    /// User-defined data associated to this collider.
     pub user_data: u128,
 }
 
 impl Collider {
     pub(crate) fn reset_internal_references(&mut self) {
-        self.parent = RigidBodyHandle::invalid();
-        self.proxy_index = crate::INVALID_USIZE;
+        self.bf_data.proxy_index = crate::INVALID_U32;
+        self.changes = ColliderChanges::all();
+    }
+
+    pub(crate) fn effective_contact_force_event_threshold(&self) -> Real {
+        if self
+            .flags
+            .active_events
+            .contains(ActiveEvents::CONTACT_FORCE_EVENTS)
+        {
+            self.contact_force_event_threshold
+        } else {
+            Real::MAX
+        }
+    }
+
+    /// An internal index associated to this collider by the broad-phase algorithm.
+    pub fn internal_broad_phase_proxy_index(&self) -> BroadPhaseProxyIndex {
+        self.bf_data.proxy_index
+    }
+
+    /// Sets the internal index associated to this collider by the broad-phase algorithm.
+    ///
+    /// This must **not** be called, unless you are implementing your own custom broad-phase
+    /// that require storing an index in the collider struct.
+    /// Modifying that index outside of a custom broad-phase code will most certainly break
+    /// the physics engine.
+    pub fn set_internal_broad_phase_proxy_index(&mut self, id: BroadPhaseProxyIndex) {
+        self.bf_data.proxy_index = id;
     }
 
     /// The rigid body this collider is attached to.
-    pub fn parent(&self) -> RigidBodyHandle {
-        self.parent
+    pub fn parent(&self) -> Option<RigidBodyHandle> {
+        self.parent.map(|parent| parent.handle)
     }
 
     /// Is this collider a sensor?
     pub fn is_sensor(&self) -> bool {
-        self.flags.is_sensor()
+        self.coll_type.is_sensor()
     }
 
-    #[doc(hidden)]
-    pub fn set_position_debug(&mut self, position: Isometry<Real>) {
-        self.position = position;
+    /// Copy all the characteristics from `other` to `self`.
+    ///
+    /// If you have a mutable reference to a collider `collider: &mut Collider`, attempting to
+    /// assign it a whole new collider instance, e.g., `*collider = ColliderBuilder::ball(0.5).build()`,
+    /// will crash due to some internal indices being overwritten. Instead, use
+    /// `collider.copy_from(&ColliderBuilder::ball(0.5).build())`.
+    ///
+    /// This method will allow you to set most characteristics of this collider from another
+    /// collider instance without causing any breakage.
+    ///
+    /// This method **cannot** be used for reparenting a collider. Therefore, the parent of the
+    /// `other` (if any), as well as its relative position to that parent will not be copied into
+    /// `self`.
+    ///
+    /// The pose of `other` will only copied into `self` if `self` doesn’t have a parent (if it has
+    /// a parent, its position is directly controlled by the parent rigid-body).
+    pub fn copy_from(&mut self, other: &Collider) {
+        // NOTE: we deconstruct the collider struct to be sure we don’t forget to
+        //       add some copies here if we add more field to Collider in the future.
+        let Collider {
+            coll_type,
+            shape,
+            mprops,
+            changes: _changes, // Will be set to ALL.
+            parent: _parent,   // This function cannot be used to reparent the collider.
+            pos,
+            material,
+            flags,
+            bf_data: _bf_data, // Internal ids must not be overwritten.
+            contact_force_event_threshold,
+            user_data,
+            contact_skin,
+        } = other;
+
+        if self.parent.is_none() {
+            self.pos = *pos;
+        }
+
+        self.coll_type = *coll_type;
+        self.shape = shape.clone();
+        self.mprops = mprops.clone();
+        self.material = *material;
+        self.contact_force_event_threshold = *contact_force_event_threshold;
+        self.user_data = *user_data;
+        self.flags = *flags;
+        self.changes = ColliderChanges::all();
+        self.contact_skin = *contact_skin;
     }
 
-    /// The position of this collider expressed in the local-space of the rigid-body it is attached to.
-    #[deprecated(note = "use `.position_wrt_parent()` instead.")]
-    pub fn delta(&self) -> &Isometry<Real> {
-        &self.delta
+    /// The physics hooks enabled for this collider.
+    pub fn active_hooks(&self) -> ActiveHooks {
+        self.flags.active_hooks
+    }
+
+    /// Sets the physics hooks enabled for this collider.
+    pub fn set_active_hooks(&mut self, active_hooks: ActiveHooks) {
+        self.flags.active_hooks = active_hooks;
+    }
+
+    /// The events enabled for this collider.
+    pub fn active_events(&self) -> ActiveEvents {
+        self.flags.active_events
+    }
+
+    /// Sets the events enabled for this collider.
+    pub fn set_active_events(&mut self, active_events: ActiveEvents) {
+        self.flags.active_events = active_events;
+    }
+
+    /// The collision types enabled for this collider.
+    pub fn active_collision_types(&self) -> ActiveCollisionTypes {
+        self.flags.active_collision_types
+    }
+
+    /// Sets the collision types enabled for this collider.
+    pub fn set_active_collision_types(&mut self, active_collision_types: ActiveCollisionTypes) {
+        self.flags.active_collision_types = active_collision_types;
+    }
+
+    /// The contact skin of this collider.
+    ///
+    /// See the documentation of [`ColliderBuilder::contact_skin`] for details.
+    pub fn contact_skin(&self) -> Real {
+        self.contact_skin
+    }
+
+    /// Sets the contact skin of this collider.
+    ///
+    /// See the documentation of [`ColliderBuilder::contact_skin`] for details.
+    pub fn set_contact_skin(&mut self, skin_thickness: Real) {
+        self.contact_skin = skin_thickness;
+    }
+
+    /// The friction coefficient of this collider.
+    pub fn friction(&self) -> Real {
+        self.material.friction
+    }
+
+    /// Sets the friction coefficient of this collider.
+    pub fn set_friction(&mut self, coefficient: Real) {
+        self.material.friction = coefficient
+    }
+
+    /// The combine rule used by this collider to combine its friction
+    /// coefficient with the friction coefficient of the other collider it
+    /// is in contact with.
+    pub fn friction_combine_rule(&self) -> CoefficientCombineRule {
+        self.material.friction_combine_rule
+    }
+
+    /// Sets the combine rule used by this collider to combine its friction
+    /// coefficient with the friction coefficient of the other collider it
+    /// is in contact with.
+    pub fn set_friction_combine_rule(&mut self, rule: CoefficientCombineRule) {
+        self.material.friction_combine_rule = rule;
+    }
+
+    /// The restitution coefficient of this collider.
+    pub fn restitution(&self) -> Real {
+        self.material.restitution
+    }
+
+    /// Sets the restitution coefficient of this collider.
+    pub fn set_restitution(&mut self, coefficient: Real) {
+        self.material.restitution = coefficient
+    }
+
+    /// The combine rule used by this collider to combine its restitution
+    /// coefficient with the restitution coefficient of the other collider it
+    /// is in contact with.
+    pub fn restitution_combine_rule(&self) -> CoefficientCombineRule {
+        self.material.restitution_combine_rule
+    }
+
+    /// Sets the combine rule used by this collider to combine its restitution
+    /// coefficient with the restitution coefficient of the other collider it
+    /// is in contact with.
+    pub fn set_restitution_combine_rule(&mut self, rule: CoefficientCombineRule) {
+        self.material.restitution_combine_rule = rule;
+    }
+
+    /// Sets the total force magnitude beyond which a contact force event can be emitted.
+    pub fn set_contact_force_event_threshold(&mut self, threshold: Real) {
+        self.contact_force_event_threshold = threshold;
+    }
+
+    /// Sets whether or not this is a sensor collider.
+    pub fn set_sensor(&mut self, is_sensor: bool) {
+        if is_sensor != self.is_sensor() {
+            self.changes.insert(ColliderChanges::TYPE);
+            self.coll_type = if is_sensor {
+                ColliderType::Sensor
+            } else {
+                ColliderType::Solid
+            };
+        }
+    }
+
+    /// Is this collider enabled?
+    pub fn is_enabled(&self) -> bool {
+        matches!(self.flags.enabled, ColliderEnabled::Enabled)
+    }
+
+    /// Sets whether or not this collider is enabled.
+    pub fn set_enabled(&mut self, enabled: bool) {
+        match self.flags.enabled {
+            ColliderEnabled::Enabled | ColliderEnabled::DisabledByParent => {
+                if !enabled {
+                    self.changes.insert(ColliderChanges::ENABLED_OR_DISABLED);
+                    self.flags.enabled = ColliderEnabled::Disabled;
+                }
+            }
+            ColliderEnabled::Disabled => {
+                if enabled {
+                    self.changes.insert(ColliderChanges::ENABLED_OR_DISABLED);
+                    self.flags.enabled = ColliderEnabled::Enabled;
+                }
+            }
+        }
+    }
+
+    /// Sets the translational part of this collider's position.
+    pub fn set_translation(&mut self, translation: Vector<Real>) {
+        self.changes.insert(ColliderChanges::POSITION);
+        self.pos.0.translation.vector = translation;
+    }
+
+    /// Sets the rotational part of this collider's position.
+    pub fn set_rotation(&mut self, rotation: Rotation<Real>) {
+        self.changes.insert(ColliderChanges::POSITION);
+        self.pos.0.rotation = rotation;
+    }
+
+    /// Sets the position of this collider.
+    pub fn set_position(&mut self, position: Isometry<Real>) {
+        self.changes.insert(ColliderChanges::POSITION);
+        self.pos.0 = position;
     }
 
     /// The world-space position of this collider.
     pub fn position(&self) -> &Isometry<Real> {
-        &self.position
+        &self.pos
     }
 
-    /// The position of this collider wrt the body it is attached to.
-    pub fn position_wrt_parent(&self) -> &Isometry<Real> {
-        &self.delta
+    /// The translational part of this collider's position.
+    pub fn translation(&self) -> &Vector<Real> {
+        &self.pos.0.translation.vector
+    }
+
+    /// The rotational part of this collider's position.
+    pub fn rotation(&self) -> &Rotation<Real> {
+        &self.pos.0.rotation
+    }
+
+    /// The position of this collider with respect to the body it is attached to.
+    pub fn position_wrt_parent(&self) -> Option<&Isometry<Real>> {
+        self.parent.as_ref().map(|p| &p.pos_wrt_parent)
+    }
+
+    /// Sets the translational part of this collider's translation relative to its parent rigid-body.
+    pub fn set_translation_wrt_parent(&mut self, translation: Vector<Real>) {
+        if let Some(parent) = self.parent.as_mut() {
+            self.changes.insert(ColliderChanges::PARENT);
+            parent.pos_wrt_parent.translation.vector = translation;
+        }
+    }
+
+    /// Sets the rotational part of this collider's rotation relative to its parent rigid-body.
+    pub fn set_rotation_wrt_parent(&mut self, rotation: AngVector<Real>) {
+        if let Some(parent) = self.parent.as_mut() {
+            self.changes.insert(ColliderChanges::PARENT);
+            parent.pos_wrt_parent.rotation = Rotation::new(rotation);
+        }
+    }
+
+    /// Sets the position of this collider with respect to its parent rigid-body.
+    ///
+    /// Does nothing if the collider is not attached to a rigid-body.
+    pub fn set_position_wrt_parent(&mut self, pos_wrt_parent: Isometry<Real>) {
+        if let Some(parent) = self.parent.as_mut() {
+            self.changes.insert(ColliderChanges::PARENT);
+            parent.pos_wrt_parent = pos_wrt_parent;
+        }
     }
 
     /// The collision groups used by this collider.
     pub fn collision_groups(&self) -> InteractionGroups {
-        self.collision_groups
+        self.flags.collision_groups
+    }
+
+    /// Sets the collision groups of this collider.
+    pub fn set_collision_groups(&mut self, groups: InteractionGroups) {
+        if self.flags.collision_groups != groups {
+            self.changes.insert(ColliderChanges::GROUPS);
+            self.flags.collision_groups = groups;
+        }
     }
 
     /// The solver groups used by this collider.
     pub fn solver_groups(&self) -> InteractionGroups {
-        self.solver_groups
+        self.flags.solver_groups
+    }
+
+    /// Sets the solver groups of this collider.
+    pub fn set_solver_groups(&mut self, groups: InteractionGroups) {
+        if self.flags.solver_groups != groups {
+            self.changes.insert(ColliderChanges::GROUPS);
+            self.flags.solver_groups = groups;
+        }
+    }
+
+    /// The material (friction and restitution properties) of this collider.
+    pub fn material(&self) -> &ColliderMaterial {
+        &self.material
+    }
+
+    /// The volume (or surface in 2D) of this collider.
+    pub fn volume(&self) -> Real {
+        self.shape.mass_properties(1.0).mass()
     }
 
     /// The density of this collider.
     pub fn density(&self) -> Real {
-        self.density
+        match &self.mprops {
+            ColliderMassProps::Density(density) => *density,
+            ColliderMassProps::Mass(mass) => {
+                let inv_volume = self.shape.mass_properties(1.0).inv_mass;
+                mass * inv_volume
+            }
+            ColliderMassProps::MassProperties(mprops) => {
+                let inv_volume = self.shape.mass_properties(1.0).inv_mass;
+                mprops.mass() * inv_volume
+            }
+        }
+    }
+
+    /// The mass of this collider.
+    pub fn mass(&self) -> Real {
+        match &self.mprops {
+            ColliderMassProps::Density(density) => self.shape.mass_properties(*density).mass(),
+            ColliderMassProps::Mass(mass) => *mass,
+            ColliderMassProps::MassProperties(mprops) => mprops.mass(),
+        }
+    }
+
+    /// Sets the uniform density of this collider.
+    ///
+    /// This will override any previous mass-properties set by [`Self::set_density`],
+    /// [`Self::set_mass`], [`Self::set_mass_properties`], [`ColliderBuilder::density`],
+    /// [`ColliderBuilder::mass`], or [`ColliderBuilder::mass_properties`]
+    /// for this collider.
+    ///
+    /// The mass and angular inertia of this collider will be computed automatically based on its
+    /// shape.
+    pub fn set_density(&mut self, density: Real) {
+        self.do_set_mass_properties(ColliderMassProps::Density(density));
+    }
+
+    /// Sets the mass of this collider.
+    ///
+    /// This will override any previous mass-properties set by [`Self::set_density`],
+    /// [`Self::set_mass`], [`Self::set_mass_properties`], [`ColliderBuilder::density`],
+    /// [`ColliderBuilder::mass`], or [`ColliderBuilder::mass_properties`]
+    /// for this collider.
+    ///
+    /// The angular inertia of this collider will be computed automatically based on its shape
+    /// and this mass value.
+    pub fn set_mass(&mut self, mass: Real) {
+        self.do_set_mass_properties(ColliderMassProps::Mass(mass));
+    }
+
+    /// Sets the mass properties of this collider.
+    ///
+    /// This will override any previous mass-properties set by [`Self::set_density`],
+    /// [`Self::set_mass`], [`Self::set_mass_properties`], [`ColliderBuilder::density`],
+    /// [`ColliderBuilder::mass`], or [`ColliderBuilder::mass_properties`]
+    /// for this collider.
+    pub fn set_mass_properties(&mut self, mass_properties: MassProperties) {
+        self.do_set_mass_properties(ColliderMassProps::MassProperties(Box::new(mass_properties)))
+    }
+
+    fn do_set_mass_properties(&mut self, mprops: ColliderMassProps) {
+        if mprops != self.mprops {
+            self.changes |= ColliderChanges::LOCAL_MASS_PROPERTIES;
+            self.mprops = mprops;
+        }
     }
 
     /// The geometric shape of this collider.
     pub fn shape(&self) -> &dyn Shape {
-        &*self.shape.0
+        self.shape.as_ref()
+    }
+
+    /// A mutable reference to the geometric shape of this collider.
+    ///
+    /// If that shape is shared by multiple colliders, it will be
+    /// cloned first so that `self` contains a unique copy of that
+    /// shape that you can modify.
+    pub fn shape_mut(&mut self) -> &mut dyn Shape {
+        self.changes.insert(ColliderChanges::SHAPE);
+        self.shape.make_mut()
+    }
+
+    /// Sets the shape of this collider.
+    pub fn set_shape(&mut self, shape: SharedShape) {
+        self.changes.insert(ColliderChanges::SHAPE);
+        self.shape = shape;
+    }
+
+    /// Retrieve the SharedShape. Also see the `shape()` function
+    pub fn shared_shape(&self) -> &SharedShape {
+        &self.shape
     }
 
     /// Compute the axis-aligned bounding box of this collider.
-    pub fn compute_aabb(&self) -> AABB {
-        self.shape.compute_aabb(&self.position)
+    ///
+    /// This AABB doesn’t take into account the collider’s contact skin.
+    /// [`Collider::contact_skin`].
+    pub fn compute_aabb(&self) -> Aabb {
+        self.shape.compute_aabb(&self.pos)
     }
 
-    // pub(crate) fn compute_aabb_with_prediction(&self) -> AABB {
-    //     let aabb1 = self.shape.compute_aabb(&self.position);
-    //     let aabb2 = self.shape.compute_aabb(&self.predicted_position);
-    //     aabb1.merged(&aabb2)
-    // }
+    /// Compute the axis-aligned bounding box of this collider, taking into account the
+    /// [`Collider::contact_skin`] and prediction distance.
+    pub fn compute_collision_aabb(&self, prediction: Real) -> Aabb {
+        self.shape
+            .compute_aabb(&self.pos)
+            .loosened(self.contact_skin + prediction)
+    }
+
+    /// Compute the axis-aligned bounding box of this collider moving from its current position
+    /// to the given `next_position`
+    pub fn compute_swept_aabb(&self, next_position: &Isometry<Real>) -> Aabb {
+        self.shape.compute_swept_aabb(&self.pos, next_position)
+    }
 
     /// Compute the local-space mass properties of this collider.
     pub fn mass_properties(&self) -> MassProperties {
-        self.shape.mass_properties(self.density)
+        self.mprops.mass_properties(&*self.shape)
+    }
+
+    /// The total force magnitude beyond which a contact force event can be emitted.
+    pub fn contact_force_event_threshold(&self) -> Real {
+        self.contact_force_event_threshold
     }
 }
 
 /// A structure responsible for building a new collider.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[must_use = "Builder functions return the updated builder"]
 pub struct ColliderBuilder {
     /// The shape of the collider to be built.
     pub shape: SharedShape,
-    /// The density of the collider to be built.
-    density: Option<Real>,
+    /// Controls the way the collider’s mass-properties are computed.
+    pub mass_properties: ColliderMassProps,
     /// The friction coefficient of the collider to be built.
     pub friction: Real,
     /// The rule used to combine two friction coefficients.
@@ -156,19 +503,34 @@ pub struct ColliderBuilder {
     pub restitution: Real,
     /// The rule used to combine two restitution coefficients.
     pub restitution_combine_rule: CoefficientCombineRule,
-    /// The position of this collider relative to the local frame of the rigid-body it is attached to.
-    pub delta: Isometry<Real>,
+    /// The position of this collider.
+    pub position: Isometry<Real>,
     /// Is this collider a sensor?
     pub is_sensor: bool,
-    /// Do we have to always call the contact modifier
-    /// on this collider?
-    pub modify_solver_contacts: bool,
+    /// Contact pairs enabled for this collider.
+    pub active_collision_types: ActiveCollisionTypes,
+    /// Physics hooks enabled for this collider.
+    pub active_hooks: ActiveHooks,
+    /// Events enabled for this collider.
+    pub active_events: ActiveEvents,
     /// The user-data of the collider being built.
     pub user_data: u128,
     /// The collision groups for the collider being built.
     pub collision_groups: InteractionGroups,
     /// The solver groups for the collider being built.
     pub solver_groups: InteractionGroups,
+    /// Will the collider being built be enabled?
+    pub enabled: bool,
+    /// The total force magnitude beyond which a contact force event can be emitted.
+    pub contact_force_event_threshold: Real,
+    /// An extra thickness around the collider shape to keep them further apart when colliding.
+    pub contact_skin: Real,
+}
+
+impl Default for ColliderBuilder {
+    fn default() -> Self {
+        Self::ball(0.5)
+    }
 }
 
 impl ColliderBuilder {
@@ -176,24 +538,23 @@ impl ColliderBuilder {
     pub fn new(shape: SharedShape) -> Self {
         Self {
             shape,
-            density: None,
+            mass_properties: ColliderMassProps::default(),
             friction: Self::default_friction(),
             restitution: 0.0,
-            delta: Isometry::identity(),
+            position: Isometry::identity(),
             is_sensor: false,
             user_data: 0,
             collision_groups: InteractionGroups::all(),
             solver_groups: InteractionGroups::all(),
             friction_combine_rule: CoefficientCombineRule::Average,
             restitution_combine_rule: CoefficientCombineRule::Average,
-            modify_solver_contacts: false,
+            active_collision_types: ActiveCollisionTypes::default(),
+            active_hooks: ActiveHooks::empty(),
+            active_events: ActiveEvents::empty(),
+            enabled: true,
+            contact_force_event_threshold: 0.0,
+            contact_skin: 0.0,
         }
-    }
-
-    /// The density of the collider being built.
-    pub fn get_density(&self) -> Real {
-        let default_density = if self.is_sensor { 0.0 } else { 1.0 };
-        self.density.unwrap_or(default_density)
     }
 
     /// Initialize a new collider builder with a compound shape.
@@ -204,6 +565,12 @@ impl ColliderBuilder {
     /// Initialize a new collider builder with a ball shape defined by its radius.
     pub fn ball(radius: Real) -> Self {
         Self::new(SharedShape::ball(radius))
+    }
+
+    /// Initialize a new collider build with a half-space shape defined by the outward normal
+    /// of its planar boundary.
+    pub fn halfspace(outward_normal: Unit<Vector<Real>>) -> Self {
+        Self::new(SharedShape::halfspace(outward_normal))
     }
 
     /// Initialize a new collider builder with a cylindrical shape defined by its half-height
@@ -253,23 +620,30 @@ impl ColliderBuilder {
         Self::new(SharedShape::round_cuboid(hx, hy, border_radius))
     }
 
+    /// Initialize a new collider builder with a capsule defined from its endpoints.
+    ///
+    /// See also [`ColliderBuilder::capsule_x`], [`ColliderBuilder::capsule_y`],
+    /// (and `ColliderBuilder::capsule_z` in 3D only)
+    /// for a simpler way to build capsules with common
+    /// orientations.
+    pub fn capsule_from_endpoints(a: Point<Real>, b: Point<Real>, radius: Real) -> Self {
+        Self::new(SharedShape::capsule(a, b, radius))
+    }
+
     /// Initialize a new collider builder with a capsule shape aligned with the `x` axis.
     pub fn capsule_x(half_height: Real, radius: Real) -> Self {
-        let p = Point::from(Vector::x() * half_height);
-        Self::new(SharedShape::capsule(-p, p, radius))
+        Self::new(SharedShape::capsule_x(half_height, radius))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `y` axis.
     pub fn capsule_y(half_height: Real, radius: Real) -> Self {
-        let p = Point::from(Vector::y() * half_height);
-        Self::new(SharedShape::capsule(-p, p, radius))
+        Self::new(SharedShape::capsule_y(half_height, radius))
     }
 
     /// Initialize a new collider builder with a capsule shape aligned with the `z` axis.
     #[cfg(feature = "dim3")]
     pub fn capsule_z(half_height: Real, radius: Real) -> Self {
-        let p = Point::from(Vector::z() * half_height);
-        Self::new(SharedShape::capsule(-p, p, radius))
+        Self::new(SharedShape::capsule_z(half_height, radius))
     }
 
     /// Initialize a new collider builder with a cuboid shape defined by its half-extents.
@@ -313,6 +687,31 @@ impl ColliderBuilder {
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers.
     pub fn trimesh(vertices: Vec<Point<Real>>, indices: Vec<[u32; 3]>) -> Self {
         Self::new(SharedShape::trimesh(vertices, indices))
+    }
+
+    /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers and
+    /// flags controlling its pre-processing.
+    pub fn trimesh_with_flags(
+        vertices: Vec<Point<Real>>,
+        indices: Vec<[u32; 3]>,
+        flags: TriMeshFlags,
+    ) -> Self {
+        Self::new(SharedShape::trimesh_with_flags(vertices, indices, flags))
+    }
+
+    /// Initializes a collider builder with a shape converted from the given triangle mesh index
+    /// and vertex buffer.
+    ///
+    /// All the conversion variants could be achieved with other constructors of [`ColliderBuilder`]
+    /// but having this specified by an enum can occasionally be easier or more flexible (determined
+    /// at runtime).
+    pub fn converted_trimesh(
+        vertices: Vec<Point<Real>>,
+        indices: Vec<[u32; 3]>,
+        converter: MeshConverter,
+    ) -> Result<Self, MeshConverterError> {
+        let (shape, pose) = converter.convert(vertices, indices)?;
+        Ok(Self::new(shape).position(pose))
     }
 
     /// Initializes a collider builder with a compound shape obtained from the decomposition of
@@ -426,9 +825,25 @@ impl ColliderBuilder {
         Self::new(SharedShape::heightfield(heights, scale))
     }
 
+    /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
+    /// factor along each coordinate axis.
+    #[cfg(feature = "dim3")]
+    pub fn heightfield_with_flags(
+        heights: na::DMatrix<Real>,
+        scale: Vector<Real>,
+        flags: HeightFieldFlags,
+    ) -> Self {
+        Self::new(SharedShape::heightfield_with_flags(heights, scale, flags))
+    }
+
     /// The default friction coefficient used by the collider builder.
     pub fn default_friction() -> Real {
         0.5
+    }
+
+    /// The default density used by the collider builder.
+    pub fn default_density() -> Real {
+        100.0
     }
 
     /// Sets an arbitrary user-defined 128-bit integer associated to the colliders built by this builder.
@@ -461,10 +876,21 @@ impl ColliderBuilder {
         self
     }
 
-    /// If set to `true` then the physics hooks will always run to modify
-    /// contacts involving this collider.
-    pub fn modify_solver_contacts(mut self, modify_solver_contacts: bool) -> Self {
-        self.modify_solver_contacts = modify_solver_contacts;
+    /// The set of physics hooks enabled for this collider.
+    pub fn active_hooks(mut self, active_hooks: ActiveHooks) -> Self {
+        self.active_hooks = active_hooks;
+        self
+    }
+
+    /// The set of events enabled for this collider.
+    pub fn active_events(mut self, active_events: ActiveEvents) -> Self {
+        self.active_events = active_events;
+        self
+    }
+
+    /// The set of active collision types for this collider.
+    pub fn active_collision_types(mut self, active_collision_types: ActiveCollisionTypes) -> Self {
+        self.active_collision_types = active_collision_types;
         self
     }
 
@@ -492,81 +918,156 @@ impl ColliderBuilder {
         self
     }
 
-    /// Sets the density of the collider this builder will build.
+    /// Sets the uniform density of the collider this builder will build.
+    ///
+    /// This will be overridden by a call to [`Self::mass`] or [`Self::mass_properties`] so it only
+    /// makes sense to call either [`Self::density`] or [`Self::mass`] or [`Self::mass_properties`].
+    ///
+    /// The mass and angular inertia of this collider will be computed automatically based on its
+    /// shape.
     pub fn density(mut self, density: Real) -> Self {
-        self.density = Some(density);
+        self.mass_properties = ColliderMassProps::Density(density);
         self
     }
 
-    /// Sets the initial translation of the collider to be created,
-    /// relative to the rigid-body it is attached to.
-    #[cfg(feature = "dim2")]
-    pub fn translation(mut self, x: Real, y: Real) -> Self {
-        self.delta.translation.x = x;
-        self.delta.translation.y = y;
+    /// Sets the mass of the collider this builder will build.
+    ///
+    /// This will be overridden by a call to [`Self::density`] or [`Self::mass_properties`] so it only
+    /// makes sense to call either [`Self::density`] or [`Self::mass`] or [`Self::mass_properties`].
+    ///
+    /// The angular inertia of this collider will be computed automatically based on its shape
+    /// and this mass value.
+    pub fn mass(mut self, mass: Real) -> Self {
+        self.mass_properties = ColliderMassProps::Mass(mass);
         self
     }
 
-    /// Sets the initial translation of the collider to be created,
-    /// relative to the rigid-body it is attached to.
-    #[cfg(feature = "dim3")]
-    pub fn translation(mut self, x: Real, y: Real, z: Real) -> Self {
-        self.delta.translation.x = x;
-        self.delta.translation.y = y;
-        self.delta.translation.z = z;
+    /// Sets the mass properties of the collider this builder will build.
+    ///
+    /// This will be overridden by a call to [`Self::density`] or [`Self::mass`] so it only
+    /// makes sense to call either [`Self::density`] or [`Self::mass`] or [`Self::mass_properties`].
+    pub fn mass_properties(mut self, mass_properties: MassProperties) -> Self {
+        self.mass_properties = ColliderMassProps::MassProperties(Box::new(mass_properties));
         self
     }
 
-    /// Sets the initial orientation of the collider to be created,
-    /// relative to the rigid-body it is attached to.
+    /// Sets the total force magnitude beyond which a contact force event can be emitted.
+    pub fn contact_force_event_threshold(mut self, threshold: Real) -> Self {
+        self.contact_force_event_threshold = threshold;
+        self
+    }
+
+    /// Sets the initial translation of the collider to be created.
+    ///
+    /// If the collider will be attached to a rigid-body, this sets the translation relative to the
+    /// rigid-body it will be attached to.
+    pub fn translation(mut self, translation: Vector<Real>) -> Self {
+        self.position.translation.vector = translation;
+        self
+    }
+
+    /// Sets the initial orientation of the collider to be created.
+    ///
+    /// If the collider will be attached to a rigid-body, this sets the orientation relative to the
+    /// rigid-body it will be attached to.
     pub fn rotation(mut self, angle: AngVector<Real>) -> Self {
-        self.delta.rotation = Rotation::new(angle);
+        self.position.rotation = Rotation::new(angle);
+        self
+    }
+
+    /// Sets the initial position (translation and orientation) of the collider to be created.
+    ///
+    /// If the collider will be attached to a rigid-body, this sets the position relative
+    /// to the rigid-body it will be attached to.
+    pub fn position(mut self, pos: Isometry<Real>) -> Self {
+        self.position = pos;
         self
     }
 
     /// Sets the initial position (translation and orientation) of the collider to be created,
     /// relative to the rigid-body it is attached to.
-    pub fn position(mut self, pos: Isometry<Real>) -> Self {
-        self.delta = pos;
+    #[deprecated(note = "Use `.position` instead.")]
+    pub fn position_wrt_parent(mut self, pos: Isometry<Real>) -> Self {
+        self.position = pos;
         self
     }
 
     /// Set the position of this collider in the local-space of the rigid-body it is attached to.
     #[deprecated(note = "Use `.position` instead.")]
     pub fn delta(mut self, delta: Isometry<Real>) -> Self {
-        self.delta = delta;
+        self.position = delta;
+        self
+    }
+
+    /// Sets the contact skin of the collider.
+    ///
+    /// The contact skin acts as if the collider was enlarged with a skin of width `skin_thickness`
+    /// around it, keeping objects further apart when colliding.
+    ///
+    /// A non-zero contact skin can increase performance, and in some cases, stability. However
+    /// it creates a small gap between colliding object (equal to the sum of their skin). If the
+    /// skin is sufficiently small, this might not be visually significant or can be hidden by the
+    /// rendering assets.
+    pub fn contact_skin(mut self, skin_thickness: Real) -> Self {
+        self.contact_skin = skin_thickness;
+        self
+    }
+
+    /// Enable or disable the collider after its creation.
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
         self
     }
 
     /// Builds a new collider attached to the given rigid-body.
     pub fn build(&self) -> Collider {
-        let density = self.get_density();
-        let mut flags = ColliderFlags::empty();
-        flags.set(ColliderFlags::SENSOR, self.is_sensor);
-        flags = flags
-            .with_friction_combine_rule(self.friction_combine_rule)
-            .with_restitution_combine_rule(self.restitution_combine_rule);
-        let mut solver_flags = SolverFlags::default();
-        solver_flags.set(
-            SolverFlags::MODIFY_SOLVER_CONTACTS,
-            self.modify_solver_contacts,
-        );
-
-        Collider {
-            shape: self.shape.clone(),
-            density,
+        let shape = self.shape.clone();
+        let material = ColliderMaterial {
             friction: self.friction,
             restitution: self.restitution,
-            delta: self.delta,
-            flags,
-            solver_flags,
-            parent: RigidBodyHandle::invalid(),
-            position: Isometry::identity(),
-            predicted_position: Isometry::identity(),
-            proxy_index: crate::INVALID_USIZE,
+            friction_combine_rule: self.friction_combine_rule,
+            restitution_combine_rule: self.restitution_combine_rule,
+        };
+        let flags = ColliderFlags {
             collision_groups: self.collision_groups,
             solver_groups: self.solver_groups,
+            active_collision_types: self.active_collision_types,
+            active_hooks: self.active_hooks,
+            active_events: self.active_events,
+            enabled: if self.enabled {
+                ColliderEnabled::Enabled
+            } else {
+                ColliderEnabled::Disabled
+            },
+        };
+        let changes = ColliderChanges::all();
+        let pos = ColliderPosition(self.position);
+        let bf_data = ColliderBroadPhaseData::default();
+        let coll_type = if self.is_sensor {
+            ColliderType::Sensor
+        } else {
+            ColliderType::Solid
+        };
+
+        Collider {
+            shape,
+            mprops: self.mass_properties.clone(),
+            material,
+            parent: None,
+            changes,
+            pos,
+            bf_data,
+            flags,
+            coll_type,
+            contact_force_event_threshold: self.contact_force_event_threshold,
+            contact_skin: self.contact_skin,
             user_data: self.user_data,
         }
+    }
+}
+
+impl From<ColliderBuilder> for Collider {
+    fn from(val: ColliderBuilder) -> Collider {
+        val.build()
     }
 }

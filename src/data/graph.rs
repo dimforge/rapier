@@ -1,5 +1,5 @@
 // This is basically a stripped down version of petgraph's UnGraph.
-// - It is not generic wrt. the index type (we always use u32).
+// - It is not generic with respect to the index type (we always use u32).
 // - It preserves associated edge iteration order after Serialization/Deserialization.
 // - It is always undirected.
 //! A stripped-down version of petgraph's UnGraph.
@@ -125,7 +125,7 @@ impl<E> Edge<E> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct Graph<N, E> {
     pub(crate) nodes: Vec<Node<N>>,
@@ -370,7 +370,7 @@ impl<N, E> Graph<N, E> {
         // indices.
         let edge = self.edges.swap_remove(e.index());
         let swap = match self.edges.get(e.index()) {
-            // no elment needed to be swapped.
+            // no element needed to be swapped.
             None => return Some(edge.weight),
             Some(ed) => ed.node,
         };
@@ -644,19 +644,24 @@ impl<'a, E> Iterator for Edges<'a, E> {
 
         // For iterate_over, "both" is represented as None.
         // For reverse, "no" is represented as None.
-        let (iterate_over, reverse) = (None, Some(self.direction.opposite()));
+        let (iterate_over, _reverse) = (None, Some(self.direction.opposite()));
 
         if iterate_over.unwrap_or(Direction::Outgoing) == Direction::Outgoing {
             let i = self.next[0].index();
-            if let Some(Edge { node, weight, next }) = self.edges.get(i) {
+            if let Some(Edge {
+                node: _node,
+                weight,
+                next,
+            }) = self.edges.get(i)
+            {
                 self.next[0] = next[0];
                 return Some(EdgeReference {
                     index: EdgeIndex(i as u32),
-                    node: if reverse == Some(Direction::Outgoing) {
-                        swap_pair(*node)
-                    } else {
-                        *node
-                    },
+                    // node: if reverse == Some(Direction::Outgoing) {
+                    //     swap_pair(*node)
+                    // } else {
+                    //     *node
+                    // },
                     weight,
                 });
             }
@@ -674,11 +679,11 @@ impl<'a, E> Iterator for Edges<'a, E> {
 
                 return Some(EdgeReference {
                     index: edge_index,
-                    node: if reverse == Some(Direction::Incoming) {
-                        swap_pair(*node)
-                    } else {
-                        *node
-                    },
+                    // node: if reverse == Some(Direction::Incoming) {
+                    //     swap_pair(*node)
+                    // } else {
+                    //     *node
+                    // },
                     weight,
                 });
             }
@@ -688,10 +693,10 @@ impl<'a, E> Iterator for Edges<'a, E> {
     }
 }
 
-fn swap_pair<T>(mut x: [T; 2]) -> [T; 2] {
-    x.swap(0, 1);
-    x
-}
+// fn swap_pair<T>(mut x: [T; 2]) -> [T; 2] {
+//     x.swap(0, 1);
+//     x
+// }
 
 impl<'a, E> Clone for Edges<'a, E> {
     fn clone(&self) -> Self {
@@ -742,24 +747,11 @@ impl<N, E> IndexMut<EdgeIndex> for Graph<N, E> {
     }
 }
 
-/// A “walker” object that can be used to step through the edge list of a node.
-///
-/// Created with [`.detach()`](struct.Neighbors.html#method.detach).
-///
-/// The walker does not borrow from the graph, so it lets you step through
-/// neighbors or incident edges while also mutating graph weights, as
-/// in the following example:
-#[derive(Clone)]
-pub struct WalkNeighbors {
-    skip_start: NodeIndex,
-    next: [EdgeIndex; 2],
-}
-
 /// Reference to a `Graph` edge.
 #[derive(Debug)]
 pub struct EdgeReference<'a, E: 'a> {
     index: EdgeIndex,
-    node: [NodeIndex; 2],
+    // node: [NodeIndex; 2],
     weight: &'a E,
 }
 

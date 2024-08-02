@@ -1,6 +1,4 @@
-use na::Point2;
-use rapier2d::dynamics::{BallJoint, BodyStatus, JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier2d::geometry::{ColliderBuilder, ColliderSet};
+use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -9,7 +7,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let mut joints = JointSet::new();
+    let mut impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Create the balls
@@ -28,31 +27,30 @@ pub fn init_world(testbed: &mut Testbed) {
             let fi = i as f32;
 
             let status = if k >= numk / 2 - 3 && k <= numk / 2 + 3 && i == 0 {
-                BodyStatus::Static
+                RigidBodyType::Fixed
             } else {
-                BodyStatus::Dynamic
+                RigidBodyType::Dynamic
             };
 
-            let rigid_body = RigidBodyBuilder::new(status)
-                .translation(fk * shift, -fi * shift)
-                .build();
+            let rigid_body =
+                RigidBodyBuilder::new(status).translation(vector![fk * shift, -fi * shift]);
             let child_handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::ball(rad).build();
-            colliders.insert(collider, child_handle, &mut bodies);
+            let collider = ColliderBuilder::ball(rad);
+            colliders.insert_with_parent(collider, child_handle, &mut bodies);
 
             // Vertical joint.
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
-                let joint = BallJoint::new(Point2::origin(), Point2::new(0.0, shift));
-                joints.insert(&mut bodies, parent_handle, child_handle, joint);
+                let joint = RevoluteJointBuilder::new().local_anchor2(point![0.0, shift]);
+                impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
 
             // Horizontal joint.
             if k > 0 {
                 let parent_index = body_handles.len() - numi;
                 let parent_handle = body_handles[parent_index];
-                let joint = BallJoint::new(Point2::origin(), Point2::new(-shift, 0.0));
-                joints.insert(&mut bodies, parent_handle, child_handle, joint);
+                let joint = RevoluteJointBuilder::new().local_anchor2(point![-shift, 0.0]);
+                impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
 
             body_handles.push(child_handle);
@@ -62,11 +60,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point2::new(numk as f32 * rad, numi as f32 * -rad), 5.0);
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Joints", init_world)]);
-    testbed.run()
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.look_at(point![numk as f32 * rad, numi as f32 * -rad], 5.0);
 }

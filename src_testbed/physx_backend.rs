@@ -1,27 +1,25 @@
 #![allow(dead_code)]
 
-use na::{
-    Isometry3, Matrix3, Matrix4, Point3, Quaternion, Rotation3, Translation3, Unit, UnitQuaternion,
-    Vector3,
-};
+use na::{Isometry3, Matrix4, Point3, Quaternion, Translation3, Unit, UnitQuaternion, Vector3};
 use physx::cooking::{
-    ConvexMeshCookingResult, PxConvexMeshDesc, PxCooking, PxCookingParams, PxHeightFieldDesc,
+    ConvexMeshCookingResult, PxConvexMeshDesc, PxCookingParams, PxHeightFieldDesc,
     PxTriangleMeshDesc, TriangleMeshCookingResult,
 };
 use physx::foundation::DefaultAllocator;
 use physx::prelude::*;
-use physx::scene::FrictionType;
+use physx::scene::{FrictionType, SceneFlags};
 use physx::traits::Class;
+use physx_sys::PxFilterFlags;
 use physx_sys::{
-    PxBitAndByte, PxConvexFlags, PxConvexMeshGeometryFlags, PxHeightFieldSample,
-    PxMeshGeometryFlags, PxMeshScale_new, PxRigidActor,
+    FilterShaderCallbackInfo, PxBitAndByte, PxConvexFlags, PxConvexMeshGeometryFlags,
+    PxHeightFieldSample, PxMeshGeometryFlags, PxMeshScale_new, PxRigidActor,
 };
 use rapier::counters::Counters;
 use rapier::dynamics::{
-    IntegrationParameters, JointParams, JointSet, RigidBodyHandle, RigidBodySet,
+    ImpulseJointSet, IntegrationParameters, MultibodyJointSet, RigidBodyHandle, RigidBodySet,
 };
 use rapier::geometry::{Collider, ColliderSet};
-use rapier::utils::WBasis;
+use rapier::prelude::JointAxesMask;
 use std::collections::HashMap;
 
 trait IntoNa {
@@ -79,10 +77,20 @@ impl IntoPhysx for Point3<f32> {
     }
 }
 
+impl IntoPhysx for UnitQuaternion<f32> {
+    type Output = PxQuat;
+    fn into_physx(self) -> Self::Output {
+        PxQuat::new(self.i, self.j, self.k, self.w)
+    }
+}
+
 impl IntoPhysx for Isometry3<f32> {
     type Output = PxTransform;
     fn into_physx(self) -> Self::Output {
-        self.into_glam().into()
+        PxTransform::from_translation_rotation(
+            &self.translation.vector.into_physx(),
+            &self.rotation.into_physx(),
+        )
     }
 }
 
@@ -125,7 +133,6 @@ pub static FOUNDATION: std::cell::RefCell<PxPhysicsFoundation> = std::cell::RefC
 
 pub struct PhysxWorld {
     // physics: Physics,
-    // cooking: Cooking,
     materials: Vec<Owner<PxMaterial>>,
     shapes: Vec<Owner<PxShape>>,
     scene: Option<Owner<PxScene>>,
@@ -145,7 +152,8 @@ impl PhysxWorld {
         integration_parameters: &IntegrationParameters,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        joints: &JointSet,
+        impulse_joints: &ImpulseJointSet,
+        multibody_joints: &MultibodyJointSet,
         use_two_friction_directions: bool,
         num_threads: usize,
     ) -> Self {
@@ -160,22 +168,28 @@ impl PhysxWorld {
                 FrictionType::Patch
             };
 
-            let scene_desc = SceneDescriptor {
+            let mut scene_desc = SceneDescriptor {
                 gravity: gravity.into_physx(),
                 thread_count: num_threads as u32,
-                broad_phase_type: BroadPhaseType::AutomaticBoxPruning,
-                solver_type: SolverType::PGS,
+                broad_phase_type: BroadPhaseType::Abp,
+                solver_type: SolverType::Pgs,
                 friction_type,
+                ccd_max_passes: integration_parameters.max_ccd_substeps as u32,
                 ..SceneDescriptor::new(())
             };
+
+            let ccd_enabled = bodies.iter().any(|(_, rb)| rb.is_ccd_enabled());
+
+            if ccd_enabled {
+                scene_desc.simulation_filter_shader =
+                    FilterShaderDescriptor::CallDefaultFirst(ccd_filter_shader);
+                scene_desc.flags.insert(SceneFlags::EnableCcd);
+            }
 
             let mut scene: Owner<PxScene> = physics.create(scene_desc).unwrap();
             let mut rapier2dynamic = HashMap::new();
             let mut rapier2static = HashMap::new();
-            let cooking_params =
-                PxCookingParams::new(&*physics).expect("Failed to init PhysX cooking.");
-            let mut cooking = PxCooking::new(physics.foundation_mut(), &cooking_params)
-                .expect("Failed to init PhysX cooking");
+            let mut rapier2link = HashMap::new();
 
             /*
              *
@@ -183,12 +197,21 @@ impl PhysxWorld {
              *
              */
             for (rapier_handle, rb) in bodies.iter() {
+                if multibody_joints.rigid_body_link(rapier_handle).is_some() {
+                    continue;
+                };
+
                 let pos = rb.position().into_physx();
                 if rb.is_dynamic() {
                     let mut actor = physics.create_dynamic(&pos, rapier_handle).unwrap();
+                    let linvel = rb.linvel().into_physx();
+                    let angvel = rb.angvel().into_physx();
+                    actor.set_linear_velocity(&linvel, true);
+                    actor.set_angular_velocity(&angvel, true);
                     actor.set_solver_iteration_counts(
-                        integration_parameters.max_position_iterations as u32,
-                        integration_parameters.max_velocity_iterations as u32,
+                        // Use our number of solver iterations as their number of position iterations.
+                        integration_parameters.num_solver_iterations.get() as u32,
+                        1,
                     );
 
                     rapier2dynamic.insert(rapier_handle, actor);
@@ -199,37 +222,122 @@ impl PhysxWorld {
             }
 
             /*
+             * Articulations.
+             */
+            /*
+            for multibody in multibody_joints.multibodies() {
+                let mut articulation: Owner<PxArticulationReducedCoordinate> =
+                    physics.create_articulation_reduced_coordinate(()).unwrap();
+                let mut parent = None;
+
+                for link in multibody.links() {
+                    let is_root = parent.is_none();
+                    let rb_handle = link.rigid_body_handle();
+                    let rb = bodies.get(rb_handle).unwrap();
+
+                    if is_root && rb.is_fixed() {
+                        articulation.set_articulation_flag(ArticulationFlag::FixBase, true);
+                    }
+
+                    let link_pose = rb.position().into_physx();
+                    let px_link = articulation
+                        .create_link(parent.take(), &link_pose, rb_handle)
+                        .unwrap();
+
+                    // TODO: there is no get_inbound_joint_mut?
+                    if let Some(px_inbound_joint) =
+                        unsafe { (PxArticulationLink_getInboundJoint(px_link.as_ptr())).as_mut() }
+                    {
+                        let frame1 = link.joint().data.local_frame1.into_physx();
+                        let frame2 = link.joint().data.local_frame2.into_physx();
+
+                        px_inbound_joint.set_parent_pose(&frame1);
+                        px_inbound_joint.set_child_pose(&frame2);
+
+                        /*
+
+                        let px_joint = px_inbound_joint
+                            .as_articulation_joint_reduced_coordinate()
+                            .unwrap();
+
+                        if let Some(_) = link
+                            .articulation()
+                            .downcast_ref::<SphericalMultibodyJoint>()
+                        {
+                            px_joint.set_joint_type(ArticulationJointType::Spherical);
+                            px_joint.set_motion(ArticulationAxis::Swing1, ArticulationMotion::Free);
+                            px_joint.set_motion(ArticulationAxis::Swing2, ArticulationMotion::Free);
+                            px_joint.set_motion(ArticulationAxis::Twist, ArticulationMotion::Free);
+                        } else if let Some(_) =
+                            link.articulation().downcast_ref::<RevoluteMultibodyJoint>()
+                        {
+                            px_joint.set_joint_type(ArticulationJointType::Revolute);
+                            px_joint.set_motion(ArticulationAxis::Swing1, ArticulationMotion::Free);
+                            px_joint.set_motion(ArticulationAxis::Swing2, ArticulationMotion::Free);
+                            px_joint.set_motion(ArticulationAxis::Twist, ArticulationMotion::Free);
+                        }
+
+                         */
+                    }
+
+                    // FIXME: we are using transmute here in order to erase the lifetime of
+                    //        the &mut ref behind px_link (which is tied to the lifetime of the
+                    //        multibody_joint). This looks necessary because we need
+                    //        that mutable ref to create the next link. Yet, the link creation
+                    //        methods also requires a mutable ref to the multibody_joint.
+                    rapier2link.insert(rb_handle, px_link as *mut PxArticulationLink);
+                    parent = Some(unsafe { std::mem::transmute(px_link as *mut _) });
+                }
+
+                scene.add_articulation(articulation);
+            }
+
+             */
+
+            /*
              *
              * Colliders
              *
              */
             for (_, collider) in colliders.iter() {
                 if let Some((mut px_shape, px_material, collider_pos)) =
-                    physx_collider_from_rapier_collider(&mut *physics, &mut cooking, &collider)
+                    physx_collider_from_rapier_collider(&mut *physics, &collider)
                 {
-                    let parent_body = &bodies[collider.parent()];
+                    if let Some(parent_handle) = collider.parent() {
+                        let parent_body = &bodies[parent_handle];
 
-                    if !parent_body.is_dynamic() {
-                        let actor = rapier2static.get_mut(&collider.parent()).unwrap();
-                        actor.attach_shape(&mut px_shape);
-                    } else {
-                        let actor = rapier2dynamic.get_mut(&collider.parent()).unwrap();
-                        actor.attach_shape(&mut px_shape);
+                        if let Some(link) = rapier2link.get_mut(&parent_handle) {
+                            unsafe {
+                                physx_sys::PxRigidActor_attachShape_mut(
+                                    *link as *mut PxRigidActor,
+                                    px_shape.as_mut_ptr(),
+                                );
+                            }
+                        } else if !parent_body.is_dynamic() {
+                            let actor = rapier2static.get_mut(&parent_handle).unwrap();
+                            actor.attach_shape(&mut px_shape);
+                        } else {
+                            let actor = rapier2dynamic.get_mut(&parent_handle).unwrap();
+                            actor.attach_shape(&mut px_shape);
+                        }
+
+                        unsafe {
+                            let pose = collider_pos.into_physx();
+                            physx_sys::PxShape_setLocalPose_mut(
+                                px_shape.as_mut_ptr(),
+                                &pose.into(),
+                            );
+                        }
+
+                        shapes.push(px_shape);
+                        materials.push(px_material);
                     }
-
-                    unsafe {
-                        let pose = collider_pos.into_physx();
-                        physx_sys::PxShape_setLocalPose_mut(px_shape.as_mut_ptr(), &pose.into());
-                    }
-
-                    shapes.push(px_shape);
-                    materials.push(px_material);
                 }
             }
 
-            // Update mass properties.
-            for (rapier_handle, actor) in rapier2dynamic.iter_mut() {
-                let rb = &bodies[*rapier_handle];
+            // Update mass properties and CCD flags.
+            for (rapier_handle, _rb) in bodies.iter() {
+                let rb = &bodies[rapier_handle];
                 let densities: Vec<_> = rb
                     .colliders()
                     .iter()
@@ -237,13 +345,29 @@ impl PhysxWorld {
                     .collect();
 
                 unsafe {
-                    physx_sys::PxRigidBodyExt_updateMassAndInertia_mut(
-                        std::mem::transmute(actor.as_mut()),
+                    let actor = if let Some(actor) = rapier2dynamic.get_mut(&rapier_handle) {
+                        std::mem::transmute(actor.as_mut())
+                    } else if let Some(actor) = rapier2link.get_mut(&rapier_handle) {
+                        *actor as *mut _
+                    } else {
+                        continue;
+                    };
+
+                    physx_sys::PxRigidBodyExt_updateMassAndInertia(
+                        actor,
                         densities.as_ptr(),
                         densities.len() as u32,
                         std::ptr::null(),
                         false,
                     );
+
+                    if rb.is_ccd_enabled() {
+                        physx_sys::PxRigidBody_setRigidBodyFlag_mut(
+                            actor,
+                            RigidBodyFlag::EnableCcd,
+                            true,
+                        );
+                    }
                 }
             }
 
@@ -254,9 +378,10 @@ impl PhysxWorld {
              */
             Self::setup_joints(
                 &mut physics,
-                joints,
+                impulse_joints,
                 &mut rapier2static,
                 &mut rapier2dynamic,
+                &mut rapier2link,
             );
 
             for (_, actor) in rapier2static {
@@ -277,18 +402,22 @@ impl PhysxWorld {
 
     fn setup_joints(
         physics: &mut PxPhysicsFoundation,
-        joints: &JointSet,
+        impulse_joints: &ImpulseJointSet,
         rapier2static: &mut HashMap<RigidBodyHandle, Owner<PxRigidStatic>>,
         rapier2dynamic: &mut HashMap<RigidBodyHandle, Owner<PxRigidDynamic>>,
+        rapier2link: &mut HashMap<RigidBodyHandle, *mut PxArticulationLink>,
     ) {
         unsafe {
-            for joint in joints.iter() {
+            for joint in impulse_joints.iter() {
                 let actor1 = rapier2static
                     .get_mut(&joint.1.body1)
                     .map(|act| &mut **act as *mut PxRigidStatic as *mut PxRigidActor)
                     .or(rapier2dynamic
                         .get_mut(&joint.1.body1)
                         .map(|act| &mut **act as *mut PxRigidDynamic as *mut PxRigidActor))
+                    .or(rapier2link
+                        .get_mut(&joint.1.body1)
+                        .map(|lnk| *lnk as *mut PxRigidActor))
                     .unwrap();
                 let actor2 = rapier2static
                     .get_mut(&joint.1.body2)
@@ -296,150 +425,79 @@ impl PhysxWorld {
                     .or(rapier2dynamic
                         .get_mut(&joint.1.body2)
                         .map(|act| &mut **act as *mut PxRigidDynamic as *mut PxRigidActor))
+                    .or(rapier2link
+                        .get_mut(&joint.1.body2)
+                        .map(|lnk| *lnk as *mut PxRigidActor))
                     .unwrap();
 
-                match &joint.1.params {
-                    JointParams::BallJoint(params) => {
-                        let frame1 = Isometry3::new(params.local_anchor1.coords, na::zero())
-                            .into_physx()
-                            .into();
-                        let frame2 = Isometry3::new(params.local_anchor2.coords, na::zero())
-                            .into_physx()
-                            .into();
+                let px_frame1 = joint.1.data.local_frame1.into_physx();
+                let px_frame2 = joint.1.data.local_frame2.into_physx();
 
-                        physx_sys::phys_PxSphericalJointCreate(
-                            physics.as_mut_ptr(),
-                            actor1,
-                            &frame1 as *const _,
-                            actor2,
-                            &frame2 as *const _,
-                        );
-                    }
-                    JointParams::RevoluteJoint(params) => {
-                        // NOTE: orthonormal_basis() returns the two basis vectors.
-                        // However we only use one and recompute the other just to
-                        // make sure our basis is right-handed.
-                        let basis1a = params.local_axis1.orthonormal_basis()[0];
-                        let basis2a = params.local_axis2.orthonormal_basis()[0];
-                        let basis1b = params.local_axis1.cross(&basis1a);
-                        let basis2b = params.local_axis2.cross(&basis2a);
+                let px_joint = physx_sys::phys_PxD6JointCreate(
+                    physics.as_mut_ptr(),
+                    actor1,
+                    px_frame1.as_ptr(),
+                    actor2,
+                    px_frame2.as_ptr(),
+                );
 
-                        let rotmat1 = Rotation3::from_matrix_unchecked(Matrix3::from_columns(&[
-                            params.local_axis1.into_inner(),
-                            basis1a,
-                            basis1b,
-                        ]));
-                        let rotmat2 = Rotation3::from_matrix_unchecked(Matrix3::from_columns(&[
-                            params.local_axis2.into_inner(),
-                            basis2a,
-                            basis2b,
-                        ]));
-                        let axisangle1 = rotmat1.scaled_axis();
-                        let axisangle2 = rotmat2.scaled_axis();
+                let motion_x = if joint.1.data.limit_axes.contains(JointAxesMask::LIN_X) {
+                    physx_sys::PxD6Motion::Limited
+                } else if !joint.1.data.locked_axes.contains(JointAxesMask::LIN_X) {
+                    physx_sys::PxD6Motion::Free
+                } else {
+                    physx_sys::PxD6Motion::Locked
+                };
+                let motion_y = if joint.1.data.limit_axes.contains(JointAxesMask::LIN_Y) {
+                    physx_sys::PxD6Motion::Limited
+                } else if !joint.1.data.locked_axes.contains(JointAxesMask::LIN_Y) {
+                    physx_sys::PxD6Motion::Free
+                } else {
+                    physx_sys::PxD6Motion::Locked
+                };
+                let motion_z = if joint.1.data.limit_axes.contains(JointAxesMask::LIN_Z) {
+                    physx_sys::PxD6Motion::Limited
+                } else if !joint.1.data.locked_axes.contains(JointAxesMask::LIN_Z) {
+                    physx_sys::PxD6Motion::Free
+                } else {
+                    physx_sys::PxD6Motion::Locked
+                };
+                let motion_ax = if joint.1.data.limit_axes.contains(JointAxesMask::ANG_X) {
+                    physx_sys::PxD6Motion::Limited
+                } else if !joint.1.data.locked_axes.contains(JointAxesMask::ANG_X) {
+                    physx_sys::PxD6Motion::Free
+                } else {
+                    physx_sys::PxD6Motion::Locked
+                };
+                let motion_ay = if joint.1.data.limit_axes.contains(JointAxesMask::ANG_Y) {
+                    physx_sys::PxD6Motion::Limited
+                } else if !joint.1.data.locked_axes.contains(JointAxesMask::ANG_Y) {
+                    physx_sys::PxD6Motion::Free
+                } else {
+                    physx_sys::PxD6Motion::Locked
+                };
+                let motion_az = if joint.1.data.limit_axes.contains(JointAxesMask::ANG_Z) {
+                    physx_sys::PxD6Motion::Limited
+                } else if !joint.1.data.locked_axes.contains(JointAxesMask::ANG_Z) {
+                    physx_sys::PxD6Motion::Free
+                } else {
+                    physx_sys::PxD6Motion::Locked
+                };
 
-                        let frame1 = Isometry3::new(params.local_anchor1.coords, axisangle1)
-                            .into_physx()
-                            .into();
-                        let frame2 = Isometry3::new(params.local_anchor2.coords, axisangle2)
-                            .into_physx()
-                            .into();
-
-                        let revolute_joint = physx_sys::phys_PxRevoluteJointCreate(
-                            physics.as_mut_ptr(),
-                            actor1,
-                            &frame1 as *const _,
-                            actor2,
-                            &frame2 as *const _,
-                        );
-
-                        physx_sys::PxRevoluteJoint_setDriveVelocity_mut(
-                            revolute_joint,
-                            params.motor_target_vel,
-                            true,
-                        );
-
-                        if params.motor_damping != 0.0 {
-                            physx_sys::PxRevoluteJoint_setRevoluteJointFlag_mut(
-                                revolute_joint,
-                                physx_sys::PxRevoluteJointFlag::eDRIVE_ENABLED,
-                                true,
-                            );
-                        }
-                    }
-
-                    JointParams::PrismaticJoint(params) => {
-                        // NOTE: orthonormal_basis() returns the two basis vectors.
-                        // However we only use one and recompute the other just to
-                        // make sure our basis is right-handed.
-                        let basis1a = params.local_axis1().orthonormal_basis()[0];
-                        let basis2a = params.local_axis2().orthonormal_basis()[0];
-                        let basis1b = params.local_axis1().cross(&basis1a);
-                        let basis2b = params.local_axis2().cross(&basis2a);
-
-                        let rotmat1 = Rotation3::from_matrix_unchecked(Matrix3::from_columns(&[
-                            params.local_axis1().into_inner(),
-                            basis1a,
-                            basis1b,
-                        ]));
-                        let rotmat2 = Rotation3::from_matrix_unchecked(Matrix3::from_columns(&[
-                            params.local_axis2().into_inner(),
-                            basis2a,
-                            basis2b,
-                        ]));
-
-                        let axisangle1 = rotmat1.scaled_axis();
-                        let axisangle2 = rotmat2.scaled_axis();
-
-                        let frame1 = Isometry3::new(params.local_anchor1.coords, axisangle1)
-                            .into_physx()
-                            .into();
-                        let frame2 = Isometry3::new(params.local_anchor2.coords, axisangle2)
-                            .into_physx()
-                            .into();
-
-                        let joint = physx_sys::phys_PxPrismaticJointCreate(
-                            physics.as_mut_ptr(),
-                            actor1,
-                            &frame1 as *const _,
-                            actor2,
-                            &frame2 as *const _,
-                        );
-
-                        if params.limits_enabled {
-                            let limits = physx_sys::PxJointLinearLimitPair {
-                                restitution: 0.0,
-                                bounceThreshold: 0.0,
-                                stiffness: 0.0,
-                                damping: 0.0,
-                                contactDistance: 0.01,
-                                lower: params.limits[0],
-                                upper: params.limits[1],
-                            };
-                            physx_sys::PxPrismaticJoint_setLimit_mut(joint, &limits);
-                            physx_sys::PxPrismaticJoint_setPrismaticJointFlag_mut(
-                                joint,
-                                physx_sys::PxPrismaticJointFlag::eLIMIT_ENABLED,
-                                true,
-                            );
-                        }
-                    }
-                    JointParams::FixedJoint(params) => {
-                        let frame1 = params.local_anchor1.into_physx().into();
-                        let frame2 = params.local_anchor2.into_physx().into();
-
-                        physx_sys::phys_PxFixedJointCreate(
-                            physics.as_mut_ptr(),
-                            actor1,
-                            &frame1 as *const _,
-                            actor2,
-                            &frame2 as *const _,
-                        );
-                    } // JointParams::GenericJoint(_) => {
-                      //     eprintln!(
-                      //         "Joint type currently unsupported by the PhysX backend: GenericJoint."
-                      //     )
-                      // }
-                }
+                physx_sys::PxD6Joint_setMotion_mut(px_joint, physx_sys::PxD6Axis::X, motion_x);
+                physx_sys::PxD6Joint_setMotion_mut(px_joint, physx_sys::PxD6Axis::Y, motion_y);
+                physx_sys::PxD6Joint_setMotion_mut(px_joint, physx_sys::PxD6Axis::Z, motion_z);
+                physx_sys::PxD6Joint_setMotion_mut(px_joint, physx_sys::PxD6Axis::Twist, motion_ax);
+                physx_sys::PxD6Joint_setMotion_mut(
+                    px_joint,
+                    physx_sys::PxD6Axis::Swing1,
+                    motion_ay,
+                );
+                physx_sys::PxD6Joint_setMotion_mut(
+                    px_joint,
+                    physx_sys::PxD6Axis::Swing2,
+                    motion_az,
+                );
             }
         }
     }
@@ -462,37 +520,56 @@ impl PhysxWorld {
     }
 
     pub fn sync(&mut self, bodies: &mut RigidBodySet, colliders: &mut ColliderSet) {
-        for actor in self.scene.as_mut().unwrap().get_dynamic_actors() {
-            let handle = actor.get_user_data();
-            let pos = actor.get_global_pose().into_na();
+        let mut sync_pos = |handle: &RigidBodyHandle, pos: Isometry3<f32>| {
             let rb = &mut bodies[*handle];
             rb.set_position(pos, false);
 
             for coll_handle in rb.colliders() {
                 let collider = &mut colliders[*coll_handle];
-                collider.set_position_debug(pos * collider.position_wrt_parent());
+                collider.set_position(
+                    pos * collider.position_wrt_parent().copied().unwrap_or(na::one()),
+                );
+            }
+        };
+
+        for actor in self.scene.as_mut().unwrap().get_dynamic_actors() {
+            let handle = actor.get_user_data();
+            let pos = actor.get_global_pose().into_na();
+            sync_pos(handle, pos);
+        }
+
+        /*
+        for articulation in self.scene.as_mut().unwrap().get_articulations() {
+            if let Some(articulation) = articulation.as_articulation_reduced_coordinate() {
+                for link in articulation.get_links() {
+                    let handle = link.get_user_data();
+                    let pos = link.get_global_pose().into_na();
+                    sync_pos(handle, pos);
+                }
             }
         }
+
+         */
     }
 }
 
 fn physx_collider_from_rapier_collider(
     physics: &mut PxPhysicsFoundation,
-    cooking: &PxCooking,
     collider: &Collider,
 ) -> Option<(Owner<PxShape>, Owner<PxMaterial>, Isometry3<f32>)> {
-    let mut local_pose = *collider.position_wrt_parent();
+    let mut local_pose = collider.position_wrt_parent().copied().unwrap_or(na::one());
+    let cooking_params = PxCookingParams::new(physics).unwrap();
     let shape = collider.shape();
     let shape_flags = if collider.is_sensor() {
-        ShapeFlag::TriggerShape.into()
+        ShapeFlags::TriggerShape
     } else {
-        ShapeFlag::SimulationShape.into()
+        ShapeFlags::SimulationShape
     };
     let mut material = physics
         .create_material(
-            collider.friction,
-            collider.friction,
-            collider.restitution,
+            collider.material().friction,
+            collider.material().friction,
+            collider.material().restitution,
             (),
         )
         .unwrap();
@@ -533,8 +610,12 @@ fn physx_collider_from_rapier_collider(
                 .iter()
                 .map(|h| PxHeightFieldSample {
                     height: (*h * Y_FACTOR) as i16,
-                    materialIndex0: PxBitAndByte { mData: 0 },
-                    materialIndex1: PxBitAndByte { mData: 0 },
+                    materialIndex0: PxBitAndByte {
+                        structgen_pad0: [0; 1],
+                    },
+                    materialIndex1: PxBitAndByte {
+                        structgen_pad0: [0; 1],
+                    },
                 })
                 .collect();
             heightfield_desc = physx_sys::PxHeightFieldDesc_new();
@@ -547,12 +628,10 @@ fn physx_collider_from_rapier_collider(
         let heightfield_desc = PxHeightFieldDesc {
             obj: heightfield_desc,
         };
-        let heightfield = cooking.create_height_field(physics, &heightfield_desc);
+        let heightfield = physx::cooking::create_height_field(physics, &heightfield_desc);
 
         if let Some(mut heightfield) = heightfield {
-            let flags = PxMeshGeometryFlags {
-                mBits: physx_sys::PxMeshGeometryFlag::eDOUBLE_SIDED as u8,
-            };
+            let flags = PxMeshGeometryFlags::DoubleSided;
             let geometry = PxHeightFieldGeometry::new(
                 &mut *heightfield,
                 flags,
@@ -567,7 +646,7 @@ fn physx_collider_from_rapier_collider(
         }
     } else if let Some(convex) = shape
         .as_convex_polyhedron()
-        .or(shape.as_round_convex_polyhedron().map(|c| &c.base_shape))
+        .or(shape.as_round_convex_polyhedron().map(|c| &c.inner_shape))
     {
         let vertices = convex.points();
         let mut convex_desc;
@@ -576,16 +655,14 @@ fn physx_collider_from_rapier_collider(
             convex_desc.points.count = vertices.len() as u32;
             convex_desc.points.stride = (3 * std::mem::size_of::<f32>()) as u32;
             convex_desc.points.data = vertices.as_ptr() as *const std::ffi::c_void;
-            convex_desc.flags = PxConvexFlags {
-                mBits: physx_sys::PxConvexFlag::eCOMPUTE_CONVEX as u16,
-            };
+            convex_desc.flags = PxConvexFlags::ComputeConvex;
         }
 
         let convex_desc = PxConvexMeshDesc { obj: convex_desc };
-        let convex = cooking.create_convex_mesh(physics, &convex_desc);
+        let convex = physx::cooking::create_convex_mesh(physics, &cooking_params, &convex_desc);
 
         if let ConvexMeshCookingResult::Success(mut convex) = convex {
-            let flags = PxConvexMeshGeometryFlags { mBits: 0 };
+            let flags = PxConvexMeshGeometryFlags::empty();
             let scaling = unsafe { PxMeshScale_new() };
             let geometry = PxConvexMeshGeometry::new(&mut convex, &scaling, flags);
             physics.create_shape(&geometry, materials, true, shape_flags, ())
@@ -611,13 +688,10 @@ fn physx_collider_from_rapier_collider(
         }
 
         let mesh_desc = PxTriangleMeshDesc { obj: mesh_desc };
-        let trimesh = cooking.create_triangle_mesh(physics, &mesh_desc);
+        let trimesh = physx::cooking::create_triangle_mesh(physics, &cooking_params, &mesh_desc);
 
         if let TriangleMeshCookingResult::Success(mut trimesh) = trimesh {
-            let flags = PxMeshGeometryFlags {
-                mBits: physx_sys::PxMeshGeometryFlag::eDOUBLE_SIDED as u8,
-            };
-
+            let flags = PxMeshGeometryFlags::DoubleSided;
             let scaling = unsafe { PxMeshScale_new() };
             let geometry = PxTriangleMeshGeometry::new(&mut trimesh, &scaling, flags);
             physics.create_shape(&geometry, materials, true, shape_flags, ())
@@ -636,10 +710,9 @@ fn physx_collider_from_rapier_collider(
 type PxPhysicsFoundation = PhysicsFoundation<DefaultAllocator, PxShape>;
 type PxMaterial = physx::material::PxMaterial<()>;
 type PxShape = physx::shape::PxShape<(), PxMaterial>;
-type PxArticulationLink = physx::articulation_link::PxArticulationLink<(), PxShape>;
+type PxArticulationLink = physx::articulation_link::PxArticulationLink<RigidBodyHandle, PxShape>;
 type PxRigidStatic = physx::rigid_static::PxRigidStatic<(), PxShape>;
 type PxRigidDynamic = physx::rigid_dynamic::PxRigidDynamic<RigidBodyHandle, PxShape>;
-type PxArticulation = physx::articulation::PxArticulation<(), PxArticulationLink>;
 type PxArticulationReducedCoordinate =
     physx::articulation_reduced_coordinate::PxArticulationReducedCoordinate<(), PxArticulationLink>;
 type PxScene = physx::scene::PxScene<
@@ -647,7 +720,6 @@ type PxScene = physx::scene::PxScene<
     PxArticulationLink,
     PxRigidStatic,
     PxRigidDynamic,
-    PxArticulation,
     PxArticulationReducedCoordinate,
     OnCollision,
     OnTrigger,
@@ -694,4 +766,9 @@ impl AdvanceCallback<PxArticulationLink, PxRigidDynamic> for OnAdvance {
         _transforms: &[PxTransform],
     ) {
     }
+}
+
+unsafe extern "C" fn ccd_filter_shader(data: *mut FilterShaderCallbackInfo) -> PxFilterFlags {
+    (*(*data).pairFlags) |= physx_sys::PxPairFlags::DetectCcdContact;
+    PxFilterFlags::empty()
 }

@@ -2,14 +2,12 @@ use std::collections::HashMap;
 
 use na::{Isometry2, Vector2};
 use rapier::counters::Counters;
-use rapier::dynamics::{
-    IntegrationParameters, JointParams, JointSet, RigidBodyHandle, RigidBodySet,
-};
+use rapier::dynamics::{ImpulseJointSet, IntegrationParameters, RigidBodyHandle, RigidBodySet};
 use rapier::geometry::{Collider, ColliderSet};
 use std::f32;
 
 use wrapped2d::b2;
-use wrapped2d::dynamics::joints::{PrismaticJointDef, RevoluteJointDef, WeldJointDef};
+// use wrapped2d::dynamics::joints::{PrismaticJointDef, RevoluteJointDef, WeldJointDef};
 use wrapped2d::user_data::NoUserData;
 
 fn na_vec_to_b2_vec(v: Vector2<f32>) -> b2::Vec2 {
@@ -34,10 +32,10 @@ impl Box2dWorld {
         gravity: Vector2<f32>,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        joints: &JointSet,
+        impulse_joints: &ImpulseJointSet,
     ) -> Self {
         let mut world = b2::World::new(&na_vec_to_b2_vec(gravity));
-        world.set_continuous_physics(false);
+        world.set_continuous_physics(bodies.iter().any(|b| b.1.is_ccd_enabled()));
 
         let mut res = Box2dWorld {
             world,
@@ -46,7 +44,7 @@ impl Box2dWorld {
 
         res.insert_bodies(bodies);
         res.insert_colliders(colliders);
-        res.insert_joints(joints);
+        res.insert_joints(impulse_joints);
         res
     }
 
@@ -77,27 +75,27 @@ impl Box2dWorld {
                 angular_velocity: body.angvel(),
                 linear_damping,
                 angular_damping,
+                bullet: body.is_ccd_enabled(),
                 ..b2::BodyDef::new()
             };
             let b2_handle = self.world.create_body(&def);
             self.rapier2box2d.insert(handle, b2_handle);
-
-            // Collider.
-            let mut b2_body = self.world.body_mut(b2_handle);
-            b2_body.set_bullet(false /* collider.is_ccd_enabled() */);
         }
     }
 
     fn insert_colliders(&mut self, colliders: &ColliderSet) {
         for (_, collider) in colliders.iter() {
-            let b2_body_handle = self.rapier2box2d[&collider.parent()];
-            let mut b2_body = self.world.body_mut(b2_body_handle);
-            Self::create_fixture(&collider, &mut *b2_body);
+            if let Some(parent) = collider.parent() {
+                let b2_body_handle = self.rapier2box2d[&parent];
+                let mut b2_body = self.world.body_mut(b2_body_handle);
+                Self::create_fixture(&collider, &mut *b2_body);
+            }
         }
     }
 
-    fn insert_joints(&mut self, joints: &JointSet) {
-        for joint in joints.iter() {
+    fn insert_joints(&mut self, _impulse_joints: &ImpulseJointSet) {
+        /*
+        for joint in impulse_joints.iter() {
             let body_a = self.rapier2box2d[&joint.1.body1];
             let body_b = self.rapier2box2d[&joint.1.body2];
 
@@ -125,8 +123,8 @@ impl Box2dWorld {
                         body_a,
                         body_b,
                         collide_connected: true,
-                        local_anchor_a: na_vec_to_b2_vec(params.local_anchor1.translation.vector),
-                        local_anchor_b: na_vec_to_b2_vec(params.local_anchor2.translation.vector),
+                        local_anchor_a: na_vec_to_b2_vec(params.local_frame1.translation.vector),
+                        local_anchor_b: na_vec_to_b2_vec(params.local_frame2.translation.vector),
                         reference_angle: 0.0,
                         frequency: 0.0,
                         damping_ratio: 0.0,
@@ -155,14 +153,23 @@ impl Box2dWorld {
                 }
             }
         }
+
+         */
     }
 
     fn create_fixture(collider: &Collider, body: &mut b2::MetaBody<NoUserData>) {
-        let center = na_vec_to_b2_vec(collider.position_wrt_parent().translation.vector);
+        let center = na_vec_to_b2_vec(
+            collider
+                .position_wrt_parent()
+                .copied()
+                .unwrap_or(na::one())
+                .translation
+                .vector,
+        );
         let mut fixture_def = b2::FixtureDef::new();
 
-        fixture_def.restitution = collider.restitution;
-        fixture_def.friction = collider.friction;
+        fixture_def.restitution = collider.material().restitution;
+        fixture_def.friction = collider.material().friction;
         fixture_def.density = collider.density();
         fixture_def.is_sensor = collider.is_sensor();
         fixture_def.filter = b2::Filter::new();
@@ -215,14 +222,9 @@ impl Box2dWorld {
     }
 
     pub fn step(&mut self, counters: &mut Counters, params: &IntegrationParameters) {
-        //        self.world.set_continuous_physics(world.integration_parameters.max_ccd_substeps != 0);
-
         counters.step_started();
-        self.world.step(
-            params.dt,
-            params.max_velocity_iterations as i32,
-            params.max_position_iterations as i32,
-        );
+        self.world
+            .step(params.dt, params.num_solver_iterations.get() as i32, 1);
         counters.step_completed();
     }
 
@@ -235,7 +237,9 @@ impl Box2dWorld {
 
                 for coll_handle in body.colliders() {
                     let collider = &mut colliders[*coll_handle];
-                    collider.set_position_debug(pos * collider.position_wrt_parent());
+                    collider.set_position(
+                        pos * collider.position_wrt_parent().copied().unwrap_or(na::one()),
+                    );
                 }
             }
         }

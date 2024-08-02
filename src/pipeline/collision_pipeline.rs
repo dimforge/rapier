@@ -1,9 +1,12 @@
 //! Physics pipeline structures.
 
-use crate::dynamics::{JointSet, RigidBodySet};
-use crate::geometry::{BroadPhase, BroadPhasePairEvent, ColliderPair, ColliderSet, NarrowPhase};
+use crate::dynamics::{ImpulseJointSet, MultibodyJointSet};
+use crate::geometry::{
+    BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair, NarrowPhase,
+};
 use crate::math::Real;
-use crate::pipeline::{EventHandler, PhysicsHooks};
+use crate::pipeline::{EventHandler, PhysicsHooks, QueryPipeline};
+use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 
 /// The collision pipeline, responsible for performing collision detection between colliders.
 ///
@@ -14,7 +17,6 @@ use crate::pipeline::{EventHandler, PhysicsHooks};
 pub struct CollisionPipeline {
     broadphase_collider_pairs: Vec<ColliderPair>,
     broad_phase_events: Vec<BroadPhasePairEvent>,
-    empty_joints: JointSet,
 }
 
 #[allow(dead_code)]
@@ -23,13 +25,84 @@ fn check_pipeline_send_sync() {
     do_test::<CollisionPipeline>();
 }
 
+impl Default for CollisionPipeline {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CollisionPipeline {
     /// Initializes a new physics pipeline.
     pub fn new() -> CollisionPipeline {
         CollisionPipeline {
             broadphase_collider_pairs: Vec::new(),
             broad_phase_events: Vec::new(),
-            empty_joints: JointSet::new(),
+        }
+    }
+
+    fn detect_collisions(
+        &mut self,
+        prediction_distance: Real,
+        broad_phase: &mut dyn BroadPhase,
+        narrow_phase: &mut NarrowPhase,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+        modified_colliders: &[ColliderHandle],
+        removed_colliders: &[ColliderHandle],
+        hooks: &dyn PhysicsHooks,
+        events: &dyn EventHandler,
+        handle_user_changes: bool,
+    ) {
+        // Update broad-phase.
+        self.broad_phase_events.clear();
+        self.broadphase_collider_pairs.clear();
+
+        broad_phase.update(
+            0.0,
+            prediction_distance,
+            colliders,
+            bodies,
+            modified_colliders,
+            removed_colliders,
+            &mut self.broad_phase_events,
+        );
+
+        // Update narrow-phase.
+        if handle_user_changes {
+            narrow_phase.handle_user_changes(
+                None,
+                modified_colliders,
+                removed_colliders,
+                colliders,
+                bodies,
+                events,
+            );
+        }
+
+        narrow_phase.register_pairs(None, colliders, bodies, &self.broad_phase_events, events);
+        narrow_phase.compute_contacts(
+            prediction_distance,
+            0.0,
+            bodies,
+            colliders,
+            &ImpulseJointSet::new(),
+            &MultibodyJointSet::new(),
+            modified_colliders,
+            hooks,
+            events,
+        );
+        narrow_phase.compute_intersections(bodies, colliders, modified_colliders, hooks, events);
+    }
+
+    fn clear_modified_colliders(
+        &mut self,
+        colliders: &mut ColliderSet,
+        modified_colliders: &mut Vec<ColliderHandle>,
+    ) {
+        for handle in modified_colliders.drain(..) {
+            if let Some(co) = colliders.get_mut_internal(handle) {
+                co.changes = ColliderChanges::empty();
+            }
         }
     }
 
@@ -37,53 +110,167 @@ impl CollisionPipeline {
     pub fn step(
         &mut self,
         prediction_distance: Real,
-        broad_phase: &mut BroadPhase,
+        broad_phase: &mut dyn BroadPhase,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
+        query_pipeline: Option<&mut QueryPipeline>,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
-        bodies.maintain(colliders);
-        self.broadphase_collider_pairs.clear();
+        let modified_bodies = bodies.take_modified();
+        let mut modified_colliders = colliders.take_modified();
+        let mut removed_colliders = colliders.take_removed();
 
-        broad_phase.update_aabbs(prediction_distance, bodies, colliders);
-
-        self.broad_phase_events.clear();
-        broad_phase.find_pairs(&mut self.broad_phase_events);
-
-        narrow_phase.register_pairs(colliders, bodies, &self.broad_phase_events, events);
-
-        narrow_phase.compute_contacts(prediction_distance, bodies, colliders, hooks, events);
-        narrow_phase.compute_intersections(bodies, colliders, hooks, events);
-
-        bodies.update_active_set_with_contacts(
+        super::user_changes::handle_user_changes_to_colliders(
+            bodies,
             colliders,
-            narrow_phase,
-            self.empty_joints.joint_graph(),
-            0,
+            &modified_colliders[..],
+        );
+        super::user_changes::handle_user_changes_to_rigid_bodies(
+            None,
+            bodies,
+            colliders,
+            &mut ImpulseJointSet::new(),
+            &mut MultibodyJointSet::new(),
+            &modified_bodies,
+            &mut modified_colliders,
         );
 
-        // // Update kinematic bodies velocities.
-        // bodies.foreach_active_kinematic_body_mut_internal(|_, body| {
-        //     body.compute_velocity_from_predicted_position(integration_parameters.inv_dt());
-        // });
+        // Disabled colliders are treated as if they were removed.
+        removed_colliders.extend(
+            modified_colliders
+                .iter()
+                .copied()
+                .filter(|h| colliders.get(*h).map(|c| !c.is_enabled()).unwrap_or(false)),
+        );
 
-        // Update colliders positions and kinematic bodies positions.
-        bodies.foreach_active_body_mut_internal(|_, rb| {
-            if rb.is_kinematic() {
-                rb.position = rb.predicted_position;
-            } else {
-                rb.update_predicted_position(0.0);
+        self.detect_collisions(
+            prediction_distance,
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            &modified_colliders[..],
+            &removed_colliders,
+            hooks,
+            events,
+            true,
+        );
+
+        if let Some(queries) = query_pipeline {
+            queries.update_incremental(colliders, &modified_colliders, &removed_colliders, true);
+        }
+
+        self.clear_modified_colliders(colliders, &mut modified_colliders);
+        removed_colliders.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    #[cfg(feature = "dim3")]
+    pub fn test_no_rigid_bodies() {
+        use crate::prelude::*;
+        let mut rigid_body_set = RigidBodySet::new();
+        let mut collider_set = ColliderSet::new();
+
+        /* Create the ground. */
+        let collider_a = ColliderBuilder::cuboid(1.0, 1.0, 1.0)
+            .active_collision_types(ActiveCollisionTypes::all())
+            .sensor(true)
+            .active_events(ActiveEvents::COLLISION_EVENTS)
+            .build();
+
+        let a_handle = collider_set.insert(collider_a);
+
+        let collider_b = ColliderBuilder::cuboid(1.0, 1.0, 1.0)
+            .active_collision_types(ActiveCollisionTypes::all())
+            .sensor(true)
+            .active_events(ActiveEvents::COLLISION_EVENTS)
+            .build();
+
+        let _ = collider_set.insert(collider_b);
+
+        let integration_parameters = IntegrationParameters::default();
+        let mut broad_phase = BroadPhaseMultiSap::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut collision_pipeline = CollisionPipeline::new();
+        let physics_hooks = ();
+
+        collision_pipeline.step(
+            integration_parameters.prediction_distance(),
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            None,
+            &physics_hooks,
+            &(),
+        );
+
+        let mut hit = false;
+
+        for (_, _, intersecting) in narrow_phase.intersection_pairs_with(a_handle) {
+            if intersecting {
+                hit = true;
             }
+        }
 
-            for handle in &rb.colliders {
-                let collider = &mut colliders[*handle];
-                collider.position = rb.position * collider.delta;
-                collider.predicted_position = rb.predicted_position * collider.delta;
+        assert!(hit, "No hit found");
+    }
+
+    #[test]
+    #[cfg(feature = "dim2")]
+    pub fn test_no_rigid_bodies() {
+        use crate::prelude::*;
+        let mut rigid_body_set = RigidBodySet::new();
+        let mut collider_set = ColliderSet::new();
+
+        /* Create the ground. */
+        let collider_a = ColliderBuilder::cuboid(1.0, 1.0)
+            .active_collision_types(ActiveCollisionTypes::all())
+            .sensor(true)
+            .active_events(ActiveEvents::COLLISION_EVENTS)
+            .build();
+
+        let a_handle = collider_set.insert(collider_a);
+
+        let collider_b = ColliderBuilder::cuboid(1.0, 1.0)
+            .active_collision_types(ActiveCollisionTypes::all())
+            .sensor(true)
+            .active_events(ActiveEvents::COLLISION_EVENTS)
+            .build();
+
+        let _ = collider_set.insert(collider_b);
+
+        let integration_parameters = IntegrationParameters::default();
+        let mut broad_phase = BroadPhaseMultiSap::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut collision_pipeline = CollisionPipeline::new();
+        let physics_hooks = ();
+
+        collision_pipeline.step(
+            integration_parameters.prediction_distance(),
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            None,
+            &physics_hooks,
+            &(),
+        );
+
+        let mut hit = false;
+
+        for (_, _, intersecting) in narrow_phase.intersection_pairs_with(a_handle) {
+            if intersecting {
+                hit = true;
             }
-        });
+        }
 
-        bodies.modified_inactive_set.clear();
+        assert!(hit, "No hit found");
     }
 }

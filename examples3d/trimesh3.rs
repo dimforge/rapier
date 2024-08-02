@@ -1,6 +1,5 @@
-use na::{ComplexField, DMatrix, Isometry3, Point3, Vector3};
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet, HeightField, SharedShape};
+use rapier3d::na::ComplexField;
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -9,12 +8,13 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Ground
      */
-    let ground_size = Vector3::new(100.0, 1.0, 100.0);
+    let ground_size = vector![100.0, 1.0, 100.0];
     let nsubdivs = 20;
 
     let heights = DMatrix::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
@@ -36,10 +36,14 @@ pub fn init_world(testbed: &mut Testbed) {
     let heightfield = HeightField::new(heights, ground_size);
     let (vertices, indices) = heightfield.to_trimesh();
 
-    let rigid_body = RigidBodyBuilder::new_static().build();
+    let rigid_body = RigidBodyBuilder::fixed();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::trimesh(vertices, indices).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::trimesh_with_flags(
+        vertices,
+        indices,
+        TriMeshFlags::MERGE_DUPLICATE_VERTICES,
+    );
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
      * Create the cubes
@@ -60,38 +64,38 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f32 * shift - centerz;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
+                let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y, z]);
                 let handle = bodies.insert(rigid_body);
 
                 let collider = match j % 6 {
-                    0 => ColliderBuilder::cuboid(rad, rad, rad).build(),
-                    1 => ColliderBuilder::ball(rad).build(),
+                    0 => ColliderBuilder::cuboid(rad, rad, rad),
+                    1 => ColliderBuilder::ball(rad),
                     // Rounded cylinders are much more efficient that cylinder, even if the
                     // rounding margin is small.
-                    2 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0).build(),
-                    3 => ColliderBuilder::cone(rad, rad).build(),
-                    4 => ColliderBuilder::capsule_y(rad, rad).build(),
+                    2 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0),
+                    3 => ColliderBuilder::cone(rad, rad),
+                    4 => ColliderBuilder::capsule_y(rad, rad),
                     _ => {
                         let shapes = vec![
                             (
-                                Isometry3::identity(),
+                                Isometry::identity(),
                                 SharedShape::cuboid(rad, rad / 2.0, rad / 2.0),
                             ),
                             (
-                                Isometry3::translation(rad, 0.0, 0.0),
+                                Isometry::translation(rad, 0.0, 0.0),
                                 SharedShape::cuboid(rad / 2.0, rad, rad / 2.0),
                             ),
                             (
-                                Isometry3::translation(-rad, 0.0, 0.0),
+                                Isometry::translation(-rad, 0.0, 0.0),
                                 SharedShape::cuboid(rad / 2.0, rad, rad / 2.0),
                             ),
                         ];
 
-                        ColliderBuilder::compound(shapes).build()
+                        ColliderBuilder::compound(shapes)
                     }
                 };
 
-                colliders.insert(collider, handle, &mut bodies);
+                colliders.insert_with_parent(collider, handle, &mut bodies);
             }
         }
     }
@@ -99,11 +103,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(100.0, 100.0, 100.0), Point3::origin());
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Boxes", init_world)]);
-    testbed.run()
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
 }

@@ -1,12 +1,16 @@
+#![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
+
 use crate::{
     physics::{PhysicsEvents, PhysicsState},
-    GraphicsManager,
+    TestbedGraphics,
 };
-use kiss3d::window::Window;
 use plugin::HarnessPlugin;
-use rapier::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
-use rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
-use rapier::math::Vector;
+use rapier::dynamics::{
+    CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
+    RigidBodySet,
+};
+use rapier::geometry::{ColliderSet, DefaultBroadPhase, NarrowPhase};
+use rapier::math::{Real, Vector};
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
 
 pub mod plugin;
@@ -14,30 +18,62 @@ pub mod plugin;
 pub struct RunState {
     #[cfg(feature = "parallel")]
     pub thread_pool: rapier::rayon::ThreadPool,
-    pub num_threads: usize,
+    #[cfg(feature = "parallel")]
+    num_threads: usize,
     pub timestep_id: usize,
     pub time: f32,
 }
 
-impl RunState {
-    pub fn new() -> Self {
-        #[cfg(feature = "parallel")]
-        let num_threads = num_cpus::get_physical();
-        #[cfg(not(feature = "parallel"))]
-        let num_threads = 1;
+impl Default for RunState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-        #[cfg(feature = "parallel")]
+impl RunState {
+    #[cfg(feature = "parallel")]
+    pub fn new() -> Self {
+        let num_threads = num_cpus::get_physical();
+
         let thread_pool = rapier::rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .build()
             .unwrap();
 
         Self {
-            #[cfg(feature = "parallel")]
-            thread_pool: thread_pool,
+            thread_pool,
             num_threads,
             timestep_id: 0,
             time: 0.0,
+        }
+    }
+
+    #[cfg(not(feature = "parallel"))]
+    pub fn new() -> Self {
+        Self {
+            timestep_id: 0,
+            time: 0.0,
+        }
+    }
+
+    #[cfg(feature = "parallel")]
+    pub fn num_threads(&self) -> usize {
+        self.num_threads
+    }
+
+    #[cfg(not(feature = "parallel"))]
+    pub fn num_threads(&self) -> usize {
+        1
+    }
+
+    #[cfg(feature = "parallel")]
+    pub fn set_num_threads(&mut self, num_threads: usize) {
+        if self.num_threads != num_threads {
+            self.thread_pool = rapier::rayon::ThreadPoolBuilder::new()
+                .num_threads(num_threads)
+                .build()
+                .unwrap();
+            self.num_threads = num_threads;
         }
     }
 }
@@ -52,27 +88,19 @@ pub struct Harness {
     pub state: RunState,
 }
 
-type Callbacks = Vec<
-    Box<
-        dyn FnMut(
-            Option<&mut Window>,
-            Option<&mut GraphicsManager>,
-            &mut PhysicsState,
-            &PhysicsEvents,
-            &RunState,
-        ),
-    >,
->;
+type Callbacks =
+    Vec<Box<dyn FnMut(Option<&mut TestbedGraphics>, &mut PhysicsState, &PhysicsEvents, &RunState)>>;
 
 #[allow(dead_code)]
 impl Harness {
     pub fn new_empty() -> Self {
-        let contact_channel = crossbeam::channel::unbounded();
-        let proximity_channel = crossbeam::channel::unbounded();
-        let event_handler = ChannelEventCollector::new(proximity_channel.0, contact_channel.0);
+        let collision_event_channel = crossbeam::channel::unbounded();
+        let contact_force_event_channel = crossbeam::channel::unbounded();
+        let event_handler =
+            ChannelEventCollector::new(collision_event_channel.0, contact_force_event_channel.0);
         let events = PhysicsEvents {
-            contact_events: contact_channel.1,
-            intersection_events: proximity_channel.1,
+            collision_events: collision_event_channel.1,
+            contact_force_events: contact_force_event_channel.1,
         };
         let physics = PhysicsState::new();
         let state = RunState::new();
@@ -88,9 +116,14 @@ impl Harness {
         }
     }
 
-    pub fn new(bodies: RigidBodySet, colliders: ColliderSet, joints: JointSet) -> Self {
+    pub fn new(
+        bodies: RigidBodySet,
+        colliders: ColliderSet,
+        impulse_joints: ImpulseJointSet,
+        multibody_joints: MultibodyJointSet,
+    ) -> Self {
         let mut res = Self::new_empty();
-        res.set_world(bodies, colliders, joints);
+        res.set_world(bodies, colliders, impulse_joints, multibody_joints);
         res
     }
 
@@ -110,29 +143,47 @@ impl Harness {
         &mut self.physics
     }
 
-    pub fn set_world(&mut self, bodies: RigidBodySet, colliders: ColliderSet, joints: JointSet) {
-        self.set_world_with_params(bodies, colliders, joints, Vector::y() * -9.81, ())
+    pub fn set_world(
+        &mut self,
+        bodies: RigidBodySet,
+        colliders: ColliderSet,
+        impulse_joints: ImpulseJointSet,
+        multibody_joints: MultibodyJointSet,
+    ) {
+        self.set_world_with_params(
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            Vector::y() * -9.81,
+            (),
+        )
     }
 
     pub fn set_world_with_params(
         &mut self,
         bodies: RigidBodySet,
         colliders: ColliderSet,
-        joints: JointSet,
-        gravity: Vector<f32>,
+        impulse_joints: ImpulseJointSet,
+        multibody_joints: MultibodyJointSet,
+        gravity: Vector<Real>,
         hooks: impl PhysicsHooks + 'static,
     ) {
         // println!("Num bodies: {}", bodies.len());
-        // println!("Num joints: {}", joints.len());
+        // println!("Num impulse_joints: {}", impulse_joints.len());
         self.physics.gravity = gravity;
         self.physics.bodies = bodies;
         self.physics.colliders = colliders;
-        self.physics.joints = joints;
+        self.physics.impulse_joints = impulse_joints;
+        self.physics.multibody_joints = multibody_joints;
         self.physics.hooks = Box::new(hooks);
 
-        self.physics.broad_phase = BroadPhase::new();
+        self.physics.islands = IslandManager::new();
+        self.physics.broad_phase = DefaultBroadPhase::new();
         self.physics.narrow_phase = NarrowPhase::new();
         self.state.timestep_id = 0;
+        self.state.time = 0.0;
+        self.physics.ccd_solver = CCDSolver::new();
         self.physics.query_pipeline = QueryPipeline::new();
         self.physics.pipeline = PhysicsPipeline::new();
         self.physics.pipeline.counters.enable();
@@ -143,13 +194,7 @@ impl Harness {
     }
 
     pub fn add_callback<
-        F: FnMut(
-                Option<&mut Window>,
-                Option<&mut GraphicsManager>,
-                &mut PhysicsState,
-                &PhysicsEvents,
-                &RunState,
-            ) + 'static,
+        F: FnMut(Option<&mut TestbedGraphics>, &mut PhysicsState, &PhysicsEvents, &RunState) + 'static,
     >(
         &mut self,
         callback: F,
@@ -158,14 +203,10 @@ impl Harness {
     }
 
     pub fn step(&mut self) {
-        self.step_with_graphics(None, None);
+        self.step_with_graphics(None);
     }
 
-    pub fn step_with_graphics(
-        &mut self,
-        window: Option<&mut Window>,
-        graphics: Option<&mut GraphicsManager>,
-    ) {
+    pub fn step_with_graphics(&mut self, mut graphics: Option<&mut TestbedGraphics>) {
         #[cfg(feature = "parallel")]
         {
             let physics = &mut self.physics;
@@ -174,11 +215,15 @@ impl Harness {
                 physics.pipeline.step(
                     &physics.gravity,
                     &physics.integration_parameters,
+                    &mut physics.islands,
                     &mut physics.broad_phase,
                     &mut physics.narrow_phase,
                     &mut physics.bodies,
                     &mut physics.colliders,
-                    &mut physics.joints,
+                    &mut physics.impulse_joints,
+                    &mut physics.multibody_joints,
+                    &mut physics.ccd_solver,
+                    Some(&mut physics.query_pipeline),
                     &*physics.hooks,
                     event_handler,
                 );
@@ -189,43 +234,30 @@ impl Harness {
         self.physics.pipeline.step(
             &self.physics.gravity,
             &self.physics.integration_parameters,
+            &mut self.physics.islands,
             &mut self.physics.broad_phase,
             &mut self.physics.narrow_phase,
             &mut self.physics.bodies,
             &mut self.physics.colliders,
-            &mut self.physics.joints,
+            &mut self.physics.impulse_joints,
+            &mut self.physics.multibody_joints,
+            &mut self.physics.ccd_solver,
+            Some(&mut self.physics.query_pipeline),
             &*self.physics.hooks,
             &self.event_handler,
         );
-
-        self.physics
-            .query_pipeline
-            .update(&self.physics.bodies, &self.physics.colliders);
 
         for plugin in &mut self.plugins {
             plugin.step(&mut self.physics, &self.state)
         }
 
-        // FIXME: This assumes either window & graphics are Some, or they are all None
-        // this is required as we cannot pass Option<&mut Window> & Option<&mut GraphicsManager directly in a loop
-        // there must be a better way of doing this?
-        match (window, graphics) {
-            (Some(window), Some(graphics)) => {
-                for f in &mut self.callbacks {
-                    f(
-                        Some(window),
-                        Some(graphics),
-                        &mut self.physics,
-                        &self.events,
-                        &self.state,
-                    );
-                }
-            }
-            _ => {
-                for f in &mut self.callbacks {
-                    f(None, None, &mut self.physics, &self.events, &self.state);
-                }
-            }
+        for f in &mut self.callbacks {
+            f(
+                graphics.as_deref_mut(),
+                &mut self.physics,
+                &self.events,
+                &self.state,
+            );
         }
 
         for plugin in &mut self.plugins {
@@ -234,7 +266,7 @@ impl Harness {
 
         self.events.poll_all();
 
-        self.state.time += self.physics.integration_parameters.dt;
+        self.state.time += self.physics.integration_parameters.dt as f32;
         self.state.timestep_id += 1;
     }
 

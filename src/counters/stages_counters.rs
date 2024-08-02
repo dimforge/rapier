@@ -14,10 +14,14 @@ pub struct StagesCounters {
     pub solver_time: Timer,
     /// Total time spent for CCD and CCD resolution.
     pub ccd_time: Timer,
+    /// Total time spent updating the query pipeline (if provided to `PhysicsPipeline::step`).
+    pub query_pipeline_time: Timer,
+    /// Total time spent propagating user changes.
+    pub user_changes: Timer,
 }
 
 impl StagesCounters {
-    /// Create a new counter intialized to zero.
+    /// Create a new counter initialized to zero.
     pub fn new() -> Self {
         StagesCounters {
             update_time: Timer::new(),
@@ -25,7 +29,20 @@ impl StagesCounters {
             island_construction_time: Timer::new(),
             solver_time: Timer::new(),
             ccd_time: Timer::new(),
+            query_pipeline_time: Timer::new(),
+            user_changes: Timer::new(),
         }
+    }
+
+    /// Resets all the counters and timers.
+    pub fn reset(&mut self) {
+        self.update_time.reset();
+        self.collision_detection_time.reset();
+        self.island_construction_time.reset();
+        self.solver_time.reset();
+        self.ccd_time.reset();
+        self.query_pipeline_time.reset();
+        self.user_changes.reset();
     }
 }
 
@@ -43,6 +60,8 @@ impl Display for StagesCounters {
             self.island_construction_time
         )?;
         writeln!(f, "Solver time: {}", self.solver_time)?;
-        writeln!(f, "CCD time: {}", self.ccd_time)
+        writeln!(f, "CCD time: {}", self.ccd_time)?;
+        writeln!(f, "Query pipeline time: {}", self.query_pipeline_time)?;
+        writeln!(f, "User changes time: {}", self.user_changes)
     }
 }

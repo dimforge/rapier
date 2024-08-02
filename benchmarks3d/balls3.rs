@@ -1,6 +1,4 @@
-use na::Point3;
-use rapier3d::dynamics::{BodyStatus, JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -9,7 +7,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Create the balls
@@ -30,17 +29,17 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f32 * shift - centerz;
 
                 let status = if j == 0 {
-                    BodyStatus::Static
+                    RigidBodyType::Fixed
                 } else {
-                    BodyStatus::Dynamic
+                    RigidBodyType::Dynamic
                 };
                 let density = 0.477;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new(status).translation(x, y, z).build();
+                let rigid_body = RigidBodyBuilder::new(status).translation(vector![x, y, z]);
                 let handle = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::ball(rad).density(density).build();
-                colliders.insert(collider, handle, &mut bodies);
+                let collider = ColliderBuilder::ball(rad).density(density);
+                colliders.insert_with_parent(collider, handle, &mut bodies);
             }
         }
     }
@@ -48,11 +47,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(100.0, 100.0, 100.0), Point3::origin());
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Balls", init_world)]);
-    testbed.run()
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
 }

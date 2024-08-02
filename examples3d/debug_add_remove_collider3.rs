@@ -1,6 +1,4 @@
-use na::Point3;
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -9,54 +7,51 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
+
     /*
      * Ground.
      */
     let ground_size = 3.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
-        .build();
+    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
     let ground_handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, 0.4).build();
-    let mut ground_collider_handle = colliders.insert(collider, ground_handle, &mut bodies);
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, 0.4);
+    let mut ground_collider_handle =
+        colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
      * Rolling ball
      */
     let ball_rad = 0.1;
-    let rb = RigidBodyBuilder::new_dynamic()
-        .translation(0.0, 0.2, 0.0)
-        .build();
+    let rb = RigidBodyBuilder::dynamic().translation(vector![0.0, 0.2, 0.0]);
     let ball_handle = bodies.insert(rb);
-    let collider = ColliderBuilder::ball(ball_rad).density(100.0).build();
-    colliders.insert(collider, ball_handle, &mut bodies);
+    let collider = ColliderBuilder::ball(ball_rad).density(100.0);
+    colliders.insert_with_parent(collider, ball_handle, &mut bodies);
 
-    testbed.add_callback(move |mut window, mut graphics, physics, _, _| {
+    testbed.add_callback(move |_, physics, _, _| {
         // Remove then re-add the ground collider.
+        let removed_collider_handle = ground_collider_handle;
         let coll = physics
             .colliders
-            .remove(ground_collider_handle, &mut physics.bodies, true)
+            .remove(
+                removed_collider_handle,
+                &mut physics.islands,
+                &mut physics.bodies,
+                true,
+            )
             .unwrap();
-        ground_collider_handle = physics
-            .colliders
-            .insert(coll, ground_handle, &mut physics.bodies);
-
-        if let (Some(graphics), Some(window)) = (&mut graphics, &mut window) {
-            graphics.add_collider(window, ground_collider_handle, &physics.colliders);
-        }
+        ground_collider_handle =
+            physics
+                .colliders
+                .insert_with_parent(coll, ground_handle, &mut physics.bodies);
     });
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, joints);
-    testbed.look_at(Point3::new(10.0, 10.0, 10.0), Point3::origin());
-}
-
-fn main() {
-    let testbed = Testbed::from_builders(0, vec![("Boxes", init_world)]);
-    testbed.run()
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.look_at(point![10.0, 10.0, 10.0], Point::origin());
 }

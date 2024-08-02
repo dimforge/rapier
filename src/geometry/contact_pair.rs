@@ -1,18 +1,23 @@
-use crate::dynamics::{BodyPair, RigidBodyHandle};
-use crate::geometry::{ColliderPair, ContactManifold};
-use crate::math::{Point, Real, Vector};
+use crate::dynamics::{RigidBodyHandle, RigidBodySet};
+use crate::geometry::{ColliderHandle, ColliderSet, Contact, ContactManifold};
+use crate::math::{Point, Real, TangentImpulse, Vector};
+use crate::pipeline::EventHandler;
+use crate::prelude::CollisionEventFlags;
 use parry::query::ContactManifoldsWorkspace;
+
+use super::CollisionEvent;
+
+#[cfg(doc)]
+use super::Collider;
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
     pub struct SolverFlags: u32 {
         /// The constraint solver will take this contact manifold into
         /// account for force computation.
         const COMPUTE_IMPULSES = 0b001;
-        /// The user-defined physics hooks will be used to
-        /// modify the solver contacts of this contact manifold.
-        const MODIFY_SOLVER_CONTACTS = 0b010;
     }
 }
 
@@ -32,32 +37,74 @@ pub struct ContactData {
     pub impulse: Real,
     /// The friction impulse along the vector orthonormal to the contact normal, applied to the first
     /// collider's rigid-body.
-    #[cfg(feature = "dim2")]
-    pub tangent_impulse: Real,
-    /// The friction impulses along the basis orthonormal to the contact normal, applied to the first
-    /// collider's rigid-body.
-    #[cfg(feature = "dim3")]
-    pub tangent_impulse: [Real; 2],
-}
-
-impl ContactData {
-    #[cfg(feature = "dim2")]
-    pub(crate) fn zero_tangent_impulse() -> Real {
-        0.0
-    }
-
-    #[cfg(feature = "dim3")]
-    pub(crate) fn zero_tangent_impulse() -> [Real; 2] {
-        [0.0, 0.0]
-    }
+    pub tangent_impulse: TangentImpulse<Real>,
+    /// The impulse retained for warmstarting the next simulation step.
+    pub warmstart_impulse: Real,
+    /// The friction impulse retained for warmstarting the next simulation step.
+    pub warmstart_tangent_impulse: TangentImpulse<Real>,
 }
 
 impl Default for ContactData {
     fn default() -> Self {
         Self {
             impulse: 0.0,
-            tangent_impulse: Self::zero_tangent_impulse(),
+            tangent_impulse: na::zero(),
+            warmstart_impulse: 0.0,
+            warmstart_tangent_impulse: na::zero(),
         }
+    }
+}
+
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug)]
+/// The description of all the contacts between a pair of colliders.
+pub struct IntersectionPair {
+    /// Are the colliders intersecting?
+    pub intersecting: bool,
+    /// Was a `CollisionEvent::Started` emitted for this collider?
+    pub(crate) start_event_emitted: bool,
+}
+
+impl IntersectionPair {
+    pub(crate) fn new() -> Self {
+        Self {
+            intersecting: false,
+            start_event_emitted: false,
+        }
+    }
+
+    pub(crate) fn emit_start_event(
+        &mut self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        collider1: ColliderHandle,
+        collider2: ColliderHandle,
+        events: &dyn EventHandler,
+    ) {
+        self.start_event_emitted = true;
+        events.handle_collision_event(
+            bodies,
+            colliders,
+            CollisionEvent::Started(collider1, collider2, CollisionEventFlags::SENSOR),
+            None,
+        );
+    }
+
+    pub(crate) fn emit_stop_event(
+        &mut self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        collider1: ColliderHandle,
+        collider2: ColliderHandle,
+        events: &dyn EventHandler,
+    ) {
+        self.start_event_emitted = false;
+        events.handle_collision_event(
+            bodies,
+            colliders,
+            CollisionEvent::Stopped(collider1, collider2, CollisionEventFlags::SENSOR),
+            None,
+        );
     }
 }
 
@@ -65,25 +112,132 @@ impl Default for ContactData {
 #[derive(Clone)]
 /// The description of all the contacts between a pair of colliders.
 pub struct ContactPair {
-    /// The pair of colliders involved.
-    pub pair: ColliderPair,
+    /// The first collider involved in the contact pair.
+    pub collider1: ColliderHandle,
+    /// The second collider involved in the contact pair.
+    pub collider2: ColliderHandle,
     /// The set of contact manifolds between the two colliders.
     ///
     /// All contact manifold contain themselves contact points between the colliders.
+    /// Note that contact points in the contact manifold do not take into account the
+    /// [`Collider::contact_skin`] which only affects the constraint solver and the
+    /// [`SolverContact`].
     pub manifolds: Vec<ContactManifold>,
     /// Is there any active contact in this contact pair?
     pub has_any_active_contact: bool,
+    /// Was a `CollisionEvent::Started` emitted for this collider?
+    pub(crate) start_event_emitted: bool,
     pub(crate) workspace: Option<ContactManifoldsWorkspace>,
 }
 
 impl ContactPair {
-    pub(crate) fn new(pair: ColliderPair) -> Self {
+    pub(crate) fn new(collider1: ColliderHandle, collider2: ColliderHandle) -> Self {
         Self {
-            pair,
+            collider1,
+            collider2,
             has_any_active_contact: false,
             manifolds: Vec::new(),
+            start_event_emitted: false,
             workspace: None,
         }
+    }
+
+    /// Clears all the contacts of this contact pair.
+    pub fn clear(&mut self) {
+        self.manifolds.clear();
+        self.has_any_active_contact = false;
+        self.workspace = None;
+    }
+
+    /// The sum of all the impulses applied by contacts on this contact pair.
+    pub fn total_impulse(&self) -> Vector<Real> {
+        self.manifolds
+            .iter()
+            .map(|m| m.total_impulse() * m.data.normal)
+            .sum()
+    }
+
+    /// The sum of the magnitudes of the contacts on this contact pair.
+    pub fn total_impulse_magnitude(&self) -> Real {
+        self.manifolds
+            .iter()
+            .fold(0.0, |a, m| a + m.total_impulse())
+    }
+
+    /// The magnitude and (unit) direction of the maximum impulse on this contact pair.
+    pub fn max_impulse(&self) -> (Real, Vector<Real>) {
+        let mut result = (0.0, Vector::zeros());
+
+        for m in &self.manifolds {
+            let impulse = m.total_impulse();
+
+            if impulse > result.0 {
+                result = (impulse, m.data.normal);
+            }
+        }
+
+        result
+    }
+
+    /// Finds the contact with the smallest signed distance.
+    ///
+    /// If the colliders involved in this contact pair are penetrating, then
+    /// this returns the contact with the largest penetration depth.
+    ///
+    /// Returns a reference to the contact, as well as the contact manifold
+    /// it is part of.
+    pub fn find_deepest_contact(&self) -> Option<(&ContactManifold, &Contact)> {
+        let mut deepest = None;
+
+        for m2 in &self.manifolds {
+            let deepest_candidate = m2.find_deepest_contact();
+
+            deepest = match (deepest, deepest_candidate) {
+                (_, None) => deepest,
+                (None, Some(c2)) => Some((m2, c2)),
+                (Some((m1, c1)), Some(c2)) => {
+                    if c1.dist <= c2.dist {
+                        Some((m1, c1))
+                    } else {
+                        Some((m2, c2))
+                    }
+                }
+            }
+        }
+
+        deepest
+    }
+
+    pub(crate) fn emit_start_event(
+        &mut self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        events: &dyn EventHandler,
+    ) {
+        self.start_event_emitted = true;
+
+        events.handle_collision_event(
+            bodies,
+            colliders,
+            CollisionEvent::Started(self.collider1, self.collider2, CollisionEventFlags::empty()),
+            Some(self),
+        );
+    }
+
+    pub(crate) fn emit_stop_event(
+        &mut self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        events: &dyn EventHandler,
+    ) {
+        self.start_event_emitted = false;
+
+        events.handle_collision_event(
+            bodies,
+            colliders,
+            CollisionEvent::Stopped(self.collider1, self.collider2, CollisionEventFlags::empty()),
+            Some(self),
+        );
     }
 }
 
@@ -95,23 +249,35 @@ impl ContactPair {
 /// part of the same contact manifold share the same contact normal and contact kinematics.
 pub struct ContactManifoldData {
     // The following are set by the narrow-phase.
-    /// The pair of body involved in this contact manifold.
-    pub body_pair: BodyPair,
-    pub(crate) warmstart_multiplier: Real,
-    // The two following are set by the constraints solver.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    pub(crate) constraint_index: usize,
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    pub(crate) position_constraint_index: usize,
+    /// The first rigid-body involved in this contact manifold.
+    pub rigid_body1: Option<RigidBodyHandle>,
+    /// The second rigid-body involved in this contact manifold.
+    pub rigid_body2: Option<RigidBodyHandle>,
     // We put the following fields here to avoids reading the colliders inside of the
     // contact preparation method.
     /// Flags used to control some aspects of the constraints solver for this contact manifold.
     pub solver_flags: SolverFlags,
     /// The world-space contact normal shared by all the contact in this contact manifold.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    // NOTE: read the comment of `solver_contacts` regarding serialization. It applies
+    // to this field as well.
     pub normal: Vector<Real>,
     /// The contacts that will be seen by the constraints solver for computing forces.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    // NOTE: unfortunately, we can't ignore this field when serialize
+    // the contact manifold data. The reason is that the solver contacts
+    // won't be updated for sleeping bodies. So it means that for one
+    // frame, we won't have any solver contacts when waking up an island
+    // after a deserialization. Not only does this break post-snapshot
+    // determinism, but it will also skip constraint resolution for these
+    // contacts during one frame.
+    //
+    // An alternative would be to skip the serialization of `solver_contacts` and
+    // find a way to recompute them right after the deserialization process completes.
+    // However, this would be an expensive operation. And doing this efficiently as part
+    // of the narrow-phase update or the contact manifold collect will likely lead to tricky
+    // bugs too.
+    //
+    // So right now it is best to just serialize this field and keep it that way until it
+    // is proven to be actually problematic in real applications (in terms of snapshot size for example).
     pub solver_contacts: Vec<SolverContact>,
     /// The relative dominance of the bodies involved in this contact manifold.
     pub relative_dominance: i16,
@@ -125,7 +291,7 @@ pub struct ContactManifoldData {
 pub struct SolverContact {
     /// The index of the manifold contact used to generate this solver contact.
     pub(crate) contact_id: u8,
-    /// The world-space contact point.
+    /// The contact point in world-space.
     pub point: Point<Real>,
     /// The distance between the two original contacts points along the contact normal.
     /// If negative, this is measures the penetration depth.
@@ -139,17 +305,19 @@ pub struct SolverContact {
     /// This is set to zero by default. Set to a non-zero value to
     /// simulate, e.g., conveyor belts.
     pub tangent_velocity: Vector<Real>,
-    /// Associated contact data used to warm-start the constraints
-    /// solver.
-    pub data: ContactData,
+    /// Whether or not this contact existed during the last timestep.
+    pub is_new: bool,
+    /// Impulse used to warmstart the solve for the normal constraint.
+    pub warmstart_impulse: Real,
+    /// Impulse used to warmstart the solve for the friction constraints.
+    pub warmstart_tangent_impulse: TangentImpulse<Real>,
 }
 
 impl SolverContact {
     /// Should we treat this contact as a bouncy contact?
     /// If `true`, use [`Self::restitution`].
     pub fn is_bouncy(&self) -> bool {
-        let is_new = self.data.impulse == 0.0;
-        if is_new {
+        if self.is_new {
             // Treat new collisions as bouncing at first, unless we have zero restitution.
             self.restitution > 0.0
         } else {
@@ -162,20 +330,19 @@ impl SolverContact {
 
 impl Default for ContactManifoldData {
     fn default() -> Self {
-        Self::new(
-            BodyPair::new(RigidBodyHandle::invalid(), RigidBodyHandle::invalid()),
-            SolverFlags::empty(),
-        )
+        Self::new(None, None, SolverFlags::empty())
     }
 }
 
 impl ContactManifoldData {
-    pub(crate) fn new(body_pair: BodyPair, solver_flags: SolverFlags) -> ContactManifoldData {
+    pub(crate) fn new(
+        rigid_body1: Option<RigidBodyHandle>,
+        rigid_body2: Option<RigidBodyHandle>,
+        solver_flags: SolverFlags,
+    ) -> ContactManifoldData {
         Self {
-            body_pair,
-            warmstart_multiplier: Self::min_warmstart_multiplier(),
-            constraint_index: 0,
-            position_constraint_index: 0,
+            rigid_body1,
+            rigid_body2,
             solver_flags,
             normal: Vector::zeros(),
             solver_contacts: Vec::new(),
@@ -190,34 +357,16 @@ impl ContactManifoldData {
     pub fn num_active_contacts(&self) -> usize {
         self.solver_contacts.len()
     }
+}
 
-    pub(crate) fn min_warmstart_multiplier() -> Real {
-        // Multiplier used to reduce the amount of warm-starting.
-        // This coefficient increases exponentially over time, until it reaches 1.0.
-        // This will reduce significant overshoot at the timesteps that
-        // follow a timestep involving high-velocity impacts.
-        1.0 // 0.01
+/// Additional methods for the contact manifold.
+pub trait ContactManifoldExt {
+    /// Computes the sum of all the impulses applied by contacts from this contact manifold.
+    fn total_impulse(&self) -> Real;
+}
+
+impl ContactManifoldExt for ContactManifold {
+    fn total_impulse(&self) -> Real {
+        self.points.iter().map(|pt| pt.data.impulse).sum()
     }
-
-    // pub(crate) fn update_warmstart_multiplier(manifold: &mut ContactManifold) {
-    //     // In 2D, tall stacks will actually suffer from this
-    //     // because oscillation due to inaccuracies in 2D often
-    //     // cause contacts to break, which would result in
-    //     // a reset of the warmstart multiplier.
-    //     if cfg!(feature = "dim2") {
-    //         manifold.data.warmstart_multiplier = 1.0;
-    //         return;
-    //     }
-    //
-    //     for pt in &manifold.points {
-    //         if pt.data.impulse != 0.0 {
-    //             manifold.data.warmstart_multiplier =
-    //                 (manifold.data.warmstart_multiplier * 2.0).min(1.0);
-    //             return;
-    //         }
-    //     }
-    //
-    //     // Reset the multiplier.
-    //     manifold.data.warmstart_multiplier = Self::min_warmstart_multiplier()
-    // }
 }

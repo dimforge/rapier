@@ -1,7 +1,12 @@
 use crossbeam::channel::Receiver;
-use rapier::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
-use rapier::geometry::{BroadPhase, ColliderSet, ContactEvent, IntersectionEvent, NarrowPhase};
-use rapier::math::Vector;
+use rapier::dynamics::{
+    CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
+    RigidBodySet,
+};
+use rapier::geometry::{
+    ColliderSet, CollisionEvent, ContactForceEvent, DefaultBroadPhase, NarrowPhase,
+};
+use rapier::math::{Real, Vector};
 use rapier::pipeline::{PhysicsHooks, PhysicsPipeline, QueryPipeline};
 
 pub struct PhysicsSnapshot {
@@ -10,84 +15,110 @@ pub struct PhysicsSnapshot {
     narrow_phase: Vec<u8>,
     bodies: Vec<u8>,
     colliders: Vec<u8>,
-    joints: Vec<u8>,
+    impulse_joints: Vec<u8>,
+    multibody_joints: Vec<u8>,
+    island_manager: Vec<u8>,
+}
+
+pub struct DeserializedPhysicsSnapshot {
+    pub timestep_id: usize,
+    pub broad_phase: DefaultBroadPhase,
+    pub narrow_phase: NarrowPhase,
+    pub island_manager: IslandManager,
+    pub bodies: RigidBodySet,
+    pub colliders: ColliderSet,
+    pub impulse_joints: ImpulseJointSet,
+    pub multibody_joints: MultibodyJointSet,
 }
 
 impl PhysicsSnapshot {
     pub fn new(
         timestep_id: usize,
-        broad_phase: &BroadPhase,
+        broad_phase: &DefaultBroadPhase,
         narrow_phase: &NarrowPhase,
+        island_manager: &IslandManager,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        joints: &JointSet,
+        impulse_joints: &ImpulseJointSet,
+        multibody_joints: &MultibodyJointSet,
     ) -> bincode::Result<Self> {
         Ok(Self {
             timestep_id,
             broad_phase: bincode::serialize(broad_phase)?,
             narrow_phase: bincode::serialize(narrow_phase)?,
+            island_manager: bincode::serialize(island_manager)?,
             bodies: bincode::serialize(bodies)?,
             colliders: bincode::serialize(colliders)?,
-            joints: bincode::serialize(joints)?,
+            impulse_joints: bincode::serialize(impulse_joints)?,
+            multibody_joints: bincode::serialize(multibody_joints)?,
         })
     }
 
-    pub fn restore(
-        &self,
-    ) -> bincode::Result<(
-        usize,
-        BroadPhase,
-        NarrowPhase,
-        RigidBodySet,
-        ColliderSet,
-        JointSet,
-    )> {
-        Ok((
-            self.timestep_id,
-            bincode::deserialize(&self.broad_phase)?,
-            bincode::deserialize(&self.narrow_phase)?,
-            bincode::deserialize(&self.bodies)?,
-            bincode::deserialize(&self.colliders)?,
-            bincode::deserialize(&self.joints)?,
-        ))
+    pub fn restore(&self) -> bincode::Result<DeserializedPhysicsSnapshot> {
+        Ok(DeserializedPhysicsSnapshot {
+            timestep_id: self.timestep_id,
+            broad_phase: bincode::deserialize(&self.broad_phase)?,
+            narrow_phase: bincode::deserialize(&self.narrow_phase)?,
+            island_manager: bincode::deserialize(&self.island_manager)?,
+            bodies: bincode::deserialize(&self.bodies)?,
+            colliders: bincode::deserialize(&self.colliders)?,
+            impulse_joints: bincode::deserialize(&self.impulse_joints)?,
+            multibody_joints: bincode::deserialize(&self.multibody_joints)?,
+        })
     }
 
     pub fn print_snapshot_len(&self) {
         let total = self.broad_phase.len()
             + self.narrow_phase.len()
+            + self.island_manager.len()
             + self.bodies.len()
             + self.colliders.len()
-            + self.joints.len();
+            + self.impulse_joints.len()
+            + self.multibody_joints.len();
         println!("Snapshot length: {}B", total);
         println!("|_ broad_phase: {}B", self.broad_phase.len());
         println!("|_ narrow_phase: {}B", self.narrow_phase.len());
+        println!("|_ island_manager: {}B", self.island_manager.len());
         println!("|_ bodies: {}B", self.bodies.len());
         println!("|_ colliders: {}B", self.colliders.len());
-        println!("|_ joints: {}B", self.joints.len());
+        println!("|_ impulse_joints: {}B", self.impulse_joints.len());
+        println!("|_ multibody_joints: {}B", self.multibody_joints.len());
     }
 }
 
 pub struct PhysicsState {
-    pub broad_phase: BroadPhase,
+    pub islands: IslandManager,
+    pub broad_phase: DefaultBroadPhase,
     pub narrow_phase: NarrowPhase,
     pub bodies: RigidBodySet,
     pub colliders: ColliderSet,
-    pub joints: JointSet,
+    pub impulse_joints: ImpulseJointSet,
+    pub multibody_joints: MultibodyJointSet,
+    pub ccd_solver: CCDSolver,
     pub pipeline: PhysicsPipeline,
     pub query_pipeline: QueryPipeline,
     pub integration_parameters: IntegrationParameters,
-    pub gravity: Vector<f32>,
+    pub gravity: Vector<Real>,
     pub hooks: Box<dyn PhysicsHooks>,
+}
+
+impl Default for PhysicsState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PhysicsState {
     pub fn new() -> Self {
         Self {
-            broad_phase: BroadPhase::new(),
+            islands: IslandManager::new(),
+            broad_phase: DefaultBroadPhase::new(),
             narrow_phase: NarrowPhase::new(),
             bodies: RigidBodySet::new(),
             colliders: ColliderSet::new(),
-            joints: JointSet::new(),
+            impulse_joints: ImpulseJointSet::new(),
+            multibody_joints: MultibodyJointSet::new(),
+            ccd_solver: CCDSolver::new(),
             pipeline: PhysicsPipeline::new(),
             query_pipeline: QueryPipeline::new(),
             integration_parameters: IntegrationParameters::default(),
@@ -98,13 +129,13 @@ impl PhysicsState {
 }
 
 pub struct PhysicsEvents {
-    pub contact_events: Receiver<ContactEvent>,
-    pub intersection_events: Receiver<IntersectionEvent>,
+    pub collision_events: Receiver<CollisionEvent>,
+    pub contact_force_events: Receiver<ContactForceEvent>,
 }
 
 impl PhysicsEvents {
     pub fn poll_all(&self) {
-        while let Ok(_) = self.contact_events.try_recv() {}
-        while let Ok(_) = self.intersection_events.try_recv() {}
+        while self.collision_events.try_recv().is_ok() {}
+        while self.contact_force_events.try_recv().is_ok() {}
     }
 }

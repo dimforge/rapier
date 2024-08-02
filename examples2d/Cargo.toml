@@ -1,28 +1,28 @@
 [package]
-name    = "rapier-examples-2d"
+name = "rapier-examples-2d"
 version = "0.1.0"
-authors = [ "Sébastien Crozet <developer@crozet.re>" ]
-edition = "2018"
+authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
+edition = "2021"
+default-run = "all_examples2"
 
 [features]
-parallel = [ "rapier2d/parallel", "rapier_testbed2d/parallel" ]
-simd-stable = [ "rapier2d/simd-stable" ]
-simd-nightly = [ "rapier2d/simd-nightly" ]
-other-backends = [ "rapier_testbed2d/other-backends" ]
-enhanced-determinism = [ "rapier2d/enhanced-determinism" ]
+parallel = ["rapier2d/parallel", "rapier_testbed2d/parallel"]
+simd-stable = ["rapier2d/simd-stable"]
+simd-nightly = ["rapier2d/simd-nightly"]
+other-backends = ["rapier_testbed2d/other-backends"]
+enhanced-determinism = ["rapier2d/enhanced-determinism"]
 
 [dependencies]
-rand       = "0.7"
-Inflector  = "0.11"
-nalgebra   = "0.24"
-lyon       = "0.17"
-usvg       = "0.13"
+rand = "0.8"
+Inflector = "0.11"
+lyon = "0.17"
+usvg = "0.14"
 
 [dependencies.rapier_testbed2d]
-path = "../build/rapier_testbed2d"
+path = "../crates/rapier_testbed2d"
 
 [dependencies.rapier2d]
-path = "../build/rapier2d"
+path = "../crates/rapier2d"
 
 [[bin]]
 name = "all_examples2"

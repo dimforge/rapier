@@ -1,85 +1,105 @@
-use super::{PositionSolver, VelocitySolver};
+use super::{JointConstraintsSet, VelocitySolver};
 use crate::counters::Counters;
-use crate::dynamics::solver::{
-    AnyJointPositionConstraint, AnyJointVelocityConstraint, AnyPositionConstraint,
-    AnyVelocityConstraint, SolverConstraints,
-};
+use crate::dynamics::solver::contact_constraint::ContactConstraintsSet;
+use crate::dynamics::IslandManager;
 use crate::dynamics::{IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
+use crate::prelude::MultibodyJointSet;
+use parry::math::Real;
 
 pub struct IslandSolver {
-    contact_constraints: SolverConstraints<AnyVelocityConstraint, AnyPositionConstraint>,
-    joint_constraints: SolverConstraints<AnyJointVelocityConstraint, AnyJointPositionConstraint>,
+    contact_constraints: ContactConstraintsSet,
+    joint_constraints: JointConstraintsSet,
     velocity_solver: VelocitySolver,
-    position_solver: PositionSolver,
+}
+
+impl Default for IslandSolver {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl IslandSolver {
     pub fn new() -> Self {
         Self {
-            contact_constraints: SolverConstraints::new(),
-            joint_constraints: SolverConstraints::new(),
+            contact_constraints: ContactConstraintsSet::new(),
+            joint_constraints: JointConstraintsSet::new(),
             velocity_solver: VelocitySolver::new(),
-            position_solver: PositionSolver::new(),
         }
     }
 
-    pub fn solve_island(
+    pub fn init_and_solve(
         &mut self,
         island_id: usize,
         counters: &mut Counters,
-        params: &IntegrationParameters,
+        base_params: &IntegrationParameters,
+        islands: &IslandManager,
         bodies: &mut RigidBodySet,
         manifolds: &mut [&mut ContactManifold],
         manifold_indices: &[ContactManifoldIndex],
-        joints: &mut [JointGraphEdge],
+        impulse_joints: &mut [JointGraphEdge],
         joint_indices: &[JointIndex],
+        multibodies: &mut MultibodyJointSet,
     ) {
-        let has_constraints = manifold_indices.len() != 0 || joint_indices.len() != 0;
+        counters.solver.velocity_assembly_time.resume();
+        let num_solver_iterations = base_params.num_solver_iterations.get()
+            + islands.active_island_additional_solver_iterations(island_id);
 
-        if has_constraints {
-            counters.solver.velocity_assembly_time.resume();
-            self.contact_constraints
-                .init(island_id, params, bodies, manifolds, manifold_indices);
-            self.joint_constraints
-                .init(island_id, params, bodies, joints, joint_indices);
-            counters.solver.velocity_assembly_time.pause();
+        let mut params = *base_params;
+        params.dt /= num_solver_iterations as Real;
 
-            counters.solver.velocity_resolution_time.resume();
-            self.velocity_solver.solve(
+        /*
+         *
+         * Below this point, the `params` is using the "small step" settings.
+         *
+         */
+        // INIT
+        self.velocity_solver
+            .init_solver_velocities_and_solver_bodies(
+                &params,
                 island_id,
-                params,
+                islands,
                 bodies,
-                manifolds,
-                joints,
-                &mut self.contact_constraints.velocity_constraints,
-                &mut self.joint_constraints.velocity_constraints,
+                multibodies,
             );
-            counters.solver.velocity_resolution_time.pause();
+        self.velocity_solver.init_constraints(
+            island_id,
+            islands,
+            bodies,
+            multibodies,
+            manifolds,
+            manifold_indices,
+            impulse_joints,
+            joint_indices,
+            &mut self.contact_constraints,
+            &mut self.joint_constraints,
+        );
+        counters.solver.velocity_assembly_time.pause();
 
-            counters.solver.velocity_update_time.resume();
-            bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
-                rb.integrate(params.dt)
-            });
-            counters.solver.velocity_update_time.pause();
+        // SOLVE
+        counters.solver.velocity_resolution_time.resume();
+        self.velocity_solver.solve_constraints(
+            &params,
+            num_solver_iterations,
+            bodies,
+            multibodies,
+            &mut self.contact_constraints,
+            &mut self.joint_constraints,
+        );
+        counters.solver.velocity_resolution_time.pause();
 
-            counters.solver.position_resolution_time.resume();
-            self.position_solver.solve(
-                island_id,
-                params,
-                bodies,
-                &self.contact_constraints.position_constraints,
-                &self.joint_constraints.position_constraints,
-            );
-            counters.solver.position_resolution_time.pause();
-        } else {
-            counters.solver.velocity_update_time.resume();
-            bodies.foreach_active_island_body_mut_internal(island_id, |_, rb| {
-                // Since we didn't run the velocity solver we need to integrate the accelerations here
-                rb.integrate_accelerations(params.dt);
-                rb.integrate(params.dt);
-            });
-            counters.solver.velocity_update_time.pause();
-        }
+        // WRITEBACK
+        counters.solver.velocity_writeback_time.resume();
+        self.joint_constraints.writeback_impulses(impulse_joints);
+        self.contact_constraints.writeback_impulses(manifolds);
+        self.velocity_solver.writeback_bodies(
+            base_params,
+            num_solver_iterations,
+            islands,
+            island_id,
+            bodies,
+            multibodies,
+        );
+        counters.solver.velocity_writeback_time.pause();
     }
 }

@@ -1,7 +1,4 @@
-extern crate nalgebra as na;
-
-use rapier3d::dynamics::{JointSet, RigidBodyBuilder, RigidBodySet};
-use rapier3d::geometry::{ColliderBuilder, ColliderSet};
+use rapier3d::prelude::*;
 use rapier_testbed3d::harness::Harness;
 
 pub fn init_world(harness: &mut Harness) {
@@ -10,7 +7,8 @@ pub fn init_world(harness: &mut Harness) {
      */
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
-    let joints = JointSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
 
     /*
      * Ground
@@ -18,12 +16,10 @@ pub fn init_world(harness: &mut Harness) {
     let ground_size = 200.1;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::new_static()
-        .translation(0.0, -ground_height, 0.0)
-        .build();
+    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size).build();
-    colliders.insert(collider, handle, &mut bodies);
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*
      * Create the cubes
@@ -47,10 +43,10 @@ pub fn init_world(harness: &mut Harness) {
                 let z = k as f32 * shift - centerz + offset;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::new_dynamic().translation(x, y, z).build();
+                let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y, z]);
                 let handle = bodies.insert(rigid_body);
-                let collider = ColliderBuilder::capsule_y(rad, rad).build();
-                colliders.insert(collider, handle, &mut bodies);
+                let collider = ColliderBuilder::capsule_y(rad, rad);
+                colliders.insert_with_parent(collider, handle, &mut bodies);
             }
         }
 
@@ -60,7 +56,7 @@ pub fn init_world(harness: &mut Harness) {
     /*
      * Set up the harness.
      */
-    harness.set_world(bodies, colliders, joints);
+    harness.set_world(bodies, colliders, impulse_joints, multibody_joints);
 }
 
 fn main() {
