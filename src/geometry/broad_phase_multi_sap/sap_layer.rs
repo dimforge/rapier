@@ -1,4 +1,4 @@
-use super::{SAPProxies, SAPProxy, SAPRegion, SAPRegionPool};
+use super::{RegionKey, SAPProxies, SAPProxy, SAPRegion, SAPRegionPool};
 use crate::geometry::broad_phase_multi_sap::DELETED_AABB_VALUE;
 use crate::geometry::{Aabb, BroadPhaseProxyIndex};
 use crate::math::{Point, Real};
@@ -13,9 +13,9 @@ pub(crate) struct SAPLayer {
     pub smaller_layer: Option<u8>,
     pub larger_layer: Option<u8>,
     region_width: Real,
-    pub regions: HashMap<Point<i32>, BroadPhaseProxyIndex>,
+    pub regions: HashMap<Point<RegionKey>, BroadPhaseProxyIndex>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    regions_to_potentially_remove: Vec<Point<i32>>, // Workspace
+    regions_to_potentially_remove: Vec<Point<RegionKey>>, // Workspace
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub created_regions: Vec<BroadPhaseProxyIndex>,
 }
@@ -188,7 +188,7 @@ impl SAPLayer {
     /// of the new region if it did not exist and has been created by this method.
     pub fn ensure_region_exists(
         &mut self,
-        region_key: Point<i32>,
+        region_key: Point<RegionKey>,
         proxies: &mut SAPProxies,
         pool: &mut SAPRegionPool,
     ) -> BroadPhaseProxyIndex {
