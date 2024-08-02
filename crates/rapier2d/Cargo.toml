@@ -21,6 +21,9 @@ edition = "2021"
 [badges]
 maintenance = { status = "actively-developed" }
 
+[lints]
+workspace = true
+
 [features]
 default = ["dim2", "f32"]
 dim2 = []
