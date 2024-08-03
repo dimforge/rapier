@@ -295,7 +295,7 @@ impl KinematicCharacterController {
 
                 let hit_info = self.compute_hit_info(hit);
                 let pre_slide_translation_remaining = translation_remaining;
-                // Try to go up stairs.
+                // Try to go upstairs.
                 if !self.handle_stairs(
                     bodies,
                     colliders,
