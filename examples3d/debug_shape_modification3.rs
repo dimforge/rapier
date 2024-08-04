@@ -41,7 +41,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut step = 0;
     let snapped_frame = 51;
 
-    testbed.add_callback(move |_, physics, _, _| {
+    testbed.add_callback(move |mut gfx, physics, _, _| {
         step += 1;
 
         // Snap the ball velocity or restore it.
@@ -62,6 +62,10 @@ pub fn init_world(testbed: &mut Testbed) {
 
         let ball_coll = physics.colliders.get_mut(ball_coll_handle).unwrap();
         ball_coll.set_shape(SharedShape::ball(ball_rad * step as f32 * 2.0));
+        if let Some(gfx) = &mut gfx {
+            gfx.remove_collider(ball_coll_handle, &physics.colliders);
+            gfx.add_collider(ball_coll_handle, &physics.colliders);
+        }
     });
 
     /*
