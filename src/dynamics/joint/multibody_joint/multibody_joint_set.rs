@@ -55,12 +55,13 @@ impl IndexedData for MultibodyJointHandle {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 /// Indexes usable to get a multibody link from a `MultibodyJointSet`.
 ///
-/// ```.skip
+/// ```ignore
 /// // With:
 /// //     multibody_joint_set: MultibodyJointSet
 /// //     multibody_link_id: MultibodyLinkId
 /// let multibody = &multibody_joint_set[multibody_link_id.multibody];
 /// let link = multibody.link(multibody_link_id.id).expect("Link not found.");
+/// ```
 pub struct MultibodyLinkId {
     pub(crate) graph_id: RigidBodyGraphIndex,
     /// The multibody index to be used as `&multibody_joint_set[multibody]` to
