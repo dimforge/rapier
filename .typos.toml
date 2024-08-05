@@ -3,12 +3,13 @@
 # word is treated as always correct. If the value is an empty string, the word
 # is treated as always incorrect.
 
-# Case senstive, matches entire word.
+# Case sensitive, matches entire word.
 [default.extend-identifiers]
 anc_color = "anc_color"
 PN = "PN"
 rady = "rady"
 
-# Case insenstive, matches inside word.
+# Case insensitive, matches inside word.
 [default.extend-words]
 toi = "toi"
+bellow = "below"

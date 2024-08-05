@@ -24,6 +24,9 @@ name = "rapier_testbed3d"
 path = "../../src_testbed/lib.rs"
 required-features = ["dim3"]
 
+[lints]
+workspace = true
+
 [features]
 default = ["dim3"]
 dim3 = []

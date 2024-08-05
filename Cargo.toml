@@ -1,7 +1,30 @@
 [workspace]
-members = ["crates/rapier2d", "crates/rapier2d-f64", "crates/rapier_testbed2d", "crates/rapier_testbed2d-f64", "examples2d", "benchmarks2d",
-    "crates/rapier3d", "crates/rapier3d-f64", "crates/rapier_testbed3d", "crates/rapier_testbed3d-f64", "examples3d", "examples3d-f64", "benchmarks3d", "crates/rapier3d-urdf", "crates/rapier3d-stl"]
+members = [
+    "crates/rapier2d",
+    "crates/rapier2d-f64",
+    "crates/rapier_testbed2d",
+    "crates/rapier_testbed2d-f64",
+    "examples2d",
+    "benchmarks2d",
+    "crates/rapier3d",
+    "crates/rapier3d-f64",
+    "crates/rapier_testbed3d",
+    "crates/rapier_testbed3d-f64",
+    "examples3d",
+    "examples3d-f64",
+    "benchmarks3d",
+    "crates/rapier3d-urdf",
+    "crates/rapier3d-stl",
+]
 resolver = "2"
+
+[workspace.lints]
+rust.unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(feature, values("dim2", "dim3", "f32", "f64"))',
+    # The `other-backends` feature isn't in the tested3d-f64
+    # but easier to just ignore it here.
+    'cfg(feature, values("other-backends"))',
+] }
 
 [patch.crates-io]
 #wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }
