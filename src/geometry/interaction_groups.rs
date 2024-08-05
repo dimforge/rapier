@@ -83,7 +83,7 @@ bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
     pub struct Group: u32 {
-        /// The group n°1, the default group.
+        /// The group n°1.
         const GROUP_1 = 1 << 0;
         /// The group n°2.
         const GROUP_2 = 1 << 1;
