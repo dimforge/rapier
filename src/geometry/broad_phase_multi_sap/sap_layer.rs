@@ -13,6 +13,13 @@ pub(crate) struct SAPLayer {
     pub smaller_layer: Option<u8>,
     pub larger_layer: Option<u8>,
     region_width: Real,
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(
+            serialize_with = "crate::utils::serde::serialize_to_vec_tuple",
+            deserialize_with = "crate::utils::serde::deserialize_from_vec_tuple"
+        )
+    )]
     pub regions: HashMap<Point<RegionKey>, BroadPhaseProxyIndex>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     regions_to_potentially_remove: Vec<Point<RegionKey>>, // Workspace
