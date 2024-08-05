@@ -244,10 +244,14 @@ pub fn update_ui(
         if let Some(character_controller) = &mut state.character_controller {
             ui.label("Character controller");
             ui.checkbox(&mut character_controller.slide, "slide").on_hover_text("Should the character try to slide against the floor if it hits it?");
-            ui.add(Slider::new(&mut character_controller.max_slope_climb_angle, 0.0..=Real::from(std::f32::consts::TAU)).text("max_slope_climb_angle"))
-            .on_hover_text("The maximum angle (radians) between the floor’s normal and the `up` vector that the character is able to climb.");
-            ui.add(Slider::new(&mut character_controller.min_slope_slide_angle, 0.0..=Real::from(std::f32::consts::FRAC_PI_2)).text("min_slope_slide_angle"))
-            .on_hover_text("The minimum angle (radians) between the floor’s normal and the `up` vector before the character starts to slide down automatically.");
+            #[allow(clippy::useless_conversion)]
+            {
+
+                ui.add(Slider::new(&mut character_controller.max_slope_climb_angle, 0.0..=std::f32::consts::TAU.into()).text("max_slope_climb_angle"))
+                    .on_hover_text("The maximum angle (radians) between the floor’s normal and the `up` vector that the character is able to climb.");
+                ui.add(Slider::new(&mut character_controller.min_slope_slide_angle, 0.0..=std::f32::consts::FRAC_PI_2.into()).text("min_slope_slide_angle"))
+                    .on_hover_text("The minimum angle (radians) between the floor’s normal and the `up` vector before the character starts to slide down automatically.");
+            }
             let mut is_snapped = character_controller.snap_to_ground.is_some();
             if ui.checkbox(&mut is_snapped, "snap_to_ground").changed {
                 match is_snapped {
