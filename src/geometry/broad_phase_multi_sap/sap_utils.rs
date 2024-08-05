@@ -1,6 +1,11 @@
 use crate::math::{Point, Real, Vector};
 use parry::bounding_volume::Aabb;
 
+#[cfg(feature = "f32")]
+pub type RegionKey = i32;
+#[cfg(feature = "f64")]
+pub type RegionKey = i64;
+
 pub(crate) const NUM_SENTINELS: usize = 1;
 pub(crate) const NEXT_FREE_SENTINEL: u32 = u32::MAX;
 pub(crate) const SENTINEL_VALUE: Real = Real::MAX;
@@ -23,14 +28,19 @@ pub(crate) fn clamp_point(point: Point<Real>) -> Point<Real> {
     point.map(|e| na::clamp(e, -MAX_AABB_EXTENT, MAX_AABB_EXTENT))
 }
 
-pub(crate) fn point_key(point: Point<Real>, region_width: Real) -> Point<i32> {
+pub(crate) fn point_key(point: Point<Real>, region_width: Real) -> Point<RegionKey> {
     (point / region_width)
         .coords
-        .map(|e| e.floor() as i32)
+        .map(|e| {
+            // If the region is outside this range, the region keys will overlap
+            assert!(e.floor() < RegionKey::MAX as Real);
+            assert!(e.floor() > RegionKey::MIN as Real);
+            e.floor() as RegionKey
+        })
         .into()
 }
 
-pub(crate) fn region_aabb(index: Point<i32>, region_width: Real) -> Aabb {
+pub(crate) fn region_aabb(index: Point<RegionKey>, region_width: Real) -> Aabb {
     let mins = index.coords.map(|i| i as Real * region_width).into();
     let maxs = mins + Vector::repeat(region_width);
     Aabb::new(mins, maxs)

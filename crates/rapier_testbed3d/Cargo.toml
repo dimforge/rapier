@@ -42,7 +42,7 @@ rand = "0.8"
 rand_pcg = "0.3"
 instant = { version = "0.1", features = ["web-sys", "now"] }
 bitflags = "2"
-glam = { version = "0.24", optional = true }                       # For Physx
+glam = { version = "0.24", optional = true } # For Physx
 num_cpus = { version = "1", optional = true }
 physx = { version = "0.19", features = ["glam"], optional = true }
 physx-sys = { version = "0.11", optional = true }
