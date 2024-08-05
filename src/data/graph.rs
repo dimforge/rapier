@@ -517,74 +517,6 @@ impl<N, E> Graph<N, E> {
     }
 }
 
-/// An iterator over either the nodes without edges to them or from them.
-pub struct Externals<'a, N: 'a> {
-    iter: std::iter::Enumerate<std::slice::Iter<'a, Node<N>>>,
-    dir: Direction,
-}
-
-impl<'a, N: 'a> Iterator for Externals<'a, N> {
-    type Item = NodeIndex;
-    fn next(&mut self) -> Option<NodeIndex> {
-        let k = self.dir as usize;
-        loop {
-            match self.iter.next() {
-                None => return None,
-                Some((index, node)) => {
-                    if node.next[k] == EdgeIndex::end() && node.next[1 - k] == EdgeIndex::end() {
-                        return Some(NodeIndex::new(index as u32));
-                    } else {
-                        continue;
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Iterator over the neighbors of a node.
-///
-/// Iterator element type is `NodeIndex`.
-///
-/// Created with [`.neighbors()`][1], [`.neighbors_directed()`][2] or
-/// [`.neighbors_undirected()`][3].
-///
-/// [1]: struct.Graph.html#method.neighbors
-/// [2]: struct.Graph.html#method.neighbors_directed
-/// [3]: struct.Graph.html#method.neighbors_undirected
-pub struct Neighbors<'a, E: 'a> {
-    /// starting node to skip over
-    skip_start: NodeIndex,
-    edges: &'a [Edge<E>],
-    next: [EdgeIndex; 2],
-}
-
-impl<'a, E> Iterator for Neighbors<'a, E> {
-    type Item = NodeIndex;
-
-    fn next(&mut self) -> Option<NodeIndex> {
-        // First any outgoing edges
-        match self.edges.get(self.next[0].index()) {
-            None => {}
-            Some(edge) => {
-                self.next[0] = edge.next[0];
-                return Some(edge.node[1]);
-            }
-        }
-        // Then incoming edges
-        // For an "undirected" iterator (traverse both incoming
-        // and outgoing edge lists), make sure we don't double
-        // count selfloops by skipping them in the incoming list.
-        while let Some(edge) = self.edges.get(self.next[1].index()) {
-            self.next[1] = edge.next[1];
-            if edge.node[0] != self.skip_start {
-                return Some(edge.node[0]);
-            }
-        }
-        None
-    }
-}
-
 struct EdgesWalkerMut<'a, E: 'a> {
     edges: &'a mut [Edge<E>],
     next: EdgeIndex,
@@ -783,32 +715,3 @@ where
         self.index == rhs.index && self.weight == rhs.weight
     }
 }
-
-/// Iterator over all nodes of a graph.
-pub struct NodeReferences<'a, N: 'a> {
-    iter: std::iter::Enumerate<std::slice::Iter<'a, Node<N>>>,
-}
-
-impl<'a, N> Iterator for NodeReferences<'a, N> {
-    type Item = (NodeIndex, &'a N);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter
-            .next()
-            .map(|(i, node)| (NodeIndex::new(i as u32), &node.weight))
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
-    }
-}
-
-impl<'a, N> DoubleEndedIterator for NodeReferences<'a, N> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.iter
-            .next_back()
-            .map(|(i, node)| (NodeIndex::new(i as u32), &node.weight))
-    }
-}
-
-impl<'a, N> ExactSizeIterator for NodeReferences<'a, N> {}
