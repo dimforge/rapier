@@ -35,6 +35,25 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::ball(ball_rad).density(100.0);
     let ball_coll_handle = colliders.insert_with_parent(collider, ball_handle, &mut bodies);
 
+    /*
+     * Colliders without bodies
+     */
+    let shape_size = 3.0;
+    let static_collider = ColliderBuilder::ball(shape_size)
+        .translation(vector![-15.0, shape_size, 18.0]);
+    colliders.insert(static_collider);
+
+    let shapes = vec![
+        SharedShape::ball(shape_size),
+        SharedShape::cuboid(shape_size, shape_size, shape_size),
+        SharedShape::cone(shape_size, shape_size),
+        SharedShape::cylinder(shape_size, shape_size)
+    ];
+    let mut shape_idx = 0;
+    let shapeshifting_collider = ColliderBuilder::new(shapes[shape_idx].clone())
+        .translation(vector![-15.0, shape_size, 9.0]);
+    let shapeshifting_coll_handle = colliders.insert(shapeshifting_collider);
+
     let mut linvel = Vector::zeros();
     let mut angvel = Vector::zeros();
     let mut pos = Isometry::identity();
@@ -53,6 +72,12 @@ pub fn init_world(testbed: &mut Testbed) {
             pos = *ball.position();
         }
 
+        let shapeshifting_coll = physics.colliders.get_mut(shapeshifting_coll_handle).unwrap();
+        if step % 50 == 0 {
+            shape_idx = (shape_idx + 1) % 4;
+            shapeshifting_coll.set_shape(shapes[shape_idx].clone())
+        } 
+
         if step == 100 {
             ball.set_linvel(linvel, true);
             ball.set_angvel(angvel, true);
@@ -62,9 +87,10 @@ pub fn init_world(testbed: &mut Testbed) {
 
         let ball_coll = physics.colliders.get_mut(ball_coll_handle).unwrap();
         ball_coll.set_shape(SharedShape::ball(ball_rad * step as f32 * 2.0));
+
         if let Some(gfx) = &mut gfx {
-            gfx.remove_collider(ball_coll_handle, &physics.colliders);
-            gfx.add_collider(ball_coll_handle, &physics.colliders);
+            gfx.update_collider(ball_coll_handle, &physics.colliders);
+            gfx.update_collider(shapeshifting_coll_handle, &physics.colliders);
         }
     });
 
@@ -115,5 +141,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![10.0, 10.0, 10.0], Point::origin());
+    testbed.look_at(point![40.0, 40.0, 40.0], Point::origin());
 }

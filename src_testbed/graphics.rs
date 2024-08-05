@@ -83,17 +83,17 @@ impl GraphicsManager {
     ) {
         let body = body.unwrap_or(RigidBodyHandle::invalid());
         if let Some(sns) = self.b2sn.remove(&body) {
-            let mut new_sn = vec![];
+            let mut new_sns = vec![];
             for sn in sns.into_iter() {
                 if let Some(sn_c) = sn.collider {
                     if sn_c == collider {
                         commands.entity(sn.entity).despawn();
                     } else {
-                        new_sn.push(sn);
+                        new_sns.push(sn);
                     }
                 }
             }
-            self.b2sn.insert(body, new_sn);
+            self.b2sn.insert(body, new_sns);
         }
     }
 
