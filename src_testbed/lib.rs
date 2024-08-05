@@ -1,5 +1,4 @@
 #![allow(clippy::too_many_arguments)]
-
 extern crate nalgebra as na;
 
 pub use crate::graphics::{BevyMaterial, GraphicsManager};
