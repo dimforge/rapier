@@ -39,15 +39,15 @@ pub fn init_world(testbed: &mut Testbed) {
      * Colliders without bodies
      */
     let shape_size = 3.0;
-    let static_collider = ColliderBuilder::ball(shape_size)
-        .translation(vector![-15.0, shape_size, 18.0]);
+    let static_collider =
+        ColliderBuilder::ball(shape_size).translation(vector![-15.0, shape_size, 18.0]);
     colliders.insert(static_collider);
 
-    let shapes = vec![
+    let shapes = [
         SharedShape::ball(shape_size),
         SharedShape::cuboid(shape_size, shape_size, shape_size),
         SharedShape::cone(shape_size, shape_size),
-        SharedShape::cylinder(shape_size, shape_size)
+        SharedShape::cylinder(shape_size, shape_size),
     ];
     let mut shape_idx = 0;
     let shapeshifting_collider = ColliderBuilder::new(shapes[shape_idx].clone())
@@ -72,11 +72,14 @@ pub fn init_world(testbed: &mut Testbed) {
             pos = *ball.position();
         }
 
-        let shapeshifting_coll = physics.colliders.get_mut(shapeshifting_coll_handle).unwrap();
+        let shapeshifting_coll = physics
+            .colliders
+            .get_mut(shapeshifting_coll_handle)
+            .unwrap();
         if step % 50 == 0 {
             shape_idx = (shape_idx + 1) % 4;
             shapeshifting_coll.set_shape(shapes[shape_idx].clone())
-        } 
+        }
 
         if step == 100 {
             ball.set_linvel(linvel, true);
