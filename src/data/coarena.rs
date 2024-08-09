@@ -78,7 +78,7 @@ impl<T> Coarena<T> {
         self.data[i1 as usize] = (g1, value);
     }
 
-    /// Ensure that the given element exists in thihs coarena, and return its mutable reference.
+    /// Ensure that the given element exists in this coarena, and return its mutable reference.
     pub fn ensure_element_exist(&mut self, a: Index, default: T) -> &mut T
     where
         T: Clone,
@@ -99,7 +99,7 @@ impl<T> Coarena<T> {
         &mut data.1
     }
 
-    /// Ensure that elements at the two given indices exist in this coarena, and return their reference.
+    /// Ensure that elements at the two given indices exist in this coarena, and return their references.
     ///
     /// Missing elements are created automatically and initialized with the `default` value.
     pub fn ensure_pair_exists(&mut self, a: Index, b: Index, default: T) -> (&mut T, &mut T)

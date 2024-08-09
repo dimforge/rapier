@@ -374,7 +374,7 @@ impl MultibodyJointSet {
         ))
     }
 
-    /// Returns the the joint between two rigid-bodies (if it exists).
+    /// Returns the joint between two rigid-bodies (if it exists).
     pub fn joint_between(
         &self,
         rb1: RigidBodyHandle,
