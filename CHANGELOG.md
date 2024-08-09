@@ -96,7 +96,7 @@ This release introduces two new crates:
 - Rename `JointAxis::X/Y/Z` to `::LinX/LinY/LinZ` to avoid confusing it with `::AngX/AngY/AngZ`.
 - Rename `JointAxesMask::X/Y/Z` to `::LIN_X/LIN_Y/LIN_Z` to avoid confusing it with `::ANG_X/ANG_Y/ANG_Z`.
 - The function `RigidBody::add_collider` is now private. It was only public because it was needed for some internal
-  `bevy_rapier` plumbings, but it is no longer useful. Adding a collider must always go througthe `ColliderSet`.
+  `bevy_rapier` plumbings, but it is no longer useful. Adding a collider must always go through the `ColliderSet`.
 - `CharacterController::solve_character_collision_impulses` now takes multiple `CharacterCollision` as parameter:
   this change will allow further internal optimizations.
 - `QueryPipeline::update` now doesn't need the `RigidBodySet` as parameter.
