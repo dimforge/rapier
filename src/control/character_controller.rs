@@ -906,13 +906,13 @@ fn subtract_hit(translation: Vector<Real>, hit: &ShapeCastHit) -> Vector<Real> {
     translation + *hit.normal1 * surface_correction
 }
 
+#[cfg(all(feature = "dim3", feature = "f32"))]
 #[cfg(test)]
 mod test {
     use std::default;
 
     use crate::{control::KinematicCharacterController, prelude::*};
 
-    #[cfg(all(feature = "dim3", feature = "f32"))]
     #[test]
     fn character_controller_climb_test() {
         let mut colliders = ColliderSet::new();
