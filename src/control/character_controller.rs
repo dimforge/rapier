@@ -909,8 +909,6 @@ fn subtract_hit(translation: Vector<Real>, hit: &ShapeCastHit) -> Vector<Real> {
 #[cfg(all(feature = "dim3", feature = "f32"))]
 #[cfg(test)]
 mod test {
-    use std::default;
-
     use crate::{control::KinematicCharacterController, prelude::*};
 
     #[test]
@@ -969,11 +967,9 @@ mod test {
             .additional_mass(1.0)
             .build();
         character_body_can_climb.set_translation(Vector::new(0.6, 0.5, 0.0), false);
-        let character_mass = character_body_can_climb.mass();
         let character_handle_can_climb = bodies.insert(character_body_can_climb);
 
         let collider = ColliderBuilder::ball(0.5).build();
-        let character_shape = collider.shape();
         colliders.insert_with_parent(collider.clone(), character_handle_can_climb, &mut bodies);
 
         // Initialize character which cannot climb
