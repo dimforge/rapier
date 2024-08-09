@@ -37,7 +37,7 @@ pub fn init_world(testbed: &mut Testbed) {
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let rigid_body = RigidBodyBuilder::dynamic()
-        .translation(vector![0.0, 0.5, 0.0])
+        .translation(vector![-3.0, 5.0, 0.0])
         .linvel(vector![0.0, -4.0, 20.0])
         .can_sleep(false);
     let handle = bodies.insert(rigid_body);

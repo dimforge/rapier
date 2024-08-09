@@ -25,7 +25,7 @@ pub fn track_mouse_state(
                     - Vec2::ONE)
                     * Vec2::new(1.0, -1.0);
                 let ndc_to_world =
-                    camera_transform.compute_matrix() * camera.projection_matrix().inverse();
+                    camera_transform.compute_matrix() * camera.clip_from_view().inverse();
                 let ray_pt1 =
                     ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, -1.0));
 

@@ -44,7 +44,7 @@ impl EntityWithGraphics {
 
         #[cfg(feature = "dim2")]
         let selection_material = ColorMaterial {
-            color: Color::rgb(1.0, 0.0, 0.0),
+            color: Color::from(Srgba::rgb(1.0, 0.0, 0.0)),
             texture: None,
         };
         #[cfg(feature = "dim3")]
@@ -52,7 +52,7 @@ impl EntityWithGraphics {
             metallic: 0.5,
             perceptual_roughness: 0.5,
             double_sided: true, // TODO: this doesn't do anything?
-            ..StandardMaterial::from(Color::rgb(1.0, 0.0, 0.0))
+            ..StandardMaterial::from(Color::from(Srgba::rgb(1.0, 0.0, 0.0)))
         };
 
         instanced_materials.insert(
@@ -85,7 +85,7 @@ impl EntityWithGraphics {
             .or_else(|| generate_collider_mesh(shape).map(|m| meshes.add(m)));
 
         let opacity = 1.0;
-        let bevy_color = Color::rgba(color.x, color.y, color.z, opacity);
+        let bevy_color = Color::from(Srgba::new(color.x, color.y, color.z, opacity));
         let shape_pos = collider_pos * delta;
         let mut transform = Transform::from_scale(scale);
         transform.translation.x = shape_pos.translation.vector.x as f32;
@@ -169,11 +169,12 @@ impl EntityWithGraphics {
         if let Some(material) = materials.get_mut(&self.material) {
             #[cfg(feature = "dim2")]
             {
-                material.color = Color::rgba(color.x, color.y, color.z, self.opacity);
+                material.color = Color::from(Srgba::new(color.x, color.y, color.z, self.opacity));
             }
             #[cfg(feature = "dim3")]
             {
-                material.base_color = Color::rgba(color.x, color.y, color.z, self.opacity);
+                material.base_color =
+                    Color::from(Srgba::new(color.x, color.y, color.z, self.opacity));
             }
         }
         self.color = color;
