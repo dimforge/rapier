@@ -3,6 +3,7 @@
 ### Fix
 
 - The region key has been replaced by an i64 in the f64 version of rapier, increasing the range before panics occur.
+- Fix `BroadphaseMultiSap` not being able to serialize correctly with serde_json.
 
 ## v0.22.0 (20 July 2024)
 
@@ -10,7 +11,7 @@
 
 - Fix crash when removing a multibody joint, or a rigid-body with a multipody-joint attached to it.
 - Fix crash when inserting multibody joints in an arbitrary order (instead of incrementally from root to leaf).
-- Fix `BroadphaseMultiSap` not being able to serialize correctly with serde_json.
+- Fix `BroadphaseMultiSap` not being able to serialize a field with serde_json.
 
 ### Added
 
