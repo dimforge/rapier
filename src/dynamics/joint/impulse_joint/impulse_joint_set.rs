@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use super::ImpulseJoint;
 use crate::geometry::{InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex};
 
@@ -42,7 +44,7 @@ pub struct ImpulseJointSet {
     rb_graph_ids: Coarena<RigidBodyGraphIndex>,
     joint_ids: Arena<TemporaryInteractionIndex>, // Map joint handles to edge ids on the graph.
     joint_graph: InteractionGraph<RigidBodyHandle, ImpulseJoint>,
-    pub(crate) to_wake_up: Vec<RigidBodyHandle>, // A set of rigid-body handles to wake-up during the next timestep.
+    pub(crate) to_wake_up: HashSet<RigidBodyHandle>, // A set of rigid-body handles to wake-up during the next timestep.
 }
 
 impl ImpulseJointSet {
@@ -52,7 +54,7 @@ impl ImpulseJointSet {
             rb_graph_ids: Coarena::new(),
             joint_ids: Arena::new(),
             joint_graph: InteractionGraph::new(),
-            to_wake_up: vec![],
+            to_wake_up: HashSet::new(),
         }
     }
 
@@ -154,8 +156,8 @@ impl ImpulseJointSet {
         let joint = self.joint_graph.graph.edge_weight_mut(*id);
         if wake_up_connected_bodies {
             if let Some(joint) = &joint {
-                self.to_wake_up.push(joint.body1);
-                self.to_wake_up.push(joint.body2);
+                self.to_wake_up.insert(joint.body1);
+                self.to_wake_up.insert(joint.body2);
             }
         }
         joint
@@ -280,8 +282,8 @@ impl ImpulseJointSet {
         self.joint_ids[handle] = self.joint_graph.add_edge(graph_index1, graph_index2, joint);
 
         if wake_up {
-            self.to_wake_up.push(body1);
-            self.to_wake_up.push(body2);
+            self.to_wake_up.insert(body1);
+            self.to_wake_up.insert(body2);
         }
 
         ImpulseJointHandle(handle)
@@ -331,10 +333,10 @@ impl ImpulseJointSet {
 
         if wake_up {
             if let Some(rb_handle) = self.joint_graph.graph.node_weight(endpoints.0) {
-                self.to_wake_up.push(*rb_handle);
+                self.to_wake_up.insert(*rb_handle);
             }
             if let Some(rb_handle) = self.joint_graph.graph.node_weight(endpoints.1) {
-                self.to_wake_up.push(*rb_handle);
+                self.to_wake_up.insert(*rb_handle);
             }
         }
 
@@ -383,8 +385,8 @@ impl ImpulseJointSet {
                     }
 
                     // Wake up the attached bodies.
-                    self.to_wake_up.push(h1);
-                    self.to_wake_up.push(h2);
+                    self.to_wake_up.insert(h1);
+                    self.to_wake_up.insert(h2);
                 }
 
                 if let Some(other) = self.joint_graph.remove_node(deleted_id) {
