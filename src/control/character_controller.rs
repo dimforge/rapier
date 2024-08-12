@@ -956,8 +956,8 @@ mod test {
 
         let gravity = Vector::y() * -9.81;
 
-        let ground_size = 600.0;
-        let ground_height = 0.1;
+        let ground_size = 1001.0;
+        let ground_height = 1.0;
         /*
          * Create a flat ground
          */
@@ -999,7 +999,7 @@ mod test {
         colliders.insert_with_parent(collider.clone(), character_handle_no_snap, &mut bodies);
 
         query_pipeline.update(&colliders);
-        for i in 0..5200 {
+        for i in 0..10000 {
             let mut update_character_controller =
                 |controller: KinematicCharacterController, handle: RigidBodyHandle| {
                     let character_body = bodies.get(handle).unwrap();
@@ -1014,7 +1014,7 @@ mod test {
                         &query_pipeline,
                         character_shape,
                         character_body.position(),
-                        Vector::new(0.1, -0.1, 0.02),
+                        Vector::new(0.1, -0.1, 0.1),
                         filter_character_controller,
                         |collision| collisions.push(collision),
                     );
@@ -1049,5 +1049,33 @@ mod test {
                 &(),
             );
         }
+        let character_body = bodies.get_mut(character_handle_no_snap).unwrap();
+        let translation = character_body.translation();
+
+        // accumulated numerical errors make the test go less far than it should,
+        // but it's expected.
+        assert!(
+            translation.x >= 997.0,
+            "actual translation.x:{}",
+            translation.x
+        );
+        assert!(
+            translation.z >= 997.0,
+            "actual translation.z:{}",
+            translation.z
+        );
+
+        let character_body = bodies.get_mut(character_handle_snap).unwrap();
+        let translation = character_body.translation();
+        assert!(
+            translation.x >= 997.0,
+            "actual translation.x:{}",
+            translation.x
+        );
+        assert!(
+            translation.z >= 997.0,
+            "actual translation.z:{}",
+            translation.z
+        );
     }
 }
