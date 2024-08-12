@@ -145,9 +145,20 @@ impl ImpulseJointSet {
     }
 
     /// Gets a mutable reference to the joint with the given handle.
-    pub fn get_mut(&mut self, handle: ImpulseJointHandle) -> Option<&mut ImpulseJoint> {
+    pub fn get_mut(
+        &mut self,
+        handle: ImpulseJointHandle,
+        wake_up_connected_bodies: bool,
+    ) -> Option<&mut ImpulseJoint> {
         let id = self.joint_ids.get(handle.0)?;
-        self.joint_graph.graph.edge_weight_mut(*id)
+        let joint = self.joint_graph.graph.edge_weight_mut(*id);
+        if wake_up_connected_bodies {
+            if let Some(joint) = &joint {
+                self.to_wake_up.push(joint.body1);
+                self.to_wake_up.push(joint.body2);
+            }
+        }
+        joint
     }
 
     /// Gets the joint with the given handle without a known generation.

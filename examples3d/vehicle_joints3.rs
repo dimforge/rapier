@@ -158,14 +158,17 @@ pub fn init_world(testbed: &mut Testbed) {
                 _ => {}
             }
         }
-
+        let mut should_wake_up = false;
         if thrust != 0.0 || steering != 0.0 {
-            physics.bodies.get_mut(body_handle).unwrap().wake_up(true);
+            should_wake_up = true;
         }
 
         // Apply steering to the axles.
         for steering_handle in &steering_joints {
-            let steering_joint = physics.impulse_joints.get_mut(*steering_handle).unwrap();
+            let steering_joint = physics
+                .impulse_joints
+                .get_mut(*steering_handle, should_wake_up)
+                .unwrap();
             steering_joint.data.set_motor_position(
                 JointAxis::AngY,
                 max_steering_angle * steering,
@@ -187,7 +190,10 @@ pub fn init_world(testbed: &mut Testbed) {
 
         let ms = [1.0 / speed_diff, speed_diff];
         for (motor_handle, &ms) in motor_joints.iter().copied().zip(ms.iter()) {
-            let motor_joint = physics.impulse_joints.get_mut(motor_handle).unwrap();
+            let motor_joint = physics
+                .impulse_joints
+                .get_mut(motor_handle, should_wake_up)
+                .unwrap();
             motor_joint.data.set_motor_velocity(
                 JointAxis::AngX,
                 -30.0 * thrust * ms * boost,
