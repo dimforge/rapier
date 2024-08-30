@@ -15,7 +15,7 @@ use crate::{
 /// Generates collider AABBs based on the union of their current AABB and the AABB predicted
 /// from the velocity and forces of their parent rigid-body.
 ///
-/// The main purpose of this struct is to be passed as a parameters to
+/// The main purpose of this struct is to be passed as a parameter to
 /// [`QueryPipeline::update_with_generator`] to update the [`QueryPipeline`].
 ///
 /// The predicted position is calculated as
@@ -56,7 +56,7 @@ impl<'a> QbvhDataGenerator<ColliderHandle> for SweptAabbWithPredictedPosition<'a
 /// Generates collider AABBs based on the union of their AABB at their current [`Collider::position`]
 /// and the AABB predicted from their parent’s [`RigidBody::next_position`].
 ///
-/// The main purpose of this struct is to be passed as a parameters to
+/// The main purpose of this struct is to be passed as a parameter to
 /// [`QueryPipeline::update_with_generator`] to update the [`QueryPipeline`].
 ///
 /// The predicted position is calculated as
@@ -89,7 +89,7 @@ impl<'a> QbvhDataGenerator<ColliderHandle> for SweptAabbWithNextPosition<'a> {
 
 /// Generates collider AABBs based on the AABB at their current [`Collider::position`].
 ///
-/// The main purpose of this struct is to be passed as a parameters to
+/// The main purpose of this struct is to be passed as a parameter to
 /// [`QueryPipeline::update_with_generator`] to update the [`QueryPipeline`].
 pub struct CurrentAabb<'a> {
     /// The colliders of your simulation.
