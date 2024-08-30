@@ -43,6 +43,14 @@ impl RigidBodySet {
         }
     }
 
+    /// Create a new set of rigid bodies, with an initial capacity.
+    pub fn with_capacity(capacity: usize) -> Self {
+        RigidBodySet {
+            bodies: Arena::with_capacity(capacity),
+            modified_bodies: Vec::with_capacity(capacity),
+        }
+    }
+
     pub(crate) fn take_modified(&mut self) -> Vec<RigidBodyHandle> {
         std::mem::take(&mut self.modified_bodies)
     }
