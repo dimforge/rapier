@@ -97,3 +97,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: check typos
         uses: crate-ci/typos@v1.23.2
+  publish-dry-run:
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - name: publish dry-run
+        run: ./publish-all.sh
