@@ -25,7 +25,12 @@ path = "../../src_testbed/lib.rs"
 required-features = ["dim3"]
 
 [lints]
-workspace = true
+rust.unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(feature, values("dim2", "f32"))',
+    # The `other-backends` feature isn't in the tested3d-f64
+    # but easier to just ignore it here.
+    'cfg(feature, values("other-backends"))',
+] }
 
 [features]
 default = ["dim3"]
