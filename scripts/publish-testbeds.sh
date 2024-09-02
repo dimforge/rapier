@@ -13,7 +13,7 @@ cp -r LICENSE README.md "$tmp"/.
 gsed 's#\.\./\.\./src#src#g' crates/rapier_testbed2d/Cargo.toml > "$tmp"/Cargo.toml
 gsed -i 's#\.\./rapier#./crates/rapier#g' "$tmp"/Cargo.toml
 currdir=$(pwd)
-cd "$tmp" && cargo publish
+cd "$tmp" && cargo publish $DRY_RUN
 cd "$currdir" || exit
 
 
@@ -21,6 +21,6 @@ cd "$currdir" || exit
 gsed 's#\.\./\.\./src#src#g' crates/rapier_testbed3d/Cargo.toml > "$tmp"/Cargo.toml
 gsed -i 's#\.\./rapier#./crates/rapier#g' "$tmp"/Cargo.toml
 cp -r LICENSE README.md "$tmp"/.
-cd "$tmp" && cargo publish
+cd "$tmp" && cargo publish $DRY_RUN
 
 rm -rf "$tmp"
