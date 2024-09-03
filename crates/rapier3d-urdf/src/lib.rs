@@ -490,7 +490,7 @@ fn urdf_to_rigid_body(options: &UrdfLoaderOptions, inertial: &Inertial) -> Rigid
 
 fn urdf_to_collider(
     options: &UrdfLoaderOptions,
-    _mesh_dir: &Path, // NOTO: this isn’t used if there is no extrenal mesh feature enabled (like stl).
+    _mesh_dir: &Path, // NOTO: this isn’t used if there is no external mesh feature enabled (like stl).
     geometry: &Geometry,
     origin: &Pose,
 ) -> Option<Collider> {
