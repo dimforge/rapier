@@ -429,7 +429,7 @@ impl TestbedApp {
             };
 
             let mut app = App::new();
-            app.insert_resource(ClearColor(Color::rgb(0.15, 0.15, 0.15)))
+            app.insert_resource(ClearColor(Color::from(Srgba::rgb(0.15, 0.15, 0.15))))
                 .insert_resource(Msaa::Sample4)
                 .insert_resource(AmbientLight {
                     brightness: 0.3,
@@ -1600,7 +1600,7 @@ fn highlight_hovered_body(
             cursor.x / window.width() * 2.0 - 1.0,
             1.0 - cursor.y / window.height() * 2.0,
         );
-        let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
+        let ndc_to_world = camera_transform.compute_matrix() * camera.clip_from_view().inverse();
         let ray_pt1 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, -1.0));
         let ray_pt2 = ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 1.0));
         let ray_dir = ray_pt2 - ray_pt1;
