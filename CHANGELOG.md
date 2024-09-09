@@ -4,6 +4,7 @@
 
 - The region key has been replaced by an i64 in the f64 version of rapier, increasing the range before panics occur.
 - Fix `BroadphaseMultiSap` not being able to serialize correctly with serde_json.
+- Improve ground detection reliability for `KinematicCharacterController`. (#715)
 
 ### Modified
 
