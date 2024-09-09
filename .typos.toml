@@ -3,13 +3,23 @@
 # word is treated as always correct. If the value is an empty string, the word
 # is treated as always incorrect.
 
+[files]
+extend-exclude = [
+    ".git/",
+]
+ignore-hidden = false
+
+[default]
+extend-ignore-re = [
+    "\\bPolygon::PN\\b",
+]
+
 # Case sensitive, matches entire word.
 [default.extend-identifiers]
 anc_color = "anc_color"
-PN = "PN"
 rady = "rady"
 
 # Case insensitive, matches inside word.
 [default.extend-words]
-toi = "toi"
 bellow = "below"
+toi = "toi"

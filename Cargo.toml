@@ -18,14 +18,6 @@ members = [
 ]
 resolver = "2"
 
-[workspace.lints]
-rust.unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(feature, values("dim2", "dim3", "f32", "f64"))',
-    # The `other-backends` feature isn't in the tested3d-f64
-    # but easier to just ignore it here.
-    'cfg(feature, values("other-backends"))',
-] }
-
 [patch.crates-io]
 #wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }
 #xurdf = { path = "../xurdf/xurdf" }
