@@ -32,10 +32,7 @@ use rapier3d::{
         JointAxis, MassProperties, MultibodyJointHandle, MultibodyJointSet, RigidBody,
         RigidBodyBuilder, RigidBodyHandle, RigidBodySet, RigidBodyType,
     },
-    geometry::{
-        Collider, ColliderBuilder, ColliderHandle, ColliderSet, MeshConverter, SharedShape,
-        TriMeshFlags,
-    },
+    geometry::{Collider, ColliderBuilder, ColliderHandle, ColliderSet, SharedShape, TriMeshFlags},
     math::{Isometry, Point, Real, Vector},
     na,
 };
@@ -493,7 +490,7 @@ fn urdf_to_rigid_body(options: &UrdfLoaderOptions, inertial: &Inertial) -> Rigid
 
 fn urdf_to_collider(
     options: &UrdfLoaderOptions,
-    mesh_dir: &Path,
+    _mesh_dir: &Path, // NOTO: this isn’t used if there is no external mesh feature enabled (like stl).
     geometry: &Geometry,
     origin: &Pose,
 ) -> Option<Collider> {
@@ -514,17 +511,18 @@ fn urdf_to_collider(
         Geometry::Sphere { radius } => SharedShape::ball(*radius as Real),
         Geometry::Mesh { filename, scale } => {
             let path: &Path = filename.as_ref();
-            let scale = scale
+            let _scale = scale
                 .map(|s| Vector::new(s.x as Real, s.y as Real, s.z as Real))
                 .unwrap_or_else(|| Vector::<Real>::repeat(1.0));
             match path.extension().and_then(|ext| ext.to_str()) {
                 #[cfg(feature = "stl")]
                 Some("stl") | Some("STL") => {
-                    let full_path = mesh_dir.join(filename);
+                    use rapier3d::geometry::MeshConverter;
+                    let full_path = _mesh_dir.join(filename);
                     match rapier3d_stl::load_from_path(
                         full_path,
                         MeshConverter::TriMeshWithFlags(options.trimesh_flags),
-                        scale,
+                        _scale,
                     ) {
                         Ok(stl_shape) => {
                             shape_transform = stl_shape.pose;

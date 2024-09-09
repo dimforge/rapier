@@ -25,7 +25,9 @@ path = "../../src_testbed/lib.rs"
 required-features = ["dim2"]
 
 [lints]
-workspace = true
+rust.unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(feature, values("dim3", "f64"))',
+] }
 
 [features]
 default = ["dim2"]
@@ -48,8 +50,7 @@ crossbeam = "0.8"
 bincode = "1"
 Inflector = "0.11"
 md5 = "0.7"
-
-bevy_egui = "0.28"
+bevy_egui = "0.29"
 bevy_ecs = "0.14"
 bevy_core_pipeline = "0.14"
 bevy_pbr = "0.14"

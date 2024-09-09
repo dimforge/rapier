@@ -25,7 +25,12 @@ path = "../../src_testbed/lib.rs"
 required-features = ["dim3"]
 
 [lints]
-workspace = true
+rust.unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(feature, values("dim2", "f32"))',
+    # The `other-backends` feature isn't in the tested3d-f64
+    # but easier to just ignore it here.
+    'cfg(feature, values("other-backends"))',
+] }
 
 [features]
 default = ["dim3"]
@@ -36,7 +41,7 @@ parallel = ["rapier/parallel", "num_cpus"]
 features = ["parallel"]
 
 [dependencies]
-nalgebra = { version = "0.33", features = ["rand", "glam025"] }
+nalgebra = { version = "0.33", features = ["rand", "glam027"] }
 rand = "0.8"
 rand_pcg = "0.3"
 instant = { version = "0.1", features = ["web-sys", "now"] }
@@ -47,8 +52,7 @@ bincode = "1"
 md5 = "0.7"
 Inflector = "0.11"
 serde = { version = "1", features = ["derive"] }
-
-bevy_egui = "0.28"
+bevy_egui = "0.29"
 bevy_ecs = "0.14"
 bevy_core_pipeline = "0.14"
 bevy_pbr = "0.14"

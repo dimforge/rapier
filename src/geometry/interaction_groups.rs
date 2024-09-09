@@ -71,7 +71,10 @@ impl InteractionGroups {
 
 impl Default for InteractionGroups {
     fn default() -> Self {
-        Self::all()
+        Self {
+            memberships: Group::GROUP_1,
+            filter: Group::ALL,
+        }
     }
 }
 

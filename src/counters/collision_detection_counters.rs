@@ -22,7 +22,7 @@ impl CollisionDetectionCounters {
         }
     }
 
-    /// Resets all the coounters and timers.
+    /// Resets all the counters and timers.
     pub fn reset(&mut self) {
         self.ncontact_pairs = 0;
         self.broad_phase_time.reset();

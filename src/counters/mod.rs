@@ -23,7 +23,7 @@ pub struct Counters {
     pub step_time: Timer,
     /// Timer used for debugging.
     pub custom: Timer,
-    /// Counters of every satge of one time step.
+    /// Counters of every stage of one time step.
     pub stages: StagesCounters,
     /// Counters of the collision-detection stage.
     pub cd: CollisionDetectionCounters,
