@@ -429,9 +429,9 @@ impl PhysicsPipeline {
         for handle in impulse_joints
             .to_wake_up
             .drain()
-            .chain(multibody_joints.to_wake_up.drain(..))
+            .chain(multibody_joints.to_wake_up.drain())
         {
-            islands.wake_up(bodies, handle, true);
+            islands.wake_up(bodies, handle.0, true);
         }
 
         // Apply modifications.
