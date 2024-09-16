@@ -5,6 +5,10 @@
 - The region key has been replaced by an i64 in the f64 version of rapier, increasing the range before panics occur.
 - Fix `BroadphaseMultiSap` not being able to serialize correctly with serde_json.
 
+### Added
+
+- `RigidBodySet` and `ColliderSet` have a new constructor `with_capacity`.
+
 ### Modified
 
 - `InteractionGroups` default value for `memberships` is now `GROUP_1` (#706)
