@@ -23,6 +23,17 @@ impl ColliderSet {
         }
     }
 
+    /// Create a new set of colliders, with an initial capacity
+    /// for the set of colliders as well as the tracking of
+    /// modified colliders.
+    pub fn with_capacity(capacity: usize) -> Self {
+        ColliderSet {
+            colliders: Arena::with_capacity(capacity),
+            modified_colliders: Vec::with_capacity(capacity),
+            removed_colliders: Vec::new(),
+        }
+    }
+
     pub(crate) fn take_modified(&mut self) -> Vec<ColliderHandle> {
         std::mem::take(&mut self.modified_colliders)
     }
