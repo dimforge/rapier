@@ -32,7 +32,10 @@ use rapier3d::{
         JointAxis, MassProperties, MultibodyJointHandle, MultibodyJointSet, RigidBody,
         RigidBodyBuilder, RigidBodyHandle, RigidBodySet, RigidBodyType,
     },
-    geometry::{Collider, ColliderBuilder, ColliderHandle, ColliderSet, SharedShape, TriMeshFlags},
+    geometry::{
+        Collider, ColliderBuilder, ColliderHandle, ColliderSet, MeshConverter, SharedShape,
+        TriMeshFlags,
+    },
     math::{Isometry, Point, Real, Vector},
     na,
 };
@@ -310,13 +313,13 @@ impl UrdfRobot {
                 name_to_link_id.insert(&link.name, id);
                 let mut colliders = vec![];
                 if options.create_colliders_from_collision_shapes {
-                    colliders.extend(link.collisions.iter().filter_map(|co| {
-                        urdf_to_collider(&options, mesh_dir, &co.geometry, &co.origin)
+                    colliders.extend(link.collisions.iter().flat_map(|co| {
+                        urdf_to_colliders(&options, mesh_dir, &co.geometry, &co.origin)
                     }))
                 }
                 if options.create_colliders_from_visual_shapes {
-                    colliders.extend(link.visuals.iter().filter_map(|vis| {
-                        urdf_to_collider(&options, mesh_dir, &vis.geometry, &vis.origin)
+                    colliders.extend(link.visuals.iter().flat_map(|vis| {
+                        urdf_to_colliders(&options, mesh_dir, &vis.geometry, &vis.origin)
                     }))
                 }
                 let mut body = urdf_to_rigid_body(&options, &link.inertial);
@@ -488,66 +491,69 @@ fn urdf_to_rigid_body(options: &UrdfLoaderOptions, inertial: &Inertial) -> Rigid
     builder.build()
 }
 
-fn urdf_to_collider(
+fn urdf_to_colliders(
     options: &UrdfLoaderOptions,
-    _mesh_dir: &Path, // NOTO: this isn’t used if there is no external mesh feature enabled (like stl).
+    mesh_dir: &Path,
     geometry: &Geometry,
     origin: &Pose,
-) -> Option<Collider> {
-    let mut builder = options.collider_blueprint.clone();
+) -> Vec<Collider> {
     let mut shape_transform = Isometry::identity();
-    let shape = match &geometry {
-        Geometry::Box { size } => SharedShape::cuboid(
-            size[0] as Real / 2.0,
-            size[1] as Real / 2.0,
-            size[2] as Real / 2.0,
-        ),
+
+    let mut colliders = Vec::new();
+    match &geometry {
+        Geometry::Box { size } => {
+            colliders.push(SharedShape::cuboid(
+                size[0] as Real / 2.0,
+                size[1] as Real / 2.0,
+                size[2] as Real / 2.0,
+            ));
+        }
         Geometry::Cylinder { radius, length } => {
             // This rotation will make the cylinder Z-up as per the URDF spec,
             // instead of rapier’s default Y-up.
             shape_transform = Isometry::rotation(Vector::x() * Real::frac_pi_2());
-            SharedShape::cylinder(*length as Real / 2.0, *radius as Real)
+            colliders.push(SharedShape::cylinder(
+                *length as Real / 2.0,
+                *radius as Real,
+            ));
         }
-        Geometry::Sphere { radius } => SharedShape::ball(*radius as Real),
+        Geometry::Sphere { radius } => {
+            colliders.push(SharedShape::ball(*radius as Real));
+        }
         Geometry::Mesh { filename, scale } => {
-            let path: &Path = filename.as_ref();
             let _scale = scale
                 .map(|s| Vector::new(s.x as Real, s.y as Real, s.z as Real))
                 .unwrap_or_else(|| Vector::<Real>::repeat(1.0));
-            match path.extension().and_then(|ext| ext.to_str()) {
-                #[cfg(feature = "stl")]
-                Some("stl") | Some("STL") => {
-                    use rapier3d::geometry::MeshConverter;
-                    let full_path = _mesh_dir.join(filename);
-                    match rapier3d_stl::load_from_path(
-                        full_path,
-                        MeshConverter::TriMeshWithFlags(options.trimesh_flags),
-                        _scale,
-                    ) {
-                        Ok(stl_shape) => {
-                            shape_transform = stl_shape.pose;
-                            stl_shape.shape
-                        }
-                        Err(e) => {
-                            log::error!("failed to load STL file {filename}: {e}");
-                            return None;
-                        }
+
+            let loader = mesh_loader::Loader::default();
+            let full_path = mesh_dir.join(filename);
+            if let Ok(scene) = loader.load(full_path) {
+                for (raw_mesh, _) in scene.meshes.into_iter().zip(scene.materials) {
+                    let vertices: Vec<_> = raw_mesh
+                        .vertices
+                        .iter()
+                        .map(|xyz| Point::new(xyz[0], xyz[1], xyz[2]))
+                        .collect();
+                    let indices: Vec<_> = raw_mesh.faces;
+                    let converter = MeshConverter::TriMeshWithFlags(options.trimesh_flags);
+                    if let Ok((shape, _)) = converter.convert(vertices, indices) {
+                        colliders.push(shape)
                     }
-                }
-                _ => {
-                    log::error!("failed to load file with unknown type {filename}");
-                    return None;
                 }
             }
         }
     };
 
-    builder.shape = shape;
-    Some(
-        builder
-            .position(urdf_to_isometry(origin) * shape_transform)
-            .build(),
-    )
+    colliders
+        .drain(..)
+        .map(move |shape| {
+            let mut builder = options.collider_blueprint.clone();
+            builder.shape = shape;
+            builder
+                .position(urdf_to_isometry(origin) * shape_transform)
+                .build()
+        })
+        .collect()
 }
 
 fn urdf_to_isometry(pose: &Pose) -> Isometry<Real> {
