@@ -59,6 +59,10 @@ jobs:
         run: cd crates/rapier_testbed2d; cargo check --verbose --features parallel;
       - name: Check rapier_testbed3d --features parallel
         run: cd crates/rapier_testbed3d; cargo check --verbose --features parallel;
+      - name: Check rapier_testbed2d --features enhanced-determinism
+        run: cd crates/rapier_testbed2d; cargo check --verbose --features enhanced-determinism;
+      - name: Check rapier_testbed3d --features enhanced-determinism
+        run: cd crates/rapier_testbed3d; cargo check --verbose --features enhanced-determinism;
       - name: Check rapier-examples-2d
         run: cargo check -j 1 --verbose -p rapier-examples-2d;
       - name: Check rapier-examples-3d
