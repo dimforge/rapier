@@ -357,7 +357,7 @@ impl SAPLayer {
                     // Check if we can actually delete this region.
                     if !region.contains_subproper_proxies() {
                         #[cfg(feature = "enhanced-determinism")]
-                        let region_id = region_id.shift_remove();
+                        let region_id = region_id.swap_remove();
                         #[cfg(not(feature = "enhanced-determinism"))]
                         let region_id = region_id.remove();
 

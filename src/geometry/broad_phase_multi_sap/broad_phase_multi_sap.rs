@@ -232,7 +232,7 @@ impl BroadPhaseMultiSap {
          */
         for removed in removed_colliders {
             #[cfg(feature = "enhanced-determinism")]
-            let proxy_id = self.colliders_proxy_ids.shift_remove(removed);
+            let proxy_id = self.colliders_proxy_ids.swap_remove(removed);
             #[cfg(not(feature = "enhanced-determinism"))]
             let proxy_id = self.colliders_proxy_ids.remove(removed);
 
