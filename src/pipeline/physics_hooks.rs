@@ -144,12 +144,12 @@ impl Default for ActiveHooks {
 pub trait PhysicsHooks {
     /// Applies the contact pair filter.
     fn filter_contact_pair(&self, _context: &PairFilterContext) -> Option<SolverFlags> {
-        None
+        Some(SolverFlags::COMPUTE_IMPULSES)
     }
 
     /// Applies the intersection pair filter.
     fn filter_intersection_pair(&self, _context: &PairFilterContext) -> bool {
-        false
+        true
     }
 
     /// Modifies the set of contacts seen by the constraints solver.
