@@ -102,6 +102,7 @@ pub struct TestbedState {
     pub draw_colls: bool,
     pub highlighted_body: Option<RigidBodyHandle>,
     pub character_body: Option<RigidBodyHandle>,
+    pub character_controller: Option<KinematicCharacterController>,
     #[cfg(feature = "dim3")]
     pub vehicle_controller: Option<DynamicRayCastVehicleController>,
     //    pub grabbed_object: Option<DefaultBodyPartHandle>,
@@ -186,6 +187,7 @@ impl TestbedApp {
             draw_colls: false,
             highlighted_body: None,
             character_body: None,
+            character_controller: None,
             #[cfg(feature = "dim3")]
             vehicle_controller: None,
             //            grabbed_object: None,
@@ -530,6 +532,10 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
         self.state.character_body = Some(handle);
     }
 
+    pub fn set_character_controller(&mut self, controller: Option<KinematicCharacterController>) {
+        self.state.character_controller = controller;
+    }
+
     #[cfg(feature = "dim3")]
     pub fn set_vehicle_controller(&mut self, controller: DynamicRayCastVehicleController) {
         self.state.vehicle_controller = Some(controller);
@@ -827,7 +833,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
             desired_movement *= speed;
             desired_movement -= Vector::y() * speed;
 
-            let controller = KinematicCharacterController::default();
+            let controller = self.state.character_controller.unwrap_or_default();
             let phx = &mut self.harness.physics;
             let character_body = &phx.bodies[character_handle];
             let character_collider = &phx.colliders[character_body.colliders()[0]];

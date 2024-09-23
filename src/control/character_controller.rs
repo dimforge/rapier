@@ -169,6 +169,7 @@ impl Default for KinematicCharacterController {
 }
 
 /// The effective movement computed by the character controller.
+#[derive(Debug)]
 pub struct EffectiveCharacterMovement {
     /// The movement to apply.
     pub translation: Vector<Real>,
@@ -542,17 +543,17 @@ impl KinematicCharacterController {
     ) -> Vector<Real> {
         let [_vertical_input, horizontal_input] = self.split_into_components(movement_input);
         let horiz_input_decomp = self.decompose_hit(&horizontal_input, &hit.toi);
-        let input_decomp = self.decompose_hit(movement_input, &hit.toi);
-
         let decomp = self.decompose_hit(translation_remaining, &hit.toi);
 
         // An object is trying to slip if the tangential movement induced by its vertical movement
         // points downward.
         let slipping_intent = self.up.dot(&horiz_input_decomp.vertical_tangent) < 0.0;
+        // An object is slipping if its vertical movement points downward.
         let slipping = self.up.dot(&decomp.vertical_tangent) < 0.0;
 
-        // An object is trying to climb if its indirect vertical motion points upward.
-        let climbing_intent = self.up.dot(&input_decomp.vertical_tangent) > 0.0;
+        // An object is trying to climb if its vertical input motion points upward.
+        let climbing_intent = self.up.dot(&_vertical_input) > 0.0;
+        // An object is climbing if the tangential movement induced by its vertical movement points upward.
         let climbing = self.up.dot(&decomp.vertical_tangent) > 0.0;
 
         let allowed_movement = if hit.is_wall && climbing && !climbing_intent {
@@ -903,4 +904,152 @@ fn subtract_hit(translation: Vector<Real>, hit: &ShapeCastHit) -> Vector<Real> {
     // This fixes some instances of moving through walls
     let surface_correction = surface_correction * (1.0 + 1.0e-5);
     translation + *hit.normal1 * surface_correction
+}
+
+#[cfg(all(feature = "dim3", feature = "f32"))]
+#[cfg(test)]
+mod test {
+    use crate::{control::KinematicCharacterController, prelude::*};
+
+    #[test]
+    fn character_controller_climb_test() {
+        let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
+        let mut pipeline = PhysicsPipeline::new();
+        let mut bf = BroadPhaseMultiSap::new();
+        let mut nf = NarrowPhase::new();
+        let mut islands = IslandManager::new();
+        let mut query_pipeline = QueryPipeline::new();
+
+        let mut bodies = RigidBodySet::new();
+
+        let gravity = Vector::y() * -9.81;
+
+        let ground_size = 100.0;
+        let ground_height = 0.1;
+        /*
+         * Create a flat ground
+         */
+        let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
+        let floor_handle = bodies.insert(rigid_body);
+        let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
+        colliders.insert_with_parent(collider, floor_handle, &mut bodies);
+
+        /*
+         * Create a slope we can climb.
+         */
+        let slope_angle = 0.2;
+        let slope_size = 2.0;
+        let collider = ColliderBuilder::cuboid(slope_size, ground_height, slope_size)
+            .translation(vector![0.1 + slope_size, -ground_height + 0.4, 0.0])
+            .rotation(Vector::z() * slope_angle);
+        colliders.insert(collider);
+
+        /*
+         * Create a slope we can’t climb.
+         */
+        let impossible_slope_angle = 0.6;
+        let impossible_slope_size = 2.0;
+        let collider = ColliderBuilder::cuboid(slope_size, ground_height, ground_size)
+            .translation(vector![
+                0.1 + slope_size * 2.0 + impossible_slope_size - 0.9,
+                -ground_height + 1.7,
+                0.0
+            ])
+            .rotation(Vector::z() * impossible_slope_angle);
+        colliders.insert(collider);
+
+        let integration_parameters = IntegrationParameters::default();
+
+        // Initialize character which can climb
+        let mut character_body_can_climb = RigidBodyBuilder::kinematic_position_based()
+            .additional_mass(1.0)
+            .build();
+        character_body_can_climb.set_translation(Vector::new(0.6, 0.5, 0.0), false);
+        let character_handle_can_climb = bodies.insert(character_body_can_climb);
+
+        let collider = ColliderBuilder::ball(0.5).build();
+        colliders.insert_with_parent(collider.clone(), character_handle_can_climb, &mut bodies);
+
+        // Initialize character which cannot climb
+        let mut character_body_cannot_climb = RigidBodyBuilder::kinematic_position_based()
+            .additional_mass(1.0)
+            .build();
+        character_body_cannot_climb.set_translation(Vector::new(-0.6, 0.5, 0.0), false);
+        let character_handle_cannot_climb = bodies.insert(character_body_cannot_climb);
+
+        let collider = ColliderBuilder::ball(0.5).build();
+        let character_shape = collider.shape();
+        colliders.insert_with_parent(collider.clone(), character_handle_cannot_climb, &mut bodies);
+
+        query_pipeline.update(&colliders);
+        for i in 0..200 {
+            let mut update_character_controller =
+                |controller: KinematicCharacterController, handle: RigidBodyHandle| {
+                    let character_body = bodies.get(handle).unwrap();
+                    // Use a closure to handle or collect the collisions while
+                    // the character is being moved.
+                    let mut collisions = vec![];
+                    let filter_character_controller = QueryFilter::new().exclude_rigid_body(handle);
+                    let effective_movement = controller.move_shape(
+                        integration_parameters.dt,
+                        &bodies,
+                        &colliders,
+                        &query_pipeline,
+                        character_shape,
+                        character_body.position(),
+                        Vector::new(0.1, -0.1, 0.0),
+                        filter_character_controller,
+                        |collision| collisions.push(collision),
+                    );
+                    let character_body = bodies.get_mut(handle).unwrap();
+                    let translation = character_body.translation();
+                    assert_eq!(
+                        effective_movement.grounded, true,
+                        "movement should be grounded at all times for current setup (iter: {}), pos: {}.",
+                        i, translation + effective_movement.translation
+                    );
+                    character_body.set_next_kinematic_translation(
+                        translation + effective_movement.translation,
+                    );
+                };
+
+            let character_controller_cannot_climb = KinematicCharacterController {
+                max_slope_climb_angle: impossible_slope_angle - 0.001,
+                ..Default::default()
+            };
+            let character_controller_can_climb = KinematicCharacterController {
+                max_slope_climb_angle: impossible_slope_angle + 0.001,
+                ..Default::default()
+            };
+            update_character_controller(
+                character_controller_cannot_climb,
+                character_handle_cannot_climb,
+            );
+            update_character_controller(character_controller_can_climb, character_handle_can_climb);
+            // Step once
+            pipeline.step(
+                &gravity,
+                &integration_parameters,
+                &mut islands,
+                &mut bf,
+                &mut nf,
+                &mut bodies,
+                &mut colliders,
+                &mut impulse_joints,
+                &mut multibody_joints,
+                &mut CCDSolver::new(),
+                Some(&mut query_pipeline),
+                &(),
+                &(),
+            );
+        }
+        let character_body = bodies.get(character_handle_can_climb).unwrap();
+        assert!(character_body.translation().x > 6.0);
+        assert!(character_body.translation().y > 3.0);
+        let character_body = bodies.get(character_handle_cannot_climb).unwrap();
+        assert!(character_body.translation().x < 4.0);
+        assert!(dbg!(character_body.translation().y) < 2.0);
+    }
 }
