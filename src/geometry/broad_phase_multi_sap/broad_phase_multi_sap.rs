@@ -231,7 +231,12 @@ impl BroadPhaseMultiSap {
          * Actually remove the colliders proxies.
          */
         for removed in removed_colliders {
-            if let Some(proxy_id) = self.colliders_proxy_ids.remove(removed) {
+            #[cfg(feature = "enhanced-determinism")]
+            let proxy_id = self.colliders_proxy_ids.shift_remove(removed);
+            #[cfg(not(feature = "enhanced-determinism"))]
+            let proxy_id = self.colliders_proxy_ids.remove(removed);
+
+            if let Some(proxy_id) = proxy_id {
                 if proxy_id != crate::INVALID_U32 {
                     self.proxies.remove(proxy_id);
                 }
