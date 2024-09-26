@@ -1168,3 +1168,122 @@ impl NarrowPhase {
         }
     }
 }
+
+#[cfg(test)]
+#[cfg(feature = "f32")]
+//#[cfg(feature = "dim3")]
+mod test {
+    use na::vector;
+
+    use crate::prelude::{
+        CCDSolver, ColliderBuilder, DefaultBroadPhase, IntegrationParameters, PhysicsPipeline,
+        QueryPipeline, RigidBodyBuilder,
+    };
+
+    use super::*;
+
+    /// Test for https://github.com/dimforge/rapier/issues/734.
+    #[test]
+    pub fn reparent() {
+        let mut rigid_body_set = RigidBodySet::new();
+        let mut collider_set = ColliderSet::new();
+
+        /* Create the ground. */
+        let collider = ColliderBuilder::ball(0.5);
+
+        /* Create body 1, which will contain both colliders at first. */
+        let rigid_body_1 = RigidBodyBuilder::dynamic()
+            .translation(vector![0.0, 10.0, 0.0])
+            .build();
+        let body_1_handle = rigid_body_set.insert(rigid_body_1);
+
+        /* Create collider 1. Parent it to rigid body 1. */
+        let collider_1_handle =
+            collider_set.insert_with_parent(collider.build(), body_1_handle, &mut rigid_body_set);
+
+        /* Create collider 2. Parent it to rigid body 1. */
+        //let collider_2_handle =
+        //    collider_set.insert_with_parent(collider.build(), body_2_handle, &mut rigid_body_set);
+
+        /* Create collider 2. Parent it to rigid body 1. */
+        let collider_2_handle =
+            collider_set.insert_with_parent(collider.build(), body_1_handle, &mut rigid_body_set);
+
+        /* Create body 2. No attached colliders yet. */
+        let rigid_body_2 = RigidBodyBuilder::dynamic()
+            .translation(vector![0.0, 10.0, 0.0])
+            .build();
+        let body_2_handle = rigid_body_set.insert(rigid_body_2);
+
+        /* Create other structures necessary for the simulation. */
+        let gravity = vector![0.0, 0.0, 0.0];
+        let integration_parameters = IntegrationParameters::default();
+        let mut physics_pipeline = PhysicsPipeline::new();
+        let mut island_manager = IslandManager::new();
+        let mut broad_phase = DefaultBroadPhase::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut impulse_joint_set = ImpulseJointSet::new();
+        let mut multibody_joint_set = MultibodyJointSet::new();
+        let mut ccd_solver = CCDSolver::new();
+        let mut query_pipeline = QueryPipeline::new();
+        let physics_hooks = ();
+        let event_handler = ();
+
+        physics_pipeline.step(
+            &gravity,
+            &integration_parameters,
+            &mut island_manager,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &mut impulse_joint_set,
+            &mut multibody_joint_set,
+            &mut ccd_solver,
+            Some(&mut query_pipeline),
+            &physics_hooks,
+            &event_handler,
+        );
+        let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
+        let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
+        assert!(
+            (collider_1_position.translation.vector - collider_2_position.translation.vector)
+                .magnitude()
+                < 0.5f32
+        );
+
+        collider_set.set_parent(collider_2_handle, Some(body_2_handle), &mut rigid_body_set);
+
+        /* Run the game loop, stepping the simulation once per frame. */
+        for _ in 0..200 {
+            physics_pipeline.step(
+                &gravity,
+                &integration_parameters,
+                &mut island_manager,
+                &mut broad_phase,
+                &mut narrow_phase,
+                &mut rigid_body_set,
+                &mut collider_set,
+                &mut impulse_joint_set,
+                &mut multibody_joint_set,
+                &mut ccd_solver,
+                Some(&mut query_pipeline),
+                &physics_hooks,
+                &event_handler,
+            );
+
+            let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
+            let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
+            println!("collider 1 position: {}", collider_1_position.translation);
+            println!("collider 2 position: {}", collider_2_position.translation);
+        }
+
+        let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
+        let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
+        assert!(
+            (collider_1_position.translation.vector - collider_2_position.translation.vector)
+                .magnitude()
+                >= 0.5f32
+        );
+    }
+}
