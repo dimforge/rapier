@@ -57,7 +57,7 @@ bevy_ecs = "0.14"
 bevy_core_pipeline = "0.14"
 bevy_pbr = "0.14"
 bevy_sprite = "0.14"
-#bevy_prototype_debug_lines = { version = "0.7", features = [ "3d" ] }
+profiling = "1.0"
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

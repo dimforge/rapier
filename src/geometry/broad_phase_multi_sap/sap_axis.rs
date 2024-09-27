@@ -36,6 +36,7 @@ impl SAPAxis {
         self.endpoints.push(SAPEndpoint::end_sentinel());
     }
 
+    #[profiling::function]
     pub fn batch_insert(
         &mut self,
         dim: usize,
@@ -222,6 +223,7 @@ impl SAPAxis {
         num_subproper_proxies_deleted
     }
 
+    #[profiling::function]
     pub fn update_endpoints(
         &mut self,
         dim: usize,

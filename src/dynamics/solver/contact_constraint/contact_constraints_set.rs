@@ -454,6 +454,7 @@ impl ContactConstraintsSet {
         }
     }
 
+    #[profiling::function]
     pub fn solve_restitution(
         &mut self,
         solver_vels: &mut [SolverVel<Real>],
@@ -465,6 +466,7 @@ impl ContactConstraintsSet {
         }
     }
 
+    #[profiling::function]
     pub fn solve_restitution_wo_bias(
         &mut self,
         solver_vels: &mut [SolverVel<Real>],
@@ -477,6 +479,7 @@ impl ContactConstraintsSet {
         }
     }
 
+    #[profiling::function]
     pub fn solve_friction(
         &mut self,
         solver_vels: &mut [SolverVel<Real>],
@@ -495,6 +498,7 @@ impl ContactConstraintsSet {
         }
     }
 
+    #[profiling::function]
     pub fn update(
         &mut self,
         params: &IntegrationParameters,

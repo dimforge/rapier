@@ -86,6 +86,7 @@ impl MultibodyJoint {
     }
 
     /// Integrate the position of this multibody_joint.
+    #[profiling::function]
     pub fn integrate(&mut self, dt: Real, vels: &[Real]) {
         let locked_bits = self.data.locked_axes.bits();
         let mut curr_free_dof = 0;

@@ -214,6 +214,7 @@ impl SAPRegion {
         }
     }
 
+    #[profiling::function]
     pub fn update(
         &mut self,
         proxies: &SAPProxies,

@@ -1552,6 +1552,7 @@ fn update_testbed(
     if state.running == RunMode::Step {
         state.running = RunMode::Stop;
     }
+    profiling::finish_frame!();
 }
 
 fn clear(

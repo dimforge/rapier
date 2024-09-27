@@ -53,6 +53,7 @@ pub enum MeshConverter {
 impl MeshConverter {
     /// Applies the conversion rule described by this [`MeshConverter`] to build a shape from
     /// the given vertex and index buffers.
+    #[profiling::function]
     pub fn convert(
         &self,
         vertices: Vec<Point<Real>>,
