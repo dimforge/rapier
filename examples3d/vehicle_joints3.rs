@@ -53,7 +53,11 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let body_co = ColliderBuilder::cuboid(0.65, 0.3, 0.9)
         .density(100.0)
-        .collision_groups(InteractionGroups::new(CAR_GROUP, !CAR_GROUP));
+        .collision_groups(InteractionGroups::new(
+            CAR_GROUP,
+            !CAR_GROUP,
+            InteractionTestMode::AND,
+        ));
     let body_rb = RigidBodyBuilder::dynamic()
         .position(body_position.into())
         .build();
@@ -85,7 +89,11 @@ pub fn init_world(testbed: &mut Testbed) {
         // is mathematically simpler than a cylinder and cheaper to compute for collision-detection.
         let wheel_co = ColliderBuilder::ball(wheel_radius)
             .density(100.0)
-            .collision_groups(InteractionGroups::new(CAR_GROUP, !CAR_GROUP))
+            .collision_groups(InteractionGroups::new(
+                CAR_GROUP,
+                !CAR_GROUP,
+                InteractionTestMode::AND,
+            ))
             .friction(1.0);
         let wheel_rb = RigidBodyBuilder::dynamic().position(wheel_center.into());
         let wheel_handle = bodies.insert(wheel_rb);

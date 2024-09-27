@@ -8,12 +8,17 @@
 
 ### Added
 
+- `InteractionTestMode`: Specifies which method should be used to test interactions. Supports `AND` and `OR`.
+- `CoefficientCombineRule::Sum` - Adds the two coefficients and does a clamp to have at most 1.
 - `RigidBodySet` and `ColliderSet` have a new constructor `with_capacity`.
 
 ### Modified
 
 - `InteractionGroups` default value for `memberships` is now `GROUP_1` (#706)
 - `ImpulseJointSet::get_mut` has a new parameter `wake_up: bool`, to wake up connected bodies.
+- `InteractionGroups` struct now contains `InteractionTestMode`. Continues [rapier/pull/170](https://github.com/dimforge/rapier/pull/170) for [rapier/issues/622](https://github.com/dimforge/rapier/issues/622)
+- `InteractionGroups` constructor now requires an `InteractionTestMode` parameter. If you want same behaviour as before, use `InteractionTestMode::AND` (eg. `InteractionGroups::new(Group::GROUP_1, Group::GROUP_1, InteractionTestMode::AND)`)
+- `CoefficientCombineRule::Min` - now makes sure it uses a non zero value as result by using `coeff1.min(coeff2).abs()`
 
 ## v0.22.0 (20 July 2024)
 
