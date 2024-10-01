@@ -89,6 +89,11 @@ pub fn update_ui(
                 profiling_ui(ui, &harness.physics.pipeline.counters);
             });
         });
+        #[cfg(feature = "profiling")]
+        ui.collapsing(
+            "Profiling", |ui| {
+            puffin_egui::profiler_ui(ui);
+        });
         ui.collapsing("Serialization infos", |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.label(serialization_string(

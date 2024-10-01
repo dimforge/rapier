@@ -36,9 +36,10 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 default = ["dim3"]
 dim3 = []
 parallel = ["rapier/parallel", "num_cpus"]
+profiling = ["dep:puffin_egui", "profiling/profile-with-puffin"]
 
 [package.metadata.docs.rs]
-features = ["parallel"]
+features = ["parallel", "profiling"]
 
 [dependencies]
 nalgebra = { version = "0.33", features = ["rand", "glam027"] }
@@ -58,6 +59,7 @@ bevy_core_pipeline = "0.14"
 bevy_pbr = "0.14"
 bevy_sprite = "0.14"
 profiling = "1.0"
+puffin_egui = { version = "0.29", optional = true }
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
