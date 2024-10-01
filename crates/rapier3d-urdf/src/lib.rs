@@ -523,12 +523,13 @@ fn urdf_to_colliders(
         }
         Geometry::Mesh { filename, scale } => {
             let full_path = mesh_dir.join(filename);
-            let _scale = scale
+            let scale = scale
                 .map(|s| Vector::new(s.x as Real, s.y as Real, s.z as Real))
                 .unwrap_or_else(|| Vector::<Real>::repeat(1.0));
             let Ok(loaded_mesh) = rapier3d_meshloader::load_from_path(
                 full_path,
                 &MeshConverter::TriMeshWithFlags(options.trimesh_flags),
+                scale,
             ) else {
                 return Vec::new();
             };

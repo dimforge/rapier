@@ -1,19 +1,19 @@
 //! ## Mesh loader for the Rapier physics engine
 //!
-//! See documentation from [`mesh_loader`] for supported formats.
-//!
 //! Rapier is a set of 2D and 3D physics engines for games, animation, and robotics. The `rapier3d-meshloader`
 //! crate lets you create a shape compatible with `rapier3d` and `parry3d` (the underlying collision-detection
 //! library) from different file formats, see the following features list:
 //! `stl`: support .stl files
 //! `collada`: support .dae files
 //! `wavefront`: support .obj files
+//!
+//! See documentation from [`mesh_loader`] for more details.
 
 #![deny(missing_docs)]
 
 use mesh_loader::Mesh;
 use rapier3d::geometry::{MeshConverter, SharedShape};
-use rapier3d::math::{Isometry, Point, Real};
+use rapier3d::math::{Isometry, Point, Real, Vector};
 use rapier3d::prelude::MeshConverterError;
 use std::path::Path;
 
@@ -45,16 +45,21 @@ pub enum MeshLoaderError {
 /// - `converter`: controls how the shapes are computed from the content. In particular, it lets
 ///                you specify if the computed [`SharedShape`] is a triangle mesh, its convex hull,
 ///                bounding box, etc.
+/// - `scale`: the scaling factor applied to the geometry input to the `converter`. This scale will
+///            affect at the geometric level the [`StlShape::shape`]. Note that raw mesh value stored
+///            in [`StlShape::raw_mesh`] remains unscaled.
 // TODO: call a function for each mesh to load ? To be able to have a different mesh converter?
 pub fn load_from_path(
     path: impl AsRef<Path>,
     converter: &MeshConverter,
+    scale: Vector<Real>,
 ) -> Result<Vec<Result<LoadedShape, MeshConverterError>>, MeshLoaderError> {
     let loader = mesh_loader::Loader::default();
     let mut colliders = vec![];
     let scene = loader.load(path)?;
     for (raw_mesh, _) in scene.meshes.into_iter().zip(scene.materials) {
-        let shape = load_from_raw_mesh(&raw_mesh, converter);
+        let shape = load_from_raw_mesh(&raw_mesh, converter, scale);
+
         colliders.push(match shape {
             Ok((shape, pose)) => Ok(LoadedShape {
                 shape,
@@ -74,15 +79,22 @@ pub fn load_from_path(
 /// - `converter`: controls how the shape is computed from the STL content. In particular, it lets
 ///                you specify if the computed [`SharedShape`] is a triangle mesh, its convex hull,
 ///                bounding box, etc.
+/// - `scale`: the scaling factor applied to the geometry input to the `converter`. This scale will
+///            affect at the geometric level the [`StlShape::shape`]. Note that raw mesh value stored
+///            in [`StlShape::raw_mesh`] remains unscaled.
 pub fn load_from_raw_mesh(
     raw_mesh: &Mesh,
     converter: &MeshConverter,
+    scale: Vector<Real>,
 ) -> Result<(SharedShape, Isometry<Real>), MeshConverterError> {
-    let vertices: Vec<_> = raw_mesh
+    let mut vertices: Vec<_> = raw_mesh
         .vertices
         .iter()
         .map(|xyz| Point::new(xyz[0], xyz[1], xyz[2]))
         .collect();
+    vertices
+        .iter_mut()
+        .for_each(|pt| pt.coords.component_mul_assign(&scale));
     let indices: Vec<_> = raw_mesh.faces.clone();
     converter.convert(vertices, indices)
 }
