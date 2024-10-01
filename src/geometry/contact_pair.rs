@@ -186,6 +186,7 @@ impl ContactPair {
     ///
     /// Returns a reference to the contact, as well as the contact manifold
     /// it is part of.
+    #[profiling::function]
     pub fn find_deepest_contact(&self) -> Option<(&ContactManifold, &Contact)> {
         let mut deepest = None;
 

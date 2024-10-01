@@ -23,6 +23,7 @@ bincode = "1"
 
 [dependencies.rapier_testbed3d]
 path = "../crates/rapier_testbed3d"
+features = ["profiling"]
 
 [dependencies.rapier3d]
 path = "../crates/rapier3d"
@@ -42,4 +43,3 @@ path = "./harness_capsules3.rs"
 #[lib]
 #crate-type = ["cdylib", "rlib"]
 #path = "./all_examples3_wasm.rs"
-

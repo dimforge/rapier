@@ -49,6 +49,7 @@ impl SAPLayer {
     /// Deletes from all the regions of this layer, all the endpoints corresponding
     /// to subregions. Clears the arrays of subregions indices from all the regions of
     /// this layer.
+    #[profiling::function]
     pub fn unregister_all_subregions(&mut self, proxies: &mut SAPProxies) {
         for region_id in self.regions.values() {
             // Extract the region to make the borrow-checker happy.
@@ -108,6 +109,7 @@ impl SAPLayer {
     /// that subregion center. Because the hierarchical grid cells have aligned boundaries
     /// at each depth, we have the guarantee that a given subregion will only be part of
     /// one region on its parent "larger" layer.
+    #[profiling::function]
     fn register_subregion(
         &mut self,
         proxy_id: BroadPhaseProxyIndex,
@@ -145,6 +147,7 @@ impl SAPLayer {
         }
     }
 
+    #[profiling::function]
     fn unregister_subregion(
         &mut self,
         proxy_id: BroadPhaseProxyIndex,
@@ -219,6 +222,7 @@ impl SAPLayer {
         }
     }
 
+    #[profiling::function]
     pub fn preupdate_collider(
         &mut self,
         proxy_id: u32,
@@ -273,6 +277,7 @@ impl SAPLayer {
         }
     }
 
+    #[profiling::function]
     pub fn predelete_proxy(&mut self, proxies: &mut SAPProxies, proxy_index: BroadPhaseProxyIndex) {
         // Discretize the Aabb to find the regions that need to be invalidated.
         let proxy_aabb = &mut proxies[proxy_index].aabb;

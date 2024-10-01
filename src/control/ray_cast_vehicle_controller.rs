@@ -321,6 +321,7 @@ impl DynamicRayCastVehicleController {
         wheel.wheel_axle_ws = chassis_transform * wheel.axle_cs;
     }
 
+    #[profiling::function]
     fn ray_cast(
         &mut self,
         bodies: &RigidBodySet,
@@ -403,6 +404,7 @@ impl DynamicRayCastVehicleController {
     }
 
     /// Updates the vehicle’s velocity based on its suspension, engine force, and brake.
+    #[profiling::function]
     pub fn update_vehicle(
         &mut self,
         dt: Real,
@@ -531,6 +533,7 @@ impl DynamicRayCastVehicleController {
         }
     }
 
+    #[profiling::function]
     fn update_friction(&mut self, bodies: &mut RigidBodySet, colliders: &ColliderSet, dt: Real) {
         let num_wheels = self.wheels.len();
 

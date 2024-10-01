@@ -147,6 +147,7 @@ impl Drop for PhysxWorld {
 }
 
 impl PhysxWorld {
+    #[profiling::function]
     pub fn from_rapier(
         gravity: Vector3<f32>,
         integration_parameters: &IntegrationParameters,

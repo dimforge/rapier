@@ -7,7 +7,13 @@ documentation = "https://docs.rs/rapier3d-stl"
 homepage = "https://rapier.rs"
 repository = "https://github.com/dimforge/rapier"
 readme = "README.md"
-categories = ["science", "game-development", "mathematics", "simulation", "wasm"]
+categories = [
+    "science",
+    "game-development",
+    "mathematics",
+    "simulation",
+    "wasm",
+]
 keywords = ["physics", "joints", "multibody", "robotics", "urdf"]
 license = "Apache-2.0"
 edition = "2021"
@@ -15,5 +21,6 @@ edition = "2021"
 [dependencies]
 thiserror = "1.0.61"
 stl_io = "0.7"
+profiling = "1.0"
 
 rapier3d = { version = "0.22", path = "../rapier3d" }

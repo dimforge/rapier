@@ -218,6 +218,7 @@ impl InteractionGroups {
     }
 
     #[cfg(feature = "simd-is-enabled")]
+    #[profiling::function]
     pub fn group_joints(
         &mut self,
         island_id: usize,

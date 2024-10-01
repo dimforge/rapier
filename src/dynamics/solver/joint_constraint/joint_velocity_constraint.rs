@@ -110,6 +110,7 @@ pub struct JointTwoBodyConstraint<N: SimdRealCopy, const LANES: usize> {
 }
 
 impl<N: SimdRealCopy, const LANES: usize> JointTwoBodyConstraint<N, LANES> {
+    #[profiling::function]
     pub fn solve_generic(
         &mut self,
         solver_vel1: &mut SolverVel<N>,

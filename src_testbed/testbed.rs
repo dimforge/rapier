@@ -249,6 +249,9 @@ impl TestbedApp {
     }
 
     pub fn run_with_init(mut self, mut init: impl FnMut(&mut App)) {
+        #[cfg(feature = "profiling")]
+        puffin_egui::puffin::set_scopes_on(true);
+
         let mut args = env::args();
         let mut benchmark_mode = false;
 
@@ -1552,6 +1555,7 @@ fn update_testbed(
     if state.running == RunMode::Step {
         state.running = RunMode::Stop;
     }
+    profiling::finish_frame!();
 }
 
 fn clear(

@@ -206,6 +206,7 @@ impl Harness {
         self.step_with_graphics(None);
     }
 
+    #[profiling::function]
     pub fn step_with_graphics(&mut self, mut graphics: Option<&mut TestbedGraphics>) {
         #[cfg(feature = "parallel")]
         {

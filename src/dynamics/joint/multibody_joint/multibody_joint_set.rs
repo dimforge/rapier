@@ -153,6 +153,7 @@ impl MultibodyJointSet {
     }
 
     /// Inserts a new multibody_joint into this set.
+    #[profiling::function]
     fn do_insert(
         &mut self,
         body1: RigidBodyHandle,
@@ -213,6 +214,7 @@ impl MultibodyJointSet {
     }
 
     /// Removes a multibody_joint from this set.
+    #[profiling::function]
     pub fn remove(&mut self, handle: MultibodyJointHandle, wake_up: bool) {
         if let Some(removed) = self.rb2mb.get(handle.0).copied() {
             let multibody = self.multibodies.remove(removed.multibody.0).unwrap();
@@ -259,6 +261,7 @@ impl MultibodyJointSet {
     }
 
     /// Removes all the multibody_joints from the multibody the given rigid-body is part of.
+    #[profiling::function]
     pub fn remove_multibody_articulations(&mut self, handle: RigidBodyHandle, wake_up: bool) {
         if let Some(removed) = self.rb2mb.get(handle.0).copied() {
             // Remove the multibody.
@@ -281,6 +284,7 @@ impl MultibodyJointSet {
     }
 
     /// Removes all the multibody joints attached to a rigid-body.
+    #[profiling::function]
     pub fn remove_joints_attached_to_rigid_body(&mut self, rb_to_remove: RigidBodyHandle) {
         // TODO: optimize this.
         if let Some(link_to_remove) = self.rb2mb.get(rb_to_remove.0).copied() {
@@ -412,6 +416,7 @@ impl MultibodyJointSet {
     }
 
     /// Iterates through all the joints attached to the given rigid-body.
+    #[profiling::function]
     pub fn attached_joints(
         &self,
         rb: RigidBodyHandle,
@@ -428,6 +433,7 @@ impl MultibodyJointSet {
 
     /// Iterate through the handles of all the rigid-bodies attached to this rigid-body
     /// by a multibody_joint.
+    #[profiling::function]
     pub fn attached_bodies(
         &self,
         body: RigidBodyHandle,
@@ -441,6 +447,7 @@ impl MultibodyJointSet {
 
     /// Iterate through the handles of all the rigid-bodies attached to this rigid-body
     /// by an enabled multibody_joint.
+    #[profiling::function]
     pub fn bodies_attached_with_enabled_joint(
         &self,
         body: RigidBodyHandle,

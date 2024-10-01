@@ -28,6 +28,7 @@ impl IslandSolver {
         }
     }
 
+    #[profiling::function]
     pub fn init_and_solve(
         &mut self,
         island_id: usize,
