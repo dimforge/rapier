@@ -1,4 +1,4 @@
-## STL loader for the Rapier physics engine
+## Mesh loader for the Rapier physics engine
 
 Rapier is a set of 2D and 3D physics engines for games, animation, and robotics. The `rapier3d-urdf`
 crate lets you convert an URDF file into a set of rigid-bodies, colliders, and joints, for usage with the
@@ -6,7 +6,9 @@ crate lets you convert an URDF file into a set of rigid-bodies, colliders, and j
 
 ## Optional cargo features
 
-- `stl`: enables loading STL meshes referenced by the URDF file.
+- `stl`: enables loading `.STL` meshes referenced by the URDF file.
+- `collada`: enables loading `.dae` meshes referenced by the URDF file.
+- `wavefront`: enables loading `.obj` meshes referenced by the URDF file.
 
 ## Limitations
 
@@ -14,7 +16,7 @@ Are listed below some known limitations you might want to be aware of before pic
 improve
 these elements are very welcome!
 
-- Mesh file types other than `stl` are not supported yet. Contributions are welcome. You my check the `rapier3d-stl`
+- Supported mesh formats are `stl`, `collada` and `wavefront`. Contributions are welcome. You my check the `rapier3d-meshloader`
   repository for an example of mesh loader.
 - When inserting joints as multibody joints, they will be reset to their neutral position (all coordinates = 0).
 - The following fields are currently ignored:
