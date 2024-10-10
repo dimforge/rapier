@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Added
+
+- Add optional support for Collada and Wavefront files through new feature flags `collada` and `wavefront`.
+
+## 0.3.0
+
 This is the initial release of the `rapier3d-urdf` crate.
 
 ### Added
