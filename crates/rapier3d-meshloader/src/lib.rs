@@ -46,8 +46,8 @@ pub enum MeshLoaderError {
 ///                you specify if the computed [`SharedShape`] is a triangle mesh, its convex hull,
 ///                bounding box, etc.
 /// - `scale`: the scaling factor applied to the geometry input to the `converter`. This scale will
-///            affect at the geometric level the [`StlShape::shape`]. Note that raw mesh value stored
-///            in [`StlShape::raw_mesh`] remains unscaled.
+///            affect at the geometric level the [`LoadedShape::shape`]. Note that raw mesh value stored
+///            in [`LoadedShape::raw_mesh`] remains unscaled.
 // TODO: call a function for each mesh to load ? To be able to have a different mesh converter?
 pub fn load_from_path(
     path: impl AsRef<Path>,
@@ -80,8 +80,8 @@ pub fn load_from_path(
 ///                you specify if the computed [`SharedShape`] is a triangle mesh, its convex hull,
 ///                bounding box, etc.
 /// - `scale`: the scaling factor applied to the geometry input to the `converter`. This scale will
-///            affect at the geometric level the [`StlShape::shape`]. Note that raw mesh value stored
-///            in [`StlShape::raw_mesh`] remains unscaled.
+///            affect at the geometric level the [`LoadedShape::shape`]. Note that raw mesh value stored
+///            in [`LoadedShape::raw_mesh`] remains unscaled.
 pub fn load_from_raw_mesh(
     raw_mesh: &Mesh,
     converter: &MeshConverter,
