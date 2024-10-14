@@ -37,7 +37,7 @@ impl PhysicsHooks for OneWayPlatformHook {
         }
 
         // Call the helper function that simulates one-way platforms.
-        context.update_as_oneway_platform(&allowed_local_n1, 0.1);
+        context.update_as_oneway_platform(&context.normal.clone(), &allowed_local_n1);
 
         // Set the surface velocity of the accepted contacts.
         let tangent_velocity =
