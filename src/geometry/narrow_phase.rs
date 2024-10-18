@@ -458,12 +458,34 @@ impl NarrowPhase {
                             }
                         }
                     }
-
+                    // Remove the new parent from the collision graphs
+                    if co.changes.intersects(ColliderChanges::PARENT) {
+                        let current_parent_body = co.parent();
+                        for inter in self
+                            .contact_graph
+                            .interactions_with(gid.contact_graph_index)
+                        {
+                            let Some(co2) = colliders.get(*handle) else {
+                                continue;
+                            };
+                            let other_parent_body = co2.parent();
+                            if other_parent_body == current_parent_body {
+                                pairs_to_remove.push((
+                                    ColliderPair::new(inter.0, inter.1),
+                                    PairRemovalMode::FromContactGraph,
+                                ));
+                                pairs_to_remove.push((
+                                    ColliderPair::new(inter.0, inter.1),
+                                    PairRemovalMode::FromIntersectionGraph,
+                                ));
+                            }
+                        }
+                    }
                     // For each collider which had their sensor status modified, we need
                     // to transfer their contact/intersection graph edges to the intersection/contact graph.
                     // To achieve this we will remove the relevant contact/intersection pairs form the
                     // contact/intersection graphs, and then add them into the other graph.
-                    if co.changes.contains(ColliderChanges::TYPE) {
+                    if co.changes.intersects(ColliderChanges::TYPE) {
                         if co.is_sensor() {
                             // Find the contact pairs for this collider and
                             // push them to `pairs_to_remove`.
@@ -1250,7 +1272,13 @@ mod test {
 
         /* Parent collider 2 to body 2. */
         collider_set.set_parent(collider_2_handle, Some(body_2_handle), &mut rigid_body_set);
-
+        narrow_phase.add_pair(
+            &collider_set,
+            &ColliderPair {
+                collider1: collider_2_handle,
+                collider2: collider_1_handle,
+            },
+        );
         /* Run the game loop, stepping the simulation once per frame. */
         for _ in 0..200 {
             physics_pipeline.step(
