@@ -1,6 +1,0 @@
-{
-    "rust-analyzer.cargo.features": [
-        "simd-stable",
-        "dim3"
-    ]
-}
