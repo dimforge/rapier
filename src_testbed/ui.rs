@@ -2,6 +2,7 @@ use rapier::control::CharacterLength;
 use rapier::counters::Counters;
 use rapier::math::Real;
 use std::num::NonZeroUsize;
+use std::sync::Once;
 
 use crate::debug_render::DebugRenderPipelineResource;
 use crate::harness::Harness;
@@ -21,6 +22,33 @@ pub fn update_ui(
     harness: &mut Harness,
     debug_render: &mut DebugRenderPipelineResource,
 ) {
+    #[cfg(feature = "profiling")]
+    {
+        let window = egui::Window::new("Profiling");
+        let window = window.default_open(false);
+        static START: Once = Once::new();
+
+        fn set_default_rapier_filter() {
+            let mut profile_ui = puffin_egui::PROFILE_UI.lock();
+            profile_ui
+                .profiler_ui
+                .flamegraph_options
+                .scope_name_filter
+                .set_filter("Harness::step_with_graphics".to_string());
+        }
+        START.call_once(|| {
+            set_default_rapier_filter();
+        });
+
+        window.show(ui_context.ctx_mut(), |ui| {
+            //profile_ui.profiler_ui.flamegraph_options.
+            if ui.button("🔍 Rapier filter").clicked() {
+                set_default_rapier_filter();
+            }
+            puffin_egui::profiler_ui(ui);
+        });
+    }
+
     egui::Window::new("Parameters").show(ui_context.ctx_mut(), |ui| {
         if state.backend_names.len() > 1 && !state.example_names.is_empty() {
             let mut changed = false;
@@ -88,11 +116,6 @@ pub fn update_ui(
             ui.horizontal_wrapped(|ui| {
                 profiling_ui(ui, &harness.physics.pipeline.counters);
             });
-        });
-        #[cfg(feature = "profiling")]
-        ui.collapsing(
-            "Profiling", |ui| {
-            puffin_egui::profiler_ui(ui);
         });
         ui.collapsing("Serialization infos", |ui| {
             ui.horizontal_wrapped(|ui| {

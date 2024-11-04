@@ -363,7 +363,6 @@ impl BroadPhaseMultiSap {
         }
     }
 
-    #[profiling::function]
     fn handle_modified_collider(
         &mut self,
         prediction_distance: Real,

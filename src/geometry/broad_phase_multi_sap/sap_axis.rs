@@ -223,7 +223,6 @@ impl SAPAxis {
         num_subproper_proxies_deleted
     }
 
-    #[profiling::function]
     pub fn update_endpoints(
         &mut self,
         dim: usize,

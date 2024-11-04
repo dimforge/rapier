@@ -665,7 +665,6 @@ impl NarrowPhase {
         }
     }
 
-    #[profiling::function]
     pub(crate) fn register_pairs(
         &mut self,
         mut islands: Option<&mut IslandManager>,

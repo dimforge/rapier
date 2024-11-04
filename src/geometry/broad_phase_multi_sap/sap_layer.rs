@@ -222,7 +222,6 @@ impl SAPLayer {
         }
     }
 
-    #[profiling::function]
     pub fn preupdate_collider(
         &mut self,
         proxy_id: u32,

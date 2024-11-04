@@ -433,7 +433,6 @@ impl MultibodyJointSet {
 
     /// Iterate through the handles of all the rigid-bodies attached to this rigid-body
     /// by a multibody_joint.
-    #[profiling::function]
     pub fn attached_bodies(
         &self,
         body: RigidBodyHandle,
