@@ -28,7 +28,7 @@ pub enum MeshLoaderError {
     Io(#[from] std::io::Error),
 }
 
-/// Loads an file as shapes from a file.
+/// Loads parry shapes from a file.
 ///
 /// # Parameters
 /// - `path`: the file’s path.
@@ -38,7 +38,6 @@ pub enum MeshLoaderError {
 /// - `scale`: the scaling factor applied to the geometry input to the `converter`. This scale will
 ///            affect at the geometric level the [`LoadedShape::shape`]. Note that raw mesh value stored
 ///            in [`LoadedShape::raw_mesh`] remains unscaled.
-// TODO: call a function for each mesh to load ? To be able to have a different mesh converter?
 pub fn load_from_path(
     path: impl AsRef<Path>,
     converter: &MeshConverter,
@@ -50,14 +49,11 @@ pub fn load_from_path(
     for (raw_mesh, _) in scene.meshes.into_iter().zip(scene.materials) {
         let shape = load_from_raw_mesh(&raw_mesh, converter, scale);
 
-        colliders.push(match shape {
-            Ok((shape, pose)) => Ok(LoadedShape {
-                shape,
-                pose,
-                raw_mesh,
-            }),
-            Err(e) => Err(e),
-        });
+        colliders.push(shape.map(|(shape, pose)| LoadedShape {
+            shape,
+            pose,
+            raw_mesh,
+        }));
     }
     Ok(colliders)
 }
