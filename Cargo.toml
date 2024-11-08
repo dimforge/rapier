@@ -38,6 +38,8 @@ resolver = "2"
 #parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
 #parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
 
+bevy_egui = { git = "https://github.com/Vrixyz/bevy_egui", branch = "bevy_main" }
+
 [profile.release]
 #debug = true
 #codegen-units = 1
