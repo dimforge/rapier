@@ -574,15 +574,15 @@ impl ColliderBuilder {
     }
 
     /// Initialize a new collider builder with a cylindrical shape defined by its half-height
-    /// (along along the y axis) and its radius.
+    /// (along the Y axis) and its radius.
     #[cfg(feature = "dim3")]
     pub fn cylinder(half_height: Real, radius: Real) -> Self {
         Self::new(SharedShape::cylinder(half_height, radius))
     }
 
     /// Initialize a new collider builder with a rounded cylindrical shape defined by its half-height
-    /// (along along the y axis), its radius, and its roundedness (the
-    /// radius of the sphere used for dilating the cylinder).
+    /// (along the Y axis), its radius, and its roundedness (the radius of the sphere used for
+    /// dilating the cylinder).
     #[cfg(feature = "dim3")]
     pub fn round_cylinder(half_height: Real, radius: Real, border_radius: Real) -> Self {
         Self::new(SharedShape::round_cylinder(
@@ -593,15 +593,15 @@ impl ColliderBuilder {
     }
 
     /// Initialize a new collider builder with a cone shape defined by its half-height
-    /// (along along the y axis) and its basis radius.
+    /// (along the Y axis) and its basis radius.
     #[cfg(feature = "dim3")]
     pub fn cone(half_height: Real, radius: Real) -> Self {
         Self::new(SharedShape::cone(half_height, radius))
     }
 
     /// Initialize a new collider builder with a rounded cone shape defined by its half-height
-    /// (along along the y axis), its radius, and its roundedness (the
-    /// radius of the sphere used for dilating the cylinder).
+    /// (along the Y axis), its radius, and its roundedness (the radius of the sphere used for
+    /// dilating the cylinder).
     #[cfg(feature = "dim3")]
     pub fn round_cone(half_height: Real, radius: Real, border_radius: Real) -> Self {
         Self::new(SharedShape::round_cone(half_height, radius, border_radius))
