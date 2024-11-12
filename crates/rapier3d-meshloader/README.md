@@ -1,8 +1,12 @@
-## STL loader for the Rapier physics engine
+## Mesh loader for the Rapier physics engine
 
-Rapier is a set of 2D and 3D physics engines for games, animation, and robotics. The `rapier3d-stl`
+Rapier is a set of 2D and 3D physics engines for games, animation, and robotics. The `rapier3d-meshloader`
 crate lets you create a shape compatible with `rapier3d` and `parry3d` (the underlying collision-detection
-library) from an STL file.
+library) from different file formats, see the following features list:
+
+- `stl`: support .stl files
+- `collada`: support .dae files
+- `wavefront`: support .obj files
 
 ## Resources and discussions
 
