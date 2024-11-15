@@ -17,6 +17,9 @@
     <a href="https://opensource.org/licenses/Apache-2.0">
         <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg">
     </a>
+    <a href="https://gurubase.io/g/rapier">
+        <img src="https://img.shields.io/badge/Gurubase-Ask%20Rapier%20Guru-006BFF">
+    </a>
 </p>
 <p align = "center">
     <strong>
