@@ -624,6 +624,7 @@ impl RigidBodyVelocity {
 
     /// The kinetic energy of this rigid-body.
     #[must_use]
+    #[profiling::function]
     pub fn kinetic_energy(&self, rb_mprops: &RigidBodyMassProps) -> Real {
         let mut energy = (rb_mprops.mass() * self.linvel.norm_squared()) / 2.0;
 

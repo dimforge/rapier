@@ -108,6 +108,7 @@ impl CCDSolver {
     }
 
     /// Find the first time a CCD-enabled body has a non-sensor collider hitting another non-sensor collider.
+    #[profiling::function]
     pub fn find_first_impact(
         &mut self,
         dt: Real,
@@ -225,6 +226,7 @@ impl CCDSolver {
     }
 
     /// Outputs the set of bodies as well as their first time-of-impact event.
+    #[profiling::function]
     pub fn predict_impacts_at_next_positions(
         &mut self,
         dt: Real,

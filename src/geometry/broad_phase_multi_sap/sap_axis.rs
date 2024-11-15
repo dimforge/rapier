@@ -36,6 +36,7 @@ impl SAPAxis {
         self.endpoints.push(SAPEndpoint::end_sentinel());
     }
 
+    #[profiling::function]
     pub fn batch_insert(
         &mut self,
         dim: usize,

@@ -272,6 +272,7 @@ impl GenericOneBodyConstraint {
         );
     }
 
+    #[profiling::function]
     pub fn solve(
         &mut self,
         jacobians: &DVector<Real>,

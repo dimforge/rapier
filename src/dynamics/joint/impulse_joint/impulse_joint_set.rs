@@ -244,6 +244,7 @@ impl ImpulseJointSet {
     ///
     /// If `wake_up` is set to `true`, then the bodies attached to this joint will be
     /// automatically woken up during the next timestep.
+    #[profiling::function]
     pub fn insert(
         &mut self,
         body1: RigidBodyHandle,
@@ -329,6 +330,7 @@ impl ImpulseJointSet {
     ///
     /// If `wake_up` is set to `true`, then the bodies attached to this joint will be
     /// automatically woken up.
+    #[profiling::function]
     pub fn remove(&mut self, handle: ImpulseJointHandle, wake_up: bool) -> Option<ImpulseJoint> {
         let id = self.joint_ids.remove(handle.0)?;
         let endpoints = self.joint_graph.graph.edge_endpoints(id)?;
@@ -356,6 +358,7 @@ impl ImpulseJointSet {
     /// The provided rigid-body handle is not required to identify a rigid-body that
     /// is still contained by the `bodies` component set.
     /// Returns the (now invalid) handles of the removed impulse_joints.
+    #[profiling::function]
     pub fn remove_joints_attached_to_rigid_body(
         &mut self,
         handle: RigidBodyHandle,

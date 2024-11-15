@@ -64,6 +64,7 @@ impl Multibody {
     /// desired transform.
     ///
     /// The displacement calculated by this function is added to the `displacement` vector.
+    #[profiling::function]
     pub fn inverse_kinematics_delta_with_jacobian(
         jacobian: &Jacobian<Real>,
         desired_movement: &SpacialVector<Real>,
@@ -88,6 +89,7 @@ impl Multibody {
     /// can be moved through the inverse-kinematics process. Any joint for which `joint_can_move`
     /// returns `false` will have its corresponding displacement constrained to 0.
     /// Set the closure to `|_| true` if all the joints are free to move.
+    #[profiling::function]
     pub fn inverse_kinematics(
         &self,
         bodies: &RigidBodySet,

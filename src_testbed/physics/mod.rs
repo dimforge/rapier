@@ -54,6 +54,7 @@ impl PhysicsSnapshot {
         })
     }
 
+    #[profiling::function]
     pub fn restore(&self) -> bincode::Result<DeserializedPhysicsSnapshot> {
         Ok(DeserializedPhysicsSnapshot {
             timestep_id: self.timestep_id,

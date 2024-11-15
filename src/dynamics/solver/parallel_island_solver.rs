@@ -160,6 +160,7 @@ impl ParallelIslandSolver {
         }
     }
 
+    #[profiling::function]
     pub fn init_and_solve<'s>(
         &'s mut self,
         scope: &Scope<'s>,

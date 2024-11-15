@@ -3,6 +3,7 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 extern crate rapier3d_f64 as rapier3d;
+extern crate rapier_testbed3d_f64 as rapier_testbed3d;
 
 use inflector::Inflector;
 
