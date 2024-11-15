@@ -2,7 +2,6 @@ use rapier::control::CharacterLength;
 use rapier::counters::Counters;
 use rapier::math::Real;
 use std::num::NonZeroUsize;
-use std::sync::Once;
 
 use crate::debug_render::DebugRenderPipelineResource;
 use crate::harness::Harness;
@@ -24,6 +23,7 @@ pub fn update_ui(
 ) {
     #[cfg(feature = "profiling")]
     {
+        use std::sync::Once;
         let window = egui::Window::new("Profiling");
         let window = window.default_open(false);
         static START: Once = Once::new();

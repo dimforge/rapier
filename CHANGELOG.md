@@ -5,6 +5,7 @@
 - The region key has been replaced by an i64 in the f64 version of rapier, increasing the range before panics occur.
 - Fix `BroadphaseMultiSap` not being able to serialize correctly with serde_json.
 - Fix `KinematicCharacterController::move_shape` not respecting parameters `max_slope_climb_angle` and `min_slope_slide_angle`.
+- Fix wasm32 default values for physics hooks filter to be consistent with native: `COMPUTE_IMPULSES`.
 
 ### Added
 

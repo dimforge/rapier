@@ -19,7 +19,9 @@ license = "Apache-2.0"
 edition = "2021"
 
 [features]
-stl = ["dep:rapier3d-stl"]
+stl = ["dep:rapier3d-meshloader", "rapier3d-meshloader/stl"]
+collada = ["dep:rapier3d-meshloader", "rapier3d-meshloader/collada"]
+wavefront = ["dep:rapier3d-meshloader", "rapier3d-meshloader/wavefront"]
 
 [dependencies]
 log = "0.4"
@@ -29,4 +31,4 @@ bitflags = "2"
 xurdf = "0.2"
 
 rapier3d = { version = "0.22", path = "../rapier3d" }
-rapier3d-stl = { version = "0.3.0", path = "../rapier3d-stl", optional = true }
+rapier3d-meshloader = { version = "0.3.0", path = "../rapier3d-meshloader", default-features = false, optional = true }
