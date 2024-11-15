@@ -7,13 +7,18 @@
 /// - The interaction groups filter.
 ///
 /// An interaction is allowed between two filters `a` and `b` when two conditions
-/// are met simultaneously:
+/// are met simultaneously for [`InteractionTestMode::AND`] or individually for [`InteractionTestMode::OR`]::
 /// - The groups membership of `a` has at least one bit set to `1` in common with the groups filter of `b`.
 /// - The groups membership of `b` has at least one bit set to `1` in common with the groups filter of `a`.
 ///
-/// In other words, interactions are allowed between two filter iff. the following condition is met:
+/// In other words, interactions are allowed between two filter iff. the following condition is met
+/// for [`InteractionTestMode::AND`]:
 /// ```ignore
-/// (self.memberships & rhs.filter) != 0 && (rhs.memberships & self.filter) != 0
+/// (self.memberships.bits() & rhs.filter.bits()) != 0 && (rhs.memberships.bits() & self.filter.bits()) != 0
+/// ```
+/// or for [`InteractionTestMode::OR`]:
+/// ```ignore
+/// (self.memberships.bits() & rhs.filter.bits()) != 0 || (rhs.memberships.bits() & self.filter.bits()) != 0
 /// ```
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
@@ -23,25 +28,39 @@ pub struct InteractionGroups {
     pub memberships: Group,
     /// Groups filter.
     pub filter: Group,
+    /// Interaction test mode
+    pub test_mode: InteractionTestMode,
+}
+
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, Default)]
+/// Specifies which method should be used to test interactions
+pub enum InteractionTestMode {
+    /// Use [`InteractionGroups::test_and`].
+    #[default]
+    AND,
+    /// Use [`InteractionGroups::test_or`].
+    OR,
 }
 
 impl InteractionGroups {
     /// Initializes with the given interaction groups and interaction mask.
-    pub const fn new(memberships: Group, filter: Group) -> Self {
+    pub const fn new(memberships: Group, filter: Group, test_mode: InteractionTestMode) -> Self {
         Self {
             memberships,
             filter,
+            test_mode,
         }
     }
 
     /// Allow interaction with everything.
     pub const fn all() -> Self {
-        Self::new(Group::ALL, Group::ALL)
+        Self::new(Group::ALL, Group::ALL, InteractionTestMode::AND)
     }
 
     /// Prevent all interactions.
     pub const fn none() -> Self {
-        Self::new(Group::NONE, Group::NONE)
+        Self::new(Group::NONE, Group::NONE, InteractionTestMode::AND)
     }
 
     /// Sets the group this filter is part of.
@@ -59,13 +78,32 @@ impl InteractionGroups {
     /// Check if interactions should be allowed based on the interaction memberships and filter.
     ///
     /// An interaction is allowed iff. the memberships of `self` contain at least one bit set to 1 in common
-    /// with the filter of `rhs`, and vice-versa.
+    /// with the filter of `rhs`, **and** vice-versa.
     #[inline]
-    pub const fn test(self, rhs: Self) -> bool {
-        // NOTE: since const ops is not stable, we have to convert `Group` into u32
-        // to use & operator in const context.
+    pub const fn test_and(self, rhs: Self) -> bool {
         (self.memberships.bits() & rhs.filter.bits()) != 0
             && (rhs.memberships.bits() & self.filter.bits()) != 0
+    }
+
+    /// Check if interactions should be allowed based on the interaction memberships and filter.
+    ///
+    /// An interaction is allowed iff. the groups of `self` contain at least one bit set to 1 in common
+    /// with the mask of `rhs`, **or** vice-versa.
+    #[inline]
+    pub const fn test_or(self, rhs: Self) -> bool {
+        (self.memberships.bits() & rhs.filter.bits()) != 0
+            || (rhs.memberships.bits() & self.filter.bits()) != 0
+    }
+
+    /// Check if interactions should be allowed based on the interaction memberships and filter.
+    ///
+    /// See [`InteractionTestMode`] for more info.
+    #[inline]
+    pub const fn test(self, rhs: Self) -> bool {
+        match self.test_mode {
+            InteractionTestMode::AND => self.test_and(rhs),
+            InteractionTestMode::OR => self.test_or(rhs),
+        }
     }
 }
 
@@ -74,6 +112,7 @@ impl Default for InteractionGroups {
         Self {
             memberships: Group::GROUP_1,
             filter: Group::ALL,
+            test_mode: InteractionTestMode::AND,
         }
     }
 }
