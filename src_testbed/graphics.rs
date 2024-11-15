@@ -21,6 +21,10 @@ use std::collections::HashMap;
 pub type BevyMaterial = ColorMaterial;
 #[cfg(feature = "dim3")]
 pub type BevyMaterial = StandardMaterial;
+#[cfg(feature = "dim2")]
+pub type BevyMaterialComponent = MeshMaterial2d<BevyMaterial>;
+#[cfg(feature = "dim3")]
+pub type BevyMaterialComponent = MeshMaterial3d<BevyMaterial>;
 
 pub type InstancedMaterials = HashMap<Point3<usize>, Handle<BevyMaterial>>;
 pub const SELECTED_OBJECT_MATERIAL_KEY: Point3<usize> = point![42, 42, 42];
