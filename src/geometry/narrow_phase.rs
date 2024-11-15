@@ -455,12 +455,34 @@ impl NarrowPhase {
                             }
                         }
                     }
-
+                    // Remove the new parent from the collision graphs
+                    if co.changes.intersects(ColliderChanges::PARENT) {
+                        let current_parent_body = co.parent();
+                        for inter in self
+                            .contact_graph
+                            .interactions_with(gid.contact_graph_index)
+                        {
+                            let Some(co2) = colliders.get(*handle) else {
+                                continue;
+                            };
+                            let other_parent_body = co2.parent();
+                            if other_parent_body == current_parent_body {
+                                pairs_to_remove.push((
+                                    ColliderPair::new(inter.0, inter.1),
+                                    PairRemovalMode::FromContactGraph,
+                                ));
+                                pairs_to_remove.push((
+                                    ColliderPair::new(inter.0, inter.1),
+                                    PairRemovalMode::FromIntersectionGraph,
+                                ));
+                            }
+                        }
+                    }
                     // For each collider which had their sensor status modified, we need
                     // to transfer their contact/intersection graph edges to the intersection/contact graph.
                     // To achieve this we will remove the relevant contact/intersection pairs form the
                     // contact/intersection graphs, and then add them into the other graph.
-                    if co.changes.contains(ColliderChanges::TYPE) {
+                    if co.changes.intersects(ColliderChanges::TYPE) {
                         if co.is_sensor() {
                             // Find the contact pairs for this collider and
                             // push them to `pairs_to_remove`.
@@ -1159,5 +1181,248 @@ impl NarrowPhase {
                 out_contact_pairs.push(EdgeIndex::new(pair_id as u32));
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "f32")]
+#[cfg(feature = "dim3")]
+mod test {
+    use na::vector;
+
+    use crate::prelude::{
+        CCDSolver, ColliderBuilder, DefaultBroadPhase, IntegrationParameters, PhysicsPipeline,
+        QueryPipeline, RigidBodyBuilder,
+    };
+
+    use super::*;
+
+    /// Test for https://github.com/dimforge/rapier/issues/734.
+    #[test]
+    pub fn collider_set_parent_depenetration() {
+        let mut rigid_body_set = RigidBodySet::new();
+        let mut collider_set = ColliderSet::new();
+
+        /* Create the ground. */
+        let collider = ColliderBuilder::ball(0.5);
+
+        /* Create body 1, which will contain both colliders at first. */
+        let rigid_body_1 = RigidBodyBuilder::dynamic()
+            .translation(vector![0.0, 0.0, 0.0])
+            .build();
+        let body_1_handle = rigid_body_set.insert(rigid_body_1);
+
+        /* Create collider 1. Parent it to rigid body 1. */
+        let collider_1_handle =
+            collider_set.insert_with_parent(collider.build(), body_1_handle, &mut rigid_body_set);
+
+        /* Create collider 2. Parent it to rigid body 1. */
+        let collider_2_handle =
+            collider_set.insert_with_parent(collider.build(), body_1_handle, &mut rigid_body_set);
+
+        /* Create body 2. No attached colliders yet. */
+        let rigid_body_2 = RigidBodyBuilder::dynamic()
+            .translation(vector![0.0, 0.0, 0.0])
+            .build();
+        let body_2_handle = rigid_body_set.insert(rigid_body_2);
+
+        /* Create other structures necessary for the simulation. */
+        let gravity = vector![0.0, 0.0, 0.0];
+        let integration_parameters = IntegrationParameters::default();
+        let mut physics_pipeline = PhysicsPipeline::new();
+        let mut island_manager = IslandManager::new();
+        let mut broad_phase = DefaultBroadPhase::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut impulse_joint_set = ImpulseJointSet::new();
+        let mut multibody_joint_set = MultibodyJointSet::new();
+        let mut ccd_solver = CCDSolver::new();
+        let mut query_pipeline = QueryPipeline::new();
+        let physics_hooks = ();
+        let event_handler = ();
+
+        physics_pipeline.step(
+            &gravity,
+            &integration_parameters,
+            &mut island_manager,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &mut impulse_joint_set,
+            &mut multibody_joint_set,
+            &mut ccd_solver,
+            Some(&mut query_pipeline),
+            &physics_hooks,
+            &event_handler,
+        );
+        let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
+        let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
+        assert!(
+            (collider_1_position.translation.vector - collider_2_position.translation.vector)
+                .magnitude()
+                < 0.5f32
+        );
+
+        /* Parent collider 2 to body 2. */
+        collider_set.set_parent(collider_2_handle, Some(body_2_handle), &mut rigid_body_set);
+        narrow_phase.add_pair(
+            &collider_set,
+            &ColliderPair {
+                collider1: collider_2_handle,
+                collider2: collider_1_handle,
+            },
+        );
+        /* Run the game loop, stepping the simulation once per frame. */
+        for _ in 0..200 {
+            physics_pipeline.step(
+                &gravity,
+                &integration_parameters,
+                &mut island_manager,
+                &mut broad_phase,
+                &mut narrow_phase,
+                &mut rigid_body_set,
+                &mut collider_set,
+                &mut impulse_joint_set,
+                &mut multibody_joint_set,
+                &mut ccd_solver,
+                Some(&mut query_pipeline),
+                &physics_hooks,
+                &event_handler,
+            );
+
+            let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
+            let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
+            println!("collider 1 position: {}", collider_1_position.translation);
+            println!("collider 2 position: {}", collider_2_position.translation);
+        }
+
+        let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
+        let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
+        assert!(
+            (collider_1_position.translation.vector - collider_2_position.translation.vector)
+                .magnitude()
+                >= 0.5f32,
+            "colliders should no longer be penetrating."
+        );
+    }
+
+    /// Test for https://github.com/dimforge/rapier/issues/734.
+    #[test]
+    pub fn collider_set_parent_no_self_intersection() {
+        let mut rigid_body_set = RigidBodySet::new();
+        let mut collider_set = ColliderSet::new();
+
+        /* Create the ground. */
+        let collider = ColliderBuilder::ball(0.5);
+
+        /* Create body 1, which will contain collider 1. */
+        let rigid_body_1 = RigidBodyBuilder::dynamic()
+            .translation(vector![0.0, 0.0, 0.0])
+            .build();
+        let body_1_handle = rigid_body_set.insert(rigid_body_1);
+
+        /* Create collider 1. Parent it to rigid body 1. */
+        let collider_1_handle =
+            collider_set.insert_with_parent(collider.build(), body_1_handle, &mut rigid_body_set);
+
+        /* Create body 2, which will contain collider 2 at first. */
+        let rigid_body_2 = RigidBodyBuilder::dynamic()
+            .translation(vector![0.0, 0.0, 0.0])
+            .build();
+        let body_2_handle = rigid_body_set.insert(rigid_body_2);
+
+        /* Create collider 2. Parent it to rigid body 1. */
+        //let collider_2_handle =
+        //    collider_set.insert_with_parent(collider.build(), body_2_handle, &mut rigid_body_set);
+
+        /* Create collider 2. Parent it to rigid body 1. */
+        let collider_2_handle =
+            collider_set.insert_with_parent(collider.build(), body_2_handle, &mut rigid_body_set);
+
+        /* Create other structures necessary for the simulation. */
+        let gravity = vector![0.0, 0.0, 0.0];
+        let integration_parameters = IntegrationParameters::default();
+        let mut physics_pipeline = PhysicsPipeline::new();
+        let mut island_manager = IslandManager::new();
+        let mut broad_phase = DefaultBroadPhase::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut impulse_joint_set = ImpulseJointSet::new();
+        let mut multibody_joint_set = MultibodyJointSet::new();
+        let mut ccd_solver = CCDSolver::new();
+        let mut query_pipeline = QueryPipeline::new();
+        let physics_hooks = ();
+        let event_handler = ();
+
+        physics_pipeline.step(
+            &gravity,
+            &integration_parameters,
+            &mut island_manager,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &mut impulse_joint_set,
+            &mut multibody_joint_set,
+            &mut ccd_solver,
+            Some(&mut query_pipeline),
+            &physics_hooks,
+            &event_handler,
+        );
+        let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
+        let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
+        assert!(
+            (collider_1_position.translation.vector - collider_2_position.translation.vector)
+                .magnitude()
+                < 0.5f32
+        );
+
+        /* Parent collider 2 to body 1. */
+        collider_set.set_parent(collider_2_handle, Some(body_1_handle), &mut rigid_body_set);
+
+        /* Run the game loop, stepping the simulation once per frame. */
+        for _ in 0..200 {
+            physics_pipeline.step(
+                &gravity,
+                &integration_parameters,
+                &mut island_manager,
+                &mut broad_phase,
+                &mut narrow_phase,
+                &mut rigid_body_set,
+                &mut collider_set,
+                &mut impulse_joint_set,
+                &mut multibody_joint_set,
+                &mut ccd_solver,
+                Some(&mut query_pipeline),
+                &physics_hooks,
+                &event_handler,
+            );
+
+            let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
+            let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
+            println!("collider 1 position: {}", collider_1_position.translation);
+            println!("collider 2 position: {}", collider_2_position.translation);
+        }
+
+        let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
+        let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
+        assert!(
+            (collider_1_position.translation.vector - collider_2_position.translation.vector)
+                .magnitude()
+                < 0.5f32,
+            "colliders should be penetrating."
+        );
+        assert!(
+            rigid_body_set
+                .get(body_1_handle)
+                .unwrap()
+                .position()
+                .translation
+                .vector
+                .magnitude()
+                // TODO: this is probably a way too big value to test, consider lowering it.
+                // In the meantime, this proves that current behaviour is incorrect.
+                < 30000f32,
+            "Body 1 should not have gone too far from origin."
+        );
     }
 }
