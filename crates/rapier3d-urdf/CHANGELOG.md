@@ -1,20 +1,13 @@
 ## Unreleased
 
-<<<<<<< HEAD
 ### Modified
 
 - Pre-parsing of urdf files is now done through the more recent `urdf_rs` crate.
-
 
 ### Added
 
 - Add optional support for Collada and Wavefront files through new feature flags `collada` and `wavefront`.
 - Add support for capsule urdf geometry
-=======
-### Added
-
-- Add optional support for Collada and Wavefront files through new feature flags `collada` and `wavefront`.
->>>>>>> @{-1}
 
 ## 0.3.0
 
