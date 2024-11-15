@@ -1,4 +1,4 @@
-use rapier3d::prelude::*;
+use rapier3d::{control::KinematicCharacterController, prelude::*};
 use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -41,7 +41,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Character we will control manually.
      */
     let rigid_body =
-        RigidBodyBuilder::kinematic_position_based().translation(vector![-3.0, 5.0, 0.0] * scale);
+        RigidBodyBuilder::kinematic_position_based().translation(vector![0.0, 0.5, 0.0] * scale);
     let character_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::capsule_y(0.3 * scale, 0.15 * scale); // 0.15, 0.3, 0.15);
     colliders.insert_with_parent(collider, character_handle, &mut bodies);
@@ -95,19 +95,15 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let slope_angle = 0.2;
     let slope_size = 2.0;
-    let collider = ColliderBuilder::cuboid(
-        slope_size * scale,
-        ground_height * scale,
-        slope_size * scale,
-    )
-    .translation(vector![ground_size + slope_size, -ground_height + 0.4, 0.0] * scale)
-    .rotation(Vector::z() * slope_angle);
+    let collider = ColliderBuilder::cuboid(slope_size, ground_height, slope_size)
+        .translation(vector![0.1 + slope_size, -ground_height + 0.4, 0.0])
+        .rotation(Vector::z() * slope_angle);
     colliders.insert(collider);
 
     /*
      * Create a slope we can’t climb.
      */
-    let impossible_slope_angle = 0.9;
+    let impossible_slope_angle = 0.6;
     let impossible_slope_size = 2.0;
     let collider = ColliderBuilder::cuboid(
         slope_size * scale,
@@ -116,8 +112,8 @@ pub fn init_world(testbed: &mut Testbed) {
     )
     .translation(
         vector![
-            ground_size + slope_size * 2.0 + impossible_slope_size - 0.9,
-            -ground_height + 2.3,
+            0.1 + slope_size * 2.0 + impossible_slope_size - 0.9,
+            -ground_height + 1.7,
             0.0
         ] * scale,
     )
@@ -185,5 +181,11 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.set_character_body(character_handle);
+    testbed.set_character_controller(Some(KinematicCharacterController {
+        max_slope_climb_angle: impossible_slope_angle - 0.02,
+        min_slope_slide_angle: impossible_slope_angle - 0.02,
+        slide: true,
+        ..Default::default()
+    }));
     testbed.look_at(point!(10.0, 10.0, 10.0), Point::origin());
 }
