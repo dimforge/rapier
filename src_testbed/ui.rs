@@ -23,28 +23,35 @@ pub fn update_ui(
 ) {
     #[cfg(feature = "profiling")]
     {
-        use std::sync::Once;
         let window = egui::Window::new("Profiling");
         let window = window.default_open(false);
-        static START: Once = Once::new();
 
-        fn set_default_rapier_filter() {
-            let mut profile_ui = puffin_egui::PROFILE_UI.lock();
-            profile_ui
-                .profiler_ui
-                .flamegraph_options
-                .scope_name_filter
-                .set_filter("Harness::step_with_graphics".to_string());
-        }
-        START.call_once(|| {
-            set_default_rapier_filter();
-        });
+        #[cfg(feature = "unstable-puffin-pr-235")]
+        {
+            use std::sync::Once;
+            static START: Once = Once::new();
 
-        window.show(ui_context.ctx_mut(), |ui| {
-            //profile_ui.profiler_ui.flamegraph_options.
-            if ui.button("🔍 Rapier filter").clicked() {
-                set_default_rapier_filter();
+            fn set_default_rapier_filter() {
+                let mut profile_ui = puffin_egui::PROFILE_UI.lock();
+                profile_ui
+                    .profiler_ui
+                    .flamegraph_options
+                    .scope_name_filter
+                    .set_filter("Harness::step_with_graphics".to_string());
             }
+            START.call_once(|| {
+                set_default_rapier_filter();
+            });
+            window.show(ui_context.ctx_mut(), |ui| {
+                if ui.button("🔍 Rapier filter").clicked() {
+                    set_default_rapier_filter();
+                }
+                puffin_egui::profiler_ui(ui);
+            });
+        }
+
+        #[cfg(not(feature = "unstable-puffin-pr-235"))]
+        window.show(ui_context.ctx_mut(), |ui| {
             puffin_egui::profiler_ui(ui);
         });
     }

@@ -35,6 +35,7 @@ dim3 = []
 parallel = ["rapier/parallel", "num_cpus"]
 other-backends = ["physx", "physx-sys", "glam"]
 profiling = ["dep:puffin_egui", "profiling/profile-with-puffin"]
+unstable-puffin-pr-235 = []
 
 [package.metadata.docs.rs]
 features = ["parallel", "other-backends", "profiling"]
