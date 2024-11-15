@@ -48,14 +48,12 @@ pub fn load_from_path(
     let scene = loader.load(path)?;
     for (raw_mesh, _) in scene.meshes.into_iter().zip(scene.materials) {
         let shape = load_from_raw_mesh(&raw_mesh, converter, scale);
-        colliders.push(match shape {
-            Ok((shape, pose)) => Ok(LoadedShape {
-                shape,
-                pose,
-                raw_mesh,
-            }),
-            Err(e) => Err(e),
-        });
+
+        colliders.push(shape.map(|(shape, pose)| LoadedShape {
+            shape,
+            pose,
+            raw_mesh,
+        }));
     }
     Ok(colliders)
 }
