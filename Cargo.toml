@@ -14,7 +14,7 @@ members = [
     "examples3d-f64",
     "benchmarks3d",
     "crates/rapier3d-urdf",
-    "crates/rapier3d-stl",
+    "crates/rapier3d-meshloader",
 ]
 resolver = "2"
 

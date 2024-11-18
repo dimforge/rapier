@@ -426,12 +426,18 @@ impl PhysicsPipeline {
 
         // Apply some of delayed wake-ups.
         self.counters.stages.user_changes.start();
-        for handle in impulse_joints
+        #[cfg(feature = "enhanced-determinism")]
+        let impulse_joints_iterator = impulse_joints
             .to_wake_up
             .drain(..)
-            .chain(multibody_joints.to_wake_up.drain(..))
-        {
-            islands.wake_up(bodies, handle, true);
+            .chain(multibody_joints.to_wake_up.drain(..));
+        #[cfg(not(feature = "enhanced-determinism"))]
+        let impulse_joints_iterator = impulse_joints
+            .to_wake_up
+            .drain()
+            .chain(multibody_joints.to_wake_up.drain());
+        for handle in impulse_joints_iterator {
+            islands.wake_up(bodies, handle.0, true);
         }
 
         // Apply modifications.

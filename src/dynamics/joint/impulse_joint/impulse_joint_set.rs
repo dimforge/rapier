@@ -1,3 +1,5 @@
+use parry::utils::hashmap::HashMap;
+
 use super::ImpulseJoint;
 use crate::geometry::{InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex};
 
@@ -40,9 +42,11 @@ pub(crate) type JointGraphEdge = crate::data::graph::Edge<ImpulseJoint>;
 /// A set of impulse_joints that can be handled by a physics `World`.
 pub struct ImpulseJointSet {
     rb_graph_ids: Coarena<RigidBodyGraphIndex>,
-    joint_ids: Arena<TemporaryInteractionIndex>, // Map joint handles to edge ids on the graph.
+    /// Map joint handles to edge ids on the graph.
+    joint_ids: Arena<TemporaryInteractionIndex>,
     joint_graph: InteractionGraph<RigidBodyHandle, ImpulseJoint>,
-    pub(crate) to_wake_up: Vec<RigidBodyHandle>, // A set of rigid-body handles to wake-up during the next timestep.
+    /// A set of rigid-body handles to wake-up during the next timestep.
+    pub(crate) to_wake_up: HashMap<RigidBodyHandle, ()>,
 }
 
 impl ImpulseJointSet {
@@ -52,7 +56,7 @@ impl ImpulseJointSet {
             rb_graph_ids: Coarena::new(),
             joint_ids: Arena::new(),
             joint_graph: InteractionGraph::new(),
-            to_wake_up: vec![],
+            to_wake_up: HashMap::default(),
         }
     }
 
@@ -145,9 +149,20 @@ impl ImpulseJointSet {
     }
 
     /// Gets a mutable reference to the joint with the given handle.
-    pub fn get_mut(&mut self, handle: ImpulseJointHandle) -> Option<&mut ImpulseJoint> {
+    pub fn get_mut(
+        &mut self,
+        handle: ImpulseJointHandle,
+        wake_up_connected_bodies: bool,
+    ) -> Option<&mut ImpulseJoint> {
         let id = self.joint_ids.get(handle.0)?;
-        self.joint_graph.graph.edge_weight_mut(*id)
+        let joint = self.joint_graph.graph.edge_weight_mut(*id);
+        if wake_up_connected_bodies {
+            if let Some(joint) = &joint {
+                self.to_wake_up.insert(joint.body1, ());
+                self.to_wake_up.insert(joint.body2, ());
+            }
+        }
+        joint
     }
 
     /// Gets the joint with the given handle without a known generation.
@@ -269,8 +284,8 @@ impl ImpulseJointSet {
         self.joint_ids[handle] = self.joint_graph.add_edge(graph_index1, graph_index2, joint);
 
         if wake_up {
-            self.to_wake_up.push(body1);
-            self.to_wake_up.push(body2);
+            self.to_wake_up.insert(body1, ());
+            self.to_wake_up.insert(body2, ());
         }
 
         ImpulseJointHandle(handle)
@@ -320,10 +335,10 @@ impl ImpulseJointSet {
 
         if wake_up {
             if let Some(rb_handle) = self.joint_graph.graph.node_weight(endpoints.0) {
-                self.to_wake_up.push(*rb_handle);
+                self.to_wake_up.insert(*rb_handle, ());
             }
             if let Some(rb_handle) = self.joint_graph.graph.node_weight(endpoints.1) {
-                self.to_wake_up.push(*rb_handle);
+                self.to_wake_up.insert(*rb_handle, ());
             }
         }
 
@@ -372,8 +387,8 @@ impl ImpulseJointSet {
                     }
 
                     // Wake up the attached bodies.
-                    self.to_wake_up.push(h1);
-                    self.to_wake_up.push(h2);
+                    self.to_wake_up.insert(h1, ());
+                    self.to_wake_up.insert(h2, ());
                 }
 
                 if let Some(other) = self.joint_graph.remove_node(deleted_id) {
