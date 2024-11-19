@@ -84,6 +84,7 @@ impl RigidBodySet {
     }
 
     /// Removes a rigid-body, and all its attached colliders and impulse_joints, from these sets.
+    #[profiling::function]
     pub fn remove(
         &mut self,
         handle: RigidBodyHandle,

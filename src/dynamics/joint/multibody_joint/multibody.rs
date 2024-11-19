@@ -489,6 +489,7 @@ impl Multibody {
     }
 
     /// Computes the constant terms of the dynamics.
+    #[profiling::function]
     pub(crate) fn update_dynamics(&mut self, dt: Real, bodies: &mut RigidBodySet) {
         /*
          * Compute velocities.
@@ -1094,6 +1095,7 @@ impl Multibody {
     /// is the sum of the current position of `self` and this `displacement`.
     // TODO: this shares a lot of code with `forward_kinematics` and `update_body_jacobians`, except
     //       that we are only traversing a single kinematic chain. Could this be refactored?
+    #[profiling::function]
     pub fn forward_kinematics_single_branch(
         &self,
         bodies: &RigidBodySet,

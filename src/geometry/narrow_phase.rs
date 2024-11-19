@@ -268,6 +268,7 @@ impl NarrowPhase {
     // }
 
     /// Maintain the narrow-phase internal state by taking collider removal into account.
+    #[profiling::function]
     pub fn handle_user_changes(
         &mut self,
         mut islands: Option<&mut IslandManager>,
@@ -321,6 +322,7 @@ impl NarrowPhase {
         );
     }
 
+    #[profiling::function]
     pub(crate) fn remove_collider(
         &mut self,
         intersection_graph_id: ColliderGraphIndex,
@@ -412,6 +414,7 @@ impl NarrowPhase {
         }
     }
 
+    #[profiling::function]
     pub(crate) fn handle_user_changes_on_colliders(
         &mut self,
         mut islands: Option<&mut IslandManager>,
@@ -513,6 +516,7 @@ impl NarrowPhase {
         }
     }
 
+    #[profiling::function]
     fn remove_pair(
         &mut self,
         islands: Option<&mut IslandManager>,
@@ -584,6 +588,7 @@ impl NarrowPhase {
         }
     }
 
+    #[profiling::function]
     fn add_pair(&mut self, colliders: &ColliderSet, pair: &ColliderPair) {
         if let (Some(co1), Some(co2)) =
             (colliders.get(pair.collider1), colliders.get(pair.collider2))
@@ -687,6 +692,7 @@ impl NarrowPhase {
         }
     }
 
+    #[profiling::function]
     pub(crate) fn compute_intersections(
         &mut self,
         bodies: &RigidBodySet,
@@ -785,6 +791,7 @@ impl NarrowPhase {
         });
     }
 
+    #[profiling::function]
     pub(crate) fn compute_contacts(
         &mut self,
         prediction_distance: Real,

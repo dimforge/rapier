@@ -211,6 +211,7 @@ impl KinematicCharacterController {
     }
 
     /// Computes the possible movement for a shape.
+    #[profiling::function]
     pub fn move_shape(
         &self,
         dt: Real,
@@ -430,6 +431,7 @@ impl KinematicCharacterController {
         self.offset.eval(up_extends) + 0.05
     }
 
+    #[profiling::function]
     fn detect_grounded_status_and_apply_friction(
         &self,
         dt: Real,
@@ -657,6 +659,7 @@ impl KinematicCharacterController {
         Vector2::new(side_extent, up_extent)
     }
 
+    #[profiling::function]
     fn handle_stairs(
         &self,
         bodies: &RigidBodySet,
@@ -817,6 +820,7 @@ impl KinematicCharacterController {
     /// impulses to the rigid-bodies surrounding the character shape at the time of the collisions.
     /// Note that the impulse calculation is only approximate as it is not based on a global
     /// constraints resolution scheme.
+    #[profiling::function]
     pub fn solve_character_collision_impulses<'a>(
         &self,
         dt: Real,
@@ -846,6 +850,7 @@ impl KinematicCharacterController {
     /// impulses to the rigid-bodies surrounding the character shape at the time of the collision.
     /// Note that the impulse calculation is only approximate as it is not based on a global
     /// constraints resolution scheme.
+    #[profiling::function]
     fn solve_single_character_collision_impulse(
         &self,
         dt: Real,

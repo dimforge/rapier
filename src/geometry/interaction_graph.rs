@@ -96,6 +96,7 @@ impl<N: Copy, E> InteractionGraph<N, E> {
     }
 
     /// The interaction between the two collision objects identified by their graph index.
+    #[profiling::function]
     pub fn interaction_pair(
         &self,
         id1: ColliderGraphIndex,
@@ -111,6 +112,7 @@ impl<N: Copy, E> InteractionGraph<N, E> {
     }
 
     /// The interaction between the two collision objects identified by their graph index.
+    #[profiling::function]
     pub fn interaction_pair_mut(
         &mut self,
         id1: ColliderGraphIndex,

@@ -38,6 +38,12 @@ resolver = "2"
 #parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
 #parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
 
+# # For feature unstable-puffin-pr-235
+# # See https://github.com/dimforge/rapier/issues/760.
+# puffin_egui = { version = "0.29", optional = true, git = "https://github.com/Vrixyz/puffin.git", branch = "expose_ui_options" }
+# puffin = { version = "0.19", optional = true, git = "https://github.com/Vrixyz/puffin.git", branch = "expose_ui_options" }
+# # 
+
 [profile.release]
 #debug = true
 #codegen-units = 1
