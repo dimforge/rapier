@@ -252,6 +252,7 @@ impl KinematicCharacterController {
         let mut max_iters = 20;
         let mut kinematic_friction_translation = Vector::zeros();
         let offset = self.offset.eval(dims.y);
+        let mut is_moving = false;
 
         while let Some((translation_dir, translation_dist)) =
             UnitVector::try_new_and_get(translation_remaining, 1.0e-5)
@@ -261,6 +262,7 @@ impl KinematicCharacterController {
             } else {
                 max_iters -= 1;
             }
+            is_moving = true;
 
             // 2. Cast towards the movement direction.
             if let Some((handle, hit)) = queries.cast_shape(
@@ -320,9 +322,20 @@ impl KinematicCharacterController {
                 // No interference along the path.
                 result.translation += translation_remaining;
                 translation_remaining.fill(0.0);
+                result.grounded = self.detect_grounded_status_and_apply_friction(
+                    dt,
+                    bodies,
+                    colliders,
+                    queries,
+                    character_shape,
+                    &(Translation::from(result.translation) * character_pos),
+                    &dims,
+                    filter,
+                    None,
+                    None,
+                );
                 break;
             }
-
             result.grounded = self.detect_grounded_status_and_apply_friction(
                 dt,
                 bodies,
@@ -339,6 +352,22 @@ impl KinematicCharacterController {
             if !self.slide {
                 break;
             }
+        }
+        // When not moving, `detect_grounded_status_and_apply_friction` is not reached
+        // so we call it explicitly here.
+        if !is_moving {
+            result.grounded = self.detect_grounded_status_and_apply_friction(
+                dt,
+                bodies,
+                colliders,
+                queries,
+                character_shape,
+                &(Translation::from(result.translation) * character_pos),
+                &dims,
+                filter,
+                None,
+                None,
+            );
         }
         // If needed, and if we are not already grounded, snap to the ground.
         if grounded_at_starting_pos {
@@ -399,7 +428,7 @@ impl KinematicCharacterController {
     }
 
     fn predict_ground(&self, up_extends: Real) -> Real {
-        self.offset.eval(up_extends) * 1.2
+        self.offset.eval(up_extends) + 0.05
     }
 
     #[profiling::function]
@@ -510,7 +539,6 @@ impl KinematicCharacterController {
             }
             true
         });
-
         grounded
     }
 
@@ -914,7 +942,10 @@ fn subtract_hit(translation: Vector<Real>, hit: &ShapeCastHit) -> Vector<Real> {
 #[cfg(all(feature = "dim3", feature = "f32"))]
 #[cfg(test)]
 mod test {
-    use crate::{control::KinematicCharacterController, prelude::*};
+    use crate::{
+        control::{CharacterLength, KinematicCharacterController},
+        prelude::*,
+    };
 
     #[test]
     fn character_controller_climb_test() {
@@ -1056,5 +1087,143 @@ mod test {
         let character_body = bodies.get(character_handle_cannot_climb).unwrap();
         assert!(character_body.translation().x < 4.0);
         assert!(dbg!(character_body.translation().y) < 2.0);
+    }
+
+    #[test]
+    fn character_controller_ground_detection() {
+        let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
+        let mut pipeline = PhysicsPipeline::new();
+        let mut bf = BroadPhaseMultiSap::new();
+        let mut nf = NarrowPhase::new();
+        let mut islands = IslandManager::new();
+        let mut query_pipeline = QueryPipeline::new();
+
+        let mut bodies = RigidBodySet::new();
+
+        let gravity = Vector::y() * -9.81;
+
+        let ground_size = 1001.0;
+        let ground_height = 1.0;
+        /*
+         * Create a flat ground
+         */
+        let rigid_body =
+            RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height / 2f32, 0.0]);
+        let floor_handle = bodies.insert(rigid_body);
+        let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
+        colliders.insert_with_parent(collider, floor_handle, &mut bodies);
+
+        let integration_parameters = IntegrationParameters::default();
+
+        // Initialize character with snap to ground
+        let character_controller_snap = KinematicCharacterController {
+            snap_to_ground: Some(CharacterLength::Relative(0.2)),
+            ..Default::default()
+        };
+        let mut character_body_snap = RigidBodyBuilder::kinematic_position_based()
+            .additional_mass(1.0)
+            .build();
+        character_body_snap.set_translation(Vector::new(0.6, 0.5, 0.0), false);
+        let character_handle_snap = bodies.insert(character_body_snap);
+
+        let collider = ColliderBuilder::ball(0.5).build();
+        colliders.insert_with_parent(collider.clone(), character_handle_snap, &mut bodies);
+
+        // Initialize character without snap to ground
+        let character_controller_no_snap = KinematicCharacterController {
+            snap_to_ground: None,
+            ..Default::default()
+        };
+        let mut character_body_no_snap = RigidBodyBuilder::kinematic_position_based()
+            .additional_mass(1.0)
+            .build();
+        character_body_no_snap.set_translation(Vector::new(-0.6, 0.5, 0.0), false);
+        let character_handle_no_snap = bodies.insert(character_body_no_snap);
+
+        let collider = ColliderBuilder::ball(0.5).build();
+        let character_shape = collider.shape();
+        colliders.insert_with_parent(collider.clone(), character_handle_no_snap, &mut bodies);
+
+        query_pipeline.update(&colliders);
+        for i in 0..10000 {
+            let mut update_character_controller =
+                |controller: KinematicCharacterController, handle: RigidBodyHandle| {
+                    let character_body = bodies.get(handle).unwrap();
+                    // Use a closure to handle or collect the collisions while
+                    // the character is being moved.
+                    let mut collisions = vec![];
+                    let filter_character_controller = QueryFilter::new().exclude_rigid_body(handle);
+                    let effective_movement = controller.move_shape(
+                        integration_parameters.dt,
+                        &bodies,
+                        &colliders,
+                        &query_pipeline,
+                        character_shape,
+                        character_body.position(),
+                        Vector::new(0.1, -0.1, 0.1),
+                        filter_character_controller,
+                        |collision| collisions.push(collision),
+                    );
+                    let character_body = bodies.get_mut(handle).unwrap();
+                    let translation = character_body.translation();
+                    assert_eq!(
+                        effective_movement.grounded, true,
+                        "movement should be grounded at all times for current setup (iter: {}), pos: {}.",
+                        i, translation + effective_movement.translation
+                    );
+                    character_body.set_next_kinematic_translation(
+                        translation + effective_movement.translation,
+                    );
+                };
+
+            update_character_controller(character_controller_no_snap, character_handle_no_snap);
+            update_character_controller(character_controller_snap, character_handle_snap);
+            // Step once
+            pipeline.step(
+                &gravity,
+                &integration_parameters,
+                &mut islands,
+                &mut bf,
+                &mut nf,
+                &mut bodies,
+                &mut colliders,
+                &mut impulse_joints,
+                &mut multibody_joints,
+                &mut CCDSolver::new(),
+                Some(&mut query_pipeline),
+                &(),
+                &(),
+            );
+        }
+        let character_body = bodies.get_mut(character_handle_no_snap).unwrap();
+        let translation = character_body.translation();
+
+        // accumulated numerical errors make the test go less far than it should,
+        // but it's expected.
+        assert!(
+            translation.x >= 997.0,
+            "actual translation.x:{}",
+            translation.x
+        );
+        assert!(
+            translation.z >= 997.0,
+            "actual translation.z:{}",
+            translation.z
+        );
+
+        let character_body = bodies.get_mut(character_handle_snap).unwrap();
+        let translation = character_body.translation();
+        assert!(
+            translation.x >= 997.0,
+            "actual translation.x:{}",
+            translation.x
+        );
+        assert!(
+            translation.z >= 997.0,
+            "actual translation.z:{}",
+            translation.z
+        );
     }
 }
