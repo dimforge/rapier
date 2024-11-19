@@ -11,6 +11,8 @@
 ### Added
 
 - `RigidBodySet` and `ColliderSet` have a new constructor `with_capacity`.
+- Use `profiling` crate to provide helpful profiling information in different tools.
+  - The testbeds have been updated to use `puffin_egui`
 
 ### Modified
 
