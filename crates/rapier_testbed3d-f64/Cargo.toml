@@ -37,6 +37,7 @@ default = ["dim3"]
 dim3 = []
 parallel = ["rapier/parallel", "num_cpus"]
 profiling = ["dep:puffin_egui", "profiling/profile-with-puffin"]
+# See https://github.com/dimforge/rapier/issues/760.
 unstable-puffin-pr-235 = []
 
 [package.metadata.docs.rs]
