@@ -221,7 +221,7 @@ impl Multibody {
 
         // Adjust the ids of all the rhs links except the first one.
         let base_assembly_id = self.velocities.len() - rhs_root_ndofs + joint.ndofs();
-        let base_internal_id = self.links.len() + 1;
+        let base_internal_id = self.links.len();
         let base_parent_id = self.links.len();
 
         for link in &mut rhs.links.0[1..] {
