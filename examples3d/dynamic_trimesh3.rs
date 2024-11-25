@@ -93,6 +93,7 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
             } else {
                 // SharedShape::trimesh(vertices, indices)
                 SharedShape::trimesh_with_flags(vertices, indices, TriMeshFlags::FIX_INTERNAL_EDGES)
+                    .unwrap()
             };
             shapes.push(decomposed_shape);
 

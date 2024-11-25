@@ -480,17 +480,14 @@ impl QueryPipeline {
         filter: QueryFilter,
     ) -> Option<ColliderHandle> {
         let pipeline_shape = self.as_composite_shape(bodies, colliders, filter);
-        #[allow(deprecated)]
         // TODO: replace this with IntersectionCompositeShapeShapeVisitor when it
         //        can return the shape part id.
-        let mut visitor =
-            parry::query::details::IntersectionCompositeShapeShapeBestFirstVisitor::new(
-                &*self.query_dispatcher,
-                shape_pos,
-                &pipeline_shape,
-                shape,
-            );
-
+        let mut visitor = parry::query::details::IntersectionCompositeShapeShapeVisitor::new(
+            &*self.query_dispatcher,
+            shape_pos,
+            &pipeline_shape,
+            shape,
+        );
         self.qbvh
             .traverse_best_first(&mut visitor)
             .map(|h| (h.1 .0))
