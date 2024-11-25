@@ -85,6 +85,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
                 for k in 0..5 {
                     let collider = ColliderBuilder::trimesh(vertices.clone(), indices.clone())
+                        .unwrap()
                         .contact_skin(0.2);
                     let rigid_body = RigidBodyBuilder::dynamic()
                         .translation(vector![ith as f32 * 8.0 - 20.0, 20.0 + k as f32 * 11.0])

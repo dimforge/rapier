@@ -1,6 +1,6 @@
 use parry::bounding_volume;
 use parry::math::{Isometry, Point, Real};
-use parry::shape::{Cuboid, SharedShape, TriMeshFlags};
+use parry::shape::{Cuboid, SharedShape, TriMeshBuilderError, TriMeshFlags};
 
 #[cfg(feature = "dim3")]
 use parry::transformation::vhacd::VHACDParameters;
@@ -17,6 +17,9 @@ pub enum MeshConverterError {
     /// The convex hull calculation carried out by the [`MeshConverter::ConvexHull`] failed.
     #[error("convex-hull computation failed")]
     ConvexHullFailed,
+    /// The TriMesh building failed.
+    #[error("TriMesh building failed")]
+    TriMeshBuilderError(TriMeshBuilderError),
 }
 
 /// Determines how meshes (generally when loaded from a file) are converted into Rapier colliders.
@@ -61,9 +64,11 @@ impl MeshConverter {
     ) -> Result<(SharedShape, Isometry<Real>), MeshConverterError> {
         let mut transform = Isometry::identity();
         let shape = match self {
-            MeshConverter::TriMesh => SharedShape::trimesh(vertices, indices),
+            MeshConverter::TriMesh => SharedShape::trimesh(vertices, indices)
+                .map_err(MeshConverterError::TriMeshBuilderError)?,
             MeshConverter::TriMeshWithFlags(flags) => {
                 SharedShape::trimesh_with_flags(vertices, indices, *flags)
+                    .map_err(MeshConverterError::TriMeshBuilderError)?
             }
             MeshConverter::Obb => {
                 let (pose, cuboid) = parry::utils::obb(&vertices);
