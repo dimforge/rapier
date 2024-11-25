@@ -239,7 +239,7 @@ impl Multibody {
         }
 
         // Grow buffers then append data from rhs.
-        self.grow_buffers(rhs_copy_ndofs + rhs.links[0].joint.ndofs(), rhs.links.len());
+        self.grow_buffers(rhs_copy_ndofs + rhs.links[0].joint.ndofs(), rhs.links.len() + 1);
 
         if rhs_copy_ndofs > 0 {
             self.velocities
