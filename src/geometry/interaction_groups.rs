@@ -38,9 +38,9 @@ pub struct InteractionGroups {
 pub enum InteractionTestMode {
     /// Use [`InteractionGroups::test_and`].
     #[default]
-    AND,
+    And,
     /// Use [`InteractionGroups::test_or`].
-    OR,
+    Or,
 }
 
 impl InteractionGroups {
