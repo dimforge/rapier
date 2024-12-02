@@ -28,6 +28,7 @@ required-features = ["dim2"]
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(feature, values("dim3", "f64"))',
 ] }
+clippy = { needless_lifetimes = "allow" }
 
 [features]
 default = ["dim2"]
@@ -66,6 +67,7 @@ puffin_egui = { version = "0.29", optional = true }
 bevy = { version = "0.15", default-features = false, features = [
     "bevy_sprite",
     "bevy_winit",
+    "bevy_window",
     "x11",
     "tonemapping_luts",
     "ktx2",
@@ -80,6 +82,7 @@ bevy = { version = "0.15", default-features = false, features = [
 bevy = { version = "0.15", default-features = false, features = [
     "bevy_sprite",
     "bevy_winit",
+    "bevy_window",
     "tonemapping_luts",
     "ktx2",
     "zstd",

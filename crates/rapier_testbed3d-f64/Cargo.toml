@@ -31,6 +31,7 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
     # but easier to just ignore it here.
     'cfg(feature, values("other-backends"))',
 ] }
+clippy = { needless_lifetimes = "allow" }
 
 [features]
 default = ["dim3"]
@@ -67,6 +68,7 @@ puffin_egui = { version = "0.29", optional = true, git = "https://github.com/Vri
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bevy = { version = "0.15", default-features = false, features = [
     "bevy_winit",
+    "bevy_window",
     "x11",
     "tonemapping_luts",
     "ktx2",
@@ -80,6 +82,8 @@ bevy = { version = "0.15", default-features = false, features = [
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 bevy = { version = "0.15", default-features = false, features = [
     "bevy_winit",
+    "bevy_window",
+    "bevy_window",
     "tonemapping_luts",
     "ktx2",
     "zstd",
