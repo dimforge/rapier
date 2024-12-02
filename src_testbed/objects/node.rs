@@ -42,7 +42,7 @@ impl EntityWithGraphics {
         }
 
         #[cfg(feature = "dim2")]
-        let selection_material = ColorMaterial {
+        let selection_material = bevy_sprite::ColorMaterial {
             color: Color::from(Srgba::rgb(1.0, 0.0, 0.0)),
             texture: None,
             ..default()
@@ -109,7 +109,7 @@ impl EntityWithGraphics {
         }
 
         #[cfg(feature = "dim2")]
-        let material = ColorMaterial {
+        let material = bevy_sprite::ColorMaterial {
             color: bevy_color,
             texture: None,
             ..default()

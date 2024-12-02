@@ -84,6 +84,7 @@ bitflags = "2"
 log = "0.4"
 ordered-float = "4"
 thiserror = "1"
+profiling = "1.0"
 
 [dev-dependencies]
 bincode = "1"

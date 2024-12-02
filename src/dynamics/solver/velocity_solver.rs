@@ -149,6 +149,7 @@ impl VelocitySolver {
         }
     }
 
+    #[profiling::function]
     pub fn solve_constraints(
         &mut self,
         params: &IntegrationParameters,
@@ -221,6 +222,7 @@ impl VelocitySolver {
         }
     }
 
+    #[profiling::function]
     pub fn integrate_positions(
         &mut self,
         params: &IntegrationParameters,

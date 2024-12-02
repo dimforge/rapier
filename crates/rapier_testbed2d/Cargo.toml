@@ -34,9 +34,12 @@ default = ["dim2"]
 dim2 = []
 parallel = ["rapier/parallel", "num_cpus"]
 other-backends = ["wrapped2d"]
+profiling = ["dep:puffin_egui", "profiling/profile-with-puffin"]
+# See https://github.com/dimforge/rapier/issues/760.
+unstable-puffin-pr-235 = []
 
 [package.metadata.docs.rs]
-features = ["parallel", "other-backends"]
+features = ["parallel", "other-backends", "profiling"]
 
 [dependencies]
 nalgebra = { version = "0.33", features = ["rand", "glam029"] }
@@ -55,7 +58,8 @@ bevy_ecs = "0.15"
 bevy_core_pipeline = "0.15"
 bevy_pbr = "0.15"
 bevy_sprite = "0.15"
-#bevy_prototype_debug_lines = "0.7"
+profiling = "1.0"
+puffin_egui = { version = "0.29", optional = true }
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

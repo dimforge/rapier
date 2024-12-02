@@ -1,19 +1,32 @@
 [package]
-name = "rapier3d-stl"
+name = "rapier3d-meshloader"
 version = "0.3.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "STL file loader for the 3D rapier physics engine."
-documentation = "https://docs.rs/rapier3d-stl"
+documentation = "https://docs.rs/rapier3d-meshloader"
 homepage = "https://rapier.rs"
 repository = "https://github.com/dimforge/rapier"
 readme = "README.md"
-categories = ["science", "game-development", "mathematics", "simulation", "wasm"]
+categories = [
+    "science",
+    "game-development",
+    "mathematics",
+    "simulation",
+    "wasm",
+]
 keywords = ["physics", "joints", "multibody", "robotics", "urdf"]
 license = "Apache-2.0"
 edition = "2021"
 
+[features]
+default = ["stl", "collada", "wavefront"]
+stl = ["mesh-loader/stl"]
+collada = ["mesh-loader/collada"]
+wavefront = ["mesh-loader/obj"]
+
 [dependencies]
 thiserror = "1.0.61"
-stl_io = "0.7"
+profiling = "1.0"
+mesh-loader = { version = "0.1.12", optional = true }
 
 rapier3d = { version = "0.22", path = "../rapier3d" }

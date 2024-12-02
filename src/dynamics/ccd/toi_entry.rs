@@ -34,6 +34,7 @@ impl TOIEntry {
         }
     }
 
+    #[profiling::function]
     pub fn try_from_colliders<QD: ?Sized + QueryDispatcher>(
         query_dispatcher: &QD,
         ch1: ColliderHandle,

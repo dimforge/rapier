@@ -250,6 +250,9 @@ impl TestbedApp {
     }
 
     pub fn run_with_init(mut self, mut init: impl FnMut(&mut App)) {
+        #[cfg(feature = "profiling")]
+        puffin_egui::puffin::set_scopes_on(true);
+
         let mut args = env::args();
         let mut benchmark_mode = false;
 
@@ -885,6 +888,10 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
     }
 
     fn handle_common_events(&mut self, events: &ButtonInput<KeyCode>) {
+        // C can be used to write within profiling filter.
+        if events.pressed(KeyCode::ControlLeft) || events.pressed(KeyCode::ControlRight) {
+            return;
+        }
         for key in events.get_just_released() {
             match *key {
                 KeyCode::KeyT => {
@@ -1183,6 +1190,8 @@ fn update_testbed(
     ),
     keys: Res<ButtonInput<KeyCode>>,
 ) {
+    profiling::finish_frame!();
+
     let meshes = &mut *meshes;
     let materials = &mut *materials;
 
@@ -1209,7 +1218,9 @@ fn update_testbed(
             plugins: &mut plugins,
         };
 
-        testbed.handle_common_events(&keys);
+        if !ui_context.ctx_mut().wants_keyboard_input() {
+            testbed.handle_common_events(&keys);
+        }
         testbed.update_character_controller(&keys);
         #[cfg(feature = "dim3")]
         {

@@ -85,6 +85,7 @@ impl DebugRenderPipeline {
     }
 
     /// Render the scene.
+    #[profiling::function]
     pub fn render(
         &mut self,
         backend: &mut impl DebugRenderBackend,
@@ -101,6 +102,7 @@ impl DebugRenderPipeline {
     }
 
     /// Render contact.
+    #[profiling::function]
     pub fn render_contacts(
         &mut self,
         backend: &mut impl DebugRenderBackend,
@@ -167,6 +169,7 @@ impl DebugRenderPipeline {
     }
 
     /// Render only the joints from the scene.
+    #[profiling::function]
     pub fn render_joints(
         &mut self,
         backend: &mut impl DebugRenderBackend,
@@ -249,6 +252,7 @@ impl DebugRenderPipeline {
     }
 
     /// Render only the rigid-bodies from the scene.
+    #[profiling::function]
     pub fn render_rigid_bodies(
         &mut self,
         backend: &mut impl DebugRenderBackend,
@@ -288,6 +292,7 @@ impl DebugRenderPipeline {
     }
 
     /// Render only the colliders from the scene.
+    #[profiling::function]
     pub fn render_colliders(
         &mut self,
         backend: &mut impl DebugRenderBackend,
@@ -351,6 +356,7 @@ impl DebugRenderPipeline {
     }
 
     #[cfg(feature = "dim2")]
+    #[profiling::function]
     fn render_shape(
         &mut self,
         object: DebugRenderObject,
@@ -458,6 +464,7 @@ impl DebugRenderPipeline {
     }
 
     #[cfg(feature = "dim3")]
+    #[profiling::function]
     fn render_shape(
         &mut self,
         object: DebugRenderObject,

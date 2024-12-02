@@ -18,7 +18,7 @@ use rand_pcg::Pcg32;
 use std::collections::HashMap;
 
 #[cfg(feature = "dim2")]
-pub type BevyMaterial = ColorMaterial;
+pub type BevyMaterial = bevy_sprite::ColorMaterial;
 #[cfg(feature = "dim3")]
 pub type BevyMaterial = StandardMaterial;
 #[cfg(feature = "dim2")]

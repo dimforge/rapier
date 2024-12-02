@@ -361,6 +361,7 @@ impl JointConstraintsSet {
         }
     }
 
+    #[profiling::function]
     pub fn solve(
         &mut self,
         solver_vels: &mut [SolverVel<Real>],
@@ -391,6 +392,7 @@ impl JointConstraintsSet {
         }
     }
 
+    #[profiling::function]
     pub fn update(
         &mut self,
         params: &IntegrationParameters,

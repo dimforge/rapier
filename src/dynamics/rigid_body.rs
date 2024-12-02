@@ -1016,6 +1016,7 @@ impl RigidBody {
     /// Applies an impulse at the center-of-mass of this rigid-body.
     /// The impulse is applied right away, changing the linear velocity.
     /// This does nothing on non-dynamic bodies.
+    #[profiling::function]
     pub fn apply_impulse(&mut self, impulse: Vector<Real>, wake_up: bool) {
         if !impulse.is_zero() && self.body_type == RigidBodyType::Dynamic {
             self.vels.linvel += impulse.component_mul(&self.mprops.effective_inv_mass);
@@ -1030,6 +1031,7 @@ impl RigidBody {
     /// The impulse is applied right away, changing the angular velocity.
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim2")]
+    #[profiling::function]
     pub fn apply_torque_impulse(&mut self, torque_impulse: Real, wake_up: bool) {
         if !torque_impulse.is_zero() && self.body_type == RigidBodyType::Dynamic {
             self.vels.angvel += self.mprops.effective_world_inv_inertia_sqrt
@@ -1045,6 +1047,7 @@ impl RigidBody {
     /// The impulse is applied right away, changing the angular velocity.
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim3")]
+    #[profiling::function]
     pub fn apply_torque_impulse(&mut self, torque_impulse: Vector<Real>, wake_up: bool) {
         if !torque_impulse.is_zero() && self.body_type == RigidBodyType::Dynamic {
             self.vels.angvel += self.mprops.effective_world_inv_inertia_sqrt

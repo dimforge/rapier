@@ -5,10 +5,14 @@
 - The region key has been replaced by an i64 in the f64 version of rapier, increasing the range before panics occur.
 - Fix `BroadphaseMultiSap` not being able to serialize correctly with serde_json.
 - Fix `KinematicCharacterController::move_shape` not respecting parameters `max_slope_climb_angle` and `min_slope_slide_angle`.
+- Improve ground detection reliability for `KinematicCharacterController`. (#715)
+- Fix wasm32 default values for physics hooks filter to be consistent with native: `COMPUTE_IMPULSES`.
 
 ### Added
 
 - `RigidBodySet` and `ColliderSet` have a new constructor `with_capacity`.
+- Use `profiling` crate to provide helpful profiling information in different tools.
+  - The testbeds have been updated to use `puffin_egui`
 
 ### Modified
 
