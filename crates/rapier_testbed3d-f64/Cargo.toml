@@ -52,16 +52,16 @@ bincode = "1"
 md5 = "0.7"
 Inflector = "0.11"
 serde = { version = "1", features = ["derive"] }
-bevy_egui = "0.30"
-bevy_ecs = "0.15.0-rc.3"
-bevy_core_pipeline = "0.15.0-rc.3"
-bevy_pbr = "0.15.0-rc.3"
-bevy_sprite = "0.15.0-rc.3"
+bevy_egui = "0.31"
+bevy_ecs = "0.15"
+bevy_core_pipeline = "0.15"
+bevy_pbr = "0.15"
+bevy_sprite = "0.15"
 #bevy_prototype_debug_lines = { version = "0.7", features = [ "3d" ] }
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = { version = "0.15.0-rc.3", default-features = false, features = [
+bevy = { version = "0.15", default-features = false, features = [
     "bevy_winit",
     "x11",
     "tonemapping_luts",
@@ -74,7 +74,7 @@ bevy = { version = "0.15.0-rc.3", default-features = false, features = [
 
 # Dependencies for WASM only.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy = { version = "0.15.0-rc.3", default-features = false, features = [
+bevy = { version = "0.15", default-features = false, features = [
     "bevy_winit",
     "tonemapping_luts",
     "ktx2",
