@@ -49,7 +49,7 @@ If you would like to fix it yourself, here is the procedure:
 
 ## Contributing to the JavaScript/TypeScript bindings
 The source code of the official JavaScript/TypeScript bindings for Rapier are available
-on our `rapier.js` repository [on GitHub](https://github.com/dimforge/rapier.rs).
+on our `rapier.js` repository [on GitHub](https://github.com/dimforge/rapier.js).
 
 You will have to make sure that you have [wasm-pack](https://github.com/rustwasm/wasm-pack) installed because
 it is responsible for generating the low-level bindings. In order to modify the bindings and test your
