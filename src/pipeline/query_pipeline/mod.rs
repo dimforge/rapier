@@ -488,9 +488,9 @@ impl QueryPipeline {
             &pipeline_shape,
             shape,
         );
-        self.qbvh
-            .traverse_best_first(&mut visitor)
-            .map(|h| (h.1 .0))
+
+        self.qbvh.traverse_depth_first(&mut visitor);
+        visitor.found_intersection
     }
 
     /// Find the projection of a point on the closest collider.
