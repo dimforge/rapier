@@ -36,12 +36,12 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 default = ["dim3"]
 dim3 = []
 parallel = ["rapier/parallel", "num_cpus"]
-profiling = ["dep:puffin_egui", "profiling/profile-with-puffin"]
+profiler_ui = [] #["dep:puffin_egui", "profiling/profile-with-puffin"]
 # See https://github.com/dimforge/rapier/issues/760.
 unstable-puffin-pr-235 = []
 
 [package.metadata.docs.rs]
-features = ["parallel", "profiling"]
+features = ["parallel", "profiler_ui"]
 
 [lints.clippy]
 needless_lifetimes = "allow"

@@ -21,7 +21,7 @@ pub fn update_ui(
     harness: &mut Harness,
     debug_render: &mut DebugRenderPipelineResource,
 ) {
-    #[cfg(feature = "profiling")]
+    #[cfg(feature = "profiler_ui")]
     {
         let window = egui::Window::new("Profiling");
         let window = window.default_open(false);

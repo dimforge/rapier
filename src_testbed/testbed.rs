@@ -249,7 +249,7 @@ impl TestbedApp {
     }
 
     pub fn run_with_init(mut self, mut init: impl FnMut(&mut App)) {
-        #[cfg(feature = "profiling")]
+        #[cfg(feature = "profiler_ui")]
         puffin_egui::puffin::set_scopes_on(true);
 
         let mut args = env::args();
