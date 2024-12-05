@@ -45,7 +45,7 @@ pub struct ContactModificationContext<'a> {
     pub user_data: &'a mut u32,
 }
 
-impl<'a> ContactModificationContext<'a> {
+impl ContactModificationContext<'_> {
     /// Helper function to update `self` to emulate a oneway-platform.
     ///
     /// The "oneway" behavior will only allow contacts between two colliders

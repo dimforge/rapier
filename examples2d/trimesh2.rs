@@ -143,7 +143,7 @@ pub struct PathConvIter<'a> {
     deferred: Option<PathEvent>,
 }
 
-impl<'l> Iterator for PathConvIter<'l> {
+impl Iterator for PathConvIter<'_> {
     type Item = PathEvent;
     fn next(&mut self) -> Option<PathEvent> {
         if self.deferred.is_some() {
