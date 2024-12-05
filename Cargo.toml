@@ -39,14 +39,10 @@ resolver = "2"
 #parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
 
 
-# parry2d = { git = "https://github.com/Vrixyz/parry", branch = "273-shape-shape-best" }
-# parry3d = { git = "https://github.com/Vrixyz/parry", branch = "273-shape-shape-best" }
-# parry2d-f64 = { git = "https://github.com/Vrixyz/parry", branch = "273-shape-shape-best" }
-# parry3d-f64 = { git = "https://github.com/Vrixyz/parry", branch = "273-shape-shape-best" }
-parry2d = { path = "../parry/crates/parry2d" }
-parry3d = { path = "../parry/crates/parry3d" }
-parry2d-f64 = { path = "../parry/crates/parry2d-f64" }
-parry3d-f64 = { path = "../parry/crates/parry3d-f64" }
+parry2d = { git = "https://github.com/Vrixyz/parry", branch = "273-shape-shape-partId" }
+parry3d = { git = "https://github.com/Vrixyz/parry", branch = "273-shape-shape-partId" }
+parry2d-f64 = { git = "https://github.com/Vrixyz/parry", branch = "273-shape-shape-partId" }
+parry3d-f64 = { git = "https://github.com/Vrixyz/parry", branch = "273-shape-shape-partId" }
 
 # # For feature unstable-puffin-pr-235
 # # See https://github.com/dimforge/rapier/issues/760.
