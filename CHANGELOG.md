@@ -18,6 +18,7 @@
 
 - `InteractionGroups` default value for `memberships` is now `GROUP_1` (#706)
 - `ImpulseJointSet::get_mut` has a new parameter `wake_up: bool`, to wake up connected bodies.
+- Removed unmaintained `instant` in favor of `web-time`.
 
 ## v0.22.0 (20 July 2024)
 

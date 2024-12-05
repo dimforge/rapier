@@ -75,9 +75,9 @@ jobs:
       - uses: actions/checkout@v4
       - run: rustup target add wasm32-unknown-unknown
       - name: build rapier2d
-        run: cd crates/rapier2d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
+        run: cd crates/rapier2d && cargo build --verbose --target wasm32-unknown-unknown;
       - name: build rapier3d
-        run: cd crates/rapier3d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
+        run: cd crates/rapier3d && cargo build --verbose --target wasm32-unknown-unknown;
   build-wasm-emscripten:
     runs-on: ubuntu-latest
     env:

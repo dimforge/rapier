@@ -14,6 +14,7 @@ use crate::PhysicsState;
 use bevy_egui::egui::{Slider, Ui};
 use bevy_egui::{egui, EguiContexts};
 use rapier::dynamics::IntegrationParameters;
+use web_time::Instant;
 
 pub fn update_ui(
     ui_context: &mut EguiContexts,
@@ -430,23 +431,23 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
 }
 
 fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
-    let t = instant::now();
-    // let t = instant::now();
+    let t = Instant::now();
+    // let t = Instant::now();
     let bf = bincode::serialize(&physics.broad_phase).unwrap();
-    // println!("bf: {}", instant::now() - t);
-    // let t = instant::now();
+    // println!("bf: {}", Instant::now() - t);
+    // let t = Instant::now();
     let nf = bincode::serialize(&physics.narrow_phase).unwrap();
-    // println!("nf: {}", instant::now() - t);
-    // let t = instant::now();
+    // println!("nf: {}", Instant::now() - t);
+    // let t = Instant::now();
     let bs = bincode::serialize(&physics.bodies).unwrap();
-    // println!("bs: {}", instant::now() - t);
-    // let t = instant::now();
+    // println!("bs: {}", Instant::now() - t);
+    // let t = Instant::now();
     let cs = bincode::serialize(&physics.colliders).unwrap();
-    // println!("cs: {}", instant::now() - t);
-    // let t = instant::now();
+    // println!("cs: {}", Instant::now() - t);
+    // let t = Instant::now();
     let js = bincode::serialize(&physics.impulse_joints).unwrap();
-    // println!("js: {}", instant::now() - t);
-    let serialization_time = instant::now() - t;
+    // println!("js: {}", Instant::now() - t);
+    let serialization_time = Instant::now() - t;
     let hash_bf = md5::compute(&bf);
     let hash_nf = md5::compute(&nf);
     let hash_bodies = md5::compute(&bs);
@@ -460,7 +461,7 @@ Hashes at frame: {}
 |_ &RigidBodySet [{:.1}KB]: {}
 |_ Colliders [{:.1}KB]: {}
 |_ Joints [{:.1}KB]: {}"#,
-        serialization_time,
+        serialization_time.as_secs_f64() / 1000.0,
         timestep_id,
         bf.len() as f32 / 1000.0,
         format!("{:?}", hash_bf).split_at(10).0,
