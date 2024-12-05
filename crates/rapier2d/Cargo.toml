@@ -25,6 +25,7 @@ maintenance = { status = "actively-developed" }
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(feature, values("dim3", "f64"))',
 ] }
+clippy = { needless_lifetimes = "allow" }
 
 [features]
 default = ["dim2", "f32"]

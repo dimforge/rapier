@@ -18,6 +18,9 @@ members = [
 ]
 resolver = "2"
 
+[workspace.lints.clippy]
+needless_lifetimes = "allow"
+
 [patch.crates-io]
 #wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }
 #xurdf = { path = "../xurdf/xurdf" }
@@ -37,6 +40,10 @@ resolver = "2"
 #parry3d = { git = "https://github.com/dimforge/parry", branch = "master" }
 #parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
 #parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
+
+# See https://github.com/EmbarkStudios/puffin/pull/234
+puffin_egui = { git = "https://github.com/tedsteen/puffin.git", rev = "11771ebe00fd257aedbb545df3339ad597b1cc34" }
+
 
 # # For feature unstable-puffin-pr-235
 # # See https://github.com/dimforge/rapier/issues/760.
