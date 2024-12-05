@@ -34,7 +34,7 @@ default = ["dim2"]
 dim2 = []
 parallel = ["rapier/parallel", "num_cpus"]
 other-backends = ["wrapped2d"]
-profiler_ui = [] #["dep:puffin_egui", "profiling/profile-with-puffin"]
+profiler_ui = ["dep:puffin_egui", "profiling/profile-with-puffin"]
 # See https://github.com/dimforge/rapier/issues/760.
 unstable-puffin-pr-235 = []
 
