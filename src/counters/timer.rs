@@ -55,7 +55,7 @@ impl Timer {
 
     /// The measured time between the last `.start()` and `.pause()` calls.
     pub fn time(&self) -> f64 {
-        self.time.as_secs_f64() / 1000.0
+        self.time.as_secs_f64() * 1000.0
     }
 }
 

@@ -461,7 +461,7 @@ Hashes at frame: {}
 |_ &RigidBodySet [{:.1}KB]: {}
 |_ Colliders [{:.1}KB]: {}
 |_ Joints [{:.1}KB]: {}"#,
-        serialization_time.as_secs_f64() / 1000.0,
+        serialization_time.as_secs_f64() * 1000.0,
         timestep_id,
         bf.len() as f32 / 1000.0,
         format!("{:?}", hash_bf).split_at(10).0,
