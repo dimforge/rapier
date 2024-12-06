@@ -393,7 +393,8 @@ impl TestbedApp {
 
                         // Skip the first update.
                         if k > 0 {
-                            timings.push(self.harness.physics.pipeline.counters.step_time.time());
+                            timings
+                                .push(self.harness.physics.pipeline.counters.step_time.time_ms());
                         }
                     }
                     results.push(timings);

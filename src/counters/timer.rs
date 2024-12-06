@@ -54,13 +54,18 @@ impl Timer {
     }
 
     /// The measured time between the last `.start()` and `.pause()` calls.
-    pub fn time(&self) -> f64 {
+    pub fn time(&self) -> Duration {
+        self.time
+    }
+
+    /// The measured time in milliseconds between the last `.start()` and `.pause()` calls.
+    pub fn time_ms(&self) -> f64 {
         self.time.as_secs_f64() * 1000.0
     }
 }
 
 impl Display for Timer {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        write!(f, "{}s", self.time.as_secs_f32())
+        write!(f, "{}ms", self.time_ms())
     }
 }
