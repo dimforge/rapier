@@ -10,7 +10,7 @@ use crate::pipeline::{ActiveEvents, ActiveHooks};
 use crate::prelude::ColliderEnabled;
 use na::Unit;
 use parry::bounding_volume::{Aabb, BoundingVolume};
-use parry::shape::{Shape, TriMeshFlags};
+use parry::shape::{Shape, TriMeshBuilderError, TriMeshFlags};
 
 #[cfg(feature = "dim3")]
 use crate::geometry::HeightFieldFlags;
@@ -685,8 +685,11 @@ impl ColliderBuilder {
     }
 
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers.
-    pub fn trimesh(vertices: Vec<Point<Real>>, indices: Vec<[u32; 3]>) -> Self {
-        Self::new(SharedShape::trimesh(vertices, indices))
+    pub fn trimesh(
+        vertices: Vec<Point<Real>>,
+        indices: Vec<[u32; 3]>,
+    ) -> Result<Self, TriMeshBuilderError> {
+        Ok(Self::new(SharedShape::trimesh(vertices, indices)?))
     }
 
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers and
@@ -695,8 +698,10 @@ impl ColliderBuilder {
         vertices: Vec<Point<Real>>,
         indices: Vec<[u32; 3]>,
         flags: TriMeshFlags,
-    ) -> Self {
-        Self::new(SharedShape::trimesh_with_flags(vertices, indices, flags))
+    ) -> Result<Self, TriMeshBuilderError> {
+        Ok(Self::new(SharedShape::trimesh_with_flags(
+            vertices, indices, flags,
+        )?))
     }
 
     /// Initializes a collider builder with a shape converted from the given triangle mesh index

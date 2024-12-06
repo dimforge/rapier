@@ -20,7 +20,7 @@ usvg = "0.14"
 
 [dependencies.rapier_testbed2d]
 path = "../crates/rapier_testbed2d"
-features = ["profiling"]
+features = ["profiler_ui"]
 
 [dependencies.rapier2d]
 path = "../crates/rapier2d"
