@@ -492,13 +492,6 @@ impl TestbedGraphics<'_, '_, '_, '_, '_, '_> {
         )
     }
 
-    pub fn remove_collider(&mut self, handle: ColliderHandle, colliders: &ColliderSet) {
-        if let Some(parent_handle) = colliders.get(handle).map(|c| c.parent()) {
-            self.graphics
-                .remove_collider_nodes(&mut *self.commands, parent_handle, handle)
-        }
-    }
-
     pub fn remove_body(&mut self, handle: RigidBodyHandle) {
         self.graphics.remove_body_nodes(&mut *self.commands, handle)
     }
@@ -511,6 +504,18 @@ impl TestbedGraphics<'_, '_, '_, '_, '_, '_> {
             handle,
             colliders,
         )
+    }
+
+    pub fn remove_collider(&mut self, handle: ColliderHandle, colliders: &ColliderSet) {
+        if let Some(parent_handle) = colliders.get(handle).map(|c| c.parent()) {
+            self.graphics
+                .remove_collider_nodes(&mut *self.commands, parent_handle, handle)
+        }
+    }
+
+    pub fn update_collider(&mut self, handle: ColliderHandle, colliders: &ColliderSet) {
+        self.remove_collider(handle, colliders);
+        self.add_collider(handle, colliders);
     }
 
     pub fn keys(&self) -> &ButtonInput<KeyCode> {
