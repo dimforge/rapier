@@ -1,4 +1,4 @@
-use super::{outlines, DebugRenderBackend, DebugColor};
+use super::{outlines, DebugColor, DebugRenderBackend};
 use crate::dynamics::{
     GenericJoint, ImpulseJointSet, MultibodyJointSet, RigidBodySet, RigidBodyType,
 };
@@ -365,8 +365,6 @@ impl DebugRenderPipeline {
         pos: &Isometry<Real>,
         color: DebugColor,
     ) {
-        
-
         match shape.as_typed_shape() {
             TypedShape::Ball(s) => {
                 let vtx = &self.instances[&TypeId::of::<Ball>()];
