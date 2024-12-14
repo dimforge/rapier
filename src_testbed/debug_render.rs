@@ -5,7 +5,7 @@ use bevy::gizmos::gizmos::Gizmos;
 use bevy::prelude::*;
 use rapier::math::{Point, Real};
 use rapier::pipeline::{
-    DebugRenderBackend, DebugRenderMode, DebugRenderObject, DebugRenderPipeline,
+    DebugRenderBackend, DebugRenderMode, DebugRenderObject, DebugRenderPipeline, DebugColor
 };
 
 #[derive(Resource)]
@@ -36,7 +36,7 @@ struct BevyLinesRenderBackend<'w, 's> {
 
 impl<'w, 's> DebugRenderBackend for BevyLinesRenderBackend<'w, 's> {
     #[cfg(feature = "dim2")]
-    fn draw_line(&mut self, _: DebugRenderObject, a: Point<Real>, b: Point<Real>, color: [f32; 4]) {
+    fn draw_line(&mut self, _: DebugRenderObject, a: Point<Real>, b: Point<Real>, color: DebugColor) {
         self.gizmos.line(
             [a.x as f32, a.y as f32, 1.0e-8].into(),
             [b.x as f32, b.y as f32, 1.0e-8].into(),
@@ -44,7 +44,7 @@ impl<'w, 's> DebugRenderBackend for BevyLinesRenderBackend<'w, 's> {
         )
     }
     #[cfg(feature = "dim3")]
-    fn draw_line(&mut self, _: DebugRenderObject, a: Point<Real>, b: Point<Real>, color: [f32; 4]) {
+    fn draw_line(&mut self, _: DebugRenderObject, a: Point<Real>, b: Point<Real>, color: DebugColor) {
         self.gizmos.line(
             [a.x as f32, a.y as f32, a.z as f32].into(),
             [b.x as f32, b.y as f32, b.z as f32].into(),

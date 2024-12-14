@@ -1,3 +1,4 @@
+use super::DebugColor;
 use crate::dynamics::{
     ImpulseJoint, ImpulseJointHandle, Multibody, MultibodyLink, RigidBody, RigidBodyHandle,
 };
@@ -43,7 +44,7 @@ pub trait DebugRenderBackend {
         object: DebugRenderObject,
         a: Point<Real>,
         b: Point<Real>,
-        color: [f32; 4],
+        color: DebugColor,
     );
 
     /// Draws a set of lines.
@@ -54,7 +55,7 @@ pub trait DebugRenderBackend {
         indices: &[[u32; 2]],
         transform: &Isometry<Real>,
         scale: &Vector<Real>,
-        color: [f32; 4],
+        color: DebugColor,
     ) {
         for idx in indices {
             let a = transform * (Scale::from(*scale) * vertices[idx[0] as usize]);
@@ -70,7 +71,7 @@ pub trait DebugRenderBackend {
         vertices: &[Point<Real>],
         transform: &Isometry<Real>,
         scale: &Vector<Real>,
-        color: [f32; 4],
+        color: DebugColor,
         closed: bool,
     ) {
         for vtx in vertices.windows(2) {
