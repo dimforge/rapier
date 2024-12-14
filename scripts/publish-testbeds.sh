@@ -24,9 +24,21 @@ currdir=$(pwd)
 cd "$tmp" && cargo publish $DRY_RUN
 cd "$currdir" || exit
 
-
 ### Publish the 3D version.
 $gsed 's#\.\./\.\./src#src#g' crates/rapier_testbed3d/Cargo.toml > "$tmp"/Cargo.toml
+$gsed -i 's#\.\./rapier#./crates/rapier#g' "$tmp"/Cargo.toml
+cp -r LICENSE README.md "$tmp"/.
+cd "$tmp" && cargo publish $DRY_RUN
+
+### Publish the 2D f64 version.
+$gsed 's#\.\./\.\./src#src#g' crates/rapier_testbed2d-f64/Cargo.toml > "$tmp"/Cargo.toml
+$gsed -i 's#\.\./rapier#./crates/rapier#g' "$tmp"/Cargo.toml
+currdir=$(pwd)
+cd "$tmp" && cargo publish $DRY_RUN
+cd "$currdir" || exit
+
+### Publish the 3D f64 version.
+$gsed 's#\.\./\.\./src#src#g' crates/rapier_testbed3d-f64/Cargo.toml > "$tmp"/Cargo.toml
 $gsed -i 's#\.\./rapier#./crates/rapier#g' "$tmp"/Cargo.toml
 cp -r LICENSE README.md "$tmp"/.
 cd "$tmp" && cargo publish $DRY_RUN
