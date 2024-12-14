@@ -1,4 +1,7 @@
-use crate::dynamics::joint::{GenericJoint, GenericJointBuilder, JointAxesMask};
+#[cfg(feature = "dim2")]
+use crate::dynamics::joint::{GenericJointBuilder, JointAxesMask};
+
+use crate::dynamics::joint::GenericJoint;
 use crate::dynamics::{JointAxis, MotorModel};
 use crate::math::{Point, Real, UnitVector};
 
