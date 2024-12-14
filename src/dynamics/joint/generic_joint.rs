@@ -65,6 +65,8 @@ bitflags::bitflags! {
         const LOCKED_REVOLUTE_AXES = Self::LIN_X.bits() | Self::LIN_Y.bits();
         /// The set of degrees of freedom locked by a prismatic joint.
         const LOCKED_PRISMATIC_AXES = Self::LIN_Y.bits() | Self::ANG_X.bits();
+        /// The set of degrees of freedom locked by a groove joint.
+        const LOCKED_GROOVE_AXES = Self::LIN_Y.bits();
         /// The set of degrees of freedom locked by a fixed joint.
         const LOCKED_FIXED_AXES = Self::LIN_X.bits() | Self::LIN_Y.bits() | Self::ANG_X.bits();
         /// The set of degrees of freedom left free by a revolute joint.
