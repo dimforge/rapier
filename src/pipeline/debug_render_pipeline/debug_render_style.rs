@@ -35,11 +35,11 @@ pub struct DebugRenderStyle {
     /// If a rigid-body is sleeping, its attached entities will have their colors
     /// multiplied by this array. (For a joint, both attached rigid-bodies must be sleeping
     /// or non-dynamic for this multiplier to be applied).
-    pub sleep_color_multiplier: [f32; 4],
+    pub sleep_color_multiplier: DebugColor,
     /// If a rigid-body is disabled, its attached entities will have their colors
     /// multiplied by this array. (For a joint, both attached rigid-bodies must be disabled
     /// for this multiplier to be applied).
-    pub disabled_color_multiplier: [f32; 4],
+    pub disabled_color_multiplier: DebugColor,
     /// The length of the local coordinate axes rendered for a rigid-body.
     pub rigid_body_axes_length: Real,
     /// The color for the segments joining the two contact points.

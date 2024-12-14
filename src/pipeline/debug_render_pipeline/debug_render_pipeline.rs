@@ -1,4 +1,4 @@
-use super::{outlines, DebugRenderBackend};
+use super::{outlines, DebugColor, DebugRenderBackend};
 use crate::dynamics::{
     GenericJoint, ImpulseJointSet, MultibodyJointSet, RigidBodySet, RigidBodyType,
 };
@@ -180,8 +180,8 @@ impl DebugRenderPipeline {
         let mut render_joint = |body1,
                                 body2,
                                 data: &GenericJoint,
-                                mut anchor_color: [f32; 4],
-                                mut separation_color: [f32; 4],
+                                mut anchor_color: DebugColor,
+                                mut separation_color: DebugColor,
                                 object| {
             if !backend.filter_object(object) {
                 return;
@@ -363,7 +363,7 @@ impl DebugRenderPipeline {
         backend: &mut impl DebugRenderBackend,
         shape: &dyn Shape,
         pos: &Isometry<Real>,
-        color: [f32; 4],
+        color: DebugColor,
     ) {
         match shape.as_typed_shape() {
             TypedShape::Ball(s) => {
@@ -471,7 +471,7 @@ impl DebugRenderPipeline {
         backend: &mut impl DebugRenderBackend,
         shape: &dyn Shape,
         pos: &Isometry<Real>,
-        color: [f32; 4],
+        color: DebugColor,
     ) {
         match shape.as_typed_shape() {
             TypedShape::Ball(s) => {
