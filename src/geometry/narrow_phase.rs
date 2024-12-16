@@ -1282,6 +1282,7 @@ mod test {
         assert_eq!(contact_pair.manifolds.len(), 0);
         assert!(matches!(
             narrow_phase.intersection_pair(collider_1_handle, collider_2_handle),
+            // Interaction pair is for sensors
             None,
         ));
         /* Parent collider 2 to body 2. */
@@ -1309,7 +1310,7 @@ mod test {
         assert_eq!(contact_pair.manifolds.len(), 1);
         assert!(matches!(
             narrow_phase.intersection_pair(collider_1_handle, collider_2_handle),
-            // FIXME: I believe this is expected because we've not enabled intersection detection?
+            // Interaction pair is for sensors
             None,
         ));
 
@@ -1406,6 +1407,16 @@ mod test {
             &physics_hooks,
             &event_handler,
         );
+
+        let contact_pair = narrow_phase
+            .contact_pair(collider_1_handle, collider_2_handle)
+            .expect("The contact pair should exist.");
+        assert_eq!(
+            contact_pair.manifolds.len(),
+            1,
+            "There should be a contact manifold."
+        );
+
         let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
         let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
         assert!(
@@ -1416,6 +1427,30 @@ mod test {
 
         /* Parent collider 2 to body 1. */
         collider_set.set_parent(collider_2_handle, Some(body_1_handle), &mut rigid_body_set);
+        physics_pipeline.step(
+            &gravity,
+            &integration_parameters,
+            &mut island_manager,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &mut impulse_joint_set,
+            &mut multibody_joint_set,
+            &mut ccd_solver,
+            Some(&mut query_pipeline),
+            &physics_hooks,
+            &event_handler,
+        );
+
+        let contact_pair = narrow_phase
+            .contact_pair(collider_1_handle, collider_2_handle)
+            .expect("The contact pair should exist.");
+        assert_eq!(
+            contact_pair.manifolds.len(),
+            0,
+            "Colliders with same parent should not be in contact together."
+        );
 
         /* Run the game loop, stepping the simulation once per frame. */
         for _ in 0..200 {
@@ -1435,8 +1470,8 @@ mod test {
                 &event_handler,
             );
 
-            let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
-            let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
+            collider_set.get(collider_1_handle).unwrap().pos;
+            collider_set.get(collider_2_handle).unwrap().pos;
         }
 
         let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
@@ -1445,7 +1480,7 @@ mod test {
         assert!(
             (collider_1_position.translation.vector - collider_2_position.translation.vector)
                 .magnitude()
-                < 0.5f32,
+                < 0.1f32,
             "colliders should be penetrating."
         );
         assert!(
@@ -1456,9 +1491,7 @@ mod test {
                 .translation
                 .vector
                 .magnitude()
-                // TODO: this is probably a way too big value to test, consider lowering it.
-                // In the meantime, this proves that current behaviour is incorrect.
-                < 30000f32,
+                < 0.1f32,
             "Body 1 should not have gone too far from origin."
         );
     }
