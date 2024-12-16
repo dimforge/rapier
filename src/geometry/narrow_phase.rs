@@ -615,12 +615,6 @@ impl NarrowPhase {
         if let (Some(co1), Some(co2)) =
             (colliders.get(pair.collider1), colliders.get(pair.collider2))
         {
-            if co1.parent.map(|p| p.handle) == co2.parent.map(|p| p.handle) && co1.parent.is_some()
-            {
-                // Same parents. Ignore collisions.
-                return;
-            }
-
             // These colliders have no parents - continue.
 
             let (gid1, gid2) = self.graph_indices.ensure_pair_exists(
@@ -745,7 +739,13 @@ impl NarrowPhase {
                     // No update needed for these colliders.
                     return;
                 }
-
+                if co1.parent.map(|p| p.handle) == co2.parent.map(|p| p.handle)
+                    && co1.parent.is_some()
+                {
+                    // Same parents. Ignore collisions.
+                    edge.weight.intersecting = false;
+                    break 'emit_events;
+                }
                 // TODO: avoid lookup into bodies.
                 let mut rb_type1 = RigidBodyType::Fixed;
                 let mut rb_type2 = RigidBodyType::Fixed;
@@ -845,6 +845,12 @@ impl NarrowPhase {
                 {
                     // No update needed for these colliders.
                     return;
+                }
+                if co1.parent.map(|p| p.handle) == co2.parent.map(|p| p.handle) && co1.parent.is_some()
+                {
+                    // Same parents. Ignore collisions.
+                    pair.clear();
+                    break 'emit_events;
                 }
 
                 let rb1 = co1.parent.map(|co_parent1| &bodies[co_parent1.handle]);
@@ -1270,15 +1276,43 @@ mod test {
                 < 0.5f32
         );
 
+        let contact_pair = narrow_phase
+            .contact_pair(collider_1_handle, collider_2_handle)
+            .expect("The contact pair should exist.");
+        assert_eq!(contact_pair.manifolds.len(), 0);
+        assert!(matches!(
+            narrow_phase.intersection_pair(collider_1_handle, collider_2_handle),
+            None,
+        ));
         /* Parent collider 2 to body 2. */
         collider_set.set_parent(collider_2_handle, Some(body_2_handle), &mut rigid_body_set);
-        narrow_phase.add_pair(
-            &collider_set,
-            &ColliderPair {
-                collider1: collider_2_handle,
-                collider2: collider_1_handle,
-            },
+
+        physics_pipeline.step(
+            &gravity,
+            &integration_parameters,
+            &mut island_manager,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &mut impulse_joint_set,
+            &mut multibody_joint_set,
+            &mut ccd_solver,
+            Some(&mut query_pipeline),
+            &physics_hooks,
+            &event_handler,
         );
+
+        let contact_pair = narrow_phase
+            .contact_pair(collider_1_handle, collider_2_handle)
+            .expect("The contact pair should exist.");
+        assert_eq!(contact_pair.manifolds.len(), 1);
+        assert!(matches!(
+            narrow_phase.intersection_pair(collider_1_handle, collider_2_handle),
+            // FIXME: I believe this is expected because we've not enabled intersection detection?
+            None,
+        ));
+
         /* Run the game loop, stepping the simulation once per frame. */
         for _ in 0..200 {
             physics_pipeline.step(
@@ -1305,6 +1339,7 @@ mod test {
 
         let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
         let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
+        println!("collider 2 position: {}", collider_2_position.translation);
         assert!(
             (collider_1_position.translation.vector - collider_2_position.translation.vector)
                 .magnitude()
@@ -1338,11 +1373,7 @@ mod test {
             .build();
         let body_2_handle = rigid_body_set.insert(rigid_body_2);
 
-        /* Create collider 2. Parent it to rigid body 1. */
-        //let collider_2_handle =
-        //    collider_set.insert_with_parent(collider.build(), body_2_handle, &mut rigid_body_set);
-
-        /* Create collider 2. Parent it to rigid body 1. */
+        /* Create collider 2. Parent it to rigid body 2. */
         let collider_2_handle =
             collider_set.insert_with_parent(collider.build(), body_2_handle, &mut rigid_body_set);
 
@@ -1406,12 +1437,11 @@ mod test {
 
             let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
             let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
-            println!("collider 1 position: {}", collider_1_position.translation);
-            println!("collider 2 position: {}", collider_2_position.translation);
         }
 
         let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
         let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
+        println!("collider 2 position: {}", collider_2_position.translation);
         assert!(
             (collider_1_position.translation.vector - collider_2_position.translation.vector)
                 .magnitude()
