@@ -82,6 +82,7 @@ impl IntersectionPair {
         events: &dyn EventHandler,
     ) {
         self.start_event_emitted = true;
+        println!("start");
         events.handle_collision_event(
             bodies,
             colliders,
@@ -99,6 +100,7 @@ impl IntersectionPair {
         events: &dyn EventHandler,
     ) {
         self.start_event_emitted = false;
+        println!("stop");
         events.handle_collision_event(
             bodies,
             colliders,
