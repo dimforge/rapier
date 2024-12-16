@@ -7,7 +7,7 @@
 - Fix `KinematicCharacterController::move_shape` not respecting parameters `max_slope_climb_angle` and `min_slope_slide_angle`.
 - Improve ground detection reliability for `KinematicCharacterController`. (#715)
 - Fix wasm32 default values for physics hooks filter to be consistent with native: `COMPUTE_IMPULSES`.
-- Fix `set_parent` when ongoing collisions should be affected (#742):
+- Fix changing a collider parent when ongoing collisions should be affected (#742):
   - Fix collisions not being removed when a collider is parented to a rigidbody while in collision with it.
   - Fix collisions not being added when the parent was removed while intersecting a (previously) sibling collider.
 
