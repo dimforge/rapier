@@ -134,6 +134,9 @@ pub struct ContactForceEvent {
     pub collider2: ColliderHandle,
     /// The sum of all the forces between the two colliders.
     pub total_force: Vector<Real>,
+    #[cfg(feature = "dim3")]
+    /// The sum of all the tangent forces between the two colliders.
+    pub total_tangent_force: Vector<Real>,
     /// The sum of the magnitudes of each force between the two colliders.
     ///
     /// Note that this is **not** the same as the magnitude of `self.total_force`.
@@ -160,6 +163,18 @@ impl ContactForceEvent {
             let mut total_manifold_impulse = 0.0;
             for pt in m.contacts() {
                 total_manifold_impulse += pt.data.impulse;
+                #[cfg(feature = "dim3")]
+                {
+                    let tangents1 = [
+                        &pt.data.tangent1,
+                        &(-m.data.normal).cross(&pt.data.tangent1),
+                    ];
+
+                    let tangent_impulse = tangents1[0] * pt.data.warmstart_tangent_impulse[0]
+                        + tangents1[1] * pt.data.warmstart_tangent_impulse[1];
+
+                    result.total_tangent_force += tangent_impulse;
+                }
 
                 if pt.data.impulse > result.max_force_magnitude {
                     result.max_force_magnitude = pt.data.impulse;
@@ -176,6 +191,10 @@ impl ContactForceEvent {
         //       because it’s an input of this function already
         //       assumed to be a force instead of an impulse.
         result.total_force *= inv_dt;
+        #[cfg(feature = "dim3")]
+        {
+            result.total_tangent_force *= inv_dt;
+        }
         result.max_force_magnitude *= inv_dt;
         result
     }

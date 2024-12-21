@@ -38,6 +38,9 @@ pub struct ContactData {
     /// The friction impulse along the vector orthonormal to the contact normal, applied to the first
     /// collider's rigid-body.
     pub tangent_impulse: TangentImpulse<Real>,
+    #[cfg(feature = "dim3")]
+    /// One of the friction force directions.
+    pub tangent1: Vector<Real>,
     /// The impulse retained for warmstarting the next simulation step.
     pub warmstart_impulse: Real,
     /// The friction impulse retained for warmstarting the next simulation step.
@@ -51,6 +54,8 @@ impl Default for ContactData {
             tangent_impulse: na::zero(),
             warmstart_impulse: 0.0,
             warmstart_tangent_impulse: na::zero(),
+            #[cfg(feature = "dim3")]
+            tangent1: na::zero(),
         }
     }
 }
