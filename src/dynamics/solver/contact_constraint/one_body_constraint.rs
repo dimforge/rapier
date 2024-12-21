@@ -411,6 +411,10 @@ impl OneBodyConstraint {
             active_contact.data.warmstart_tangent_impulse = self.elements[k].tangent_part.impulse;
             active_contact.data.impulse = self.elements[k].normal_part.total_impulse();
             active_contact.data.tangent_impulse = self.elements[k].tangent_part.total_impulse();
+            #[cfg(feature = "dim3")]
+            {
+                active_contact.data.tangent1 = self.tangent1;
+            }
         }
     }
 

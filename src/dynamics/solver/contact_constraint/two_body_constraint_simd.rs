@@ -419,6 +419,8 @@ impl TwoBodyConstraintSimd {
                     warmstart_tangent_impulses.extract(ii);
                 active_contact.data.impulse = impulses[ii];
                 active_contact.data.tangent_impulse = tangent_impulses.extract(ii);
+                #[cfg(feature = "dim3")]
+                active_contact.data.set_tangent1(self.tangent1.extract(ii));
             }
         }
     }
