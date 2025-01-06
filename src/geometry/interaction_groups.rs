@@ -29,17 +29,23 @@ pub struct InteractionGroups {
     /// Groups filter.
     pub filter: Group,
     /// Interaction test mode
+    ///
+    /// In case of different test modes between two [`InteractionGroups`], [`InteractionTestMode::And`] is given priority.
     pub test_mode: InteractionTestMode,
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, Default)]
-/// Specifies which method should be used to test interactions
+/// Specifies which method should be used to test interactions.
+///
+/// In case of different test modes between two [`InteractionGroups`], [`InteractionTestMode::And`] is given priority.
 pub enum InteractionTestMode {
     /// Use [`InteractionGroups::test_and`].
     #[default]
     And,
-    /// Use [`InteractionGroups::test_or`].
+    /// Use [`InteractionGroups::test_or`], iff. the `rhs` is also [`InteractionTestMode::Or`].
+    ///
+    /// If the `rhs` is not [`InteractionTestMode::Or`], use [`InteractionGroups::test_and`].
     Or,
 }
 

@@ -29,7 +29,12 @@ impl CoefficientCombineRule {
 
         match effective_rule {
             0 => (coeff1 + coeff2) / 2.0,
-            1 => coeff1.min(coeff2).abs(),
+            1 => {
+                // Even though coeffs are meant to be positive, godot use-case has negative values.
+                // We're following their logic here.
+                // Context: https://github.com/dimforge/rapier/pull/741#discussion_r1862402948
+                coeff1.min(coeff2).abs()
+            }
             2 => coeff1 * coeff2,
             4 => (coeff1 + coeff2).clamp(0.0, 1.0),
             // 3 is missing as Max is the default one in case of mismatch.
