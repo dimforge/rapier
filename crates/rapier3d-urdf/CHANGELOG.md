@@ -1,5 +1,16 @@
 ## Unreleased
 
+### Modified
+
+- Pre-parsing of urdf files is now done through the more recent `urdf_rs` crate.
+
+### Added
+
+- Add optional support for Collada and Wavefront files through new feature flags `collada` and `wavefront`.
+- Add support for capsule urdf geometry
+
+## 0.3.0
+
 This is the initial release of the `rapier3d-urdf` crate.
 
 ### Added

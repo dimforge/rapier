@@ -40,7 +40,6 @@ simd-nightly = [
 # Do not enable this feature directly. It is automatically
 # enabled with the "simd-stable" or "simd-nightly" feature.
 simd-is-enabled = ["dep:vec_map"]
-wasm-bindgen = ["instant/wasm-bindgen"]
 serde-serialize = [
     "nalgebra/serde-serialize",
     "parry3d-f64/serde-serialize",
@@ -49,7 +48,7 @@ serde-serialize = [
 ]
 enhanced-determinism = ["simba/libm_force", "parry3d-f64/enhanced-determinism"]
 debug-render = []
-profiler = ["dep:instant"] # Enables the internal profiler.
+profiler = ["dep:web-time"] # Enables the internal profiler.
 
 # Feature used for debugging only.
 debug-disable-legitimate-fe-exceptions = []
@@ -69,7 +68,7 @@ required-features = ["dim3", "f64"]
 
 [dependencies]
 vec_map = { version = "0.8", optional = true }
-instant = { version = "0.1", features = ["now"], optional = true }
+web-time = { version = "1.1", optional = true }
 num-traits = "0.2"
 nalgebra = "0.33"
 parry3d-f64 = "0.17.0"
@@ -87,6 +86,7 @@ bitflags = "2"
 log = "0.4"
 ordered-float = "4"
 thiserror = "1"
+profiling = "1.0"
 
 [dev-dependencies]
 bincode = "1"

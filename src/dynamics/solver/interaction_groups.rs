@@ -18,7 +18,7 @@ pub(crate) trait PairInteraction {
 use crate::dynamics::RigidBodyType;
 
 #[cfg(feature = "parallel")]
-impl<'a> PairInteraction for &'a mut ContactManifold {
+impl PairInteraction for &mut ContactManifold {
     fn body_pair(&self) -> (Option<RigidBodyHandle>, Option<RigidBodyHandle>) {
         (self.data.rigid_body1, self.data.rigid_body2)
     }
@@ -218,6 +218,7 @@ impl InteractionGroups {
     }
 
     #[cfg(feature = "simd-is-enabled")]
+    #[profiling::function]
     pub fn group_joints(
         &mut self,
         island_id: usize,

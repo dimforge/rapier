@@ -30,7 +30,7 @@ pub struct SweptAabbWithPredictedPosition<'a> {
     /// You probably want to set it to [`IntegrationParameters::dt`].
     pub dt: Real,
 }
-impl<'a> QbvhDataGenerator<ColliderHandle> for SweptAabbWithPredictedPosition<'a> {
+impl QbvhDataGenerator<ColliderHandle> for SweptAabbWithPredictedPosition<'_> {
     fn size_hint(&self) -> usize {
         self.colliders.len()
     }
@@ -68,7 +68,7 @@ pub struct SweptAabbWithNextPosition<'a> {
     pub colliders: &'a ColliderSet,
 }
 
-impl<'a> QbvhDataGenerator<ColliderHandle> for SweptAabbWithNextPosition<'a> {
+impl QbvhDataGenerator<ColliderHandle> for SweptAabbWithNextPosition<'_> {
     fn size_hint(&self) -> usize {
         self.colliders.len()
     }
@@ -96,7 +96,7 @@ pub struct CurrentAabb<'a> {
     pub colliders: &'a ColliderSet,
 }
 
-impl<'a> QbvhDataGenerator<ColliderHandle> for CurrentAabb<'a> {
+impl QbvhDataGenerator<ColliderHandle> for CurrentAabb<'_> {
     fn size_hint(&self) -> usize {
         self.colliders.len()
     }

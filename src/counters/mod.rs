@@ -1,5 +1,6 @@
 //! Counters for benchmarking various parts of the physics engine.
 
+use core::time::Duration;
 use std::fmt::{Display, Formatter, Result};
 
 pub use self::ccd_counters::CCDCounters;
@@ -76,9 +77,14 @@ impl Counters {
         }
     }
 
-    /// Total time spent for one  of the physics engine.
-    pub fn step_time(&self) -> f64 {
+    /// Total time spent for one of the physics engine.
+    pub fn step_time(&self) -> Duration {
         self.step_time.time()
+    }
+
+    /// Total time spent for one of the physics engine, in milliseconds.
+    pub fn step_time_ms(&self) -> f64 {
+        self.step_time.time_ms()
     }
 
     /// Notify that the custom operation has started.
@@ -96,8 +102,13 @@ impl Counters {
     }
 
     /// Total time of a custom event.
-    pub fn custom_time(&self) -> f64 {
+    pub fn custom_time(&self) -> Duration {
         self.custom.time()
+    }
+
+    /// Total time of a custom event, in milliseconds.
+    pub fn custom_time_ms(&self) -> f64 {
+        self.custom.time_ms()
     }
 
     /// Set the number of constraints generated.
@@ -129,7 +140,7 @@ impl Counters {
 }
 
 macro_rules! measure_method {
-    ($started:ident, $stopped:ident, $time:ident, $info:ident. $timer:ident) => {
+    ($started:ident, $stopped:ident, $time_ms:ident, $info:ident. $timer:ident) => {
         impl Counters {
             /// Start this timer.
             pub fn $started(&mut self) {
@@ -145,10 +156,10 @@ macro_rules! measure_method {
                 }
             }
 
-            /// Gets the time elapsed for this timer.
-            pub fn $time(&self) -> f64 {
+            /// Gets the time elapsed for this timer, in milliseconds.
+            pub fn $time_ms(&self) -> f64 {
                 if self.enabled {
-                    self.$info.$timer.time()
+                    self.$info.$timer.time_ms()
                 } else {
                     0.0
                 }
@@ -160,63 +171,63 @@ macro_rules! measure_method {
 measure_method!(
     update_started,
     update_completed,
-    update_time,
+    update_time_ms,
     stages.update_time
 );
 measure_method!(
     collision_detection_started,
     collision_detection_completed,
-    collision_detection_time,
+    collision_detection_time_ms,
     stages.collision_detection_time
 );
 measure_method!(
     island_construction_started,
     island_construction_completed,
-    island_construction_time,
+    island_construction_time_ms,
     stages.island_construction_time
 );
 measure_method!(
     solver_started,
     solver_completed,
-    solver_time,
+    solver_time_ms,
     stages.solver_time
 );
-measure_method!(ccd_started, ccd_completed, ccd_time, stages.ccd_time);
+measure_method!(ccd_started, ccd_completed, ccd_time_ms, stages.ccd_time);
 measure_method!(
     query_pipeline_update_started,
     query_pipeline_update_completed,
-    query_pipeline_update_time,
+    query_pipeline_update_time_ms,
     stages.query_pipeline_time
 );
 
 measure_method!(
     assembly_started,
     assembly_completed,
-    assembly_time,
+    assembly_time_ms,
     solver.velocity_assembly_time
 );
 measure_method!(
     velocity_resolution_started,
     velocity_resolution_completed,
-    velocity_resolution_time,
+    velocity_resolution_time_ms,
     solver.velocity_resolution_time
 );
 measure_method!(
     velocity_update_started,
     velocity_update_completed,
-    velocity_update_time,
+    velocity_update_time_ms,
     solver.velocity_update_time
 );
 measure_method!(
     broad_phase_started,
     broad_phase_completed,
-    broad_phase_time,
+    broad_phase_time_ms,
     cd.broad_phase_time
 );
 measure_method!(
     narrow_phase_started,
     narrow_phase_completed,
-    narrow_phase_time,
+    narrow_phase_time_ms,
     cd.narrow_phase_time
 );
 

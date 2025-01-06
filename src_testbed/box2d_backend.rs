@@ -28,6 +28,7 @@ pub struct Box2dWorld {
 }
 
 impl Box2dWorld {
+    #[profiling::function]
     pub fn from_rapier(
         gravity: Vector2<f32>,
         bodies: &RigidBodySet,
@@ -221,6 +222,7 @@ impl Box2dWorld {
         }
     }
 
+    #[profiling::function]
     pub fn step(&mut self, counters: &mut Counters, params: &IntegrationParameters) {
         counters.step_started();
         self.world
@@ -228,6 +230,7 @@ impl Box2dWorld {
         counters.step_completed();
     }
 
+    #[profiling::function]
     pub fn sync(&self, bodies: &mut RigidBodySet, colliders: &mut ColliderSet) {
         for (handle, body) in bodies.iter_mut() {
             if let Some(pb2_handle) = self.rapier2box2d.get(&handle) {

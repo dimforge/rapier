@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Cargo doc
-        run: cargo doc --features parallel,simd-stable,serde-serialize,debug-render -p rapier3d -p rapier2d -p rapier3d-stl -p rapier3d-urdf
+        run: cargo doc --features parallel,simd-stable,serde-serialize,debug-render -p rapier3d -p rapier2d -p rapier3d-meshloader -p rapier3d-urdf
   build-native:
     runs-on: ubuntu-latest
     env:
@@ -59,6 +59,10 @@ jobs:
         run: cd crates/rapier_testbed2d; cargo check --verbose --features parallel;
       - name: Check rapier_testbed3d --features parallel
         run: cd crates/rapier_testbed3d; cargo check --verbose --features parallel;
+      - name: Check rapier_testbed2d --features enhanced-determinism
+        run: cd crates/rapier2d; cargo check --verbose --features enhanced-determinism;
+      - name: Check rapier_testbed3d --features enhanced-determinism
+        run: cd crates/rapier3d; cargo check --verbose --features enhanced-determinism;
       - name: Check rapier-examples-2d
         run: cargo check -j 1 --verbose -p rapier-examples-2d;
       - name: Check rapier-examples-3d
@@ -71,9 +75,9 @@ jobs:
       - uses: actions/checkout@v4
       - run: rustup target add wasm32-unknown-unknown
       - name: build rapier2d
-        run: cd crates/rapier2d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
+        run: cd crates/rapier2d && cargo build --verbose --target wasm32-unknown-unknown;
       - name: build rapier3d
-        run: cd crates/rapier3d && cargo build --verbose --features wasm-bindgen --target wasm32-unknown-unknown;
+        run: cd crates/rapier3d && cargo build --verbose --target wasm32-unknown-unknown;
   build-wasm-emscripten:
     runs-on: ubuntu-latest
     env:

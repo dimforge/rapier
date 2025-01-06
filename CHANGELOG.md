@@ -5,17 +5,22 @@
 - The region key has been replaced by an i64 in the f64 version of rapier, increasing the range before panics occur.
 - Fix `BroadphaseMultiSap` not being able to serialize correctly with serde_json.
 - Fix `KinematicCharacterController::move_shape` not respecting parameters `max_slope_climb_angle` and `min_slope_slide_angle`.
+- Improve ground detection reliability for `KinematicCharacterController`. (#715)
+- Fix wasm32 default values for physics hooks filter to be consistent with native: `COMPUTE_IMPULSES`.
 
 ### Added
 
 - `InteractionTestMode`: Specifies which method should be used to test interactions. Supports `AND` and `OR`.
 - `CoefficientCombineRule::Sum` - Adds the two coefficients and does a clamp to have at most 1.
 - `RigidBodySet` and `ColliderSet` have a new constructor `with_capacity`.
+- Use `profiling` crate to provide helpful profiling information in different tools.
+  - The testbeds have been updated to use `puffin_egui`
 
 ### Modified
 
 - `InteractionGroups` default value for `memberships` is now `GROUP_1` (#706)
 - `ImpulseJointSet::get_mut` has a new parameter `wake_up: bool`, to wake up connected bodies.
+- Removed unmaintained `instant` in favor of `web-time`. This effectively removes the `wasm-bindgen` transitive dependency as it's no longer needed.
 - `InteractionGroups` struct now contains `InteractionTestMode`. Continues [rapier/pull/170](https://github.com/dimforge/rapier/pull/170) for [rapier/issues/622](https://github.com/dimforge/rapier/issues/622)
 - `InteractionGroups` constructor now requires an `InteractionTestMode` parameter. If you want same behaviour as before, use `InteractionTestMode::AND` (eg. `InteractionGroups::new(Group::GROUP_1, Group::GROUP_1, InteractionTestMode::AND)`)
 - `CoefficientCombineRule::Min` - now makes sure it uses a non zero value as result by using `coeff1.min(coeff2).abs()`

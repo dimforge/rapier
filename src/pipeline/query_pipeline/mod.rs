@@ -119,7 +119,7 @@ pub struct QueryFilter<'a> {
     pub predicate: Option<&'a dyn Fn(ColliderHandle, &Collider) -> bool>,
 }
 
-impl<'a> QueryFilter<'a> {
+impl QueryFilter<'_> {
     /// Applies the filters described by `self` to a collider to determine if it has to be
     /// included in a scene query (`true`) or not (`false`).
     #[inline]
@@ -136,7 +136,7 @@ impl<'a> QueryFilter<'a> {
     }
 }
 
-impl<'a> From<QueryFilterFlags> for QueryFilter<'a> {
+impl From<QueryFilterFlags> for QueryFilter<'_> {
     fn from(flags: QueryFilterFlags) -> Self {
         Self {
             flags,
@@ -145,7 +145,7 @@ impl<'a> From<QueryFilterFlags> for QueryFilter<'a> {
     }
 }
 
-impl<'a> From<InteractionGroups> for QueryFilter<'a> {
+impl From<InteractionGroups> for QueryFilter<'_> {
     fn from(groups: InteractionGroups) -> Self {
         Self {
             groups: Some(groups),
@@ -229,7 +229,7 @@ impl<'a> QueryFilter<'a> {
     }
 }
 
-impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
+impl TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'_> {
     type PartShape = dyn Shape;
     type PartNormalConstraints = dyn NormalConstraints;
     type PartId = ColliderHandle;
@@ -312,6 +312,7 @@ impl QueryPipeline {
 
     /// Update the query pipeline incrementally, avoiding a complete rebuild of its
     /// internal data-structure.
+    #[profiling::function]
     pub fn update_incremental(
         &mut self,
         colliders: &ColliderSet,
@@ -353,6 +354,7 @@ impl QueryPipeline {
     /// volume generator.
     ///
     /// See [`generators`] for available generators.
+    #[profiling::function]
     pub fn update_with_generator(&mut self, mode: impl QbvhDataGenerator<ColliderHandle>) {
         self.qbvh.clear_and_rebuild(mode, self.dilation_factor);
     }
@@ -368,6 +370,7 @@ impl QueryPipeline {
     ///            it starts inside of a shape. If this `false` then the ray will hit the shape's boundary
     ///            even if its starts inside of it.
     /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
+    #[profiling::function]
     pub fn cast_ray(
         &self,
         bodies: &RigidBodySet,
@@ -395,6 +398,7 @@ impl QueryPipeline {
     ///            it starts inside of a shape. If this `false` then the ray will hit the shape's boundary
     ///            even if its starts inside of it.
     /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
+    #[profiling::function]
     pub fn cast_ray_and_get_normal(
         &self,
         bodies: &RigidBodySet,
@@ -429,6 +433,7 @@ impl QueryPipeline {
     /// * `callback`: function executed on each collider for which a ray intersection has been found.
     ///               There is no guarantees on the order the results will be yielded. If this callback returns `false`,
     ///               this method will exit early, ignore any further raycast.
+    #[profiling::function]
     pub fn intersections_with_ray<'a>(
         &self,
         bodies: &'a RigidBodySet,
@@ -465,6 +470,7 @@ impl QueryPipeline {
     /// * `shape_pos` - The position of the shape used for the intersection test.
     /// * `shape` - The shape used for the intersection test.
     /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
+    #[profiling::function]
     pub fn intersection_with_shape(
         &self,
         bodies: &RigidBodySet,
@@ -501,6 +507,7 @@ impl QueryPipeline {
     ///   (if the point is located inside of an hollow shape, it is projected on the shape's
     ///   boundary).
     /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
+    #[profiling::function]
     pub fn project_point(
         &self,
         bodies: &RigidBodySet,
@@ -526,6 +533,7 @@ impl QueryPipeline {
     /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     /// * `callback` - A function called with each collider with a shape
     ///                containing the `point`.
+    #[profiling::function]
     pub fn intersections_with_point(
         &self,
         bodies: &RigidBodySet,
@@ -562,6 +570,7 @@ impl QueryPipeline {
     ///   (if the point is located inside of an hollow shape, it is projected on the shape's
     ///   boundary).
     /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
+    #[profiling::function]
     pub fn project_point_and_get_feature(
         &self,
         bodies: &RigidBodySet,
@@ -578,6 +587,7 @@ impl QueryPipeline {
     }
 
     /// Finds all handles of all the colliders with an [`Aabb`] intersecting the given [`Aabb`].
+    #[profiling::function]
     pub fn colliders_with_aabb_intersecting_aabb(
         &self,
         aabb: &Aabb,
@@ -604,6 +614,7 @@ impl QueryPipeline {
     ///   the shape is penetrating another shape at its starting point **and** its trajectory is such
     ///   that it’s on a path to exit that penetration state.
     /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
+    #[profiling::function]
     pub fn cast_shape(
         &self,
         bodies: &RigidBodySet,
@@ -645,6 +656,7 @@ impl QueryPipeline {
     ///    that normal) then the nonlinear shape-casting will attempt to find another impact,
     ///    at a time `> start_time` that could result in tunnelling.
     /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
+    #[profiling::function]
     pub fn nonlinear_cast_shape(
         &self,
         bodies: &RigidBodySet,
@@ -680,6 +692,7 @@ impl QueryPipeline {
     /// * `shape` - The shape to test.
     /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
     /// * `callback` - A function called with the handles of each collider intersecting the `shape`.
+    #[profiling::function]
     pub fn intersections_with_shape(
         &self,
         bodies: &RigidBodySet,

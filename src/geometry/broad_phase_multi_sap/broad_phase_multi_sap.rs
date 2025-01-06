@@ -231,7 +231,12 @@ impl BroadPhaseMultiSap {
          * Actually remove the colliders proxies.
          */
         for removed in removed_colliders {
-            if let Some(proxy_id) = self.colliders_proxy_ids.remove(removed) {
+            #[cfg(feature = "enhanced-determinism")]
+            let proxy_id = self.colliders_proxy_ids.swap_remove(removed);
+            #[cfg(not(feature = "enhanced-determinism"))]
+            let proxy_id = self.colliders_proxy_ids.remove(removed);
+
+            if let Some(proxy_id) = proxy_id {
                 if proxy_id != crate::INVALID_U32 {
                     self.proxies.remove(proxy_id);
                 }
@@ -249,6 +254,7 @@ impl BroadPhaseMultiSap {
     /// This will:
     /// - Remove all the subregion proxies from the larger layer.
     /// - Pre-insert all the smaller layer's region proxies into this layer.
+    #[profiling::function]
     fn finalize_layer_insertion(&mut self, layer_id: u8) {
         // Remove all the region endpoints from the larger layer.
         // They will be automatically replaced by the new layer's regions.
@@ -284,6 +290,7 @@ impl BroadPhaseMultiSap {
     ///    the `update` function.
     /// 4. All the regions from the smaller layer are added to that new
     ///    layer.
+    #[profiling::function]
     fn ensure_layer_exists(&mut self, new_depth: i8) -> u8 {
         // Special case: we don't have any layers yet.
         if self.layers.is_empty() {
@@ -468,6 +475,7 @@ impl BroadPhaseMultiSap {
     /// added to its larger layer so we can detect when an object
     /// in a larger layer may start interacting with objects in a smaller
     /// layer.
+    #[profiling::function]
     fn propagate_created_regions(&mut self) {
         let mut curr_layer = Some(self.smallest_layer);
 
@@ -497,6 +505,7 @@ impl BroadPhaseMultiSap {
         }
     }
 
+    #[profiling::function]
     fn update_layers_and_find_pairs(&mut self, out_events: &mut Vec<BroadPhasePairEvent>) {
         if self.layers.is_empty() {
             return;
@@ -574,6 +583,7 @@ impl BroadPhaseMultiSap {
 
 impl BroadPhase for BroadPhaseMultiSap {
     /// Updates the broad-phase, taking into account the new collider positions.
+    #[profiling::function]
     fn update(
         &mut self,
         dt: Real,
