@@ -23,7 +23,7 @@ bincode = "1"
 
 [dependencies.rapier_testbed3d]
 path = "../crates/rapier_testbed3d"
-features = ["profiling"]
+features = ["profiler_ui"]
 
 [dependencies.rapier3d]
 path = "../crates/rapier3d"
