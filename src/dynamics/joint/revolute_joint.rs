@@ -87,9 +87,9 @@ impl RevoluteJoint {
 
         #[cfg(feature = "dim3")]
         if joint_rot1.dot(&joint_rot2) < 0.0 {
-            -ang_err.i.asin() * 2.0
+            -ang_err.i.clamp(-1.0, 1.0).asin() * 2.0
         } else {
-            ang_err.i.asin() * 2.0
+            ang_err.i.clamp(-1.0, 1.0).asin() * 2.0
         }
 
         #[cfg(feature = "dim2")]
