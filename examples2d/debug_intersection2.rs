@@ -60,7 +60,5 @@ pub fn init_world(testbed: &mut Testbed) {
                 graphics.set_body_color(body_handle, [1.0, 0.0, 0.0]);
             }
         }
-
-        //println!("intersection: {:?}", intersection);
     });
 }
