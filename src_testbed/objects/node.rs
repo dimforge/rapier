@@ -17,7 +17,6 @@ use rapier::math::{Isometry, Real, Vector};
 use crate::graphics::{BevyMaterial, InstancedMaterials, SELECTED_OBJECT_MATERIAL_KEY};
 #[cfg(feature = "dim2")]
 use {
-    bevy_sprite::MaterialMesh2dBundle,
     na::{Point2, Vector2},
     rapier::geometry::{Ball, Cuboid},
 };
@@ -46,6 +45,7 @@ impl EntityWithGraphics {
         let selection_material = bevy_sprite::ColorMaterial {
             color: Color::from(Srgba::rgb(1.0, 0.0, 0.0)),
             texture: None,
+            ..default()
         };
         #[cfg(feature = "dim3")]
         let selection_material = StandardMaterial {
@@ -112,6 +112,7 @@ impl EntityWithGraphics {
         let material = bevy_sprite::ColorMaterial {
             color: bevy_color,
             texture: None,
+            ..default()
         };
         #[cfg(feature = "dim3")]
         let material = StandardMaterial {
@@ -127,19 +128,17 @@ impl EntityWithGraphics {
 
         if let Some(mesh) = mesh {
             #[cfg(feature = "dim2")]
-            let bundle = MaterialMesh2dBundle {
-                mesh: mesh.into(),
-                material: material_handle.clone_weak(),
+            let bundle = (
+                Mesh2d(mesh),
+                MeshMaterial2d(material_handle.clone_weak()),
                 transform,
-                ..Default::default()
-            };
+            );
             #[cfg(feature = "dim3")]
-            let bundle = PbrBundle {
-                mesh,
-                material: material_handle.clone_weak(),
+            let bundle = (
+                Mesh2d(mesh),
+                MeshMaterial3d(material_handle.clone_weak()),
                 transform,
-                ..Default::default()
-            };
+            );
 
             let mut entity_commands = commands.entity(entity);
             entity_commands.insert(bundle);

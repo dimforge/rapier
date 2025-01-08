@@ -74,8 +74,8 @@ impl OrbitCameraPlugin {
             }
 
             if mouse_button_input.pressed(camera.rotate_button) {
-                camera.x -= delta.x * camera.rotate_sensitivity * time.delta_seconds();
-                camera.y -= delta.y * camera.rotate_sensitivity * time.delta_seconds();
+                camera.x -= delta.x * camera.rotate_sensitivity * time.delta_secs();
+                camera.y -= delta.y * camera.rotate_sensitivity * time.delta_secs();
                 camera.y = camera
                     .y
                     .max(*camera.pitch_range.start())
@@ -87,7 +87,7 @@ impl OrbitCameraPlugin {
                 let up_dir = transform.rotation * Vec3::Y;
                 let pan_vector = (delta.x * right_dir + delta.y * up_dir)
                     * camera.pan_sensitivity
-                    * time.delta_seconds();
+                    * time.delta_secs();
                 camera.center += pan_vector;
             }
         }

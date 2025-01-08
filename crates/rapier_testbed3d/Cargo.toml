@@ -28,6 +28,7 @@ required-features = ["dim3"]
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(feature, values("dim2", "f64"))',
 ] }
+clippy = { needless_lifetimes = "allow" }
 
 [features]
 default = ["dim3"]
@@ -41,11 +42,8 @@ unstable-puffin-pr-235 = []
 [package.metadata.docs.rs]
 features = ["parallel", "other-backends", "profiler_ui"]
 
-[lints.clippy]
-needless_lifetimes = "allow"
-
 [dependencies]
-nalgebra = { version = "0.33", features = ["rand", "glam027"] }
+nalgebra = { version = "0.33", features = ["rand", "glam029"] }
 rand = "0.8"
 rand_pcg = "0.3"
 web-time = { version = "1.1" }
@@ -59,18 +57,19 @@ bincode = "1"
 md5 = "0.7"
 Inflector = "0.11"
 serde = { version = "1", features = ["derive"] }
-bevy_egui = "0.29"
-bevy_ecs = "0.14"
-bevy_core_pipeline = "0.14"
-bevy_pbr = "0.14"
-bevy_sprite = "0.14"
+bevy_egui = "0.31"
+bevy_ecs = "0.15"
+bevy_core_pipeline = "0.15"
+bevy_pbr = "0.15"
+bevy_sprite = "0.15"
 profiling = "1.0"
 puffin_egui = { version = "0.29", optional = true }
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = { version = "0.14", default-features = false, features = [
+bevy = { version = "0.15", default-features = false, features = [
     "bevy_winit",
+    "bevy_window",
     "x11",
     "tonemapping_luts",
     "ktx2",
@@ -82,7 +81,7 @@ bevy = { version = "0.14", default-features = false, features = [
 
 # Dependencies for WASM only.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy = { version = "0.14", default-features = false, features = [
+bevy = { version = "0.15", default-features = false, features = [
     "bevy_winit",
     "tonemapping_luts",
     "ktx2",

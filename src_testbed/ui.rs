@@ -363,13 +363,13 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
         counters.step_time_ms(),
         (1000.0 / counters.step_time_ms()).round()
     ))
-    .id_source("total")
+    .id_salt("total")
     .show(ui, |ui| {
         egui::CollapsingHeader::new(format!(
             "Collision detection: {:.2}ms",
             counters.collision_detection_time_ms()
         ))
-        .id_source("collision detection")
+        .id_salt("collision detection")
         .show(ui, |ui| {
             ui.label(format!(
                 "Broad-phase: {:.2}ms",
@@ -381,7 +381,7 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
             ));
         });
         egui::CollapsingHeader::new(format!("Solver: {:.2}ms", counters.solver_time_ms()))
-            .id_source("solver")
+            .id_salt("solver")
             .show(ui, |ui| {
                 ui.label(format!(
                     "Velocity assembly: {:.2}ms",
@@ -401,7 +401,7 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
                 ));
             });
         egui::CollapsingHeader::new(format!("CCD: {:.2}ms", counters.ccd_time_ms()))
-            .id_source("ccd")
+            .id_salt("ccd")
             .show(ui, |ui| {
                 ui.label(format!("# of substeps: {}", counters.ccd.num_substeps));
                 ui.label(format!(
