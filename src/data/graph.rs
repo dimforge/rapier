@@ -531,7 +531,7 @@ fn edges_walker_mut<E>(
     EdgesWalkerMut { edges, next, dir }
 }
 
-impl<'a, E> EdgesWalkerMut<'a, E> {
+impl<E> EdgesWalkerMut<'_, E> {
     fn next_edge(&mut self) -> Option<&mut Edge<E>> {
         self.next().map(|t| t.1)
     }
@@ -630,7 +630,7 @@ impl<'a, E> Iterator for Edges<'a, E> {
 //     x
 // }
 
-impl<'a, E> Clone for Edges<'a, E> {
+impl<E> Clone for Edges<'_, E> {
     fn clone(&self) -> Self {
         Edges {
             skip_start: self.skip_start,
@@ -699,15 +699,15 @@ impl<'a, E: 'a> EdgeReference<'a, E> {
     }
 }
 
-impl<'a, E> Clone for EdgeReference<'a, E> {
+impl<E> Clone for EdgeReference<'_, E> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<'a, E> Copy for EdgeReference<'a, E> {}
+impl<E> Copy for EdgeReference<'_, E> {}
 
-impl<'a, E> PartialEq for EdgeReference<'a, E>
+impl<E> PartialEq for EdgeReference<'_, E>
 where
     E: PartialEq,
 {

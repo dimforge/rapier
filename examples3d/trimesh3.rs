@@ -42,7 +42,8 @@ pub fn init_world(testbed: &mut Testbed) {
         vertices,
         indices,
         TriMeshFlags::MERGE_DUPLICATE_VERTICES,
-    );
+    )
+    .unwrap();
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*

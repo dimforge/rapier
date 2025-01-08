@@ -119,7 +119,7 @@ pub struct QueryFilter<'a> {
     pub predicate: Option<&'a dyn Fn(ColliderHandle, &Collider) -> bool>,
 }
 
-impl<'a> QueryFilter<'a> {
+impl QueryFilter<'_> {
     /// Applies the filters described by `self` to a collider to determine if it has to be
     /// included in a scene query (`true`) or not (`false`).
     #[inline]
@@ -136,7 +136,7 @@ impl<'a> QueryFilter<'a> {
     }
 }
 
-impl<'a> From<QueryFilterFlags> for QueryFilter<'a> {
+impl From<QueryFilterFlags> for QueryFilter<'_> {
     fn from(flags: QueryFilterFlags) -> Self {
         Self {
             flags,
@@ -145,7 +145,7 @@ impl<'a> From<QueryFilterFlags> for QueryFilter<'a> {
     }
 }
 
-impl<'a> From<InteractionGroups> for QueryFilter<'a> {
+impl From<InteractionGroups> for QueryFilter<'_> {
     fn from(groups: InteractionGroups) -> Self {
         Self {
             groups: Some(groups),
@@ -229,7 +229,7 @@ impl<'a> QueryFilter<'a> {
     }
 }
 
-impl<'a> TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'a> {
+impl TypedSimdCompositeShape for QueryPipelineAsCompositeShape<'_> {
     type PartShape = dyn Shape;
     type PartNormalConstraints = dyn NormalConstraints;
     type PartId = ColliderHandle;
@@ -480,20 +480,17 @@ impl QueryPipeline {
         filter: QueryFilter,
     ) -> Option<ColliderHandle> {
         let pipeline_shape = self.as_composite_shape(bodies, colliders, filter);
-        #[allow(deprecated)]
         // TODO: replace this with IntersectionCompositeShapeShapeVisitor when it
         //        can return the shape part id.
-        let mut visitor =
-            parry::query::details::IntersectionCompositeShapeShapeBestFirstVisitor::new(
-                &*self.query_dispatcher,
-                shape_pos,
-                &pipeline_shape,
-                shape,
-            );
+        let mut visitor = parry::query::details::IntersectionCompositeShapeShapeVisitor::new(
+            &*self.query_dispatcher,
+            shape_pos,
+            &pipeline_shape,
+            shape,
+        );
 
-        self.qbvh
-            .traverse_best_first(&mut visitor)
-            .map(|h| (h.1 .0))
+        self.qbvh.traverse_depth_first(&mut visitor);
+        visitor.found_intersection
     }
 
     /// Find the projection of a point on the closest collider.

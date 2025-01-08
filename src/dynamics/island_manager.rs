@@ -165,7 +165,7 @@ impl IslandManager {
 
         // Update the energy of every rigid body and
         // keep only those that may not sleep.
-        //        let t = instant::now();
+        //        let t = Instant::now();
         self.active_set_timestamp += 1;
         self.stack.clear();
         self.can_sleep.clear();
@@ -235,9 +235,9 @@ impl IslandManager {
             push_contacting_bodies(&rb.colliders, colliders, narrow_phase, &mut self.stack);
         }
 
-        //        println!("Selection: {}", instant::now() - t);
+        //        println!("Selection: {}", Instant::now() - t);
 
-        //        let t = instant::now();
+        //        let t = Instant::now();
         // Propagation of awake state and awake island computation through the
         // traversal of the interaction graph.
         self.active_islands_additional_solver_iterations.clear();
@@ -310,7 +310,7 @@ impl IslandManager {
         self.active_islands.push(self.active_dynamic_set.len());
         //        println!(
         //            "Extraction: {}, num islands: {}",
-        //            instant::now() - t,
+        //            Instant::now() - t,
         //            self.active_islands.len() - 1
         //        );
 

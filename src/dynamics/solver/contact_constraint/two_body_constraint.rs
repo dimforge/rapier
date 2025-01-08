@@ -11,7 +11,7 @@ use na::{DVector, Matrix2};
 
 use super::{TwoBodyConstraintElement, TwoBodyConstraintNormalPart};
 
-impl<'a> AnyConstraintMut<'a, ContactConstraintTypes> {
+impl AnyConstraintMut<'_, ContactConstraintTypes> {
     pub fn remove_bias(&mut self) {
         match self {
             Self::OneBody(c) => c.remove_cfm_and_bias_from_rhs(),

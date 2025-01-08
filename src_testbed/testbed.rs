@@ -250,7 +250,7 @@ impl TestbedApp {
     }
 
     pub fn run_with_init(mut self, mut init: impl FnMut(&mut App)) {
-        #[cfg(feature = "profiling")]
+        #[cfg(feature = "profiler_ui")]
         puffin_egui::puffin::set_scopes_on(true);
 
         let mut args = env::args();
@@ -394,7 +394,8 @@ impl TestbedApp {
 
                         // Skip the first update.
                         if k > 0 {
-                            timings.push(self.harness.physics.pipeline.counters.step_time.time());
+                            timings
+                                .push(self.harness.physics.pipeline.counters.step_time.time_ms());
                         }
                     }
                     results.push(timings);
@@ -469,7 +470,7 @@ impl TestbedApp {
     }
 }
 
-impl<'a, 'b, 'c, 'd, 'e, 'f> TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
+impl TestbedGraphics<'_, '_, '_, '_, '_, '_> {
     pub fn set_body_color(&mut self, body: RigidBodyHandle, color: [f32; 3]) {
         self.graphics.set_body_color(self.materials, body, color);
     }
@@ -526,7 +527,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     }
 }
 
-impl<'a, 'b, 'c, 'd, 'e, 'f> Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
+impl Testbed<'_, '_, '_, '_, '_, '_> {
     pub fn set_number_of_steps_per_frame(&mut self, nsteps: usize) {
         self.state.nsteps = nsteps
     }

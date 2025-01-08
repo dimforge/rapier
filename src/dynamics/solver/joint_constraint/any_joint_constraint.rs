@@ -27,7 +27,7 @@ use crate::dynamics::solver::joint_constraint::joint_constraint_builder::{
 
 pub struct JointConstraintTypes;
 
-impl<'a> AnyConstraintMut<'a, JointConstraintTypes> {
+impl AnyConstraintMut<'_, JointConstraintTypes> {
     pub fn remove_bias(&mut self) {
         match self {
             Self::OneBody(c) => c.remove_bias_from_rhs(),

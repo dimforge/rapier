@@ -35,18 +35,21 @@ default = ["dim2"]
 dim2 = []
 parallel = ["rapier/parallel", "num_cpus"]
 other-backends = ["wrapped2d"]
-profiling = ["dep:puffin_egui", "profiling/profile-with-puffin"]
+profiler_ui = ["dep:puffin_egui", "profiling/profile-with-puffin"]
 # See https://github.com/dimforge/rapier/issues/760.
 unstable-puffin-pr-235 = []
 
 [package.metadata.docs.rs]
-features = ["parallel", "profiling"]
+features = ["parallel", "profiler_ui"]
+
+[lints.clippy]
+needless_lifetimes = "allow"
 
 [dependencies]
 nalgebra = { version = "0.33", features = ["rand", "glam029"] }
 rand = "0.8"
 rand_pcg = "0.3"
-instant = { version = "0.1", features = ["web-sys", "now"] }
+web-time = { version = "1.1" }
 bitflags = "2"
 num_cpus = { version = "1", optional = true }
 wrapped2d = { version = "0.4", optional = true }

@@ -48,7 +48,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, 0.0, 0.0]);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::trimesh(vtx, idx);
+    let collider = ColliderBuilder::trimesh(vtx, idx).expect("Could not create trimesh collider.");
     colliders.insert_with_parent(collider, handle, &mut bodies);
     testbed.set_initial_body_color(handle, [0.3, 0.3, 0.3]);
 

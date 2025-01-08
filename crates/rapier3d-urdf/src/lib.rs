@@ -37,7 +37,6 @@ use rapier3d::{
     geometry::{Collider, ColliderBuilder, ColliderHandle, ColliderSet, SharedShape, TriMeshFlags},
     math::{Isometry, Point, Real, Vector},
     na,
-    prelude::MeshConverter,
 };
 use std::collections::HashMap;
 use std::path::Path;
@@ -462,7 +461,7 @@ fn urdf_to_rigid_body(options: &UrdfLoaderOptions, inertial: &Inertial) -> Rigid
 
 fn urdf_to_colliders(
     options: &UrdfLoaderOptions,
-    mesh_dir: &Path,
+    _mesh_dir: &Path, // Unused if none of the meshloader features is enabled.
     geometry: &Geometry,
     origin: &Pose,
 ) -> Vec<Collider> {
@@ -496,14 +495,20 @@ fn urdf_to_colliders(
         Geometry::Sphere { radius } => {
             colliders.push(SharedShape::ball(*radius as Real));
         }
+        #[cfg(not(feature = "__meshloader_is_enabled"))]
+        Geometry::Mesh { .. } => {
+            log::error!("Mesh loading is disabled by default. Enable one of the format features (`stl`, `collada`, `wavefront`) of `rapier3d-urdf` for mesh support.");
+        }
+        #[cfg(feature = "__meshloader_is_enabled")]
         Geometry::Mesh { filename, scale } => {
-            let full_path = mesh_dir.join(filename);
+            let full_path = _mesh_dir.join(filename);
             let scale = scale
                 .map(|s| Vector::new(s[0] as Real, s[1] as Real, s[2] as Real))
                 .unwrap_or_else(|| Vector::<Real>::repeat(1.0));
+
             let Ok(loaded_mesh) = rapier3d_meshloader::load_from_path(
                 full_path,
-                &MeshConverter::TriMeshWithFlags(options.trimesh_flags),
+                &rapier3d::prelude::MeshConverter::TriMeshWithFlags(options.trimesh_flags),
                 scale,
             ) else {
                 return Vec::new();
