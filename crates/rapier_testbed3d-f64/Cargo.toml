@@ -44,9 +44,6 @@ unstable-puffin-pr-235 = []
 [package.metadata.docs.rs]
 features = ["parallel", "profiler_ui"]
 
-[lints.clippy]
-needless_lifetimes = "allow"
-
 [dependencies]
 nalgebra = { version = "0.33", features = ["rand", "glam029"] }
 rand = "0.8"
