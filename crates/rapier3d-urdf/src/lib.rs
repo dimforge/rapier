@@ -496,7 +496,7 @@ fn urdf_to_colliders(
             colliders.push(SharedShape::ball(*radius as Real));
         }
         #[cfg(not(feature = "__meshloader_is_enabled"))]
-        Geometry::Mesh {..} => {
+        Geometry::Mesh { .. } => {
             log::error!("Mesh loading is disabled by default. Enable one of the format features (`stl`, `collada`, `wavefront`) of `rapier3d-urdf` for mesh support.");
         }
         #[cfg(feature = "__meshloader_is_enabled")]
