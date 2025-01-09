@@ -105,12 +105,15 @@ impl InteractionGroups {
     ///
     /// See [`InteractionTestMode`] for more info.
     #[inline]
-    pub const fn test(self, rhs: Self) -> bool {
-        if self.test_mode == InteractionTestMode::And || rhs.test_mode == InteractionTestMode::And {
+    pub fn test(self, rhs: Self) -> bool {
+        if self.test_mode == InteractionTestMode::And {
+            self.test_and(rhs)
+        } else if rhs.test_mode == InteractionTestMode::Or {
             self.test_and(rhs)
         } else {
             self.test_or(rhs)
         }
+    }
 }
 
 impl Default for InteractionGroups {
