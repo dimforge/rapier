@@ -106,12 +106,10 @@ impl InteractionGroups {
     /// See [`InteractionTestMode`] for more info.
     #[inline]
     pub fn test(self, rhs: Self) -> bool {
-        if self.test_mode == InteractionTestMode::And {
-            self.test_and(rhs)
-        } else if rhs.test_mode == InteractionTestMode::Or {
-            self.test_and(rhs)
-        } else {
-            self.test_or(rhs)
+        match (self.test_mode, rhs.test_mode) {
+            (InteractionTestMode::And, _) => self.test_and(rhs),
+            (InteractionTestMode::Or, InteractionTestMode::And) => self.test_and(rhs),
+            (InteractionTestMode::Or, InteractionTestMode::Or) => self.test_or(rhs),
         }
     }
 }
@@ -121,7 +119,7 @@ impl Default for InteractionGroups {
         Self {
             memberships: Group::GROUP_1,
             filter: Group::ALL,
-            test_mode: InteractionTestMode::AND,
+            test_mode: InteractionTestMode::And,
         }
     }
 }
