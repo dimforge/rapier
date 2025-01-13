@@ -7,16 +7,16 @@
 /// - The interaction groups filter.
 ///
 /// An interaction is allowed between two filters `a` and `b` when two conditions
-/// are met simultaneously for [`InteractionTestMode::AND`] or individually for [`InteractionTestMode::OR`]::
+/// are met simultaneously for [`InteractionTestMode::And`] or individually for [`InteractionTestMode::Or`]::
 /// - The groups membership of `a` has at least one bit set to `1` in common with the groups filter of `b`.
 /// - The groups membership of `b` has at least one bit set to `1` in common with the groups filter of `a`.
 ///
 /// In other words, interactions are allowed between two filter iff. the following condition is met
-/// for [`InteractionTestMode::AND`]:
+/// for [`InteractionTestMode::And`]:
 /// ```ignore
 /// (self.memberships.bits() & rhs.filter.bits()) != 0 && (rhs.memberships.bits() & self.filter.bits()) != 0
 /// ```
-/// or for [`InteractionTestMode::OR`]:
+/// or for [`InteractionTestMode::Or`]:
 /// ```ignore
 /// (self.memberships.bits() & rhs.filter.bits()) != 0 || (rhs.memberships.bits() & self.filter.bits()) != 0
 /// ```
@@ -61,12 +61,12 @@ impl InteractionGroups {
 
     /// Allow interaction with everything.
     pub const fn all() -> Self {
-        Self::new(Group::ALL, Group::ALL, InteractionTestMode::AND)
+        Self::new(Group::ALL, Group::ALL, InteractionTestMode::And)
     }
 
     /// Prevent all interactions.
     pub const fn none() -> Self {
-        Self::new(Group::NONE, Group::NONE, InteractionTestMode::AND)
+        Self::new(Group::NONE, Group::NONE, InteractionTestMode::And)
     }
 
     /// Sets the group this filter is part of.

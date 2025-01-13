@@ -56,7 +56,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .collision_groups(InteractionGroups::new(
             CAR_GROUP,
             !CAR_GROUP,
-            InteractionTestMode::AND,
+            InteractionTestMode::And,
         ));
     let body_rb = RigidBodyBuilder::dynamic()
         .position(body_position.into())
@@ -92,7 +92,7 @@ pub fn init_world(testbed: &mut Testbed) {
             .collision_groups(InteractionGroups::new(
                 CAR_GROUP,
                 !CAR_GROUP,
-                InteractionTestMode::AND,
+                InteractionTestMode::And,
             ))
             .friction(1.0);
         let wheel_rb = RigidBodyBuilder::dynamic().position(wheel_center.into());
