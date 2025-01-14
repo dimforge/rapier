@@ -386,6 +386,8 @@ impl JointTwoBodyConstraint<SimdReal, SIMD_WIDTH> {
         frame1: &Isometry<SimdReal>,
         frame2: &Isometry<SimdReal>,
         locked_axes: u8,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
         out: &mut [Self],
     ) -> usize {
         let builder = JointTwoBodyConstraintHelper::new(
@@ -399,8 +401,16 @@ impl JointTwoBodyConstraint<SimdReal, SIMD_WIDTH> {
         let mut len = 0;
         for i in 0..DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] =
-                    builder.lock_linear(params, joint_id, body1, body2, i, WritebackId::Dof(i));
+                out[len] = builder.lock_linear(
+                    params,
+                    joint_id,
+                    body1,
+                    body2,
+                    i,
+                    WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
+                );
                 len += 1;
             }
         }
@@ -414,6 +424,8 @@ impl JointTwoBodyConstraint<SimdReal, SIMD_WIDTH> {
                     body2,
                     i - DIM,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -743,6 +755,8 @@ impl JointOneBodyConstraint<SimdReal, SIMD_WIDTH> {
         frame1: &Isometry<SimdReal>,
         frame2: &Isometry<SimdReal>,
         locked_axes: u8,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
         out: &mut [Self],
     ) -> usize {
         let mut len = 0;
@@ -763,6 +777,8 @@ impl JointOneBodyConstraint<SimdReal, SIMD_WIDTH> {
                     body2,
                     i,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -776,6 +792,8 @@ impl JointOneBodyConstraint<SimdReal, SIMD_WIDTH> {
                     body2,
                     i - DIM,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }

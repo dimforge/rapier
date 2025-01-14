@@ -169,6 +169,9 @@ impl JointTwoBodyConstraintBuilderSimd {
             &frame1,
             &frame2,
             self.locked_axes,
+            // TODO: get those parameters in a joint specific fashion.
+            params.joint_natural_frequency,
+            params.joint_damping_ratio,
             &mut out[self.constraint_id..],
         );
     }
@@ -337,6 +340,10 @@ impl JointOneBodyConstraintBuilderSimd {
             &self.frame1,
             &frame2,
             self.locked_axes,
+            // TODO: Get those parameters in a joint specific fashion
+            // This should be part of JointOneBodyConstraintBuilderSimd ; added from `generate`, with data from ImpulseJoint (inner GenericJoint)
+            params.joint_natural_frequency,
+            params.joint_damping_ratio,
             &mut out[self.constraint_id..],
         );
     }
