@@ -89,6 +89,13 @@ impl JointGenericTwoBodyConstraint {
             locked_axes,
         );
 
+        let joint_natural_frequency = joint
+            .joint_natural_frequency
+            .unwrap_or(params.joint_natural_frequency);
+        let joint_damping_ratio = joint
+            .joint_damping_ratio
+            .unwrap_or(params.joint_damping_ratio);
+
         let start = len;
         for i in DIM..SPATIAL_DIM {
             if motor_axes & (1 << i) != 0 {
@@ -141,6 +148,8 @@ impl JointGenericTwoBodyConstraint {
                     mb2,
                     i - DIM,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -158,6 +167,8 @@ impl JointGenericTwoBodyConstraint {
                     mb2,
                     i,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -177,6 +188,8 @@ impl JointGenericTwoBodyConstraint {
                     i - DIM,
                     [joint.limits[i].min, joint.limits[i].max],
                     WritebackId::Limit(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -195,6 +208,8 @@ impl JointGenericTwoBodyConstraint {
                     i,
                     [joint.limits[i].min, joint.limits[i].max],
                     WritebackId::Limit(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -377,6 +392,13 @@ impl JointGenericOneBodyConstraint {
             locked_axes,
         );
 
+        let joint_natural_frequency = joint
+            .joint_natural_frequency
+            .unwrap_or(params.joint_natural_frequency);
+        let joint_damping_ratio = joint
+            .joint_damping_ratio
+            .unwrap_or(params.joint_damping_ratio);
+
         let start = len;
         for i in DIM..SPATIAL_DIM {
             if motor_axes & (1 << i) != 0 {
@@ -428,6 +450,8 @@ impl JointGenericOneBodyConstraint {
                     mb2,
                     i - DIM,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -443,6 +467,8 @@ impl JointGenericOneBodyConstraint {
                     mb2,
                     i,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -460,6 +486,8 @@ impl JointGenericOneBodyConstraint {
                     i - DIM,
                     [joint.limits[i].min, joint.limits[i].max],
                     WritebackId::Limit(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -476,6 +504,8 @@ impl JointGenericOneBodyConstraint {
                     i,
                     [joint.limits[i].min, joint.limits[i].max],
                     WritebackId::Limit(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }

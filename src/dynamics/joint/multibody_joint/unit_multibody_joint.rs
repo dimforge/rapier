@@ -20,11 +20,15 @@ pub fn unit_joint_limit_constraint(
     constraints: &mut [JointGenericOneBodyConstraint],
     insert_at: &mut usize,
 ) {
+    // TODO: use joint_natural_frequency and joint_damping_ratio from multibodies GenericJoint.
+    let joint_natural_frequency = params.joint_natural_frequency;
+    let joint_damping_ratio = params.joint_damping_ratio;
+
     let ndofs = multibody.ndofs();
     let min_enabled = curr_pos < limits[0];
     let max_enabled = limits[1] < curr_pos;
-    let erp_inv_dt = params.joint_erp_inv_dt();
-    let cfm_coeff = params.joint_cfm_coeff();
+    let erp_inv_dt = params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio);
+    let cfm_coeff = params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio);
     let rhs_bias = ((curr_pos - limits[1]).max(0.0) - (limits[0] - curr_pos).max(0.0)) * erp_inv_dt;
     let rhs_wo_bias = 0.0;
 
