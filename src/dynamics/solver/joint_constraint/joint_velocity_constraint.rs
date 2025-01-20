@@ -158,12 +158,8 @@ impl JointTwoBodyConstraint<Real, 1> {
         let limit_axes = joint.limit_axes.bits() & !locked_axes;
         let coupled_axes = joint.coupled_axes.bits();
 
-        let joint_natural_frequency = joint
-            .joint_natural_frequency
-            .unwrap_or(params.joint_natural_frequency);
-        let joint_damping_ratio = joint
-            .joint_damping_ratio
-            .unwrap_or(params.joint_damping_ratio);
+        let joint_natural_frequency = joint.joint_natural_frequency;
+        let joint_damping_ratio = joint.joint_damping_ratio;
         // The has_lin/ang_coupling test is needed to avoid shl overflow later.
         let has_lin_coupling = (coupled_axes & JointAxesMask::LIN_AXES.bits()) != 0;
         let first_coupled_lin_axis_id =
@@ -532,12 +528,8 @@ impl JointOneBodyConstraint<Real, 1> {
         let limit_axes = joint.limit_axes.bits() & !locked_axes;
         let coupled_axes = joint.coupled_axes.bits();
 
-        let joint_natural_frequency = joint
-            .joint_natural_frequency
-            .unwrap_or(params.joint_natural_frequency);
-        let joint_damping_ratio = joint
-            .joint_damping_ratio
-            .unwrap_or(params.joint_damping_ratio);
+        let joint_natural_frequency = joint.joint_natural_frequency;
+        let joint_damping_ratio = joint.joint_damping_ratio;
         // The has_lin/ang_coupling test is needed to avoid shl overflow later.
         let has_lin_coupling = (coupled_axes & JointAxesMask::LIN_AXES.bits()) != 0;
         let first_coupled_lin_axis_id =

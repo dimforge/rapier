@@ -251,23 +251,15 @@ pub struct GenericJoint {
     /// > 0: the natural frequency used by the springs for joint constraint regularization.
     ///
     /// Increasing this value will make it so that penetrations get fixed more quickly.
-    /// (default: [`None`]).
-    ///
-    /// If [`None`],
-    /// [`IntegrationParameters::joint_natural_frequency`](crate::prelude::IntegrationParameters::joint_natural_frequency)
-    /// is used.
-    pub joint_natural_frequency: Option<Real>,
+    /// (default: `1.0e6`).
+    pub joint_natural_frequency: Real,
 
     /// The fraction of critical damping applied to the joint for constraints regularization.
     ///
     /// Larger values make the constraints more compliant (allowing more joint
     /// drift before stabilization).
-    /// (default [`None`]).
-    ///
-    /// If [`None`],
-    /// [`IntegrationParameters::joint_damping_ratio`](crate::prelude::IntegrationParameters::joint_damping_ratio)
-    /// is used.
-    pub joint_damping_ratio: Option<Real>,
+    /// (default `1.0`).
+    pub joint_damping_ratio: Real,
 }
 
 impl Default for GenericJoint {
@@ -284,8 +276,8 @@ impl Default for GenericJoint {
             contacts_enabled: true,
             enabled: JointEnabled::Enabled,
             user_data: 0,
-            joint_natural_frequency: None,
-            joint_damping_ratio: None,
+            joint_natural_frequency: 1.0e6,
+            joint_damping_ratio: 1.0,
         }
     }
 }

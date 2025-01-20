@@ -89,12 +89,8 @@ impl JointGenericTwoBodyConstraint {
             locked_axes,
         );
 
-        let joint_natural_frequency = joint
-            .joint_natural_frequency
-            .unwrap_or(params.joint_natural_frequency);
-        let joint_damping_ratio = joint
-            .joint_damping_ratio
-            .unwrap_or(params.joint_damping_ratio);
+        let joint_natural_frequency = joint.joint_natural_frequency;
+        let joint_damping_ratio = joint.joint_damping_ratio;
 
         let start = len;
         for i in DIM..SPATIAL_DIM {
@@ -392,12 +388,8 @@ impl JointGenericOneBodyConstraint {
             locked_axes,
         );
 
-        let joint_natural_frequency = joint
-            .joint_natural_frequency
-            .unwrap_or(params.joint_natural_frequency);
-        let joint_damping_ratio = joint
-            .joint_damping_ratio
-            .unwrap_or(params.joint_damping_ratio);
+        let joint_natural_frequency = joint.joint_natural_frequency;
+        let joint_damping_ratio = joint.joint_damping_ratio;
 
         let start = len;
         for i in DIM..SPATIAL_DIM {

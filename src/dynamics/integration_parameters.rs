@@ -43,19 +43,6 @@ pub struct IntegrationParameters {
     /// (default: `30.0`).
     pub contact_natural_frequency: Real,
 
-    /// > 0: the natural frequency used by the springs for joint constraint regularization.
-    ///
-    /// Increasing this value will make it so that penetrations get fixed more quickly.
-    /// (default: `1.0e6`).
-    pub joint_natural_frequency: Real,
-
-    /// The fraction of critical damping applied to the joint for constraints regularization.
-    ///
-    /// Larger values make the constraints more compliant (allowing more joint
-    /// drift before stabilization).
-    /// (default `1.0`).
-    pub joint_damping_ratio: Real,
-
     /// The coefficient in `[0, 1]` applied to warmstart impulses, i.e., impulses that are used as the
     /// initial solution (instead of 0) at the next simulation step.
     ///
@@ -280,8 +267,6 @@ impl IntegrationParameters {
             min_ccd_dt: 1.0 / 60.0 / 100.0,
             contact_natural_frequency: 30.0,
             contact_damping_ratio: 5.0,
-            joint_natural_frequency: 1.0e6,
-            joint_damping_ratio: 1.0,
             warmstart_coefficient: 1.0,
             num_internal_pgs_iterations: 1,
             num_internal_stabilization_iterations: 2,
