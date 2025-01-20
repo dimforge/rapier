@@ -135,7 +135,7 @@ impl EntityWithGraphics {
             );
             #[cfg(feature = "dim3")]
             let bundle = (
-                Mesh2d(mesh),
+                Mesh3d(mesh),
                 MeshMaterial3d(material_handle.clone_weak()),
                 transform,
             );
