@@ -99,6 +99,8 @@ pub struct JointTwoBodyConstraintBuilderSimd {
     local_frame2: Isometry<SimdReal>,
     locked_axes: u8,
     constraint_id: usize,
+    joint_natural_frequency: Real,
+    joint_damping_ratio: Real,
 }
 
 #[cfg(feature = "simd-is-enabled")]
@@ -139,6 +141,8 @@ impl JointTwoBodyConstraintBuilderSimd {
             local_frame2: gather![|ii| joint[ii].data.local_frame2].into(),
             locked_axes: joint[0].data.locked_axes.bits(),
             constraint_id: *out_constraint_id,
+            joint_natural_frequency: joint[0].data.joint_natural_frequency,
+            joint_damping_ratio: joint[0].data.joint_damping_ratio,
         };
 
         let count = ConstraintsCounts::from_joint(joint[0]);
@@ -169,6 +173,8 @@ impl JointTwoBodyConstraintBuilderSimd {
             &frame1,
             &frame2,
             self.locked_axes,
+            self.joint_natural_frequency,
+            self.joint_damping_ratio,
             &mut out[self.constraint_id..],
         );
     }
@@ -265,6 +271,8 @@ pub struct JointOneBodyConstraintBuilderSimd {
     local_frame2: Isometry<SimdReal>,
     locked_axes: u8,
     constraint_id: usize,
+    joint_natural_frequency: Real,
+    joint_damping_ratio: Real,
 }
 
 #[cfg(feature = "simd-is-enabled")]
@@ -304,6 +312,8 @@ impl JointOneBodyConstraintBuilderSimd {
             local_frame2: local_frame2.into(),
             locked_axes: joint[0].data.locked_axes.bits(),
             constraint_id: *out_constraint_id,
+            joint_natural_frequency: joint[0].data.joint_natural_frequency,
+            joint_damping_ratio: joint[0].data.joint_damping_ratio,
         };
 
         let count = ConstraintsCounts::from_joint(joint[0]);
@@ -337,6 +347,10 @@ impl JointOneBodyConstraintBuilderSimd {
             &self.frame1,
             &frame2,
             self.locked_axes,
+            // TODO: Get those parameters in a joint specific fashion
+            // This should be part of JointOneBodyConstraintBuilderSimd ; added from `generate`, with data from ImpulseJoint (inner GenericJoint)
+            self.joint_natural_frequency,
+            self.joint_damping_ratio,
             &mut out[self.constraint_id..],
         );
     }
@@ -423,17 +437,29 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         limited_axis: usize,
         limits: [N; 2],
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointTwoBodyConstraint<N, LANES> {
         let zero = N::zero();
-        let mut constraint =
-            self.lock_linear(params, joint_id, body1, body2, limited_axis, writeback_id);
+        let mut constraint = self.lock_linear(
+            params,
+            joint_id,
+            body1,
+            body2,
+            limited_axis,
+            writeback_id,
+            joint_natural_frequency,
+            joint_damping_ratio,
+        );
 
         let dist = self.lin_err.dot(&constraint.lin_jac);
         let min_enabled = dist.simd_le(limits[0]);
         let max_enabled = limits[1].simd_le(dist);
 
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
+        let erp_inv_dt =
+            N::splat(params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio));
+        let cfm_coeff =
+            N::splat(params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio));
         let rhs_bias =
             ((dist - limits[1]).simd_max(zero) - (limits[0] - dist).simd_max(zero)) * erp_inv_dt;
         constraint.rhs = constraint.rhs_wo_bias + rhs_bias;
@@ -455,6 +481,8 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         coupled_axes: u8,
         limits: [N; 2],
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointTwoBodyConstraint<N, LANES> {
         let zero = N::zero();
         let mut lin_jac = Vector::zeros();
@@ -491,8 +519,10 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         ang_jac1 = body1.sqrt_ii * ang_jac1;
         ang_jac2 = body2.sqrt_ii * ang_jac2;
 
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
+        let erp_inv_dt =
+            N::splat(params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio));
+        let cfm_coeff =
+            N::splat(params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio));
         let rhs_bias = (dist - limits[1]).simd_max(zero) * erp_inv_dt;
         let rhs = rhs_wo_bias + rhs_bias;
         let impulse_bounds = [N::zero(), N::splat(Real::INFINITY)];
@@ -527,10 +557,20 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         motor_params: &MotorParameters<N>,
         limits: Option<[N; 2]>,
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointTwoBodyConstraint<N, LANES> {
         let inv_dt = N::splat(params.inv_dt());
-        let mut constraint =
-            self.lock_linear(params, joint_id, body1, body2, motor_axis, writeback_id);
+        let mut constraint = self.lock_linear(
+            params,
+            joint_id,
+            body1,
+            body2,
+            motor_axis,
+            writeback_id,
+            joint_natural_frequency,
+            joint_damping_ratio,
+        );
 
         let mut rhs_wo_bias = N::zero();
         if motor_params.erp_inv_dt != N::zero() {
@@ -639,6 +679,8 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         body2: &JointSolverBody<N, LANES>,
         locked_axis: usize,
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointTwoBodyConstraint<N, LANES> {
         let lin_jac = self.basis.column(locked_axis).into_owned();
         #[cfg(feature = "dim2")]
@@ -651,8 +693,10 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         let mut ang_jac2 = self.cmat2_basis.column(locked_axis).into_owned();
 
         let rhs_wo_bias = N::zero();
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
+        let erp_inv_dt =
+            N::splat(params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio));
+        let cfm_coeff =
+            N::splat(params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio));
         let rhs_bias = lin_jac.dot(&self.lin_err) * erp_inv_dt;
 
         ang_jac1 = body1.sqrt_ii * ang_jac1;
@@ -687,6 +731,8 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         _limited_axis: usize,
         limits: [N; 2],
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointTwoBodyConstraint<N, LANES> {
         let zero = N::zero();
         let half = N::splat(0.5);
@@ -708,8 +754,10 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         #[cfg(feature = "dim3")]
         let ang_jac = self.ang_basis.column(_limited_axis).into_owned();
         let rhs_wo_bias = N::zero();
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
+        let erp_inv_dt =
+            N::splat(params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio));
+        let cfm_coeff =
+            N::splat(params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio));
         let rhs_bias = ((s_ang - s_limits[1]).simd_max(zero)
             - (s_limits[0] - s_ang).simd_max(zero))
             * erp_inv_dt;
@@ -795,6 +843,8 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         body2: &JointSolverBody<N, LANES>,
         _locked_axis: usize,
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointTwoBodyConstraint<N, LANES> {
         #[cfg(feature = "dim2")]
         let ang_jac = N::one();
@@ -802,8 +852,10 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         let ang_jac = self.ang_basis.column(_locked_axis).into_owned();
 
         let rhs_wo_bias = N::zero();
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
+        let erp_inv_dt =
+            N::splat(params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio));
+        let cfm_coeff =
+            N::splat(params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio));
         #[cfg(feature = "dim2")]
         let rhs_bias = self.ang_err.im * erp_inv_dt;
         #[cfg(feature = "dim3")]
@@ -888,6 +940,8 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         limited_axis: usize,
         limits: [N; 2],
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointOneBodyConstraint<N, LANES> {
         let zero = N::zero();
         let lin_jac = self.basis.column(limited_axis).into_owned();
@@ -908,8 +962,10 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         let mut ang_jac2 = self.cmat2_basis.column(limited_axis).into_owned();
 
         let rhs_wo_bias = -lin_jac.dot(&body1.linvel) - ang_jac1.gdot(body1.angvel);
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
+        let erp_inv_dt =
+            N::splat(params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio));
+        let cfm_coeff =
+            N::splat(params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio));
         let rhs_bias =
             ((dist - limits[1]).simd_max(zero) - (limits[0] - dist).simd_max(zero)) * erp_inv_dt;
 
@@ -941,6 +997,8 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         coupled_axes: u8,
         limits: [N; 2],
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointOneBodyConstraint<N, LANES> {
         let zero = N::zero();
         let mut lin_jac = Vector::zeros();
@@ -976,8 +1034,10 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
 
         ang_jac2 = body2.sqrt_ii * ang_jac2;
 
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
+        let erp_inv_dt =
+            N::splat(params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio));
+        let cfm_coeff =
+            N::splat(params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio));
         let rhs_bias = (dist - limits[1]).simd_max(zero) * erp_inv_dt;
         let rhs = rhs_wo_bias + rhs_bias;
         let impulse_bounds = [N::zero(), N::splat(Real::INFINITY)];
@@ -1135,6 +1195,8 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         body2: &JointSolverBody<N, LANES>,
         locked_axis: usize,
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointOneBodyConstraint<N, LANES> {
         let lin_jac = self.basis.column(locked_axis).into_owned();
         let ang_jac1 = self.cmat1_basis.column(locked_axis).into_owned();
@@ -1145,8 +1207,10 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
 
         let rhs_wo_bias = -lin_jac.dot(&body1.linvel) - ang_jac1.gdot(body1.angvel);
 
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
+        let erp_inv_dt =
+            N::splat(params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio));
+        let cfm_coeff =
+            N::splat(params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio));
         let rhs_bias = lin_jac.dot(&self.lin_err) * erp_inv_dt;
 
         ang_jac2 = body2.sqrt_ii * ang_jac2;
@@ -1224,6 +1288,8 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         _limited_axis: usize,
         limits: [N; 2],
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointOneBodyConstraint<N, LANES> {
         let zero = N::zero();
         let half = N::splat(0.5);
@@ -1246,8 +1312,10 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         let ang_jac = self.ang_basis.column(_limited_axis).into_owned();
         let rhs_wo_bias = -ang_jac.gdot(body1.angvel);
 
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
+        let erp_inv_dt =
+            N::splat(params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio));
+        let cfm_coeff =
+            N::splat(params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio));
         let rhs_bias = ((s_ang - s_limits[1]).simd_max(zero)
             - (s_limits[0] - s_ang).simd_max(zero))
             * erp_inv_dt;
@@ -1279,6 +1347,8 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
         body2: &JointSolverBody<N, LANES>,
         _locked_axis: usize,
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointOneBodyConstraint<N, LANES> {
         #[cfg(feature = "dim2")]
         let ang_jac = N::one();
@@ -1287,8 +1357,10 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
 
         let rhs_wo_bias = -ang_jac.gdot(body1.angvel);
 
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
+        let erp_inv_dt =
+            N::splat(params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio));
+        let cfm_coeff =
+            N::splat(params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio));
         #[cfg(feature = "dim2")]
         let rhs_bias = self.ang_err.im * erp_inv_dt;
         #[cfg(feature = "dim3")]
@@ -1371,6 +1443,8 @@ impl JointTwoBodyConstraintHelper<Real> {
         coupled_axes: u8,
         limits: [Real; 2],
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointTwoBodyConstraint<Real, 1> {
         // NOTE: right now, this only supports exactly 2 coupled axes.
         let ang_coupled_axes = coupled_axes >> DIM;
@@ -1395,8 +1469,8 @@ impl JointTwoBodyConstraintHelper<Real> {
 
         let rhs_wo_bias = 0.0;
 
-        let erp_inv_dt = params.joint_erp_inv_dt();
-        let cfm_coeff = params.joint_cfm_coeff();
+        let erp_inv_dt = params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio);
+        let cfm_coeff = params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio);
         let rhs_bias = ((angle - limits[1]).max(0.0) - (limits[0] - angle).max(0.0)) * erp_inv_dt;
 
         let ang_jac1 = body1.sqrt_ii * ang_jac;
@@ -1432,6 +1506,8 @@ impl JointTwoBodyConstraintHelper<Real> {
         coupled_axes: u8,
         limits: [Real; 2],
         writeback_id: WritebackId,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
     ) -> JointOneBodyConstraint<Real, 1> {
         // NOTE: right now, this only supports exactly 2 coupled axes.
         let ang_coupled_axes = coupled_axes >> DIM;
@@ -1456,8 +1532,8 @@ impl JointTwoBodyConstraintHelper<Real> {
 
         let rhs_wo_bias = -ang_jac.gdot(body1.angvel);
 
-        let erp_inv_dt = params.joint_erp_inv_dt();
-        let cfm_coeff = params.joint_cfm_coeff();
+        let erp_inv_dt = params.joint_erp_inv_dt(joint_natural_frequency, joint_damping_ratio);
+        let cfm_coeff = params.joint_cfm_coeff(joint_natural_frequency, joint_damping_ratio);
         let rhs_bias = ((angle - limits[1]).max(0.0) - (limits[0] - angle).max(0.0)) * erp_inv_dt;
 
         let ang_jac2 = body2.sqrt_ii * ang_jac;

@@ -6,8 +6,8 @@ use std::num::NonZeroUsize;
 use crate::debug_render::DebugRenderPipelineResource;
 use crate::harness::Harness;
 use crate::testbed::{
-    RapierSolverType, RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags,
-    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR,
+    JointsConfiguration, RapierSolverType, RunMode, TestbedActionFlags, TestbedState,
+    TestbedStateFlags, PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR,
 };
 
 use crate::PhysicsState;
@@ -21,6 +21,7 @@ pub fn update_ui(
     state: &mut TestbedState,
     harness: &mut Harness,
     debug_render: &mut DebugRenderPipelineResource,
+    joints_configuration: &mut JointsConfiguration,
 ) {
     #[cfg(feature = "profiler_ui")]
     {
@@ -231,13 +232,13 @@ pub fn update_ui(
             );
             ui.add(
                 Slider::new(
-                    &mut integration_parameters.joint_natural_frequency,
+                    &mut joints_configuration.joint_natural_frequency,
                     0.0..=1200000.0,
                 )
                 .text("joint erp"),
             );
             ui.add(
-                Slider::new(&mut integration_parameters.joint_damping_ratio, 0.0..=20.0)
+                Slider::new(&mut joints_configuration.joint_damping_ratio, 0.0..=20.0)
                     .text("joint damping ratio"),
             );
         }

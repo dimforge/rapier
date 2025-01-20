@@ -125,6 +125,24 @@ pub struct TestbedState {
     camera_locked: bool, // Used so that the camera can remain the same before and after we change backend or press the restart button.
 }
 
+#[derive(Resource, Clone, Debug, PartialEq)]
+pub struct JointsConfiguration {
+    /// Sets [`rapier::prelude::GenericJoint::joint_natural_frequency`] for all joints.
+    pub joint_natural_frequency: Real,
+
+    /// Sets [`rapier::prelude::GenericJoint::joint_damping_ratio`] for all joints.
+    pub joint_damping_ratio: Real,
+}
+
+impl Default for JointsConfiguration {
+    fn default() -> Self {
+        Self {
+            joint_natural_frequency: 1.0e6,
+            joint_damping_ratio: 1.0,
+        }
+    }
+}
+
 #[derive(Resource)]
 struct SceneBuilders(SimulationBuilders);
 
@@ -442,6 +460,7 @@ impl TestbedApp {
                     ..Default::default()
                 })
                 .init_resource::<mouse::SceneMouse>()
+                .init_resource::<JointsConfiguration>()
                 .add_plugins(DefaultPlugins.set(window_plugin))
                 .add_plugins(OrbitCameraPlugin)
                 .add_plugins(WireframePlugin)
@@ -462,7 +481,11 @@ impl TestbedApp {
                 .insert_non_send_resource(self.plugins)
                 .add_systems(Update, update_testbed)
                 .add_systems(Update, egui_focus)
-                .add_systems(Update, track_mouse_state);
+                .add_systems(Update, track_mouse_state)
+                .add_systems(
+                    Update,
+                    update_joint_configuration.run_if(resource_changed::<JointsConfiguration>),
+                );
 
             init(&mut app);
             app.run();
@@ -1184,6 +1207,7 @@ fn update_testbed(
     builders: ResMut<SceneBuilders>,
     mut graphics: NonSendMut<GraphicsManager>,
     mut state: ResMut<TestbedState>,
+    mut joints_configuration: ResMut<JointsConfiguration>,
     mut debug_render: ResMut<DebugRenderPipelineResource>,
     mut harness: NonSendMut<Harness>,
     #[cfg(feature = "other-backends")] mut other_backends: NonSendMut<OtherBackends>,
@@ -1237,7 +1261,18 @@ fn update_testbed(
     // Update UI
     {
         let harness = &mut *harness;
-        ui::update_ui(&mut ui_context, &mut state, harness, &mut debug_render);
+        // Bypass change detection, to avoid changing all joints data each frames.
+        let mut joints_configuration_cloned = joints_configuration.clone();
+        ui::update_ui(
+            &mut ui_context,
+            &mut state,
+            harness,
+            &mut debug_render,
+            &mut joints_configuration_cloned,
+        );
+        if joints_configuration_cloned != *joints_configuration {
+            *joints_configuration = joints_configuration_cloned;
+        }
 
         for plugin in &mut plugins.0 {
             plugin.update_ui(
@@ -1653,5 +1688,19 @@ fn highlight_hovered_body(
                 }
             }
         }
+    }
+}
+
+pub fn update_joint_configuration(
+    joints_configuration: Res<JointsConfiguration>,
+    mut harness: NonSendMut<Harness>,
+) {
+    for joint in harness.physics.impulse_joints.iter_mut() {
+        joint.1.data.joint_natural_frequency = joints_configuration.joint_natural_frequency;
+        joint.1.data.joint_damping_ratio = joints_configuration.joint_damping_ratio;
+    }
+    for joint in harness.physics.multibody_joints.multibody_links_mut() {
+        joint.joint.data.joint_natural_frequency = joints_configuration.joint_natural_frequency;
+        joint.joint.data.joint_damping_ratio = joints_configuration.joint_damping_ratio;
     }
 }

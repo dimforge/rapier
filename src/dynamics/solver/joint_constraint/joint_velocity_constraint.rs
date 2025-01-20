@@ -158,6 +158,8 @@ impl JointTwoBodyConstraint<Real, 1> {
         let limit_axes = joint.limit_axes.bits() & !locked_axes;
         let coupled_axes = joint.coupled_axes.bits();
 
+        let joint_natural_frequency = joint.joint_natural_frequency;
+        let joint_damping_ratio = joint.joint_damping_ratio;
         // The has_lin/ang_coupling test is needed to avoid shl overflow later.
         let has_lin_coupling = (coupled_axes & JointAxesMask::LIN_AXES.bits()) != 0;
         let first_coupled_lin_axis_id =
@@ -208,6 +210,8 @@ impl JointTwoBodyConstraint<Real, 1> {
                     &joint.motors[i].motor_params(params.dt),
                     limits,
                     WritebackId::Motor(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -252,14 +256,24 @@ impl JointTwoBodyConstraint<Real, 1> {
                     body2,
                     i - DIM,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
         }
         for i in 0..DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] =
-                    builder.lock_linear(params, [joint_id], body1, body2, i, WritebackId::Dof(i));
+                out[len] = builder.lock_linear(
+                    params,
+                    [joint_id],
+                    body1,
+                    body2,
+                    i,
+                    WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
+                );
                 len += 1;
             }
         }
@@ -274,6 +288,8 @@ impl JointTwoBodyConstraint<Real, 1> {
                     i - DIM,
                     [joint.limits[i].min, joint.limits[i].max],
                     WritebackId::Limit(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -288,6 +304,8 @@ impl JointTwoBodyConstraint<Real, 1> {
                     i,
                     [joint.limits[i].min, joint.limits[i].max],
                     WritebackId::Limit(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -306,6 +324,8 @@ impl JointTwoBodyConstraint<Real, 1> {
                     joint.limits[first_coupled_ang_axis_id].max,
                 ],
                 WritebackId::Limit(first_coupled_ang_axis_id),
+                joint_natural_frequency,
+                joint_damping_ratio,
             );
             len += 1;
         }
@@ -322,6 +342,8 @@ impl JointTwoBodyConstraint<Real, 1> {
                     joint.limits[first_coupled_lin_axis_id].max,
                 ],
                 WritebackId::Limit(first_coupled_lin_axis_id),
+                joint_natural_frequency,
+                joint_damping_ratio,
             );
             len += 1;
         }
@@ -360,6 +382,8 @@ impl JointTwoBodyConstraint<SimdReal, SIMD_WIDTH> {
         frame1: &Isometry<SimdReal>,
         frame2: &Isometry<SimdReal>,
         locked_axes: u8,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
         out: &mut [Self],
     ) -> usize {
         let builder = JointTwoBodyConstraintHelper::new(
@@ -373,8 +397,16 @@ impl JointTwoBodyConstraint<SimdReal, SIMD_WIDTH> {
         let mut len = 0;
         for i in 0..DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] =
-                    builder.lock_linear(params, joint_id, body1, body2, i, WritebackId::Dof(i));
+                out[len] = builder.lock_linear(
+                    params,
+                    joint_id,
+                    body1,
+                    body2,
+                    i,
+                    WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
+                );
                 len += 1;
             }
         }
@@ -388,6 +420,8 @@ impl JointTwoBodyConstraint<SimdReal, SIMD_WIDTH> {
                     body2,
                     i - DIM,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -494,6 +528,8 @@ impl JointOneBodyConstraint<Real, 1> {
         let limit_axes = joint.limit_axes.bits() & !locked_axes;
         let coupled_axes = joint.coupled_axes.bits();
 
+        let joint_natural_frequency = joint.joint_natural_frequency;
+        let joint_damping_ratio = joint.joint_damping_ratio;
         // The has_lin/ang_coupling test is needed to avoid shl overflow later.
         let has_lin_coupling = (coupled_axes & JointAxesMask::LIN_AXES.bits()) != 0;
         let first_coupled_lin_axis_id =
@@ -589,6 +625,8 @@ impl JointOneBodyConstraint<Real, 1> {
                     body2,
                     i - DIM,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -602,6 +640,8 @@ impl JointOneBodyConstraint<Real, 1> {
                     body2,
                     i,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -617,6 +657,8 @@ impl JointOneBodyConstraint<Real, 1> {
                     i - DIM,
                     [joint.limits[i].min, joint.limits[i].max],
                     WritebackId::Limit(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -631,6 +673,8 @@ impl JointOneBodyConstraint<Real, 1> {
                     i,
                     [joint.limits[i].min, joint.limits[i].max],
                     WritebackId::Limit(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -649,6 +693,8 @@ impl JointOneBodyConstraint<Real, 1> {
                     joint.limits[first_coupled_ang_axis_id].max,
                 ],
                 WritebackId::Limit(first_coupled_ang_axis_id),
+                joint_natural_frequency,
+                joint_damping_ratio,
             );
             len += 1;
         }
@@ -665,6 +711,8 @@ impl JointOneBodyConstraint<Real, 1> {
                     joint.limits[first_coupled_lin_axis_id].max,
                 ],
                 WritebackId::Limit(first_coupled_lin_axis_id),
+                joint_natural_frequency,
+                joint_damping_ratio,
             );
             len += 1;
         }
@@ -699,6 +747,8 @@ impl JointOneBodyConstraint<SimdReal, SIMD_WIDTH> {
         frame1: &Isometry<SimdReal>,
         frame2: &Isometry<SimdReal>,
         locked_axes: u8,
+        joint_natural_frequency: Real,
+        joint_damping_ratio: Real,
         out: &mut [Self],
     ) -> usize {
         let mut len = 0;
@@ -719,6 +769,8 @@ impl JointOneBodyConstraint<SimdReal, SIMD_WIDTH> {
                     body2,
                     i,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
@@ -732,6 +784,8 @@ impl JointOneBodyConstraint<SimdReal, SIMD_WIDTH> {
                     body2,
                     i - DIM,
                     WritebackId::Dof(i),
+                    joint_natural_frequency,
+                    joint_damping_ratio,
                 );
                 len += 1;
             }
