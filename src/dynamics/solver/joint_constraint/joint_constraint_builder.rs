@@ -99,6 +99,8 @@ pub struct JointTwoBodyConstraintBuilderSimd {
     local_frame2: Isometry<SimdReal>,
     locked_axes: u8,
     constraint_id: usize,
+    joint_natural_frequency: Real,
+    joint_damping_ratio: Real,
 }
 
 #[cfg(feature = "simd-is-enabled")]
@@ -139,6 +141,8 @@ impl JointTwoBodyConstraintBuilderSimd {
             local_frame2: gather![|ii| joint[ii].data.local_frame2].into(),
             locked_axes: joint[0].data.locked_axes.bits(),
             constraint_id: *out_constraint_id,
+            joint_natural_frequency: joint[0].data.joint_natural_frequency,
+            joint_damping_ratio: joint[0].data.joint_damping_ratio,
         };
 
         let count = ConstraintsCounts::from_joint(joint[0]);
@@ -169,9 +173,8 @@ impl JointTwoBodyConstraintBuilderSimd {
             &frame1,
             &frame2,
             self.locked_axes,
-            // TODO: get those parameters in a joint specific fashion.
-            params.joint_natural_frequency,
-            params.joint_damping_ratio,
+            self.joint_natural_frequency,
+            self.joint_damping_ratio,
             &mut out[self.constraint_id..],
         );
     }
@@ -268,6 +271,8 @@ pub struct JointOneBodyConstraintBuilderSimd {
     local_frame2: Isometry<SimdReal>,
     locked_axes: u8,
     constraint_id: usize,
+    joint_natural_frequency: Real,
+    joint_damping_ratio: Real,
 }
 
 #[cfg(feature = "simd-is-enabled")]
@@ -307,6 +312,8 @@ impl JointOneBodyConstraintBuilderSimd {
             local_frame2: local_frame2.into(),
             locked_axes: joint[0].data.locked_axes.bits(),
             constraint_id: *out_constraint_id,
+            joint_natural_frequency: joint[0].data.joint_natural_frequency,
+            joint_damping_ratio: joint[0].data.joint_damping_ratio,
         };
 
         let count = ConstraintsCounts::from_joint(joint[0]);
@@ -342,8 +349,8 @@ impl JointOneBodyConstraintBuilderSimd {
             self.locked_axes,
             // TODO: Get those parameters in a joint specific fashion
             // This should be part of JointOneBodyConstraintBuilderSimd ; added from `generate`, with data from ImpulseJoint (inner GenericJoint)
-            params.joint_natural_frequency,
-            params.joint_damping_ratio,
+            self.joint_natural_frequency,
+            self.joint_damping_ratio,
             &mut out[self.constraint_id..],
         );
     }
