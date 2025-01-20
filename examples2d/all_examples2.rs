@@ -20,6 +20,7 @@ mod debug_intersection2;
 mod debug_total_overlap2;
 mod debug_vertical_column2;
 mod drum2;
+mod groove_joint2;
 mod heightfield2;
 mod inverse_kinematics2;
 mod joint_motor_position2;
@@ -92,6 +93,7 @@ pub fn main() {
         ("One-way platforms", one_way_platforms2::init_world),
         ("Platform", platform2::init_world),
         ("Polyline", polyline2::init_world),
+        ("Groove Joint", groove_joint2::init_world),
         ("Pyramid", pyramid2::init_world),
         ("Restitution", restitution2::init_world),
         ("Rope Joints", rope_joints2::init_world),
