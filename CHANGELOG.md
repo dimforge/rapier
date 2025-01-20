@@ -1,3 +1,9 @@
+## Unreleased
+
+### Modified
+
+- Removed `IntegrationParameters::joint_natural_frequency` and `IntegrationParameters::joint_damping_ratio` in favor of being in `GenericJoint` (#789).
+
 ## v0.23.0 (08 Jan 2025)
 
 ### Fix
