@@ -10,19 +10,19 @@ use super::{JointLimits, JointMotor};
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]
-/// A groove joint, locks all relative motion between two bodies except for translation along the joint’s principal axis and relative rotations.
-pub struct GrooveJoint {
+/// A pin slot joint, locks all relative motion between two bodies except for translation along the joint’s principal axis and relative rotations.
+pub struct PinSlotJoint {
     /// The underlying joint data.
     pub data: GenericJoint,
 }
 
-impl GrooveJoint {
-    /// Creates a new groove joint allowing only relative translations along the specified axis and relative rotations.
+impl PinSlotJoint {
+    /// Creates a new pin slot joint allowing only relative translations along the specified axis and relative rotations.
     ///
     /// This axis is expressed in the local-space of both rigid-bodies.
     #[cfg(feature = "dim2")]
     pub fn new(axis: UnitVector<Real>) -> Self {
-        let data = GenericJointBuilder::new(JointAxesMask::LOCKED_GROOVE_AXES)
+        let data = GenericJointBuilder::new(JointAxesMask::LOCKED_PIN_SLOT_AXES)
             .local_axis1(axis)
             .local_axis2(axis)
             .build();
@@ -156,26 +156,26 @@ impl GrooveJoint {
     }
 }
 
-impl From<GrooveJoint> for GenericJoint {
-    fn from(val: GrooveJoint) -> GenericJoint {
+impl From<PinSlotJoint> for GenericJoint {
+    fn from(val: PinSlotJoint) -> GenericJoint {
         val.data
     }
 }
 
-/// Create groove joints using the builder pattern.
+/// Create pin slot joints using the builder pattern.
 ///
-/// A groove joint locks all relative motion except for translations along the joint’s principal axis and relative rotations.
+/// A pin slot joint locks all relative motion except for translations along the joint’s principal axis and relative rotations.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct GrooveJointBuilder(pub GrooveJoint);
+pub struct PinSlotJointBuilder(pub PinSlotJoint);
 
-impl GrooveJointBuilder {
-    /// Creates a new builder for groove joints.
+impl PinSlotJointBuilder {
+    /// Creates a new builder for pin slot joints.
     ///
     /// This axis is expressed in the local-space of both rigid-bodies.
     #[cfg(feature = "dim2")]
     pub fn new(axis: UnitVector<Real>) -> Self {
-        Self(GrooveJoint::new(axis))
+        Self(PinSlotJoint::new(axis))
     }
 
     /// Sets whether contacts between the attached rigid-bodies are enabled.
@@ -261,15 +261,15 @@ impl GrooveJointBuilder {
         self
     }
 
-    /// Builds the groove joint.
+    /// Builds the pin slot joint.
     #[must_use]
-    pub fn build(self) -> GrooveJoint {
+    pub fn build(self) -> PinSlotJoint {
         self.0
     }
 }
 
-impl From<GrooveJointBuilder> for GenericJoint {
-    fn from(val: GrooveJointBuilder) -> GenericJoint {
+impl From<PinSlotJointBuilder> for GenericJoint {
+    fn from(val: PinSlotJointBuilder) -> GenericJoint {
         val.0.into()
     }
 }

@@ -60,15 +60,15 @@ pub fn init_world(testbed: &mut Testbed) {
     impulse_joints.insert(cube_handle, ball_handle, fixed_joint, true);
 
     /*
-     * Groove joint between cube and ground.
+     * Pin slot joint between cube and ground.
      */
-    let axis = UnitVector::new_normalize(vector![1.0, 1.0]);
-    let groove_joint = GrooveJointBuilder::new(axis)
+    let axis: nalgebra::Unit<nalgebra::Matrix<f32, nalgebra::Const<2>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 2, 1>>> = UnitVector::new_normalize(vector![1.0, 1.0]);
+    let pin_slot_joint = PinSlotJointBuilder::new(axis)
         .local_anchor1(point![2.0, 2.0])
         .local_anchor2(point![0.0, 0.4])
-        .limits([-1.0, f32::INFINITY]) // Set the limits for the groove joint
+        .limits([-1.0, f32::INFINITY]) // Set the limits for the pin slot joint
         .build();
-    impulse_joints.insert(character_handle, cube_handle, groove_joint, true);
+    impulse_joints.insert(character_handle, cube_handle, pin_slot_joint, true);
 
     /*
      * Set up the testbed.
