@@ -62,7 +62,14 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Pin slot joint between cube and ground.
      */
-    let axis: nalgebra::Unit<nalgebra::Matrix<f32, nalgebra::Const<2>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 2, 1>>> = UnitVector::new_normalize(vector![1.0, 1.0]);
+    let axis: nalgebra::Unit<
+        nalgebra::Matrix<
+            f32,
+            nalgebra::Const<2>,
+            nalgebra::Const<1>,
+            nalgebra::ArrayStorage<f32, 2, 1>,
+        >,
+    > = UnitVector::new_normalize(vector![1.0, 1.0]);
     let pin_slot_joint = PinSlotJointBuilder::new(axis)
         .local_anchor1(point![2.0, 2.0])
         .local_anchor2(point![0.0, 0.4])
