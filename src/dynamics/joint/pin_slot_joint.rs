@@ -11,6 +11,7 @@ use super::{JointLimits, JointMotor};
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]
 /// A pin slot joint, locks all relative motion between two bodies except for translation along the joint’s principal axis and relative rotations.
+/// This joint is also known as a [groove joint in Godot](https://docs.godotengine.org/en/stable/classes/class_groovejoint2d.html).
 pub struct PinSlotJoint {
     /// The underlying joint data.
     pub data: GenericJoint,
