@@ -250,7 +250,7 @@ pub struct GenericJoint {
     pub user_data: u128,
     /// > 0: the natural frequency used by the springs for joint constraint regularization.
     ///
-    /// Increasing this value will make it so that penetrations get fixed more quickly.
+    /// Increasing this value will make it so that positioning errors get fixed more quickly.
     /// (default: `1.0e6`).
     pub joint_natural_frequency: Real,
 
