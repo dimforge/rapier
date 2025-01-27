@@ -465,8 +465,8 @@ impl MultibodyJointSet {
         self.multibodies.iter().map(|e| e.1)
     }
     /// Iterates through all the multibodies on this set.
-    pub fn multibody_links_mut(&mut self) -> impl Iterator<Item = &mut MultibodyLink> {
-        self.multibodies.iter_mut().flat_map(|e| e.1.links_mut())
+    pub fn multibodies_mut(&mut self) -> impl Iterator<Item = &mut Multibody> {
+        self.multibodies.iter_mut().map(|e| e.1)
     }
 }
 

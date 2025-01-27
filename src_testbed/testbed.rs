@@ -1699,7 +1699,12 @@ pub fn update_joint_configuration(
         joint.1.data.joint_natural_frequency = joints_configuration.joint_natural_frequency;
         joint.1.data.joint_damping_ratio = joints_configuration.joint_damping_ratio;
     }
-    for joint in harness.physics.multibody_joints.multibody_links_mut() {
+    for joint in harness
+        .physics
+        .multibody_joints
+        .multibodies_mut()
+        .flat_map(|e| e.links_mut())
+    {
         joint.joint.data.joint_natural_frequency = joints_configuration.joint_natural_frequency;
         joint.joint.data.joint_damping_ratio = joints_configuration.joint_damping_ratio;
     }
