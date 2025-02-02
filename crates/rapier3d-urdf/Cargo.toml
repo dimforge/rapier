@@ -1,6 +1,6 @@
 [package]
 name = "rapier3d-urdf"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "URDF file loader for the 3D rapier physics engine."
 documentation = "https://docs.rs/rapier3d-urdf"
@@ -32,4 +32,4 @@ bitflags = "2"
 urdf-rs = "0.9"
 
 rapier3d = { version = "0.23", path = "../rapier3d" }
-rapier3d-meshloader = { version = "0.3.0", path = "../rapier3d-meshloader", default-features = false, optional = true }
+rapier3d-meshloader = { version = "0.4.0", path = "../rapier3d-meshloader", default-features = false, optional = true }

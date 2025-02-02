@@ -1,6 +1,6 @@
 [package]
 name = "rapier3d-meshloader"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "STL file loader for the 3D rapier physics engine."
 documentation = "https://docs.rs/rapier3d-meshloader"
