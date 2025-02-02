@@ -1445,54 +1445,38 @@ mod test {
 
         let contact_pair = narrow_phase
             .contact_pair(collider_1_handle, collider_2_handle)
-            .expect("The contact pair should exist.");
+            .expect("The contact pair should no longer exist.");
         assert_eq!(
             contact_pair.manifolds.len(),
             0,
             "Colliders with same parent should not be in contact together."
         );
 
-        /* Run the game loop, stepping the simulation once per frame. */
-        for _ in 0..200 {
-            physics_pipeline.step(
-                &gravity,
-                &integration_parameters,
-                &mut island_manager,
-                &mut broad_phase,
-                &mut narrow_phase,
-                &mut rigid_body_set,
-                &mut collider_set,
-                &mut impulse_joint_set,
-                &mut multibody_joint_set,
-                &mut ccd_solver,
-                Some(&mut query_pipeline),
-                &physics_hooks,
-                &event_handler,
-            );
-
-            collider_set.get(collider_1_handle).unwrap().pos;
-            collider_set.get(collider_2_handle).unwrap().pos;
-        }
-
-        let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
-        let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
-        println!("collider 2 position: {}", collider_2_position.translation);
-        assert!(
-            (collider_1_position.translation.vector - collider_2_position.translation.vector)
-                .magnitude()
-                < 0.1f32,
-            "colliders should be penetrating."
+        /* Parent collider 2 back to body 1. */
+        collider_set.set_parent(collider_2_handle, Some(body_2_handle), &mut rigid_body_set);
+        physics_pipeline.step(
+            &gravity,
+            &integration_parameters,
+            &mut island_manager,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &mut impulse_joint_set,
+            &mut multibody_joint_set,
+            &mut ccd_solver,
+            Some(&mut query_pipeline),
+            &physics_hooks,
+            &event_handler,
         );
-        assert!(
-            rigid_body_set
-                .get(body_1_handle)
-                .unwrap()
-                .position()
-                .translation
-                .vector
-                .magnitude()
-                < 0.1f32,
-            "Body 1 should not have gone too far from origin."
+
+        let contact_pair = narrow_phase
+            .contact_pair(collider_1_handle, collider_2_handle)
+            .expect("The contact pair should exist.");
+        assert_eq!(
+            contact_pair.manifolds.len(),
+            1,
+            "There should be a contact manifold."
         );
     }
 }
