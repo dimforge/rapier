@@ -458,29 +458,7 @@ impl NarrowPhase {
                             }
                         }
                     }
-                    // Remove the new parent from the collision graphs
-                    if co.changes.intersects(ColliderChanges::PARENT) {
-                        let current_parent_body = co.parent();
-                        for inter in self
-                            .contact_graph
-                            .interactions_with(gid.contact_graph_index)
-                        {
-                            let Some(co2) = colliders.get(*handle) else {
-                                continue;
-                            };
-                            let other_parent_body = co2.parent();
-                            if other_parent_body == current_parent_body {
-                                pairs_to_remove.push((
-                                    ColliderPair::new(inter.0, inter.1),
-                                    PairRemovalMode::FromContactGraph,
-                                ));
-                                pairs_to_remove.push((
-                                    ColliderPair::new(inter.0, inter.1),
-                                    PairRemovalMode::FromIntersectionGraph,
-                                ));
-                            }
-                        }
-                    }
+
                     // For each collider which had their sensor status modified, we need
                     // to transfer their contact/intersection graph edges to the intersection/contact graph.
                     // To achieve this we will remove the relevant contact/intersection pairs form the
@@ -516,6 +494,12 @@ impl NarrowPhase {
                             }
                         }
                     }
+
+                    // NOTE: if a collider only changed parent, we don’t need to remove it from any
+                    //       of the graphs as re-parenting doesn’t change the sensor status of a
+                    //       collider. If needed, their collision/intersection data will be
+                    //       updated/removed automatically in the contact or intersection update
+                    //       functions.
                 }
             }
         }
@@ -532,7 +516,7 @@ impl NarrowPhase {
             );
         }
 
-        // Add the paid removed pair to the relevant graph.
+        // Add the removed pair to the relevant graph.
         for pair in pairs_to_remove {
             self.add_pair(colliders, &pair.0);
         }
@@ -1213,6 +1197,10 @@ mod test {
     /// Test for https://github.com/dimforge/rapier/issues/734.
     #[test]
     pub fn collider_set_parent_depenetration() {
+        // This tests the scenario:
+        // 1. Body A has two colliders attached (and overlapping), Body B has none.
+        // 2. One of the colliders from Body A gets re-parented to Body B.
+        //    -> Collision is properly detected between the colliders of A and B.
         let mut rigid_body_set = RigidBodySet::new();
         let mut collider_set = ColliderSet::new();
 
@@ -1352,6 +1340,13 @@ mod test {
     /// Test for https://github.com/dimforge/rapier/issues/734.
     #[test]
     pub fn collider_set_parent_no_self_intersection() {
+        // This tests the scenario:
+        // 1. Body A and Body B each have one collider attached.
+        //    -> There should be a collision detected between A and B.
+        // 2. The collider from Body B gets attached to Body A.
+        //    -> There should no longer be any collision between A and B.
+        // 3. Re-parent one of the collider from Body A to Body B again.
+        //    -> There should a collision again.
         let mut rigid_body_set = RigidBodySet::new();
         let mut collider_set = ColliderSet::new();
 
