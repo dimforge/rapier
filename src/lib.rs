@@ -139,6 +139,8 @@ pub mod geometry;
 pub mod pipeline;
 pub mod utils;
 
+mod physics_context;
+
 /// Elementary mathematical entities (vectors, matrices, isometries, etc).
 pub mod math {
     pub use parry::math::*;
@@ -215,6 +217,7 @@ pub mod prelude {
     pub use crate::dynamics::*;
     pub use crate::geometry::*;
     pub use crate::math::*;
+    pub use crate::physics_context::PhysicsContext;
     pub use crate::pipeline::*;
     pub use na::{point, vector, DMatrix, DVector};
     pub extern crate nalgebra;
