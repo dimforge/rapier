@@ -671,106 +671,67 @@ mod test {
     use na::point;
 
     use crate::dynamics::{
-        CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, RigidBodyBuilder,
-        RigidBodySet,
+        ImpulseJointSet, IntegrationParameters, IslandManager, RigidBodyBuilder, RigidBodySet,
     };
-    use crate::geometry::{BroadPhaseMultiSap, ColliderBuilder, ColliderSet, NarrowPhase};
+    use crate::geometry::{ColliderBuilder, ColliderSet};
     use crate::math::Vector;
-    use crate::pipeline::PhysicsPipeline;
     use crate::prelude::{MultibodyJointSet, RevoluteJointBuilder, RigidBodyType};
 
     #[test]
     fn kinematic_and_fixed_contact_crash() {
-        let mut colliders = ColliderSet::new();
-        let mut impulse_joints = ImpulseJointSet::new();
-        let mut multibody_joints = MultibodyJointSet::new();
-        let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhaseMultiSap::new();
-        let mut nf = NarrowPhase::new();
-        let mut bodies = RigidBodySet::new();
-        let mut islands = IslandManager::new();
+        let mut pc = crate::prelude::PhysicsContext::<(), ()> {
+            query_pipeline: None,
+            ..crate::prelude::PhysicsContext::default()
+        };
 
         let rb = RigidBodyBuilder::fixed().build();
-        let h1 = bodies.insert(rb.clone());
+        let h1 = pc.bodies.insert(rb.clone());
         let co = ColliderBuilder::ball(10.0).build();
-        colliders.insert_with_parent(co.clone(), h1, &mut bodies);
+        pc.colliders
+            .insert_with_parent(co.clone(), h1, &mut pc.bodies);
 
         // The same but with a kinematic body.
         let rb = RigidBodyBuilder::kinematic_position_based().build();
-        let h2 = bodies.insert(rb.clone());
-        colliders.insert_with_parent(co, h2, &mut bodies);
+        let h2 = pc.bodies.insert(rb.clone());
+        pc.colliders.insert_with_parent(co, h2, &mut pc.bodies);
 
-        pipeline.step(
-            &Vector::zeros(),
-            &IntegrationParameters::default(),
-            &mut islands,
-            &mut bf,
-            &mut nf,
-            &mut bodies,
-            &mut colliders,
-            &mut impulse_joints,
-            &mut multibody_joints,
-            &mut CCDSolver::new(),
-            None,
-            &(),
-            &(),
-        );
+        pc.step();
     }
 
     #[test]
     fn rigid_body_removal_before_step() {
-        let mut colliders = ColliderSet::new();
-        let mut impulse_joints = ImpulseJointSet::new();
-        let mut multibody_joints = MultibodyJointSet::new();
-        let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhaseMultiSap::new();
-        let mut nf = NarrowPhase::new();
-        let mut islands = IslandManager::new();
-
-        let mut bodies = RigidBodySet::new();
+        let mut pc = crate::prelude::PhysicsContext::<(), ()> {
+            query_pipeline: None,
+            ..crate::prelude::PhysicsContext::default()
+        };
 
         // Check that removing the body right after inserting it works.
         // We add two dynamic bodies, one kinematic body and one fixed body before removing
         // them. This include a non-regression test where deleting a kinematic body crashes.
         let rb = RigidBodyBuilder::dynamic().build();
-        let h1 = bodies.insert(rb.clone());
-        let h2 = bodies.insert(rb.clone());
+        let h1 = pc.bodies.insert(rb.clone());
+        let h2 = pc.bodies.insert(rb.clone());
 
         // The same but with a kinematic body.
         let rb = RigidBodyBuilder::kinematic_position_based().build();
-        let h3 = bodies.insert(rb.clone());
+        let h3 = pc.bodies.insert(rb.clone());
 
         // The same but with a fixed body.
         let rb = RigidBodyBuilder::fixed().build();
-        let h4 = bodies.insert(rb.clone());
+        let h4 = pc.bodies.insert(rb.clone());
 
         let to_delete = [h1, h2, h3, h4];
         for h in &to_delete {
-            bodies.remove(
+            pc.bodies.remove(
                 *h,
-                &mut islands,
-                &mut colliders,
-                &mut impulse_joints,
-                &mut multibody_joints,
+                &mut pc.island_manager,
+                &mut pc.colliders,
+                &mut pc.impulse_joint_set,
+                &mut pc.multibody_joint_set,
                 true,
             );
         }
-
-        pipeline.step(
-            &Vector::zeros(),
-            &IntegrationParameters::default(),
-            &mut islands,
-            &mut bf,
-            &mut nf,
-            &mut bodies,
-            &mut colliders,
-            &mut impulse_joints,
-            &mut multibody_joints,
-            &mut CCDSolver::new(),
-            None,
-            &(),
-            &(),
-        );
+        pc.step();
     }
 
     #[cfg(feature = "serde-serialize")]
@@ -830,139 +791,87 @@ mod test {
 
     #[test]
     fn collider_removal_before_step() {
-        let mut pipeline = PhysicsPipeline::new();
-        let gravity = Vector::y() * -9.81;
-        let integration_parameters = IntegrationParameters::default();
-        let mut broad_phase = BroadPhaseMultiSap::new();
-        let mut narrow_phase = NarrowPhase::new();
-        let mut bodies = RigidBodySet::new();
-        let mut colliders = ColliderSet::new();
-        let mut ccd = CCDSolver::new();
-        let mut impulse_joints = ImpulseJointSet::new();
-        let mut multibody_joints = MultibodyJointSet::new();
-        let mut islands = IslandManager::new();
-        let physics_hooks = ();
-        let event_handler = ();
+        let mut pc = crate::prelude::PhysicsContext::<(), ()> {
+            query_pipeline: None,
+            gravity: Vector::y() * -9.81,
+            ..crate::prelude::PhysicsContext::default()
+        };
 
         let body = RigidBodyBuilder::dynamic().build();
-        let b_handle = bodies.insert(body);
+        let b_handle = pc.bodies.insert(body);
         let collider = ColliderBuilder::ball(1.0).build();
-        let c_handle = colliders.insert_with_parent(collider, b_handle, &mut bodies);
-        colliders.remove(c_handle, &mut islands, &mut bodies, true);
-        bodies.remove(
+        let c_handle = pc
+            .colliders
+            .insert_with_parent(collider, b_handle, &mut pc.bodies);
+        pc.colliders
+            .remove(c_handle, &mut pc.island_manager, &mut pc.bodies, true);
+        pc.bodies.remove(
             b_handle,
-            &mut islands,
-            &mut colliders,
-            &mut impulse_joints,
-            &mut multibody_joints,
+            &mut pc.island_manager,
+            &mut pc.colliders,
+            &mut pc.impulse_joint_set,
+            &mut pc.multibody_joint_set,
             true,
         );
 
         for _ in 0..10 {
-            pipeline.step(
-                &gravity,
-                &integration_parameters,
-                &mut islands,
-                &mut broad_phase,
-                &mut narrow_phase,
-                &mut bodies,
-                &mut colliders,
-                &mut impulse_joints,
-                &mut multibody_joints,
-                &mut ccd,
-                None,
-                &physics_hooks,
-                &event_handler,
-            );
+            pc.step();
         }
     }
 
     #[test]
     fn rigid_body_type_changed_dynamic_is_in_active_set() {
-        let mut colliders = ColliderSet::new();
-        let mut impulse_joints = ImpulseJointSet::new();
-        let mut multibody_joints = MultibodyJointSet::new();
-        let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhaseMultiSap::new();
-        let mut nf = NarrowPhase::new();
-        let mut islands = IslandManager::new();
-
-        let mut bodies = RigidBodySet::new();
+        let mut pc = crate::prelude::PhysicsContext::<(), ()> {
+            query_pipeline: None,
+            gravity: Vector::y() * -9.81,
+            ..crate::prelude::PhysicsContext::default()
+        };
 
         // Initialize body as kinematic with mass
         let rb = RigidBodyBuilder::kinematic_position_based()
             .additional_mass(1.0)
             .build();
-        let h = bodies.insert(rb.clone());
+        let h = pc.bodies.insert(rb.clone());
 
         // Step once
-        let gravity = Vector::y() * -9.81;
-        pipeline.step(
-            &gravity,
-            &IntegrationParameters::default(),
-            &mut islands,
-            &mut bf,
-            &mut nf,
-            &mut bodies,
-            &mut colliders,
-            &mut impulse_joints,
-            &mut multibody_joints,
-            &mut CCDSolver::new(),
-            None,
-            &(),
-            &(),
-        );
+        pc.step();
 
         // Switch body type to Dynamic
-        bodies
+        pc.bodies
             .get_mut(h)
             .unwrap()
             .set_body_type(RigidBodyType::Dynamic, true);
 
         // Step again
-        pipeline.step(
-            &gravity,
-            &IntegrationParameters::default(),
-            &mut islands,
-            &mut bf,
-            &mut nf,
-            &mut bodies,
-            &mut colliders,
-            &mut impulse_joints,
-            &mut multibody_joints,
-            &mut CCDSolver::new(),
-            None,
-            &(),
-            &(),
-        );
+        pc.step();
 
-        let body = bodies.get(h).unwrap();
+        let body = pc.bodies.get(h).unwrap();
         let h_y = body.pos.position.translation.y;
 
         // Expect gravity to be applied on second step after switching to Dynamic
         assert!(h_y < 0.0);
 
         // Expect body to now be in active_dynamic_set
-        assert!(islands.active_dynamic_set.contains(&h));
+        assert!(pc.island_manager.active_dynamic_set.contains(&h));
     }
 
     #[test]
     fn joint_step_delta_time_0() {
-        let mut colliders = ColliderSet::new();
-        let mut impulse_joints = ImpulseJointSet::new();
-        let mut multibody_joints = MultibodyJointSet::new();
-        let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhaseMultiSap::new();
-        let mut nf = NarrowPhase::new();
-        let mut islands = IslandManager::new();
-
-        let mut bodies = RigidBodySet::new();
+        let mut pc = crate::prelude::PhysicsContext::<(), ()> {
+            query_pipeline: None,
+            gravity: Vector::y() * -9.81,
+            integration_parameters: IntegrationParameters {
+                dt: 0.0,
+                ..Default::default()
+            },
+            ..crate::prelude::PhysicsContext::default()
+        };
 
         // Initialize bodies
         let rb = RigidBodyBuilder::fixed().additional_mass(1.0).build();
-        let h = bodies.insert(rb.clone());
+        let h = pc.bodies.insert(rb.clone());
         let rb_dynamic = RigidBodyBuilder::dynamic().additional_mass(1.0).build();
-        let h_dynamic = bodies.insert(rb_dynamic.clone());
+        let h_dynamic = pc.bodies.insert(rb_dynamic.clone());
 
         // Add joint
         #[cfg(feature = "dim2")]
@@ -973,31 +882,12 @@ mod test {
         let joint = RevoluteJointBuilder::new(Vector::z_axis())
             .local_anchor1(point![0.0, 1.0, 0.0])
             .local_anchor2(point![0.0, -3.0, 0.0]);
-        impulse_joints.insert(h, h_dynamic, joint, true);
+        pc.impulse_joint_set.insert(h, h_dynamic, joint, true);
 
-        let parameters = IntegrationParameters {
-            dt: 0.0,
-            ..Default::default()
-        };
         // Step once
-        let gravity = Vector::y() * -9.81;
-        pipeline.step(
-            &gravity,
-            &parameters,
-            &mut islands,
-            &mut bf,
-            &mut nf,
-            &mut bodies,
-            &mut colliders,
-            &mut impulse_joints,
-            &mut multibody_joints,
-            &mut CCDSolver::new(),
-            None,
-            &(),
-            &(),
-        );
-        let translation = bodies[h_dynamic].translation();
-        let rotation = bodies[h_dynamic].rotation();
+        pc.step();
+        let translation = pc.bodies[h_dynamic].translation();
+        let rotation = pc.bodies[h_dynamic].rotation();
         assert!(translation.x.is_finite());
         assert!(translation.y.is_finite());
         #[cfg(feature = "dim2")]
