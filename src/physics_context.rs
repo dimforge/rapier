@@ -75,8 +75,8 @@ impl<PH: PhysicsHooks, EV: EventHandler> PhysicsContext<PH, EV> {
             &mut self.multibody_joint_set,
             &mut self.ccd_solver,
             self.query_pipeline.as_mut(),
-            &mut self.hooks,
-            &mut self.events,
+            &self.hooks,
+            &self.events,
         );
     }
 }
