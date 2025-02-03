@@ -464,6 +464,10 @@ impl MultibodyJointSet {
     pub fn multibodies(&self) -> impl Iterator<Item = &Multibody> {
         self.multibodies.iter().map(|e| e.1)
     }
+    /// Iterates through all the multibodies on this set.
+    pub fn multibodies_mut(&mut self) -> impl Iterator<Item = &mut Multibody> {
+        self.multibodies.iter_mut().map(|e| e.1)
+    }
 }
 
 impl std::ops::Index<MultibodyIndex> for MultibodyJointSet {
