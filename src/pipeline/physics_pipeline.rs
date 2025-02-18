@@ -679,7 +679,7 @@ mod test {
 
     #[test]
     fn kinematic_and_fixed_contact_crash() {
-        let mut pc = crate::prelude::PhysicsContext::<(), ()> {
+        let mut pc = crate::prelude::PhysicsContext {
             query_pipeline: None,
             ..crate::prelude::PhysicsContext::default()
         };
@@ -695,12 +695,12 @@ mod test {
         let h2 = pc.bodies.insert(rb.clone());
         pc.colliders.insert_with_parent(co, h2, &mut pc.bodies);
 
-        pc.step();
+        pc.step(&(), &());
     }
 
     #[test]
     fn rigid_body_removal_before_step() {
-        let mut pc = crate::prelude::PhysicsContext::<(), ()> {
+        let mut pc = crate::prelude::PhysicsContext {
             query_pipeline: None,
             ..crate::prelude::PhysicsContext::default()
         };
@@ -731,7 +731,7 @@ mod test {
                 true,
             );
         }
-        pc.step();
+        pc.step(&(), &());
     }
 
     #[cfg(feature = "serde-serialize")]
@@ -791,7 +791,7 @@ mod test {
 
     #[test]
     fn collider_removal_before_step() {
-        let mut pc = crate::prelude::PhysicsContext::<(), ()> {
+        let mut pc = crate::prelude::PhysicsContext {
             query_pipeline: None,
             gravity: Vector::y() * -9.81,
             ..crate::prelude::PhysicsContext::default()
@@ -815,13 +815,13 @@ mod test {
         );
 
         for _ in 0..10 {
-            pc.step();
+            pc.step(&(), &());
         }
     }
 
     #[test]
     fn rigid_body_type_changed_dynamic_is_in_active_set() {
-        let mut pc = crate::prelude::PhysicsContext::<(), ()> {
+        let mut pc = crate::prelude::PhysicsContext {
             query_pipeline: None,
             gravity: Vector::y() * -9.81,
             ..crate::prelude::PhysicsContext::default()
@@ -834,7 +834,7 @@ mod test {
         let h = pc.bodies.insert(rb.clone());
 
         // Step once
-        pc.step();
+        pc.step(&(), &());
 
         // Switch body type to Dynamic
         pc.bodies
@@ -843,7 +843,7 @@ mod test {
             .set_body_type(RigidBodyType::Dynamic, true);
 
         // Step again
-        pc.step();
+        pc.step(&(), &());
 
         let body = pc.bodies.get(h).unwrap();
         let h_y = body.pos.position.translation.y;
@@ -857,7 +857,7 @@ mod test {
 
     #[test]
     fn joint_step_delta_time_0() {
-        let mut pc = crate::prelude::PhysicsContext::<(), ()> {
+        let mut pc = crate::prelude::PhysicsContext {
             query_pipeline: None,
             gravity: Vector::y() * -9.81,
             integration_parameters: IntegrationParameters {
@@ -885,7 +885,7 @@ mod test {
         pc.impulse_joint_set.insert(h, h_dynamic, joint, true);
 
         // Step once
-        pc.step();
+        pc.step(&(), &());
         let translation = pc.bodies[h_dynamic].translation();
         let rotation = pc.bodies[h_dynamic].rotation();
         assert!(translation.x.is_finite());

@@ -1,8 +1,10 @@
+use parry::query::{NonlinearRigidMotion, ShapeCastOptions};
+
 use crate::prelude::*;
 
 /// Contains all arguments to be passed to [`PhysicsPipeline::step`]
 #[allow(missing_docs)]
-pub struct PhysicsContext<PH: PhysicsHooks = (), EV: EventHandler = ()> {
+pub struct PhysicsContext {
     pub gravity: Vector<Real>,
     pub integration_parameters: IntegrationParameters,
     pub physics_pipeline: PhysicsPipeline,
@@ -15,11 +17,9 @@ pub struct PhysicsContext<PH: PhysicsHooks = (), EV: EventHandler = ()> {
     pub multibody_joint_set: MultibodyJointSet,
     pub ccd_solver: CCDSolver,
     pub query_pipeline: Option<QueryPipeline>,
-    pub hooks: PH,
-    pub events: EV,
 }
 
-impl<PH: PhysicsHooks + Default, EV: EventHandler + Default> Default for PhysicsContext<PH, EV> {
+impl Default for PhysicsContext {
     fn default() -> Self {
         Self {
             gravity: Vector::<Real>::default(),
@@ -34,35 +34,21 @@ impl<PH: PhysicsHooks + Default, EV: EventHandler + Default> Default for Physics
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             query_pipeline: Some(QueryPipeline::new()),
-            hooks: PH::default(),
-            events: EV::default(),
         }
     }
 }
 
-impl<PH: PhysicsHooks, EV: EventHandler> PhysicsContext<PH, EV> {
-    /// Create a new physics context with given hooks and event handling.
-    pub fn default_with(hooks: PH, events: EV) -> Self {
+impl PhysicsContext {
+    /// Creates a default physics context without a query pipeline.
+    pub fn default_without_query_pipeline() -> Self {
         Self {
-            gravity: Vector::<Real>::default(),
-            integration_parameters: IntegrationParameters::default(),
-            physics_pipeline: PhysicsPipeline::new(),
-            island_manager: IslandManager::new(),
-            broad_phase: DefaultBroadPhase::new(),
-            narrow_phase: NarrowPhase::new(),
-            bodies: RigidBodySet::new(),
-            colliders: ColliderSet::new(),
-            impulse_joint_set: ImpulseJointSet::new(),
-            multibody_joint_set: MultibodyJointSet::new(),
-            ccd_solver: CCDSolver::new(),
-            query_pipeline: Some(QueryPipeline::new()),
-            hooks,
-            events,
+            query_pipeline: None,
+            ..PhysicsContext::default()
         }
     }
 
     /// Shortcut to [`PhysicsPipeline::step`]
-    pub fn step(&mut self) {
+    pub fn step(&mut self, hooks: &dyn PhysicsHooks, events: &dyn EventHandler) {
         self.physics_pipeline.step(
             &self.gravity,
             &self.integration_parameters,
@@ -75,8 +61,251 @@ impl<PH: PhysicsHooks, EV: EventHandler> PhysicsContext<PH, EV> {
             &mut self.multibody_joint_set,
             &mut self.ccd_solver,
             self.query_pipeline.as_mut(),
-            &self.hooks,
-            &self.events,
+            hooks,
+            events,
         );
+    }
+
+    /// Shortcut to [`ColliderSet::insert_with_parent`]
+    pub fn insert_rigidbody(
+        &mut self,
+        parent_handle: RigidBodyHandle,
+        collider: impl Into<Collider>,
+    ) -> ColliderHandle {
+        self.colliders
+            .insert_with_parent(collider, parent_handle, &mut self.bodies)
+    }
+
+    /// Shortcut to [`RigidBodySet::insert`] and [`ColliderSet::insert_with_parent`]
+    pub fn insert_body_and_collider(
+        &mut self,
+        collider: impl Into<Collider>,
+        rb: impl Into<RigidBody>,
+    ) -> (RigidBodyHandle, ColliderHandle) {
+        let parent_handle = self.bodies.insert(rb);
+        (
+            parent_handle,
+            self.colliders
+                .insert_with_parent(collider, parent_handle, &mut self.bodies),
+        )
+    }
+}
+
+/// Shortcuts to [`QueryPipeline`]
+impl PhysicsContext {
+    /// Shortcut to [`QueryPipeline::update_incremental`]
+    pub fn update_incremental(
+        &mut self,
+        modified_colliders: &[ColliderHandle],
+        removed_colliders: &[ColliderHandle],
+        refit_and_rebalance: bool,
+    ) {
+        let Some(query_pipeline) = &mut self.query_pipeline else {
+            return;
+        };
+        query_pipeline.update_incremental(
+            &self.colliders,
+            modified_colliders,
+            removed_colliders,
+            refit_and_rebalance,
+        );
+    }
+
+    /// Shortcut to [`QueryPipeline::update`]
+    pub fn update(&mut self) {
+        let Some(query_pipeline) = &mut self.query_pipeline else {
+            return;
+        };
+        query_pipeline.update(&self.colliders)
+    }
+
+    /// Shortcut to [`QueryPipeline::cast_ray`]
+    pub fn cast_ray(
+        &self,
+        ray: &Ray,
+        max_toi: Real,
+        solid: bool,
+        filter: QueryFilter,
+    ) -> Option<(ColliderHandle, Real)> {
+        let Some(query_pipeline) = &self.query_pipeline else {
+            return None;
+        };
+        query_pipeline.cast_ray(&self.bodies, &self.colliders, ray, max_toi, solid, filter)
+    }
+
+    /// Shortcut to [`QueryPipeline::cast_ray_and_get_normal`]
+    pub fn cast_ray_and_get_normal(
+        &self,
+        ray: &Ray,
+        max_toi: Real,
+        solid: bool,
+        filter: QueryFilter,
+    ) -> Option<(ColliderHandle, RayIntersection)> {
+        let Some(query_pipeline) = &self.query_pipeline else {
+            return None;
+        };
+        query_pipeline.cast_ray_and_get_normal(
+            &self.bodies,
+            &self.colliders,
+            ray,
+            max_toi,
+            solid,
+            filter,
+        )
+    }
+
+    /// Shortcut to [`QueryPipeline::intersections_with_ray`]
+    pub fn intersections_with_ray<'a>(
+        &self,
+        ray: &Ray,
+        max_toi: Real,
+        solid: bool,
+        filter: QueryFilter,
+        callback: impl FnMut(ColliderHandle, RayIntersection) -> bool,
+    ) {
+        let Some(query_pipeline) = &self.query_pipeline else {
+            return;
+        };
+        query_pipeline.intersections_with_ray(
+            &self.bodies,
+            &self.colliders,
+            ray,
+            max_toi,
+            solid,
+            filter,
+            callback,
+        )
+    }
+
+    /// Shortcut to [`QueryPipeline::intersection_with_shape`]
+    pub fn intersection_with_shape(
+        &self,
+        shape_pos: &Isometry<Real>,
+        shape: &dyn Shape,
+        filter: QueryFilter,
+    ) -> Option<ColliderHandle> {
+        let Some(query_pipeline) = &self.query_pipeline else {
+            return None;
+        };
+        query_pipeline.intersection_with_shape(
+            &self.bodies,
+            &self.colliders,
+            shape_pos,
+            shape,
+            filter,
+        )
+    }
+
+    /// Shortcut to [`QueryPipeline::project_point`]
+    pub fn project_point(
+        &self,
+        point: &Point<Real>,
+        solid: bool,
+        filter: QueryFilter,
+    ) -> Option<(ColliderHandle, PointProjection)> {
+        let Some(query_pipeline) = &self.query_pipeline else {
+            return None;
+        };
+        query_pipeline.project_point(&self.bodies, &self.colliders, point, solid, filter)
+    }
+
+    /// Shortcut to [`QueryPipeline::intersections_with_point`]
+    pub fn intersections_with_point(
+        &self,
+        point: &Point<Real>,
+        filter: QueryFilter,
+        callback: impl FnMut(ColliderHandle) -> bool,
+    ) {
+        let Some(query_pipeline) = &self.query_pipeline else {
+            return;
+        };
+        query_pipeline.intersections_with_point(
+            &self.bodies,
+            &self.colliders,
+            point,
+            filter,
+            callback,
+        )
+    }
+
+    /// Shortcut to [`QueryPipeline::project_point_and_get_feature`]
+    pub fn project_point_and_get_feature(
+        &self,
+        point: &Point<Real>,
+        filter: QueryFilter,
+    ) -> Option<(ColliderHandle, PointProjection, FeatureId)> {
+        let Some(query_pipeline) = &self.query_pipeline else {
+            return None;
+        };
+        query_pipeline.project_point_and_get_feature(&self.bodies, &self.colliders, point, filter)
+    }
+
+    /// Shortcut to [`QueryPipeline::cast_shape`]
+    pub fn cast_shape(
+        &self,
+        shape_pos: &Isometry<Real>,
+        shape_vel: &Vector<Real>,
+        shape: &dyn Shape,
+        options: ShapeCastOptions,
+        filter: QueryFilter,
+    ) -> Option<(ColliderHandle, ShapeCastHit)> {
+        let Some(query_pipeline) = &self.query_pipeline else {
+            return None;
+        };
+        query_pipeline.cast_shape(
+            &self.bodies,
+            &self.colliders,
+            shape_pos,
+            shape_vel,
+            shape,
+            options,
+            filter,
+        )
+    }
+
+    /// Shortcut to [`QueryPipeline::nonlinear_cast_shape`]
+    pub fn nonlinear_cast_shape(
+        &self,
+        shape_motion: &NonlinearRigidMotion,
+        shape: &dyn Shape,
+        start_time: Real,
+        end_time: Real,
+        stop_at_penetration: bool,
+        filter: QueryFilter,
+    ) -> Option<(ColliderHandle, ShapeCastHit)> {
+        let Some(query_pipeline) = &self.query_pipeline else {
+            return None;
+        };
+        query_pipeline.nonlinear_cast_shape(
+            &self.bodies,
+            &self.colliders,
+            shape_motion,
+            shape,
+            start_time,
+            end_time,
+            stop_at_penetration,
+            filter,
+        )
+    }
+
+    /// Shortcut to [`QueryPipeline::intersections_with_shape`]
+    pub fn intersections_with_shape(
+        &self,
+        shape_pos: &Isometry<Real>,
+        shape: &dyn Shape,
+        filter: QueryFilter,
+        callback: impl FnMut(ColliderHandle) -> bool,
+    ) {
+        let Some(query_pipeline) = &self.query_pipeline else {
+            return;
+        };
+        query_pipeline.intersections_with_shape(
+            &self.bodies,
+            &self.colliders,
+            shape_pos,
+            shape,
+            filter,
+            callback,
+        )
     }
 }
