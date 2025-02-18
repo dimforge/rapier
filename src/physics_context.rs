@@ -155,7 +155,7 @@ impl PhysicsContext {
     }
 
     /// Shortcut to [`QueryPipeline::intersections_with_ray`]
-    pub fn intersections_with_ray<'a>(
+    pub fn intersections_with_ray(
         &self,
         ray: &Ray,
         max_toi: Real,
