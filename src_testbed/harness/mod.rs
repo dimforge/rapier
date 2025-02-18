@@ -132,7 +132,7 @@ impl Harness {
     }
 
     pub fn integration_parameters_mut(&mut self) -> &mut IntegrationParameters {
-        &mut self.physics.integration_parameters
+        &mut self.physics.context.integration_parameters
     }
 
     pub fn clear_callbacks(&mut self) {
@@ -171,22 +171,22 @@ impl Harness {
     ) {
         // println!("Num bodies: {}", bodies.len());
         // println!("Num impulse_joints: {}", impulse_joints.len());
-        self.physics.gravity = gravity;
-        self.physics.bodies = bodies;
-        self.physics.colliders = colliders;
-        self.physics.impulse_joints = impulse_joints;
-        self.physics.multibody_joints = multibody_joints;
+        self.physics.context.gravity = gravity;
+        self.physics.context.bodies = bodies;
+        self.physics.context.colliders = colliders;
+        self.physics.context.impulse_joints = impulse_joints;
+        self.physics.context.multibody_joints = multibody_joints;
         self.physics.hooks = Box::new(hooks);
 
-        self.physics.islands = IslandManager::new();
-        self.physics.broad_phase = DefaultBroadPhase::new();
-        self.physics.narrow_phase = NarrowPhase::new();
+        self.physics.context.island_manager = IslandManager::new();
+        self.physics.context.broad_phase = DefaultBroadPhase::new();
+        self.physics.context.narrow_phase = NarrowPhase::new();
         self.state.timestep_id = 0;
         self.state.time = 0.0;
-        self.physics.ccd_solver = CCDSolver::new();
-        self.physics.query_pipeline = QueryPipeline::new();
-        self.physics.pipeline = PhysicsPipeline::new();
-        self.physics.pipeline.counters.enable();
+        self.physics.context.ccd_solver = CCDSolver::new();
+        self.physics.context.query_pipeline = Some(QueryPipeline::new());
+        self.physics.context.physics_pipeline = PhysicsPipeline::new();
+        self.physics.context.physics_pipeline.counters.enable();
     }
 
     pub fn add_plugin(&mut self, plugin: impl HarnessPlugin + 'static) {
@@ -232,21 +232,9 @@ impl Harness {
         }
 
         #[cfg(not(feature = "parallel"))]
-        self.physics.pipeline.step(
-            &self.physics.gravity,
-            &self.physics.integration_parameters,
-            &mut self.physics.islands,
-            &mut self.physics.broad_phase,
-            &mut self.physics.narrow_phase,
-            &mut self.physics.bodies,
-            &mut self.physics.colliders,
-            &mut self.physics.impulse_joints,
-            &mut self.physics.multibody_joints,
-            &mut self.physics.ccd_solver,
-            Some(&mut self.physics.query_pipeline),
-            &*self.physics.hooks,
-            &self.event_handler,
-        );
+        self.physics
+            .context
+            .step(&*self.physics.hooks, &self.event_handler);
 
         for plugin in &mut self.plugins {
             plugin.step(&mut self.physics, &self.state)
@@ -267,7 +255,7 @@ impl Harness {
 
         self.events.poll_all();
 
-        self.state.time += self.physics.integration_parameters.dt as f32;
+        self.state.time += self.physics.context.integration_parameters.dt as f32;
         self.state.timestep_id += 1;
     }
 

@@ -726,8 +726,8 @@ mod test {
                 *h,
                 &mut pc.island_manager,
                 &mut pc.colliders,
-                &mut pc.impulse_joint_set,
-                &mut pc.multibody_joint_set,
+                &mut pc.impulse_joints,
+                &mut pc.multibody_joints,
                 true,
             );
         }
@@ -809,8 +809,8 @@ mod test {
             b_handle,
             &mut pc.island_manager,
             &mut pc.colliders,
-            &mut pc.impulse_joint_set,
-            &mut pc.multibody_joint_set,
+            &mut pc.impulse_joints,
+            &mut pc.multibody_joints,
             true,
         );
 
@@ -882,7 +882,7 @@ mod test {
         let joint = RevoluteJointBuilder::new(Vector::z_axis())
             .local_anchor1(point![0.0, 1.0, 0.0])
             .local_anchor2(point![0.0, -3.0, 0.0]);
-        pc.impulse_joint_set.insert(h, h_dynamic, joint, true);
+        pc.impulse_joints.insert(h, h_dynamic, joint, true);
 
         // Step once
         pc.step(&(), &());
