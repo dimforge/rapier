@@ -76,6 +76,7 @@ bevy = { version = "0.15", default-features = false, features = [
     "bevy_render",
     "bevy_pbr",
     "bevy_gizmos",
+    "serialize"
 ] }
 
 # Dependencies for WASM only.

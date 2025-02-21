@@ -11,7 +11,7 @@ use std::ops::RangeInclusive;
 
 const LINE_TO_PIXEL_RATIO: f32 = 0.1;
 
-#[derive(Component)]
+#[derive(Component, PartialEq, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OrbitCamera {
     pub x: f32,
     pub y: f32,

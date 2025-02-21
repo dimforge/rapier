@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::env;
 use std::mem;
 use std::num::NonZeroUsize;
-
+use bevy::log;
 use bevy::prelude::*;
 
 use crate::debug_render::{DebugRenderPipelineResource, RapierDebugRenderPlugin};
@@ -52,7 +52,9 @@ const BOX2D_BACKEND: usize = 1;
 pub(crate) const PHYSX_BACKEND_PATCH_FRICTION: usize = 1;
 pub(crate) const PHYSX_BACKEND_TWO_FRICTION_DIR: usize = 2;
 
-pub const SAVE_FILE_PATH: &'static str = "testbed_state.autosave.json";
+pub fn save_file_path() -> String {
+    format!("testbed_state_{}.autosave.json", env!("CARGO_CRATE_NAME"))
+}
 
 #[derive(Default, PartialEq, Copy, Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum RunMode {
@@ -94,6 +96,7 @@ bitflags::bitflags! {
         const BACKEND_CHANGED = 1 << 3;
         const TAKE_SNAPSHOT = 1 << 4;
         const RESTORE_SNAPSHOT = 1 << 5;
+        const APP_STARTED = 1 << 6;
     }
 }
 
@@ -139,7 +142,7 @@ pub struct TestbedState {
 }
 
 impl TestbedState {
-    fn save_data(&self) -> SerializableTestbedState {
+    fn save_data(&self, camera: OrbitCamera) -> SerializableTestbedState {
         SerializableTestbedState {
             running: self.running,
             flags: self.flags,
@@ -148,10 +151,11 @@ impl TestbedState {
             example_settings: self.example_settings.clone(),
             solver_type: self.solver_type,
             physx_use_two_friction_directions: self.physx_use_two_friction_directions,
+            camera
         }
     }
 
-    pub fn set_saved_data(&mut self, state: SerializableTestbedState) {
+    pub fn apply_saved_data(&mut self, state: SerializableTestbedState, camera: &mut OrbitCamera) {
         self.prev_save_data = state.clone();
         self.running = state.running;
         self.flags = state.flags;
@@ -160,6 +164,7 @@ impl TestbedState {
         self.example_settings = state.example_settings;
         self.solver_type = state.solver_type;
         self.physx_use_two_friction_directions = state.physx_use_two_friction_directions;
+        *camera = state.camera;
     }
 }
 
@@ -237,7 +242,7 @@ impl TestbedApp {
             snapshot: None,
             prev_flags: flags,
             flags,
-            action_flags: TestbedActionFlags::empty(),
+            action_flags: TestbedActionFlags::APP_STARTED | TestbedActionFlags::EXAMPLE_CHANGED,
             backend_names,
             example_names: Vec::new(),
             example_settings: ExampleSettings::default(),
@@ -249,15 +254,6 @@ impl TestbedApp {
             camera_locked: false,
             prev_save_data: SerializableTestbedState::default(),
         };
-
-
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            if let Some(saved_state) = std::fs::read(SAVE_FILE_PATH).ok()
-                .and_then(|data| serde_json::from_slice::<SerializableTestbedState>(&data).ok()){
-                state.set_saved_data(saved_state);
-            }
-        }
 
         let harness = Harness::new_empty();
         #[cfg(feature = "other-backends")]
@@ -281,9 +277,6 @@ impl TestbedApp {
 
     pub fn from_builders(builders: SimulationBuilders) -> Self {
         let mut res = TestbedApp::new_empty();
-        res.state
-            .action_flags
-            .set(TestbedActionFlags::EXAMPLE_CHANGED, true);
         res.set_builders(builders);
         res
     }
@@ -1333,6 +1326,25 @@ fn update_testbed(
                 .set(TestbedActionFlags::EXAMPLE_CHANGED, true);
         }
 
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let app_started = state
+                .action_flags
+                .contains(TestbedActionFlags::APP_STARTED);
+
+            if app_started {
+                state
+                    .action_flags
+                    .set(TestbedActionFlags::APP_STARTED, false);
+                if let Some(saved_state) = std::fs::read(save_file_path()).ok()
+                    .and_then(|data| serde_json::from_slice::<SerializableTestbedState>(&data).ok()) {
+                    state.apply_saved_data(saved_state, &mut cameras.single_mut().2);
+                    state.camera_locked = true;
+                }
+            }
+        }
+
         let example_changed = state
             .action_flags
             .contains(TestbedActionFlags::EXAMPLE_CHANGED);
@@ -1350,6 +1362,10 @@ fn update_testbed(
             let selected_example = state.selected_example;
             let graphics = &mut *graphics;
             let meshes = &mut *meshes;
+
+            if !restarted {
+                state.example_settings.clear();
+            }
 
             let graphics_context = TestbedGraphics {
                 graphics: &mut *graphics,
@@ -1630,11 +1646,13 @@ fn update_testbed(
     // If any saveable settings changed, save them again.
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let new_save_data = state.save_data();
+        let new_save_data = state.save_data(cameras.single().2.clone());
         if state.prev_save_data != new_save_data {
             // Save the data in a file.
-            let data = serde_json::to_string(&new_save_data).unwrap();
-            std::fs::write(SAVE_FILE_PATH, &data);
+            let data = serde_json::to_string_pretty(&new_save_data).unwrap();
+            if let Err(e) = std::fs::write(save_file_path(), &data) {
+                error!("Failed to write autosave file: {}", e);
+            }
             state.prev_save_data = new_save_data;
         }
     }
