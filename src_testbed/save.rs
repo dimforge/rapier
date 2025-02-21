@@ -1,10 +1,10 @@
-use serde::{Deserialize, Serialize};
+#[cfg(feature = "dim2")]
+use crate::camera2d::OrbitCamera;
+#[cfg(feature = "dim3")]
+use crate::camera3d::OrbitCamera;
 use crate::settings::ExampleSettings;
 use crate::testbed::{RapierSolverType, RunMode, TestbedStateFlags};
-#[cfg(feature = "dim2")]
-use crate::camera2d::{OrbitCamera};
-#[cfg(feature = "dim3")]
-use crate::camera3d::{OrbitCamera};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]
 pub struct SerializableTestbedState {

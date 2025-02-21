@@ -10,12 +10,12 @@ use crate::testbed::{
     PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR,
 };
 
+use crate::settings::SettingValue;
 use crate::PhysicsState;
 use bevy_egui::egui::{Slider, Ui};
 use bevy_egui::{egui, EguiContexts};
 use rapier::dynamics::IntegrationParameters;
 use web_time::Instant;
-use crate::settings::SettingValue;
 
 pub fn update_ui(
     ui_context: &mut EguiContexts,
@@ -458,9 +458,7 @@ Hashes at frame: {}
     )
 }
 
-fn example_settings_ui(
-    ui_context: &mut EguiContexts,
-    state: &mut TestbedState,) {
+fn example_settings_ui(ui_context: &mut EguiContexts, state: &mut TestbedState) {
     if state.example_settings.is_empty() {
         // Don’t show any window if there is no settings for the
         // example.
@@ -483,7 +481,7 @@ fn example_settings_ui(
                             }
                         }
                         ui.add(Slider::new(value, range.clone()));
-                        if ui.button(">").clicked()  {
+                        if ui.button(">").clicked() {
                             if *value < range.max().unwrap_or(u32::MAX) {
                                 *value += 1;
                             }

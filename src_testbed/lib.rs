@@ -23,10 +23,10 @@ pub mod physics;
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 mod physx_backend;
 mod plugin;
+mod save;
+mod settings;
 mod testbed;
 mod ui;
-mod settings;
-mod save;
 
 #[cfg(feature = "dim2")]
 pub mod math {

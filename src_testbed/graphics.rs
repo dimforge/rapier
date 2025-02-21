@@ -13,10 +13,10 @@ use rapier::math::{Isometry, Real, Vector};
 //#[cfg(feature = "dim2")]
 //use crate::objects::polyline::Polyline;
 // use crate::objects::mesh::Mesh;
+use crate::testbed::TestbedStateFlags;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg32;
 use std::collections::HashMap;
-use crate::testbed::TestbedStateFlags;
 
 #[cfg(feature = "dim2")]
 pub type BevyMaterial = bevy_sprite::ColorMaterial;

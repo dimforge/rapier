@@ -1,12 +1,12 @@
 #![allow(clippy::bad_bit_mask)] // otherwise clippy complains because of TestbedStateFlags::NONE which is 0.
 #![allow(clippy::unnecessary_cast)] // allowed for f32 -> f64 cast for the f64 testbed.
 
+use bevy::log;
+use bevy::prelude::*;
 use std::collections::HashMap;
 use std::env;
 use std::mem;
 use std::num::NonZeroUsize;
-use bevy::log;
-use bevy::prelude::*;
 
 use crate::debug_render::{DebugRenderPipelineResource, RapierDebugRenderPlugin};
 use crate::graphics::BevyMaterialComponent;
@@ -110,7 +110,6 @@ pub enum RapierSolverType {
 
 pub type SimulationBuilders = Vec<(&'static str, fn(&mut Testbed))>;
 
-
 #[derive(Resource)]
 pub struct TestbedState {
     pub running: RunMode,
@@ -151,7 +150,7 @@ impl TestbedState {
             example_settings: self.example_settings.clone(),
             solver_type: self.solver_type,
             physx_use_two_friction_directions: self.physx_use_two_friction_directions,
-            camera
+            camera,
         }
     }
 
@@ -1216,9 +1215,9 @@ fn egui_focus(mut ui_context: EguiContexts, mut cameras: Query<&mut OrbitCamera>
 }
 
 use crate::mouse::{track_mouse_state, MainCamera, SceneMouse};
-use bevy::window::PrimaryWindow;
 use crate::save::SerializableTestbedState;
-use crate::settings::{ ExampleSettings};
+use crate::settings::ExampleSettings;
+use bevy::window::PrimaryWindow;
 
 #[allow(clippy::type_complexity)]
 fn update_testbed(
@@ -1326,19 +1325,18 @@ fn update_testbed(
                 .set(TestbedActionFlags::EXAMPLE_CHANGED, true);
         }
 
-
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let app_started = state
-                .action_flags
-                .contains(TestbedActionFlags::APP_STARTED);
+            let app_started = state.action_flags.contains(TestbedActionFlags::APP_STARTED);
 
             if app_started {
                 state
                     .action_flags
                     .set(TestbedActionFlags::APP_STARTED, false);
-                if let Some(saved_state) = std::fs::read(save_file_path()).ok()
-                    .and_then(|data| serde_json::from_slice::<SerializableTestbedState>(&data).ok()) {
+                if let Some(saved_state) = std::fs::read(save_file_path())
+                    .ok()
+                    .and_then(|data| serde_json::from_slice::<SerializableTestbedState>(&data).ok())
+                {
                     state.apply_saved_data(saved_state, &mut cameras.single_mut().2);
                     state.camera_locked = true;
                 }
