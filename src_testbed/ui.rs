@@ -476,17 +476,17 @@ fn example_settings_ui(ui_context: &mut EguiContexts, state: &mut TestbedState) 
                 SettingValue::U32 { value, range } => {
                     ui.horizontal(|ui| {
                         if ui.button("<").clicked() {
-                            if *value > range.min().unwrap_or(0) {
+                            if *value > *range.start() {
                                 *value -= 1;
                             }
                         }
-                        ui.add(Slider::new(value, range.clone()));
                         if ui.button(">").clicked() {
-                            if *value < range.max().unwrap_or(u32::MAX) {
+                            if *value <= *range.end() {
                                 *value += 1;
                             }
                         }
-                        ui.label(name);
+
+                        ui.add(Slider::new(value, range.clone()).text(name));
                     });
                 }
             }
