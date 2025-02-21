@@ -1,9 +1,7 @@
 #![allow(clippy::bad_bit_mask)] // otherwise clippy complains because of TestbedStateFlags::NONE which is 0.
 #![allow(clippy::unnecessary_cast)] // allowed for f32 -> f64 cast for the f64 testbed.
 
-use bevy::log;
 use bevy::prelude::*;
-use std::collections::HashMap;
 use std::env;
 use std::mem;
 use std::num::NonZeroUsize;
@@ -225,7 +223,7 @@ impl TestbedApp {
         #[cfg(all(feature = "dim3", feature = "other-backends"))]
         backend_names.push("physx (two friction dir)");
 
-        let mut state = TestbedState {
+        let state = TestbedState {
             running: RunMode::Running,
             draw_colls: false,
             highlighted_body: None,

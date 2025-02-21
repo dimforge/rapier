@@ -3,8 +3,6 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use inflector::Inflector;
-
 use rapier_testbed2d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
 
@@ -45,38 +43,8 @@ mod s2d_pyramid;
 mod sensor2;
 mod trimesh2;
 
-fn demo_name_from_command_line() -> Option<String> {
-    let mut args = std::env::args();
-
-    while let Some(arg) = args.next() {
-        if &arg[..] == "--example" {
-            return args.next();
-        }
-    }
-
-    None
-}
-
-#[cfg(target_arch = "wasm32")]
-fn demo_name_from_url() -> Option<String> {
-    None
-    //    let window = stdweb::web::window();
-    //    let hash = window.location()?.search().ok()?;
-    //    Some(hash[1..].to_string())
-}
-
-#[cfg(not(any(target_arch = "wasm32")))]
-fn demo_name_from_url() -> Option<String> {
-    None
-}
-
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn main() {
-    let demo = demo_name_from_command_line()
-        .or_else(demo_name_from_url)
-        .unwrap_or_default()
-        .to_camel_case();
-
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Add remove", add_remove2::init_world),
         ("CCD", ccd2::init_world),

@@ -25,7 +25,7 @@ pub fn update_ui(
 ) {
     #[cfg(feature = "profiler_ui")]
     {
-        profiler_ui(ui_context, state, harness, debug_render);
+        profiler_ui(ui_context);
     }
 
     example_settings_ui(ui_context, state);
@@ -475,15 +475,11 @@ fn example_settings_ui(ui_context: &mut EguiContexts, state: &mut TestbedState) 
                 }
                 SettingValue::U32 { value, range } => {
                     ui.horizontal(|ui| {
-                        if ui.button("<").clicked() {
-                            if *value > *range.start() {
-                                *value -= 1;
-                            }
+                        if ui.button("<").clicked() && *value > *range.start() {
+                            *value -= 1;
                         }
-                        if ui.button(">").clicked() {
-                            if *value <= *range.end() {
-                                *value += 1;
-                            }
+                        if ui.button(">").clicked() && *value <= *range.end() {
+                            *value += 1;
                         }
 
                         ui.add(Slider::new(value, range.clone()).text(name));
@@ -502,12 +498,7 @@ fn example_settings_ui(ui_context: &mut EguiContexts, state: &mut TestbedState) 
 }
 
 #[cfg(feature = "profiler_ui")]
-fn profiler_ui(
-    ui_context: &mut EguiContexts,
-    state: &mut TestbedState,
-    harness: &mut Harness,
-    debug_render: &mut DebugRenderPipelineResource,
-) {
+fn profiler_ui(ui_context: &mut EguiContexts) {
     let window = egui::Window::new("Profiling");
     let window = window.default_open(false);
 

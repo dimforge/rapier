@@ -3,8 +3,6 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use inflector::Inflector;
-
 use rapier_testbed3d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
 
