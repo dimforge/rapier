@@ -25,6 +25,8 @@ mod physx_backend;
 mod plugin;
 mod testbed;
 mod ui;
+mod settings;
+mod save;
 
 #[cfg(feature = "dim2")]
 pub mod math {

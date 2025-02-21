@@ -1,6 +1,7 @@
 #![allow(clippy::bad_bit_mask)] // otherwise clippy complains because of TestbedStateFlags::NONE which is 0.
 #![allow(clippy::unnecessary_cast)] // allowed for f32 -> f64 cast for the f64 testbed.
 
+use std::collections::HashMap;
 use std::env;
 use std::mem;
 use std::num::NonZeroUsize;
@@ -51,17 +52,19 @@ const BOX2D_BACKEND: usize = 1;
 pub(crate) const PHYSX_BACKEND_PATCH_FRICTION: usize = 1;
 pub(crate) const PHYSX_BACKEND_TWO_FRICTION_DIR: usize = 2;
 
-#[derive(PartialEq)]
+pub const SAVE_FILE_PATH: &'static str = "testbed_state.autosave.json";
+
+#[derive(Default, PartialEq, Copy, Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum RunMode {
     Running,
+    #[default]
     Stop,
     Step,
 }
 
 bitflags::bitflags! {
-    #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
     pub struct TestbedStateFlags: u32 {
-        const NONE = 0;
         const SLEEP = 1 << 0;
         const SUB_STEPPING = 1 << 1;
         const SHAPES = 1 << 2;
@@ -72,6 +75,13 @@ bitflags::bitflags! {
         const CENTER_OF_MASSES = 1 << 7;
         const WIREFRAME = 1 << 8;
         const STATISTICS = 1 << 9;
+        const DRAW_SURFACES = 1 << 10;
+    }
+}
+
+impl Default for TestbedStateFlags {
+    fn default() -> Self {
+        TestbedStateFlags::DRAW_SURFACES | TestbedStateFlags::SLEEP
     }
 }
 
@@ -87,7 +97,7 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum RapierSolverType {
     #[default]
     TgsSoft,
@@ -96,6 +106,7 @@ pub enum RapierSolverType {
 }
 
 pub type SimulationBuilders = Vec<(&'static str, fn(&mut Testbed))>;
+
 
 #[derive(Resource)]
 pub struct TestbedState {
@@ -118,11 +129,38 @@ pub struct TestbedState {
     pub example_names: Vec<&'static str>,
     pub selected_example: usize,
     pub selected_backend: usize,
+    pub example_settings: ExampleSettings,
     pub solver_type: RapierSolverType,
     pub physx_use_two_friction_directions: bool,
     pub snapshot: Option<PhysicsSnapshot>,
     pub nsteps: usize,
+    prev_save_data: SerializableTestbedState,
     camera_locked: bool, // Used so that the camera can remain the same before and after we change backend or press the restart button.
+}
+
+impl TestbedState {
+    fn save_data(&self) -> SerializableTestbedState {
+        SerializableTestbedState {
+            running: self.running,
+            flags: self.flags,
+            selected_example: self.selected_example,
+            selected_backend: self.selected_backend,
+            example_settings: self.example_settings.clone(),
+            solver_type: self.solver_type,
+            physx_use_two_friction_directions: self.physx_use_two_friction_directions,
+        }
+    }
+
+    pub fn set_saved_data(&mut self, state: SerializableTestbedState) {
+        self.prev_save_data = state.clone();
+        self.running = state.running;
+        self.flags = state.flags;
+        self.selected_example = state.selected_example;
+        self.selected_backend = state.selected_backend;
+        self.example_settings = state.example_settings;
+        self.solver_type = state.solver_type;
+        self.physx_use_two_friction_directions = state.physx_use_two_friction_directions;
+    }
 }
 
 #[derive(Resource)]
@@ -172,7 +210,7 @@ pub struct TestbedApp {
 impl TestbedApp {
     pub fn new_empty() -> Self {
         let graphics = GraphicsManager::new();
-        let flags = TestbedStateFlags::SLEEP;
+        let flags = TestbedStateFlags::default();
 
         #[allow(unused_mut)]
         let mut backend_names = vec!["rapier"];
@@ -183,7 +221,7 @@ impl TestbedApp {
         #[cfg(all(feature = "dim3", feature = "other-backends"))]
         backend_names.push("physx (two friction dir)");
 
-        let state = TestbedState {
+        let mut state = TestbedState {
             running: RunMode::Running,
             draw_colls: false,
             highlighted_body: None,
@@ -202,13 +240,24 @@ impl TestbedApp {
             action_flags: TestbedActionFlags::empty(),
             backend_names,
             example_names: Vec::new(),
+            example_settings: ExampleSettings::default(),
             selected_example: 0,
             selected_backend: RAPIER_BACKEND,
             solver_type: RapierSolverType::default(),
             physx_use_two_friction_directions: true,
             nsteps: 1,
             camera_locked: false,
+            prev_save_data: SerializableTestbedState::default(),
         };
+
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if let Some(saved_state) = std::fs::read(SAVE_FILE_PATH).ok()
+                .and_then(|data| serde_json::from_slice::<SerializableTestbedState>(&data).ok()){
+                state.set_saved_data(saved_state);
+            }
+        }
 
         let harness = Harness::new_empty();
         #[cfg(feature = "other-backends")]
@@ -230,12 +279,11 @@ impl TestbedApp {
         }
     }
 
-    pub fn from_builders(default: usize, builders: SimulationBuilders) -> Self {
+    pub fn from_builders(builders: SimulationBuilders) -> Self {
         let mut res = TestbedApp::new_empty();
         res.state
             .action_flags
             .set(TestbedActionFlags::EXAMPLE_CHANGED, true);
-        res.state.selected_example = default;
         res.set_builders(builders);
         res
     }
@@ -564,6 +612,10 @@ impl Testbed<'_, '_, '_, '_, '_, '_> {
 
     pub fn harness_mut(&mut self) -> &mut Harness {
         self.harness
+    }
+
+    pub fn example_settings_mut(&mut self) -> &mut ExampleSettings {
+        &mut self.state.example_settings
     }
 
     pub fn set_world(
@@ -1172,6 +1224,8 @@ fn egui_focus(mut ui_context: EguiContexts, mut cameras: Query<&mut OrbitCamera>
 
 use crate::mouse::{track_mouse_state, MainCamera, SceneMouse};
 use bevy::window::PrimaryWindow;
+use crate::save::SerializableTestbedState;
+use crate::settings::{ ExampleSettings};
 
 #[allow(clippy::type_complexity)]
 fn update_testbed(
@@ -1189,8 +1243,9 @@ fn update_testbed(
     #[cfg(feature = "other-backends")] mut other_backends: NonSendMut<OtherBackends>,
     mut plugins: NonSendMut<Plugins>,
     mut ui_context: EguiContexts,
-    (mut gfx_components, mut cameras, mut material_handles): (
+    (mut gfx_components, mut visibilities, mut cameras, mut material_handles): (
         Query<&mut Transform>,
+        Query<&mut Visibility>,
         Query<(&Camera, &GlobalTransform, &mut OrbitCamera)>,
         Query<&mut BevyMaterialComponent>,
     ),
@@ -1543,10 +1598,13 @@ fn update_testbed(
         }
     };
 
+    // Draw
     graphics.draw(
+        state.flags,
         &harness.physics.bodies,
         &harness.physics.colliders,
         &mut gfx_components,
+        &mut visibilities,
         &mut *materials,
     );
 
@@ -1567,6 +1625,18 @@ fn update_testbed(
 
     if state.running == RunMode::Step {
         state.running = RunMode::Stop;
+    }
+
+    // If any saveable settings changed, save them again.
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let new_save_data = state.save_data();
+        if state.prev_save_data != new_save_data {
+            // Save the data in a file.
+            let data = serde_json::to_string(&new_save_data).unwrap();
+            std::fs::write(SAVE_FILE_PATH, &data);
+            state.prev_save_data = new_save_data;
+        }
     }
 }
 
