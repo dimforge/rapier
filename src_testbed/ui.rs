@@ -470,21 +470,23 @@ fn example_settings_ui(
     egui::Window::new("Example settings").show(ui_context.ctx_mut(), |ui| {
         let mut any_changed = false;
         for (name, value) in state.example_settings.iter_mut() {
-            let prev_value = *value;
+            let prev_value = value.clone();
             match value {
-                SettingValue::F32(x) => {
-                    ui.add(Slider::new(x, 0.0..=10.0).text(name));
+                SettingValue::F32 { value, range } => {
+                    ui.add(Slider::new(value, range.clone()).text(name));
                 }
-                SettingValue::U32(x) => {
+                SettingValue::U32 { value, range } => {
                     ui.horizontal(|ui| {
                         if ui.button("<").clicked() {
-                            if *x > 0 {
-                                *x -= 1;
+                            if *value > range.min().unwrap_or(0) {
+                                *value -= 1;
                             }
                         }
-                        ui.add(Slider::new(x, 0..=2000).step_by(1.0));
+                        ui.add(Slider::new(value, range.clone()));
                         if ui.button(">").clicked()  {
-                            *x += 1;
+                            if *value < range.max().unwrap_or(u32::MAX) {
+                                *value += 1;
+                            }
                         }
                         ui.label(name);
                     });

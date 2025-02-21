@@ -21,7 +21,9 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create the cubes
      */
-    let base_count = 100;
+    const BASE_COUNT_SETTING: &str = "# of basis cubes";
+    let settings = testbed.example_settings_mut();
+    let base_count = settings.get_or_set_u32(BASE_COUNT_SETTING, 100, 2..=200);
 
     let h = 0.5;
     let shift = 1.0 * h;
