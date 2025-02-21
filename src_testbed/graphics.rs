@@ -13,6 +13,7 @@ use rapier::math::{Isometry, Real, Vector};
 //#[cfg(feature = "dim2")]
 //use crate::objects::polyline::Polyline;
 // use crate::objects::mesh::Mesh;
+use crate::testbed::TestbedStateFlags;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg32;
 use std::collections::HashMap;
@@ -362,9 +363,11 @@ impl GraphicsManager {
 
     pub fn draw(
         &mut self,
+        flags: TestbedStateFlags,
         _bodies: &RigidBodySet,
         colliders: &ColliderSet,
         components: &mut Query<&mut Transform>,
+        visibilities: &mut Query<&mut Visibility>,
         _materials: &mut Assets<BevyMaterial>,
     ) {
         for (_, ns) in self.b2sn.iter_mut() {
@@ -385,6 +388,14 @@ impl GraphicsManager {
                 //         n.set_color(materials, point![0.0, 1.0, 0.0]);
                 //     }
                 // }
+
+                if let Ok(mut vis) = visibilities.get_mut(n.entity) {
+                    if flags.contains(TestbedStateFlags::DRAW_SURFACES) {
+                        *vis = Visibility::Inherited;
+                    } else {
+                        *vis = Visibility::Hidden;
+                    }
+                }
 
                 n.update(colliders, components, &self.gfx_shift);
             }

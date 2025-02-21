@@ -10,6 +10,7 @@ use crate::testbed::{
     PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR,
 };
 
+use crate::settings::SettingValue;
 use crate::PhysicsState;
 use bevy_egui::egui::{Slider, Ui};
 use bevy_egui::{egui, EguiContexts};
@@ -24,38 +25,10 @@ pub fn update_ui(
 ) {
     #[cfg(feature = "profiler_ui")]
     {
-        let window = egui::Window::new("Profiling");
-        let window = window.default_open(false);
-
-        #[cfg(feature = "unstable-puffin-pr-235")]
-        {
-            use std::sync::Once;
-            static START: Once = Once::new();
-
-            fn set_default_rapier_filter() {
-                let mut profile_ui = puffin_egui::PROFILE_UI.lock();
-                profile_ui
-                    .profiler_ui
-                    .flamegraph_options
-                    .scope_name_filter
-                    .set_filter("Harness::step_with_graphics".to_string());
-            }
-            START.call_once(|| {
-                set_default_rapier_filter();
-            });
-            window.show(ui_context.ctx_mut(), |ui| {
-                if ui.button("🔍 Rapier filter").clicked() {
-                    set_default_rapier_filter();
-                }
-                puffin_egui::profiler_ui(ui);
-            });
-        }
-
-        #[cfg(not(feature = "unstable-puffin-pr-235"))]
-        window.show(ui_context.ctx_mut(), |ui| {
-            puffin_egui::profiler_ui(ui);
-        });
+        profiler_ui(ui_context);
     }
+
+    example_settings_ui(ui_context, state);
 
     egui::Window::new("Parameters").show(ui_context.ctx_mut(), |ui| {
         if state.backend_names.len() > 1 && !state.example_names.is_empty() {
@@ -264,14 +237,17 @@ pub fn update_ui(
         integration_parameters.set_inv_dt(frequency as Real);
 
         let mut sleep = state.flags.contains(TestbedStateFlags::SLEEP);
+        let mut draw_surfaces = state.flags.contains(TestbedStateFlags::DRAW_SURFACES);
         // let mut contact_points = state.flags.contains(TestbedStateFlags::CONTACT_POINTS);
         // let mut wireframe = state.flags.contains(TestbedStateFlags::WIREFRAME);
         ui.checkbox(&mut sleep, "sleep enabled");
         // ui.checkbox(&mut contact_points, "draw contacts");
         // ui.checkbox(&mut wireframe, "draw wireframes");
+        ui.checkbox(&mut draw_surfaces, "surface render enabled");
         ui.checkbox(&mut debug_render.enabled, "debug render enabled");
 
         state.flags.set(TestbedStateFlags::SLEEP, sleep);
+        state.flags.set(TestbedStateFlags::DRAW_SURFACES, draw_surfaces);
         // state
         //     .flags
         //     .set(TestbedStateFlags::CONTACT_POINTS, contact_points);
@@ -480,4 +456,78 @@ Hashes at frame: {}
         js.len() as f32 / 1000.0,
         format!("{:?}", hash_joints).split_at(10).0,
     )
+}
+
+fn example_settings_ui(ui_context: &mut EguiContexts, state: &mut TestbedState) {
+    if state.example_settings.is_empty() {
+        // Don’t show any window if there is no settings for the
+        // example.
+        return;
+    }
+
+    egui::Window::new("Example settings").show(ui_context.ctx_mut(), |ui| {
+        let mut any_changed = false;
+        for (name, value) in state.example_settings.iter_mut() {
+            let prev_value = value.clone();
+            match value {
+                SettingValue::F32 { value, range } => {
+                    ui.add(Slider::new(value, range.clone()).text(name));
+                }
+                SettingValue::U32 { value, range } => {
+                    ui.horizontal(|ui| {
+                        if ui.button("<").clicked() && *value > *range.start() {
+                            *value -= 1;
+                        }
+                        if ui.button(">").clicked() && *value <= *range.end() {
+                            *value += 1;
+                        }
+
+                        ui.add(Slider::new(value, range.clone()).text(name));
+                    });
+                }
+            }
+
+            any_changed = any_changed || *value != prev_value;
+        }
+
+        if any_changed {
+            // The value changed, request a restart.
+            state.action_flags.set(TestbedActionFlags::RESTART, true);
+        }
+    });
+}
+
+#[cfg(feature = "profiler_ui")]
+fn profiler_ui(ui_context: &mut EguiContexts) {
+    let window = egui::Window::new("Profiling");
+    let window = window.default_open(false);
+
+    #[cfg(feature = "unstable-puffin-pr-235")]
+    {
+        use std::sync::Once;
+        static START: Once = Once::new();
+
+        fn set_default_rapier_filter() {
+            let mut profile_ui = puffin_egui::PROFILE_UI.lock();
+            profile_ui
+                .profiler_ui
+                .flamegraph_options
+                .scope_name_filter
+                .set_filter("Harness::step_with_graphics".to_string());
+        }
+        START.call_once(|| {
+            set_default_rapier_filter();
+        });
+        window.show(ui_context.ctx_mut(), |ui| {
+            if ui.button("🔍 Rapier filter").clicked() {
+                set_default_rapier_filter();
+            }
+            puffin_egui::profiler_ui(ui);
+        });
+    }
+
+    #[cfg(not(feature = "unstable-puffin-pr-235"))]
+    window.show(ui_context.ctx_mut(), |ui| {
+        puffin_egui::profiler_ui(ui);
+    });
 }

@@ -3,8 +3,6 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use inflector::Inflector;
-
 use rapier_testbed3d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
 
@@ -59,42 +57,8 @@ mod urdf3;
 mod vehicle_controller3;
 mod vehicle_joints3;
 
-fn demo_name_from_command_line() -> Option<String> {
-    let mut args = std::env::args();
-
-    while let Some(arg) = args.next() {
-        if &arg[..] == "--example" {
-            return args.next();
-        }
-    }
-
-    None
-}
-
-#[cfg(target_arch = "wasm32")]
-fn demo_name_from_url() -> Option<String> {
-    None
-    //    let window = stdweb::web::window();
-    //    let hash = window.location()?.search().ok()?;
-    //    if hash.len() > 0 {
-    //        Some(hash[1..].to_string())
-    //    } else {
-    //        None
-    //    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn demo_name_from_url() -> Option<String> {
-    None
-}
-
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn main() {
-    let demo = demo_name_from_command_line()
-        .or_else(demo_name_from_url)
-        .unwrap_or_default()
-        .to_camel_case();
-
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Character controller", character_controller3::init_world),
         ("Fountain", fountain3::init_world),
@@ -173,11 +137,6 @@ pub fn main() {
         (false, true) => Ordering::Less,
     });
 
-    let i = builders
-        .iter()
-        .position(|builder| builder.0.to_camel_case().as_str() == demo.as_str())
-        .unwrap_or(0);
-
-    let testbed = TestbedApp::from_builders(i, builders);
+    let testbed = TestbedApp::from_builders(builders);
     testbed.run()
 }

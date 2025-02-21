@@ -3,8 +3,6 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use inflector::Inflector;
-
 use rapier_testbed2d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
 
@@ -46,11 +44,6 @@ fn demo_name_from_url() -> Option<String> {
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn main() {
-    let demo = demo_name_from_command_line()
-        .or_else(demo_name_from_url)
-        .unwrap_or_default()
-        .to_camel_case();
-
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Balls", balls2::init_world),
         ("Boxes", boxes2::init_world),
@@ -74,11 +67,7 @@ pub fn main() {
         (false, true) => Ordering::Less,
     });
 
-    let i = builders
-        .iter()
-        .position(|builder| builder.0.to_camel_case().as_str() == demo.as_str())
-        .unwrap_or(0);
-    let testbed = TestbedApp::from_builders(i, builders);
+    let testbed = TestbedApp::from_builders(builders);
 
     testbed.run()
 }

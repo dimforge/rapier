@@ -9,7 +9,7 @@ use bevy::render::camera::Camera;
 
 const LINE_TO_PIXEL_RATIO: f32 = 0.1;
 
-#[derive(Component)]
+#[derive(Component, PartialEq, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OrbitCamera {
     pub zoom: f32,
     pub center: Vec3,

@@ -15,7 +15,6 @@ enhanced-determinism = ["rapier3d/enhanced-determinism"]
 [dependencies]
 rand = "0.8"
 getrandom = { version = "0.2", features = ["js"] }
-Inflector = "0.11"
 wasm-bindgen = "0.2"
 obj-rs = { version = "0.7", default-features = false }
 serde = "1"
