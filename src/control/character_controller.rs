@@ -1041,8 +1041,8 @@ mod test {
                     );
                     let character_body = bodies.get_mut(handle).unwrap();
                     let translation = character_body.translation();
-                    assert_eq!(
-                        effective_movement.grounded, true,
+                    assert!(
+                        effective_movement.grounded,
                         "movement should be grounded at all times for current setup (iter: {}), pos: {}.",
                         i, translation + effective_movement.translation
                     );
@@ -1168,8 +1168,8 @@ mod test {
                     );
                     let character_body = bodies.get_mut(handle).unwrap();
                     let translation = character_body.translation();
-                    assert_eq!(
-                        effective_movement.grounded, true,
+                    assert!(
+                        effective_movement.grounded,
                         "movement should be grounded at all times for current setup (iter: {}), pos: {}.",
                         i, translation + effective_movement.translation
                     );
