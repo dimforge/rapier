@@ -4,9 +4,11 @@ use crate::prelude::*;
 
 /// Contains all arguments to be passed to [`PhysicsPipeline::step`]
 #[allow(missing_docs)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct PhysicsContext {
     pub gravity: Vector<Real>,
     pub integration_parameters: IntegrationParameters,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub physics_pipeline: PhysicsPipeline,
     pub island_manager: IslandManager,
     pub broad_phase: DefaultBroadPhase,
@@ -79,8 +81,8 @@ impl PhysicsContext {
     /// Shortcut to [`RigidBodySet::insert`] and [`ColliderSet::insert_with_parent`]
     pub fn insert_body_and_collider(
         &mut self,
-        collider: impl Into<Collider>,
         rb: impl Into<RigidBody>,
+        collider: impl Into<Collider>,
     ) -> (RigidBodyHandle, ColliderHandle) {
         let parent_handle = self.bodies.insert(rb);
         (
@@ -88,6 +90,27 @@ impl PhysicsContext {
             self.colliders
                 .insert_with_parent(collider, parent_handle, &mut self.bodies),
         )
+    }
+
+    /// Shortcut to [`RigidBodySet::remove`]
+    pub fn remove_rigidbody(
+        &mut self,
+        handle: RigidBodyHandle,
+        remove_attached_colliders: bool,
+    ) -> Option<RigidBody> {
+        self.bodies.remove(
+            handle,
+            &mut self.island_manager,
+            &mut self.colliders,
+            &mut self.impulse_joints,
+            &mut self.multibody_joints,
+            remove_attached_colliders,
+        )
+    }
+    /// Shortcut to [`ColliderSet::remove`]
+    pub fn remove_collider(&mut self, handle: ColliderHandle, wake_up: bool) -> Option<Collider> {
+        self.colliders
+            .remove(handle, &mut self.island_manager, &mut self.bodies, wake_up)
     }
 }
 

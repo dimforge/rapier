@@ -57,7 +57,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     testbed.add_callback(move |graphics, physics, _, _| {
         let Some(graphics) = graphics else { return };
-        if let Some((multibody, link_id)) = physics.multibody_joints.get_mut(last_link) {
+        if let Some((multibody, link_id)) = physics.context.multibody_joints.get_mut(last_link) {
             // Ensure our displacement vector has the right number of elements.
             if displacements.nrows() < multibody.ndofs() {
                 displacements = DVector::zeros(multibody.ndofs());
@@ -78,7 +78,7 @@ pub fn init_world(testbed: &mut Testbed) {
             };
 
             multibody.inverse_kinematics(
-                &physics.bodies,
+                &physics.context.bodies,
                 link_id,
                 &options,
                 &Isometry::from(target_point),

@@ -64,7 +64,7 @@ pub fn init_world(testbed: &mut Testbed) {
         step += 1;
 
         // Snap the ball velocity or restore it.
-        let ball = physics.bodies.get_mut(ball_handle).unwrap();
+        let ball = physics.context.bodies.get_mut(ball_handle).unwrap();
 
         if step == snapped_frame {
             linvel = *ball.linvel();
@@ -73,6 +73,7 @@ pub fn init_world(testbed: &mut Testbed) {
         }
 
         let shapeshifting_coll = physics
+            .context
             .colliders
             .get_mut(shapeshifting_coll_handle)
             .unwrap();
@@ -88,12 +89,12 @@ pub fn init_world(testbed: &mut Testbed) {
             step = snapped_frame;
         }
 
-        let ball_coll = physics.colliders.get_mut(ball_coll_handle).unwrap();
+        let ball_coll = physics.context.colliders.get_mut(ball_coll_handle).unwrap();
         ball_coll.set_shape(SharedShape::ball(ball_rad * step as f32 * 2.0));
 
         if let Some(gfx) = &mut gfx {
-            gfx.update_collider(ball_coll_handle, &physics.colliders);
-            gfx.update_collider(shapeshifting_coll_handle, &physics.colliders);
+            gfx.update_collider(ball_coll_handle, &physics.context.colliders);
+            gfx.update_collider(shapeshifting_coll_handle, &physics.context.colliders);
         }
     });
 

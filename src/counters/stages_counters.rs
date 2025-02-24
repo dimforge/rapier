@@ -2,7 +2,7 @@ use crate::counters::Timer;
 use std::fmt::{Display, Formatter, Result};
 
 /// Performance counters related to each stage of the time step.
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct StagesCounters {
     /// Time spent for updating the kinematic and dynamics of every body.
     pub update_time: Timer,

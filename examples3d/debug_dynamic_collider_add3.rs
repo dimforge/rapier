@@ -47,19 +47,20 @@ pub fn init_world(testbed: &mut Testbed) {
 
         // Add a bigger ball collider
         let collider = ColliderBuilder::ball(ball_rad + 0.01 * (step as f32)).density(100.0);
-        let new_ball_collider_handle =
-            physics
-                .colliders
-                .insert_with_parent(collider, ball_handle, &mut physics.bodies);
+        let new_ball_collider_handle = physics.context.colliders.insert_with_parent(
+            collider,
+            ball_handle,
+            &mut physics.context.bodies,
+        );
 
         if let Some(graphics) = &mut graphics {
-            graphics.add_collider(new_ball_collider_handle, &physics.colliders);
+            graphics.add_collider(new_ball_collider_handle, &physics.context.colliders);
         }
 
         extra_colliders.push(new_ball_collider_handle);
 
         // Snap the ball velocity or restore it.
-        let ball = physics.bodies.get_mut(ball_handle).unwrap();
+        let ball = physics.context.bodies.get_mut(ball_handle).unwrap();
 
         if step == snapped_frame {
             linvel = *ball.linvel();
@@ -75,12 +76,10 @@ pub fn init_world(testbed: &mut Testbed) {
 
             for handle in &extra_colliders {
                 if let Some(graphics) = &mut graphics {
-                    graphics.remove_collider(*handle, &physics.colliders);
+                    graphics.remove_collider(*handle, &physics.context.colliders);
                 }
 
-                physics
-                    .colliders
-                    .remove(*handle, &mut physics.islands, &mut physics.bodies, true);
+                physics.context.remove_collider(*handle, true);
             }
 
             extra_colliders.clear();
@@ -95,13 +94,14 @@ pub fn init_world(testbed: &mut Testbed) {
         //     .unwrap();
         let coll = ColliderBuilder::cuboid(ground_size, ground_height + step as f32 * 0.01, 0.4)
             .friction(0.15);
-        let new_ground_collider_handle =
-            physics
-                .colliders
-                .insert_with_parent(coll, ground_handle, &mut physics.bodies);
+        let new_ground_collider_handle = physics.context.colliders.insert_with_parent(
+            coll,
+            ground_handle,
+            &mut physics.context.bodies,
+        );
 
         if let Some(graphics) = &mut graphics {
-            graphics.add_collider(new_ground_collider_handle, &physics.colliders);
+            graphics.add_collider(new_ground_collider_handle, &physics.context.colliders);
         }
 
         extra_colliders.push(new_ground_collider_handle);

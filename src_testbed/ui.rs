@@ -122,7 +122,7 @@ pub fn update_ui(
         });
         ui.collapsing("Profile infos", |ui| {
             ui.horizontal_wrapped(|ui| {
-                profiling_ui(ui, &harness.physics.pipeline.counters);
+                profiling_ui(ui, &harness.physics.context.physics_pipeline.counters);
             });
         });
         ui.collapsing("Serialization infos", |ui| {
@@ -134,7 +134,7 @@ pub fn update_ui(
             });
         });
 
-        let integration_parameters = &mut harness.physics.integration_parameters;
+        let integration_parameters = &mut harness.physics.context.integration_parameters;
 
         if state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
             || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
@@ -348,9 +348,12 @@ pub fn update_ui(
 }
 
 fn scene_infos_ui(ui: &mut Ui, physics: &PhysicsState) {
-    ui.label(format!("# rigid-bodies: {}", physics.bodies.len()));
-    ui.label(format!("# colliders: {}", physics.colliders.len()));
-    ui.label(format!("# impulse joint: {}", physics.impulse_joints.len()));
+    ui.label(format!("# rigid-bodies: {}", physics.context.bodies.len()));
+    ui.label(format!("# colliders: {}", physics.context.colliders.len()));
+    ui.label(format!(
+        "# impulse joint: {}",
+        physics.context.impulse_joints.len()
+    ));
     // ui.label(format!(
     //     "# multibody joint: {}",
     //     physics.multibody_joints.len()
@@ -439,26 +442,30 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
 fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
     let t = Instant::now();
     // let t = Instant::now();
-    let bf = bincode::serialize(&physics.broad_phase).unwrap();
+    let bf = bincode::serialize(&physics.context.broad_phase).unwrap();
     // println!("bf: {}", Instant::now() - t);
     // let t = Instant::now();
-    let nf = bincode::serialize(&physics.narrow_phase).unwrap();
+    let nf = bincode::serialize(&physics.context.narrow_phase).unwrap();
     // println!("nf: {}", Instant::now() - t);
     // let t = Instant::now();
-    let bs = bincode::serialize(&physics.bodies).unwrap();
+    let bs = bincode::serialize(&physics.context.bodies).unwrap();
     // println!("bs: {}", Instant::now() - t);
     // let t = Instant::now();
-    let cs = bincode::serialize(&physics.colliders).unwrap();
+    let cs = bincode::serialize(&physics.context.colliders).unwrap();
     // println!("cs: {}", Instant::now() - t);
     // let t = Instant::now();
-    let js = bincode::serialize(&physics.impulse_joints).unwrap();
+    let ijs = bincode::serialize(&physics.context.impulse_joints).unwrap();
+    // println!("cs: {}", Instant::now() - t);
+    // let t = Instant::now();
+    let mjs = bincode::serialize(&physics.context.multibody_joints).unwrap();
     // println!("js: {}", Instant::now() - t);
     let serialization_time = Instant::now() - t;
     let hash_bf = md5::compute(&bf);
     let hash_nf = md5::compute(&nf);
     let hash_bodies = md5::compute(&bs);
     let hash_colliders = md5::compute(&cs);
-    let hash_joints = md5::compute(&js);
+    let hash_impulse_joints = md5::compute(&ijs);
+    let hash_multibody_joints = md5::compute(&mjs);
     format!(
         r#"Serialization time: {:.2}ms
 Hashes at frame: {}
@@ -466,7 +473,8 @@ Hashes at frame: {}
 |_ Narrow phase [{:.1}KB]: {}
 |_ &RigidBodySet [{:.1}KB]: {}
 |_ Colliders [{:.1}KB]: {}
-|_ Joints [{:.1}KB]: {}"#,
+|_ ImpulseJoints [{:.1}KB]: {}
+|_ MultibodyJoints [{:.1}KB]: {}"#,
         serialization_time.as_secs_f64() * 1000.0,
         timestep_id,
         bf.len() as f32 / 1000.0,
@@ -477,7 +485,9 @@ Hashes at frame: {}
         format!("{:?}", hash_bodies).split_at(10).0,
         cs.len() as f32 / 1000.0,
         format!("{:?}", hash_colliders).split_at(10).0,
-        js.len() as f32 / 1000.0,
-        format!("{:?}", hash_joints).split_at(10).0,
+        ijs.len() as f32 / 1000.0,
+        format!("{:?}", hash_impulse_joints).split_at(10).0,
+        mjs.len() as f32 / 1000.0,
+        format!("{:?}", hash_multibody_joints).split_at(10).0,
     )
 }

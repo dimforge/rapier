@@ -26,10 +26,10 @@ pub fn init_world(testbed: &mut Testbed) {
         state.impulse_joints,
         state.multibody_joints,
     );
-    testbed.harness_mut().physics.islands = state.islands;
-    testbed.harness_mut().physics.broad_phase = state.broad_phase;
-    testbed.harness_mut().physics.narrow_phase = state.narrow_phase;
-    testbed.harness_mut().physics.ccd_solver = state.ccd_solver;
+    testbed.harness_mut().physics.context.island_manager = state.islands;
+    testbed.harness_mut().physics.context.broad_phase = state.broad_phase;
+    testbed.harness_mut().physics.context.narrow_phase = state.narrow_phase;
+    testbed.harness_mut().physics.context.ccd_solver = state.ccd_solver;
 
     testbed.set_graphics_shift(vector![-541.0, -6377257.0, -61.0]);
     testbed.look_at(point![10.0, 10.0, 10.0], point![0.0, 0.0, 0.0]);
