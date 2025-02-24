@@ -166,6 +166,7 @@ pub fn init_world(testbed: &mut Testbed) {
         // Apply steering to the axles.
         for steering_handle in &steering_joints {
             let steering_joint = physics
+                .context
                 .impulse_joints
                 .get_mut(*steering_handle, should_wake_up)
                 .unwrap();
@@ -191,6 +192,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let ms = [1.0 / speed_diff, speed_diff];
         for (motor_handle, &ms) in motor_joints.iter().copied().zip(ms.iter()) {
             let motor_joint = physics
+                .context
                 .impulse_joints
                 .get_mut(motor_handle, should_wake_up)
                 .unwrap();

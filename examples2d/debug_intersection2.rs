@@ -41,20 +41,18 @@ pub fn init_world(testbed: &mut Testbed) {
 
     testbed.add_callback(move |graphics, physics, _, run| {
         let slow_time = run.timestep_id as f32 / 3.0;
-        let intersection = physics.query_pipeline.intersection_with_shape(
-            &physics.bodies,
-            &physics.colliders,
+        let intersection = physics.context.intersection_with_shape(
             &Isometry::translation(slow_time.cos() * 10.0, slow_time.sin() * 10.0),
             &Ball::new(rad / 2.0),
             QueryFilter::default(),
         );
 
         if let Some(graphics) = graphics {
-            for (handle, _) in physics.bodies.iter() {
+            for (handle, _) in physics.context.bodies.iter() {
                 graphics.set_body_color(handle, [0.5, 0.5, 0.5]);
             }
             if let Some(intersection) = intersection {
-                let collider = physics.colliders.get(intersection).unwrap();
+                let collider = physics.context.colliders.get(intersection).unwrap();
                 let body_handle = collider.parent().unwrap();
 
                 graphics.set_body_color(body_handle, [1.0, 0.0, 0.0]);

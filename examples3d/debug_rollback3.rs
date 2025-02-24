@@ -45,7 +45,7 @@ pub fn init_world(testbed: &mut Testbed) {
         step += 1;
 
         // Snap the ball velocity or restore it.
-        let ball = physics.bodies.get_mut(ball_handle).unwrap();
+        let ball = physics.context.bodies.get_mut(ball_handle).unwrap();
 
         if step == snapped_frame {
             linvel = *ball.linvel();

@@ -5,13 +5,16 @@ use crate::{
     TestbedGraphics,
 };
 use plugin::HarnessPlugin;
-use rapier::dynamics::{
-    CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    RigidBodySet,
-};
 use rapier::geometry::{ColliderSet, DefaultBroadPhase, NarrowPhase};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
+use rapier::{
+    dynamics::{
+        CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
+        RigidBodySet,
+    },
+    prelude::PhysicsContext,
+};
 
 pub mod plugin;
 
@@ -132,7 +135,7 @@ impl Harness {
     }
 
     pub fn integration_parameters_mut(&mut self) -> &mut IntegrationParameters {
-        &mut self.physics.integration_parameters
+        &mut self.physics.context.integration_parameters
     }
 
     pub fn clear_callbacks(&mut self) {
@@ -171,22 +174,26 @@ impl Harness {
     ) {
         // println!("Num bodies: {}", bodies.len());
         // println!("Num impulse_joints: {}", impulse_joints.len());
-        self.physics.gravity = gravity;
-        self.physics.bodies = bodies;
-        self.physics.colliders = colliders;
-        self.physics.impulse_joints = impulse_joints;
-        self.physics.multibody_joints = multibody_joints;
-        self.physics.hooks = Box::new(hooks);
-
-        self.physics.islands = IslandManager::new();
-        self.physics.broad_phase = DefaultBroadPhase::new();
-        self.physics.narrow_phase = NarrowPhase::new();
+        self.physics = PhysicsState {
+            context: PhysicsContext {
+                gravity,
+                integration_parameters: IntegrationParameters::default(),
+                physics_pipeline: PhysicsPipeline::new(),
+                island_manager: IslandManager::new(),
+                broad_phase: DefaultBroadPhase::new(),
+                narrow_phase: NarrowPhase::new(),
+                bodies,
+                colliders,
+                impulse_joints,
+                multibody_joints,
+                ccd_solver: CCDSolver::new(),
+                query_pipeline: Some(QueryPipeline::new()),
+            },
+            hooks: Box::new(hooks),
+        };
+        self.physics.context.physics_pipeline.counters.enable();
         self.state.timestep_id = 0;
         self.state.time = 0.0;
-        self.physics.ccd_solver = CCDSolver::new();
-        self.physics.query_pipeline = QueryPipeline::new();
-        self.physics.pipeline = PhysicsPipeline::new();
-        self.physics.pipeline.counters.enable();
     }
 
     pub fn add_plugin(&mut self, plugin: impl HarnessPlugin + 'static) {
@@ -232,21 +239,9 @@ impl Harness {
         }
 
         #[cfg(not(feature = "parallel"))]
-        self.physics.pipeline.step(
-            &self.physics.gravity,
-            &self.physics.integration_parameters,
-            &mut self.physics.islands,
-            &mut self.physics.broad_phase,
-            &mut self.physics.narrow_phase,
-            &mut self.physics.bodies,
-            &mut self.physics.colliders,
-            &mut self.physics.impulse_joints,
-            &mut self.physics.multibody_joints,
-            &mut self.physics.ccd_solver,
-            Some(&mut self.physics.query_pipeline),
-            &*self.physics.hooks,
-            &self.event_handler,
-        );
+        self.physics
+            .context
+            .step(&*self.physics.hooks, &self.event_handler);
 
         for plugin in &mut self.plugins {
             plugin.step(&mut self.physics, &self.state)
@@ -267,7 +262,7 @@ impl Harness {
 
         self.events.poll_all();
 
-        self.state.time += self.physics.integration_parameters.dt as f32;
+        self.state.time += self.physics.context.integration_parameters.dt as f32;
         self.state.timestep_id += 1;
     }
 

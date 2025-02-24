@@ -2,7 +2,7 @@ use crate::counters::Timer;
 use std::fmt::{Display, Formatter, Result};
 
 /// Performance counters related to continuous collision detection (CCD).
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct CCDCounters {
     /// The number of substeps actually performed by the CCD resolution.
     pub num_substeps: usize,

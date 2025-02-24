@@ -54,11 +54,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut force = vector![0.0, 0.0];
 
     testbed.add_callback(move |_, physics, _, _| {
-        let left_plank = &mut physics.bodies[handles[0]];
+        let left_plank = &mut physics.context.bodies[handles[0]];
         left_plank.reset_forces(true);
         left_plank.add_force(force, true);
 
-        let right_plank = &mut physics.bodies[handles[1]];
+        let right_plank = &mut physics.context.bodies[handles[1]];
         right_plank.reset_forces(true);
         right_plank.add_force(-force, true);
 

@@ -1,3 +1,11 @@
+# Changelog
+
+## Unreleased
+
+### Added
+
+- Add a `PhysicsContext` struct containing top level rapier structs to help with reducing boilerplate.
+
 ## v0.23.0 (08 Jan 2025)
 
 ### Fix
@@ -16,7 +24,6 @@
 - `RigidBodySet` and `ColliderSet` have a new constructor `with_capacity`.
 - Use `profiling` crate to provide helpful profiling information in different tools.
   - The testbeds have been updated to use `puffin_egui`
-
 ### Modified
 
 - `InteractionGroups` default value for `memberships` is now `GROUP_1` (#706)
