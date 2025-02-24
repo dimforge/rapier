@@ -3,8 +3,6 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use inflector::Inflector;
-
 use rapier_testbed3d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
 
@@ -124,11 +122,6 @@ pub fn main() {
         (false, true) => Ordering::Less,
     });
 
-    let i = builders
-        .iter()
-        .position(|builder| builder.0.to_camel_case().as_str() == demo.as_str())
-        .unwrap_or(0);
-
-    let testbed = TestbedApp::from_builders(i, builders);
+    let testbed = TestbedApp::from_builders(builders);
     testbed.run()
 }

@@ -84,12 +84,12 @@ pub fn main() {
                 .iter()
                 .position(|builder| builder.0.to_camel_case().as_str() == demo.as_str())
             {
-                TestbedApp::from_builders(0, vec![builders[i]]).run()
+                TestbedApp::from_builders(vec![builders[i]]).run()
             } else {
                 eprintln!("Invalid example to run provided: '{}'", demo);
             }
         }
-        Command::RunAll => TestbedApp::from_builders(0, builders).run(),
+        Command::RunAll => TestbedApp::from_builders(builders).run(),
         Command::List => {
             for builder in &builders {
                 println!("{}", builder.0.to_camel_case())
