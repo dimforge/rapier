@@ -1268,11 +1268,12 @@ mod test {
             .contact_pair(collider_1_handle, collider_2_handle)
             .expect("The contact pair should exist.");
         assert_eq!(contact_pair.manifolds.len(), 0);
-        assert!(matches!(
-            narrow_phase.intersection_pair(collider_1_handle, collider_2_handle),
-            // Interaction pair is for sensors
-            None,
-        ));
+        assert!(
+            narrow_phase
+                .intersection_pair(collider_1_handle, collider_2_handle)
+                .is_none(),
+            "Interaction pair is for sensors"
+        );
         /* Parent collider 2 to body 2. */
         collider_set.set_parent(collider_2_handle, Some(body_2_handle), &mut rigid_body_set);
 
@@ -1296,11 +1297,12 @@ mod test {
             .contact_pair(collider_1_handle, collider_2_handle)
             .expect("The contact pair should exist.");
         assert_eq!(contact_pair.manifolds.len(), 1);
-        assert!(matches!(
-            narrow_phase.intersection_pair(collider_1_handle, collider_2_handle),
-            // Interaction pair is for sensors
-            None,
-        ));
+        assert!(
+            narrow_phase
+                .intersection_pair(collider_1_handle, collider_2_handle)
+                .is_none(),
+            "Interaction pair is for sensors"
+        );
 
         /* Run the game loop, stepping the simulation once per frame. */
         for _ in 0..200 {
