@@ -144,7 +144,7 @@ fn update_pid_controller(
         }
     };
 
-    pid.axes = axes;
+    pid.set_axes(axes);
 
     let corrective_vel = pid.update_with_rigid_body(
         phx.integration_parameters.dt,
@@ -231,12 +231,12 @@ fn character_control_ui(
 }
 
 fn pid_control_ui(ui: &mut Ui, pid_controller: &mut PidController) {
-    let mut lin_kp = pid_controller.lin_kp.x;
+    let mut lin_kp = pid_controller.pd_part.lin_kp.x;
     let mut lin_ki = pid_controller.lin_ki.x;
-    let mut lin_kd = pid_controller.lin_kd.x;
-    let mut ang_kp = pid_controller.ang_kp.x;
+    let mut lin_kd = pid_controller.pd_part.lin_kd.x;
+    let mut ang_kp = pid_controller.pd_part.ang_kp.x;
     let mut ang_ki = pid_controller.ang_ki.x;
-    let mut ang_kd = pid_controller.ang_kd.x;
+    let mut ang_kd = pid_controller.pd_part.ang_kd.x;
 
     ui.add(Slider::new(&mut lin_kp, 0.0..=100.0).text("linear Kp"));
     ui.add(Slider::new(&mut lin_ki, 0.0..=10.0).text("linear Ki"));
@@ -245,12 +245,12 @@ fn pid_control_ui(ui: &mut Ui, pid_controller: &mut PidController) {
     ui.add(Slider::new(&mut ang_ki, 0.0..=10.0).text("angular Ki"));
     ui.add(Slider::new(&mut ang_kd, 0.0..=1.0).text("angular Kd"));
 
-    pid_controller.lin_kp.fill(lin_kp);
+    pid_controller.pd_part.lin_kp.fill(lin_kp);
     pid_controller.lin_ki.fill(lin_ki);
-    pid_controller.lin_kd.fill(lin_kd);
-    pid_controller.ang_kp.fill(ang_kp);
+    pid_controller.pd_part.lin_kd.fill(lin_kd);
+    pid_controller.pd_part.ang_kp.fill(ang_kp);
     pid_controller.ang_ki.fill(ang_ki);
-    pid_controller.ang_kd.fill(ang_kd);
+    pid_controller.pd_part.ang_kd.fill(ang_kd);
 }
 
 fn kinematic_control_ui(ui: &mut Ui, character_controller: &mut KinematicCharacterController) {
