@@ -6,6 +6,8 @@ use wasm_bindgen::prelude::*;
 use rapier_testbed3d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
 
+mod utils;
+
 mod ccd3;
 mod collision_groups3;
 mod compound3;

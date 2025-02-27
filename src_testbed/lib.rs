@@ -26,7 +26,7 @@ mod plugin;
 mod save;
 mod settings;
 mod testbed;
-mod ui;
+pub mod ui;
 
 #[cfg(feature = "dim2")]
 pub mod math {

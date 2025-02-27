@@ -12,12 +12,12 @@ use crate::testbed::{
 
 use crate::settings::SettingValue;
 use crate::PhysicsState;
-use bevy_egui::egui::{Slider, Ui};
+pub use bevy_egui::egui::{ComboBox, Slider, Ui, Window};
 use bevy_egui::{egui, EguiContexts};
 use rapier::dynamics::IntegrationParameters;
 use web_time::Instant;
 
-pub fn update_ui(
+pub(crate) fn update_ui(
     ui_context: &mut EguiContexts,
     state: &mut TestbedState,
     harness: &mut Harness,
@@ -30,10 +30,10 @@ pub fn update_ui(
 
     example_settings_ui(ui_context, state);
 
-    egui::Window::new("Parameters").show(ui_context.ctx_mut(), |ui| {
+    Window::new("Parameters").show(ui_context.ctx_mut(), |ui| {
         if state.backend_names.len() > 1 && !state.example_names.is_empty() {
             let mut changed = false;
-            egui::ComboBox::from_label("backend")
+            ComboBox::from_label("backend")
                 .width(150.0)
                 .selected_text(state.backend_names[state.selected_backend])
                 .show_ui(ui, |ui| {
@@ -247,46 +247,14 @@ pub fn update_ui(
         ui.checkbox(&mut debug_render.enabled, "debug render enabled");
 
         state.flags.set(TestbedStateFlags::SLEEP, sleep);
-        state.flags.set(TestbedStateFlags::DRAW_SURFACES, draw_surfaces);
+        state
+            .flags
+            .set(TestbedStateFlags::DRAW_SURFACES, draw_surfaces);
         // state
         //     .flags
         //     .set(TestbedStateFlags::CONTACT_POINTS, contact_points);
         // state.flags.set(TestbedStateFlags::WIREFRAME, wireframe);
         ui.separator();
-        if let Some(character_controller) = &mut state.character_controller {
-            ui.label("Character controller");
-            ui.checkbox(&mut character_controller.slide, "slide").on_hover_text("Should the character try to slide against the floor if it hits it?");
-            #[allow(clippy::useless_conversion)]
-            {
-
-                ui.add(Slider::new(&mut character_controller.max_slope_climb_angle, 0.0..=std::f32::consts::TAU.into()).text("max_slope_climb_angle"))
-                    .on_hover_text("The maximum angle (radians) between the floor’s normal and the `up` vector that the character is able to climb.");
-                ui.add(Slider::new(&mut character_controller.min_slope_slide_angle, 0.0..=std::f32::consts::FRAC_PI_2.into()).text("min_slope_slide_angle"))
-                    .on_hover_text("The minimum angle (radians) between the floor’s normal and the `up` vector before the character starts to slide down automatically.");
-            }
-            let mut is_snapped = character_controller.snap_to_ground.is_some();
-            if ui.checkbox(&mut is_snapped, "snap_to_ground").changed {
-                match is_snapped {
-                    true => {
-                        character_controller.snap_to_ground = Some(CharacterLength::Relative(0.1));
-                    },
-                    false => {
-                        character_controller.snap_to_ground = None;
-                    },
-                }
-            }
-            if let Some(snapped) = &mut character_controller.snap_to_ground {
-                match snapped {
-                    CharacterLength::Relative(val) => {
-                        ui.add(Slider::new(val, 0.0..=10.0).text("Snapped Relative Character Length"));
-                    },
-                    CharacterLength::Absolute(val) => {
-                        ui.add(Slider::new(val, 0.0..=10.0).text("Snapped Absolute Character Length"));
-                    },
-                }
-            }
-            ui.separator();
-        }
         let label = if state.running == RunMode::Stop {
             "Start (T)"
         } else {
@@ -465,7 +433,7 @@ fn example_settings_ui(ui_context: &mut EguiContexts, state: &mut TestbedState) 
         return;
     }
 
-    egui::Window::new("Example settings").show(ui_context.ctx_mut(), |ui| {
+    Window::new("Example settings").show(ui_context.ctx_mut(), |ui| {
         let mut any_changed = false;
         for (name, value) in state.example_settings.iter_mut() {
             let prev_value = value.clone();
