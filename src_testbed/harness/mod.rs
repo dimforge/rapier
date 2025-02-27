@@ -220,21 +220,7 @@ impl Harness {
             let physics = &mut self.physics;
             let event_handler = &self.event_handler;
             self.state.thread_pool.install(|| {
-                physics.pipeline.step(
-                    &physics.gravity,
-                    &physics.integration_parameters,
-                    &mut physics.islands,
-                    &mut physics.broad_phase,
-                    &mut physics.narrow_phase,
-                    &mut physics.bodies,
-                    &mut physics.colliders,
-                    &mut physics.impulse_joints,
-                    &mut physics.multibody_joints,
-                    &mut physics.ccd_solver,
-                    Some(&mut physics.query_pipeline),
-                    &*physics.hooks,
-                    event_handler,
-                );
+                physics.context.step(&*physics.hooks, event_handler);
             });
         }
 
