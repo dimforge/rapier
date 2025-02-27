@@ -1,3 +1,6 @@
+#[cfg(doc)]
+use super::IntegrationParameters;
+use crate::dynamics::JointAxis::LinX;
 use crate::dynamics::{
     LockedAxes, MassProperties, RigidBodyActivation, RigidBodyAdditionalMassProps, RigidBodyCcd,
     RigidBodyChanges, RigidBodyColliders, RigidBodyDamping, RigidBodyDominance, RigidBodyForces,
@@ -7,11 +10,9 @@ use crate::geometry::{
     ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition, ColliderSet, ColliderShape,
 };
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector};
+use crate::prelude::AxisMask;
 use crate::utils::SimdCross;
 use num::Zero;
-
-#[cfg(doc)]
-use super::IntegrationParameters;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A rigid body.
@@ -235,6 +236,12 @@ impl RigidBody {
     #[inline]
     pub fn center_of_mass(&self) -> &Point<Real> {
         &self.mprops.world_com
+    }
+
+    /// The local-space center-of-mass of this rigid-body.
+    #[inline]
+    pub fn local_center_of_mass(&self) -> &Point<Real> {
+        &self.mprops.local_mprops.local_com
     }
 
     /// The mass-properties of this rigid-body.
@@ -704,6 +711,11 @@ impl RigidBody {
         !self.vels.linvel.is_zero() || !self.vels.angvel.is_zero()
     }
 
+    /// The linear and angular velocity of this rigid-body.
+    pub fn vels(&self) -> &RigidBodyVelocity {
+        &self.vels
+    }
+
     /// The linear velocity of this rigid-body.
     pub fn linvel(&self) -> &Vector<Real> {
         &self.vels.linvel
@@ -719,6 +731,15 @@ impl RigidBody {
     #[cfg(feature = "dim3")]
     pub fn angvel(&self) -> &Vector<Real> {
         &self.vels.angvel
+    }
+
+    /// Set both the angular and linear velocity of this rigid-body.
+    ///
+    /// If `wake_up` is `true` then the rigid-body will be woken up if it was
+    /// put to sleep because it did not move for a while.
+    pub fn set_vels(&mut self, vels: RigidBodyVelocity, wake_up: bool) {
+        self.set_linvel(vels.linvel, wake_up);
+        self.set_angvel(vels.angvel, wake_up);
     }
 
     /// The linear velocity of this rigid-body.
@@ -1481,7 +1502,7 @@ impl RigidBodyBuilder {
     /// Build a new rigid-body with the parameters configured with this builder.
     pub fn build(&self) -> RigidBody {
         let mut rb = RigidBody::new();
-        rb.pos.next_position = self.position; // FIXME: compute the correct value?
+        rb.pos.next_position = self.position;
         rb.pos.position = self.position;
         rb.vels.linvel = self.linvel;
         rb.vels.angvel = self.angvel;

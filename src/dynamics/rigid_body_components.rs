@@ -1,3 +1,6 @@
+#[cfg(doc)]
+use super::IntegrationParameters;
+use crate::control::PidErrors;
 use crate::dynamics::MassProperties;
 use crate::geometry::{
     ColliderChanges, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition,
@@ -9,9 +12,6 @@ use crate::math::{
 use crate::parry::partitioning::IndexedData;
 use crate::utils::{SimdAngularInertia, SimdCross, SimdDot};
 use num::Zero;
-
-#[cfg(doc)]
-use super::IntegrationParameters;
 
 /// The unique handle of a rigid body added to a `RigidBodySet`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
@@ -159,22 +159,11 @@ impl RigidBodyPosition {
     /// a time equal to `1.0 / inv_dt`.
     #[must_use]
     pub fn interpolate_velocity(&self, inv_dt: Real, local_com: &Point<Real>) -> RigidBodyVelocity {
-        let com = self.position * local_com;
-        let shift = Translation::from(com.coords);
-        let dpos = shift.inverse() * self.next_position * self.position.inverse() * shift;
-
-        let angvel;
-        #[cfg(feature = "dim2")]
-        {
-            angvel = dpos.rotation.angle() * inv_dt;
+        let pose_err = self.pose_errors(local_com);
+        RigidBodyVelocity {
+            linvel: pose_err.linear * inv_dt,
+            angvel: pose_err.angular * inv_dt,
         }
-        #[cfg(feature = "dim3")]
-        {
-            angvel = dpos.rotation.scaled_axis() * inv_dt;
-        }
-        let linvel = dpos.translation.vector * inv_dt;
-
-        RigidBodyVelocity { linvel, angvel }
     }
 
     /// Compute new positions after integrating the given forces and velocities.
@@ -190,6 +179,32 @@ impl RigidBodyPosition {
     ) -> Isometry<Real> {
         let new_vels = forces.integrate(dt, vels, mprops);
         new_vels.integrate(dt, &self.position, &mprops.local_mprops.local_com)
+    }
+
+    /// Computes the difference between [`Self::next_position`] and [`Self::position`].
+    ///
+    /// This error measure can for example be used for interpolating the velocity between two poses,
+    /// or be given to the [`PidController`].
+    ///
+    /// Note that interpolating the velocity can be done more conveniently with
+    /// [`Self::interpolate_velocity`].
+    pub fn pose_errors(&self, local_com: &Point<Real>) -> PidErrors {
+        let com = self.position * local_com;
+        let shift = Translation::from(com.coords);
+        let dpos = shift.inverse() * self.next_position * self.position.inverse() * shift;
+
+        let angular;
+        #[cfg(feature = "dim2")]
+        {
+            angular = dpos.rotation.angle();
+        }
+        #[cfg(feature = "dim3")]
+        {
+            angular = dpos.rotation.scaled_axis();
+        }
+        let linear = dpos.translation.vector;
+
+        PidErrors { linear, angular }
     }
 }
 
@@ -210,7 +225,28 @@ bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
-    // FIXME: rename this to LockedAxes
+    pub struct AxisMask: u8 {
+        const LIN_X = 1 << 0;
+        const LIN_Y = 1 << 1;
+        const LIN_Z = 1 << 2;
+        #[cfg(feature = "dim3")]
+        const ANG_X = 1 << 3;
+        #[cfg(feature = "dim3")]
+        const ANG_Y = 1 << 4;
+        const ANG_Z = 1 << 5;
+    }
+}
+
+impl Default for AxisMask {
+    fn default() -> Self {
+        AxisMask::empty()
+    }
+}
+
+bitflags::bitflags! {
+    #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+    /// Flags affecting the behavior of the constraints solver for a given contact manifold.
     pub struct LockedAxes: u8 {
         /// Flag indicating that the rigid-body cannot translate along the `X` axis.
         const TRANSLATION_LOCKED_X = 1 << 0;
@@ -720,6 +756,25 @@ impl std::ops::AddAssign<RigidBodyVelocity> for RigidBodyVelocity {
     }
 }
 
+impl std::ops::Sub<RigidBodyVelocity> for RigidBodyVelocity {
+    type Output = Self;
+
+    #[must_use]
+    fn sub(self, rhs: Self) -> Self {
+        RigidBodyVelocity {
+            linvel: self.linvel - rhs.linvel,
+            angvel: self.angvel - rhs.angvel,
+        }
+    }
+}
+
+impl std::ops::SubAssign<RigidBodyVelocity> for RigidBodyVelocity {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.linvel -= rhs.linvel;
+        self.angvel -= rhs.angvel;
+    }
+}
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Copy, PartialEq)]
 /// Damping factors to progressively slow down a rigid-body.
@@ -1090,5 +1145,59 @@ impl RigidBodyActivation {
     pub fn sleep(&mut self) {
         self.sleeping = true;
         self.time_since_can_sleep = self.time_until_sleep;
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::math::Real;
+
+    #[test]
+    fn test_interpolate_velocity() {
+        // Interpolate and then integrate the velocity to see if
+        // the end positions match.
+        #[cfg(feature = "f32")]
+        let mut rng = oorandom::Rand32::new(0);
+        #[cfg(feature = "f64")]
+        let mut rng = oorandom::Rand64::new(0);
+
+        for i in -10..=10 {
+            let mult = i as Real;
+            let (local_com, curr_pos, next_pos);
+            #[cfg(feature = "dim2")]
+            {
+                local_com = Point::new(rng.rand_float(), rng.rand_float());
+                curr_pos = Isometry::new(
+                    Vector::new(rng.rand_float(), rng.rand_float()) * mult,
+                    rng.rand_float(),
+                );
+                next_pos = Isometry::new(
+                    Vector::new(rng.rand_float(), rng.rand_float()) * mult,
+                    rng.rand_float(),
+                );
+            }
+            #[cfg(feature = "dim3")]
+            {
+                local_com = Point::new(rng.rand_float(), rng.rand_float(), rng.rand_float());
+                curr_pos = Isometry::new(
+                    Vector::new(rng.rand_float(), rng.rand_float(), rng.rand_float()) * mult,
+                    Vector::new(rng.rand_float(), rng.rand_float(), rng.rand_float()),
+                );
+                next_pos = Isometry::new(
+                    Vector::new(rng.rand_float(), rng.rand_float(), rng.rand_float()) * mult,
+                    Vector::new(rng.rand_float(), rng.rand_float(), rng.rand_float()),
+                );
+            }
+
+            let dt = 0.016;
+            let rb_pos = RigidBodyPosition {
+                position: curr_pos,
+                next_position: next_pos,
+            };
+            let vel = rb_pos.interpolate_velocity(1.0 / dt, &local_com);
+            let interp_pos = vel.integrate(dt, &curr_pos, &local_com);
+            approx::assert_relative_eq!(interp_pos, next_pos, epsilon = 1.0e-5);
+        }
     }
 }
