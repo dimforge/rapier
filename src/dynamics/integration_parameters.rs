@@ -10,7 +10,7 @@ use super::RigidBodyActivation;
 pub(crate) static BLOCK_SOLVER_ENABLED: bool = cfg!(feature = "dim2");
 
 /// Parameters for a time-step of the physics engine.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct IntegrationParameters {
     /// The timestep length (default: `1.0 / 60.0`).
