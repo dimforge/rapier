@@ -24,17 +24,14 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, _, run_state| {
-        let rigid_body = RigidBodyBuilder::dynamic().translation(vector![0.0, 10.0, 0.0]);
-        let handle = physics.bodies.insert(rigid_body);
-        let collider = match run_state.timestep_id % 3 {
-            0 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0),
-            1 => ColliderBuilder::cone(rad, rad),
-            _ => ColliderBuilder::cuboid(rad, rad, rad),
-        };
-
-        physics
-            .colliders
-            .insert_with_parent(collider, handle, &mut physics.bodies);
+        physics.insert_body_and_collider(
+            RigidBodyBuilder::dynamic().translation(vector![0.0, 10.0, 0.0]),
+            match run_state.timestep_id % 3 {
+                0 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0),
+                1 => ColliderBuilder::cone(rad, rad),
+                _ => ColliderBuilder::cuboid(rad, rad, rad),
+            },
+        );
 
         if let Some(graphics) = &mut graphics {
             graphics.add_body(handle, &physics.bodies, &physics.colliders);
@@ -57,14 +54,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
             let num_to_remove = to_remove.len() - MAX_NUMBER_OF_BODIES;
             for (handle, _) in &to_remove[..num_to_remove] {
-                physics.bodies.remove(
-                    *handle,
-                    &mut physics.islands,
-                    &mut physics.colliders,
-                    &mut physics.impulse_joints,
-                    &mut physics.multibody_joints,
-                    true,
-                );
+                physics.remove_rigidbody(*handle, true);
 
                 if let Some(graphics) = &mut graphics {
                     graphics.remove_body(*handle);

@@ -1,10 +1,10 @@
 use crate::graphics::BevyMaterial;
 use crate::harness::Harness;
-use crate::physics::PhysicsState;
 use crate::GraphicsManager;
 use bevy::prelude::*;
 // use bevy::render::render_resource::RenderPipelineDescriptor;
 use bevy_egui::EguiContexts;
+use rapier::prelude::PhysicsContext;
 
 pub trait TestbedPlugin {
     fn init_plugin(&mut self);
@@ -19,7 +19,7 @@ pub trait TestbedPlugin {
     );
     fn clear_graphics(&mut self, graphics: &mut GraphicsManager, commands: &mut Commands);
     fn run_callbacks(&mut self, harness: &mut Harness);
-    fn step(&mut self, physics: &mut PhysicsState);
+    fn step(&mut self, physics: &mut PhysicsContext);
     fn draw(
         &mut self,
         graphics: &mut GraphicsManager,

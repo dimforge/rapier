@@ -38,7 +38,7 @@ pub fn init_world(testbed: &mut Testbed) {
             .colliders
             .remove(
                 removed_collider_handle,
-                &mut physics.islands,
+                &mut physics.island_manager,
                 &mut physics.bodies,
                 true,
             )

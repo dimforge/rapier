@@ -8,7 +8,7 @@ use std::num::NonZeroUsize;
 
 use crate::debug_render::{DebugRenderPipelineResource, RapierDebugRenderPlugin};
 use crate::graphics::BevyMaterialComponent;
-use crate::physics::{DeserializedPhysicsSnapshot, PhysicsEvents, PhysicsSnapshot, PhysicsState};
+use crate::physics::{DeserializedPhysicsSnapshot, PhysicsEvents, PhysicsSnapshot};
 use crate::plugin::TestbedPlugin;
 use crate::{graphics::GraphicsManager, harness::RunState};
 use crate::{mouse, ui};
@@ -26,6 +26,7 @@ use rapier::geometry::Ray;
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{PhysicsHooks, QueryFilter, QueryPipeline};
+use rapier::prelude::PhysicsContext;
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
@@ -402,7 +403,7 @@ impl TestbedApp {
                             {
                                 if self.state.selected_backend == BOX2D_BACKEND {
                                     self.other_backends.box2d.as_mut().unwrap().step(
-                                        &mut self.harness.physics.pipeline.counters,
+                                        &mut self.harness.physics.physics_pipeline.counters,
                                         &self.harness.physics.integration_parameters,
                                     );
                                     self.other_backends.box2d.as_mut().unwrap().sync(
@@ -419,7 +420,7 @@ impl TestbedApp {
                                 {
                                     //                        println!("Step");
                                     self.other_backends.physx.as_mut().unwrap().step(
-                                        &mut self.harness.physics.pipeline.counters,
+                                        &mut self.harness.physics.physics_pipeline.counters,
                                         &self.harness.physics.integration_parameters,
                                     );
                                     self.other_backends.physx.as_mut().unwrap().sync(
@@ -432,8 +433,14 @@ impl TestbedApp {
 
                         // Skip the first update.
                         if k > 0 {
-                            timings
-                                .push(self.harness.physics.pipeline.counters.step_time.time_ms());
+                            timings.push(
+                                self.harness
+                                    .physics
+                                    .physics_pipeline
+                                    .counters
+                                    .step_time
+                                    .time_ms(),
+                            );
                         }
                     }
                     results.push(timings);
@@ -596,7 +603,7 @@ impl Testbed<'_, '_, '_, '_, '_, '_> {
         &mut self.harness.physics.integration_parameters
     }
 
-    pub fn physics_state_mut(&mut self) -> &mut PhysicsState {
+    pub fn physics_state_mut(&mut self) -> &mut PhysicsContext {
         &mut self.harness.physics
     }
 
@@ -751,7 +758,8 @@ impl Testbed<'_, '_, '_, '_, '_, '_> {
     //    }
 
     pub fn add_callback<
-        F: FnMut(Option<&mut TestbedGraphics>, &mut PhysicsState, &PhysicsEvents, &RunState) + 'static,
+        F: FnMut(Option<&mut TestbedGraphics>, &mut PhysicsContext, &PhysicsEvents, &RunState)
+            + 'static,
     >(
         &mut self,
         callback: F,
@@ -802,7 +810,7 @@ impl Testbed<'_, '_, '_, '_, '_, '_> {
                 self.harness.physics.integration_parameters.dt,
                 &mut self.harness.physics.bodies,
                 &self.harness.physics.colliders,
-                &self.harness.physics.query_pipeline,
+                self.harness.physics.query_pipeline.as_ref().unwrap(),
                 QueryFilter::exclude_dynamic().exclude_rigid_body(vehicle.chassis),
             );
         }
@@ -895,7 +903,7 @@ impl Testbed<'_, '_, '_, '_, '_, '_> {
                 phx.integration_parameters.dt,
                 &phx.bodies,
                 &phx.colliders,
-                &phx.query_pipeline,
+                phx.query_pipeline.as_ref().unwrap(),
                 character_collider.shape(),
                 character_collider.position(),
                 desired_movement.cast::<Real>(),
@@ -921,7 +929,7 @@ impl Testbed<'_, '_, '_, '_, '_, '_> {
                 phx.integration_parameters.dt,
                 &mut phx.bodies,
                 &phx.colliders,
-                &phx.query_pipeline,
+                phx.query_pipeline.as_ref().unwrap(),
                 character_collider.shape(),
                 character_mass,
                 &*collisions,
@@ -974,7 +982,7 @@ impl Testbed<'_, '_, '_, '_, '_, '_> {
                         }
                         self.harness.physics.colliders.remove(
                             to_delete[0],
-                            &mut self.harness.physics.islands,
+                            &mut self.harness.physics.island_manager,
                             &mut self.harness.physics.bodies,
                             true,
                         );
@@ -997,7 +1005,7 @@ impl Testbed<'_, '_, '_, '_, '_, '_> {
                         }
                         self.harness.physics.bodies.remove(
                             *to_delete,
-                            &mut self.harness.physics.islands,
+                            &mut self.harness.physics.island_manager,
                             &mut self.harness.physics.colliders,
                             &mut self.harness.physics.impulse_joints,
                             &mut self.harness.physics.multibody_joints,
@@ -1040,7 +1048,7 @@ impl Testbed<'_, '_, '_, '_, '_, '_> {
                     // Delete one remaining multibody.
                     let to_delete = self
                         .harness
-                        .physics
+                        .physics_state_mut()
                         .multibody_joints
                         .iter()
                         .next()
@@ -1400,7 +1408,7 @@ fn update_testbed(
                 harness.state.timestep_id,
                 &harness.physics.broad_phase,
                 &harness.physics.narrow_phase,
-                &harness.physics.islands,
+                &harness.physics.island_manager,
                 &harness.physics.bodies,
                 &harness.physics.colliders,
                 &harness.physics.impulse_joints,
@@ -1441,12 +1449,12 @@ fn update_testbed(
                     harness.state.timestep_id = timestep_id;
                     harness.physics.broad_phase = broad_phase;
                     harness.physics.narrow_phase = narrow_phase;
-                    harness.physics.islands = island_manager;
+                    harness.physics.island_manager = island_manager;
                     harness.physics.bodies = bodies;
                     harness.physics.colliders = colliders;
                     harness.physics.impulse_joints = impulse_joints;
                     harness.physics.multibody_joints = multibody_joints;
-                    harness.physics.query_pipeline = QueryPipeline::new();
+                    harness.physics.query_pipeline = Some(QueryPipeline::new());
 
                     state
                         .action_flags
@@ -1673,7 +1681,7 @@ fn highlight_hovered_body(
     _material_handles: &mut Query<&mut BevyMaterialComponent>,
     _graphics_manager: &mut GraphicsManager,
     _testbed_state: &mut TestbedState,
-    _physics: &PhysicsState,
+    _physics: &PhysicsContext,
     _window: &Window,
     _camera: &Camera,
     _camera_transform: &GlobalTransform,
@@ -1686,7 +1694,7 @@ fn highlight_hovered_body(
     material_handles: &mut Query<&mut BevyMaterialComponent>,
     graphics_manager: &mut GraphicsManager,
     testbed_state: &mut TestbedState,
-    physics: &PhysicsState,
+    physics: &PhysicsContext,
     window: &Window,
     camera: &Camera,
     camera_transform: &GlobalTransform,
@@ -1714,14 +1722,7 @@ fn highlight_hovered_body(
         let ray_dir = Vector3::new(ray_dir.x as Real, ray_dir.y as Real, ray_dir.z as Real);
 
         let ray = Ray::new(ray_origin, ray_dir);
-        let hit = physics.query_pipeline.cast_ray(
-            &physics.bodies,
-            &physics.colliders,
-            &ray,
-            Real::MAX,
-            true,
-            QueryFilter::only_dynamic(),
-        );
+        let hit = physics.cast_ray(&ray, Real::MAX, true, QueryFilter::only_dynamic());
 
         if let Some((handle, _)) = hit {
             let collider = &physics.colliders[handle];

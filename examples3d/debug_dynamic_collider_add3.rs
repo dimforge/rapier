@@ -78,9 +78,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     graphics.remove_collider(*handle, &physics.colliders);
                 }
 
-                physics
-                    .colliders
-                    .remove(*handle, &mut physics.islands, &mut physics.bodies, true);
+                physics.remove_collider(*handle, true);
             }
 
             extra_colliders.clear();

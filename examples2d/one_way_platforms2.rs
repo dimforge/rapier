@@ -93,18 +93,17 @@ pub fn init_world(testbed: &mut Testbed) {
         if run_state.timestep_id % 200 == 0 && physics.bodies.len() <= 7 {
             // Spawn a new cube.
             let collider = ColliderBuilder::cuboid(1.5, 2.0);
-            let body = RigidBodyBuilder::dynamic().translation(vector![20.0, 10.0]);
-            let handle = physics.bodies.insert(body);
-            physics
-                .colliders
-                .insert_with_parent(collider, handle, &mut physics.bodies);
+            let (handle, _) = physics.insert_body_and_collider(
+                RigidBodyBuilder::dynamic().translation(vector![20.0, 10.0]),
+                collider,
+            );
 
             if let Some(graphics) = graphics {
                 graphics.add_body(handle, &physics.bodies, &physics.colliders);
             }
         }
 
-        for handle in physics.islands.active_dynamic_bodies() {
+        for handle in physics.island_manager.active_dynamic_bodies() {
             let body = &mut physics.bodies[*handle];
             if body.position().translation.y > 1.0 {
                 body.set_gravity_scale(1.0, false);

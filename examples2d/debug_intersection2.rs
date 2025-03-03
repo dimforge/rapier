@@ -41,9 +41,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     testbed.add_callback(move |graphics, physics, _, run| {
         let slow_time = run.timestep_id as f32 / 3.0;
-        let intersection = physics.query_pipeline.intersection_with_shape(
-            &physics.bodies,
-            &physics.colliders,
+        let intersection = physics.intersection_with_shape(
             &Isometry::translation(slow_time.cos() * 10.0, slow_time.sin() * 10.0),
             &Ball::new(rad / 2.0),
             QueryFilter::default(),
