@@ -41,8 +41,7 @@ pub fn init_world(testbed: &mut Testbed) {
             testbed.harness_mut().physics.island_manager = state.islands;
             testbed.harness_mut().physics.broad_phase = state.broad_phase;
             testbed.harness_mut().physics.narrow_phase = state.narrow_phase;
-            testbed.harness_mut().physics.integration_parameters =
-                state.integration_parameters;
+            testbed.harness_mut().physics.integration_parameters = state.integration_parameters;
             testbed.harness_mut().physics.gravity = state.gravity;
 
             testbed.set_graphics_shift(vector![-541.0, -6377257.0, -61.0]);

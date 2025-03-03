@@ -95,11 +95,9 @@ pub fn init_world(testbed: &mut Testbed) {
             let collider = ColliderBuilder::cuboid(1.0, 2.0, 1.5);
             let body = RigidBodyBuilder::dynamic().translation(vector![0.0, 6.0, 20.0]);
             let handle = physics.bodies.insert(body);
-            physics.colliders.insert_with_parent(
-                collider,
-                handle,
-                &mut physics.bodies,
-            );
+            physics
+                .colliders
+                .insert_with_parent(collider, handle, &mut physics.bodies);
 
             if let Some(graphics) = graphics {
                 graphics.add_body(handle, &physics.bodies, &physics.colliders);
