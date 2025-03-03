@@ -1,6 +1,7 @@
 use rapier::control::CharacterLength;
 use rapier::counters::Counters;
 use rapier::math::Real;
+use rapier::prelude::PhysicsContext;
 use std::num::NonZeroUsize;
 
 use crate::debug_render::DebugRenderPipelineResource;
@@ -11,7 +12,6 @@ use crate::testbed::{
 };
 
 use crate::settings::SettingValue;
-use crate::PhysicsState;
 use bevy_egui::egui::{Slider, Ui};
 use bevy_egui::{egui, EguiContexts};
 use rapier::dynamics::IntegrationParameters;
@@ -95,7 +95,7 @@ pub fn update_ui(
         });
         ui.collapsing("Profile infos", |ui| {
             ui.horizontal_wrapped(|ui| {
-                profiling_ui(ui, &harness.physics.context.physics_pipeline.counters);
+                profiling_ui(ui, &harness.physics.physics_pipeline.counters);
             });
         });
         ui.collapsing("Serialization infos", |ui| {
@@ -107,7 +107,7 @@ pub fn update_ui(
             });
         });
 
-        let integration_parameters = &mut harness.physics.context.integration_parameters;
+        let integration_parameters = &mut harness.physics.integration_parameters;
 
         if state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
             || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
@@ -323,13 +323,10 @@ pub fn update_ui(
     });
 }
 
-fn scene_infos_ui(ui: &mut Ui, physics: &PhysicsState) {
-    ui.label(format!("# rigid-bodies: {}", physics.context.bodies.len()));
-    ui.label(format!("# colliders: {}", physics.context.colliders.len()));
-    ui.label(format!(
-        "# impulse joint: {}",
-        physics.context.impulse_joints.len()
-    ));
+fn scene_infos_ui(ui: &mut Ui, physics: &PhysicsContext) {
+    ui.label(format!("# rigid-bodies: {}", physics.bodies.len()));
+    ui.label(format!("# colliders: {}", physics.colliders.len()));
+    ui.label(format!("# impulse joint: {}", physics.impulse_joints.len()));
     // ui.label(format!(
     //     "# multibody joint: {}",
     //     physics.multibody_joints.len()
@@ -415,25 +412,25 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
     });
 }
 
-fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
+fn serialization_string(timestep_id: usize, physics: &PhysicsContext) -> String {
     let t = Instant::now();
     // let t = Instant::now();
-    let bf = bincode::serialize(&physics.context.broad_phase).unwrap();
+    let bf = bincode::serialize(&physics.broad_phase).unwrap();
     // println!("bf: {}", Instant::now() - t);
     // let t = Instant::now();
-    let nf = bincode::serialize(&physics.context.narrow_phase).unwrap();
+    let nf = bincode::serialize(&physics.narrow_phase).unwrap();
     // println!("nf: {}", Instant::now() - t);
     // let t = Instant::now();
-    let bs = bincode::serialize(&physics.context.bodies).unwrap();
+    let bs = bincode::serialize(&physics.bodies).unwrap();
     // println!("bs: {}", Instant::now() - t);
     // let t = Instant::now();
-    let cs = bincode::serialize(&physics.context.colliders).unwrap();
+    let cs = bincode::serialize(&physics.colliders).unwrap();
     // println!("cs: {}", Instant::now() - t);
     // let t = Instant::now();
-    let ijs = bincode::serialize(&physics.context.impulse_joints).unwrap();
+    let ijs = bincode::serialize(&physics.impulse_joints).unwrap();
     // println!("cs: {}", Instant::now() - t);
     // let t = Instant::now();
-    let mjs = bincode::serialize(&physics.context.multibody_joints).unwrap();
+    let mjs = bincode::serialize(&physics.multibody_joints).unwrap();
     // println!("js: {}", Instant::now() - t);
     let serialization_time = Instant::now() - t;
     let hash_bf = md5::compute(&bf);

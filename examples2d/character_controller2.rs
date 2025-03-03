@@ -153,7 +153,7 @@ pub fn init_world(testbed: &mut Testbed) {
         // let angvel = run_state.time.sin() * 0.5;
 
         // Update the velocity-based kinematic body by setting its velocity.
-        if let Some(platform) = physics.context.bodies.get_mut(platform_handle) {
+        if let Some(platform) = physics.bodies.get_mut(platform_handle) {
             platform.set_linvel(linvel, true);
             // NOTE: interaction with rotating platforms isn’t handled very well yet.
             // platform.set_angvel(angvel, true);

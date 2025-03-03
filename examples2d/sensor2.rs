@@ -75,10 +75,10 @@ pub fn init_world(testbed: &mut Testbed) {
                 [0.5, 0.5, 1.0]
             };
 
-            let parent_handle1 = physics.context.colliders[prox.collider1()]
+            let parent_handle1 = physics.colliders[prox.collider1()]
                 .parent()
                 .unwrap();
-            let parent_handle2 = physics.context.colliders[prox.collider2()]
+            let parent_handle2 = physics.colliders[prox.collider2()]
                 .parent()
                 .unwrap();
 

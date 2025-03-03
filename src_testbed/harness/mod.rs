@@ -1,9 +1,6 @@
 #![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
 
-use crate::{
-    physics::{PhysicsEvents, PhysicsState},
-    TestbedGraphics,
-};
+use crate::{physics::PhysicsEvents, TestbedGraphics};
 use plugin::HarnessPlugin;
 use rapier::geometry::{ColliderSet, DefaultBroadPhase, NarrowPhase};
 use rapier::math::{Real, Vector};
@@ -82,17 +79,19 @@ impl RunState {
 }
 
 pub struct Harness {
-    pub physics: PhysicsState,
+    pub physics: PhysicsContext,
     max_steps: usize,
     callbacks: Callbacks,
     plugins: Vec<Box<dyn HarnessPlugin>>,
     events: PhysicsEvents,
+    pub hooks: Box<dyn PhysicsHooks>,
     event_handler: ChannelEventCollector,
     pub state: RunState,
 }
 
-type Callbacks =
-    Vec<Box<dyn FnMut(Option<&mut TestbedGraphics>, &mut PhysicsState, &PhysicsEvents, &RunState)>>;
+type Callbacks = Vec<
+    Box<dyn FnMut(Option<&mut TestbedGraphics>, &mut PhysicsContext, &PhysicsEvents, &RunState)>,
+>;
 
 #[allow(dead_code)]
 impl Harness {
@@ -105,7 +104,7 @@ impl Harness {
             collision_events: collision_event_channel.1,
             contact_force_events: contact_force_event_channel.1,
         };
-        let physics = PhysicsState::new();
+        let physics = PhysicsContext::default();
         let state = RunState::new();
 
         Self {
@@ -114,6 +113,7 @@ impl Harness {
             callbacks: Vec::new(),
             plugins: Vec::new(),
             events,
+            hooks: Box::new(()),
             event_handler,
             state,
         }
@@ -135,14 +135,14 @@ impl Harness {
     }
 
     pub fn integration_parameters_mut(&mut self) -> &mut IntegrationParameters {
-        &mut self.physics.context.integration_parameters
+        &mut self.physics.integration_parameters
     }
 
     pub fn clear_callbacks(&mut self) {
         self.callbacks.clear();
     }
 
-    pub fn physics_state_mut(&mut self) -> &mut PhysicsState {
+    pub fn physics_state_mut(&mut self) -> &mut PhysicsContext {
         &mut self.physics
     }
 
@@ -174,24 +174,22 @@ impl Harness {
     ) {
         // println!("Num bodies: {}", bodies.len());
         // println!("Num impulse_joints: {}", impulse_joints.len());
-        self.physics = PhysicsState {
-            context: PhysicsContext {
-                gravity,
-                integration_parameters: IntegrationParameters::default(),
-                physics_pipeline: PhysicsPipeline::new(),
-                island_manager: IslandManager::new(),
-                broad_phase: DefaultBroadPhase::new(),
-                narrow_phase: NarrowPhase::new(),
-                bodies,
-                colliders,
-                impulse_joints,
-                multibody_joints,
-                ccd_solver: CCDSolver::new(),
-                query_pipeline: Some(QueryPipeline::new()),
-            },
-            hooks: Box::new(hooks),
+        self.physics = PhysicsContext {
+            gravity,
+            integration_parameters: IntegrationParameters::default(),
+            physics_pipeline: PhysicsPipeline::new(),
+            island_manager: IslandManager::new(),
+            broad_phase: DefaultBroadPhase::new(),
+            narrow_phase: NarrowPhase::new(),
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            ccd_solver: CCDSolver::new(),
+            query_pipeline: Some(QueryPipeline::new()),
         };
-        self.physics.context.physics_pipeline.counters.enable();
+        self.hooks = Box::new(hooks);
+        self.physics.physics_pipeline.counters.enable();
         self.state.timestep_id = 0;
         self.state.time = 0.0;
     }
@@ -201,7 +199,8 @@ impl Harness {
     }
 
     pub fn add_callback<
-        F: FnMut(Option<&mut TestbedGraphics>, &mut PhysicsState, &PhysicsEvents, &RunState) + 'static,
+        F: FnMut(Option<&mut TestbedGraphics>, &mut PhysicsContext, &PhysicsEvents, &RunState)
+            + 'static,
     >(
         &mut self,
         callback: F,
@@ -220,14 +219,12 @@ impl Harness {
             let physics = &mut self.physics;
             let event_handler = &self.event_handler;
             self.state.thread_pool.install(|| {
-                physics.context.step(&*physics.hooks, event_handler);
+                physics.step(&*physics.hooks, event_handler);
             });
         }
 
         #[cfg(not(feature = "parallel"))]
-        self.physics
-            .context
-            .step(&*self.physics.hooks, &self.event_handler);
+        self.physics.step(&*self.hooks, &self.event_handler);
 
         for plugin in &mut self.plugins {
             plugin.step(&mut self.physics, &self.state)
@@ -248,7 +245,7 @@ impl Harness {
 
         self.events.poll_all();
 
-        self.state.time += self.physics.context.integration_parameters.dt as f32;
+        self.state.time += self.physics.integration_parameters.dt as f32;
         self.state.timestep_id += 1;
     }
 

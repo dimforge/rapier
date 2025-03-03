@@ -26,7 +26,7 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.add_callback(move |mut graphics, physics, _, state| {
         let rot = state.time * -1.0;
         for rb_handle in &platform_handles {
-            let rb = physics.context.bodies.get_mut(*rb_handle).unwrap();
+            let rb = physics.bodies.get_mut(*rb_handle).unwrap();
             rb.set_next_kinematic_rotation(UnitComplex::new(rot));
         }
 
@@ -34,24 +34,22 @@ pub fn init_world(testbed: &mut Testbed) {
             let x = rand::random::<f32>() * 10.0 - 5.0;
             let y = rand::random::<f32>() * 10.0 + 10.0;
             let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
-            let (handle, _) = physics
-                .context
-                .insert_body_and_collider(rigid_body, ColliderBuilder::cuboid(rad, rad));
+            let (handle, _) =
+                physics.insert_body_and_collider(rigid_body, ColliderBuilder::cuboid(rad, rad));
 
             if let Some(graphics) = &mut graphics {
-                graphics.add_body(handle, &physics.context.bodies, &physics.context.colliders);
+                graphics.add_body(handle, &physics.bodies, &physics.colliders);
             }
         }
 
         let to_remove: Vec<_> = physics
-            .context
             .bodies
             .iter()
             .filter(|(_, b)| b.position().translation.vector.y < -10.0)
             .map(|e| e.0)
             .collect();
         for handle in to_remove {
-            physics.context.remove_rigidbody(handle, true);
+            physics.remove_rigidbody(handle, true);
 
             if let Some(graphics) = &mut graphics {
                 graphics.remove_body(handle);

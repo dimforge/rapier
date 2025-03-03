@@ -74,11 +74,11 @@ fn debug_render_scene(
         let mut backend = BevyLinesRenderBackend { gizmos };
         debug_render.pipeline.render(
             &mut backend,
-            &harness.physics.context.bodies,
-            &harness.physics.context.colliders,
-            &harness.physics.context.impulse_joints,
-            &harness.physics.context.multibody_joints,
-            &harness.physics.context.narrow_phase,
+            &harness.physics.bodies,
+            &harness.physics.colliders,
+            &harness.physics.impulse_joints,
+            &harness.physics.multibody_joints,
+            &harness.physics.narrow_phase,
         );
     }
 }

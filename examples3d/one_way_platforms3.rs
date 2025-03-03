@@ -90,24 +90,24 @@ pub fn init_world(testbed: &mut Testbed) {
      * depending on their position.
      */
     testbed.add_callback(move |graphics, physics, _, run_state| {
-        if run_state.timestep_id % 200 == 0 && physics.context.bodies.len() <= 7 {
+        if run_state.timestep_id % 200 == 0 && physics.bodies.len() <= 7 {
             // Spawn a new cube.
             let collider = ColliderBuilder::cuboid(1.0, 2.0, 1.5);
             let body = RigidBodyBuilder::dynamic().translation(vector![0.0, 6.0, 20.0]);
-            let handle = physics.context.bodies.insert(body);
-            physics.context.colliders.insert_with_parent(
+            let handle = physics.bodies.insert(body);
+            physics.colliders.insert_with_parent(
                 collider,
                 handle,
-                &mut physics.context.bodies,
+                &mut physics.bodies,
             );
 
             if let Some(graphics) = graphics {
-                graphics.add_body(handle, &physics.context.bodies, &physics.context.colliders);
+                graphics.add_body(handle, &physics.bodies, &physics.colliders);
             }
         }
 
-        for handle in physics.context.island_manager.active_dynamic_bodies() {
-            let body = physics.context.bodies.get_mut(*handle).unwrap();
+        for handle in physics.island_manager.active_dynamic_bodies() {
+            let body = physics.bodies.get_mut(*handle).unwrap();
             if body.position().translation.y > 1.0 {
                 body.set_gravity_scale(1.0, false);
             } else if body.position().translation.y < -1.0 {

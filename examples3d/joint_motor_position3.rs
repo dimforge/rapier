@@ -63,14 +63,9 @@ pub fn init_world(testbed: &mut Testbed) {
     }
 
     testbed.add_callback(move |_, physics, _, state| {
-        for ((_, joint), target) in physics
-            .context
-            .impulse_joints
-            .iter()
-            .zip(target_angles.iter())
-        {
-            let rb1 = &physics.context.bodies[joint.body1];
-            let rb2 = &physics.context.bodies[joint.body2];
+        for ((_, joint), target) in physics.impulse_joints.iter().zip(target_angles.iter()) {
+            let rb1 = &physics.bodies[joint.body1];
+            let rb2 = &physics.bodies[joint.body2];
             let revolute = joint.data.as_revolute().unwrap();
             println!(
                 "[Step {}] rev angle: {} (target = {})",

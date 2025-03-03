@@ -35,20 +35,18 @@ pub fn init_world(testbed: &mut Testbed) {
         // Remove then re-add the ground collider.
         let removed_collider_handle = ground_collider_handle;
         let coll = physics
-            .context
             .colliders
             .remove(
                 removed_collider_handle,
-                &mut physics.context.island_manager,
-                &mut physics.context.bodies,
+                &mut physics.island_manager,
+                &mut physics.bodies,
                 true,
             )
             .unwrap();
-        ground_collider_handle = physics.context.colliders.insert_with_parent(
-            coll,
-            ground_handle,
-            &mut physics.context.bodies,
-        );
+        ground_collider_handle =
+            physics
+                .colliders
+                .insert_with_parent(coll, ground_handle, &mut physics.bodies);
     });
 
     /*

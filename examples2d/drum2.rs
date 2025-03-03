@@ -66,11 +66,7 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed.add_callback(move |_, physics, _, _| {
         // Update the velocity-based kinematic body by setting its velocity.
-        if let Some(platform) = physics
-            .context
-            .bodies
-            .get_mut(velocity_based_platform_handle)
-        {
+        if let Some(platform) = physics.bodies.get_mut(velocity_based_platform_handle) {
             platform.set_angvel(-0.15, true);
         }
     });

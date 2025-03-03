@@ -24,7 +24,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, _, run_state| {
-        physics.context.insert_body_and_collider(
+        physics.insert_body_and_collider(
             RigidBodyBuilder::dynamic().translation(vector![0.0, 10.0, 0.0]),
             match run_state.timestep_id % 3 {
                 0 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0),
@@ -34,12 +34,11 @@ pub fn init_world(testbed: &mut Testbed) {
         );
 
         if let Some(graphics) = &mut graphics {
-            graphics.add_body(handle, &physics.context.bodies, &physics.context.colliders);
+            graphics.add_body(handle, &physics.bodies, &physics.colliders);
         }
 
-        if physics.context.bodies.len() > MAX_NUMBER_OF_BODIES {
+        if physics.bodies.len() > MAX_NUMBER_OF_BODIES {
             let mut to_remove: Vec<_> = physics
-                .context
                 .bodies
                 .iter()
                 .filter(|e| e.1.is_dynamic())
@@ -55,7 +54,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
             let num_to_remove = to_remove.len() - MAX_NUMBER_OF_BODIES;
             for (handle, _) in &to_remove[..num_to_remove] {
-                physics.context.remove_rigidbody(*handle, true);
+                physics.remove_rigidbody(*handle, true);
 
                 if let Some(graphics) = &mut graphics {
                     graphics.remove_body(*handle);

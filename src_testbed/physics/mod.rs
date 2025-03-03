@@ -3,8 +3,6 @@ use rapier::dynamics::{ImpulseJointSet, IslandManager, MultibodyJointSet, RigidB
 use rapier::geometry::{
     ColliderSet, CollisionEvent, ContactForceEvent, DefaultBroadPhase, NarrowPhase,
 };
-use rapier::pipeline::PhysicsHooks;
-use rapier::prelude::PhysicsContext;
 
 pub struct PhysicsSnapshot {
     timestep_id: usize,
@@ -81,26 +79,6 @@ impl PhysicsSnapshot {
         println!("|_ colliders: {}B", self.colliders.len());
         println!("|_ impulse_joints: {}B", self.impulse_joints.len());
         println!("|_ multibody_joints: {}B", self.multibody_joints.len());
-    }
-}
-
-pub struct PhysicsState {
-    pub context: PhysicsContext,
-    pub hooks: Box<dyn PhysicsHooks>,
-}
-
-impl Default for PhysicsState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl PhysicsState {
-    pub fn new() -> Self {
-        Self {
-            context: PhysicsContext::default(),
-            hooks: Box::new(()),
-        }
     }
 }
 
