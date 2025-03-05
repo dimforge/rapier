@@ -1,6 +1,6 @@
 [package]
 name = "rapier3d-f64"
-version = "0.23.0"
+version = "0.23.1"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "3-dimensional physics engine in Rust."
 documentation = "https://docs.rs/rapier3d"
