@@ -72,14 +72,14 @@ impl Default for PidController {
 }
 
 /// Position or velocity errors measured for PID control.
-pub struct PidErrors {
+pub struct PdErrors {
     /// The linear (translational) part of the error.
     pub linear: Vector<Real>,
     /// The angular (rotational) part of the error.
     pub angular: AngVector<Real>,
 }
 
-impl From<RigidBodyVelocity> for PidErrors {
+impl From<RigidBodyVelocity> for PdErrors {
     fn from(vels: RigidBodyVelocity) -> Self {
         Self {
             linear: vels.linvel,
@@ -218,7 +218,7 @@ impl PdController {
     /// The unit of the returned value depends on the gain values. In general, `kd` is proportional to
     /// the inverse of the simulation step so the returned value is a rigid-body velocity
     /// change.
-    pub fn correction(&self, pose_errors: &PidErrors, vel_errors: &PidErrors) -> RigidBodyVelocity {
+    pub fn correction(&self, pose_errors: &PdErrors, vel_errors: &PdErrors) -> RigidBodyVelocity {
         let lin_mask = self.lin_mask();
         let ang_mask = self.ang_mask();
 
@@ -382,8 +382,8 @@ impl PidController {
     pub fn correction(
         &mut self,
         dt: Real,
-        pose_errors: &PidErrors,
-        vel_errors: &PidErrors,
+        pose_errors: &PdErrors,
+        vel_errors: &PdErrors,
     ) -> RigidBodyVelocity {
         self.lin_integral += pose_errors.linear * dt;
         self.ang_integral += pose_errors.angular * dt;
