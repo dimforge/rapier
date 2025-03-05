@@ -95,13 +95,13 @@ fn update_pid_controller(
     // - If the user is jumping, enable control over Y.
     // - If the user isn’t pressing any key, disable all linear controls to let
     //   gravity/collision do their thing freely.
-    let mut axes = AxisMask::ANG_Z;
+    let mut axes = AxesMask::ANG_Z;
 
     if desired_movement.norm() != 0.0 {
         axes |= if desired_movement.y == 0.0 {
-            AxisMask::LIN_X
+            AxesMask::LIN_X
         } else {
-            AxisMask::LIN_X | AxisMask::LIN_Y
+            AxesMask::LIN_X | AxesMask::LIN_Y
         }
     };
 

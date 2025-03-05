@@ -228,12 +228,13 @@ bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
-    pub struct AxisMask: u8 {
+    pub struct AxesMask: u8 {
         /// The translational X axis.
         const LIN_X = 1 << 0;
         /// The translational Y axis.
         const LIN_Y = 1 << 1;
         /// The translational Z axis.
+        #[cfg(feature = "dim3")]
         const LIN_Z = 1 << 2;
         /// The rotational X axis.
         #[cfg(feature = "dim3")]
@@ -246,9 +247,9 @@ bitflags::bitflags! {
     }
 }
 
-impl Default for AxisMask {
+impl Default for AxesMask {
     fn default() -> Self {
-        AxisMask::empty()
+        AxesMask::empty()
     }
 }
 

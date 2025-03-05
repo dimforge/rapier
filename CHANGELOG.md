@@ -4,7 +4,7 @@
 
 - Add `PdController` and `PidController` for making it easier to control dynamic rigid-bodies at the velocity level.
   This can for example be used as a building block for a dynamic character controller.
-- Add `RigidBodyPosition::pose_errors` which computes the translational and rotational delta between
+- Add `RigidBodyPosition::pose_errors` to compute the translational and rotational delta between
   `RigidBodyPosition::position` and `::next_position`.
 - Implement `Sub` for `RigidBodyVelocity`.
 - Add `RigidBody::local_center_of_mass()` to get its center-of-mass in the rigid-body’s local-space.
@@ -103,9 +103,9 @@ This release introduces two new crates:
 
 ### Modified
 
-- Renamed `JointAxesMask::X/Y/Z` to `::LIN_X/LIN_Y/LIN_Z`; and renamed `JointAxisMask::X/Y/Z` to `::LinX/LinY/LynZ` to
+- Renamed `JointAxesMask::X/Y/Z` to `::LIN_X/LIN_Y/LIN_Z`; and renamed `JointAxesMask::X/Y/Z` to `::LinX/LinY/LynZ` to
   make it clear it is not to be used as angular axes (the angular axis are `JointAxesMask::ANG_X/ANG_Y/AngZ` and
-  `JointAxisMask::AngX/AngY/AngZ`).
+  `JointAxesMask::AngX/AngY/AngZ`).
 - The contact constraints regularization parameters have been changed from `erp/damping_ratio` to
   `natural_frequency/damping_ratio`. This helps define them in a timestep-length independent way. The new variables
   are named `IntegrationParameters::contact_natural_frequency` and `IntegrationParameters::contact_damping_ratio`.

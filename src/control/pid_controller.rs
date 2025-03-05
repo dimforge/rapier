@@ -1,4 +1,4 @@
-use crate::dynamics::{AxisMask, RigidBody, RigidBodyPosition, RigidBodyVelocity};
+use crate::dynamics::{AxesMask, RigidBody, RigidBodyPosition, RigidBodyVelocity};
 use crate::math::{Isometry, Point, Real, Rotation, Vector};
 use parry::math::AngVector;
 
@@ -38,12 +38,12 @@ pub struct PdController {
     ///
     /// Only coordinate axes with a bit flags set to `true` will be taken into
     /// account when calculating the errors and corrections.
-    pub axes: AxisMask,
+    pub axes: AxesMask,
 }
 
 impl Default for PdController {
     fn default() -> Self {
-        Self::new(60.0, 0.8, AxisMask::all())
+        Self::new(60.0, 0.8, AxesMask::all())
     }
 }
 
@@ -67,7 +67,7 @@ pub struct PidController {
 
 impl Default for PidController {
     fn default() -> Self {
-        Self::new(60.0, 1.0, 0.8, AxisMask::all())
+        Self::new(60.0, 1.0, 0.8, AxesMask::all())
     }
 }
 
@@ -96,7 +96,7 @@ impl PdController {
     ///
     /// Only the axes specified in `axes` will be enabled (but the gain values are set
     /// on all axes regardless).
-    pub fn new(kp: Real, kd: Real, axes: AxisMask) -> PdController {
+    pub fn new(kp: Real, kd: Real, axes: AxesMask) -> PdController {
         #[cfg(feature = "dim2")]
         return Self {
             lin_kp: Vector::repeat(kp),
@@ -189,14 +189,14 @@ impl PdController {
     fn lin_mask(&self) -> Vector<Real> {
         #[cfg(feature = "dim2")]
         return Vector::new(
-            self.axes.contains(AxisMask::LIN_X) as u32 as Real,
-            self.axes.contains(AxisMask::LIN_Y) as u32 as Real,
+            self.axes.contains(AxesMask::LIN_X) as u32 as Real,
+            self.axes.contains(AxesMask::LIN_Y) as u32 as Real,
         );
         #[cfg(feature = "dim3")]
         return Vector::new(
-            self.axes.contains(AxisMask::LIN_X) as u32 as Real,
-            self.axes.contains(AxisMask::LIN_Y) as u32 as Real,
-            self.axes.contains(AxisMask::LIN_Z) as u32 as Real,
+            self.axes.contains(AxesMask::LIN_X) as u32 as Real,
+            self.axes.contains(AxesMask::LIN_Y) as u32 as Real,
+            self.axes.contains(AxesMask::LIN_Z) as u32 as Real,
         );
     }
 
@@ -204,12 +204,12 @@ impl PdController {
     /// the corresponding angular axis is enabled.
     fn ang_mask(&self) -> AngVector<Real> {
         #[cfg(feature = "dim2")]
-        return self.axes.contains(AxisMask::ANG_Z) as u32 as Real;
+        return self.axes.contains(AxesMask::ANG_Z) as u32 as Real;
         #[cfg(feature = "dim3")]
         return Vector::new(
-            self.axes.contains(AxisMask::ANG_X) as u32 as Real,
-            self.axes.contains(AxisMask::ANG_Y) as u32 as Real,
-            self.axes.contains(AxisMask::ANG_Z) as u32 as Real,
+            self.axes.contains(AxesMask::ANG_X) as u32 as Real,
+            self.axes.contains(AxesMask::ANG_Y) as u32 as Real,
+            self.axes.contains(AxesMask::ANG_Z) as u32 as Real,
         );
     }
 
@@ -245,7 +245,7 @@ impl PidController {
     ///
     /// Only the axes specified in `axes` will be enabled (but the gain values are set
     /// on all axes regardless).
-    pub fn new(kp: Real, ki: Real, kd: Real, axes: AxisMask) -> PidController {
+    pub fn new(kp: Real, ki: Real, kd: Real, axes: AxesMask) -> PidController {
         #[cfg(feature = "dim2")]
         return Self {
             pd: PdController::new(kp, kd, axes),
@@ -268,12 +268,12 @@ impl PidController {
     /// Set the axes errors and corrections are computed for.
     ///
     /// This doesn’t modify any of the gains.
-    pub fn set_axes(&mut self, axes: AxisMask) {
+    pub fn set_axes(&mut self, axes: AxesMask) {
         self.pd.axes = axes;
     }
 
     /// Get the axes errors and corrections are computed for.
-    pub fn axes(&self) -> AxisMask {
+    pub fn axes(&self) -> AxesMask {
         self.pd.axes
     }
 
