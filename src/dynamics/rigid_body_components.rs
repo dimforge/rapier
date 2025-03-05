@@ -972,7 +972,7 @@ impl RigidBodyColliders {
 
             // Set the modification flag so we can benefit from the modification-tracking
             // when updating the narrow-phase/broad-phase afterwards.
-            co.changes |= ColliderChanges::POSITION;
+            co.changes |= ColliderChanges::MODIFIED | ColliderChanges::POSITION;
             co.pos = ColliderPosition(new_pos);
         }
     }
