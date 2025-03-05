@@ -668,7 +668,7 @@ impl PhysicsPipeline {
 
 #[cfg(test)]
 mod test {
-    use na::{point, vector};
+    use na::point;
 
     use crate::dynamics::{
         CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, RigidBodyBuilder,
@@ -1015,6 +1015,7 @@ mod test {
     #[test]
     #[cfg(feature = "dim2")]
     fn test_multi_sap_disable_body() {
+        use na::vector;
         let mut rigid_body_set = RigidBodySet::new();
         let mut collider_set = ColliderSet::new();
 
