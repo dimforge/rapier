@@ -1,6 +1,6 @@
 #[cfg(doc)]
 use super::IntegrationParameters;
-use crate::control::PidErrors;
+use crate::control::PdErrors;
 use crate::dynamics::MassProperties;
 use crate::geometry::{
     ColliderChanges, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition,
@@ -12,6 +12,9 @@ use crate::math::{
 use crate::parry::partitioning::IndexedData;
 use crate::utils::{SimdAngularInertia, SimdCross, SimdDot};
 use num::Zero;
+
+#[cfg(doc)]
+use crate::control::PidController;
 
 /// The unique handle of a rigid body added to a `RigidBodySet`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
@@ -188,7 +191,7 @@ impl RigidBodyPosition {
     ///
     /// Note that interpolating the velocity can be done more conveniently with
     /// [`Self::interpolate_velocity`].
-    pub fn pose_errors(&self, local_com: &Point<Real>) -> PidErrors {
+    pub fn pose_errors(&self, local_com: &Point<Real>) -> PdErrors {
         let com = self.position * local_com;
         let shift = Translation::from(com.coords);
         let dpos = shift.inverse() * self.next_position * self.position.inverse() * shift;
@@ -204,7 +207,7 @@ impl RigidBodyPosition {
         }
         let linear = dpos.translation.vector;
 
-        PidErrors { linear, angular }
+        PdErrors { linear, angular }
     }
 }
 
