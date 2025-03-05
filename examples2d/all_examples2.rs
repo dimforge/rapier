@@ -43,6 +43,8 @@ mod s2d_pyramid;
 mod sensor2;
 mod trimesh2;
 
+mod utils;
+
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn main() {
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![

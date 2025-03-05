@@ -8,15 +8,16 @@ use std::num::NonZeroUsize;
 
 use crate::debug_render::{DebugRenderPipelineResource, RapierDebugRenderPlugin};
 use crate::graphics::BevyMaterialComponent;
+use crate::mouse::{self, track_mouse_state, MainCamera, SceneMouse};
 use crate::physics::{DeserializedPhysicsSnapshot, PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
+use crate::save::SerializableTestbedState;
+use crate::settings::ExampleSettings;
+use crate::ui;
 use crate::{graphics::GraphicsManager, harness::RunState};
-use crate::{mouse, ui};
+use bevy::window::PrimaryWindow;
 
 use na::{self, Point2, Point3, Vector3};
-#[cfg(feature = "dim3")]
-use rapier::control::DynamicRayCastVehicleController;
-use rapier::control::KinematicCharacterController;
 use rapier::dynamics::{
     ImpulseJointSet, IntegrationParameters, MultibodyJointSet, RigidBodyActivation,
     RigidBodyHandle, RigidBodySet,
@@ -25,7 +26,9 @@ use rapier::dynamics::{
 use rapier::geometry::Ray;
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 use rapier::math::{Real, Vector};
-use rapier::pipeline::{PhysicsHooks, QueryFilter, QueryPipeline};
+use rapier::pipeline::{PhysicsHooks, QueryPipeline};
+#[cfg(feature = "dim3")]
+use rapier::{control::DynamicRayCastVehicleController, prelude::QueryFilter};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
@@ -113,8 +116,6 @@ pub struct TestbedState {
     pub running: RunMode,
     pub draw_colls: bool,
     pub highlighted_body: Option<RigidBodyHandle>,
-    pub character_body: Option<RigidBodyHandle>,
-    pub character_controller: Option<KinematicCharacterController>,
     #[cfg(feature = "dim3")]
     pub vehicle_controller: Option<DynamicRayCastVehicleController>,
     //    pub grabbed_object: Option<DefaultBodyPartHandle>,
@@ -177,7 +178,7 @@ struct OtherBackends {
 }
 struct Plugins(Vec<Box<dyn TestbedPlugin>>);
 
-pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
+pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h> {
     graphics: &'a mut GraphicsManager,
     commands: &'a mut Commands<'d, 'e>,
     meshes: &'a mut Assets<Mesh>,
@@ -186,12 +187,13 @@ pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f> {
     #[allow(dead_code)] // Dead in 2D but not in 3D.
     camera_transform: GlobalTransform,
     camera: &'a mut OrbitCamera,
+    ui_context: &'a mut EguiContexts<'g, 'h>,
     keys: &'a ButtonInput<KeyCode>,
     mouse: &'a SceneMouse,
 }
 
-pub struct Testbed<'a, 'b, 'c, 'd, 'e, 'f> {
-    graphics: Option<TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f>>,
+pub struct Testbed<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h> {
+    graphics: Option<TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h>>,
     harness: &'a mut Harness,
     state: &'a mut TestbedState,
     #[cfg(feature = "other-backends")]
@@ -227,8 +229,6 @@ impl TestbedApp {
             running: RunMode::Running,
             draw_colls: false,
             highlighted_body: None,
-            character_body: None,
-            character_controller: None,
             #[cfg(feature = "dim3")]
             vehicle_controller: None,
             //            grabbed_object: None,
@@ -508,9 +508,13 @@ impl TestbedApp {
     }
 }
 
-impl TestbedGraphics<'_, '_, '_, '_, '_, '_> {
+impl<'g, 'h> TestbedGraphics<'_, '_, '_, '_, '_, '_, 'g, 'h> {
     pub fn set_body_color(&mut self, body: RigidBodyHandle, color: [f32; 3]) {
         self.graphics.set_body_color(self.materials, body, color);
+    }
+
+    pub fn ui_context_mut(&mut self) -> &mut EguiContexts<'g, 'h> {
+        &mut *self.ui_context
     }
 
     pub fn add_body(
@@ -565,22 +569,25 @@ impl TestbedGraphics<'_, '_, '_, '_, '_, '_> {
     }
 
     #[cfg(feature = "dim3")]
+    pub fn camera_rotation(&self) -> na::UnitQuaternion<Real> {
+        let (_, rot, _) = self.camera_transform.to_scale_rotation_translation();
+        na::Unit::new_unchecked(na::Quaternion::new(
+            rot.w as Real,
+            rot.x as Real,
+            rot.y as Real,
+            rot.z as Real,
+        ))
+    }
+
+    #[cfg(feature = "dim3")]
     pub fn camera_fwd_dir(&self) -> Vector<f32> {
         (self.camera_transform * -Vec3::Z).normalize().into()
     }
 }
 
-impl Testbed<'_, '_, '_, '_, '_, '_> {
+impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_> {
     pub fn set_number_of_steps_per_frame(&mut self, nsteps: usize) {
         self.state.nsteps = nsteps
-    }
-
-    pub fn set_character_body(&mut self, handle: RigidBodyHandle) {
-        self.state.character_body = Some(handle);
-    }
-
-    pub fn set_character_controller(&mut self, controller: Option<KinematicCharacterController>) {
-        self.state.character_controller = controller;
     }
 
     #[cfg(feature = "dim3")]
@@ -648,7 +655,6 @@ impl Testbed<'_, '_, '_, '_, '_, '_> {
             .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
 
         self.state.highlighted_body = None;
-        self.state.character_body = None;
         #[cfg(feature = "dim3")]
         {
             self.state.vehicle_controller = None;
@@ -805,133 +811,6 @@ impl Testbed<'_, '_, '_, '_, '_, '_> {
                 &self.harness.physics.query_pipeline,
                 QueryFilter::exclude_dynamic().exclude_rigid_body(vehicle.chassis),
             );
-        }
-    }
-
-    fn update_character_controller(&mut self, events: &ButtonInput<KeyCode>) {
-        if self.state.running == RunMode::Stop {
-            return;
-        }
-
-        if let Some(character_handle) = self.state.character_body {
-            let mut desired_movement = Vector::zeros();
-            let mut speed = 0.1;
-
-            #[cfg(feature = "dim2")]
-            for key in events.get_pressed() {
-                match *key {
-                    KeyCode::ArrowRight => {
-                        desired_movement += Vector::x();
-                    }
-                    KeyCode::ArrowLeft => {
-                        desired_movement -= Vector::x();
-                    }
-                    KeyCode::Space => {
-                        desired_movement += Vector::y() * 2.0;
-                    }
-                    KeyCode::ControlRight => {
-                        desired_movement -= Vector::y();
-                    }
-                    KeyCode::ShiftRight => {
-                        speed /= 10.0;
-                    }
-                    _ => {}
-                }
-            }
-
-            #[cfg(feature = "dim3")]
-            {
-                let (_, rot, _) = self
-                    .graphics
-                    .as_ref()
-                    .unwrap()
-                    .camera_transform
-                    .to_scale_rotation_translation();
-                let rot = na::Unit::new_unchecked(na::Quaternion::new(rot.w, rot.x, rot.y, rot.z));
-                let mut rot_x = rot * Vector::x();
-                let mut rot_z = rot * Vector::z();
-                rot_x.y = 0.0;
-                rot_z.y = 0.0;
-
-                for key in events.get_pressed() {
-                    match *key {
-                        KeyCode::ArrowRight => {
-                            desired_movement += rot_x;
-                        }
-                        KeyCode::ArrowLeft => {
-                            desired_movement -= rot_x;
-                        }
-                        KeyCode::ArrowUp => {
-                            desired_movement -= rot_z;
-                        }
-                        KeyCode::ArrowDown => {
-                            desired_movement += rot_z;
-                        }
-                        KeyCode::Space => {
-                            desired_movement += Vector::y() * 2.0;
-                        }
-                        KeyCode::ControlRight => {
-                            desired_movement -= Vector::y();
-                        }
-                        KeyCode::ShiftLeft => {
-                            speed /= 10.0;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-
-            desired_movement *= speed;
-            desired_movement -= Vector::y() * speed;
-
-            let controller = self.state.character_controller.unwrap_or_default();
-            let phx = &mut self.harness.physics;
-            let character_body = &phx.bodies[character_handle];
-            let character_collider = &phx.colliders[character_body.colliders()[0]];
-            let character_mass = character_body.mass();
-
-            let mut collisions = vec![];
-            let mvt = controller.move_shape(
-                phx.integration_parameters.dt,
-                &phx.bodies,
-                &phx.colliders,
-                &phx.query_pipeline,
-                character_collider.shape(),
-                character_collider.position(),
-                desired_movement.cast::<Real>(),
-                QueryFilter::new().exclude_rigid_body(character_handle),
-                |c| collisions.push(c),
-            );
-            if let Some(graphics) = &mut self.graphics {
-                if mvt.grounded {
-                    graphics.graphics.set_body_color(
-                        graphics.materials,
-                        character_handle,
-                        [0.1, 0.8, 0.1],
-                    );
-                } else {
-                    graphics.graphics.set_body_color(
-                        graphics.materials,
-                        character_handle,
-                        [0.8, 0.1, 0.1],
-                    );
-                }
-            }
-            controller.solve_character_collision_impulses(
-                phx.integration_parameters.dt,
-                &mut phx.bodies,
-                &phx.colliders,
-                &phx.query_pipeline,
-                character_collider.shape(),
-                character_mass,
-                &*collisions,
-                QueryFilter::new().exclude_rigid_body(character_handle),
-            );
-
-            let character_body = &mut phx.bodies[character_handle];
-            let pos = character_body.position();
-            character_body.set_next_kinematic_translation(pos.translation.vector + mvt.translation);
-            // character_body.set_translation(pos.translation.vector + mvt.translation, false);
         }
     }
 
@@ -1212,11 +1091,6 @@ fn egui_focus(mut ui_context: EguiContexts, mut cameras: Query<&mut OrbitCamera>
     }
 }
 
-use crate::mouse::{track_mouse_state, MainCamera, SceneMouse};
-use crate::save::SerializableTestbedState;
-use crate::settings::ExampleSettings;
-use bevy::window::PrimaryWindow;
-
 #[allow(clippy::type_complexity)]
 fn update_testbed(
     mut commands: Commands,
@@ -1248,6 +1122,8 @@ fn update_testbed(
 
     // Handle inputs
     {
+        let wants_keyboard_inputs = ui_context.ctx_mut().wants_keyboard_input();
+
         let graphics_context = TestbedGraphics {
             graphics: &mut graphics,
             commands: &mut commands,
@@ -1256,6 +1132,7 @@ fn update_testbed(
             components: &mut gfx_components,
             camera_transform: *cameras.single().1,
             camera: &mut cameras.single_mut().2,
+            ui_context: &mut ui_context,
             keys: &keys,
             mouse: &mouse,
         };
@@ -1269,10 +1146,9 @@ fn update_testbed(
             plugins: &mut plugins,
         };
 
-        if !ui_context.ctx_mut().wants_keyboard_input() {
+        if !wants_keyboard_inputs {
             testbed.handle_common_events(&keys);
         }
-        testbed.update_character_controller(&keys);
         #[cfg(feature = "dim3")]
         {
             testbed.update_vehicle_controller(&keys);
@@ -1371,6 +1247,7 @@ fn update_testbed(
                 components: &mut gfx_components,
                 camera_transform: *cameras.single().1,
                 camera: &mut cameras.single_mut().2,
+                ui_context: &mut ui_context,
                 keys: &keys,
                 mouse: &mouse,
             };
@@ -1545,6 +1422,7 @@ fn update_testbed(
                     components: &mut gfx_components,
                     camera_transform: *cameras.single().1,
                     camera: &mut cameras.single_mut().2,
+                    ui_context: &mut ui_context,
                     keys: &keys,
                     mouse: &mouse,
                 };

@@ -1,3 +1,6 @@
+use crate::utils::character;
+use crate::utils::character::CharacterControlMode;
+use rapier2d::control::{KinematicCharacterController, PidController};
 use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
 use std::f32::consts::PI;
@@ -25,7 +28,12 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Character we will control manually.
      */
-    let rigid_body = RigidBodyBuilder::kinematic_position_based().translation(vector![-3.0, 5.0]);
+    let rigid_body = RigidBodyBuilder::kinematic_position_based()
+        .translation(vector![-3.0, 5.0])
+        // The two config below makes the character
+        // nicer to control with the PID control enabled.
+        .gravity_scale(10.0)
+        .soft_ccd_prediction(10.0);
     let character_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::capsule_y(0.3, 0.15);
     colliders.insert_with_parent(collider, character_handle, &mut bodies);
@@ -110,7 +118,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create a moving platform.
      */
-    let body = RigidBodyBuilder::kinematic_velocity_based().translation(vector![-8.0, 1.5]);
+    let body = RigidBodyBuilder::kinematic_velocity_based().translation(vector![-8.0, 0.0]);
     // .rotation(-0.3);
     let platform_handle = bodies.insert(body);
     let collider = ColliderBuilder::cuboid(2.0, ground_height);
@@ -161,9 +169,33 @@ pub fn init_world(testbed: &mut Testbed) {
     });
 
     /*
+     * Callback to update the character based on user inputs.
+     */
+    let mut control_mode = CharacterControlMode::Kinematic;
+    let mut controller = KinematicCharacterController {
+        max_slope_climb_angle: impossible_slope_angle - 0.02,
+        min_slope_slide_angle: impossible_slope_angle - 0.02,
+        slide: true,
+        ..Default::default()
+    };
+    let mut pid = PidController::default();
+
+    testbed.add_callback(move |graphics, physics, _, _| {
+        if let Some(graphics) = graphics {
+            character::update_character(
+                graphics,
+                physics,
+                &mut control_mode,
+                &mut controller,
+                &mut pid,
+                character_handle,
+            );
+        }
+    });
+
+    /*
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.set_character_body(character_handle);
     testbed.look_at(point![0.0, 1.0], 100.0);
 }

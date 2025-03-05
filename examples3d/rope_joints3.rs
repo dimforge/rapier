@@ -1,3 +1,5 @@
+use crate::utils::character::{self, CharacterControlMode};
+use rapier3d::control::{KinematicCharacterController, PidController};
 use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
@@ -84,9 +86,28 @@ pub fn init_world(testbed: &mut Testbed) {
     impulse_joints.insert(character_handle, child_handle, joint, true);
 
     /*
+     * Callback to update the character based on user inputs.
+     */
+    let mut control_mode = CharacterControlMode::Kinematic;
+    let mut controller = KinematicCharacterController::default();
+    let mut pid = PidController::default();
+
+    testbed.add_callback(move |graphics, physics, _, _| {
+        if let Some(graphics) = graphics {
+            character::update_character(
+                graphics,
+                physics,
+                &mut control_mode,
+                &mut controller,
+                &mut pid,
+                character_handle,
+            );
+        }
+    });
+
+    /*
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.set_character_body(character_handle);
     testbed.look_at(point![10.0, 10.0, 10.0], point![0.0, 0.0, 0.0]);
 }
