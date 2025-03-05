@@ -3,12 +3,41 @@ use crate::math::{Isometry, Point, Real, Rotation, Vector};
 use parry::math::AngVector;
 
 /// A Proportional-Derivative (PD) controller.
+///
+/// This is useful for controlling a rigid-body at the velocity level so it matches a target
+/// pose.
+///
+/// This is a [PID controller](https://en.wikipedia.org/wiki/Proportional%E2%80%93integral%E2%80%93derivative_controller)
+/// without the Integral part to keep the API immutable, while having a behaviour generally
+/// sufficient for games.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PdController {
+    /// The Proportional gain applied to the instantaneous linear position errors.
+    ///
+    /// This is usually set to a multiple of the inverse of simulation step time
+    /// (e.g. `60` if the delta-time is `1.0 / 60.0`).
     pub lin_kp: Vector<Real>,
+    /// The Derivative gain applied to the instantaneous linear velocity errors.
+    ///
+    /// This is usually set to a value in `[0.0, 1.0]` where `0.0` implies no damping
+    /// (no correction of velocity errors) and `1.0` implies complete damping (velocity errors
+    /// are corrected in a single simulation step).
     pub lin_kd: Vector<Real>,
+    /// The Proportional gain applied to the instantaneous angular position errors.
+    ///
+    /// This is usually set to a multiple of the inverse of simulation step time
+    /// (e.g. `60` if the delta-time is `1.0 / 60.0`).
     pub ang_kp: AngVector<Real>,
+    /// The Derivative gain applied to the instantaneous angular velocity errors.
+    ///
+    /// This is usually set to a value in `[0.0, 1.0]` where `0.0` implies no damping
+    /// (no correction of velocity errors) and `1.0` implies complete damping (velocity errors
+    /// are corrected in a single simulation step).
     pub ang_kd: AngVector<Real>,
+    /// The axes affected by this controller.
+    ///
+    /// Only coordinate axes with a bit flags set to `true` will be taken into
+    /// account when calculating the errors and corrections.
     pub axes: AxisMask,
 }
 
@@ -19,12 +48,20 @@ impl Default for PdController {
 }
 
 /// A Proportional-Integral-Derivative (PID) controller.
+///
+/// For video games, the Proportional-Derivative [`PdController`] is generally sufficient and
+/// offers an immutable API.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PidController {
-    pub pd_part: PdController,
+    /// The Proportional-Derivative (PD) part of this PID controller.
+    pub pd: PdController,
+    /// The translational error accumulated through time for the Integral part of the PID controller.
     pub lin_integral: Vector<Real>,
+    /// The angular error accumulated through time for the Integral part of the PID controller.
     pub ang_integral: AngVector<Real>,
+    /// The linear gain applied to the Integral part of the PID controller.
     pub lin_ki: Vector<Real>,
+    /// The angular gain applied to the Integral part of the PID controller.
     pub ang_ki: AngVector<Real>,
 }
 
@@ -34,8 +71,11 @@ impl Default for PidController {
     }
 }
 
+/// Position or velocity errors measured for PID control.
 pub struct PidErrors {
+    /// The linear (translational) part of the error.
     pub linear: Vector<Real>,
+    /// The angular (rotational) part of the error.
     pub angular: AngVector<Real>,
 }
 
@@ -49,6 +89,13 @@ impl From<RigidBodyVelocity> for PidErrors {
 }
 
 impl PdController {
+    /// Initialized the PD controller with uniform gain.
+    ///
+    /// The same gain are applied on all axes. To configure per-axes gains, construct
+    /// the [`PdController`] by setting its fields explicitly instead.
+    ///
+    /// Only the axes specified in `axes` will be enabled (but the gain values are set
+    /// on all axes regardless).
     pub fn new(kp: Real, kd: Real, axes: AxisMask) -> PdController {
         #[cfg(feature = "dim2")]
         return Self {
@@ -69,30 +116,43 @@ impl PdController {
         };
     }
 
-    pub fn update_with_rigid_body_linear(
+    /// Calculates the linear correction from positional and velocity errors calculated automatically
+    /// from a rigid-body and the desired positions/velocities.
+    ///
+    /// The unit of the returned value depends on the gain values. In general, `kd` is proportional to
+    /// the inverse of the simulation step so the returned value is a linear rigid-body velocity
+    /// change.
+    pub fn linear_rigid_body_correction(
         &self,
         rb: &RigidBody,
         target_pos: Point<Real>,
         target_linvel: Vector<Real>,
     ) -> Vector<Real> {
-        self.update_with_rigid_body(
+        self.rigid_body_correction(
             rb,
             Isometry::from(target_pos),
             RigidBodyVelocity {
                 linvel: target_linvel,
-                angvel: *rb.angvel(),
+                #[allow(clippy::clone_on_copy)]
+                angvel: rb.angvel().clone(),
             },
         )
         .linvel
     }
 
-    pub fn update_with_rigid_body_angular(
+    /// Calculates the angular correction from positional and velocity errors calculated automatically
+    /// from a rigid-body and the desired positions/velocities.
+    ///
+    /// The unit of the returned value depends on the gain values. In general, `kd` is proportional to
+    /// the inverse of the simulation step so the returned value is an angular rigid-body velocity
+    /// change.
+    pub fn angular_rigid_body_correction(
         &self,
         rb: &RigidBody,
         target_rot: Rotation<Real>,
-        target_angvel: Vector<Real>,
+        target_angvel: AngVector<Real>,
     ) -> AngVector<Real> {
-        self.update_with_rigid_body(
+        self.rigid_body_correction(
             rb,
             Isometry::from_parts(na::one(), target_rot),
             RigidBodyVelocity {
@@ -103,7 +163,13 @@ impl PdController {
         .angvel
     }
 
-    pub fn update_with_rigid_body(
+    /// Calculates the linear and angular  correction from positional and velocity errors calculated
+    /// automatically from a rigid-body and the desired poses/velocities.
+    ///
+    /// The unit of the returned value depends on the gain values. In general, `kd` is proportional to
+    /// the inverse of the simulation step so the returned value is a rigid-body velocity
+    /// change.
+    pub fn rigid_body_correction(
         &self,
         rb: &RigidBody,
         target_pose: Isometry<Real>,
@@ -115,7 +181,7 @@ impl PdController {
         }
         .pose_errors(rb.local_center_of_mass());
         let vels_errors = target_vels - rb.vels;
-        self.update(&pose_errors, &vels_errors.into())
+        self.correction(&pose_errors, &vels_errors.into())
     }
 
     /// Mask where each component is 1.0 or 0.0 depending on whether
@@ -147,7 +213,12 @@ impl PdController {
         );
     }
 
-    pub fn update(&self, pose_errors: &PidErrors, vel_errors: &PidErrors) -> RigidBodyVelocity {
+    /// Calculates the linear and angular correction from the given positional and velocity errors.
+    ///
+    /// The unit of the returned value depends on the gain values. In general, `kd` is proportional to
+    /// the inverse of the simulation step so the returned value is a rigid-body velocity
+    /// change.
+    pub fn correction(&self, pose_errors: &PidErrors, vel_errors: &PidErrors) -> RigidBodyVelocity {
         let lin_mask = self.lin_mask();
         let ang_mask = self.ang_mask();
 
@@ -167,10 +238,17 @@ impl PdController {
 }
 
 impl PidController {
+    /// Initialized the PDI controller with uniform gain.
+    ///
+    /// The same gain are applied on all axes. To configure per-axes gains, construct
+    /// the [`PidController`] by setting its fields explicitly instead.
+    ///
+    /// Only the axes specified in `axes` will be enabled (but the gain values are set
+    /// on all axes regardless).
     pub fn new(kp: Real, ki: Real, kd: Real, axes: AxisMask) -> PidController {
         #[cfg(feature = "dim2")]
         return Self {
-            pd_part: PdController::new(kp, kd, axes),
+            pd: PdController::new(kp, kd, axes),
             lin_integral: na::zero(),
             ang_integral: na::zero(),
             lin_ki: Vector::repeat(ki),
@@ -179,7 +257,7 @@ impl PidController {
 
         #[cfg(feature = "dim3")]
         return Self {
-            pd_part: PdController::new(kp, kd, axes),
+            pd: PdController::new(kp, kd, axes),
             lin_integral: na::zero(),
             ang_integral: na::zero(),
             lin_ki: Vector::repeat(ki),
@@ -187,58 +265,96 @@ impl PidController {
         };
     }
 
+    /// Set the axes errors and corrections are computed for.
+    ///
+    /// This doesn’t modify any of the gains.
     pub fn set_axes(&mut self, axes: AxisMask) {
-        self.pd_part.axes = axes;
+        self.pd.axes = axes;
     }
 
+    /// Get the axes errors and corrections are computed for.
     pub fn axes(&self) -> AxisMask {
-        self.pd_part.axes
+        self.pd.axes
     }
 
-    pub fn reset(&mut self) {
+    /// Resets to zero the accumulated linear and angular errors used by
+    /// the Integral part of the controller.
+    pub fn reset_integrals(&mut self) {
         self.lin_integral = na::zero();
         self.ang_integral = na::zero();
     }
 
-    pub fn update_with_rigid_body_linear(
+    /// Calculates the linear correction from positional and velocity errors calculated automatically
+    /// from a rigid-body and the desired positions/velocities.
+    ///
+    /// The unit of the returned value depends on the gain values. In general, `kd` is proportional to
+    /// the inverse of the simulation step so the returned value is a linear rigid-body velocity
+    /// change.
+    ///
+    /// This method is mutable because of the need to update the accumulated positional
+    /// errors for the Integral part of this controller. Prefer the [`PdController`] instead if
+    /// an immutable API is needed.
+    pub fn linear_rigid_body_correction(
         &mut self,
         dt: Real,
         rb: &RigidBody,
         target_pos: Point<Real>,
         target_linvel: Vector<Real>,
     ) -> Vector<Real> {
-        self.update_with_rigid_body(
+        self.rigid_body_correction(
             dt,
             rb,
             Isometry::from(target_pos),
             RigidBodyVelocity {
                 linvel: target_linvel,
-                angvel: *rb.angvel(),
+                #[allow(clippy::clone_on_copy)]
+                angvel: rb.angvel().clone(),
             },
         )
         .linvel
     }
 
-    pub fn update_with_rigid_body_angular(
+    /// Calculates the angular correction from positional and velocity errors calculated automatically
+    /// from a rigid-body and the desired positions/velocities.
+    ///
+    /// The unit of the returned value depends on the gain values. In general, `kd` is proportional to
+    /// the inverse of the simulation step so the returned value is an angular rigid-body velocity
+    /// change.
+    ///
+    /// This method is mutable because of the need to update the accumulated positional
+    /// errors for the Integral part of this controller. Prefer the [`PdController`] instead if
+    /// an immutable API is needed.
+    pub fn angular_rigid_body_correction(
         &mut self,
         dt: Real,
         rb: &RigidBody,
         target_rot: Rotation<Real>,
-        target_angvel: Vector<Real>,
+        target_angvel: AngVector<Real>,
     ) -> AngVector<Real> {
-        self.update_with_rigid_body(
+        self.rigid_body_correction(
             dt,
             rb,
             Isometry::from_parts(na::one(), target_rot),
             RigidBodyVelocity {
                 linvel: *rb.linvel(),
-                angvel: target_angvel,
+                #[allow(clippy::clone_on_copy)]
+                angvel: target_angvel.clone(),
             },
         )
         .angvel
     }
 
-    pub fn update_with_rigid_body(
+    /// Calculates the linear and angular  correction from positional and velocity errors calculated
+    /// automatically from a rigid-body and the desired poses/velocities.
+    ///
+    /// The unit of the returned value depends on the gain values. In general, `kd` is proportional to
+    /// the inverse of the simulation step so the returned value is a rigid-body velocity
+    /// change.
+    ///
+    /// This method is mutable because of the need to update the accumulated positional
+    /// errors for the Integral part of this controller. Prefer the [`PdController`] instead if
+    /// an immutable API is needed.
+    pub fn rigid_body_correction(
         &mut self,
         dt: Real,
         rb: &RigidBody,
@@ -251,10 +367,19 @@ impl PidController {
         }
         .pose_errors(rb.local_center_of_mass());
         let vels_errors = target_vels - rb.vels;
-        self.update(dt, &pose_errors, &vels_errors.into())
+        self.correction(dt, &pose_errors, &vels_errors.into())
     }
 
-    pub fn update(
+    /// Calculates the linear and angular correction from the given positional and velocity errors.
+    ///
+    /// The unit of the returned value depends on the gain values. In general, `kd` is proportional to
+    /// the inverse of the simulation step so the returned value is a rigid-body velocity
+    /// change.
+    ///
+    /// This method is mutable because of the need to update the accumulated positional
+    /// errors for the Integral part of this controller. Prefer the [`PdController`] instead if
+    /// an immutable API is needed.
+    pub fn correction(
         &mut self,
         dt: Real,
         pose_errors: &PidErrors,
@@ -263,22 +388,22 @@ impl PidController {
         self.lin_integral += pose_errors.linear * dt;
         self.ang_integral += pose_errors.angular * dt;
 
-        let lin_mask = self.pd_part.lin_mask();
-        let ang_mask = self.pd_part.ang_mask();
+        let lin_mask = self.pd.lin_mask();
+        let ang_mask = self.pd.ang_mask();
 
         RigidBodyVelocity {
-            linvel: (pose_errors.linear.component_mul(&self.pd_part.lin_kp)
-                + vel_errors.linear.component_mul(&self.pd_part.lin_kd)
+            linvel: (pose_errors.linear.component_mul(&self.pd.lin_kp)
+                + vel_errors.linear.component_mul(&self.pd.lin_kd)
                 + self.lin_integral.component_mul(&self.lin_ki))
             .component_mul(&lin_mask),
             #[cfg(feature = "dim2")]
-            angvel: (pose_errors.angular * self.pd_part.ang_kp
-                + vel_errors.angular * self.pd_part.ang_kd
+            angvel: (pose_errors.angular * self.pd.ang_kp
+                + vel_errors.angular * self.pd.ang_kd
                 + self.ang_integral * self.ang_ki)
                 * ang_mask,
             #[cfg(feature = "dim3")]
-            angvel: (pose_errors.angular.component_mul(&self.pd_part.ang_kp)
-                + vel_errors.angular.component_mul(&self.pd_part.ang_kd)
+            angvel: (pose_errors.angular.component_mul(&self.pd.ang_kp)
+                + vel_errors.angular.component_mul(&self.pd.ang_kd)
                 + self.ang_integral.component_mul(&self.ang_ki))
             .component_mul(&ang_mask),
         }
