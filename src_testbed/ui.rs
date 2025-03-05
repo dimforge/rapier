@@ -1,4 +1,3 @@
-use rapier::control::CharacterLength;
 use rapier::counters::Counters;
 use rapier::math::Real;
 use std::num::NonZeroUsize;
@@ -10,10 +9,12 @@ use crate::testbed::{
     PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR,
 };
 
+pub use bevy_egui::egui;
+
 use crate::settings::SettingValue;
 use crate::PhysicsState;
-pub use bevy_egui::egui::{ComboBox, Slider, Ui, Window};
-use bevy_egui::{egui, EguiContexts};
+use bevy_egui::egui::{ComboBox, Slider, Ui, Window};
+use bevy_egui::EguiContexts;
 use rapier::dynamics::IntegrationParameters;
 use web_time::Instant;
 

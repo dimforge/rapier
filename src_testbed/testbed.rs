@@ -8,23 +8,27 @@ use std::num::NonZeroUsize;
 
 use crate::debug_render::{DebugRenderPipelineResource, RapierDebugRenderPlugin};
 use crate::graphics::BevyMaterialComponent;
+use crate::mouse::{self, track_mouse_state, MainCamera, SceneMouse};
 use crate::physics::{DeserializedPhysicsSnapshot, PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
+use crate::save::SerializableTestbedState;
+use crate::settings::ExampleSettings;
+use crate::ui;
 use crate::{graphics::GraphicsManager, harness::RunState};
-use crate::{mouse, ui};
+use bevy::window::PrimaryWindow;
 
-use na::{self, Point2, Point3, Quaternion, Unit, UnitQuaternion, Vector3};
-#[cfg(feature = "dim3")]
-use rapier::control::DynamicRayCastVehicleController;
+use na::{self, Point2, Point3, Vector3};
 use rapier::dynamics::{
     ImpulseJointSet, IntegrationParameters, MultibodyJointSet, RigidBodyActivation,
-    RigidBodyHandle, RigidBodySet, RigidBodyVelocity,
+    RigidBodyHandle, RigidBodySet,
 };
 #[cfg(feature = "dim3")]
 use rapier::geometry::Ray;
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 use rapier::math::{Real, Vector};
-use rapier::pipeline::{PhysicsHooks, QueryFilter, QueryPipeline};
+use rapier::pipeline::{PhysicsHooks, QueryPipeline};
+#[cfg(feature = "dim3")]
+use rapier::{control::DynamicRayCastVehicleController, prelude::QueryFilter};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
@@ -565,9 +569,14 @@ impl<'g, 'h> TestbedGraphics<'_, '_, '_, '_, '_, '_, 'g, 'h> {
     }
 
     #[cfg(feature = "dim3")]
-    pub fn camera_rotation(&self) -> UnitQuaternion<Real> {
+    pub fn camera_rotation(&self) -> na::UnitQuaternion<Real> {
         let (_, rot, _) = self.camera_transform.to_scale_rotation_translation();
-        Unit::new_unchecked(Quaternion::new(rot.w, rot.x, rot.y, rot.z))
+        na::Unit::new_unchecked(na::Quaternion::new(
+            rot.w as Real,
+            rot.x as Real,
+            rot.y as Real,
+            rot.z as Real,
+        ))
     }
 
     #[cfg(feature = "dim3")]
@@ -1081,13 +1090,6 @@ fn egui_focus(mut ui_context: EguiContexts, mut cameras: Query<&mut OrbitCamera>
         camera.enabled = camera_enabled;
     }
 }
-
-use crate::math::{Isometry, Translation};
-use crate::mouse::{track_mouse_state, MainCamera, SceneMouse};
-use crate::save::SerializableTestbedState;
-use crate::settings::ExampleSettings;
-use bevy::window::PrimaryWindow;
-use rapier::prelude::AxisMask;
 
 #[allow(clippy::type_complexity)]
 fn update_testbed(

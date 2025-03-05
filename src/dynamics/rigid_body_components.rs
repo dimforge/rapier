@@ -226,13 +226,19 @@ bitflags::bitflags! {
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
     pub struct AxisMask: u8 {
+        /// The translational X axis.
         const LIN_X = 1 << 0;
+        /// The translational Y axis.
         const LIN_Y = 1 << 1;
+        /// The translational Z axis.
         const LIN_Z = 1 << 2;
+        /// The rotational X axis.
         #[cfg(feature = "dim3")]
         const ANG_X = 1 << 3;
+        /// The rotational Y axis.
         #[cfg(feature = "dim3")]
         const ANG_Y = 1 << 4;
+        /// The rotational Z axis.
         const ANG_Z = 1 << 5;
     }
 }

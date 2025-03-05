@@ -1,5 +1,5 @@
 use crate::utils::character::{self, CharacterControlMode};
-use rapier3d::control::{CharacterLength, KinematicCharacterController, PidController};
+use rapier3d::control::{KinematicCharacterController, PidController};
 use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
 
@@ -92,7 +92,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut controller = KinematicCharacterController::default();
     let mut pid = PidController::default();
 
-    testbed.add_callback(move |mut graphics, physics, _, _| {
+    testbed.add_callback(move |graphics, physics, _, _| {
         if let Some(graphics) = graphics {
             character::update_character(
                 graphics,

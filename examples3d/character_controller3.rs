@@ -1,13 +1,9 @@
 use crate::utils::character::{self, CharacterControlMode};
-use nalgebra::{Quaternion, Unit};
 use rapier3d::{
-    control::{CharacterLength, KinematicCharacterController, PidController},
+    control::{KinematicCharacterController, PidController},
     prelude::*,
 };
-use rapier_testbed3d::{
-    ui::{ComboBox, Slider, Ui, Window},
-    KeyCode, PhysicsState, Testbed, TestbedGraphics,
-};
+use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -50,6 +46,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let rigid_body = RigidBodyBuilder::kinematic_position_based()
         .translation(vector![0.0, 0.5, 0.0] * scale)
+        // The two config below makes the character
+        // nicer to control with the PID control enabled.
         .gravity_scale(10.0)
         .soft_ccd_prediction(10.0);
     let character_handle = bodies.insert(rigid_body);
@@ -198,7 +196,7 @@ pub fn init_world(testbed: &mut Testbed) {
     };
     let mut pid = PidController::default();
 
-    testbed.add_callback(move |mut graphics, physics, _, _| {
+    testbed.add_callback(move |graphics, physics, _, _| {
         if let Some(graphics) = graphics {
             character::update_character(
                 graphics,

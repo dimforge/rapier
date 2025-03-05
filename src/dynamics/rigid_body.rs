@@ -1,6 +1,5 @@
 #[cfg(doc)]
 use super::IntegrationParameters;
-use crate::dynamics::JointAxis::LinX;
 use crate::dynamics::{
     LockedAxes, MassProperties, RigidBodyActivation, RigidBodyAdditionalMassProps, RigidBodyCcd,
     RigidBodyChanges, RigidBodyColliders, RigidBodyDamping, RigidBodyDominance, RigidBodyForces,
@@ -10,7 +9,6 @@ use crate::geometry::{
     ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition, ColliderSet, ColliderShape,
 };
 use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector};
-use crate::prelude::AxisMask;
 use crate::utils::SimdCross;
 use num::Zero;
 

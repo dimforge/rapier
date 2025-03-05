@@ -1,9 +1,10 @@
-use rapier3d::{
+use rapier2d::{
     control::{CharacterLength, KinematicCharacterController, PidController},
     prelude::*,
 };
-use rapier_testbed3d::{
-    ui::egui::{Align2, ComboBox, Slider, Ui, Window},
+use rapier_testbed2d::ui::egui::Align2;
+use rapier_testbed2d::{
+    ui::egui::{ComboBox, Slider, Ui, Window},
     KeyCode, PhysicsState, TestbedGraphics,
 };
 
@@ -54,25 +55,13 @@ fn character_movement_from_inputs(
 ) -> Vector<Real> {
     let mut desired_movement = Vector::zeros();
 
-    let rot = gfx.camera_rotation();
-    let mut rot_x = rot * Vector::x();
-    let mut rot_z = rot * Vector::z();
-    rot_x.y = 0.0;
-    rot_z.y = 0.0;
-
     for key in gfx.keys().get_pressed() {
         match *key {
             KeyCode::ArrowRight => {
-                desired_movement += rot_x;
+                desired_movement += Vector::x();
             }
             KeyCode::ArrowLeft => {
-                desired_movement -= rot_x;
-            }
-            KeyCode::ArrowUp => {
-                desired_movement -= rot_z;
-            }
-            KeyCode::ArrowDown => {
-                desired_movement += rot_z;
+                desired_movement -= Vector::x();
             }
             KeyCode::Space => {
                 desired_movement += Vector::y() * 2.0;
@@ -80,7 +69,7 @@ fn character_movement_from_inputs(
             KeyCode::ControlRight => {
                 desired_movement -= Vector::y();
             }
-            KeyCode::ShiftLeft => {
+            KeyCode::ShiftRight => {
                 speed /= 10.0;
             }
             _ => {}
@@ -109,13 +98,13 @@ fn update_pid_controller(
     // - If the user is jumping, enable control over Y.
     // - If the user isn’t pressing any key, disable all linear controls to let
     //   gravity/collision do their thing freely.
-    let mut axes = AxisMask::ANG_X | AxisMask::ANG_Y | AxisMask::ANG_Z;
+    let mut axes = AxisMask::ANG_Z;
 
     if desired_movement.norm() != 0.0 {
         axes |= if desired_movement.y == 0.0 {
-            AxisMask::LIN_X | AxisMask::LIN_Z
+            AxisMask::LIN_X
         } else {
-            AxisMask::LIN_X | AxisMask::LIN_Z | AxisMask::LIN_Y
+            AxisMask::LIN_X | AxisMask::LIN_Y
         }
     };
 
@@ -211,9 +200,9 @@ fn pid_control_ui(ui: &mut Ui, pid_controller: &mut PidController) {
     let mut lin_kp = pid_controller.pd.lin_kp.x;
     let mut lin_ki = pid_controller.lin_ki.x;
     let mut lin_kd = pid_controller.pd.lin_kd.x;
-    let mut ang_kp = pid_controller.pd.ang_kp.x;
-    let mut ang_ki = pid_controller.ang_ki.x;
-    let mut ang_kd = pid_controller.pd.ang_kd.x;
+    let mut ang_kp = pid_controller.pd.ang_kp;
+    let mut ang_ki = pid_controller.ang_ki;
+    let mut ang_kd = pid_controller.pd.ang_kd;
 
     ui.add(Slider::new(&mut lin_kp, 0.0..=100.0).text("linear Kp"));
     ui.add(Slider::new(&mut lin_ki, 0.0..=10.0).text("linear Ki"));
@@ -225,9 +214,9 @@ fn pid_control_ui(ui: &mut Ui, pid_controller: &mut PidController) {
     pid_controller.pd.lin_kp.fill(lin_kp);
     pid_controller.lin_ki.fill(lin_ki);
     pid_controller.pd.lin_kd.fill(lin_kd);
-    pid_controller.pd.ang_kp.fill(ang_kp);
-    pid_controller.ang_ki.fill(ang_ki);
-    pid_controller.pd.ang_kd.fill(ang_kd);
+    pid_controller.pd.ang_kp = ang_kp;
+    pid_controller.ang_ki = ang_ki;
+    pid_controller.pd.ang_kd = ang_kd;
 }
 
 fn kinematic_control_ui(ui: &mut Ui, character_controller: &mut KinematicCharacterController) {
