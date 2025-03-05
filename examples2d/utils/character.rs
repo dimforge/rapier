@@ -40,9 +40,6 @@ pub fn update_character(
             update_kinematic_controller(graphics, physics, character_handle, controller)
         }
         CharacterControlMode::Pid => {
-            // // Keep the time constant in sync.
-            // pid.lin_kp = Vector::repeat(physics.integration_parameters.inv_dt());
-            // pid.ang_kp = AngVector::repeat(physics.integration_parameters.inv_dt());
             update_pid_controller(graphics, physics, character_handle, pid)
         }
     }

@@ -167,6 +167,7 @@ pub fn init_world(testbed: &mut Testbed) {
             // platform.set_angvel(angvel, true);
         }
     });
+
     /*
      * Callback to update the character based on user inputs.
      */
