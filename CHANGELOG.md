@@ -1,3 +1,9 @@
+## Unreleased
+
+### Added
+
+- `IntegrationParameters` now implements `PartialEq`.
+
 ## v0.23.1 (05 March 2025)
 
 ### Added
