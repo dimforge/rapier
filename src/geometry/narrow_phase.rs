@@ -969,14 +969,14 @@ impl NarrowPhase {
                 let friction = CoefficientCombineRule::combine(
                     co1.material.friction,
                     co2.material.friction,
-                    co1.material.friction_combine_rule as u8,
-                    co2.material.friction_combine_rule as u8,
+                    co1.material.friction_combine_rule,
+                    co2.material.friction_combine_rule,
                 );
                 let restitution = CoefficientCombineRule::combine(
                     co1.material.restitution,
                     co2.material.restitution,
-                    co1.material.restitution_combine_rule as u8,
-                    co2.material.restitution_combine_rule as u8,
+                    co1.material.restitution_combine_rule,
+                    co2.material.restitution_combine_rule,
                 );
 
                 let zero = RigidBodyDominance(0); // The value doesn't matter, it will be MAX because of the effective groups.
