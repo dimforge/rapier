@@ -74,15 +74,15 @@ approx = "0.5"
 rayon = { version = "1", optional = true }
 crossbeam = "0.8"
 arrayvec = "0.7"
-bit-vec = "0.7"
+bit-vec = "0.8"
 rustc-hash = "2"
 serde = { version = "1", features = ["derive"], optional = true }
-downcast-rs = "1.2"
+downcast-rs = "2"
 num-derive = "0.4"
 bitflags = "2"
 log = "0.4"
-ordered-float = "4"
-thiserror = "1"
+ordered-float = "5"
+thiserror = "2"
 profiling = "1.0"
 
 [dev-dependencies]
