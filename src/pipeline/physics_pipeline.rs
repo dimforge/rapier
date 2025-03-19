@@ -1044,33 +1044,74 @@ mod test {
         let physics_hooks = ();
         let event_handler = ();
 
-        /* Run the game loop, stepping the simulation once per frame. */
-        for _ in 0..200 {
-            physics_pipeline.step(
-                &gravity,
-                &integration_parameters,
-                &mut island_manager,
-                &mut broad_phase,
-                &mut narrow_phase,
-                &mut rigid_body_set,
-                &mut collider_set,
-                &mut impulse_joint_set,
-                &mut multibody_joint_set,
-                &mut ccd_solver,
-                None,
-                &physics_hooks,
-                &event_handler,
-            );
+        physics_pipeline.step(
+            &gravity,
+            &integration_parameters,
+            &mut island_manager,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &mut impulse_joint_set,
+            &mut multibody_joint_set,
+            &mut ccd_solver,
+            None,
+            &physics_hooks,
+            &event_handler,
+        );
 
+        // Test RigidBodyChanges::POSITION and disable
+        {
             let ball_body = &mut rigid_body_set[ball_body_handle];
-            println!("Ball altitude: {}", ball_body.translation().y);
 
-            // This causes the error:
-            // Modify the translation (or rotation) (RigidBodyChanges::POSITION)
-            // Modify enabled
-            ball_body.set_translation(vector![0.0, 0.0], true);
-            // ball_body.set_rotation(nalgebra::UnitComplex::new(1.0), true);
+            // Also, change the translation and rotation to different values
+            ball_body.set_translation(vector![1.0, 1.0], true);
+            ball_body.set_rotation(nalgebra::UnitComplex::new(1.0), true);
+
             ball_body.set_enabled(false);
         }
+
+        physics_pipeline.step(
+            &gravity,
+            &integration_parameters,
+            &mut island_manager,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &mut impulse_joint_set,
+            &mut multibody_joint_set,
+            &mut ccd_solver,
+            None,
+            &physics_hooks,
+            &event_handler,
+        );
+
+        // Test RigidBodyChanges::POSITION and enable
+        {
+            let ball_body = &mut rigid_body_set[ball_body_handle];
+
+            // Also, change the translation and rotation to different values
+            ball_body.set_translation(vector![0.0, 0.0], true);
+            ball_body.set_rotation(nalgebra::UnitComplex::new(0.0), true);
+
+            ball_body.set_enabled(true);
+        }
+
+        physics_pipeline.step(
+            &gravity,
+            &integration_parameters,
+            &mut island_manager,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &mut impulse_joint_set,
+            &mut multibody_joint_set,
+            &mut ccd_solver,
+            None,
+            &physics_hooks,
+            &event_handler,
+        );
     }
 }
