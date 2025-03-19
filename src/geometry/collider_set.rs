@@ -66,6 +66,7 @@ impl ColliderSet {
         self.modified_colliders.clear();
         let modified_colliders = &mut self.modified_colliders;
         self.colliders.iter_mut().map(move |(h, b)| {
+            b.changes |= ColliderChanges::MODIFIED;
             modified_colliders.push(ColliderHandle(h));
             (ColliderHandle(h), b)
         })
