@@ -454,6 +454,19 @@ fn example_settings_ui(ui_context: &mut EguiContexts, state: &mut TestbedState) 
                         ui.add(Slider::new(value, range.clone()).text(name));
                     });
                 }
+                SettingValue::Bool { value } => {
+                    ui.checkbox(value, name);
+                }
+                SettingValue::String { value, range } => {
+                    ComboBox::from_label(name)
+                        .width(150.0)
+                        .selected_text(&range[*value])
+                        .show_ui(ui, |ui| {
+                            for (id, name) in range.iter().enumerate() {
+                                ui.selectable_value(value, id, name);
+                            }
+                        });
+                }
             }
 
             any_changed = any_changed || *value != prev_value;

@@ -42,6 +42,7 @@ mod s2d_joint_grid;
 mod s2d_pyramid;
 mod sensor2;
 mod trimesh2;
+mod voxels2;
 
 mod utils;
 
@@ -67,6 +68,7 @@ pub fn main() {
         ("Rope Joints", rope_joints2::init_world),
         ("Sensor", sensor2::init_world),
         ("Trimesh", trimesh2::init_world),
+        ("Voxels", voxels2::init_world),
         ("Joint motor position", joint_motor_position2::init_world),
         ("(Debug) box ball", debug_box_ball2::init_world),
         ("(Debug) compression", debug_compression2::init_world),

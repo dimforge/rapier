@@ -4,17 +4,18 @@ use bevy::prelude::*;
 use bevy::render::mesh::{Indices, VertexAttributeValues};
 
 //use crate::objects::plane::Plane;
-use na::{point, Point3, Vector3};
+use na::{point, vector, Point3, Vector3};
 use std::collections::HashMap;
 
-use bevy::render::render_resource::PrimitiveTopology;
+use bevy::render::render_resource::{PrimitiveTopology, ShaderType};
 use bevy_pbr::wireframe::Wireframe;
-use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
+use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType, VoxelData};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{Cone, Cylinder};
 use rapier::math::{Isometry, Real, Vector};
 
 use crate::graphics::{BevyMaterial, InstancedMaterials, SELECTED_OBJECT_MATERIAL_KEY};
+use rapier::parry;
 #[cfg(feature = "dim2")]
 use {
     na::{Point2, Vector2},
@@ -439,6 +440,26 @@ fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
                 .collect();
             bevy_mesh((vertices, trimesh.indices().to_vec()))
         }
+        ShapeType::Voxels => {
+            let mut vtx = vec![];
+            let mut idx = vec![];
+            let voxels = co_shape.as_voxels().unwrap();
+            let sz = voxels.scale / 2.0;
+            for (center, data) in voxels.centers() {
+                if !data.is_empty() {
+                    let bid = vtx.len() as u32;
+                    let center = point![center.x, center.y, 0.0];
+                    vtx.push(center + vector![sz, sz, 0.0]);
+                    vtx.push(center + vector![-sz, sz, 0.0]);
+                    vtx.push(center + vector![-sz, -sz, 0.0]);
+                    vtx.push(center + vector![sz, -sz, 0.0]);
+                    idx.push([bid + 0, bid + 1, bid + 2]);
+                    idx.push([bid + 2, bid + 3, bid + 0]);
+                }
+            }
+
+            bevy_mesh((vtx, idx))
+        }
         ShapeType::Polyline => {
             let polyline = co_shape.as_polyline().unwrap();
             bevy_polyline((
@@ -494,6 +515,10 @@ fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
         ShapeType::RoundConvexPolyhedron => {
             let poly = co_shape.as_round_convex_polyhedron().unwrap();
             bevy_mesh(poly.inner_shape.to_trimesh())
+        }
+        ShapeType::Voxels => {
+            let voxels = co_shape.as_voxels().unwrap();
+            bevy_mesh(voxels.to_trimesh())
         }
         _ => return None,
     };

@@ -58,6 +58,7 @@ mod trimesh3;
 mod urdf3;
 mod vehicle_controller3;
 mod vehicle_joints3;
+mod voxels3;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn main() {
@@ -87,6 +88,7 @@ pub fn main() {
         ("Spring Joints", spring_joints3::init_world),
         ("TriMesh", trimesh3::init_world),
         ("Urdf", urdf3::init_world),
+        ("Voxels", voxels3::init_world),
         ("Vehicle controller", vehicle_controller3::init_world),
         ("Vehicle joints", vehicle_joints3::init_world),
         ("Keva tower", keva3::init_world),
