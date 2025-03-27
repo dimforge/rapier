@@ -1014,18 +1014,20 @@ fn draw_contacts(_nf: &NarrowPhase, _colliders: &ColliderSet) {
 #[cfg(feature = "dim3")]
 fn setup_graphics_environment(mut commands: Commands) {
     commands.insert_resource(AmbientLight {
-        brightness: 100.0,
+        brightness: 200.0,
         ..Default::default()
     });
 
     commands.spawn((
         DirectionalLight {
-            shadows_enabled: false,
+            // shadows_enabled: true,
             ..Default::default()
         },
         Transform {
-            translation: Vec3::new(10.0, 2.0, 10.0),
-            rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_4),
+            translation: Vec3::new(-100.0, 200.0, -100.0),
+            rotation: Quat::from_rotation_x(
+                -(std::f32::consts::FRAC_PI_4 + std::f32::consts::FRAC_PI_6),
+            ),
             ..Default::default()
         },
     ));
