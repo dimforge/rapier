@@ -50,7 +50,7 @@ impl ContactModificationContext<'_> {
     ///
     /// The "oneway" behavior will only allow contacts between two colliders
     /// if the local contact normal of the first collider involved in the contact
-    /// is almost aligned with the provided `allowed_local_n1` direction.
+    /// is almost aligned with the provided `local_normal` direction.
     ///
     /// To make this method work properly it must be called as part of the
     /// `PhysicsHooks::modify_solver_contacts` method at each timestep, for each
@@ -58,19 +58,15 @@ impl ContactModificationContext<'_> {
     /// must not be modified from the outside of this method.
     pub fn update_as_oneway_platform(
         &mut self,
-        allowed_local_n1: &Vector<Real>,
-        allowed_angle: Real,
+        local_normal: &Vector<Real>,
+        allowed_local_normal: &Vector<Real>,
     ) {
         const CONTACT_CONFIGURATION_UNKNOWN: u32 = 0;
         const CONTACT_CURRENTLY_ALLOWED: u32 = 1;
         const CONTACT_CURRENTLY_FORBIDDEN: u32 = 2;
-
-        let cang = ComplexField::cos(allowed_angle);
-
         // Test the allowed normal with the local-space contact normal that
         // points towards the exterior of context.collider1.
-        let contact_is_ok = self.manifold.local_n1.dot(allowed_local_n1) >= cang;
-
+        let contact_is_ok = local_normal.dot(allowed_local_normal) < 0.00001;
         match *self.user_data {
             CONTACT_CONFIGURATION_UNKNOWN => {
                 if contact_is_ok {
@@ -81,13 +77,12 @@ impl ContactModificationContext<'_> {
                     // normal, so remove all the contacts and mark further contacts
                     // as forbidden.
                     self.solver_contacts.clear();
-
                     // NOTE: in some very rare cases `local_n1` will be
                     // zero if the objects are exactly touching at one point.
                     // So in this case we can't really conclude.
                     // If the norm is non-zero, then we can tell we need to forbid
                     // further contacts. Otherwise we have to wait for the next frame.
-                    if self.manifold.local_n1.norm_squared() > 0.1 {
+                    if local_normal.norm_squared() > 0.1 {
                         *self.user_data = CONTACT_CURRENTLY_FORBIDDEN;
                     }
                 }
