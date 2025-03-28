@@ -8,6 +8,7 @@ pub(crate) use self::joint::JointGraphEdge;
 pub(crate) use self::joint::JointIndex;
 pub use self::joint::*;
 pub use self::rigid_body_components::*;
+pub(crate) use self::rigid_body_set::ModifiedRigidBodies;
 // #[cfg(not(feature = "parallel"))]
 pub(crate) use self::solver::IslandSolver;
 // #[cfg(feature = "parallel")]

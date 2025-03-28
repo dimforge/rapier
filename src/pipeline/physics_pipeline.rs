@@ -7,14 +7,15 @@ use crate::dynamics::IslandSolver;
 use crate::dynamics::JointGraphEdge;
 use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    RigidBodyChanges, RigidBodyHandle, RigidBodyPosition, RigidBodyType,
+    RigidBodyChanges, RigidBodyPosition, RigidBodyType,
 };
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
-    ContactManifoldIndex, NarrowPhase, TemporaryInteractionIndex,
+    ContactManifoldIndex, ModifiedColliders, NarrowPhase, TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{EventHandler, PhysicsHooks, QueryPipeline};
+use crate::prelude::ModifiedRigidBodies;
 use {crate::dynamics::RigidBodySet, crate::geometry::ColliderSet};
 
 /// The physics pipeline, responsible for stepping the whole physics simulation.
@@ -68,25 +69,29 @@ impl PhysicsPipeline {
     fn clear_modified_colliders(
         &mut self,
         colliders: &mut ColliderSet,
-        modified_colliders: &mut Vec<ColliderHandle>,
+        modified_colliders: &mut ModifiedColliders,
     ) {
-        for handle in modified_colliders.drain(..) {
-            if let Some(co) = colliders.get_mut_internal(handle) {
+        for handle in modified_colliders.iter() {
+            if let Some(co) = colliders.get_mut_internal(*handle) {
                 co.changes = ColliderChanges::empty();
             }
         }
+
+        modified_colliders.clear();
     }
 
     fn clear_modified_bodies(
         &mut self,
         bodies: &mut RigidBodySet,
-        modified_bodies: &mut Vec<RigidBodyHandle>,
+        modified_bodies: &mut ModifiedRigidBodies,
     ) {
-        for handle in modified_bodies.drain(..) {
-            if let Some(rb) = bodies.get_mut_internal(handle) {
+        for handle in modified_bodies.iter() {
+            if let Some(rb) = bodies.get_mut_internal(*handle) {
                 rb.changes = RigidBodyChanges::empty();
             }
         }
+
+        modified_bodies.clear();
     }
 
     fn detect_collisions(
@@ -359,7 +364,7 @@ impl PhysicsPipeline {
         islands: &IslandManager,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
-        modified_colliders: &mut Vec<ColliderHandle>,
+        modified_colliders: &mut ModifiedColliders,
     ) {
         // Set the rigid-bodies and kinematic bodies to their final position.
         for handle in islands.iter_active_bodies() {

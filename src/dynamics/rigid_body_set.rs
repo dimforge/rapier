@@ -1,4 +1,4 @@
-use crate::data::Arena;
+use crate::data::{Arena, HasModifiedFlag, ModifiedObjects};
 use crate::dynamics::{
     ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBody, RigidBodyChanges, RigidBodyHandle,
 };
@@ -22,6 +22,20 @@ impl BodyPair {
     }
 }
 
+pub(crate) type ModifiedRigidBodies = ModifiedObjects<RigidBodyHandle, RigidBody>;
+
+impl HasModifiedFlag for RigidBody {
+    #[inline]
+    fn has_modified_flag(&self) -> bool {
+        self.changes.contains(RigidBodyChanges::MODIFIED)
+    }
+
+    #[inline]
+    fn set_modified_flag(&mut self) {
+        self.changes |= RigidBodyChanges::MODIFIED;
+    }
+}
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Default, Debug)]
 /// A set of rigid bodies that can be handled by a physics pipeline.
@@ -31,7 +45,7 @@ pub struct RigidBodySet {
     // parallelism because the `Receiver` breaks the Sync impl.
     // Could we avoid this?
     pub(crate) bodies: Arena<RigidBody>,
-    pub(crate) modified_bodies: Vec<RigidBodyHandle>,
+    pub(crate) modified_bodies: ModifiedRigidBodies,
 }
 
 impl RigidBodySet {
@@ -39,7 +53,7 @@ impl RigidBodySet {
     pub fn new() -> Self {
         RigidBodySet {
             bodies: Arena::new(),
-            modified_bodies: Vec::new(),
+            modified_bodies: ModifiedObjects::default(),
         }
     }
 
@@ -47,11 +61,11 @@ impl RigidBodySet {
     pub fn with_capacity(capacity: usize) -> Self {
         RigidBodySet {
             bodies: Arena::with_capacity(capacity),
-            modified_bodies: Vec::with_capacity(capacity),
+            modified_bodies: ModifiedRigidBodies::with_capacity(capacity),
         }
     }
 
-    pub(crate) fn take_modified(&mut self) -> Vec<RigidBodyHandle> {
+    pub(crate) fn take_modified(&mut self) -> ModifiedRigidBodies {
         std::mem::take(&mut self.modified_bodies)
     }
 
@@ -79,7 +93,10 @@ impl RigidBodySet {
         rb.changes.set(RigidBodyChanges::all(), true);
 
         let handle = RigidBodyHandle(self.bodies.insert(rb));
-        self.modified_bodies.push(handle);
+        // Using push_unchecked because this is a brand new rigid-body with the MODIFIED
+        // flags set but isn’t in the modified_bodies yet.
+        self.modified_bodies
+            .push_unchecked(handle, &mut self.bodies[handle.0]);
         handle
     }
 
@@ -152,7 +169,7 @@ impl RigidBodySet {
     pub fn get_unknown_gen_mut(&mut self, i: u32) -> Option<(&mut RigidBody, RigidBodyHandle)> {
         let (rb, handle) = self.bodies.get_unknown_gen_mut(i)?;
         let handle = RigidBodyHandle(handle);
-        Self::mark_as_modified(handle, rb, &mut self.modified_bodies);
+        self.modified_bodies.push_once(handle, rb);
         Some((rb, handle))
     }
 
@@ -161,22 +178,11 @@ impl RigidBodySet {
         self.bodies.get(handle.0)
     }
 
-    pub(crate) fn mark_as_modified(
-        handle: RigidBodyHandle,
-        rb: &mut RigidBody,
-        modified_bodies: &mut Vec<RigidBodyHandle>,
-    ) {
-        if !rb.changes.contains(RigidBodyChanges::MODIFIED) {
-            rb.changes = RigidBodyChanges::MODIFIED;
-            modified_bodies.push(handle);
-        }
-    }
-
     /// Gets a mutable reference to the rigid-body with the given handle.
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
     pub fn get_mut(&mut self, handle: RigidBodyHandle) -> Option<&mut RigidBody> {
         let result = self.bodies.get_mut(handle.0)?;
-        Self::mark_as_modified(handle, result, &mut self.modified_bodies);
+        self.modified_bodies.push_once(handle, result);
         Some(result)
     }
 
@@ -195,7 +201,7 @@ impl RigidBodySet {
         handle: RigidBodyHandle,
     ) -> Option<&mut RigidBody> {
         let result = self.bodies.get_mut(handle.0)?;
-        Self::mark_as_modified(handle, result, &mut self.modified_bodies);
+        self.modified_bodies.push_once(handle, result);
         Some(result)
     }
 
@@ -210,7 +216,9 @@ impl RigidBodySet {
         self.modified_bodies.clear();
         let modified_bodies = &mut self.modified_bodies;
         self.bodies.iter_mut().map(move |(h, b)| {
-            modified_bodies.push(RigidBodyHandle(h));
+            // NOTE: using `push_unchecked` because we just cleared `modified_bodies`
+            //       before iterating.
+            modified_bodies.push_unchecked(RigidBodyHandle(h), b);
             (RigidBodyHandle(h), b)
         })
     }
@@ -256,7 +264,7 @@ impl Index<crate::data::Index> for RigidBodySet {
 impl IndexMut<RigidBodyHandle> for RigidBodySet {
     fn index_mut(&mut self, handle: RigidBodyHandle) -> &mut RigidBody {
         let rb = &mut self.bodies[handle.0];
-        Self::mark_as_modified(handle, rb, &mut self.modified_bodies);
+        self.modified_bodies.push_once(handle, rb);
         rb
     }
 }
