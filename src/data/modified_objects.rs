@@ -5,7 +5,7 @@ use std::ops::Deref;
 ///
 /// This is a wrapper over a `Vec` to ensure we don’t forget to set the object’s
 /// MODIFIED flag when adding it to this set.
-/// It is possible to bypass the wrapper with `.as_mut_internal`. But this hould only
+/// It is possible to bypass the wrapper with `.as_mut_internal`. But this should only
 /// be done for internal engine usage (like the physics pipeline).
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
@@ -36,7 +36,7 @@ impl<Handle, Object: HasModifiedFlag> ModifiedObjects<Handle, Object> {
 
     /// Remove every handle from this set.
     ///
-    /// Note that the corresponding object MODIFIED flags won’t be reset atomatically by this function.
+    /// Note that the corresponding object MODIFIED flags won’t be reset automatically by this function.
     pub fn clear(&mut self) {
         self.0.clear()
     }
