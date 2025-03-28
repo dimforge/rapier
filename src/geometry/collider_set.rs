@@ -1,15 +1,30 @@
 use crate::data::arena::Arena;
+use crate::data::{HasModifiedFlag, ModifiedObjects};
 use crate::dynamics::{IslandManager, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{Collider, ColliderChanges, ColliderHandle, ColliderParent};
 use crate::math::Isometry;
 use std::ops::{Index, IndexMut};
+
+pub(crate) type ModifiedColliders = ModifiedObjects<ColliderHandle, Collider>;
+
+impl HasModifiedFlag for Collider {
+    #[inline]
+    fn has_modified_flag(&self) -> bool {
+        self.changes.contains(ColliderChanges::MODIFIED)
+    }
+
+    #[inline]
+    fn set_modified_flag(&mut self) {
+        self.changes |= ColliderChanges::MODIFIED;
+    }
+}
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Default, Debug)]
 /// A set of colliders that can be handled by a physics `World`.
 pub struct ColliderSet {
     pub(crate) colliders: Arena<Collider>,
-    pub(crate) modified_colliders: Vec<ColliderHandle>,
+    pub(crate) modified_colliders: ModifiedColliders,
     pub(crate) removed_colliders: Vec<ColliderHandle>,
 }
 
@@ -18,7 +33,7 @@ impl ColliderSet {
     pub fn new() -> Self {
         ColliderSet {
             colliders: Arena::new(),
-            modified_colliders: Vec::new(),
+            modified_colliders: Default::default(),
             removed_colliders: Vec::new(),
         }
     }
@@ -29,12 +44,12 @@ impl ColliderSet {
     pub fn with_capacity(capacity: usize) -> Self {
         ColliderSet {
             colliders: Arena::with_capacity(capacity),
-            modified_colliders: Vec::with_capacity(capacity),
+            modified_colliders: ModifiedColliders::with_capacity(capacity),
             removed_colliders: Vec::new(),
         }
     }
 
-    pub(crate) fn take_modified(&mut self) -> Vec<ColliderHandle> {
+    pub(crate) fn take_modified(&mut self) -> ModifiedColliders {
         std::mem::take(&mut self.modified_colliders)
     }
 
@@ -65,9 +80,11 @@ impl ColliderSet {
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (ColliderHandle, &mut Collider)> {
         self.modified_colliders.clear();
         let modified_colliders = &mut self.modified_colliders;
-        self.colliders.iter_mut().map(move |(h, b)| {
-            modified_colliders.push(ColliderHandle(h));
-            (ColliderHandle(h), b)
+        self.colliders.iter_mut().map(move |(h, co)| {
+            // NOTE: we push unchecked here since we are just re-populating the
+            //       `modified_colliders` set that we just cleared before iteration.
+            modified_colliders.push_unchecked(ColliderHandle(h), co);
+            (ColliderHandle(h), co)
         })
     }
 
@@ -100,7 +117,11 @@ impl ColliderSet {
         coll.reset_internal_references();
         coll.parent = None;
         let handle = ColliderHandle(self.colliders.insert(coll));
-        self.modified_colliders.push(handle);
+        // NOTE: we push unchecked because this is a brand-new collider
+        //       so it was initialized with the changed flag but isn’t in
+        //       the set yet.
+        self.modified_colliders
+            .push_unchecked(handle, &mut self.colliders[handle.0]);
         handle
     }
 
@@ -131,9 +152,12 @@ impl ColliderSet {
             .get_mut_internal_with_modification_tracking(parent_handle)
             .expect("Parent rigid body not found.");
         let handle = ColliderHandle(self.colliders.insert(coll));
-        self.modified_colliders.push(handle);
-
         let coll = self.colliders.get_mut(handle.0).unwrap();
+        // NOTE: we push unchecked because this is a brand-new collider
+        //       so it was initialized with the changed flag but isn’t in
+        //       the set yet.
+        self.modified_colliders.push_unchecked(handle, coll);
+
         parent.add_collider_internal(
             handle,
             coll.parent.as_mut().unwrap(),
@@ -258,7 +282,7 @@ impl ColliderSet {
     pub fn get_unknown_gen_mut(&mut self, i: u32) -> Option<(&mut Collider, ColliderHandle)> {
         let (collider, handle) = self.colliders.get_unknown_gen_mut(i)?;
         let handle = ColliderHandle(handle);
-        Self::mark_as_modified(handle, collider, &mut self.modified_colliders);
+        self.modified_colliders.push_once(handle, collider);
         Some((collider, handle))
     }
 
@@ -267,22 +291,11 @@ impl ColliderSet {
         self.colliders.get(handle.0)
     }
 
-    fn mark_as_modified(
-        handle: ColliderHandle,
-        collider: &mut Collider,
-        modified_colliders: &mut Vec<ColliderHandle>,
-    ) {
-        if !collider.changes.contains(ColliderChanges::MODIFIED) {
-            collider.changes = ColliderChanges::MODIFIED;
-            modified_colliders.push(handle);
-        }
-    }
-
     /// Gets a mutable reference to the collider with the given handle.
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
     pub fn get_mut(&mut self, handle: ColliderHandle) -> Option<&mut Collider> {
         let result = self.colliders.get_mut(handle.0)?;
-        Self::mark_as_modified(handle, result, &mut self.modified_colliders);
+        self.modified_colliders.push_once(handle, result);
         Some(result)
     }
 
@@ -302,7 +315,7 @@ impl ColliderSet {
         handle: ColliderHandle,
     ) -> Option<&mut Collider> {
         let result = self.colliders.get_mut(handle.0)?;
-        Self::mark_as_modified(handle, result, &mut self.modified_colliders);
+        self.modified_colliders.push_once(handle, result);
         Some(result)
     }
 }
@@ -327,7 +340,7 @@ impl Index<ColliderHandle> for ColliderSet {
 impl IndexMut<ColliderHandle> for ColliderSet {
     fn index_mut(&mut self, handle: ColliderHandle) -> &mut Collider {
         let collider = &mut self.colliders[handle.0];
-        Self::mark_as_modified(handle, collider, &mut self.modified_colliders);
+        self.modified_colliders.push_once(handle, collider);
         collider
     }
 }

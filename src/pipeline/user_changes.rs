@@ -4,6 +4,7 @@ use crate::dynamics::{
 };
 use crate::geometry::{
     ColliderChanges, ColliderEnabled, ColliderHandle, ColliderPosition, ColliderSet,
+    ModifiedColliders,
 };
 
 pub(crate) fn handle_user_changes_to_colliders(
@@ -48,7 +49,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
     impulse_joints: &mut ImpulseJointSet,
     _multibody_joints: &mut MultibodyJointSet, // FIXME: propagate disabled state to multibodies
     modified_bodies: &[RigidBodyHandle],
-    modified_colliders: &mut Vec<ColliderHandle>,
+    modified_colliders: &mut ModifiedColliders,
 ) {
     enum FinalAction {
         UpdateActiveKinematicSetId(usize),
@@ -150,12 +151,8 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                     // here because that would modify the `modified_colliders` inside of the `ColliderSet`
                     // instead of the one passed to this method.
                     let co = colliders.index_mut_internal(*handle);
-                    if !co.changes.contains(ColliderChanges::MODIFIED) {
-                        modified_colliders.push(*handle);
-                    }
-
-                    co.changes |=
-                        ColliderChanges::MODIFIED | ColliderChanges::PARENT_EFFECTIVE_DOMINANCE;
+                    modified_colliders.push_once(*handle, co);
+                    co.changes |= ColliderChanges::PARENT_EFFECTIVE_DOMINANCE;
                 }
             }
 
@@ -166,9 +163,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                     // here because that would modify the `modified_colliders` inside of the `ColliderSet`
                     // instead of the one passed to this method.
                     let co = colliders.index_mut_internal(*handle);
-                    if !co.changes.contains(ColliderChanges::MODIFIED) {
-                        modified_colliders.push(*handle);
-                    }
+                    modified_colliders.push_once(*handle, co);
 
                     if rb.enabled && co.flags.enabled == ColliderEnabled::DisabledByParent {
                         co.flags.enabled = ColliderEnabled::Enabled;
@@ -176,7 +171,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                         co.flags.enabled = ColliderEnabled::DisabledByParent;
                     }
 
-                    co.changes |= ColliderChanges::MODIFIED | ColliderChanges::ENABLED_OR_DISABLED;
+                    co.changes |= ColliderChanges::ENABLED_OR_DISABLED;
                 }
 
                 // Propagate the rigid-body’s enabled/disable status to its attached impulse joints.

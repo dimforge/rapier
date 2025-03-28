@@ -7,14 +7,15 @@ use crate::dynamics::IslandSolver;
 use crate::dynamics::JointGraphEdge;
 use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    RigidBodyChanges, RigidBodyHandle, RigidBodyPosition, RigidBodyType,
+    RigidBodyChanges, RigidBodyPosition, RigidBodyType,
 };
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
-    ContactManifoldIndex, NarrowPhase, TemporaryInteractionIndex,
+    ContactManifoldIndex, ModifiedColliders, NarrowPhase, TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{EventHandler, PhysicsHooks, QueryPipeline};
+use crate::prelude::ModifiedRigidBodies;
 use {crate::dynamics::RigidBodySet, crate::geometry::ColliderSet};
 
 /// The physics pipeline, responsible for stepping the whole physics simulation.
@@ -68,25 +69,29 @@ impl PhysicsPipeline {
     fn clear_modified_colliders(
         &mut self,
         colliders: &mut ColliderSet,
-        modified_colliders: &mut Vec<ColliderHandle>,
+        modified_colliders: &mut ModifiedColliders,
     ) {
-        for handle in modified_colliders.drain(..) {
-            if let Some(co) = colliders.get_mut_internal(handle) {
+        for handle in modified_colliders.iter() {
+            if let Some(co) = colliders.get_mut_internal(*handle) {
                 co.changes = ColliderChanges::empty();
             }
         }
+
+        modified_colliders.clear();
     }
 
     fn clear_modified_bodies(
         &mut self,
         bodies: &mut RigidBodySet,
-        modified_bodies: &mut Vec<RigidBodyHandle>,
+        modified_bodies: &mut ModifiedRigidBodies,
     ) {
-        for handle in modified_bodies.drain(..) {
-            if let Some(rb) = bodies.get_mut_internal(handle) {
+        for handle in modified_bodies.iter() {
+            if let Some(rb) = bodies.get_mut_internal(*handle) {
                 rb.changes = RigidBodyChanges::empty();
             }
         }
+
+        modified_bodies.clear();
     }
 
     fn detect_collisions(
@@ -359,7 +364,7 @@ impl PhysicsPipeline {
         islands: &IslandManager,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
-        modified_colliders: &mut Vec<ColliderHandle>,
+        modified_colliders: &mut ModifiedColliders,
     ) {
         // Set the rigid-bodies and kinematic bodies to their final position.
         for handle in islands.iter_active_bodies() {
@@ -1010,5 +1015,108 @@ mod test {
             assert!(rotation.k.is_finite());
             assert!(rotation.w.is_finite());
         }
+    }
+
+    #[test]
+    #[cfg(feature = "dim2")]
+    fn test_multi_sap_disable_body() {
+        use na::vector;
+        let mut rigid_body_set = RigidBodySet::new();
+        let mut collider_set = ColliderSet::new();
+
+        /* Create the ground. */
+        let collider = ColliderBuilder::cuboid(100.0, 0.1).build();
+        collider_set.insert(collider);
+
+        /* Create the bouncing ball. */
+        let rigid_body = RigidBodyBuilder::dynamic()
+            .translation(vector![0.0, 10.0])
+            .build();
+        let collider = ColliderBuilder::ball(0.5).restitution(0.7).build();
+        let ball_body_handle = rigid_body_set.insert(rigid_body);
+        collider_set.insert_with_parent(collider, ball_body_handle, &mut rigid_body_set);
+
+        /* Create other structures necessary for the simulation. */
+        let gravity = vector![0.0, -9.81];
+        let integration_parameters = IntegrationParameters::default();
+        let mut physics_pipeline = PhysicsPipeline::new();
+        let mut island_manager = IslandManager::new();
+        let mut broad_phase = BroadPhaseMultiSap::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut impulse_joint_set = ImpulseJointSet::new();
+        let mut multibody_joint_set = MultibodyJointSet::new();
+        let mut ccd_solver = CCDSolver::new();
+        let physics_hooks = ();
+        let event_handler = ();
+
+        physics_pipeline.step(
+            &gravity,
+            &integration_parameters,
+            &mut island_manager,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &mut impulse_joint_set,
+            &mut multibody_joint_set,
+            &mut ccd_solver,
+            None,
+            &physics_hooks,
+            &event_handler,
+        );
+
+        // Test RigidBodyChanges::POSITION and disable
+        {
+            let ball_body = &mut rigid_body_set[ball_body_handle];
+
+            // Also, change the translation and rotation to different values
+            ball_body.set_translation(vector![1.0, 1.0], true);
+            ball_body.set_rotation(nalgebra::UnitComplex::new(1.0), true);
+
+            ball_body.set_enabled(false);
+        }
+
+        physics_pipeline.step(
+            &gravity,
+            &integration_parameters,
+            &mut island_manager,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &mut impulse_joint_set,
+            &mut multibody_joint_set,
+            &mut ccd_solver,
+            None,
+            &physics_hooks,
+            &event_handler,
+        );
+
+        // Test RigidBodyChanges::POSITION and enable
+        {
+            let ball_body = &mut rigid_body_set[ball_body_handle];
+
+            // Also, change the translation and rotation to different values
+            ball_body.set_translation(vector![0.0, 0.0], true);
+            ball_body.set_rotation(nalgebra::UnitComplex::new(0.0), true);
+
+            ball_body.set_enabled(true);
+        }
+
+        physics_pipeline.step(
+            &gravity,
+            &integration_parameters,
+            &mut island_manager,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_body_set,
+            &mut collider_set,
+            &mut impulse_joint_set,
+            &mut multibody_joint_set,
+            &mut ccd_solver,
+            None,
+            &physics_hooks,
+            &event_handler,
+        );
     }
 }

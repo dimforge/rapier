@@ -2,7 +2,8 @@
 
 use crate::dynamics::{ImpulseJointSet, MultibodyJointSet};
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair, NarrowPhase,
+    BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
+    ModifiedColliders, NarrowPhase,
 };
 use crate::math::Real;
 use crate::pipeline::{EventHandler, PhysicsHooks, QueryPipeline};
@@ -97,13 +98,15 @@ impl CollisionPipeline {
     fn clear_modified_colliders(
         &mut self,
         colliders: &mut ColliderSet,
-        modified_colliders: &mut Vec<ColliderHandle>,
+        modified_colliders: &mut ModifiedColliders,
     ) {
-        for handle in modified_colliders.drain(..) {
-            if let Some(co) = colliders.get_mut_internal(handle) {
+        for handle in modified_colliders.iter() {
+            if let Some(co) = colliders.get_mut_internal(*handle) {
                 co.changes = ColliderChanges::empty();
             }
         }
+
+        modified_colliders.clear();
     }
 
     /// Executes one step of the collision detection.

@@ -4,7 +4,7 @@ use crate::control::PdErrors;
 use crate::dynamics::MassProperties;
 use crate::geometry::{
     ColliderChanges, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition,
-    ColliderSet, ColliderShape,
+    ColliderSet, ColliderShape, ModifiedColliders,
 };
 use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector,
@@ -1020,10 +1020,10 @@ impl RigidBodyColliders {
     }
 
     /// Update the positions of all the colliders attached to this rigid-body.
-    pub fn update_positions(
+    pub(crate) fn update_positions(
         &self,
         colliders: &mut ColliderSet,
-        modified_colliders: &mut Vec<ColliderHandle>,
+        modified_colliders: &mut ModifiedColliders,
         parent_pos: &Isometry<Real>,
     ) {
         for handle in &self.0 {
@@ -1031,12 +1031,10 @@ impl RigidBodyColliders {
             let co = colliders.index_mut_internal(*handle);
             let new_pos = parent_pos * co.parent.as_ref().unwrap().pos_wrt_parent;
 
-            if !co.changes.contains(ColliderChanges::MODIFIED) {
-                modified_colliders.push(*handle);
-            }
-
             // Set the modification flag so we can benefit from the modification-tracking
             // when updating the narrow-phase/broad-phase afterwards.
+            modified_colliders.push_once(*handle, co);
+
             co.changes |= ColliderChanges::POSITION;
             co.pos = ColliderPosition(new_pos);
         }
