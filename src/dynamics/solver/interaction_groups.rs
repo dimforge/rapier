@@ -58,8 +58,9 @@ impl ParallelInteractionGroups {
         let range = self.groups[i]..self.groups[i + 1];
         &self.sorted_interactions[range]
     }
+
     pub fn num_groups(&self) -> usize {
-        self.groups.len() - 1
+        self.groups.len().saturating_sub(1)
     }
 
     pub fn group_interactions<Interaction: PairInteraction>(
