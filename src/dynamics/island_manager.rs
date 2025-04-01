@@ -37,7 +37,7 @@ impl IslandManager {
     }
 
     pub(crate) fn num_islands(&self) -> usize {
-        self.active_islands.len() - 1
+        self.active_islands.len().saturating_sub(1)
     }
 
     /// Update this data-structure after one or multiple rigid-bodies have been removed for `bodies`.
@@ -244,8 +244,8 @@ impl IslandManager {
         self.active_islands.clear();
         self.active_islands.push(0);
 
-        // The max avoid underflow when the stack is empty.
-        let mut island_marker = self.stack.len().max(1) - 1;
+        // saturating_sub(1) prevents underflow when the stack is empty.
+        let mut island_marker = self.stack.len().saturating_sub(1);
 
         // NOTE: islands containing a body with non-standard number of iterations won’t
         //       be merged with another island, unless another island with standard
