@@ -25,7 +25,7 @@ collada = ["mesh-loader/collada"]
 wavefront = ["mesh-loader/obj"]
 
 [dependencies]
-thiserror = "1.0.61"
+thiserror = "2"
 profiling = "1.0"
 mesh-loader = "0.1.12"
 
