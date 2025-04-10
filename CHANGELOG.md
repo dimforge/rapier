@@ -1,8 +1,12 @@
-## Unreleased
+## v0.24.0 (10 April 2025)
 
 ### Added
 
 - `IntegrationParameters` now implements `PartialEq`.
+
+### Modified
+
+- Update dependencies (including `parry` 0.19).
 
 ## v0.23.1 (05 March 2025)
 
