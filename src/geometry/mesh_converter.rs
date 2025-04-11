@@ -23,8 +23,7 @@ pub enum MeshConverterError {
 }
 
 /// Determines how meshes (generally when loaded from a file) are converted into Rapier colliders.
-// TODO: implement Copy once we add a Copy implementation for VHACDParameters.
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub enum MeshConverter {
     /// The mesh is loaded as-is without any particular processing.
     #[default]
