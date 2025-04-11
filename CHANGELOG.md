@@ -1,3 +1,9 @@
+## Unreleased
+
+### Added
+
+- `MeshConverter` now implements `Copy`.
+
 ## v0.24.0 (10 April 2025)
 
 ### Added
