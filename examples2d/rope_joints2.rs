@@ -60,7 +60,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Callback to update the character based on user inputs.
      */
-    let mut control_mode = CharacterControlMode::Kinematic;
+    let mut control_mode = CharacterControlMode::Kinematic(0.1);
     let mut controller = KinematicCharacterController::default();
     let mut pid = PidController::default();
 

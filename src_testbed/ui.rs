@@ -235,6 +235,13 @@ pub(crate) fn update_ui(
 
         let mut frequency = integration_parameters.inv_dt().round() as u32;
         ui.add(Slider::new(&mut frequency, 0..=240).text("frequency (Hz)"));
+        let mut gravity_y = harness.physics.gravity.y;
+        if ui
+            .add(Slider::new(&mut gravity_y, 0.0..=-200.0).text("Gravity"))
+            .changed()
+        {
+            harness.physics.gravity.y = gravity_y;
+        }
         integration_parameters.set_inv_dt(frequency as Real);
 
         let mut sleep = state.flags.contains(TestbedStateFlags::SLEEP);
