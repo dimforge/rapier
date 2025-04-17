@@ -439,6 +439,9 @@ fn example_settings_ui(ui_context: &mut EguiContexts, state: &mut TestbedState) 
         for (name, value) in state.example_settings.iter_mut() {
             let prev_value = value.clone();
             match value {
+                SettingValue::Label(value) => {
+                    ui.label(format!("{}: {}", name, value));
+                }
                 SettingValue::F32 { value, range } => {
                     ui.add(Slider::new(value, range.clone()).text(name));
                 }

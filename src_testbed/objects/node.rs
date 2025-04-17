@@ -4,21 +4,20 @@ use bevy::prelude::*;
 use bevy::render::mesh::{Indices, VertexAttributeValues};
 
 //use crate::objects::plane::Plane;
-use na::{point, vector, Point3, Vector3};
+use na::{point, Point3, Vector3};
 use std::collections::HashMap;
 
-use bevy::render::render_resource::{PrimitiveTopology, ShaderType};
+use bevy::render::render_resource::PrimitiveTopology;
 use bevy_pbr::wireframe::Wireframe;
-use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType, VoxelData};
+use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
 #[cfg(feature = "dim3")]
 use rapier::geometry::{Cone, Cylinder};
 use rapier::math::{Isometry, Real, Vector};
 
 use crate::graphics::{BevyMaterial, InstancedMaterials, SELECTED_OBJECT_MATERIAL_KEY};
-use rapier::parry;
 #[cfg(feature = "dim2")]
 use {
-    na::{Point2, Vector2},
+    na::{vector, Point2, Vector2},
     rapier::geometry::{Ball, Cuboid},
 };
 
@@ -445,7 +444,7 @@ fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
             let mut idx = vec![];
             let voxels = co_shape.as_voxels().unwrap();
             let sz = voxels.scale / 2.0;
-            for (center, data) in voxels.centers() {
+            for (_, center, data) in voxels.centers() {
                 if !data.is_empty() {
                     let bid = vtx.len() as u32;
                     let center = point![center.x, center.y, 0.0];
@@ -453,8 +452,8 @@ fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
                     vtx.push(center + vector![-sz, sz, 0.0]);
                     vtx.push(center + vector![-sz, -sz, 0.0]);
                     vtx.push(center + vector![sz, -sz, 0.0]);
-                    idx.push([bid + 0, bid + 1, bid + 2]);
-                    idx.push([bid + 2, bid + 3, bid + 0]);
+                    idx.push([bid, bid + 1, bid + 2]);
+                    idx.push([bid + 2, bid + 3, bid]);
                 }
             }
 

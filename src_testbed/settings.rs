@@ -3,6 +3,7 @@ use std::ops::RangeInclusive;
 
 #[derive(Clone, PartialEq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum SettingValue {
+    Label(String),
     U32 {
         value: u32,
         range: RangeInclusive<u32>,
@@ -185,5 +186,10 @@ impl ExampleSettings {
             SettingValue::String { value, range } => Some(&range[*value]),
             _ => None,
         }
+    }
+
+    pub fn set_label(&mut self, key: &'static str, value: impl Into<String>) {
+        self.values
+            .insert(key.to_string(), SettingValue::Label(value.into()));
     }
 }

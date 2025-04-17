@@ -2,12 +2,10 @@ use obj::raw::object::Polygon;
 use rapier3d::parry::bounding_volume;
 use rapier3d::parry::transformation::voxelization::FillMode;
 use rapier3d::prelude::*;
+use rapier_testbed3d::KeyCode;
 use rapier_testbed3d::Testbed;
 use std::fs::File;
 use std::io::BufReader;
-use std::path::Path;
-
-const VOXEL_SIZE: Real = 0.1; // 0.25;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -19,26 +17,29 @@ pub fn init_world(testbed: &mut Testbed) {
     let geometry_mode = settings.get_or_set_string(
         "Voxels mode",
         0,
+        vec!["PseudoCube".to_string(), "PseudoBall".to_string()],
+    );
+    let falling_objects = settings.get_or_set_string(
+        "Falling objects",
+        5, // Defaults to Mixed.
         vec![
-            "PseudoBall".to_string(),
-            "PseudoCube".to_string(),
-            "TriMesh".to_string(),
+            "Ball".to_string(),
+            "Cuboid".to_string(),
+            "Cylinder".to_string(),
+            "Cone".to_string(),
+            "Capsule".to_string(),
+            "Mixed".to_string(),
         ],
     );
-    let load_dot_vox = settings.get_or_set_bool("Load .vox", false);
-    let load_obj = settings.get_or_set_bool("Load .obj", false);
-    let load_big_world = settings.get_or_set_bool("Load big world", false);
+
+    // TODO: give a better placement to the objs.
+    // settings.get_or_set_bool("Load .obj", false);
+    let load_obj = false;
 
     let primitive_geometry = if geometry_mode == 0 {
-        VoxelPrimitiveGeometry::PseudoBall
-    } else {
         VoxelPrimitiveGeometry::PseudoCube
-    };
-    let use_mesh = geometry_mode == 2;
-
-    let voxels_to_mesh = |shape: &mut SharedShape| {
-        let (vtx, idx) = shape.as_voxels().unwrap().to_trimesh();
-        SharedShape::trimesh_with_flags(vtx, idx, TriMeshFlags::all()).unwrap()
+    } else {
+        VoxelPrimitiveGeometry::PseudoBall
     };
 
     /*
@@ -52,48 +53,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create a bowl for the ground
      */
-    // {
-    //     let obj_path = "assets/3d/bowl.obj";
-    //     let input = BufReader::new(File::open(obj_path).unwrap());
-    //
-    //     if let Ok(model) = obj::raw::parse_obj(input) {
-    //         let mut vertices: Vec<_> = model
-    //             .positions
-    //             .iter()
-    //             .map(|v| point![v.0, v.1, v.2])
-    //             .collect();
-    //         let indices: Vec<_> = model
-    //             .polygons
-    //             .into_iter()
-    //             .flat_map(|p| match p {
-    //                 Polygon::P(idx) => idx.into_iter(),
-    //                 Polygon::PT(idx) => Vec::from_iter(idx.into_iter().map(|i| i.0)).into_iter(),
-    //                 Polygon::PN(idx) => Vec::from_iter(idx.into_iter().map(|i| i.0)).into_iter(),
-    //                 Polygon::PTN(idx) => Vec::from_iter(idx.into_iter().map(|i| i.0)).into_iter(),
-    //             })
-    //             .collect();
-    //
-    //         // Compute the size of the model, to scale it and have similar size for everything.
-    //         let aabb = bounding_volume::details::local_point_cloud_aabb(&vertices);
-    //         let center = aabb.center();
-    //         let diag = (aabb.maxs - aabb.mins).norm();
-    //
-    //         vertices
-    //             .iter_mut()
-    //             .for_each(|p| *p = (*p - center.coords) * 0.2);
-    //
-    //         let indices: Vec<_> = indices
-    //             .chunks(3)
-    //             .map(|idx| [idx[0] as u32, idx[1] as u32, idx[2] as u32])
-    //             .collect();
-    //
-    //         let voxels =
-    //             SharedShape::voxelized_mesh(&vertices, &indices, VOXEL_SIZE, FillMode::default());
-    //         let collider = ColliderBuilder::new(voxels);
-    //         colliders.insert(collider);
-    //     }
-    // }
-
     /*
      * Create the convex decompositions.
      */
@@ -149,17 +108,13 @@ pub fn init_world(testbed: &mut Testbed) {
                     .map(|idx| [idx[0] as u32, idx[1] as u32, idx[2] as u32])
                     .collect();
 
-                let mut decomposed_shape = SharedShape::voxelized_mesh(
+                let decomposed_shape = SharedShape::voxelized_mesh(
                     primitive_geometry,
                     &vertices,
                     &indices,
-                    VOXEL_SIZE,
+                    0.1,
                     FillMode::default(),
                 );
-
-                if use_mesh {
-                    decomposed_shape = voxels_to_mesh(&mut decomposed_shape);
-                }
 
                 shapes.push(decomposed_shape);
 
@@ -181,38 +136,29 @@ pub fn init_world(testbed: &mut Testbed) {
     }
 
     /*
-     * Load Hytopia map.
+     * Create a voxelized wavy floor.
      */
-    let path = if load_big_world {
-        "/Users/sebcrozet/work/hytopia/hytopia-main/sdk/examples/big-world/assets/map.json"
-    } else {
-        "/Users/sebcrozet/work/hytopia/hytopia-main/sdk/examples/zombies-fps/assets/maps/terrain.json"
-    };
+    let mut samples = vec![];
+    let n = 200;
+    for i in 0..n {
+        for j in 0..n {
+            let y = (i as f32 / n as f32 * 10.0).sin().clamp(-0.8, 0.8)
+                * (j as f32 / n as f32 * 10.0).cos().clamp(-0.8, 0.8)
+                * 16.0;
 
-    let mut shape = voxels_from_hytopia(primitive_geometry, path);
-    if use_mesh {
-        shape = voxels_to_mesh(&mut shape);
-    }
-    let floor_aabb = shape.compute_local_aabb();
-    colliders.insert(ColliderBuilder::new(shape));
+            samples.push(point![i as f32, y, j as f32]);
 
-    /*
-     * Load .vox file.
-     */
-    if load_dot_vox {
-        let path = "/Users/sebcrozet/Downloads/droid_one.vox";
-        for mut shape in voxels_from_dot_vox(path, 1.0, primitive_geometry) {
-            if use_mesh {
-                shape = voxels_to_mesh(&mut shape);
+            if i == 0 || i == n - 1 || j == 0 || j == n - 1 {
+                // Create walls so the object at the edge don’t fall into the infinite void.
+                for k in 0..4 {
+                    samples.push(point![i as f32, y + k as f32, j as f32]);
+                }
             }
-
-            colliders.insert(
-                ColliderBuilder::new(shape)
-                    .rotation(vector![-3.14 / 2.0, 0.0, 0.0])
-                    .translation(vector![0.0, 10.0, 0.0]),
-            );
         }
     }
+    let collider = ColliderBuilder::voxels(primitive_geometry, &samples, 1.0).build();
+    let floor_aabb = collider.compute_aabb();
+    colliders.insert(collider);
 
     /*
      * Some dynamic primitives.
@@ -220,7 +166,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let nik = 30;
     let extents = floor_aabb.extents() * 0.75;
     let margin = (floor_aabb.extents() - extents) / 2.0;
-    let ball_radius = if load_big_world { 1.0 } else { 0.5 };
+    let ball_radius = 0.5;
     for i in 0..nik {
         for j in 0..5 {
             for k in 0..nik {
@@ -230,11 +176,119 @@ pub fn init_world(testbed: &mut Testbed) {
                     floor_aabb.mins.z + margin.z + k as f32 * extents.z / nik as f32,
                 ]);
                 let rb_handle = bodies.insert(rb);
-                let co = ColliderBuilder::ball(ball_radius);
+
+                let falling_objects = if falling_objects == 5 {
+                    j % 5
+                } else {
+                    falling_objects
+                };
+
+                let co = match falling_objects {
+                    0 => ColliderBuilder::ball(ball_radius),
+                    1 => ColliderBuilder::cuboid(ball_radius, ball_radius, ball_radius),
+                    2 => ColliderBuilder::cylinder(ball_radius, ball_radius),
+                    3 => ColliderBuilder::cone(ball_radius, ball_radius),
+                    4 => ColliderBuilder::capsule_y(ball_radius, ball_radius),
+                    _ => unreachable!(),
+                };
                 colliders.insert_with_parent(co, rb_handle, &mut bodies);
             }
         }
     }
+
+    // Add callback for handling voxels edition, and highlighting the voxel
+    // pointed at by the mouse. We spawn two fake colliders that don’t interact
+    // with anything. They are used as gizmos to indicate where the ray hits on voxels
+    // by highlighting the voxel and drawing a small ball at the intersection.
+    let hit_indicator_handle =
+        colliders.insert(ColliderBuilder::ball(0.1).collision_groups(InteractionGroups::none()));
+    let hit_highlight_handle = colliders.insert(
+        ColliderBuilder::cuboid(0.51, 0.51, 0.51).collision_groups(InteractionGroups::none()),
+    );
+    testbed.set_initial_collider_color(hit_indicator_handle, [0.5, 0.5, 0.1]);
+    testbed.set_initial_collider_color(hit_highlight_handle, [0.1, 0.5, 0.1]);
+
+    testbed.add_callback(move |graphics, physics, _, _| {
+        let Some(graphics) = graphics else { return };
+        let Some((mouse_orig, mouse_dir)) = graphics.mouse().ray else {
+            return;
+        };
+
+        let ray = Ray::new(mouse_orig, mouse_dir);
+        let filter = QueryFilter {
+            predicate: Some(&|_, co: &Collider| co.shape().as_voxels().is_some()),
+            ..Default::default()
+        };
+        if let Some((handle, hit)) = physics.query_pipeline.cast_ray_and_get_normal(
+            &physics.bodies,
+            &physics.colliders,
+            &ray,
+            Real::MAX,
+            true,
+            filter,
+        ) {
+            // Highlight the voxel.
+            let hit_collider = &physics.colliders[handle];
+            let hit_local_normal = hit_collider
+                .position()
+                .inverse_transform_vector(&hit.normal);
+            let voxels = hit_collider.shape().as_voxels().unwrap();
+            let FeatureId::Face(id) = hit.feature else {
+                unreachable!()
+            };
+            let voxel_key = voxels.voxel_key_at(id);
+            let voxel_center = hit_collider.position() * voxels.voxel_center(voxel_key);
+            let voxel_scale = voxels.scale;
+            let hit_highlight = physics.colliders.get_mut(hit_highlight_handle).unwrap();
+            hit_highlight.set_translation(voxel_center.coords);
+            hit_highlight
+                .shape_mut()
+                .as_cuboid_mut()
+                .unwrap()
+                .half_extents
+                .fill(voxel_scale / 2.0 + 0.001);
+            graphics.update_collider(hit_highlight_handle, &physics.colliders);
+
+            // Show the hit point.
+            let hit_pt = ray.point_at(hit.time_of_impact);
+            let hit_indicator = physics.colliders.get_mut(hit_indicator_handle).unwrap();
+            hit_indicator.set_translation(hit_pt.coords);
+            hit_indicator.shape_mut().as_ball_mut().unwrap().radius = voxel_scale / 3.5;
+            graphics.update_collider(hit_indicator_handle, &physics.colliders);
+
+            // If a relevant key was pressed, edit the shape.
+            if graphics.keys().pressed(KeyCode::Space) {
+                let removal_mode = graphics.keys().pressed(KeyCode::ShiftLeft);
+                let voxels = physics
+                    .colliders
+                    .get_mut(handle)
+                    .unwrap()
+                    .shape_mut()
+                    .as_voxels_mut()
+                    .unwrap();
+                let mut affected_key = voxel_key.map(|x| x as i32);
+
+                if !removal_mode {
+                    let imax = hit_local_normal.iamax();
+                    if hit_local_normal[imax] >= 0.0 {
+                        affected_key[imax] += 1;
+                    } else {
+                        affected_key[imax] -= 1;
+                    }
+                }
+
+                voxels.insert_voxel_at_key(affected_key, !removal_mode);
+                graphics.update_collider(handle, &physics.colliders);
+            }
+        } else {
+            // When there is no hit, move the indicators behind the camera.
+            let behind_camera = mouse_orig - mouse_dir * 1000.0;
+            let hit_indicator = physics.colliders.get_mut(hit_indicator_handle).unwrap();
+            hit_indicator.set_translation(behind_camera.coords);
+            let hit_highlight = physics.colliders.get_mut(hit_highlight_handle).unwrap();
+            hit_highlight.set_translation(behind_camera.coords);
+        }
+    });
 
     /*
      * Set up the testbed.
@@ -264,59 +318,4 @@ fn models() -> Vec<String> {
         // "assets/3d/tstTorusModel2.obj".to_string(),
         // "assets/3d/tstTorusModel3.obj".to_string(),
     ]
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct HytopiaBlock {
-    coords: String,
-    id: usize,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct HytopiaMap {
-    blocks: serde_json::Value,
-}
-
-fn voxels_from_hytopia(
-    primitive_geometry: VoxelPrimitiveGeometry,
-    path: impl AsRef<Path>,
-) -> SharedShape {
-    let map_str = std::fs::read_to_string(&path).unwrap();
-    let map: HytopiaMap = serde_json::from_str(&map_str).unwrap();
-
-    let serde_json::Value::Object(fields) = map.blocks else {
-        panic!("Incorrect map format.")
-    };
-
-    let voxels: Vec<_> = fields
-        .keys()
-        .map(|coords| {
-            let coords: Vec<_> = coords.split_terminator(",").collect();
-            let x = coords[0].parse::<f32>().unwrap();
-            let y = coords[1].parse::<f32>().unwrap();
-            let z = coords[2].parse::<f32>().unwrap();
-            Point::new(x, y, z)
-        })
-        .collect();
-
-    SharedShape::voxels(primitive_geometry, &voxels, 1.0)
-}
-
-fn voxels_from_dot_vox(
-    path: impl AsRef<Path>,
-    voxel_size: Real,
-    primitive_geometry: VoxelPrimitiveGeometry,
-) -> Vec<SharedShape> {
-    let data = dot_vox::load(path.as_ref().to_str().unwrap()).unwrap();
-    data.models
-        .iter()
-        .map(|model| {
-            let centers: Vec<_> = model
-                .voxels
-                .iter()
-                .map(|v| Point::new(v.x as f32, v.y as f32, v.z as f32) * voxel_size)
-                .collect();
-            SharedShape::voxels(primitive_geometry, &centers, voxel_size)
-        })
-        .collect()
 }

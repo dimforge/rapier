@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(clippy::type_complexity)]
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
