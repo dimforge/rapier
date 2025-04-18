@@ -135,6 +135,7 @@ pub mod control;
 pub mod counters;
 pub mod data;
 pub mod dynamics;
+pub mod error_handler;
 pub mod geometry;
 pub mod pipeline;
 pub mod utils;
