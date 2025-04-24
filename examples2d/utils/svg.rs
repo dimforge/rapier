@@ -38,10 +38,10 @@ const RAPIER_SVG_STR: &str = r#"
 "#;
 
 pub fn rapier_logo() -> Vec<(Vec<Point2<f32>>, Vec<[u32; 3]>)> {
-    tesselate_svg_str(RAPIER_SVG_STR)
+    tessellate_svg_str(RAPIER_SVG_STR)
 }
 
-pub fn tesselate_svg_str(svg_str: &str) -> Vec<(Vec<Point2<f32>>, Vec<[u32; 3]>)> {
+pub fn tessellate_svg_str(svg_str: &str) -> Vec<(Vec<Point2<f32>>, Vec<[u32; 3]>)> {
     let mut result = vec![];
     let mut fill_tess = FillTessellator::new();
     let opt = usvg::Options::default();

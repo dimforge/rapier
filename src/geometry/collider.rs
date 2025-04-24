@@ -580,8 +580,6 @@ impl ColliderBuilder {
     ///
     /// For initializing a voxels shape from points in space, see [`Self::voxels_from_points`].
     /// For initializing a voxels shape from a mesh to voxelize, see [`Self::voxelized_mesh`].
-    /// For initializing multiple voxels shape from the convex decomposition of a mesh, see
-    /// [`Self::voxelized_convex_decomposition`].
     pub fn voxels(
         primitive_geometry: VoxelPrimitiveGeometry,
         voxel_size: Vector<Real>,
