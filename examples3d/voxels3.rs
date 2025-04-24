@@ -242,7 +242,7 @@ pub fn init_world(testbed: &mut Testbed) {
             };
             let voxel_key = voxels.voxel_key_at(id);
             let voxel_center = hit_collider.position() * voxels.voxel_center(voxel_key);
-            let voxel_size = voxels.voxel_size;
+            let voxel_size = voxels.voxel_size();
             let hit_highlight = physics.colliders.get_mut(hit_highlight_handle).unwrap();
             hit_highlight.set_translation(voxel_center.coords);
             hit_highlight
@@ -269,7 +269,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     .shape_mut()
                     .as_voxels_mut()
                     .unwrap();
-                let mut affected_key = voxel_key.map(|x| x as i32);
+                let mut affected_key = voxel_key;
 
                 if !removal_mode {
                     let imax = hit_local_normal.iamax();

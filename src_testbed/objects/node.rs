@@ -443,7 +443,7 @@ fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
             let mut vtx = vec![];
             let mut idx = vec![];
             let voxels = co_shape.as_voxels().unwrap();
-            let sz = voxels.voxel_size / 2.0;
+            let sz = voxels.voxel_size() / 2.0;
             for (_, center, data) in voxels.centers() {
                 if !data.is_empty() {
                     let bid = vtx.len() as u32;
