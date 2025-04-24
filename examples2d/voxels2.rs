@@ -1,7 +1,6 @@
 use rapier2d::parry::transformation::voxelization::FillMode;
 use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
-use std::path::Path;
 
 const VOXEL_SIZE: Real = 0.1; // 0.25;
 
@@ -27,6 +26,8 @@ pub fn init_world(testbed: &mut Testbed) {
             "Mixed".to_string(),
         ],
     );
+    let voxel_size_y = settings.get_or_set_f32("Voxel size y", 1.0, 0.5..=2.0);
+    let voxel_size = Vector::new(1.0, voxel_size_y);
 
     let primitive_geometry = if geometry_mode == 0 {
         VoxelPrimitiveGeometry::PseudoCube
@@ -104,10 +105,14 @@ pub fn init_world(testbed: &mut Testbed) {
     let voxels: Vec<_> = (0..300)
         .map(|i| {
             let y = (i as f32 / 20.0).sin().clamp(-0.5, 0.5) * 20.0;
-            point![(i as f32 - 125.0) / 2.0, y]
+            point![(i as f32 - 125.0) * voxel_size.x / 2.0, y * voxel_size.y]
         })
         .collect();
-    colliders.insert(ColliderBuilder::voxels(primitive_geometry, &voxels, 1.0));
+    colliders.insert(ColliderBuilder::voxels_from_points(
+        primitive_geometry,
+        voxel_size,
+        &voxels,
+    ));
 
     /*
      * Set up the testbed.

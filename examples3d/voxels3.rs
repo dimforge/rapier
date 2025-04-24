@@ -32,6 +32,9 @@ pub fn init_world(testbed: &mut Testbed) {
         ],
     );
 
+    let voxel_size_y = settings.get_or_set_f32("Voxel size y", 1.0, 0.5..=2.0);
+    let voxel_size = Vector::new(1.0, voxel_size_y, 1.0);
+
     // TODO: give a better placement to the objs.
     // settings.get_or_set_bool("Load .obj", false);
     let load_obj = false;
@@ -146,17 +149,18 @@ pub fn init_world(testbed: &mut Testbed) {
                 * (j as f32 / n as f32 * 10.0).cos().clamp(-0.8, 0.8)
                 * 16.0;
 
-            samples.push(point![i as f32, y, j as f32]);
+            samples.push(point![i as f32, y * voxel_size_y, j as f32]);
 
             if i == 0 || i == n - 1 || j == 0 || j == n - 1 {
                 // Create walls so the object at the edge don’t fall into the infinite void.
                 for k in 0..4 {
-                    samples.push(point![i as f32, y + k as f32, j as f32]);
+                    samples.push(point![i as f32, (y + k as f32) * voxel_size_y, j as f32]);
                 }
             }
         }
     }
-    let collider = ColliderBuilder::voxels(primitive_geometry, &samples, 1.0).build();
+    let collider =
+        ColliderBuilder::voxels_from_points(primitive_geometry, voxel_size, &samples).build();
     let floor_aabb = collider.compute_aabb();
     colliders.insert(collider);
 
@@ -238,22 +242,21 @@ pub fn init_world(testbed: &mut Testbed) {
             };
             let voxel_key = voxels.voxel_key_at(id);
             let voxel_center = hit_collider.position() * voxels.voxel_center(voxel_key);
-            let voxel_scale = voxels.scale;
+            let voxel_size = voxels.voxel_size;
             let hit_highlight = physics.colliders.get_mut(hit_highlight_handle).unwrap();
             hit_highlight.set_translation(voxel_center.coords);
             hit_highlight
                 .shape_mut()
                 .as_cuboid_mut()
                 .unwrap()
-                .half_extents
-                .fill(voxel_scale / 2.0 + 0.001);
+                .half_extents = voxel_size / 2.0 + Vector::repeat(0.001);
             graphics.update_collider(hit_highlight_handle, &physics.colliders);
 
             // Show the hit point.
             let hit_pt = ray.point_at(hit.time_of_impact);
             let hit_indicator = physics.colliders.get_mut(hit_indicator_handle).unwrap();
             hit_indicator.set_translation(hit_pt.coords);
-            hit_indicator.shape_mut().as_ball_mut().unwrap().radius = voxel_scale / 3.5;
+            hit_indicator.shape_mut().as_ball_mut().unwrap().radius = voxel_size.norm() / 3.5;
             graphics.update_collider(hit_indicator_handle, &physics.colliders);
 
             // If a relevant key was pressed, edit the shape.

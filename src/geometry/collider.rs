@@ -573,16 +573,37 @@ impl ColliderBuilder {
         Self::new(SharedShape::halfspace(outward_normal))
     }
 
-    /// Initializes a collider made of voxels.
+    /// Initializes a shape made of voxels.
     ///
-    /// Each voxel has the size `voxel_size` and centers given by `centers`.
+    /// Each voxel has the size `voxel_size` and grid coordinate given by `centers`.
     /// The `primitive_geometry` controls the behavior of collision detection at voxels boundaries.
+    ///
+    /// For initializing a voxels shape from points in space, see [`Self::voxels_from_points`].
+    /// For initializing a voxels shape from a mesh to voxelize, see [`Self::voxelized_mesh`].
+    /// For initializing multiple voxels shape from the convex decomposition of a mesh, see
+    /// [`Self::voxelized_convex_decomposition`].
     pub fn voxels(
         primitive_geometry: VoxelPrimitiveGeometry,
-        centers: &[Point<Real>],
-        voxel_size: Real,
+        voxel_size: Vector<Real>,
+        voxels: &[Point<i32>],
     ) -> Self {
-        Self::new(SharedShape::voxels(primitive_geometry, centers, voxel_size))
+        Self::new(SharedShape::voxels(primitive_geometry, voxel_size, voxels))
+    }
+
+    /// Initializes a collider made of voxels.
+    ///
+    /// Each voxel has the size `voxel_size` and contains at least one point from `centers`.
+    /// The `primitive_geometry` controls the behavior of collision detection at voxels boundaries.
+    pub fn voxels_from_points(
+        primitive_geometry: VoxelPrimitiveGeometry,
+        voxel_size: Vector<Real>,
+        points: &[Point<Real>],
+    ) -> Self {
+        Self::new(SharedShape::voxels_from_points(
+            primitive_geometry,
+            voxel_size,
+            points,
+        ))
     }
 
     /// Initializes a voxels obtained from the decomposition of the given trimesh (in 3D)
