@@ -17,7 +17,7 @@ pub use self::narrow_phase::NarrowPhase;
 
 pub use parry::bounding_volume::BoundingVolume;
 pub use parry::query::{PointQuery, PointQueryWithLocation, RayCast, TrackedContact};
-pub use parry::shape::SharedShape;
+pub use parry::shape::{SharedShape, VoxelPrimitiveGeometry, VoxelState, VoxelType, Voxels};
 
 use crate::math::{Real, Vector};
 

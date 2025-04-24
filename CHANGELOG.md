@@ -2,6 +2,8 @@
 
 ### Added
 
+- Added support for parry’s new `Voxels` collider shape with `ColliderBuilder::voxels`,
+  `ColliderBuilder::voxels_from_points`, and `ColliderBuilder::voxelized_mesh`.
 - `MeshConverter` now implements `Copy`.
 
 ## v0.24.0 (10 April 2025)

@@ -16,6 +16,7 @@ enhanced-determinism = ["rapier2d/enhanced-determinism"]
 rand = "0.8"
 lyon = "0.17"
 usvg = "0.14"
+dot_vox = "5"
 
 [dependencies.rapier_testbed2d]
 path = "../crates/rapier_testbed2d"

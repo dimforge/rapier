@@ -459,6 +459,10 @@ impl DebugRenderPipeline {
                 let vtx = s.to_polyline(self.style.border_subdivisions);
                 backend.draw_line_strip(object, &vtx, pos, &Vector::repeat(1.0), color, true)
             }
+            TypedShape::Voxels(s) => {
+                let (vtx, idx) = s.to_polyline();
+                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
+            }
             TypedShape::Custom(_) => {}
         }
     }
@@ -611,6 +615,10 @@ impl DebugRenderPipeline {
             }
             TypedShape::RoundConvexPolyhedron(s) => {
                 let (vtx, idx) = s.to_outline(self.style.border_subdivisions);
+                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
+            }
+            TypedShape::Voxels(s) => {
+                let (vtx, idx) = s.to_outline();
                 backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
             }
             TypedShape::Custom(_) => {}

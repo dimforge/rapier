@@ -17,7 +17,7 @@ use rapier::math::{Isometry, Real, Vector};
 use crate::graphics::{BevyMaterial, InstancedMaterials, SELECTED_OBJECT_MATERIAL_KEY};
 #[cfg(feature = "dim2")]
 use {
-    na::{Point2, Vector2},
+    na::{vector, Point2, Vector2},
     rapier::geometry::{Ball, Cuboid},
 };
 
@@ -439,6 +439,26 @@ fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
                 .collect();
             bevy_mesh((vertices, trimesh.indices().to_vec()))
         }
+        ShapeType::Voxels => {
+            let mut vtx = vec![];
+            let mut idx = vec![];
+            let voxels = co_shape.as_voxels().unwrap();
+            let sz = voxels.voxel_size() / 2.0;
+            for (_, center, data) in voxels.centers() {
+                if !data.is_empty() {
+                    let bid = vtx.len() as u32;
+                    let center = point![center.x, center.y, 0.0];
+                    vtx.push(center + vector![sz.x, sz.y, 0.0]);
+                    vtx.push(center + vector![-sz.x, sz.y, 0.0]);
+                    vtx.push(center + vector![-sz.x, -sz.y, 0.0]);
+                    vtx.push(center + vector![sz.x, -sz.y, 0.0]);
+                    idx.push([bid, bid + 1, bid + 2]);
+                    idx.push([bid + 2, bid + 3, bid]);
+                }
+            }
+
+            bevy_mesh((vtx, idx))
+        }
         ShapeType::Polyline => {
             let polyline = co_shape.as_polyline().unwrap();
             bevy_polyline((
@@ -494,6 +514,10 @@ fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
         ShapeType::RoundConvexPolyhedron => {
             let poly = co_shape.as_round_convex_polyhedron().unwrap();
             bevy_mesh(poly.inner_shape.to_trimesh())
+        }
+        ShapeType::Voxels => {
+            let voxels = co_shape.as_voxels().unwrap();
+            bevy_mesh(voxels.to_trimesh())
         }
         _ => return None,
     };
