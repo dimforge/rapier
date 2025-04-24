@@ -575,7 +575,7 @@ impl ColliderBuilder {
 
     /// Initializes a shape made of voxels.
     ///
-    /// Each voxel has the size `voxel_size` and grid coordinate given by `centers`.
+    /// Each voxel has the size `voxel_size` and grid coordinate given by `voxels`.
     /// The `primitive_geometry` controls the behavior of collision detection at voxels boundaries.
     ///
     /// For initializing a voxels shape from points in space, see [`Self::voxels_from_points`].

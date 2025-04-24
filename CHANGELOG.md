@@ -1,4 +1,4 @@
-## Unreleased
+## v0.25.0 (24 April 2025)
 
 ### Added
 
