@@ -327,6 +327,11 @@ impl SolverContact {
             self.restitution >= 1.0
         }
     }
+
+    /// The index of the manifold contact used to generate this solver contact.
+    pub fn contact_id(&self) -> u8 {
+        self.contact_id
+    }
 }
 
 impl Default for ContactManifoldData {
