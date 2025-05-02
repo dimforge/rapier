@@ -34,6 +34,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let voxel_size_y = settings.get_or_set_f32("Voxel size y", 1.0, 0.5..=2.0);
     let voxel_size = Vector::new(1.0, voxel_size_y, 1.0);
+    let test_ccd = settings.get_or_set_bool("Test CCD", false);
 
     // TODO: give a better placement to the objs.
     // settings.get_or_set_bool("Load .obj", false);
@@ -174,11 +175,14 @@ pub fn init_world(testbed: &mut Testbed) {
     for i in 0..nik {
         for j in 0..5 {
             for k in 0..nik {
-                let rb = RigidBodyBuilder::dynamic().translation(vector![
+                let mut rb = RigidBodyBuilder::dynamic().translation(vector![
                     floor_aabb.mins.x + margin.x + i as f32 * extents.x / nik as f32,
                     floor_aabb.maxs.y + j as f32 * 2.0,
                     floor_aabb.mins.z + margin.z + k as f32 * extents.z / nik as f32,
                 ]);
+                if test_ccd {
+                    rb = rb.linvel(vector![0.0, -1000.0, 0.0]).ccd_enabled(true);
+                }
                 let rb_handle = bodies.insert(rb);
 
                 let falling_objects = if falling_objects == 5 {
@@ -240,7 +244,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let FeatureId::Face(id) = hit.feature else {
                 unreachable!()
             };
-            let voxel_key = voxels.voxel_key_at(id);
+            let voxel_key = voxels.voxel_at_id(id);
             let voxel_center = hit_collider.position() * voxels.voxel_center(voxel_key);
             let voxel_size = voxels.voxel_size();
             let hit_highlight = physics.colliders.get_mut(hit_highlight_handle).unwrap();
@@ -280,7 +284,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     }
                 }
 
-                voxels.insert_voxel_at_key(affected_key, !removal_mode);
+                voxels.set_voxel(affected_key, !removal_mode);
                 graphics.update_collider(handle, &physics.colliders);
             }
         } else {

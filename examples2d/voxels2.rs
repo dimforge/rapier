@@ -28,6 +28,7 @@ pub fn init_world(testbed: &mut Testbed) {
     );
     let voxel_size_y = settings.get_or_set_f32("Voxel size y", 1.0, 0.5..=2.0);
     let voxel_size = Vector::new(1.0, voxel_size_y);
+    let test_ccd = settings.get_or_set_bool("Test CCD", false);
 
     let primitive_geometry = if geometry_mode == 0 {
         VoxelPrimitiveGeometry::PseudoCube
@@ -49,10 +50,13 @@ pub fn init_world(testbed: &mut Testbed) {
     let nx = 50;
     for i in 0..nx {
         for j in 0..10 {
-            let rb = RigidBodyBuilder::dynamic().translation(vector![
+            let mut rb = RigidBodyBuilder::dynamic().translation(vector![
                 i as f32 * 2.0 - nx as f32 / 2.0,
                 20.0 + j as f32 * 2.0
             ]);
+            if test_ccd {
+                rb = rb.linvel(vector![0.0, -1000.0]).ccd_enabled(true);
+            }
             let rb_handle = bodies.insert(rb);
 
             let falling_objects = if falling_objects == 3 {
