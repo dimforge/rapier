@@ -1,7 +1,7 @@
 use crate::dynamics::{RigidBody, RigidBodyHandle};
 use crate::geometry::{Collider, ColliderHandle};
 use crate::math::Real;
-use parry::query::{NonlinearRigidMotion, QueryDispatcher};
+use parry::query::{NonlinearRigidMotion, QueryDispatcher, ShapeCastOptions};
 
 #[derive(Copy, Clone, Debug)]
 pub struct TOIEntry {
@@ -112,33 +112,38 @@ impl TOIEntry {
         // because the colliders may be in a separating trajectory.
         let stop_at_penetration = is_pseudo_intersection_test;
 
-        // let pos12 = motion_c1
-        //     .position_at_time(start_time)
-        //     .inv_mul(&motion_c2.position_at_time(start_time));
-        // let vel12 = linvel2 - linvel1;
-        // let res_toi = query_dispatcher
-        //     .time_of_impact(
-        //         &pos12,
-        //         &vel12,
-        //         co1.shape.as_ref(),
-        //         co2.shape.as_ref(),
-        //         end_time - start_time,
-        //     )
-        //     .ok();
+        const USE_NONLINEAR_SHAPE_CAST: bool = true;
 
-        let res_toi = query_dispatcher
-            .cast_shapes_nonlinear(
-                &motion_c1,
-                co1.shape.as_ref(),
-                &motion_c2,
-                co2.shape.as_ref(),
-                start_time,
-                end_time,
-                stop_at_penetration,
-            )
-            .ok();
-
-        let toi = res_toi??;
+        let toi = if USE_NONLINEAR_SHAPE_CAST {
+            query_dispatcher
+                .cast_shapes_nonlinear(
+                    &motion_c1,
+                    co1.shape.as_ref(),
+                    &motion_c2,
+                    co2.shape.as_ref(),
+                    start_time,
+                    end_time,
+                    stop_at_penetration,
+                )
+                .ok()??
+        } else {
+            let pos12 = motion_c1
+                .position_at_time(start_time)
+                .inv_mul(&motion_c2.position_at_time(start_time));
+            let vel12 = linvel2 - linvel1;
+            let options = ShapeCastOptions::with_max_time_of_impact(end_time - start_time);
+            let mut hit = query_dispatcher
+                .cast_shapes(
+                    &pos12,
+                    &vel12,
+                    co1.shape.as_ref(),
+                    co2.shape.as_ref(),
+                    options,
+                )
+                .ok()??;
+            hit.time_of_impact += start_time;
+            hit
+        };
 
         Some(Self::new(
             toi.time_of_impact,
