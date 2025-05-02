@@ -1,3 +1,9 @@
+## v0.25.1 (02 May 2025)
+
+### Modified
+
+- Pin parry version to 0.20.1.
+
 ## v0.25.0 (24 April 2025)
 
 ### Added
@@ -5,6 +11,10 @@
 - Added support for parry’s new `Voxels` collider shape with `ColliderBuilder::voxels`,
   `ColliderBuilder::voxels_from_points`, and `ColliderBuilder::voxelized_mesh`.
 - `MeshConverter` now implements `Copy`.
+
+### Modified
+
+- Update parry to 0.20.0.
 
 ## v0.24.0 (10 April 2025)
 
