@@ -7,7 +7,7 @@ use crate::geometry::{
 };
 use crate::math::Real;
 use crate::pipeline::{EventHandler, PhysicsHooks, QueryPipeline};
-use crate::prelude::{ModifiedRigidBodies, RigidBodyChanges, RigidBodyHandle};
+use crate::prelude::{ModifiedRigidBodies, RigidBodyChanges};
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 
 /// The collision pipeline, responsible for performing collision detection between colliders.
@@ -289,5 +289,51 @@ mod tests {
         }
 
         assert!(hit, "No hit found");
+    }
+
+    #[cfg(feature = "dim2")]
+    #[test]
+    fn test_collider_move_with_parent_body_updates_collissions() {
+        use na::{Isometry2, Rotation2, Translation2};
+
+        use crate::prelude::*;
+        let mut rigid_body_set = RigidBodySet::new();
+        let mut collider_set = ColliderSet::new();
+
+        let body = RigidBodyBuilder::fixed().build();
+        let body_handle = rigid_body_set.insert(body);
+
+        let collider = ColliderBuilder::ball(1.).build();
+        let collider_handle =
+            collider_set.insert_with_parent(collider, body_handle, &mut rigid_body_set);
+
+        let integration_parameters = IntegrationParameters::default();
+        let mut broad_phase = BroadPhaseMultiSap::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut collision_pipeline = CollisionPipeline::default();
+
+        for i in 1..3 {
+            let next_position = Translation2::new(i as Real, 0.).vector;
+            rigid_body_set.get_mut(body_handle).unwrap().set_translation(next_position, false);
+
+            collision_pipeline.step(
+                integration_parameters.prediction_distance(),
+                &mut broad_phase,
+                &mut narrow_phase,
+                &mut rigid_body_set,
+                &mut collider_set,
+                None,
+                &(),
+                &(),
+            );
+
+            assert_eq!(
+                collider_set.get(collider_handle).unwrap().position(),
+                rigid_body_set.get(body_handle).unwrap().position(),
+                "Collider should be at the same position as the parent body after {i} step"
+            );
+            assert_eq!(collider_set.get(collider_handle).unwrap().position(), &Isometry2::new(next_position, Rotation2::identity().angle()));
+        }
+        
     }
 }
