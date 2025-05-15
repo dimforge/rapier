@@ -293,7 +293,7 @@ mod tests {
 
     #[cfg(feature = "dim2")]
     #[test]
-    fn test_collider_move_with_parent_body_updates_collissions() {
+    fn test_collider_move_with_parent_body_updates_collisions() {
         use na::{Isometry2, Rotation2, Translation2};
 
         use crate::prelude::*;
@@ -314,7 +314,10 @@ mod tests {
 
         for i in 1..3 {
             let next_position = Translation2::new(i as Real, 0.).vector;
-            rigid_body_set.get_mut(body_handle).unwrap().set_translation(next_position, false);
+            rigid_body_set
+                .get_mut(body_handle)
+                .unwrap()
+                .set_translation(next_position, false);
 
             collision_pipeline.step(
                 integration_parameters.prediction_distance(),
@@ -332,8 +335,10 @@ mod tests {
                 rigid_body_set.get(body_handle).unwrap().position(),
                 "Collider should be at the same position as the parent body after {i} step"
             );
-            assert_eq!(collider_set.get(collider_handle).unwrap().position(), &Isometry2::new(next_position, Rotation2::identity().angle()));
+            assert_eq!(
+                collider_set.get(collider_handle).unwrap().position(),
+                &Isometry2::new(next_position, Rotation2::identity().angle())
+            );
         }
-        
     }
 }
