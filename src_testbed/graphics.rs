@@ -255,7 +255,7 @@ impl GraphicsManager {
             }
         }
 
-        self.b2color.insert(handle, color.into());
+        self.b2color.insert(handle, color);
 
         color
     }
