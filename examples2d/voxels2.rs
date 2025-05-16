@@ -11,11 +11,6 @@ pub fn init_world(testbed: &mut Testbed) {
     // TODO: make the testbed support custom enums (or at least a list of option from strings and
     //       associated constants).
     let settings = testbed.example_settings_mut();
-    let geometry_mode = settings.get_or_set_string(
-        "Voxels mode",
-        0,
-        vec!["PseudoCube".to_string(), "PseudoBall".to_string()],
-    );
     let falling_objects = settings.get_or_set_string(
         "Falling objects",
         3, // Defaults to Mixed.
@@ -29,12 +24,6 @@ pub fn init_world(testbed: &mut Testbed) {
     let voxel_size_y = settings.get_or_set_f32("Voxel size y", 1.0, 0.5..=2.0);
     let voxel_size = Vector::new(1.0, voxel_size_y);
     let test_ccd = settings.get_or_set_bool("Test CCD", false);
-
-    let primitive_geometry = if geometry_mode == 0 {
-        VoxelPrimitiveGeometry::PseudoCube
-    } else {
-        VoxelPrimitiveGeometry::PseudoBall
-    };
 
     /*
      * World
@@ -93,13 +82,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .map(|i| [i, (i + 1) % polyline.len() as u32])
         .collect();
     let rb = bodies.insert(RigidBodyBuilder::fixed().translation(vector![-20.0, -10.0]));
-    let shape = SharedShape::voxelized_mesh(
-        primitive_geometry,
-        &polyline,
-        &indices,
-        0.2,
-        FillMode::default(),
-    );
+    let shape = SharedShape::voxelized_mesh(&polyline, &indices, 0.2, FillMode::default());
 
     colliders.insert_with_parent(ColliderBuilder::new(shape), rb, &mut bodies);
 
@@ -112,11 +95,7 @@ pub fn init_world(testbed: &mut Testbed) {
             point![(i as f32 - 125.0) * voxel_size.x / 2.0, y * voxel_size.y]
         })
         .collect();
-    colliders.insert(ColliderBuilder::voxels_from_points(
-        primitive_geometry,
-        voxel_size,
-        &voxels,
-    ));
+    colliders.insert(ColliderBuilder::voxels_from_points(voxel_size, &voxels));
 
     /*
      * Set up the testbed.
