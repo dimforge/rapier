@@ -1,3 +1,11 @@
+## v0.26.0 (16 May 2025)
+
+### Modified
+
+- Update to parry 0.21.0. This changes the initialization of `Voxels` colliders by removing the primitive geometry
+  argument. This also fixes intersection checks with voxels, and force calculation between voxels and other
+  voxels or compound shapes.
+
 ## v0.25.1 (02 May 2025)
 
 ### Modified
