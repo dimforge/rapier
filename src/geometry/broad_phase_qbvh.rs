@@ -1,4 +1,5 @@
-use crate::geometry::{BroadPhasePairEvent, ColliderHandle, ColliderPair, ColliderSet};
+use crate::dynamics::RigidBodySet;
+use crate::geometry::{BroadPhase, BroadPhasePairEvent, ColliderHandle, ColliderPair, ColliderSet};
 use parry::math::Real;
 use parry::partitioning::Qbvh;
 use parry::partitioning::QbvhUpdateWorkspace;
@@ -27,12 +28,15 @@ impl BroadPhaseQbvh {
             workspace: QbvhUpdateWorkspace::default(),
         }
     }
+}
 
-    #[allow(dead_code)] // This broad-phase is just experimental right now.
-    pub fn update(
+impl BroadPhase for BroadPhaseQbvh {
+    fn update(
         &mut self,
+        dt: Real,
         prediction_distance: Real,
-        colliders: &ColliderSet,
+        colliders: &mut ColliderSet,
+        bodies: &RigidBodySet,
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
         events: &mut Vec<BroadPhasePairEvent>,
@@ -46,7 +50,9 @@ impl BroadPhaseQbvh {
         // Visitor to find collision pairs.
         let mut visitor = BoundingVolumeIntersectionsSimultaneousVisitor::new(
             |co1: &ColliderHandle, co2: &ColliderHandle| {
-                events.push(BroadPhasePairEvent::AddPair(ColliderPair::new(*co1, *co2)));
+                if *co1 != *co2 {
+                    events.push(BroadPhasePairEvent::AddPair(ColliderPair::new(*co1, *co2)));
+                }
                 true
             },
         );
@@ -77,6 +83,8 @@ impl BroadPhaseQbvh {
             let _ = self.qbvh.refit(margin, &mut self.workspace, |handle| {
                 colliders[*handle].compute_collision_aabb(prediction_distance / 2.0)
             });
+            // self.qbvh
+            //     .traverse_bvtt_with_stack(&self.qbvh, &mut visitor, &mut self.stack);
             self.qbvh
                 .traverse_modified_bvtt_with_stack(&self.qbvh, &mut visitor, &mut self.stack);
             self.qbvh.rebalance(margin, &mut self.workspace);

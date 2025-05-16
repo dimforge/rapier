@@ -113,7 +113,7 @@ impl PhysicsState {
     pub fn new() -> Self {
         Self {
             islands: IslandManager::new(),
-            broad_phase: DefaultBroadPhase::new(),
+            broad_phase: DefaultBroadPhase::default(),
             narrow_phase: NarrowPhase::new(),
             bodies: RigidBodySet::new(),
             colliders: ColliderSet::new(),
