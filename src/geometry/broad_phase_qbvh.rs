@@ -33,10 +33,10 @@ impl BroadPhaseQbvh {
 impl BroadPhase for BroadPhaseQbvh {
     fn update(
         &mut self,
-        dt: Real,
+        _dt: Real,
         prediction_distance: Real,
         colliders: &mut ColliderSet,
-        bodies: &RigidBodySet,
+        _bodies: &RigidBodySet,
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
         events: &mut Vec<BroadPhasePairEvent>,
