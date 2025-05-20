@@ -19,6 +19,8 @@ pub enum CoefficientCombineRule {
     Multiply = 2,
     /// The greatest coefficient is chosen.
     Max = 3,
+    /// The two coefficients are multiplied then the square root is taken.
+    GeometricMean = 4,
 }
 
 impl CoefficientCombineRule {
@@ -35,6 +37,7 @@ impl CoefficientCombineRule {
             CoefficientCombineRule::Min => coeff1.min(coeff2),
             CoefficientCombineRule::Multiply => coeff1 * coeff2,
             CoefficientCombineRule::Max => coeff1.max(coeff2),
+            CoefficientCombineRule::GeometricMean => (coeff1 * coeff2).sqrt(),
         }
     }
 }
