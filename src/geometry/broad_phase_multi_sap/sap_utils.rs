@@ -33,8 +33,20 @@ pub(crate) fn point_key(point: Point<Real>, region_width: Real) -> Point<RegionK
         .coords
         .map(|e| {
             // If the region is outside this range, the region keys will overlap
-            assert!(e.floor() < RegionKey::MAX as Real);
-            assert!(e.floor() > RegionKey::MIN as Real);
+            use crate::error_handler::default_error_handler;
+            use crate::error_handler::Error;
+            if !(e.floor() < RegionKey::MAX as Real) {
+                default_error_handler()(Error::PointKey(format!(
+                    "Error: {} was not true",
+                    stringify!((e.floor() < RegionKey::MAX as Real)),
+                )));
+            }
+            if !(e.floor() > RegionKey::MIN as Real) {
+                default_error_handler()(Error::PointKey(format!(
+                    "Error: {} was not true",
+                    stringify!((e.floor() > RegionKey::MIN as Real)),
+                )));
+            }
             e.floor() as RegionKey
         })
         .into()
