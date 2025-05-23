@@ -1,3 +1,10 @@
+## v0.26.1 (23 May 2025)
+
+### Added
+
+- Add `RigidBodySet::get_pair_mut` and `ColliderSet::get_pair_mut` to get two mutable rigid-bodies or colliders
+  simultaneously.
+
 ## v0.26.0 (16 May 2025)
 
 ### Modified
