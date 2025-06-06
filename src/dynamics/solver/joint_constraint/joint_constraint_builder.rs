@@ -753,7 +753,7 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
 
         let mut rhs_wo_bias = N::zero();
         if motor_params.erp_inv_dt != N::zero() {
-           let mut ang_dist;
+           let ang_dist;
 
             #[cfg(feature = "dim2")]
             {
