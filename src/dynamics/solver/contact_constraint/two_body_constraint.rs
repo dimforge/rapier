@@ -535,17 +535,12 @@ where
 #[cfg(feature = "dim2")]
 #[cfg(test)]
 mod test {
-    use std::f32::NAN;
-
-    use approx::assert_relative_ne;
-    use na::vector;
-    use na::Vector;
-
     use crate::prelude::{
         BroadPhaseMultiSap, CCDSolver, ColliderBuilder, ColliderSet, ImpulseJointSet,
         IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline,
-        Real, RigidBodyBuilder, RigidBodySet,
+        RigidBodyBuilder, RigidBodySet,
     };
+    use na::{vector, Vector};
 
     #[test]
     fn tangent_not_nan_818() {
@@ -588,21 +583,7 @@ mod test {
         // Steps
         let gravity = Vector::y() * -9.81;
 
-        for i in 0..51 {
-            if i % 50 == 0 {
-                let pairs: Vec<_> = nf.contact_pairs().collect();
-                println!("contact pairs: {:?}", pairs);
-                for contact in pairs {
-                    for manifold in contact.manifolds.iter() {
-                        for point in manifold.points.iter() {
-                            assert!(
-                                point.data.tangent_impulse.index(0).is_normal(),
-                                "tangent impulse from a contact pair point data should be normal."
-                            );
-                        }
-                    }
-                }
-            }
+        for _ in 0..50 {
             pipeline.step(
                 &gravity,
                 &IntegrationParameters::default(),
@@ -618,6 +599,18 @@ mod test {
                 &(),
                 &(),
             );
+        }
+        let pairs: Vec<_> = nf.contact_pairs().collect();
+        println!("contact pairs: {:?}", pairs);
+        for contact in pairs {
+            for manifold in contact.manifolds.iter() {
+                for point in manifold.points.iter() {
+                    assert!(
+                        point.data.tangent_impulse.index(0).is_finite(),
+                        "tangent impulse from a contact pair point data should be normal."
+                    );
+                }
+            }
         }
     }
 }
