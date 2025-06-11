@@ -162,6 +162,7 @@ impl OneBodyConstraintBuilder {
                 {
                     constraint.elements[k].tangent_part.impulse =
                         manifold_point.warmstart_tangent_impulse;
+                    constraint.elements[k].tangent_part.impulse_accumulator = na::zero();
 
                     for j in 0..DIM - 1 {
                         let gcross2 = mprops2
