@@ -18,7 +18,7 @@ pub fn track_mouse_state(
     windows: Query<&Window, With<PrimaryWindow>>,
     camera: Query<(&GlobalTransform, &Camera), With<MainCamera>>,
 ) {
-    if let Ok(window) = windows.get_single() {
+    if let Ok(window) = windows.single() {
         for (camera_transform, camera) in camera.iter() {
             if let Some(cursor) = window.cursor_position() {
                 let ndc_cursor = ((cursor / Vec2::new(window.width(), window.height()) * 2.0)
