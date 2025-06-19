@@ -41,7 +41,7 @@ impl BroadPhase for BroadPhaseQbvh {
         removed_colliders: &[ColliderHandle],
         events: &mut Vec<BroadPhasePairEvent>,
     ) {
-        let margin = 0.01;
+        let margin = 0.1;
 
         if modified_colliders.is_empty() {
             return;
@@ -72,22 +72,35 @@ impl BroadPhase for BroadPhaseQbvh {
             self.qbvh
                 .traverse_bvtt_with_stack(&self.qbvh, &mut visitor, &mut self.stack);
         } else {
+            let t0 = std::time::Instant::now();
             for modified in modified_colliders {
                 self.qbvh.pre_update_or_insert(*modified);
             }
+            println!("Pre-update: {}", t0.elapsed().as_secs_f32() * 1000.0);
 
             for removed in removed_colliders {
                 self.qbvh.remove(*removed);
             }
 
-            let _ = self.qbvh.refit(margin, &mut self.workspace, |handle| {
+            let t0 = std::time::Instant::now();
+            let num_changed = self.qbvh.refit(margin, &mut self.workspace, |handle| {
                 colliders[*handle].compute_collision_aabb(prediction_distance / 2.0)
             });
-            // self.qbvh
-            //     .traverse_bvtt_with_stack(&self.qbvh, &mut visitor, &mut self.stack);
+            println!(
+                "Refit: {}, num changed: {}",
+                t0.elapsed().as_secs_f32() * 1000.0,
+                num_changed
+            );
+
+            let t0 = std::time::Instant::now();
             self.qbvh
-                .traverse_modified_bvtt_with_stack(&self.qbvh, &mut visitor, &mut self.stack);
-            self.qbvh.rebalance(margin, &mut self.workspace);
+                .traverse_bvtt_with_stack(&self.qbvh, &mut visitor, &mut self.stack);
+            // self.qbvh
+            //     .traverse_modified_bvtt_with_stack(&self.qbvh, &mut visitor, &mut self.stack);
+            // self.qbvh.rebalance(margin, &mut self.workspace);
+            println!("Detection: {}", t0.elapsed().as_secs_f32() * 1000.0);
         }
+
+        println!(">>>>>> Num events: {}", events.len());
     }
 }
