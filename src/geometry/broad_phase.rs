@@ -1,5 +1,6 @@
 use crate::dynamics::RigidBodySet;
 use crate::geometry::{BroadPhasePairEvent, ColliderHandle, ColliderSet};
+use downcast_rs::DowncastSync;
 use parry::math::Real;
 
 /// An internal index stored in colliders by some broad-phase algorithms.
@@ -12,7 +13,7 @@ pub type BroadPhaseProxyIndex = u32;
 /// two objects don’t actually touch, but it is incorrect to remove a pair between two objects
 /// that are still touching. In other words, it can have false-positive (though these induce
 /// some computational overhead on the narrow-phase), but cannot have false-negative.
-pub trait BroadPhase: Send + Sync + 'static {
+pub trait BroadPhase: Send + Sync + 'static + DowncastSync {
     /// Updates the broad-phase.
     ///
     /// The results must be output through the `events` struct. The broad-phase algorithm is only
@@ -48,3 +49,5 @@ pub trait BroadPhase: Send + Sync + 'static {
         events: &mut Vec<BroadPhasePairEvent>,
     );
 }
+
+downcast_rs::impl_downcast!(sync BroadPhase);

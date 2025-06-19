@@ -5,8 +5,8 @@ use std::num::NonZeroUsize;
 use crate::debug_render::DebugRenderPipelineResource;
 use crate::harness::Harness;
 use crate::testbed::{
-    RapierSolverType, RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags,
-    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR,
+    RapierBroadPhaseType, RapierSolverType, RunMode, TestbedActionFlags, TestbedState,
+    TestbedStateFlags, PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR,
 };
 
 pub use bevy_egui::egui;
@@ -16,6 +16,9 @@ use crate::PhysicsState;
 use bevy_egui::egui::{ComboBox, Slider, Ui, Window};
 use bevy_egui::EguiContexts;
 use rapier::dynamics::IntegrationParameters;
+#[cfg(feature = "parallel")]
+use rapier::geometry::BroadPhaseParallelGrid;
+use rapier::geometry::{BroadPhaseMultiSap, BroadPhaseQbvh, BroadPhaseSah};
 use web_time::Instant;
 
 pub(crate) fn update_ui(
@@ -118,6 +121,7 @@ pub(crate) fn update_ui(
             integration_parameters.num_solver_iterations =
                 NonZeroUsize::new(num_iterations).unwrap();
         } else {
+            // Solver type.
             let mut changed = false;
             egui::ComboBox::from_label("solver type")
                 .width(150.0)
@@ -151,6 +155,34 @@ pub(crate) fn update_ui(
                 }
             }
 
+            // Broad-phase.
+            let mut changed = false;
+            egui::ComboBox::from_label("broad-phase")
+                .width(150.0)
+                .selected_text(format!("{:?}", state.broad_phase_type))
+                .show_ui(ui, |ui| {
+                    let broad_phase_type = [
+                        RapierBroadPhaseType::MultigridSAP,
+                        RapierBroadPhaseType::SahTreeSubtreeOptimizer,
+                        RapierBroadPhaseType::SahTreeIncrementalBinning,
+                        RapierBroadPhaseType::SahTreeWithoutOptimization,
+                    ];
+                    for sty in broad_phase_type {
+                        changed = ui
+                            .selectable_value(&mut state.broad_phase_type, sty, format!("{sty:?}"))
+                            .changed()
+                            || changed;
+                    }
+                });
+
+            if changed {
+                harness.physics.broad_phase = state.broad_phase_type.init_broad_phase();
+                // Restart the simulation after a broad-phase changes since some
+                // broad-phase might not support hot-swapping.
+                state.action_flags.set(TestbedActionFlags::RESTART, true);
+            }
+
+            // Solver iterations.
             let mut num_iterations = integration_parameters.num_solver_iterations.get();
             ui.add(Slider::new(&mut num_iterations, 1..=40).text("num solver iters."));
             integration_parameters.num_solver_iterations =
@@ -391,7 +423,7 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
 fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
     let t = Instant::now();
     // let t = Instant::now();
-    let bf = bincode::serialize(&physics.broad_phase).unwrap();
+    // let bf = bincode::serialize(&physics.broad_phase).unwrap();
     // println!("bf: {}", Instant::now() - t);
     // let t = Instant::now();
     let nf = bincode::serialize(&physics.narrow_phase).unwrap();
@@ -406,7 +438,7 @@ fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
     let js = bincode::serialize(&physics.impulse_joints).unwrap();
     // println!("js: {}", Instant::now() - t);
     let serialization_time = Instant::now() - t;
-    let hash_bf = md5::compute(&bf);
+    // let hash_bf = md5::compute(&bf);
     let hash_nf = md5::compute(&nf);
     let hash_bodies = md5::compute(&bs);
     let hash_colliders = md5::compute(&cs);
@@ -421,8 +453,8 @@ Hashes at frame: {}
 |_ Joints [{:.1}KB]: {}"#,
         serialization_time.as_secs_f64() * 1000.0,
         timestep_id,
-        bf.len() as f32 / 1000.0,
-        format!("{:?}", hash_bf).split_at(10).0,
+        "<fixme>", // bf.len() as f32 / 1000.0,
+        "<fixme>", // format!("{:?}", hash_bf).split_at(10).0,
         nf.len() as f32 / 1000.0,
         format!("{:?}", hash_nf).split_at(10).0,
         bs.len() as f32 / 1000.0,

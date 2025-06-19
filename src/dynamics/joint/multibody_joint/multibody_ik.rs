@@ -1,5 +1,5 @@
 use crate::dynamics::{JointAxesMask, Multibody, MultibodyLink, RigidBodySet};
-use crate::math::{Isometry, Jacobian, Real, ANG_DIM, DIM, SPATIAL_DIM};
+use crate::math::{ANG_DIM, DIM, Isometry, Jacobian, Real, SPATIAL_DIM};
 use na::{self, DVector, SMatrix};
 use parry::math::SpacialVector;
 

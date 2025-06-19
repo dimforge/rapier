@@ -1,7 +1,6 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle, RigidBodyType};
 use crate::geometry::{BroadPhaseProxyIndex, InteractionGroups, Shape, SharedShape};
 use crate::math::{Isometry, Real};
-use crate::parry::partitioning::IndexedData;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
 use std::ops::{Deref, DerefMut};
 
@@ -28,16 +27,6 @@ impl ColliderHandle {
             crate::INVALID_U32,
             crate::INVALID_U32,
         ))
-    }
-}
-
-impl IndexedData for ColliderHandle {
-    fn default() -> Self {
-        Self(IndexedData::default())
-    }
-
-    fn index(&self) -> usize {
-        self.0.index()
     }
 }
 

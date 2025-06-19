@@ -16,7 +16,8 @@ categories = [
 ]
 keywords = ["physics", "dynamics", "rigid", "real-time", "impulse_joints"]
 license = "Apache-2.0"
-edition = "2021"
+rust-version = "1.86"
+edition = "2024"
 
 [badges]
 maintenance = { status = "actively-developed" }
@@ -41,7 +42,7 @@ simd-nightly = [
 ]
 # Do not enable this feature directly. It is automatically
 # enabled with the "simd-stable" or "simd-nightly" feature.
-simd-is-enabled = ["dep:vec_map"]
+simd-is-enabled = []
 serde-serialize = [
     "nalgebra/serde-serialize",
     "parry3d/serde-serialize",
@@ -69,11 +70,11 @@ required-features = ["dim3", "f32"]
 
 
 [dependencies]
-vec_map = { version = "0.8", optional = true }
+vec_map = "0.8"
 web-time = { version = "1.1", optional = true }
 num-traits = "0.2"
 nalgebra = "0.33"
-parry3d = "0.21.1"
+parry3d = "0.22.0-beta.0"
 simba = "0.9"
 approx = "0.5"
 rayon = { version = "1", optional = true }
@@ -89,6 +90,11 @@ log = "0.4"
 ordered-float = "5"
 thiserror = "2"
 profiling = "1.0"
+smallvec = "1"
+
+# TODO: remove this, just for experiment.
+wide = "0.7"
+petgraph = "0.8"
 
 [dev-dependencies]
 bincode = "1"

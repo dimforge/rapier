@@ -1,6 +1,6 @@
-use super::{SAPEndpoint, SAPProxies, NUM_SENTINELS};
-use crate::geometry::broad_phase_multi_sap::DELETED_AABB_VALUE;
+use super::{NUM_SENTINELS, SAPEndpoint, SAPProxies};
 use crate::geometry::BroadPhaseProxyIndex;
+use crate::geometry::broad_phase_multi_sap::DELETED_AABB_VALUE;
 use crate::math::Real;
 use bit_vec::BitVec;
 use parry::bounding_volume::BoundingVolume;

@@ -1,8 +1,8 @@
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
-use crate::data::graph::EdgeIndex;
 use crate::data::Coarena;
+use crate::data::graph::EdgeIndex;
 use crate::dynamics::{
     CoefficientCombineRule, ImpulseJointSet, IslandManager, RigidBodyDominance, RigidBodySet,
     RigidBodyType,
@@ -89,7 +89,7 @@ impl NarrowPhase {
     }
 
     /// The query dispatcher used by this narrow-phase to select the right collision-detection
-    /// algorithms depending of the shape types.
+    /// algorithms depending on the shape types.
     pub fn query_dispatcher(
         &self,
     ) -> &dyn PersistentQueryDispatcher<ContactManifoldData, ContactData> {

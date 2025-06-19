@@ -24,7 +24,10 @@ use rapier::dynamics::{
 };
 #[cfg(feature = "dim3")]
 use rapier::geometry::Ray;
-use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
+use rapier::geometry::{
+    BroadPhase, BroadPhaseMultiSap, BroadPhaseQbvh, BroadPhaseSah, ColliderHandle, ColliderSet,
+    NarrowPhase, SahRebuildStrategy,
+};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{PhysicsHooks, QueryPipeline};
 #[cfg(feature = "dim3")]
@@ -46,6 +49,9 @@ use crate::camera2d::{OrbitCamera, OrbitCameraPlugin};
 use crate::camera3d::{OrbitCamera, OrbitCameraPlugin};
 use crate::graphics::BevyMaterial;
 // use bevy::render::render_resource::RenderPipelineDescriptor;
+
+#[cfg(feature = "parallel")]
+use rapier::prelude::BroadPhaseParallelGrid;
 
 const RAPIER_BACKEND: usize = 0;
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
@@ -109,6 +115,32 @@ pub enum RapierSolverType {
     PgsLegacy,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum RapierBroadPhaseType {
+    MultigridSAP,
+    SahTreeIncrementalBinning,
+    #[default]
+    SahTreeSubtreeOptimizer,
+    SahTreeWithoutOptimization,
+}
+
+impl RapierBroadPhaseType {
+    pub fn init_broad_phase(self) -> Box<dyn BroadPhase> {
+        match self {
+            RapierBroadPhaseType::MultigridSAP => Box::new(BroadPhaseMultiSap::default()),
+            RapierBroadPhaseType::SahTreeIncrementalBinning => {
+                Box::new(BroadPhaseSah::new(SahRebuildStrategy::IncrementalBinning))
+            }
+            RapierBroadPhaseType::SahTreeSubtreeOptimizer => {
+                Box::new(BroadPhaseSah::new(SahRebuildStrategy::SubtreeOptimizer))
+            }
+            RapierBroadPhaseType::SahTreeWithoutOptimization => {
+                Box::new(BroadPhaseSah::new(SahRebuildStrategy::None))
+            }
+        }
+    }
+}
+
 pub type SimulationBuilders = Vec<(&'static str, fn(&mut Testbed))>;
 
 #[derive(Resource)]
@@ -132,6 +164,7 @@ pub struct TestbedState {
     pub selected_backend: usize,
     pub example_settings: ExampleSettings,
     pub solver_type: RapierSolverType,
+    pub broad_phase_type: RapierBroadPhaseType,
     pub physx_use_two_friction_directions: bool,
     pub snapshot: Option<PhysicsSnapshot>,
     pub nsteps: usize,
@@ -178,7 +211,7 @@ struct OtherBackends {
 }
 struct Plugins(Vec<Box<dyn TestbedPlugin>>);
 
-pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h, 'i, 'j, 'k> {
+pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h, 'i, 'j, 'k, 'l, 'm> {
     graphics: &'a mut GraphicsManager,
     commands: &'a mut Commands<'d, 'e>,
     meshes: &'a mut Assets<Mesh>,
@@ -189,12 +222,14 @@ pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h, 'i, 'j, 'k> {
     camera_transform: GlobalTransform,
     camera: &'a mut OrbitCamera,
     ui_context: &'a mut EguiContexts<'g, 'h>,
+    pub settings: Option<&'a mut ExampleSettings>, // TODO: get rid of the Option
     keys: &'a ButtonInput<KeyCode>,
     mouse: &'a SceneMouse,
+    pub gizmos: &'a mut Gizmos<'l, 'm>,
 }
 
-pub struct Testbed<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h, 'i, 'j, 'k> {
-    graphics: Option<TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h, 'i, 'j, 'k>>,
+pub struct Testbed<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h, 'i, 'j, 'k, 'l, 'm> {
+    graphics: Option<TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h, 'i, 'j, 'k, 'l, 'm>>,
     harness: &'a mut Harness,
     state: &'a mut TestbedState,
     #[cfg(feature = "other-backends")]
@@ -247,6 +282,7 @@ impl TestbedApp {
             selected_example: 0,
             selected_backend: RAPIER_BACKEND,
             solver_type: RapierSolverType::default(),
+            broad_phase_type: RapierBroadPhaseType::default(),
             physx_use_two_friction_directions: true,
             nsteps: 1,
             camera_locked: false,
@@ -509,7 +545,7 @@ impl TestbedApp {
     }
 }
 
-impl<'g, 'h> TestbedGraphics<'_, '_, '_, '_, '_, '_, 'g, 'h, '_, '_, '_> {
+impl<'g, 'h> TestbedGraphics<'_, '_, '_, '_, '_, '_, 'g, 'h, '_, '_, '_, '_, '_> {
     pub fn set_body_color(&mut self, body: RigidBodyHandle, color: [f32; 3]) {
         self.graphics
             .set_body_color(self.materials, self.material_handles, body, color);
@@ -587,7 +623,7 @@ impl<'g, 'h> TestbedGraphics<'_, '_, '_, '_, '_, '_, 'g, 'h, '_, '_, '_> {
     }
 }
 
-impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
+impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
     pub fn set_number_of_steps_per_frame(&mut self, nsteps: usize) {
         self.state.nsteps = nsteps
     }
@@ -607,6 +643,10 @@ impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
 
     pub fn physics_state_mut(&mut self) -> &mut PhysicsState {
         &mut self.harness.physics
+    }
+
+    pub fn harness(&self) -> &Harness {
+        &*self.harness
     }
 
     pub fn harness_mut(&mut self) -> &mut Harness {
@@ -648,6 +688,7 @@ impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
             colliders,
             impulse_joints,
             multibody_joints,
+            self.state.broad_phase_type,
             gravity,
             hooks,
         );
@@ -1111,11 +1152,12 @@ fn update_testbed(
     #[cfg(feature = "other-backends")] mut other_backends: NonSendMut<OtherBackends>,
     mut plugins: NonSendMut<Plugins>,
     mut ui_context: EguiContexts,
-    (mut gfx_components, mut visibilities, mut cameras, mut material_handles): (
+    (mut gfx_components, mut visibilities, mut cameras, mut material_handles, mut gizmos): (
         Query<&mut Transform>,
         Query<&mut Visibility>,
         Query<(&Camera, &GlobalTransform, &mut OrbitCamera)>,
         Query<&mut BevyMaterialComponent>,
+        Gizmos,
     ),
     keys: Res<ButtonInput<KeyCode>>,
 ) {
@@ -1138,6 +1180,8 @@ fn update_testbed(
             camera_transform: *cameras.single().1,
             camera: &mut cameras.single_mut().2,
             ui_context: &mut ui_context,
+            gizmos: &mut gizmos,
+            settings: None,
             keys: &keys,
             mouse: &mouse,
         };
@@ -1236,6 +1280,7 @@ fn update_testbed(
             }
             plugins.0.clear();
 
+            state.selected_example = state.selected_example.min(builders.0.len() - 1);
             let selected_example = state.selected_example;
             let graphics = &mut *graphics;
             let meshes = &mut *meshes;
@@ -1254,6 +1299,8 @@ fn update_testbed(
                 camera_transform: *cameras.single().1,
                 camera: &mut cameras.single_mut().2,
                 ui_context: &mut ui_context,
+                gizmos: &mut gizmos,
+                settings: None,
                 keys: &keys,
                 mouse: &mouse,
             };
@@ -1279,17 +1326,21 @@ fn update_testbed(
             state
                 .action_flags
                 .set(TestbedActionFlags::TAKE_SNAPSHOT, false);
-            state.snapshot = PhysicsSnapshot::new(
-                harness.state.timestep_id,
-                &harness.physics.broad_phase,
-                &harness.physics.narrow_phase,
-                &harness.physics.islands,
-                &harness.physics.bodies,
-                &harness.physics.colliders,
-                &harness.physics.impulse_joints,
-                &harness.physics.multibody_joints,
-            )
-            .ok();
+            // FIXME
+            println!(
+                "!!!!!!!!! Snapshots are not working any more. Requires broad-phase serialization."
+            );
+            // state.snapshot = PhysicsSnapshot::new(
+            //     harness.state.timestep_id,
+            //     &*harness.physics.broad_phase,
+            //     &harness.physics.narrow_phase,
+            //     &harness.physics.islands,
+            //     &harness.physics.bodies,
+            //     &harness.physics.colliders,
+            //     &harness.physics.impulse_joints,
+            //     &harness.physics.multibody_joints,
+            // )
+            // .ok();
 
             if let Some(snap) = &state.snapshot {
                 snap.print_snapshot_len();
@@ -1322,7 +1373,7 @@ fn update_testbed(
                     }
 
                     harness.state.timestep_id = timestep_id;
-                    harness.physics.broad_phase = broad_phase;
+                    harness.physics.broad_phase = Box::new(broad_phase);
                     harness.physics.narrow_phase = narrow_phase;
                     harness.physics.islands = island_manager;
                     harness.physics.bodies = bodies;
@@ -1430,6 +1481,8 @@ fn update_testbed(
                     camera_transform: *cameras.single().1,
                     camera: &mut cameras.single_mut().2,
                     ui_context: &mut ui_context,
+                    gizmos: &mut gizmos,
+                    settings: Some(&mut state.example_settings),
                     keys: &keys,
                     mouse: &mouse,
                 };

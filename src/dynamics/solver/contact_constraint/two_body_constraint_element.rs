@@ -1,6 +1,6 @@
 use crate::dynamics::integration_parameters::BLOCK_SOLVER_ENABLED;
 use crate::dynamics::solver::SolverVel;
-use crate::math::{AngVector, TangentImpulse, Vector, DIM};
+use crate::math::{AngVector, DIM, TangentImpulse, Vector};
 use crate::utils::{SimdBasis, SimdDot, SimdRealCopy};
 use na::Vector2;
 use simba::simd::SimdValue;

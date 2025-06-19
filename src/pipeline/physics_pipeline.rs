@@ -14,7 +14,7 @@ use crate::geometry::{
     ContactManifoldIndex, ModifiedColliders, NarrowPhase, TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
-use crate::pipeline::{EventHandler, PhysicsHooks, QueryPipeline};
+use crate::pipeline::{EventHandler, PhysicsHooks};
 use crate::prelude::ModifiedRigidBodies;
 use {crate::dynamics::RigidBodySet, crate::geometry::ColliderSet};
 
@@ -422,7 +422,6 @@ impl PhysicsPipeline {
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
         ccd_solver: &mut CCDSolver,
-        mut query_pipeline: Option<&mut QueryPipeline>,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
@@ -501,12 +500,6 @@ impl PhysicsPipeline {
             events,
             true,
         );
-
-        if let Some(queries) = query_pipeline.as_deref_mut() {
-            self.counters.stages.query_pipeline_time.start();
-            queries.update_incremental(colliders, &modified_colliders, &removed_colliders, false);
-            self.counters.stages.query_pipeline_time.pause();
-        }
 
         self.counters.stages.user_changes.resume();
         self.clear_modified_colliders(colliders, &mut modified_colliders);
@@ -639,17 +632,6 @@ impl PhysicsPipeline {
                 events,
                 false,
             );
-
-            if let Some(queries) = query_pipeline.as_deref_mut() {
-                self.counters.stages.query_pipeline_time.resume();
-                queries.update_incremental(
-                    colliders,
-                    &modified_colliders,
-                    &[],
-                    remaining_substeps == 0,
-                );
-                self.counters.stages.query_pipeline_time.pause();
-            }
 
             self.clear_modified_colliders(colliders, &mut modified_colliders);
         }

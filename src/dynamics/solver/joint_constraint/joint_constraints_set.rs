@@ -2,10 +2,10 @@ use crate::dynamics::solver::categorization::categorize_joints;
 use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::solver::solver_vel::SolverVel;
 use crate::dynamics::solver::{
-    reset_buffer, JointConstraintTypes, JointGenericOneBodyConstraint,
-    JointGenericOneBodyConstraintBuilder, JointGenericTwoBodyConstraint,
-    JointGenericTwoBodyConstraintBuilder, JointGenericVelocityOneBodyExternalConstraintBuilder,
-    JointGenericVelocityOneBodyInternalConstraintBuilder, SolverConstraintsSet,
+    JointConstraintTypes, JointGenericOneBodyConstraint, JointGenericOneBodyConstraintBuilder,
+    JointGenericTwoBodyConstraint, JointGenericTwoBodyConstraintBuilder,
+    JointGenericVelocityOneBodyExternalConstraintBuilder,
+    JointGenericVelocityOneBodyInternalConstraintBuilder, SolverConstraintsSet, reset_buffer,
 };
 use crate::dynamics::{
     IntegrationParameters, IslandManager, JointGraphEdge, JointIndex, MultibodyJointSet,

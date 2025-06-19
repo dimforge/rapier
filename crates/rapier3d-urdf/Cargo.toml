@@ -16,7 +16,7 @@ categories = [
 ]
 keywords = ["physics", "joints", "multibody", "robotics", "urdf"]
 license = "Apache-2.0"
-edition = "2021"
+edition = "2024"
 
 [features]
 stl = ["dep:rapier3d-meshloader", "rapier3d-meshloader/stl", "__meshloader_is_enabled"]

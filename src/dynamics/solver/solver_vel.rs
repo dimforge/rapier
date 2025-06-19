@@ -1,4 +1,4 @@
-use crate::math::{AngVector, Vector, SPATIAL_DIM};
+use crate::math::{AngVector, SPATIAL_DIM, Vector};
 use crate::utils::SimdRealCopy;
 use na::{DVectorView, DVectorViewMut, Scalar};
 use std::ops::{AddAssign, Sub, SubAssign};

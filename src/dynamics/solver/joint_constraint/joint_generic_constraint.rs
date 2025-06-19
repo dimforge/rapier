@@ -1,10 +1,10 @@
+use crate::dynamics::solver::SolverVel;
 use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
     JointFixedSolverBody, WritebackId,
 };
 use crate::dynamics::solver::joint_constraint::{JointSolverBody, JointTwoBodyConstraintHelper};
-use crate::dynamics::solver::SolverVel;
 use crate::dynamics::{GenericJoint, IntegrationParameters, JointGraphEdge, JointIndex, Multibody};
-use crate::math::{Isometry, Real, DIM};
+use crate::math::{DIM, Isometry, Real};
 use crate::prelude::SPATIAL_DIM;
 use na::{DVector, DVectorView, DVectorViewMut};
 

@@ -17,11 +17,7 @@ pub(crate) const REGION_WIDTH_POWER_BASIS: Real = 5.0;
 pub(crate) fn sort2(a: u32, b: u32) -> (u32, u32) {
     assert_ne!(a, b);
 
-    if a < b {
-        (a, b)
-    } else {
-        (b, a)
-    }
+    if a < b { (a, b) } else { (b, a) }
 }
 
 pub(crate) fn clamp_point(point: Point<Real>) -> Point<Real> {

@@ -42,6 +42,9 @@ mod velocity_solver;
 pub unsafe fn reset_buffer<T>(buffer: &mut Vec<T>, len: usize) {
     buffer.clear();
     buffer.reserve(len);
-    buffer.as_mut_ptr().write_bytes(u8::MAX, len);
-    buffer.set_len(len);
+
+    unsafe {
+        buffer.as_mut_ptr().write_bytes(u8::MAX, len);
+        buffer.set_len(len);
+    }
 }

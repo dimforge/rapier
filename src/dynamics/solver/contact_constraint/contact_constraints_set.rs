@@ -6,13 +6,13 @@ use crate::dynamics::solver::contact_constraint::{
 };
 use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::solver::solver_vel::SolverVel;
-use crate::dynamics::solver::{reset_buffer, ConstraintTypes, SolverConstraintsSet};
+use crate::dynamics::solver::{ConstraintTypes, SolverConstraintsSet, reset_buffer};
 use crate::dynamics::{
     ImpulseJoint, IntegrationParameters, IslandManager, JointAxesMask, MultibodyJointSet,
     RigidBodySet,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{Real, MAX_MANIFOLD_POINTS};
+use crate::math::{MAX_MANIFOLD_POINTS, Real};
 use na::DVector;
 use parry::math::DIM;
 
