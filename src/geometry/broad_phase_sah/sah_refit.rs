@@ -12,7 +12,6 @@ impl SahTree {
                 .resize(self.nodes.len(), SahTreeNode::zeros());
             self.refit_recurse(workspace, &mut 0, 0);
             std::mem::swap(&mut self.nodes, &mut workspace.refit_tmp);
-            workspace.free_list.clear();
         }
     }
 

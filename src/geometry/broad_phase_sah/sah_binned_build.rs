@@ -15,24 +15,14 @@ impl SahTree {
         for (id, node) in self.nodes.iter().enumerate() {
             if node.is_leaf() {
                 workspace.rebuild_leaves.push(id as u32);
-            } else {
-                // Never free the root.
-                if id != 0 {
-                    workspace.free_list.push(id);
-                }
             }
         }
 
         self.nodes[0] = SahTreeNode::zeros();
-        self.rebuild_range(0, &mut workspace.rebuild_leaves, &mut workspace.free_list);
+        self.rebuild_range(0, &mut workspace.rebuild_leaves);
     }
 
-    pub fn rebuild_range(
-        &mut self,
-        target_node_id: u32,
-        leaves: &mut [u32],
-        free_list: &mut Vec<usize>,
-    ) {
+    pub fn rebuild_range(&mut self, target_node_id: u32, leaves: &mut [u32]) {
         // PERF: calculate an optimal bin count dynamically based on the number of leaves to split?
         //       The paper suggests (4 + 2 * sqrt(num_leaves).floor()).min(16)
         const NUM_BINS: usize = 8;
@@ -156,26 +146,20 @@ impl SahTree {
         // Allocate child nodes.
         let left_id = if left_leaves.len() == 1 {
             left_leaves[0]
-        } else if let Some(entry) = free_list.pop() {
-            self.nodes[entry] = SahTreeNode::zeros();
-            entry as u32
         } else {
             self.nodes.push(SahTreeNode::zeros());
             self.nodes.len() as u32 - 1
         };
         let right_id = if right_leaves.len() == 1 {
             right_leaves[0]
-        } else if let Some(entry) = free_list.pop() {
-            self.nodes[entry] = SahTreeNode::zeros();
-            entry as u32
         } else {
             self.nodes.push(SahTreeNode::zeros());
             self.nodes.len() as u32 - 1
         };
 
         // Recurse.
-        self.rebuild_range(left_id, left_leaves, free_list);
-        self.rebuild_range(right_id, right_leaves, free_list);
+        self.rebuild_range(left_id, left_leaves);
+        self.rebuild_range(right_id, right_leaves);
 
         // Populate the parent’s node AABB and leaf count.
         let left_node = &self.nodes[left_id as usize];

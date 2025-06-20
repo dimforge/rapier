@@ -65,7 +65,7 @@ impl SahTree {
         }
 
         if !workspace.rebuild_leaves.is_empty() {
-            self.rebuild_range(0, &mut workspace.rebuild_leaves, &mut workspace.free_list);
+            self.rebuild_range(0, &mut workspace.rebuild_leaves);
         }
         println!("Root optimization: {}", t0.elapsed().as_secs_f32() * 1000.0);
 
@@ -115,11 +115,7 @@ impl SahTree {
 
             println!("Optimized leaves: {}", workspace.rebuild_leaves.len());
 
-            self.rebuild_range(
-                subtree_root_id,
-                &mut workspace.rebuild_leaves,
-                &mut workspace.free_list,
-            );
+            self.rebuild_range(subtree_root_id, &mut workspace.rebuild_leaves);
         }
 
         println!(
@@ -138,7 +134,6 @@ impl SahTree {
         if node.is_leaf() {
             workspace.rebuild_leaves.push(subtree_root);
         } else {
-            workspace.free_list.push(subtree_root as usize);
             let children = node.children;
 
             self.free_subtree_and_collect_leaves(workspace, children[0]);
@@ -171,10 +166,6 @@ impl SahTree {
                 let right_id = node.children[1];
 
                 // NOTE: the root node for the recursion isn’t freed, only all its descendants.
-                if curr_node != 0 {
-                    workspace.free_list.push(curr_node as usize);
-                }
-
                 workspace.dequeue.push_back(left_id);
                 workspace.dequeue.push_back(right_id);
             }
@@ -214,10 +205,6 @@ impl SahTree {
                 let right_score = self.nodes[right_id as usize].aabb.volume();
 
                 // NOTE: the root node for the recursion isn’t freed, only all its descendants.
-                if curr_node.id != 0 {
-                    workspace.free_list.push(curr_node.id as usize);
-                }
-
                 workspace.queue.push(SahOptimizationHeapEntry {
                     score: OrderedFloat(left_score),
                     id: left_id,

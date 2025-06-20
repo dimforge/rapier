@@ -11,7 +11,6 @@ pub struct SahWorkspace {
     pub(super) refit_tmp: Vec<SahTreeNode>,
     pub(super) rebuild_leaves: Vec<u32>,
     pub(super) rebuild_frame_index: u32,
-    pub(super) free_list: Vec<usize>,
     pub(super) optimization_roots: Vec<u32>,
     pub(super) queue: BinaryHeap<SahOptimizationHeapEntry>,
     pub(super) dequeue: VecDeque<u32>,
