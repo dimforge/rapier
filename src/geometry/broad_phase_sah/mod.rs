@@ -1,5 +1,12 @@
-pub use broad_phase_sah::BroadPhaseSah;
+pub use sah_broad_phase::BroadPhaseSah;
 pub use sah_tree::{SahTree, SahTreeNode, SahWorkspace};
 
-mod broad_phase_sah;
+pub(self) use sah_optimize::SahOptimizationHeapEntry;
+pub(self) use sah_tree::{SahLeafData, SahNodData};
+
+mod sah_binned_build;
+mod sah_broad_phase;
+mod sah_optimize;
+mod sah_refit;
+mod sah_traverse;
 mod sah_tree;

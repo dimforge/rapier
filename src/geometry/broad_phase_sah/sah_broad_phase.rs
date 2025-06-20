@@ -39,7 +39,7 @@ impl BroadPhase for BroadPhaseSah {
         if first_pass {
             let t0 = std::time::Instant::now();
             self.tree.rebuild(&mut self.workspace);
-            self.tree.refit_and_cache_optimize(&mut self.workspace);
+            self.tree.refit(&mut self.workspace);
             println!("Rebuild: {}", t0.elapsed().as_secs_f32() * 1000.0);
         }
 
@@ -48,21 +48,18 @@ impl BroadPhase for BroadPhaseSah {
         // }
 
         let t0 = std::time::Instant::now();
-        self.tree.rebuild_incremental(&mut self.workspace);
-        // // self.tree.rebuild(&mut self.workspace);
+        self.tree.optimize_incremental(&mut self.workspace);
+        // self.tree.rebuild(&mut self.workspace);
         println!(
             "Rebuild incremental: {}",
             t0.elapsed().as_secs_f32() * 1000.0
         );
 
-        // FIXME:
-        // 1. Run the refit after the rebuild_incremental so we can run some cache optimization.
-        //    This also means that the rebuild_incremental can completely skip propagating aabbs to
-        //    new nodes since the refit will do it!
-        // 2. Rework the binned builder (and all other builders) so the operate on indices rather
-        //    than moving around the actual node data.
+        // NOTE: we run refit after optimization so we can skip updating internal nodes during
+        //       optimization, and so we can reorder the tree in memory to make it more cache
+        //       friendly after the rebuild shuffling everything around.
         let t0 = std::time::Instant::now();
-        self.tree.refit_and_cache_optimize(&mut self.workspace);
+        self.tree.refit(&mut self.workspace);
         println!("Refit: {}", t0.elapsed().as_secs_f32() * 1000.0);
 
         // self.tree.assert_is_depth_first();
