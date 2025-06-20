@@ -39,6 +39,7 @@ impl BroadPhase for BroadPhaseSah {
         if first_pass {
             let t0 = std::time::Instant::now();
             self.tree.rebuild(&mut self.workspace);
+            self.tree.refit_and_cache_optimize(&mut self.workspace);
             println!("Rebuild: {}", t0.elapsed().as_secs_f32() * 1000.0);
         }
 
@@ -62,26 +63,23 @@ impl BroadPhase for BroadPhaseSah {
         //    than moving around the actual node data.
         let t0 = std::time::Instant::now();
         self.tree.refit_and_cache_optimize(&mut self.workspace);
-        // self.tree.refit();
         println!("Refit: {}", t0.elapsed().as_secs_f32() * 1000.0);
 
         // self.tree.assert_is_depth_first();
         // println!("Checking well formed.");
         // self.tree.assert_well_formed();
-        // println!(
-        //     "Is well formed. Tree height: {}",
-        //     self.tree.subtree_height(0)
-        // );
+        println!(
+            "Is well formed. Tree height: {}",
+            self.tree.subtree_height(0)
+        );
 
         let mut pairs_collector = |co1: [u32; 2], co2: [u32; 2]| {
-            if co1[0] == co2[0] {
-                // Avoid returning the same pair twice.
-                return;
+            // NOTE: we don’t emit self-intersections.
+            if co1[0] != co2[0] {
+                let co1 = ColliderHandle::from_raw_parts(co1[0], co1[1]);
+                let co2 = ColliderHandle::from_raw_parts(co2[0], co2[1]);
+                events.push(BroadPhasePairEvent::AddPair(ColliderPair::new(co1, co2)));
             }
-
-            let co1 = ColliderHandle::from_raw_parts(co1[0], co1[1]);
-            let co2 = ColliderHandle::from_raw_parts(co2[0], co2[1]);
-            events.push(BroadPhasePairEvent::AddPair(ColliderPair::new(co1, co2)));
         };
 
         let t0 = std::time::Instant::now();

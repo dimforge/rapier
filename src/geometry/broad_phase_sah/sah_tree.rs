@@ -34,8 +34,8 @@ impl Eq for OptimizationHeapEntry {}
 
 #[derive(Default, Clone)]
 pub struct SahWorkspace {
-    rebuild_leaves: Vec<SahTreeNode>,
-    rebuild_tmp: Vec<SahTreeNode>,
+    refit_tmp: Vec<SahTreeNode>,
+    rebuild_leaves: Vec<u32>,
     rebuild_frame_index: u32,
     free_list: Vec<usize>,
     optimization_roots: Vec<u32>,
@@ -86,6 +86,11 @@ impl TreeNodeData {
     }
 
     #[inline(always)]
+    fn set_leaf_count(&mut self, count: u32) {
+        self.0 = (self.0 & !0x3fff_ffff) | count;
+    }
+
+    #[inline(always)]
     #[must_use]
     fn resolve_pending_change(self) -> Self {
         if self.is_change_pending() {
@@ -132,7 +137,7 @@ impl SahTreeNode {
         Self {
             aabb,
             children: leaf_data,
-            data: TreeNodeData::with_leaf_count(1),
+            data: TreeNodeData::with_leaf_count_and_pending_change(1),
         }
     }
 
@@ -236,7 +241,7 @@ impl SahTree {
                 self.nodes[curr_id as usize] = SahTreeNode {
                     aabb: curr_merged_aabb,
                     children: new_children,
-                    data: TreeNodeData::with_leaf_count_and_pending_change(2),
+                    data: TreeNodeData::with_leaf_count(2),
                 };
 
                 // Adjust the node mapping for the moved leaf.
@@ -335,39 +340,14 @@ impl SahTree {
 
     pub fn remove(&mut self) {}
 
-    pub fn refit(&mut self) {
-        if !self.nodes.is_empty() {
-            self.refit_at(0);
-        }
-    }
-
-    fn refit_at(&mut self, node: u32) -> (Aabb, TreeNodeData) {
-        let curr_node = &mut self.nodes[node as usize];
-        if curr_node.is_leaf() {
-            curr_node.data = curr_node.data.resolve_pending_change();
-            (curr_node.aabb, curr_node.data)
-        } else {
-            let [left, right] = curr_node.children;
-            let (left_aabb, left_data) = self.refit_at(left);
-            let (right_aabb, right_data) = self.refit_at(right);
-            let merged_aabb = left_aabb.merged(&right_aabb);
-
-            let curr_node = &mut self.nodes[node as usize];
-            curr_node.aabb = merged_aabb;
-            curr_node.data = left_data.merged(right_data);
-            (curr_node.aabb, curr_node.data)
-        }
-    }
-
     pub fn refit_and_cache_optimize(&mut self, workspace: &mut SahWorkspace) {
         if !self.nodes.is_empty() {
-            println!("Num nodes: {}", self.nodes.len());
             workspace
-                .rebuild_leaves
+                .refit_tmp
                 .resize(self.nodes.len(), SahTreeNode::zeros());
             self.refit_and_cache_optimize_at(workspace, &mut 0, 0);
-            std::mem::swap(&mut self.nodes, &mut workspace.rebuild_leaves);
-            workspace.rebuild_leaves.clear();
+            std::mem::swap(&mut self.nodes, &mut workspace.refit_tmp);
+            workspace.free_list.clear();
         }
     }
 
@@ -380,7 +360,7 @@ impl SahTree {
         let curr_node = &self.nodes[node as usize];
         if curr_node.is_leaf() {
             let moved_node_id = *id;
-            workspace.rebuild_leaves[moved_node_id as usize] = SahTreeNode {
+            workspace.refit_tmp[moved_node_id as usize] = SahTreeNode {
                 aabb: curr_node.aabb,
                 children: curr_node.children,
                 data: curr_node.data.resolve_pending_change(),
@@ -403,9 +383,9 @@ impl SahTree {
             let moved_left_id = self.refit_and_cache_optimize_at(workspace, id, left);
             let moved_right_id = self.refit_and_cache_optimize_at(workspace, id, right);
 
-            let left_node = workspace.rebuild_leaves[moved_left_id as usize];
-            let right_node = workspace.rebuild_leaves[moved_right_id as usize];
-            workspace.rebuild_leaves[moved_node_id as usize] = SahTreeNode {
+            let left_node = workspace.refit_tmp[moved_left_id as usize];
+            let right_node = workspace.refit_tmp[moved_right_id as usize];
+            workspace.refit_tmp[moved_node_id as usize] = SahTreeNode {
                 aabb: left_node.aabb.merged(&right_node.aabb),
                 children: [moved_left_id, moved_right_id],
                 data: left_node.data.merged(right_node.data),
@@ -461,6 +441,7 @@ impl SahTree {
         let config = self.optimization_config(workspace);
         workspace.rebuild_leaves.clear();
 
+        let t0 = std::time::Instant::now();
         match config.root_mode {
             RootOptimizationMode::BreadthFirst => self
                 .find_root_optimization_pseudo_leaves_bfs(workspace, config.target_root_node_count),
@@ -473,26 +454,14 @@ impl SahTree {
         }
 
         if !workspace.rebuild_leaves.is_empty() {
-            workspace
-                .rebuild_tmp
-                .resize(workspace.rebuild_leaves.len(), SahTreeNode::zeros());
-            // println!(
-            //     "Root optimization pseudo leaves: {} (config: {:?})",
-            //     workspace.rebuild_leaves.len(),
-            //     config
-            // );
-            self.rebuild_range(
-                0,
-                &mut workspace.rebuild_leaves,
-                &mut workspace.rebuild_tmp,
-                &mut workspace.free_list,
-            );
-            // println!("Rebuilt afterroot.");
+            self.rebuild_range(0, &mut workspace.rebuild_leaves, &mut workspace.free_list);
         }
+        println!("Root optimization: {}", t0.elapsed().as_secs_f32() * 1000.0);
 
         /*
          * 2. Subtree optimizations.
          */
+        let t0 = std::time::Instant::now();
         let start_index =
             (workspace.rebuild_frame_index * config.target_subtree_leaf_count as u32) % num_leaves;
         let max_candidate_leaf_count =
@@ -509,6 +478,10 @@ impl SahTree {
             0,
             config.target_subtree_leaf_count as u32,
         );
+        println!(
+            "Optimized root pseudo-leaves: {}",
+            workspace.rebuild_leaves.len()
+        );
 
         // TODO: if we hit the end of the tree, wrap back at the beginning.
 
@@ -519,36 +492,43 @@ impl SahTree {
         // );
 
         for i in 0..workspace.optimization_roots.len() {
-            let subtree_root = workspace.optimization_roots[i];
+            let subtree_root_id = workspace.optimization_roots[i];
             workspace.rebuild_leaves.clear();
-            self.free_subtree_and_collect_leaves(workspace, subtree_root);
-            workspace
-                .rebuild_tmp
-                .resize(workspace.rebuild_leaves.len(), SahTreeNode::zeros());
+            // NOTE: we have the guarantee that the subtree root has two children since
+            //       `find_optimization_roots` checks the number of children > 2.
+            //       We don’t just call `free_subtree_and_collect_leaves` on `subtree_root_id`
+            //       since we don’t want to free it.
+            let [child0, child1] = self.nodes[subtree_root_id as usize].children;
+            self.free_subtree_and_collect_leaves(workspace, child0);
+            self.free_subtree_and_collect_leaves(workspace, child1);
+
+            println!("Optimized leaves: {}", workspace.rebuild_leaves.len());
 
             self.rebuild_range(
-                subtree_root,
+                subtree_root_id,
                 &mut workspace.rebuild_leaves,
-                &mut workspace.rebuild_tmp,
                 &mut workspace.free_list,
             );
         }
 
+        println!(
+            "Leaf optimization: {}, optimization roots: {}, config: {:?}",
+            t0.elapsed().as_secs_f32() * 1000.0,
+            workspace.optimization_roots.len(),
+            config
+        );
+
         workspace.optimization_roots.clear();
-        // println!("Done with refinement.");
     }
 
     fn free_subtree_and_collect_leaves(&mut self, workspace: &mut SahWorkspace, subtree_root: u32) {
         let node = &self.nodes[subtree_root as usize];
 
         if node.is_leaf() {
-            workspace.rebuild_leaves.push(*node);
+            workspace.rebuild_leaves.push(subtree_root);
         } else {
+            workspace.free_list.push(subtree_root as usize);
             let children = node.children;
-
-            // NOTE: the root node for the recursion isn’t freed, only all its descendants.
-            workspace.free_list.push(children[0] as usize);
-            workspace.free_list.push(children[1] as usize);
 
             self.free_subtree_and_collect_leaves(workspace, children[0]);
             self.free_subtree_and_collect_leaves(workspace, children[1]);
@@ -574,26 +554,22 @@ impl SahTree {
             let node = &self.nodes[curr_node as usize];
 
             if node.is_leaf() {
-                workspace.rebuild_leaves.push(*node);
+                workspace.rebuild_leaves.push(curr_node);
             } else {
                 let left_id = node.children[0];
                 let right_id = node.children[1];
 
                 // NOTE: the root node for the recursion isn’t freed, only all its descendants.
-                workspace.free_list.push(left_id as usize);
-                workspace.free_list.push(right_id as usize);
+                if curr_node != 0 {
+                    workspace.free_list.push(curr_node as usize);
+                }
 
                 workspace.dequeue.push_back(left_id);
                 workspace.dequeue.push_back(right_id);
             }
         }
 
-        workspace.rebuild_leaves.extend(
-            workspace
-                .dequeue
-                .drain(..)
-                .map(|id| self.nodes[id as usize]),
-        );
+        workspace.rebuild_leaves.extend(workspace.dequeue.drain(..));
     }
 
     fn find_root_optimization_pseudo_leaves_pqueue(
@@ -618,7 +594,7 @@ impl SahTree {
             let node = &self.nodes[curr_node.id as usize];
 
             if node.is_leaf() {
-                workspace.rebuild_leaves.push(*node);
+                workspace.rebuild_leaves.push(curr_node.id);
             } else {
                 let left_id = node.children[0];
                 let right_id = node.children[1];
@@ -627,8 +603,9 @@ impl SahTree {
                 let right_score = self.nodes[right_id as usize].aabb.volume();
 
                 // NOTE: the root node for the recursion isn’t freed, only all its descendants.
-                workspace.free_list.push(left_id as usize);
-                workspace.free_list.push(right_id as usize);
+                if curr_node.id != 0 {
+                    workspace.free_list.push(curr_node.id as usize);
+                }
 
                 workspace.queue.push(OptimizationHeapEntry {
                     score: OrderedFloat(left_score),
@@ -641,13 +618,9 @@ impl SahTree {
             }
         }
 
-        workspace.rebuild_leaves.extend(
-            workspace
-                .queue
-                .as_slice()
-                .iter()
-                .map(|e| self.nodes[e.id as usize]),
-        );
+        workspace
+            .rebuild_leaves
+            .extend(workspace.queue.as_slice().iter().map(|e| e.id));
         workspace.queue.clear();
     }
 
@@ -723,29 +696,25 @@ impl SahTree {
         }
 
         workspace.rebuild_leaves.clear();
-        workspace
-            .rebuild_leaves
-            .extend(self.nodes.iter().filter(|n| n.is_leaf()));
-        workspace
-            .rebuild_tmp
-            .resize(workspace.rebuild_leaves.len(), SahTreeNode::zeros());
-        workspace.free_list.clear();
+        for (id, node) in self.nodes.iter().enumerate() {
+            if node.is_leaf() {
+                workspace.rebuild_leaves.push(id as u32);
+            } else {
+                // Never free the root.
+                if id != 0 {
+                    workspace.free_list.push(id);
+                }
+            }
+        }
 
-        self.nodes.clear();
-        self.nodes.push(SahTreeNode::zeros());
-        self.rebuild_range(
-            0,
-            &mut workspace.rebuild_leaves,
-            &mut workspace.rebuild_tmp,
-            &mut workspace.free_list,
-        );
+        self.nodes[0] = SahTreeNode::zeros();
+        self.rebuild_range(0, &mut workspace.rebuild_leaves, &mut workspace.free_list);
     }
 
     pub fn rebuild_range(
         &mut self,
         target_node_id: u32,
-        leaves: &mut [SahTreeNode],
-        tmp: &mut [SahTreeNode],
+        leaves: &mut [u32],
         free_list: &mut Vec<usize>,
     ) {
         // PERF: calculate an optimal bin count dynamically based on the number of leaves to split?
@@ -760,8 +729,7 @@ impl SahTree {
         //       - when the remaining leaf count is smaller than NUM_BINS (=> test all the splitting planes).
         //       - when the leaf count is equal to 2.
         if leaves.len() == 1 {
-            let leaf = &leaves[0];
-            self.nodes[target_node_id as usize] = *leaf;
+            let leaf = &self.nodes[target_node_id as usize];
 
             // Check if this is an actual leaf instead of a pseudo-leaf for partial rebuild.
             // If it is, update the corresponding handle mapping.
@@ -778,8 +746,8 @@ impl SahTree {
             return;
         }
 
-        // PERF: allocation
-        let mut centroid_aabb = Aabb::from_points(leaves.iter().map(|l| l.aabb.center()));
+        let centroid_aabb =
+            Aabb::from_points(leaves.iter().map(|l| self.nodes[*l as usize].aabb.center()));
         let bins_axis = centroid_aabb.extents().imax();
         let bins_range = [centroid_aabb.mins[bins_axis], centroid_aabb.maxs[bins_axis]];
 
@@ -787,6 +755,7 @@ impl SahTree {
         let k1 = NUM_BINS as Real * (1.0 - BIN_EPSILON) / (bins_range[1] - bins_range[0]);
         let k0 = bins_range[0];
         for leaf in &*leaves {
+            let leaf = &self.nodes[*leaf as usize];
             let bin_id = (k1 * (leaf.aabb.center()[bins_axis] - k0)) as usize;
             let bin = &mut bins[bin_id];
             bin.aabb.merge(&leaf.aabb);
@@ -823,45 +792,64 @@ impl SahTree {
             left_merge.leaf_count += bins[i + 1].leaf_count;
         }
 
-        // With the splitting plane selected, sort & split the leaves into `tmp`.
+        // With the splitting plane selected, sort & split the leaves in place.
         let mut mid = best_leaf_count as usize;
-        let mut left_id = 0;
-        let mut right_id = mid;
-
-        for leaf in &*leaves {
-            let bin_id = (k1 * (leaf.aabb.center()[bins_axis] - k0)) as usize;
-            if bin_id <= best_plane {
-                tmp[left_id] = *leaf;
-                left_id += 1;
-            } else {
-                tmp[right_id] = *leaf;
-                right_id += 1;
-            }
-
-            debug_assert!(left_id <= mid);
-        }
 
         // In degenerate cases where all the node end up on the same bin,
         // just split the range in two.
-        if mid == 0 || mid == tmp.len() {
-            mid = tmp.len() / 2;
+        if mid == 0 || mid == leaves.len() {
+            mid = leaves.len() / 2;
+        } else {
+            // Sort in-place.
+            let bin = |leaves: &mut [u32], id: usize| {
+                let node = &self.nodes[leaves[id] as usize];
+                (k1 * (node.aabb.center()[bins_axis] - k0)) as usize
+            };
+
+            let mut left_id = 0;
+            let mut right_id = mid;
+
+            'outer: while left_id != mid && right_id != leaves.len() {
+                while bin(leaves, left_id) <= best_plane {
+                    left_id += 1;
+
+                    if left_id == mid {
+                        break 'outer;
+                    }
+                }
+
+                while bin(leaves, right_id) > best_plane {
+                    right_id += 1;
+
+                    if right_id == leaves.len() {
+                        break 'outer;
+                    }
+                }
+
+                leaves.swap(left_id, right_id);
+                left_id += 1;
+                right_id += 1;
+            }
         }
 
-        // Recurse, `tmp` and `leaves` are swapping roles.
-        let (left_tmp, right_tmp) = tmp.split_at_mut(mid);
+        // Recurse.
         let (left_leaves, right_leaves) = leaves.split_at_mut(mid);
 
-        assert!(!left_tmp.is_empty() && !right_tmp.is_empty());
+        assert!(!left_leaves.is_empty() && !right_leaves.is_empty());
 
         // Allocate child nodes.
-        let left_id = if let Some(entry) = free_list.pop() {
+        let left_id = if left_leaves.len() == 1 {
+            left_leaves[0]
+        } else if let Some(entry) = free_list.pop() {
             self.nodes[entry] = SahTreeNode::zeros();
             entry as u32
         } else {
             self.nodes.push(SahTreeNode::zeros());
             self.nodes.len() as u32 - 1
         };
-        let right_id = if let Some(entry) = free_list.pop() {
+        let right_id = if right_leaves.len() == 1 {
+            right_leaves[0]
+        } else if let Some(entry) = free_list.pop() {
             self.nodes[entry] = SahTreeNode::zeros();
             entry as u32
         } else {
@@ -870,8 +858,8 @@ impl SahTree {
         };
 
         // Recurse.
-        self.rebuild_range(left_id, left_tmp, left_leaves, free_list); // NOTE: tmp and leaves are swapping roles here.
-        self.rebuild_range(right_id, right_tmp, right_leaves, free_list);
+        self.rebuild_range(left_id, left_leaves, free_list);
+        self.rebuild_range(right_id, right_leaves, free_list);
 
         // Populate the parent’s node AABB and leaf count.
         let left_node = &self.nodes[left_id as usize];
@@ -880,7 +868,7 @@ impl SahTree {
         let curr_count = left_node.leaf_count() + right_node.leaf_count();
         let curr_node = &mut self.nodes[target_node_id as usize];
         curr_node.aabb = curr_aabb;
-        curr_node.data = TreeNodeData::with_leaf_count(curr_count);
+        curr_node.data.set_leaf_count(curr_count);
         curr_node.children = [left_id, right_id];
     }
 
