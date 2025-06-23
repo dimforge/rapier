@@ -6,11 +6,14 @@ use std::collections::{BinaryHeap, VecDeque};
 
 use super::SahOptimizationHeapEntry;
 
+// NOTE: this is all temporary data that can be freed between broad-phase updates
+//       without affecting simulation results.
 #[derive(Default, Clone)]
 pub struct SahWorkspace {
     pub(super) refit_tmp: Vec<SahTreeNode>,
     pub(super) rebuild_leaves: Vec<u32>,
     pub(super) rebuild_frame_index: u32,
+    pub(super) rebuild_start_index: u32,
     pub(super) optimization_roots: Vec<u32>,
     pub(super) queue: BinaryHeap<SahOptimizationHeapEntry>,
     pub(super) dequeue: VecDeque<u32>,
@@ -18,11 +21,11 @@ pub struct SahWorkspace {
 
 #[derive(Default, Copy, Clone, Debug)]
 #[repr(transparent)]
-pub struct SahNodData(u32);
+pub struct SahNodeData(u32);
 const CHANGED: u32 = 0b01;
 const CHANGE_PENDING: u32 = 0b11;
 
-impl SahNodData {
+impl SahNodeData {
     #[inline(always)]
     pub(super) fn with_leaf_count(leaf_count: u32) -> Self {
         Self(leaf_count)
@@ -89,7 +92,7 @@ pub struct SahTreeNode {
     /// If [`Self::leaf_count`] is 1, then the node has 0 children and is a leaf.
     pub(super) children: [u32; 2],
     /// Packed data associated to this node (leaf count and flags).
-    pub(super) data: SahNodData,
+    pub(super) data: SahNodeData,
 }
 
 impl SahTreeNode {
@@ -101,7 +104,7 @@ impl SahTreeNode {
                 maxs: Point::origin(),
             },
             children: [0; 2],
-            data: SahNodData(0),
+            data: SahNodeData(0),
         }
     }
 
@@ -110,7 +113,7 @@ impl SahTreeNode {
         Self {
             aabb,
             children: leaf_data,
-            data: SahNodData::with_leaf_count_and_pending_change(1),
+            data: SahNodeData::with_leaf_count_and_pending_change(1),
         }
     }
 
@@ -159,11 +162,14 @@ impl SahTree {
         let handle = Index::from_raw_parts(leaf_data[0], leaf_data[1]);
         if let Some(leaf) = self.leaf_data.get(handle) {
             let node = &mut self.nodes[leaf.node as usize];
-            if !node.aabb.contains(&aabb) {
-                const MARGIN: Real = 1.0e-2;
-                node.aabb = aabb.loosened(MARGIN);
-                node.data.set_change_pending();
-            }
+            // if !node.aabb.contains(&aabb) {
+            //     const MARGIN: Real = 1.0e-2;
+            //     node.aabb = aabb.loosened(MARGIN);
+            //     node.data.set_change_pending();
+            // }
+
+            node.aabb = aabb;
+            node.data.set_change_pending();
         } else {
             self.insert(aabb, leaf_data);
         }
@@ -199,7 +205,7 @@ impl SahTree {
                 self.nodes[curr_id as usize] = SahTreeNode {
                     aabb: curr_merged_aabb,
                     children: new_children,
-                    data: SahNodData::with_leaf_count(2),
+                    data: SahNodeData::with_leaf_count(2),
                 };
 
                 // Adjust the node mapping for the moved leaf.
@@ -297,6 +303,16 @@ impl SahTree {
     }
 
     pub fn remove(&mut self) {}
+
+    pub fn quality_metric(&self) -> Real {
+        let mut metric = 0.0;
+        for i in 0..self.nodes.len() {
+            if !self.nodes[i].is_leaf() {
+                metric += self.sah_cost(i);
+            }
+        }
+        metric
+    }
 
     pub(super) fn sah_cost(&self, node_id: usize) -> Real {
         let node = &self.nodes[node_id];

@@ -10,46 +10,74 @@ impl SahTree {
             workspace
                 .refit_tmp
                 .resize(self.nodes.len(), SahTreeNode::zeros());
-            self.refit_recurse(workspace, &mut 0, 0);
+            let mut len = 1;
+            self.refit_recurse(workspace, &mut len, 0, 0);
             std::mem::swap(&mut self.nodes, &mut workspace.refit_tmp);
+            self.nodes.truncate(len as usize);
+            workspace.refit_tmp.truncate(len as usize);
         }
     }
 
-    fn refit_recurse(&mut self, workspace: &mut SahWorkspace, id: &mut u32, node: u32) -> u32 {
-        let curr_node = &self.nodes[node as usize];
-        if curr_node.is_leaf() {
-            let moved_node_id = *id;
-            workspace.refit_tmp[moved_node_id as usize] = SahTreeNode {
-                aabb: curr_node.aabb,
-                children: curr_node.children,
-                data: curr_node.data.resolve_pending_change(),
+    fn refit_recurse(
+        &mut self,
+        workspace: &mut SahWorkspace,
+        id: &mut u32,
+        parent_source: u32,
+        parent_target: u32,
+    ) {
+        let parent = &self.nodes[parent_source as usize]; // PERF: pass directly the reference to the `node: &SahTreeNode` instead of u32.
+        let [left_source_id, right_source_id] = parent.children;
+
+        // Write the children.
+        let left_target = *id;
+        let right_target = *id + 1;
+        *id += 2;
+
+        // Recurse or update leaf/handle association.
+        let left_source = &self.nodes[left_source_id as usize];
+        if left_source.is_leaf() {
+            workspace.refit_tmp[left_target as usize] = SahTreeNode {
+                aabb: left_source.aabb,
+                children: left_source.children,
+                data: left_source.data.resolve_pending_change(),
             };
 
             self.leaf_data
                 .get_mut(Index::from_raw_parts(
-                    curr_node.children[0],
-                    curr_node.children[1],
+                    left_source.children[0],
+                    left_source.children[1],
                 ))
                 .unwrap()
-                .node = moved_node_id;
-            *id += 1;
-            moved_node_id
+                .node = left_target;
         } else {
-            let moved_node_id = *id;
-            *id += 1;
+            self.refit_recurse(workspace, id, left_source_id, left_target);
+        };
 
-            let [left, right] = curr_node.children;
-            let moved_left_id = self.refit_recurse(workspace, id, left);
-            let moved_right_id = self.refit_recurse(workspace, id, right);
-
-            let left_node = workspace.refit_tmp[moved_left_id as usize];
-            let right_node = workspace.refit_tmp[moved_right_id as usize];
-            workspace.refit_tmp[moved_node_id as usize] = SahTreeNode {
-                aabb: left_node.aabb.merged(&right_node.aabb),
-                children: [moved_left_id, moved_right_id],
-                data: left_node.data.merged(right_node.data),
+        let right_source = &self.nodes[right_source_id as usize];
+        if right_source.is_leaf() {
+            workspace.refit_tmp[right_target as usize] = SahTreeNode {
+                aabb: right_source.aabb,
+                children: right_source.children,
+                data: right_source.data.resolve_pending_change(),
             };
-            moved_node_id
-        }
+
+            self.leaf_data
+                .get_mut(Index::from_raw_parts(
+                    right_source.children[0],
+                    right_source.children[1],
+                ))
+                .unwrap()
+                .node = right_target;
+        } else {
+            self.refit_recurse(workspace, id, right_source_id, right_target);
+        };
+
+        let left = &workspace.refit_tmp[left_target as usize];
+        let right = &workspace.refit_tmp[right_target as usize];
+        workspace.refit_tmp[parent_target as usize] = SahTreeNode {
+            aabb: left.aabb.merged(&right.aabb),
+            children: [left_target, right_target],
+            data: left.data.merged(right.data),
+        };
     }
 }

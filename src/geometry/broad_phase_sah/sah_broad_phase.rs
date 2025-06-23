@@ -64,10 +64,11 @@ impl BroadPhase for BroadPhaseSah {
 
         // self.tree.assert_is_depth_first();
         // println!("Checking well formed.");
-        // self.tree.assert_well_formed();
+        self.tree.assert_well_formed();
         println!(
-            "Is well formed. Tree height: {}",
-            self.tree.subtree_height(0)
+            "Is well formed. Tree height: {}, quality: {}",
+            self.tree.subtree_height(0),
+            self.tree.quality_metric()
         );
 
         let mut pairs_collector = |co1: [u32; 2], co2: [u32; 2]| {
