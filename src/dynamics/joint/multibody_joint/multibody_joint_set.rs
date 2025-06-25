@@ -308,7 +308,7 @@ impl MultibodyJointSet {
 
     /// Returns the link of this multibody attached to the given rigid-body.
     ///
-    /// Returns `None` if `rb` isn’t part of any rigid-body.
+    /// Returns `None` if `rb` isn’t part of any multibody.
     pub fn rigid_body_link(&self, rb: RigidBodyHandle) -> Option<&MultibodyLinkId> {
         self.rb2mb.get(rb.0)
     }

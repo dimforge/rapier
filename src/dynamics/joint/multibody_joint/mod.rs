@@ -42,7 +42,7 @@ mod test {
             let mut bf = BroadPhaseMultiSap::new();
             let mut nf = NarrowPhase::new();
 
-            let num_links = 100;
+            let num_links = 2;
             let mut handles = vec![];
 
             for _ in 0..num_links {
@@ -91,8 +91,8 @@ mod test {
                 }
             }
 
-            for (i, handle) in handles.iter().enumerate() {
-                dbg!(i);
+            for (i, handle) in handles.clone().iter().enumerate() {
+                dbg!(i, handle);
                 bodies.remove(
                     *handle,
                     &mut islands,
@@ -101,6 +101,21 @@ mod test {
                     &mut multibody_joints,
                     true,
                 );
+                // Remove from our handles the one we just removed.
+                handles.retain(|value| value != handle);
+                // All handles left should be correctly set up.
+                for handle in handles.iter() {
+                    // Note debug #847: rigid_body_link should return none when attempting to remove the last (second) body.
+                    if let Some(link) = multibody_joints.rigid_body_link(*handle).copied() {
+                        if multibody_joints
+                            .get_multibody_mut_internal(link.multibody)
+                            .is_none()
+                        {
+                            dbg!(handle, link);
+                            panic!("multibody_joints should be able to get all links returned from rigid_body_link.");
+                        }
+                    }
+                }
                 pipeline.step(
                     &Vector::zeros(),
                     &IntegrationParameters::default(),
