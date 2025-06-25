@@ -3,23 +3,28 @@ use crate::data::Index;
 use crate::geometry::broad_phase_sah::sah_tree::{SahLeafData, SahTreeNodeWide};
 use crate::geometry::Aabb;
 use crate::geometry::SahTree;
-use crate::math::Real;
+use crate::math::{Real, Vector};
 use parry::bounding_volume::BoundingVolume;
 
 impl SahTree {
+    pub const CHANGE_DETECTION_ENABLED: bool = true;
+
     pub fn pre_update_or_insert(&mut self, aabb: Aabb, leaf_data: u32) {
         if let Some(leaf) = self.leaf_data.get_mut_unknown_gen(leaf_data) {
             let node =
                 &mut self.nodes[leaf.node as usize].as_array_mut()[leaf.left_or_right as usize];
-            // if !node.aabb.contains(&aabb) {
-            //     const MARGIN: Real = 1.0e-2;
-            //     node.aabb = aabb.loosened(MARGIN);
-            //     node.data.set_change_pending();
-            // }
 
-            node.mins = aabb.mins;
-            node.maxs = aabb.maxs;
-            node.data.set_change_pending();
+            if Self::CHANGE_DETECTION_ENABLED {
+                if !node.contains_aabb(&aabb) {
+                    const MARGIN: Real = 1.0e-2; // TODO: multiply this by the physics length unit?
+                    node.mins = aabb.mins - Vector::repeat(MARGIN);
+                    node.maxs = aabb.maxs + Vector::repeat(MARGIN);
+                    node.data.set_change_pending();
+                }
+            } else {
+                node.mins = aabb.mins;
+                node.maxs = aabb.maxs;
+            }
         } else {
             self.insert(aabb, leaf_data);
         }

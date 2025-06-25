@@ -1,7 +1,7 @@
 use super::{SahTree, SahTreeNode, SahWorkspace};
 
 impl SahTree {
-    pub fn traverse_bvtt_single_tree<const CHANGE_DETECTION: bool>(
+    pub fn traverse_bvtt_single_tree(
         &self,
         workspace: &mut SahWorkspace,
         f: &mut impl FnMut(u32, u32),
@@ -12,7 +12,7 @@ impl SahTree {
         }
 
         workspace.traversal_stack.clear();
-        self.self_intersect_node::<CHANGE_DETECTION>(workspace, 0, f)
+        self.self_intersect_node(workspace, 0, f)
     }
 
     // Traverses overlaps of a single node with itself.
@@ -20,7 +20,7 @@ impl SahTree {
     // - Ensure we don’t traverse the same branch twice.
     // - Only check the left/right overlap. Left/left and right/right checks trivially pass.
     // TODO: take change detection into account.
-    fn self_intersect_node<const CHANGE_DETECTION: bool>(
+    fn self_intersect_node(
         &self,
         workspace: &mut SahWorkspace,
         id: u32,
@@ -28,7 +28,7 @@ impl SahTree {
     ) {
         let node = &self.nodes[id as usize];
 
-        if CHANGE_DETECTION && !node.left.changed() {
+        if Self::CHANGE_DETECTION_ENABLED && !node.right.changed() && !node.left.changed() {
             return;
         }
 
@@ -38,39 +38,29 @@ impl SahTree {
         let left_is_leaf = node.left.is_leaf();
         let right_is_leaf = node.right.is_leaf();
 
-        if !left_is_leaf {
-            self.self_intersect_node::<CHANGE_DETECTION>(workspace, left_child, f);
+        if (!Self::CHANGE_DETECTION_ENABLED || node.left.changed()) && !left_is_leaf {
+            self.self_intersect_node(workspace, left_child, f);
         }
 
-        if !right_is_leaf {
-            self.self_intersect_node::<CHANGE_DETECTION>(workspace, right_child, f);
+        if (!Self::CHANGE_DETECTION_ENABLED || node.right.changed()) && !right_is_leaf {
+            self.self_intersect_node(workspace, right_child, f);
         }
 
         if left_right_intersect {
             match (left_is_leaf, right_is_leaf) {
                 (true, true) => f(left_child, right_child),
                 (true, false) => {
-                    // NOTE: change detection is unconditionally disabled on this branch since we
-                    //       already know that left1 is passed the change detection check.
-                    self.traverse_single_subtree::<false>(workspace, &node.left, right_child, f)
+                    self.traverse_single_subtree(workspace, &node.left, right_child, f)
                 }
-                (false, true) => self.traverse_single_subtree::<CHANGE_DETECTION>(
-                    workspace,
-                    &node.right,
-                    left_child,
-                    f,
-                ),
-                (false, false) => self.traverse_two_branches::<CHANGE_DETECTION>(
-                    workspace,
-                    left_child,
-                    right_child,
-                    f,
-                ),
+                (false, true) => {
+                    self.traverse_single_subtree(workspace, &node.right, left_child, f)
+                }
+                (false, false) => self.traverse_two_branches(workspace, left_child, right_child, f),
             }
         }
     }
 
-    fn traverse_two_branches<const CHANGE_DETECTION: bool>(
+    fn traverse_two_branches(
         &self,
         workspace: &mut SahWorkspace,
         a: u32,
@@ -85,10 +75,14 @@ impl SahTree {
         let left2 = &node2.left;
         let right2 = &node2.right;
 
-        let left_left = (!CHANGE_DETECTION || left1.changed()) && left1.intersects(&left2);
-        let left_right = (!CHANGE_DETECTION || left1.changed()) && left1.intersects(&right2);
-        let right_left = (!CHANGE_DETECTION || right1.changed()) && right1.intersects(&left2);
-        let right_right = (!CHANGE_DETECTION || right1.changed()) && right1.intersects(&right2);
+        let left_left = (!Self::CHANGE_DETECTION_ENABLED || left1.changed() || left2.changed())
+            && left1.intersects(&left2);
+        let left_right = (!Self::CHANGE_DETECTION_ENABLED || left1.changed() || right2.changed())
+            && left1.intersects(&right2);
+        let right_left = (!Self::CHANGE_DETECTION_ENABLED || right1.changed() || left2.changed())
+            && right1.intersects(&left2);
+        let right_right = (!Self::CHANGE_DETECTION_ENABLED || right1.changed() || right2.changed())
+            && right1.intersects(&right2);
 
         macro_rules! dispatch(
             ($check: ident, $child_a: ident, $child_b: ident) => {
@@ -96,17 +90,15 @@ impl SahTree {
                     match ($child_a.is_leaf(), $child_b.is_leaf()) {
                         (true, true) => f($child_a.children, $child_b.children),
                         (true, false) => {
-                            // NOTE: change detection is unconditionally disabled on this branch since we
-                            //       already know that left1 is passed the change detection check.
-                            self.traverse_single_subtree::<false>(workspace, $child_a, $child_b.children, f)
+                            self.traverse_single_subtree(workspace, $child_a, $child_b.children, f)
                         }
-                        (false, true) => self.traverse_single_subtree::<CHANGE_DETECTION>(
+                        (false, true) => self.traverse_single_subtree(
                             workspace,
                             $child_b,
                             $child_a.children,
                             f,
                         ),
-                        (false, false) => self.traverse_two_branches::<CHANGE_DETECTION>(
+                        (false, false) => self.traverse_two_branches(
                             workspace,
                             $child_a.children,
                             $child_b.children,
@@ -123,7 +115,7 @@ impl SahTree {
         dispatch!(right_right, right1, right2);
     }
 
-    fn traverse_single_subtree_recursive<const CHANGE_DETECTION: bool>(
+    fn traverse_single_subtree_recursive(
         &self,
         workspace: &mut SahWorkspace,
         node: &SahTreeNode,
@@ -138,12 +130,7 @@ impl SahTree {
             if subtree.left.is_leaf() {
                 f(node.children, subtree.left.children)
             } else {
-                self.traverse_single_subtree::<CHANGE_DETECTION>(
-                    workspace,
-                    node,
-                    subtree.left.children,
-                    f,
-                );
+                self.traverse_single_subtree(workspace, node, subtree.left.children, f);
             }
         }
 
@@ -151,18 +138,13 @@ impl SahTree {
             if subtree.right.is_leaf() {
                 f(node.children, subtree.right.children)
             } else {
-                self.traverse_single_subtree::<CHANGE_DETECTION>(
-                    workspace,
-                    node,
-                    subtree.right.children,
-                    f,
-                );
+                self.traverse_single_subtree(workspace, node, subtree.right.children, f);
             }
         }
     }
 
     // Checks overlap between a single node and a subtree.
-    fn traverse_single_subtree<const CHANGE_DETECTION: bool>(
+    fn traverse_single_subtree(
         &self,
         workspace: &mut SahWorkspace,
         node: &SahTreeNode,
@@ -174,14 +156,17 @@ impl SahTree {
         // Since this is traversing against a single node it is more efficient to keep the leaf reference
         // around and traverse the branch using a manual stack. Left branches are traversed by the main
         // loop whereas the right branches are pushed to the stack.
-
         let mut curr_id = subtree;
+        let node_changed = node.changed();
+
         loop {
             let curr = &self.nodes[curr_id as usize];
             let left = &curr.left;
             let right = &curr.right;
-            let left_check = (!CHANGE_DETECTION || left.changed()) && node.intersects(&left);
-            let right_check = node.intersects(&right);
+            let left_check = (!Self::CHANGE_DETECTION_ENABLED || node_changed || left.changed())
+                && node.intersects(&left);
+            let right_check = (!Self::CHANGE_DETECTION_ENABLED || node_changed || right.changed())
+                && node.intersects(&right);
             let left_is_leaf = left.is_leaf();
             let right_is_leaf = right.is_leaf();
             let mut found_next = false;

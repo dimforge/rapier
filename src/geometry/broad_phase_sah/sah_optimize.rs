@@ -52,7 +52,7 @@ impl SahTree {
         /*
          * Subtree optimizations.
          */
-        let t0 = std::time::Instant::now();
+        // let t0 = std::time::Instant::now();
         let num_leaves = self.nodes[0].leaf_count();
         let mut start_index = workspace.rebuild_start_index;
 
@@ -74,18 +74,18 @@ impl SahTree {
 
         workspace.rebuild_start_index = start_index;
 
-        println!(
-            "Num refinement candidates: {}, list: {:?}",
-            workspace.optimization_roots.len(),
-            workspace.optimization_roots
-        );
+        // println!(
+        //     "Num refinement candidates: {}, list: {:?}",
+        //     workspace.optimization_roots.len(),
+        //     workspace.optimization_roots
+        // );
 
         /*
          * Root optimization.
          */
         workspace.rebuild_leaves.clear();
 
-        let t0 = std::time::Instant::now();
+        // let t0 = std::time::Instant::now();
         match config.root_mode {
             RootOptimizationMode::BreadthFirst => self
                 .find_root_optimization_pseudo_leaves_breadth_first(
@@ -103,7 +103,7 @@ impl SahTree {
         if !workspace.rebuild_leaves.is_empty() {
             self.rebuild_range(0, &mut workspace.rebuild_leaves);
         }
-        println!("Root optimization: {}", t0.elapsed().as_secs_f32() * 1000.0);
+        // println!("Root optimization: {}", t0.elapsed().as_secs_f32() * 1000.0);
 
         /*
          * Subtree leaf optimizations.
@@ -113,21 +113,21 @@ impl SahTree {
             workspace.rebuild_leaves.clear();
             self.collect_leaves(workspace, subtree_root_id);
 
-            let t1 = std::time::Instant::now();
+            // let t1 = std::time::Instant::now();
             self.rebuild_range(subtree_root_id, &mut workspace.rebuild_leaves);
-            println!(
-                "Optimized leaves: {}, time: {}",
-                workspace.rebuild_leaves.len(),
-                t1.elapsed().as_secs_f32() * 1000.0
-            );
+            // println!(
+            //     "Optimized leaves: {}, time: {}",
+            //     workspace.rebuild_leaves.len(),
+            //     t1.elapsed().as_secs_f32() * 1000.0
+            // );
         }
 
-        println!(
-            "Leaf optimization: {}, optimization roots: {}, config: {:?}",
-            t0.elapsed().as_secs_f32() * 1000.0,
-            workspace.optimization_roots.len(),
-            config
-        );
+        // println!(
+        //     "Leaf optimization: {}, optimization roots: {}, config: {:?}",
+        //     t0.elapsed().as_secs_f32() * 1000.0,
+        //     workspace.optimization_roots.len(),
+        //     config
+        // );
         workspace.optimization_roots.clear();
     }
 

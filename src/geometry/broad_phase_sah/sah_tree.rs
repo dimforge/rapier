@@ -239,6 +239,11 @@ impl SahTreeNode {
         // TODO PERF: simd optimizations?
         na::partial_le(&self.mins, &other.mins) && na::partial_ge(&self.maxs, &other.maxs)
     }
+
+    pub fn contains_aabb(&self, other: &Aabb) -> bool {
+        // TODO PERF: simd optimizations?
+        na::partial_le(&self.mins, &other.mins) && na::partial_ge(&self.maxs, &other.maxs)
+    }
 }
 
 pub type SahNodeHandle = Index;
@@ -341,6 +346,27 @@ impl SahTree {
         }
     }
 
+    pub fn changed_leaf_count(&self, id: u32) -> u32 {
+        if self.nodes.is_empty() {
+            0
+        } else if self.nodes[0].right.leaf_count() == 0 {
+            1
+        } else {
+            let node = &self.nodes[id as usize];
+            let left_count = if node.left.is_leaf() {
+                node.left.changed() as u32
+            } else {
+                self.changed_leaf_count(node.left.children)
+            };
+            let right_count = if node.right.is_leaf() {
+                node.right.changed() as u32
+            } else {
+                self.changed_leaf_count(node.right.children)
+            };
+            left_count + right_count
+        }
+    }
+
     pub fn assert_well_formed(&self) {
         self.assert_well_formed_at(0);
     }
@@ -365,6 +391,10 @@ impl SahTree {
         } else {
             let calculated_leaf_count = self.assert_well_formed_at(node.left.children);
             let child = &self.nodes[node.left.children as usize];
+            assert_eq!(
+                child.right.changed() || child.left.changed(),
+                node.left.changed()
+            );
             assert!(node.left.contains(&child.left));
             assert!(node.left.contains(&child.right));
             assert_eq!(
@@ -386,6 +416,10 @@ impl SahTree {
         } else {
             let calculated_leaf_count = self.assert_well_formed_at(node.right.children);
             let child = &self.nodes[node.right.children as usize];
+            assert_eq!(
+                child.right.changed() || child.left.changed(),
+                node.right.changed()
+            );
             assert!(node.right.contains(&child.left));
             assert!(node.right.contains(&child.right));
             assert_eq!(

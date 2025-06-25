@@ -55,17 +55,6 @@ impl SahTree {
         }
     }
 
-    pub fn refit_debug(&self, source_id: u32, target_id_mut: &mut u32) {
-        *target_id_mut += 1;
-        let node = &self.nodes[source_id as usize];
-        if !node.left.is_leaf() {
-            self.refit_debug(node.left.children, target_id_mut);
-        }
-        if !node.right.is_leaf() {
-            self.refit_debug(node.right.children, target_id_mut);
-        }
-    }
-
     fn refit_recurse(
         &mut self,
         workspace: &mut SahWorkspace,

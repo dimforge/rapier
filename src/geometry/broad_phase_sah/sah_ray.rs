@@ -6,6 +6,9 @@ use parry::query::{Ray, RayCast};
 impl SahTree {
     pub fn cast_ray(
         &self,
+        // TODO: we could avoid the workspace by using a local stack.
+        //       Maybe a `SmallVec<64>` to keep most cases away from heap
+        //       allocations.
         workspace: &mut SahWorkspace,
         ray: &Ray,
         max_toi: Real,
@@ -30,6 +33,7 @@ impl SahTree {
                 .cast_local_ray(&ray, best_toi, true)
                 .unwrap_or(Real::MAX);
 
+            // Ensure whatever is in `left` is the nearest toi.
             if toi_left > toi_right {
                 std::mem::swap(&mut left, &mut right);
                 std::mem::swap(&mut toi_left, &mut toi_right);

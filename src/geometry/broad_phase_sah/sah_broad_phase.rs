@@ -29,19 +29,19 @@ impl BroadPhase for BroadPhaseSah {
 
         let first_pass = self.tree.is_empty();
 
-        let t0 = std::time::Instant::now();
+        // let t0 = std::time::Instant::now();
         for modified in modified_colliders {
             let aabb = colliders[*modified].compute_collision_aabb(prediction_distance / 2.0);
             self.tree
                 .pre_update_or_insert(aabb, modified.into_raw_parts().0);
         }
-        println!("Pre-update: {}", t0.elapsed().as_secs_f32() * 1000.0);
+        // println!("Pre-update: {}", t0.elapsed().as_secs_f32() * 1000.0);
 
         if first_pass {
             let t0 = std::time::Instant::now();
             self.tree.rebuild(&mut self.workspace);
-            self.tree.refit(&mut self.workspace);
             println!("Rebuild: {}", t0.elapsed().as_secs_f32() * 1000.0);
+            self.tree.refit(&mut self.workspace);
         }
 
         // for removed in removed_colliders {
@@ -49,36 +49,31 @@ impl BroadPhase for BroadPhaseSah {
         // }
 
         // let t0 = std::time::Instant::now();
-        // self.tree.optimize_incremental(&mut self.workspace);
-        // // self.tree.rebuild(&mut self.workspace);
+        self.tree.optimize_incremental(&mut self.workspace);
         // println!(
         //     "Rebuild incremental: {}",
         //     t0.elapsed().as_secs_f32() * 1000.0
         // );
-
-        let mut debug_len = 0;
-        self.tree.refit_debug(0, &mut debug_len);
-        println!("Debug len: {}", debug_len);
-
         // NOTE: we run refit after optimization so we can skip updating internal nodes during
-        //       optimization, and so we can reorder the tree in memory to make it more cache
-        //       friendly after the rebuild shuffling everything around.
-        let t0 = std::time::Instant::now();
+        //       optimization, and so we can reorder the tree in memory (in depth-first order)
+        //       to make it more cache friendly after the rebuild shuffling everything around.
+        // let t0 = std::time::Instant::now();
         self.tree.refit(&mut self.workspace);
-        println!("Refit: {}", t0.elapsed().as_secs_f32() * 1000.0);
+        // println!("Refit: {}", t0.elapsed().as_secs_f32() * 1000.0);
 
-        println!(
-            "leaf count: {}/{}",
-            self.tree.leaf_count(),
-            self.tree.reachable_leaf_count(0)
-        );
+        // println!(
+        //     "leaf count: {}/{} (changed: {})",
+        //     self.tree.leaf_count(),
+        //     self.tree.reachable_leaf_count(0),
+        //     self.tree.changed_leaf_count(0),
+        // );
 
-        // // self.tree.assert_is_depth_first();
-        self.tree.assert_well_formed();
-        println!(
-            "Is well formed. Tree height: {}",
-            self.tree.subtree_height(0),
-        );
+        // self.tree.assert_is_depth_first();
+        // self.tree.assert_well_formed();
+        // println!(
+        //     "Is well formed. Tree height: {}",
+        //     self.tree.subtree_height(0),
+        // );
         // // println!("Tree quality: {}", self.tree.quality_metric());
 
         let mut pairs_collector = |co1: u32, co2: u32| {
@@ -99,9 +94,9 @@ impl BroadPhase for BroadPhaseSah {
 
         let t0 = std::time::Instant::now();
         self.tree
-            .traverse_bvtt_single_tree::<false>(&mut self.workspace, &mut pairs_collector);
+            .traverse_bvtt_single_tree(&mut self.workspace, &mut pairs_collector);
         println!("Detection: {}", t0.elapsed().as_secs_f32() * 1000.0);
-        println!(">>>>>> Num events: {}", events.iter().len());
+        // println!(">>>>>> Num events: {}", events.iter().len());
     }
 }
 
