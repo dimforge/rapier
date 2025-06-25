@@ -201,7 +201,7 @@ impl SahTreeNode {
 
     #[inline(always)]
     pub(super) fn merged(&self, other: &Self, children: Uint) -> Self {
-        // PERF: simd optimizations?
+        // TODO PERF: simd optimizations?
         Self {
             mins: self.mins.inf(&other.mins),
             children,
@@ -221,13 +221,22 @@ impl SahTreeNode {
         na::center(&self.mins, &self.maxs)
     }
 
+    pub fn volume(&self) -> Real {
+        // TODO PERF: simd optimizations?
+        let extents = self.maxs - self.mins;
+        #[cfg(feature = "dim2")]
+        return extents.x * extents.y;
+        #[cfg(feature = "dim3")]
+        return extents.x * extents.y * extents.z;
+    }
+
     pub fn intersects(&self, other: &Self) -> bool {
-        // TODO: simd optimizations
+        // TODO PERF: simd optimizations?
         na::partial_le(&self.mins, &other.maxs) && na::partial_ge(&self.maxs, &other.mins)
     }
 
     pub fn contains(&self, other: &Self) -> bool {
-        // TODO: simd optimizations
+        // TODO PERF: simd optimizations?
         na::partial_le(&self.mins, &other.mins) && na::partial_ge(&self.maxs, &other.maxs)
     }
 }

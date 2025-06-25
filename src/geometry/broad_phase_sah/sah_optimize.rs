@@ -41,9 +41,6 @@ impl SahTree {
     }
 
     pub fn optimize_incremental(&mut self, workspace: &mut SahWorkspace) {
-        return;
-
-        /*
         if self.nodes.is_empty() {
             return;
         }
@@ -85,15 +82,16 @@ impl SahTree {
 
         /*
          * Root optimization.
-         * TODO: make it so that the root optimization doesn’t cross the boundaries of the
-         *       subsequent subtree optimizations (important for parallelism).
          */
         workspace.rebuild_leaves.clear();
 
         let t0 = std::time::Instant::now();
         match config.root_mode {
             RootOptimizationMode::BreadthFirst => self
-                .find_root_optimization_pseudo_leaves_bfs(workspace, config.target_root_node_count),
+                .find_root_optimization_pseudo_leaves_breadth_first(
+                    workspace,
+                    config.target_root_node_count,
+                ),
             RootOptimizationMode::PriorityQueue => self
                 .find_root_optimization_pseudo_leaves_pqueue(
                     workspace,
@@ -113,13 +111,7 @@ impl SahTree {
         for i in 0..workspace.optimization_roots.len() {
             let subtree_root_id = workspace.optimization_roots[i];
             workspace.rebuild_leaves.clear();
-            // NOTE: we have the guarantee that the subtree root has two children since
-            //       `find_optimization_roots` checks the number of children > 2.
-            //       We don’t just call `collect_leaves` on `subtree_root_id`
-            //       since we don’t want to free it.
-            let [child0, child1] = self.nodes[subtree_root_id as usize].children;
-            self.collect_leaves(workspace, child0);
-            self.collect_leaves(workspace, child1);
+            self.collect_leaves(workspace, subtree_root_id);
 
             let t1 = std::time::Instant::now();
             self.rebuild_range(subtree_root_id, &mut workspace.rebuild_leaves);
@@ -137,31 +129,31 @@ impl SahTree {
             config
         );
         workspace.optimization_roots.clear();
-         */
     }
 
-    fn collect_leaves(&mut self, workspace: &mut SahWorkspace, subtree_root: u32) {
-        return;
-
-        /*
+    fn collect_leaves(&self, workspace: &mut SahWorkspace, subtree_root: u32) {
         let node = &self.nodes[subtree_root as usize];
+        let left = &node.left;
+        let right = &node.right;
 
-        if node.is_leaf() {
-            workspace.rebuild_leaves.push(subtree_root);
+        if left.is_leaf() {
+            workspace.rebuild_leaves.push(*left);
         } else {
-            let [left, right] = node.children;
-            self.collect_leaves(workspace, left);
-            self.collect_leaves(workspace, right);
+            self.collect_leaves(workspace, left.children);
         }
-         */
+
+        if right.is_leaf() {
+            workspace.rebuild_leaves.push(*right);
+        } else {
+            self.collect_leaves(workspace, right.children);
+        }
     }
 
-    fn find_root_optimization_pseudo_leaves_bfs(
+    fn find_root_optimization_pseudo_leaves_breadth_first(
         &mut self,
         workspace: &mut SahWorkspace,
         target_count: usize,
     ) {
-        /*
         if self.nodes.len() < 2 {
             return;
         }
@@ -174,20 +166,27 @@ impl SahTree {
             };
 
             let node = &self.nodes[curr_node as usize];
+            let left = &node.left;
+            let right = &node.right;
 
-            if node.is_leaf() || node.data.is_change_pending() {
-                workspace.rebuild_leaves.push(curr_node);
+            if left.is_leaf() || left.data.is_change_pending() {
+                workspace.rebuild_leaves.push(*left);
             } else {
-                let left_id = node.children[0];
-                let right_id = node.children[1];
+                workspace.dequeue.push_back(left.children);
+            }
 
-                workspace.dequeue.push_back(left_id);
-                workspace.dequeue.push_back(right_id);
+            if right.is_leaf() || right.data.is_change_pending() {
+                workspace.rebuild_leaves.push(*right);
+            } else {
+                workspace.dequeue.push_back(right.children);
             }
         }
 
-        workspace.rebuild_leaves.extend(workspace.dequeue.drain(..));
-         */
+        for id in workspace.dequeue.drain(..) {
+            let node = &self.nodes[id as usize];
+            workspace.rebuild_leaves.push(node.left);
+            workspace.rebuild_leaves.push(node.right);
+        }
     }
 
     fn find_root_optimization_pseudo_leaves_pqueue(
@@ -195,7 +194,6 @@ impl SahTree {
         workspace: &mut SahWorkspace,
         target_count: usize,
     ) {
-        /*
         if self.nodes.len() < 2 {
             return;
         }
@@ -211,33 +209,40 @@ impl SahTree {
             };
 
             let node = &self.nodes[curr_node.id as usize];
+            let left = &node.left;
+            let right = &node.right;
 
-            if node.is_leaf() || node.data.is_change_pending() {
-                workspace.rebuild_leaves.push(curr_node.id);
+            if left.is_leaf() || left.data.is_change_pending() {
+                workspace.rebuild_leaves.push(*left);
             } else {
-                let left_id = node.children[0];
-                let right_id = node.children[1];
-
-                let left_score = self.nodes[left_id as usize].aabb.volume();
-                let right_score = self.nodes[right_id as usize].aabb.volume();
-
-                // NOTE: the root node for the recursion isn’t freed, only all its descendants.
+                let children = self.nodes[left.children as usize];
+                let left_score = children.left.volume() * children.left.leaf_count() as Real
+                    + children.right.volume() * children.right.leaf_count() as Real;
                 workspace.queue.push(SahOptimizationHeapEntry {
                     score: OrderedFloat(left_score),
-                    id: left_id,
+                    id: left.children,
                 });
+            }
+
+            if right.is_leaf() || right.data.is_change_pending() {
+                workspace.rebuild_leaves.push(*right);
+            } else {
+                let children = self.nodes[right.children as usize];
+                let right_score = children.left.volume() * children.left.leaf_count() as Real
+                    + children.right.volume() * children.right.leaf_count() as Real;
                 workspace.queue.push(SahOptimizationHeapEntry {
                     score: OrderedFloat(right_score),
-                    id: right_id,
+                    id: right.children,
                 });
             }
         }
 
-        workspace
-            .rebuild_leaves
-            .extend(workspace.queue.as_slice().iter().map(|e| e.id));
+        for id in workspace.queue.as_slice() {
+            let node = &self.nodes[id.id as usize];
+            workspace.rebuild_leaves.push(node.left);
+            workspace.rebuild_leaves.push(node.right);
+        }
         workspace.queue.clear();
-         */
     }
 
     fn find_optimization_roots(
@@ -249,17 +254,15 @@ impl SahTree {
         mut leaf_count_before: u32,
         max_candidate_leaf_count: u32,
     ) {
-        /*
         if workspace.optimization_roots.len() == max_optimization_roots as usize {
             // We reached the desired number of collected leaves. Just exit.
             return;
         }
 
-        let node = &self.nodes[curr_node as usize];
-        let left_id = node.children[0];
-        let right_id = node.children[1];
-        let left = &self.nodes[left_id as usize];
+        let node = &mut self.nodes[curr_node as usize];
+        let left = &mut node.left;
         let left_leaf_count = left.leaf_count();
+        let left_children = left.children;
 
         if leaf_count_before + left_leaf_count > *start_index {
             // Traverse the left children.
@@ -270,15 +273,15 @@ impl SahTree {
                     // extraction knows not to cross this node.
                     // This won’t disturb bvtt traversal because refit will get
                     // rid of this flag.
-                    self.nodes[left_id as usize].data.set_change_pending();
-                    workspace.optimization_roots.push(left_id);
+                    left.data.set_change_pending();
+                    workspace.optimization_roots.push(left_children);
                     *start_index += left_leaf_count;
                 }
             } else {
                 // This node has too many leaves. Recurse.
                 self.find_optimization_roots(
                     workspace,
-                    left_id,
+                    left_children,
                     start_index,
                     max_optimization_roots,
                     leaf_count_before,
@@ -294,8 +297,10 @@ impl SahTree {
             return;
         }
 
-        let right = &self.nodes[right_id as usize];
+        let node = &mut self.nodes[curr_node as usize];
+        let right = &mut node.right;
         let right_leaf_count = right.leaf_count();
+        let right_children = right.children;
 
         if leaf_count_before + right_leaf_count > *start_index {
             // Traverse the right children.
@@ -305,14 +310,14 @@ impl SahTree {
                     // extraction knows not to cross this node.
                     // This won’t disturb bvtt traversal because refit will get
                     // rid of this flag.
-                    self.nodes[right_id as usize].data.set_change_pending();
-                    workspace.optimization_roots.push(right_id);
+                    right.data.set_change_pending();
+                    workspace.optimization_roots.push(right_children);
                     *start_index += right_leaf_count;
                 }
             } else {
                 self.find_optimization_roots(
                     workspace,
-                    right_id,
+                    right_children,
                     start_index,
                     max_optimization_roots,
                     leaf_count_before,
@@ -320,7 +325,6 @@ impl SahTree {
                 );
             }
         }
-         */
     }
 }
 
