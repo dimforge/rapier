@@ -3,7 +3,7 @@
 pub use self::broad_phase::BroadPhase;
 pub use self::broad_phase_multi_sap::{BroadPhaseMultiSap, BroadPhasePairEvent, ColliderPair};
 pub use self::broad_phase_qbvh::BroadPhaseQbvh;
-pub use self::broad_phase_sah::BroadPhaseSah;
+pub use self::broad_phase_sah::{BroadPhaseSah, SahTree, SahWorkspace};
 pub use self::collider::{Collider, ColliderBuilder};
 pub use self::collider_components::*;
 pub use self::collider_set::ColliderSet;

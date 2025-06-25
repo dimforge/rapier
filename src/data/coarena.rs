@@ -30,6 +30,10 @@ impl<T> Coarena<T> {
         self.data.get(index as usize).map(|(_, t)| t)
     }
 
+    pub fn get_mut_unknown_gen(&mut self, index: u32) -> Option<&mut T> {
+        self.data.get_mut(index as usize).map(|(_, t)| t)
+    }
+
     pub(crate) fn get_gen(&self, index: u32) -> Option<u32> {
         self.data.get(index as usize).map(|(gen, _)| *gen)
     }

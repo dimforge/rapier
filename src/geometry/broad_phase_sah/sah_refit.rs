@@ -1,83 +1,138 @@
-use crate::data::Index;
-use crate::math::Real;
-use parry::bounding_volume::BoundingVolume;
-
 use super::{SahTree, SahTreeNode, SahWorkspace};
+use crate::geometry::broad_phase_sah::sah_tree::{SahLeafData, SahTreeNodeWide, Uint};
 
 impl SahTree {
+    pub(super) const LEFT: u8 = 0;
+    pub(super) const RIGHT: u8 = 1;
+
     pub fn refit(&mut self, workspace: &mut SahWorkspace) {
-        if !self.nodes.is_empty() {
-            workspace
-                .refit_tmp
-                .resize(self.nodes.len(), SahTreeNode::zeros());
+        if !self.nodes.is_empty() && self.nodes[0].leaf_count() > 2 {
+            workspace.refit_tmp.resize(
+                self.nodes.len(),
+                SahTreeNodeWide {
+                    left: SahTreeNode::zeros(),
+                    right: SahTreeNode::zeros(),
+                },
+            );
+
             let mut len = 1;
-            self.refit_recurse(workspace, &mut len, 0, 0);
+
+            // Start with a special case for the root then recurse.
+            let left_child_id = self.nodes[0].left.children;
+            let right_child_id = self.nodes[0].right.children;
+
+            if !self.nodes[0].left.is_leaf() {
+                self.refit_recurse(workspace, left_child_id, &mut len, 0, Self::LEFT);
+            } else {
+                workspace.refit_tmp[0].left = self.nodes[0].left;
+                workspace.refit_tmp[0].left.data.resolve_pending_change();
+
+                // NOTE: updating the leaf_data shouldn’t be needed here since the root
+                //       is always at 0.
+                // *self.leaf_data.get_mut_unknown_gen(left_child_id).unwrap() = SahLeafData {
+                //     node: 0,
+                //     left_or_right: Self::LEFT,
+                // };
+            }
+
+            if !self.nodes[0].right.is_leaf() {
+                self.refit_recurse(workspace, right_child_id, &mut len, 0, Self::RIGHT);
+            } else {
+                workspace.refit_tmp[0].right = self.nodes[0].right;
+                workspace.refit_tmp[0].right.data.resolve_pending_change();
+                // NOTE: updating the leaf_data shouldn’t be needed here since the root
+                //       is always at 0.
+                // *self.leaf_data.get_mut_unknown_gen(right_child_id).unwrap() = SahLeafData {
+                //     node: 0,
+                //     left_or_right: Self::RIGHT,
+                // };
+            }
+
+            // Swap the old nodes with the refitted ones.
             std::mem::swap(&mut self.nodes, &mut workspace.refit_tmp);
             self.nodes.truncate(len as usize);
             workspace.refit_tmp.truncate(len as usize);
         }
     }
 
+    pub fn refit_debug(&self, source_id: u32, target_id_mut: &mut u32) {
+        *target_id_mut += 1;
+        let node = &self.nodes[source_id as usize];
+        if !node.left.is_leaf() {
+            self.refit_debug(node.left.children, target_id_mut);
+        }
+        if !node.right.is_leaf() {
+            self.refit_debug(node.right.children, target_id_mut);
+        }
+    }
+
     fn refit_recurse(
         &mut self,
         workspace: &mut SahWorkspace,
-        id: &mut u32,
-        parent_source: u32,
-        parent_target: u32,
+        source_id: u32,
+        target_id_mut: &mut u32,
+        parent_target_id: u32,
+        left_or_right: u8,
     ) {
-        let parent = &self.nodes[parent_source as usize]; // PERF: pass directly the reference to the `node: &SahTreeNode` instead of u32.
-        let [left_source_id, right_source_id] = parent.children;
+        let target_id = *target_id_mut;
+        *target_id_mut += 1;
 
-        // Write the children.
-        let left_target = *id;
-        let right_target = *id + 1;
-        *id += 2;
+        let node = &self.nodes[source_id as usize];
+        let left_is_leaf = node.left.is_leaf();
+        let right_is_leaf = node.right.is_leaf();
+        let left_source_id = node.left.children;
+        let right_source_id = node.right.children;
 
-        // Recurse or update leaf/handle association.
-        let left_source = &self.nodes[left_source_id as usize];
-        if left_source.is_leaf() {
-            workspace.refit_tmp[left_target as usize] = SahTreeNode {
-                aabb: left_source.aabb,
-                children: left_source.children,
-                data: left_source.data.resolve_pending_change(),
-            };
-
-            self.leaf_data
-                .get_mut(Index::from_raw_parts(
-                    left_source.children[0],
-                    left_source.children[1],
-                ))
-                .unwrap()
-                .node = left_target;
+        if !left_is_leaf {
+            self.refit_recurse(
+                workspace,
+                left_source_id,
+                target_id_mut,
+                target_id,
+                Self::LEFT,
+            );
         } else {
-            self.refit_recurse(workspace, id, left_source_id, left_target);
-        };
-
-        let right_source = &self.nodes[right_source_id as usize];
-        if right_source.is_leaf() {
-            workspace.refit_tmp[right_target as usize] = SahTreeNode {
-                aabb: right_source.aabb,
-                children: right_source.children,
-                data: right_source.data.resolve_pending_change(),
+            let node = &self.nodes[source_id as usize];
+            workspace.refit_tmp[target_id as usize].left = node.left;
+            workspace.refit_tmp[target_id as usize]
+                .left
+                .data
+                .resolve_pending_change();
+            *self
+                .leaf_data
+                .get_mut_unknown_gen(node.left.children)
+                .unwrap() = SahLeafData {
+                node: target_id,
+                left_or_right: Self::LEFT,
             };
+        }
 
-            self.leaf_data
-                .get_mut(Index::from_raw_parts(
-                    right_source.children[0],
-                    right_source.children[1],
-                ))
-                .unwrap()
-                .node = right_target;
+        if !right_is_leaf {
+            self.refit_recurse(
+                workspace,
+                right_source_id,
+                target_id_mut,
+                target_id,
+                Self::RIGHT,
+            );
         } else {
-            self.refit_recurse(workspace, id, right_source_id, right_target);
-        };
+            let node = &self.nodes[source_id as usize];
+            workspace.refit_tmp[target_id as usize].right = node.right;
+            workspace.refit_tmp[target_id as usize]
+                .right
+                .data
+                .resolve_pending_change();
+            *self
+                .leaf_data
+                .get_mut_unknown_gen(node.right.children)
+                .unwrap() = SahLeafData {
+                node: target_id,
+                left_or_right: Self::RIGHT,
+            };
+        }
 
-        let left = &workspace.refit_tmp[left_target as usize];
-        let right = &workspace.refit_tmp[right_target as usize];
-        workspace.refit_tmp[parent_target as usize] = SahTreeNode {
-            aabb: left.aabb.merged(&right.aabb),
-            children: [left_target, right_target],
-            data: left.data.merged(right.data),
-        };
+        let node = &workspace.refit_tmp[target_id as usize];
+        *workspace.refit_tmp[parent_target_id as usize].as_array_mut()[left_or_right as usize] =
+            node.left.merged(&node.right, target_id as Uint);
     }
 }

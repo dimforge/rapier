@@ -41,6 +41,9 @@ impl SahTree {
     }
 
     pub fn optimize_incremental(&mut self, workspace: &mut SahWorkspace) {
+        return;
+
+        /*
         if self.nodes.is_empty() {
             return;
         }
@@ -134,9 +137,13 @@ impl SahTree {
             config
         );
         workspace.optimization_roots.clear();
+         */
     }
 
     fn collect_leaves(&mut self, workspace: &mut SahWorkspace, subtree_root: u32) {
+        return;
+
+        /*
         let node = &self.nodes[subtree_root as usize];
 
         if node.is_leaf() {
@@ -146,6 +153,7 @@ impl SahTree {
             self.collect_leaves(workspace, left);
             self.collect_leaves(workspace, right);
         }
+         */
     }
 
     fn find_root_optimization_pseudo_leaves_bfs(
@@ -153,6 +161,7 @@ impl SahTree {
         workspace: &mut SahWorkspace,
         target_count: usize,
     ) {
+        /*
         if self.nodes.len() < 2 {
             return;
         }
@@ -178,6 +187,7 @@ impl SahTree {
         }
 
         workspace.rebuild_leaves.extend(workspace.dequeue.drain(..));
+         */
     }
 
     fn find_root_optimization_pseudo_leaves_pqueue(
@@ -185,6 +195,7 @@ impl SahTree {
         workspace: &mut SahWorkspace,
         target_count: usize,
     ) {
+        /*
         if self.nodes.len() < 2 {
             return;
         }
@@ -226,6 +237,7 @@ impl SahTree {
             .rebuild_leaves
             .extend(workspace.queue.as_slice().iter().map(|e| e.id));
         workspace.queue.clear();
+         */
     }
 
     fn find_optimization_roots(
@@ -237,6 +249,7 @@ impl SahTree {
         mut leaf_count_before: u32,
         max_candidate_leaf_count: u32,
     ) {
+        /*
         if workspace.optimization_roots.len() == max_optimization_roots as usize {
             // We reached the desired number of collected leaves. Just exit.
             return;
@@ -307,6 +320,7 @@ impl SahTree {
                 );
             }
         }
+         */
     }
 }
 

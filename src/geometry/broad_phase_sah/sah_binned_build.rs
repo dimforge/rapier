@@ -1,9 +1,8 @@
-use crate::data::Index;
+use super::{SahTree, SahTreeNode, SahWorkspace};
+use crate::geometry::broad_phase_sah::sah_tree::SahTreeNodeWide;
 use crate::geometry::Aabb;
 use crate::math::Real;
 use parry::bounding_volume::BoundingVolume;
-
-use super::{SahLeafData, SahTree, SahTreeNode, SahWorkspace};
 
 impl SahTree {
     pub fn rebuild(&mut self, workspace: &mut SahWorkspace) {
@@ -12,17 +11,21 @@ impl SahTree {
         }
 
         workspace.rebuild_leaves.clear();
-        for (id, node) in self.nodes.iter().enumerate() {
-            if node.is_leaf() {
-                workspace.rebuild_leaves.push(id as u32);
+        for node in self.nodes.iter() {
+            if node.left.is_leaf() {
+                workspace.rebuild_leaves.push(node.left);
+            }
+            if node.right.is_leaf() {
+                workspace.rebuild_leaves.push(node.right);
             }
         }
 
-        self.nodes[0] = SahTreeNode::zeros();
+        self.nodes.clear();
+        self.nodes.push(SahTreeNodeWide::zeros());
         self.rebuild_range(0, &mut workspace.rebuild_leaves);
     }
 
-    pub fn rebuild_range(&mut self, target_node_id: u32, leaves: &mut [u32]) {
+    pub fn rebuild_range(&mut self, target_node_id: u32, leaves: &mut [SahTreeNode]) {
         // PERF: calculate an optimal bin count dynamically based on the number of leaves to split?
         //       The paper suggests (4 + 2 * sqrt(num_leaves).floor()).min(16)
         const NUM_BINS: usize = 8;
@@ -30,30 +33,9 @@ impl SahTree {
 
         let mut bins = [SahBin::default(); NUM_BINS];
 
-        // PERF: have dedicated branches for:
-        //       - edge-cases (e.g. if all the aabbs have the same center and can’t be splitted).
-        //       - when the remaining leaf count is smaller than NUM_BINS (=> test all the splitting planes).
-        //       - when the leaf count is equal to 2.
-        if leaves.len() == 1 {
-            let leaf = &self.nodes[target_node_id as usize];
+        assert!(leaves.len() > 1);
 
-            // Check if this is an actual leaf instead of a pseudo-leaf for partial rebuild.
-            // If it is, update the corresponding handle mapping.
-            if leaf.is_leaf() {
-                let leaf_data_handle = Index::from_raw_parts(leaf.children[0], leaf.children[1]);
-                self.leaf_data.insert(
-                    leaf_data_handle,
-                    SahLeafData {
-                        node: target_node_id,
-                    },
-                );
-            }
-
-            return;
-        }
-
-        let centroid_aabb =
-            Aabb::from_points(leaves.iter().map(|l| self.nodes[*l as usize].aabb.center()));
+        let centroid_aabb = Aabb::from_points(leaves.iter().map(|node| node.center()));
         let bins_axis = centroid_aabb.extents().imax();
         let bins_range = [centroid_aabb.mins[bins_axis], centroid_aabb.maxs[bins_axis]];
 
@@ -61,10 +43,9 @@ impl SahTree {
         let k1 = NUM_BINS as Real * (1.0 - BIN_EPSILON) / (bins_range[1] - bins_range[0]);
         let k0 = bins_range[0];
         for leaf in &*leaves {
-            let leaf = &self.nodes[*leaf as usize];
-            let bin_id = (k1 * (leaf.aabb.center()[bins_axis] - k0)) as usize;
+            let bin_id = (k1 * (leaf.center()[bins_axis] - k0)) as usize;
             let bin = &mut bins[bin_id];
-            bin.aabb.merge(&leaf.aabb);
+            bin.aabb.merge(&leaf.aabb());
             bin.leaf_count += 1;
         }
 
@@ -107,9 +88,10 @@ impl SahTree {
             mid = leaves.len() / 2;
         } else {
             // Sort in-place.
-            let bin = |leaves: &mut [u32], id: usize| {
-                let node = &self.nodes[leaves[id] as usize];
-                (k1 * (node.aabb.center()[bins_axis] - k0)) as usize
+            // TODO PERF: try with using teh leaves_tmp instead of in-place sorting.
+            let bin = |leaves: &mut [SahTreeNode], id: usize| {
+                let node = &leaves[id];
+                (k1 * (node.center()[bins_axis] - k0)) as usize
             };
 
             let mut left_id = 0;
@@ -143,33 +125,39 @@ impl SahTree {
 
         assert!(!left_leaves.is_empty() && !right_leaves.is_empty());
 
-        // Allocate child nodes.
-        let left_id = if left_leaves.len() == 1 {
-            left_leaves[0]
-        } else {
-            self.nodes.push(SahTreeNode::zeros());
-            self.nodes.len() as u32 - 1
-        };
-        let right_id = if right_leaves.len() == 1 {
-            right_leaves[0]
-        } else {
-            self.nodes.push(SahTreeNode::zeros());
-            self.nodes.len() as u32 - 1
-        };
-
         // Recurse.
-        self.rebuild_range(left_id, left_leaves);
-        self.rebuild_range(right_id, right_leaves);
+        if left_leaves.len() == 1 {
+            let target = &mut self.nodes[target_node_id as usize];
+            target.left = left_leaves[0];
+            let leaf_data = self
+                .leaf_data
+                .get_mut_unknown_gen(target.left.children)
+                .unwrap();
+            leaf_data.node = target_node_id;
+            leaf_data.left_or_right = Self::LEFT;
+        } else {
+            let left_id = self.nodes.len() as u32;
+            self.nodes.push(SahTreeNodeWide::zeros());
+            self.rebuild_range(left_id, left_leaves);
+            self.nodes[target_node_id as usize].left = self.nodes[left_id as usize].merged(left_id);
+        }
 
-        // Populate the parent’s node AABB and leaf count.
-        let left_node = &self.nodes[left_id as usize];
-        let right_node = &self.nodes[right_id as usize];
-        let curr_aabb = left_node.aabb.merged(&right_node.aabb);
-        let curr_count = left_node.leaf_count() + right_node.leaf_count();
-        let curr_node = &mut self.nodes[target_node_id as usize];
-        curr_node.aabb = curr_aabb;
-        curr_node.data.set_leaf_count(curr_count);
-        curr_node.children = [left_id, right_id];
+        if right_leaves.len() == 1 {
+            let target = &mut self.nodes[target_node_id as usize];
+            target.right = right_leaves[0];
+            let leaf_data = self
+                .leaf_data
+                .get_mut_unknown_gen(target.right.children)
+                .unwrap();
+            leaf_data.node = target_node_id;
+            leaf_data.left_or_right = Self::RIGHT;
+        } else {
+            let right_id = self.nodes.len() as u32;
+            self.nodes.push(SahTreeNodeWide::zeros());
+            self.rebuild_range(right_id, right_leaves);
+            self.nodes[target_node_id as usize].right =
+                self.nodes[right_id as usize].merged(right_id);
+        }
     }
 }
 
