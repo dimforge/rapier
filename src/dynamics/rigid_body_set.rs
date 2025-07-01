@@ -186,6 +186,29 @@ impl RigidBodySet {
         Some(result)
     }
 
+    /// Gets a mutable reference to the two rigid-bodies with the given handles.
+    ///
+    /// If `handle1 == handle2`, only the first returned value will be `Some`.
+    #[cfg(not(feature = "dev-remove-slow-accessors"))]
+    pub fn get_pair_mut(
+        &mut self,
+        handle1: RigidBodyHandle,
+        handle2: RigidBodyHandle,
+    ) -> (Option<&mut RigidBody>, Option<&mut RigidBody>) {
+        if handle1 == handle2 {
+            (self.get_mut(handle1), None)
+        } else {
+            let (mut rb1, mut rb2) = self.bodies.get2_mut(handle1.0, handle2.0);
+            if let Some(rb1) = rb1.as_deref_mut() {
+                self.modified_bodies.push_once(handle1, rb1);
+            }
+            if let Some(rb2) = rb2.as_deref_mut() {
+                self.modified_bodies.push_once(handle2, rb2);
+            }
+            (rb1, rb2)
+        }
+    }
+
     pub(crate) fn get_mut_internal(&mut self, handle: RigidBodyHandle) -> Option<&mut RigidBody> {
         self.bodies.get_mut(handle.0)
     }

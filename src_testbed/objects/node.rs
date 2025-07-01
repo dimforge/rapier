@@ -14,7 +14,7 @@ use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
 use rapier::geometry::{Cone, Cylinder};
 use rapier::math::{Isometry, Real, Vector};
 
-use crate::graphics::{BevyMaterial, InstancedMaterials, SELECTED_OBJECT_MATERIAL_KEY};
+use crate::graphics::{BevyMaterial, InstancedMaterials, SELECTED_OBJECT_COLOR};
 #[cfg(feature = "dim2")]
 use {
     na::{vector, Point2, Vector2},
@@ -37,28 +37,7 @@ impl EntityWithGraphics {
         materials: &mut Assets<BevyMaterial>,
         instanced_materials: &mut InstancedMaterials,
     ) {
-        if instanced_materials.contains_key(&SELECTED_OBJECT_MATERIAL_KEY) {
-            return; // Already added.
-        }
-
-        #[cfg(feature = "dim2")]
-        let selection_material = bevy_sprite::ColorMaterial {
-            color: Color::from(Srgba::rgb(1.0, 0.0, 0.0)),
-            texture: None,
-            ..default()
-        };
-        #[cfg(feature = "dim3")]
-        let selection_material = StandardMaterial {
-            metallic: 0.5,
-            perceptual_roughness: 0.5,
-            double_sided: true, // TODO: this doesn't do anything?
-            ..StandardMaterial::from(Color::from(Srgba::rgb(1.0, 0.0, 0.0)))
-        };
-
-        instanced_materials.insert(
-            SELECTED_OBJECT_MATERIAL_KEY,
-            materials.add(selection_material),
-        );
+        instanced_materials.insert(materials, SELECTED_OBJECT_COLOR, 1.0);
     }
 
     pub fn spawn(
@@ -84,8 +63,7 @@ impl EntityWithGraphics {
             .cloned()
             .or_else(|| generate_collider_mesh(shape).map(|m| meshes.add(m)));
 
-        let opacity = 1.0;
-        let bevy_color = Color::from(Srgba::new(color.x, color.y, color.z, opacity));
+        let opacity = if sensor { 0.25 } else { 1.0 };
         let shape_pos = collider_pos * delta;
         let mut transform = Transform::from_scale(scale);
         transform.translation.x = shape_pos.translation.vector.x as f32;
@@ -108,23 +86,7 @@ impl EntityWithGraphics {
             transform.rotation = Quat::from_rotation_z(shape_pos.rotation.angle() as f32);
         }
 
-        #[cfg(feature = "dim2")]
-        let material = bevy_sprite::ColorMaterial {
-            color: bevy_color,
-            texture: None,
-            ..default()
-        };
-        #[cfg(feature = "dim3")]
-        let material = StandardMaterial {
-            metallic: 0.5,
-            perceptual_roughness: 0.5,
-            double_sided: true, // TODO: this doesn't do anything?
-            ..StandardMaterial::from(bevy_color)
-        };
-        let material_handle = instanced_materials
-            .entry(color.coords.map(|c| (c * 255.0) as usize).into())
-            .or_insert_with(|| materials.add(material));
-        let material_weak_handle = material_handle.clone_weak();
+        let material_handle = instanced_materials.insert(materials, color, opacity);
 
         if let Some(mesh) = mesh {
             #[cfg(feature = "dim2")]
@@ -154,7 +116,7 @@ impl EntityWithGraphics {
             base_color: color,
             collider,
             delta,
-            material: material_weak_handle,
+            material: material_handle,
             opacity,
         }
     }
@@ -164,18 +126,13 @@ impl EntityWithGraphics {
         commands.entity(self.entity).despawn();
     }
 
-    pub fn set_color(&mut self, materials: &mut Assets<BevyMaterial>, color: Point3<f32>) {
-        if let Some(material) = materials.get_mut(&self.material) {
-            #[cfg(feature = "dim2")]
-            {
-                material.color = Color::from(Srgba::new(color.x, color.y, color.z, self.opacity));
-            }
-            #[cfg(feature = "dim3")]
-            {
-                material.base_color =
-                    Color::from(Srgba::new(color.x, color.y, color.z, self.opacity));
-            }
-        }
+    pub fn set_color(
+        &mut self,
+        materials: &mut Assets<BevyMaterial>,
+        instanced_materials: &mut InstancedMaterials,
+        color: Point3<f32>,
+    ) {
+        self.material = instanced_materials.insert(materials, color, self.opacity);
         self.color = color;
         self.base_color = color;
     }

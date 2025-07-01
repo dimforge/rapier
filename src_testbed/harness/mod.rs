@@ -179,7 +179,7 @@ impl Harness {
         self.physics.hooks = Box::new(hooks);
 
         self.physics.islands = IslandManager::new();
-        self.physics.broad_phase = DefaultBroadPhase::new();
+        self.physics.broad_phase = DefaultBroadPhase::default();
         self.physics.narrow_phase = NarrowPhase::new();
         self.state.timestep_id = 0;
         self.state.time = 0.0;

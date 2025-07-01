@@ -178,11 +178,12 @@ struct OtherBackends {
 }
 struct Plugins(Vec<Box<dyn TestbedPlugin>>);
 
-pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h> {
+pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h, 'i, 'j, 'k> {
     graphics: &'a mut GraphicsManager,
     commands: &'a mut Commands<'d, 'e>,
     meshes: &'a mut Assets<Mesh>,
     materials: &'a mut Assets<BevyMaterial>,
+    material_handles: &'a mut Query<'i, 'j, &'k mut BevyMaterialComponent>,
     components: &'a mut Query<'b, 'f, &'c mut Transform>,
     #[allow(dead_code)] // Dead in 2D but not in 3D.
     camera_transform: GlobalTransform,
@@ -192,8 +193,8 @@ pub struct TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h> {
     mouse: &'a SceneMouse,
 }
 
-pub struct Testbed<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h> {
-    graphics: Option<TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h>>,
+pub struct Testbed<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h, 'i, 'j, 'k> {
+    graphics: Option<TestbedGraphics<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h, 'i, 'j, 'k>>,
     harness: &'a mut Harness,
     state: &'a mut TestbedState,
     #[cfg(feature = "other-backends")]
@@ -508,9 +509,10 @@ impl TestbedApp {
     }
 }
 
-impl<'g, 'h> TestbedGraphics<'_, '_, '_, '_, '_, '_, 'g, 'h> {
+impl<'g, 'h> TestbedGraphics<'_, '_, '_, '_, '_, '_, 'g, 'h, '_, '_, '_> {
     pub fn set_body_color(&mut self, body: RigidBodyHandle, color: [f32; 3]) {
-        self.graphics.set_body_color(self.materials, body, color);
+        self.graphics
+            .set_body_color(self.materials, self.material_handles, body, color);
     }
 
     pub fn ui_context_mut(&mut self) -> &mut EguiContexts<'g, 'h> {
@@ -585,7 +587,7 @@ impl<'g, 'h> TestbedGraphics<'_, '_, '_, '_, '_, '_, 'g, 'h> {
     }
 }
 
-impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_> {
+impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
     pub fn set_number_of_steps_per_frame(&mut self, nsteps: usize) {
         self.state.nsteps = nsteps
     }
@@ -1131,6 +1133,7 @@ fn update_testbed(
             commands: &mut commands,
             meshes: &mut *meshes,
             materials: &mut *materials,
+            material_handles: &mut material_handles,
             components: &mut gfx_components,
             camera_transform: *cameras.single().1,
             camera: &mut cameras.single_mut().2,
@@ -1246,6 +1249,7 @@ fn update_testbed(
                 commands: &mut commands,
                 meshes: &mut *meshes,
                 materials: &mut *materials,
+                material_handles: &mut material_handles,
                 components: &mut gfx_components,
                 camera_transform: *cameras.single().1,
                 camera: &mut cameras.single_mut().2,
@@ -1421,6 +1425,7 @@ fn update_testbed(
                     commands: &mut commands,
                     meshes: &mut *meshes,
                     materials: &mut *materials,
+                    material_handles: &mut material_handles,
                     components: &mut gfx_components,
                     camera_transform: *cameras.single().1,
                     camera: &mut cameras.single_mut().2,

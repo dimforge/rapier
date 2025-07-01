@@ -1,3 +1,18 @@
+## v0.26.1 (23 May 2025)
+
+### Added
+
+- Add `RigidBodySet::get_pair_mut` and `ColliderSet::get_pair_mut` to get two mutable rigid-bodies or colliders
+  simultaneously.
+
+## v0.26.0 (16 May 2025)
+
+### Modified
+
+- Update to parry 0.21.0. This changes the initialization of `Voxels` colliders by removing the primitive geometry
+  argument. This also fixes intersection checks with voxels, and force calculation between voxels and other
+  voxels or compound shapes.
+
 ## v0.25.1 (02 May 2025)
 
 ### Modified

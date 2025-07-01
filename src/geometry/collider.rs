@@ -12,7 +12,7 @@ use crate::pipeline::{ActiveEvents, ActiveHooks};
 use crate::prelude::ColliderEnabled;
 use na::Unit;
 use parry::bounding_volume::{Aabb, BoundingVolume};
-use parry::shape::{Shape, TriMeshBuilderError, TriMeshFlags, VoxelPrimitiveGeometry};
+use parry::shape::{Shape, TriMeshBuilderError, TriMeshFlags};
 use parry::transformation::voxelization::FillMode;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -580,45 +580,28 @@ impl ColliderBuilder {
     ///
     /// For initializing a voxels shape from points in space, see [`Self::voxels_from_points`].
     /// For initializing a voxels shape from a mesh to voxelize, see [`Self::voxelized_mesh`].
-    pub fn voxels(
-        primitive_geometry: VoxelPrimitiveGeometry,
-        voxel_size: Vector<Real>,
-        voxels: &[Point<i32>],
-    ) -> Self {
-        Self::new(SharedShape::voxels(primitive_geometry, voxel_size, voxels))
+    pub fn voxels(voxel_size: Vector<Real>, voxels: &[Point<i32>]) -> Self {
+        Self::new(SharedShape::voxels(voxel_size, voxels))
     }
 
     /// Initializes a collider made of voxels.
     ///
     /// Each voxel has the size `voxel_size` and contains at least one point from `centers`.
     /// The `primitive_geometry` controls the behavior of collision detection at voxels boundaries.
-    pub fn voxels_from_points(
-        primitive_geometry: VoxelPrimitiveGeometry,
-        voxel_size: Vector<Real>,
-        points: &[Point<Real>],
-    ) -> Self {
-        Self::new(SharedShape::voxels_from_points(
-            primitive_geometry,
-            voxel_size,
-            points,
-        ))
+    pub fn voxels_from_points(voxel_size: Vector<Real>, points: &[Point<Real>]) -> Self {
+        Self::new(SharedShape::voxels_from_points(voxel_size, points))
     }
 
     /// Initializes a voxels obtained from the decomposition of the given trimesh (in 3D)
     /// or polyline (in 2D) into voxelized convex parts.
     pub fn voxelized_mesh(
-        primitive_geometry: VoxelPrimitiveGeometry,
         vertices: &[Point<Real>],
         indices: &[[u32; DIM]],
         voxel_size: Real,
         fill_mode: FillMode,
     ) -> Self {
         Self::new(SharedShape::voxelized_mesh(
-            primitive_geometry,
-            vertices,
-            indices,
-            voxel_size,
-            fill_mode,
+            vertices, indices, voxel_size, fill_mode,
         ))
     }
 
