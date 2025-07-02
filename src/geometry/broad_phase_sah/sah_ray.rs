@@ -1,23 +1,22 @@
 use crate::geometry::broad_phase_sah::{SahTree, SahWorkspace};
 use crate::geometry::{ColliderHandle, ColliderSet};
 use crate::math::Real;
+use parry::math::SimdReal;
 use parry::query::{Ray, RayCast};
+use smallvec::SmallVec;
 
 impl SahTree {
     pub fn cast_ray(
         &self,
-        // TODO: we could avoid the workspace by using a local stack.
-        //       Maybe a `SmallVec<64>` to keep most cases away from heap
-        //       allocations.
-        workspace: &mut SahWorkspace,
         ray: &Ray,
         max_toi: Real,
         primitive_check: impl Fn(u32) -> Real,
     ) -> (u32, Real) {
-        // workspace.traversal_stack.clear();
         let mut curr_id = 0;
         let mut best_toi = max_toi;
         let mut best_primitive = u32::MAX;
+        // A stack with 32 elements should be more than enough in most cases.
+        let mut stack: SmallVec<[u32; 32]> = Default::default();
 
         loop {
             let node = &self.nodes[curr_id as usize];
@@ -62,14 +61,14 @@ impl SahTree {
                         best_primitive = right.children;
                     }
                 } else if found_next {
-                    workspace.traversal_stack.push(right.children);
+                    stack.push(right.children);
                 } else {
                     curr_id = right.children;
                 }
             }
 
             if !found_next {
-                if let Some(next) = workspace.traversal_stack.pop() {
+                if let Some(next) = stack.pop() {
                     curr_id = next;
                     continue;
                 } else {

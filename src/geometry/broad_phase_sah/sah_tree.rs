@@ -1,10 +1,13 @@
 use super::SahOptimizationHeapEntry;
 use crate::data::{Coarena, Index};
 use crate::geometry::Aabb;
+#[cfg(feature = "simd-is-enabled")]
+use crate::math::SimdReal;
 use crate::math::{Point, Real};
 use aligned_vec::AVec;
 use parry::bounding_volume::BoundingVolume;
-use std::collections::{BinaryHeap, VecDeque};
+use parry::query::Ray;
+use std::collections::{BinaryHeap, HashSet, VecDeque};
 
 // NOTE: this is all temporary data that can be freed between broad-phase updates
 //       without affecting simulation results.
@@ -146,6 +149,15 @@ impl SahTreeNodeWide {
     }
 }
 
+#[repr(C)] // SAFETY: needed to ensure SIMD aabb checks rely on the layout.
+#[cfg_attr(feature = "f32", repr(align(32)))]
+#[cfg_attr(feature = "f64", repr(align(64)))]
+#[cfg(feature = "simd-is-enabled")]
+struct SahSimdTreeNode {
+    mins: SimdReal,
+    maxs: SimdReal,
+}
+
 #[derive(Copy, Clone, Debug)]
 #[repr(C)] // SAFETY: needed to ensure SIMD aabb checks rely on the layout.
 #[cfg_attr(feature = "f32", repr(align(32)))]
@@ -200,6 +212,14 @@ impl SahTreeNode {
     }
 
     #[inline(always)]
+    #[cfg(all(feature = "simd-is-enabled", feature = "dim3"))]
+    pub(super) fn as_simd(&self) -> &SahSimdTreeNode {
+        // SAFETY: SahTreeNode is declared with the alignment
+        //         and size of two SimdReal.
+        unsafe { std::mem::transmute(self) }
+    }
+
+    #[inline(always)]
     pub(super) fn merged(&self, other: &Self, children: Uint) -> Self {
         // TODO PERF: simd optimizations?
         Self {
@@ -230,14 +250,46 @@ impl SahTreeNode {
         return extents.x * extents.y * extents.z;
     }
 
-    pub fn intersects(&self, other: &Self) -> bool {
+    pub fn merged_volume(&self, other: &Self) -> Real {
         // TODO PERF: simd optimizations?
+        let mins = self.mins.inf(&other.mins);
+        let maxs = self.maxs.sup(&other.maxs);
+        let extents = maxs - mins;
+
+        #[cfg(feature = "dim2")]
+        return extents.x * extents.y;
+        #[cfg(feature = "dim3")]
+        return extents.x * extents.y * extents.z;
+    }
+
+    #[cfg(not(all(feature = "simd-is-enabled", feature = "dim3")))]
+    pub fn intersects(&self, other: &Self) -> bool {
         na::partial_le(&self.mins, &other.maxs) && na::partial_ge(&self.maxs, &other.mins)
     }
 
+    #[cfg(all(feature = "simd-is-enabled", feature = "dim3"))]
+    pub fn intersects(&self, other: &Self) -> bool {
+        use wide::{CmpGe, CmpLe};
+        let simd_self = self.as_simd();
+        let simd_other = other.as_simd();
+        let check =
+            simd_self.mins.0.cmp_le(simd_other.maxs.0) & simd_self.maxs.0.cmp_ge(simd_other.mins.0);
+        (check.move_mask() & 0b0111) == 0b0111
+    }
+
+    #[cfg(not(all(feature = "simd-is-enabled", feature = "dim3")))]
     pub fn contains(&self, other: &Self) -> bool {
-        // TODO PERF: simd optimizations?
         na::partial_le(&self.mins, &other.mins) && na::partial_ge(&self.maxs, &other.maxs)
+    }
+
+    #[cfg(all(feature = "simd-is-enabled", feature = "dim3"))]
+    pub fn contains(&self, other: &Self) -> bool {
+        use wide::{CmpGe, CmpLe};
+        let simd_self = self.as_simd();
+        let simd_other = other.as_simd();
+        let check =
+            simd_self.mins.0.cmp_le(simd_other.mins.0) & simd_self.maxs.0.cmp_ge(simd_other.maxs.0);
+        (check.move_mask() & 0b0111) == 0b0111
     }
 
     pub fn contains_aabb(&self, other: &Aabb) -> bool {
@@ -269,12 +321,43 @@ impl Default for SahTree {
 }
 
 impl SahTree {
+    // NOTE PERF: change detection doesn’t make a huge difference in 2D (it can
+    //            occasionally even make it slower!) Once we support a static/dynamic tree
+    //            instead of a single tree, we might want to fully disable change detection
+    //            in 2D.
+    pub const CHANGE_DETECTION_ENABLED: bool = true;
+
     pub fn new() -> Self {
         assert_eq!(align_of::<SahTreeNodeWide>(), 32);
         Self {
             nodes: AVec::new(align_of::<SahTreeNodeWide>()),
             leaf_data: Coarena::new(),
         }
+    }
+
+    pub fn from_leaves(leaves: &[(u32, Aabb)]) -> Self {
+        if leaves.is_empty() {
+            return Self::new();
+        }
+
+        let mut result = Self::new();
+        let mut workspace = SahWorkspace::default();
+        workspace.rebuild_leaves.reserve(leaves.len());
+        result.leaf_data.reserve(leaves.len());
+
+        for (leaf_id, leaf_aabb) in leaves {
+            workspace
+                .rebuild_leaves
+                .push(SahTreeNode::leaf(*leaf_aabb, *leaf_id));
+            result
+                .leaf_data
+                .insert(Index::from_raw_parts(*leaf_id, 0), SahLeafData::default());
+        }
+        result.nodes.reserve(leaves.len());
+        result.nodes.push(SahTreeNodeWide::zeros());
+        result.rebuild_range(0, &mut workspace.rebuild_leaves);
+        println!("SAH nodes: {}", result.nodes.len());
+        result
     }
 
     pub fn is_empty(&self) -> bool {
@@ -300,6 +383,12 @@ impl SahTree {
     }
 
     pub fn subtree_height(&self, node_id: u32) -> u32 {
+        if node_id == 0 && self.nodes.is_empty() {
+            return 0;
+        } else if node_id == 0 && self.nodes.len() == 1 {
+            return 1 + (self.nodes[0].right.leaf_count() != 0) as u32;
+        }
+
         let node = &self.nodes[node_id as usize];
 
         let left_height = if node.left.is_leaf() {
@@ -368,7 +457,16 @@ impl SahTree {
     }
 
     pub fn assert_well_formed(&self) {
-        self.assert_well_formed_at(0);
+        if self.is_empty() {
+            return;
+        } else if self.nodes[0].right.leaf_count() == 0 {
+            assert_eq!(self.nodes[0].leaf_count(), 1);
+            assert!(self.nodes[0].left.is_leaf());
+            return;
+        }
+
+        let mut loop_detection = HashSet::new();
+        self.assert_well_formed_at(0, &mut loop_detection);
     }
 
     // Panics if the tree isn’t well-formed.
@@ -377,8 +475,16 @@ impl SahTree {
     // geometrically correct (node metadata of a parent bound the ones of the children).
     //
     // Returns the calculated leaf count.
-    pub(super) fn assert_well_formed_at(&self, node_id: u32) -> u32 {
+    pub(super) fn assert_well_formed_at(
+        &self,
+        node_id: u32,
+        loop_detection: &mut HashSet<u32>,
+    ) -> u32 {
         let node = &self.nodes[node_id as usize];
+
+        if !loop_detection.insert(node_id) {
+            panic!("Detected loop. Node {} visited twice.", node_id);
+        }
 
         let left_count = if node.left.is_leaf() {
             let leaf_data = self
@@ -389,7 +495,8 @@ impl SahTree {
             assert_eq!(leaf_data.left_or_right, Self::LEFT);
             1
         } else {
-            let calculated_leaf_count = self.assert_well_formed_at(node.left.children);
+            let calculated_leaf_count =
+                self.assert_well_formed_at(node.left.children, loop_detection);
             let child = &self.nodes[node.left.children as usize];
             assert_eq!(
                 child.right.changed() || child.left.changed(),
@@ -414,7 +521,8 @@ impl SahTree {
             assert_eq!(leaf_data.left_or_right, Self::RIGHT);
             1
         } else {
-            let calculated_leaf_count = self.assert_well_formed_at(node.right.children);
+            let calculated_leaf_count =
+                self.assert_well_formed_at(node.right.children, loop_detection);
             let child = &self.nodes[node.right.children as usize];
             assert_eq!(
                 child.right.changed() || child.left.changed(),
@@ -422,6 +530,38 @@ impl SahTree {
             );
             assert!(node.right.contains(&child.left));
             assert!(node.right.contains(&child.right));
+            assert_eq!(
+                node.right.leaf_count(),
+                child.left.leaf_count() + child.right.leaf_count()
+            );
+            assert_eq!(calculated_leaf_count, node.right.leaf_count());
+            calculated_leaf_count
+        };
+
+        left_count + right_count
+    }
+
+    pub(super) fn validate_tree_topology(nodes: &AVec<SahTreeNodeWide>, node_id: u32) -> u32 {
+        let node = &nodes[node_id as usize];
+
+        let left_count = if node.left.is_leaf() {
+            1
+        } else {
+            let calculated_leaf_count = Self::validate_tree_topology(nodes, node.left.children);
+            let child = &nodes[node.left.children as usize];
+            assert_eq!(
+                node.left.leaf_count(),
+                child.left.leaf_count() + child.right.leaf_count()
+            );
+            assert_eq!(node.left.leaf_count(), calculated_leaf_count);
+            calculated_leaf_count
+        };
+
+        let right_count = if node.right.is_leaf() {
+            1
+        } else {
+            let calculated_leaf_count = Self::validate_tree_topology(nodes, node.right.children);
+            let child = &nodes[node.right.children as usize];
             assert_eq!(
                 node.right.leaf_count(),
                 child.left.leaf_count() + child.right.leaf_count()

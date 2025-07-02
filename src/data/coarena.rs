@@ -13,6 +13,11 @@ impl<T> Coarena<T> {
         Self { data: Vec::new() }
     }
 
+    /// Pre-allocates capacity for `additional` extra elements in this arena.
+    pub fn reserve(&mut self, additional: usize) {
+        self.data.reserve(additional);
+    }
+
     /// Iterates through all the elements of this coarena.
     pub fn iter(&self) -> impl Iterator<Item = (Index, &T)> {
         self.data
