@@ -7,8 +7,6 @@ use crate::math::{Real, Vector};
 use parry::bounding_volume::BoundingVolume;
 
 impl SahTree {
-    pub const CHANGE_DETECTION_ENABLED: bool = true;
-
     pub fn pre_update_or_insert(&mut self, aabb: Aabb, leaf_data: u32) {
         if let Some(leaf) = self.leaf_data.get_mut_unknown_gen(leaf_data) {
             let node =
@@ -60,8 +58,20 @@ impl SahTree {
 
         // General case: traverse the tree to find room for the new leaf.
         let mut curr_id = 0u32;
+        let mut path_taken = vec![];
+
+        const APPLY_ROTATIONS_DOWN: bool = true;
+        const APPLY_ROTATIONS_UP: bool = false;
 
         loop {
+            if APPLY_ROTATIONS_UP {
+                path_taken.push(curr_id);
+            }
+
+            if APPLY_ROTATIONS_DOWN {
+                self.maybe_apply_rotation(curr_id);
+            }
+
             let curr_node = &self.nodes[curr_id as usize];
 
             // Need to determine the best side to insert our node.
@@ -145,13 +155,160 @@ impl SahTree {
                     right.data.add_leaf_count(1);
                     right.mins = right.mins.inf(&aabb.mins);
                     right.maxs = right.maxs.sup(&aabb.maxs);
-                    return;
+                    break;
                 } else {
                     let right = &mut self.nodes[curr_id as usize].right;
                     curr_id = right.children;
                     right.data.add_leaf_count(1);
                     right.mins = right.mins.inf(&aabb.mins);
                     right.maxs = right.maxs.sup(&aabb.maxs);
+                }
+            }
+        }
+
+        if APPLY_ROTATIONS_UP {
+            while let Some(node) = path_taken.pop() {
+                self.maybe_apply_rotation(node);
+            }
+        }
+    }
+
+    // Applies a tree rotation at the given `node` if this improves the SAH metric at that node.
+    pub fn maybe_apply_rotation(&mut self, node_id: u32) {
+        let node = self.nodes[node_id as usize];
+        let left = &node.left;
+        let right = &node.right;
+
+        let curr_score =
+            left.volume() * left.leaf_count() as Real + right.volume() * right.leaf_count() as Real;
+
+        macro_rules! eval_costs {
+            ($left: ident, $right: ident) => {
+                if !$left.is_leaf() {
+                    let children = self.nodes[$left.children as usize];
+                    let left_child = &children.left;
+                    let right_child = &children.right;
+
+                    // New SAH score after transforming [{left_child, right_child}, right]
+                    // into [left_child, {right_child, right}].
+                    let new_score1 = left_child.volume() * left_child.leaf_count() as Real
+                        + right_child.merged_volume($right)
+                            * (right_child.leaf_count() + $right.leaf_count()) as Real;
+
+                    // New SAH score after transforming [{left_child, right_child}, right]
+                    // into [right_child, {left_child, right}].
+                    let new_score2 = right_child.volume() * right_child.leaf_count() as Real
+                        + left_child.merged_volume($right)
+                            * (left_child.leaf_count() + $right.leaf_count()) as Real;
+
+                    if new_score1 < new_score2 {
+                        (new_score1 - curr_score, true)
+                    } else {
+                        (new_score2 - curr_score, false)
+                    }
+                } else {
+                    (Real::MAX, false)
+                }
+            };
+        }
+
+        // Because of the rotation some leaves might have changed location.
+        // This a helper to update the `leaf_data` map accordingly.
+        macro_rules! set_leaf_data {
+            ($leaf_data_id: ident, $node_id: ident, $left_or_right: expr) => {
+                let leaf_data = self.leaf_data.get_mut_unknown_gen($leaf_data_id).unwrap();
+                leaf_data.node = $node_id;
+                leaf_data.left_or_right = $left_or_right;
+            };
+        }
+
+        // For right rotation.
+        let (rotation_score0, left_child_moves_up0) = eval_costs!(left, right);
+        // For left rotation.
+        let (rotation_score1, left_child_moves_up1) = eval_costs!(right, left);
+
+        if rotation_score0 < 0.0 || rotation_score1 < 0.0 {
+            // At least one of the rotations is worth it, apply the one with
+            // the best impact on SAH scoring.
+            if rotation_score0 < rotation_score1 {
+                // Apply RIGHT rotation.
+                let children_id = left.children;
+                let children = self.nodes[children_id as usize];
+                let left_child = &children.left;
+                let right_child = &children.right;
+
+                let right_is_leaf = right.is_leaf();
+                let left_child_is_leaf = left_child.is_leaf();
+                let right_child_is_leaf = right_child.is_leaf();
+
+                let right_leaf_data = right.children;
+                let left_child_leaf_data = left_child.children;
+                let right_child_leaf_data = right_child.children;
+
+                if left_child_moves_up0 {
+                    // The left child moves into `left`, and `right` takes it place.
+                    self.nodes[node_id as usize].left = *left_child;
+                    self.nodes[children_id as usize].left = *right;
+                    self.nodes[node_id as usize].right =
+                        self.nodes[children_id as usize].merged(children_id);
+                    if left_child_is_leaf {
+                        set_leaf_data!(left_child_leaf_data, node_id, Self::LEFT);
+                    }
+                    if right_is_leaf {
+                        set_leaf_data!(right_leaf_data, children_id, Self::LEFT);
+                    }
+                } else {
+                    // The right child moves into `left`, and `right` takes it place.
+                    self.nodes[node_id as usize].left = *right_child;
+                    self.nodes[children_id as usize].right = *right;
+                    self.nodes[node_id as usize].right =
+                        self.nodes[children_id as usize].merged(children_id);
+                    if right_child_is_leaf {
+                        set_leaf_data!(right_child_leaf_data, node_id, Self::LEFT);
+                    }
+                    if right_is_leaf {
+                        set_leaf_data!(right_leaf_data, children_id, Self::RIGHT);
+                    }
+                }
+            } else {
+                // Apply LEFT rotation.
+                let children_id = right.children;
+                let children = self.nodes[children_id as usize];
+                let left_child = &children.left;
+                let right_child = &children.right;
+
+                let left_is_leaf = left.is_leaf();
+                let left_child_is_leaf = left_child.is_leaf();
+                let right_child_is_leaf = right_child.is_leaf();
+
+                let left_leaf_data = left.children;
+                let left_child_leaf_data = left_child.children;
+                let right_child_leaf_data = right_child.children;
+
+                if left_child_moves_up1 {
+                    // The left child moves into `right`, and `left` takes it place.
+                    self.nodes[node_id as usize].right = *left_child;
+                    self.nodes[children_id as usize].left = *left;
+                    self.nodes[node_id as usize].left =
+                        self.nodes[children_id as usize].merged(children_id);
+                    if left_child_is_leaf {
+                        set_leaf_data!(left_child_leaf_data, node_id, Self::RIGHT);
+                    }
+                    if left_is_leaf {
+                        set_leaf_data!(left_leaf_data, children_id, Self::LEFT);
+                    }
+                } else {
+                    // The right child moves into `right`, and `left` takes it place.
+                    self.nodes[node_id as usize].right = *right_child;
+                    self.nodes[children_id as usize].right = *left;
+                    self.nodes[node_id as usize].left =
+                        self.nodes[children_id as usize].merged(children_id);
+                    if right_child_is_leaf {
+                        set_leaf_data!(right_child_leaf_data, node_id, Self::RIGHT);
+                    }
+                    if left_is_leaf {
+                        set_leaf_data!(left_leaf_data, children_id, Self::RIGHT);
+                    }
                 }
             }
         }
