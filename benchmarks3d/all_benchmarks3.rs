@@ -20,10 +20,12 @@ mod joint_fixed3;
 mod joint_prismatic3;
 mod joint_revolute3;
 mod keva3;
+mod many_kinematics3;
 mod many_pyramids3;
 mod many_sleep3;
 mod many_static3;
 mod pyramid3;
+mod ray_cast3;
 mod stacks3;
 mod trimesh3;
 
@@ -47,9 +49,7 @@ fn parse_command_line() -> Command {
     Command::RunAll
 }
 
-pub fn main() {
-    let command = parse_command_line();
-
+pub fn demo_builders() -> Vec<(&'static str, fn(&mut Testbed))> {
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Balls", balls3::init_world),
         ("Boxes", boxes3::init_world),
@@ -57,6 +57,7 @@ pub fn main() {
         ("CCD", ccd3::init_world),
         ("Compound", compound3::init_world),
         ("Convex polyhedron", convex_polyhedron3::init_world),
+        ("Many kinematics", many_kinematics3::init_world),
         ("Many static", many_static3::init_world),
         ("Many sleep", many_sleep3::init_world),
         ("Heightfield", heightfield3::init_world),
@@ -69,6 +70,7 @@ pub fn main() {
         ("ImpulseJoint prismatic", joint_prismatic3::init_world),
         ("Many pyramids", many_pyramids3::init_world),
         ("Keva tower", keva3::init_world),
+        ("Ray cast", ray_cast3::init_world),
     ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
@@ -77,6 +79,12 @@ pub fn main() {
         (true, false) => Ordering::Greater,
         (false, true) => Ordering::Less,
     });
+    builders
+}
+
+pub fn main() {
+    let command = parse_command_line();
+    let builders = demo_builders();
 
     match command {
         Command::Run(demo) => {
