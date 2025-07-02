@@ -9,7 +9,9 @@ pub fn init_world(testbed: &mut Testbed) {
     //       ray-casting in a wide variety of situations.
     let demos: Vec<_> = crate::demo_builders()
         .into_iter()
-        .filter(|(_, builder)| *builder != (self::init_world as fn(&mut Testbed)))
+        .filter(|(_, builder)| {
+            !std::ptr::fn_addr_eq(*builder, self::init_world as fn(&mut Testbed))
+        })
         .collect();
     let demo_names: Vec<_> = demos.iter().map(|(name, _)| name.to_string()).collect();
     let selected = settings.get_or_set_string("Scene", 0, demo_names);
@@ -47,12 +49,16 @@ pub fn init_world(testbed: &mut Testbed) {
             centered.origin = center + ray.origin.coords;
         }
 
+        let mut query_pipeline_for_comparison = QueryPipeline::new();
+        query_pipeline_for_comparison.update(&physics.colliders);
+
         // Cast the rays.
         let t1 = std::time::Instant::now();
+        let max_toi = ray_ball_radius - 1.0;
+
         for ray in &centered_rays {
-            let max_toi = ray_ball_radius - 1.0;
             let result = if let Some(sah_bf) = physics.broad_phase.downcast_ref::<BroadPhaseSah>() {
-                sah_bf.cast_ray(&mut workspace, ray, max_toi, &physics.colliders)
+                sah_bf.cast_ray(ray, max_toi, &physics.colliders)
             } else {
                 physics.query_pipeline.cast_ray(
                     &physics.bodies,
@@ -78,12 +84,35 @@ pub fn init_world(testbed: &mut Testbed) {
                     .line(a.into(), b.into(), Color::rgba(1.0f32, 0.0, 0.0, 0.1));
             }
         }
+        let main_check_time = t1.elapsed().as_secs_f32();
+        let t1 = std::time::Instant::now();
+        for ray in &centered_rays {
+            query_pipeline_for_comparison.cast_ray(
+                &physics.bodies,
+                &physics.colliders,
+                ray,
+                max_toi,
+                true,
+                QueryFilter::default(),
+            );
+        }
+        let comparison_check_time = t1.elapsed().as_secs_f32();
 
         if let Some(settings) = &mut graphics.settings {
             settings.set_label("Ray count:", format!("{}", rays.len()));
+            let speedup = if comparison_check_time < main_check_time {
+                (1.0 - main_check_time / comparison_check_time) * 100.0
+            } else {
+                (comparison_check_time / main_check_time - 1.0) * 100.0
+            };
             settings.set_label(
                 "Ray-cast time",
-                format!("{:.2}ms", t1.elapsed().as_secs_f32() * 1000.0),
+                format!(
+                    "{:.2}ms (vs. {:.2}ms). Speedup: {:.2}%",
+                    main_check_time * 1000.0,
+                    comparison_check_time * 1000.0,
+                    speedup
+                ),
             );
         }
     });
