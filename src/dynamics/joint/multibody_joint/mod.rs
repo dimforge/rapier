@@ -91,8 +91,7 @@ mod test {
                 }
             }
 
-            for (i, handle) in handles.clone().iter().enumerate() {
-                dbg!(i, handle);
+            for handle in handles.clone().iter() {
                 bodies.remove(
                     *handle,
                     &mut islands,
@@ -111,9 +110,9 @@ mod test {
                             .get_multibody_mut_internal(link.multibody)
                             .is_none()
                         {
-                            dbg!(handle, link);
                             panic!("multibody_joints should be able to get all links returned from rigid_body_link.");
                         }
+                        panic!("This test has only 1 link, it should lead to rigid_body_link returning `None` immediately after first removal.");
                     }
                 }
                 pipeline.step(
