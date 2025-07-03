@@ -848,7 +848,7 @@ impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
                         .collect();
                     colliders.sort_by_key(|co| -(co.len() as isize));
 
-                    let num_to_delete = (colliders.len() / 10).max(0);
+                    let num_to_delete = (colliders.len() / 10).clamp(1, colliders.len());
                     for to_delete in &colliders[..num_to_delete] {
                         if let Some(graphics) = self.graphics.as_mut() {
                             graphics.remove_collider(to_delete[0], &self.harness.physics.colliders);
@@ -871,7 +871,7 @@ impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
                         .filter(|e| e.1.is_dynamic())
                         .map(|e| e.0)
                         .collect();
-                    let num_to_delete = (dynamic_bodies.len() / 10).max(0);
+                    let num_to_delete = (dynamic_bodies.len() / 10).clamp(1, dynamic_bodies.len());
                     for to_delete in &dynamic_bodies[..num_to_delete] {
                         if let Some(graphics) = self.graphics.as_mut() {
                             graphics.remove_body(*to_delete);
@@ -895,7 +895,8 @@ impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
                         .iter()
                         .map(|e| e.0)
                         .collect();
-                    let num_to_delete = (impulse_joints.len() / 10).max(0);
+                    let num_to_delete =
+                        (impulse_joints.len() / 10).max(1).min(impulse_joints.len());
                     for to_delete in &impulse_joints[..num_to_delete] {
                         self.harness.physics.impulse_joints.remove(*to_delete, true);
                     }
@@ -909,7 +910,8 @@ impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
                         .iter()
                         .map(|e| e.0)
                         .collect();
-                    let num_to_delete = (multibody_joints.len() / 10).max(0);
+                    let num_to_delete =
+                        (multibody_joints.len() / 10).clamp(1, multibody_joints.len());
                     for to_delete in &multibody_joints[..num_to_delete] {
                         self.harness
                             .physics
