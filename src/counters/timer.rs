@@ -10,7 +10,6 @@ use web_time::Instant;
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Timer {
     time: Duration,
-    #[allow(dead_code)] // The field isn’t used if the `profiler` feature isn’t enabled.
     #[cfg(feature = "profiler")]
     start: Option<Instant>,
 }
