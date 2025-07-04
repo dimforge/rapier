@@ -3,12 +3,15 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "profiler")]
+use web_time::Instant;
+
 /// A timer.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Timer {
     time: Duration,
-    #[allow(dead_code)] // The field isn’t used if the `profiler` feature isn’t enabled.
-    start: Option<std::time::Instant>,
+    #[cfg(feature = "profiler")]
+    start: Option<Instant>,
 }
 
 impl Timer {
@@ -16,6 +19,7 @@ impl Timer {
     pub fn new() -> Self {
         Timer {
             time: Duration::from_secs(0),
+            #[cfg(feature = "profiler")]
             start: None,
         }
     }
@@ -30,7 +34,7 @@ impl Timer {
         #[cfg(feature = "profiler")]
         {
             self.time = Duration::from_secs(0);
-            self.start = Some(web_time::Instant::now());
+            self.start = Some(Instant::now());
         }
     }
 
@@ -39,7 +43,7 @@ impl Timer {
         #[cfg(feature = "profiler")]
         {
             if let Some(start) = self.start {
-                self.time += web_time::Instant::now().duration_since(start);
+                self.time += Instant::now().duration_since(start);
             }
             self.start = None;
         }
@@ -49,7 +53,7 @@ impl Timer {
     pub fn resume(&mut self) {
         #[cfg(feature = "profiler")]
         {
-            self.start = Some(web_time::Instant::now());
+            self.start = Some(Instant::now());
         }
     }
 
