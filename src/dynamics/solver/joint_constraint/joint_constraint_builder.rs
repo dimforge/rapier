@@ -753,7 +753,7 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
 
         let mut rhs_wo_bias = N::zero();
         if motor_params.erp_inv_dt != N::zero() {
-           let ang_dist;
+            let ang_dist;
 
             #[cfg(feature = "dim2")]
             {
@@ -766,7 +766,7 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
                 let clamped_err = self.ang_err.imag()[_motor_axis].simd_clamp(-N::one(), N::one());
                 ang_dist = clamped_err.simd_asin() * N::splat(2.0);
             }
-            
+
             let target_ang = motor_params.target_pos;
             rhs_wo_bias += utils::smallest_abs_diff_between_angles(ang_dist, target_ang)
                 * motor_params.erp_inv_dt;
