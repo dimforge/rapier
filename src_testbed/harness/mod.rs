@@ -10,9 +10,9 @@ use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodySet,
 };
-use rapier::geometry::{BroadPhaseBvh, ColliderSet, DefaultBroadPhase, NarrowPhase};
+use rapier::geometry::{ColliderSet, NarrowPhase};
 use rapier::math::{Real, Vector};
-use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
+use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline};
 
 #[cfg(feature = "parallel")]
 use rapier::prelude::BroadPhaseParallelGrid;

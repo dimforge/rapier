@@ -7,7 +7,7 @@ use rapier::geometry::{
     BroadPhase, ColliderSet, CollisionEvent, ContactForceEvent, DefaultBroadPhase, NarrowPhase,
 };
 use rapier::math::{Real, Vector};
-use rapier::pipeline::{PhysicsHooks, PhysicsPipeline, QueryPipeline};
+use rapier::pipeline::{PhysicsHooks, PhysicsPipeline};
 
 pub struct PhysicsSnapshot {
     timestep_id: usize,

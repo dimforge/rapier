@@ -1,9 +1,10 @@
-use crate::dynamics::RigidBodySet;
+use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{BroadPhase, BroadPhasePairEvent, ColliderHandle, ColliderPair, ColliderSet};
-use parry::math::Real;
+use parry::bounding_volume::BoundingVolume;
 use parry::partitioning::{Bvh, BvhWorkspace};
 use parry::utils::hashmap::{Entry, HashMap};
 
+/// A broad-phase based on parry’s [`Bvh`] data structure.
 #[derive(Default, Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct BroadPhaseBvh {
@@ -18,18 +19,31 @@ pub struct BroadPhaseBvh {
 // TODO: would be interesting to try out:
 // "Fast Insertion-Based Optimization of Bounding Volume Hierarchies"
 // by Bittner et al.
+/// Selection of strategies to maintain through time the broad-phase BVH in shape that remains
+/// efficient for collision-detection and scene queries.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Default, PartialEq, Eq, Copy, Clone)]
 pub enum BvhOptimizationStrategy {
+    /// Different sub-trees of the BVH will be optimized at each frame.
     #[default]
     SubtreeOptimizer,
+    /// Disables incremental BVH optimization (discouraged).
+    ///
+    /// This should not be used except for debugging purpose.
     None,
 }
 
 const ENABLE_TREE_VALIDITY_CHECK: bool = false;
 
 impl BroadPhaseBvh {
-    pub fn new(optimization_strategy: BvhOptimizationStrategy) -> Self {
+    /// Initializes a new empty broad-phase.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Initializes a new empty broad-phase with the specified strategy for incremental
+    /// BVH optimization.
+    pub fn with_optimization_strategy(optimization_strategy: BvhOptimizationStrategy) -> Self {
         Self {
             optimization_strategy,
             ..Default::default()
@@ -38,10 +52,9 @@ impl BroadPhaseBvh {
 
     fn update_with_strategy(
         &mut self,
-        _dt: Real,
-        prediction_distance: Real,
+        params: &IntegrationParameters,
         colliders: &mut ColliderSet,
-        _bodies: &RigidBodySet,
+        bodies: &RigidBodySet,
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
         events: &mut Vec<BroadPhasePairEvent>,
@@ -66,15 +79,41 @@ impl BroadPhaseBvh {
         // let t0 = std::time::Instant::now();
         for modified in modified_colliders {
             if let Some(collider) = colliders.get(*modified) {
-                let aabb = collider.compute_collision_aabb(prediction_distance / 2.0);
+                if !collider.is_enabled() || !collider.changes.needs_broad_phase_update() {
+                    continue;
+                }
+
+                // Take soft-ccd into account by growing the aabb.
+                let next_pose = collider.parent.and_then(|p| {
+                    let parent = bodies.get(p.handle)?;
+                    (parent.soft_ccd_prediction() > 0.0).then(|| {
+                        parent.predict_position_using_velocity_and_forces_with_max_dist(
+                            params.dt,
+                            parent.soft_ccd_prediction(),
+                        ) * p.pos_wrt_parent
+                    })
+                });
+
+                let prediction_distance = params.prediction_distance();
+                let mut aabb = collider.compute_collision_aabb(prediction_distance / 2.0);
+                if let Some(next_pose) = next_pose {
+                    let next_aabb = collider
+                        .shape
+                        .compute_aabb(&next_pose)
+                        .loosened(collider.contact_skin() + prediction_distance / 2.0);
+                    aabb.merge(&next_aabb);
+                }
+
+                let change_detection_skin = if CHANGE_DETECTION_ENABLED {
+                    1.0e-2 * params.length_unit
+                } else {
+                    0.0
+                };
+
                 self.tree.insert_or_update_partially(
                     aabb,
                     modified.into_raw_parts().0,
-                    if CHANGE_DETECTION_ENABLED {
-                        1.0e-2
-                    } else {
-                        0.0
-                    },
+                    change_detection_skin,
                 );
             }
         }
@@ -219,8 +258,7 @@ impl BroadPhaseBvh {
 impl BroadPhase for BroadPhaseBvh {
     fn update(
         &mut self,
-        dt: Real,
-        prediction_distance: Real,
+        params: &IntegrationParameters,
         colliders: &mut ColliderSet,
         bodies: &RigidBodySet,
         modified_colliders: &[ColliderHandle],
@@ -228,8 +266,7 @@ impl BroadPhase for BroadPhaseBvh {
         events: &mut Vec<BroadPhasePairEvent>,
     ) {
         self.update_with_strategy(
-            dt,
-            prediction_distance,
+            params,
             colliders,
             bodies,
             modified_colliders,

@@ -16,7 +16,6 @@ use crate::settings::SettingValue;
 use bevy_egui::EguiContexts;
 use bevy_egui::egui::{ComboBox, Slider, Ui, Window};
 use rapier::dynamics::IntegrationParameters;
-use rapier::geometry::BroadPhaseBvh;
 #[cfg(feature = "parallel")]
 use rapier::geometry::BroadPhaseParallelGrid;
 use web_time::Instant;

@@ -1,7 +1,7 @@
 use crate::dynamics::RigidBodySet;
 use crate::geometry::{BroadPhasePairEvent, ColliderHandle, ColliderSet};
+use crate::prelude::IntegrationParameters;
 use downcast_rs::DowncastSync;
-use parry::math::Real;
 
 /// An internal index stored in colliders by some broad-phase algorithms.
 pub type BroadPhaseProxyIndex = u32;
@@ -26,8 +26,7 @@ pub trait BroadPhase: Send + Sync + 'static + DowncastSync {
     /// **not** be modified during the broad-phase update.
     ///
     /// # Parameters
-    /// - `prediction_distance`: colliders that are not exactly touching, but closer to this
-    ///   distance must form a collision pair.
+    /// - `params`: the integration parameters governing the simulation.
     /// - `colliders`: the set of colliders. Change detection with `collider.needs_broad_phase_update()`
     ///   can be relied on at this stage.
     /// - `modified_colliders`: colliders that are know to be modified since the last update.
@@ -40,8 +39,7 @@ pub trait BroadPhase: Send + Sync + 'static + DowncastSync {
     ///   are still touching or closer than `prediction_distance`.
     fn update(
         &mut self,
-        dt: Real,
-        prediction_distance: Real,
+        params: &IntegrationParameters,
         colliders: &mut ColliderSet,
         bodies: &RigidBodySet,
         modified_colliders: &[ColliderHandle],

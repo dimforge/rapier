@@ -9,28 +9,43 @@ use parry::query::details::{NormalConstraints, ShapeCastOptions};
 use parry::query::{NonlinearRigidMotion, QueryDispatcher, RayCast, ShapeCastHit};
 use parry::shape::{CompositeShape, CompositeShapeRef, FeatureId, Shape, TypedCompositeShape};
 
+/// The query pipeline responsible for running scene queries on the physics world.
+///
+/// This structure is generally obtained by calling [`BroadPhaseBvh::as_query_pipeline_mut`].
 #[derive(Copy, Clone)]
 pub struct QueryPipeline<'a> {
+    /// The query dispatcher for running geometric queries on leaf geometries.
     pub dispatcher: &'a dyn QueryDispatcher,
+    /// A bvh containing collider indices at its leaves.
     pub bvh: &'a Bvh,
+    /// Rigid-bodies potentially involved in the scene queries.
     pub bodies: &'a RigidBodySet,
+    /// Colliders potentially involved in the scene queries.
     pub colliders: &'a ColliderSet,
+    /// The query filters for controlling what colliders should be ignored by the queries.
     pub filter: QueryFilter<'a>,
 }
 
 /// Same as [`QueryPipeline`] but holds mutable references to the body and collider sets.
 ///
+/// This structure is generally obtained by calling [`BroadPhaseBvh::as_query_pipeline_mut`].
 /// This is useful for argument passing. Call `.as_ref()` for obtaining a `QueryPipeline`
 /// to run the scene queries.
 pub struct QueryPipelineMut<'a> {
+    /// The query dispatcher for running geometric queries on leaf geometries.
     pub dispatcher: &'a dyn QueryDispatcher,
+    /// A bvh containing collider indices at its leaves.
     pub bvh: &'a Bvh,
+    /// Rigid-bodies potentially involved in the scene queries.
     pub bodies: &'a mut RigidBodySet,
+    /// Colliders potentially involved in the scene queries.
     pub colliders: &'a mut ColliderSet,
+    /// The query filters for controlling what colliders should be ignored by the queries.
     pub filter: QueryFilter<'a>,
 }
 
 impl QueryPipelineMut<'_> {
+    /// Downgrades the mutable reference to an immutable reference.
     pub fn as_ref(&self) -> QueryPipeline {
         QueryPipeline {
             dispatcher: self.dispatcher,

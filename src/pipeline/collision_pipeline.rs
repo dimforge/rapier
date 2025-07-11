@@ -1,6 +1,6 @@
 //! Physics pipeline structures.
 
-use crate::dynamics::{ImpulseJointSet, MultibodyJointSet};
+use crate::dynamics::{ImpulseJointSet, IntegrationParameters, MultibodyJointSet};
 use crate::geometry::{
     BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
     ModifiedColliders, NarrowPhase,
@@ -58,9 +58,12 @@ impl CollisionPipeline {
         self.broad_phase_events.clear();
         self.broadphase_collider_pairs.clear();
 
+        let mut params = IntegrationParameters::default();
+        params.normalized_prediction_distance = prediction_distance;
+        params.dt = 0.0;
+
         broad_phase.update(
-            0.0,
-            prediction_distance,
+            &params,
             colliders,
             bodies,
             modified_colliders,

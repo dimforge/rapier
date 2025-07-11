@@ -25,11 +25,10 @@ use rapier::dynamics::{
 #[cfg(feature = "dim3")]
 use rapier::geometry::Ray;
 use rapier::geometry::{
-    BroadPhase, BroadPhaseBvh, BvhBuildStrategy, BvhOptimizationStrategy, ColliderHandle,
-    ColliderSet, NarrowPhase,
+    BroadPhase, BroadPhaseBvh, BvhOptimizationStrategy, ColliderHandle, ColliderSet, NarrowPhase,
 };
 use rapier::math::{Real, Vector};
-use rapier::pipeline::{PhysicsHooks, QueryPipeline};
+use rapier::pipeline::PhysicsHooks;
 #[cfg(feature = "dim3")]
 use rapier::{control::DynamicRayCastVehicleController, prelude::QueryFilter};
 
@@ -125,12 +124,14 @@ pub enum RapierBroadPhaseType {
 impl RapierBroadPhaseType {
     pub fn init_broad_phase(self) -> Box<dyn BroadPhase> {
         match self {
-            RapierBroadPhaseType::BvhSubtreeOptimizer => Box::new(BroadPhaseBvh::new(
-                BvhOptimizationStrategy::SubtreeOptimizer,
-            )),
-            RapierBroadPhaseType::BvhWithoutOptimization => {
-                Box::new(BroadPhaseBvh::new(BvhOptimizationStrategy::None))
+            RapierBroadPhaseType::BvhSubtreeOptimizer => {
+                Box::new(BroadPhaseBvh::with_optimization_strategy(
+                    BvhOptimizationStrategy::SubtreeOptimizer,
+                ))
             }
+            RapierBroadPhaseType::BvhWithoutOptimization => Box::new(
+                BroadPhaseBvh::with_optimization_strategy(BvhOptimizationStrategy::None),
+            ),
         }
     }
 }
