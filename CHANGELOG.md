@@ -1,3 +1,15 @@
+## Unreleased
+
+### Modified
+
+- Replace the hierarchical SAP broad-phase by a broad-phase based on parry’s new BVH structure.
+- The `QueryPipeline` is now and ephemeral object obtained from the broad-phase with `broad_phase.as_query_pipeline()`.
+  It no longer needs to be updated separately from the broad-phase.
+
+### Fixed
+
+- Fix NaN resulting from non-clamped input to simd_asin in angular motor solver.
+
 ## v0.26.1 (23 May 2025)
 
 ### Added
