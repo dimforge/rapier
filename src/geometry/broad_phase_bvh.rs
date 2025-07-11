@@ -126,19 +126,6 @@ impl BroadPhaseBvh {
             self.tree.assert_well_formed_topology_only();
         }
 
-        // if strategy == RebuildStrategy::SubtreeOptimizer && first_pass {
-        //     println!("Tree depth after insert: {}", self.tree.subtree_height(0));
-        //     let t0 = std::time::Instant::now();
-        //     self.tree.rebuild(&mut self.workspace);
-        //     println!("Rebuild: {}", t0.elapsed().as_secs_f32() * 1000.0);
-        //     self.tree.refit(&mut self.workspace);
-        //     println!("Tree depth after rebuild: {}", self.tree.subtree_height(0));
-        // }
-        //
-        // for removed in removed_colliders {
-        //     self.tree.remove(*removed);
-        // }
-
         // let t0 = std::time::Instant::now();
         match strategy {
             BvhOptimizationStrategy::SubtreeOptimizer => {
@@ -202,7 +189,6 @@ impl BroadPhaseBvh {
         };
 
         // let t0 = std::time::Instant::now();
-        // println!("Traverse");
         self.tree
             .traverse_bvtt_single_tree::<CHANGE_DETECTION_ENABLED>(
                 &mut self.workspace,
@@ -222,6 +208,11 @@ impl BroadPhaseBvh {
         // let t0 = std::time::Instant::now();
         self.pairs.retain(|(h0, h1), timestamp| {
             if *timestamp != self.frame_index {
+                if !colliders.contains(*h0) || !colliders.contains(*h1) {
+                    // At least one of the colliders no longer exist, don’t retain the pair.
+                    return false;
+                }
+
                 let Some(node0) = self.tree.leaf_node(h0.into_raw_parts().0) else {
                     return false;
                 };
@@ -246,6 +237,7 @@ impl BroadPhaseBvh {
                 true
             }
         });
+
         // println!(
         //     "Post-filtering: {} (added pairs: {}, removed pairs: {})",
         //     t0.elapsed().as_secs_f32() * 1000.0,
@@ -273,6 +265,6 @@ impl BroadPhase for BroadPhaseBvh {
             removed_colliders,
             events,
             self.optimization_strategy,
-        )
+        );
     }
 }
