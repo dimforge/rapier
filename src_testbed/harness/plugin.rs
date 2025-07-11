@@ -1,6 +1,6 @@
+use crate::PhysicsState;
 use crate::harness::RunState;
 use crate::physics::PhysicsEvents;
-use crate::PhysicsState;
 
 pub trait HarnessPlugin {
     fn run_callbacks(

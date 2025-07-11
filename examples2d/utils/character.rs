@@ -1,11 +1,11 @@
+use rapier_testbed2d::ui::egui::Align2;
+use rapier_testbed2d::{
+    KeyCode, PhysicsState, TestbedGraphics,
+    ui::egui::{ComboBox, Slider, Ui, Window},
+};
 use rapier2d::{
     control::{CharacterLength, KinematicCharacterController, PidController},
     prelude::*,
-};
-use rapier_testbed2d::ui::egui::Align2;
-use rapier_testbed2d::{
-    ui::egui::{ComboBox, Slider, Ui, Window},
-    KeyCode, PhysicsState, TestbedGraphics,
 };
 
 pub type CharacterSpeed = Real;
@@ -133,18 +133,27 @@ fn update_kinematic_controller(
 
     let character_body = &phx.bodies[character_handle];
     let character_collider = &phx.colliders[character_body.colliders()[0]];
+    let character_collider_pose = *character_collider.position();
+    let character_shape = character_collider.shared_shape().clone();
     let character_mass = character_body.mass();
+
+    let Some(broad_phase) = phx.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
+        return;
+    };
+    let query_pipeline = broad_phase.as_query_pipeline_mut(
+        phx.narrow_phase.query_dispatcher(),
+        &mut phx.bodies,
+        &mut phx.colliders,
+        QueryFilter::new().exclude_rigid_body(character_handle),
+    );
 
     let mut collisions = vec![];
     let mvt = controller.move_shape(
         phx.integration_parameters.dt,
-        &phx.bodies,
-        &phx.colliders,
-        &phx.query_pipeline,
-        character_collider.shape(),
-        character_collider.position(),
-        desired_movement,
-        QueryFilter::new().exclude_rigid_body(character_handle),
+        &query_pipeline.as_ref(),
+        &*character_shape,
+        &character_collider_pose,
+        desired_movement.cast::<Real>(),
         |c| collisions.push(c),
     );
 
@@ -156,13 +165,10 @@ fn update_kinematic_controller(
 
     controller.solve_character_collision_impulses(
         phx.integration_parameters.dt,
-        &mut phx.bodies,
-        &phx.colliders,
-        &phx.query_pipeline,
-        character_collider.shape(),
+        query_pipeline,
+        &*character_shape,
         character_mass,
         &*collisions,
-        QueryFilter::new().exclude_rigid_body(character_handle),
     );
 
     let character_body = &mut phx.bodies[character_handle];

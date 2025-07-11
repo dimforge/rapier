@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 #[derive(serde::Deserialize)]
 struct State {
@@ -27,7 +27,7 @@ pub fn init_world(testbed: &mut Testbed) {
         state.multibody_joints,
     );
     testbed.harness_mut().physics.islands = state.islands;
-    testbed.harness_mut().physics.broad_phase = state.broad_phase;
+    testbed.harness_mut().physics.broad_phase = Box::new(state.broad_phase);
     testbed.harness_mut().physics.narrow_phase = state.narrow_phase;
     testbed.harness_mut().physics.ccd_solver = state.ccd_solver;
 

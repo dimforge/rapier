@@ -1,3 +1,4 @@
+use crate::dynamics::JointGraphEdge;
 use crate::dynamics::solver::joint_constraint::joint_generic_constraint::{
     JointGenericOneBodyConstraint, JointGenericTwoBodyConstraint,
 };
@@ -5,7 +6,6 @@ use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
     JointOneBodyConstraint, JointTwoBodyConstraint,
 };
 use crate::dynamics::solver::{AnyConstraintMut, ConstraintTypes};
-use crate::dynamics::JointGraphEdge;
 use crate::math::Real;
 use na::DVector;
 
@@ -18,7 +18,7 @@ use crate::{
     dynamics::solver::joint_constraint::joint_constraint_builder::{
         JointOneBodyConstraintBuilderSimd, JointTwoBodyConstraintBuilderSimd,
     },
-    math::{SimdReal, SIMD_WIDTH},
+    math::{SIMD_WIDTH, SimdReal},
 };
 
 use crate::dynamics::solver::joint_constraint::joint_constraint_builder::{

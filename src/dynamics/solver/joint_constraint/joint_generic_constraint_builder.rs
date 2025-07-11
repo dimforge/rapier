@@ -1,3 +1,4 @@
+use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::solver::joint_constraint::joint_generic_constraint::{
     JointGenericOneBodyConstraint, JointGenericTwoBodyConstraint,
 };
@@ -5,19 +6,18 @@ use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
     JointFixedSolverBody, WritebackId,
 };
 use crate::dynamics::solver::joint_constraint::{JointSolverBody, JointTwoBodyConstraintHelper};
-use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{
     GenericJoint, ImpulseJoint, IntegrationParameters, JointIndex, Multibody, MultibodyJointSet,
     MultibodyLinkId, RigidBodySet,
 };
-use crate::math::{Real, Vector, ANG_DIM, DIM, SPATIAL_DIM};
+use crate::math::{ANG_DIM, DIM, Real, SPATIAL_DIM, Vector};
 use crate::utils;
 use crate::utils::IndexMut2;
 use crate::utils::SimdDot;
 use na::{DVector, SVector};
 
-use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::solver::ConstraintsCounts;
+use crate::dynamics::solver::solver_body::SolverBody;
 #[cfg(feature = "dim3")]
 use crate::utils::SimdAngularInertia;
 #[cfg(feature = "dim2")]

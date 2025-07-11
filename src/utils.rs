@@ -513,9 +513,9 @@ impl FlushToZeroDenormalsAreZeroFlags {
     pub fn flush_denormal_to_zero() -> Self {
         unsafe {
             #[cfg(target_arch = "x86")]
-            use std::arch::x86::{_mm_getcsr, _mm_setcsr, _MM_FLUSH_ZERO_ON};
+            use std::arch::x86::{_MM_FLUSH_ZERO_ON, _mm_getcsr, _mm_setcsr};
             #[cfg(target_arch = "x86_64")]
-            use std::arch::x86_64::{_mm_getcsr, _mm_setcsr, _MM_FLUSH_ZERO_ON};
+            use std::arch::x86_64::{_MM_FLUSH_ZERO_ON, _mm_getcsr, _mm_setcsr};
 
             // Flush denormals & underflows to zero as this as a significant impact on the solver's performances.
             // To enable this we need to set the bit 15 (given by _MM_FLUSH_ZERO_ON) and the bit 6 (for denormals-are-zero).
@@ -596,11 +596,7 @@ impl Drop for DisableFloatingPointExceptionsFlags {
 }
 
 pub(crate) fn select_other<T: PartialEq>(pair: (T, T), elt: T) -> T {
-    if pair.0 == elt {
-        pair.1
-    } else {
-        pair.0
-    }
+    if pair.0 == elt { pair.1 } else { pair.0 }
 }
 
 /// Methods for simultaneously indexing a container with two distinct indices.

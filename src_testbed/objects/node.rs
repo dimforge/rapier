@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::render::mesh::{Indices, VertexAttributeValues};
 
 //use crate::objects::plane::Plane;
-use na::{point, Point3, Vector3};
+use na::{Point3, Vector3, point};
 use std::collections::HashMap;
 
 use bevy::render::render_resource::PrimitiveTopology;
@@ -17,7 +17,7 @@ use rapier::math::{Isometry, Real, Vector};
 use crate::graphics::{BevyMaterial, InstancedMaterials, SELECTED_OBJECT_COLOR};
 #[cfg(feature = "dim2")]
 use {
-    na::{vector, Point2, Vector2},
+    na::{Point2, Vector2, vector},
     rapier::geometry::{Ball, Cuboid},
 };
 
@@ -143,25 +143,25 @@ impl EntityWithGraphics {
         components: &mut Query<&mut Transform>,
         gfx_shift: &Vector<Real>,
     ) {
-        if let Some(Some(co)) = self.collider.map(|c| colliders.get(c)) {
-            if let Ok(mut pos) = components.get_mut(self.entity) {
-                let co_pos = co.position() * self.delta;
-                pos.translation.x = (co_pos.translation.vector.x + gfx_shift.x) as f32;
-                pos.translation.y = (co_pos.translation.vector.y + gfx_shift.y) as f32;
-                #[cfg(feature = "dim3")]
-                {
-                    pos.translation.z = (co_pos.translation.vector.z + gfx_shift.z) as f32;
-                    pos.rotation = Quat::from_xyzw(
-                        co_pos.rotation.i as f32,
-                        co_pos.rotation.j as f32,
-                        co_pos.rotation.k as f32,
-                        co_pos.rotation.w as f32,
-                    );
-                }
-                #[cfg(feature = "dim2")]
-                {
-                    pos.rotation = Quat::from_rotation_z(co_pos.rotation.angle() as f32);
-                }
+        if let Some(Some(co)) = self.collider.map(|c| colliders.get(c))
+            && let Ok(mut pos) = components.get_mut(self.entity)
+        {
+            let co_pos = co.position() * self.delta;
+            pos.translation.x = (co_pos.translation.vector.x + gfx_shift.x) as f32;
+            pos.translation.y = (co_pos.translation.vector.y + gfx_shift.y) as f32;
+            #[cfg(feature = "dim3")]
+            {
+                pos.translation.z = (co_pos.translation.vector.z + gfx_shift.z) as f32;
+                pos.rotation = Quat::from_xyzw(
+                    co_pos.rotation.i as f32,
+                    co_pos.rotation.j as f32,
+                    co_pos.rotation.k as f32,
+                    co_pos.rotation.w as f32,
+                );
+            }
+            #[cfg(feature = "dim2")]
+            {
+                pos.rotation = Quat::from_rotation_z(co_pos.rotation.angle() as f32);
             }
         }
     }

@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 fn prismatic_repro(
     bodies: &mut RigidBodySet,

@@ -3,7 +3,8 @@
 use crate::dynamics::{RigidBody, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Ray};
 use crate::math::{Point, Real, Rotation, Vector};
-use crate::pipeline::{QueryFilter, QueryPipeline};
+use crate::pipeline::QueryPipeline;
+use crate::prelude::QueryPipelineMut;
 use crate::utils::{SimdCross, SimdDot};
 
 /// A character controller to simulate vehicles using ray-casting for the wheels.
@@ -322,28 +323,20 @@ impl DynamicRayCastVehicleController {
     }
 
     #[profiling::function]
-    fn ray_cast(
-        &mut self,
-        bodies: &RigidBodySet,
-        colliders: &ColliderSet,
-        queries: &QueryPipeline,
-        filter: QueryFilter,
-        chassis: &RigidBody,
-        wheel_id: usize,
-    ) {
+    fn ray_cast(&mut self, queries: &QueryPipeline, chassis: &RigidBody, wheel_id: usize) {
         let wheel = &mut self.wheels[wheel_id];
         let raylen = wheel.suspension_rest_length + wheel.radius;
         let rayvector = wheel.wheel_direction_ws * raylen;
         let source = wheel.raycast_info.hard_point_ws;
         wheel.raycast_info.contact_point_ws = source + rayvector;
         let ray = Ray::new(source, rayvector);
-        let hit = queries.cast_ray_and_get_normal(bodies, colliders, &ray, 1.0, true, filter);
+        let hit = queries.cast_ray_and_get_normal(&ray, 1.0, true);
 
         wheel.raycast_info.ground_object = None;
 
         if let Some((collider_hit, mut hit)) = hit {
             if hit.time_of_impact == 0.0 {
-                let collider = &colliders[collider_hit];
+                let collider = &queries.colliders[collider_hit];
                 let up_ray = Ray::new(source + rayvector, -rayvector);
                 if let Some(hit2) =
                     collider
@@ -405,16 +398,9 @@ impl DynamicRayCastVehicleController {
 
     /// Updates the vehicle’s velocity based on its suspension, engine force, and brake.
     #[profiling::function]
-    pub fn update_vehicle(
-        &mut self,
-        dt: Real,
-        bodies: &mut RigidBodySet,
-        colliders: &ColliderSet,
-        queries: &QueryPipeline,
-        filter: QueryFilter,
-    ) {
+    pub fn update_vehicle(&mut self, dt: Real, queries: QueryPipelineMut) {
         let num_wheels = self.wheels.len();
-        let chassis = &bodies[self.chassis];
+        let chassis = &queries.bodies[self.chassis];
 
         for i in 0..num_wheels {
             self.update_wheel_transform(chassis, i);
@@ -433,13 +419,14 @@ impl DynamicRayCastVehicleController {
         //
 
         for wheel_id in 0..self.wheels.len() {
-            self.ray_cast(bodies, colliders, queries, filter, chassis, wheel_id);
+            self.ray_cast(&queries.as_ref(), chassis, wheel_id);
         }
 
         let chassis_mass = chassis.mass();
         self.update_suspension(chassis_mass);
 
-        let chassis = bodies
+        let chassis = queries
+            .bodies
             .get_mut_internal_with_modification_tracking(self.chassis)
             .unwrap();
 
@@ -459,9 +446,10 @@ impl DynamicRayCastVehicleController {
             chassis.apply_impulse_at_point(impulse, wheel.raycast_info.contact_point_ws, false);
         }
 
-        self.update_friction(bodies, colliders, dt);
+        self.update_friction(queries.bodies, queries.colliders, dt);
 
-        let chassis = bodies
+        let chassis = queries
+            .bodies
             .get_mut_internal_with_modification_tracking(self.chassis)
             .unwrap();
 

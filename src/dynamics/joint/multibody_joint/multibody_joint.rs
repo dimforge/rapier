@@ -1,11 +1,11 @@
 use crate::dynamics::solver::JointGenericOneBodyConstraint;
 use crate::dynamics::{
-    joint, FixedJointBuilder, GenericJoint, IntegrationParameters, Multibody, MultibodyLink,
-    RigidBodyVelocity,
+    FixedJointBuilder, GenericJoint, IntegrationParameters, Multibody, MultibodyLink,
+    RigidBodyVelocity, joint,
 };
 use crate::math::{
-    Isometry, JacobianViewMut, Real, Rotation, SpacialVector, Translation, Vector, ANG_DIM, DIM,
-    SPATIAL_DIM,
+    ANG_DIM, DIM, Isometry, JacobianViewMut, Real, Rotation, SPATIAL_DIM, SpacialVector,
+    Translation, Vector,
 };
 use na::{DVector, DVectorViewMut};
 #[cfg(feature = "dim3")]

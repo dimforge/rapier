@@ -1,12 +1,12 @@
+use crate::dynamics::solver::ConstraintsCounts;
+use crate::dynamics::solver::MotorParameters;
+use crate::dynamics::solver::joint_constraint::JointSolverBody;
 use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
     JointFixedSolverBody, JointOneBodyConstraint, JointTwoBodyConstraint, WritebackId,
 };
-use crate::dynamics::solver::joint_constraint::JointSolverBody;
 use crate::dynamics::solver::solver_body::SolverBody;
-use crate::dynamics::solver::ConstraintsCounts;
-use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{GenericJoint, ImpulseJoint, IntegrationParameters, JointIndex};
-use crate::math::{AngVector, Isometry, Matrix, Point, Real, Rotation, Vector, ANG_DIM, DIM};
+use crate::math::{ANG_DIM, AngVector, DIM, Isometry, Matrix, Point, Real, Rotation, Vector};
 use crate::prelude::RigidBodySet;
 use crate::utils;
 use crate::utils::{IndexMut2, SimdCrossMatrix, SimdDot, SimdRealCopy};
@@ -16,7 +16,7 @@ use na::SMatrix;
 use crate::utils::{SimdBasis, SimdQuat};
 
 #[cfg(feature = "simd-is-enabled")]
-use crate::math::{SimdReal, SIMD_WIDTH};
+use crate::math::{SIMD_WIDTH, SimdReal};
 
 pub struct JointTwoBodyConstraintBuilder {
     body1: usize,

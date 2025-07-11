@@ -3,7 +3,7 @@ use crate::dynamics::{
     IntegrationParameters, MultibodyJointSet, MultibodyLinkId, RigidBodySet, RigidBodyVelocity,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{Point, Real, DIM, MAX_MANIFOLD_POINTS};
+use crate::math::{DIM, MAX_MANIFOLD_POINTS, Point, Real};
 use crate::utils::SimdCross;
 
 use super::{OneBodyConstraintElement, OneBodyConstraintNormalPart};

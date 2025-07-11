@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -24,21 +24,21 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create the cubes
      */
-    let num = 8;
+    let num = 10;
     let rad = 1.0;
 
-    let shift = rad * 2.0 + rad;
+    let shift = rad * 2.0;
     let centerx = shift * (num / 2) as f32;
     let centery = shift / 2.0;
     let centerz = shift * (num / 2) as f32;
 
-    let mut offset = -(num as f32) * (rad * 2.0 + rad) * 0.5;
+    let mut offset = -(num as f32) * (rad * 2.0) * 0.5;
 
-    for j in 0usize..47 {
+    for j in 0usize..num {
         for i in 0..num {
             for k in 0usize..num {
                 let x = i as f32 * shift - centerx + offset;
-                let y = j as f32 * shift + centery + 3.0;
+                let y = j as f32 * shift + centery;
                 let z = k as f32 * shift - centerz + offset;
 
                 // Build the rigid body.

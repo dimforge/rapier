@@ -2,7 +2,7 @@
 name = "rapier-examples-2d"
 version = "0.1.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
-edition = "2021"
+edition = "2024"
 default-run = "all_examples2"
 
 [features]

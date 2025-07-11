@@ -2,7 +2,7 @@
 name = "rapier-benchmarks-2d"
 version = "0.1.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
-edition = "2021"
+edition = "2024"
 
 [features]
 parallel = ["rapier2d/parallel", "rapier_testbed2d/parallel"]

@@ -32,7 +32,7 @@ needless_lifetimes = "allow"
 #parry2d-f64 = { path = "../parry/crates/parry2d-f64" }
 #parry3d-f64 = { path = "../parry/crates/parry3d-f64" }
 #nalgebra = { path = "../nalgebra" }
-
+#simba = { path = "../simba" }
 
 #kiss3d = { git = "https://github.com/sebcrozet/kiss3d" }
 #nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "dev" }

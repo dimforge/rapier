@@ -13,6 +13,11 @@ impl<T> Coarena<T> {
         Self { data: Vec::new() }
     }
 
+    /// Pre-allocates capacity for `additional` extra elements in this arena.
+    pub fn reserve(&mut self, additional: usize) {
+        self.data.reserve(additional);
+    }
+
     /// Iterates through all the elements of this coarena.
     pub fn iter(&self) -> impl Iterator<Item = (Index, &T)> {
         self.data
@@ -30,8 +35,18 @@ impl<T> Coarena<T> {
         self.data.get(index as usize).map(|(_, t)| t)
     }
 
+    /// Gets a specific mutable element from the coarena without specifying its generation number.
+    ///
+    /// It is strongly encouraged to use `Coarena::get_mut` instead of this method because this method
+    /// can suffer from the ABA problem.
+    pub fn get_mut_unknown_gen(&mut self, index: u32) -> Option<&mut T> {
+        self.data.get_mut(index as usize).map(|(_, t)| t)
+    }
+
     pub(crate) fn get_gen(&self, index: u32) -> Option<u32> {
-        self.data.get(index as usize).map(|(gen, _)| *gen)
+        self.data
+            .get(index as usize)
+            .map(|(generation, _)| *generation)
     }
 
     /// Deletes an element for the coarena and returns its value.

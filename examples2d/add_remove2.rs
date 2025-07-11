@@ -1,5 +1,5 @@
-use rapier2d::{na::UnitComplex, prelude::*};
 use rapier_testbed2d::Testbed;
+use rapier2d::{na::UnitComplex, prelude::*};
 
 pub fn init_world(testbed: &mut Testbed) {
     let mut bodies = RigidBodySet::new();
@@ -24,7 +24,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, _, state| {
-        let rot = state.time * -1.0;
+        let rot = -state.time;
         for rb_handle in &platform_handles {
             let rb = physics.bodies.get_mut(*rb_handle).unwrap();
             rb.set_next_kinematic_rotation(UnitComplex::new(rot));

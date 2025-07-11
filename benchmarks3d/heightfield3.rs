@@ -1,6 +1,6 @@
+use rapier_testbed3d::Testbed;
 use rapier3d::na::ComplexField;
 use rapier3d::prelude::*;
-use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*

@@ -2,7 +2,7 @@
 
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RopeJoint};
-use crate::math::{Isometry, Point, Real, Rotation, UnitVector, Vector, SPATIAL_DIM};
+use crate::math::{Isometry, Point, Real, Rotation, SPATIAL_DIM, UnitVector, Vector};
 use crate::utils::{SimdBasis, SimdRealCopy};
 
 #[cfg(feature = "dim3")]

@@ -8,8 +8,8 @@ use crate::dynamics::{
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{
-    AngVector, AngularInertia, Isometry, Point, Real, SimdReal, TangentImpulse, Vector, DIM,
-    MAX_MANIFOLD_POINTS, SIMD_WIDTH,
+    AngVector, AngularInertia, DIM, Isometry, MAX_MANIFOLD_POINTS, Point, Real, SIMD_WIDTH,
+    SimdReal, TangentImpulse, Vector,
 };
 #[cfg(feature = "dim2")]
 use crate::utils::SimdBasis;

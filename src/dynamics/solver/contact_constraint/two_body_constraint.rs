@@ -5,7 +5,7 @@ use crate::dynamics::solver::{AnyConstraintMut, SolverBody};
 use crate::dynamics::integration_parameters::BLOCK_SOLVER_ENABLED;
 use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{Isometry, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
+use crate::math::{DIM, Isometry, MAX_MANIFOLD_POINTS, Real, Vector};
 use crate::utils::{self, SimdAngularInertia, SimdBasis, SimdCross, SimdDot};
 use na::{DVector, Matrix2};
 

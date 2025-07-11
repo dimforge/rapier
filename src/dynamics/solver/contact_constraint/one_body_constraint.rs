@@ -1,5 +1,5 @@
 use super::{OneBodyConstraintElement, OneBodyConstraintNormalPart};
-use crate::math::{Point, Real, Vector, DIM, MAX_MANIFOLD_POINTS};
+use crate::math::{DIM, MAX_MANIFOLD_POINTS, Point, Real, Vector};
 #[cfg(feature = "dim2")]
 use crate::utils::SimdBasis;
 use crate::utils::{self, SimdAngularInertia, SimdCross, SimdDot, SimdRealCopy};
@@ -7,8 +7,8 @@ use na::Matrix2;
 use parry::math::Isometry;
 
 use crate::dynamics::integration_parameters::BLOCK_SOLVER_ENABLED;
-use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::solver::SolverVel;
+use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet, RigidBodyVelocity};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 

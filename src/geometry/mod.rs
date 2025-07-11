@@ -1,7 +1,8 @@
 //! Structures related to geometry: colliders, shapes, etc.
 
 pub use self::broad_phase::BroadPhase;
-pub use self::broad_phase_multi_sap::{BroadPhaseMultiSap, BroadPhasePairEvent, ColliderPair};
+pub use self::broad_phase_bvh::{BroadPhaseBvh, BvhOptimizationStrategy};
+pub use self::broad_phase_pair_event::{BroadPhasePairEvent, ColliderPair};
 pub use self::collider::{Collider, ColliderBuilder};
 pub use self::collider_components::*;
 pub use self::collider_set::ColliderSet;
@@ -16,6 +17,7 @@ pub use self::mesh_converter::{MeshConverter, MeshConverterError};
 pub use self::narrow_phase::NarrowPhase;
 
 pub use parry::bounding_volume::BoundingVolume;
+pub use parry::partitioning::{Bvh, BvhBuildStrategy};
 pub use parry::query::{PointQuery, PointQueryWithLocation, RayCast, TrackedContact};
 pub use parry::shape::{SharedShape, VoxelState, VoxelType, Voxels};
 
@@ -54,7 +56,7 @@ pub type PointProjection = parry::query::PointProjection;
 /// The result of a shape-cast between two shapes.
 pub type ShapeCastHit = parry::query::ShapeCastHit;
 /// The default broad-phase implementation recommended for general-purpose usage.
-pub type DefaultBroadPhase = BroadPhaseMultiSap;
+pub type DefaultBroadPhase = BroadPhaseBvh;
 
 bitflags::bitflags! {
     /// Flags providing more information regarding a collision event.
@@ -181,24 +183,16 @@ impl ContactForceEvent {
     }
 }
 
-pub(crate) use self::broad_phase::BroadPhaseProxyIndex;
 pub(crate) use self::collider_set::ModifiedColliders;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
-pub(crate) use parry::partitioning::Qbvh;
 pub use parry::shape::*;
 
 #[cfg(feature = "serde-serialize")]
-pub(crate) fn default_persistent_query_dispatcher(
-) -> std::sync::Arc<dyn parry::query::PersistentQueryDispatcher<ContactManifoldData, ContactData>> {
+pub(crate) fn default_persistent_query_dispatcher()
+-> std::sync::Arc<dyn parry::query::PersistentQueryDispatcher<ContactManifoldData, ContactData>> {
     std::sync::Arc::new(parry::query::DefaultQueryDispatcher)
 }
 
-#[cfg(feature = "serde-serialize")]
-pub(crate) fn default_query_dispatcher() -> std::sync::Arc<dyn parry::query::QueryDispatcher> {
-    std::sync::Arc::new(parry::query::DefaultQueryDispatcher)
-}
-
-mod broad_phase_multi_sap;
 mod collider_components;
 mod contact_pair;
 mod interaction_graph;
@@ -206,7 +200,8 @@ mod interaction_groups;
 mod narrow_phase;
 
 mod broad_phase;
-mod broad_phase_qbvh;
+mod broad_phase_bvh;
+mod broad_phase_pair_event;
 mod collider;
 mod collider_set;
 mod mesh_converter;

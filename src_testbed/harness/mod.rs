@@ -1,19 +1,43 @@
 #![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
 
 use crate::{
-    physics::{PhysicsEvents, PhysicsState},
     TestbedGraphics,
+    physics::{PhysicsEvents, PhysicsState},
 };
 use plugin::HarnessPlugin;
 use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodySet,
 };
-use rapier::geometry::{ColliderSet, DefaultBroadPhase, NarrowPhase};
+use rapier::geometry::{
+    BroadPhase, BroadPhaseBvh, BvhOptimizationStrategy, ColliderSet, NarrowPhase,
+};
 use rapier::math::{Real, Vector};
-use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
+use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline};
 
 pub mod plugin;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum RapierBroadPhaseType {
+    #[default]
+    BvhSubtreeOptimizer,
+    BvhWithoutOptimization,
+}
+
+impl RapierBroadPhaseType {
+    pub fn init_broad_phase(self) -> Box<dyn BroadPhase> {
+        match self {
+            RapierBroadPhaseType::BvhSubtreeOptimizer => {
+                Box::new(BroadPhaseBvh::with_optimization_strategy(
+                    BvhOptimizationStrategy::SubtreeOptimizer,
+                ))
+            }
+            RapierBroadPhaseType::BvhWithoutOptimization => Box::new(
+                BroadPhaseBvh::with_optimization_strategy(BvhOptimizationStrategy::None),
+            ),
+        }
+    }
+}
 
 pub struct RunState {
     #[cfg(feature = "parallel")]
@@ -121,9 +145,16 @@ impl Harness {
         colliders: ColliderSet,
         impulse_joints: ImpulseJointSet,
         multibody_joints: MultibodyJointSet,
+        broad_phase_type: RapierBroadPhaseType,
     ) -> Self {
         let mut res = Self::new_empty();
-        res.set_world(bodies, colliders, impulse_joints, multibody_joints);
+        res.set_world(
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            broad_phase_type,
+        );
         res
     }
 
@@ -149,12 +180,14 @@ impl Harness {
         colliders: ColliderSet,
         impulse_joints: ImpulseJointSet,
         multibody_joints: MultibodyJointSet,
+        broad_phase_type: RapierBroadPhaseType,
     ) {
         self.set_world_with_params(
             bodies,
             colliders,
             impulse_joints,
             multibody_joints,
+            broad_phase_type,
             Vector::y() * -9.81,
             (),
         )
@@ -166,6 +199,7 @@ impl Harness {
         colliders: ColliderSet,
         impulse_joints: ImpulseJointSet,
         multibody_joints: MultibodyJointSet,
+        broad_phase_type: RapierBroadPhaseType,
         gravity: Vector<Real>,
         hooks: impl PhysicsHooks + 'static,
     ) {
@@ -179,12 +213,11 @@ impl Harness {
         self.physics.hooks = Box::new(hooks);
 
         self.physics.islands = IslandManager::new();
-        self.physics.broad_phase = DefaultBroadPhase::default();
+        self.physics.broad_phase = broad_phase_type.init_broad_phase();
         self.physics.narrow_phase = NarrowPhase::new();
         self.state.timestep_id = 0;
         self.state.time = 0.0;
         self.physics.ccd_solver = CCDSolver::new();
-        self.physics.query_pipeline = QueryPipeline::new();
         self.physics.pipeline = PhysicsPipeline::new();
         self.physics.pipeline.counters.enable();
     }
@@ -217,14 +250,13 @@ impl Harness {
                     &physics.gravity,
                     &physics.integration_parameters,
                     &mut physics.islands,
-                    &mut physics.broad_phase,
+                    &mut *physics.broad_phase,
                     &mut physics.narrow_phase,
                     &mut physics.bodies,
                     &mut physics.colliders,
                     &mut physics.impulse_joints,
                     &mut physics.multibody_joints,
                     &mut physics.ccd_solver,
-                    Some(&mut physics.query_pipeline),
                     &*physics.hooks,
                     event_handler,
                 );
@@ -236,14 +268,13 @@ impl Harness {
             &self.physics.gravity,
             &self.physics.integration_parameters,
             &mut self.physics.islands,
-            &mut self.physics.broad_phase,
+            &mut *self.physics.broad_phase,
             &mut self.physics.narrow_phase,
             &mut self.physics.bodies,
             &mut self.physics.colliders,
             &mut self.physics.impulse_joints,
             &mut self.physics.multibody_joints,
             &mut self.physics.ccd_solver,
-            Some(&mut self.physics.query_pipeline),
             &*self.physics.hooks,
             &self.event_handler,
         );

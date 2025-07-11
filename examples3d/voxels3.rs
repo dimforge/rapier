@@ -1,9 +1,9 @@
 use obj::raw::object::Polygon;
+use rapier_testbed3d::KeyCode;
+use rapier_testbed3d::Testbed;
 use rapier3d::parry::bounding_volume;
 use rapier3d::parry::transformation::voxelization::FillMode;
 use rapier3d::prelude::*;
-use rapier_testbed3d::KeyCode;
-use rapier_testbed3d::Testbed;
 use std::fs::File;
 use std::io::BufReader;
 
@@ -60,7 +60,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let deltas = Isometry::identity();
 
             let mut shapes = Vec::new();
-            println!("Parsing and decomposing: {}", obj_path);
+            println!("Parsing and decomposing: {obj_path}");
 
             let input = BufReader::new(File::open(obj_path).unwrap());
 
@@ -88,7 +88,8 @@ pub fn init_world(testbed: &mut Testbed) {
                     .collect();
 
                 // Compute the size of the model, to scale it and have similar size for everything.
-                let aabb = bounding_volume::details::point_cloud_aabb(&deltas, &vertices);
+                let aabb =
+                    bounding_volume::details::point_cloud_aabb(&deltas, vertices.iter().copied());
                 let center = aabb.center();
                 let diag = (aabb.maxs - aabb.mins).norm();
 
@@ -210,14 +211,17 @@ pub fn init_world(testbed: &mut Testbed) {
             predicate: Some(&|_, co: &Collider| co.shape().as_voxels().is_some()),
             ..Default::default()
         };
-        if let Some((handle, hit)) = physics.query_pipeline.cast_ray_and_get_normal(
+        let Some(broad_phase) = physics.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
+            return;
+        };
+        let query_pipeline = broad_phase.as_query_pipeline(
+            physics.narrow_phase.query_dispatcher(),
             &physics.bodies,
             &physics.colliders,
-            &ray,
-            Real::MAX,
-            true,
             filter,
-        ) {
+        );
+
+        if let Some((handle, hit)) = query_pipeline.cast_ray_and_get_normal(&ray, Real::MAX, true) {
             // Highlight the voxel.
             let hit_collider = &physics.colliders[handle];
             let hit_local_normal = hit_collider

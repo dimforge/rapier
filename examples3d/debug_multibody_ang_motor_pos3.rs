@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     let mut bodies = RigidBodySet::new();

@@ -1,7 +1,7 @@
 use crate::dynamics::solver::{GenericRhs, TwoBodyConstraint};
 use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{Real, DIM, MAX_MANIFOLD_POINTS};
+use crate::math::{DIM, MAX_MANIFOLD_POINTS, Real};
 use crate::utils::{SimdAngularInertia, SimdCross, SimdDot};
 
 use super::{TwoBodyConstraintBuilder, TwoBodyConstraintElement, TwoBodyConstraintNormalPart};

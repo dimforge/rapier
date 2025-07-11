@@ -4,13 +4,13 @@ use crate::dynamics::{RigidBodyHandle, RigidBodySet, RigidBodyType, RigidBodyVel
 #[cfg(feature = "dim3")]
 use crate::math::Matrix;
 use crate::math::{
-    AngDim, AngVector, Dim, Isometry, Jacobian, Point, Real, Vector, ANG_DIM, DIM, SPATIAL_DIM,
+    ANG_DIM, AngDim, AngVector, DIM, Dim, Isometry, Jacobian, Point, Real, SPATIAL_DIM, Vector,
 };
 use crate::prelude::MultibodyJoint;
 use crate::utils::{IndexMut2, SimdAngularInertia, SimdCross, SimdCrossMatrix};
 use na::{
-    self, DMatrix, DVector, DVectorView, DVectorViewMut, Dyn, OMatrix, SMatrix, SVector,
-    StorageMut, LU,
+    self, DMatrix, DVector, DVectorView, DVectorViewMut, Dyn, LU, OMatrix, SMatrix, SVector,
+    StorageMut,
 };
 
 #[cfg(doc)]
@@ -1083,7 +1083,7 @@ impl Multibody {
     /// - All the indices must be part of the same kinematic branch.
     /// - If a link is `branch[i]`, then `branch[i - 1]` must be its parent.
     ///
-    /// In general, this method shouldn’t be used directly and [`Self::forward_kinematics_single_link`̦]
+    /// In general, this method shouldn’t be used directly and [`Self::forward_kinematics_single_link`]
     /// should be preferred since it computes the branch indices automatically.
     ///
     /// If you want to calculate the branch indices manually, see [`Self::kinematic_branch`].
