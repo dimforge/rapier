@@ -423,7 +423,7 @@ impl KinematicCharacterController {
 
         let mut grounded = false;
 
-        for (_, collider) in queries.intersect_aabb_conservative(&character_aabb) {
+        'outer: for (_, collider) in queries.intersect_aabb_conservative(&character_aabb) {
             manifolds.clear();
             let pos12 = character_pos.inv_mul(collider.position());
             let _ = dispatcher.contact_manifolds(
@@ -494,7 +494,7 @@ impl KinematicCharacterController {
                 for m in &manifolds {
                     if self.is_grounded_at_contact_manifold(m, character_pos, dims) {
                         grounded = true;
-                        break; // We can stop the search early.
+                        break 'outer; // We can stop the search early.
                     }
                 }
             }

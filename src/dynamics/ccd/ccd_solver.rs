@@ -110,26 +110,23 @@ impl CCDSolver {
         // Update the query pipeline with the colliders’ predicted positions.
         self.bvh = Bvh::from_iter(
             BvhBuildStrategy::Binned,
-            colliders
-                .iter()
-                .filter(|(_, co)| co.is_enabled())
-                .map(|(co_handle, co)| {
-                    let id = co_handle.into_raw_parts().0;
-                    if let Some(co_parent) = co.parent {
-                        let rb = &bodies[co_parent.handle];
-                        let predicted_pos = rb
-                            .pos
-                            .integrate_forces_and_velocities(dt, &rb.forces, &rb.vels, &rb.mprops);
+            colliders.iter_enabled().map(|(co_handle, co)| {
+                let id = co_handle.into_raw_parts().0;
+                if let Some(co_parent) = co.parent {
+                    let rb = &bodies[co_parent.handle];
+                    let predicted_pos = rb
+                        .pos
+                        .integrate_forces_and_velocities(dt, &rb.forces, &rb.vels, &rb.mprops);
 
-                        let next_position = predicted_pos * co_parent.pos_wrt_parent;
-                        (
-                            id as usize,
-                            co.shape.compute_swept_aabb(&co.pos, &next_position),
-                        )
-                    } else {
-                        (id as usize, co.shape.compute_aabb(&co.pos))
-                    }
-                }),
+                    let next_position = predicted_pos * co_parent.pos_wrt_parent;
+                    (
+                        id as usize,
+                        co.shape.compute_swept_aabb(&co.pos, &next_position),
+                    )
+                } else {
+                    (id as usize, co.shape.compute_aabb(&co.pos))
+                }
+            }),
         );
 
         let query_pipeline = QueryPipeline {
@@ -252,22 +249,19 @@ impl CCDSolver {
         // Update the query pipeline with the colliders’ `next_position`.
         self.bvh = Bvh::from_iter(
             BvhBuildStrategy::Binned,
-            colliders
-                .iter()
-                .filter(|(_, co)| co.is_enabled())
-                .map(|(co_handle, co)| {
-                    let id = co_handle.into_raw_parts().0;
-                    if let Some(co_parent) = co.parent {
-                        let rb_next_pos = &bodies[co_parent.handle].pos.next_position;
-                        let next_position = rb_next_pos * co_parent.pos_wrt_parent;
-                        (
-                            id as usize,
-                            co.shape.compute_swept_aabb(&co.pos, &next_position),
-                        )
-                    } else {
-                        (id as usize, co.shape.compute_aabb(&co.pos))
-                    }
-                }),
+            colliders.iter_enabled().map(|(co_handle, co)| {
+                let id = co_handle.into_raw_parts().0;
+                if let Some(co_parent) = co.parent {
+                    let rb_next_pos = &bodies[co_parent.handle].pos.next_position;
+                    let next_position = rb_next_pos * co_parent.pos_wrt_parent;
+                    (
+                        id as usize,
+                        co.shape.compute_swept_aabb(&co.pos, &next_position),
+                    )
+                } else {
+                    (id as usize, co.shape.compute_aabb(&co.pos))
+                }
+            }),
         );
 
         let query_pipeline = QueryPipeline {

@@ -293,6 +293,9 @@ impl<'a> QueryPipeline<'a> {
     }
 
     /// Finds all handles of all the colliders with an [`Aabb`] intersecting the given [`Aabb`].
+    ///
+    /// Note that the collider AABB taken into account is the one currently stored in the query
+    /// pipeline’s BVH. It doesn’t recompute the latest collider AABB.
     #[profiling::function]
     pub fn intersect_aabb_conservative(
         &'a self,
@@ -303,9 +306,10 @@ impl<'a> QueryPipeline<'a> {
             .leaves(move |node: &BvhNode| node.aabb().intersects(aabb))
             .filter_map(move |leaf| {
                 let (co, co_handle) = self.colliders.get_unknown_gen(leaf)?;
-                if self.filter.test(self.bodies, co_handle, co)
-                    && co.compute_aabb().intersects(aabb)
-                {
+                // NOTE: do **not** recompute and check the latest collider AABB.
+                //       Checking only against the one in the BVH is useful, e.g., for conservative
+                //       scene queries for CCD.
+                if self.filter.test(self.bodies, co_handle, co) {
                     return Some((co_handle, co));
                 }
 
