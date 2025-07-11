@@ -19,14 +19,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let setting = testbed.example_settings_mut();
     let frame_id = setting.get_or_set_u32("frame", 0, 0..=1400);
     let frame_dirs = "/Users/sebcrozet/work/hytopia/sdk/examples/bug-demo";
-    let path = format!("{}/snapshot{}.bincode", frame_dirs, frame_id);
+    let path = format!("{frame_dirs}/snapshot{frame_id}.bincode");
     let bytes = match std::fs::read(&path) {
         Ok(bytes) => bytes,
         Err(err) => {
-            println!(
-                "Failed to open the serialized scene file {:?}: {}",
-                path, err
-            );
+            println!("Failed to open the serialized scene file {path:?}: {err}");
             return;
         }
     };
@@ -64,6 +61,6 @@ pub fn init_world(testbed: &mut Testbed) {
 
             testbed.look_at(point![10.0, 10.0, 10.0], point![0.0, 0.0, 0.0]);
         }
-        Err(err) => println!("Failed to deserialize the world state: {}", err),
+        Err(err) => println!("Failed to deserialize the world state: {err}"),
     }
 }

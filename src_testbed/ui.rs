@@ -3,10 +3,10 @@ use rapier::math::Real;
 use std::num::NonZeroUsize;
 
 use crate::debug_render::DebugRenderPipelineResource;
-use crate::harness::Harness;
+use crate::harness::{Harness, RapierBroadPhaseType};
 use crate::testbed::{
-    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR, RapierBroadPhaseType,
-    RapierSolverType, RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags,
+    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR, RapierSolverType, RunMode,
+    TestbedActionFlags, TestbedState, TestbedStateFlags,
 };
 
 pub use bevy_egui::egui;
@@ -220,17 +220,14 @@ pub(crate) fn update_ui(
                     &mut integration_parameters.contact_natural_frequency,
                     0.01..=120.0,
                 )
-                .text(format!("contacts Hz (erp = {:.3})", curr_erp)),
+                .text(format!("contacts Hz (erp = {curr_erp:.3})")),
             );
             ui.add(
                 Slider::new(
                     &mut integration_parameters.contact_damping_ratio,
                     0.01..=20.0,
                 )
-                .text(format!(
-                    "damping ratio (cfm-factor = {:.3})",
-                    curr_cfm_factor
-                )),
+                .text(format!("damping ratio (cfm-factor = {curr_cfm_factor:.3})",)),
             );
             ui.add(
                 Slider::new(
@@ -449,13 +446,13 @@ Hashes at frame: {}
         "<fixme>", // bf.len() as f32 / 1000.0,
         "<fixme>", // format!("{:?}", hash_bf).split_at(10).0,
         nf.len() as f32 / 1000.0,
-        format!("{:?}", hash_nf).split_at(10).0,
+        format!("{hash_nf:?}").split_at(10).0,
         bs.len() as f32 / 1000.0,
-        format!("{:?}", hash_bodies).split_at(10).0,
+        format!("{hash_bodies:?}").split_at(10).0,
         cs.len() as f32 / 1000.0,
-        format!("{:?}", hash_colliders).split_at(10).0,
+        format!("{hash_colliders:?}").split_at(10).0,
         js.len() as f32 / 1000.0,
-        format!("{:?}", hash_joints).split_at(10).0,
+        format!("{hash_joints:?}").split_at(10).0,
     )
 }
 
@@ -472,7 +469,7 @@ fn example_settings_ui(ui_context: &mut EguiContexts, state: &mut TestbedState) 
             let prev_value = value.clone();
             match value {
                 SettingValue::Label(value) => {
-                    ui.label(format!("{}: {}", name, value));
+                    ui.label(format!("{name}: {value}"));
                 }
                 SettingValue::F32 { value, range } => {
                     ui.add(Slider::new(value, range.clone()).text(name));

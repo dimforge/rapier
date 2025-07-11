@@ -1083,7 +1083,7 @@ impl Multibody {
     /// - All the indices must be part of the same kinematic branch.
     /// - If a link is `branch[i]`, then `branch[i - 1]` must be its parent.
     ///
-    /// In general, this method shouldn’t be used directly and [`Self::forward_kinematics_single_link`̦]
+    /// In general, this method shouldn’t be used directly and [`Self::forward_kinematics_single_link`]
     /// should be preferred since it computes the branch indices automatically.
     ///
     /// If you want to calculate the branch indices manually, see [`Self::kinematic_branch`].

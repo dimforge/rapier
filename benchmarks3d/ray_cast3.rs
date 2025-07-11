@@ -67,13 +67,13 @@ pub fn init_world(testbed: &mut Testbed) {
                 let b = ray.point_at(toi);
                 graphics
                     .gizmos
-                    .line(a.into(), b.into(), Color::rgba(0.0, 1.0f32, 0.0, 0.1));
+                    .line(a.into(), b.into(), Color::srgba(0.0, 1.0f32, 0.0, 0.1));
             } else {
                 let a = ray.origin;
                 let b = ray.point_at(max_toi);
                 graphics
                     .gizmos
-                    .line(a.into(), b.into(), Color::rgba(1.0f32, 0.0, 0.0, 0.1));
+                    .line(a.into(), b.into(), Color::srgba(1.0f32, 0.0, 0.0, 0.1));
             }
         }
         let main_check_time = t1.elapsed().as_secs_f32();

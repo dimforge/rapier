@@ -49,7 +49,7 @@ pub fn init_world(testbed: &mut Testbed) {
             }
         }
 
-        // offset -= 0.05 * rad * (num as f32 - 1.0);
+        offset -= 0.05 * rad * (num as f32 - 1.0);
     }
 
     /*

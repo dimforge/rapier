@@ -28,7 +28,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut rad = 0.5;
     let mut y = rad;
 
-    for j in 0usize..num {
+    for _ in 0usize..num {
         // Build the rigid body.
         let rigid_body =
             RigidBodyBuilder::dynamic().translation(vector![0.0, y + ground_thickness]);

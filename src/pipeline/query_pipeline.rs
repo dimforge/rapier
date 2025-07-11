@@ -66,7 +66,7 @@ impl CompositeShape for QueryPipeline<'_> {
         self.map_untyped_part_at(shape_id, f);
     }
     fn bvh(&self) -> &Bvh {
-        &self.bvh
+        self.bvh
     }
 }
 
@@ -84,7 +84,7 @@ impl TypedCompositeShape for QueryPipeline<'_> {
     ) -> Option<T> {
         let (co, co_handle) = self.colliders.get_unknown_gen(shape_id)?;
 
-        if self.filter.test(&self.bodies, co_handle, co) {
+        if self.filter.test(self.bodies, co_handle, co) {
             Some(f(Some(co.position()), co.shape(), None))
         } else {
             None
@@ -98,7 +98,7 @@ impl TypedCompositeShape for QueryPipeline<'_> {
     ) -> Option<T> {
         let (co, co_handle) = self.colliders.get_unknown_gen(shape_id)?;
 
-        if self.filter.test(&self.bodies, co_handle, co) {
+        if self.filter.test(self.bodies, co_handle, co) {
             Some(f(Some(co.position()), co.shape(), None))
         } else {
             None
@@ -266,10 +266,10 @@ impl<'a> QueryPipeline<'a> {
             .leaves(move |node: &BvhNode| node.aabb().contains_local_point(point))
             .filter_map(move |leaf| {
                 let (co, co_handle) = self.colliders.get_unknown_gen(leaf)?;
-                if self.filter.test(self.bodies, co_handle, co) {
-                    if co.shape.contains_point(co.position(), point) {
-                        return Some((co_handle, co));
-                    }
+                if self.filter.test(self.bodies, co_handle, co)
+                    && co.shape.contains_point(co.position(), point)
+                {
+                    return Some((co_handle, co));
                 }
 
                 None
@@ -303,7 +303,7 @@ impl<'a> QueryPipeline<'a> {
             .leaves(move |node: &BvhNode| node.aabb().intersects(aabb))
             .filter_map(move |leaf| {
                 let (co, co_handle) = self.colliders.get_unknown_gen(leaf)?;
-                if self.filter.test(&self.bodies, co_handle, co)
+                if self.filter.test(self.bodies, co_handle, co)
                     && co.compute_aabb().intersects(aabb)
                 {
                     return Some((co_handle, co));

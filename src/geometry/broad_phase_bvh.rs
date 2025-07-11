@@ -221,7 +221,7 @@ impl BroadPhaseBvh {
                 };
 
                 if (!CHANGE_DETECTION_ENABLED || node0.is_changed() || node1.is_changed())
-                    && !node0.intersects(&node1)
+                    && !node0.intersects(node1)
                 {
                     events.push(BroadPhasePairEvent::DeletePair(ColliderPair::new(*h0, *h1)));
                     false

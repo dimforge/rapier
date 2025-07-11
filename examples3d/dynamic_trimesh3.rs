@@ -54,7 +54,7 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
         let deltas = Isometry::identity();
 
         let mut shapes = Vec::new();
-        println!("Parsing and decomposing: {}", obj_path);
+        println!("Parsing and decomposing: {obj_path}");
         let input = BufReader::new(File::open(obj_path).unwrap());
 
         if let Ok(model) = obj::raw::parse_obj(input) {

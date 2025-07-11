@@ -140,11 +140,11 @@ impl GraphicsManager {
         let body = body.unwrap_or(RigidBodyHandle::invalid());
         if let Some(sns) = self.b2sn.get_mut(&body) {
             sns.retain(|sn| {
-                if let Some(sn_c) = sn.collider {
-                    if sn_c == collider {
-                        commands.entity(sn.entity).despawn();
-                        return false;
-                    }
+                if let Some(sn_c) = sn.collider
+                    && sn_c == collider
+                {
+                    commands.entity(sn.entity).despawn();
+                    return false;
                 }
 
                 true

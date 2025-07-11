@@ -1,4 +1,4 @@
-use rapier_testbed3d::harness::Harness;
+use rapier_testbed3d::harness::{Harness, RapierBroadPhaseType};
 use rapier3d::prelude::*;
 
 pub fn init_world(harness: &mut Harness) {
@@ -56,7 +56,13 @@ pub fn init_world(harness: &mut Harness) {
     /*
      * Set up the harness.
      */
-    harness.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    harness.set_world(
+        bodies,
+        colliders,
+        impulse_joints,
+        multibody_joints,
+        RapierBroadPhaseType::default(),
+    );
 }
 
 fn main() {

@@ -23,10 +23,8 @@ use rapier::dynamics::{
     RigidBodyHandle, RigidBodySet,
 };
 #[cfg(feature = "dim3")]
-use rapier::geometry::Ray;
-use rapier::geometry::{
-    BroadPhase, BroadPhaseBvh, BvhOptimizationStrategy, ColliderHandle, ColliderSet, NarrowPhase,
-};
+use rapier::geometry::{BroadPhaseBvh, Ray};
+use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::PhysicsHooks;
 #[cfg(feature = "dim3")]
@@ -34,7 +32,7 @@ use rapier::{control::DynamicRayCastVehicleController, prelude::QueryFilter};
 
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 use crate::box2d_backend::Box2dWorld;
-use crate::harness::Harness;
+use crate::harness::{Harness, RapierBroadPhaseType};
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 use crate::physx_backend::PhysxWorld;
 use bevy::render::camera::{Camera, ClearColor};
@@ -112,28 +110,6 @@ pub enum RapierSolverType {
     TgsSoft,
     TgsSoftNoWarmstart,
     PgsLegacy,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
-pub enum RapierBroadPhaseType {
-    #[default]
-    BvhSubtreeOptimizer,
-    BvhWithoutOptimization,
-}
-
-impl RapierBroadPhaseType {
-    pub fn init_broad_phase(self) -> Box<dyn BroadPhase> {
-        match self {
-            RapierBroadPhaseType::BvhSubtreeOptimizer => {
-                Box::new(BroadPhaseBvh::with_optimization_strategy(
-                    BvhOptimizationStrategy::SubtreeOptimizer,
-                ))
-            }
-            RapierBroadPhaseType::BvhWithoutOptimization => Box::new(
-                BroadPhaseBvh::with_optimization_strategy(BvhOptimizationStrategy::None),
-            ),
-        }
-    }
 }
 
 pub type SimulationBuilders = Vec<(&'static str, fn(&mut Testbed))>;
@@ -337,7 +313,7 @@ impl TestbedApp {
             ),
         ];
         let usage = |exe_name: &str, err: Option<&str>| {
-            println!("Usage: {} [OPTION] ", exe_name);
+            println!("Usage: {exe_name} [OPTION] ");
             println!();
             println!("Options:");
             for (long, s, desc) in cmds {
@@ -405,7 +381,7 @@ impl TestbedApp {
                 println!("Running benchmark for {}", builder.0);
 
                 for (backend_id, backend) in backend_names.iter().enumerate() {
-                    println!("|_ using backend {}", backend);
+                    println!("|_ using backend {backend}");
                     self.state.selected_backend = backend_id;
                     self.harness
                         .physics
@@ -478,7 +454,7 @@ impl TestbedApp {
 
                 write!(file, "{}", backend_names[0]).unwrap();
                 for backend in &backend_names[1..] {
-                    write!(file, ",{}", backend).unwrap();
+                    write!(file, ",{backend}").unwrap();
                 }
                 writeln!(file).unwrap();
 
@@ -730,40 +706,39 @@ impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
     }
 
     pub fn set_graphics_shift(&mut self, shift: Vector<Real>) {
-        if !self.state.camera_locked {
-            if let Some(graphics) = &mut self.graphics {
-                graphics.graphics.gfx_shift = shift;
-            }
+        if !self.state.camera_locked
+            && let Some(graphics) = &mut self.graphics
+        {
+            graphics.graphics.gfx_shift = shift;
         }
     }
 
     #[cfg(feature = "dim2")]
     pub fn look_at(&mut self, at: Point2<f32>, zoom: f32) {
-        if !self.state.camera_locked {
-            if let Some(graphics) = &mut self.graphics {
-                graphics.camera.center.x = at.x;
-                graphics.camera.center.y = at.y;
-                graphics.camera.zoom = zoom;
-            }
+        if !self.state.camera_locked
+            && let Some(graphics) = &mut self.graphics
+        {
+            graphics.camera.center.x = at.x;
+            graphics.camera.center.y = at.y;
+            graphics.camera.zoom = zoom;
         }
     }
 
     #[cfg(feature = "dim3")]
     pub fn look_at(&mut self, eye: Point3<f32>, at: Point3<f32>) {
-        if !self.state.camera_locked {
-            if let Some(graphics) = &mut self.graphics {
-                graphics.camera.center.x = at.x;
-                graphics.camera.center.y = at.y;
-                graphics.camera.center.z = at.z;
+        if !self.state.camera_locked
+            && let Some(graphics) = &mut self.graphics
+        {
+            graphics.camera.center.x = at.x;
+            graphics.camera.center.y = at.y;
+            graphics.camera.center.z = at.z;
 
-                let view_dir = eye - at;
-                graphics.camera.distance = view_dir.norm();
+            let view_dir = eye - at;
+            graphics.camera.distance = view_dir.norm();
 
-                if graphics.camera.distance > 0.0 {
-                    graphics.camera.y = (view_dir.y / graphics.camera.distance).acos();
-                    graphics.camera.x =
-                        (-view_dir.z).atan2(view_dir.x) - std::f32::consts::FRAC_PI_2;
-                }
+            if graphics.camera.distance > 0.0 {
+                graphics.camera.y = (view_dir.y / graphics.camera.distance).acos();
+                graphics.camera.x = (-view_dir.z).atan2(view_dir.x) - std::f32::consts::FRAC_PI_2;
             }
         }
     }
@@ -1362,8 +1337,8 @@ fn update_testbed(
             state
                 .action_flags
                 .set(TestbedActionFlags::RESTORE_SNAPSHOT, false);
-            if let Some(snapshot) = &state.snapshot {
-                if let Ok(DeserializedPhysicsSnapshot {
+            if let Some(snapshot) = &state.snapshot
+                && let Ok(DeserializedPhysicsSnapshot {
                     timestep_id,
                     broad_phase,
                     narrow_phase,
@@ -1373,26 +1348,25 @@ fn update_testbed(
                     impulse_joints,
                     multibody_joints,
                 }) = snapshot.restore()
-                {
-                    clear(&mut commands, &mut state, &mut graphics, &mut plugins);
+            {
+                clear(&mut commands, &mut state, &mut graphics, &mut plugins);
 
-                    for plugin in &mut plugins.0 {
-                        plugin.clear_graphics(&mut graphics, &mut commands);
-                    }
-
-                    harness.state.timestep_id = timestep_id;
-                    harness.physics.broad_phase = Box::new(broad_phase);
-                    harness.physics.narrow_phase = narrow_phase;
-                    harness.physics.islands = island_manager;
-                    harness.physics.bodies = bodies;
-                    harness.physics.colliders = colliders;
-                    harness.physics.impulse_joints = impulse_joints;
-                    harness.physics.multibody_joints = multibody_joints;
-
-                    state
-                        .action_flags
-                        .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
+                for plugin in &mut plugins.0 {
+                    plugin.clear_graphics(&mut graphics, &mut commands);
                 }
+
+                harness.state.timestep_id = timestep_id;
+                harness.physics.broad_phase = Box::new(broad_phase);
+                harness.physics.narrow_phase = narrow_phase;
+                harness.physics.islands = island_manager;
+                harness.physics.bodies = bodies;
+                harness.physics.colliders = colliders;
+                harness.physics.impulse_joints = impulse_joints;
+                harness.physics.multibody_joints = multibody_joints;
+
+                state
+                    .action_flags
+                    .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
             }
         }
 
@@ -1636,13 +1610,13 @@ fn highlight_hovered_body(
     camera: &Camera,
     camera_transform: &GlobalTransform,
 ) {
-    if let Some(highlighted_body) = testbed_state.highlighted_body {
-        if let Some(nodes) = graphics_manager.body_nodes_mut(highlighted_body) {
-            for node in nodes {
-                if let Ok(mut handle) = material_handles.get_mut(node.entity) {
-                    **handle = node.material.clone_weak()
-                };
-            }
+    if let Some(highlighted_body) = testbed_state.highlighted_body
+        && let Some(nodes) = graphics_manager.body_nodes_mut(highlighted_body)
+    {
+        for node in nodes {
+            if let Ok(mut handle) = material_handles.get_mut(node.entity) {
+                **handle = node.material.clone_weak()
+            };
         }
     }
 

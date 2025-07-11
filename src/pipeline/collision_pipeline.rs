@@ -58,9 +58,11 @@ impl CollisionPipeline {
         self.broad_phase_events.clear();
         self.broadphase_collider_pairs.clear();
 
-        let mut params = IntegrationParameters::default();
-        params.normalized_prediction_distance = prediction_distance;
-        params.dt = 0.0;
+        let params = IntegrationParameters {
+            normalized_prediction_distance: prediction_distance,
+            dt: 0.0,
+            ..Default::default()
+        };
 
         broad_phase.update(
             &params,

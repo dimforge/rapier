@@ -1,6 +1,5 @@
 #![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
 
-use crate::testbed::RapierBroadPhaseType;
 use crate::{
     TestbedGraphics,
     physics::{PhysicsEvents, PhysicsState},
@@ -10,7 +9,9 @@ use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodySet,
 };
-use rapier::geometry::{ColliderSet, NarrowPhase};
+use rapier::geometry::{
+    BroadPhase, BroadPhaseBvh, BvhOptimizationStrategy, ColliderSet, NarrowPhase,
+};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline};
 
@@ -18,6 +19,28 @@ use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline};
 use rapier::prelude::BroadPhaseParallelGrid;
 
 pub mod plugin;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum RapierBroadPhaseType {
+    #[default]
+    BvhSubtreeOptimizer,
+    BvhWithoutOptimization,
+}
+
+impl RapierBroadPhaseType {
+    pub fn init_broad_phase(self) -> Box<dyn BroadPhase> {
+        match self {
+            RapierBroadPhaseType::BvhSubtreeOptimizer => {
+                Box::new(BroadPhaseBvh::with_optimization_strategy(
+                    BvhOptimizationStrategy::SubtreeOptimizer,
+                ))
+            }
+            RapierBroadPhaseType::BvhWithoutOptimization => Box::new(
+                BroadPhaseBvh::with_optimization_strategy(BvhOptimizationStrategy::None),
+            ),
+        }
+    }
+}
 
 pub struct RunState {
     #[cfg(feature = "parallel")]

@@ -60,7 +60,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let deltas = Isometry::identity();
 
             let mut shapes = Vec::new();
-            println!("Parsing and decomposing: {}", obj_path);
+            println!("Parsing and decomposing: {obj_path}");
 
             let input = BufReader::new(File::open(obj_path).unwrap());
 

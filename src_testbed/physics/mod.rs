@@ -76,7 +76,7 @@ impl PhysicsSnapshot {
             + self.colliders.len()
             + self.impulse_joints.len()
             + self.multibody_joints.len();
-        println!("Snapshot length: {}B", total);
+        println!("Snapshot length: {total}B");
         println!("|_ broad_phase: {}B", self.broad_phase.len());
         println!("|_ narrow_phase: {}B", self.narrow_phase.len());
         println!("|_ island_manager: {}B", self.island_manager.len());

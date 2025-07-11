@@ -49,6 +49,7 @@ fn parse_command_line() -> Command {
     Command::RunAll
 }
 
+#[allow(clippy::type_complexity)]
 pub fn demo_builders() -> Vec<(&'static str, fn(&mut Testbed))> {
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Balls", balls3::init_world),
@@ -94,7 +95,7 @@ pub fn main() {
             {
                 TestbedApp::from_builders(vec![builders[i]]).run()
             } else {
-                eprintln!("Invalid example to run provided: '{}'", demo);
+                eprintln!("Invalid example to run provided: '{demo}'");
             }
         }
         Command::RunAll => TestbedApp::from_builders(builders).run(),

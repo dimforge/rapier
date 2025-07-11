@@ -118,7 +118,7 @@ pub fn init_world(testbed: &mut Testbed) {
         num_blocks_built += numx * numy * numz;
     }
 
-    println!("Num keva blocks: {}", num_blocks_built);
+    println!("Num keva blocks: {num_blocks_built}");
 
     /*
      * Set up the testbed.
