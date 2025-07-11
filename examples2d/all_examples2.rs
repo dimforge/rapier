@@ -20,6 +20,7 @@ mod debug_total_overlap2;
 mod debug_vertical_column2;
 mod drum2;
 mod heightfield2;
+mod inv_pyramid2;
 mod inverse_kinematics2;
 mod joint_motor_position2;
 mod joints2;
@@ -59,6 +60,7 @@ pub fn main() {
         ("Drum", drum2::init_world),
         ("Heightfield", heightfield2::init_world),
         ("Inverse kinematics", inverse_kinematics2::init_world),
+        ("Inv pyramid", inv_pyramid2::init_world),
         ("Joints", joints2::init_world),
         ("Locked rotations", locked_rotations2::init_world),
         ("One-way platforms", one_way_platforms2::init_world),

@@ -2,8 +2,8 @@
 
 use crate::testbed::RapierBroadPhaseType;
 use crate::{
-    physics::{PhysicsEvents, PhysicsState},
     TestbedGraphics,
+    physics::{PhysicsEvents, PhysicsState},
 };
 use plugin::HarnessPlugin;
 use rapier::dynamics::{
@@ -11,7 +11,7 @@ use rapier::dynamics::{
     RigidBodySet,
 };
 use rapier::geometry::{
-    BroadPhaseMultiSap, BroadPhaseQbvh, BroadPhaseSah, ColliderSet, DefaultBroadPhase, NarrowPhase,
+    BroadPhaseBvh, BroadPhaseMultiSap, ColliderSet, DefaultBroadPhase, NarrowPhase,
 };
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
@@ -200,7 +200,6 @@ impl Harness {
         self.state.timestep_id = 0;
         self.state.time = 0.0;
         self.physics.ccd_solver = CCDSolver::new();
-        self.physics.query_pipeline = QueryPipeline::new();
         self.physics.pipeline = PhysicsPipeline::new();
         self.physics.pipeline.counters.enable();
     }
@@ -259,28 +258,11 @@ impl Harness {
             &mut self.physics.impulse_joints,
             &mut self.physics.multibody_joints,
             &mut self.physics.ccd_solver,
-            None, // Some(&mut self.physics.query_pipeline),
             &*self.physics.hooks,
             &self.event_handler,
         );
 
         let counters = &mut self.physics.pipeline.counters;
-
-        counters.stages.query_pipeline_time.resume();
-        if self
-            .physics
-            .broad_phase
-            .downcast_ref::<BroadPhaseQbvh>()
-            .is_none()
-            && self
-                .physics
-                .broad_phase
-                .downcast_ref::<BroadPhaseSah>()
-                .is_none()
-        {
-            self.physics.query_pipeline.update(&self.physics.colliders);
-        }
-        counters.stages.query_pipeline_time.pause();
 
         for plugin in &mut self.plugins {
             plugin.step(&mut self.physics, &self.state)

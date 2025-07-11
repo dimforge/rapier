@@ -1,5 +1,5 @@
-use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
+use rapier2d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -39,22 +39,29 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     testbed.look_at(point![0.0, 0.0], 50.0);
 
-    testbed.add_callback(move |graphics, physics, _, run| {
+    testbed.add_callback(move |mut graphics, physics, _, run| {
         let slow_time = run.timestep_id as f32 / 3.0;
-        let intersection = physics.query_pipeline.intersection_with_shape(
+
+        let Some(broad_phase) = physics.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
+            return;
+        };
+        let query_pipeline = broad_phase.as_query_pipeline(
+            physics.narrow_phase.query_dispatcher(),
             &physics.bodies,
             &physics.colliders,
-            &Isometry::translation(slow_time.cos() * 10.0, slow_time.sin() * 10.0),
-            &Ball::new(rad / 2.0),
             QueryFilter::default(),
         );
 
-        if let Some(graphics) = graphics {
-            for (handle, _) in physics.bodies.iter() {
-                graphics.set_body_color(handle, [0.5, 0.5, 0.5]);
-            }
-            if let Some(intersection) = intersection {
-                let collider = physics.colliders.get(intersection).unwrap();
+        for intersection in query_pipeline.intersect_shape(
+            &Isometry::translation(slow_time.cos() * 10.0, slow_time.sin() * 10.0),
+            &Ball::new(rad / 2.0),
+        ) {
+            if let Some(graphics) = graphics.as_deref_mut() {
+                for (handle, _) in physics.bodies.iter() {
+                    graphics.set_body_color(handle, [0.5, 0.5, 0.5]);
+                }
+
+                let collider = physics.colliders.get(intersection.0).unwrap();
                 let body_handle = collider.parent().unwrap();
 
                 graphics.set_body_color(body_handle, [1.0, 0.0, 0.0]);

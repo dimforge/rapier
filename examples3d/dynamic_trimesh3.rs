@@ -1,7 +1,7 @@
 use obj::raw::object::Polygon;
+use rapier_testbed3d::Testbed;
 use rapier3d::parry::bounding_volume;
 use rapier3d::prelude::*;
-use rapier_testbed3d::Testbed;
 use std::fs::File;
 use std::io::BufReader;
 
@@ -75,7 +75,8 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
                 .collect();
 
             // Compute the size of the model, to scale it and have similar size for everything.
-            let aabb = bounding_volume::details::point_cloud_aabb(&deltas, &vertices);
+            let aabb =
+                bounding_volume::details::point_cloud_aabb(&deltas, vertices.iter().copied());
             let center = aabb.center();
             let diag = (aabb.maxs - aabb.mins).norm();
 

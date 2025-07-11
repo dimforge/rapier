@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::{KeyCode, Testbed};
+use rapier3d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*

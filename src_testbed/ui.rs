@@ -5,20 +5,20 @@ use std::num::NonZeroUsize;
 use crate::debug_render::DebugRenderPipelineResource;
 use crate::harness::Harness;
 use crate::testbed::{
-    RapierBroadPhaseType, RapierSolverType, RunMode, TestbedActionFlags, TestbedState,
-    TestbedStateFlags, PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR,
+    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR, RapierBroadPhaseType,
+    RapierSolverType, RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags,
 };
 
 pub use bevy_egui::egui;
 
-use crate::settings::SettingValue;
 use crate::PhysicsState;
-use bevy_egui::egui::{ComboBox, Slider, Ui, Window};
+use crate::settings::SettingValue;
 use bevy_egui::EguiContexts;
+use bevy_egui::egui::{ComboBox, Slider, Ui, Window};
 use rapier::dynamics::IntegrationParameters;
 #[cfg(feature = "parallel")]
 use rapier::geometry::BroadPhaseParallelGrid;
-use rapier::geometry::{BroadPhaseMultiSap, BroadPhaseQbvh, BroadPhaseSah};
+use rapier::geometry::{BroadPhaseBvh, BroadPhaseMultiSap};
 use web_time::Instant;
 
 pub(crate) fn update_ui(
@@ -163,9 +163,8 @@ pub(crate) fn update_ui(
                 .show_ui(ui, |ui| {
                     let broad_phase_type = [
                         RapierBroadPhaseType::MultigridSAP,
-                        RapierBroadPhaseType::SahTreeSubtreeOptimizer,
-                        RapierBroadPhaseType::SahTreeIncrementalBinning,
-                        RapierBroadPhaseType::SahTreeWithoutOptimization,
+                        RapierBroadPhaseType::BvhSubtreeOptimizer,
+                        RapierBroadPhaseType::BvhWithoutOptimization,
                     ];
                     for sty in broad_phase_type {
                         changed = ui
@@ -408,10 +407,6 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
         ui.label(format!(
             "Island computation: {:.2}ms",
             counters.island_construction_time_ms()
-        ));
-        ui.label(format!(
-            "Query pipeline: {:.2}ms",
-            counters.query_pipeline_update_time_ms()
         ));
         ui.label(format!(
             "User changes: {:.2}ms",

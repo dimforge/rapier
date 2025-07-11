@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use na::{point, Point3, Point4};
+use na::{Point3, Point4, point};
 
 use crate::objects::node::EntityWithGraphics;
 use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
@@ -236,7 +236,7 @@ impl GraphicsManager {
     }
 
     fn gen_color(rng: &mut Pcg32) -> Point3<f32> {
-        let mut color: Point3<f32> = rng.gen();
+        let mut color: Point3<f32> = rng.r#gen();
 
         // Quantize the colors a bit to get some amount of auto-instancing from bevy.
         color.x = (color.x * 5.0).round() / 5.0;

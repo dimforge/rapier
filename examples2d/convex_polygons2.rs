@@ -1,7 +1,7 @@
 use rand::distributions::{Distribution, Standard};
-use rand::{rngs::StdRng, SeedableRng};
-use rapier2d::prelude::*;
+use rand::{SeedableRng, rngs::StdRng};
 use rapier_testbed2d::Testbed;
+use rapier2d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*

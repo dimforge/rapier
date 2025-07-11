@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::harness::Harness;
+use rapier3d::prelude::*;
 
 pub fn init_world(harness: &mut Harness) {
     /*

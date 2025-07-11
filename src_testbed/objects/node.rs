@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::render::mesh::{Indices, VertexAttributeValues};
 
 //use crate::objects::plane::Plane;
-use na::{point, Point3, Vector3};
+use na::{Point3, Vector3, point};
 use std::collections::HashMap;
 
 use bevy::render::render_resource::PrimitiveTopology;
@@ -17,7 +17,7 @@ use rapier::math::{Isometry, Real, Vector};
 use crate::graphics::{BevyMaterial, InstancedMaterials, SELECTED_OBJECT_COLOR};
 #[cfg(feature = "dim2")]
 use {
-    na::{vector, Point2, Vector2},
+    na::{Point2, Vector2, vector},
     rapier::geometry::{Ball, Cuboid},
 };
 

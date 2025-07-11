@@ -8,7 +8,7 @@ use std::num::NonZeroUsize;
 
 use crate::debug_render::{DebugRenderPipelineResource, RapierDebugRenderPlugin};
 use crate::graphics::BevyMaterialComponent;
-use crate::mouse::{self, track_mouse_state, MainCamera, SceneMouse};
+use crate::mouse::{self, MainCamera, SceneMouse, track_mouse_state};
 use crate::physics::{DeserializedPhysicsSnapshot, PhysicsEvents, PhysicsSnapshot, PhysicsState};
 use crate::plugin::TestbedPlugin;
 use crate::save::SerializableTestbedState;
@@ -25,8 +25,8 @@ use rapier::dynamics::{
 #[cfg(feature = "dim3")]
 use rapier::geometry::Ray;
 use rapier::geometry::{
-    BroadPhase, BroadPhaseMultiSap, BroadPhaseQbvh, BroadPhaseSah, ColliderHandle, ColliderSet,
-    NarrowPhase, SahRebuildStrategy,
+    BroadPhase, BroadPhaseBvh, BroadPhaseMultiSap, BvhBuildStrategy, BvhOptimizationStrategy,
+    ColliderHandle, ColliderSet, NarrowPhase,
 };
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{PhysicsHooks, QueryPipeline};
@@ -40,8 +40,8 @@ use crate::harness::Harness;
 use crate::physx_backend::PhysxWorld;
 use bevy::render::camera::{Camera, ClearColor};
 use bevy_egui::EguiContexts;
-use bevy_pbr::wireframe::WireframePlugin;
 use bevy_pbr::AmbientLight;
+use bevy_pbr::wireframe::WireframePlugin;
 
 #[cfg(feature = "dim2")]
 use crate::camera2d::{OrbitCamera, OrbitCameraPlugin};
@@ -118,24 +118,20 @@ pub enum RapierSolverType {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum RapierBroadPhaseType {
     MultigridSAP,
-    SahTreeIncrementalBinning,
     #[default]
-    SahTreeSubtreeOptimizer,
-    SahTreeWithoutOptimization,
+    BvhSubtreeOptimizer,
+    BvhWithoutOptimization,
 }
 
 impl RapierBroadPhaseType {
     pub fn init_broad_phase(self) -> Box<dyn BroadPhase> {
         match self {
             RapierBroadPhaseType::MultigridSAP => Box::new(BroadPhaseMultiSap::default()),
-            RapierBroadPhaseType::SahTreeIncrementalBinning => {
-                Box::new(BroadPhaseSah::new(SahRebuildStrategy::IncrementalBinning))
-            }
-            RapierBroadPhaseType::SahTreeSubtreeOptimizer => {
-                Box::new(BroadPhaseSah::new(SahRebuildStrategy::SubtreeOptimizer))
-            }
-            RapierBroadPhaseType::SahTreeWithoutOptimization => {
-                Box::new(BroadPhaseSah::new(SahRebuildStrategy::None))
+            RapierBroadPhaseType::BvhSubtreeOptimizer => Box::new(BroadPhaseBvh::new(
+                BvhOptimizationStrategy::SubtreeOptimizer,
+            )),
+            RapierBroadPhaseType::BvhWithoutOptimization => {
+                Box::new(BroadPhaseBvh::new(BvhOptimizationStrategy::None))
             }
         }
     }
@@ -847,12 +843,25 @@ impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
             wheels[1].engine_force = engine_force;
             wheels[1].steering = steering_angle;
 
+            let query_pipeline = if let Some(bf) = self
+                .harness
+                .physics
+                .broad_phase
+                .downcast_ref::<BroadPhaseBvh>()
+            {
+                bf.as_query_pipeline_mut(
+                    self.harness.physics.narrow_phase.query_dispatcher(),
+                    &mut self.harness.physics.bodies,
+                    &mut self.harness.physics.colliders,
+                    QueryFilter::exclude_dynamic().exclude_rigid_body(vehicle.chassis),
+                )
+            } else {
+                return;
+            };
+
             vehicle.update_vehicle(
                 self.harness.physics.integration_parameters.dt,
-                &mut self.harness.physics.bodies,
-                &self.harness.physics.colliders,
-                &self.harness.physics.query_pipeline,
-                QueryFilter::exclude_dynamic().exclude_rigid_body(vehicle.chassis),
+                query_pipeline,
             );
         }
     }
@@ -1380,7 +1389,6 @@ fn update_testbed(
                     harness.physics.colliders = colliders;
                     harness.physics.impulse_joints = impulse_joints;
                     harness.physics.multibody_joints = multibody_joints;
-                    harness.physics.query_pipeline = QueryPipeline::new();
 
                     state
                         .action_flags
@@ -1652,14 +1660,18 @@ fn highlight_hovered_body(
         let ray_dir = Vector3::new(ray_dir.x as Real, ray_dir.y as Real, ray_dir.z as Real);
 
         let ray = Ray::new(ray_origin, ray_dir);
-        let hit = physics.query_pipeline.cast_ray(
-            &physics.bodies,
-            &physics.colliders,
-            &ray,
-            Real::MAX,
-            true,
-            QueryFilter::only_dynamic(),
-        );
+        let query_pipeline = if let Some(bf) = physics.broad_phase.downcast_ref::<BroadPhaseBvh>() {
+            bf.as_query_pipeline(
+                physics.narrow_phase.query_dispatcher(),
+                &physics.bodies,
+                &physics.colliders,
+                QueryFilter::only_dynamic(),
+            )
+        } else {
+            return;
+        };
+
+        let hit = query_pipeline.cast_ray(&ray, Real::MAX, true);
 
         if let Some((handle, _)) = hit {
             let collider = &physics.colliders[handle];

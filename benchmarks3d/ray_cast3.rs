@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::{Color, Testbed};
+use rapier3d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     let settings = testbed.example_settings_mut();
@@ -29,8 +29,6 @@ pub fn init_world(testbed: &mut Testbed) {
         .collect();
     let mut centered_rays = rays.clone();
 
-    let mut workspace = SahWorkspace::default();
-
     testbed.add_callback(move |graphics, physics, _, _| {
         let Some(graphics) = graphics else {
             return;
@@ -49,28 +47,22 @@ pub fn init_world(testbed: &mut Testbed) {
             centered.origin = center + ray.origin.coords;
         }
 
-        let mut query_pipeline_for_comparison = QueryPipeline::new();
-        query_pipeline_for_comparison.update(&physics.colliders);
-
         // Cast the rays.
         let t1 = std::time::Instant::now();
         let max_toi = ray_ball_radius - 1.0;
 
-        for ray in &centered_rays {
-            let result = if let Some(sah_bf) = physics.broad_phase.downcast_ref::<BroadPhaseSah>() {
-                sah_bf.cast_ray(ray, max_toi, &physics.colliders)
-            } else {
-                physics.query_pipeline.cast_ray(
-                    &physics.bodies,
-                    &physics.colliders,
-                    ray,
-                    max_toi,
-                    true,
-                    QueryFilter::default(),
-                )
-            };
+        let Some(broad_phase) = physics.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
+            return;
+        };
+        let query_pipeline = broad_phase.as_query_pipeline(
+            physics.narrow_phase.query_dispatcher(),
+            &physics.bodies,
+            &physics.colliders,
+            Default::default(),
+        );
 
-            if let Some((_, toi)) = result {
+        for ray in &centered_rays {
+            if let Some((_, toi)) = query_pipeline.cast_ray(ray, max_toi, true) {
                 let a = ray.origin;
                 let b = ray.point_at(toi);
                 graphics
@@ -85,34 +77,12 @@ pub fn init_world(testbed: &mut Testbed) {
             }
         }
         let main_check_time = t1.elapsed().as_secs_f32();
-        let t1 = std::time::Instant::now();
-        for ray in &centered_rays {
-            query_pipeline_for_comparison.cast_ray(
-                &physics.bodies,
-                &physics.colliders,
-                ray,
-                max_toi,
-                true,
-                QueryFilter::default(),
-            );
-        }
-        let comparison_check_time = t1.elapsed().as_secs_f32();
 
         if let Some(settings) = &mut graphics.settings {
             settings.set_label("Ray count:", format!("{}", rays.len()));
-            let speedup = if comparison_check_time < main_check_time {
-                (1.0 - main_check_time / comparison_check_time) * 100.0
-            } else {
-                (comparison_check_time / main_check_time - 1.0) * 100.0
-            };
             settings.set_label(
                 "Ray-cast time",
-                format!(
-                    "{:.2}ms (vs. {:.2}ms). Speedup: {:.2}%",
-                    main_check_time * 1000.0,
-                    comparison_check_time * 1000.0,
-                    speedup
-                ),
+                format!("{:.2}ms", main_check_time * 1000.0,),
             );
         }
     });
