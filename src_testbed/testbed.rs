@@ -47,9 +47,6 @@ use crate::camera3d::{OrbitCamera, OrbitCameraPlugin};
 use crate::graphics::BevyMaterial;
 // use bevy::render::render_resource::RenderPipelineDescriptor;
 
-#[cfg(feature = "parallel")]
-use rapier::prelude::BroadPhaseParallelGrid;
-
 const RAPIER_BACKEND: usize = 0;
 #[cfg(all(feature = "dim2", feature = "other-backends"))]
 const BOX2D_BACKEND: usize = 1;

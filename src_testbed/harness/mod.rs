@@ -15,9 +15,6 @@ use rapier::geometry::{
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline};
 
-#[cfg(feature = "parallel")]
-use rapier::prelude::BroadPhaseParallelGrid;
-
 pub mod plugin;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
@@ -260,7 +257,6 @@ impl Harness {
                     &mut physics.impulse_joints,
                     &mut physics.multibody_joints,
                     &mut physics.ccd_solver,
-                    None, // Some(&mut physics.query_pipeline),
                     &*physics.hooks,
                     event_handler,
                 );
