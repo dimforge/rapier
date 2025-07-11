@@ -3,9 +3,6 @@ use crate::geometry::{BroadPhasePairEvent, ColliderHandle, ColliderSet};
 use crate::prelude::IntegrationParameters;
 use downcast_rs::DowncastSync;
 
-/// An internal index stored in colliders by some broad-phase algorithms.
-pub type BroadPhaseProxyIndex = u32;
-
 /// Trait implemented by broad-phase algorithms supported by Rapier.
 ///
 /// The task of a broad-phase algorithm is to detect potential collision pairs, usually based on

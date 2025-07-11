@@ -183,7 +183,6 @@ impl ContactForceEvent {
     }
 }
 
-pub(crate) use self::broad_phase::BroadPhaseProxyIndex;
 pub(crate) use self::collider_set::ModifiedColliders;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
 pub use parry::shape::*;
