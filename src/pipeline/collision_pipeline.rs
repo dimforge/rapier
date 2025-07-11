@@ -198,7 +198,7 @@ mod tests {
         let _ = collider_set.insert(collider_b);
 
         let integration_parameters = IntegrationParameters::default();
-        let mut broad_phase = BroadPhaseMultiSap::new();
+        let mut broad_phase = BroadPhaseBvh::new();
         let mut narrow_phase = NarrowPhase::new();
         let mut collision_pipeline = CollisionPipeline::new();
         let physics_hooks = ();
@@ -209,7 +209,6 @@ mod tests {
             &mut narrow_phase,
             &mut rigid_body_set,
             &mut collider_set,
-            None,
             &physics_hooks,
             &(),
         );
@@ -250,7 +249,7 @@ mod tests {
         let _ = collider_set.insert(collider_b);
 
         let integration_parameters = IntegrationParameters::default();
-        let mut broad_phase = BroadPhaseMultiSap::new();
+        let mut broad_phase = BroadPhaseBvh::new();
         let mut narrow_phase = NarrowPhase::new();
         let mut collision_pipeline = CollisionPipeline::new();
         let physics_hooks = ();
@@ -261,7 +260,6 @@ mod tests {
             &mut narrow_phase,
             &mut rigid_body_set,
             &mut collider_set,
-            None,
             &physics_hooks,
             &(),
         );

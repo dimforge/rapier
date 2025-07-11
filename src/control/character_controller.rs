@@ -888,10 +888,9 @@ mod test {
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
         let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhaseMultiSap::new();
+        let mut bf = BroadPhaseBvh::new();
         let mut nf = NarrowPhase::new();
         let mut islands = IslandManager::new();
-        let mut query_pipeline = QueryPipeline::new();
 
         let mut bodies = RigidBodySet::new();
 
@@ -954,8 +953,23 @@ mod test {
         let character_shape = collider.shape();
         colliders.insert_with_parent(collider.clone(), character_handle_cannot_climb, &mut bodies);
 
-        query_pipeline.update(&colliders);
         for i in 0..200 {
+            // Step once
+            pipeline.step(
+                &gravity,
+                &integration_parameters,
+                &mut islands,
+                &mut bf,
+                &mut nf,
+                &mut bodies,
+                &mut colliders,
+                &mut impulse_joints,
+                &mut multibody_joints,
+                &mut CCDSolver::new(),
+                &(),
+                &(),
+            );
+
             let mut update_character_controller =
                 |controller: KinematicCharacterController, handle: RigidBodyHandle| {
                     let character_body = bodies.get(handle).unwrap();
@@ -963,15 +977,18 @@ mod test {
                     // the character is being moved.
                     let mut collisions = vec![];
                     let filter_character_controller = QueryFilter::new().exclude_rigid_body(handle);
-                    let effective_movement = controller.move_shape(
-                        integration_parameters.dt,
+                    let query_pipeline = bf.as_query_pipeline(
+                        nf.query_dispatcher(),
                         &bodies,
                         &colliders,
+                        filter_character_controller,
+                    );
+                    let effective_movement = controller.move_shape(
+                        integration_parameters.dt,
                         &query_pipeline,
                         character_shape,
                         character_body.position(),
                         Vector::new(0.1, -0.1, 0.0),
-                        filter_character_controller,
                         |collision| collisions.push(collision),
                     );
                     let character_body = bodies.get_mut(handle).unwrap();
@@ -1000,22 +1017,6 @@ mod test {
                 character_handle_cannot_climb,
             );
             update_character_controller(character_controller_can_climb, character_handle_can_climb);
-            // Step once
-            pipeline.step(
-                &gravity,
-                &integration_parameters,
-                &mut islands,
-                &mut bf,
-                &mut nf,
-                &mut bodies,
-                &mut colliders,
-                &mut impulse_joints,
-                &mut multibody_joints,
-                &mut CCDSolver::new(),
-                Some(&mut query_pipeline),
-                &(),
-                &(),
-            );
         }
         let character_body = bodies.get(character_handle_can_climb).unwrap();
         assert!(character_body.translation().x > 6.0);
@@ -1031,10 +1032,9 @@ mod test {
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
         let mut pipeline = PhysicsPipeline::new();
-        let mut bf = BroadPhaseMultiSap::new();
+        let mut bf = BroadPhaseBvh::new();
         let mut nf = NarrowPhase::new();
         let mut islands = IslandManager::new();
-        let mut query_pipeline = QueryPipeline::new();
 
         let mut bodies = RigidBodySet::new();
 
@@ -1082,8 +1082,23 @@ mod test {
         let character_shape = collider.shape();
         colliders.insert_with_parent(collider.clone(), character_handle_no_snap, &mut bodies);
 
-        query_pipeline.update(&colliders);
         for i in 0..10000 {
+            // Step once
+            pipeline.step(
+                &gravity,
+                &integration_parameters,
+                &mut islands,
+                &mut bf,
+                &mut nf,
+                &mut bodies,
+                &mut colliders,
+                &mut impulse_joints,
+                &mut multibody_joints,
+                &mut CCDSolver::new(),
+                &(),
+                &(),
+            );
+
             let mut update_character_controller =
                 |controller: KinematicCharacterController, handle: RigidBodyHandle| {
                     let character_body = bodies.get(handle).unwrap();
@@ -1091,15 +1106,18 @@ mod test {
                     // the character is being moved.
                     let mut collisions = vec![];
                     let filter_character_controller = QueryFilter::new().exclude_rigid_body(handle);
-                    let effective_movement = controller.move_shape(
-                        integration_parameters.dt,
+                    let query_pipeline = bf.as_query_pipeline(
+                        nf.query_dispatcher(),
                         &bodies,
                         &colliders,
+                        filter_character_controller,
+                    );
+                    let effective_movement = controller.move_shape(
+                        integration_parameters.dt,
                         &query_pipeline,
                         character_shape,
                         character_body.position(),
                         Vector::new(0.1, -0.1, 0.1),
-                        filter_character_controller,
                         |collision| collisions.push(collision),
                     );
                     let character_body = bodies.get_mut(handle).unwrap();
@@ -1117,23 +1135,8 @@ mod test {
 
             update_character_controller(character_controller_no_snap, character_handle_no_snap);
             update_character_controller(character_controller_snap, character_handle_snap);
-            // Step once
-            pipeline.step(
-                &gravity,
-                &integration_parameters,
-                &mut islands,
-                &mut bf,
-                &mut nf,
-                &mut bodies,
-                &mut colliders,
-                &mut impulse_joints,
-                &mut multibody_joints,
-                &mut CCDSolver::new(),
-                Some(&mut query_pipeline),
-                &(),
-                &(),
-            );
         }
+
         let character_body = bodies.get_mut(character_handle_no_snap).unwrap();
         let translation = character_body.translation();
 

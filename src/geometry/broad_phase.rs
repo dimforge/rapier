@@ -37,7 +37,7 @@ pub trait BroadPhase: Send + Sync + 'static + DowncastSync {
     fn update(
         &mut self,
         params: &IntegrationParameters,
-        colliders: &mut ColliderSet,
+        colliders: &ColliderSet,
         bodies: &RigidBodySet,
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],

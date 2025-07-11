@@ -53,7 +53,7 @@ impl BroadPhaseBvh {
     fn update_with_strategy(
         &mut self,
         params: &IntegrationParameters,
-        colliders: &mut ColliderSet,
+        colliders: &ColliderSet,
         bodies: &RigidBodySet,
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
@@ -251,7 +251,7 @@ impl BroadPhase for BroadPhaseBvh {
     fn update(
         &mut self,
         params: &IntegrationParameters,
-        colliders: &mut ColliderSet,
+        colliders: &ColliderSet,
         bodies: &RigidBodySet,
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
