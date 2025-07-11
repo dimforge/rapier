@@ -1,4 +1,4 @@
-## Unreleased
+## v0.27.0-beta.0 (11 July 2025)
 
 ### Modified
 
