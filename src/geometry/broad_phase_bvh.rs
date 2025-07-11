@@ -5,8 +5,10 @@ use parry::partitioning::{Bvh, BvhWorkspace};
 use parry::utils::hashmap::{Entry, HashMap};
 
 #[derive(Default, Clone)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct BroadPhaseBvh {
     pub(crate) tree: Bvh,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     workspace: BvhWorkspace,
     pairs: HashMap<(ColliderHandle, ColliderHandle), u32>,
     frame_index: u32,
@@ -16,6 +18,7 @@ pub struct BroadPhaseBvh {
 // TODO: would be interesting to try out:
 // "Fast Insertion-Based Optimization of Bounding Volume Hierarchies"
 // by Bittner et al.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Default, PartialEq, Eq, Copy, Clone)]
 pub enum BvhOptimizationStrategy {
     #[default]

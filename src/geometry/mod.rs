@@ -2,7 +2,7 @@
 
 pub use self::broad_phase::BroadPhase;
 pub use self::broad_phase_bvh::{BroadPhaseBvh, BvhOptimizationStrategy};
-pub use self::broad_phase_multi_sap::{BroadPhaseMultiSap, BroadPhasePairEvent, ColliderPair};
+pub use self::broad_phase_pair_event::{BroadPhasePairEvent, ColliderPair};
 pub use self::collider::{Collider, ColliderBuilder};
 pub use self::collider_components::*;
 pub use self::collider_set::ColliderSet;
@@ -56,8 +56,7 @@ pub type PointProjection = parry::query::PointProjection;
 /// The result of a shape-cast between two shapes.
 pub type ShapeCastHit = parry::query::ShapeCastHit;
 /// The default broad-phase implementation recommended for general-purpose usage.
-pub type DefaultBroadPhase = BroadPhaseMultiSap;
-// pub type DefaultBroadPhase = BroadPhaseParallelGrid;
+pub type DefaultBroadPhase = BroadPhaseBvh;
 
 bitflags::bitflags! {
     /// Flags providing more information regarding a collision event.
@@ -195,12 +194,6 @@ pub(crate) fn default_persistent_query_dispatcher()
     std::sync::Arc::new(parry::query::DefaultQueryDispatcher)
 }
 
-#[cfg(feature = "serde-serialize")]
-pub(crate) fn default_query_dispatcher() -> std::sync::Arc<dyn parry::query::QueryDispatcher> {
-    std::sync::Arc::new(parry::query::DefaultQueryDispatcher)
-}
-
-mod broad_phase_multi_sap;
 mod collider_components;
 mod contact_pair;
 mod interaction_graph;
@@ -209,6 +202,7 @@ mod narrow_phase;
 
 mod broad_phase;
 mod broad_phase_bvh;
+mod broad_phase_pair_event;
 mod collider;
 mod collider_set;
 mod mesh_converter;

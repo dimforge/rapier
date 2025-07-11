@@ -10,9 +10,7 @@ use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodySet,
 };
-use rapier::geometry::{
-    BroadPhaseBvh, BroadPhaseMultiSap, ColliderSet, DefaultBroadPhase, NarrowPhase,
-};
+use rapier::geometry::{BroadPhaseBvh, ColliderSet, DefaultBroadPhase, NarrowPhase};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, QueryPipeline};
 
@@ -261,8 +259,6 @@ impl Harness {
             &*self.physics.hooks,
             &self.event_handler,
         );
-
-        let counters = &mut self.physics.pipeline.counters;
 
         for plugin in &mut self.plugins {
             plugin.step(&mut self.physics, &self.state)

@@ -19,8 +19,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, 0.4);
-    let mut ground_collider_handle =
-        colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+    let ground_collider_handle = colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     /*
      * Rolling ball

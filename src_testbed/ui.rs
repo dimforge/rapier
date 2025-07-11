@@ -16,9 +16,9 @@ use crate::settings::SettingValue;
 use bevy_egui::EguiContexts;
 use bevy_egui::egui::{ComboBox, Slider, Ui, Window};
 use rapier::dynamics::IntegrationParameters;
+use rapier::geometry::BroadPhaseBvh;
 #[cfg(feature = "parallel")]
 use rapier::geometry::BroadPhaseParallelGrid;
-use rapier::geometry::{BroadPhaseBvh, BroadPhaseMultiSap};
 use web_time::Instant;
 
 pub(crate) fn update_ui(
@@ -162,7 +162,6 @@ pub(crate) fn update_ui(
                 .selected_text(format!("{:?}", state.broad_phase_type))
                 .show_ui(ui, |ui| {
                     let broad_phase_type = [
-                        RapierBroadPhaseType::MultigridSAP,
                         RapierBroadPhaseType::BvhSubtreeOptimizer,
                         RapierBroadPhaseType::BvhWithoutOptimization,
                     ];

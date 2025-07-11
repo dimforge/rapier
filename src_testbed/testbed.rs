@@ -25,8 +25,8 @@ use rapier::dynamics::{
 #[cfg(feature = "dim3")]
 use rapier::geometry::Ray;
 use rapier::geometry::{
-    BroadPhase, BroadPhaseBvh, BroadPhaseMultiSap, BvhBuildStrategy, BvhOptimizationStrategy,
-    ColliderHandle, ColliderSet, NarrowPhase,
+    BroadPhase, BroadPhaseBvh, BvhBuildStrategy, BvhOptimizationStrategy, ColliderHandle,
+    ColliderSet, NarrowPhase,
 };
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{PhysicsHooks, QueryPipeline};
@@ -117,7 +117,6 @@ pub enum RapierSolverType {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum RapierBroadPhaseType {
-    MultigridSAP,
     #[default]
     BvhSubtreeOptimizer,
     BvhWithoutOptimization,
@@ -126,7 +125,6 @@ pub enum RapierBroadPhaseType {
 impl RapierBroadPhaseType {
     pub fn init_broad_phase(self) -> Box<dyn BroadPhase> {
         match self {
-            RapierBroadPhaseType::MultigridSAP => Box::new(BroadPhaseMultiSap::default()),
             RapierBroadPhaseType::BvhSubtreeOptimizer => Box::new(BroadPhaseBvh::new(
                 BvhOptimizationStrategy::SubtreeOptimizer,
             )),

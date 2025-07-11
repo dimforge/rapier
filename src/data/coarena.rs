@@ -35,6 +35,10 @@ impl<T> Coarena<T> {
         self.data.get(index as usize).map(|(_, t)| t)
     }
 
+    /// Gets a specific mutable element from the coarena without specifying its generation number.
+    ///
+    /// It is strongly encouraged to use `Coarena::get_mut` instead of this method because this method
+    /// can suffer from the ABA problem.
     pub fn get_mut_unknown_gen(&mut self, index: u32) -> Option<&mut T> {
         self.data.get_mut(index as usize).map(|(_, t)| t)
     }
