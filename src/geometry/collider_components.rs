@@ -1,7 +1,6 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle, RigidBodyType};
-use crate::geometry::{BroadPhaseProxyIndex, InteractionGroups, Shape, SharedShape};
+use crate::geometry::{InteractionGroups, Shape, SharedShape};
 use crate::math::{Isometry, Real};
-use crate::parry::partitioning::IndexedData;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
 use std::ops::{Deref, DerefMut};
 
@@ -28,16 +27,6 @@ impl ColliderHandle {
             crate::INVALID_U32,
             crate::INVALID_U32,
         ))
-    }
-}
-
-impl IndexedData for ColliderHandle {
-    fn default() -> Self {
-        Self(IndexedData::default())
-    }
-
-    fn index(&self) -> usize {
-        self.0.index()
     }
 }
 
@@ -112,21 +101,6 @@ impl ColliderType {
     /// Is this collider a sensor?
     pub fn is_sensor(self) -> bool {
         self == ColliderType::Sensor
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-/// Data associated to a collider that takes part to a broad-phase algorithm.
-pub struct ColliderBroadPhaseData {
-    pub(crate) proxy_index: BroadPhaseProxyIndex,
-}
-
-impl Default for ColliderBroadPhaseData {
-    fn default() -> Self {
-        ColliderBroadPhaseData {
-            proxy_index: crate::INVALID_U32,
-        }
     }
 }
 

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use na::{point, Point3};
+use na::{Point3, Point4, point};
 
 use crate::objects::node::EntityWithGraphics;
 use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
@@ -27,8 +27,60 @@ pub type BevyMaterialComponent = MeshMaterial2d<BevyMaterial>;
 #[cfg(feature = "dim3")]
 pub type BevyMaterialComponent = MeshMaterial3d<BevyMaterial>;
 
-pub type InstancedMaterials = HashMap<Point3<usize>, Handle<BevyMaterial>>;
-pub const SELECTED_OBJECT_MATERIAL_KEY: Point3<usize> = point![42, 42, 42];
+#[derive(Clone, Default)]
+pub struct InstancedMaterials {
+    cache: HashMap<Point4<usize>, Handle<BevyMaterial>>,
+}
+
+impl InstancedMaterials {
+    pub fn insert(
+        &mut self,
+        materials: &mut Assets<BevyMaterial>,
+        color: Point3<f32>,
+        opacity: f32,
+    ) -> Handle<BevyMaterial> {
+        let key = color
+            .coords
+            .push(opacity)
+            .map(|c| (c * 255.0) as usize)
+            .into();
+        let bevy_color = Color::from(Srgba::new(color.x, color.y, color.z, opacity));
+
+        #[cfg(feature = "dim2")]
+        let material = bevy_sprite::ColorMaterial {
+            color: bevy_color,
+            texture: None,
+            ..default()
+        };
+        #[cfg(feature = "dim3")]
+        let material = StandardMaterial {
+            metallic: 0.5,
+            perceptual_roughness: 0.5,
+            double_sided: true, // TODO: this doesn't do anything?
+            ..StandardMaterial::from(bevy_color)
+        };
+
+        self.cache
+            .entry(key)
+            .or_insert_with(|| materials.add(material))
+            .clone_weak()
+    }
+
+    pub fn get(&self, color: &Point3<f32>, opacity: f32) -> Option<Handle<BevyMaterial>> {
+        let key = color
+            .coords
+            .push(opacity)
+            .map(|c| (c * 255.0) as usize)
+            .into();
+        self.cache.get(&key).map(|h| h.clone_weak())
+    }
+
+    pub fn clear(&mut self) {
+        self.cache.clear();
+    }
+}
+
+pub const SELECTED_OBJECT_COLOR: Point3<f32> = point![1.0, 0.0, 0.0];
 
 pub struct GraphicsManager {
     rand: Pcg32,
@@ -52,13 +104,16 @@ impl GraphicsManager {
             ground_color: point![0.5, 0.5, 0.5],
             b2wireframe: HashMap::new(),
             prefab_meshes: HashMap::new(),
-            instanced_materials: HashMap::new(),
+            instanced_materials: Default::default(),
             gfx_shift: Vector::zeros(),
         }
     }
 
     pub fn selection_material(&self) -> Handle<BevyMaterial> {
-        self.instanced_materials[&SELECTED_OBJECT_MATERIAL_KEY].clone_weak()
+        self.instanced_materials
+            .get(&SELECTED_OBJECT_COLOR, 1.0)
+            .unwrap()
+            .clone_weak()
     }
 
     pub fn clear(&mut self, commands: &mut Commands) {
@@ -85,11 +140,11 @@ impl GraphicsManager {
         let body = body.unwrap_or(RigidBodyHandle::invalid());
         if let Some(sns) = self.b2sn.get_mut(&body) {
             sns.retain(|sn| {
-                if let Some(sn_c) = sn.collider {
-                    if sn_c == collider {
-                        commands.entity(sn.entity).despawn();
-                        return false;
-                    }
+                if let Some(sn_c) = sn.collider
+                    && sn_c == collider
+                {
+                    commands.entity(sn.entity).despawn();
+                    return false;
                 }
 
                 true
@@ -110,6 +165,7 @@ impl GraphicsManager {
     pub fn set_body_color(
         &mut self,
         materials: &mut Assets<BevyMaterial>,
+        material_handles: &mut Query<&mut BevyMaterialComponent>,
         b: RigidBodyHandle,
         color: [f32; 3],
     ) {
@@ -117,7 +173,11 @@ impl GraphicsManager {
 
         if let Some(ns) = self.b2sn.get_mut(&b) {
             for n in ns.iter_mut() {
-                n.set_color(materials, color.into())
+                n.set_color(materials, &mut self.instanced_materials, color.into());
+
+                if let Ok(mut mat) = material_handles.get_mut(n.entity) {
+                    mat.0 = n.material.clone_weak();
+                }
             }
         }
     }
@@ -176,7 +236,7 @@ impl GraphicsManager {
     }
 
     fn gen_color(rng: &mut Pcg32) -> Point3<f32> {
-        let mut color: Point3<f32> = rng.gen();
+        let mut color: Point3<f32> = rng.r#gen();
 
         // Quantize the colors a bit to get some amount of auto-instancing from bevy.
         color.x = (color.x * 5.0).round() / 5.0;
@@ -185,12 +245,7 @@ impl GraphicsManager {
         color
     }
 
-    fn alloc_color(
-        &mut self,
-        materials: &mut Assets<BevyMaterial>,
-        handle: RigidBodyHandle,
-        is_fixed: bool,
-    ) -> Point3<f32> {
+    fn alloc_color(&mut self, handle: RigidBodyHandle, is_fixed: bool) -> Point3<f32> {
         let mut color = self.ground_color;
 
         if !is_fixed {
@@ -200,7 +255,7 @@ impl GraphicsManager {
             }
         }
 
-        self.set_body_color(materials, handle, color.into());
+        self.b2color.insert(handle, color);
 
         color
     }
@@ -221,7 +276,7 @@ impl GraphicsManager {
             .b2color
             .get(&handle)
             .cloned()
-            .unwrap_or_else(|| self.alloc_color(materials, handle, !body.is_dynamic()));
+            .unwrap_or_else(|| self.alloc_color(handle, !body.is_dynamic()));
 
         let _ = self.add_body_colliders_with_color(
             commands, meshes, materials, components, handle, bodies, colliders, color,

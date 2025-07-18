@@ -1,9 +1,9 @@
 use crate::utils::character::{self, CharacterControlMode};
+use rapier_testbed3d::Testbed;
 use rapier3d::{
     control::{KinematicCharacterController, PidController},
     prelude::*,
 };
-use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -187,7 +187,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Callback to update the character based on user inputs.
      */
-    let mut control_mode = CharacterControlMode::Kinematic;
+    let mut control_mode = CharacterControlMode::Kinematic(0.1);
     let mut controller = KinematicCharacterController {
         max_slope_climb_angle: impossible_slope_angle - 0.02,
         min_slope_slide_angle: impossible_slope_angle - 0.02,

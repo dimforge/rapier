@@ -1,6 +1,6 @@
 [package]
 name = "rapier_testbed2d-f64"
-version = "0.25.1"
+version = "0.27.0-beta.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "Testbed for the Rapier 2-dimensional physics engine in Rust."
 homepage = "http://rapier.rs"
@@ -14,7 +14,7 @@ categories = [
 ]
 keywords = ["physics", "dynamics", "rigid", "real-time", "impulse_joints"]
 license = "Apache-2.0"
-edition = "2021"
+edition = "2024"
 
 [badges]
 maintenance = { status = "actively-developed" }
@@ -99,5 +99,5 @@ bevy = { version = "0.15", default-features = false, features = [
 [dependencies.rapier]
 package = "rapier2d-f64"
 path = "../rapier2d-f64"
-version = "0.25.1"
+version = "0.27.0-beta.0"
 features = ["serde-serialize", "debug-render", "profiler"]

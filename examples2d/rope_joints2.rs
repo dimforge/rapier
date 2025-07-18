@@ -1,8 +1,8 @@
 use crate::utils::character;
 use crate::utils::character::CharacterControlMode;
+use rapier_testbed2d::Testbed;
 use rapier2d::control::{KinematicCharacterController, PidController};
 use rapier2d::prelude::*;
-use rapier_testbed2d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -60,7 +60,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Callback to update the character based on user inputs.
      */
-    let mut control_mode = CharacterControlMode::Kinematic;
+    let mut control_mode = CharacterControlMode::Kinematic(0.1);
     let mut controller = KinematicCharacterController::default();
     let mut pid = PidController::default();
 

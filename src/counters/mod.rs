@@ -193,12 +193,6 @@ measure_method!(
     stages.solver_time
 );
 measure_method!(ccd_started, ccd_completed, ccd_time_ms, stages.ccd_time);
-measure_method!(
-    query_pipeline_update_started,
-    query_pipeline_update_completed,
-    query_pipeline_update_time_ms,
-    stages.query_pipeline_time
-);
 
 measure_method!(
     assembly_started,

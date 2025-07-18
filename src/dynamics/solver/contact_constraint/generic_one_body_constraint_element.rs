@@ -1,7 +1,7 @@
 use crate::dynamics::solver::{
     OneBodyConstraintElement, OneBodyConstraintNormalPart, OneBodyConstraintTangentPart,
 };
-use crate::math::{Real, DIM};
+use crate::math::{DIM, Real};
 use na::DVector;
 #[cfg(feature = "dim2")]
 use na::SimdPartialOrd;

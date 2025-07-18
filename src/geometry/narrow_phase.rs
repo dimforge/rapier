@@ -1,8 +1,8 @@
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
-use crate::data::graph::EdgeIndex;
 use crate::data::Coarena;
+use crate::data::graph::EdgeIndex;
 use crate::dynamics::{
     CoefficientCombineRule, ImpulseJointSet, IslandManager, RigidBodyDominance, RigidBodySet,
     RigidBodyType,
@@ -89,7 +89,7 @@ impl NarrowPhase {
     }
 
     /// The query dispatcher used by this narrow-phase to select the right collision-detection
-    /// algorithms depending of the shape types.
+    /// algorithms depending on the shape types.
     pub fn query_dispatcher(
         &self,
     ) -> &dyn PersistentQueryDispatcher<ContactManifoldData, ContactData> {
@@ -1189,7 +1189,7 @@ mod test {
 
     use crate::prelude::{
         CCDSolver, ColliderBuilder, DefaultBroadPhase, IntegrationParameters, PhysicsPipeline,
-        QueryPipeline, RigidBodyBuilder,
+        RigidBodyBuilder,
     };
 
     use super::*;
@@ -1237,7 +1237,6 @@ mod test {
         let mut impulse_joint_set = ImpulseJointSet::new();
         let mut multibody_joint_set = MultibodyJointSet::new();
         let mut ccd_solver = CCDSolver::new();
-        let mut query_pipeline = QueryPipeline::new();
         let physics_hooks = ();
         let event_handler = ();
 
@@ -1252,7 +1251,6 @@ mod test {
             &mut impulse_joint_set,
             &mut multibody_joint_set,
             &mut ccd_solver,
-            Some(&mut query_pipeline),
             &physics_hooks,
             &event_handler,
         );
@@ -1288,7 +1286,6 @@ mod test {
             &mut impulse_joint_set,
             &mut multibody_joint_set,
             &mut ccd_solver,
-            Some(&mut query_pipeline),
             &physics_hooks,
             &event_handler,
         );
@@ -1317,7 +1314,6 @@ mod test {
                 &mut impulse_joint_set,
                 &mut multibody_joint_set,
                 &mut ccd_solver,
-                Some(&mut query_pipeline),
                 &physics_hooks,
                 &event_handler,
             );
@@ -1385,7 +1381,6 @@ mod test {
         let mut impulse_joint_set = ImpulseJointSet::new();
         let mut multibody_joint_set = MultibodyJointSet::new();
         let mut ccd_solver = CCDSolver::new();
-        let mut query_pipeline = QueryPipeline::new();
         let physics_hooks = ();
         let event_handler = ();
 
@@ -1400,7 +1395,6 @@ mod test {
             &mut impulse_joint_set,
             &mut multibody_joint_set,
             &mut ccd_solver,
-            Some(&mut query_pipeline),
             &physics_hooks,
             &event_handler,
         );
@@ -1435,7 +1429,6 @@ mod test {
             &mut impulse_joint_set,
             &mut multibody_joint_set,
             &mut ccd_solver,
-            Some(&mut query_pipeline),
             &physics_hooks,
             &event_handler,
         );
@@ -1462,7 +1455,6 @@ mod test {
             &mut impulse_joint_set,
             &mut multibody_joint_set,
             &mut ccd_solver,
-            Some(&mut query_pipeline),
             &physics_hooks,
             &event_handler,
         );

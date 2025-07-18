@@ -1,17 +1,19 @@
+use rapier_testbed2d::ui::egui::Align2;
+use rapier_testbed2d::{
+    KeyCode, PhysicsState, TestbedGraphics,
+    ui::egui::{ComboBox, Slider, Ui, Window},
+};
 use rapier2d::{
     control::{CharacterLength, KinematicCharacterController, PidController},
     prelude::*,
 };
-use rapier_testbed2d::ui::egui::Align2;
-use rapier_testbed2d::{
-    ui::egui::{ComboBox, Slider, Ui, Window},
-    KeyCode, PhysicsState, TestbedGraphics,
-};
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+pub type CharacterSpeed = Real;
+
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum CharacterControlMode {
-    Kinematic,
-    Pid,
+    Kinematic(CharacterSpeed),
+    Pid(CharacterSpeed),
 }
 
 pub fn update_character(
@@ -27,20 +29,20 @@ pub fn update_character(
 
     if *control_mode != prev_control_mode {
         match control_mode {
-            CharacterControlMode::Kinematic => physics.bodies[character_handle]
+            CharacterControlMode::Kinematic(_) => physics.bodies[character_handle]
                 .set_body_type(RigidBodyType::KinematicPositionBased, false),
-            CharacterControlMode::Pid => {
+            CharacterControlMode::Pid(_) => {
                 physics.bodies[character_handle].set_body_type(RigidBodyType::Dynamic, true)
             }
         }
     }
 
     match *control_mode {
-        CharacterControlMode::Kinematic => {
-            update_kinematic_controller(graphics, physics, character_handle, controller)
+        CharacterControlMode::Kinematic(speed) => {
+            update_kinematic_controller(graphics, physics, character_handle, controller, speed)
         }
-        CharacterControlMode::Pid => {
-            update_pid_controller(graphics, physics, character_handle, pid)
+        CharacterControlMode::Pid(speed) => {
+            update_pid_controller(graphics, physics, character_handle, pid, speed)
         }
     }
 }
@@ -48,7 +50,7 @@ pub fn update_character(
 fn character_movement_from_inputs(
     gfx: &TestbedGraphics,
     mut speed: Real,
-    artificial_gravity: bool,
+    artificial_gravity: Option<Real>,
 ) -> Vector<Real> {
     let mut desired_movement = Vector::zeros();
 
@@ -75,8 +77,8 @@ fn character_movement_from_inputs(
 
     desired_movement *= speed;
 
-    if artificial_gravity {
-        desired_movement -= Vector::y() * speed;
+    if let Some(artificial_gravity) = artificial_gravity {
+        desired_movement += Vector::y() * artificial_gravity;
     }
 
     desired_movement
@@ -87,8 +89,10 @@ fn update_pid_controller(
     phx: &mut PhysicsState,
     character_handle: RigidBodyHandle,
     pid: &mut PidController,
+    speed: Real,
 ) {
-    let desired_movement = character_movement_from_inputs(gfx, 0.1, false);
+    let desired_movement = character_movement_from_inputs(gfx, speed, None);
+
     let character_body = &mut phx.bodies[character_handle];
 
     // Adjust the controlled axis depending on the keys pressed by the user.
@@ -123,24 +127,33 @@ fn update_kinematic_controller(
     phx: &mut PhysicsState,
     character_handle: RigidBodyHandle,
     controller: &KinematicCharacterController,
+    speed: Real,
 ) {
-    let speed = 0.1;
-    let desired_movement = character_movement_from_inputs(gfx, speed, true);
+    let desired_movement = character_movement_from_inputs(gfx, speed, Some(phx.gravity.y));
 
     let character_body = &phx.bodies[character_handle];
     let character_collider = &phx.colliders[character_body.colliders()[0]];
+    let character_collider_pose = *character_collider.position();
+    let character_shape = character_collider.shared_shape().clone();
     let character_mass = character_body.mass();
+
+    let Some(broad_phase) = phx.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
+        return;
+    };
+    let query_pipeline = broad_phase.as_query_pipeline_mut(
+        phx.narrow_phase.query_dispatcher(),
+        &mut phx.bodies,
+        &mut phx.colliders,
+        QueryFilter::new().exclude_rigid_body(character_handle),
+    );
 
     let mut collisions = vec![];
     let mvt = controller.move_shape(
         phx.integration_parameters.dt,
-        &phx.bodies,
-        &phx.colliders,
-        &phx.query_pipeline,
-        character_collider.shape(),
-        character_collider.position(),
+        &query_pipeline.as_ref(),
+        &*character_shape,
+        &character_collider_pose,
         desired_movement.cast::<Real>(),
-        QueryFilter::new().exclude_rigid_body(character_handle),
         |c| collisions.push(c),
     );
 
@@ -152,13 +165,10 @@ fn update_kinematic_controller(
 
     controller.solve_character_collision_impulses(
         phx.integration_parameters.dt,
-        &mut phx.bodies,
-        &phx.colliders,
-        &phx.query_pipeline,
-        character_collider.shape(),
+        query_pipeline,
+        &*character_shape,
         character_mass,
         &*collisions,
-        QueryFilter::new().exclude_rigid_body(character_handle),
     );
 
     let character_body = &mut phx.bodies[character_handle];
@@ -178,22 +188,26 @@ fn character_control_ui(
             ComboBox::from_label("control mode")
                 .selected_text(format!("{:?}", *control_mode))
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(control_mode, CharacterControlMode::Kinematic, "Kinematic");
-                    ui.selectable_value(control_mode, CharacterControlMode::Pid, "Pid");
+                    ui.selectable_value(
+                        control_mode,
+                        CharacterControlMode::Kinematic(0.1),
+                        "Kinematic",
+                    );
+                    ui.selectable_value(control_mode, CharacterControlMode::Pid(0.1), "Pid");
                 });
 
             match control_mode {
-                CharacterControlMode::Kinematic => {
-                    kinematic_control_ui(ui, character_controller);
+                CharacterControlMode::Kinematic(speed) => {
+                    kinematic_control_ui(ui, character_controller, speed);
                 }
-                CharacterControlMode::Pid => {
-                    pid_control_ui(ui, pid_controller);
+                CharacterControlMode::Pid(speed) => {
+                    pid_control_ui(ui, pid_controller, speed);
                 }
             }
         });
 }
 
-fn pid_control_ui(ui: &mut Ui, pid_controller: &mut PidController) {
+fn pid_control_ui(ui: &mut Ui, pid_controller: &mut PidController, speed: &mut Real) {
     let mut lin_kp = pid_controller.pd.lin_kp.x;
     let mut lin_ki = pid_controller.lin_ki.x;
     let mut lin_kd = pid_controller.pd.lin_kd.x;
@@ -201,6 +215,7 @@ fn pid_control_ui(ui: &mut Ui, pid_controller: &mut PidController) {
     let mut ang_ki = pid_controller.ang_ki;
     let mut ang_kd = pid_controller.pd.ang_kd;
 
+    ui.add(Slider::new(speed, 0.0..=1.0).text("speed"));
     ui.add(Slider::new(&mut lin_kp, 0.0..=100.0).text("linear Kp"));
     ui.add(Slider::new(&mut lin_ki, 0.0..=10.0).text("linear Ki"));
     ui.add(Slider::new(&mut lin_kd, 0.0..=1.0).text("linear Kd"));
@@ -216,7 +231,13 @@ fn pid_control_ui(ui: &mut Ui, pid_controller: &mut PidController) {
     pid_controller.pd.ang_kd = ang_kd;
 }
 
-fn kinematic_control_ui(ui: &mut Ui, character_controller: &mut KinematicCharacterController) {
+fn kinematic_control_ui(
+    ui: &mut Ui,
+    character_controller: &mut KinematicCharacterController,
+    speed: &mut Real,
+) {
+    ui.add(Slider::new(speed, 0.0..=1.0).text("Speed"))
+        .on_hover_text("The speed applied each simulation tick.");
     ui.checkbox(&mut character_controller.slide, "slide")
         .on_hover_text("Should the character try to slide against the floor if it hits it?");
     #[allow(clippy::useless_conversion)]

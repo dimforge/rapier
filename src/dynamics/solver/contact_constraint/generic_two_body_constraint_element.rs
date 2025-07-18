@@ -2,7 +2,7 @@ use crate::dynamics::solver::SolverVel;
 use crate::dynamics::solver::{
     TwoBodyConstraintElement, TwoBodyConstraintNormalPart, TwoBodyConstraintTangentPart,
 };
-use crate::math::{AngVector, Real, Vector, DIM};
+use crate::math::{AngVector, DIM, Real, Vector};
 use crate::utils::SimdDot;
 use na::DVector;
 #[cfg(feature = "dim2")]

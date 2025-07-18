@@ -1,15 +1,15 @@
-use crate::dynamics::solver::joint_constraint::JointTwoBodyConstraintHelper;
 use crate::dynamics::solver::SolverVel;
+use crate::dynamics::solver::joint_constraint::JointTwoBodyConstraintHelper;
 use crate::dynamics::{
     GenericJoint, IntegrationParameters, JointAxesMask, JointGraphEdge, JointIndex,
 };
-use crate::math::{AngVector, AngularInertia, Isometry, Point, Real, Vector, DIM, SPATIAL_DIM};
+use crate::math::{AngVector, AngularInertia, DIM, Isometry, Point, Real, SPATIAL_DIM, Vector};
 use crate::num::Zero;
 use crate::utils::{SimdDot, SimdRealCopy};
 
 #[cfg(feature = "simd-is-enabled")]
 use {
-    crate::math::{SimdReal, SIMD_WIDTH},
+    crate::math::{SIMD_WIDTH, SimdReal},
     na::SimdValue,
 };
 

@@ -75,7 +75,8 @@ impl MeshConverter {
                 SharedShape::new(cuboid)
             }
             MeshConverter::Aabb => {
-                let aabb = bounding_volume::details::local_point_cloud_aabb(&vertices);
+                let aabb =
+                    bounding_volume::details::local_point_cloud_aabb(vertices.iter().copied());
                 let cuboid = Cuboid::new(aabb.half_extents());
                 transform = Isometry::from(aabb.center().coords);
                 SharedShape::new(cuboid)

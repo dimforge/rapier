@@ -1,3 +1,30 @@
+## v0.27.0-beta.0 (11 July 2025)
+
+### Modified
+
+- Replace the hierarchical SAP broad-phase by a broad-phase based on parry’s new BVH structure.
+- The `QueryPipeline` is now and ephemeral object obtained from the broad-phase with `broad_phase.as_query_pipeline()`.
+  It no longer needs to be updated separately from the broad-phase.
+
+### Fixed
+
+- Fix NaN resulting from non-clamped input to simd_asin in angular motor solver.
+
+## v0.26.1 (23 May 2025)
+
+### Added
+
+- Add `RigidBodySet::get_pair_mut` and `ColliderSet::get_pair_mut` to get two mutable rigid-bodies or colliders
+  simultaneously.
+
+## v0.26.0 (16 May 2025)
+
+### Modified
+
+- Update to parry 0.21.0. This changes the initialization of `Voxels` colliders by removing the primitive geometry
+  argument. This also fixes intersection checks with voxels, and force calculation between voxels and other
+  voxels or compound shapes.
+
 ## v0.25.1 (02 May 2025)
 
 ### Modified

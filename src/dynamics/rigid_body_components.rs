@@ -9,7 +9,6 @@ use crate::geometry::{
 use crate::math::{
     AngVector, AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector,
 };
-use crate::parry::partitioning::IndexedData;
 use crate::utils::{SimdAngularInertia, SimdCross, SimdDot};
 use num::Zero;
 
@@ -39,16 +38,6 @@ impl RigidBodyHandle {
             crate::INVALID_U32,
             crate::INVALID_U32,
         ))
-    }
-}
-
-impl IndexedData for RigidBodyHandle {
-    fn default() -> Self {
-        Self(IndexedData::default())
-    }
-
-    fn index(&self) -> usize {
-        self.0.index()
     }
 }
 
@@ -738,7 +727,6 @@ impl RigidBodyVelocity {
 impl std::ops::Mul<Real> for RigidBodyVelocity {
     type Output = Self;
 
-    #[must_use]
     fn mul(self, rhs: Real) -> Self {
         RigidBodyVelocity {
             linvel: self.linvel * rhs,
@@ -750,7 +738,6 @@ impl std::ops::Mul<Real> for RigidBodyVelocity {
 impl std::ops::Add<RigidBodyVelocity> for RigidBodyVelocity {
     type Output = Self;
 
-    #[must_use]
     fn add(self, rhs: Self) -> Self {
         RigidBodyVelocity {
             linvel: self.linvel + rhs.linvel,
@@ -769,7 +756,6 @@ impl std::ops::AddAssign<RigidBodyVelocity> for RigidBodyVelocity {
 impl std::ops::Sub<RigidBodyVelocity> for RigidBodyVelocity {
     type Output = Self;
 
-    #[must_use]
     fn sub(self, rhs: Self) -> Self {
         RigidBodyVelocity {
             linvel: self.linvel - rhs.linvel,

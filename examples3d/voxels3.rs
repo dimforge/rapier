@@ -1,9 +1,9 @@
 use obj::raw::object::Polygon;
+use rapier_testbed3d::KeyCode;
+use rapier_testbed3d::Testbed;
 use rapier3d::parry::bounding_volume;
 use rapier3d::parry::transformation::voxelization::FillMode;
 use rapier3d::prelude::*;
-use rapier_testbed3d::KeyCode;
-use rapier_testbed3d::Testbed;
 use std::fs::File;
 use std::io::BufReader;
 
@@ -14,11 +14,6 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let settings = testbed.example_settings_mut();
 
-    let geometry_mode = settings.get_or_set_string(
-        "Voxels mode",
-        0,
-        vec!["PseudoCube".to_string(), "PseudoBall".to_string()],
-    );
     let falling_objects = settings.get_or_set_string(
         "Falling objects",
         5, // Defaults to Mixed.
@@ -39,12 +34,6 @@ pub fn init_world(testbed: &mut Testbed) {
     // TODO: give a better placement to the objs.
     // settings.get_or_set_bool("Load .obj", false);
     let load_obj = false;
-
-    let primitive_geometry = if geometry_mode == 0 {
-        VoxelPrimitiveGeometry::PseudoCube
-    } else {
-        VoxelPrimitiveGeometry::PseudoBall
-    };
 
     /*
      * World
@@ -71,7 +60,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let deltas = Isometry::identity();
 
             let mut shapes = Vec::new();
-            println!("Parsing and decomposing: {}", obj_path);
+            println!("Parsing and decomposing: {obj_path}");
 
             let input = BufReader::new(File::open(obj_path).unwrap());
 
@@ -99,7 +88,8 @@ pub fn init_world(testbed: &mut Testbed) {
                     .collect();
 
                 // Compute the size of the model, to scale it and have similar size for everything.
-                let aabb = bounding_volume::details::point_cloud_aabb(&deltas, &vertices);
+                let aabb =
+                    bounding_volume::details::point_cloud_aabb(&deltas, vertices.iter().copied());
                 let center = aabb.center();
                 let diag = (aabb.maxs - aabb.mins).norm();
 
@@ -112,13 +102,8 @@ pub fn init_world(testbed: &mut Testbed) {
                     .map(|idx| [idx[0] as u32, idx[1] as u32, idx[2] as u32])
                     .collect();
 
-                let decomposed_shape = SharedShape::voxelized_mesh(
-                    primitive_geometry,
-                    &vertices,
-                    &indices,
-                    0.1,
-                    FillMode::default(),
-                );
+                let decomposed_shape =
+                    SharedShape::voxelized_mesh(&vertices, &indices, 0.1, FillMode::default());
 
                 shapes.push(decomposed_shape);
 
@@ -160,8 +145,7 @@ pub fn init_world(testbed: &mut Testbed) {
             }
         }
     }
-    let collider =
-        ColliderBuilder::voxels_from_points(primitive_geometry, voxel_size, &samples).build();
+    let collider = ColliderBuilder::voxels_from_points(voxel_size, &samples).build();
     let floor_aabb = collider.compute_aabb();
     colliders.insert(collider);
 
@@ -227,14 +211,17 @@ pub fn init_world(testbed: &mut Testbed) {
             predicate: Some(&|_, co: &Collider| co.shape().as_voxels().is_some()),
             ..Default::default()
         };
-        if let Some((handle, hit)) = physics.query_pipeline.cast_ray_and_get_normal(
+        let Some(broad_phase) = physics.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
+            return;
+        };
+        let query_pipeline = broad_phase.as_query_pipeline(
+            physics.narrow_phase.query_dispatcher(),
             &physics.bodies,
             &physics.colliders,
-            &ray,
-            Real::MAX,
-            true,
             filter,
-        ) {
+        );
+
+        if let Some((handle, hit)) = query_pipeline.cast_ray_and_get_normal(&ray, Real::MAX, true) {
             // Highlight the voxel.
             let hit_collider = &physics.colliders[handle];
             let hit_local_normal = hit_collider

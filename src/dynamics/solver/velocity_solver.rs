@@ -1,9 +1,9 @@
 use super::{JointConstraintTypes, SolverConstraintsSet};
 use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::{
-    solver::{ContactConstraintTypes, SolverVel},
     IntegrationParameters, IslandManager, JointGraphEdge, JointIndex, MultibodyJointSet,
     MultibodyLinkId, RigidBodySet,
+    solver::{ContactConstraintTypes, SolverVel},
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::Real;

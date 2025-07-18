@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 // This shows a bug when a cylinder is in contact with a very large
 // but very thin cuboid. In this case the EPA returns an incorrect

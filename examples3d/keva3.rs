@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 pub fn build_block(
     testbed: &mut Testbed,
@@ -118,7 +118,7 @@ pub fn init_world(testbed: &mut Testbed) {
         num_blocks_built += numx * numy * numz;
     }
 
-    println!("Num keva blocks: {}", num_blocks_built);
+    println!("Num keva blocks: {num_blocks_built}");
 
     /*
      * Set up the testbed.

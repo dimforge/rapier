@@ -1,12 +1,12 @@
+use crate::dynamics::solver::ConstraintsCounts;
+use crate::dynamics::solver::MotorParameters;
+use crate::dynamics::solver::joint_constraint::JointSolverBody;
 use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
     JointFixedSolverBody, JointOneBodyConstraint, JointTwoBodyConstraint, WritebackId,
 };
-use crate::dynamics::solver::joint_constraint::JointSolverBody;
 use crate::dynamics::solver::solver_body::SolverBody;
-use crate::dynamics::solver::ConstraintsCounts;
-use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{GenericJoint, ImpulseJoint, IntegrationParameters, JointIndex};
-use crate::math::{AngVector, Isometry, Matrix, Point, Real, Rotation, Vector, ANG_DIM, DIM};
+use crate::math::{ANG_DIM, AngVector, DIM, Isometry, Matrix, Point, Real, Rotation, Vector};
 use crate::prelude::RigidBodySet;
 use crate::utils;
 use crate::utils::{IndexMut2, SimdCrossMatrix, SimdDot, SimdRealCopy};
@@ -16,7 +16,7 @@ use na::SMatrix;
 use crate::utils::{SimdBasis, SimdQuat};
 
 #[cfg(feature = "simd-is-enabled")]
-use crate::math::{SimdReal, SIMD_WIDTH};
+use crate::math::{SIMD_WIDTH, SimdReal};
 
 pub struct JointTwoBodyConstraintBuilder {
     body1: usize,
@@ -753,10 +753,20 @@ impl<N: SimdRealCopy> JointTwoBodyConstraintHelper<N> {
 
         let mut rhs_wo_bias = N::zero();
         if motor_params.erp_inv_dt != N::zero() {
+            let ang_dist;
+
             #[cfg(feature = "dim2")]
-            let ang_dist = self.ang_err.angle();
+            {
+                ang_dist = self.ang_err.angle();
+            }
+
             #[cfg(feature = "dim3")]
-            let ang_dist = self.ang_err.imag()[_motor_axis].simd_asin() * N::splat(2.0);
+            {
+                // Clamp the component from -1.0 to 1.0 to account for slight imprecision
+                let clamped_err = self.ang_err.imag()[_motor_axis].simd_clamp(-N::one(), N::one());
+                ang_dist = clamped_err.simd_asin() * N::splat(2.0);
+            }
+
             let target_ang = motor_params.target_pos;
             rhs_wo_bias += utils::smallest_abs_diff_between_angles(ang_dist, target_ang)
                 * motor_params.erp_inv_dt;

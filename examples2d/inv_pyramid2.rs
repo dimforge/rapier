@@ -24,26 +24,19 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create the cubes
      */
-    let num = 10;
-    let rad = 0.5;
+    let num = 6;
+    let mut rad = 0.5;
+    let mut y = rad;
 
-    let shift = rad * 2.0;
-    let centerx = shift * (num as f32) / 2.0;
-    let centery = shift / 2.0 + ground_thickness + rad * 1.5;
-
-    for i in 0usize..num {
-        for j in i..num {
-            let fj = j as f32;
-            let fi = i as f32;
-            let x = (fi * shift / 2.0) + (fj - fi) * shift - centerx;
-            let y = fi * shift + centery;
-
-            // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
-            let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad);
-            colliders.insert_with_parent(collider, handle, &mut bodies);
-        }
+    for _ in 0usize..num {
+        // Build the rigid body.
+        let rigid_body =
+            RigidBodyBuilder::dynamic().translation(vector![0.0, y + ground_thickness]);
+        let handle = bodies.insert(rigid_body);
+        let collider = ColliderBuilder::cuboid(rad, rad);
+        colliders.insert_with_parent(collider, handle, &mut bodies);
+        y += rad + rad * 2.0;
+        rad *= 2.0;
     }
 
     /*
