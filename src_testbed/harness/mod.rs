@@ -118,8 +118,8 @@ type Callbacks =
 #[allow(dead_code)]
 impl Harness {
     pub fn new_empty() -> Self {
-        let collision_event_channel = crossbeam::channel::unbounded();
-        let contact_force_event_channel = crossbeam::channel::unbounded();
+        let collision_event_channel = std::sync::mpsc::channel();
+        let contact_force_event_channel = std::sync::mpsc::channel();
         let event_handler =
             ChannelEventCollector::new(collision_event_channel.0, contact_force_event_channel.0);
         let events = PhysicsEvents {

@@ -52,7 +52,6 @@ glam = { version = "0.27", optional = true } # For Physx
 num_cpus = { version = "1", optional = true }
 physx = { version = "0.19", features = ["glam"], optional = true }
 physx-sys = { version = "0.11", optional = true }
-crossbeam = "0.8"
 bincode = "1"
 md5 = "0.7"
 Inflector = "0.11"

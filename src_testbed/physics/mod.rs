@@ -1,4 +1,4 @@
-use crossbeam::channel::Receiver;
+use std::sync::mpsc::Receiver;
 use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodySet,

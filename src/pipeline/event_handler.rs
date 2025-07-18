@@ -1,7 +1,7 @@
 use crate::dynamics::RigidBodySet;
 use crate::geometry::{ColliderSet, CollisionEvent, ContactForceEvent, ContactPair};
 use crate::math::Real;
-use crossbeam::channel::Sender;
+use std::sync::mpsc::Sender;
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -90,14 +90,14 @@ impl EventHandler for () {
     }
 }
 
-/// A collision event handler that collects events into a crossbeam channel.
+/// A collision event handler that collects events into a channel.
 pub struct ChannelEventCollector {
     collision_event_sender: Sender<CollisionEvent>,
     contact_force_event_sender: Sender<ContactForceEvent>,
 }
 
 impl ChannelEventCollector {
-    /// Initialize a new collision event handler from crossbeam channel senders.
+    /// Initialize a new collision event handler from channel senders.
     pub fn new(
         collision_event_sender: Sender<CollisionEvent>,
         contact_force_event_sender: Sender<ContactForceEvent>,
