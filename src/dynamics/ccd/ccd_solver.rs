@@ -168,7 +168,7 @@ impl CCDSolver {
                         .shape
                         .compute_swept_aabb(&co1.pos, &predicted_collider_pos1);
 
-                    for (ch2, _) in query_pipeline.intersect_aabb_conservative(&aabb1) {
+                    for (ch2, _) in query_pipeline.intersect_aabb_conservative(aabb1) {
                         if *ch1 == ch2 {
                             // Ignore self-intersection.
                             continue;
@@ -301,7 +301,7 @@ impl CCDSolver {
                         .shape
                         .compute_swept_aabb(&co1.pos, &predicted_collider_pos1);
 
-                    for (ch2, _) in query_pipeline.intersect_aabb_conservative(&aabb1) {
+                    for (ch2, _) in query_pipeline.intersect_aabb_conservative(aabb1) {
                         if *ch1 == ch2 {
                             // Ignore self-intersection.
                             continue;
@@ -433,7 +433,7 @@ impl CCDSolver {
                 let co_next_pos1 = rb1.pos.next_position * co1_parent.pos_wrt_parent;
                 let aabb = co1.shape.compute_swept_aabb(&co1.pos, &co_next_pos1);
 
-                for (ch2, _) in query_pipeline.intersect_aabb_conservative(&aabb) {
+                for (ch2, _) in query_pipeline.intersect_aabb_conservative(aabb) {
                     let co2 = &colliders[ch2];
 
                     let bh1 = co1.parent.map(|p| p.handle);
