@@ -53,7 +53,7 @@ pub fn init_world(testbed: &mut Testbed) {
         );
 
         for intersection in query_pipeline.intersect_shape(
-            &Isometry::translation(slow_time.cos() * 10.0, slow_time.sin() * 10.0),
+            Isometry::translation(slow_time.cos() * 10.0, slow_time.sin() * 10.0),
             &Ball::new(rad / 2.0),
         ) {
             if let Some(graphics) = graphics.as_deref_mut() {

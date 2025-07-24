@@ -140,7 +140,7 @@ fn update_kinematic_controller(
     let Some(broad_phase) = phx.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
         return;
     };
-    let query_pipeline = broad_phase.as_query_pipeline_mut(
+    let mut query_pipeline = broad_phase.as_query_pipeline_mut(
         phx.narrow_phase.query_dispatcher(),
         &mut phx.bodies,
         &mut phx.colliders,
@@ -165,7 +165,7 @@ fn update_kinematic_controller(
 
     controller.solve_character_collision_impulses(
         phx.integration_parameters.dt,
-        query_pipeline,
+        &mut query_pipeline,
         &*character_shape,
         character_mass,
         &*collisions,

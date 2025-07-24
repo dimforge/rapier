@@ -423,7 +423,7 @@ impl KinematicCharacterController {
 
         let mut grounded = false;
 
-        'outer: for (_, collider) in queries.intersect_aabb_conservative(&character_aabb) {
+        'outer: for (_, collider) in queries.intersect_aabb_conservative(character_aabb) {
             manifolds.clear();
             let pos12 = character_pos.inv_mul(collider.position());
             let _ = dispatcher.contact_manifolds(
@@ -770,7 +770,7 @@ impl KinematicCharacterController {
     pub fn solve_character_collision_impulses<'a>(
         &self,
         dt: Real,
-        mut queries: QueryPipelineMut,
+        queries: &mut QueryPipelineMut,
         character_shape: &dyn Shape,
         character_mass: Real,
         collisions: impl IntoIterator<Item = &'a CharacterCollision>,
@@ -778,7 +778,7 @@ impl KinematicCharacterController {
         for collision in collisions {
             self.solve_single_character_collision_impulse(
                 dt,
-                &mut queries,
+                queries,
                 character_shape,
                 character_mass,
                 collision,
@@ -813,10 +813,7 @@ impl KinematicCharacterController {
             .compute_aabb(&collision.character_pos)
             .loosened(prediction);
 
-        for (_, collider) in queries
-            .as_ref()
-            .intersect_aabb_conservative(&character_aabb)
-        {
+        for (_, collider) in queries.as_ref().intersect_aabb_conservative(character_aabb) {
             if let Some(parent) = collider.parent {
                 if let Some(body) = queries.bodies.get(parent.handle) {
                     if body.is_dynamic() {

@@ -211,19 +211,19 @@ impl<'a> QueryPipeline<'a> {
     #[profiling::function]
     pub fn intersect_ray(
         &'a self,
-        ray: &'a Ray,
+        ray: Ray,
         max_toi: Real,
         solid: bool,
     ) -> impl Iterator<Item = (ColliderHandle, &'a Collider, RayIntersection)> + 'a {
         // TODO: add this to CompositeShapeRef?
         self.bvh
-            .leaves(move |node: &BvhNode| node.aabb().intersects_local_ray(ray, max_toi))
+            .leaves(move |node: &BvhNode| node.aabb().intersects_local_ray(&ray, max_toi))
             .filter_map(move |leaf| {
                 let (co, co_handle) = self.colliders.get_unknown_gen(leaf)?;
                 if self.filter.test(self.bodies, co_handle, co) {
                     if let Some(intersection) =
                         co.shape
-                            .cast_ray_and_get_normal(co.position(), ray, max_toi, solid)
+                            .cast_ray_and_get_normal(co.position(), &ray, max_toi, solid)
                     {
                         return Some((co_handle, co, intersection));
                     }
@@ -259,15 +259,15 @@ impl<'a> QueryPipeline<'a> {
     #[profiling::function]
     pub fn intersect_point(
         &'a self,
-        point: &'a Point<Real>,
+        point: Point<Real>,
     ) -> impl Iterator<Item = (ColliderHandle, &'a Collider)> + 'a {
         // TODO: add to CompositeShapeRef?
         self.bvh
-            .leaves(move |node: &BvhNode| node.aabb().contains_local_point(point))
+            .leaves(move |node: &BvhNode| node.aabb().contains_local_point(&point))
             .filter_map(move |leaf| {
                 let (co, co_handle) = self.colliders.get_unknown_gen(leaf)?;
                 if self.filter.test(self.bodies, co_handle, co)
-                    && co.shape.contains_point(co.position(), point)
+                    && co.shape.contains_point(co.position(), &point)
                 {
                     return Some((co_handle, co));
                 }
@@ -299,11 +299,11 @@ impl<'a> QueryPipeline<'a> {
     #[profiling::function]
     pub fn intersect_aabb_conservative(
         &'a self,
-        aabb: &'a Aabb,
+        aabb: Aabb,
     ) -> impl Iterator<Item = (ColliderHandle, &'a Collider)> + 'a {
         // TODO: add to ColliderRef?
         self.bvh
-            .leaves(move |node: &BvhNode| node.aabb().intersects(aabb))
+            .leaves(move |node: &BvhNode| node.aabb().intersects(&aabb))
             .filter_map(move |leaf| {
                 let (co, co_handle) = self.colliders.get_unknown_gen(leaf)?;
                 // NOTE: do **not** recompute and check the latest collider AABB.
@@ -388,11 +388,11 @@ impl<'a> QueryPipeline<'a> {
     #[profiling::function]
     pub fn intersect_shape(
         &'a self,
-        shape_pos: &'a Isometry<Real>,
+        shape_pos: Isometry<Real>,
         shape: &'a dyn Shape,
     ) -> impl Iterator<Item = (ColliderHandle, &'a Collider)> + 'a {
         // TODO: add this to CompositeShapeRef?
-        let shape_aabb = shape.compute_aabb(shape_pos);
+        let shape_aabb = shape.compute_aabb(&shape_pos);
         self.bvh
             .leaves(move |node: &BvhNode| node.aabb().intersects(&shape_aabb))
             .filter_map(move |leaf| {
