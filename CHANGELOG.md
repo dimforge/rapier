@@ -1,3 +1,15 @@
+## v0.27.0 (24 July 2025)
+
+### Modified
+
+- Modified the `QueryPipeline` API to take some geometric elements by-value instead of by-reference to make them
+  easier to use.
+- Modified the character controller to take the query-pipeline by reference instead of by-value.
+
+### Fixed
+
+- Fix crash in the new BVH broad-phase when removing colliders in a particular order.
+
 ## v0.27.0-beta.0 (11 July 2025)
 
 ### Modified
