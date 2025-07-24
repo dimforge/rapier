@@ -1,6 +1,6 @@
 [package]
 name = "rapier3d-meshloader"
-version = "0.8.0-beta.0"
+version = "0.8.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "STL file loader for the 3D rapier physics engine."
 documentation = "https://docs.rs/rapier3d-meshloader"
@@ -29,4 +29,4 @@ thiserror = "2"
 profiling = "1.0"
 mesh-loader = "0.1.12"
 
-rapier3d = { version = "0.27.0-beta.0", path = "../rapier3d" }
+rapier3d = { version = "0.27.0", path = "../rapier3d" }
