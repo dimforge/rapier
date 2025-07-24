@@ -1,4 +1,3 @@
-use crossbeam::channel::Receiver;
 use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodySet,
@@ -8,6 +7,7 @@ use rapier::geometry::{
 };
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{PhysicsHooks, PhysicsPipeline};
+use std::sync::mpsc::Receiver;
 
 pub struct PhysicsSnapshot {
     timestep_id: usize,

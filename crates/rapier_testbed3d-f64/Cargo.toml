@@ -51,7 +51,6 @@ rand_pcg = "0.3"
 web-time = { version = "1.1" }
 bitflags = "2"
 num_cpus = { version = "1", optional = true }
-crossbeam = "0.8"
 bincode = "1"
 md5 = "0.7"
 Inflector = "0.11"
