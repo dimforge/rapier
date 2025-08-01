@@ -14,7 +14,6 @@ use rapier::math::{Isometry, Real, Vector};
 //use crate::objects::polyline::Polyline;
 // use crate::objects::mesh::Mesh;
 use crate::testbed::TestbedStateFlags;
-use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg32;
 use std::collections::HashMap;
 
@@ -97,7 +96,7 @@ pub struct GraphicsManager {
 impl GraphicsManager {
     pub fn new() -> GraphicsManager {
         GraphicsManager {
-            rand: Pcg32::seed_from_u64(0),
+            rand: Pcg32::new(0, 1),
             b2sn: HashMap::new(),
             b2color: HashMap::new(),
             c2color: HashMap::new(),
@@ -128,7 +127,7 @@ impl GraphicsManager {
         self.c2color.clear();
         self.b2color.clear();
         self.b2wireframe.clear();
-        self.rand = Pcg32::seed_from_u64(0);
+        self.rand = Pcg32::new(0, 1);
     }
 
     pub fn remove_collider_nodes(
@@ -236,7 +235,8 @@ impl GraphicsManager {
     }
 
     fn gen_color(rng: &mut Pcg32) -> Point3<f32> {
-        let mut color: Point3<f32> = rng.r#gen();
+        use rand::Rng;
+        let mut color: Point3<f32> = rng.random();
 
         // Quantize the colors a bit to get some amount of auto-instancing from bevy.
         color.x = (color.x * 5.0).round() / 5.0;

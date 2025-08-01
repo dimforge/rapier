@@ -1,4 +1,4 @@
-use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
+use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle, RigidBodySet};
 #[cfg(feature = "dim3")]
 use crate::geometry::HeightFieldFlags;
 use crate::geometry::{
@@ -9,7 +9,7 @@ use crate::geometry::{
 use crate::math::{AngVector, DIM, Isometry, Point, Real, Rotation, Vector};
 use crate::parry::transformation::vhacd::VHACDParameters;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
-use crate::prelude::ColliderEnabled;
+use crate::prelude::{ColliderEnabled, IntegrationParameters};
 use na::Unit;
 use parry::bounding_volume::{Aabb, BoundingVolume};
 use parry::shape::{Shape, TriMeshBuilderError, TriMeshFlags};
@@ -455,6 +455,40 @@ impl Collider {
     /// to the given `next_position`
     pub fn compute_swept_aabb(&self, next_position: &Isometry<Real>) -> Aabb {
         self.shape.compute_swept_aabb(&self.pos, next_position)
+    }
+
+    // TODO: we have a lot of different AABB computation functions
+    //       We should group them somehow.
+    /// Computes the collider’s AABB for usage in a broad-phase.
+    ///
+    /// It takes into account soft-ccd, the contact skin, and the contact prediction.
+    pub fn compute_broad_phase_aabb(
+        &self,
+        params: &IntegrationParameters,
+        bodies: &RigidBodySet,
+    ) -> Aabb {
+        // Take soft-ccd into account by growing the aabb.
+        let next_pose = self.parent.and_then(|p| {
+            let parent = bodies.get(p.handle)?;
+            (parent.soft_ccd_prediction() > 0.0).then(|| {
+                parent.predict_position_using_velocity_and_forces_with_max_dist(
+                    params.dt,
+                    parent.soft_ccd_prediction(),
+                ) * p.pos_wrt_parent
+            })
+        });
+
+        let prediction_distance = params.prediction_distance();
+        let mut aabb = self.compute_collision_aabb(prediction_distance / 2.0);
+        if let Some(next_pose) = next_pose {
+            let next_aabb = self
+                .shape
+                .compute_aabb(&next_pose)
+                .loosened(self.contact_skin() + prediction_distance / 2.0);
+            aabb.merge(&next_aabb);
+        }
+
+        aabb
     }
 
     /// Compute the local-space mass properties of this collider.

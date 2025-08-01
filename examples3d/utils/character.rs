@@ -147,10 +147,7 @@ fn update_kinematic_controller(
     let character_shape = character_collider.shared_shape().clone();
     let character_mass = character_body.mass();
 
-    let Some(broad_phase) = phx.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
-        return;
-    };
-    let mut query_pipeline = broad_phase.as_query_pipeline_mut(
+    let mut query_pipeline = phx.broad_phase.as_query_pipeline_mut(
         phx.narrow_phase.query_dispatcher(),
         &mut phx.bodies,
         &mut phx.colliders,

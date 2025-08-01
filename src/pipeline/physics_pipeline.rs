@@ -10,7 +10,7 @@ use crate::dynamics::{
     RigidBodyChanges, RigidBodyPosition, RigidBodyType,
 };
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
+    BroadPhaseBvh, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
     ContactManifoldIndex, ModifiedColliders, NarrowPhase, TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
@@ -71,11 +71,14 @@ impl PhysicsPipeline {
         colliders: &mut ColliderSet,
         modified_colliders: &mut ModifiedColliders,
     ) {
-        for handle in modified_colliders.iter() {
-            if let Some(co) = colliders.get_mut_internal(*handle) {
-                co.changes = ColliderChanges::empty();
-            }
+        for co in colliders.colliders.iter_mut() {
+            co.1.changes = ColliderChanges::empty();
         }
+        // for handle in modified_colliders.iter() {
+        //     if let Some(co) = colliders.get_mut_internal(*handle) {
+        //         co.changes = ColliderChanges::empty();
+        //     }
+        // }
 
         modified_colliders.clear();
     }
@@ -98,7 +101,7 @@ impl PhysicsPipeline {
         &mut self,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
-        broad_phase: &mut dyn BroadPhase,
+        broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
@@ -153,11 +156,10 @@ impl PhysicsPipeline {
             colliders,
             impulse_joints,
             multibody_joints,
-            modified_colliders,
             hooks,
             events,
         );
-        narrow_phase.compute_intersections(bodies, colliders, modified_colliders, hooks, events);
+        narrow_phase.compute_intersections(bodies, colliders, hooks, events);
 
         self.counters.cd.narrow_phase_time.pause();
         self.counters.stages.collision_detection_time.pause();
@@ -340,6 +342,7 @@ impl PhysicsPipeline {
         islands: &IslandManager,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
+        broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &NarrowPhase,
         ccd_solver: &mut CCDSolver,
         events: &dyn EventHandler,
@@ -347,10 +350,11 @@ impl PhysicsPipeline {
         self.counters.ccd.toi_computation_time.start();
         // Handle CCD
         let impacts = ccd_solver.predict_impacts_at_next_positions(
-            integration_parameters.dt,
+            &integration_parameters,
             islands,
             bodies,
             colliders,
+            broad_phase,
             narrow_phase,
             events,
         );
@@ -414,7 +418,7 @@ impl PhysicsPipeline {
         gravity: &Vector<Real>,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
-        broad_phase: &mut dyn BroadPhase,
+        broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
@@ -535,9 +539,11 @@ impl PhysicsPipeline {
                 let first_impact = if ccd_active {
                     ccd_solver.find_first_impact(
                         remaining_time,
+                        &integration_parameters,
                         islands,
                         bodies,
                         colliders,
+                        broad_phase,
                         narrow_phase,
                     )
                 } else {
@@ -605,6 +611,7 @@ impl PhysicsPipeline {
                         islands,
                         bodies,
                         colliders,
+                        broad_phase,
                         narrow_phase,
                         ccd_solver,
                         events,
@@ -616,23 +623,35 @@ impl PhysicsPipeline {
             self.advance_to_final_positions(islands, bodies, colliders, &mut modified_colliders);
             self.counters.stages.update_time.pause();
 
-            self.detect_collisions(
-                &integration_parameters,
-                islands,
-                broad_phase,
-                narrow_phase,
-                bodies,
-                colliders,
-                impulse_joints,
-                multibody_joints,
-                &modified_colliders,
-                &[],
-                hooks,
-                events,
-                false,
-            );
+            if remaining_substeps > 0 {
+                self.detect_collisions(
+                    &integration_parameters,
+                    islands,
+                    broad_phase,
+                    narrow_phase,
+                    bodies,
+                    colliders,
+                    impulse_joints,
+                    multibody_joints,
+                    &modified_colliders,
+                    &[],
+                    hooks,
+                    events,
+                    false,
+                );
 
-            self.clear_modified_colliders(colliders, &mut modified_colliders);
+                self.clear_modified_colliders(colliders, &mut modified_colliders);
+            } else {
+                // If we ran the last substep, just update the broad-phase bvh instead
+                // of a full collision-detection step.
+                for handle in modified_colliders.iter() {
+                    let co = &colliders[*handle];
+                    let aabb = co.compute_broad_phase_aabb(&integration_parameters, bodies);
+                    broad_phase.set_aabb(&integration_parameters, *handle, aabb);
+                }
+                modified_colliders.clear();
+                // self.clear_modified_colliders(colliders, &mut modified_colliders);
+            }
         }
 
         // Finally, make sure we update the world mass-properties of the rigid-bodies
@@ -647,6 +666,9 @@ impl PhysicsPipeline {
             rb.mprops.update_world_mass_properties(&rb.pos.position);
         }
         self.counters.stages.update_time.pause();
+
+        // Re-insert the modified vector we extracted for the borrow-checker.
+        colliders.set_modified(modified_colliders);
 
         self.counters.step_completed();
     }

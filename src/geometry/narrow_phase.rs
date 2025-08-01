@@ -697,14 +697,9 @@ impl NarrowPhase {
         &mut self,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
-        modified_colliders: &[ColliderHandle],
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
-        if modified_colliders.is_empty() {
-            return;
-        }
-
         let nodes = &self.intersection_graph.graph.nodes;
         let query_dispatcher = &*self.query_dispatcher;
 
@@ -806,14 +801,9 @@ impl NarrowPhase {
         colliders: &ColliderSet,
         impulse_joints: &ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
-        modified_colliders: &[ColliderHandle],
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
-        if modified_colliders.is_empty() {
-            return;
-        }
-
         let query_dispatcher = &*self.query_dispatcher;
 
         // TODO: don't iterate on all the edges.
