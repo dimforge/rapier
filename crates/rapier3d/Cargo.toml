@@ -42,7 +42,7 @@ simd-nightly = [
 ]
 # Do not enable this feature directly. It is automatically
 # enabled with the "simd-stable" or "simd-nightly" feature.
-simd-is-enabled = []
+simd-is-enabled = ["dep:vec_map"]
 serde-serialize = [
     "nalgebra/serde-serialize",
     "parry3d/serde-serialize",
@@ -70,7 +70,7 @@ required-features = ["dim3", "f32"]
 
 
 [dependencies]
-vec_map = "0.8"
+vec_map = { version = "0.8", optional = true }
 web-time = { version = "1.1", optional = true }
 num-traits = "0.2"
 nalgebra = "0.33"
@@ -89,11 +89,6 @@ log = "0.4"
 ordered-float = "5"
 thiserror = "2"
 profiling = "1.0"
-smallvec = "1"
-
-# TODO: remove this, just for experiment.
-wide = "0.7"
-petgraph = "0.8"
 
 [dev-dependencies]
 bincode = "1"
