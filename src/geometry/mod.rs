@@ -1,6 +1,5 @@
 //! Structures related to geometry: colliders, shapes, etc.
 
-pub use self::broad_phase::BroadPhase;
 pub use self::broad_phase_bvh::{BroadPhaseBvh, BvhOptimizationStrategy};
 pub use self::broad_phase_pair_event::{BroadPhasePairEvent, ColliderPair};
 pub use self::collider::{Collider, ColliderBuilder};
@@ -199,7 +198,6 @@ mod interaction_graph;
 mod interaction_groups;
 mod narrow_phase;
 
-mod broad_phase;
 mod broad_phase_bvh;
 mod broad_phase_pair_event;
 mod collider;

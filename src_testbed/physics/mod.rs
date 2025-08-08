@@ -3,7 +3,7 @@ use rapier::dynamics::{
     RigidBodySet,
 };
 use rapier::geometry::{
-    BroadPhase, ColliderSet, CollisionEvent, ContactForceEvent, DefaultBroadPhase, NarrowPhase,
+    BroadPhaseBvh, ColliderSet, CollisionEvent, ContactForceEvent, DefaultBroadPhase, NarrowPhase,
 };
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{PhysicsHooks, PhysicsPipeline};
@@ -89,7 +89,7 @@ impl PhysicsSnapshot {
 
 pub struct PhysicsState {
     pub islands: IslandManager,
-    pub broad_phase: Box<dyn BroadPhase>,
+    pub broad_phase: BroadPhaseBvh,
     pub narrow_phase: NarrowPhase,
     pub bodies: RigidBodySet,
     pub colliders: ColliderSet,
@@ -112,7 +112,7 @@ impl PhysicsState {
     pub fn new() -> Self {
         Self {
             islands: IslandManager::new(),
-            broad_phase: Box::new(DefaultBroadPhase::default()),
+            broad_phase: DefaultBroadPhase::default(),
             narrow_phase: NarrowPhase::new(),
             bodies: RigidBodySet::new(),
             colliders: ColliderSet::new(),
