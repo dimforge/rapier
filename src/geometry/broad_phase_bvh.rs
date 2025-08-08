@@ -1,7 +1,6 @@
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{Aabb, BroadPhasePairEvent, ColliderHandle, ColliderPair, ColliderSet};
 use crate::math::Real;
-use parry::bounding_volume::BoundingVolume;
 use parry::partitioning::{Bvh, BvhWorkspace};
 use parry::utils::hashmap::{Entry, HashMap};
 
@@ -251,6 +250,10 @@ impl BroadPhaseBvh {
         // );
     }
 
+    /// Sets the AABB associated to the given collider.
+    ///
+    /// The AABB change will be immediately applied and propagated through the underlying BVH.
+    /// Change detection will automatically take it into account during the next broad-phase update.
     pub fn set_aabb(&mut self, params: &IntegrationParameters, handle: ColliderHandle, aabb: Aabb) {
         let change_detection_skin = if Self::CHANGE_DETECTION_ENABLED {
             Self::CHANGE_DETECTION_FACTOR * params.length_unit

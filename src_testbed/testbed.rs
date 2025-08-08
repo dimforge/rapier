@@ -23,7 +23,7 @@ use rapier::dynamics::{
     RigidBodyHandle, RigidBodySet,
 };
 #[cfg(feature = "dim3")]
-use rapier::geometry::{BroadPhaseBvh, Ray};
+use rapier::geometry::Ray;
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::PhysicsHooks;
