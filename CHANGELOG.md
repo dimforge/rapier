@@ -1,3 +1,23 @@
+## v0.28.0 (08 August 2025)
+
+### Modified
+
+- Update to nalgebra 0.34 and parry 0.23.
+- Only run the broad-phase once at the beginning of the physics step.
+- Don’t rebuild a BVH from scratch for CCD. Instead, reuse the broad-phase bvh with localized changes.
+- The public methods of `IslandSolver` has changed slightly to take the broad-phase as input.
+- Removed the `BroadPhase` trait and use the BVH broad-phase directly instead of a trait-object.
+
+### Added
+
+- Add `Collider::compute_broad_phase_aabb` to compute the AABB to be used by the broad-phase, taking
+  into account its contact skin, prediction, and soft-ccd.
+
+### Fix
+
+- Fix issue where some solver contacts would disappear from the contact graph before the user
+  had a chance to read them.
+
 ## v0.27.0 (24 July 2025)
 
 ### Modified
