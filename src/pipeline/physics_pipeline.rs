@@ -350,7 +350,7 @@ impl PhysicsPipeline {
         self.counters.ccd.toi_computation_time.start();
         // Handle CCD
         let impacts = ccd_solver.predict_impacts_at_next_positions(
-            &integration_parameters,
+            integration_parameters,
             islands,
             bodies,
             colliders,
