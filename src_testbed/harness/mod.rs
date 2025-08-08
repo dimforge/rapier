@@ -9,9 +9,7 @@ use rapier::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodySet,
 };
-use rapier::geometry::{
-    BroadPhase, BroadPhaseBvh, BvhOptimizationStrategy, ColliderSet, NarrowPhase,
-};
+use rapier::geometry::{BroadPhaseBvh, BvhOptimizationStrategy, ColliderSet, NarrowPhase};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline};
 
@@ -25,16 +23,14 @@ pub enum RapierBroadPhaseType {
 }
 
 impl RapierBroadPhaseType {
-    pub fn init_broad_phase(self) -> Box<dyn BroadPhase> {
+    pub fn init_broad_phase(self) -> BroadPhaseBvh {
         match self {
             RapierBroadPhaseType::BvhSubtreeOptimizer => {
-                Box::new(BroadPhaseBvh::with_optimization_strategy(
-                    BvhOptimizationStrategy::SubtreeOptimizer,
-                ))
+                BroadPhaseBvh::with_optimization_strategy(BvhOptimizationStrategy::SubtreeOptimizer)
             }
-            RapierBroadPhaseType::BvhWithoutOptimization => Box::new(
-                BroadPhaseBvh::with_optimization_strategy(BvhOptimizationStrategy::None),
-            ),
+            RapierBroadPhaseType::BvhWithoutOptimization => {
+                BroadPhaseBvh::with_optimization_strategy(BvhOptimizationStrategy::None)
+            }
         }
     }
 }
@@ -250,7 +246,7 @@ impl Harness {
                     &physics.gravity,
                     &physics.integration_parameters,
                     &mut physics.islands,
-                    &mut *physics.broad_phase,
+                    &mut physics.broad_phase,
                     &mut physics.narrow_phase,
                     &mut physics.bodies,
                     &mut physics.colliders,
@@ -268,7 +264,7 @@ impl Harness {
             &self.physics.gravity,
             &self.physics.integration_parameters,
             &mut self.physics.islands,
-            &mut *self.physics.broad_phase,
+            &mut self.physics.broad_phase,
             &mut self.physics.narrow_phase,
             &mut self.physics.bodies,
             &mut self.physics.colliders,

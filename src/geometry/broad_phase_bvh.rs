@@ -1,6 +1,6 @@
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
-use crate::geometry::{BroadPhase, BroadPhasePairEvent, ColliderHandle, ColliderPair, ColliderSet};
-use parry::bounding_volume::BoundingVolume;
+use crate::geometry::{Aabb, BroadPhasePairEvent, ColliderHandle, ColliderPair, ColliderSet};
+use crate::math::Real;
 use parry::partitioning::{Bvh, BvhWorkspace};
 use parry::utils::hashmap::{Entry, HashMap};
 
@@ -36,6 +36,9 @@ pub enum BvhOptimizationStrategy {
 const ENABLE_TREE_VALIDITY_CHECK: bool = false;
 
 impl BroadPhaseBvh {
+    const CHANGE_DETECTION_ENABLED: bool = true;
+    const CHANGE_DETECTION_FACTOR: Real = 1.0e-2;
+
     /// Initializes a new empty broad-phase.
     pub fn new() -> Self {
         Self::default()
@@ -50,7 +53,30 @@ impl BroadPhaseBvh {
         }
     }
 
-    fn update_with_strategy(
+    /// Updates the broad-phase.
+    ///
+    /// The results are output through the `events` struct. The broad-phase algorithm is only
+    /// required to generate new events (i.e. no need to re-send an `AddPair` event if it was already
+    /// sent previously and no `RemovePair` happened since then). Sending redundant events is allowed
+    /// but can result in a slight computational overhead.
+    ///
+    /// The `colliders` set is mutable only to provide access to
+    /// [`collider.set_internal_broad_phase_proxy_index`]. Other properties of the collider should
+    /// **not** be modified during the broad-phase update.
+    ///
+    /// # Parameters
+    /// - `params`: the integration parameters governing the simulation.
+    /// - `colliders`: the set of colliders. Change detection with `collider.needs_broad_phase_update()`
+    ///   can be relied on at this stage.
+    /// - `modified_colliders`: colliders that are know to be modified since the last update.
+    /// - `removed_colliders`: colliders that got removed since the last update. Any associated data
+    ///   in the broad-phase should be removed by this call to `update`.
+    /// - `events`: the broad-phase’s output. They indicate what collision pairs need to be created
+    ///   and what pairs need to be removed. It is OK to create pairs for colliders that don’t
+    ///   actually collide (though this can increase computational overhead in the narrow-phase)
+    ///   but it is important not to indicate removal of a collision pair if the underlying colliders
+    ///   are still touching or closer than `prediction_distance`.
+    pub fn update(
         &mut self,
         params: &IntegrationParameters,
         colliders: &ColliderSet,
@@ -58,10 +84,7 @@ impl BroadPhaseBvh {
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
         events: &mut Vec<BroadPhasePairEvent>,
-        strategy: BvhOptimizationStrategy,
     ) {
-        const CHANGE_DETECTION_ENABLED: bool = true;
-
         self.frame_index = self.frame_index.overflowing_add(1).0;
 
         // Removals must be handled first, in case another collider in
@@ -70,9 +93,9 @@ impl BroadPhaseBvh {
             self.tree.remove(handle.into_raw_parts().0);
         }
 
-        if modified_colliders.is_empty() {
-            return;
-        }
+        // if modified_colliders.is_empty() {
+        //     return;
+        // }
 
         let first_pass = self.tree.is_empty();
 
@@ -83,29 +106,10 @@ impl BroadPhaseBvh {
                     continue;
                 }
 
-                // Take soft-ccd into account by growing the aabb.
-                let next_pose = collider.parent.and_then(|p| {
-                    let parent = bodies.get(p.handle)?;
-                    (parent.soft_ccd_prediction() > 0.0).then(|| {
-                        parent.predict_position_using_velocity_and_forces_with_max_dist(
-                            params.dt,
-                            parent.soft_ccd_prediction(),
-                        ) * p.pos_wrt_parent
-                    })
-                });
+                let aabb = collider.compute_broad_phase_aabb(params, bodies);
 
-                let prediction_distance = params.prediction_distance();
-                let mut aabb = collider.compute_collision_aabb(prediction_distance / 2.0);
-                if let Some(next_pose) = next_pose {
-                    let next_aabb = collider
-                        .shape
-                        .compute_aabb(&next_pose)
-                        .loosened(collider.contact_skin() + prediction_distance / 2.0);
-                    aabb.merge(&next_aabb);
-                }
-
-                let change_detection_skin = if CHANGE_DETECTION_ENABLED {
-                    1.0e-2 * params.length_unit
+                let change_detection_skin = if Self::CHANGE_DETECTION_ENABLED {
+                    Self::CHANGE_DETECTION_FACTOR * params.length_unit
                 } else {
                     0.0
                 };
@@ -127,7 +131,7 @@ impl BroadPhaseBvh {
         }
 
         // let t0 = std::time::Instant::now();
-        match strategy {
+        match self.optimization_strategy {
             BvhOptimizationStrategy::SubtreeOptimizer => {
                 self.tree.optimize_incremental(&mut self.workspace);
             }
@@ -190,7 +194,7 @@ impl BroadPhaseBvh {
 
         // let t0 = std::time::Instant::now();
         self.tree
-            .traverse_bvtt_single_tree::<CHANGE_DETECTION_ENABLED>(
+            .traverse_bvtt_single_tree::<{ Self::CHANGE_DETECTION_ENABLED }>(
                 &mut self.workspace,
                 &mut pairs_collector,
             );
@@ -220,7 +224,7 @@ impl BroadPhaseBvh {
                     return false;
                 };
 
-                if (!CHANGE_DETECTION_ENABLED || node0.is_changed() || node1.is_changed())
+                if (!Self::CHANGE_DETECTION_ENABLED || node0.is_changed() || node1.is_changed())
                     && !node0.intersects(node1)
                 {
                     events.push(BroadPhasePairEvent::DeletePair(ColliderPair::new(*h0, *h1)));
@@ -245,26 +249,21 @@ impl BroadPhaseBvh {
         //     removed_pairs
         // );
     }
-}
 
-impl BroadPhase for BroadPhaseBvh {
-    fn update(
-        &mut self,
-        params: &IntegrationParameters,
-        colliders: &ColliderSet,
-        bodies: &RigidBodySet,
-        modified_colliders: &[ColliderHandle],
-        removed_colliders: &[ColliderHandle],
-        events: &mut Vec<BroadPhasePairEvent>,
-    ) {
-        self.update_with_strategy(
-            params,
-            colliders,
-            bodies,
-            modified_colliders,
-            removed_colliders,
-            events,
-            self.optimization_strategy,
+    /// Sets the AABB associated to the given collider.
+    ///
+    /// The AABB change will be immediately applied and propagated through the underlying BVH.
+    /// Change detection will automatically take it into account during the next broad-phase update.
+    pub fn set_aabb(&mut self, params: &IntegrationParameters, handle: ColliderHandle, aabb: Aabb) {
+        let change_detection_skin = if Self::CHANGE_DETECTION_ENABLED {
+            Self::CHANGE_DETECTION_FACTOR * params.length_unit
+        } else {
+            0.0
+        };
+        self.tree.insert_with_change_detection(
+            aabb,
+            handle.into_raw_parts().0,
+            change_detection_skin,
         );
     }
 }

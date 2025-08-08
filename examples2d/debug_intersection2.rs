@@ -42,10 +42,7 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.add_callback(move |mut graphics, physics, _, run| {
         let slow_time = run.timestep_id as f32 / 3.0;
 
-        let Some(broad_phase) = physics.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
-            return;
-        };
-        let query_pipeline = broad_phase.as_query_pipeline(
+        let query_pipeline = physics.broad_phase.as_query_pipeline(
             physics.narrow_phase.query_dispatcher(),
             &physics.bodies,
             &physics.colliders,

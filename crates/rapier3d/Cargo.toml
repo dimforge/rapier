@@ -1,6 +1,6 @@
 [package]
 name = "rapier3d"
-version = "0.27.0"
+version = "0.28.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "3-dimensional physics engine in Rust."
 documentation = "https://docs.rs/rapier3d"
@@ -73,8 +73,8 @@ required-features = ["dim3", "f32"]
 vec_map = { version = "0.8", optional = true }
 web-time = { version = "1.1", optional = true }
 num-traits = "0.2"
-nalgebra = "0.33"
-parry3d = "0.22.0"
+nalgebra = "0.34"
+parry3d = "0.23.0"
 simba = "0.9"
 approx = "0.5"
 rayon = { version = "1", optional = true }

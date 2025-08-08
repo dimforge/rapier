@@ -23,7 +23,7 @@ use rapier::dynamics::{
     RigidBodyHandle, RigidBodySet,
 };
 #[cfg(feature = "dim3")]
-use rapier::geometry::{BroadPhaseBvh, Ray};
+use rapier::geometry::Ray;
 use rapier::geometry::{ColliderHandle, ColliderSet, NarrowPhase};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::PhysicsHooks;
@@ -814,21 +814,12 @@ impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
             wheels[1].engine_force = engine_force;
             wheels[1].steering = steering_angle;
 
-            let query_pipeline = if let Some(bf) = self
-                .harness
-                .physics
-                .broad_phase
-                .downcast_ref::<BroadPhaseBvh>()
-            {
-                bf.as_query_pipeline_mut(
-                    self.harness.physics.narrow_phase.query_dispatcher(),
-                    &mut self.harness.physics.bodies,
-                    &mut self.harness.physics.colliders,
-                    QueryFilter::exclude_dynamic().exclude_rigid_body(vehicle.chassis),
-                )
-            } else {
-                return;
-            };
+            let query_pipeline = self.harness.physics.broad_phase.as_query_pipeline_mut(
+                self.harness.physics.narrow_phase.query_dispatcher(),
+                &mut self.harness.physics.bodies,
+                &mut self.harness.physics.colliders,
+                QueryFilter::exclude_dynamic().exclude_rigid_body(vehicle.chassis),
+            );
 
             vehicle.update_vehicle(
                 self.harness.physics.integration_parameters.dt,
@@ -1353,7 +1344,7 @@ fn update_testbed(
                 }
 
                 harness.state.timestep_id = timestep_id;
-                harness.physics.broad_phase = Box::new(broad_phase);
+                harness.physics.broad_phase = broad_phase;
                 harness.physics.narrow_phase = narrow_phase;
                 harness.physics.islands = island_manager;
                 harness.physics.bodies = bodies;
@@ -1630,16 +1621,12 @@ fn highlight_hovered_body(
         let ray_dir = Vector3::new(ray_dir.x as Real, ray_dir.y as Real, ray_dir.z as Real);
 
         let ray = Ray::new(ray_origin, ray_dir);
-        let query_pipeline = if let Some(bf) = physics.broad_phase.downcast_ref::<BroadPhaseBvh>() {
-            bf.as_query_pipeline(
-                physics.narrow_phase.query_dispatcher(),
-                &physics.bodies,
-                &physics.colliders,
-                QueryFilter::only_dynamic(),
-            )
-        } else {
-            return;
-        };
+        let query_pipeline = physics.broad_phase.as_query_pipeline(
+            physics.narrow_phase.query_dispatcher(),
+            &physics.bodies,
+            &physics.colliders,
+            QueryFilter::only_dynamic(),
+        );
 
         let hit = query_pipeline.cast_ray(&ray, Real::MAX, true);
 
