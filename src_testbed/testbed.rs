@@ -2,6 +2,7 @@
 #![allow(clippy::unnecessary_cast)] // allowed for f32 -> f64 cast for the f64 testbed.
 
 use bevy::prelude::*;
+use bevy_egui::EguiContextPass;
 use std::env;
 use std::mem;
 use std::num::NonZeroUsize;
@@ -487,9 +488,11 @@ impl TestbedApp {
                 .init_resource::<mouse::SceneMouse>()
                 .add_plugins(DefaultPlugins.set(window_plugin))
                 .add_plugins(OrbitCameraPlugin)
-                .add_plugins(WireframePlugin)
+                .add_plugins(WireframePlugin::default())
                 .add_plugins(RapierDebugRenderPlugin::default())
-                .add_plugins(bevy_egui::EguiPlugin);
+                .add_plugins(bevy_egui::EguiPlugin {
+                    enable_multipass_for_primary_context: true,
+                });
 
             #[cfg(target_arch = "wasm32")]
             app.add_plugin(bevy_webgl2::WebGL2Plugin);
@@ -503,8 +506,8 @@ impl TestbedApp {
                 .insert_non_send_resource(self.harness)
                 .insert_resource(self.builders)
                 .insert_non_send_resource(self.plugins)
-                .add_systems(Update, update_testbed)
-                .add_systems(Update, egui_focus)
+                .add_systems(EguiContextPass, update_testbed)
+                .add_systems(EguiContextPass, egui_focus)
                 .add_systems(Update, track_mouse_state);
 
             init(&mut app);
@@ -1148,8 +1151,8 @@ fn update_testbed(
             materials: &mut *materials,
             material_handles: &mut material_handles,
             components: &mut gfx_components,
-            camera_transform: *cameras.single().1,
-            camera: &mut cameras.single_mut().2,
+            camera_transform: *cameras.single().unwrap().1,
+            camera: &mut cameras.single_mut().unwrap().2,
             ui_context: &mut ui_context,
             gizmos: &mut gizmos,
             settings: None,
@@ -1231,7 +1234,7 @@ fn update_testbed(
                     .ok()
                     .and_then(|data| serde_json::from_slice::<SerializableTestbedState>(&data).ok())
                 {
-                    state.apply_saved_data(saved_state, &mut cameras.single_mut().2);
+                    state.apply_saved_data(saved_state, &mut cameras.single_mut().unwrap().2);
                     state.camera_locked = true;
                 }
             }
@@ -1267,8 +1270,8 @@ fn update_testbed(
                 materials: &mut *materials,
                 material_handles: &mut material_handles,
                 components: &mut gfx_components,
-                camera_transform: *cameras.single().1,
-                camera: &mut cameras.single_mut().2,
+                camera_transform: *cameras.single().unwrap().1,
+                camera: &mut cameras.single_mut().unwrap().2,
                 ui_context: &mut ui_context,
                 gizmos: &mut gizmos,
                 settings: None,
@@ -1447,8 +1450,8 @@ fn update_testbed(
                     materials: &mut *materials,
                     material_handles: &mut material_handles,
                     components: &mut gfx_components,
-                    camera_transform: *cameras.single().1,
-                    camera: &mut cameras.single_mut().2,
+                    camera_transform: *cameras.single().unwrap().1,
+                    camera: &mut cameras.single_mut().unwrap().2,
                     ui_context: &mut ui_context,
                     gizmos: &mut gizmos,
                     settings: Some(&mut state.example_settings),
@@ -1503,7 +1506,7 @@ fn update_testbed(
         }
     }
 
-    if let Ok(window) = windows.get_single() {
+    if let Ok(window) = windows.single() {
         for (camera, camera_pos, _) in cameras.iter_mut() {
             highlight_hovered_body(
                 &mut material_handles,
@@ -1549,7 +1552,7 @@ fn update_testbed(
     // If any saveable settings changed, save them again.
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let new_save_data = state.save_data(cameras.single().2.clone());
+        let new_save_data = state.save_data(cameras.single().unwrap().2.clone());
         if state.prev_save_data != new_save_data {
             // Save the data in a file.
             let data = serde_json::to_string_pretty(&new_save_data).unwrap();

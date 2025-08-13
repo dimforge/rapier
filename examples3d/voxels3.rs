@@ -152,7 +152,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Some dynamic primitives.
      */
-    let nik = 30;
+    let nik = 3;
     let extents = floor_aabb.extents() * 0.75;
     let margin = (floor_aabb.extents() - extents) / 2.0;
     let ball_radius = 0.5;

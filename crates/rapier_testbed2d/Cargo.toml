@@ -53,11 +53,11 @@ wrapped2d = { version = "0.4", optional = true }
 bincode = "1"
 Inflector = "0.11"
 md5 = "0.7"
-bevy_egui = "0.31"
-bevy_ecs = "0.15"
-bevy_core_pipeline = "0.15"
-bevy_pbr = "0.15"
-bevy_sprite = "0.15"
+bevy_egui = "0.34"
+bevy_ecs = "0.16"
+bevy_core_pipeline = "0.16"
+bevy_pbr = "0.16"
+bevy_sprite = "0.16"
 profiling = "1.0"
 puffin_egui = { version = "0.29", optional = true }
 serde = { version = "1.0.215", features = ["derive"] }
@@ -66,31 +66,35 @@ indexmap = { version = "2", features = ["serde"] }
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = { version = "0.15", default-features = false, features = [
+bevy = { version = "0.16", default-features = false, features = [
     "bevy_sprite",
     "bevy_winit",
     "bevy_window",
     "x11",
+    "wayland",
     "tonemapping_luts",
     "ktx2",
     "zstd",
+    "bevy_log",
     "bevy_render",
     "bevy_pbr",
     "bevy_gizmos",
-    "serialize"
+    "serialize",
 ] }
 
 # Dependencies for WASM only.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy = { version = "0.15", default-features = false, features = [
+bevy = { version = "0.16", default-features = false, features = [
     "bevy_sprite",
     "bevy_winit",
     "bevy_window",
     "tonemapping_luts",
     "ktx2",
     "zstd",
+    "bevy_log",
     "bevy_render",
     "bevy_pbr",
+    "bevy_picking",
     "bevy_gizmos",
 ] }
 #bevy_webgl2 = "0.5"
