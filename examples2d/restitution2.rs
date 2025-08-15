@@ -18,7 +18,9 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height]);
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height).restitution(1.0);
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height)
+        .restitution(1.0)
+        .restitution_combine_rule(CoefficientCombineRule::GeometricMean);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let num = 10;
@@ -30,7 +32,9 @@ pub fn init_world(testbed: &mut Testbed) {
             let rigid_body =
                 RigidBodyBuilder::dynamic().translation(vector![x * 2.0, 10.0 * (j as f32 + 1.0)]);
             let handle = bodies.insert(rigid_body);
-            let collider = ColliderBuilder::ball(rad).restitution((i as f32) / (num as f32));
+            let collider = ColliderBuilder::ball(rad)
+                .restitution((i as f32) / (num as f32))
+                .restitution_combine_rule(CoefficientCombineRule::GeometricMean);
             colliders.insert_with_parent(collider, handle, &mut bodies);
         }
     }
