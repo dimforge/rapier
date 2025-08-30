@@ -1248,21 +1248,17 @@ fn update_testbed(
             state
                 .action_flags
                 .set(TestbedActionFlags::TAKE_SNAPSHOT, false);
-            // FIXME
-            println!(
-                "!!!!!!!!! Snapshots are not working any more. Requires broad-phase serialization."
-            );
-            // state.snapshot = PhysicsSnapshot::new(
-            //     harness.state.timestep_id,
-            //     &*harness.physics.broad_phase,
-            //     &harness.physics.narrow_phase,
-            //     &harness.physics.islands,
-            //     &harness.physics.bodies,
-            //     &harness.physics.colliders,
-            //     &harness.physics.impulse_joints,
-            //     &harness.physics.multibody_joints,
-            // )
-            // .ok();
+            state.snapshot = PhysicsSnapshot::new(
+                harness.state.timestep_id,
+                &harness.physics.broad_phase,
+                &harness.physics.narrow_phase,
+                &harness.physics.islands,
+                &harness.physics.bodies,
+                &harness.physics.colliders,
+                &harness.physics.impulse_joints,
+                &harness.physics.multibody_joints,
+            )
+            .ok();
 
             if let Some(snap) = &state.snapshot {
                 snap.print_snapshot_len();

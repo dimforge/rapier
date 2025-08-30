@@ -383,6 +383,7 @@ fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
     let bf = bincode::serialize(&physics.broad_phase).unwrap();
     // println!("bf: {}", Instant::now() - t);
     // let t = Instant::now();
+    let bf = bincode::serialize(&physics.broad_phase).unwrap();
     let nf = bincode::serialize(&physics.narrow_phase).unwrap();
     // println!("nf: {}", Instant::now() - t);
     // let t = Instant::now();
@@ -411,7 +412,7 @@ Hashes at frame: {}
         serialization_time.as_secs_f64() * 1000.0,
         timestep_id,
         bf.len() as f32 / 1000.0,
-        format!("{:?}", hash_bf).split_at(10).0,
+        format!("{hash_bf:?}").split_at(10).0,
         nf.len() as f32 / 1000.0,
         format!("{hash_nf:?}").split_at(10).0,
         bs.len() as f32 / 1000.0,
