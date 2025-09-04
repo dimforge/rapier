@@ -1,6 +1,5 @@
 use crate::math::Real;
 use na::RealField;
-use std::num::NonZeroUsize;
 
 #[cfg(doc)]
 use super::RigidBodyActivation;
@@ -8,6 +7,28 @@ use super::RigidBodyActivation;
 // TODO: enabling the block solver in 3d introduces a lot of jitters in
 //       the 3D domino demo. So for now we dont enable it in 3D.
 pub(crate) static BLOCK_SOLVER_ENABLED: bool = cfg!(feature = "dim2");
+
+/// Friction models used for all contact constraints between two rigid-bodies.
+///
+/// This selection does not apply to multibodies that always rely on the [`FrictionModel::Coulomb`].
+#[cfg(feature = "dim3")]
+#[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+pub enum FrictionModel {
+    /// A simplified friction model significantly faster to solve than [`Self::Coulomb`]
+    /// but less accurate.
+    ///
+    /// Instead of solving one Coulomb friction constraint per contact in a contact manifold,
+    /// this approximation only solves one Coulomb friction constraint per group of 4 contacts
+    /// in a contact manifold, plus one "twist" constraint. The "twist" constraint is purely
+    /// rotational and aims to eliminate angular movement in the manifold’s tangent plane.
+    #[default]
+    Simplified,
+    /// The coulomb friction model.
+    ///
+    /// This results in one Coulomb friction constraint per contact point.
+    Coulomb,
+}
 
 /// Parameters for a time-step of the physics engine.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -92,24 +113,25 @@ pub struct IntegrationParameters {
     /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
     pub normalized_prediction_distance: Real,
     /// The number of solver iterations run by the constraints solver for calculating forces (default: `4`).
-    pub num_solver_iterations: NonZeroUsize,
-    /// Number of addition friction resolution iteration run during the last solver sub-step (default: `0`).
-    pub num_additional_friction_iterations: usize,
+    pub num_solver_iterations: usize,
     /// Number of internal Project Gauss Seidel (PGS) iterations run at each solver iteration (default: `1`).
     pub num_internal_pgs_iterations: usize,
-    /// The number of stabilization iterations run at each solver iterations (default: `2`).
+    /// The number of stabilization iterations run at each solver iterations (default: `1`).
     pub num_internal_stabilization_iterations: usize,
-    /// Minimum number of dynamic bodies in each active island (default: `128`).
+    /// Minimum number of dynamic bodies on each active island (default: `128`).
     pub min_island_size: usize,
     /// Maximum number of substeps performed by the  solver (default: `1`).
     pub max_ccd_substeps: usize,
+    /// The type of friction constraints used in the simulation.
+    #[cfg(feature = "dim3")]
+    pub friction_model: FrictionModel,
 }
 
 impl IntegrationParameters {
     /// The inverse of the time-stepping length, i.e. the steps per seconds (Hz).
     ///
     /// This is zero if `self.dt` is zero.
-    #[inline(always)]
+    #[inline]
     pub fn inv_dt(&self) -> Real {
         if self.dt == 0.0 { 0.0 } else { 1.0 / self.dt }
     }
@@ -260,12 +282,10 @@ impl IntegrationParameters {
     pub fn prediction_distance(&self) -> Real {
         self.normalized_prediction_distance * self.length_unit
     }
+}
 
-    /// Initialize the simulation parameters with settings matching the TGS-soft solver
-    /// with warmstarting.
-    ///
-    /// This is the default configuration, equivalent to [`IntegrationParameters::default()`].
-    pub fn tgs_soft() -> Self {
+impl Default for IntegrationParameters {
+    fn default() -> Self {
         Self {
             dt: 1.0 / 60.0,
             min_ccd_dt: 1.0 / 60.0 / 100.0,
@@ -275,9 +295,8 @@ impl IntegrationParameters {
             joint_damping_ratio: 1.0,
             warmstart_coefficient: 1.0,
             num_internal_pgs_iterations: 1,
-            num_internal_stabilization_iterations: 2,
-            num_additional_friction_iterations: 0,
-            num_solver_iterations: NonZeroUsize::new(4).unwrap(),
+            num_internal_stabilization_iterations: 1,
+            num_solver_iterations: 4,
             // TODO: what is the optimal value for min_island_size?
             // It should not be too big so that we don't end up with
             // huge islands that don't fit in cache.
@@ -289,37 +308,8 @@ impl IntegrationParameters {
             normalized_prediction_distance: 0.002,
             max_ccd_substeps: 1,
             length_unit: 1.0,
+            #[cfg(feature = "dim3")]
+            friction_model: FrictionModel::default(),
         }
-    }
-
-    /// Initialize the simulation parameters with settings matching the TGS-soft solver
-    /// **without** warmstarting.
-    ///
-    /// The [`IntegrationParameters::tgs_soft()`] configuration should be preferred unless
-    /// warmstarting proves to be undesirable for your use-case.
-    pub fn tgs_soft_without_warmstart() -> Self {
-        Self {
-            contact_damping_ratio: 0.25,
-            warmstart_coefficient: 0.0,
-            num_additional_friction_iterations: 4,
-            ..Self::tgs_soft()
-        }
-    }
-
-    /// Initializes the integration parameters to match the legacy PGS solver from Rapier version <= 0.17.
-    ///
-    /// This exists mainly for testing and comparison purpose.
-    pub fn pgs_legacy() -> Self {
-        Self {
-            num_solver_iterations: NonZeroUsize::new(1).unwrap(),
-            num_internal_pgs_iterations: 4,
-            ..Self::tgs_soft_without_warmstart()
-        }
-    }
-}
-
-impl Default for IntegrationParameters {
-    fn default() -> Self {
-        Self::tgs_soft()
     }
 }

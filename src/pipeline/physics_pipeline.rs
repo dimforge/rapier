@@ -7,7 +7,7 @@ use crate::dynamics::IslandSolver;
 use crate::dynamics::JointGraphEdge;
 use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    RigidBodyChanges, RigidBodyPosition, RigidBodyType,
+    RigidBodyChanges, RigidBodyType,
 };
 use crate::geometry::{
     BroadPhaseBvh, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
@@ -215,11 +215,12 @@ impl PhysicsPipeline {
         self.counters.stages.island_construction_time.pause();
 
         self.counters.stages.update_time.resume();
-        for handle in islands.active_dynamic_bodies() {
+        for handle in islands.active_bodies() {
             // TODO: should that be moved to the solver (just like we moved
             //       the multibody dynamics update) since it depends on dt?
             let rb = bodies.index_mut_internal(*handle);
-            rb.mprops.update_world_mass_properties(&rb.pos.position);
+            rb.mprops
+                .update_world_mass_properties(rb.body_type, &rb.pos.position);
             let effective_mass = rb.mprops.effective_mass();
             rb.forces
                 .compute_effective_force_and_torque(gravity, &effective_mass);
@@ -370,8 +371,8 @@ impl PhysicsPipeline {
         modified_colliders: &mut ModifiedColliders,
     ) {
         // Set the rigid-bodies and kinematic bodies to their final position.
-        for handle in islands.iter_active_bodies() {
-            let rb = bodies.index_mut_internal(handle);
+        for handle in islands.active_bodies() {
+            let rb = bodies.index_mut_internal(*handle);
             rb.pos.position = rb.pos.next_position;
             rb.colliders
                 .update_positions(colliders, modified_colliders, &rb.pos.position);
@@ -389,7 +390,8 @@ impl PhysicsPipeline {
         // located before the island computation because we test the velocity
         // there to determine if this kinematic body should wake-up dynamic
         // bodies it is touching.
-        for handle in islands.active_kinematic_bodies() {
+        for handle in islands.active_bodies() {
+            // TODO PERF: only iterate on kinematic position-based bodies
             let rb = bodies.index_mut_internal(*handle);
 
             match rb.body_type {
@@ -399,14 +401,7 @@ impl PhysicsPipeline {
                         &rb.mprops.local_mprops.local_com,
                     );
                 }
-                RigidBodyType::KinematicVelocityBased => {
-                    let new_pos = rb.vels.integrate(
-                        integration_parameters.dt,
-                        &rb.pos.position,
-                        &rb.mprops.local_mprops.local_com,
-                    );
-                    rb.pos = RigidBodyPosition::from(new_pos);
-                }
+                RigidBodyType::KinematicVelocityBased => {}
                 _ => {}
             }
         }
@@ -661,9 +656,10 @@ impl PhysicsPipeline {
         //       at the beginning of the next timestep) for bodies that were
         //       not modified by the user in the mean time.
         self.counters.stages.update_time.resume();
-        for handle in islands.active_dynamic_bodies() {
+        for handle in islands.active_bodies() {
             let rb = bodies.index_mut_internal(*handle);
-            rb.mprops.update_world_mass_properties(&rb.pos.position);
+            rb.mprops
+                .update_world_mass_properties(rb.body_type, &rb.pos.position);
         }
         self.counters.stages.update_time.pause();
 
@@ -945,8 +941,8 @@ mod test {
         // Expect gravity to be applied on second step after switching to Dynamic
         assert!(h_y < 0.0);
 
-        // Expect body to now be in active_dynamic_set
-        assert!(islands.active_dynamic_set.contains(&h));
+        // Expect body to now be in active_set
+        assert!(islands.active_set.contains(&h));
     }
 
     #[test]

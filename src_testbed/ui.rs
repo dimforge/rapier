@@ -1,12 +1,11 @@
 use rapier::counters::Counters;
 use rapier::math::Real;
-use std::num::NonZeroUsize;
 
 use crate::debug_render::DebugRenderPipelineResource;
 use crate::harness::{Harness, RapierBroadPhaseType};
 use crate::testbed::{
-    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR, RapierSolverType, RunMode,
-    TestbedActionFlags, TestbedState, TestbedStateFlags,
+    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR, RunMode, TestbedActionFlags,
+    TestbedState, TestbedStateFlags,
 };
 
 pub use bevy_egui::egui;
@@ -15,8 +14,10 @@ use crate::PhysicsState;
 use crate::settings::SettingValue;
 use bevy_egui::EguiContexts;
 use bevy_egui::egui::{ComboBox, Slider, Ui, Window};
-use rapier::dynamics::IntegrationParameters;
 use web_time::Instant;
+
+#[cfg(feature = "dim3")]
+use rapier::dynamics::FrictionModel;
 
 pub(crate) fn update_ui(
     ui_context: &mut EguiContexts,
@@ -113,45 +114,11 @@ pub(crate) fn update_ui(
         if state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
             || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
         {
-            let mut num_iterations = integration_parameters.num_solver_iterations.get();
-            ui.add(Slider::new(&mut num_iterations, 1..=40).text("pos. iters."));
-            integration_parameters.num_solver_iterations =
-                NonZeroUsize::new(num_iterations).unwrap();
+            ui.add(
+                Slider::new(&mut integration_parameters.num_solver_iterations, 0..=10)
+                    .text("pos. iters."),
+            );
         } else {
-            // Solver type.
-            let mut changed = false;
-            egui::ComboBox::from_label("solver type")
-                .width(150.0)
-                .selected_text(format!("{:?}", state.solver_type))
-                .show_ui(ui, |ui| {
-                    let solver_types = [
-                        RapierSolverType::TgsSoft,
-                        RapierSolverType::TgsSoftNoWarmstart,
-                        RapierSolverType::PgsLegacy,
-                    ];
-                    for sty in solver_types {
-                        changed = ui
-                            .selectable_value(&mut state.solver_type, sty, format!("{sty:?}"))
-                            .changed()
-                            || changed;
-                    }
-                });
-
-            if changed {
-                match state.solver_type {
-                    RapierSolverType::TgsSoft => {
-                        *integration_parameters = IntegrationParameters::tgs_soft();
-                    }
-                    RapierSolverType::TgsSoftNoWarmstart => {
-                        *integration_parameters =
-                            IntegrationParameters::tgs_soft_without_warmstart();
-                    }
-                    RapierSolverType::PgsLegacy => {
-                        *integration_parameters = IntegrationParameters::pgs_legacy();
-                    }
-                }
-            }
-
             // Broad-phase.
             let mut changed = false;
             egui::ComboBox::from_label("broad-phase")
@@ -177,25 +144,36 @@ pub(crate) fn update_ui(
                 state.action_flags.set(TestbedActionFlags::RESTART, true);
             }
 
-            // Solver iterations.
-            let mut num_iterations = integration_parameters.num_solver_iterations.get();
-            ui.add(Slider::new(&mut num_iterations, 1..=40).text("num solver iters."));
-            integration_parameters.num_solver_iterations =
-                NonZeroUsize::new(num_iterations).unwrap();
+            // Friction model.
+            #[cfg(feature = "dim3")]
+            egui::ComboBox::from_label("friction-model")
+                .width(150.0)
+                .selected_text(format!("{:?}", integration_parameters.friction_model))
+                .show_ui(ui, |ui| {
+                    let friction_model = [FrictionModel::Simplified, FrictionModel::Coulomb];
+                    for model in friction_model {
+                        changed = ui
+                            .selectable_value(
+                                &mut integration_parameters.friction_model,
+                                model,
+                                format!("{model:?}"),
+                            )
+                            .changed()
+                            || changed;
+                    }
+                });
 
+            // Solver iterations.
+            ui.add(
+                Slider::new(&mut integration_parameters.num_solver_iterations, 0..=10)
+                    .text("num solver iters."),
+            );
             ui.add(
                 Slider::new(
                     &mut integration_parameters.num_internal_pgs_iterations,
                     1..=40,
                 )
                 .text("num internal PGS iters."),
-            );
-            ui.add(
-                Slider::new(
-                    &mut integration_parameters.num_additional_friction_iterations,
-                    0..=40,
-                )
-                .text("num additional frict. iters."),
             );
             ui.add(
                 Slider::new(
@@ -210,7 +188,7 @@ pub(crate) fn update_ui(
             );
 
             let mut substep_params = *integration_parameters;
-            substep_params.dt /= substep_params.num_solver_iterations.get() as Real;
+            substep_params.dt /= substep_params.num_solver_iterations as Real;
             let curr_erp = substep_params.contact_erp();
             let curr_cfm_factor = substep_params.contact_cfm_factor();
             ui.add(
@@ -411,7 +389,7 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
 fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
     let t = Instant::now();
     // let t = Instant::now();
-    // let bf = bincode::serialize(&physics.broad_phase).unwrap();
+    let bf = bincode::serialize(&physics.broad_phase).unwrap();
     // println!("bf: {}", Instant::now() - t);
     // let t = Instant::now();
     let nf = bincode::serialize(&physics.narrow_phase).unwrap();
@@ -426,7 +404,7 @@ fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
     let js = bincode::serialize(&physics.impulse_joints).unwrap();
     // println!("js: {}", Instant::now() - t);
     let serialization_time = Instant::now() - t;
-    // let hash_bf = md5::compute(&bf);
+    let hash_bf = md5::compute(&bf);
     let hash_nf = md5::compute(&nf);
     let hash_bodies = md5::compute(&bs);
     let hash_colliders = md5::compute(&cs);
@@ -441,8 +419,8 @@ Hashes at frame: {}
 |_ Joints [{:.1}KB]: {}"#,
         serialization_time.as_secs_f64() * 1000.0,
         timestep_id,
-        "<fixme>", // bf.len() as f32 / 1000.0,
-        "<fixme>", // format!("{:?}", hash_bf).split_at(10).0,
+        bf.len() as f32 / 1000.0,
+        format!("{:?}", hash_bf).split_at(10).0,
         nf.len() as f32 / 1000.0,
         format!("{hash_nf:?}").split_at(10).0,
         bs.len() as f32 / 1000.0,

@@ -79,8 +79,8 @@ pub struct PdErrors {
     pub angular: AngVector<Real>,
 }
 
-impl From<RigidBodyVelocity> for PdErrors {
-    fn from(vels: RigidBodyVelocity) -> Self {
+impl From<RigidBodyVelocity<Real>> for PdErrors {
+    fn from(vels: RigidBodyVelocity<Real>) -> Self {
         Self {
             linear: vels.linvel,
             angular: vels.angvel,
@@ -173,8 +173,8 @@ impl PdController {
         &self,
         rb: &RigidBody,
         target_pose: Isometry<Real>,
-        target_vels: RigidBodyVelocity,
-    ) -> RigidBodyVelocity {
+        target_vels: RigidBodyVelocity<Real>,
+    ) -> RigidBodyVelocity<Real> {
         let pose_errors = RigidBodyPosition {
             position: rb.pos.position,
             next_position: target_pose,
@@ -218,7 +218,11 @@ impl PdController {
     /// The unit of the returned value depends on the gain values. In general, `kd` is proportional to
     /// the inverse of the simulation step so the returned value is a rigid-body velocity
     /// change.
-    pub fn correction(&self, pose_errors: &PdErrors, vel_errors: &PdErrors) -> RigidBodyVelocity {
+    pub fn correction(
+        &self,
+        pose_errors: &PdErrors,
+        vel_errors: &PdErrors,
+    ) -> RigidBodyVelocity<Real> {
         let lin_mask = self.lin_mask();
         let ang_mask = self.ang_mask();
 
@@ -359,8 +363,8 @@ impl PidController {
         dt: Real,
         rb: &RigidBody,
         target_pose: Isometry<Real>,
-        target_vels: RigidBodyVelocity,
-    ) -> RigidBodyVelocity {
+        target_vels: RigidBodyVelocity<Real>,
+    ) -> RigidBodyVelocity<Real> {
         let pose_errors = RigidBodyPosition {
             position: rb.pos.position,
             next_position: target_pose,
@@ -384,7 +388,7 @@ impl PidController {
         dt: Real,
         pose_errors: &PdErrors,
         vel_errors: &PdErrors,
-    ) -> RigidBodyVelocity {
+    ) -> RigidBodyVelocity<Real> {
         self.lin_integral += pose_errors.linear * dt;
         self.ang_integral += pose_errors.angular * dt;
 

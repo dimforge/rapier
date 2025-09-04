@@ -1,7 +1,7 @@
 #![allow(missing_docs)] // For downcast.
 
 use crate::dynamics::joint::MultibodyLink;
-use crate::dynamics::solver::{JointGenericOneBodyConstraint, WritebackId};
+use crate::dynamics::solver::{GenericJointConstraint, WritebackId};
 use crate::dynamics::{IntegrationParameters, JointMotor, Multibody};
 use crate::math::Real;
 use na::DVector;
@@ -17,7 +17,7 @@ pub fn unit_joint_limit_constraint(
     dof_id: usize,
     j_id: &mut usize,
     jacobians: &mut DVector<Real>,
-    constraints: &mut [JointGenericOneBodyConstraint],
+    constraints: &mut [GenericJointConstraint],
     insert_at: &mut usize,
 ) {
     let ndofs = multibody.ndofs();
@@ -42,11 +42,17 @@ pub fn unit_joint_limit_constraint(
         max_enabled as u32 as Real * Real::MAX,
     ];
 
-    let constraint = JointGenericOneBodyConstraint {
+    let constraint = GenericJointConstraint {
+        is_rigid_body1: false,
+        solver_vel1: u32::MAX,
+        ndofs1: 0,
+        j_id1: 0,
+
+        is_rigid_body2: false,
         solver_vel2: multibody.solver_id,
         ndofs2: ndofs,
         j_id2: *j_id,
-        joint_id: usize::MAX,
+        joint_id: usize::MAX, // TODO: we don’t support impulse writeback for internal constraints yet.
         impulse: 0.0,
         impulse_bounds,
         inv_lhs: crate::utils::inv(lhs),
@@ -75,7 +81,7 @@ pub fn unit_joint_motor_constraint(
     dof_id: usize,
     j_id: &mut usize,
     jacobians: &mut DVector<Real>,
-    constraints: &mut [JointGenericOneBodyConstraint],
+    constraints: &mut [GenericJointConstraint],
     insert_at: &mut usize,
 ) {
     let inv_dt = params.inv_dt();
@@ -108,11 +114,17 @@ pub fn unit_joint_motor_constraint(
 
     rhs_wo_bias += -target_vel;
 
-    let constraint = JointGenericOneBodyConstraint {
+    let constraint = GenericJointConstraint {
+        is_rigid_body1: false,
+        solver_vel1: u32::MAX,
+        ndofs1: 0,
+        j_id1: 0,
+
+        is_rigid_body2: false,
         solver_vel2: multibody.solver_id,
         ndofs2: ndofs,
         j_id2: *j_id,
-        joint_id: usize::MAX,
+        joint_id: usize::MAX, // TODO: we don’t support impulse writeback for internal constraints yet.
         impulse: 0.0,
         impulse_bounds,
         cfm_coeff: motor_params.cfm_coeff,

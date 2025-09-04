@@ -84,6 +84,7 @@ log = "0.4"
 ordered-float = "5"
 thiserror = "2"
 profiling = "1.0"
+static_assertions = "1"
 
 [dev-dependencies]
 bincode = "1"

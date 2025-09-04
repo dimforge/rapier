@@ -44,6 +44,7 @@ mod debug_cube_high_mass_ratio3;
 mod debug_internal_edges3;
 mod debug_long_chain3;
 mod debug_multibody_ang_motor_pos3;
+mod gyroscopic3;
 mod inverse_kinematics3;
 mod joint_motor_position3;
 mod keva3;
@@ -75,6 +76,7 @@ pub fn main() {
         ("Convex decomposition", convex_decomposition3::init_world),
         ("Convex polyhedron", convex_polyhedron3::init_world),
         ("Damping", damping3::init_world),
+        ("Gyroscopic", gyroscopic3::init_world),
         ("Domino", domino3::init_world),
         ("Dynamic trimeshes", dynamic_trimesh3::init_world),
         ("Heightfield", heightfield3::init_world),

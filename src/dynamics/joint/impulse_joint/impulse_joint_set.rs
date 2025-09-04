@@ -311,11 +311,11 @@ impl ImpulseJointSet {
             let rb2 = &bodies[joint.body2];
 
             if joint.data.is_enabled()
-                && (rb1.is_dynamic() || rb2.is_dynamic())
-                && (!rb1.is_dynamic() || !rb1.is_sleeping())
-                && (!rb2.is_dynamic() || !rb2.is_sleeping())
+                && (rb1.is_dynamic_or_kinematic() || rb2.is_dynamic_or_kinematic())
+                && (!rb1.is_dynamic_or_kinematic() || !rb1.is_sleeping())
+                && (!rb2.is_dynamic_or_kinematic() || !rb2.is_sleeping())
             {
-                let island_index = if !rb1.is_dynamic() {
+                let island_index = if !rb1.is_dynamic_or_kinematic() {
                     rb2.ids.active_island_id
                 } else {
                     rb1.ids.active_island_id
