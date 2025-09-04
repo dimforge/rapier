@@ -1146,6 +1146,23 @@ impl RigidBody {
             AngVector::zero()
         }
     }
+
+    /// Are gyroscopic forces enabled for rigid-bodies?
+    #[cfg(feature = "dim3")]
+    pub fn gyroscopic_forces_enabled(&self) -> bool {
+        self.forces.gyroscopic_forces_enabled
+    }
+
+    /// Enables or disables gyroscopic forces for this rigid-body.
+    ///
+    /// Enabling gyroscopic forces allows more realistic behaviors like gyroscopic precession,
+    /// but result in a slight performance overhead.
+    ///
+    /// Disabled by default.
+    #[cfg(feature = "dim3")]
+    pub fn enable_gyroscopic_forces(&mut self, enabled: bool) {
+        self.forces.gyroscopic_forces_enabled = enabled;
+    }
 }
 
 impl RigidBody {
