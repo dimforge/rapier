@@ -261,7 +261,7 @@ impl SolverVel<SimdReal> {
         #[cfg(feature = "dim2")]
         {
             let aos = aos_unchecked!(data_repr[idx].data0);
-            let soa = wide::f32x4::transpose(aos);
+            let soa = wide::f32x4::transpose(transmute_to_wide(aos));
             unsafe { std::mem::transmute(soa) }
         }
 
@@ -286,7 +286,7 @@ impl SolverVel<SimdReal> {
         #[cfg(feature = "dim2")]
         {
             let aos = aos!(data_repr[idx].data0, zero);
-            let soa = wide::f32x4::transpose(aos);
+            let soa = wide::f32x4::transpose(transmute_to_wide(aos));
             unsafe { std::mem::transmute(soa) }
         }
 
@@ -385,8 +385,8 @@ impl SolverPose<SimdReal> {
         {
             let aos0 = aos_unchecked!(data_repr[idx].data0);
             let aos1 = aos_unchecked!(data_repr[idx].data1);
-            let soa0 = wide::f32x4::transpose(aos0);
-            let soa1 = wide::f32x4::transpose(aos1);
+            let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
+            let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
             unsafe { std::mem::transmute([soa0, soa1]) }
         }
 
@@ -416,8 +416,8 @@ impl SolverPose<SimdReal> {
         {
             let aos0 = aos!(data_repr[idx].data0, identity);
             let aos1 = aos!(data_repr[idx].data1, identity);
-            let soa0 = wide::f32x4::transpose(aos0);
-            let soa1 = wide::f32x4::transpose(aos1);
+            let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
+            let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
             unsafe { std::mem::transmute([soa0, soa1]) }
         }
 

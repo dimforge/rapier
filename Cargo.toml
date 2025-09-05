@@ -27,13 +27,13 @@ needless_lifetimes = "allow"
 
 #simba = { path = "../simba" }
 #kiss3d = { path = "../kiss3d" }
-parry2d = { path = "../parry/crates/parry2d" }
-parry3d = { path = "../parry/crates/parry3d" }
-parry2d-f64 = { path = "../parry/crates/parry2d-f64" }
-parry3d-f64 = { path = "../parry/crates/parry3d-f64" }
+#parry2d = { path = "../parry/crates/parry2d" }
+#parry3d = { path = "../parry/crates/parry3d" }
+#parry2d-f64 = { path = "../parry/crates/parry2d-f64" }
+#parry3d-f64 = { path = "../parry/crates/parry3d-f64" }
 #nalgebra = { path = "../nalgebra" }
 #simba = { path = "../simba" }
-wide = { path = "../wide" }
+#wide = { path = "../wide" }
 
 #kiss3d = { git = "https://github.com/sebcrozet/kiss3d" }
 #nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "dev" }
