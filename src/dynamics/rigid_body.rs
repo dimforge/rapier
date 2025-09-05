@@ -1195,7 +1195,7 @@ impl RigidBody {
     #[cfg(feature = "dim3")]
     pub fn angvel_with_gyroscopic_forces(&self, dt: Real) -> AngVector<Real> {
         // NOTE: integrating the gyroscopic forces implicitly are both slower and
-        //       verry dissipative. Instead, we only keep the explicit term and
+        //       very dissipative. Instead, we only keep the explicit term and
         //       ensure angular momentum is preserved (similar to Jolt).
         let w = self.pos.position.inverse_transform_vector(&self.angvel());
         let i = self.mprops.local_mprops.principal_inertia();

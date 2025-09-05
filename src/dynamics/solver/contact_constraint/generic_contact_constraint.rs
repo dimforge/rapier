@@ -42,7 +42,7 @@ impl GenericContactConstraintBuilder {
         jacobian_id: &mut usize,
     ) {
         // TODO PERF: we haven’t tried to optimized this codepath yet (since it relies
-        //            on multibodies which are already much slower than regural bodies).
+        //            on multibodies which are already much slower than regular bodies).
         let handle1 = manifold
             .data
             .rigid_body1
