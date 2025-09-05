@@ -394,9 +394,9 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
         let impulses: [_; SIMD_WIDTH] = self.impulse.into();
 
-        // TODO: should we move the iteration on ii deeper in the mested match?
+        // TODO: should we move the iteration on ii deeper in the nested match?
         for ii in 0..SIMD_WIDTH {
-            let joint = &mut joints_all[self.joint_id[ii] as usize].weight;
+            let joint = &mut joints_all[self.joint_id[ii]].weight;
             match self.writeback_id {
                 WritebackId::Dof(i) => joint.impulses[i] = impulses[ii],
                 WritebackId::Limit(i) => joint.data.limits[i].impulse = impulses[ii],

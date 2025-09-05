@@ -52,6 +52,7 @@ macro_rules! aos_unchecked(
 macro_rules! scatter(
     ($data: ident [ $idx: ident [ $i: expr ] ] = [$($aos: ident),*]) => {
        unsafe {
+            #[allow(clippy::missing_transmute_annotations)] // Different macro calls transmute to different types
             if ($idx[$i] as usize) < $data.len() {
                 $data[$idx[$i] as usize] = std::mem::transmute([$($aos[$i]),*]);
             }
@@ -62,6 +63,7 @@ macro_rules! scatter(
 #[cfg(feature = "simd-is-enabled")]
 macro_rules! scatter_unchecked(
     ($data: ident [ $idx: ident [ $i: expr ] ] = [$($aos: ident),*]) => {
+       #[allow(clippy::missing_transmute_annotations)] // Different macro calls transmute to different types
        unsafe {
            *$data.get_unchecked_mut($idx[$i] as usize) = std::mem::transmute([$($aos[$i]),*]);
        }

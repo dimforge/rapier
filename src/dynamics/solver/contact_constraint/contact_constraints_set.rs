@@ -122,17 +122,17 @@ impl ContactConstraintsSet {
         let a = self
             .generic_velocity_constraints
             .iter_mut()
-            .map(AnyContactConstraintMut::GenericTwoBodies);
+            .map(AnyContactConstraintMut::Generic);
         let b = self
             .simd_velocity_coulomb_constraints
             .iter_mut()
-            .map(AnyContactConstraintMut::SimdTwoBodiesCoulomb);
+            .map(AnyContactConstraintMut::WithCoulombFriction);
         #[cfg(feature = "dim3")]
         {
             let c = self
                 .simd_velocity_twist_constraints
                 .iter_mut()
-                .map(AnyContactConstraintMut::SimdTwoBodiesTwist);
+                .map(AnyContactConstraintMut::WithTwistFriction);
             (jac, a.chain(b).chain(c))
         }
 

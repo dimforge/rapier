@@ -9,19 +9,19 @@ use crate::prelude::ContactManifold;
 
 #[derive(Debug)]
 pub enum AnyContactConstraintMut<'a> {
-    GenericTwoBodies(&'a mut GenericContactConstraint),
-    SimdTwoBodiesCoulomb(&'a mut ContactWithCoulombFriction),
+    Generic(&'a mut GenericContactConstraint),
+    WithCoulombFriction(&'a mut ContactWithCoulombFriction),
     #[cfg(feature = "dim3")]
-    SimdTwoBodiesTwist(&'a mut ContactWithTwistFriction),
+    WithTwistFriction(&'a mut ContactWithTwistFriction),
 }
 
 impl AnyContactConstraintMut<'_> {
     pub fn remove_bias(&mut self) {
         match self {
-            Self::GenericTwoBodies(c) => c.remove_cfm_and_bias_from_rhs(),
-            Self::SimdTwoBodiesCoulomb(c) => c.remove_cfm_and_bias_from_rhs(),
+            Self::Generic(c) => c.remove_cfm_and_bias_from_rhs(),
+            Self::WithCoulombFriction(c) => c.remove_cfm_and_bias_from_rhs(),
             #[cfg(feature = "dim3")]
-            Self::SimdTwoBodiesTwist(c) => c.remove_cfm_and_bias_from_rhs(),
+            Self::WithTwistFriction(c) => c.remove_cfm_and_bias_from_rhs(),
         }
     }
     pub fn warmstart(
@@ -31,12 +31,10 @@ impl AnyContactConstraintMut<'_> {
         generic_solver_vels: &mut DVector<Real>,
     ) {
         match self {
-            Self::GenericTwoBodies(c) => {
-                c.warmstart(generic_jacobians, solver_vels, generic_solver_vels)
-            }
-            Self::SimdTwoBodiesCoulomb(c) => c.warmstart(solver_vels),
+            Self::Generic(c) => c.warmstart(generic_jacobians, solver_vels, generic_solver_vels),
+            Self::WithCoulombFriction(c) => c.warmstart(solver_vels),
             #[cfg(feature = "dim3")]
-            Self::SimdTwoBodiesTwist(c) => c.warmstart(solver_vels),
+            Self::WithTwistFriction(c) => c.warmstart(solver_vels),
         }
     }
 
@@ -47,21 +45,19 @@ impl AnyContactConstraintMut<'_> {
         generic_solver_vels: &mut DVector<Real>,
     ) {
         match self {
-            Self::GenericTwoBodies(c) => {
-                c.solve(generic_jacobians, bodies, generic_solver_vels, true, true)
-            }
-            Self::SimdTwoBodiesCoulomb(c) => c.solve(bodies, true, true),
+            Self::Generic(c) => c.solve(generic_jacobians, bodies, generic_solver_vels, true, true),
+            Self::WithCoulombFriction(c) => c.solve(bodies, true, true),
             #[cfg(feature = "dim3")]
-            Self::SimdTwoBodiesTwist(c) => c.solve(bodies, true, true),
+            Self::WithTwistFriction(c) => c.solve(bodies, true, true),
         }
     }
 
     pub fn writeback_impulses(&mut self, manifolds_all: &mut [&mut ContactManifold]) {
         match self {
-            Self::GenericTwoBodies(c) => c.writeback_impulses(manifolds_all),
-            Self::SimdTwoBodiesCoulomb(c) => c.writeback_impulses(manifolds_all),
+            Self::Generic(c) => c.writeback_impulses(manifolds_all),
+            Self::WithCoulombFriction(c) => c.writeback_impulses(manifolds_all),
             #[cfg(feature = "dim3")]
-            Self::SimdTwoBodiesTwist(c) => c.writeback_impulses(manifolds_all),
+            Self::WithTwistFriction(c) => c.writeback_impulses(manifolds_all),
         }
     }
 }

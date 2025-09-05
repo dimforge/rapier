@@ -251,7 +251,7 @@ impl InteractionGroups {
         let mut occupied_mask = 0u128;
 
         for interaction_i in interaction_indices {
-            let interaction = &interactions[*interaction_i as usize].weight;
+            let interaction = &interactions[*interaction_i].weight;
 
             let rb1 = &bodies[interaction.body1];
             let rb2 = &bodies[interaction.body2];
@@ -403,7 +403,7 @@ impl InteractionGroups {
         let mut occupied_mask = 0u128;
         let max_interaction_points = interaction_indices
             .iter()
-            .map(|i| interactions[*i as usize].data.num_active_contacts())
+            .map(|i| interactions[*i].data.num_active_contacts())
             .max()
             .unwrap_or(1);
 
@@ -412,7 +412,7 @@ impl InteractionGroups {
         // instead of MAX_MANIFOLD_POINTS times.
         for k in 1..=max_interaction_points {
             for interaction_i in interaction_indices {
-                let interaction = &interactions[*interaction_i as usize];
+                let interaction = &interactions[*interaction_i];
 
                 // TODO: how could we avoid iterating
                 // on each interaction at every iteration on k?

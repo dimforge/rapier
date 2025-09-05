@@ -476,9 +476,17 @@ impl SimdSolverContact {
         let soa3 = wide::f32x4::transpose(transmute_to_wide(aos3));
 
         #[cfg(feature = "dim2")]
-        return unsafe { std::mem::transmute([soa0, soa1, soa2]) };
+        return unsafe {
+            std::mem::transmute::<[[wide::f32x4; 4]; 3], SolverContactGeneric<SimdReal, 4>>([
+                soa0, soa1, soa2,
+            ])
+        };
         #[cfg(feature = "dim3")]
-        return unsafe { std::mem::transmute([soa0, soa1, soa2, soa3]) };
+        return unsafe {
+            std::mem::transmute::<[[wide::f32x4; 4]; 4], SolverContactGeneric<SimdReal, 4>>([
+                soa0, soa1, soa2, soa3,
+            ])
+        };
     }
 }
 

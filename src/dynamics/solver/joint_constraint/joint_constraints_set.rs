@@ -80,16 +80,16 @@ impl JointConstraintsSet {
         let a = self
             .generic_velocity_constraints
             .iter_mut()
-            .map(AnyJointConstraintMut::GenericTwoBodies);
+            .map(AnyJointConstraintMut::Generic);
         let b = self
             .velocity_constraints
             .iter_mut()
-            .map(AnyJointConstraintMut::TwoBodies);
+            .map(AnyJointConstraintMut::Rigid);
         #[cfg(feature = "simd-is-enabled")]
         let c = self
             .simd_velocity_constraints
             .iter_mut()
-            .map(AnyJointConstraintMut::SimdTwoBodies);
+            .map(AnyJointConstraintMut::SimdRigid);
         #[cfg(not(feature = "simd-is-enabled"))]
         return (jac, a.chain(b));
         #[cfg(feature = "simd-is-enabled")]
@@ -279,7 +279,7 @@ impl JointConstraintsSet {
             .zip(self.simd_velocity_constraints_builder.iter_mut())
         {
             let joints_id = array![|ii| joints_i[ii]];
-            let impulse_joints = array![|ii| &joints_all[joints_i[ii] as usize].weight];
+            let impulse_joints = array![|ii| &joints_all[joints_i[ii]].weight];
             JointConstraintBuilderSimd::generate(
                 impulse_joints,
                 bodies,
@@ -290,10 +290,7 @@ impl JointConstraintsSet {
         }
 
         unsafe {
-            reset_buffer(
-                &mut self.simd_velocity_constraints,
-                num_constraints as usize,
-            );
+            reset_buffer(&mut self.simd_velocity_constraints, num_constraints);
         }
     }
 
