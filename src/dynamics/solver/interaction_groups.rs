@@ -117,26 +117,26 @@ impl ParallelInteractionGroups {
                 (false, false) => {
                     let rb1 = &bodies[body_pair.0.unwrap()];
                     let rb2 = &bodies[body_pair.1.unwrap()];
-                    let color_mask =
-                        bcolors[rb1.ids.active_set_offset] | bcolors[rb2.ids.active_set_offset];
+                    let color_mask = bcolors[rb1.ids.active_set_offset as usize]
+                        | bcolors[rb2.ids.active_set_offset as usize];
                     *color = (!color_mask).trailing_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb1.ids.active_set_offset] |= 1 << *color;
-                    bcolors[rb2.ids.active_set_offset] |= 1 << *color;
+                    bcolors[rb1.ids.active_set_offset as usize] |= 1 << *color;
+                    bcolors[rb2.ids.active_set_offset as usize] |= 1 << *color;
                 }
                 (true, false) => {
                     let rb2 = &bodies[body_pair.1.unwrap()];
-                    let color_mask = bcolors[rb2.ids.active_set_offset];
+                    let color_mask = bcolors[rb2.ids.active_set_offset as usize];
                     *color = 127 - (!color_mask).leading_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb2.ids.active_set_offset] |= 1 << *color;
+                    bcolors[rb2.ids.active_set_offset as usize] |= 1 << *color;
                 }
                 (false, true) => {
                     let rb1 = &bodies[body_pair.0.unwrap()];
-                    let color_mask = bcolors[rb1.ids.active_set_offset];
+                    let color_mask = bcolors[rb1.ids.active_set_offset as usize];
                     *color = 127 - (!color_mask).leading_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb1.ids.active_set_offset] |= 1 << *color;
+                    bcolors[rb1.ids.active_set_offset as usize] |= 1 << *color;
                 }
                 (true, true) => unreachable!(),
             }

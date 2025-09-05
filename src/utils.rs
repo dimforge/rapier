@@ -5,12 +5,14 @@ use na::{
     Matrix1, Matrix2, Matrix3, RowVector2, Scalar, SimdRealField, UnitComplex, UnitQuaternion,
     Vector1, Vector2, Vector3,
 };
-use parry::math::SIMD_WIDTH;
 use parry::utils::SdpMatrix3;
 use std::ops::IndexMut;
 
 #[cfg(feature = "simd-is-enabled")]
-use crate::{math::SimdReal, num::Zero};
+use crate::{
+    math::{SIMD_WIDTH, SimdReal},
+    num::Zero,
+};
 
 /// The trait for real numbers used by Rapier.
 ///
