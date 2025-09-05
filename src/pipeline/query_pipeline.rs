@@ -46,7 +46,7 @@ pub struct QueryPipelineMut<'a> {
 
 impl QueryPipelineMut<'_> {
     /// Downgrades the mutable reference to an immutable reference.
-    pub fn as_ref(&self) -> QueryPipeline {
+    pub fn as_ref(&self) -> QueryPipeline<'_> {
         QueryPipeline {
             dispatcher: self.dispatcher,
             bvh: self.bvh,

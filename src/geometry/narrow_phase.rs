@@ -21,7 +21,7 @@ use crate::pipeline::{
 use crate::prelude::{CollisionEventFlags, MultibodyJointSet};
 use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
 use parry::utils::IsometryOpt;
-use std::collections::HashMap;
+use parry::utils::hashmap::HashMap;
 use std::sync::Arc;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -281,8 +281,8 @@ impl NarrowPhase {
         // TODO: avoid these hash-maps.
         // They are necessary to handle the swap-remove done internally
         // by the contact/intersection graphs when a node is removed.
-        let mut prox_id_remap = HashMap::new();
-        let mut contact_id_remap = HashMap::new();
+        let mut prox_id_remap = HashMap::default();
+        let mut contact_id_remap = HashMap::default();
 
         for collider in removed_colliders {
             // NOTE: if the collider does not have any graph indices currently, there is nothing
@@ -1010,15 +1010,21 @@ impl NarrowPhase {
                             let effective_point = na::center(&world_pt1, &world_pt2);
 
                             let solver_contact = SolverContact {
-                                contact_id: contact_id as u8,
+                                contact_id: [contact_id as u32],
                                 point: effective_point,
                                 dist: effective_contact_dist,
                                 friction,
                                 restitution,
                                 tangent_velocity: Vector::zeros(),
-                                is_new: contact.data.impulse == 0.0,
+                                is_new: (contact.data.impulse == 0.0) as u32 as Real,
                                 warmstart_impulse: contact.data.warmstart_impulse,
                                 warmstart_tangent_impulse: contact.data.warmstart_tangent_impulse,
+                                #[cfg(feature = "dim2")]
+                                warmstart_twist_impulse: na::zero(),
+                                #[cfg(feature = "dim3")]
+                                warmstart_twist_impulse: contact.data.warmstart_twist_impulse,
+                                #[cfg(feature = "dim3")]
+                                padding: Default::default(),
                             };
 
                             manifold.data.solver_contacts.push(solver_contact);

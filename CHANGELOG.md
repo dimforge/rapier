@@ -1,3 +1,19 @@
+## v0.29.0 (05 Sept. 2025)
+
+This version contains a significant rework of the internal velocity constraints solver.
+This makes it both simpler and more optimized (making the whole simulation up to 25% faster). For details on all the
+changes, see [#876](https://github.com/dimforge/rapier/pull/876).
+
+Notable changes include:
+
+- Update to parry 0.24 (includes a breaking change where all the `*angular_inertia_sqrt` fields and functions have been
+  replaced by their non-square-root equivalent.
+- Fixed bug where friction on kinematic bodies would affect dynamic bodies much more weakly than it should.
+- In 3D, added a new friction model that is more efficient than the traditional Coulomb friction. This new simplified
+  model is enabled by default and can be changed with `IntegrationParameters::friction_model`.
+- Removed support for the legacy PGS solver. Removed `IntegrationParameters::pgs_legacy` and
+  `::tgs_soft_without_warmstart`.
+
 ## v0.28.0 (08 August 2025)
 
 ### Modified

@@ -687,7 +687,7 @@ impl<T> Arena<T> {
     ///     println!("{} is at index {:?}", value, idx);
     /// }
     /// ```
-    pub fn iter(&self) -> Iter<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         Iter {
             len: self.len,
             inner: self.items.iter().enumerate(),
@@ -714,7 +714,7 @@ impl<T> Arena<T> {
     ///     *value += 5;
     /// }
     /// ```
-    pub fn iter_mut(&mut self) -> IterMut<T> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         IterMut {
             len: self.len,
             inner: self.items.iter_mut().enumerate(),
@@ -746,7 +746,7 @@ impl<T> Arena<T> {
     /// assert!(arena.get(idx_1).is_none());
     /// assert!(arena.get(idx_2).is_none());
     /// ```
-    pub fn drain(&mut self) -> Drain<T> {
+    pub fn drain(&mut self) -> Drain<'_, T> {
         Drain {
             inner: self.items.drain(..).enumerate(),
         }

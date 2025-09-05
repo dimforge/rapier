@@ -1,14 +1,14 @@
+#[cfg(doc)]
+use super::Collider;
+use super::CollisionEvent;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Contact, ContactManifold};
 use crate::math::{Point, Real, TangentImpulse, Vector};
 use crate::pipeline::EventHandler;
 use crate::prelude::CollisionEventFlags;
+use crate::utils::SimdRealCopy;
+use parry::math::{SIMD_WIDTH, SimdReal};
 use parry::query::ContactManifoldsWorkspace;
-
-use super::CollisionEvent;
-
-#[cfg(doc)]
-use super::Collider;
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -42,6 +42,9 @@ pub struct ContactData {
     pub warmstart_impulse: Real,
     /// The friction impulse retained for warmstarting the next simulation step.
     pub warmstart_tangent_impulse: TangentImpulse<Real>,
+    /// The twist impulse retained for warmstarting the next simulation step.
+    #[cfg(feature = "dim3")]
+    pub warmstart_twist_impulse: Real,
 }
 
 impl Default for ContactData {
@@ -51,6 +54,8 @@ impl Default for ContactData {
             tangent_impulse: na::zero(),
             warmstart_impulse: 0.0,
             warmstart_tangent_impulse: na::zero(),
+            #[cfg(feature = "dim3")]
+            warmstart_twist_impulse: 0.0,
         }
     }
 }
@@ -286,45 +291,237 @@ pub struct ContactManifoldData {
     pub user_data: u32,
 }
 
+/// A single solver contact.
+pub type SolverContact = SolverContactGeneric<Real, 1>;
+/// A group of `SIMD_WIDTH` solver contacts stored in SoA fashion for SIMD optimizations.
+pub type SimdSolverContact = SolverContactGeneric<SimdReal, SIMD_WIDTH>;
+
 /// A contact seen by the constraints solver for computing forces.
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-pub struct SolverContact {
-    /// The index of the manifold contact used to generate this solver contact.
-    pub(crate) contact_id: u8,
+#[cfg_attr(
+    feature = "serde-serialize",
+    serde(bound(serialize = "N: serde::Serialize, [u32; LANES]: serde::Serialize"))
+)]
+#[cfg_attr(
+    feature = "serde-serialize",
+    serde(bound(
+        deserialize = "N: serde::Deserialize<'de>, [u32; LANES]: serde::Deserialize<'de>"
+    ))
+)]
+#[repr(C)]
+#[repr(align(16))]
+pub struct SolverContactGeneric<N: SimdRealCopy, const LANES: usize> {
+    // IMPORTANT: don’t change the fields unless `SimdSolverContactRepr` is also changed.
+    //
+    // TOTAL: 11/14 = 3*4/4*4-1
     /// The contact point in world-space.
-    pub point: Point<Real>,
+    pub point: Point<N>, // 2/3
     /// The distance between the two original contacts points along the contact normal.
     /// If negative, this is measures the penetration depth.
-    pub dist: Real,
+    pub dist: N, // 1/1
     /// The effective friction coefficient at this contact point.
-    pub friction: Real,
+    pub friction: N, // 1/1
     /// The effective restitution coefficient at this contact point.
-    pub restitution: Real,
+    pub restitution: N, // 1/1
     /// The desired tangent relative velocity at the contact point.
     ///
     /// This is set to zero by default. Set to a non-zero value to
     /// simulate, e.g., conveyor belts.
-    pub tangent_velocity: Vector<Real>,
-    /// Whether or not this contact existed during the last timestep.
-    pub is_new: bool,
+    pub tangent_velocity: Vector<N>, // 2/3
     /// Impulse used to warmstart the solve for the normal constraint.
-    pub warmstart_impulse: Real,
+    pub warmstart_impulse: N, // 1/1
     /// Impulse used to warmstart the solve for the friction constraints.
-    pub warmstart_tangent_impulse: TangentImpulse<Real>,
+    pub warmstart_tangent_impulse: TangentImpulse<N>, // 1/2
+    /// Impulse used to warmstart the solve for the twist friction constraints.
+    pub warmstart_twist_impulse: N, // 1/1
+    /// Whether this contact existed during the last timestep.
+    ///
+    /// A value of 0.0 means `false` and `1.0` means `true`.
+    /// This isn’t a bool for optimizations purpose with SIMD.
+    pub is_new: N, // 1/1
+    /// The index of the manifold contact used to generate this solver contact.
+    pub(crate) contact_id: [u32; LANES], // 1/1
+    #[cfg(feature = "dim3")]
+    pub(crate) padding: [N; 1],
+}
+
+#[repr(C)]
+#[repr(align(16))]
+pub struct SimdSolverContactRepr {
+    data0: SimdReal,
+    data1: SimdReal,
+    data2: SimdReal,
+    #[cfg(feature = "dim3")]
+    data3: SimdReal,
+}
+
+// NOTE: if these assertion fail with a weird "0 - 1 would overflow" error, it means the equality doesn’t hold.
+static_assertions::const_assert_eq!(
+    align_of::<SimdSolverContactRepr>(),
+    align_of::<SolverContact>()
+);
+#[cfg(feature = "simd-is-enabled")]
+static_assertions::assert_eq_size!(SimdSolverContactRepr, SolverContact);
+static_assertions::const_assert_eq!(
+    align_of::<SimdSolverContact>(),
+    align_of::<[SolverContact; SIMD_WIDTH]>()
+);
+#[cfg(feature = "simd-is-enabled")]
+static_assertions::assert_eq_size!(SimdSolverContact, [SolverContact; SIMD_WIDTH]);
+
+impl SimdSolverContact {
+    #[cfg(not(feature = "simd-is-enabled"))]
+    pub unsafe fn gather_unchecked(contacts: &[&[SolverContact]; SIMD_WIDTH], k: usize) -> Self {
+        contacts[0][k]
+    }
+
+    #[cfg(feature = "simd-is-enabled")]
+    pub unsafe fn gather_unchecked(contacts: &[&[SolverContact]; SIMD_WIDTH], k: usize) -> Self {
+        // TODO PERF: double-check that the compiler is using simd loads and
+        //       isn’t generating useless copies.
+
+        let data_repr: &[&[SimdSolverContactRepr]; SIMD_WIDTH] =
+            unsafe { std::mem::transmute(contacts) };
+
+        /* NOTE: this is a manual NEON implementation. To compare with what the compiler generates with `wide`.
+        unsafe {
+            use std::arch::aarch64::*;
+
+            assert!(k < SIMD_WIDTH);
+
+            // Fetch.
+            let aos0_0 = vld1q_f32(&data_repr[0][k].data0.0 as *const _ as *const f32);
+            let aos0_1 = vld1q_f32(&data_repr[1][k].data0.0 as *const _ as *const f32);
+            let aos0_2 = vld1q_f32(&data_repr[2][k].data0.0 as *const _ as *const f32);
+            let aos0_3 = vld1q_f32(&data_repr[3][k].data0.0 as *const _ as *const f32);
+
+            let aos1_0 = vld1q_f32(&data_repr[0][k].data1.0 as *const _ as *const f32);
+            let aos1_1 = vld1q_f32(&data_repr[1][k].data1.0 as *const _ as *const f32);
+            let aos1_2 = vld1q_f32(&data_repr[2][k].data1.0 as *const _ as *const f32);
+            let aos1_3 = vld1q_f32(&data_repr[3][k].data1.0 as *const _ as *const f32);
+
+            let aos2_0 = vld1q_f32(&data_repr[0][k].data2.0 as *const _ as *const f32);
+            let aos2_1 = vld1q_f32(&data_repr[1][k].data2.0 as *const _ as *const f32);
+            let aos2_2 = vld1q_f32(&data_repr[2][k].data2.0 as *const _ as *const f32);
+            let aos2_3 = vld1q_f32(&data_repr[3][k].data2.0 as *const _ as *const f32);
+
+            // Transpose.
+            let a = vzip1q_f32(aos0_0, aos0_2);
+            let b = vzip1q_f32(aos0_1, aos0_3);
+            let c = vzip2q_f32(aos0_0, aos0_2);
+            let d = vzip2q_f32(aos0_1, aos0_3);
+            let soa0_0 = vzip1q_f32(a, b);
+            let soa0_1 = vzip2q_f32(a, b);
+            let soa0_2 = vzip1q_f32(c, d);
+            let soa0_3 = vzip2q_f32(c, d);
+
+            let a = vzip1q_f32(aos1_0, aos1_2);
+            let b = vzip1q_f32(aos1_1, aos1_3);
+            let c = vzip2q_f32(aos1_0, aos1_2);
+            let d = vzip2q_f32(aos1_1, aos1_3);
+            let soa1_0 = vzip1q_f32(a, b);
+            let soa1_1 = vzip2q_f32(a, b);
+            let soa1_2 = vzip1q_f32(c, d);
+            let soa1_3 = vzip2q_f32(c, d);
+
+            let a = vzip1q_f32(aos2_0, aos2_2);
+            let b = vzip1q_f32(aos2_1, aos2_3);
+            let c = vzip2q_f32(aos2_0, aos2_2);
+            let d = vzip2q_f32(aos2_1, aos2_3);
+            let soa2_0 = vzip1q_f32(a, b);
+            let soa2_1 = vzip2q_f32(a, b);
+            let soa2_2 = vzip1q_f32(c, d);
+            let soa2_3 = vzip2q_f32(c, d);
+
+            // Return.
+            std::mem::transmute([
+                soa0_0, soa0_1, soa0_2, soa0_3, soa1_0, soa1_1, soa1_2, soa1_3, soa2_0, soa2_1,
+                soa2_2, soa2_3,
+            ])
+        }
+         */
+
+        let aos0 = [
+            unsafe { data_repr[0].get_unchecked(k).data0.0 },
+            unsafe { data_repr[1].get_unchecked(k).data0.0 },
+            unsafe { data_repr[2].get_unchecked(k).data0.0 },
+            unsafe { data_repr[3].get_unchecked(k).data0.0 },
+        ];
+        let aos1 = [
+            unsafe { data_repr[0].get_unchecked(k).data1.0 },
+            unsafe { data_repr[1].get_unchecked(k).data1.0 },
+            unsafe { data_repr[2].get_unchecked(k).data1.0 },
+            unsafe { data_repr[3].get_unchecked(k).data1.0 },
+        ];
+        let aos2 = [
+            unsafe { data_repr[0].get_unchecked(k).data2.0 },
+            unsafe { data_repr[1].get_unchecked(k).data2.0 },
+            unsafe { data_repr[2].get_unchecked(k).data2.0 },
+            unsafe { data_repr[3].get_unchecked(k).data2.0 },
+        ];
+        #[cfg(feature = "dim3")]
+        let aos3 = [
+            unsafe { data_repr[0].get_unchecked(k).data3.0 },
+            unsafe { data_repr[1].get_unchecked(k).data3.0 },
+            unsafe { data_repr[2].get_unchecked(k).data3.0 },
+            unsafe { data_repr[3].get_unchecked(k).data3.0 },
+        ];
+
+        use crate::utils::transmute_to_wide;
+        let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
+        let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
+        let soa2 = wide::f32x4::transpose(transmute_to_wide(aos2));
+        #[cfg(feature = "dim3")]
+        let soa3 = wide::f32x4::transpose(transmute_to_wide(aos3));
+
+        #[cfg(feature = "dim2")]
+        return unsafe {
+            std::mem::transmute::<[[wide::f32x4; 4]; 3], SolverContactGeneric<SimdReal, 4>>([
+                soa0, soa1, soa2,
+            ])
+        };
+        #[cfg(feature = "dim3")]
+        return unsafe {
+            std::mem::transmute::<[[wide::f32x4; 4]; 4], SolverContactGeneric<SimdReal, 4>>([
+                soa0, soa1, soa2, soa3,
+            ])
+        };
+    }
+}
+
+#[cfg(feature = "simd-is-enabled")]
+impl SimdSolverContact {
+    /// Should we treat this contact as a bouncy contact?
+    /// If `true`, use [`Self::restitution`].
+    pub fn is_bouncy(&self) -> SimdReal {
+        use na::{SimdPartialOrd, SimdValue};
+
+        let one = SimdReal::splat(1.0);
+        let zero = SimdReal::splat(0.0);
+
+        // Treat new collisions as bouncing at first, unless we have zero restitution.
+        let if_new = one.select(self.restitution.simd_gt(zero), zero);
+
+        // If the contact is still here one step later, it is now a resting contact.
+        // The exception is very high restitutions, which can never rest
+        let if_not_new = one.select(self.restitution.simd_ge(one), zero);
+
+        if_new.select(self.is_new.simd_ne(zero), if_not_new)
+    }
 }
 
 impl SolverContact {
     /// Should we treat this contact as a bouncy contact?
     /// If `true`, use [`Self::restitution`].
-    pub fn is_bouncy(&self) -> bool {
-        if self.is_new {
+    pub fn is_bouncy(&self) -> Real {
+        if self.is_new != 0.0 {
             // Treat new collisions as bouncing at first, unless we have zero restitution.
-            self.restitution > 0.0
+            (self.restitution > 0.0) as u32 as Real
         } else {
             // If the contact is still here one step later, it is now a resting contact.
             // The exception is very high restitutions, which can never rest
-            self.restitution >= 1.0
+            (self.restitution >= 1.0) as u32 as Real
         }
     }
 }

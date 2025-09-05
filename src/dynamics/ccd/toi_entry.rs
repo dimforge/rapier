@@ -54,14 +54,14 @@ impl TOIEntry {
             return None;
         }
 
-        let linvel1 = frozen1.is_none() as u32 as Real
-            * rb1.map(|b| b.integrated_vels.linvel).unwrap_or(na::zero());
-        let linvel2 = frozen2.is_none() as u32 as Real
-            * rb2.map(|b| b.integrated_vels.linvel).unwrap_or(na::zero());
-        let angvel1 = frozen1.is_none() as u32 as Real
-            * rb1.map(|b| b.integrated_vels.angvel).unwrap_or(na::zero());
-        let angvel2 = frozen2.is_none() as u32 as Real
-            * rb2.map(|b| b.integrated_vels.angvel).unwrap_or(na::zero());
+        let linvel1 =
+            frozen1.is_none() as u32 as Real * rb1.map(|b| b.ccd_vels.linvel).unwrap_or(na::zero());
+        let linvel2 =
+            frozen2.is_none() as u32 as Real * rb2.map(|b| b.ccd_vels.linvel).unwrap_or(na::zero());
+        let angvel1 =
+            frozen1.is_none() as u32 as Real * rb1.map(|b| b.ccd_vels.angvel).unwrap_or(na::zero());
+        let angvel2 =
+            frozen2.is_none() as u32 as Real * rb2.map(|b| b.ccd_vels.angvel).unwrap_or(na::zero());
 
         #[cfg(feature = "dim2")]
         let vel12 = (linvel2 - linvel1).norm()
@@ -160,8 +160,8 @@ impl TOIEntry {
             NonlinearRigidMotion::new(
                 rb.pos.position,
                 rb.mprops.local_mprops.local_com,
-                rb.integrated_vels.linvel,
-                rb.integrated_vels.angvel,
+                rb.ccd_vels.linvel,
+                rb.ccd_vels.angvel,
             )
         } else {
             NonlinearRigidMotion::constant_position(rb.pos.next_position)

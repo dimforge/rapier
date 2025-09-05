@@ -36,7 +36,7 @@ impl CCDSolver {
 
                 let min_toi = (rb.ccd.ccd_thickness
                     * 0.15
-                    * crate::utils::inv(rb.ccd.max_point_velocity(&rb.integrated_vels)))
+                    * crate::utils::inv(rb.ccd.max_point_velocity(&rb.ccd_vels)))
                 .min(dt);
                 // println!(
                 //     "Min toi: {}, Toi: {}, thick: {}, max_vel: {}",
@@ -45,9 +45,9 @@ impl CCDSolver {
                 //     rb.ccd.ccd_thickness,
                 //     rb.ccd.max_point_velocity(&rb.integrated_vels)
                 // );
-                let new_pos =
-                    rb.integrated_vels
-                        .integrate(toi.max(min_toi), &rb.pos.position, local_com);
+                let new_pos = rb
+                    .ccd_vels
+                    .integrate(toi.max(min_toi), &rb.pos.position, local_com);
                 rb.pos.next_position = new_pos;
             }
         }
@@ -66,7 +66,7 @@ impl CCDSolver {
         let mut ccd_active = false;
 
         // println!("Checking CCD activation");
-        for handle in islands.active_dynamic_bodies() {
+        for handle in islands.active_bodies() {
             let rb = bodies.index_mut_internal(*handle);
 
             if rb.ccd.ccd_enabled {
@@ -75,7 +75,7 @@ impl CCDSolver {
                 } else {
                     None
                 };
-                let moving_fast = rb.ccd.is_moving_fast(dt, &rb.integrated_vels, forces);
+                let moving_fast = rb.ccd.is_moving_fast(dt, &rb.ccd_vels, forces);
                 rb.ccd.ccd_active = moving_fast;
                 ccd_active = ccd_active || moving_fast;
             }
@@ -121,14 +121,14 @@ impl CCDSolver {
         let mut pairs_seen = HashMap::default();
         let mut min_toi = dt;
 
-        for handle in islands.active_dynamic_bodies() {
+        for handle in islands.active_bodies() {
             let rb1 = &bodies[*handle];
 
             if rb1.ccd.ccd_active {
                 let predicted_body_pos1 = rb1.pos.integrate_forces_and_velocities(
                     dt,
                     &rb1.forces,
-                    &rb1.integrated_vels,
+                    &rb1.ccd_vels,
                     &rb1.mprops,
                 );
 
@@ -254,14 +254,14 @@ impl CCDSolver {
          *
          */
         // TODO: don't iterate through all the colliders.
-        for handle in islands.active_dynamic_bodies() {
+        for handle in islands.active_bodies() {
             let rb1 = &bodies[*handle];
 
             if rb1.ccd.ccd_active {
                 let predicted_body_pos1 = rb1.pos.integrate_forces_and_velocities(
                     dt,
                     &rb1.forces,
-                    &rb1.integrated_vels,
+                    &rb1.ccd_vels,
                     &rb1.mprops,
                 );
 
@@ -487,10 +487,7 @@ impl CCDSolver {
                 let local_com1 = &rb1.mprops.local_mprops.local_com;
                 let frozen1 = frozen.get(&b1);
                 let pos1 = frozen1
-                    .map(|t| {
-                        rb1.integrated_vels
-                            .integrate(*t, &rb1.pos.position, local_com1)
-                    })
+                    .map(|t| rb1.ccd_vels.integrate(*t, &rb1.pos.position, local_com1))
                     .unwrap_or(rb1.pos.next_position);
                 pos1 * co_parent1.pos_wrt_parent
             } else {
@@ -503,10 +500,7 @@ impl CCDSolver {
                 let local_com2 = &rb2.mprops.local_mprops.local_com;
                 let frozen2 = frozen.get(&b2);
                 let pos2 = frozen2
-                    .map(|t| {
-                        rb2.integrated_vels
-                            .integrate(*t, &rb2.pos.position, local_com2)
-                    })
+                    .map(|t| rb2.ccd_vels.integrate(*t, &rb2.pos.position, local_com2))
                     .unwrap_or(rb2.pos.next_position);
                 pos2 * co_parent2.pos_wrt_parent
             } else {

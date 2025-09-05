@@ -1,7 +1,9 @@
 #![allow(clippy::bad_bit_mask)] // Clippy will complain about the bitmasks due to JointAxesMask::FREE_FIXED_AXES being 0.
 
 use crate::dynamics::solver::MotorParameters;
-use crate::dynamics::{FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RopeJoint};
+use crate::dynamics::{
+    FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RigidBody, RopeJoint,
+};
 use crate::math::{Isometry, Point, Real, Rotation, SPATIAL_DIM, UnitVector, Vector};
 use crate::utils::{SimdBasis, SimdRealCopy};
 
@@ -230,13 +232,13 @@ pub struct GenericJoint {
     /// coupled linear DoF is applied to all coupled linear DoF. Similarly, if multiple angular DoF are limited/motorized
     /// only the limits/motor configuration for the first coupled angular DoF is applied to all coupled angular DoF.
     pub coupled_axes: JointAxesMask,
-    /// The limits, along each degrees of freedoms of this joint.
+    /// The limits, along each degree of freedoms of this joint.
     ///
     /// Note that the limit must also be explicitly enabled by the `limit_axes` bitmask.
     /// For coupled degrees of freedoms (DoF), only the first linear (resp. angular) coupled DoF limit and `limit_axis`
     /// bitmask is applied to the coupled linear (resp. angular) axes.
     pub limits: [JointLimits<Real>; SPATIAL_DIM],
-    /// The motors, along each degrees of freedoms of this joint.
+    /// The motors, along each degree of freedoms of this joint.
     ///
     /// Note that the motor must also be explicitly enabled by the `motor_axes` bitmask.
     /// For coupled degrees of freedoms (DoF), only the first linear (resp. angular) coupled DoF motor and `motor_axes`
@@ -244,7 +246,7 @@ pub struct GenericJoint {
     pub motors: [JointMotor; SPATIAL_DIM],
     /// Are contacts between the attached rigid-bodies enabled?
     pub contacts_enabled: bool,
-    /// Whether or not the joint is enabled.
+    /// Whether the joint is enabled.
     pub enabled: JointEnabled,
     /// User-defined data associated to this joint.
     pub user_data: u128,
@@ -514,6 +516,20 @@ impl GenericJoint {
 
             self.motors[dim].target_vel = -self.motors[dim].target_vel;
             self.motors[dim].target_pos = -self.motors[dim].target_pos;
+        }
+    }
+
+    pub(crate) fn transform_to_solver_body_space(&mut self, rb1: &RigidBody, rb2: &RigidBody) {
+        if rb1.is_fixed() {
+            self.local_frame1 = rb1.pos.position * self.local_frame1;
+        } else {
+            self.local_frame1.translation.vector -= rb1.mprops.local_mprops.local_com.coords;
+        }
+
+        if rb2.is_fixed() {
+            self.local_frame2 = rb2.pos.position * self.local_frame2;
+        } else {
+            self.local_frame2.translation.vector -= rb2.mprops.local_mprops.local_com.coords;
         }
     }
 }

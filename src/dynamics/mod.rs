@@ -4,6 +4,10 @@ pub use self::ccd::CCDSolver;
 pub use self::coefficient_combine_rule::CoefficientCombineRule;
 pub use self::integration_parameters::IntegrationParameters;
 pub use self::island_manager::IslandManager;
+
+#[cfg(feature = "dim3")]
+pub use self::integration_parameters::FrictionModel;
+
 pub(crate) use self::joint::JointGraphEdge;
 pub(crate) use self::joint::JointIndex;
 pub use self::joint::*;

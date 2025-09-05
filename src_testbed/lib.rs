@@ -9,8 +9,6 @@ pub use crate::plugin::TestbedPlugin;
 pub use crate::testbed::{Testbed, TestbedApp, TestbedGraphics, TestbedState};
 pub use bevy::prelude::{Color, KeyCode};
 
-#[cfg(all(feature = "dim2", feature = "other-backends"))]
-mod box2d_backend;
 #[cfg(feature = "dim2")]
 mod camera2d;
 #[cfg(feature = "dim3")]

@@ -6,7 +6,8 @@ pub use self::collider::{Collider, ColliderBuilder};
 pub use self::collider_components::*;
 pub use self::collider_set::ColliderSet;
 pub use self::contact_pair::{
-    ContactData, ContactManifoldData, ContactPair, IntersectionPair, SolverContact, SolverFlags,
+    ContactData, ContactManifoldData, ContactPair, IntersectionPair, SimdSolverContact,
+    SolverContact, SolverFlags,
 };
 pub use self::interaction_graph::{
     ColliderGraphIndex, InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex,

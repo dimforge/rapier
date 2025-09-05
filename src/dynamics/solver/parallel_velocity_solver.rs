@@ -1,8 +1,8 @@
 use super::{ContactConstraintTypes, JointConstraintTypes, SolverVel, ThreadContext};
 use crate::concurrent_loop;
 use crate::dynamics::{
-    solver::ParallelSolverConstraints, IntegrationParameters, IslandManager, JointGraphEdge,
-    MultibodyJointSet, RigidBodySet,
+    IntegrationParameters, IslandManager, JointGraphEdge, MultibodyJointSet, RigidBodySet,
+    solver::ParallelSolverConstraints,
 };
 use crate::geometry::ContactManifold;
 use crate::math::Real;
@@ -182,7 +182,7 @@ impl ParallelVelocitySolver {
         // Integrate positions.
         {
             let island_range = islands.active_island_range(island_id);
-            let active_bodies = &islands.active_dynamic_set[island_range];
+            let active_bodies = &islands.active_set[island_range];
 
             concurrent_loop! {
                 let batch_size = thread.batch_size;
@@ -206,7 +206,7 @@ impl ParallelVelocitySolver {
                         let rb = bodies.index_mut_internal(*handle);
                         let dvel = self.solver_vels[rb.ids.active_set_offset];
                         let dangvel = rb.mprops
-                            .effective_world_inv_inertia_sqrt
+                            .effective_world_inv_inertia
                             .transform_vector(dvel.angular);
 
                         // Update positions.
@@ -284,7 +284,7 @@ impl ParallelVelocitySolver {
         // Update velocities.
         {
             let island_range = islands.active_island_range(island_id);
-            let active_bodies = &islands.active_dynamic_set[island_range];
+            let active_bodies = &islands.active_set[island_range];
 
             concurrent_loop! {
                 let batch_size = thread.batch_size;
@@ -304,7 +304,7 @@ impl ParallelVelocitySolver {
                         let rb = bodies.index_mut_internal(*handle);
                         let dvel = self.solver_vels[rb.ids.active_set_offset];
                         let dangvel = rb.mprops
-                            .effective_world_inv_inertia_sqrt
+                            .effective_world_inv_inertia
                             .transform_vector(dvel.angular);
                         rb.vels.linvel += dvel.linear;
                         rb.vels.angvel += dangvel;

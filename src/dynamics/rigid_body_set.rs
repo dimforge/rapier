@@ -1,6 +1,7 @@
 use crate::data::{Arena, HasModifiedFlag, ModifiedObjects};
 use crate::dynamics::{
-    ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBody, RigidBodyChanges, RigidBodyHandle,
+    ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBody, RigidBodyBuilder,
+    RigidBodyChanges, RigidBodyHandle,
 };
 use crate::geometry::ColliderSet;
 use std::ops::{Index, IndexMut};
@@ -46,6 +47,8 @@ pub struct RigidBodySet {
     // Could we avoid this?
     pub(crate) bodies: Arena<RigidBody>,
     pub(crate) modified_bodies: ModifiedRigidBodies,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) default_fixed: RigidBody,
 }
 
 impl RigidBodySet {
@@ -54,6 +57,7 @@ impl RigidBodySet {
         RigidBodySet {
             bodies: Arena::new(),
             modified_bodies: ModifiedObjects::default(),
+            default_fixed: RigidBodyBuilder::fixed().build(),
         }
     }
 
@@ -62,6 +66,7 @@ impl RigidBodySet {
         RigidBodySet {
             bodies: Arena::with_capacity(capacity),
             modified_bodies: ModifiedRigidBodies::with_capacity(capacity),
+            default_fixed: RigidBodyBuilder::fixed().build(),
         }
     }
 

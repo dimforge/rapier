@@ -4,7 +4,6 @@
 use bevy::prelude::*;
 use std::env;
 use std::mem;
-use std::num::NonZeroUsize;
 
 use crate::debug_render::{DebugRenderPipelineResource, RapierDebugRenderPlugin};
 use crate::graphics::BevyMaterialComponent;
@@ -30,8 +29,6 @@ use rapier::pipeline::PhysicsHooks;
 #[cfg(feature = "dim3")]
 use rapier::{control::DynamicRayCastVehicleController, prelude::QueryFilter};
 
-#[cfg(all(feature = "dim2", feature = "other-backends"))]
-use crate::box2d_backend::Box2dWorld;
 use crate::harness::{Harness, RapierBroadPhaseType};
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 use crate::physx_backend::PhysxWorld;
@@ -48,8 +45,6 @@ use crate::graphics::BevyMaterial;
 // use bevy::render::render_resource::RenderPipelineDescriptor;
 
 const RAPIER_BACKEND: usize = 0;
-#[cfg(all(feature = "dim2", feature = "other-backends"))]
-const BOX2D_BACKEND: usize = 1;
 pub(crate) const PHYSX_BACKEND_PATCH_FRICTION: usize = 1;
 pub(crate) const PHYSX_BACKEND_TWO_FRICTION_DIR: usize = 2;
 
@@ -101,14 +96,6 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
-pub enum RapierSolverType {
-    #[default]
-    TgsSoft,
-    TgsSoftNoWarmstart,
-    PgsLegacy,
-}
-
 pub type SimulationBuilders = Vec<(&'static str, fn(&mut Testbed))>;
 
 #[derive(Resource)]
@@ -131,7 +118,6 @@ pub struct TestbedState {
     pub selected_example: usize,
     pub selected_backend: usize,
     pub example_settings: ExampleSettings,
-    pub solver_type: RapierSolverType,
     pub broad_phase_type: RapierBroadPhaseType,
     pub physx_use_two_friction_directions: bool,
     pub snapshot: Option<PhysicsSnapshot>,
@@ -148,7 +134,6 @@ impl TestbedState {
             selected_example: self.selected_example,
             selected_backend: self.selected_backend,
             example_settings: self.example_settings.clone(),
-            solver_type: self.solver_type,
             physx_use_two_friction_directions: self.physx_use_two_friction_directions,
             camera,
         }
@@ -161,7 +146,6 @@ impl TestbedState {
         self.selected_example = state.selected_example;
         self.selected_backend = state.selected_backend;
         self.example_settings = state.example_settings;
-        self.solver_type = state.solver_type;
         self.physx_use_two_friction_directions = state.physx_use_two_friction_directions;
         *camera = state.camera;
     }
@@ -172,8 +156,6 @@ struct SceneBuilders(SimulationBuilders);
 
 #[cfg(feature = "other-backends")]
 struct OtherBackends {
-    #[cfg(feature = "dim2")]
-    box2d: Option<Box2dWorld>,
     #[cfg(feature = "dim3")]
     physx: Option<PhysxWorld>,
 }
@@ -222,8 +204,6 @@ impl TestbedApp {
 
         #[allow(unused_mut)]
         let mut backend_names = vec!["rapier"];
-        #[cfg(all(feature = "dim2", feature = "other-backends"))]
-        backend_names.push("box2d");
         #[cfg(all(feature = "dim3", feature = "other-backends"))]
         backend_names.push("physx (patch friction)");
         #[cfg(all(feature = "dim3", feature = "other-backends"))]
@@ -249,7 +229,6 @@ impl TestbedApp {
             example_settings: ExampleSettings::default(),
             selected_example: 0,
             selected_backend: RAPIER_BACKEND,
-            solver_type: RapierSolverType::default(),
             broad_phase_type: RapierBroadPhaseType::default(),
             physx_use_two_friction_directions: true,
             nsteps: 1,
@@ -260,8 +239,6 @@ impl TestbedApp {
         let harness = Harness::new_empty();
         #[cfg(feature = "other-backends")]
         let other_backends = OtherBackends {
-            #[cfg(feature = "dim2")]
-            box2d: None,
             #[cfg(feature = "dim3")]
             physx: None,
         };
@@ -383,7 +360,7 @@ impl TestbedApp {
                     self.harness
                         .physics
                         .integration_parameters
-                        .num_solver_iterations = NonZeroUsize::new(4).unwrap();
+                        .num_solver_iterations = 4;
 
                     // Init world.
                     let mut testbed = Testbed {
@@ -401,20 +378,6 @@ impl TestbedApp {
                         {
                             if self.state.selected_backend == RAPIER_BACKEND {
                                 self.harness.step();
-                            }
-
-                            #[cfg(all(feature = "dim2", feature = "other-backends"))]
-                            {
-                                if self.state.selected_backend == BOX2D_BACKEND {
-                                    self.other_backends.box2d.as_mut().unwrap().step(
-                                        &mut self.harness.physics.pipeline.counters,
-                                        &self.harness.physics.integration_parameters,
-                                    );
-                                    self.other_backends.box2d.as_mut().unwrap().sync(
-                                        &mut self.harness.physics.bodies,
-                                        &mut self.harness.physics.colliders,
-                                    );
-                                }
                             }
 
                             #[cfg(all(feature = "dim3", feature = "other-backends"))]
@@ -669,18 +632,6 @@ impl Testbed<'_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_, '_> {
         #[cfg(feature = "dim3")]
         {
             self.state.vehicle_controller = None;
-        }
-
-        #[cfg(all(feature = "dim2", feature = "other-backends"))]
-        {
-            if self.state.selected_backend == BOX2D_BACKEND {
-                self.other_backends.box2d = Some(Box2dWorld::from_rapier(
-                    self.harness.physics.gravity,
-                    &self.harness.physics.bodies,
-                    &self.harness.physics.colliders,
-                    &self.harness.physics.impulse_joints,
-                ));
-            }
         }
 
         #[cfg(all(feature = "dim3", feature = "other-backends"))]
@@ -1459,22 +1410,6 @@ fn update_testbed(
 
                 for plugin in &mut plugins.0 {
                     plugin.step(&mut harness.physics)
-                }
-            }
-
-            #[cfg(all(feature = "dim2", feature = "other-backends"))]
-            {
-                if state.selected_backend == BOX2D_BACKEND {
-                    let harness = &mut *harness;
-                    other_backends.box2d.as_mut().unwrap().step(
-                        &mut harness.physics.pipeline.counters,
-                        &harness.physics.integration_parameters,
-                    );
-                    other_backends
-                        .box2d
-                        .as_mut()
-                        .unwrap()
-                        .sync(&mut harness.physics.bodies, &mut harness.physics.colliders);
                 }
             }
 

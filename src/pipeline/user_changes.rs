@@ -1,6 +1,6 @@
 use crate::dynamics::{
     ImpulseJointSet, IslandManager, JointEnabled, MultibodyJointSet, RigidBodyChanges,
-    RigidBodyHandle, RigidBodySet, RigidBodyType,
+    RigidBodyHandle, RigidBodySet,
 };
 use crate::geometry::{
     ColliderChanges, ColliderEnabled, ColliderHandle, ColliderPosition, ColliderSet,
@@ -52,8 +52,6 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
     modified_colliders: &mut ModifiedColliders,
 ) {
     enum FinalAction {
-        UpdateActiveKinematicSetId(usize),
-        UpdateActiveDynamicSetId(usize),
         RemoveFromIsland,
     }
 
@@ -75,62 +73,16 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                 // The body's status changed. We need to make sure
                 // it is on the correct active set.
                 if let Some(islands) = islands.as_deref_mut() {
-                    if changes.contains(RigidBodyChanges::TYPE) {
-                        match rb.body_type {
-                            RigidBodyType::Dynamic => {
-                                // Remove from the active kinematic set if it was there.
-                                if islands.active_kinematic_set.get(ids.active_set_id)
-                                    == Some(handle)
-                                {
-                                    islands.active_kinematic_set.swap_remove(ids.active_set_id);
-                                    final_action = Some(FinalAction::UpdateActiveKinematicSetId(
-                                        ids.active_set_id,
-                                    ));
-                                }
-                            }
-                            RigidBodyType::KinematicVelocityBased
-                            | RigidBodyType::KinematicPositionBased => {
-                                // Remove from the active dynamic set if it was there.
-                                if islands.active_dynamic_set.get(ids.active_set_id) == Some(handle)
-                                {
-                                    islands.active_dynamic_set.swap_remove(ids.active_set_id);
-                                    final_action = Some(FinalAction::UpdateActiveDynamicSetId(
-                                        ids.active_set_id,
-                                    ));
-                                }
-
-                                // Add to the active kinematic set.
-                                if islands.active_kinematic_set.get(ids.active_set_id)
-                                    != Some(handle)
-                                {
-                                    ids.active_set_id = islands.active_kinematic_set.len();
-                                    islands.active_kinematic_set.push(*handle);
-                                }
-                            }
-                            RigidBodyType::Fixed => {}
-                        }
-                    }
-
-                    // Update the active kinematic set.
-                    if (changes.contains(RigidBodyChanges::POSITION)
-                        || changes.contains(RigidBodyChanges::COLLIDERS))
-                        && rb.is_kinematic()
-                        && islands.active_kinematic_set.get(ids.active_set_id) != Some(handle)
-                    {
-                        ids.active_set_id = islands.active_kinematic_set.len();
-                        islands.active_kinematic_set.push(*handle);
-                    }
-
                     // Push the body to the active set if it is not inside the active set yet, and
-                    // is either not longer sleeping or became dynamic.
+                    // is not longer sleeping or became dynamic.
                     if (changes.contains(RigidBodyChanges::SLEEP) || changes.contains(RigidBodyChanges::TYPE))
                         && rb.is_enabled()
                         && !rb.activation.sleeping // May happen if the body was put to sleep manually.
-                        && rb.is_dynamic() // Only dynamic bodies are in the active dynamic set.
-                        && islands.active_dynamic_set.get(ids.active_set_id) != Some(handle)
+                        && rb.is_dynamic_or_kinematic() // Only dynamic bodies are in the active dynamic set.
+                        && islands.active_set.get(ids.active_set_id) != Some(handle)
                     {
-                        ids.active_set_id = islands.active_dynamic_set.len(); // This will handle the case where the activation_channel contains duplicates.
-                        islands.active_dynamic_set.push(*handle);
+                        ids.active_set_id = islands.active_set.len(); // This will handle the case where the activation_channel contains duplicates.
+                        islands.active_set.push(*handle);
                     }
                 }
             }
@@ -200,6 +152,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                 rb.mprops.recompute_mass_properties_from_colliders(
                     colliders,
                     &rb.colliders,
+                    rb.body_type,
                     &rb.pos.position,
                 );
             }
@@ -215,18 +168,6 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                     FinalAction::RemoveFromIsland => {
                         let ids = rb.ids;
                         islands.rigid_body_removed(*handle, &ids, bodies);
-                    }
-                    FinalAction::UpdateActiveKinematicSetId(id) => {
-                        let active_set = &mut islands.active_kinematic_set;
-                        if id < active_set.len() {
-                            bodies.index_mut_internal(active_set[id]).ids.active_set_id = id;
-                        }
-                    }
-                    FinalAction::UpdateActiveDynamicSetId(id) => {
-                        let active_set = &mut islands.active_dynamic_set;
-                        if id < active_set.len() {
-                            bodies.index_mut_internal(active_set[id]).ids.active_set_id = id;
-                        }
                     }
                 };
             }
