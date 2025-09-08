@@ -1,8 +1,8 @@
 use super::{JointConstraintTypes, SolverConstraintsSet};
 use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::{
-    IntegrationParameters, IslandManager, JointGraphEdge, JointIndex, MultibodyJointSet,
-    MultibodyLinkId, RigidBodySet,
+    IntegrationParameters, IslandManager, IslandManager2, JointGraphEdge, JointIndex,
+    MultibodyJointSet, MultibodyLinkId, RigidBodySet,
     solver::{ContactConstraintTypes, SolverVel},
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
@@ -11,7 +11,7 @@ use crate::prelude::RigidBodyVelocity;
 use crate::utils::SimdAngularInertia;
 use na::DVector;
 
-pub(crate) struct VelocitySolver {
+pub(crate) struct VelocitySolver2 {
     pub solver_bodies: Vec<SolverBody>,
     pub solver_vels: Vec<SolverVel<Real>>,
     pub solver_vels_increment: Vec<SolverVel<Real>>,
@@ -20,7 +20,7 @@ pub(crate) struct VelocitySolver {
     pub multibody_roots: Vec<MultibodyLinkId>,
 }
 
-impl VelocitySolver {
+impl VelocitySolver2 {
     pub fn new() -> Self {
         Self {
             solver_bodies: Vec::new(),
@@ -35,7 +35,7 @@ impl VelocitySolver {
     pub fn init_constraints(
         &self,
         island_id: usize,
-        islands: &IslandManager,
+        islands: &IslandManager2,
         bodies: &mut RigidBodySet,
         multibodies: &mut MultibodyJointSet,
         manifolds_all: &mut [&mut ContactManifold],
@@ -45,7 +45,7 @@ impl VelocitySolver {
         contact_constraints: &mut SolverConstraintsSet<ContactConstraintTypes>,
         joint_constraints: &mut SolverConstraintsSet<JointConstraintTypes>,
     ) {
-        contact_constraints.init(
+        contact_constraints.init2(
             island_id,
             islands,
             bodies,
@@ -54,37 +54,41 @@ impl VelocitySolver {
             manifold_indices,
         );
 
-        joint_constraints.init(
-            island_id,
-            islands,
-            bodies,
-            multibodies,
-            joints_all,
-            joint_indices,
-        );
+        // joint_constraints.init(
+        //     island_id,
+        //     islands,
+        //     bodies,
+        //     multibodies,
+        //     joints_all,
+        //     joint_indices,
+        // );
     }
 
     pub fn init_solver_velocities_and_solver_bodies(
         &mut self,
         params: &IntegrationParameters,
         island_id: usize,
-        islands: &IslandManager,
+        islands: &IslandManager2,
         bodies: &mut RigidBodySet,
         multibodies: &mut MultibodyJointSet,
     ) {
         self.multibody_roots.clear();
         self.solver_bodies.clear();
         self.solver_bodies.resize(
-            islands.active_island(island_id).len(),
+            islands.island(island_id as u32).body_len(),
             SolverBody::default(),
         );
 
         self.solver_vels_increment.clear();
-        self.solver_vels_increment
-            .resize(islands.active_island(island_id).len(), SolverVel::zero());
+        self.solver_vels_increment.resize(
+            islands.island(island_id as u32).body_len(),
+            SolverVel::zero(),
+        );
         self.solver_vels.clear();
-        self.solver_vels
-            .resize(islands.active_island(island_id).len(), SolverVel::zero());
+        self.solver_vels.resize(
+            islands.island(island_id as u32).body_len(),
+            SolverVel::zero(),
+        );
 
         /*
          * Initialize solver bodies and delta-velocities (`solver_vels_increment`) with external forces (gravity etc):
@@ -94,8 +98,8 @@ impl VelocitySolver {
         // Assign solver ids to multibodies, and collect the relevant roots.
         // And init solver_vels for rigidb-bodies.
         let mut multibody_solver_id = 0;
-        for handle in islands.active_island(island_id) {
-            if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
+        for handle in islands.island_bodies(island_id as u32) {
+            if let Some(link) = multibodies.rigid_body_link(handle).copied() {
                 let multibody = multibodies
                     .get_multibody_mut_internal(link.multibody)
                     .unwrap();
@@ -106,7 +110,7 @@ impl VelocitySolver {
                     self.multibody_roots.push(link);
                 }
             } else {
-                let rb = &bodies[*handle];
+                let rb = &bodies[handle];
                 let solver_vel = &mut self.solver_vels[rb.ids.active_set_offset];
                 let solver_vel_incr = &mut self.solver_vels_increment[rb.ids.active_set_offset];
                 let solver_body = &mut self.solver_bodies[rb.ids.active_set_offset];
@@ -277,16 +281,16 @@ impl VelocitySolver {
         &mut self,
         params: &IntegrationParameters,
         num_substeps: usize,
-        islands: &IslandManager,
+        islands: &IslandManager2,
         island_id: usize,
         bodies: &mut RigidBodySet,
         multibodies: &mut MultibodyJointSet,
     ) {
-        for handle in islands.active_island(island_id) {
+        for handle in islands.island_bodies(island_id as u32) {
             let link = if self.multibody_roots.is_empty() {
                 None
             } else {
-                multibodies.rigid_body_link(*handle).copied()
+                multibodies.rigid_body_link(handle).copied()
             };
 
             if let Some(link) = link {
@@ -301,7 +305,7 @@ impl VelocitySolver {
                     multibody.velocities.copy_from(&solver_vels);
                 }
             } else {
-                let rb = bodies.index_mut_internal(*handle);
+                let rb = bodies.index_mut_internal(handle);
                 let solver_body = &self.solver_bodies[rb.ids.active_set_offset];
                 let solver_vels = &self.solver_vels[rb.ids.active_set_offset];
 

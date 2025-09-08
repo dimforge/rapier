@@ -79,6 +79,10 @@ impl Index {
     pub fn into_raw_parts(self) -> (u32, u32) {
         (self.index, self.generation)
     }
+
+    pub fn index(self) -> u32 {
+        self.index
+    }
 }
 
 const DEFAULT_CAPACITY: usize = 4;

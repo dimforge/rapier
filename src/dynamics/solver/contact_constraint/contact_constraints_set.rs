@@ -8,8 +8,8 @@ use crate::dynamics::solver::solver_body::SolverBody;
 use crate::dynamics::solver::solver_vel::SolverVel;
 use crate::dynamics::solver::{ConstraintTypes, SolverConstraintsSet, reset_buffer};
 use crate::dynamics::{
-    ImpulseJoint, IntegrationParameters, IslandManager, JointAxesMask, MultibodyJointSet,
-    RigidBodySet,
+    ImpulseJoint, IntegrationParameters, IslandManager, IslandManager2, JointAxesMask,
+    MultibodyJointSet, RigidBodySet,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::math::{MAX_MANIFOLD_POINTS, Real};
@@ -139,6 +139,101 @@ impl ContactConstraintsSet {
         //        self.one_body_interaction_groups
         //            .nongrouped_interactions
         //            .append(&mut self.one_body_interaction_groups.simd_interactions);
+    }
+
+    pub fn init_constraint_groups2(
+        &mut self,
+        island_id: usize,
+        islands: &IslandManager2,
+        bodies: &RigidBodySet,
+        multibody_joints: &MultibodyJointSet,
+        manifolds: &[&mut ContactManifold],
+        manifold_indices: &[ContactManifoldIndex],
+    ) {
+        self.two_body_interactions.clear();
+        self.one_body_interactions.clear();
+        self.generic_two_body_interactions.clear();
+        self.generic_one_body_interactions.clear();
+
+        categorize_contacts(
+            bodies,
+            multibody_joints,
+            manifolds,
+            manifold_indices,
+            &mut self.one_body_interactions,
+            &mut self.two_body_interactions,
+            &mut self.generic_one_body_interactions,
+            &mut self.generic_two_body_interactions,
+        );
+
+        self.interaction_groups.clear_groups();
+        self.interaction_groups.group_manifolds2(
+            island_id,
+            islands,
+            bodies,
+            manifolds,
+            &self.two_body_interactions,
+        );
+
+        self.one_body_interaction_groups.clear_groups();
+        self.one_body_interaction_groups.group_manifolds2(
+            island_id,
+            islands,
+            bodies,
+            manifolds,
+            &self.one_body_interactions,
+        );
+
+        // NOTE: uncomment this do disable SIMD contact resolution.
+        //        self.interaction_groups
+        //            .nongrouped_interactions
+        //            .append(&mut self.interaction_groups.simd_interactions);
+        //        self.one_body_interaction_groups
+        //            .nongrouped_interactions
+        //            .append(&mut self.one_body_interaction_groups.simd_interactions);
+    }
+
+    pub fn init2(
+        &mut self,
+        island_id: usize,
+        islands: &IslandManager2,
+        bodies: &RigidBodySet,
+        multibody_joints: &MultibodyJointSet,
+        manifolds: &[&mut ContactManifold],
+        manifold_indices: &[ContactManifoldIndex],
+    ) {
+        self.clear_constraints();
+        self.clear_builders();
+
+        self.init_constraint_groups2(
+            island_id,
+            islands,
+            bodies,
+            multibody_joints,
+            manifolds,
+            manifold_indices,
+        );
+
+        let mut jacobian_id = 0;
+
+        #[cfg(feature = "simd-is-enabled")]
+        {
+            self.simd_compute_constraints(bodies, manifolds);
+        }
+        self.compute_constraints(bodies, manifolds);
+        self.compute_generic_constraints(bodies, multibody_joints, manifolds, &mut jacobian_id);
+
+        #[cfg(feature = "simd-is-enabled")]
+        {
+            self.simd_compute_one_body_constraints(bodies, manifolds);
+        }
+        self.compute_one_body_constraints(bodies, manifolds);
+        self.compute_generic_one_body_constraints(
+            bodies,
+            multibody_joints,
+            manifolds,
+            &mut jacobian_id,
+        );
     }
 
     pub fn init(

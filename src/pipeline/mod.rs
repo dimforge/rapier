@@ -4,6 +4,7 @@ pub use collision_pipeline::CollisionPipeline;
 pub use event_handler::{ActiveEvents, ChannelEventCollector, EventHandler};
 pub use physics_hooks::{ActiveHooks, ContactModificationContext, PairFilterContext, PhysicsHooks};
 pub use physics_pipeline::PhysicsPipeline;
+pub use physics_pipeline2::PhysicsPipeline2;
 pub use query_pipeline::{QueryFilter, QueryFilterFlags, QueryPipeline, QueryPipelineMut};
 
 #[cfg(feature = "debug-render")]
@@ -16,6 +17,7 @@ mod collision_pipeline;
 mod event_handler;
 mod physics_hooks;
 mod physics_pipeline;
+mod physics_pipeline2;
 mod query_pipeline;
 mod user_changes;
 

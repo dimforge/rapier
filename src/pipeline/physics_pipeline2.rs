@@ -8,7 +8,7 @@ use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodyChanges, RigidBodyPosition, RigidBodyType,
 };
-use crate::dynamics::{IslandManager2, IslandSolver};
+use crate::dynamics::{IslandManager2, IslandSolver2};
 use crate::geometry::{
     BroadPhaseBvh, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
     ContactManifoldIndex, ModifiedColliders, NarrowPhase, TemporaryInteractionIndex,
@@ -29,35 +29,37 @@ use {crate::dynamics::RigidBodySet, crate::geometry::ColliderSet};
 /// - A velocity based solver based on PGS which computes forces for contact and joint constraints.
 /// - A position based solver based on non-linear PGS which performs constraint stabilization (i.e. correction of errors like penetrations).
 // NOTE: this contains only workspace data, so there is no point in making this serializable.
-pub struct PhysicsPipeline {
+pub struct PhysicsPipeline2 {
     /// Counters used for benchmarking only.
     pub counters: Counters,
     contact_pair_indices: Vec<TemporaryInteractionIndex>,
+    island_ids: Vec<usize>,
     manifold_indices: Vec<Vec<ContactManifoldIndex>>,
     joint_constraint_indices: Vec<Vec<ContactManifoldIndex>>,
     broadphase_collider_pairs: Vec<ColliderPair>,
     broad_phase_events: Vec<BroadPhasePairEvent>,
-    solvers: Vec<IslandSolver>,
+    solvers: Vec<IslandSolver2>,
 }
 
-impl Default for PhysicsPipeline {
+impl Default for PhysicsPipeline2 {
     fn default() -> Self {
-        PhysicsPipeline::new()
+        PhysicsPipeline2::new()
     }
 }
 
 #[allow(dead_code)]
 fn check_pipeline_send_sync() {
     fn do_test<T: Sync>() {}
-    do_test::<PhysicsPipeline>();
+    do_test::<PhysicsPipeline2>();
 }
 
-impl PhysicsPipeline {
+impl PhysicsPipeline2 {
     /// Initializes a new physics pipeline.
-    pub fn new() -> PhysicsPipeline {
-        PhysicsPipeline {
+    pub fn new() -> PhysicsPipeline2 {
+        PhysicsPipeline2 {
             counters: Counters::new(true),
             solvers: vec![],
+            island_ids: vec![],
             contact_pair_indices: vec![],
             manifold_indices: vec![],
             joint_constraint_indices: vec![],
@@ -100,10 +102,8 @@ impl PhysicsPipeline {
     fn detect_collisions(
         &mut self,
         integration_parameters: &IntegrationParameters,
-        islands: &mut IslandManager,
-        islands2: Option<&mut IslandManager2>,
+        islands: &mut IslandManager2,
         broad_phase: &mut BroadPhaseBvh,
-        narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
         impulse_joints: &ImpulseJointSet,
@@ -121,7 +121,7 @@ impl PhysicsPipeline {
         // Update broad-phase.
         self.broad_phase_events.clear();
         self.broadphase_collider_pairs.clear();
-        broad_phase.update(
+        broad_phase.update2(
             integration_parameters,
             colliders,
             bodies,
@@ -132,50 +132,23 @@ impl PhysicsPipeline {
 
         self.counters.cd.broad_phase_time.pause();
 
-        if let Some(islands2) = islands2 {
-            self.counters.cd.new_narrow_phase.resume();
-            if handle_user_changes {
-                islands2.handle_user_changes(modified_bodies);
-            }
-
-            islands2.register_pairs(colliders, &self.broad_phase_events);
-            islands2.update_contacts(
-                integration_parameters.prediction_distance(),
-                integration_parameters.dt,
-                broad_phase,
-                narrow_phase.query_dispatcher(),
-                bodies,
-                colliders,
-                impulse_joints,
-                multibody_joints,
-                hooks,
-                events,
-            );
-            self.counters.cd.new_narrow_phase.pause();
-        }
-
         self.counters.cd.narrow_phase_time.resume();
         // Update narrow-phase.
         if handle_user_changes {
-            narrow_phase.handle_user_changes(
-                Some(islands),
-                modified_colliders,
-                removed_colliders,
-                colliders,
-                bodies,
-                events,
-            );
+            islands.handle_user_changes(bodies, modified_bodies);
         }
-        narrow_phase.register_pairs(
-            Some(islands),
-            colliders,
-            bodies,
-            &self.broad_phase_events,
-            events,
+
+        let t0 = std::time::Instant::now();
+        islands.register_pairs(colliders, bodies, &self.broad_phase_events);
+        println!(
+            "Pairs registration: {}",
+            t0.elapsed().as_secs_f32() * 1000.0
         );
-        narrow_phase.compute_contacts(
+        let t0 = std::time::Instant::now();
+        islands.update_contacts(
             integration_parameters.prediction_distance(),
             integration_parameters.dt,
+            broad_phase,
             bodies,
             colliders,
             impulse_joints,
@@ -183,8 +156,7 @@ impl PhysicsPipeline {
             hooks,
             events,
         );
-        narrow_phase.compute_intersections(bodies, colliders, hooks, events);
-
+        println!("Contact update: {}", t0.elapsed().as_secs_f32() * 1000.0);
         self.counters.cd.narrow_phase_time.pause();
         self.counters.stages.collision_detection_time.pause();
     }
@@ -193,9 +165,7 @@ impl PhysicsPipeline {
         &mut self,
         gravity: &Vector<Real>,
         integration_parameters: &IntegrationParameters,
-        islands: &mut IslandManager,
-        islands2: Option<&mut IslandManager2>,
-        narrow_phase: &mut NarrowPhase,
+        islands: &mut IslandManager2,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
         impulse_joints: &mut ImpulseJointSet,
@@ -203,62 +173,32 @@ impl PhysicsPipeline {
         events: &dyn EventHandler,
     ) {
         self.counters.stages.island_construction_time.resume();
-        islands.update_active_set_with_contacts(
-            integration_parameters.dt,
-            integration_parameters.length_unit,
-            bodies,
-            colliders,
-            narrow_phase,
-            impulse_joints,
-            multibody_joints,
-            integration_parameters.min_island_size,
-        );
+        let mut manifolds = Vec::new();
 
         if self.manifold_indices.len() < islands.num_islands() {
             self.manifold_indices
                 .resize(islands.num_islands(), Vec::new());
         }
 
-        if self.joint_constraint_indices.len() < islands.num_islands() {
-            self.joint_constraint_indices
-                .resize(islands.num_islands(), Vec::new());
-        }
-
-        let mut manifolds = Vec::new();
-
-        if let Some(islands2) = islands2 {
-            if self.manifold_indices.len() < islands2.num_islands() {
-                self.manifold_indices
-                    .resize(islands2.num_islands(), Vec::new());
-            }
-
-            islands2.select_active_contacts(
-                &mut self.contact_pair_indices,
-                &mut manifolds,
-                &mut self.manifold_indices,
-            );
-        } else {
-            narrow_phase.select_active_contacts(
-                islands,
-                bodies,
-                &mut self.contact_pair_indices,
-                &mut manifolds,
-                &mut self.manifold_indices,
-            );
-        }
-
-        impulse_joints.select_active_interactions(
-            islands,
-            bodies,
-            &mut self.joint_constraint_indices,
+        islands.select_active_contacts(
+            &mut self.contact_pair_indices,
+            &mut manifolds,
+            &mut self.manifold_indices,
+            &mut self.island_ids,
         );
+
+        // impulse_joints.select_active_interactions(
+        //     islands,
+        //     bodies,
+        //     &mut self.joint_constraint_indices,
+        // );
         self.counters.stages.island_construction_time.pause();
 
         self.counters.stages.update_time.resume();
         for handle in islands.active_dynamic_bodies() {
             // TODO: should that be moved to the solver (just like we moved
             //       the multibody dynamics update) since it depends on dt?
-            let rb = bodies.index_mut_internal(*handle);
+            let rb = bodies.index_mut_internal(handle);
             rb.mprops.update_world_mass_properties(&rb.pos.position);
             let effective_mass = rb.mprops.effective_mass();
             rb.forces
@@ -269,14 +209,14 @@ impl PhysicsPipeline {
         self.counters.stages.solver_time.resume();
         if self.solvers.len() < islands.num_islands() {
             self.solvers
-                .resize_with(islands.num_islands(), IslandSolver::new);
+                .resize_with(islands.num_islands(), IslandSolver2::new);
         }
 
         #[cfg(not(feature = "parallel"))]
         {
             enable_flush_to_zero!();
 
-            for island_id in 0..islands.num_islands() {
+            for island_id in self.island_ids.iter().copied() {
                 self.solvers[island_id].init_and_solve(
                     island_id,
                     &mut self.counters,
@@ -286,7 +226,7 @@ impl PhysicsPipeline {
                     &mut manifolds[..],
                     &self.manifold_indices[island_id],
                     impulse_joints.joints_mut(),
-                    &self.joint_constraint_indices[island_id],
+                    &[], // FIXME: &self.joint_constraint_indices[island_id],
                     multibody_joints,
                 )
             }
@@ -347,31 +287,31 @@ impl PhysicsPipeline {
         }
 
         // Generate contact force events if needed.
-        let inv_dt = crate::utils::inv(integration_parameters.dt);
-        for pair_id in self.contact_pair_indices.drain(..) {
-            let pair = narrow_phase.contact_pair_at_index(pair_id);
-            let co1 = &colliders[pair.collider1];
-            let co2 = &colliders[pair.collider2];
-            let threshold = co1
-                .effective_contact_force_event_threshold()
-                .min(co2.effective_contact_force_event_threshold());
-
-            if threshold < Real::MAX {
-                let total_magnitude = pair.total_impulse_magnitude() * inv_dt;
-
-                // NOTE: the strict inequality is important here, so we don’t
-                //       trigger an event if the force is 0.0 and the threshold is 0.0.
-                if total_magnitude > threshold {
-                    events.handle_contact_force_event(
-                        integration_parameters.dt,
-                        bodies,
-                        colliders,
-                        pair,
-                        total_magnitude,
-                    );
-                }
-            }
-        }
+        // let inv_dt = crate::utils::inv(integration_parameters.dt);
+        // for pair_id in self.contact_pair_indices.drain(..) {
+        //     let pair = narrow_phase.contact_pair_at_index(pair_id);
+        //     let co1 = &colliders[pair.collider1];
+        //     let co2 = &colliders[pair.collider2];
+        //     let threshold = co1
+        //         .effective_contact_force_event_threshold()
+        //         .min(co2.effective_contact_force_event_threshold());
+        //
+        //     if threshold < Real::MAX {
+        //         let total_magnitude = pair.total_impulse_magnitude() * inv_dt;
+        //
+        //         // NOTE: the strict inequality is important here, so we don’t
+        //         //       trigger an event if the force is 0.0 and the threshold is 0.0.
+        //         if total_magnitude > threshold {
+        //             events.handle_contact_force_event(
+        //                 integration_parameters.dt,
+        //                 bodies,
+        //                 colliders,
+        //                 pair,
+        //                 total_magnitude,
+        //             );
+        //         }
+        //     }
+        // }
 
         self.counters.stages.solver_time.pause();
     }
@@ -404,13 +344,13 @@ impl PhysicsPipeline {
 
     fn advance_to_final_positions(
         &mut self,
-        islands: &IslandManager,
+        islands: &IslandManager2,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
         modified_colliders: &mut ModifiedColliders,
     ) {
         // Set the rigid-bodies and kinematic bodies to their final position.
-        for handle in islands.iter_active_bodies() {
+        for handle in islands.active_bodies() {
             let rb = bodies.index_mut_internal(handle);
             rb.pos.position = rb.pos.next_position;
             rb.colliders
@@ -421,35 +361,35 @@ impl PhysicsPipeline {
     fn interpolate_kinematic_velocities(
         &mut self,
         integration_parameters: &IntegrationParameters,
-        islands: &IslandManager,
+        islands: &IslandManager2,
         bodies: &mut RigidBodySet,
     ) {
-        // Update kinematic bodies velocities.
-        // TODO: what is the best place for this? It should at least be
-        // located before the island computation because we test the velocity
-        // there to determine if this kinematic body should wake-up dynamic
-        // bodies it is touching.
-        for handle in islands.active_kinematic_bodies() {
-            let rb = bodies.index_mut_internal(*handle);
-
-            match rb.body_type {
-                RigidBodyType::KinematicPositionBased => {
-                    rb.vels = rb.pos.interpolate_velocity(
-                        integration_parameters.inv_dt(),
-                        &rb.mprops.local_mprops.local_com,
-                    );
-                }
-                RigidBodyType::KinematicVelocityBased => {
-                    let new_pos = rb.vels.integrate(
-                        integration_parameters.dt,
-                        &rb.pos.position,
-                        &rb.mprops.local_mprops.local_com,
-                    );
-                    rb.pos = RigidBodyPosition::from(new_pos);
-                }
-                _ => {}
-            }
-        }
+        // // Update kinematic bodies velocities.
+        // // TODO: what is the best place for this? It should at least be
+        // // located before the island computation because we test the velocity
+        // // there to determine if this kinematic body should wake-up dynamic
+        // // bodies it is touching.
+        // for handle in islands.active_kinematic_bodies() {
+        //     let rb = bodies.index_mut_internal(*handle);
+        //
+        //     match rb.body_type {
+        //         RigidBodyType::KinematicPositionBased => {
+        //             rb.vels = rb.pos.interpolate_velocity(
+        //                 integration_parameters.inv_dt(),
+        //                 &rb.mprops.local_mprops.local_com,
+        //             );
+        //         }
+        //         RigidBodyType::KinematicVelocityBased => {
+        //             let new_pos = rb.vels.integrate(
+        //                 integration_parameters.dt,
+        //                 &rb.pos.position,
+        //                 &rb.mprops.local_mprops.local_com,
+        //             );
+        //             rb.pos = RigidBodyPosition::from(new_pos);
+        //         }
+        //         _ => {}
+        //     }
+        // }
     }
 
     /// Executes one timestep of the physics simulation.
@@ -457,10 +397,8 @@ impl PhysicsPipeline {
         &mut self,
         gravity: &Vector<Real>,
         integration_parameters: &IntegrationParameters,
-        islands: &mut IslandManager,
-        mut islands2: Option<&mut IslandManager2>,
+        islands: &mut IslandManager2,
         broad_phase: &mut BroadPhaseBvh,
-        narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
         impulse_joints: &mut ImpulseJointSet,
@@ -474,19 +412,19 @@ impl PhysicsPipeline {
 
         // Apply some of delayed wake-ups.
         self.counters.stages.user_changes.start();
-        #[cfg(feature = "enhanced-determinism")]
-        let impulse_joints_iterator = impulse_joints
-            .to_wake_up
-            .drain(..)
-            .chain(multibody_joints.to_wake_up.drain(..));
-        #[cfg(not(feature = "enhanced-determinism"))]
-        let impulse_joints_iterator = impulse_joints
-            .to_wake_up
-            .drain()
-            .chain(multibody_joints.to_wake_up.drain());
-        for handle in impulse_joints_iterator {
-            islands.wake_up(bodies, handle, true);
-        }
+        // #[cfg(feature = "enhanced-determinism")]
+        // let impulse_joints_iterator = impulse_joints
+        //     .to_wake_up
+        //     .drain(..)
+        //     .chain(multibody_joints.to_wake_up.drain(..));
+        // #[cfg(not(feature = "enhanced-determinism"))]
+        // let impulse_joints_iterator = impulse_joints
+        //     .to_wake_up
+        //     .drain()
+        //     .chain(multibody_joints.to_wake_up.drain());
+        // for handle in impulse_joints_iterator {
+        //     islands.wake_up(bodies, handle, true);
+        // }
 
         // Apply modifications.
         let mut modified_colliders = colliders.take_modified();
@@ -499,15 +437,15 @@ impl PhysicsPipeline {
         );
 
         let mut modified_bodies = bodies.take_modified();
-        super::user_changes::handle_user_changes_to_rigid_bodies(
-            Some(islands),
-            bodies,
-            colliders,
-            impulse_joints,
-            multibody_joints,
-            &modified_bodies,
-            &mut modified_colliders,
-        );
+        // super::user_changes::handle_user_changes_to_rigid_bodies(
+        //     Some(islands),
+        //     bodies,
+        //     colliders,
+        //     impulse_joints,
+        //     multibody_joints,
+        //     &modified_bodies,
+        //     &mut modified_colliders,
+        // );
 
         // Disabled colliders are treated as if they were removed.
         // NOTE: this must be called here, after handle_user_changes_to_rigid_bodies to take into
@@ -532,9 +470,7 @@ impl PhysicsPipeline {
         self.detect_collisions(
             integration_parameters,
             islands,
-            islands2.as_deref_mut(),
             broad_phase,
-            narrow_phase,
             bodies,
             colliders,
             impulse_joints,
@@ -577,38 +513,37 @@ impl PhysicsPipeline {
             if ccd_is_enabled && remaining_substeps > 1 {
                 // NOTE: Take forces into account when updating the bodies CCD activation flags
                 //       these forces have not been integrated to the body's velocity yet.
-                let ccd_active =
-                    ccd_solver.update_ccd_active_flags(islands, bodies, remaining_time, true);
-                let first_impact = if ccd_active {
-                    ccd_solver.find_first_impact(
-                        remaining_time,
-                        &integration_parameters,
-                        islands,
-                        bodies,
-                        colliders,
-                        broad_phase,
-                        narrow_phase,
-                    )
-                } else {
-                    None
-                };
-
-                if let Some(toi) = first_impact {
-                    let original_interval = remaining_time / (remaining_substeps as Real);
-
-                    if toi < original_interval {
-                        integration_parameters.dt = original_interval;
-                    } else {
-                        integration_parameters.dt =
-                            toi + (remaining_time - toi) / (remaining_substeps as Real);
-                    }
-
-                    remaining_substeps -= 1;
-                } else {
-                    // No impact, don't do any other substep after this one.
-                    integration_parameters.dt = remaining_time;
-                    remaining_substeps = 0;
-                }
+                // let ccd_active =
+                //     ccd_solver.update_ccd_active_flags(islands, bodies, remaining_time, true);
+                // let first_impact = if ccd_active {
+                //     ccd_solver.find_first_impact(
+                //         remaining_time,
+                //         &integration_parameters,
+                //         islands,
+                //         bodies,
+                //         colliders,
+                //         broad_phase,
+                //     )
+                // } else {
+                //     None
+                // };
+                //
+                // if let Some(toi) = first_impact {
+                //     let original_interval = remaining_time / (remaining_substeps as Real);
+                //
+                //     if toi < original_interval {
+                //         integration_parameters.dt = original_interval;
+                //     } else {
+                //         integration_parameters.dt =
+                //             toi + (remaining_time - toi) / (remaining_substeps as Real);
+                //     }
+                //
+                //     remaining_substeps -= 1;
+                // } else {
+                //     // No impact, don't do any other substep after this one.
+                //     integration_parameters.dt = remaining_time;
+                //     remaining_substeps = 0;
+                // }
 
                 remaining_time -= integration_parameters.dt;
 
@@ -630,8 +565,6 @@ impl PhysicsPipeline {
                 gravity,
                 &integration_parameters,
                 islands,
-                islands2.as_deref_mut(),
-                narrow_phase,
                 bodies,
                 colliders,
                 impulse_joints,
@@ -643,24 +576,24 @@ impl PhysicsPipeline {
             if ccd_is_enabled {
                 // NOTE: don't the forces into account when updating the CCD active flags because
                 //       they have already been integrated into the velocities by the solver.
-                let ccd_active = ccd_solver.update_ccd_active_flags(
-                    islands,
-                    bodies,
-                    integration_parameters.dt,
-                    false,
-                );
-                if ccd_active {
-                    self.run_ccd_motion_clamping(
-                        &integration_parameters,
-                        islands,
-                        bodies,
-                        colliders,
-                        broad_phase,
-                        narrow_phase,
-                        ccd_solver,
-                        events,
-                    );
-                }
+                // let ccd_active = ccd_solver.update_ccd_active_flags(
+                //     islands,
+                //     bodies,
+                //     integration_parameters.dt,
+                //     false,
+                // );
+                // if ccd_active {
+                //     self.run_ccd_motion_clamping(
+                //         &integration_parameters,
+                //         islands,
+                //         bodies,
+                //         colliders,
+                //         broad_phase,
+                //         narrow_phase,
+                //         ccd_solver,
+                //         events,
+                //     );
+                // }
             }
 
             self.counters.stages.update_time.resume();
@@ -671,9 +604,7 @@ impl PhysicsPipeline {
                 self.detect_collisions(
                     &integration_parameters,
                     islands,
-                    islands2.as_deref_mut(),
                     broad_phase,
-                    narrow_phase,
                     bodies,
                     colliders,
                     impulse_joints,
@@ -708,7 +639,7 @@ impl PhysicsPipeline {
         //       not modified by the user in the mean time.
         self.counters.stages.update_time.resume();
         for handle in islands.active_dynamic_bodies() {
-            let rb = bodies.index_mut_internal(*handle);
+            let rb = bodies.index_mut_internal(handle);
             rb.mprops.update_world_mass_properties(&rb.pos.position);
         }
         self.counters.stages.update_time.pause();
@@ -730,7 +661,7 @@ mod test {
     };
     use crate::geometry::{BroadPhaseBvh, ColliderBuilder, ColliderSet, NarrowPhase};
     use crate::math::Vector;
-    use crate::pipeline::PhysicsPipeline;
+    use crate::pipeline::PhysicsPipeline2;
     use crate::prelude::{MultibodyJointSet, RevoluteJointBuilder, RigidBodyType};
 
     #[test]
@@ -738,7 +669,7 @@ mod test {
         let mut colliders = ColliderSet::new();
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
-        let mut pipeline = PhysicsPipeline::new();
+        let mut pipeline = PhysicsPipeline2::new();
         let mut bf = BroadPhaseBvh::new();
         let mut nf = NarrowPhase::new();
         let mut bodies = RigidBodySet::new();
@@ -775,7 +706,7 @@ mod test {
         let mut colliders = ColliderSet::new();
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
-        let mut pipeline = PhysicsPipeline::new();
+        let mut pipeline = PhysicsPipeline2::new();
         let mut bf = BroadPhaseBvh::new();
         let mut nf = NarrowPhase::new();
         let mut islands = IslandManager::new();
@@ -882,7 +813,7 @@ mod test {
 
     #[test]
     fn collider_removal_before_step() {
-        let mut pipeline = PhysicsPipeline::new();
+        let mut pipeline = PhysicsPipeline2::new();
         let gravity = Vector::y() * -9.81;
         let integration_parameters = IntegrationParameters::default();
         let mut broad_phase = BroadPhaseBvh::new();
@@ -933,7 +864,7 @@ mod test {
         let mut colliders = ColliderSet::new();
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
-        let mut pipeline = PhysicsPipeline::new();
+        let mut pipeline = PhysicsPipeline2::new();
         let mut bf = BroadPhaseBvh::new();
         let mut nf = NarrowPhase::new();
         let mut islands = IslandManager::new();
@@ -1000,7 +931,7 @@ mod test {
         let mut colliders = ColliderSet::new();
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
-        let mut pipeline = PhysicsPipeline::new();
+        let mut pipeline = PhysicsPipeline2::new();
         let mut bf = BroadPhaseBvh::new();
         let mut nf = NarrowPhase::new();
         let mut islands = IslandManager::new();
@@ -1082,7 +1013,7 @@ mod test {
         /* Create other structures necessary for the simulation. */
         let gravity = vector![0.0, -9.81];
         let integration_parameters = IntegrationParameters::default();
-        let mut physics_pipeline = PhysicsPipeline::new();
+        let mut physics_pipeline = PhysicsPipeline2::new();
         let mut island_manager = IslandManager::new();
         let mut broad_phase = BroadPhaseBvh::new();
         let mut narrow_phase = NarrowPhase::new();

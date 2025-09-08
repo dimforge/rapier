@@ -1,30 +1,30 @@
-use super::{JointConstraintsSet, VelocitySolver};
+use super::{JointConstraintsSet, VelocitySolver, VelocitySolver2};
 use crate::counters::Counters;
-use crate::dynamics::IslandManager;
 use crate::dynamics::solver::contact_constraint::ContactConstraintsSet;
 use crate::dynamics::{IntegrationParameters, JointGraphEdge, JointIndex, RigidBodySet};
+use crate::dynamics::{IslandManager, IslandManager2};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 use crate::prelude::MultibodyJointSet;
 use parry::math::Real;
 
-pub struct IslandSolver {
+pub struct IslandSolver2 {
     contact_constraints: ContactConstraintsSet,
     joint_constraints: JointConstraintsSet,
-    velocity_solver: VelocitySolver,
+    velocity_solver: VelocitySolver2,
 }
 
-impl Default for IslandSolver {
+impl Default for IslandSolver2 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl IslandSolver {
+impl IslandSolver2 {
     pub fn new() -> Self {
         Self {
             contact_constraints: ContactConstraintsSet::new(),
             joint_constraints: JointConstraintsSet::new(),
-            velocity_solver: VelocitySolver::new(),
+            velocity_solver: VelocitySolver2::new(),
         }
     }
 
@@ -34,7 +34,7 @@ impl IslandSolver {
         island_id: usize,
         counters: &mut Counters,
         base_params: &IntegrationParameters,
-        islands: &IslandManager,
+        islands: &IslandManager2,
         bodies: &mut RigidBodySet,
         manifolds: &mut [&mut ContactManifold],
         manifold_indices: &[ContactManifoldIndex],
@@ -43,8 +43,8 @@ impl IslandSolver {
         multibodies: &mut MultibodyJointSet,
     ) {
         counters.solver.velocity_assembly_time.resume();
-        let num_solver_iterations = base_params.num_solver_iterations.get()
-            + islands.active_island_additional_solver_iterations(island_id);
+        let num_solver_iterations = base_params.num_solver_iterations.get();
+        // FIXME: + islands.active_island_additional_solver_iterations(island_id);
 
         let mut params = *base_params;
         params.dt /= num_solver_iterations as Real;

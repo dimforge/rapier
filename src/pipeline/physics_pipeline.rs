@@ -2,20 +2,20 @@
 
 use crate::counters::Counters;
 // #[cfg(not(feature = "parallel"))]
-use crate::dynamics::IslandSolver;
 #[cfg(feature = "parallel")]
 use crate::dynamics::JointGraphEdge;
 use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodyChanges, RigidBodyPosition, RigidBodyType,
 };
+use crate::dynamics::{IslandManager2, IslandSolver};
 use crate::geometry::{
     BroadPhaseBvh, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
     ContactManifoldIndex, ModifiedColliders, NarrowPhase, TemporaryInteractionIndex,
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{EventHandler, PhysicsHooks};
-use crate::prelude::ModifiedRigidBodies;
+use crate::prelude::{ModifiedRigidBodies, RigidBodyHandle};
 use {crate::dynamics::RigidBodySet, crate::geometry::ColliderSet};
 
 /// The physics pipeline, responsible for stepping the whole physics simulation.
@@ -107,6 +107,7 @@ impl PhysicsPipeline {
         colliders: &mut ColliderSet,
         impulse_joints: &ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
+        modified_bodies: &[RigidBodyHandle],
         modified_colliders: &[ColliderHandle],
         removed_colliders: &[ColliderHandle],
         hooks: &dyn PhysicsHooks,
@@ -130,7 +131,6 @@ impl PhysicsPipeline {
 
         self.counters.cd.broad_phase_time.pause();
         self.counters.cd.narrow_phase_time.resume();
-
         // Update narrow-phase.
         if handle_user_changes {
             narrow_phase.handle_user_changes(
@@ -200,6 +200,7 @@ impl PhysicsPipeline {
         }
 
         let mut manifolds = Vec::new();
+
         narrow_phase.select_active_contacts(
             islands,
             bodies,
@@ -207,6 +208,7 @@ impl PhysicsPipeline {
             &mut manifolds,
             &mut self.manifold_indices,
         );
+
         impulse_joints.select_active_interactions(
             islands,
             bodies,
@@ -497,6 +499,7 @@ impl PhysicsPipeline {
             colliders,
             impulse_joints,
             multibody_joints,
+            &modified_bodies,
             &modified_colliders,
             &removed_colliders,
             hooks,
@@ -633,6 +636,7 @@ impl PhysicsPipeline {
                     colliders,
                     impulse_joints,
                     multibody_joints,
+                    &modified_bodies,
                     &modified_colliders,
                     &[],
                     hooks,

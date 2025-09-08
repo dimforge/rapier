@@ -1,12 +1,12 @@
 use rapier::dynamics::{
-    CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    RigidBodySet,
+    CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, IslandManager2,
+    MultibodyJointSet, RigidBodySet,
 };
 use rapier::geometry::{
     BroadPhaseBvh, ColliderSet, CollisionEvent, ContactForceEvent, DefaultBroadPhase, NarrowPhase,
 };
 use rapier::math::{Real, Vector};
-use rapier::pipeline::{PhysicsHooks, PhysicsPipeline};
+use rapier::pipeline::{PhysicsHooks, PhysicsPipeline, PhysicsPipeline2};
 use std::sync::mpsc::Receiver;
 
 pub struct PhysicsSnapshot {
@@ -89,6 +89,7 @@ impl PhysicsSnapshot {
 
 pub struct PhysicsState {
     pub islands: IslandManager,
+    pub islands2: IslandManager2,
     pub broad_phase: BroadPhaseBvh,
     pub narrow_phase: NarrowPhase,
     pub bodies: RigidBodySet,
@@ -97,9 +98,11 @@ pub struct PhysicsState {
     pub multibody_joints: MultibodyJointSet,
     pub ccd_solver: CCDSolver,
     pub pipeline: PhysicsPipeline,
+    pub pipeline2: PhysicsPipeline2,
     pub integration_parameters: IntegrationParameters,
     pub gravity: Vector<Real>,
     pub hooks: Box<dyn PhysicsHooks>,
+    pub use_new_physics_pipeline: bool,
 }
 
 impl Default for PhysicsState {
@@ -112,6 +115,7 @@ impl PhysicsState {
     pub fn new() -> Self {
         Self {
             islands: IslandManager::new(),
+            islands2: IslandManager2::default(),
             broad_phase: DefaultBroadPhase::default(),
             narrow_phase: NarrowPhase::new(),
             bodies: RigidBodySet::new(),
@@ -120,9 +124,11 @@ impl PhysicsState {
             multibody_joints: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             pipeline: PhysicsPipeline::new(),
+            pipeline2: PhysicsPipeline2::new(),
             integration_parameters: IntegrationParameters::default(),
             gravity: Vector::y() * -9.81,
             hooks: Box::new(()),
+            use_new_physics_pipeline: false,
         }
     }
 }

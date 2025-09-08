@@ -28,6 +28,10 @@ impl ColliderHandle {
             crate::INVALID_U32,
         ))
     }
+
+    pub fn index(self) -> u32 {
+        self.0.index()
+    }
 }
 
 bitflags::bitflags! {

@@ -39,6 +39,10 @@ impl RigidBodyHandle {
             crate::INVALID_U32,
         ))
     }
+
+    pub fn index(self) -> u32 {
+        self.0.index()
+    }
 }
 
 /// The type of a body, governing the way it is affected by external forces.

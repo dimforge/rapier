@@ -251,6 +251,122 @@ impl BroadPhaseBvh {
         // );
     }
 
+    pub fn update2(
+        &mut self,
+        params: &IntegrationParameters,
+        colliders: &ColliderSet,
+        bodies: &RigidBodySet,
+        modified_colliders: &[ColliderHandle],
+        removed_colliders: &[ColliderHandle],
+        events: &mut Vec<BroadPhasePairEvent>,
+    ) {
+        self.frame_index = self.frame_index.overflowing_add(1).0;
+
+        // Removals must be handled first, in case another collider in
+        // `modified_colliders` shares the same index.
+        for handle in removed_colliders {
+            self.tree.remove(handle.into_raw_parts().0);
+        }
+
+        // if modified_colliders.is_empty() {
+        //     return;
+        // }
+
+        let first_pass = self.tree.is_empty();
+
+        // let t0 = std::time::Instant::now();
+        for modified in modified_colliders {
+            if let Some(collider) = colliders.get(*modified) {
+                if !collider.is_enabled() || !collider.changes.needs_broad_phase_update() {
+                    continue;
+                }
+
+                let aabb = collider.compute_broad_phase_aabb(params, bodies);
+
+                let change_detection_skin = if Self::CHANGE_DETECTION_ENABLED {
+                    Self::CHANGE_DETECTION_FACTOR * params.length_unit
+                } else {
+                    0.0
+                };
+
+                self.tree.insert_or_update_partially(
+                    aabb,
+                    modified.into_raw_parts().0,
+                    change_detection_skin,
+                );
+            }
+        }
+
+        if ENABLE_TREE_VALIDITY_CHECK {
+            if first_pass {
+                self.tree.assert_well_formed();
+            }
+
+            self.tree.assert_well_formed_topology_only();
+        }
+
+        // let t0 = std::time::Instant::now();
+        match self.optimization_strategy {
+            BvhOptimizationStrategy::SubtreeOptimizer => {
+                self.tree.optimize_incremental(&mut self.workspace);
+            }
+            BvhOptimizationStrategy::None => {}
+        };
+        // println!(
+        //     "Incremental optimization: {}",
+        //     t0.elapsed().as_secs_f32() * 1000.0
+        // );
+
+        // NOTE: we run refit after optimization so we can skip updating internal nodes during
+        //       optimization, and so we can reorder the tree in memory (in depth-first order)
+        //       to make it more cache friendly after the rebuild shuffling everything around.
+        // let t0 = std::time::Instant::now();
+        self.tree.refit(&mut self.workspace);
+
+        if ENABLE_TREE_VALIDITY_CHECK {
+            self.tree.assert_well_formed();
+        }
+
+        // println!("Refit: {}", t0.elapsed().as_secs_f32() * 1000.0);
+        // println!(
+        //     "leaf count: {}/{} (changed: {})",
+        //     self.tree.leaf_count(),
+        //     self.tree.reachable_leaf_count(0),
+        //     self.tree.changed_leaf_count(0),
+        // );
+        // self.tree.assert_is_depth_first();
+        // self.tree.assert_well_formed();
+        // println!(
+        //     "Is well formed. Tree height: {}",
+        //     self.tree.subtree_height(0),
+        // );
+        // // println!("Tree quality: {}", self.tree.quality_metric());
+
+        let mut pairs_collector = |co1: u32, co2: u32| {
+            assert_ne!(co1, co2);
+
+            let Some((_, handle1)) = colliders.get_unknown_gen(co1) else {
+                return;
+            };
+            let Some((_, handle2)) = colliders.get_unknown_gen(co2) else {
+                return;
+            };
+
+            events.push(BroadPhasePairEvent::AddPair(ColliderPair::new(
+                handle1, handle2,
+            )));
+        };
+
+        // let t0 = std::time::Instant::now();
+        self.tree
+            .traverse_bvtt_single_tree::<{ Self::CHANGE_DETECTION_ENABLED }>(
+                &mut self.workspace,
+                &mut pairs_collector,
+            );
+        // println!("Detection: {}", t0.elapsed().as_secs_f32() * 1000.0);
+        // println!(">>>>>> Num events: {}", events.iter().len());
+    }
+
     pub fn set_aabb(&mut self, params: &IntegrationParameters, handle: ColliderHandle, aabb: Aabb) {
         let change_detection_skin = if Self::CHANGE_DETECTION_ENABLED {
             Self::CHANGE_DETECTION_FACTOR * params.length_unit
@@ -262,5 +378,16 @@ impl BroadPhaseBvh {
             handle.into_raw_parts().0,
             change_detection_skin,
         );
+    }
+
+    pub fn narrow_phase_can_forget_pair(&self, a: ColliderHandle, b: ColliderHandle) -> bool {
+        if let (Some(n1), Some(n2)) = (
+            self.tree.leaf_node(a.index()),
+            self.tree.leaf_node(b.index()),
+        ) {
+            !n1.intersects(n2)
+        } else {
+            true
+        }
     }
 }

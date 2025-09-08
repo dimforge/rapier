@@ -11,7 +11,7 @@ use rapier::dynamics::{
 };
 use rapier::geometry::{BroadPhaseBvh, BvhOptimizationStrategy, ColliderSet, NarrowPhase};
 use rapier::math::{Real, Vector};
-use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline};
+use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, PhysicsPipeline2};
 
 pub mod plugin;
 
@@ -215,6 +215,7 @@ impl Harness {
         self.state.time = 0.0;
         self.physics.ccd_solver = CCDSolver::new();
         self.physics.pipeline = PhysicsPipeline::new();
+        self.physics.pipeline2 = PhysicsPipeline2::new();
         self.physics.pipeline.counters.enable();
     }
 
@@ -259,21 +260,38 @@ impl Harness {
             });
         }
 
-        #[cfg(not(feature = "parallel"))]
-        self.physics.pipeline.step(
-            &self.physics.gravity,
-            &self.physics.integration_parameters,
-            &mut self.physics.islands,
-            &mut self.physics.broad_phase,
-            &mut self.physics.narrow_phase,
-            &mut self.physics.bodies,
-            &mut self.physics.colliders,
-            &mut self.physics.impulse_joints,
-            &mut self.physics.multibody_joints,
-            &mut self.physics.ccd_solver,
-            &*self.physics.hooks,
-            &self.event_handler,
-        );
+        if self.physics.use_new_physics_pipeline {
+            self.physics.pipeline2.step(
+                &self.physics.gravity,
+                &self.physics.integration_parameters,
+                &mut self.physics.islands2,
+                &mut self.physics.broad_phase,
+                &mut self.physics.bodies,
+                &mut self.physics.colliders,
+                &mut self.physics.impulse_joints,
+                &mut self.physics.multibody_joints,
+                &mut self.physics.ccd_solver,
+                &*self.physics.hooks,
+                &self.event_handler,
+            );
+            self.physics.pipeline.counters = self.physics.pipeline2.counters;
+        } else {
+            #[cfg(not(feature = "parallel"))]
+            self.physics.pipeline.step(
+                &self.physics.gravity,
+                &self.physics.integration_parameters,
+                &mut self.physics.islands,
+                &mut self.physics.broad_phase,
+                &mut self.physics.narrow_phase,
+                &mut self.physics.bodies,
+                &mut self.physics.colliders,
+                &mut self.physics.impulse_joints,
+                &mut self.physics.multibody_joints,
+                &mut self.physics.ccd_solver,
+                &*self.physics.hooks,
+                &self.event_handler,
+            );
+        }
 
         for plugin in &mut self.plugins {
             plugin.step(&mut self.physics, &self.state)

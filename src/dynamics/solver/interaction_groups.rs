@@ -1,4 +1,4 @@
-use crate::dynamics::{IslandManager, JointGraphEdge, JointIndex, RigidBodySet};
+use crate::dynamics::{IslandManager, IslandManager2, JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
 #[cfg(feature = "simd-is-enabled")]
@@ -391,6 +391,138 @@ impl InteractionGroups {
         // NOTE: body_masks and buckets are already cleared/zeroed at the end of each sort loop.
         self.body_masks
             .resize(islands.active_island(island_id).len(), 0u128);
+
+        // NOTE: each bit of the occupied mask indicates what bucket already
+        // contains at least one constraint.
+        let mut occupied_mask = 0u128;
+        let max_interaction_points = interaction_indices
+            .iter()
+            .map(|i| interactions[*i].data.num_active_contacts())
+            .max()
+            .unwrap_or(1);
+
+        // TODO: find a way to reduce the number of iteration.
+        // There must be a way to iterate just once on every interaction indices
+        // instead of MAX_MANIFOLD_POINTS times.
+        for k in 1..=max_interaction_points {
+            for interaction_i in interaction_indices {
+                let interaction = &interactions[*interaction_i];
+
+                // TODO: how could we avoid iterating
+                // on each interaction at every iteration on k?
+                if interaction.data.num_active_contacts() != k {
+                    continue;
+                }
+
+                let (status1, active_set_offset1) = if let Some(rb1) = interaction.data.rigid_body1
+                {
+                    let rb1 = &bodies[rb1];
+                    (rb1.body_type, rb1.ids.active_set_offset)
+                } else {
+                    (RigidBodyType::Fixed, usize::MAX)
+                };
+                let (status2, active_set_offset2) = if let Some(rb2) = interaction.data.rigid_body2
+                {
+                    let rb2 = &bodies[rb2];
+                    (rb2.body_type, rb2.ids.active_set_offset)
+                } else {
+                    (RigidBodyType::Fixed, usize::MAX)
+                };
+
+                let is_fixed1 = !status1.is_dynamic();
+                let is_fixed2 = !status2.is_dynamic();
+
+                // TODO: don't generate interactions between fixed bodies in the first place.
+                if is_fixed1 && is_fixed2 {
+                    continue;
+                }
+
+                let i1 = active_set_offset1;
+                let i2 = active_set_offset2;
+                let mask1 = if !is_fixed1 { self.body_masks[i1] } else { 0 };
+                let mask2 = if !is_fixed2 { self.body_masks[i2] } else { 0 };
+                let conflicts = mask1 | mask2;
+                let conflictfree_targets = !(conflicts & occupied_mask); // The & is because we consider empty buckets as free of conflicts.
+                let conflictfree_occupied_targets = conflictfree_targets & occupied_mask;
+
+                let target_index = if conflictfree_occupied_targets != 0 {
+                    // Try to fill partial WContacts first.
+                    conflictfree_occupied_targets.trailing_zeros()
+                } else {
+                    conflictfree_targets.trailing_zeros()
+                };
+
+                if target_index == 128 {
+                    // The interaction conflicts with every bucket we can manage.
+                    // So push it in an nongrouped interaction list that won't be combined with
+                    // any other interactions.
+                    self.nongrouped_interactions.push(*interaction_i);
+                    continue;
+                }
+
+                let target_mask_bit = 1 << target_index;
+
+                let bucket = self
+                    .buckets
+                    .entry(target_index as usize)
+                    .or_insert_with(|| ([0; SIMD_WIDTH], 0));
+
+                if bucket.1 == SIMD_LAST_INDEX {
+                    // We completed our group.
+                    (bucket.0)[SIMD_LAST_INDEX] = *interaction_i;
+                    self.simd_interactions.extend_from_slice(&bucket.0);
+                    bucket.1 = 0;
+                    occupied_mask &= !target_mask_bit;
+                } else {
+                    (bucket.0)[bucket.1] = *interaction_i;
+                    bucket.1 += 1;
+                    occupied_mask |= target_mask_bit;
+                }
+
+                // NOTE: fixed bodies don't transmit forces. Therefore they don't
+                // imply any interaction conflicts.
+                if !is_fixed1 {
+                    self.body_masks[i1] |= target_mask_bit;
+                }
+
+                if !is_fixed2 {
+                    self.body_masks[i2] |= target_mask_bit;
+                }
+            }
+
+            self.nongrouped_interactions.extend(
+                self.buckets
+                    .values()
+                    .flat_map(|e| e.0.iter().take(e.1).copied()),
+            );
+            self.buckets.clear();
+            self.body_masks.iter_mut().for_each(|e| *e = 0);
+            occupied_mask = 0u128;
+        }
+
+        assert!(
+            self.simd_interactions.len() % SIMD_WIDTH == 0,
+            "Invalid SIMD contact grouping."
+        );
+    }
+
+    #[cfg(feature = "simd-is-enabled")]
+    pub fn group_manifolds2(
+        &mut self,
+        island_id: usize,
+        islands: &IslandManager2,
+        bodies: &RigidBodySet,
+        interactions: &[&mut ContactManifold],
+        interaction_indices: &[ContactManifoldIndex],
+    ) {
+        // Note: each bit of a body mask indicates what bucket already contains
+        // a constraints involving this body.
+        // TODO: currently, this is a bit overconservative because when a bucket
+        // is full, we don't clear the corresponding body mask bit. This may result
+        // in less grouped contacts.
+        // NOTE: body_masks and buckets are already cleared/zeroed at the end of each sort loop.
+        self.body_masks
+            .resize(islands.island(island_id as u32).body_len(), 0u128);
 
         // NOTE: each bit of the occupied mask indicates what bucket already
         // contains at least one constraint.

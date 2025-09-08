@@ -9,7 +9,9 @@ pub(crate) use self::island_solver::IslandSolver;
 // #[cfg(not(feature = "parallel"))]
 use self::solver_constraints_set::SolverConstraintsSet;
 // #[cfg(not(feature = "parallel"))]
+pub(crate) use self::island_solver2::IslandSolver2;
 use self::velocity_solver::VelocitySolver;
+use self::velocity_solver2::VelocitySolver2;
 
 use contact_constraint::*;
 use interaction_groups::*;
@@ -36,7 +38,9 @@ mod solver_body;
 mod solver_constraints_set;
 mod solver_vel;
 // #[cfg(not(feature = "parallel"))]
+mod island_solver2;
 mod velocity_solver;
+mod velocity_solver2;
 
 // TODO: SAFETY: restrict with bytemuck::AnyBitPattern to make this safe.
 pub unsafe fn reset_buffer<T>(buffer: &mut Vec<T>, len: usize) {

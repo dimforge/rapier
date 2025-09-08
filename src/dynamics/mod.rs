@@ -11,8 +11,10 @@ pub use self::rigid_body_components::*;
 pub(crate) use self::rigid_body_set::ModifiedRigidBodies;
 // #[cfg(not(feature = "parallel"))]
 pub(crate) use self::solver::IslandSolver;
+pub(crate) use self::solver::IslandSolver2;
 // #[cfg(feature = "parallel")]
 // pub(crate) use self::solver::ParallelIslandSolver;
+pub use self::island_manager2::IslandManager2;
 pub use parry::mass_properties::MassProperties;
 
 pub use self::rigid_body::{RigidBody, RigidBodyBuilder};
@@ -26,5 +28,6 @@ mod joint;
 mod rigid_body_components;
 mod solver;
 
+mod island_manager2;
 mod rigid_body;
 mod rigid_body_set;

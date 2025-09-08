@@ -118,6 +118,18 @@ pub(crate) fn update_ui(
             integration_parameters.num_solver_iterations =
                 NonZeroUsize::new(num_iterations).unwrap();
         } else {
+            // Physics pipeline.
+            if ui
+                .checkbox(
+                    &mut harness.physics.use_new_physics_pipeline,
+                    "new physics pipeline",
+                )
+                .changed()
+            {
+                // Switching physics pipeline requires a restart.
+                state.action_flags.set(TestbedActionFlags::RESTART, true);
+            }
+
             // Solver type.
             let mut changed = false;
             egui::ComboBox::from_label("solver type")
