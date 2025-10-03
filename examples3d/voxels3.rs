@@ -228,7 +228,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let FeatureId::Face(id) = hit.feature else {
                 unreachable!()
             };
-            let voxel_key = voxels.voxel_at_id(id);
+            let voxel_key = voxels.voxel_at_flat_id(id).unwrap();
             let voxel_center = hit_collider.position() * voxels.voxel_center(voxel_key);
             let voxel_size = voxels.voxel_size();
             let hit_highlight = physics.colliders.get_mut(hit_highlight_handle).unwrap();

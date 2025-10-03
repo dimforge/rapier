@@ -1,3 +1,8 @@
+## v0.30.0 (03 Oct. 2025)
+
+- Update to parry 0.25 (which involves breaking changes in the `Voxels` API but improves its internal storage to support
+  large voxel maps).
+
 ## v0.29.0 (05 Sept. 2025)
 
 This version contains a significant rework of the internal velocity constraints solver.
