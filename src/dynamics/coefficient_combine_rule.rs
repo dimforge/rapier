@@ -1,23 +1,42 @@
 use crate::math::Real;
 
-/// Rules used to combine two coefficients.
+/// How to combine friction/restitution values when two colliders touch.
 ///
-/// This is used to determine the effective restitution and
-/// friction coefficients for a contact between two colliders.
-/// Each collider has its combination rule of type
-/// `CoefficientCombineRule`. And the rule
-/// actually used is given by `max(first_combine_rule as usize, second_combine_rule as usize)`.
+/// When two colliders with different friction (or restitution) values collide, Rapier
+/// needs to decide what the effective friction/restitution should be. Each collider has
+/// a combine rule, and the "stronger" rule wins (Max > Multiply > Min > Average).
+///
+/// ## Combine Rules
+///
+/// **Most games use Average (the default)** and never change this.
+///
+/// - **Average** (default): `(friction1 + friction2) / 2` - Balanced, intuitive
+/// - **Min**: `min(friction1, friction2)` - "Slippery wins" (ice on any surface = ice)
+/// - **Multiply**: `friction1 × friction2` - Both must be high for high friction
+/// - **Max**: `max(friction1, friction2)` - "Sticky wins" (rubber on any surface = rubber)
+///
+/// ## Example
+/// ```ignore
+/// // Ice collider that makes everything slippery
+/// let ice = ColliderBuilder::cuboid(10.0, 0.1, 10.0)
+///     .friction(0.0)
+///     .friction_combine_rule(CoefficientCombineRule::Min)  // Ice wins!
+///     .build();
+/// ```
+///
+/// ## Priority System
+/// If colliders disagree on rules, the "higher" one wins: Max > Multiply > Min > Average
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub enum CoefficientCombineRule {
-    /// The two coefficients are averaged.
+    /// Average the two values (default, most common).
     #[default]
     Average = 0,
-    /// The smallest coefficient is chosen.
+    /// Use the smaller value ("slippery/soft wins").
     Min = 1,
-    /// The two coefficients are multiplied.
+    /// Multiply the two values (both must be high).
     Multiply = 2,
-    /// The greatest coefficient is chosen.
+    /// Use the larger value ("sticky/bouncy wins").
     Max = 3,
 }
 

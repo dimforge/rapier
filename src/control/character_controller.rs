@@ -114,7 +114,46 @@ pub struct CharacterCollision {
     pub hit: ShapeCastHit,
 }
 
-/// A character controller for kinematic bodies.
+/// A kinematic character controller for player/NPC movement (walking, climbing, sliding).
+///
+/// This provides classic game character movement: walking on floors, sliding on slopes,
+/// climbing stairs, and snapping to ground. It's kinematic (not physics-based), meaning
+/// you control movement directly rather than applying forces.
+///
+/// **Not suitable for:** Ragdolls, vehicles, or physics-driven movement (use dynamic bodies instead).
+///
+/// # How it works
+///
+/// 1. You provide desired movement (e.g., "move forward 5 units")
+/// 2. Controller casts the character shape through the world
+/// 3. It handles collisions: sliding along walls, stepping up stairs, snapping to ground
+/// 4. Returns the final movement to apply
+///
+/// # Example
+///
+/// ```ignore
+/// let controller = KinematicCharacterController {
+///     slide: true,  // Slide along walls instead of stopping
+///     autostep: Some(CharacterAutostep::default()),  // Auto-climb stairs
+///     max_slope_climb_angle: 45.0_f32.to_radians(),  // Max climbable slope
+///     ..Default::default()
+/// };
+///
+/// // In your game loop:
+/// let desired_movement = vector![input_x, 0.0, input_z] * speed * dt;
+/// let movement = controller.move_shape(
+///     dt,
+///     &bodies,
+///     &colliders,
+///     &query_pipeline,
+///     character_shape,
+///     &character_pos,
+///     desired_movement,
+///     QueryFilter::default(),
+///     |_| {}  // Collision event callback
+/// );
+/// character_pos.translation.vector += movement.translation;
+/// ```
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug)]
 pub struct KinematicCharacterController {

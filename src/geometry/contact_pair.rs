@@ -115,7 +115,31 @@ impl IntersectionPair {
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
-/// The description of all the contacts between a pair of colliders.
+/// All contact information between two colliding colliders.
+///
+/// When two colliders are touching, a ContactPair stores all the contact points, normals,
+/// and forces between them. You can access this through the narrow phase or in event handlers.
+///
+/// ## Contact manifolds
+///
+/// The contacts are organized into "manifolds" - groups of contact points that share similar
+/// properties (like being on the same face). Most collider pairs have 1 manifold, but complex
+/// shapes may have multiple.
+///
+/// ## Use cases
+///
+/// - Reading contact normals for custom physics
+/// - Checking penetration depth
+/// - Analyzing impact forces
+/// - Implementing custom contact responses
+///
+/// # Example
+/// ```ignore
+/// if let Some((manifold, contact)) = contact_pair.find_deepest_contact() {
+///     println!("Deepest penetration: {}", -contact.dist);
+///     println!("Contact normal: {:?}", manifold.data.normal);
+/// }
+/// ```
 pub struct ContactPair {
     /// The first collider involved in the contact pair.
     pub collider1: ColliderHandle,
@@ -154,7 +178,10 @@ impl ContactPair {
         self.workspace = None;
     }
 
-    /// The sum of all the impulses applied by contacts on this contact pair.
+    /// The total impulse (force × time) applied by all contacts.
+    ///
+    /// This is the accumulated force that pushed the colliders apart.
+    /// Useful for determining impact strength.
     pub fn total_impulse(&self) -> Vector<Real> {
         self.manifolds
             .iter()
@@ -162,14 +189,18 @@ impl ContactPair {
             .sum()
     }
 
-    /// The sum of the magnitudes of the contacts on this contact pair.
+    /// The total magnitude of all contact impulses (sum of lengths, not length of sum).
+    ///
+    /// This is what's compared against `contact_force_event_threshold`.
     pub fn total_impulse_magnitude(&self) -> Real {
         self.manifolds
             .iter()
             .fold(0.0, |a, m| a + m.total_impulse())
     }
 
-    /// The magnitude and (unit) direction of the maximum impulse on this contact pair.
+    /// Finds the strongest contact impulse and its direction.
+    ///
+    /// Returns `(magnitude, normal_direction)` of the strongest individual contact.
     pub fn max_impulse(&self) -> (Real, Vector<Real>) {
         let mut result = (0.0, Vector::zeros());
 
@@ -184,13 +215,23 @@ impl ContactPair {
         result
     }
 
-    /// Finds the contact with the smallest signed distance.
+    /// Finds the contact point with the deepest penetration.
     ///
-    /// If the colliders involved in this contact pair are penetrating, then
-    /// this returns the contact with the largest penetration depth.
+    /// When objects overlap, this returns the contact point that's penetrating the most.
+    /// Useful for:
+    /// - Finding the "worst" overlap
+    /// - Determining primary contact direction
+    /// - Custom penetration resolution
     ///
-    /// Returns a reference to the contact, as well as the contact manifold
-    /// it is part of.
+    /// Returns both the contact point and its parent manifold.
+    ///
+    /// # Example
+    /// ```ignore
+    /// if let Some((manifold, contact)) = pair.find_deepest_contact() {
+    ///     let penetration_depth = -contact.dist;  // Negative dist = penetration
+    ///     println!("Deepest penetration: {} units", penetration_depth);
+    /// }
+    /// ```
     #[profiling::function]
     pub fn find_deepest_contact(&self) -> Option<(&ContactManifold, &Contact)> {
         let mut deepest = None;

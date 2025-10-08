@@ -9,9 +9,30 @@ use parry::query::details::{NormalConstraints, ShapeCastOptions};
 use parry::query::{NonlinearRigidMotion, QueryDispatcher, RayCast, ShapeCastHit};
 use parry::shape::{CompositeShape, CompositeShapeRef, FeatureId, Shape, TypedCompositeShape};
 
-/// The query pipeline responsible for running scene queries on the physics world.
+/// A query system for performing spatial queries on your physics world (raycasts, shape casts, intersections).
 ///
-/// This structure is generally obtained by calling [`BroadPhaseBvh::as_query_pipeline_mut`].
+/// Think of this as a "search engine" for your physics world. Use it to answer questions like:
+/// - "What does this ray hit?"
+/// - "What colliders are near this point?"
+/// - "If I move this shape, what will it collide with?"
+///
+/// Get a QueryPipeline from your [`BroadPhaseBvh`] using [`as_query_pipeline()`](BroadPhaseBvh::as_query_pipeline).
+///
+/// # Example
+/// ```ignore
+/// let query_pipeline = broad_phase.as_query_pipeline(
+///     &QueryDispatcher,
+///     &bodies,
+///     &colliders,
+///     QueryFilter::default()
+/// );
+///
+/// // Cast a ray downward
+/// let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
+/// if let Some((handle, toi)) = query_pipeline.cast_ray(&ray, Real::MAX, false) {
+///     println!("Hit collider {:?} at distance {}", handle, toi);
+/// }
+/// ```
 #[derive(Copy, Clone)]
 pub struct QueryPipeline<'a> {
     /// The query dispatcher for running geometric queries on leaf geometries.
@@ -152,17 +173,30 @@ impl<'a> QueryPipeline<'a> {
         Self { filter, ..self }
     }
 
-    /// Find the closest intersection between a ray and a set of colliders.
+    /// Casts a ray through the world and returns the first collider it hits.
+    ///
+    /// This is one of the most common operations - use it for line-of-sight checks,
+    /// projectile trajectories, mouse picking, laser beams, etc.
+    ///
+    /// Returns `Some((handle, distance))` if the ray hits something, where:
+    /// - `handle` is which collider was hit
+    /// - `distance` is how far along the ray the hit occurred (time-of-impact)
     ///
     /// # Parameters
-    /// * `colliders` - The set of colliders taking part in this pipeline.
-    /// * `ray`: the ray to cast.
-    /// * `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
-    ///   limits the length of the ray to `ray.dir.norm() * max_toi`. Use `Real::MAX` for an unbounded ray.
-    /// * `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
-    ///            it starts inside a shape. If this `false` then the ray will hit the shape's boundary
-    ///            even if its starts inside of it.
-    /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
+    /// * `ray` - The ray to cast (origin + direction). Create with `Ray::new(origin, direction)`
+    /// * `max_toi` - Maximum distance to check. Use `Real::MAX` for unlimited range
+    /// * `solid` - If `true`, detects hits even if the ray starts inside a shape. If `false`,
+    ///   the ray "passes through" from the inside until it exits
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Raycast downward from (0, 10, 0)
+    /// let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
+    /// if let Some((handle, toi)) = query_pipeline.cast_ray(&ray, Real::MAX, true) {
+    ///     let hit_point = ray.origin + ray.dir * toi;
+    ///     println!("Hit at {:?}, distance = {}", hit_point, toi);
+    /// }
+    /// ```
     #[profiling::function]
     pub fn cast_ray(
         &self,
@@ -175,17 +209,24 @@ impl<'a> QueryPipeline<'a> {
             .and_then(|hit| self.id_to_handle(hit))
     }
 
-    /// Find the closest intersection between a ray and a set of colliders.
+    /// Casts a ray and returns detailed information about the hit (including surface normal).
     ///
-    /// # Parameters
-    /// * `colliders` - The set of colliders taking part in this pipeline.
-    /// * `ray`: the ray to cast.
-    /// * `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
-    ///   limits the length of the ray to `ray.dir.norm() * max_toi`. Use `Real::MAX` for an unbounded ray.
-    /// * `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
-    ///            it starts inside a shape. If this `false` then the ray will hit the shape's boundary
-    ///            even if its starts inside of it.
-    /// * `filter`: set of rules used to determine which collider is taken into account by this scene query.
+    /// Like [`cast_ray()`](Self::cast_ray), but returns more information useful for things like:
+    /// - Decals (need surface normal to orient the texture)
+    /// - Bullet holes (need to know what part of the mesh was hit)
+    /// - Ricochets (need normal to calculate bounce direction)
+    ///
+    /// Returns `Some((handle, intersection))` where `intersection` contains:
+    /// - `toi`: Distance to impact
+    /// - `normal`: Surface normal at the hit point
+    /// - `feature`: Which geometric feature was hit (vertex, edge, face)
+    ///
+    /// # Example
+    /// ```ignore
+    /// if let Some((handle, hit)) = query_pipeline.cast_ray_and_get_normal(&ray, 100.0, true) {
+    ///     println!("Hit at distance {}, surface normal: {:?}", hit.toi, hit.normal);
+    /// }
+    /// ```
     #[profiling::function]
     pub fn cast_ray_and_get_normal(
         &self,
@@ -198,16 +239,22 @@ impl<'a> QueryPipeline<'a> {
             .and_then(|hit| self.id_to_handle(hit))
     }
 
-    /// Iterates through all the colliders intersecting a given ray.
+    /// Returns ALL colliders that a ray passes through (not just the first).
     ///
-    /// # Parameters
-    /// * `colliders` - The set of colliders taking part in this pipeline.
-    /// * `ray`: the ray to cast.
-    /// * `max_toi`: the maximum time-of-impact that can be reported by this cast. This effectively
-    ///   limits the length of the ray to `ray.dir.norm() * max_toi`. Use `Real::MAX` for an unbounded ray.
-    /// * `solid`: if this is `true` an impact at time 0.0 (i.e. at the ray origin) is returned if
-    ///            it starts inside a shape. If this `false` then the ray will hit the shape's boundary
-    ///            even if its starts inside of it.
+    /// Unlike [`cast_ray()`](Self::cast_ray) which stops at the first hit, this returns
+    /// every collider along the ray's path. Useful for:
+    /// - Penetrating weapons that go through multiple objects
+    /// - Checking what's in a line (e.g., visibility through glass)
+    /// - Counting how many objects are between two points
+    ///
+    /// Returns an iterator of `(handle, collider, intersection)` tuples.
+    ///
+    /// # Example
+    /// ```ignore
+    /// for (handle, collider, hit) in query_pipeline.intersect_ray(ray, 100.0, true) {
+    ///     println!("Ray passed through {:?} at distance {}", handle, hit.toi);
+    /// }
+    /// ```
     #[profiling::function]
     pub fn intersect_ray(
         &'a self,
@@ -233,15 +280,27 @@ impl<'a> QueryPipeline<'a> {
             })
     }
 
-    /// Find the projection of a point on the closest collider.
+    /// Finds the closest point on any collider to the given point.
+    ///
+    /// Returns the collider and information about where on its surface the closest point is.
+    /// Useful for:
+    /// - Finding nearest cover/obstacle
+    /// - Snap-to-surface mechanics
+    /// - Distance queries
     ///
     /// # Parameters
-    /// * `point` - The point to project.
-    /// * `solid` - If this is set to `true` then the collider shapes are considered to
-    ///   be plain (if the point is located inside of a plain shape, its projection is the point
-    ///   itself). If it is set to `false` the collider shapes are considered to be hollow
-    ///   (if the point is located inside of an hollow shape, it is projected on the shape's
-    ///   boundary).
+    /// * `solid` - If `true`, a point inside a shape projects to itself. If `false`, it projects
+    ///   to the nearest point on the shape's boundary
+    ///
+    /// # Example
+    /// ```ignore
+    /// let point = point![5.0, 0.0, 0.0];
+    /// if let Some((handle, projection)) = query_pipeline.project_point(&point, 0.0, true) {
+    ///     println!("Closest collider: {:?}", handle);
+    ///     println!("Closest point: {:?}", projection.point);
+    ///     println!("Distance: {}", (point - projection.point).norm());
+    /// }
+    /// ```
     #[profiling::function]
     pub fn project_point(
         &self,
@@ -252,10 +311,20 @@ impl<'a> QueryPipeline<'a> {
         self.id_to_handle(CompositeShapeRef(self).project_local_point(point, solid))
     }
 
-    /// Find all the colliders containing the given point.
+    /// Returns ALL colliders that contain the given point.
     ///
-    /// # Parameters
-    /// * `point` - The point used for the containment test.
+    /// A point is "inside" a collider if it's within its volume. Useful for:
+    /// - Detecting what area/trigger zones a point is in
+    /// - Checking if a position is inside geometry
+    /// - Finding all overlapping volumes at a location
+    ///
+    /// # Example
+    /// ```ignore
+    /// let point = point![0.0, 0.0, 0.0];
+    /// for (handle, collider) in query_pipeline.intersect_point(point) {
+    ///     println!("Point is inside {:?}", handle);
+    /// }
+    /// ```
     #[profiling::function]
     pub fn intersect_point(
         &'a self,
@@ -317,17 +386,36 @@ impl<'a> QueryPipeline<'a> {
             })
     }
 
-    /// Casts a shape at a constant linear velocity and retrieve the first collider it hits.
+    /// Sweeps a shape through the world to find what it would collide with.
     ///
-    /// This is similar to ray-casting except that we are casting a whole shape instead of just a
-    /// point (the ray origin). In the resulting `TOI`, witness and normal 1 refer to the world
-    /// collider, and are in world space.
+    /// Like raycasting, but instead of a thin ray, you're moving an entire shape (sphere, box, etc.)
+    /// through space. This is also called "shape casting" or "sweep testing". Useful for:
+    /// - Predicting where a moving object will hit something
+    /// - Checking if a movement is valid before executing it
+    /// - Thick raycasts (e.g., character controller collision prediction)
+    /// - Area-of-effect scanning along a path
+    ///
+    /// Returns the first collision: `(collider_handle, hit_details)` where hit contains
+    /// time-of-impact, witness points, and surface normal.
     ///
     /// # Parameters
-    /// * `shape_pos` - The initial position of the shape to cast.
-    /// * `shape_vel` - The constant velocity of the shape to cast (i.e. the cast direction).
-    /// * `shape` - The shape to cast.
-    /// * `options` - Options controlling the shape cast limits and behavior.
+    /// * `shape_pos` - Starting position/orientation of the shape
+    /// * `shape_vel` - Direction and speed to move the shape (velocity vector)
+    /// * `shape` - The shape to sweep (ball, cuboid, capsule, etc.)
+    /// * `options` - Maximum distance, collision filtering, etc.
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Sweep a sphere downward
+    /// let shape = Ball::new(0.5);
+    /// let start_pos = Isometry::translation(0.0, 10.0, 0.0);
+    /// let velocity = vector![0.0, -1.0, 0.0];
+    /// let options = ShapeCastOptions::default();
+    ///
+    /// if let Some((handle, hit)) = query_pipeline.cast_shape(&start_pos, &velocity, &shape, options) {
+    ///     println!("Shape would hit {:?} at time {}", handle, hit.time_of_impact);
+    /// }
+    /// ```
     #[profiling::function]
     pub fn cast_shape(
         &self,
@@ -411,24 +499,34 @@ impl<'a> QueryPipeline<'a> {
 
 bitflags::bitflags! {
     #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-    /// Flags for excluding whole sets of colliders from a scene query.
+    /// Flags for filtering spatial queries by body type or sensor status.
+    ///
+    /// Use these to quickly exclude categories of colliders from raycasts and other queries.
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Raycast that only hits dynamic objects (ignore walls/floors)
+    /// let filter = QueryFilter::from(QueryFilterFlags::ONLY_DYNAMIC);
+    ///
+    /// // Find only trigger zones, not solid geometry
+    /// let filter = QueryFilter::from(QueryFilterFlags::EXCLUDE_SOLIDS);
+    /// ```
     pub struct QueryFilterFlags: u32 {
-        /// Exclude from the query any collider attached to a fixed rigid-body and colliders with no rigid-body attached.
+        /// Excludes fixed bodies and standalone colliders.
         const EXCLUDE_FIXED = 1 << 0;
-        /// Exclude from the query any collider attached to a kinematic rigid-body.
+        /// Excludes kinematic bodies.
         const EXCLUDE_KINEMATIC = 1 << 1;
-        /// Exclude from the query any collider attached to a dynamic rigid-body.
+        /// Excludes dynamic bodies.
         const EXCLUDE_DYNAMIC = 1 << 2;
-        /// Exclude from the query any collider that is a sensor.
+        /// Excludes sensors (trigger zones).
         const EXCLUDE_SENSORS = 1 << 3;
-        /// Exclude from the query any collider that is not a sensor.
+        /// Excludes solid colliders (only hit sensors).
         const EXCLUDE_SOLIDS = 1 << 4;
-        /// Excludes all colliders not attached to a dynamic rigid-body.
+        /// Only includes dynamic bodies.
         const ONLY_DYNAMIC = Self::EXCLUDE_FIXED.bits() | Self::EXCLUDE_KINEMATIC.bits();
-        /// Excludes all colliders not attached to a kinematic rigid-body.
+        /// Only includes kinematic bodies.
         const ONLY_KINEMATIC = Self::EXCLUDE_DYNAMIC.bits() | Self::EXCLUDE_FIXED.bits();
-        /// Exclude all colliders attached to a non-fixed rigid-body
-        /// (this will not exclude colliders not attached to any rigid-body).
+        /// Only includes fixed bodies (excluding standalone colliders).
         const ONLY_FIXED = Self::EXCLUDE_DYNAMIC.bits() | Self::EXCLUDE_KINEMATIC.bits();
     }
 }
@@ -469,20 +567,44 @@ impl QueryFilterFlags {
     }
 }
 
-/// A filter that describes what collider should be included or excluded from a scene query.
+/// Filtering rules for spatial queries (raycasts, shape casts, etc.).
+///
+/// Controls which colliders should be included/excluded from query results.
+/// By default, all colliders are included.
+///
+/// # Common filters
+///
+/// ```ignore
+/// // Only hit dynamic objects (ignore static walls)
+/// let filter = QueryFilter::only_dynamic();
+///
+/// // Hit everything except the player's own collider
+/// let filter = QueryFilter::default()
+///     .exclude_collider(player_collider);
+///
+/// // Raycast that only hits enemies (using collision groups)
+/// let filter = QueryFilter::default()
+///     .groups(enemy_groups);
+///
+/// // Custom filtering with a closure
+/// let filter = QueryFilter::default()
+///     .predicate(&|handle, collider| {
+///         // Only hit colliders with user_data > 100
+///         collider.user_data > 100
+///     });
+/// ```
 #[derive(Copy, Clone, Default)]
 pub struct QueryFilter<'a> {
-    /// Flags indicating what particular type of colliders should be excluded from the scene query.
+    /// Flags for excluding fixed/kinematic/dynamic bodies or sensors/solids.
     pub flags: QueryFilterFlags,
-    /// If set, only colliders with collision groups compatible with this one will
-    /// be included in the scene query.
+    /// If set, only colliders with compatible collision groups are included.
     pub groups: Option<InteractionGroups>,
-    /// If set, this collider will be excluded from the scene query.
+    /// If set, this specific collider is excluded.
     pub exclude_collider: Option<ColliderHandle>,
-    /// If set, any collider attached to this rigid-body will be excluded from the scene query.
+    /// If set, all colliders attached to this body are excluded.
     pub exclude_rigid_body: Option<RigidBodyHandle>,
-    /// If set, any collider for which this closure returns false will be excluded from the scene query.
-    #[allow(clippy::type_complexity)] // Type doesn’t look really complex?
+    /// Custom filtering function - collider included only if this returns `true`.
+    #[allow(clippy::type_complexity)]
     pub predicate: Option<&'a dyn Fn(ColliderHandle, &Collider) -> bool>,
 }
 

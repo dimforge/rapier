@@ -46,25 +46,35 @@ pub type BodyStatus = RigidBodyType;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-/// The status of a body, governing the way it is affected by external forces.
+/// The type of a rigid body, determining how it responds to forces and movement.
 pub enum RigidBodyType {
-    /// A `RigidBodyType::Dynamic` body can be affected by all external forces.
+    /// Fully simulated - responds to forces, gravity, and collisions.
+    ///
+    /// Use for: Falling objects, projectiles, physics-based characters, anything that should
+    /// behave realistically under physics simulation.
     Dynamic = 0,
-    /// A `RigidBodyType::Fixed` body cannot be affected by external forces.
+
+    /// Never moves - has infinite mass and is unaffected by anything.
+    ///
+    /// Use for: Static level geometry, walls, floors, terrain, buildings.
     Fixed = 1,
-    /// A `RigidBodyType::KinematicPositionBased` body cannot be affected by any external forces but can be controlled
-    /// by the user at the position level while keeping realistic one-way interaction with dynamic bodies.
+
+    /// Controlled by setting next position - pushes but isn't pushed.
     ///
-    /// One-way interaction means that a kinematic body can push a dynamic body, but a kinematic body
-    /// cannot be pushed by anything. In other words, the trajectory of a kinematic body can only be
-    /// modified by the user and is independent from any contact or joint it is involved in.
+    /// You control this by setting where it should be next frame. Rapier computes the
+    /// velocity needed to get there. The body can push dynamic bodies but nothing can
+    /// push it back (one-way interaction).
+    ///
+    /// Use for: Animated platforms, objects controlled by external animation systems.
     KinematicPositionBased = 2,
-    /// A `RigidBodyType::KinematicVelocityBased` body cannot be affected by any external forces but can be controlled
-    /// by the user at the velocity level while keeping realistic one-way interaction with dynamic bodies.
+
+    /// Controlled by setting velocity - pushes but isn't pushed.
     ///
-    /// One-way interaction means that a kinematic body can push a dynamic body, but a kinematic body
-    /// cannot be pushed by anything. In other words, the trajectory of a kinematic body can only be
-    /// modified by the user and is independent from any contact or joint it is involved in.
+    /// You control this by setting its velocity directly. It moves predictably regardless
+    /// of what it hits. Can push dynamic bodies but nothing can push it back (one-way interaction).
+    ///
+    /// Use for: Moving platforms, elevators, doors, player-controlled characters (when you want
+    /// direct control rather than physics-based movement).
     KinematicVelocityBased = 3,
     // Semikinematic, // A kinematic that performs automatic CCD with the fixed environment to avoid traversing it?
     // Disabled,
@@ -256,23 +266,46 @@ impl Default for AxesMask {
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-    /// Flags affecting the behavior of the constraints solver for a given contact manifold.
+    /// Flags that lock specific movement axes to prevent translation or rotation.
+    ///
+    /// Use this to constrain body movement to specific directions/axes. Common uses:
+    /// - **2D games in 3D**: Lock Z translation and X/Y rotation to keep everything in the XY plane
+    /// - **Upright characters**: Lock rotations to prevent tipping over
+    /// - **Sliding objects**: Lock rotation while allowing translation
+    /// - **Spinning objects**: Lock translation while allowing rotation
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Character that can't tip over (rotation locked, but can move)
+    /// body.set_locked_axes(LockedAxes::ROTATION_LOCKED, true);
+    ///
+    /// // Object that slides but doesn't rotate
+    /// body.set_locked_axes(LockedAxes::ROTATION_LOCKED, true);
+    ///
+    /// // 2D game in 3D engine (lock Z movement and X/Y rotation)
+    /// body.set_locked_axes(
+    ///     LockedAxes::TRANSLATION_LOCKED_Z |
+    ///     LockedAxes::ROTATION_LOCKED_X |
+    ///     LockedAxes::ROTATION_LOCKED_Y,
+    ///     true
+    /// );
+    /// ```
     pub struct LockedAxes: u8 {
-        /// Flag indicating that the rigid-body cannot translate along the `X` axis.
+        /// Prevents movement along the X axis.
         const TRANSLATION_LOCKED_X = 1 << 0;
-        /// Flag indicating that the rigid-body cannot translate along the `Y` axis.
+        /// Prevents movement along the Y axis.
         const TRANSLATION_LOCKED_Y = 1 << 1;
-        /// Flag indicating that the rigid-body cannot translate along the `Z` axis.
+        /// Prevents movement along the Z axis.
         const TRANSLATION_LOCKED_Z = 1 << 2;
-        /// Flag indicating that the rigid-body cannot translate along any direction.
+        /// Prevents all translational movement.
         const TRANSLATION_LOCKED = Self::TRANSLATION_LOCKED_X.bits() | Self::TRANSLATION_LOCKED_Y.bits() | Self::TRANSLATION_LOCKED_Z.bits();
-        /// Flag indicating that the rigid-body cannot rotate along the `X` axis.
+        /// Prevents rotation around the X axis.
         const ROTATION_LOCKED_X = 1 << 3;
-        /// Flag indicating that the rigid-body cannot rotate along the `Y` axis.
+        /// Prevents rotation around the Y axis.
         const ROTATION_LOCKED_Y = 1 << 4;
-        /// Flag indicating that the rigid-body cannot rotate along the `Z` axis.
+        /// Prevents rotation around the Z axis.
         const ROTATION_LOCKED_Z = 1 << 5;
-        /// Combination of flags indicating that the rigid-body cannot rotate along any axis.
+        /// Prevents all rotational movement.
         const ROTATION_LOCKED = Self::ROTATION_LOCKED_X.bits() | Self::ROTATION_LOCKED_Y.bits() | Self::ROTATION_LOCKED_Z.bits();
     }
 }
@@ -1105,25 +1138,50 @@ impl RigidBodyDominance {
     }
 }
 
-/// The rb_activation status of a body.
+/// Controls when a body goes to sleep (becomes inactive to save CPU).
 ///
-/// This controls whether a body is sleeping or not.
-/// If the threshold is negative, the body never sleeps.
+/// ## Sleeping System
+///
+/// Bodies automatically sleep when they're at rest, dramatically improving performance
+/// in scenes with many inactive objects. Sleeping bodies are:
+/// - Excluded from simulation (no collision detection, no velocity integration)
+/// - Automatically woken when disturbed (hit by moving object, connected via joint)
+/// - Woken manually with `body.wake_up()` or `islands.wake_up()`
+///
+/// ## How sleeping works
+///
+/// A body sleeps after its linear AND angular velocities stay below thresholds for
+/// `time_until_sleep` seconds (default: 2 seconds). Set thresholds to negative to disable sleeping.
+///
+/// ## When to disable sleeping
+///
+/// Most bodies should sleep! Only disable if the body needs to stay active despite being still:
+/// - Bodies you frequently query for raycasts/contacts
+/// - Bodies with time-based behaviors while stationary
+///
+/// Use `RigidBodyBuilder::can_sleep(false)` or `RigidBodyActivation::cannot_sleep()`.
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct RigidBodyActivation {
-    /// The threshold linear velocity below which the body can fall asleep.
+    /// Linear velocity threshold for sleeping (scaled by `length_unit`).
     ///
-    /// The value is "normalized", i.e., the actual threshold applied by the physics engine
-    /// is equal to this value multiplied by [`IntegrationParameters::length_unit`].
+    /// If negative, body never sleeps. Default: 0.4 (in length units/second).
     pub normalized_linear_threshold: Real,
-    /// The angular linear velocity below which the body can fall asleep.
+
+    /// Angular velocity threshold for sleeping (radians/second).
+    ///
+    /// If negative, body never sleeps. Default: 0.5 rad/s.
     pub angular_threshold: Real,
-    /// The amount of time the rigid-body must remain below the thresholds to be put to sleep.
+
+    /// How long the body must be still before sleeping (seconds).
+    ///
+    /// Default: 2.0 seconds. Must be below both velocity thresholds for this duration.
     pub time_until_sleep: Real,
-    /// Since how much time can this body sleep?
+
+    /// Internal timer tracking how long body has been still.
     pub time_since_can_sleep: Real,
-    /// Is this body sleeping?
+
+    /// Is this body currently sleeping?
     pub sleeping: bool,
 }
 

@@ -1,19 +1,40 @@
 #![allow(clippy::bad_bit_mask)] // Clippy will complain about the bitmasks due to Group::NONE being 0.
 
-/// Pairwise filtering using bit masks.
+/// Collision filtering system that controls which colliders can interact with each other.
 ///
-/// This filtering method is based on two 32-bit values:
-/// - The interaction groups memberships.
-/// - The interaction groups filter.
+/// Think of this as "collision layers" in game engines. Each collider has:
+/// - **Memberships**: What groups does this collider belong to? (up to 32 groups)
+/// - **Filter**: What groups can this collider interact with?
 ///
-/// An interaction is allowed between two filters `a` and `b` when two conditions
-/// are met simultaneously:
-/// - The groups membership of `a` has at least one bit set to `1` in common with the groups filter of `b`.
-/// - The groups membership of `b` has at least one bit set to `1` in common with the groups filter of `a`.
+/// Two colliders interact only if:
+/// 1. Collider A's memberships overlap with Collider B's filter, AND
+/// 2. Collider B's memberships overlap with Collider A's filter
 ///
-/// In other words, interactions are allowed between two filter iff. the following condition is met:
+/// # Common use cases
+///
+/// - **Player vs. Enemy bullets**: Players in group 1, enemies in group 2. Player bullets
+///   only hit group 2, enemy bullets only hit group 1.
+/// - **One-way platforms**: Platform filters out player when below, allows when above.
+/// - **Trigger zones**: Sensors that only detect specific object types.
+///
+/// # Example
+///
 /// ```ignore
-/// (self.memberships & rhs.filter) != 0 && (rhs.memberships & self.filter) != 0
+/// // Player collider: in group 1, collides with groups 2 and 3
+/// let player_groups = InteractionGroups::new(
+///     Group::GROUP_1,           // I am in group 1
+///     Group::GROUP_2 | Group::GROUP_3  // I collide with groups 2 and 3
+/// );
+///
+/// // Enemy collider: in group 2, collides with group 1
+/// let enemy_groups = InteractionGroups::new(
+///     Group::GROUP_2,  // I am in group 2
+///     Group::GROUP_1   // I collide with group 1
+/// );
+///
+/// // These will collide because:
+/// // - Player's membership (GROUP_1) is in enemy's filter (GROUP_1) ✓
+/// // - Enemy's membership (GROUP_2) is in player's filter (GROUP_2) ✓
 /// ```
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
@@ -34,12 +55,16 @@ impl InteractionGroups {
         }
     }
 
-    /// Allow interaction with everything.
+    /// Creates a filter that allows interactions with everything (default behavior).
+    ///
+    /// The collider is in all groups and collides with all groups.
     pub const fn all() -> Self {
         Self::new(Group::ALL, Group::ALL)
     }
 
-    /// Prevent all interactions.
+    /// Creates a filter that prevents all interactions.
+    ///
+    /// The collider won't collide with anything. Useful for temporarily disabled colliders.
     pub const fn none() -> Self {
         Self::new(Group::NONE, Group::NONE)
     }
