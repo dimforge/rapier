@@ -17,9 +17,35 @@ use parry::transformation::voxelization::FillMode;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
-/// A geometric entity that can be attached to a body so it can be affected by contacts and proximity queries.
+/// The collision shape attached to a rigid body that defines what it can collide with.
 ///
-/// To build a new collider, use the [`ColliderBuilder`] structure.
+/// Think of a collider as the "hitbox" or "collision shape" for your physics object. While a
+/// [`RigidBody`](crate::dynamics::RigidBody) handles the physics (mass, velocity, forces),
+/// the collider defines what shape the object has for collision detection.
+///
+/// ## Key concepts
+///
+/// - **Shape**: The geometric form (box, sphere, capsule, mesh, etc.)
+/// - **Material**: Physical properties like friction (slipperiness) and restitution (bounciness)
+/// - **Sensor vs. Solid**: Sensors detect overlaps but don't create physical collisions
+/// - **Mass properties**: Automatically computed from the shape's volume and density
+///
+/// ## Creating colliders
+///
+/// Always use [`ColliderBuilder`] to create colliders:
+///
+/// ```ignore
+/// let collider = ColliderBuilder::cuboid(1.0, 0.5, 1.0)  // 2x1x2 box
+///     .friction(0.7)
+///     .restitution(0.3)
+///     .build();
+/// colliders.insert_with_parent(collider, body_handle, &mut bodies);
+/// ```
+///
+/// ## Attaching to bodies
+///
+/// Colliders are usually attached to rigid bodies. One body can have multiple colliders
+/// to create compound shapes (like a character with separate colliders for head, torso, limbs).
 pub struct Collider {
     pub(crate) coll_type: ColliderType,
     pub(crate) shape: ColliderShape,
@@ -502,7 +528,30 @@ impl Collider {
     }
 }
 
-/// A structure responsible for building a new collider.
+/// A builder for creating colliders with custom shapes and properties.
+///
+/// This builder lets you create collision shapes and configure their physical properties
+/// (friction, bounciness, density, etc.) before adding them to your world.
+///
+/// # Common shapes
+///
+/// - [`ball(radius)`](Self::ball) - Sphere (3D) or circle (2D)
+/// - [`cuboid(hx, hy, hz)`](Self::cuboid) - Box with half-extents
+/// - [`capsule_y(half_height, radius)`](Self::capsule_y) - Pill shape (great for characters)
+/// - [`trimesh(vertices, indices)`](Self::trimesh) - Triangle mesh for complex geometry
+/// - [`heightfield(...)`](Self::heightfield) - Terrain from height data
+///
+/// # Example
+///
+/// ```ignore
+/// // Create a bouncy ball
+/// let collider = ColliderBuilder::ball(0.5)
+///     .restitution(0.9)       // Very bouncy
+///     .friction(0.1)          // Low friction (slippery)
+///     .density(2.0)           // Heavy material
+///     .build();
+/// colliders.insert_with_parent(collider, body_handle, &mut bodies);
+/// ```
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[must_use = "Builder functions return the updated builder"]

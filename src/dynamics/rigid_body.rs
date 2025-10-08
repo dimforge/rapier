@@ -13,9 +13,27 @@ use crate::utils::SimdCross;
 use num::Zero;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-/// A rigid body.
+/// A physical object that can move, rotate, and collide with other objects in your simulation.
 ///
-/// To create a new rigid-body, use the [`RigidBodyBuilder`] structure.
+/// Rigid bodies are the fundamental moving objects in physics simulations. Think of them as
+/// the "physical representation" of your game objects - a character, a crate, a vehicle, etc.
+///
+/// ## Body types
+///
+/// - **Dynamic**: Affected by forces, gravity, and collisions. Use for objects that should move realistically (falling boxes, projectiles, etc.)
+/// - **Fixed**: Never moves. Use for static geometry like walls, floors, and terrain
+/// - **Kinematic**: Moved by setting velocity or position directly, not by forces. Use for moving platforms, doors, or player-controlled characters
+///
+/// ## Creating bodies
+///
+/// Always use [`RigidBodyBuilder`] to create new rigid bodies:
+///
+/// ```ignore
+/// let body = RigidBodyBuilder::dynamic()
+///     .translation(vector![0.0, 10.0, 0.0])
+///     .build();
+/// let handle = bodies.insert(body);
+/// ```
 #[derive(Debug, Clone)]
 // #[repr(C)]
 // #[repr(align(64))]
@@ -1206,7 +1224,22 @@ impl RigidBody {
     }
 }
 
-/// A builder for rigid-bodies.
+/// A builder for creating rigid bodies with custom properties.
+///
+/// This builder lets you configure all properties of a rigid body before adding it to your world.
+/// Start with one of the type constructors ([`dynamic()`](Self::dynamic), [`fixed()`](Self::fixed),
+/// or [`kinematic_velocity_based()`](Self::kinematic_velocity_based)), then chain property setters,
+/// and finally call [`build()`](Self::build).
+///
+/// # Example
+///
+/// ```ignore
+/// let body = RigidBodyBuilder::dynamic()
+///     .translation(vector![0.0, 5.0, 0.0])  // Start 5 units above ground
+///     .linvel(vector![1.0, 0.0, 0.0])       // Initial velocity to the right
+///     .can_sleep(false)                      // Keep always active
+///     .build();
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 #[must_use = "Builder functions return the updated builder"]
 pub struct RigidBodyBuilder {
@@ -1308,22 +1341,50 @@ impl RigidBodyBuilder {
         Self::kinematic_position_based()
     }
 
-    /// Initializes the builder of a new fixed rigid body.
+    /// Creates a builder for a **fixed** (static) rigid body.
+    ///
+    /// Fixed bodies never move and are not affected by any forces. Use them for:
+    /// - Walls, floors, and ceilings
+    /// - Static terrain and level geometry
+    /// - Any object that should never move in your simulation
+    ///
+    /// Fixed bodies have infinite mass and never sleep.
     pub fn fixed() -> Self {
         Self::new(RigidBodyType::Fixed)
     }
 
-    /// Initializes the builder of a new velocity-based kinematic rigid body.
+    /// Creates a builder for a **velocity-based kinematic** rigid body.
+    ///
+    /// Kinematic bodies are moved by directly setting their velocity (not by applying forces).
+    /// They can push dynamic bodies but are not affected by them. Use for:
+    /// - Moving platforms and elevators
+    /// - Doors and sliding panels
+    /// - Any object you want to control directly while still affecting other physics objects
+    ///
+    /// Set velocity with [`RigidBody::set_linvel`] and [`RigidBody::set_angvel`].
     pub fn kinematic_velocity_based() -> Self {
         Self::new(RigidBodyType::KinematicVelocityBased)
     }
 
-    /// Initializes the builder of a new position-based kinematic rigid body.
+    /// Creates a builder for a **position-based kinematic** rigid body.
+    ///
+    /// Similar to velocity-based kinematic, but you control it by setting its next position
+    /// directly rather than setting velocity. Rapier will automatically compute the velocity
+    /// needed to reach that position. Use for objects animated by external systems.
     pub fn kinematic_position_based() -> Self {
         Self::new(RigidBodyType::KinematicPositionBased)
     }
 
-    /// Initializes the builder of a new dynamic rigid body.
+    /// Creates a builder for a **dynamic** rigid body.
+    ///
+    /// Dynamic bodies are fully simulated - they respond to gravity, forces, collisions, and
+    /// constraints. This is the most common type for interactive objects. Use for:
+    /// - Physics objects that should fall and bounce (boxes, spheres, ragdolls)
+    /// - Projectiles and debris
+    /// - Vehicles and moving characters (when not using kinematic control)
+    /// - Any object that should behave realistically under physics
+    ///
+    /// Dynamic bodies can sleep (become inactive) when at rest to save performance.
     pub fn dynamic() -> Self {
         Self::new(RigidBodyType::Dynamic)
     }
