@@ -9,6 +9,7 @@ use crate::utils::{SimdCross, SimdDot};
 
 /// A character controller to simulate vehicles using ray-casting for the wheels.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
 pub struct DynamicRayCastVehicleController {
     wheels: Vec<Wheel>,
     forward_ws: Vec<Vector<Real>>,
