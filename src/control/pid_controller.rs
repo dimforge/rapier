@@ -10,6 +10,7 @@ use parry::math::AngVector;
 /// This is a [PID controller](https://en.wikipedia.org/wiki/Proportional%E2%80%93integral%E2%80%93derivative_controller)
 /// without the Integral part to keep the API immutable, while having a behaviour generally
 /// sufficient for games.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PdController {
     /// The Proportional gain applied to the instantaneous linear position errors.
@@ -51,6 +52,7 @@ impl Default for PdController {
 ///
 /// For video games, the Proportional-Derivative [`PdController`] is generally sufficient and
 /// offers an immutable API.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PidController {
     /// The Proportional-Derivative (PD) part of this PID controller.

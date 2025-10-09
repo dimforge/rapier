@@ -8,6 +8,7 @@ use crate::prelude::QueryPipelineMut;
 use crate::utils::{SimdCross, SimdDot};
 
 /// A character controller to simulate vehicles using ray-casting for the wheels.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct DynamicRayCastVehicleController {
     wheels: Vec<Wheel>,
     forward_ws: Vec<Vector<Real>>,
@@ -23,6 +24,7 @@ pub struct DynamicRayCastVehicleController {
     pub index_forward_axis: usize,
 }
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 /// Parameters affecting the physical behavior of a wheel.
 pub struct WheelTuning {
@@ -101,6 +103,7 @@ struct WheelDesc {
     pub side_friction_stiffness: Real,
 }
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 /// A wheel attached to a vehicle.
 pub struct Wheel {
@@ -225,6 +228,7 @@ impl Wheel {
 
 /// Information about suspension and the ground obtained from the ray-casting
 /// to simulate a wheel’s suspension.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub struct RayCastInfo {
     /// The (world-space) contact normal between the wheel and the floor.
