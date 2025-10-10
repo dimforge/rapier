@@ -865,7 +865,7 @@ impl RigidBody {
     /// - Instantly changing an object's speed
     ///
     /// For physics-based movement, consider using [`apply_impulse()`](Self::apply_impulse) or
-    /// [`apply_force()`](Self::apply_force) instead for more realistic behavior.
+    /// [`add_force()`](Self::add_force) instead for more realistic behavior.
     ///
     /// # Example
     /// ```

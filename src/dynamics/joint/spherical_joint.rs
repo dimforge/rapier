@@ -4,6 +4,9 @@ use crate::math::{Isometry, Point, Real};
 
 use super::JointLimits;
 
+#[cfg(doc)]
+use crate::dynamics::RevoluteJoint;
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]

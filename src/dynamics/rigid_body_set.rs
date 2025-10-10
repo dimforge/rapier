@@ -6,6 +6,9 @@ use crate::dynamics::{
 use crate::geometry::ColliderSet;
 use std::ops::{Index, IndexMut};
 
+#[cfg(doc)]
+use crate::pipeline::PhysicsPipeline;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A pair of rigid body handles.
