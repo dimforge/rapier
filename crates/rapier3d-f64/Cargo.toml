@@ -65,7 +65,7 @@ features = ["parallel", "simd-stable", "serde-serialize", "debug-render"]
 name = "rapier3d_f64"
 path = "../../src/lib.rs"
 required-features = ["dim3", "f64"]
-
+doctest = false # All doctests are written assuming the 3D f32 version.
 
 [dependencies]
 vec_map = { version = "0.8", optional = true }

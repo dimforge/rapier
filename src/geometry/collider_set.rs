@@ -32,14 +32,14 @@ impl HasModifiedFlag for Collider {
 /// # use rapier3d::prelude::*;
 /// let mut colliders = ColliderSet::new();
 /// # let mut bodies = RigidBodySet::new();
-/// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+/// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic());
 ///
 /// // Add a standalone collider (no parent body)
-/// let handle = colliders.insert(ColliderBuilder::ball(0.5).build());
+/// let handle = colliders.insert(ColliderBuilder::ball(0.5));
 ///
 /// // Or attach it to a body
 /// let handle = colliders.insert_with_parent(
-///     ColliderBuilder::cuboid(1.0, 1.0, 1.0).build(),
+///     ColliderBuilder::cuboid(1.0, 1.0, 1.0),
 ///     body_handle,
 ///     &mut bodies
 /// );
@@ -170,10 +170,10 @@ impl ColliderSet {
     /// # use rapier3d::prelude::*;
     /// # let mut colliders = ColliderSet::new();
     /// # let mut bodies = RigidBodySet::new();
-    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Create a ball collider attached to a dynamic body
     /// let collider_handle = colliders.insert_with_parent(
-    ///     ColliderBuilder::ball(0.5).build(),
+    ///     ColliderBuilder::ball(0.5),
     ///     body_handle,
     ///     &mut bodies
     /// );
@@ -232,8 +232,8 @@ impl ColliderSet {
     /// # use rapier3d::prelude::*;
     /// # let mut colliders = ColliderSet::new();
     /// # let mut bodies = RigidBodySet::new();
-    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
-    /// # let other_body = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let other_body = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let collider_handle = colliders.insert_with_parent(ColliderBuilder::ball(0.5).build(), body_handle, &mut bodies);
     /// // Detach collider from its current body
     /// colliders.set_parent(collider_handle, None, &mut bodies);
@@ -310,7 +310,7 @@ impl ColliderSet {
     ///     &mut bodies,
     ///     true  // Wake up the parent body
     /// ) {
-    ///     println!("Removed collider with shape: {:?}", collider.shape());
+    ///     println!("Removed collider with shape: {:?}", collider.shared_shape());
     /// }
     /// ```
     pub fn remove(

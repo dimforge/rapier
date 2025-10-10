@@ -278,7 +278,7 @@ bitflags::bitflags! {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
-    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let body = bodies.get_mut(body_handle).unwrap();
     /// // Character that can't tip over (rotation locked, but can move)
     /// body.set_locked_axes(LockedAxes::ROTATION_LOCKED, true);

@@ -105,10 +105,10 @@ impl IslandManager {
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut islands = IslandManager::new();
-    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
-    /// # let body = bodies.get_mut(body_handle).unwrap();
-    /// // Wake up a body before applying force to it
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic());
     /// islands.wake_up(&mut bodies, body_handle, true);
+    /// let body = bodies.get_mut(body_handle).unwrap();
+    /// // Wake up a body before applying force to it
     /// body.add_force(vector![100.0, 0.0, 0.0], false);
     /// ```
     ///

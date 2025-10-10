@@ -55,12 +55,12 @@ pub(crate) type JointGraphEdge = crate::data::graph::Edge<ImpulseJoint>;
 /// ```
 /// # use rapier3d::prelude::*;
 /// # let mut bodies = RigidBodySet::new();
-/// # let body1 = bodies.insert(RigidBodyBuilder::dynamic().build());
-/// # let body2 = bodies.insert(RigidBodyBuilder::dynamic().build());
+/// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
+/// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
 /// let mut joints = ImpulseJointSet::new();
 ///
 /// // Create a hinge connecting two bodies
-/// let joint = RevoluteJointBuilder::new()
+/// let joint = RevoluteJointBuilder::new(Vector::y_axis())
 ///     .local_anchor1(point![1.0, 0.0, 0.0])
 ///     .local_anchor2(point![-1.0, 0.0, 0.0])
 ///     .build();
@@ -112,9 +112,9 @@ impl ImpulseJointSet {
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut joints = ImpulseJointSet::new();
-    /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic().build());
-    /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic().build());
-    /// # let joint = RevoluteJointBuilder::new().build();
+    /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let joint = RevoluteJointBuilder::new(Vector::y_axis());
     /// # joints.insert(body1, body2, joint, true);
     /// for (handle, joint) in joints.joints_between(body1, body2) {
     ///     println!("Found joint {:?}", handle);
@@ -143,9 +143,9 @@ impl ImpulseJointSet {
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut joints = ImpulseJointSet::new();
-    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
-    /// # let other_body = bodies.insert(RigidBodyBuilder::dynamic().build());
-    /// # let joint = RevoluteJointBuilder::new().build();
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let other_body = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let joint = RevoluteJointBuilder::new(Vector::y_axis());
     /// # joints.insert(body_handle, other_body, joint, true);
     /// for (b1, b2, j_handle, joint) in joints.attached_joints(body_handle) {
     ///     println!("Body connected to {:?} via {:?}", b2, j_handle);
@@ -313,9 +313,9 @@ impl ImpulseJointSet {
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut joints = ImpulseJointSet::new();
-    /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic().build());
-    /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic().build());
-    /// let joint = RevoluteJointBuilder::new()
+    /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
+    /// let joint = RevoluteJointBuilder::new(Vector::y_axis())
     ///     .local_anchor1(point![1.0, 0.0, 0.0])
     ///     .local_anchor2(point![-1.0, 0.0, 0.0])
     ///     .build();
@@ -415,9 +415,9 @@ impl ImpulseJointSet {
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut joints = ImpulseJointSet::new();
-    /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic().build());
-    /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic().build());
-    /// # let joint = RevoluteJointBuilder::new().build();
+    /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let joint = RevoluteJointBuilder::new(Vector::y_axis()).build();
     /// # let joint_handle = joints.insert(body1, body2, joint, true);
     /// if let Some(joint) = joints.remove(joint_handle, true) {
     ///     println!("Removed joint between {:?} and {:?}", joint.body1, joint.body2);

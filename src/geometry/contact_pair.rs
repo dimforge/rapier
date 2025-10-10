@@ -137,7 +137,7 @@ impl IntersectionPair {
 /// ```
 /// # use rapier3d::prelude::*;
 /// # use rapier3d::geometry::ContactPair;
-/// # let contact_pair = ContactPair { collider1: ColliderHandle::invalid(), collider2: ColliderHandle::invalid(), manifolds: Vec::new(), has_any_active_contact: false };
+/// # let contact_pair = ContactPair::default();
 /// if let Some((manifold, contact)) = contact_pair.find_deepest_contact() {
 ///     println!("Deepest penetration: {}", -contact.dist);
 ///     println!("Contact normal: {:?}", manifold.data.normal);
@@ -160,6 +160,12 @@ pub struct ContactPair {
     /// Was a `CollisionEvent::Started` emitted for this collider?
     pub(crate) start_event_emitted: bool,
     pub(crate) workspace: Option<ContactManifoldsWorkspace>,
+}
+
+impl Default for ContactPair {
+    fn default() -> Self {
+        Self::new(ColliderHandle::invalid(), ColliderHandle::invalid())
+    }
 }
 
 impl ContactPair {
@@ -232,7 +238,7 @@ impl ContactPair {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # use rapier3d::geometry::ContactPair;
-    /// # let pair = ContactPair { collider1: ColliderHandle::invalid(), collider2: ColliderHandle::invalid(), manifolds: Vec::new(), has_any_active_contact: false };
+    /// # let pair = ContactPair::default();
     /// if let Some((manifold, contact)) = pair.find_deepest_contact() {
     ///     let penetration_depth = -contact.dist;  // Negative dist = penetration
     ///     println!("Deepest penetration: {} units", penetration_depth);

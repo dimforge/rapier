@@ -57,7 +57,7 @@ impl HasModifiedFlag for RigidBody {
 /// let mut bodies = RigidBodySet::new();
 ///
 /// // Add a dynamic body
-/// let handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+/// let handle = bodies.insert(RigidBodyBuilder::dynamic());
 ///
 /// // Access it later
 /// if let Some(body) = bodies.get_mut(handle) {
@@ -181,7 +181,7 @@ impl RigidBodySet {
     /// # let mut colliders = ColliderSet::new();
     /// # let mut impulse_joints = ImpulseJointSet::new();
     /// # let mut multibody_joints = MultibodyJointSet::new();
-    /// # let handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let handle = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Remove a body and everything attached to it
     /// if let Some(body) = bodies.remove(
     ///     handle,
@@ -282,7 +282,7 @@ impl RigidBodySet {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
-    /// # let handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let handle = bodies.insert(RigidBodyBuilder::dynamic());
     /// if let Some(body) = bodies.get_mut(handle) {
     ///     body.set_linvel(vector![1.0, 0.0, 0.0], true);
     ///     body.apply_impulse(vector![0.0, 100.0, 0.0], true);
@@ -305,8 +305,8 @@ impl RigidBodySet {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
-    /// # let handle1 = bodies.insert(RigidBodyBuilder::dynamic().build());
-    /// # let handle2 = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let handle1 = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let handle2 = bodies.insert(RigidBodyBuilder::dynamic());
     /// let (body1, body2) = bodies.get_pair_mut(handle1, handle2);
     /// if let (Some(b1), Some(b2)) = (body1, body2) {
     ///     // Can modify both bodies at once
@@ -362,7 +362,7 @@ impl RigidBodySet {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
-    /// # bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # bodies.insert(RigidBodyBuilder::dynamic());
     /// for (handle, body) in bodies.iter() {
     ///     println!("Body {:?} is at {:?}", handle, body.translation());
     /// }
@@ -380,7 +380,7 @@ impl RigidBodySet {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
-    /// # bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # bodies.insert(RigidBodyBuilder::dynamic());
     /// // Apply gravity manually to all dynamic bodies
     /// for (handle, body) in bodies.iter_mut() {
     ///     if body.is_dynamic() {

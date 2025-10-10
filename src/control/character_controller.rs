@@ -133,6 +133,7 @@ pub struct CharacterCollision {
 ///
 /// ```
 /// # use rapier3d::prelude::*;
+/// # use rapier3d::control::{CharacterAutostep, KinematicCharacterController};
 /// # use nalgebra::Isometry3;
 /// # let mut bodies = RigidBodySet::new();
 /// # let mut colliders = ColliderSet::new();
@@ -141,7 +142,7 @@ pub struct CharacterCollision {
 /// # let dt = 1.0 / 60.0;
 /// # let speed = 5.0;
 /// # let (input_x, input_z) = (1.0, 0.0);
-/// # let character_shape = &ColliderBuilder::ball(0.5).build().shape().clone();
+/// # let character_shape = Ball::new(0.5);
 /// # let mut character_pos = Isometry3::identity();
 /// # let query_pipeline = broad_phase.as_query_pipeline(
 /// #     narrow_phase.query_dispatcher(),
@@ -161,7 +162,7 @@ pub struct CharacterCollision {
 /// let movement = controller.move_shape(
 ///     dt,
 ///     &query_pipeline,
-///     character_shape,
+///     &character_shape,
 ///     &character_pos,
 ///     desired_movement,
 ///     |_| {}  // Collision event callback

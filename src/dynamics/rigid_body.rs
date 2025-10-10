@@ -560,7 +560,7 @@ impl RigidBody {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
-    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Add 50kg to make this body heavier
     /// bodies[body].set_additional_mass(50.0, true);
     /// ```
@@ -625,8 +625,8 @@ impl RigidBody {
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut colliders = ColliderSet::new();
-    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
-    /// # colliders.insert_with_parent(ColliderBuilder::ball(0.5).build(), body, &mut bodies);
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # colliders.insert_with_parent(ColliderBuilder::ball(0.5), body, &mut bodies);
     /// for collider_handle in bodies[body].colliders() {
     ///     if let Some(collider) = colliders.get_mut(*collider_handle) {
     ///         collider.set_friction(0.5);
@@ -712,7 +712,7 @@ impl RigidBody {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
-    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// bodies[body].set_gravity_scale(0.0, true);  // Zero-G (space)
     /// bodies[body].set_gravity_scale(0.1, true);  // Moon gravity
     /// bodies[body].set_gravity_scale(2.0, true);  // Extra heavy
@@ -871,7 +871,7 @@ impl RigidBody {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
-    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Make the body move to the right at 5 units/second
     /// bodies[body].set_linvel(vector![5.0, 0.0, 0.0], true);
     /// ```
@@ -1153,7 +1153,7 @@ impl RigidBody {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
-    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Apply thrust every frame
     /// bodies[body].add_force(vector![0.0, 100.0, 0.0], true);
     /// ```
@@ -1246,7 +1246,7 @@ impl RigidBody {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
-    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Make a character jump
     /// bodies[body].apply_impulse(vector![0.0, 300.0, 0.0], true);
     /// ```
@@ -1303,7 +1303,7 @@ impl RigidBody {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
-    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Hit the top-left corner of a box
     /// bodies[body].apply_impulse_at_point(
     ///     vector![100.0, 0.0, 0.0],

@@ -176,8 +176,8 @@ impl<N: SimdRealCopy> From<[N; 2]> for JointLimits<N> {
 /// ```
 /// # use rapier3d::prelude::*;
 /// # use rapier3d::dynamics::{RevoluteJoint, PrismaticJoint};
-/// # let mut revolute_joint = RevoluteJoint::new();
-/// # let mut prismatic_joint = PrismaticJoint::new(nalgebra::UnitVector3::new_normalize(nalgebra::Vector3::x()));
+/// # let mut revolute_joint = RevoluteJoint::new(Vector::x_axis());
+/// # let mut prismatic_joint = PrismaticJoint::new(Vector::x_axis());
 /// // Motor that spins a wheel at 10 rad/s
 /// revolute_joint.set_motor_velocity(10.0, 0.8);
 ///

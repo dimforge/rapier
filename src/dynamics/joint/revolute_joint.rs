@@ -195,7 +195,7 @@ impl RevoluteJoint {
     /// ```
     /// # use rapier3d::prelude::*;
     /// # use rapier3d::dynamics::RevoluteJoint;
-    /// # let mut joint = RevoluteJoint::new();
+    /// # let mut joint = RevoluteJoint::new(Vector::y_axis());
     /// // Door that opens 0° to 90°
     /// joint.set_limits([0.0, std::f32::consts::PI / 2.0]);
     /// ```

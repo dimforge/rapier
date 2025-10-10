@@ -24,10 +24,11 @@ use parry::shape::{CompositeShape, CompositeShapeRef, FeatureId, Shape, TypedCom
 /// # let mut bodies = RigidBodySet::new();
 /// # let mut colliders = ColliderSet::new();
 /// # let broad_phase = BroadPhaseBvh::new();
-/// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
-/// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0).build(), ground, &mut bodies);
+/// # let narrow_phase = NarrowPhase::new();
+/// # let ground = bodies.insert(RigidBodyBuilder::fixed());
+/// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
 /// let query_pipeline = broad_phase.as_query_pipeline(
-///     &QueryDispatcher,
+///     narrow_phase.query_dispatcher(),
 ///     &bodies,
 ///     &colliders,
 ///     QueryFilter::default()
@@ -200,9 +201,10 @@ impl<'a> QueryPipeline<'a> {
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut colliders = ColliderSet::new();
     /// # let broad_phase = BroadPhaseBvh::new();
-    /// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
-    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0).build(), ground, &mut bodies);
-    /// # let query_pipeline = broad_phase.as_query_pipeline(&QueryDispatcher, &bodies, &colliders, QueryFilter::default());
+    /// # let narrow_phase = NarrowPhase::new();
+    /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
+    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
+    /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
     /// // Raycast downward from (0, 10, 0)
     /// let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
     /// if let Some((handle, toi)) = query_pipeline.cast_ray(&ray, Real::MAX, true) {
@@ -240,12 +242,13 @@ impl<'a> QueryPipeline<'a> {
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut colliders = ColliderSet::new();
     /// # let broad_phase = BroadPhaseBvh::new();
-    /// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
-    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0).build(), ground, &mut bodies);
-    /// # let query_pipeline = broad_phase.as_query_pipeline(&QueryDispatcher, &bodies, &colliders, QueryFilter::default());
+    /// # let narrow_phase = NarrowPhase::new();
+    /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
+    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
+    /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
     /// # let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
     /// if let Some((handle, hit)) = query_pipeline.cast_ray_and_get_normal(&ray, 100.0, true) {
-    ///     println!("Hit at distance {}, surface normal: {:?}", hit.toi, hit.normal);
+    ///     println!("Hit at distance {}, surface normal: {:?}", hit.time_of_impact, hit.normal);
     /// }
     /// ```
     #[profiling::function]
@@ -276,12 +279,13 @@ impl<'a> QueryPipeline<'a> {
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut colliders = ColliderSet::new();
     /// # let broad_phase = BroadPhaseBvh::new();
-    /// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
-    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0).build(), ground, &mut bodies);
-    /// # let query_pipeline = broad_phase.as_query_pipeline(&QueryDispatcher, &bodies, &colliders, QueryFilter::default());
+    /// # let narrow_phase = NarrowPhase::new();
+    /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
+    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
+    /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
     /// # let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
     /// for (handle, collider, hit) in query_pipeline.intersect_ray(ray, 100.0, true) {
-    ///     println!("Ray passed through {:?} at distance {}", handle, hit.toi);
+    ///     println!("Ray passed through {:?} at distance {}", handle, hit.time_of_impact);
     /// }
     /// ```
     #[profiling::function]
@@ -324,14 +328,19 @@ impl<'a> QueryPipeline<'a> {
     /// # Example
     /// ```
     /// # use rapier3d::prelude::*;
+    /// # let params = IntegrationParameters::default();
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut colliders = ColliderSet::new();
-    /// # let broad_phase = BroadPhaseBvh::new();
-    /// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
-    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0).build(), ground, &mut bodies);
-    /// # let query_pipeline = broad_phase.as_query_pipeline(&QueryDispatcher, &bodies, &colliders, QueryFilter::default());
+    /// # let mut broad_phase = BroadPhaseBvh::new();
+    /// # let narrow_phase = NarrowPhase::new();
+    /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
+    /// # let ground_collider = ColliderBuilder::cuboid(10.0, 0.1, 10.0).build();
+    /// # let ground_aabb = ground_collider.compute_aabb();
+    /// # let collider_handle = colliders.insert_with_parent(ground_collider, ground, &mut bodies);
+    /// # broad_phase.set_aabb(&params, collider_handle, ground_aabb);
+    /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
     /// let point = point![5.0, 0.0, 0.0];
-    /// if let Some((handle, projection)) = query_pipeline.project_point(&point, 0.0, true) {
+    /// if let Some((handle, projection)) = query_pipeline.project_point(&point, std::f32::MAX, true) {
     ///     println!("Closest collider: {:?}", handle);
     ///     println!("Closest point: {:?}", projection.point);
     ///     println!("Distance: {}", (point - projection.point).norm());
@@ -360,9 +369,10 @@ impl<'a> QueryPipeline<'a> {
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut colliders = ColliderSet::new();
     /// # let broad_phase = BroadPhaseBvh::new();
-    /// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
-    /// # colliders.insert_with_parent(ColliderBuilder::ball(5.0).build(), ground, &mut bodies);
-    /// # let query_pipeline = broad_phase.as_query_pipeline(&QueryDispatcher, &bodies, &colliders, QueryFilter::default());
+    /// # let narrow_phase = NarrowPhase::new();
+    /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
+    /// # colliders.insert_with_parent(ColliderBuilder::ball(5.0), ground, &mut bodies);
+    /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
     /// let point = point![0.0, 0.0, 0.0];
     /// for (handle, collider) in query_pipeline.intersect_point(point) {
     ///     println!("Point is inside {:?}", handle);
@@ -450,14 +460,14 @@ impl<'a> QueryPipeline<'a> {
     /// # Example
     /// ```
     /// # use rapier3d::prelude::*;
-    /// # use parry::query::ShapeCastOptions;
-    /// # use parry::shape::Ball;
+    /// # use rapier3d::parry::{query::ShapeCastOptions, shape::Ball};
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut colliders = ColliderSet::new();
+    /// # let narrow_phase = NarrowPhase::new();
     /// # let broad_phase = BroadPhaseBvh::new();
-    /// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
-    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0).build(), ground, &mut bodies);
-    /// # let query_pipeline = broad_phase.as_query_pipeline(&QueryDispatcher, &bodies, &colliders, QueryFilter::default());
+    /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
+    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
+    /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
     /// // Sweep a sphere downward
     /// let shape = Ball::new(0.5);
     /// let start_pos = Isometry::translation(0.0, 10.0, 0.0);

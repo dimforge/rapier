@@ -37,8 +37,7 @@ use parry::transformation::voxelization::FillMode;
 /// ```ignore
 /// let collider = ColliderBuilder::cuboid(1.0, 0.5, 1.0)  // 2x1x2 box
 ///     .friction(0.7)
-///     .restitution(0.3)
-///     .build();
+///     .restitution(0.3);
 /// colliders.insert_with_parent(collider, body_handle, &mut bodies);
 /// ```
 ///
@@ -632,8 +631,7 @@ impl Collider {
 /// let collider = ColliderBuilder::ball(0.5)
 ///     .restitution(0.9)       // Very bouncy
 ///     .friction(0.1)          // Low friction (slippery)
-///     .density(2.0)           // Heavy material
-///     .build();
+///     .density(2.0);           // Heavy material
 /// colliders.insert_with_parent(collider, body_handle, &mut bodies);
 /// ```
 #[derive(Clone, Debug)]
@@ -930,7 +928,7 @@ impl ColliderBuilder {
     /// ```
     pub fn trimesh(
         vertices: Vec<Point<Real>>,
-        indices: Vec<[u32; 3]],
+        indices: Vec<[u32; 3]>,
     ) -> Result<Self, TriMeshBuilderError> {
         Ok(Self::new(SharedShape::trimesh(vertices, indices)?))
     }

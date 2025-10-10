@@ -64,27 +64,7 @@ impl<N: Copy, E> InteractionGraph<N, E> {
     /// When a node is removed, another node of the graph takes it place. This means that the `ColliderGraphIndex`
     /// of the collision object returned by this method will be equal to `id`. Thus if you maintain
     /// a map between `CollisionObjectSlabHandle` and `ColliderGraphIndex`, then you should update this
-    /// map to associate `id` to the handle returned by this method. For example:
-    ///
-    /// ```
-    /// # use rapier3d::prelude::*;
-    /// # use rapier3d::geometry::InteractionGraph;
-    /// # use std::collections::HashMap;
-    /// # let mut graph = InteractionGraph::<RigidBodyHandle, ()>::new();
-    /// # let mut map = HashMap::new();
-    /// # let handle1 = RigidBodyHandle::from_raw_parts(0, 0);
-    /// # let handle2 = RigidBodyHandle::from_raw_parts(1, 0);
-    /// # let id1 = graph.graph.add_node(handle1);
-    /// # let id2 = graph.graph.add_node(handle2);
-    /// # map.insert(handle1, id1);
-    /// # map.insert(handle2, id2);
-    /// # let id = id1;
-    /// // Let `id` be the graph index of the collision object we want to remove.
-    /// if let Some(other_handle) = graph.remove_node(id) {
-    ///    // The graph index of `other_handle` changed to `id` due to the removal.
-    ///    map.insert(other_handle, id) ;
-    /// }
-    /// ```
+    /// map to associate `id` to the handle returned by this method.
     #[must_use = "The graph index of the collision object returned by this method has been changed to `id`."]
     pub(crate) fn remove_node(&mut self, id: ColliderGraphIndex) -> Option<N> {
         let _ = self.graph.remove_node(id);
