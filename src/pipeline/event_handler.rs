@@ -12,7 +12,8 @@ bitflags::bitflags! {
     /// per-collider using these flags.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
     /// // Enable collision start/stop events for a trigger zone
     /// let trigger = ColliderBuilder::cuboid(5.0, 5.0, 5.0)
     ///     .sensor(true)
@@ -60,7 +61,9 @@ impl Default for ActiveEvents {
 /// Use [`ChannelEventCollector`] to collect events into channels for processing after the physics step.
 ///
 /// # Example
-/// ```ignore
+/// ```
+/// # use rapier3d::prelude::*;
+/// # use rapier3d::geometry::ContactPair;
 /// struct MyEventHandler;
 ///
 /// impl EventHandler for MyEventHandler {
@@ -80,7 +83,7 @@ impl Default for ActiveEvents {
 ///             }
 ///         }
 ///     }
-///     // ... other methods
+/// #   fn handle_contact_force_event(&self, _dt: Real, _bodies: &RigidBodySet, _colliders: &ColliderSet, _contact_pair: &ContactPair, _total_force_magnitude: Real) {}
 /// }
 /// ```
 pub trait EventHandler: Send + Sync {
@@ -159,15 +162,13 @@ impl EventHandler for () {
 /// to channels that you can poll from your game loop. This is the recommended approach.
 ///
 /// # Example
-/// ```ignore
+/// ```
+/// # use rapier3d::prelude::*;
 /// use std::sync::mpsc::channel;
 ///
 /// let (collision_send, collision_recv) = channel();
 /// let (contact_force_send, contact_force_recv) = channel();
 /// let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
-///
-/// // In physics step:
-/// physics_pipeline.step(..., &event_handler);
 ///
 /// // After physics step:
 /// while let Ok(collision_event) = collision_recv.try_recv() {

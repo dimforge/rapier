@@ -101,7 +101,12 @@ impl IslandManager {
     ///   If `false`, it might sleep again immediately if conditions are met.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut islands = IslandManager::new();
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let body = bodies.get_mut(body_handle).unwrap();
     /// // Wake up a body before applying force to it
     /// islands.wake_up(&mut bodies, body_handle, true);
     /// body.add_force(vector![100.0, 0.0, 0.0], false);

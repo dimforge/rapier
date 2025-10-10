@@ -916,12 +916,16 @@ impl ColliderBuilder {
     ///
     /// # Example
     /// ```ignore
+    /// use rapier3d::prelude::*;
+    /// use nalgebra::Point3;
+    ///
     /// let vertices = vec![
-    ///     point![0.0, 0.0, 0.0],
-    ///     point![1.0, 0.0, 0.0],
-    ///     point![0.0, 1.0, 0.0],
+    ///     Point3::new(0.0, 0.0, 0.0),
+    ///     Point3::new(1.0, 0.0, 0.0),
+    ///     Point3::new(0.0, 1.0, 0.0),
     /// ];
-    /// let indices = vec![[0, 1, 2]];  // One triangle
+    /// let triangle: [u32; 3] = [0, 1, 2];
+    /// let indices = vec![triangle];  // One triangle
     /// let collider = ColliderBuilder::trimesh(vertices, indices)?;
     /// ```
     pub fn trimesh(

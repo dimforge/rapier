@@ -19,7 +19,13 @@ use parry::shape::{CompositeShape, CompositeShapeRef, FeatureId, Shape, TypedCom
 /// Get a QueryPipeline from your [`BroadPhaseBvh`] using [`as_query_pipeline()`](BroadPhaseBvh::as_query_pipeline).
 ///
 /// # Example
-/// ```ignore
+/// ```
+/// # use rapier3d::prelude::*;
+/// # let mut bodies = RigidBodySet::new();
+/// # let mut colliders = ColliderSet::new();
+/// # let broad_phase = BroadPhaseBvh::new();
+/// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
+/// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0).build(), ground, &mut bodies);
 /// let query_pipeline = broad_phase.as_query_pipeline(
 ///     &QueryDispatcher,
 ///     &bodies,
@@ -189,7 +195,14 @@ impl<'a> QueryPipeline<'a> {
     ///   the ray "passes through" from the inside until it exits
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut colliders = ColliderSet::new();
+    /// # let broad_phase = BroadPhaseBvh::new();
+    /// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
+    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0).build(), ground, &mut bodies);
+    /// # let query_pipeline = broad_phase.as_query_pipeline(&QueryDispatcher, &bodies, &colliders, QueryFilter::default());
     /// // Raycast downward from (0, 10, 0)
     /// let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
     /// if let Some((handle, toi)) = query_pipeline.cast_ray(&ray, Real::MAX, true) {
@@ -222,7 +235,15 @@ impl<'a> QueryPipeline<'a> {
     /// - `feature`: Which geometric feature was hit (vertex, edge, face)
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut colliders = ColliderSet::new();
+    /// # let broad_phase = BroadPhaseBvh::new();
+    /// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
+    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0).build(), ground, &mut bodies);
+    /// # let query_pipeline = broad_phase.as_query_pipeline(&QueryDispatcher, &bodies, &colliders, QueryFilter::default());
+    /// # let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
     /// if let Some((handle, hit)) = query_pipeline.cast_ray_and_get_normal(&ray, 100.0, true) {
     ///     println!("Hit at distance {}, surface normal: {:?}", hit.toi, hit.normal);
     /// }
@@ -250,7 +271,15 @@ impl<'a> QueryPipeline<'a> {
     /// Returns an iterator of `(handle, collider, intersection)` tuples.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut colliders = ColliderSet::new();
+    /// # let broad_phase = BroadPhaseBvh::new();
+    /// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
+    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0).build(), ground, &mut bodies);
+    /// # let query_pipeline = broad_phase.as_query_pipeline(&QueryDispatcher, &bodies, &colliders, QueryFilter::default());
+    /// # let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
     /// for (handle, collider, hit) in query_pipeline.intersect_ray(ray, 100.0, true) {
     ///     println!("Ray passed through {:?} at distance {}", handle, hit.toi);
     /// }
@@ -293,7 +322,14 @@ impl<'a> QueryPipeline<'a> {
     ///   to the nearest point on the shape's boundary
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut colliders = ColliderSet::new();
+    /// # let broad_phase = BroadPhaseBvh::new();
+    /// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
+    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0).build(), ground, &mut bodies);
+    /// # let query_pipeline = broad_phase.as_query_pipeline(&QueryDispatcher, &bodies, &colliders, QueryFilter::default());
     /// let point = point![5.0, 0.0, 0.0];
     /// if let Some((handle, projection)) = query_pipeline.project_point(&point, 0.0, true) {
     ///     println!("Closest collider: {:?}", handle);
@@ -319,7 +355,14 @@ impl<'a> QueryPipeline<'a> {
     /// - Finding all overlapping volumes at a location
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut colliders = ColliderSet::new();
+    /// # let broad_phase = BroadPhaseBvh::new();
+    /// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
+    /// # colliders.insert_with_parent(ColliderBuilder::ball(5.0).build(), ground, &mut bodies);
+    /// # let query_pipeline = broad_phase.as_query_pipeline(&QueryDispatcher, &bodies, &colliders, QueryFilter::default());
     /// let point = point![0.0, 0.0, 0.0];
     /// for (handle, collider) in query_pipeline.intersect_point(point) {
     ///     println!("Point is inside {:?}", handle);
@@ -405,7 +448,16 @@ impl<'a> QueryPipeline<'a> {
     /// * `options` - Maximum distance, collision filtering, etc.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # use parry::query::ShapeCastOptions;
+    /// # use parry::shape::Ball;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut colliders = ColliderSet::new();
+    /// # let broad_phase = BroadPhaseBvh::new();
+    /// # let ground = bodies.insert(RigidBodyBuilder::fixed().build());
+    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0).build(), ground, &mut bodies);
+    /// # let query_pipeline = broad_phase.as_query_pipeline(&QueryDispatcher, &bodies, &colliders, QueryFilter::default());
     /// // Sweep a sphere downward
     /// let shape = Ball::new(0.5);
     /// let start_pos = Isometry::translation(0.0, 10.0, 0.0);
@@ -504,7 +556,8 @@ bitflags::bitflags! {
     /// Use these to quickly exclude categories of colliders from raycasts and other queries.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
     /// // Raycast that only hits dynamic objects (ignore walls/floors)
     /// let filter = QueryFilter::from(QueryFilterFlags::ONLY_DYNAMIC);
     ///
@@ -574,7 +627,10 @@ impl QueryFilterFlags {
 ///
 /// # Common filters
 ///
-/// ```ignore
+/// ```
+/// # use rapier3d::prelude::*;
+/// # let player_collider = ColliderHandle::from_raw_parts(0, 0);
+/// # let enemy_groups = InteractionGroups::all();
 /// // Only hit dynamic objects (ignore static walls)
 /// let filter = QueryFilter::only_dynamic();
 ///

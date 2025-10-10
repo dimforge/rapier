@@ -28,8 +28,11 @@ impl HasModifiedFlag for Collider {
 /// independently.
 ///
 /// # Example
-/// ```ignore
+/// ```
+/// # use rapier3d::prelude::*;
 /// let mut colliders = ColliderSet::new();
+/// # let mut bodies = RigidBodySet::new();
+/// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
 ///
 /// // Add a standalone collider (no parent body)
 /// let handle = colliders.insert(ColliderBuilder::ball(0.5).build());
@@ -163,7 +166,11 @@ impl ColliderSet {
     /// to its parent body, so when the body moves, the collider moves with it.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut colliders = ColliderSet::new();
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
     /// // Create a ball collider attached to a dynamic body
     /// let collider_handle = colliders.insert_with_parent(
     ///     ColliderBuilder::ball(0.5).build(),
@@ -221,7 +228,13 @@ impl ColliderSet {
     /// * `new_parent_handle` - `Some(handle)` to attach to a body, `None` to make standalone
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut colliders = ColliderSet::new();
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let other_body = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let collider_handle = colliders.insert_with_parent(ColliderBuilder::ball(0.5).build(), body_handle, &mut bodies);
     /// // Detach collider from its current body
     /// colliders.set_parent(collider_handle, None, &mut bodies);
     ///
@@ -284,7 +297,13 @@ impl ColliderSet {
     ///   changes the body's mass or collision behavior significantly)
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut colliders = ColliderSet::new();
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut islands = IslandManager::new();
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let handle = colliders.insert_with_parent(ColliderBuilder::ball(0.5).build(), body_handle, &mut bodies);
     /// if let Some(collider) = colliders.remove(
     ///     handle,
     ///     &mut islands,

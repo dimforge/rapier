@@ -143,7 +143,10 @@ impl RopeJoint {
     /// Must be greater than 0.0. Bodies will be pulled together if farther apart.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # use rapier3d::dynamics::RopeJoint;
+    /// # let mut rope_joint = RopeJoint::new(5.0);
     /// rope_joint.set_max_distance(10.0);  // Max 10 units apart
     /// ```
     pub fn set_max_distance(&mut self, max_dist: Real) -> &mut Self {

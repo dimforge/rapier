@@ -275,7 +275,11 @@ bitflags::bitflags! {
     /// - **Spinning objects**: Lock translation while allowing rotation
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let body = bodies.get_mut(body_handle).unwrap();
     /// // Character that can't tip over (rotation locked, but can move)
     /// body.set_locked_axes(LockedAxes::ROTATION_LOCKED, true);
     ///

@@ -44,7 +44,8 @@ pub enum FrictionModel {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # use rapier3d::prelude::*;
 /// // Standard 60 FPS physics with default settings
 /// let mut integration_params = IntegrationParameters::default();
 ///

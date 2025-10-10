@@ -131,7 +131,24 @@ pub struct CharacterCollision {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # use rapier3d::prelude::*;
+/// # use nalgebra::Isometry3;
+/// # let mut bodies = RigidBodySet::new();
+/// # let mut colliders = ColliderSet::new();
+/// # let broad_phase = BroadPhaseBvh::new();
+/// # let narrow_phase = NarrowPhase::new();
+/// # let dt = 1.0 / 60.0;
+/// # let speed = 5.0;
+/// # let (input_x, input_z) = (1.0, 0.0);
+/// # let character_shape = &ColliderBuilder::ball(0.5).build().shape().clone();
+/// # let mut character_pos = Isometry3::identity();
+/// # let query_pipeline = broad_phase.as_query_pipeline(
+/// #     narrow_phase.query_dispatcher(),
+/// #     &bodies,
+/// #     &colliders,
+/// #     QueryFilter::default(),
+/// # );
 /// let controller = KinematicCharacterController {
 ///     slide: true,  // Slide along walls instead of stopping
 ///     autostep: Some(CharacterAutostep::default()),  // Auto-climb stairs
@@ -143,13 +160,10 @@ pub struct CharacterCollision {
 /// let desired_movement = vector![input_x, 0.0, input_z] * speed * dt;
 /// let movement = controller.move_shape(
 ///     dt,
-///     &bodies,
-///     &colliders,
 ///     &query_pipeline,
 ///     character_shape,
 ///     &character_pos,
 ///     desired_movement,
-///     QueryFilter::default(),
 ///     |_| {}  // Collision event callback
 /// );
 /// character_pos.translation.vector += movement.translation;

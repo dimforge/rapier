@@ -86,7 +86,11 @@ bitflags::bitflags! {
 /// - Game logic based on contact state
 ///
 /// # Example
-/// ```ignore
+/// ```
+/// # use rapier3d::prelude::*;
+/// # let h1 = ColliderHandle::from_raw_parts(0, 0);
+/// # let h2 = ColliderHandle::from_raw_parts(1, 0);
+/// # let event = CollisionEvent::Started(h1, h2, CollisionEventFlags::empty());
 /// match event {
 ///     CollisionEvent::Started(h1, h2, flags) => {
 ///         println!("Colliders {:?} and {:?} started touching", h1, h2);

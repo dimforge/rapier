@@ -16,7 +16,8 @@ use crate::math::Real;
 /// - **Max**: `max(friction1, friction2)` - "Sticky wins" (rubber on any surface = rubber)
 ///
 /// ## Example
-/// ```ignore
+/// ```
+/// # use rapier3d::prelude::*;
 /// // Ice collider that makes everything slippery
 /// let ice = ColliderBuilder::cuboid(10.0, 0.1, 10.0)
 ///     .friction(0.0)

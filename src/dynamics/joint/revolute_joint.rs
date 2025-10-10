@@ -192,7 +192,10 @@ impl RevoluteJoint {
     /// * `limits` - `[min_angle, max_angle]` in radians
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # use rapier3d::dynamics::RevoluteJoint;
+    /// # let mut joint = RevoluteJoint::new();
     /// // Door that opens 0° to 90°
     /// joint.set_limits([0.0, std::f32::consts::PI / 2.0]);
     /// ```

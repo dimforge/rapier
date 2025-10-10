@@ -134,7 +134,10 @@ impl IntersectionPair {
 /// - Implementing custom contact responses
 ///
 /// # Example
-/// ```ignore
+/// ```
+/// # use rapier3d::prelude::*;
+/// # use rapier3d::geometry::ContactPair;
+/// # let contact_pair = ContactPair { collider1: ColliderHandle::invalid(), collider2: ColliderHandle::invalid(), manifolds: Vec::new(), has_any_active_contact: false };
 /// if let Some((manifold, contact)) = contact_pair.find_deepest_contact() {
 ///     println!("Deepest penetration: {}", -contact.dist);
 ///     println!("Contact normal: {:?}", manifold.data.normal);
@@ -226,7 +229,10 @@ impl ContactPair {
     /// Returns both the contact point and its parent manifold.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # use rapier3d::geometry::ContactPair;
+    /// # let pair = ContactPair { collider1: ColliderHandle::invalid(), collider2: ColliderHandle::invalid(), manifolds: Vec::new(), has_any_active_contact: false };
     /// if let Some((manifold, contact)) = pair.find_deepest_contact() {
     ///     let penetration_depth = -contact.dist;  // Negative dist = penetration
     ///     println!("Deepest penetration: {} units", penetration_depth);

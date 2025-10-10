@@ -293,7 +293,13 @@ bitflags::bitflags! {
     /// - ❌ Kinematic ↔ Fixed (platforms don't collide with walls)
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut colliders = ColliderSet::new();
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let collider_handle = colliders.insert_with_parent(ColliderBuilder::ball(0.5).build(), body_handle, &mut bodies);
+    /// # let collider = colliders.get_mut(collider_handle).unwrap();
     /// // Enable kinematic-kinematic collisions (unusual)
     /// let types = ActiveCollisionTypes::default() | ActiveCollisionTypes::KINEMATIC_KINEMATIC;
     /// collider.set_active_collision_types(types);

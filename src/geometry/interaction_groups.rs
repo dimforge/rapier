@@ -19,7 +19,8 @@
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # use rapier3d::geometry::{InteractionGroups, Group};
 /// // Player collider: in group 1, collides with groups 2 and 3
 /// let player_groups = InteractionGroups::new(
 ///     Group::GROUP_1,           // I am in group 1
@@ -35,6 +36,7 @@
 /// // These will collide because:
 /// // - Player's membership (GROUP_1) is in enemy's filter (GROUP_1) ✓
 /// // - Enemy's membership (GROUP_2) is in player's filter (GROUP_2) ✓
+/// assert!(player_groups.test(enemy_groups));
 /// ```
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]

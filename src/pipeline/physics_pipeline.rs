@@ -440,7 +440,18 @@ impl PhysicsPipeline {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut colliders = ColliderSet::new();
+    /// # let mut impulse_joints = ImpulseJointSet::new();
+    /// # let mut multibody_joints = MultibodyJointSet::new();
+    /// # let mut islands = IslandManager::new();
+    /// # let mut broad_phase = BroadPhaseBvh::new();
+    /// # let mut narrow_phase = NarrowPhase::new();
+    /// # let mut ccd_solver = CCDSolver::new();
+    /// # let mut physics_pipeline = PhysicsPipeline::new();
+    /// # let integration_parameters = IntegrationParameters::default();
     /// // In your game loop:
     /// physics_pipeline.step(
     ///     &vector![0.0, -9.81, 0.0],  // Gravity pointing down

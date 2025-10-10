@@ -28,7 +28,9 @@ use num::Zero;
 ///
 /// Always use [`RigidBodyBuilder`] to create new rigid bodies:
 ///
-/// ```ignore
+/// ```
+/// # use rapier3d::prelude::*;
+/// # let mut bodies = RigidBodySet::new();
 /// let body = RigidBodyBuilder::dynamic()
 ///     .translation(vector![0.0, 10.0, 0.0])
 ///     .build();
@@ -555,9 +557,12 @@ impl RigidBody {
     /// a body heavier without changing collider densities.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
     /// // Add 50kg to make this body heavier
-    /// body.set_additional_mass(50.0, true);
+    /// bodies[body].set_additional_mass(50.0, true);
     /// ```
     ///
     /// Angular inertia is automatically scaled to match the mass increase.
@@ -616,8 +621,13 @@ impl RigidBody {
     /// Use to iterate over a body's collision shapes or to modify them.
     ///
     /// # Example
-    /// ```ignore
-    /// for collider_handle in body.colliders() {
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut colliders = ColliderSet::new();
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # colliders.insert_with_parent(ColliderBuilder::ball(0.5).build(), body, &mut bodies);
+    /// for collider_handle in bodies[body].colliders() {
     ///     if let Some(collider) = colliders.get_mut(*collider_handle) {
     ///         collider.set_friction(0.5);
     ///     }
@@ -699,10 +709,13 @@ impl RigidBody {
     /// Sets how much gravity affects this body (multiplier).
     ///
     /// # Examples
-    /// ```ignore
-    /// body.set_gravity_scale(0.0, true);  // Zero-G (space)
-    /// body.set_gravity_scale(0.1, true);  // Moon gravity
-    /// body.set_gravity_scale(2.0, true);  // Extra heavy
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// bodies[body].set_gravity_scale(0.0, true);  // Zero-G (space)
+    /// bodies[body].set_gravity_scale(0.1, true);  // Moon gravity
+    /// bodies[body].set_gravity_scale(2.0, true);  // Extra heavy
     /// ```
     pub fn set_gravity_scale(&mut self, scale: Real, wake_up: bool) {
         if self.forces.gravity_scale != scale {
@@ -855,9 +868,12 @@ impl RigidBody {
     /// [`apply_force()`](Self::apply_force) instead for more realistic behavior.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
     /// // Make the body move to the right at 5 units/second
-    /// body.set_linvel(vector![5.0, 0.0, 0.0], true);
+    /// bodies[body].set_linvel(vector![5.0, 0.0, 0.0], true);
     /// ```
     pub fn set_linvel(&mut self, linvel: Vector<Real>, wake_up: bool) {
         if self.vels.linvel != linvel {
@@ -1134,9 +1150,12 @@ impl RigidBody {
     /// every frame if you want continuous force application.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
     /// // Apply thrust every frame
-    /// body.add_force(vector![0.0, 100.0, 0.0], true);
+    /// bodies[body].add_force(vector![0.0, 100.0, 0.0], true);
     /// ```
     ///
     /// Only affects dynamic bodies (does nothing for kinematic/fixed bodies).
@@ -1224,9 +1243,12 @@ impl RigidBody {
     /// **For continuous forces** (like rocket thrust or wind), use [`add_force()`](Self::add_force) instead.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
     /// // Make a character jump
-    /// body.apply_impulse(vector![0.0, 300.0, 0.0], true);
+    /// bodies[body].apply_impulse(vector![0.0, 300.0, 0.0], true);
     /// ```
     ///
     /// Only affects dynamic bodies (does nothing for kinematic/fixed bodies).
@@ -1278,9 +1300,12 @@ impl RigidBody {
     /// off-center, it both flies away AND spins - this method handles both.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let body = bodies.insert(RigidBodyBuilder::dynamic().build());
     /// // Hit the top-left corner of a box
-    /// body.apply_impulse_at_point(
+    /// bodies[body].apply_impulse_at_point(
     ///     vector![100.0, 0.0, 0.0],
     ///     point![-0.5, 0.5, 0.0],  // Top-left of a 1x1 box
     ///     true
@@ -1414,7 +1439,8 @@ impl RigidBody {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # use rapier3d::prelude::*;
 /// let body = RigidBodyBuilder::dynamic()
 ///     .translation(vector![0.0, 5.0, 0.0])  // Start 5 units above ground
 ///     .linvel(vector![1.0, 0.0, 0.0])       // Initial velocity to the right
@@ -1599,7 +1625,8 @@ impl RigidBodyBuilder {
     /// Sets the initial position (XYZ coordinates) where this body will be created.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
     /// let body = RigidBodyBuilder::dynamic()
     ///     .translation(vector![10.0, 5.0, -3.0])
     ///     .build();
@@ -1612,7 +1639,8 @@ impl RigidBodyBuilder {
     /// Sets the initial rotation/orientation of the body to be created.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
     /// // Rotate 45 degrees around Y axis (in 3D)
     /// let body = RigidBodyBuilder::dynamic()
     ///     .rotation(vector![0.0, std::f32::consts::PI / 4.0, 0.0])
@@ -1699,7 +1727,8 @@ impl RigidBodyBuilder {
     /// Locks translation along specific axes.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
     /// // 2D game in 3D: lock Z movement
     /// let body = RigidBodyBuilder::dynamic()
     ///     .enabled_translations(true, true, false)  // X, Y free; Z locked
@@ -1831,7 +1860,8 @@ impl RigidBodyBuilder {
     /// **Trade-off**: More accurate but more expensive. Most objects don't need CCD.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// # use rapier3d::prelude::*;
     /// // Bullet that should never tunnel through walls
     /// let bullet = RigidBodyBuilder::dynamic()
     ///     .ccd_enabled(true)
