@@ -112,17 +112,15 @@ impl MultibodyLinkVec {
     pub fn get_mut_with_parent(&mut self, i: usize) -> (&mut MultibodyLink, &MultibodyLink) {
         let parent_id = self[i].parent_internal_id;
 
-        assert!(
-            parent_id != i,
-            "Internal error: circular rigid body dependency."
-        );
-        assert!(parent_id < self.len(), "Invalid parent index.");
+        let [rb, parent_rb] = self.get_disjoint_mut([i, parent_id]).unwrap_or_else(|err| {
+            if parent_id == i {
+                panic!("Internal error: circular rigid body dependency. ({err:?})")
+            } else {
+                panic!("Invalid parent index. ({err:?})")
+            }
+        });
 
-        unsafe {
-            let rb = &mut *(self.get_unchecked_mut(i) as *mut _);
-            let parent_rb = &*(self.get_unchecked(parent_id) as *const _);
-            (rb, parent_rb)
-        }
+        (rb, parent_rb)
     }
 }
 

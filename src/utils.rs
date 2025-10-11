@@ -554,28 +554,16 @@ pub trait IndexMut2<I>: IndexMut<I> {
 impl<T> IndexMut2<usize> for Vec<T> {
     #[inline]
     fn index_mut2(&mut self, i: usize, j: usize) -> (&mut T, &mut T) {
-        assert!(i != j, "Unable to index the same element twice.");
-        assert!(i < self.len() && j < self.len(), "Index out of bounds.");
-
-        unsafe {
-            let a = &mut *(self.get_unchecked_mut(i) as *mut _);
-            let b = &mut *(self.get_unchecked_mut(j) as *mut _);
-            (a, b)
-        }
+        let [a, b] = self.get_disjoint_mut([i, j]).unwrap();
+        (a, b)
     }
 }
 
 impl<T> IndexMut2<usize> for [T] {
     #[inline]
     fn index_mut2(&mut self, i: usize, j: usize) -> (&mut T, &mut T) {
-        assert!(i != j, "Unable to index the same element twice.");
-        assert!(i < self.len() && j < self.len(), "Index out of bounds.");
-
-        unsafe {
-            let a = &mut *(self.get_unchecked_mut(i) as *mut _);
-            let b = &mut *(self.get_unchecked_mut(j) as *mut _);
-            (a, b)
-        }
+        let [a, b] = self.get_disjoint_mut([i, j]).unwrap();
+        (a, b)
     }
 }
 
