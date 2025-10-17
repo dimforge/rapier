@@ -14,7 +14,6 @@
 ///
 /// - **Player vs. Enemy bullets**: Players in group 1, enemies in group 2. Player bullets
 ///   only hit group 2, enemy bullets only hit group 1.
-/// - **One-way platforms**: Platform filters out player when below, allows when above.
 /// - **Trigger zones**: Sensors that only detect specific object types.
 ///
 /// # Example
