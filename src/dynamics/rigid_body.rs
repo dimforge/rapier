@@ -1005,7 +1005,7 @@ impl RigidBody {
     /// Teleports this body to a new position and rotation (ignoring physics).
     ///
     /// ⚠️ **Warning**: Instantly moves the body without checking for collisions!
-    /// For kinematic bodies, this also resets their interpolated velocity to zero.
+    /// For position-based kinematic bodies, this also resets their interpolated velocity to zero.
     ///
     /// Use for respawning, level transitions, or resetting positions.
     pub fn set_position(&mut self, pos: Isometry<Real>, wake_up: bool) {
@@ -1024,7 +1024,7 @@ impl RigidBody {
         }
     }
 
-    /// For kinematic bodies: sets where the body should rotate to by next frame.
+    /// For position-based kinematic bodies: sets where the body should rotate to by next frame.
     ///
     /// Only works for `KinematicPositionBased` bodies. Rapier computes the angular velocity
     /// needed to reach this rotation smoothly.
@@ -1038,7 +1038,7 @@ impl RigidBody {
         }
     }
 
-    /// For kinematic bodies: sets where the body should move to by next frame.
+    /// For position-based kinematic bodies: sets where the body should move to by next frame.
     ///
     /// Only works for `KinematicPositionBased` bodies. Rapier computes the velocity
     /// needed to reach this position smoothly.
@@ -1052,7 +1052,7 @@ impl RigidBody {
         }
     }
 
-    /// For kinematic bodies: sets the target pose (position + rotation) for next frame.
+    /// For position-based kinematic bodies: sets the target pose (position + rotation) for next frame.
     ///
     /// Only works for `KinematicPositionBased` bodies. Combines translation and rotation control.
     pub fn set_next_kinematic_position(&mut self, pos: Isometry<Real>) {

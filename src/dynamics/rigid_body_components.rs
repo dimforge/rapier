@@ -146,7 +146,7 @@ pub struct RigidBodyPosition {
     ///
     /// At the beginning of the timestep, and when the
     /// timestep is complete we must have position == next_position
-    /// except for kinematic bodies.
+    /// except for position-based kinematic bodies.
     ///
     /// The next_position is updated after the velocity and position
     /// resolution. Then it is either validated (ie. we set position := set_position)
