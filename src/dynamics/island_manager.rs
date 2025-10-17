@@ -159,7 +159,14 @@ impl IslandManager {
             let sq_linvel = rb.vels.linvel.norm_squared();
             let sq_angvel = rb.vels.angvel.gdot(rb.vels.angvel);
 
-            update_energy(length_unit, &mut rb.activation, sq_linvel, sq_angvel, dt);
+            update_energy(
+                &mut rb.activation,
+                rb.body_type,
+                length_unit,
+                sq_linvel,
+                sq_angvel,
+                dt,
+            );
 
             if rb.activation.time_since_can_sleep >= rb.activation.time_until_sleep {
                 // Mark them as sleeping for now. This will
@@ -291,16 +298,28 @@ impl IslandManager {
 }
 
 fn update_energy(
-    length_unit: Real,
     activation: &mut RigidBodyActivation,
+    body_type: RigidBodyType,
+    length_unit: Real,
     sq_linvel: Real,
     sq_angvel: Real,
     dt: Real,
 ) {
-    let linear_threshold = activation.normalized_linear_threshold * length_unit;
-    if sq_linvel < linear_threshold * linear_threshold.abs()
-        && sq_angvel < activation.angular_threshold * activation.angular_threshold.abs()
-    {
+    let can_sleep = match body_type {
+        RigidBodyType::Dynamic => {
+            let linear_threshold = activation.normalized_linear_threshold * length_unit;
+            sq_linvel < linear_threshold * linear_threshold.abs()
+                && sq_angvel < activation.angular_threshold * activation.angular_threshold.abs()
+        }
+        RigidBodyType::KinematicPositionBased | RigidBodyType::KinematicVelocityBased => {
+            // Platforms only sleep if both velocities are exactly zero. If it’s not exactly
+            // zero, then the user really wants them to move.
+            sq_linvel == 0.0 && sq_angvel == 0.0
+        }
+        RigidBodyType::Fixed => true,
+    };
+
+    if can_sleep {
         activation.time_since_can_sleep += dt;
     } else {
         activation.time_since_can_sleep = 0.0;
