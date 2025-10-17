@@ -769,14 +769,11 @@ impl RigidBody {
     pub fn set_linvel(&mut self, linvel: Vector<Real>, wake_up: bool) {
         if self.vels.linvel != linvel {
             match self.body_type {
-                RigidBodyType::Dynamic => {
+                RigidBodyType::Dynamic | RigidBodyType::KinematicVelocityBased => {
                     self.vels.linvel = linvel;
                     if wake_up {
                         self.wake_up(true)
                     }
-                }
-                RigidBodyType::KinematicVelocityBased => {
-                    self.vels.linvel = linvel;
                 }
                 RigidBodyType::Fixed | RigidBodyType::KinematicPositionBased => {}
             }
@@ -791,14 +788,11 @@ impl RigidBody {
     pub fn set_angvel(&mut self, angvel: Real, wake_up: bool) {
         if self.vels.angvel != angvel {
             match self.body_type {
-                RigidBodyType::Dynamic => {
+                RigidBodyType::Dynamic | RigidBodyType::KinematicVelocityBased => {
                     self.vels.angvel = angvel;
                     if wake_up {
                         self.wake_up(true)
                     }
-                }
-                RigidBodyType::KinematicVelocityBased => {
-                    self.vels.angvel = angvel;
                 }
                 RigidBodyType::Fixed | RigidBodyType::KinematicPositionBased => {}
             }
@@ -813,14 +807,11 @@ impl RigidBody {
     pub fn set_angvel(&mut self, angvel: Vector<Real>, wake_up: bool) {
         if self.vels.angvel != angvel {
             match self.body_type {
-                RigidBodyType::Dynamic => {
+                RigidBodyType::Dynamic | RigidBodyType::KinematicVelocityBased => {
                     self.vels.angvel = angvel;
                     if wake_up {
                         self.wake_up(true)
                     }
-                }
-                RigidBodyType::KinematicVelocityBased => {
-                    self.vels.angvel = angvel;
                 }
                 RigidBodyType::Fixed | RigidBodyType::KinematicPositionBased => {}
             }
