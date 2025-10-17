@@ -64,15 +64,7 @@ impl<N: Copy, E> InteractionGraph<N, E> {
     /// When a node is removed, another node of the graph takes it place. This means that the `ColliderGraphIndex`
     /// of the collision object returned by this method will be equal to `id`. Thus if you maintain
     /// a map between `CollisionObjectSlabHandle` and `ColliderGraphIndex`, then you should update this
-    /// map to associate `id` to the handle returned by this method. For example:
-    ///
-    /// ```ignore
-    /// // Let `id` be the graph index of the collision object we want to remove.
-    /// if let Some(other_handle) = graph.remove_node(id) {
-    ///    // The graph index of `other_handle` changed to `id` due to the removal.
-    ///    map.insert(other_handle, id) ;
-    /// }
-    /// ```
+    /// map to associate `id` to the handle returned by this method.
     #[must_use = "The graph index of the collision object returned by this method has been changed to `id`."]
     pub(crate) fn remove_node(&mut self, id: ColliderGraphIndex) -> Option<N> {
         let _ = self.graph.remove_node(id);

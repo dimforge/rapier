@@ -14,7 +14,28 @@ pub enum PredictedImpacts {
     NoImpacts,
 }
 
-/// Solver responsible for performing motion-clamping on fast-moving bodies.
+/// Continuous Collision Detection solver that prevents fast objects from tunneling through geometry.
+///
+/// CCD (Continuous Collision Detection) solves the "tunneling problem" where fast-moving objects
+/// pass through thin walls because they move more than the wall's thickness in one timestep.
+///
+/// ## How it works
+///
+/// 1. Detects which bodies are moving fast enough to potentially tunnel
+/// 2. Predicts where/when they would impact during the timestep
+/// 3. Clamps their motion to stop just before impact
+/// 4. Next frame, normal collision detection handles the contact
+///
+/// ## When to use CCD
+///
+/// Enable CCD on bodies that:
+/// - Move very fast (bullets, projectiles)
+/// - Are small and hit thin geometry
+/// - Must NEVER pass through walls (gameplay-critical)
+///
+/// **Cost**: More expensive than regular collision detection. Only use when needed!
+///
+/// Enable via `RigidBodyBuilder::ccd_enabled(true)` or `body.enable_ccd(true)`.
 #[derive(Clone, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct CCDSolver;

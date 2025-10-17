@@ -4,10 +4,24 @@ use crate::math::{Isometry, Point, Real};
 
 use super::JointLimits;
 
+#[cfg(doc)]
+use crate::dynamics::RevoluteJoint;
+
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]
-/// A spherical joint, locks all relative translations between two bodies.
+/// A ball-and-socket joint that allows free rotation but no translation (like a shoulder joint).
+///
+/// Spherical joints keep two bodies connected at a point but allow them to rotate freely
+/// around that point in all directions. Use for:
+/// - Shoulder/hip joints in ragdolls
+/// - Ball-and-socket mechanical connections
+/// - Wrecking ball chains
+/// - Camera gimbals
+///
+/// The bodies stay connected at their anchor points but can rotate relative to each other.
+///
+/// **Note**: Only available in 3D. In 2D, use [`RevoluteJoint`] instead (there's only one rotation axis in 2D).
 pub struct SphericalJoint {
     /// The underlying joint data.
     pub data: GenericJoint,
@@ -94,19 +108,29 @@ impl SphericalJoint {
         self
     }
 
-    /// The motor affecting the joint’s rotational degree of freedom along the specified axis.
+    /// The motor for a specific rotation axis of this spherical joint.
+    ///
+    /// Spherical joints can have motors on each of their 3 rotation axes (X, Y, Z).
+    /// Returns `None` if no motor is configured for that axis.
     #[must_use]
     pub fn motor(&self, axis: JointAxis) -> Option<&JointMotor> {
         self.data.motor(axis)
     }
 
-    /// Set the spring-like model used by the motor to reach the desired target velocity and position.
+    /// Sets the motor model for a specific rotation axis.
+    ///
+    /// Choose between force-based or acceleration-based motor behavior.
     pub fn set_motor_model(&mut self, axis: JointAxis, model: MotorModel) -> &mut Self {
         self.data.set_motor_model(axis, model);
         self
     }
 
-    /// Sets the target velocity this motor needs to reach.
+    /// Sets target rotation speed for a specific axis.
+    ///
+    /// # Parameters
+    /// * `axis` - Which rotation axis (AngX, AngY, or AngZ)
+    /// * `target_vel` - Desired angular velocity in radians/second
+    /// * `factor` - Motor strength
     pub fn set_motor_velocity(
         &mut self,
         axis: JointAxis,
@@ -117,7 +141,13 @@ impl SphericalJoint {
         self
     }
 
-    /// Sets the target angle this motor needs to reach.
+    /// Sets target angle for a specific rotation axis.
+    ///
+    /// # Parameters
+    /// * `axis` - Which rotation axis (AngX, AngY, or AngZ)
+    /// * `target_pos` - Desired angle in radians
+    /// * `stiffness` - Spring constant
+    /// * `damping` - Resistance
     pub fn set_motor_position(
         &mut self,
         axis: JointAxis,

@@ -62,7 +62,7 @@ features = ["parallel", "simd-stable", "serde-serialize", "debug-render"]
 name = "rapier2d_f64"
 path = "../../src/lib.rs"
 required-features = ["dim2", "f64"]
-
+doctest = false # All doctests are written assuming the 3D version.
 
 [dependencies]
 vec_map = { version = "0.8", optional = true }

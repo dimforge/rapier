@@ -18,16 +18,24 @@ use crate::pipeline::{EventHandler, PhysicsHooks};
 use crate::prelude::ModifiedRigidBodies;
 use {crate::dynamics::RigidBodySet, crate::geometry::ColliderSet};
 
-/// The physics pipeline, responsible for stepping the whole physics simulation.
+/// The main physics simulation engine that runs your physics world forward in time.
 ///
-/// This structure only contains temporary data buffers. It can be dropped and replaced by a fresh
-/// copy at any time. For performance reasons it is recommended to reuse the same physics pipeline
-/// instance to benefit from the cached data.
+/// Think of this as the "game loop" for your physics simulation. Each frame, you call
+/// [`PhysicsPipeline::step`] to advance the simulation by one timestep. This structure
+/// handles all the complex physics calculations: detecting collisions between objects,
+/// resolving contacts so objects don't overlap, and updating positions and velocities.
 ///
-/// Rapier relies on a time-stepping scheme. Its force computations
-/// uses two solvers:
-/// - A velocity based solver based on PGS which computes forces for contact and joint constraints.
-/// - A position based solver based on non-linear PGS which performs constraint stabilization (i.e. correction of errors like penetrations).
+/// ## Performance note
+/// This structure only contains temporary working memory (scratch buffers). You can create
+/// a new one anytime, but it's more efficient to reuse the same instance across frames
+/// since Rapier can reuse allocated memory.
+///
+/// ## How it works (simplified)
+/// Rapier uses a time-stepping approach where each step involves:
+/// 1. **Collision detection**: Find which objects are touching or overlapping
+/// 2. **Constraint solving**: Calculate forces to prevent overlaps and enforce joint constraints
+/// 3. **Integration**: Update object positions and velocities based on forces and gravity
+/// 4. **Position correction**: Fix any remaining overlaps that might have occurred
 // NOTE: this contains only workspace data, so there is no point in making this serializable.
 pub struct PhysicsPipeline {
     /// Counters used for benchmarking only.
@@ -53,7 +61,10 @@ fn check_pipeline_send_sync() {
 }
 
 impl PhysicsPipeline {
-    /// Initializes a new physics pipeline.
+    /// Creates a new physics pipeline.
+    ///
+    /// Call this once when setting up your physics world. The pipeline can be reused
+    /// across multiple frames for better performance.
     pub fn new() -> PhysicsPipeline {
         PhysicsPipeline {
             counters: Counters::new(true),
@@ -407,7 +418,56 @@ impl PhysicsPipeline {
         }
     }
 
-    /// Executes one timestep of the physics simulation.
+    /// Advances the physics simulation by one timestep.
+    ///
+    /// This is the main function you'll call every frame in your game loop. It performs all
+    /// physics calculations: collision detection, constraint solving, and updating object positions.
+    ///
+    /// # Parameters
+    ///
+    /// * `gravity` - The gravity vector applied to all dynamic bodies (e.g., `vector![0.0, -9.81, 0.0]` for Earth gravity pointing down)
+    /// * `integration_parameters` - Controls the simulation quality and timestep size (typically 60 Hz = 1/60 second per step)
+    /// * `islands` - Internal system that groups connected objects together for efficient solving (automatically managed)
+    /// * `broad_phase` - Fast collision detection phase that filters out distant object pairs (automatically managed)
+    /// * `narrow_phase` - Precise collision detection that computes exact contact points (automatically managed)
+    /// * `bodies` - Your collection of rigid bodies (the physical objects that move and collide)
+    /// * `colliders` - The collision shapes attached to your bodies (boxes, spheres, meshes, etc.)
+    /// * `impulse_joints` - Regular joints connecting bodies (hinges, sliders, etc.)
+    /// * `multibody_joints` - Articulated joints for robot-like structures (optional, can be empty)
+    /// * `ccd_solver` - Continuous collision detection to prevent fast objects from tunneling through thin walls
+    /// * `hooks` - Optional callbacks to customize collision filtering and contact modification
+    /// * `events` - Optional handler to receive collision events (when objects start/stop touching)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut colliders = ColliderSet::new();
+    /// # let mut impulse_joints = ImpulseJointSet::new();
+    /// # let mut multibody_joints = MultibodyJointSet::new();
+    /// # let mut islands = IslandManager::new();
+    /// # let mut broad_phase = BroadPhaseBvh::new();
+    /// # let mut narrow_phase = NarrowPhase::new();
+    /// # let mut ccd_solver = CCDSolver::new();
+    /// # let mut physics_pipeline = PhysicsPipeline::new();
+    /// # let integration_parameters = IntegrationParameters::default();
+    /// // In your game loop:
+    /// physics_pipeline.step(
+    ///     &vector![0.0, -9.81, 0.0],  // Gravity pointing down
+    ///     &integration_parameters,
+    ///     &mut islands,
+    ///     &mut broad_phase,
+    ///     &mut narrow_phase,
+    ///     &mut bodies,
+    ///     &mut colliders,
+    ///     &mut impulse_joints,
+    ///     &mut multibody_joints,
+    ///     &mut ccd_solver,
+    ///     &(),  // No custom hooks
+    ///     &(),  // No event handler
+    /// );
+    /// ```
     pub fn step(
         &mut self,
         gravity: &Vector<Real>,

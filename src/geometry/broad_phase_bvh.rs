@@ -4,7 +4,16 @@ use crate::math::Real;
 use parry::partitioning::{Bvh, BvhWorkspace};
 use parry::utils::hashmap::{Entry, HashMap};
 
-/// A broad-phase based on parry’s [`Bvh`] data structure.
+/// The broad-phase collision detector that quickly filters out distant object pairs.
+///
+/// The broad-phase is the "first pass" of collision detection. It uses a hierarchical
+/// bounding volume tree (BVH) to quickly identify which collider pairs are close enough
+/// to potentially collide, avoiding expensive narrow-phase checks for distant objects.
+///
+/// Think of it as a "spatial index" that answers: "Which objects are near each other?"
+///
+/// You typically don't interact with this directly - it's managed by [`PhysicsPipeline`](crate::pipeline::PhysicsPipeline).
+/// However, you can use it to create a [`QueryPipeline`](crate::pipeline::QueryPipeline) for spatial queries.
 #[derive(Default, Clone)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct BroadPhaseBvh {

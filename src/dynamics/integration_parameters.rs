@@ -30,11 +30,43 @@ pub enum FrictionModel {
     Coulomb,
 }
 
-/// Parameters for a time-step of the physics engine.
+/// Configuration parameters that control the physics simulation quality and behavior.
+///
+/// These parameters affect how the physics engine advances time, resolves collisions, and
+/// maintains stability. The defaults work well for most games, but you may want to adjust
+/// them based on your specific needs.
+///
+/// # Key parameters for beginners
+///
+/// - **`dt`**: Timestep duration (default: 1/60 second). Most games run physics at 60Hz.
+/// - **`num_solver_iterations`**: More iterations = more accurate but slower (default: 4)
+/// - **`length_unit`**: Scale factor if your world units aren't meters (e.g., 100 for pixel-based games)
+///
+/// # Example
+///
+/// ```
+/// # use rapier3d::prelude::*;
+/// // Standard 60 FPS physics with default settings
+/// let mut integration_params = IntegrationParameters::default();
+///
+/// // For a more accurate (but slower) simulation:
+/// integration_params.num_solver_iterations = 8;
+///
+/// // For pixel-based 2D games where 100 pixels = 1 meter:
+/// integration_params.length_unit = 100.0;
+/// ```
+///
+/// Most other parameters are advanced settings for fine-tuning stability and performance.
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct IntegrationParameters {
-    /// The timestep length (default: `1.0 / 60.0`).
+    /// The timestep length - how much simulated time passes per physics step (default: `1.0 / 60.0`).
+    ///
+    /// Set this to `1.0 / your_target_fps`. For example:
+    /// - 60 FPS: `1.0 / 60.0` ≈ 0.0167 seconds
+    /// - 120 FPS: `1.0 / 120.0` ≈ 0.0083 seconds
+    ///
+    /// Smaller timesteps are more accurate but require more CPU time per second of simulated time.
     pub dt: Real,
     /// Minimum timestep size when using CCD with multiple substeps (default: `1.0 / 60.0 / 100.0`).
     ///
@@ -85,19 +117,19 @@ pub struct IntegrationParameters {
     /// (default `1.0`).
     pub warmstart_coefficient: Real,
 
-    /// The approximate size of most dynamic objects in the scene.
+    /// The scale factor for your world if you're not using meters (default: `1.0`).
     ///
-    /// This value is used internally to estimate some length-based tolerance. In particular, the
-    /// values [`IntegrationParameters::allowed_linear_error`],
-    /// [`IntegrationParameters::max_corrective_velocity`],
-    /// [`IntegrationParameters::prediction_distance`], [`RigidBodyActivation::normalized_linear_threshold`]
-    /// are scaled by this value implicitly.
+    /// Rapier is tuned for human-scale objects measured in meters. If your game uses different
+    /// units, set this to how many of your units equal 1 meter in the real world.
     ///
-    /// This value can be understood as the number of units-per-meter in your physical world compared
-    /// to a human-sized world in meter. For example, in a 2d game, if your typical object size is 100
-    /// pixels, set the [`Self::length_unit`] parameter to 100.0. The physics engine will interpret
-    /// it as if 100 pixels is equivalent to 1 meter in its various internal threshold.
-    /// (default `1.0`).
+    /// **Examples:**
+    /// - Your game uses meters: `length_unit = 1.0` (default)
+    /// - Your game uses centimeters: `length_unit = 100.0` (100 cm = 1 m)
+    /// - Pixel-based 2D game where typical objects are 100 pixels tall: `length_unit = 100.0`
+    /// - Your game uses feet: `length_unit = 3.28` (approximately)
+    ///
+    /// This automatically scales various internal tolerances and thresholds to work correctly
+    /// with your chosen units.
     pub length_unit: Real,
 
     /// Amount of penetration the engine won’t attempt to correct (default: `0.001m`).
@@ -113,6 +145,11 @@ pub struct IntegrationParameters {
     /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
     pub normalized_prediction_distance: Real,
     /// The number of solver iterations run by the constraints solver for calculating forces (default: `4`).
+    ///
+    /// Higher values produce more accurate and stable simulations at the cost of performance.
+    /// - `4` (default): Good balance for most games
+    /// - `8-12`: Use for demanding scenarios (stacks of objects, complex machinery)
+    /// - `1-2`: Use if performance is critical and accuracy can be sacrificed
     pub num_solver_iterations: usize,
     /// Number of internal Project Gauss Seidel (PGS) iterations run at each solver iteration (default: `1`).
     pub num_internal_pgs_iterations: usize,

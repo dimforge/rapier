@@ -47,7 +47,18 @@ enum PairRemovalMode {
     Auto,
 }
 
-/// The narrow-phase responsible for computing precise contact information between colliders.
+/// The narrow-phase collision detector that computes precise contact points between colliders.
+///
+/// After the broad-phase quickly filters out distant object pairs, the narrow-phase performs
+/// detailed geometric computations to find exact:
+/// - Contact points (where surfaces touch)
+/// - Contact normals (which direction surfaces face)
+/// - Penetration depths (how much objects overlap)
+///
+/// You typically don't interact with this directly - it's managed by [`PhysicsPipeline::step`](crate::pipeline::PhysicsPipeline::step).
+/// However, you can access it to query contact information or intersection state between specific colliders.
+///
+/// **For spatial queries** (raycasts, shape casts), use [`QueryPipeline`](crate::pipeline::QueryPipeline) instead.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 pub struct NarrowPhase {

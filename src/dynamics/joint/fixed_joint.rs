@@ -4,7 +4,16 @@ use crate::math::{Isometry, Point, Real};
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]
-/// A fixed joint, locks all relative motion between two bodies.
+/// A joint that rigidly connects two bodies together (like welding them).
+///
+/// Fixed joints lock all relative motion - the two bodies move as if they were a single
+/// solid object. Use for:
+/// - Permanently attaching objects (gluing, welding)
+/// - Composite objects made of multiple bodies
+/// - Connecting parts of a structure
+///
+/// Unlike simply using one body with multiple colliders, fixed joints let you attach
+/// bodies that were created separately, and you can break the connection later if needed.
 pub struct FixedJoint {
     /// The underlying joint data.
     pub data: GenericJoint,

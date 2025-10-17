@@ -6,8 +6,20 @@ use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
 use crate::utils::SimdDot;
 
-/// Structure responsible for maintaining the set of active rigid-bodies, and
-/// putting non-moving rigid-bodies to sleep to save computation times.
+/// System that manages which bodies are active (awake) vs sleeping to optimize performance.
+///
+/// ## Sleeping Optimization
+///
+/// Bodies at rest automatically "sleep" - they're excluded from simulation until something
+/// disturbs them (collision, joint connection to moving body, manual wake-up). This can
+/// dramatically improve performance in scenes with many static/resting objects.
+///
+/// ## Islands
+///
+/// Connected bodies (via contacts or joints) are grouped into "islands" that are solved together.
+/// This allows parallel solving and better organization.
+///
+/// You rarely interact with this directly - it's automatically managed by [`PhysicsPipeline`](crate::pipeline::PhysicsPipeline).
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Default)]
 pub struct IslandManager {
@@ -79,10 +91,28 @@ impl IslandManager {
         }
     }
 
-    /// Forces the specified rigid-body to wake up if it is dynamic.
+    /// Wakes up a sleeping body, forcing it back into the active simulation.
     ///
-    /// If `strong` is `true` then it is assured that the rigid-body will
-    /// remain awake during multiple subsequent timesteps.
+    /// Use this when you want to ensure a body is active (useful after manually moving
+    /// a sleeping body, or to prevent it from sleeping in the next few frames).
+    ///
+    /// # Parameters
+    /// * `strong` - If `true`, the body is guaranteed to stay awake for multiple frames.
+    ///   If `false`, it might sleep again immediately if conditions are met.
+    ///
+    /// # Example
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut islands = IslandManager::new();
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic());
+    /// islands.wake_up(&mut bodies, body_handle, true);
+    /// let body = bodies.get_mut(body_handle).unwrap();
+    /// // Wake up a body before applying force to it
+    /// body.add_force(vector![100.0, 0.0, 0.0], false);
+    /// ```
+    ///
+    /// Only affects dynamic bodies (kinematic and fixed bodies don't sleep).
     pub fn wake_up(&mut self, bodies: &mut RigidBodySet, handle: RigidBodyHandle, strong: bool) {
         // NOTE: the use an Option here because there are many legitimate cases (like when
         //       deleting a joint attached to an already-removed body) where we could be
