@@ -1,3 +1,11 @@
+## Unreleased
+
+- Kinematic rigid-bodies will no longer fall asleep if they have a nonzero velocity, even if that velocity is very
+  small. The rationale is that, since that velocity is chosen by the user, they really want the platform to move even
+  if the speed is low.
+- Fix bug where kinematic bodies would ignore the `wake_up` flag passed to `set_linear_velocity` and
+  `set_angular_velocity`.
+
 ## v0.30.0 (03 Oct. 2025)
 
 - Update to parry 0.25 (which involves breaking changes in the `Voxels` API but improves its internal storage to support

@@ -44,6 +44,7 @@ mod debug_cube_high_mass_ratio3;
 mod debug_internal_edges3;
 mod debug_long_chain3;
 mod debug_multibody_ang_motor_pos3;
+mod debug_sleeping_kinematic3;
 mod gyroscopic3;
 mod inverse_kinematics3;
 mod joint_motor_position3;
@@ -131,6 +132,10 @@ pub fn main() {
         (
             "(Debug) shape modification",
             debug_shape_modification3::init_world,
+        ),
+        (
+            "(Debug) sleeping kinematics",
+            debug_sleeping_kinematic3::init_world,
         ),
         ("(Debug) deserialize", debug_deserialize3::init_world),
         (
