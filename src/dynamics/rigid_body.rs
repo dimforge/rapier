@@ -1434,7 +1434,8 @@ impl RigidBody {
 ///
 /// This builder lets you configure all properties of a rigid body before adding it to your world.
 /// Start with one of the type constructors ([`dynamic()`](Self::dynamic), [`fixed()`](Self::fixed),
-/// or [`kinematic_velocity_based()`](Self::kinematic_velocity_based)), then chain property setters,
+///  [`kinematic_position_based()`](Self::kinematic_position_based), or
+/// [`kinematic_velocity_based()`](Self::kinematic_velocity_based)), then chain property setters,
 /// and finally call [`build()`](Self::build).
 ///
 /// # Example
