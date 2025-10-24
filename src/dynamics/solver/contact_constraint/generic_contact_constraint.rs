@@ -36,8 +36,8 @@ impl GenericContactConstraintBuilder {
         manifold: &ContactManifold,
         bodies: &RigidBodySet,
         multibodies: &MultibodyJointSet,
-        out_builders: &mut [GenericContactConstraintBuilder],
-        out_constraints: &mut [GenericContactConstraint],
+        out_builder: &mut GenericContactConstraintBuilder,
+        out_constraint: &mut GenericContactConstraint,
         jacobians: &mut DVector<Real>,
         jacobian_id: &mut usize,
     ) {
@@ -99,54 +99,127 @@ impl GenericContactConstraintBuilder {
             jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
         }
 
-        for (l, manifold_points) in manifold
-            .data
-            .solver_contacts
-            .chunks(MAX_MANIFOLD_POINTS)
-            .enumerate()
-        {
-            let chunk_j_id = *jacobian_id;
+        let chunk_j_id = *jacobian_id;
 
-            let builder = &mut out_builders[l];
-            let constraint = &mut out_constraints[l];
-            constraint.dir1 = force_dir1;
-            constraint.im1 = if type1.is_dynamic_or_kinematic() {
-                mprops1.effective_inv_mass
-            } else {
-                na::zero()
-            };
-            constraint.im2 = if type2.is_dynamic_or_kinematic() {
-                mprops2.effective_inv_mass
-            } else {
-                na::zero()
-            };
-            constraint.solver_vel1 = solver_vel1;
-            constraint.solver_vel2 = solver_vel2;
-            constraint.manifold_id = manifold_id;
-            constraint.num_contacts = manifold_points.len() as u8;
-            #[cfg(feature = "dim3")]
+        let manifold_points = &manifold.data.solver_contacts;
+        out_constraint.dir1 = force_dir1;
+        out_constraint.im1 = if type1.is_dynamic_or_kinematic() {
+            mprops1.effective_inv_mass
+        } else {
+            na::zero()
+        };
+        out_constraint.im2 = if type2.is_dynamic_or_kinematic() {
+            mprops2.effective_inv_mass
+        } else {
+            na::zero()
+        };
+        out_constraint.solver_vel1 = solver_vel1;
+        out_constraint.solver_vel2 = solver_vel2;
+        out_constraint.manifold_id = manifold_id;
+        out_constraint.num_contacts = manifold_points.len() as u8;
+        #[cfg(feature = "dim3")]
+        {
+            out_constraint.tangent1 = tangents1[0];
+        }
+
+        for k in 0..manifold_points.len() {
+            let manifold_point = &manifold_points[k];
+            let point = manifold_point.point;
+            let dp1 = point - mprops1.world_com;
+            let dp2 = point - mprops2.world_com;
+
+            let vel1 = vels1.linvel + vels1.angvel.gcross(dp1);
+            let vel2 = vels2.linvel + vels2.angvel.gcross(dp2);
+
+            out_constraint.limit = manifold_point.friction;
+            out_constraint.manifold_contact_id[k] = manifold_point.contact_id[0] as u8;
+
+            // Normal part.
+            let normal_rhs_wo_bias;
             {
-                constraint.tangent1 = tangents1[0];
+                let torque_dir1 = dp1.gcross(force_dir1);
+                let torque_dir2 = dp2.gcross(-force_dir1);
+
+                let ii_torque_dir1 = if type1.is_dynamic_or_kinematic() {
+                    mprops1
+                        .effective_world_inv_inertia
+                        .transform_vector(torque_dir1)
+                } else {
+                    na::zero()
+                };
+                let ii_torque_dir2 = if type2.is_dynamic_or_kinematic() {
+                    mprops2
+                        .effective_world_inv_inertia
+                        .transform_vector(torque_dir2)
+                } else {
+                    na::zero()
+                };
+
+                let inv_r1 = if let Some((mb1, link_id1)) = multibody1.as_ref() {
+                    mb1.fill_jacobians(
+                        *link_id1,
+                        force_dir1,
+                        #[cfg(feature = "dim2")]
+                        na::vector!(torque_dir1),
+                        #[cfg(feature = "dim3")]
+                        torque_dir1,
+                        jacobian_id,
+                        jacobians,
+                    )
+                    .0
+                } else if type1.is_dynamic_or_kinematic() {
+                    force_dir1.dot(&mprops1.effective_inv_mass.component_mul(&force_dir1))
+                        + ii_torque_dir1.gdot(torque_dir1)
+                } else {
+                    0.0
+                };
+
+                let inv_r2 = if let Some((mb2, link_id2)) = multibody2.as_ref() {
+                    mb2.fill_jacobians(
+                        *link_id2,
+                        -force_dir1,
+                        #[cfg(feature = "dim2")]
+                        na::vector!(torque_dir2),
+                        #[cfg(feature = "dim3")]
+                        torque_dir2,
+                        jacobian_id,
+                        jacobians,
+                    )
+                    .0
+                } else if type2.is_dynamic_or_kinematic() {
+                    force_dir1.dot(&mprops2.effective_inv_mass.component_mul(&force_dir1))
+                        + ii_torque_dir2.gdot(torque_dir2)
+                } else {
+                    0.0
+                };
+
+                let r = crate::utils::inv(inv_r1 + inv_r2);
+
+                let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
+
+                normal_rhs_wo_bias =
+                    (is_bouncy * manifold_point.restitution) * (vel1 - vel2).dot(&force_dir1);
+
+                out_constraint.normal_part[k] = ContactConstraintNormalPart {
+                    torque_dir1,
+                    torque_dir2,
+                    ii_torque_dir1,
+                    ii_torque_dir2,
+                    rhs: na::zero(),
+                    rhs_wo_bias: na::zero(),
+                    impulse_accumulator: na::zero(),
+                    impulse: manifold_point.warmstart_impulse,
+                    r,
+                    r_mat_elts: [0.0; 2],
+                };
             }
 
-            for k in 0..manifold_points.len() {
-                let manifold_point = &manifold_points[k];
-                let point = manifold_point.point;
-                let dp1 = point - mprops1.world_com;
-                let dp2 = point - mprops2.world_com;
+            // Tangent parts.
+            {
+                out_constraint.tangent_part[k].impulse = manifold_point.warmstart_tangent_impulse;
 
-                let vel1 = vels1.linvel + vels1.angvel.gcross(dp1);
-                let vel2 = vels2.linvel + vels2.angvel.gcross(dp2);
-
-                constraint.limit = manifold_point.friction;
-                constraint.manifold_contact_id[k] = manifold_point.contact_id[0] as u8;
-
-                // Normal part.
-                let normal_rhs_wo_bias;
-                {
-                    let torque_dir1 = dp1.gcross(force_dir1);
-                    let torque_dir2 = dp2.gcross(-force_dir1);
-
+                for j in 0..DIM - 1 {
+                    let torque_dir1 = dp1.gcross(tangents1[j]);
                     let ii_torque_dir1 = if type1.is_dynamic_or_kinematic() {
                         mprops1
                             .effective_world_inv_inertia
@@ -154,6 +227,10 @@ impl GenericContactConstraintBuilder {
                     } else {
                         na::zero()
                     };
+                    out_constraint.tangent_part[k].torque_dir1[j] = torque_dir1;
+                    out_constraint.tangent_part[k].ii_torque_dir1[j] = ii_torque_dir1;
+
+                    let torque_dir2 = dp2.gcross(-tangents1[j]);
                     let ii_torque_dir2 = if type2.is_dynamic_or_kinematic() {
                         mprops2
                             .effective_world_inv_inertia
@@ -161,13 +238,15 @@ impl GenericContactConstraintBuilder {
                     } else {
                         na::zero()
                     };
+                    out_constraint.tangent_part[k].torque_dir2[j] = torque_dir2;
+                    out_constraint.tangent_part[k].ii_torque_dir2[j] = ii_torque_dir2;
 
                     let inv_r1 = if let Some((mb1, link_id1)) = multibody1.as_ref() {
                         mb1.fill_jacobians(
                             *link_id1,
-                            force_dir1,
+                            tangents1[j],
                             #[cfg(feature = "dim2")]
-                            na::vector!(torque_dir1),
+                            na::vector![torque_dir1],
                             #[cfg(feature = "dim3")]
                             torque_dir1,
                             jacobian_id,
@@ -184,9 +263,9 @@ impl GenericContactConstraintBuilder {
                     let inv_r2 = if let Some((mb2, link_id2)) = multibody2.as_ref() {
                         mb2.fill_jacobians(
                             *link_id2,
-                            -force_dir1,
+                            -tangents1[j],
                             #[cfg(feature = "dim2")]
-                            na::vector!(torque_dir2),
+                            na::vector![torque_dir2],
                             #[cfg(feature = "dim3")]
                             torque_dir2,
                             jacobian_id,
@@ -201,141 +280,54 @@ impl GenericContactConstraintBuilder {
                     };
 
                     let r = crate::utils::inv(inv_r1 + inv_r2);
+                    let rhs_wo_bias = manifold_point.tangent_velocity.dot(&tangents1[j]);
 
-                    let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
+                    out_constraint.tangent_part[k].rhs_wo_bias[j] = rhs_wo_bias;
+                    out_constraint.tangent_part[k].rhs[j] = rhs_wo_bias;
 
-                    normal_rhs_wo_bias =
-                        (is_bouncy * manifold_point.restitution) * (vel1 - vel2).dot(&force_dir1);
-
-                    constraint.normal_part[k] = ContactConstraintNormalPart {
-                        torque_dir1,
-                        torque_dir2,
-                        ii_torque_dir1,
-                        ii_torque_dir2,
-                        rhs: na::zero(),
-                        rhs_wo_bias: na::zero(),
-                        impulse_accumulator: na::zero(),
-                        impulse: manifold_point.warmstart_impulse,
-                        r,
-                        r_mat_elts: [0.0; 2],
-                    };
+                    // TODO: in 3D, we should take into account gcross[0].dot(gcross[1])
+                    // in lhs. See the corresponding code on the `velocity_constraint.rs`
+                    // file.
+                    out_constraint.tangent_part[k].r[j] = r;
                 }
-
-                // Tangent parts.
-                {
-                    constraint.tangent_part[k].impulse = manifold_point.warmstart_tangent_impulse;
-
-                    for j in 0..DIM - 1 {
-                        let torque_dir1 = dp1.gcross(tangents1[j]);
-                        let ii_torque_dir1 = if type1.is_dynamic_or_kinematic() {
-                            mprops1
-                                .effective_world_inv_inertia
-                                .transform_vector(torque_dir1)
-                        } else {
-                            na::zero()
-                        };
-                        constraint.tangent_part[k].torque_dir1[j] = torque_dir1;
-                        constraint.tangent_part[k].ii_torque_dir1[j] = ii_torque_dir1;
-
-                        let torque_dir2 = dp2.gcross(-tangents1[j]);
-                        let ii_torque_dir2 = if type2.is_dynamic_or_kinematic() {
-                            mprops2
-                                .effective_world_inv_inertia
-                                .transform_vector(torque_dir2)
-                        } else {
-                            na::zero()
-                        };
-                        constraint.tangent_part[k].torque_dir2[j] = torque_dir2;
-                        constraint.tangent_part[k].ii_torque_dir2[j] = ii_torque_dir2;
-
-                        let inv_r1 = if let Some((mb1, link_id1)) = multibody1.as_ref() {
-                            mb1.fill_jacobians(
-                                *link_id1,
-                                tangents1[j],
-                                #[cfg(feature = "dim2")]
-                                na::vector![torque_dir1],
-                                #[cfg(feature = "dim3")]
-                                torque_dir1,
-                                jacobian_id,
-                                jacobians,
-                            )
-                            .0
-                        } else if type1.is_dynamic_or_kinematic() {
-                            force_dir1.dot(&mprops1.effective_inv_mass.component_mul(&force_dir1))
-                                + ii_torque_dir1.gdot(torque_dir1)
-                        } else {
-                            0.0
-                        };
-
-                        let inv_r2 = if let Some((mb2, link_id2)) = multibody2.as_ref() {
-                            mb2.fill_jacobians(
-                                *link_id2,
-                                -tangents1[j],
-                                #[cfg(feature = "dim2")]
-                                na::vector![torque_dir2],
-                                #[cfg(feature = "dim3")]
-                                torque_dir2,
-                                jacobian_id,
-                                jacobians,
-                            )
-                            .0
-                        } else if type2.is_dynamic_or_kinematic() {
-                            force_dir1.dot(&mprops2.effective_inv_mass.component_mul(&force_dir1))
-                                + ii_torque_dir2.gdot(torque_dir2)
-                        } else {
-                            0.0
-                        };
-
-                        let r = crate::utils::inv(inv_r1 + inv_r2);
-                        let rhs_wo_bias = manifold_point.tangent_velocity.dot(&tangents1[j]);
-
-                        constraint.tangent_part[k].rhs_wo_bias[j] = rhs_wo_bias;
-                        constraint.tangent_part[k].rhs[j] = rhs_wo_bias;
-
-                        // TODO: in 3D, we should take into account gcross[0].dot(gcross[1])
-                        // in lhs. See the corresponding code on the `velocity_constraint.rs`
-                        // file.
-                        constraint.tangent_part[k].r[j] = r;
-                    }
-                }
-
-                // Builder.
-                let infos = CoulombContactPointInfos {
-                    local_p1: rb1
-                        .pos
-                        .position
-                        .inverse_transform_point(&manifold_point.point),
-                    local_p2: rb2
-                        .pos
-                        .position
-                        .inverse_transform_point(&manifold_point.point),
-                    tangent_vel: manifold_point.tangent_velocity,
-                    dist: manifold_point.dist,
-                    normal_vel: normal_rhs_wo_bias,
-                };
-
-                builder.handle1 = handle1;
-                builder.handle2 = handle2;
-                builder.ccd_thickness = rb1.ccd.ccd_thickness + rb2.ccd.ccd_thickness;
-                builder.infos[k] = infos;
-                constraint.manifold_contact_id[k] = manifold_point.contact_id[0] as u8;
             }
 
-            let ndofs1 = multibody1.map(|mb| mb.0.ndofs()).unwrap_or(0);
-            let ndofs2 = multibody2.map(|mb| mb.0.ndofs()).unwrap_or(0);
+            // Builder.
+            let infos = CoulombContactPointInfos {
+                local_p1: rb1
+                    .pos
+                    .position
+                    .inverse_transform_point(&manifold_point.point),
+                local_p2: rb2
+                    .pos
+                    .position
+                    .inverse_transform_point(&manifold_point.point),
+                tangent_vel: manifold_point.tangent_velocity,
+                dist: manifold_point.dist,
+                normal_vel: normal_rhs_wo_bias,
+            };
 
-            // NOTE: we use the generic constraint for non-dynamic bodies because this will
-            //       reduce all ops to nothing because its ndofs will be zero.
-            let generic_constraint_mask = (multibody1.is_some() as u8)
-                | ((multibody2.is_some() as u8) << 1)
-                | (!type1.is_dynamic_or_kinematic() as u8)
-                | ((!type2.is_dynamic_or_kinematic() as u8) << 1);
-
-            constraint.j_id = chunk_j_id;
-            constraint.ndofs1 = ndofs1;
-            constraint.ndofs2 = ndofs2;
-            constraint.generic_constraint_mask = generic_constraint_mask;
+            out_builder.handle1 = handle1;
+            out_builder.handle2 = handle2;
+            out_builder.ccd_thickness = rb1.ccd.ccd_thickness + rb2.ccd.ccd_thickness;
+            out_builder.infos[k] = infos;
+            out_constraint.manifold_contact_id[k] = manifold_point.contact_id[0] as u8;
         }
+
+        let ndofs1 = multibody1.map(|mb| mb.0.ndofs()).unwrap_or(0);
+        let ndofs2 = multibody2.map(|mb| mb.0.ndofs()).unwrap_or(0);
+
+        // NOTE: we use the generic constraint for non-dynamic bodies because this will
+        //       reduce all ops to nothing because its ndofs will be zero.
+        let generic_constraint_mask = (multibody1.is_some() as u8)
+            | ((multibody2.is_some() as u8) << 1)
+            | (!type1.is_dynamic_or_kinematic() as u8)
+            | ((!type2.is_dynamic_or_kinematic() as u8) << 1);
+
+        out_constraint.j_id = chunk_j_id;
+        out_constraint.ndofs1 = ndofs1;
+        out_constraint.ndofs2 = ndofs2;
+        out_constraint.generic_constraint_mask = generic_constraint_mask;
     }
 
     pub fn update(
