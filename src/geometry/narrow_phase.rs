@@ -10,10 +10,10 @@ use crate::dynamics::{
 use crate::geometry::{
     BoundingVolume, BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle,
     ColliderPair, ColliderSet, CollisionEvent, ContactData, ContactManifold, ContactManifoldData,
-    ContactPair, InteractionGraph, IntersectionPair, SolverContact, SolverFlags,
+    ContactPair, InteractionGraph, IntersectionPair, Segment, SolverContact, SolverFlags,
     TemporaryInteractionIndex,
 };
-use crate::math::{Real, Vector};
+use crate::math::{MAX_MANIFOLD_POINTS, Real, Vector};
 use crate::pipeline::{
     ActiveEvents, ActiveHooks, ContactModificationContext, EventHandler, PairFilterContext,
     PhysicsHooks,
@@ -831,7 +831,8 @@ impl NarrowPhase {
                     // No update needed for these colliders.
                     return;
                 }
-                if co1.parent.map(|p| p.handle) == co2.parent.map(|p| p.handle) && co1.parent.is_some()
+                if co1.parent.map(|p| p.handle) == co2.parent.map(|p| p.handle)
+                    && co1.parent.is_some()
                 {
                     // Same parents. Ignore collisions.
                     pair.clear();
@@ -858,7 +859,7 @@ impl NarrowPhase {
                     let link1 = multibody_joints.rigid_body_link(co_parent1.handle);
                     let link2 = multibody_joints.rigid_body_link(co_parent2.handle);
 
-                    if let (Some(link1),Some(link2)) = (link1, link2) {
+                    if let (Some(link1), Some(link2)) = (link1, link2) {
                         // If both bodies belong to the same multibody, apply some additional built-in
                         // contact filtering rules.
                         if link1.multibody == link2.multibody {
@@ -936,27 +937,30 @@ impl NarrowPhase {
                 let contact_skin_sum = co1.contact_skin() + co2.contact_skin();
                 let soft_ccd_prediction1 = rb1.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
                 let soft_ccd_prediction2 = rb2.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
-                let effective_prediction_distance = if soft_ccd_prediction1 > 0.0 || soft_ccd_prediction2 > 0.0 {
+                let effective_prediction_distance =
+                    if soft_ccd_prediction1 > 0.0 || soft_ccd_prediction2 > 0.0 {
                         let aabb1 = co1.compute_collision_aabb(0.0);
                         let aabb2 = co2.compute_collision_aabb(0.0);
                         let inv_dt = crate::utils::inv(dt);
 
-                        let linvel1 = rb1.map(|rb| rb.linvel()
-                            .cap_magnitude(soft_ccd_prediction1 * inv_dt)).unwrap_or_default();
-                        let linvel2 = rb2.map(|rb| rb.linvel()
-                            .cap_magnitude(soft_ccd_prediction2 * inv_dt)).unwrap_or_default();
+                        let linvel1 = rb1
+                            .map(|rb| rb.linvel().cap_magnitude(soft_ccd_prediction1 * inv_dt))
+                            .unwrap_or_default();
+                        let linvel2 = rb2
+                            .map(|rb| rb.linvel().cap_magnitude(soft_ccd_prediction2 * inv_dt))
+                            .unwrap_or_default();
 
-                        if !aabb1.intersects(&aabb2) && !aabb1.intersects_moving_aabb(&aabb2, linvel2 - linvel1) {
+                        if !aabb1.intersects(&aabb2)
+                            && !aabb1.intersects_moving_aabb(&aabb2, linvel2 - linvel1)
+                        {
                             pair.clear();
                             break 'emit_events;
                         }
 
-
-                    prediction_distance.max(
-                        dt * (linvel1 - linvel2).norm()) + contact_skin_sum
-                } else {
-                    prediction_distance + contact_skin_sum
-                };
+                        prediction_distance.max(dt * (linvel1 - linvel2).norm()) + contact_skin_sum
+                    } else {
+                        prediction_distance + contact_skin_sum
+                    };
 
                 let _ = query_dispatcher.contact_manifolds(
                     &pos12,
@@ -998,20 +1002,83 @@ impl NarrowPhase {
                     manifold.data.normal = world_pos1 * manifold.local_n1;
 
                     // Generate solver contacts.
-                    for (contact_id, contact) in manifold.points.iter().enumerate() {
-                        if contact_id > u8::MAX as usize {
-                            log::warn!("A contact manifold cannot contain more than 255 contacts currently, dropping contact in excess.");
-                            break;
-                        }
+                    let mut selected = [0, 1, 2, 3];
 
-                        let effective_contact_dist = contact.dist - co1.contact_skin() - co2.contact_skin();
+                    #[cfg(feature = "dim3")]
+                    {
+                        let mut solver_contacts_len = 0;
+
+                        if manifold.points.len() > 4 {
+                            // Run contact reduction so we only have up to four solver contacts.
+                            // We follow a logic similar to Bepu’s approach.
+                            // 1. Find the deepest contact.
+                            let mut deepest_dist = manifold.points[0].dist;
+                            for (i, pt) in manifold.points.iter().enumerate() {
+                                if pt.dist < deepest_dist {
+                                    deepest_dist = pt.dist;
+                                    selected[0] = i;
+                                }
+                            }
+
+                            // 2. Find the point that is the furthest from the deepest one.
+                            let selected_a = &manifold.points[selected[0]].local_p1;
+                            let mut furthest_dist = -f32::MAX;
+                            for (i, pt) in manifold.points.iter().enumerate() {
+                                let dist = na::distance_squared(&pt.local_p1, &selected_a);
+                                if i != selected[0]
+                                    && pt.dist < prediction_distance
+                                    && dist > furthest_dist
+                                {
+                                    furthest_dist = dist;
+                                    selected[1] = i;
+                                }
+                            }
+
+                            // 3. Now find the two points furthest from the segment we built so far.
+                            let selected_b = &manifold.points[selected[1]].local_p1;
+                            let selected_ab = selected_b - selected_a;
+                            let tangent = selected_ab.cross(&manifold.local_n1);
+
+                            // Find the points that minimize and maximize the dot product with the tangent.
+                            let mut min_dot = Real::MAX;
+                            let mut max_dot = -Real::MAX;
+                            for (i, pt) in manifold.points.iter().enumerate() {
+                                if i == selected[0] || i == selected[1] {
+                                    continue;
+                                }
+
+                                let dot = (pt.local_p1 - selected_a).dot(&tangent);
+                                if dot < min_dot {
+                                    min_dot = dot;
+                                    selected[2] = i;
+                                }
+
+                                if dot > max_dot {
+                                    max_dot = dot;
+                                    selected[3] = i;
+                                }
+                            }
+                        }
+                    }
+
+                    let mut solver_contacts_len = 0;
+                    for contact_id in &selected[..MAX_MANIFOLD_POINTS.min(manifold.points.len())] {
+                        // manifold.points.iter().enumerate() {
+                        let contact = &manifold.points[*contact_id];
+                        let effective_contact_dist =
+                            contact.dist - co1.contact_skin() - co2.contact_skin();
 
                         let keep_solver_contact = effective_contact_dist < prediction_distance || {
                             let world_pt1 = world_pos1 * contact.local_p1;
                             let world_pt2 = world_pos2 * contact.local_p2;
-                            let vel1 = rb1.map(|rb| rb.velocity_at_point(&world_pt1)).unwrap_or_default();
-                            let vel2 = rb2.map(|rb| rb.velocity_at_point(&world_pt2)).unwrap_or_default();
-                            effective_contact_dist + (vel2 - vel1).dot(&manifold.data.normal) * dt < prediction_distance
+                            let vel1 = rb1
+                                .map(|rb| rb.velocity_at_point(&world_pt1))
+                                .unwrap_or_default();
+                            let vel2 = rb2
+                                .map(|rb| rb.velocity_at_point(&world_pt2))
+                                .unwrap_or_default();
+                            effective_contact_dist + (vel2 - vel1).dot(&manifold.data.normal) * dt
+                                < prediction_distance
                         };
 
                         if keep_solver_contact {
@@ -1021,7 +1088,7 @@ impl NarrowPhase {
                             let effective_point = na::center(&world_pt1, &world_pt2);
 
                             let solver_contact = SolverContact {
-                                contact_id: [contact_id as u32],
+                                contact_id: [*contact_id as u32],
                                 point: effective_point,
                                 dist: effective_contact_dist,
                                 friction,
