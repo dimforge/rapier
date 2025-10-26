@@ -4,7 +4,7 @@ pub use self::broad_phase_bvh::{BroadPhaseBvh, BvhOptimizationStrategy};
 pub use self::broad_phase_pair_event::{BroadPhasePairEvent, ColliderPair};
 pub use self::collider::{Collider, ColliderBuilder};
 pub use self::collider_components::*;
-pub use self::collider_set::ColliderSet;
+pub use self::collider_set::{ColliderSet, ModifiedColliders};
 pub use self::contact_pair::{
     ContactData, ContactManifoldData, ContactPair, IntersectionPair, SimdSolverContact,
     SolverContact, SolverFlags,
@@ -211,7 +211,6 @@ impl ContactForceEvent {
     }
 }
 
-pub(crate) use self::collider_set::ModifiedColliders;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
 pub use parry::shape::*;
 
