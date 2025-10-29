@@ -28,7 +28,7 @@
 ///
 /// # Example
 ///
-/// ```
+/// ```rust
 /// # use rapier3d::geometry::{InteractionGroups, Group};
 /// // Player collider: in group 1, collides with groups 2 and 3
 /// let player_groups = InteractionGroups::new(
