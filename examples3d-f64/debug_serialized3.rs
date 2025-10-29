@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 #[derive(serde::Deserialize)]
 struct State {
@@ -17,7 +17,10 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    let bytes = std::fs::read("state.bin").unwrap();
+    let Ok(bytes) = std::fs::read("state.bin") else {
+        println!("Failed to load serialized world state.");
+        return;
+    };
     let state: State = bincode::deserialize(&bytes).unwrap();
 
     testbed.set_world(

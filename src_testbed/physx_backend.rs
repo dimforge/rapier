@@ -173,7 +173,7 @@ impl PhysxWorld {
                 gravity: gravity.into_physx(),
                 thread_count: num_threads as u32,
                 broad_phase_type: BroadPhaseType::Abp,
-                solver_type: SolverType::Pgs,
+                solver_type: SolverType::Tgs,
                 friction_type,
                 ccd_max_passes: integration_parameters.max_ccd_substeps as u32,
                 ..SceneDescriptor::new(())
@@ -211,7 +211,7 @@ impl PhysxWorld {
                     actor.set_angular_velocity(&angvel, true);
                     actor.set_solver_iteration_counts(
                         // Use our number of solver iterations as their number of position iterations.
-                        integration_parameters.num_solver_iterations.get() as u32,
+                        integration_parameters.num_solver_iterations as u32,
                         1,
                     );
 
@@ -770,6 +770,8 @@ impl AdvanceCallback<PxArticulationLink, PxRigidDynamic> for OnAdvance {
 }
 
 unsafe extern "C" fn ccd_filter_shader(data: *mut FilterShaderCallbackInfo) -> PxFilterFlags {
-    (*(*data).pairFlags) |= physx_sys::PxPairFlags::DetectCcdContact;
+    unsafe {
+        (*(*data).pairFlags) |= physx_sys::PxPairFlags::DetectCcdContact;
+    }
     PxFilterFlags::empty()
 }

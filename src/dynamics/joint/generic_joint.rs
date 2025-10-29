@@ -1,8 +1,10 @@
 #![allow(clippy::bad_bit_mask)] // Clippy will complain about the bitmasks due to JointAxesMask::FREE_FIXED_AXES being 0.
 
 use crate::dynamics::solver::MotorParameters;
-use crate::dynamics::{FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RopeJoint};
-use crate::math::{Isometry, Point, Real, Rotation, UnitVector, Vector, SPATIAL_DIM};
+use crate::dynamics::{
+    FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RigidBody, RopeJoint,
+};
+use crate::math::{Isometry, Point, Real, Rotation, SPATIAL_DIM, UnitVector, Vector};
 use crate::utils::{SimdBasis, SimdRealCopy};
 
 #[cfg(feature = "dim3")]
@@ -113,15 +115,22 @@ impl From<JointAxis> for JointAxesMask {
     }
 }
 
-/// The limits of a joint along one of its degrees of freedom.
+/// Limits that restrict a joint's range of motion along one axis.
+///
+/// Use to constrain how far a joint can move/rotate. Examples:
+/// - Door that only opens 90°: revolute joint with limits `[0.0, PI/2.0]`
+/// - Piston with 2-unit stroke: prismatic joint with limits `[0.0, 2.0]`
+/// - Elbow that bends 0-150°: revolute joint with limits `[0.0, 5*PI/6]`
+///
+/// When a joint hits its limit, forces are applied to prevent further movement in that direction.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct JointLimits<N> {
-    /// The minimum bound of the joint limit.
+    /// Minimum allowed value (angle for revolute, distance for prismatic).
     pub min: N,
-    /// The maximum bound of the joint limit.
+    /// Maximum allowed value (angle for revolute, distance for prismatic).
     pub max: N,
-    /// The impulse applied to enforce the joint’s limit.
+    /// Internal: impulse being applied to enforce the limit.
     pub impulse: N,
 }
 
@@ -145,23 +154,52 @@ impl<N: SimdRealCopy> From<[N; 2]> for JointLimits<N> {
     }
 }
 
-/// A joint’s motor along one of its degrees of freedom.
+/// A powered motor that drives a joint toward a target position/velocity.
+///
+/// Motors add actuation to joints - they apply forces to make the joint move toward
+/// a desired state. Think of them as servos, electric motors, or hydraulic actuators.
+///
+/// ## Two control modes
+///
+/// 1. **Velocity control**: Set `target_vel` to make the motor spin/slide at constant speed
+/// 2. **Position control**: Set `target_pos` with `stiffness`/`damping` to reach a target angle/position
+///
+/// You can combine both for precise control.
+///
+/// ## Parameters
+///
+/// - `stiffness`: How strongly to pull toward target (spring constant)
+/// - `damping`: Resistance to motion (prevents oscillation)
+/// - `max_force`: Maximum force/torque the motor can apply
+///
+/// # Example
+/// ```
+/// # use rapier3d::prelude::*;
+/// # use rapier3d::dynamics::{RevoluteJoint, PrismaticJoint};
+/// # let mut revolute_joint = RevoluteJoint::new(Vector::x_axis());
+/// # let mut prismatic_joint = PrismaticJoint::new(Vector::x_axis());
+/// // Motor that spins a wheel at 10 rad/s
+/// revolute_joint.set_motor_velocity(10.0, 0.8);
+///
+/// // Motor that moves to position 5.0
+/// prismatic_joint.set_motor_position(5.0, 100.0, 10.0);  // stiffness=100, damping=10
+/// ```
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct JointMotor {
-    /// The target velocity of the motor.
+    /// Target velocity (units/sec for prismatic, rad/sec for revolute).
     pub target_vel: Real,
-    /// The target position of the motor.
+    /// Target position (units for prismatic, radians for revolute).
     pub target_pos: Real,
-    /// The stiffness coefficient of the motor’s spring-like equation.
+    /// Spring constant - how strongly to pull toward target position.
     pub stiffness: Real,
-    /// The damping coefficient of the motor’s spring-like equation.
+    /// Damping coefficient - resistance to motion (prevents oscillation).
     pub damping: Real,
-    /// The maximum force this motor can deliver.
+    /// Maximum force the motor can apply (Newtons for prismatic, Nm for revolute).
     pub max_force: Real,
-    /// The impulse applied by this motor.
+    /// Internal: current impulse being applied.
     pub impulse: Real,
-    /// The spring-like model used for simulating this motor.
+    /// Force-based or acceleration-based motor model.
     pub model: MotorModel,
 }
 
@@ -230,13 +268,13 @@ pub struct GenericJoint {
     /// coupled linear DoF is applied to all coupled linear DoF. Similarly, if multiple angular DoF are limited/motorized
     /// only the limits/motor configuration for the first coupled angular DoF is applied to all coupled angular DoF.
     pub coupled_axes: JointAxesMask,
-    /// The limits, along each degrees of freedoms of this joint.
+    /// The limits, along each degree of freedoms of this joint.
     ///
     /// Note that the limit must also be explicitly enabled by the `limit_axes` bitmask.
     /// For coupled degrees of freedoms (DoF), only the first linear (resp. angular) coupled DoF limit and `limit_axis`
     /// bitmask is applied to the coupled linear (resp. angular) axes.
     pub limits: [JointLimits<Real>; SPATIAL_DIM],
-    /// The motors, along each degrees of freedoms of this joint.
+    /// The motors, along each degree of freedoms of this joint.
     ///
     /// Note that the motor must also be explicitly enabled by the `motor_axes` bitmask.
     /// For coupled degrees of freedoms (DoF), only the first linear (resp. angular) coupled DoF motor and `motor_axes`
@@ -244,7 +282,7 @@ pub struct GenericJoint {
     pub motors: [JointMotor; SPATIAL_DIM],
     /// Are contacts between the attached rigid-bodies enabled?
     pub contacts_enabled: bool,
-    /// Whether or not the joint is enabled.
+    /// Whether the joint is enabled.
     pub enabled: JointEnabled,
     /// User-defined data associated to this joint.
     pub user_data: u128,
@@ -514,6 +552,20 @@ impl GenericJoint {
 
             self.motors[dim].target_vel = -self.motors[dim].target_vel;
             self.motors[dim].target_pos = -self.motors[dim].target_pos;
+        }
+    }
+
+    pub(crate) fn transform_to_solver_body_space(&mut self, rb1: &RigidBody, rb2: &RigidBody) {
+        if rb1.is_fixed() {
+            self.local_frame1 = rb1.pos.position * self.local_frame1;
+        } else {
+            self.local_frame1.translation.vector -= rb1.mprops.local_mprops.local_com.coords;
+        }
+
+        if rb2.is_fixed() {
+            self.local_frame2 = rb2.pos.position * self.local_frame2;
+        } else {
+            self.local_frame2.translation.vector -= rb2.mprops.local_mprops.local_com.coords;
         }
     }
 }

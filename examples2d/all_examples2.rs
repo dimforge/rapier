@@ -1,9 +1,8 @@
 #![allow(dead_code)]
+#![allow(clippy::type_complexity)]
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-
-use inflector::Inflector;
 
 use rapier_testbed2d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
@@ -16,10 +15,12 @@ mod convex_polygons2;
 mod damping2;
 mod debug_box_ball2;
 mod debug_compression2;
+mod debug_intersection2;
 mod debug_total_overlap2;
 mod debug_vertical_column2;
 mod drum2;
 mod heightfield2;
+mod inv_pyramid2;
 mod inverse_kinematics2;
 mod joint_motor_position2;
 mod joints2;
@@ -43,39 +44,12 @@ mod s2d_joint_grid;
 mod s2d_pyramid;
 mod sensor2;
 mod trimesh2;
+mod voxels2;
 
-fn demo_name_from_command_line() -> Option<String> {
-    let mut args = std::env::args();
-
-    while let Some(arg) = args.next() {
-        if &arg[..] == "--example" {
-            return args.next();
-        }
-    }
-
-    None
-}
-
-#[cfg(target_arch = "wasm32")]
-fn demo_name_from_url() -> Option<String> {
-    None
-    //    let window = stdweb::web::window();
-    //    let hash = window.location()?.search().ok()?;
-    //    Some(hash[1..].to_string())
-}
-
-#[cfg(not(any(target_arch = "wasm32")))]
-fn demo_name_from_url() -> Option<String> {
-    None
-}
+mod utils;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn main() {
-    let demo = demo_name_from_command_line()
-        .or_else(demo_name_from_url)
-        .unwrap_or_default()
-        .to_camel_case();
-
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Add remove", add_remove2::init_world),
         ("CCD", ccd2::init_world),
@@ -86,6 +60,7 @@ pub fn main() {
         ("Drum", drum2::init_world),
         ("Heightfield", heightfield2::init_world),
         ("Inverse kinematics", inverse_kinematics2::init_world),
+        ("Inv pyramid", inv_pyramid2::init_world),
         ("Joints", joints2::init_world),
         ("Locked rotations", locked_rotations2::init_world),
         ("One-way platforms", one_way_platforms2::init_world),
@@ -96,9 +71,11 @@ pub fn main() {
         ("Rope Joints", rope_joints2::init_world),
         ("Sensor", sensor2::init_world),
         ("Trimesh", trimesh2::init_world),
+        ("Voxels", voxels2::init_world),
         ("Joint motor position", joint_motor_position2::init_world),
         ("(Debug) box ball", debug_box_ball2::init_world),
         ("(Debug) compression", debug_compression2::init_world),
+        ("(Debug) intersection", debug_intersection2::init_world),
         ("(Debug) total overlap", debug_total_overlap2::init_world),
         (
             "(Debug) vertical column",
@@ -124,11 +101,7 @@ pub fn main() {
         (false, true) => Ordering::Less,
     });
 
-    let i = builders
-        .iter()
-        .position(|builder| builder.0.to_camel_case().as_str() == demo.as_str())
-        .unwrap_or(0);
-    let testbed = TestbedApp::from_builders(i, builders);
+    let testbed = TestbedApp::from_builders(builders);
 
     testbed.run()
 }

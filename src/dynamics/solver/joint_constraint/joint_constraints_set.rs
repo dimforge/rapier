@@ -1,11 +1,7 @@
 use crate::dynamics::solver::categorization::categorize_joints;
-use crate::dynamics::solver::solver_body::SolverBody;
-use crate::dynamics::solver::solver_vel::SolverVel;
 use crate::dynamics::solver::{
-    reset_buffer, JointConstraintTypes, JointGenericOneBodyConstraint,
-    JointGenericOneBodyConstraintBuilder, JointGenericTwoBodyConstraint,
-    JointGenericTwoBodyConstraintBuilder, JointGenericVelocityOneBodyExternalConstraintBuilder,
-    JointGenericVelocityOneBodyInternalConstraintBuilder, SolverConstraintsSet,
+    AnyJointConstraintMut, GenericJointConstraint, JointGenericExternalConstraintBuilder,
+    JointGenericInternalConstraintBuilder, reset_buffer,
 };
 use crate::dynamics::{
     IntegrationParameters, IslandManager, JointGraphEdge, JointIndex, MultibodyJointSet,
@@ -14,18 +10,92 @@ use crate::dynamics::{
 use na::DVector;
 use parry::math::Real;
 
-use crate::dynamics::solver::joint_constraint::joint_constraint_builder::{
-    JointOneBodyConstraintBuilder, JointTwoBodyConstraintBuilder,
-};
+use crate::dynamics::solver::interaction_groups::InteractionGroups;
+use crate::dynamics::solver::joint_constraint::generic_joint_constraint_builder::GenericJointConstraintBuilder;
+use crate::dynamics::solver::joint_constraint::joint_constraint_builder::JointConstraintBuilder;
+use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::JointConstraint;
+use crate::dynamics::solver::solver_body::SolverBodies;
 #[cfg(feature = "simd-is-enabled")]
 use {
-    crate::dynamics::solver::joint_constraint::joint_constraint_builder::{
-        JointOneBodyConstraintBuilderSimd, JointTwoBodyConstraintBuilderSimd,
-    },
-    crate::math::SIMD_WIDTH,
+    crate::dynamics::solver::joint_constraint::joint_constraint_builder::JointConstraintBuilderSimd,
+    crate::math::{SIMD_WIDTH, SimdReal},
 };
 
-pub type JointConstraintsSet = SolverConstraintsSet<JointConstraintTypes>;
+pub struct JointConstraintsSet {
+    pub generic_jacobians: DVector<Real>,
+    pub two_body_interactions: Vec<usize>,
+    pub generic_two_body_interactions: Vec<usize>,
+    pub interaction_groups: InteractionGroups,
+
+    pub generic_velocity_constraints: Vec<GenericJointConstraint>,
+    pub velocity_constraints: Vec<JointConstraint<Real, 1>>,
+    #[cfg(feature = "simd-is-enabled")]
+    pub simd_velocity_constraints: Vec<JointConstraint<SimdReal, SIMD_WIDTH>>,
+
+    pub generic_velocity_constraints_builder: Vec<GenericJointConstraintBuilder>,
+    pub velocity_constraints_builder: Vec<JointConstraintBuilder>,
+    #[cfg(feature = "simd-is-enabled")]
+    pub simd_velocity_constraints_builder: Vec<JointConstraintBuilderSimd>,
+}
+
+impl JointConstraintsSet {
+    pub fn new() -> Self {
+        Self {
+            generic_jacobians: DVector::zeros(0),
+            two_body_interactions: vec![],
+            generic_two_body_interactions: vec![],
+            interaction_groups: InteractionGroups::new(),
+            velocity_constraints: vec![],
+            generic_velocity_constraints: vec![],
+            #[cfg(feature = "simd-is-enabled")]
+            simd_velocity_constraints: vec![],
+            velocity_constraints_builder: vec![],
+            generic_velocity_constraints_builder: vec![],
+            #[cfg(feature = "simd-is-enabled")]
+            simd_velocity_constraints_builder: vec![],
+        }
+    }
+
+    pub fn clear_constraints(&mut self) {
+        self.generic_jacobians.fill(0.0);
+        self.generic_velocity_constraints.clear();
+        #[cfg(feature = "simd-is-enabled")]
+        self.simd_velocity_constraints.clear();
+    }
+
+    pub fn clear_builders(&mut self) {
+        self.generic_velocity_constraints_builder.clear();
+        #[cfg(feature = "simd-is-enabled")]
+        self.simd_velocity_constraints_builder.clear();
+    }
+
+    // Returns the generic jacobians and a mutable iterator through all the constraints.
+    pub fn iter_constraints_mut(
+        &mut self,
+    ) -> (
+        &DVector<Real>,
+        impl Iterator<Item = AnyJointConstraintMut<'_>>,
+    ) {
+        let jac = &self.generic_jacobians;
+        let a = self
+            .generic_velocity_constraints
+            .iter_mut()
+            .map(AnyJointConstraintMut::Generic);
+        let b = self
+            .velocity_constraints
+            .iter_mut()
+            .map(AnyJointConstraintMut::Rigid);
+        #[cfg(feature = "simd-is-enabled")]
+        let c = self
+            .simd_velocity_constraints
+            .iter_mut()
+            .map(AnyJointConstraintMut::SimdRigid);
+        #[cfg(not(feature = "simd-is-enabled"))]
+        return (jac, a.chain(b));
+        #[cfg(feature = "simd-is-enabled")]
+        return (jac, a.chain(b).chain(c));
+    }
+}
 
 impl JointConstraintsSet {
     pub fn init(
@@ -39,18 +109,13 @@ impl JointConstraintsSet {
     ) {
         // Generate constraints for impulse_joints.
         self.two_body_interactions.clear();
-        self.one_body_interactions.clear();
         self.generic_two_body_interactions.clear();
-        self.generic_one_body_interactions.clear();
 
         categorize_joints(
-            bodies,
             multibody_joints,
             impulse_joints,
             joint_constraint_indices,
-            &mut self.one_body_interactions,
             &mut self.two_body_interactions,
-            &mut self.generic_one_body_interactions,
             &mut self.generic_two_body_interactions,
         );
 
@@ -66,21 +131,10 @@ impl JointConstraintsSet {
             &self.two_body_interactions,
         );
 
-        self.one_body_interaction_groups.clear_groups();
-        self.one_body_interaction_groups.group_joints(
-            island_id,
-            islands,
-            bodies,
-            impulse_joints,
-            &self.one_body_interactions,
-        );
         // NOTE: uncomment this do disable SIMD joint resolution.
         // self.interaction_groups
         //     .nongrouped_interactions
         //     .append(&mut self.interaction_groups.simd_interactions);
-        // self.one_body_interaction_groups
-        //     .nongrouped_interactions
-        //     .append(&mut self.one_body_interaction_groups.simd_interactions);
 
         let mut j_id = 0;
         self.compute_joint_constraints(bodies, impulse_joints);
@@ -88,14 +142,7 @@ impl JointConstraintsSet {
         {
             self.simd_compute_joint_constraints(bodies, impulse_joints);
         }
-        self.compute_generic_joint_constraints(bodies, multibody_joints, impulse_joints, &mut j_id);
-
-        self.compute_joint_one_body_constraints(bodies, impulse_joints);
-        #[cfg(feature = "simd-is-enabled")]
-        {
-            self.simd_compute_joint_one_body_constraints(bodies, impulse_joints);
-        }
-        self.compute_generic_one_body_joint_constraints(
+        self.compute_generic_joint_constraints(
             island_id,
             islands,
             bodies,
@@ -103,87 +150,6 @@ impl JointConstraintsSet {
             impulse_joints,
             &mut j_id,
         );
-    }
-
-    fn compute_joint_one_body_constraints(
-        &mut self,
-        bodies: &RigidBodySet,
-        joints_all: &[JointGraphEdge],
-    ) {
-        let total_num_builders = self
-            .one_body_interaction_groups
-            .nongrouped_interactions
-            .len();
-
-        unsafe {
-            reset_buffer(
-                &mut self.velocity_one_body_constraints_builder,
-                total_num_builders,
-            );
-        }
-
-        let mut num_constraints = 0;
-        for (joint_i, builder) in self
-            .one_body_interaction_groups
-            .nongrouped_interactions
-            .iter()
-            .zip(self.velocity_one_body_constraints_builder.iter_mut())
-        {
-            let joint = &joints_all[*joint_i].weight;
-            JointOneBodyConstraintBuilder::generate(
-                joint,
-                bodies,
-                *joint_i,
-                builder,
-                &mut num_constraints,
-            );
-        }
-
-        unsafe {
-            reset_buffer(&mut self.velocity_one_body_constraints, num_constraints);
-        }
-    }
-
-    #[cfg(feature = "simd-is-enabled")]
-    fn simd_compute_joint_one_body_constraints(
-        &mut self,
-        bodies: &RigidBodySet,
-        joints_all: &[JointGraphEdge],
-    ) {
-        let total_num_builders =
-            self.one_body_interaction_groups.simd_interactions.len() / SIMD_WIDTH;
-
-        unsafe {
-            reset_buffer(
-                &mut self.simd_velocity_one_body_constraints_builder,
-                total_num_builders,
-            );
-        }
-
-        let mut num_constraints = 0;
-        for (joints_i, builder) in self
-            .one_body_interaction_groups
-            .simd_interactions
-            .chunks_exact(SIMD_WIDTH)
-            .zip(self.simd_velocity_one_body_constraints_builder.iter_mut())
-        {
-            let joints_id = gather![|ii| joints_i[ii]];
-            let impulse_joints = gather![|ii| &joints_all[joints_i[ii]].weight];
-            JointOneBodyConstraintBuilderSimd::generate(
-                impulse_joints,
-                bodies,
-                joints_id,
-                builder,
-                &mut num_constraints,
-            );
-        }
-
-        unsafe {
-            reset_buffer(
-                &mut self.simd_velocity_one_body_constraints,
-                num_constraints,
-            );
-        }
     }
 
     fn compute_joint_constraints(&mut self, bodies: &RigidBodySet, joints_all: &[JointGraphEdge]) {
@@ -201,7 +167,7 @@ impl JointConstraintsSet {
             .zip(self.velocity_constraints_builder.iter_mut())
         {
             let joint = &joints_all[*joint_i].weight;
-            JointTwoBodyConstraintBuilder::generate(
+            JointConstraintBuilder::generate(
                 joint,
                 bodies,
                 *joint_i,
@@ -217,42 +183,6 @@ impl JointConstraintsSet {
 
     fn compute_generic_joint_constraints(
         &mut self,
-        bodies: &RigidBodySet,
-        multibodies: &MultibodyJointSet,
-        joints_all: &[JointGraphEdge],
-        j_id: &mut usize,
-    ) {
-        let total_num_builders = self.generic_two_body_interactions.len();
-        self.generic_velocity_constraints_builder.resize(
-            total_num_builders,
-            JointGenericTwoBodyConstraintBuilder::invalid(),
-        );
-
-        let mut num_constraints = 0;
-        for (joint_i, builder) in self
-            .generic_two_body_interactions
-            .iter()
-            .zip(self.generic_velocity_constraints_builder.iter_mut())
-        {
-            let joint = &joints_all[*joint_i].weight;
-            JointGenericTwoBodyConstraintBuilder::generate(
-                *joint_i,
-                joint,
-                bodies,
-                multibodies,
-                builder,
-                j_id,
-                &mut self.generic_jacobians,
-                &mut num_constraints,
-            );
-        }
-
-        self.generic_velocity_constraints
-            .resize(num_constraints, JointGenericTwoBodyConstraint::invalid());
-    }
-
-    fn compute_generic_one_body_joint_constraints(
-        &mut self,
         island_id: usize,
         islands: &IslandManager,
         bodies: &RigidBodySet,
@@ -260,32 +190,33 @@ impl JointConstraintsSet {
         joints_all: &[JointGraphEdge],
         j_id: &mut usize,
     ) {
-        let mut total_num_builders = self.generic_one_body_interactions.len();
-
+        // Count the internal and external constraints builder.
+        let num_external_constraint_builders = self.generic_two_body_interactions.len();
+        let mut num_internal_constraint_builders = 0;
         for handle in islands.active_island(island_id) {
             if let Some(link_id) = multibodies.rigid_body_link(*handle) {
-                if JointGenericVelocityOneBodyInternalConstraintBuilder::num_constraints(
-                    multibodies,
-                    link_id,
-                ) > 0
+                if JointGenericInternalConstraintBuilder::num_constraints(multibodies, link_id) > 0
                 {
-                    total_num_builders += 1;
+                    num_internal_constraint_builders += 1;
                 }
             }
         }
+        let total_num_builders =
+            num_external_constraint_builders + num_internal_constraint_builders;
 
-        self.generic_velocity_one_body_constraints_builder.resize(
-            total_num_builders,
-            JointGenericOneBodyConstraintBuilder::invalid(),
-        );
+        // Preallocate builders buffer.
+        self.generic_velocity_constraints_builder
+            .resize(total_num_builders, GenericJointConstraintBuilder::Empty);
 
+        // Generate external constraints builders.
         let mut num_constraints = 0;
-        for (joint_i, builder) in self.generic_one_body_interactions.iter().zip(
-            self.generic_velocity_one_body_constraints_builder
-                .iter_mut(),
-        ) {
+        for (joint_i, builder) in self
+            .generic_two_body_interactions
+            .iter()
+            .zip(self.generic_velocity_constraints_builder.iter_mut())
+        {
             let joint = &joints_all[*joint_i].weight;
-            JointGenericVelocityOneBodyExternalConstraintBuilder::generate(
+            JointGenericExternalConstraintBuilder::generate(
                 *joint_i,
                 joint,
                 bodies,
@@ -297,18 +228,19 @@ impl JointConstraintsSet {
             );
         }
 
-        let mut curr_builder = self.generic_one_body_interactions.len();
+        // Generate internal constraints builder. They are indexed after the
+        let mut curr_builder = self.generic_two_body_interactions.len();
         for handle in islands.active_island(island_id) {
-            if curr_builder >= self.generic_velocity_one_body_constraints_builder.len() {
+            if curr_builder >= self.generic_velocity_constraints_builder.len() {
                 break; // No more builder need to be generated.
             }
 
             if let Some(link_id) = multibodies.rigid_body_link(*handle) {
                 let prev_num_constraints = num_constraints;
-                JointGenericVelocityOneBodyInternalConstraintBuilder::generate(
+                JointGenericInternalConstraintBuilder::generate(
                     multibodies,
                     link_id,
-                    &mut self.generic_velocity_one_body_constraints_builder[curr_builder],
+                    &mut self.generic_velocity_constraints_builder[curr_builder],
                     j_id,
                     &mut self.generic_jacobians,
                     &mut num_constraints,
@@ -319,8 +251,9 @@ impl JointConstraintsSet {
             }
         }
 
-        self.generic_velocity_one_body_constraints
-            .resize(num_constraints, JointGenericOneBodyConstraint::invalid());
+        // Resize constraints buffer now that we know the total count.
+        self.generic_velocity_constraints
+            .resize(num_constraints, GenericJointConstraint::invalid());
     }
 
     #[cfg(feature = "simd-is-enabled")]
@@ -345,9 +278,9 @@ impl JointConstraintsSet {
             .chunks_exact(SIMD_WIDTH)
             .zip(self.simd_velocity_constraints_builder.iter_mut())
         {
-            let joints_id = gather![|ii| joints_i[ii]];
-            let impulse_joints = gather![|ii| &joints_all[joints_i[ii]].weight];
-            JointTwoBodyConstraintBuilderSimd::generate(
+            let joints_id = array![|ii| joints_i[ii]];
+            let impulse_joints = array![|ii| &joints_all[joints_i[ii]].weight];
+            JointConstraintBuilderSimd::generate(
                 impulse_joints,
                 bodies,
                 joints_id,
@@ -364,7 +297,7 @@ impl JointConstraintsSet {
     #[profiling::function]
     pub fn solve(
         &mut self,
-        solver_vels: &mut [SolverVel<Real>],
+        solver_vels: &mut SolverBodies,
         generic_solver_vels: &mut DVector<Real>,
     ) {
         let (jac, constraints) = self.iter_constraints_mut();
@@ -375,7 +308,7 @@ impl JointConstraintsSet {
 
     pub fn solve_wo_bias(
         &mut self,
-        solver_vels: &mut [SolverVel<Real>],
+        solver_vels: &mut SolverBodies,
         generic_solver_vels: &mut DVector<Real>,
     ) {
         let (jac, constraints) = self.iter_constraints_mut();
@@ -397,26 +330,29 @@ impl JointConstraintsSet {
         &mut self,
         params: &IntegrationParameters,
         multibodies: &MultibodyJointSet,
-        solver_bodies: &[SolverBody],
+        solver_bodies: &SolverBodies,
     ) {
         for builder in &mut self.generic_velocity_constraints_builder {
-            builder.update(
-                params,
-                multibodies,
-                solver_bodies,
-                &mut self.generic_jacobians,
-                &mut self.generic_velocity_constraints,
-            );
-        }
-
-        for builder in &mut self.generic_velocity_one_body_constraints_builder {
-            builder.update(
-                params,
-                multibodies,
-                solver_bodies,
-                &mut self.generic_jacobians,
-                &mut self.generic_velocity_one_body_constraints,
-            );
+            match builder {
+                GenericJointConstraintBuilder::External(builder) => {
+                    builder.update(
+                        params,
+                        multibodies,
+                        solver_bodies,
+                        &mut self.generic_jacobians,
+                        &mut self.generic_velocity_constraints,
+                    );
+                }
+                GenericJointConstraintBuilder::Internal(builder) => {
+                    builder.update(
+                        params,
+                        multibodies,
+                        &mut self.generic_jacobians,
+                        &mut self.generic_velocity_constraints,
+                    );
+                }
+                GenericJointConstraintBuilder::Empty => {}
+            }
         }
 
         for builder in &mut self.velocity_constraints_builder {
@@ -426,23 +362,6 @@ impl JointConstraintsSet {
         #[cfg(feature = "simd-is-enabled")]
         for builder in &mut self.simd_velocity_constraints_builder {
             builder.update(params, solver_bodies, &mut self.simd_velocity_constraints);
-        }
-
-        for builder in &mut self.velocity_one_body_constraints_builder {
-            builder.update(
-                params,
-                solver_bodies,
-                &mut self.velocity_one_body_constraints,
-            );
-        }
-
-        #[cfg(feature = "simd-is-enabled")]
-        for builder in &mut self.simd_velocity_one_body_constraints_builder {
-            builder.update(
-                params,
-                solver_bodies,
-                &mut self.simd_velocity_one_body_constraints,
-            );
         }
     }
 }

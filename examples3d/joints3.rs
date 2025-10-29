@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 fn create_coupled_joints(
     bodies: &mut RigidBodySet,
@@ -167,7 +167,7 @@ fn create_revolute_joints(
 
         let mut handles = [curr_parent; 4];
         for k in 0..4 {
-            let rigid_body = RigidBodyBuilder::dynamic().position(positions[k]);
+            let rigid_body = RigidBodyBuilder::dynamic().pose(positions[k]);
             handles[k] = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(rad, rad, rad);
             colliders.insert_with_parent(collider, handles[k], bodies);

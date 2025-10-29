@@ -1,8 +1,7 @@
 use crate::dynamics::solver::SolverVel;
-use crate::dynamics::solver::{
-    TwoBodyConstraintElement, TwoBodyConstraintNormalPart, TwoBodyConstraintTangentPart,
-};
-use crate::math::{AngVector, Real, Vector, DIM};
+use crate::dynamics::solver::contact_constraint::GenericContactConstraint;
+use crate::dynamics::solver::{ContactConstraintNormalPart, ContactConstraintTangentPart};
+use crate::math::{AngVector, DIM, Real, Vector};
 use crate::utils::SimdDot;
 use na::DVector;
 #[cfg(feature = "dim2")]
@@ -10,37 +9,38 @@ use {crate::utils::SimdBasis, na::SimdPartialOrd};
 
 pub(crate) enum GenericRhs {
     SolverVel(SolverVel<Real>),
-    GenericId(usize),
+    GenericId(u32),
+    Fixed,
 }
 
 // Offset between the jacobians of two consecutive constraints.
-#[inline(always)]
+#[inline]
 fn j_step(ndofs1: usize, ndofs2: usize) -> usize {
     (ndofs1 + ndofs2) * 2
 }
 
-#[inline(always)]
+#[inline]
 fn j_id1(j_id: usize, _ndofs1: usize, _ndofs2: usize) -> usize {
     j_id
 }
 
-#[inline(always)]
+#[inline]
 fn j_id2(j_id: usize, ndofs1: usize, _ndofs2: usize) -> usize {
     j_id + ndofs1 * 2
 }
 
-#[inline(always)]
+#[inline]
 fn normal_j_id(j_id: usize, _ndofs1: usize, _ndofs2: usize) -> usize {
     j_id
 }
 
-#[inline(always)]
+#[inline]
 fn tangent_j_id(j_id: usize, ndofs1: usize, ndofs2: usize) -> usize {
     j_id + (ndofs1 + ndofs2) * 2
 }
 
 impl GenericRhs {
-    #[inline(always)]
+    #[inline]
     fn dvel(
         &self,
         j_id: usize,
@@ -54,13 +54,14 @@ impl GenericRhs {
             GenericRhs::SolverVel(rhs) => dir.dot(&rhs.linear) + gcross.gdot(rhs.angular),
             GenericRhs::GenericId(solver_vel) => {
                 let j = jacobians.rows(j_id, ndofs);
-                let rhs = solver_vels.rows(*solver_vel, ndofs);
+                let rhs = solver_vels.rows(*solver_vel as usize, ndofs);
                 j.dot(&rhs)
             }
+            GenericRhs::Fixed => 0.0,
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn apply_impulse(
         &mut self,
         j_id: usize,
@@ -68,26 +69,27 @@ impl GenericRhs {
         impulse: Real,
         jacobians: &DVector<Real>,
         dir: &Vector<Real>,
-        gcross: &AngVector<Real>,
+        ii_torque_dir: &AngVector<Real>,
         solver_vels: &mut DVector<Real>,
         inv_mass: &Vector<Real>,
     ) {
         match self {
             GenericRhs::SolverVel(rhs) => {
                 rhs.linear += dir.component_mul(inv_mass) * impulse;
-                rhs.angular += gcross * impulse;
+                rhs.angular += ii_torque_dir * impulse;
             }
             GenericRhs::GenericId(solver_vel) => {
                 let wj_id = j_id + ndofs;
                 let wj = jacobians.rows(wj_id, ndofs);
-                let mut rhs = solver_vels.rows_mut(*solver_vel, ndofs);
+                let mut rhs = solver_vels.rows_mut(*solver_vel as usize, ndofs);
                 rhs.axpy(impulse, &wj, 1.0);
             }
+            GenericRhs::Fixed => {}
         }
     }
 }
 
-impl TwoBodyConstraintTangentPart<Real> {
+impl ContactConstraintTangentPart<Real> {
     #[inline]
     pub fn generic_warmstart(
         &mut self,
@@ -115,7 +117,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 self.impulse[0],
                 jacobians,
                 tangents1[0],
-                &self.gcross1[0],
+                &self.ii_torque_dir1[0],
                 solver_vels,
                 im1,
             );
@@ -125,7 +127,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 self.impulse[0],
                 jacobians,
                 &-tangents1[0],
-                &self.gcross2[0],
+                &self.ii_torque_dir2[0],
                 solver_vels,
                 im2,
             );
@@ -139,7 +141,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 self.impulse[0],
                 jacobians,
                 tangents1[0],
-                &self.gcross1[0],
+                &self.ii_torque_dir1[0],
                 solver_vels,
                 im1,
             );
@@ -149,7 +151,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 self.impulse[1],
                 jacobians,
                 tangents1[1],
-                &self.gcross1[1],
+                &self.ii_torque_dir1[1],
                 solver_vels,
                 im1,
             );
@@ -160,7 +162,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 self.impulse[0],
                 jacobians,
                 &-tangents1[0],
-                &self.gcross2[0],
+                &self.ii_torque_dir2[0],
                 solver_vels,
                 im2,
             );
@@ -170,7 +172,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 self.impulse[1],
                 jacobians,
                 &-tangents1[1],
-                &self.gcross2[1],
+                &self.ii_torque_dir2[1],
                 solver_vels,
                 im2,
             );
@@ -204,14 +206,14 @@ impl TwoBodyConstraintTangentPart<Real> {
                 ndofs1,
                 jacobians,
                 tangents1[0],
-                &self.gcross1[0],
+                &self.torque_dir1[0],
                 solver_vels,
             ) + solver_vel2.dvel(
                 j_id2,
                 ndofs2,
                 jacobians,
                 &-tangents1[0],
-                &self.gcross2[0],
+                &self.torque_dir2[0],
                 solver_vels,
             ) + self.rhs[0];
 
@@ -225,7 +227,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 dlambda,
                 jacobians,
                 tangents1[0],
-                &self.gcross1[0],
+                &self.ii_torque_dir1[0],
                 solver_vels,
                 im1,
             );
@@ -235,7 +237,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 dlambda,
                 jacobians,
                 &-tangents1[0],
-                &self.gcross2[0],
+                &self.ii_torque_dir2[0],
                 solver_vels,
                 im2,
             );
@@ -248,14 +250,14 @@ impl TwoBodyConstraintTangentPart<Real> {
                 ndofs1,
                 jacobians,
                 tangents1[0],
-                &self.gcross1[0],
+                &self.torque_dir1[0],
                 solver_vels,
             ) + solver_vel2.dvel(
                 j_id2,
                 ndofs2,
                 jacobians,
                 &-tangents1[0],
-                &self.gcross2[0],
+                &self.torque_dir2[0],
                 solver_vels,
             ) + self.rhs[0];
             let dvel_1 = solver_vel1.dvel(
@@ -263,14 +265,14 @@ impl TwoBodyConstraintTangentPart<Real> {
                 ndofs1,
                 jacobians,
                 tangents1[1],
-                &self.gcross1[1],
+                &self.torque_dir1[1],
                 solver_vels,
             ) + solver_vel2.dvel(
                 j_id2 + j_step,
                 ndofs2,
                 jacobians,
                 &-tangents1[1],
-                &self.gcross2[1],
+                &self.torque_dir2[1],
                 solver_vels,
             ) + self.rhs[1];
 
@@ -289,7 +291,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 dlambda[0],
                 jacobians,
                 tangents1[0],
-                &self.gcross1[0],
+                &self.ii_torque_dir1[0],
                 solver_vels,
                 im1,
             );
@@ -299,7 +301,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 dlambda[1],
                 jacobians,
                 tangents1[1],
-                &self.gcross1[1],
+                &self.ii_torque_dir1[1],
                 solver_vels,
                 im1,
             );
@@ -310,7 +312,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 dlambda[0],
                 jacobians,
                 &-tangents1[0],
-                &self.gcross2[0],
+                &self.ii_torque_dir2[0],
                 solver_vels,
                 im2,
             );
@@ -320,7 +322,7 @@ impl TwoBodyConstraintTangentPart<Real> {
                 dlambda[1],
                 jacobians,
                 &-tangents1[1],
-                &self.gcross2[1],
+                &self.ii_torque_dir2[1],
                 solver_vels,
                 im2,
             );
@@ -328,7 +330,7 @@ impl TwoBodyConstraintTangentPart<Real> {
     }
 }
 
-impl TwoBodyConstraintNormalPart<Real> {
+impl ContactConstraintNormalPart<Real> {
     #[inline]
     pub fn generic_warmstart(
         &mut self,
@@ -352,7 +354,7 @@ impl TwoBodyConstraintNormalPart<Real> {
             self.impulse,
             jacobians,
             dir1,
-            &self.gcross1,
+            &self.ii_torque_dir1,
             solver_vels,
             im1,
         );
@@ -362,7 +364,7 @@ impl TwoBodyConstraintNormalPart<Real> {
             self.impulse,
             jacobians,
             &-dir1,
-            &self.gcross2,
+            &self.ii_torque_dir2,
             solver_vels,
             im2,
         );
@@ -386,9 +388,21 @@ impl TwoBodyConstraintNormalPart<Real> {
         let j_id1 = j_id1(j_id, ndofs1, ndofs2);
         let j_id2 = j_id2(j_id, ndofs1, ndofs2);
 
-        let dvel = solver_vel1.dvel(j_id1, ndofs1, jacobians, dir1, &self.gcross1, solver_vels)
-            + solver_vel2.dvel(j_id2, ndofs2, jacobians, &-dir1, &self.gcross2, solver_vels)
-            + self.rhs;
+        let dvel = solver_vel1.dvel(
+            j_id1,
+            ndofs1,
+            jacobians,
+            dir1,
+            &self.torque_dir1,
+            solver_vels,
+        ) + solver_vel2.dvel(
+            j_id2,
+            ndofs2,
+            jacobians,
+            &-dir1,
+            &self.torque_dir2,
+            solver_vels,
+        ) + self.rhs;
 
         let new_impulse = cfm_factor * (self.impulse - self.r * dvel).max(0.0);
         let dlambda = new_impulse - self.impulse;
@@ -400,7 +414,7 @@ impl TwoBodyConstraintNormalPart<Real> {
             dlambda,
             jacobians,
             dir1,
-            &self.gcross1,
+            &self.ii_torque_dir1,
             solver_vels,
             im1,
         );
@@ -410,17 +424,18 @@ impl TwoBodyConstraintNormalPart<Real> {
             dlambda,
             jacobians,
             &-dir1,
-            &self.gcross2,
+            &self.ii_torque_dir2,
             solver_vels,
             im2,
         );
     }
 }
 
-impl TwoBodyConstraintElement<Real> {
+impl GenericContactConstraint {
     #[inline]
     pub fn generic_warmstart_group(
-        elements: &mut [Self],
+        normal_parts: &mut [ContactConstraintNormalPart<Real>],
+        tangent_parts: &mut [ContactConstraintTangentPart<Real>],
         jacobians: &DVector<Real>,
         dir1: &Vector<Real>,
         #[cfg(feature = "dim3")] tangent1: &Vector<Real>,
@@ -442,8 +457,8 @@ impl TwoBodyConstraintElement<Real> {
         {
             let mut nrm_j_id = normal_j_id(j_id, ndofs1, ndofs2);
 
-            for element in elements.iter_mut() {
-                element.normal_part.generic_warmstart(
+            for normal_part in normal_parts {
+                normal_part.generic_warmstart(
                     nrm_j_id,
                     jacobians,
                     dir1,
@@ -467,9 +482,8 @@ impl TwoBodyConstraintElement<Real> {
             let tangents1 = [&dir1.orthonormal_vector()];
             let mut tng_j_id = tangent_j_id(j_id, ndofs1, ndofs2);
 
-            for element in elements.iter_mut() {
-                let part = &mut element.tangent_part;
-                part.generic_warmstart(
+            for tangent_part in tangent_parts {
+                tangent_part.generic_warmstart(
                     tng_j_id,
                     jacobians,
                     tangents1,
@@ -489,7 +503,8 @@ impl TwoBodyConstraintElement<Real> {
     #[inline]
     pub fn generic_solve_group(
         cfm_factor: Real,
-        elements: &mut [Self],
+        normal_parts: &mut [ContactConstraintNormalPart<Real>],
+        tangent_parts: &mut [ContactConstraintTangentPart<Real>],
         jacobians: &DVector<Real>,
         dir1: &Vector<Real>,
         #[cfg(feature = "dim3")] tangent1: &Vector<Real>,
@@ -514,8 +529,8 @@ impl TwoBodyConstraintElement<Real> {
         if solve_restitution {
             let mut nrm_j_id = normal_j_id(j_id, ndofs1, ndofs2);
 
-            for element in elements.iter_mut() {
-                element.normal_part.generic_solve(
+            for normal_part in &mut *normal_parts {
+                normal_part.generic_solve(
                     cfm_factor,
                     nrm_j_id,
                     jacobians,
@@ -540,10 +555,9 @@ impl TwoBodyConstraintElement<Real> {
             let tangents1 = [&dir1.orthonormal_vector()];
             let mut tng_j_id = tangent_j_id(j_id, ndofs1, ndofs2);
 
-            for element in elements.iter_mut() {
-                let limit = limit * element.normal_part.impulse;
-                let part = &mut element.tangent_part;
-                part.generic_solve(
+            for (normal_part, tangent_part) in normal_parts.iter().zip(tangent_parts.iter_mut()) {
+                let limit = limit * normal_part.impulse;
+                tangent_part.generic_solve(
                     tng_j_id,
                     jacobians,
                     tangents1,

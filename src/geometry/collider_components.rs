@@ -1,7 +1,6 @@
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle, RigidBodyType};
-use crate::geometry::{BroadPhaseProxyIndex, InteractionGroups, Shape, SharedShape};
+use crate::geometry::{InteractionGroups, Shape, SharedShape};
 use crate::math::{Isometry, Real};
-use crate::parry::partitioning::IndexedData;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
 use std::ops::{Deref, DerefMut};
 
@@ -28,16 +27,6 @@ impl ColliderHandle {
             crate::INVALID_U32,
             crate::INVALID_U32,
         ))
-    }
-}
-
-impl IndexedData for ColliderHandle {
-    fn default() -> Self {
-        Self(IndexedData::default())
-    }
-
-    fn index(&self) -> usize {
-        self.0.index()
     }
 }
 
@@ -112,21 +101,6 @@ impl ColliderType {
     /// Is this collider a sensor?
     pub fn is_sensor(self) -> bool {
         self == ColliderType::Sensor
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-/// Data associated to a collider that takes part to a broad-phase algorithm.
-pub struct ColliderBroadPhaseData {
-    pub(crate) proxy_index: BroadPhaseProxyIndex,
-}
-
-impl Default for ColliderBroadPhaseData {
-    fn default() -> Self {
-        ColliderBroadPhaseData {
-            proxy_index: crate::INVALID_U32,
-        }
     }
 }
 
@@ -303,29 +277,45 @@ impl Default for ColliderMaterial {
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
-    /// Flags affecting whether or not collision-detection happens between two colliders
-    /// depending on the type of rigid-bodies they are attached to.
+    /// Controls which combinations of body types can collide with each other.
+    ///
+    /// By default, Rapier only detects collisions between pairs that make physical sense
+    /// (e.g., dynamic-dynamic, dynamic-fixed). Use this to customize that behavior.
+    ///
+    /// **Most users don't need to change this** - the defaults are correct for normal physics.
+    ///
+    /// ## Default behavior
+    /// - ✅ Dynamic ↔ Dynamic (moving objects collide)
+    /// - ✅ Dynamic ↔ Fixed (moving objects hit walls)
+    /// - ✅ Dynamic ↔ Kinematic (moving objects hit platforms)
+    /// - ❌ Fixed ↔ Fixed (walls don't collide with each other - waste of CPU)
+    /// - ❌ Kinematic ↔ Kinematic (platforms don't collide - they're user-controlled)
+    /// - ❌ Kinematic ↔ Fixed (platforms don't collide with walls)
+    ///
+    /// # Example
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut colliders = ColliderSet::new();
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let collider_handle = colliders.insert_with_parent(ColliderBuilder::ball(0.5), body_handle, &mut bodies);
+    /// # let collider = colliders.get_mut(collider_handle).unwrap();
+    /// // Enable kinematic-kinematic collisions (unusual)
+    /// let types = ActiveCollisionTypes::default() | ActiveCollisionTypes::KINEMATIC_KINEMATIC;
+    /// collider.set_active_collision_types(types);
+    /// ```
     pub struct ActiveCollisionTypes: u16 {
-        /// Enable collision-detection between a collider attached to a dynamic body
-        /// and another collider attached to a dynamic body.
+        /// Enables dynamic ↔ dynamic collision detection.
         const DYNAMIC_DYNAMIC = 0b0000_0000_0000_0001;
-        /// Enable collision-detection between a collider attached to a dynamic body
-        /// and another collider attached to a kinematic body.
+        /// Enables dynamic ↔ kinematic collision detection.
         const DYNAMIC_KINEMATIC = 0b0000_0000_0000_1100;
-        /// Enable collision-detection between a collider attached to a dynamic body
-        /// and another collider attached to a fixed body (or not attached to any body).
+        /// Enables dynamic ↔ fixed collision detection.
         const DYNAMIC_FIXED  = 0b0000_0000_0000_0010;
-        /// Enable collision-detection between a collider attached to a kinematic body
-        /// and another collider attached to a kinematic body.
+        /// Enables kinematic ↔ kinematic collision detection (rarely needed).
         const KINEMATIC_KINEMATIC = 0b1100_1100_0000_0000;
-
-        /// Enable collision-detection between a collider attached to a kinematic body
-        /// and another collider attached to a fixed body (or not attached to any body).
+        /// Enables kinematic ↔ fixed collision detection (rarely needed).
         const KINEMATIC_FIXED = 0b0010_0010_0000_0000;
-
-        /// Enable collision-detection between a collider attached to a fixed body (or
-        /// not attached to any body) and another collider attached to a fixed body (or
-        /// not attached to any body).
+        /// Enables fixed ↔ fixed collision detection (rarely needed).
         const FIXED_FIXED = 0b0000_0000_0010_0000;
     }
 }

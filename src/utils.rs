@@ -1,18 +1,17 @@
 //! Miscellaneous utilities.
 
+use crate::math::Real;
 use na::{
     Matrix1, Matrix2, Matrix3, RowVector2, Scalar, SimdRealField, UnitComplex, UnitQuaternion,
     Vector1, Vector2, Vector3,
 };
-use num::Zero;
-use simba::simd::SimdValue;
+use parry::utils::SdpMatrix3;
 use std::ops::IndexMut;
 
-use parry::utils::SdpMatrix3;
-use {
-    crate::math::{Real, SimdReal},
-    na::SimdPartialOrd,
-    num::One,
+#[cfg(feature = "simd-is-enabled")]
+use crate::{
+    math::{SIMD_WIDTH, SimdReal},
+    num::Zero,
 };
 
 /// The trait for real numbers used by Rapier.
@@ -20,6 +19,7 @@ use {
 /// This includes `f32`, `f64` and their related SIMD types.
 pub trait SimdRealCopy: SimdRealField<Element = Real> + Copy {}
 impl SimdRealCopy for Real {}
+#[cfg(feature = "simd-is-enabled")]
 impl SimdRealCopy for SimdReal {}
 
 const INV_EPSILON: Real = 1.0e-20;
@@ -84,6 +84,7 @@ impl<N: Scalar + Copy + SimdSign<N>> SimdSign<Vector3<N>> for Vector3<N> {
     }
 }
 
+#[cfg(feature = "simd-is-enabled")]
 impl SimdSign<SimdReal> for SimdReal {
     fn copy_sign_to(self, to: SimdReal) -> SimdReal {
         to.simd_copysign(self)
@@ -198,6 +199,7 @@ impl SimdCrossMatrix for Real {
     }
 }
 
+#[cfg(feature = "simd-is-enabled")]
 impl SimdCrossMatrix for SimdReal {
     type CrossMat = Matrix2<SimdReal>;
     type CrossMatTr = Matrix2<SimdReal>;
@@ -287,6 +289,7 @@ impl<N: SimdRealCopy> SimdDot<N> for Vector1<N> {
     }
 }
 
+#[cfg(feature = "simd-is-enabled")]
 impl SimdCross<Vector3<SimdReal>> for Vector3<SimdReal> {
     type Result = Vector3<SimdReal>;
 
@@ -295,6 +298,7 @@ impl SimdCross<Vector3<SimdReal>> for Vector3<SimdReal> {
     }
 }
 
+#[cfg(feature = "simd-is-enabled")]
 impl SimdCross<Vector2<SimdReal>> for SimdReal {
     type Result = Vector2<SimdReal>;
 
@@ -303,6 +307,7 @@ impl SimdCross<Vector2<SimdReal>> for SimdReal {
     }
 }
 
+#[cfg(feature = "simd-is-enabled")]
 impl SimdCross<Vector2<SimdReal>> for Vector2<SimdReal> {
     type Result = SimdReal;
 
@@ -354,7 +359,6 @@ pub(crate) trait SimdAngularInertia<N> {
     type AngMatrix;
     fn inverse(&self) -> Self;
     fn transform_vector(&self, pt: Self::AngVector) -> Self::AngVector;
-    fn squared(&self) -> Self;
     fn into_matrix(self) -> Self::AngMatrix;
 }
 
@@ -370,18 +374,14 @@ impl<N: SimdRealCopy> SimdAngularInertia<N> for N {
         pt * *self
     }
 
-    fn squared(&self) -> N {
-        *self * *self
-    }
-
     fn into_matrix(self) -> Self::AngMatrix {
         self
     }
 }
 
-impl SimdAngularInertia<Real> for SdpMatrix3<Real> {
-    type AngVector = Vector3<Real>;
-    type AngMatrix = Matrix3<Real>;
+impl<N: SimdRealCopy> SimdAngularInertia<N> for SdpMatrix3<N> {
+    type AngVector = Vector3<N>;
+    type AngMatrix = Matrix3<N>;
 
     fn inverse(&self) -> Self {
         let minor_m12_m23 = self.m22 * self.m33 - self.m23 * self.m23;
@@ -405,18 +405,7 @@ impl SimdAngularInertia<Real> for SdpMatrix3<Real> {
         }
     }
 
-    fn squared(&self) -> Self {
-        SdpMatrix3 {
-            m11: self.m11 * self.m11 + self.m12 * self.m12 + self.m13 * self.m13,
-            m12: self.m11 * self.m12 + self.m12 * self.m22 + self.m13 * self.m23,
-            m13: self.m11 * self.m13 + self.m12 * self.m23 + self.m13 * self.m33,
-            m22: self.m12 * self.m12 + self.m22 * self.m22 + self.m23 * self.m23,
-            m23: self.m12 * self.m13 + self.m22 * self.m23 + self.m23 * self.m33,
-            m33: self.m13 * self.m13 + self.m23 * self.m23 + self.m33 * self.m33,
-        }
-    }
-
-    fn transform_vector(&self, v: Vector3<Real>) -> Vector3<Real> {
+    fn transform_vector(&self, v: Vector3<N>) -> Vector3<N> {
         let x = self.m11 * v.x + self.m12 * v.y + self.m13 * v.z;
         let y = self.m12 * v.x + self.m22 * v.y + self.m23 * v.z;
         let z = self.m13 * v.x + self.m23 * v.y + self.m33 * v.z;
@@ -424,61 +413,7 @@ impl SimdAngularInertia<Real> for SdpMatrix3<Real> {
     }
 
     #[rustfmt::skip]
-    fn into_matrix(self) -> Matrix3<Real> {
-        Matrix3::new(
-            self.m11, self.m12, self.m13,
-            self.m12, self.m22, self.m23,
-            self.m13, self.m23, self.m33,
-        )
-    }
-}
-
-impl SimdAngularInertia<SimdReal> for SdpMatrix3<SimdReal> {
-    type AngVector = Vector3<SimdReal>;
-    type AngMatrix = Matrix3<SimdReal>;
-
-    fn inverse(&self) -> Self {
-        let minor_m12_m23 = self.m22 * self.m33 - self.m23 * self.m23;
-        let minor_m11_m23 = self.m12 * self.m33 - self.m13 * self.m23;
-        let minor_m11_m22 = self.m12 * self.m23 - self.m13 * self.m22;
-
-        let determinant =
-            self.m11 * minor_m12_m23 - self.m12 * minor_m11_m23 + self.m13 * minor_m11_m22;
-
-        let zero = <SimdReal>::zero();
-        let is_zero = determinant.simd_eq(zero);
-        let inv_det = (<SimdReal>::one() / determinant).select(is_zero, zero);
-
-        SdpMatrix3 {
-            m11: minor_m12_m23 * inv_det,
-            m12: -minor_m11_m23 * inv_det,
-            m13: minor_m11_m22 * inv_det,
-            m22: (self.m11 * self.m33 - self.m13 * self.m13) * inv_det,
-            m23: (self.m13 * self.m12 - self.m23 * self.m11) * inv_det,
-            m33: (self.m11 * self.m22 - self.m12 * self.m12) * inv_det,
-        }
-    }
-
-    fn transform_vector(&self, v: Vector3<SimdReal>) -> Vector3<SimdReal> {
-        let x = self.m11 * v.x + self.m12 * v.y + self.m13 * v.z;
-        let y = self.m12 * v.x + self.m22 * v.y + self.m23 * v.z;
-        let z = self.m13 * v.x + self.m23 * v.y + self.m33 * v.z;
-        Vector3::new(x, y, z)
-    }
-
-    fn squared(&self) -> Self {
-        SdpMatrix3 {
-            m11: self.m11 * self.m11 + self.m12 * self.m12 + self.m13 * self.m13,
-            m12: self.m11 * self.m12 + self.m12 * self.m22 + self.m13 * self.m23,
-            m13: self.m11 * self.m13 + self.m12 * self.m23 + self.m13 * self.m33,
-            m22: self.m12 * self.m12 + self.m22 * self.m22 + self.m23 * self.m23,
-            m23: self.m12 * self.m13 + self.m22 * self.m23 + self.m23 * self.m33,
-            m33: self.m13 * self.m13 + self.m23 * self.m23 + self.m33 * self.m33,
-        }
-    }
-
-    #[rustfmt::skip]
-    fn into_matrix(self) -> Matrix3<SimdReal> {
+    fn into_matrix(self) -> Matrix3<N> {
         Matrix3::new(
             self.m11, self.m12, self.m13,
             self.m12, self.m22, self.m23,
@@ -513,9 +448,9 @@ impl FlushToZeroDenormalsAreZeroFlags {
     pub fn flush_denormal_to_zero() -> Self {
         unsafe {
             #[cfg(target_arch = "x86")]
-            use std::arch::x86::{_mm_getcsr, _mm_setcsr, _MM_FLUSH_ZERO_ON};
+            use std::arch::x86::{_MM_FLUSH_ZERO_ON, _mm_getcsr, _mm_setcsr};
             #[cfg(target_arch = "x86_64")]
-            use std::arch::x86_64::{_mm_getcsr, _mm_setcsr, _MM_FLUSH_ZERO_ON};
+            use std::arch::x86_64::{_MM_FLUSH_ZERO_ON, _mm_getcsr, _mm_setcsr};
 
             // Flush denormals & underflows to zero as this as a significant impact on the solver's performances.
             // To enable this we need to set the bit 15 (given by _MM_FLUSH_ZERO_ON) and the bit 6 (for denormals-are-zero).
@@ -596,11 +531,7 @@ impl Drop for DisableFloatingPointExceptionsFlags {
 }
 
 pub(crate) fn select_other<T: PartialEq>(pair: (T, T), elt: T) -> T {
-    if pair.0 == elt {
-        pair.1
-    } else {
-        pair.0
-    }
+    if pair.0 == elt { pair.1 } else { pair.0 }
 }
 
 /// Methods for simultaneously indexing a container with two distinct indices.
@@ -666,6 +597,18 @@ pub fn smallest_abs_diff_between_angles<N: SimdRealCopy>(a: N, b: N) -> N {
     let s_err_complement = s_err - sgn * N::simd_two_pi();
     let s_err_is_smallest = s_err.simd_abs().simd_lt(s_err_complement.simd_abs());
     s_err.select(s_err_is_smallest, s_err_complement)
+}
+
+#[cfg(feature = "simd-nightly")]
+#[inline(always)]
+pub(crate) fn transmute_to_wide(val: [std::simd::f32x4; SIMD_WIDTH]) -> [wide::f32x4; SIMD_WIDTH] {
+    unsafe { std::mem::transmute(val) }
+}
+
+#[cfg(feature = "simd-stable")]
+#[inline(always)]
+pub(crate) fn transmute_to_wide(val: [wide::f32x4; SIMD_WIDTH]) -> [wide::f32x4; SIMD_WIDTH] {
+    val
 }
 
 /// Helpers around serialization.

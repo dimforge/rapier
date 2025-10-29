@@ -1,7 +1,7 @@
-use rand::distributions::{Distribution, Standard};
-use rand::{rngs::StdRng, SeedableRng};
-use rapier3d::prelude::*;
+use rand::distr::{Distribution, StandardUniform};
+use rand::{SeedableRng, rngs::StdRng};
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -39,7 +39,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut offset = -(num as f32) * shift * 0.5;
 
     let mut rng = StdRng::seed_from_u64(0);
-    let distribution = Standard;
+    let distribution = StandardUniform;
 
     for j in 0usize..47 {
         for i in 0..num {

@@ -2,8 +2,10 @@
 
 pub use self::arena::{Arena, Index};
 pub use self::coarena::Coarena;
+pub(crate) use self::modified_objects::{HasModifiedFlag, ModifiedObjects};
 
 pub mod arena;
 mod coarena;
 pub(crate) mod graph;
+mod modified_objects;
 pub mod pubsub;

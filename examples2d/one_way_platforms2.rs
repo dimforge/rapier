@@ -1,5 +1,5 @@
-use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
+use rapier2d::prelude::*;
 
 struct OneWayPlatformHook {
     platform1: ColliderHandle,
@@ -104,7 +104,7 @@ pub fn init_world(testbed: &mut Testbed) {
             }
         }
 
-        for handle in physics.islands.active_dynamic_bodies() {
+        for handle in physics.islands.active_bodies() {
             let body = &mut physics.bodies[*handle];
             if body.position().translation.y > 1.0 {
                 body.set_gravity_scale(1.0, false);

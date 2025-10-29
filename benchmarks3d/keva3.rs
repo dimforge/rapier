@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 pub fn build_block(
     testbed: &mut Testbed,
@@ -99,7 +99,6 @@ pub fn init_world(testbed: &mut Testbed) {
     // These should only be set to odd values otherwise
     // the blocks won't align in the nicest way.
     let numy = [0, 9, 13, 17, 21, 41];
-    let mut num_blocks_built = 0;
 
     for i in (1..=5).rev() {
         let numx = i;
@@ -115,10 +114,7 @@ pub fn init_world(testbed: &mut Testbed) {
             (numx, numy, numz),
         );
         block_height += numy as f32 * half_extents.y * 2.0 + half_extents.x * 2.0;
-        num_blocks_built += numx * numy * numz;
     }
-
-    println!("Num keva blocks: {}", num_blocks_built);
 
     /*
      * Set up the testbed.

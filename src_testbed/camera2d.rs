@@ -7,9 +7,12 @@ use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 use bevy::render::camera::Camera;
 
+#[cfg(target_os = "macos")]
+const LINE_TO_PIXEL_RATIO: f32 = 0.0005;
+#[cfg(not(target_os = "macos"))]
 const LINE_TO_PIXEL_RATIO: f32 = 0.1;
 
-#[derive(Component)]
+#[derive(Component, PartialEq, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OrbitCamera {
     pub zoom: f32,
     pub center: Vec3,

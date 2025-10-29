@@ -15,6 +15,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::needless_range_loop)] // TODO: remove this? I find that in the math code using indices adds clarity.
 #![allow(clippy::module_inception)]
+#![cfg_attr(feature = "simd-nightly", feature(portable_simd))]
 
 #[cfg(all(feature = "dim2", feature = "f32"))]
 pub extern crate parry2d as parry;
@@ -25,7 +26,6 @@ pub extern crate parry3d as parry;
 #[cfg(all(feature = "dim3", feature = "f64"))]
 pub extern crate parry3d_f64 as parry;
 
-pub extern crate crossbeam;
 pub extern crate nalgebra as na;
 #[cfg(feature = "serde-serialize")]
 #[macro_use]
@@ -40,7 +40,9 @@ pub use rayon;
     not(feature = "simd-stable"),
     not(feature = "simd-nightly")
 ))]
-std::compile_error!("The `simd-is-enabled` feature should not be enabled explicitly. Please enable the `simd-stable` or the `simd-nightly` feature instead.");
+std::compile_error!(
+    "The `simd-is-enabled` feature should not be enabled explicitly. Please enable the `simd-stable` or the `simd-nightly` feature instead."
+);
 #[cfg(all(feature = "simd-is-enabled", feature = "enhanced-determinism"))]
 std::compile_error!(
     "SIMD cannot be enabled when the `enhanced-determinism` feature is also enabled."
@@ -52,14 +54,39 @@ macro_rules! enable_flush_to_zero(
     }
 );
 
-#[cfg(feature = "simd-is-enabled")]
 macro_rules! gather(
     ($callback: expr) => {
         {
             #[inline(always)]
             #[allow(dead_code)]
+            #[cfg(not(feature = "simd-is-enabled"))]
+            fn create_arr<T>(mut callback: impl FnMut(usize) -> T) -> T {
+                callback(0usize)
+            }
+
+            #[inline(always)]
+            #[allow(dead_code)]
+            #[cfg(feature = "simd-is-enabled")]
             fn create_arr<T>(mut callback: impl FnMut(usize) -> T) -> [T; SIMD_WIDTH] {
                 [callback(0usize), callback(1usize), callback(2usize), callback(3usize)]
+            }
+
+
+            create_arr($callback)
+        }
+    }
+);
+
+macro_rules! array(
+    ($callback: expr) => {
+        {
+            #[inline(always)]
+            #[allow(dead_code)]
+            fn create_arr<T>(mut callback: impl FnMut(usize) -> T) -> [T; SIMD_WIDTH] {
+                #[cfg(not(feature = "simd-is-enabled"))]
+                return [callback(0usize)];
+                #[cfg(feature = "simd-is-enabled")]
+                return [callback(0usize), callback(1usize), callback(2usize), callback(3usize)];
             }
 
             create_arr($callback)
@@ -216,6 +243,6 @@ pub mod prelude {
     pub use crate::geometry::*;
     pub use crate::math::*;
     pub use crate::pipeline::*;
-    pub use na::{point, vector, DMatrix, DVector};
+    pub use na::{DMatrix, DVector, point, vector};
     pub extern crate nalgebra;
 }

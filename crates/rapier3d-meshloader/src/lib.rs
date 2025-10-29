@@ -33,11 +33,11 @@ pub enum MeshLoaderError {
 /// # Parameters
 /// - `path`: the file’s path.
 /// - `converter`: controls how the shapes are computed from the content. In particular, it lets
-///                you specify if the computed [`SharedShape`] is a triangle mesh, its convex hull,
-///                bounding box, etc.
+///   you specify if the computed [`SharedShape`] is a triangle mesh, its convex hull,
+///   bounding box, etc.
 /// - `scale`: the scaling factor applied to the geometry input to the `converter`. This scale will
-///            affect at the geometric level the [`LoadedShape::shape`]. Note that raw mesh value stored
-///            in [`LoadedShape::raw_mesh`] remains unscaled.
+///   affect at the geometric level the [`LoadedShape::shape`]. Note that raw mesh value stored
+///   in [`LoadedShape::raw_mesh`] remains unscaled.
 pub fn load_from_path(
     path: impl AsRef<Path>,
     converter: &MeshConverter,
@@ -63,11 +63,11 @@ pub fn load_from_path(
 /// # Parameters
 /// - `raw_mesh`: the raw mesh.
 /// - `converter`: controls how the shape is computed from the STL content. In particular, it lets
-///                you specify if the computed [`SharedShape`] is a triangle mesh, its convex hull,
-///                bounding box, etc.
+///   you specify if the computed [`SharedShape`] is a triangle mesh, its convex hull,
+///   bounding box, etc.
 /// - `scale`: the scaling factor applied to the geometry input to the `converter`. This scale will
-///            affect at the geometric level the [`LoadedShape::shape`]. Note that raw mesh value stored
-///            in [`LoadedShape::raw_mesh`] remains unscaled.
+///   affect at the geometric level the [`LoadedShape::shape`]. Note that raw mesh value stored
+///   in [`LoadedShape::raw_mesh`] remains unscaled.
 pub fn load_from_raw_mesh(
     raw_mesh: &Mesh,
     converter: &MeshConverter,

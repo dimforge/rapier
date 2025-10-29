@@ -1,66 +1,41 @@
-use rapier::control::CharacterLength;
 use rapier::counters::Counters;
 use rapier::math::Real;
-use std::num::NonZeroUsize;
 
 use crate::debug_render::DebugRenderPipelineResource;
-use crate::harness::Harness;
+use crate::harness::{Harness, RapierBroadPhaseType};
 use crate::testbed::{
-    RapierSolverType, RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags,
-    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR,
+    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR, RunMode, TestbedActionFlags,
+    TestbedState, TestbedStateFlags,
 };
 
+pub use bevy_egui::egui;
+
 use crate::PhysicsState;
-use bevy_egui::egui::{Slider, Ui};
-use bevy_egui::{egui, EguiContexts};
-use rapier::dynamics::IntegrationParameters;
+use crate::settings::SettingValue;
+use bevy_egui::EguiContexts;
+use bevy_egui::egui::{ComboBox, Slider, Ui, Window};
 use web_time::Instant;
 
-pub fn update_ui(
+#[cfg(feature = "dim3")]
+use rapier::dynamics::FrictionModel;
+
+pub(crate) fn update_ui(
     ui_context: &mut EguiContexts,
     state: &mut TestbedState,
     harness: &mut Harness,
     debug_render: &mut DebugRenderPipelineResource,
 ) {
-    #[cfg(feature = "profiling")]
+    #[cfg(feature = "profiler_ui")]
     {
-        let window = egui::Window::new("Profiling");
-        let window = window.default_open(false);
-
-        #[cfg(feature = "unstable-puffin-pr-235")]
-        {
-            use std::sync::Once;
-            static START: Once = Once::new();
-
-            fn set_default_rapier_filter() {
-                let mut profile_ui = puffin_egui::PROFILE_UI.lock();
-                profile_ui
-                    .profiler_ui
-                    .flamegraph_options
-                    .scope_name_filter
-                    .set_filter("Harness::step_with_graphics".to_string());
-            }
-            START.call_once(|| {
-                set_default_rapier_filter();
-            });
-            window.show(ui_context.ctx_mut(), |ui| {
-                if ui.button("🔍 Rapier filter").clicked() {
-                    set_default_rapier_filter();
-                }
-                puffin_egui::profiler_ui(ui);
-            });
-        }
-
-        #[cfg(not(feature = "unstable-puffin-pr-235"))]
-        window.show(ui_context.ctx_mut(), |ui| {
-            puffin_egui::profiler_ui(ui);
-        });
+        profiler_ui(ui_context);
     }
 
-    egui::Window::new("Parameters").show(ui_context.ctx_mut(), |ui| {
+    example_settings_ui(ui_context, state);
+
+    Window::new("Parameters").show(ui_context.ctx_mut(), |ui| {
         if state.backend_names.len() > 1 && !state.example_names.is_empty() {
             let mut changed = false;
-            egui::ComboBox::from_label("backend")
+            ComboBox::from_label("backend")
                 .width(150.0)
                 .selected_text(state.backend_names[state.selected_backend])
                 .show_ui(ui, |ui| {
@@ -139,62 +114,66 @@ pub fn update_ui(
         if state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
             || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR
         {
-            let mut num_iterations = integration_parameters.num_solver_iterations.get();
-            ui.add(Slider::new(&mut num_iterations, 1..=40).text("pos. iters."));
-            integration_parameters.num_solver_iterations =
-                NonZeroUsize::new(num_iterations).unwrap();
+            ui.add(
+                Slider::new(&mut integration_parameters.num_solver_iterations, 0..=10)
+                    .text("pos. iters."),
+            );
         } else {
+            // Broad-phase.
             let mut changed = false;
-            egui::ComboBox::from_label("solver type")
+            egui::ComboBox::from_label("broad-phase")
                 .width(150.0)
-                .selected_text(format!("{:?}", state.solver_type))
+                .selected_text(format!("{:?}", state.broad_phase_type))
                 .show_ui(ui, |ui| {
-                    let solver_types = [
-                        RapierSolverType::TgsSoft,
-                        RapierSolverType::TgsSoftNoWarmstart,
-                        RapierSolverType::PgsLegacy,
+                    let broad_phase_type = [
+                        RapierBroadPhaseType::BvhSubtreeOptimizer,
+                        RapierBroadPhaseType::BvhWithoutOptimization,
                     ];
-                    for sty in solver_types {
+                    for sty in broad_phase_type {
                         changed = ui
-                            .selectable_value(&mut state.solver_type, sty, format!("{sty:?}"))
+                            .selectable_value(&mut state.broad_phase_type, sty, format!("{sty:?}"))
                             .changed()
                             || changed;
                     }
                 });
 
             if changed {
-                match state.solver_type {
-                    RapierSolverType::TgsSoft => {
-                        *integration_parameters = IntegrationParameters::tgs_soft();
-                    }
-                    RapierSolverType::TgsSoftNoWarmstart => {
-                        *integration_parameters =
-                            IntegrationParameters::tgs_soft_without_warmstart();
-                    }
-                    RapierSolverType::PgsLegacy => {
-                        *integration_parameters = IntegrationParameters::pgs_legacy();
-                    }
-                }
+                harness.physics.broad_phase = state.broad_phase_type.init_broad_phase();
+                // Restart the simulation after a broad-phase changes since some
+                // broad-phase might not support hot-swapping.
+                state.action_flags.set(TestbedActionFlags::RESTART, true);
             }
 
-            let mut num_iterations = integration_parameters.num_solver_iterations.get();
-            ui.add(Slider::new(&mut num_iterations, 1..=40).text("num solver iters."));
-            integration_parameters.num_solver_iterations =
-                NonZeroUsize::new(num_iterations).unwrap();
+            // Friction model.
+            #[cfg(feature = "dim3")]
+            egui::ComboBox::from_label("friction-model")
+                .width(150.0)
+                .selected_text(format!("{:?}", integration_parameters.friction_model))
+                .show_ui(ui, |ui| {
+                    let friction_model = [FrictionModel::Simplified, FrictionModel::Coulomb];
+                    for model in friction_model {
+                        changed = ui
+                            .selectable_value(
+                                &mut integration_parameters.friction_model,
+                                model,
+                                format!("{model:?}"),
+                            )
+                            .changed()
+                            || changed;
+                    }
+                });
 
+            // Solver iterations.
+            ui.add(
+                Slider::new(&mut integration_parameters.num_solver_iterations, 0..=10)
+                    .text("num solver iters."),
+            );
             ui.add(
                 Slider::new(
                     &mut integration_parameters.num_internal_pgs_iterations,
                     1..=40,
                 )
                 .text("num internal PGS iters."),
-            );
-            ui.add(
-                Slider::new(
-                    &mut integration_parameters.num_additional_friction_iterations,
-                    0..=40,
-                )
-                .text("num additional frict. iters."),
             );
             ui.add(
                 Slider::new(
@@ -209,7 +188,7 @@ pub fn update_ui(
             );
 
             let mut substep_params = *integration_parameters;
-            substep_params.dt /= substep_params.num_solver_iterations.get() as Real;
+            substep_params.dt /= substep_params.num_solver_iterations as Real;
             let curr_erp = substep_params.contact_erp();
             let curr_cfm_factor = substep_params.contact_cfm_factor();
             ui.add(
@@ -217,17 +196,14 @@ pub fn update_ui(
                     &mut integration_parameters.contact_natural_frequency,
                     0.01..=120.0,
                 )
-                .text(format!("contacts Hz (erp = {:.3})", curr_erp)),
+                .text(format!("contacts Hz (erp = {curr_erp:.3})")),
             );
             ui.add(
                 Slider::new(
                     &mut integration_parameters.contact_damping_ratio,
                     0.01..=20.0,
                 )
-                .text(format!(
-                    "damping ratio (cfm-factor = {:.3})",
-                    curr_cfm_factor
-                )),
+                .text(format!("damping ratio (cfm-factor = {curr_cfm_factor:.3})",)),
             );
             ui.add(
                 Slider::new(
@@ -261,56 +237,34 @@ pub fn update_ui(
 
         let mut frequency = integration_parameters.inv_dt().round() as u32;
         ui.add(Slider::new(&mut frequency, 0..=240).text("frequency (Hz)"));
+        let mut gravity_y = harness.physics.gravity.y;
+        if ui
+            .add(Slider::new(&mut gravity_y, 0.0..=-200.0).text("Gravity"))
+            .changed()
+        {
+            harness.physics.gravity.y = gravity_y;
+        }
         integration_parameters.set_inv_dt(frequency as Real);
 
         let mut sleep = state.flags.contains(TestbedStateFlags::SLEEP);
+        let mut draw_surfaces = state.flags.contains(TestbedStateFlags::DRAW_SURFACES);
         // let mut contact_points = state.flags.contains(TestbedStateFlags::CONTACT_POINTS);
         // let mut wireframe = state.flags.contains(TestbedStateFlags::WIREFRAME);
         ui.checkbox(&mut sleep, "sleep enabled");
         // ui.checkbox(&mut contact_points, "draw contacts");
         // ui.checkbox(&mut wireframe, "draw wireframes");
+        ui.checkbox(&mut draw_surfaces, "surface render enabled");
         ui.checkbox(&mut debug_render.enabled, "debug render enabled");
 
         state.flags.set(TestbedStateFlags::SLEEP, sleep);
+        state
+            .flags
+            .set(TestbedStateFlags::DRAW_SURFACES, draw_surfaces);
         // state
         //     .flags
         //     .set(TestbedStateFlags::CONTACT_POINTS, contact_points);
         // state.flags.set(TestbedStateFlags::WIREFRAME, wireframe);
         ui.separator();
-        if let Some(character_controller) = &mut state.character_controller {
-            ui.label("Character controller");
-            ui.checkbox(&mut character_controller.slide, "slide").on_hover_text("Should the character try to slide against the floor if it hits it?");
-            #[allow(clippy::useless_conversion)]
-            {
-
-                ui.add(Slider::new(&mut character_controller.max_slope_climb_angle, 0.0..=std::f32::consts::TAU.into()).text("max_slope_climb_angle"))
-                    .on_hover_text("The maximum angle (radians) between the floor’s normal and the `up` vector that the character is able to climb.");
-                ui.add(Slider::new(&mut character_controller.min_slope_slide_angle, 0.0..=std::f32::consts::FRAC_PI_2.into()).text("min_slope_slide_angle"))
-                    .on_hover_text("The minimum angle (radians) between the floor’s normal and the `up` vector before the character starts to slide down automatically.");
-            }
-            let mut is_snapped = character_controller.snap_to_ground.is_some();
-            if ui.checkbox(&mut is_snapped, "snap_to_ground").changed {
-                match is_snapped {
-                    true => {
-                        character_controller.snap_to_ground = Some(CharacterLength::Relative(0.1));
-                    },
-                    false => {
-                        character_controller.snap_to_ground = None;
-                    },
-                }
-            }
-            if let Some(snapped) = &mut character_controller.snap_to_ground {
-                match snapped {
-                    CharacterLength::Relative(val) => {
-                        ui.add(Slider::new(val, 0.0..=10.0).text("Snapped Relative Character Length"));
-                    },
-                    CharacterLength::Absolute(val) => {
-                        ui.add(Slider::new(val, 0.0..=10.0).text("Snapped Absolute Character Length"));
-                    },
-                }
-            }
-            ui.separator();
-        }
         let label = if state.running == RunMode::Stop {
             "Start (T)"
         } else {
@@ -363,13 +317,13 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
         counters.step_time_ms(),
         (1000.0 / counters.step_time_ms()).round()
     ))
-    .id_source("total")
+    .id_salt("total")
     .show(ui, |ui| {
         egui::CollapsingHeader::new(format!(
             "Collision detection: {:.2}ms",
             counters.collision_detection_time_ms()
         ))
-        .id_source("collision detection")
+        .id_salt("collision detection")
         .show(ui, |ui| {
             ui.label(format!(
                 "Broad-phase: {:.2}ms",
@@ -381,7 +335,7 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
             ));
         });
         egui::CollapsingHeader::new(format!("Solver: {:.2}ms", counters.solver_time_ms()))
-            .id_source("solver")
+            .id_salt("solver")
             .show(ui, |ui| {
                 ui.label(format!(
                     "Velocity assembly: {:.2}ms",
@@ -401,7 +355,7 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
                 ));
             });
         egui::CollapsingHeader::new(format!("CCD: {:.2}ms", counters.ccd_time_ms()))
-            .id_source("ccd")
+            .id_salt("ccd")
             .show(ui, |ui| {
                 ui.label(format!("# of substeps: {}", counters.ccd.num_substeps));
                 ui.label(format!(
@@ -424,10 +378,6 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
         ui.label(format!(
             "Island computation: {:.2}ms",
             counters.island_construction_time_ms()
-        ));
-        ui.label(format!(
-            "Query pipeline: {:.2}ms",
-            counters.query_pipeline_update_time_ms()
         ));
         ui.label(format!(
             "User changes: {:.2}ms",
@@ -472,12 +422,102 @@ Hashes at frame: {}
         bf.len() as f32 / 1000.0,
         format!("{:?}", hash_bf).split_at(10).0,
         nf.len() as f32 / 1000.0,
-        format!("{:?}", hash_nf).split_at(10).0,
+        format!("{hash_nf:?}").split_at(10).0,
         bs.len() as f32 / 1000.0,
-        format!("{:?}", hash_bodies).split_at(10).0,
+        format!("{hash_bodies:?}").split_at(10).0,
         cs.len() as f32 / 1000.0,
-        format!("{:?}", hash_colliders).split_at(10).0,
+        format!("{hash_colliders:?}").split_at(10).0,
         js.len() as f32 / 1000.0,
-        format!("{:?}", hash_joints).split_at(10).0,
+        format!("{hash_joints:?}").split_at(10).0,
     )
+}
+
+fn example_settings_ui(ui_context: &mut EguiContexts, state: &mut TestbedState) {
+    if state.example_settings.is_empty() {
+        // Don’t show any window if there is no settings for the
+        // example.
+        return;
+    }
+
+    Window::new("Example settings").show(ui_context.ctx_mut(), |ui| {
+        let mut any_changed = false;
+        for (name, value) in state.example_settings.iter_mut() {
+            let prev_value = value.clone();
+            match value {
+                SettingValue::Label(value) => {
+                    ui.label(format!("{name}: {value}"));
+                }
+                SettingValue::F32 { value, range } => {
+                    ui.add(Slider::new(value, range.clone()).text(name));
+                }
+                SettingValue::U32 { value, range } => {
+                    ui.horizontal(|ui| {
+                        if ui.button("<").clicked() && *value > *range.start() {
+                            *value -= 1;
+                        }
+                        if ui.button(">").clicked() && *value <= *range.end() {
+                            *value += 1;
+                        }
+
+                        ui.add(Slider::new(value, range.clone()).text(name));
+                    });
+                }
+                SettingValue::Bool { value } => {
+                    ui.checkbox(value, name);
+                }
+                SettingValue::String { value, range } => {
+                    ComboBox::from_label(name)
+                        .width(150.0)
+                        .selected_text(&range[*value])
+                        .show_ui(ui, |ui| {
+                            for (id, name) in range.iter().enumerate() {
+                                ui.selectable_value(value, id, name);
+                            }
+                        });
+                }
+            }
+
+            any_changed = any_changed || *value != prev_value;
+        }
+
+        if any_changed {
+            // The value changed, request a restart.
+            state.action_flags.set(TestbedActionFlags::RESTART, true);
+        }
+    });
+}
+
+#[cfg(feature = "profiler_ui")]
+fn profiler_ui(ui_context: &mut EguiContexts) {
+    let window = egui::Window::new("Profiling");
+    let window = window.default_open(false);
+
+    #[cfg(feature = "unstable-puffin-pr-235")]
+    {
+        use std::sync::Once;
+        static START: Once = Once::new();
+
+        fn set_default_rapier_filter() {
+            let mut profile_ui = puffin_egui::PROFILE_UI.lock();
+            profile_ui
+                .profiler_ui
+                .flamegraph_options
+                .scope_name_filter
+                .set_filter("Harness::step_with_graphics".to_string());
+        }
+        START.call_once(|| {
+            set_default_rapier_filter();
+        });
+        window.show(ui_context.ctx_mut(), |ui| {
+            if ui.button("🔍 Rapier filter").clicked() {
+                set_default_rapier_filter();
+            }
+            puffin_egui::profiler_ui(ui);
+        });
+    }
+
+    #[cfg(not(feature = "unstable-puffin-pr-235"))]
+    window.show(ui_context.ctx_mut(), |ui| {
+        puffin_egui::profiler_ui(ui);
+    });
 }

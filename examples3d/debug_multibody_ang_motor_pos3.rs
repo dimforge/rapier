@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     let mut bodies = RigidBodySet::new();
@@ -12,7 +12,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(1.0, 1.0, 1.0);
     colliders.insert_with_parent(collider, body, &mut bodies);
 
-    let rigid_body = RigidBodyBuilder::dynamic().position(Isometry::translation(0.0, 1.0, 0.0));
+    let rigid_body = RigidBodyBuilder::dynamic().pose(Isometry::translation(0.0, 1.0, 0.0));
     let body_part = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(1.0, 1.0, 1.0).density(1.0);
     colliders.insert_with_parent(collider, body_part, &mut bodies);

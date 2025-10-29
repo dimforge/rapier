@@ -4,13 +4,13 @@ use crate::dynamics::{RigidBodyHandle, RigidBodySet, RigidBodyType, RigidBodyVel
 #[cfg(feature = "dim3")]
 use crate::math::Matrix;
 use crate::math::{
-    AngDim, AngVector, Dim, Isometry, Jacobian, Point, Real, Vector, ANG_DIM, DIM, SPATIAL_DIM,
+    ANG_DIM, AngDim, AngVector, DIM, Dim, Isometry, Jacobian, Point, Real, SPATIAL_DIM, Vector,
 };
 use crate::prelude::MultibodyJoint;
 use crate::utils::{IndexMut2, SimdAngularInertia, SimdCross, SimdCrossMatrix};
 use na::{
-    self, DMatrix, DVector, DVectorView, DVectorViewMut, Dyn, OMatrix, SMatrix, SVector,
-    StorageMut, LU,
+    self, DMatrix, DVector, DVectorView, DVectorViewMut, Dyn, LU, OMatrix, SMatrix, SVector,
+    StorageMut,
 };
 
 #[cfg(doc)]
@@ -86,7 +86,7 @@ pub struct Multibody {
 
     ndofs: usize,
     pub(crate) root_is_dynamic: bool,
-    pub(crate) solver_id: usize,
+    pub(crate) solver_id: u32,
     self_contacts_enabled: bool,
 
     /*
@@ -822,7 +822,7 @@ impl Multibody {
 
     /// The generalized velocity at the multibody_joint of the given link.
     #[inline]
-    pub fn joint_velocity(&self, link: &MultibodyLink) -> DVectorView<Real> {
+    pub fn joint_velocity(&self, link: &MultibodyLink) -> DVectorView<'_, Real> {
         let ndofs = link.joint().ndofs();
         DVectorView::from_slice(
             &self.velocities.as_slice()[link.assembly_id..link.assembly_id + ndofs],
@@ -832,13 +832,13 @@ impl Multibody {
 
     /// The generalized accelerations of this multibodies.
     #[inline]
-    pub fn generalized_acceleration(&self) -> DVectorView<Real> {
+    pub fn generalized_acceleration(&self) -> DVectorView<'_, Real> {
         self.accelerations.rows(0, self.ndofs)
     }
 
     /// The generalized velocities of this multibodies.
     #[inline]
-    pub fn generalized_velocity(&self) -> DVectorView<Real> {
+    pub fn generalized_velocity(&self) -> DVectorView<'_, Real> {
         self.velocities.rows(0, self.ndofs)
     }
 
@@ -850,7 +850,7 @@ impl Multibody {
 
     /// The mutable generalized velocities of this multibodies.
     #[inline]
-    pub fn generalized_velocity_mut(&mut self) -> DVectorViewMut<Real> {
+    pub fn generalized_velocity_mut(&mut self) -> DVectorViewMut<'_, Real> {
         self.velocities.rows_mut(0, self.ndofs)
     }
 
@@ -971,7 +971,8 @@ impl Multibody {
                 }
 
                 if update_mass_properties {
-                    rb.mprops.update_world_mass_properties(&link.local_to_world);
+                    rb.mprops
+                        .update_world_mass_properties(rb.body_type, &link.local_to_world);
                 }
             }
         }
@@ -1083,7 +1084,7 @@ impl Multibody {
     /// - All the indices must be part of the same kinematic branch.
     /// - If a link is `branch[i]`, then `branch[i - 1]` must be its parent.
     ///
-    /// In general, this method shouldn’t be used directly and [`Self::forward_kinematics_single_link`̦]
+    /// In general, this method shouldn’t be used directly and [`Self::forward_kinematics_single_link`]
     /// should be preferred since it computes the branch indices automatically.
     ///
     /// If you want to calculate the branch indices manually, see [`Self::kinematic_branch`].

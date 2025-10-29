@@ -7,7 +7,20 @@ use super::{JointLimits, JointMotor};
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]
-/// A prismatic joint, locks all relative motion between two bodies except for translation along the joint’s principal axis.
+/// A sliding joint that allows movement along one axis only (like a piston or sliding door).
+///
+/// Prismatic joints lock all motion except sliding along a single axis. Use for:
+/// - Pistons and hydraulics
+/// - Sliding doors and drawers
+/// - Elevator platforms
+/// - Linear actuators
+/// - Telescoping mechanisms
+///
+/// You can optionally add:
+/// - **Limits**: Restrict sliding distance (min/max positions)
+/// - **Motor**: Powered sliding with target velocity or position
+///
+/// The axis is specified when creating the joint and is expressed in each body's local space.
 pub struct PrismaticJoint {
     /// The underlying joint data.
     pub data: GenericJoint,
@@ -101,14 +114,27 @@ impl PrismaticJoint {
         self
     }
 
-    /// Sets the target velocity this motor needs to reach.
+    /// Sets the motor's target sliding speed.
+    ///
+    /// Makes the joint slide at a desired velocity (like a powered piston or conveyor).
+    ///
+    /// # Parameters
+    /// * `target_vel` - Desired velocity in units/second
+    /// * `factor` - Motor strength
     pub fn set_motor_velocity(&mut self, target_vel: Real, factor: Real) -> &mut Self {
         self.data
             .set_motor_velocity(JointAxis::LinX, target_vel, factor);
         self
     }
 
-    /// Sets the target angle this motor needs to reach.
+    /// Sets the motor's target position along the sliding axis.
+    ///
+    /// Makes the joint slide toward a specific position using spring-like behavior.
+    ///
+    /// # Parameters
+    /// * `target_pos` - Desired position along the axis
+    /// * `stiffness` - Spring constant
+    /// * `damping` - Resistance to motion
     pub fn set_motor_position(
         &mut self,
         target_pos: Real,
@@ -120,7 +146,7 @@ impl PrismaticJoint {
         self
     }
 
-    /// Configure both the target angle and target velocity of the motor.
+    /// Configures both target position and target velocity for the motor.
     pub fn set_motor(
         &mut self,
         target_pos: Real,

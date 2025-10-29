@@ -1,6 +1,6 @@
 [package]
 name = "rapier3d-urdf"
-version = "0.3.0"
+version = "0.11.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "URDF file loader for the 3D rapier physics engine."
 documentation = "https://docs.rs/rapier3d-urdf"
@@ -16,12 +16,14 @@ categories = [
 ]
 keywords = ["physics", "joints", "multibody", "robotics", "urdf"]
 license = "Apache-2.0"
-edition = "2021"
+edition = "2024"
 
 [features]
-stl = ["dep:rapier3d-meshloader", "rapier3d-meshloader/stl"]
-collada = ["dep:rapier3d-meshloader", "rapier3d-meshloader/collada"]
-wavefront = ["dep:rapier3d-meshloader", "rapier3d-meshloader/wavefront"]
+stl = ["dep:rapier3d-meshloader", "rapier3d-meshloader/stl", "__meshloader_is_enabled"]
+collada = ["dep:rapier3d-meshloader", "rapier3d-meshloader/collada", "__meshloader_is_enabled"]
+wavefront = ["dep:rapier3d-meshloader", "rapier3d-meshloader/wavefront", "__meshloader_is_enabled"]
+## Private feature for detecting when meshloader is enabled by any of the file type features above.
+__meshloader_is_enabled = []
 
 [dependencies]
 log = "0.4"
@@ -29,5 +31,5 @@ anyhow = "1"
 bitflags = "2"
 urdf-rs = "0.9"
 
-rapier3d = { version = "0.22", path = "../rapier3d" }
-rapier3d-meshloader = { version = "0.3.0", path = "../rapier3d-meshloader", default-features = false, optional = true }
+rapier3d = { version = "0.30.0", path = "../rapier3d" }
+rapier3d-meshloader = { version = "0.11.0", path = "../rapier3d-meshloader", default-features = false, optional = true }

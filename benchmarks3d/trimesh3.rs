@@ -1,6 +1,6 @@
+use rapier_testbed3d::Testbed;
 use rapier3d::na::ComplexField;
 use rapier3d::prelude::*;
-use rapier_testbed3d::Testbed;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -38,7 +38,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let rigid_body = RigidBodyBuilder::fixed();
     let handle = bodies.insert(rigid_body);
-    let collider = ColliderBuilder::trimesh(vertices, indices);
+    let collider = ColliderBuilder::trimesh(vertices, indices).unwrap();
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     /*

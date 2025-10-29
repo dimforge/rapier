@@ -2,7 +2,7 @@
 name = "rapier-benchmarks-3d"
 version = "0.1.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
-edition = "2021"
+edition = "2024"
 
 [features]
 parallel = ["rapier3d/parallel", "rapier_testbed3d/parallel"]
@@ -12,8 +12,9 @@ other-backends = ["rapier_testbed3d/other-backends"]
 enhanced-determinism = ["rapier3d/enhanced-determinism"]
 
 [dependencies]
-rand = "0.8"
+rand = "0.9"
 Inflector = "0.11"
+oorandom = "11"
 
 [dependencies.rapier_testbed3d]
 path = "../crates/rapier_testbed3d"

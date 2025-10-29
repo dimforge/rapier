@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -86,7 +86,10 @@ pub fn init_world(testbed: &mut Testbed) {
     let big_mass =
         MassProperties::from_cuboid(1.0, vector![cube_len / 2.0, cube_len / 2.0, cube_len / 2.0])
             .mass();
-    println!("debug_cube_high_mass_ratio3: small stick mass: {small_mass}, big cube mass: {big_mass}, mass_ratio: {}", big_mass / small_mass);
+    println!(
+        "debug_cube_high_mass_ratio3: small stick mass: {small_mass}, big cube mass: {big_mass}, mass_ratio: {}",
+        big_mass / small_mass
+    );
 
     /*
      * Set up the testbed.

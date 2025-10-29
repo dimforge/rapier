@@ -1,6 +1,5 @@
 use crate::math::Real;
 use na::RealField;
-use std::num::NonZeroUsize;
 
 #[cfg(doc)]
 use super::RigidBodyActivation;
@@ -9,11 +8,65 @@ use super::RigidBodyActivation;
 //       the 3D domino demo. So for now we dont enable it in 3D.
 pub(crate) static BLOCK_SOLVER_ENABLED: bool = cfg!(feature = "dim2");
 
-/// Parameters for a time-step of the physics engine.
-#[derive(Copy, Clone, Debug)]
+/// Friction models used for all contact constraints between two rigid-bodies.
+///
+/// This selection does not apply to multibodies that always rely on the [`FrictionModel::Coulomb`].
+#[cfg(feature = "dim3")]
+#[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+pub enum FrictionModel {
+    /// A simplified friction model significantly faster to solve than [`Self::Coulomb`]
+    /// but less accurate.
+    ///
+    /// Instead of solving one Coulomb friction constraint per contact in a contact manifold,
+    /// this approximation only solves one Coulomb friction constraint per group of 4 contacts
+    /// in a contact manifold, plus one "twist" constraint. The "twist" constraint is purely
+    /// rotational and aims to eliminate angular movement in the manifold’s tangent plane.
+    #[default]
+    Simplified,
+    /// The coulomb friction model.
+    ///
+    /// This results in one Coulomb friction constraint per contact point.
+    Coulomb,
+}
+
+/// Configuration parameters that control the physics simulation quality and behavior.
+///
+/// These parameters affect how the physics engine advances time, resolves collisions, and
+/// maintains stability. The defaults work well for most games, but you may want to adjust
+/// them based on your specific needs.
+///
+/// # Key parameters for beginners
+///
+/// - **`dt`**: Timestep duration (default: 1/60 second). Most games run physics at 60Hz.
+/// - **`num_solver_iterations`**: More iterations = more accurate but slower (default: 4)
+/// - **`length_unit`**: Scale factor if your world units aren't meters (e.g., 100 for pixel-based games)
+///
+/// # Example
+///
+/// ```
+/// # use rapier3d::prelude::*;
+/// // Standard 60 FPS physics with default settings
+/// let mut integration_params = IntegrationParameters::default();
+///
+/// // For a more accurate (but slower) simulation:
+/// integration_params.num_solver_iterations = 8;
+///
+/// // For pixel-based 2D games where 100 pixels = 1 meter:
+/// integration_params.length_unit = 100.0;
+/// ```
+///
+/// Most other parameters are advanced settings for fine-tuning stability and performance.
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct IntegrationParameters {
-    /// The timestep length (default: `1.0 / 60.0`).
+    /// The timestep length - how much simulated time passes per physics step (default: `1.0 / 60.0`).
+    ///
+    /// Set this to `1.0 / your_target_fps`. For example:
+    /// - 60 FPS: `1.0 / 60.0` ≈ 0.0167 seconds
+    /// - 120 FPS: `1.0 / 120.0` ≈ 0.0083 seconds
+    ///
+    /// Smaller timesteps are more accurate but require more CPU time per second of simulated time.
     pub dt: Real,
     /// Minimum timestep size when using CCD with multiple substeps (default: `1.0 / 60.0 / 100.0`).
     ///
@@ -64,19 +117,19 @@ pub struct IntegrationParameters {
     /// (default `1.0`).
     pub warmstart_coefficient: Real,
 
-    /// The approximate size of most dynamic objects in the scene.
+    /// The scale factor for your world if you're not using meters (default: `1.0`).
     ///
-    /// This value is used internally to estimate some length-based tolerance. In particular, the
-    /// values [`IntegrationParameters::allowed_linear_error`],
-    /// [`IntegrationParameters::max_corrective_velocity`],
-    /// [`IntegrationParameters::prediction_distance`], [`RigidBodyActivation::normalized_linear_threshold`]
-    /// are scaled by this value implicitly.
+    /// Rapier is tuned for human-scale objects measured in meters. If your game uses different
+    /// units, set this to how many of your units equal 1 meter in the real world.
     ///
-    /// This value can be understood as the number of units-per-meter in your physical world compared
-    /// to a human-sized world in meter. For example, in a 2d game, if your typical object size is 100
-    /// pixels, set the [`Self::length_unit`] parameter to 100.0. The physics engine will interpret
-    /// it as if 100 pixels is equivalent to 1 meter in its various internal threshold.
-    /// (default `1.0`).
+    /// **Examples:**
+    /// - Your game uses meters: `length_unit = 1.0` (default)
+    /// - Your game uses centimeters: `length_unit = 100.0` (100 cm = 1 m)
+    /// - Pixel-based 2D game where typical objects are 100 pixels tall: `length_unit = 100.0`
+    /// - Your game uses feet: `length_unit = 3.28` (approximately)
+    ///
+    /// This automatically scales various internal tolerances and thresholds to work correctly
+    /// with your chosen units.
     pub length_unit: Real,
 
     /// Amount of penetration the engine won’t attempt to correct (default: `0.001m`).
@@ -92,30 +145,32 @@ pub struct IntegrationParameters {
     /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
     pub normalized_prediction_distance: Real,
     /// The number of solver iterations run by the constraints solver for calculating forces (default: `4`).
-    pub num_solver_iterations: NonZeroUsize,
-    /// Number of addition friction resolution iteration run during the last solver sub-step (default: `0`).
-    pub num_additional_friction_iterations: usize,
+    ///
+    /// Higher values produce more accurate and stable simulations at the cost of performance.
+    /// - `4` (default): Good balance for most games
+    /// - `8-12`: Use for demanding scenarios (stacks of objects, complex machinery)
+    /// - `1-2`: Use if performance is critical and accuracy can be sacrificed
+    pub num_solver_iterations: usize,
     /// Number of internal Project Gauss Seidel (PGS) iterations run at each solver iteration (default: `1`).
     pub num_internal_pgs_iterations: usize,
-    /// The number of stabilization iterations run at each solver iterations (default: `2`).
+    /// The number of stabilization iterations run at each solver iterations (default: `1`).
     pub num_internal_stabilization_iterations: usize,
-    /// Minimum number of dynamic bodies in each active island (default: `128`).
+    /// Minimum number of dynamic bodies on each active island (default: `128`).
     pub min_island_size: usize,
     /// Maximum number of substeps performed by the  solver (default: `1`).
     pub max_ccd_substeps: usize,
+    /// The type of friction constraints used in the simulation.
+    #[cfg(feature = "dim3")]
+    pub friction_model: FrictionModel,
 }
 
 impl IntegrationParameters {
     /// The inverse of the time-stepping length, i.e. the steps per seconds (Hz).
     ///
     /// This is zero if `self.dt` is zero.
-    #[inline(always)]
+    #[inline]
     pub fn inv_dt(&self) -> Real {
-        if self.dt == 0.0 {
-            0.0
-        } else {
-            1.0 / self.dt
-        }
+        if self.dt == 0.0 { 0.0 } else { 1.0 / self.dt }
     }
 
     /// Sets the time-stepping length.
@@ -264,12 +319,10 @@ impl IntegrationParameters {
     pub fn prediction_distance(&self) -> Real {
         self.normalized_prediction_distance * self.length_unit
     }
+}
 
-    /// Initialize the simulation parameters with settings matching the TGS-soft solver
-    /// with warmstarting.
-    ///
-    /// This is the default configuration, equivalent to [`IntegrationParameters::default()`].
-    pub fn tgs_soft() -> Self {
+impl Default for IntegrationParameters {
+    fn default() -> Self {
         Self {
             dt: 1.0 / 60.0,
             min_ccd_dt: 1.0 / 60.0 / 100.0,
@@ -279,9 +332,8 @@ impl IntegrationParameters {
             joint_damping_ratio: 1.0,
             warmstart_coefficient: 1.0,
             num_internal_pgs_iterations: 1,
-            num_internal_stabilization_iterations: 2,
-            num_additional_friction_iterations: 0,
-            num_solver_iterations: NonZeroUsize::new(4).unwrap(),
+            num_internal_stabilization_iterations: 1,
+            num_solver_iterations: 4,
             // TODO: what is the optimal value for min_island_size?
             // It should not be too big so that we don't end up with
             // huge islands that don't fit in cache.
@@ -293,37 +345,8 @@ impl IntegrationParameters {
             normalized_prediction_distance: 0.002,
             max_ccd_substeps: 1,
             length_unit: 1.0,
+            #[cfg(feature = "dim3")]
+            friction_model: FrictionModel::default(),
         }
-    }
-
-    /// Initialize the simulation parameters with settings matching the TGS-soft solver
-    /// **without** warmstarting.
-    ///
-    /// The [`IntegrationParameters::tgs_soft()`] configuration should be preferred unless
-    /// warmstarting proves to be undesirable for your use-case.
-    pub fn tgs_soft_without_warmstart() -> Self {
-        Self {
-            contact_damping_ratio: 0.25,
-            warmstart_coefficient: 0.0,
-            num_additional_friction_iterations: 4,
-            ..Self::tgs_soft()
-        }
-    }
-
-    /// Initializes the integration parameters to match the legacy PGS solver from Rapier version <= 0.17.
-    ///
-    /// This exists mainly for testing and comparison purpose.
-    pub fn pgs_legacy() -> Self {
-        Self {
-            num_solver_iterations: NonZeroUsize::new(1).unwrap(),
-            num_internal_pgs_iterations: 4,
-            ..Self::tgs_soft_without_warmstart()
-        }
-    }
-}
-
-impl Default for IntegrationParameters {
-    fn default() -> Self {
-        Self::tgs_soft()
     }
 }

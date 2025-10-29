@@ -1,4 +1,4 @@
-## Unreleased
+## 0.4.0
 
 Renamed the crate from `rapier3d-stl` to `rapier3d-meshloader`, to better reflect its support for multiple formats.
 

@@ -1,6 +1,6 @@
 [package]
 name = "rapier_testbed2d"
-version = "0.22.0"
+version = "0.30.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "Testbed for the Rapier 2-dimensional physics engine in Rust."
 homepage = "http://rapier.rs"
@@ -14,7 +14,7 @@ categories = [
 ]
 keywords = ["physics", "dynamics", "rigid", "real-time", "impulse_joints"]
 license = "Apache-2.0"
-edition = "2021"
+edition = "2024"
 
 [badges]
 maintenance = { status = "actively-developed" }
@@ -28,47 +28,48 @@ required-features = ["dim2"]
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(feature, values("dim3", "f64"))',
 ] }
+clippy = { needless_lifetimes = "allow" }
 
 [features]
 default = ["dim2"]
 dim2 = []
 parallel = ["rapier/parallel", "num_cpus"]
 other-backends = ["wrapped2d"]
-profiling = ["dep:puffin_egui", "profiling/profile-with-puffin"]
+profiler_ui = ["dep:puffin_egui", "profiling/profile-with-puffin"]
 # See https://github.com/dimforge/rapier/issues/760.
 unstable-puffin-pr-235 = []
 
 [package.metadata.docs.rs]
-features = ["parallel", "other-backends", "profiling"]
-
-[lints.clippy]
-needless_lifetimes = "allow"
+features = ["parallel", "other-backends", "profiler_ui"]
 
 [dependencies]
-nalgebra = { version = "0.33", features = ["rand", "glam027"] }
-rand = "0.8"
-rand_pcg = "0.3"
+nalgebra = { version = "0.34", features = ["rand", "glam029"] }
+rand = "0.9"
+rand_pcg = "0.9"
 web-time = { version = "1.1" }
 bitflags = "2"
 num_cpus = { version = "1", optional = true }
 wrapped2d = { version = "0.4", optional = true }
-crossbeam = "0.8"
 bincode = "1"
 Inflector = "0.11"
 md5 = "0.7"
-bevy_egui = "0.29"
-bevy_ecs = "0.14"
-bevy_core_pipeline = "0.14"
-bevy_pbr = "0.14"
-bevy_sprite = "0.14"
+bevy_egui = "0.31"
+bevy_ecs = "0.15"
+bevy_core_pipeline = "0.15"
+bevy_pbr = "0.15"
+bevy_sprite = "0.15"
 profiling = "1.0"
 puffin_egui = { version = "0.29", optional = true }
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1"
+indexmap = { version = "2", features = ["serde"] }
 
 # Dependencies for native only.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = { version = "0.14", default-features = false, features = [
+bevy = { version = "0.15", default-features = false, features = [
     "bevy_sprite",
     "bevy_winit",
+    "bevy_window",
     "x11",
     "tonemapping_luts",
     "ktx2",
@@ -76,13 +77,15 @@ bevy = { version = "0.14", default-features = false, features = [
     "bevy_render",
     "bevy_pbr",
     "bevy_gizmos",
+    "serialize"
 ] }
 
 # Dependencies for WASM only.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy = { version = "0.14", default-features = false, features = [
+bevy = { version = "0.15", default-features = false, features = [
     "bevy_sprite",
     "bevy_winit",
+    "bevy_window",
     "tonemapping_luts",
     "ktx2",
     "zstd",
@@ -95,5 +98,5 @@ bevy = { version = "0.14", default-features = false, features = [
 [dependencies.rapier]
 package = "rapier2d"
 path = "../rapier2d"
-version = "0.22.0"
+version = "0.30.0"
 features = ["serde-serialize", "debug-render", "profiler"]

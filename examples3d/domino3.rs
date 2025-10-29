@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -53,7 +53,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 Translation::new(x * curr_rad, width * 2.0 + ground_height, z * curr_rad)
                     * tilt
                     * rot;
-            let rigid_body = RigidBodyBuilder::dynamic().position(position);
+            let rigid_body = RigidBodyBuilder::dynamic().pose(position);
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(thickness, width * 2.0, width);
             colliders.insert_with_parent(collider, handle, &mut bodies);

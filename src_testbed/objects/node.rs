@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::render::mesh::{Indices, VertexAttributeValues};
 
 //use crate::objects::plane::Plane;
-use na::{point, Point3, Vector3};
+use na::{Point3, Vector3, point};
 use std::collections::HashMap;
 
 use bevy::render::render_resource::PrimitiveTopology;
@@ -14,11 +14,10 @@ use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
 use rapier::geometry::{Cone, Cylinder};
 use rapier::math::{Isometry, Real, Vector};
 
-use crate::graphics::{BevyMaterial, InstancedMaterials, SELECTED_OBJECT_MATERIAL_KEY};
+use crate::graphics::{BevyMaterial, InstancedMaterials, SELECTED_OBJECT_COLOR};
 #[cfg(feature = "dim2")]
 use {
-    bevy_sprite::MaterialMesh2dBundle,
-    na::{Point2, Vector2},
+    na::{Point2, Vector2, vector},
     rapier::geometry::{Ball, Cuboid},
 };
 
@@ -38,27 +37,7 @@ impl EntityWithGraphics {
         materials: &mut Assets<BevyMaterial>,
         instanced_materials: &mut InstancedMaterials,
     ) {
-        if instanced_materials.contains_key(&SELECTED_OBJECT_MATERIAL_KEY) {
-            return; // Already added.
-        }
-
-        #[cfg(feature = "dim2")]
-        let selection_material = bevy_sprite::ColorMaterial {
-            color: Color::from(Srgba::rgb(1.0, 0.0, 0.0)),
-            texture: None,
-        };
-        #[cfg(feature = "dim3")]
-        let selection_material = StandardMaterial {
-            metallic: 0.5,
-            perceptual_roughness: 0.5,
-            double_sided: true, // TODO: this doesn't do anything?
-            ..StandardMaterial::from(Color::from(Srgba::rgb(1.0, 0.0, 0.0)))
-        };
-
-        instanced_materials.insert(
-            SELECTED_OBJECT_MATERIAL_KEY,
-            materials.add(selection_material),
-        );
+        instanced_materials.insert(materials, SELECTED_OBJECT_COLOR, 1.0);
     }
 
     pub fn spawn(
@@ -84,8 +63,7 @@ impl EntityWithGraphics {
             .cloned()
             .or_else(|| generate_collider_mesh(shape).map(|m| meshes.add(m)));
 
-        let opacity = 1.0;
-        let bevy_color = Color::from(Srgba::new(color.x, color.y, color.z, opacity));
+        let opacity = if sensor { 0.25 } else { 1.0 };
         let shape_pos = collider_pos * delta;
         let mut transform = Transform::from_scale(scale);
         transform.translation.x = shape_pos.translation.vector.x as f32;
@@ -108,38 +86,21 @@ impl EntityWithGraphics {
             transform.rotation = Quat::from_rotation_z(shape_pos.rotation.angle() as f32);
         }
 
-        #[cfg(feature = "dim2")]
-        let material = bevy_sprite::ColorMaterial {
-            color: bevy_color,
-            texture: None,
-        };
-        #[cfg(feature = "dim3")]
-        let material = StandardMaterial {
-            metallic: 0.5,
-            perceptual_roughness: 0.5,
-            double_sided: true, // TODO: this doesn't do anything?
-            ..StandardMaterial::from(bevy_color)
-        };
-        let material_handle = instanced_materials
-            .entry(color.coords.map(|c| (c * 255.0) as usize).into())
-            .or_insert_with(|| materials.add(material));
-        let material_weak_handle = material_handle.clone_weak();
+        let material_handle = instanced_materials.insert(materials, color, opacity);
 
         if let Some(mesh) = mesh {
             #[cfg(feature = "dim2")]
-            let bundle = MaterialMesh2dBundle {
-                mesh: mesh.into(),
-                material: material_handle.clone_weak(),
+            let bundle = (
+                Mesh2d(mesh),
+                MeshMaterial2d(material_handle.clone_weak()),
                 transform,
-                ..Default::default()
-            };
+            );
             #[cfg(feature = "dim3")]
-            let bundle = PbrBundle {
-                mesh,
-                material: material_handle.clone_weak(),
+            let bundle = (
+                Mesh3d(mesh),
+                MeshMaterial3d(material_handle.clone_weak()),
                 transform,
-                ..Default::default()
-            };
+            );
 
             let mut entity_commands = commands.entity(entity);
             entity_commands.insert(bundle);
@@ -155,7 +116,7 @@ impl EntityWithGraphics {
             base_color: color,
             collider,
             delta,
-            material: material_weak_handle,
+            material: material_handle,
             opacity,
         }
     }
@@ -165,18 +126,13 @@ impl EntityWithGraphics {
         commands.entity(self.entity).despawn();
     }
 
-    pub fn set_color(&mut self, materials: &mut Assets<BevyMaterial>, color: Point3<f32>) {
-        if let Some(material) = materials.get_mut(&self.material) {
-            #[cfg(feature = "dim2")]
-            {
-                material.color = Color::from(Srgba::new(color.x, color.y, color.z, self.opacity));
-            }
-            #[cfg(feature = "dim3")]
-            {
-                material.base_color =
-                    Color::from(Srgba::new(color.x, color.y, color.z, self.opacity));
-            }
-        }
+    pub fn set_color(
+        &mut self,
+        materials: &mut Assets<BevyMaterial>,
+        instanced_materials: &mut InstancedMaterials,
+        color: Point3<f32>,
+    ) {
+        self.material = instanced_materials.insert(materials, color, self.opacity);
         self.color = color;
         self.base_color = color;
     }
@@ -187,25 +143,25 @@ impl EntityWithGraphics {
         components: &mut Query<&mut Transform>,
         gfx_shift: &Vector<Real>,
     ) {
-        if let Some(Some(co)) = self.collider.map(|c| colliders.get(c)) {
-            if let Ok(mut pos) = components.get_mut(self.entity) {
-                let co_pos = co.position() * self.delta;
-                pos.translation.x = (co_pos.translation.vector.x + gfx_shift.x) as f32;
-                pos.translation.y = (co_pos.translation.vector.y + gfx_shift.y) as f32;
-                #[cfg(feature = "dim3")]
-                {
-                    pos.translation.z = (co_pos.translation.vector.z + gfx_shift.z) as f32;
-                    pos.rotation = Quat::from_xyzw(
-                        co_pos.rotation.i as f32,
-                        co_pos.rotation.j as f32,
-                        co_pos.rotation.k as f32,
-                        co_pos.rotation.w as f32,
-                    );
-                }
-                #[cfg(feature = "dim2")]
-                {
-                    pos.rotation = Quat::from_rotation_z(co_pos.rotation.angle() as f32);
-                }
+        if let Some(Some(co)) = self.collider.map(|c| colliders.get(c))
+            && let Ok(mut pos) = components.get_mut(self.entity)
+        {
+            let co_pos = co.position() * self.delta;
+            pos.translation.x = (co_pos.translation.vector.x + gfx_shift.x) as f32;
+            pos.translation.y = (co_pos.translation.vector.y + gfx_shift.y) as f32;
+            #[cfg(feature = "dim3")]
+            {
+                pos.translation.z = (co_pos.translation.vector.z + gfx_shift.z) as f32;
+                pos.rotation = Quat::from_xyzw(
+                    co_pos.rotation.i as f32,
+                    co_pos.rotation.j as f32,
+                    co_pos.rotation.k as f32,
+                    co_pos.rotation.w as f32,
+                );
+            }
+            #[cfg(feature = "dim2")]
+            {
+                pos.rotation = Quat::from_rotation_z(co_pos.rotation.angle() as f32);
             }
         }
     }
@@ -440,6 +396,26 @@ fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
                 .collect();
             bevy_mesh((vertices, trimesh.indices().to_vec()))
         }
+        ShapeType::Voxels => {
+            let mut vtx = vec![];
+            let mut idx = vec![];
+            let voxels = co_shape.as_voxels().unwrap();
+            let sz = voxels.voxel_size() / 2.0;
+            for vox in voxels.voxels() {
+                if !vox.state.is_empty() {
+                    let bid = vtx.len() as u32;
+                    let center = point![vox.center.x, vox.center.y, 0.0];
+                    vtx.push(center + vector![sz.x, sz.y, 0.0]);
+                    vtx.push(center + vector![-sz.x, sz.y, 0.0]);
+                    vtx.push(center + vector![-sz.x, -sz.y, 0.0]);
+                    vtx.push(center + vector![sz.x, -sz.y, 0.0]);
+                    idx.push([bid, bid + 1, bid + 2]);
+                    idx.push([bid + 2, bid + 3, bid]);
+                }
+            }
+
+            bevy_mesh((vtx, idx))
+        }
         ShapeType::Polyline => {
             let polyline = co_shape.as_polyline().unwrap();
             bevy_polyline((
@@ -495,6 +471,10 @@ fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
         ShapeType::RoundConvexPolyhedron => {
             let poly = co_shape.as_round_convex_polyhedron().unwrap();
             bevy_mesh(poly.inner_shape.to_trimesh())
+        }
+        ShapeType::Voxels => {
+            let voxels = co_shape.as_voxels().unwrap();
+            bevy_mesh(voxels.to_trimesh())
         }
         _ => return None,
     };

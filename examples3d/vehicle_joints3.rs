@@ -1,5 +1,5 @@
-use rapier3d::prelude::*;
 use rapier_testbed3d::{KeyCode, Testbed};
+use rapier3d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
@@ -59,7 +59,7 @@ pub fn init_world(testbed: &mut Testbed) {
             InteractionTestMode::And,
         ));
     let body_rb = RigidBodyBuilder::dynamic()
-        .position(body_position.into())
+        .pose(body_position.into())
         .build();
     let body_handle = bodies.insert(body_rb);
     colliders.insert_with_parent(body_co, body_handle, &mut bodies);
@@ -73,7 +73,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
         let axle_mass_props = MassProperties::from_ball(100.0, wheel_radius);
         let axle_rb = RigidBodyBuilder::dynamic()
-            .position(wheel_center.into())
+            .pose(wheel_center.into())
             .additional_mass_properties(axle_mass_props);
         let axle_handle = bodies.insert(axle_rb);
 
@@ -95,7 +95,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 InteractionTestMode::And,
             ))
             .friction(1.0);
-        let wheel_rb = RigidBodyBuilder::dynamic().position(wheel_center.into());
+        let wheel_rb = RigidBodyBuilder::dynamic().pose(wheel_center.into());
         let wheel_handle = bodies.insert(wheel_rb);
         colliders.insert_with_parent(wheel_co, wheel_handle, &mut bodies);
         colliders.insert_with_parent(wheel_fake_co, wheel_handle, &mut bodies);

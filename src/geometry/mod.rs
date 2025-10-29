@@ -1,12 +1,13 @@
 //! Structures related to geometry: colliders, shapes, etc.
 
-pub use self::broad_phase::BroadPhase;
-pub use self::broad_phase_multi_sap::{BroadPhaseMultiSap, BroadPhasePairEvent, ColliderPair};
+pub use self::broad_phase_bvh::{BroadPhaseBvh, BvhOptimizationStrategy};
+pub use self::broad_phase_pair_event::{BroadPhasePairEvent, ColliderPair};
 pub use self::collider::{Collider, ColliderBuilder};
 pub use self::collider_components::*;
 pub use self::collider_set::ColliderSet;
 pub use self::contact_pair::{
-    ContactData, ContactManifoldData, ContactPair, IntersectionPair, SolverContact, SolverFlags,
+    ContactData, ContactManifoldData, ContactPair, IntersectionPair, SimdSolverContact,
+    SolverContact, SolverFlags,
 };
 pub use self::interaction_graph::{
     ColliderGraphIndex, InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex,
@@ -16,8 +17,9 @@ pub use self::mesh_converter::{MeshConverter, MeshConverterError};
 pub use self::narrow_phase::NarrowPhase;
 
 pub use parry::bounding_volume::BoundingVolume;
+pub use parry::partitioning::{Bvh, BvhBuildStrategy};
 pub use parry::query::{PointQuery, PointQueryWithLocation, RayCast, TrackedContact};
-pub use parry::shape::SharedShape;
+pub use parry::shape::{SharedShape, VoxelState, VoxelType, Voxels};
 
 use crate::math::{Real, Vector};
 
@@ -54,7 +56,7 @@ pub type PointProjection = parry::query::PointProjection;
 /// The result of a shape-cast between two shapes.
 pub type ShapeCastHit = parry::query::ShapeCastHit;
 /// The default broad-phase implementation recommended for general-purpose usage.
-pub type DefaultBroadPhase = BroadPhaseMultiSap;
+pub type DefaultBroadPhase = BroadPhaseBvh;
 
 bitflags::bitflags! {
     /// Flags providing more information regarding a collision event.
@@ -72,33 +74,61 @@ bitflags::bitflags! {
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Hash, Debug)]
-/// Events occurring when two colliders start or stop colliding
+/// Events triggered when two colliders start or stop touching.
+///
+/// Receive these through an [`EventHandler`](crate::pipeline::EventHandler) implementation.
+/// At least one collider must have [`ActiveEvents::COLLISION_EVENTS`](crate::pipeline::ActiveEvents::COLLISION_EVENTS) enabled.
+///
+/// Use for:
+/// - Trigger zones (player entered/exited area)
+/// - Collectible items (player touched coin)
+/// - Sound effects (objects started colliding)
+/// - Game logic based on contact state
+///
+/// # Example
+/// ```
+/// # use rapier3d::prelude::*;
+/// # let h1 = ColliderHandle::from_raw_parts(0, 0);
+/// # let h2 = ColliderHandle::from_raw_parts(1, 0);
+/// # let event = CollisionEvent::Started(h1, h2, CollisionEventFlags::empty());
+/// match event {
+///     CollisionEvent::Started(h1, h2, flags) => {
+///         println!("Colliders {:?} and {:?} started touching", h1, h2);
+///         if flags.contains(CollisionEventFlags::SENSOR) {
+///             println!("At least one is a sensor!");
+///         }
+///     }
+///     CollisionEvent::Stopped(h1, h2, _) => {
+///         println!("Colliders {:?} and {:?} stopped touching", h1, h2);
+///     }
+/// }
+/// ```
 pub enum CollisionEvent {
-    /// Event occurring when two colliders start colliding
+    /// Two colliders just started touching this frame.
     Started(ColliderHandle, ColliderHandle, CollisionEventFlags),
-    /// Event occurring when two colliders stop colliding.
+    /// Two colliders just stopped touching this frame.
     Stopped(ColliderHandle, ColliderHandle, CollisionEventFlags),
 }
 
 impl CollisionEvent {
-    /// Is this a `Started` collision event?
+    /// Returns `true` if this is a Started event (colliders began touching).
     pub fn started(self) -> bool {
         matches!(self, CollisionEvent::Started(..))
     }
 
-    /// Is this a `Stopped` collision event?
+    /// Returns `true` if this is a Stopped event (colliders stopped touching).
     pub fn stopped(self) -> bool {
         matches!(self, CollisionEvent::Stopped(..))
     }
 
-    /// The handle of the first collider involved in this collision event.
+    /// Returns the handle of the first collider in this collision.
     pub fn collider1(self) -> ColliderHandle {
         match self {
             Self::Started(h, _, _) | Self::Stopped(h, _, _) => h,
         }
     }
 
-    /// The handle of the second collider involved in this collision event.
+    /// Returns the handle of the second collider in this collision.
     pub fn collider2(self) -> ColliderHandle {
         match self {
             Self::Started(_, h, _) | Self::Stopped(_, h, _) => h,
@@ -181,31 +211,24 @@ impl ContactForceEvent {
     }
 }
 
-pub(crate) use self::broad_phase::BroadPhaseProxyIndex;
+pub(crate) use self::collider_set::ModifiedColliders;
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
-pub(crate) use parry::partitioning::Qbvh;
 pub use parry::shape::*;
 
 #[cfg(feature = "serde-serialize")]
-pub(crate) fn default_persistent_query_dispatcher(
-) -> std::sync::Arc<dyn parry::query::PersistentQueryDispatcher<ContactManifoldData, ContactData>> {
+pub(crate) fn default_persistent_query_dispatcher()
+-> std::sync::Arc<dyn parry::query::PersistentQueryDispatcher<ContactManifoldData, ContactData>> {
     std::sync::Arc::new(parry::query::DefaultQueryDispatcher)
 }
 
-#[cfg(feature = "serde-serialize")]
-pub(crate) fn default_query_dispatcher() -> std::sync::Arc<dyn parry::query::QueryDispatcher> {
-    std::sync::Arc::new(parry::query::DefaultQueryDispatcher)
-}
-
-mod broad_phase_multi_sap;
 mod collider_components;
 mod contact_pair;
 mod interaction_graph;
 mod interaction_groups;
 mod narrow_phase;
 
-mod broad_phase;
-mod broad_phase_qbvh;
+mod broad_phase_bvh;
+mod broad_phase_pair_event;
 mod collider;
 mod collider_set;
 mod mesh_converter;

@@ -6,7 +6,7 @@ use na::DVector;
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
 pub(crate) struct MultibodyWorkspace {
-    pub accs: Vec<RigidBodyVelocity>,
+    pub accs: Vec<RigidBodyVelocity<Real>>,
     pub ndofs_vec: DVector<Real>,
 }
 

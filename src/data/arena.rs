@@ -3,7 +3,6 @@
 //! See <https://github.com/fitzgen/generational-arena/blob/master/src/lib.rs>.
 //! This has been modified to have a fully deterministic deserialization (including for the order of
 //! Index attribution after a deserialization of the arena).
-use parry::partitioning::IndexedData;
 use std::cmp;
 use std::iter::{self, Extend, FromIterator, FusedIterator};
 use std::mem;
@@ -38,9 +37,8 @@ enum Entry<T> {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use rapier::data::arena::Arena;
-///
+/// ```
+/// # use rapier3d::data::arena::Arena;
 /// let mut arena = Arena::new();
 /// let idx = arena.insert(123);
 /// assert_eq!(arena[idx], 123);
@@ -55,16 +53,6 @@ pub struct Index {
 impl Default for Index {
     fn default() -> Self {
         Self::from_raw_parts(crate::INVALID_U32, crate::INVALID_U32)
-    }
-}
-
-impl IndexedData for Index {
-    fn default() -> Self {
-        Default::default()
-    }
-
-    fn index(&self) -> usize {
-        self.into_raw_parts().0 as usize
     }
 }
 
@@ -105,9 +93,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::<usize>::new();
     /// # let _ = arena;
     /// ```
@@ -121,9 +108,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::with_capacity(10);
     ///
     /// // These insertions will not require further allocation.
@@ -150,9 +136,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::with_capacity(1);
     /// arena.insert(42);
     /// arena.insert(43);
@@ -188,9 +173,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::new();
     ///
     /// match arena.try_insert(42) {
@@ -229,9 +213,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::{Arena, Index};
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::{Arena, Index};
     /// let mut arena = Arena::new();
     ///
     /// match arena.try_insert_with(|idx| (42, idx)) {
@@ -283,9 +266,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::new();
     ///
     /// let idx = arena.insert(42);
@@ -306,9 +288,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::{Arena, Index};
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::{Arena, Index};
     /// let mut arena = Arena::new();
     ///
     /// let idx = arena.insert_with(|idx| (42, idx));
@@ -348,9 +329,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::new();
     /// let idx = arena.insert(42);
     ///
@@ -392,9 +372,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut crew = Arena::new();
     /// crew.extend(&["Jim Hawkins", "John Silver", "Alexander Smollett", "Israel Hands"]);
     /// let pirates = ["John Silver", "Israel Hands"]; // too dangerous to keep them around
@@ -433,9 +412,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::new();
     /// let idx = arena.insert(42);
     ///
@@ -454,9 +432,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::new();
     /// let idx = arena.insert(42);
     ///
@@ -480,9 +457,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::new();
     /// let idx = arena.insert(42);
     ///
@@ -511,9 +487,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::new();
     /// let idx1 = arena.insert(0);
     /// let idx2 = arena.insert(1);
@@ -576,9 +551,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::new();
     /// assert_eq!(arena.len(), 0);
     ///
@@ -599,9 +573,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::new();
     /// assert!(arena.is_empty());
     ///
@@ -623,9 +596,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::with_capacity(10);
     /// assert_eq!(arena.capacity(), 10);
     ///
@@ -651,9 +623,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::with_capacity(10);
     /// arena.reserve(5);
     /// assert_eq!(arena.capacity(), 15);
@@ -686,9 +657,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::new();
     /// for i in 0..10 {
     ///     arena.insert(i * i);
@@ -698,7 +668,7 @@ impl<T> Arena<T> {
     ///     println!("{} is at index {:?}", value, idx);
     /// }
     /// ```
-    pub fn iter(&self) -> Iter<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         Iter {
             len: self.len,
             inner: self.items.iter().enumerate(),
@@ -713,9 +683,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::new();
     /// for i in 0..10 {
     ///     arena.insert(i * i);
@@ -725,7 +694,7 @@ impl<T> Arena<T> {
     ///     *value += 5;
     /// }
     /// ```
-    pub fn iter_mut(&mut self) -> IterMut<T> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         IterMut {
             len: self.len,
             inner: self.items.iter_mut().enumerate(),
@@ -742,9 +711,8 @@ impl<T> Arena<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use rapier::data::arena::Arena;
-    ///
+    /// ```
+    /// # use rapier3d::data::arena::Arena;
     /// let mut arena = Arena::new();
     /// let idx_1 = arena.insert("hello");
     /// let idx_2 = arena.insert("world");
@@ -757,7 +725,7 @@ impl<T> Arena<T> {
     /// assert!(arena.get(idx_1).is_none());
     /// assert!(arena.get(idx_2).is_none());
     /// ```
-    pub fn drain(&mut self) -> Drain<T> {
+    pub fn drain(&mut self) -> Drain<'_, T> {
         Drain {
             inner: self.items.drain(..).enumerate(),
         }
@@ -829,9 +797,8 @@ impl<T> IntoIterator for Arena<T> {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use rapier::data::arena::Arena;
-///
+/// ```
+/// # use rapier3d::data::arena::Arena;
 /// let mut arena = Arena::new();
 /// for i in 0..10 {
 ///     arena.insert(i * i);
@@ -913,9 +880,8 @@ impl<'a, T> IntoIterator for &'a Arena<T> {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use rapier::data::arena::Arena;
-///
+/// ```
+/// # use rapier3d::data::arena::Arena;
 /// let mut arena = Arena::new();
 /// for i in 0..10 {
 ///     arena.insert(i * i);
@@ -1017,9 +983,8 @@ impl<'a, T> IntoIterator for &'a mut Arena<T> {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use rapier::data::arena::Arena;
-///
+/// ```
+/// # use rapier3d::data::arena::Arena;
 /// let mut arena = Arena::new();
 /// for i in 0..10 {
 ///     arena.insert(i * i);
@@ -1115,9 +1080,8 @@ impl<T> FusedIterator for IterMut<'_, T> {}
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use rapier::data::arena::Arena;
-///
+/// ```
+/// # use rapier3d::data::arena::Arena;
 /// let mut arena = Arena::new();
 /// let idx_1 = arena.insert("hello");
 /// let idx_2 = arena.insert("world");

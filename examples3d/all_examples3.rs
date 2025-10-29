@@ -1,12 +1,13 @@
 #![allow(dead_code)]
+#![allow(clippy::type_complexity)]
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use inflector::Inflector;
-
 use rapier_testbed3d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
+
+mod utils;
 
 mod ccd3;
 mod collision_groups3;
@@ -16,6 +17,7 @@ mod convex_polyhedron3;
 mod damping3;
 mod debug_add_remove_collider3;
 mod debug_articulations3;
+mod debug_balls3;
 mod debug_big_colliders3;
 mod debug_boxes3;
 mod debug_cylinder3;
@@ -42,6 +44,8 @@ mod debug_cube_high_mass_ratio3;
 mod debug_internal_edges3;
 mod debug_long_chain3;
 mod debug_multibody_ang_motor_pos3;
+mod debug_sleeping_kinematic3;
+mod gyroscopic3;
 mod inverse_kinematics3;
 mod joint_motor_position3;
 mod keva3;
@@ -58,43 +62,10 @@ mod trimesh3;
 mod urdf3;
 mod vehicle_controller3;
 mod vehicle_joints3;
-
-fn demo_name_from_command_line() -> Option<String> {
-    let mut args = std::env::args();
-
-    while let Some(arg) = args.next() {
-        if &arg[..] == "--example" {
-            return args.next();
-        }
-    }
-
-    None
-}
-
-#[cfg(target_arch = "wasm32")]
-fn demo_name_from_url() -> Option<String> {
-    None
-    //    let window = stdweb::web::window();
-    //    let hash = window.location()?.search().ok()?;
-    //    if hash.len() > 0 {
-    //        Some(hash[1..].to_string())
-    //    } else {
-    //        None
-    //    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn demo_name_from_url() -> Option<String> {
-    None
-}
+mod voxels3;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn main() {
-    let demo = demo_name_from_command_line()
-        .or_else(demo_name_from_url)
-        .unwrap_or_default()
-        .to_camel_case();
-
     let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
         ("Character controller", character_controller3::init_world),
         ("Fountain", fountain3::init_world),
@@ -106,6 +77,7 @@ pub fn main() {
         ("Convex decomposition", convex_decomposition3::init_world),
         ("Convex polyhedron", convex_polyhedron3::init_world),
         ("Damping", damping3::init_world),
+        ("Gyroscopic", gyroscopic3::init_world),
         ("Domino", domino3::init_world),
         ("Dynamic trimeshes", dynamic_trimesh3::init_world),
         ("Heightfield", heightfield3::init_world),
@@ -121,6 +93,7 @@ pub fn main() {
         ("Spring Joints", spring_joints3::init_world),
         ("TriMesh", trimesh3::init_world),
         ("Urdf", urdf3::init_world),
+        ("Voxels", voxels3::init_world),
         ("Vehicle controller", vehicle_controller3::init_world),
         ("Vehicle joints", vehicle_joints3::init_world),
         ("Keva tower", keva3::init_world),
@@ -132,6 +105,7 @@ pub fn main() {
         ),
         ("(Debug) big colliders", debug_big_colliders3::init_world),
         ("(Debug) boxes", debug_boxes3::init_world),
+        ("(Debug) balls", debug_balls3::init_world),
         ("(Debug) pop", debug_pop3::init_world),
         (
             "(Debug) dyn. coll. add",
@@ -159,6 +133,10 @@ pub fn main() {
             "(Debug) shape modification",
             debug_shape_modification3::init_world,
         ),
+        (
+            "(Debug) sleeping kinematics",
+            debug_sleeping_kinematic3::init_world,
+        ),
         ("(Debug) deserialize", debug_deserialize3::init_world),
         (
             "(Debug) multibody ang. motor pos.",
@@ -173,11 +151,6 @@ pub fn main() {
         (false, true) => Ordering::Less,
     });
 
-    let i = builders
-        .iter()
-        .position(|builder| builder.0.to_camel_case().as_str() == demo.as_str())
-        .unwrap_or(0);
-
-    let testbed = TestbedApp::from_builders(i, builders);
+    let testbed = TestbedApp::from_builders(builders);
     testbed.run()
 }

@@ -2,7 +2,7 @@
 name = "rapier-examples-3d-f64"
 version = "0.1.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
-edition = "2021"
+edition = "2024"
 default-run = "all_examples3-f64"
 
 [features]
@@ -12,9 +12,8 @@ simd-nightly = ["rapier3d-f64/simd-nightly"]
 enhanced-determinism = ["rapier3d-f64/enhanced-determinism"]
 
 [dependencies]
-rand = "0.8"
+rand = "0.9"
 getrandom = { version = "0.2", features = ["js"] }
-Inflector = "0.11"
 wasm-bindgen = "0.2"
 obj-rs = { version = "0.7", default-features = false }
 bincode = "1"

@@ -3,10 +3,13 @@
 use crate::dynamics::{RigidBody, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Ray};
 use crate::math::{Point, Real, Rotation, Vector};
-use crate::pipeline::{QueryFilter, QueryPipeline};
+use crate::pipeline::QueryPipeline;
+use crate::prelude::QueryPipelineMut;
 use crate::utils::{SimdCross, SimdDot};
 
 /// A character controller to simulate vehicles using ray-casting for the wheels.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
 pub struct DynamicRayCastVehicleController {
     wheels: Vec<Wheel>,
     forward_ws: Vec<Vector<Real>>,
@@ -22,6 +25,7 @@ pub struct DynamicRayCastVehicleController {
     pub index_forward_axis: usize,
 }
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 /// Parameters affecting the physical behavior of a wheel.
 pub struct WheelTuning {
@@ -100,6 +104,7 @@ struct WheelDesc {
     pub side_friction_stiffness: Real,
 }
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 /// A wheel attached to a vehicle.
 pub struct Wheel {
@@ -224,6 +229,7 @@ impl Wheel {
 
 /// Information about suspension and the ground obtained from the ray-casting
 /// to simulate a wheel’s suspension.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub struct RayCastInfo {
     /// The (world-space) contact normal between the wheel and the floor.
@@ -322,28 +328,20 @@ impl DynamicRayCastVehicleController {
     }
 
     #[profiling::function]
-    fn ray_cast(
-        &mut self,
-        bodies: &RigidBodySet,
-        colliders: &ColliderSet,
-        queries: &QueryPipeline,
-        filter: QueryFilter,
-        chassis: &RigidBody,
-        wheel_id: usize,
-    ) {
+    fn ray_cast(&mut self, queries: &QueryPipeline, chassis: &RigidBody, wheel_id: usize) {
         let wheel = &mut self.wheels[wheel_id];
         let raylen = wheel.suspension_rest_length + wheel.radius;
         let rayvector = wheel.wheel_direction_ws * raylen;
         let source = wheel.raycast_info.hard_point_ws;
         wheel.raycast_info.contact_point_ws = source + rayvector;
         let ray = Ray::new(source, rayvector);
-        let hit = queries.cast_ray_and_get_normal(bodies, colliders, &ray, 1.0, true, filter);
+        let hit = queries.cast_ray_and_get_normal(&ray, 1.0, true);
 
         wheel.raycast_info.ground_object = None;
 
         if let Some((collider_hit, mut hit)) = hit {
             if hit.time_of_impact == 0.0 {
-                let collider = &colliders[collider_hit];
+                let collider = &queries.colliders[collider_hit];
                 let up_ray = Ray::new(source + rayvector, -rayvector);
                 if let Some(hit2) =
                     collider
@@ -405,16 +403,9 @@ impl DynamicRayCastVehicleController {
 
     /// Updates the vehicle’s velocity based on its suspension, engine force, and brake.
     #[profiling::function]
-    pub fn update_vehicle(
-        &mut self,
-        dt: Real,
-        bodies: &mut RigidBodySet,
-        colliders: &ColliderSet,
-        queries: &QueryPipeline,
-        filter: QueryFilter,
-    ) {
+    pub fn update_vehicle(&mut self, dt: Real, queries: QueryPipelineMut) {
         let num_wheels = self.wheels.len();
-        let chassis = &bodies[self.chassis];
+        let chassis = &queries.bodies[self.chassis];
 
         for i in 0..num_wheels {
             self.update_wheel_transform(chassis, i);
@@ -433,13 +424,14 @@ impl DynamicRayCastVehicleController {
         //
 
         for wheel_id in 0..self.wheels.len() {
-            self.ray_cast(bodies, colliders, queries, filter, chassis, wheel_id);
+            self.ray_cast(&queries.as_ref(), chassis, wheel_id);
         }
 
         let chassis_mass = chassis.mass();
         self.update_suspension(chassis_mass);
 
-        let chassis = bodies
+        let chassis = queries
+            .bodies
             .get_mut_internal_with_modification_tracking(self.chassis)
             .unwrap();
 
@@ -459,9 +451,10 @@ impl DynamicRayCastVehicleController {
             chassis.apply_impulse_at_point(impulse, wheel.raycast_info.contact_point_ws, false);
         }
 
-        self.update_friction(bodies, colliders, dt);
+        self.update_friction(queries.bodies, queries.colliders, dt);
 
-        let chassis = bodies
+        let chassis = queries
+            .bodies
             .get_mut_internal_with_modification_tracking(self.chassis)
             .unwrap();
 
@@ -735,9 +728,7 @@ impl<'a> WheelContactPoint<'a> {
         fn impulse_denominator(body: &RigidBody, pos: &Point<Real>, n: &Vector<Real>) -> Real {
             let dpt = pos - body.center_of_mass();
             let gcross = dpt.gcross(*n);
-            let v = (body.mprops.effective_world_inv_inertia_sqrt
-                * (body.mprops.effective_world_inv_inertia_sqrt * gcross))
-                .gcross(dpt);
+            let v = (body.mprops.effective_world_inv_inertia * gcross).gcross(dpt);
             // TODO: take the effective inv mass into account instead of the inv_mass?
             body.mprops.local_mprops.inv_mass + n.dot(&v)
         }
@@ -794,8 +785,8 @@ fn resolve_single_bilateral(
     let dpt2 = pt2 - body2.center_of_mass();
     let aj = dpt1.gcross(*normal);
     let bj = dpt2.gcross(-*normal);
-    let iaj = body1.mprops.effective_world_inv_inertia_sqrt * aj;
-    let ibj = body2.mprops.effective_world_inv_inertia_sqrt * bj;
+    let iaj = body1.mprops.effective_world_inv_inertia * aj;
+    let ibj = body2.mprops.effective_world_inv_inertia * bj;
 
     // TODO: take the effective_inv_mass into account?
     let im1 = body1.mprops.local_mprops.inv_mass;
@@ -815,7 +806,7 @@ fn resolve_single_unilateral(body1: &RigidBody, pt1: &Point<Real>, normal: &Vect
     let dvel = vel1;
     let dpt1 = pt1 - body1.center_of_mass();
     let aj = dpt1.gcross(*normal);
-    let iaj = body1.mprops.effective_world_inv_inertia_sqrt * aj;
+    let iaj = body1.mprops.effective_world_inv_inertia * aj;
 
     // TODO: take the effective_inv_mass into account?
     let im1 = body1.mprops.local_mprops.inv_mass;
