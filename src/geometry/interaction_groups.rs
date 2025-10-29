@@ -13,13 +13,13 @@
 ///
 /// In other words, interactions are allowed between two colliders iff. the following condition is met
 /// for [`InteractionTestMode::And`]:
-/// ```ignore
+/// ```rust
 /// (self.memberships.bits() & rhs.filter.bits()) != 0 && (rhs.memberships.bits() & self.filter.bits()) != 0
 /// ```
 /// or for [`InteractionTestMode::Or`]:
-/// ```ignore
+/// ```rust
 /// (self.memberships.bits() & rhs.filter.bits()) != 0 || (rhs.memberships.bits() & self.filter.bits()) != 0
-///
+/// ```
 /// # Common use cases
 ///
 /// - **Player vs. Enemy bullets**: Players in group 1, enemies in group 2. Player bullets
