@@ -40,7 +40,7 @@
 /// // Enemy collider: in group 2, collides with group 1
 /// let enemy_groups = InteractionGroups::new(
 ///     Group::GROUP_2,  // I am in group 2
-///     Group::GROUP_1,   // I collide with group 1
+///     Group::GROUP_1,  // I collide with group 1
 ///     InteractionTestMode::And
 /// );
 ///
