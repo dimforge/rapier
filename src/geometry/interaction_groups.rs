@@ -120,6 +120,8 @@ impl InteractionGroups {
     /// with the filter of `rhs`, **and** vice-versa.
     #[inline]
     pub const fn test_and(self, rhs: Self) -> bool {
+        // NOTE: since const ops is not stable, we have to convert `Group` into u32
+        // to use & operator in const context.
         (self.memberships.bits() & rhs.filter.bits()) != 0
             && (rhs.memberships.bits() & self.filter.bits()) != 0
     }
@@ -130,6 +132,8 @@ impl InteractionGroups {
     /// with the mask of `rhs`, **or** vice-versa.
     #[inline]
     pub const fn test_or(self, rhs: Self) -> bool {
+        // NOTE: since const ops is not stable, we have to convert `Group` into u32
+        // to use & operator in const context.
         (self.memberships.bits() & rhs.filter.bits()) != 0
             || (rhs.memberships.bits() & self.filter.bits()) != 0
     }

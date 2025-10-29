@@ -1,10 +1,10 @@
 ## Unreleased
 
-### Modified
-
 - `InteractionGroups` struct now contains `InteractionTestMode`. Continues [rapier/pull/170](https://github.com/dimforge/rapier/pull/170) for [rapier/issues/622](https://github.com/dimforge/rapier/issues/622)
 - `InteractionGroups` constructor now requires an `InteractionTestMode` parameter. If you want same behaviour as before, use `InteractionTestMode::And` (eg. `InteractionGroups::new(Group::GROUP_1, Group::GROUP_1, InteractionTestMode::And)`)
 - `CoefficientCombineRule::Min` - now makes sure it uses a non zero value as result by using `coeff1.min(coeff2).abs()`
+- `InteractionTestMode`: Specifies which method should be used to test interactions. Supports `AND` and `OR`.
+- `CoefficientCombineRule::Sum` - Adds the two coefficients and does a clamp to have at most 1.
 
 ## v0.30.1 (17 Oct. 2025)
 
@@ -151,8 +151,6 @@ Notable changes include:
 
 ### Added
 
-- `InteractionTestMode`: Specifies which method should be used to test interactions. Supports `AND` and `OR`.
-- `CoefficientCombineRule::Sum` - Adds the two coefficients and does a clamp to have at most 1.
 - `RigidBodySet` and `ColliderSet` have a new constructor `with_capacity`.
 - Use `profiling` crate to provide helpful profiling information in different tools.
     - The testbeds have been updated to use `puffin_egui`
