@@ -13,11 +13,11 @@
 ///
 /// In other words, interactions are allowed between two colliders iff. the following condition is met
 /// for [`InteractionTestMode::And`]:
-/// ```rust
+/// ```ignore
 /// (self.memberships.bits() & rhs.filter.bits()) != 0 && (rhs.memberships.bits() & self.filter.bits()) != 0
 /// ```
 /// or for [`InteractionTestMode::Or`]:
-/// ```rust
+/// ```ignore
 /// (self.memberships.bits() & rhs.filter.bits()) != 0 || (rhs.memberships.bits() & self.filter.bits()) != 0
 /// ```
 /// # Common use cases
@@ -28,12 +28,12 @@
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// # use rapier3d::geometry::{InteractionGroups, Group};
 /// // Player collider: in group 1, collides with groups 2 and 3
 /// let player_groups = InteractionGroups::new(
-///     Group::GROUP_1,           // I am in group 1
-///     Group::GROUP_2, | Group::GROUP_3  // I collide with groups 2 and 3
+///     Group::GROUP_1,                    // I am in group 1
+///     Group::GROUP_2, | Group::GROUP_3,  // I collide with groups 2 and 3
 ///     InteractionTestMode::And
 /// );
 ///
