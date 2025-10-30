@@ -1183,6 +1183,10 @@ pub struct RigidBodyActivation {
 
     /// Is this body currently sleeping?
     pub sleeping: bool,
+
+    /// If this is `true` then the island manager has already registered that this rigid-body
+    /// can be used as a root for graph traversal to potentially extract a sleeping island.
+    pub is_sleep_root_candidate: bool,
 }
 
 impl Default for RigidBodyActivation {
@@ -1216,6 +1220,7 @@ impl RigidBodyActivation {
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: 0.0,
             sleeping: false,
+            is_sleep_root_candidate: false,
         }
     }
 
@@ -1227,6 +1232,7 @@ impl RigidBodyActivation {
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: Self::default_time_until_sleep(),
             sleeping: true,
+            is_sleep_root_candidate: false,
         }
     }
 
@@ -1259,6 +1265,41 @@ impl RigidBodyActivation {
     pub fn sleep(&mut self) {
         self.sleeping = true;
         self.time_since_can_sleep = self.time_until_sleep;
+    }
+
+    /// Does this body have a sufficiently low kinetic energy for a long enough
+    /// duration to be eligible for sleeping?
+    pub fn is_eligible_for_sleep(&self) -> bool {
+        self.time_since_can_sleep >= self.time_until_sleep
+    }
+
+    pub(crate) fn update_energy(
+        &mut self,
+        body_type: RigidBodyType,
+        length_unit: Real,
+        sq_linvel: Real,
+        sq_angvel: Real,
+        dt: Real,
+    ) {
+        let can_sleep = match body_type {
+            RigidBodyType::Dynamic => {
+                let linear_threshold = self.normalized_linear_threshold * length_unit;
+                sq_linvel < linear_threshold * linear_threshold.abs()
+                    && sq_angvel < self.angular_threshold * self.angular_threshold.abs()
+            }
+            RigidBodyType::KinematicPositionBased | RigidBodyType::KinematicVelocityBased => {
+                // Platforms only sleep if both velocities are exactly zero. If it’s not exactly
+                // zero, then the user really wants them to move.
+                sq_linvel == 0.0 && sq_angvel == 0.0
+            }
+            RigidBodyType::Fixed => true,
+        };
+
+        if can_sleep {
+            self.time_since_can_sleep += dt;
+        } else {
+            self.time_since_can_sleep = 0.0;
+        }
     }
 }
 

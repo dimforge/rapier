@@ -169,6 +169,7 @@ impl PhysicsPipeline {
         narrow_phase.compute_contacts(
             integration_parameters.prediction_distance(),
             integration_parameters.dt,
+            islands,
             bodies,
             colliders,
             impulse_joints,
@@ -206,16 +207,17 @@ impl PhysicsPipeline {
             integration_parameters.min_island_size,
         );
 
-        if self.manifold_indices.len() < islands.num_islands() {
+        if self.manifold_indices.len() < islands.num_active_islands() {
             self.manifold_indices
-                .resize(islands.num_islands(), Vec::new());
+                .resize(islands.num_active_islands(), Vec::new());
         }
 
-        if self.joint_constraint_indices.len() < islands.num_islands() {
+        if self.joint_constraint_indices.len() < islands.num_active_islands() {
             self.joint_constraint_indices
-                .resize(islands.num_islands(), Vec::new());
+                .resize(islands.num_active_islands(), Vec::new());
         }
 
+        // let t0 = std::time::Instant::now();
         let mut manifolds = Vec::new();
         narrow_phase.select_active_contacts(
             islands,
@@ -229,6 +231,10 @@ impl PhysicsPipeline {
             bodies,
             &mut self.joint_constraint_indices,
         );
+        // println!(
+        //     "Manifolds extraction: {:?}",
+        //     t0.elapsed().as_secs_f32() * 1000.0
+        // );
         self.counters.stages.island_construction_time.pause();
 
         self.counters.stages.update_time.resume();
@@ -245,16 +251,16 @@ impl PhysicsPipeline {
         self.counters.stages.update_time.pause();
 
         self.counters.stages.solver_time.resume();
-        if self.solvers.len() < islands.num_islands() {
+        if self.solvers.len() < islands.num_active_islands() {
             self.solvers
-                .resize_with(islands.num_islands(), IslandSolver::new);
+                .resize_with(islands.num_active_islands(), IslandSolver::new);
         }
 
         #[cfg(not(feature = "parallel"))]
         {
             enable_flush_to_zero!();
 
-            for island_id in 0..islands.num_islands() {
+            for island_id in 0..islands.num_active_islands() {
                 self.solvers[island_id].init_and_solve(
                     island_id,
                     &mut self.counters,

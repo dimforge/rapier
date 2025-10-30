@@ -63,29 +63,20 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
             continue;
         }
 
-        let rb = bodies.index_mut_internal(*handle);
-        let mut ids = rb.ids;
-        let changes = rb.changes;
-        let activation = rb.activation;
-
         {
+            let rb = bodies.index_mut_internal(*handle);
+            let changes = rb.changes;
+            let activation = rb.activation;
+
             if rb.is_enabled() {
                 // The body's status changed. We need to make sure
                 // it is on the correct active set.
                 if let Some(islands) = islands.as_deref_mut() {
-                    // Push the body to the active set if it is not inside the active set yet, and
-                    // is not longer sleeping or became dynamic.
-                    if (changes.contains(RigidBodyChanges::SLEEP) || changes.contains(RigidBodyChanges::TYPE))
-                        && rb.is_enabled()
-                        && !rb.activation.sleeping // May happen if the body was put to sleep manually.
-                        && rb.is_dynamic_or_kinematic() // Only dynamic bodies are in the active dynamic set.
-                        && islands.active_set.get(ids.active_set_id) != Some(handle)
-                    {
-                        ids.active_set_id = islands.active_set.len(); // This will handle the case where the activation_channel contains duplicates.
-                        islands.active_set.push(*handle);
-                    }
+                    islands.update_body(*handle, bodies);
                 }
             }
+
+            let rb = bodies.index_mut_internal(*handle);
 
             // Update the colliders' positions.
             if changes.contains(RigidBodyChanges::POSITION)
@@ -157,7 +148,6 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                 );
             }
 
-            rb.ids = ids;
             rb.activation = activation;
         }
 
@@ -166,6 +156,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
             if let Some(action) = final_action {
                 match action {
                     FinalAction::RemoveFromIsland => {
+                        let rb = bodies.index_mut_internal(*handle);
                         let ids = rb.ids;
                         islands.rigid_body_removed(*handle, &ids, bodies);
                     }

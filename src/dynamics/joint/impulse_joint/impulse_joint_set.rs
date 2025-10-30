@@ -377,7 +377,7 @@ impl ImpulseJointSet {
         bodies: &RigidBodySet,
         out: &mut [Vec<JointIndex>],
     ) {
-        for out_island in &mut out[..islands.num_islands()] {
+        for out_island in &mut out[..islands.num_active_islands()] {
             out_island.clear();
         }
 

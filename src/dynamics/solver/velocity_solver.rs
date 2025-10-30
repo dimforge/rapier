@@ -110,6 +110,11 @@ impl VelocitySolver {
                 }
             } else {
                 let rb = &bodies[*handle];
+                if rb.ids.active_set_offset == u32::MAX {
+                    println!("Invalid: {:?} -> {}", *handle, rb.ids.active_set_offset);
+                    println!("ty: {:?}", rb.body_type);
+                }
+
                 let solver_vel_incr =
                     &mut self.solver_vels_increment[rb.ids.active_set_offset as usize];
                 self.solver_bodies
@@ -181,7 +186,7 @@ impl VelocitySolver {
             if params.warmstart_coefficient != 0.0 {
                 // TODO PERF: we could probably figure out a way to avoid this warmstart when
                 //            step_id > 0? Maybe for that to happen `solver_vels` needs to
-                //            represent velocity changes instead of total rigid-boody velocities.
+                //            represent velocity changes instead of total rigid-body velocities.
                 //            Need to be careful wrt. multibody and joints too.
                 contact_constraints
                     .warmstart(&mut self.solver_bodies, &mut self.generic_solver_vels);

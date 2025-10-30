@@ -808,7 +808,8 @@ impl NarrowPhase {
         &mut self,
         prediction_distance: Real,
         dt: Real,
-        bodies: &RigidBodySet,
+        islands: &mut IslandManager,
+        bodies: &mut RigidBodySet,
         colliders: &ColliderSet,
         impulse_joints: &ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
@@ -1234,16 +1235,28 @@ impl NarrowPhase {
                 }
             }
 
-            let active_events = co1.flags.active_events | co2.flags.active_events;
-
-            if pair.has_any_active_contact != had_any_active_contact
-                && active_events.contains(ActiveEvents::COLLISION_EVENTS)
-            {
-                if pair.has_any_active_contact {
-                    pair.emit_start_event(bodies, colliders, events);
-                } else {
-                    pair.emit_stop_event(bodies, colliders, events);
+            /*
+             * Handle actions on contact start/stop:
+             *  - Emit event (if applicable).
+             *  - Notify the island manager to potentially wake up the bodies.
+             */
+            if pair.has_any_active_contact != had_any_active_contact {
+                let active_events = co1.flags.active_events | co2.flags.active_events;
+                if active_events.contains(ActiveEvents::COLLISION_EVENTS) {
+                    if pair.has_any_active_contact {
+                        pair.emit_start_event(bodies, colliders, events);
+                    } else {
+                        pair.emit_stop_event(bodies, colliders, events);
+                    }
                 }
+
+                // FIXME: this won’t work with the parallel feature enabled.
+                islands.contact_started_or_stopped(
+                    bodies,
+                    co1.parent.map(|p| p.handle),
+                    co2.parent.map(|p| p.handle),
+                    pair.has_any_active_contact,
+                );
             }
         });
     }
@@ -1258,7 +1271,7 @@ impl NarrowPhase {
         out_manifolds: &mut Vec<&'a mut ContactManifold>,
         out: &mut [Vec<ContactManifoldIndex>],
     ) {
-        for out_island in &mut out[..islands.num_islands()] {
+        for out_island in &mut out[..islands.num_active_islands()] {
             out_island.clear();
         }
 
