@@ -26,6 +26,7 @@ mod ccd;
 mod coefficient_combine_rule;
 mod integration_parameters;
 mod island_manager;
+mod island_manager2;
 mod joint;
 mod rigid_body_components;
 mod solver;
