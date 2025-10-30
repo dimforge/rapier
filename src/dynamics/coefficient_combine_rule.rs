@@ -14,7 +14,7 @@ use crate::math::Real;
 /// - **Min**: `min(friction1, friction2).abs()` - "Slippery wins" (ice on any surface = ice)
 /// - **Multiply**: `friction1 × friction2` - Both must be high for high friction
 /// - **Max**: `max(friction1, friction2)` - "Sticky wins" (rubber on any surface = rubber)
-/// - **Sum**: `sum(friction1, friction2).clamp(0, 1)` - Sum of both frictions, clamped to range 0, 1.
+/// - **ClampedSum**: `sum(friction1, friction2).clamp(0, 1)` - Sum of both frictions, clamped to range 0, 1.
 ///
 /// ## Example
 /// ```
@@ -27,7 +27,7 @@ use crate::math::Real;
 /// ```
 ///
 /// ## Priority System
-/// If colliders disagree on rules, the "higher" one wins: Sum > Max > Multiply > Min > Average
+/// If colliders disagree on rules, the "higher" one wins: ClampedSum > Max > Multiply > Min > Average
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub enum CoefficientCombineRule {
@@ -40,8 +40,8 @@ pub enum CoefficientCombineRule {
     Multiply = 2,
     /// Use the larger value ("sticky/bouncy wins").
     Max = 3,
-    /// The sum of the two coefficients.
-    Sum = 4,
+    /// The clamped sum of the two coefficients.
+    ClampedSum = 4,
 }
 
 impl CoefficientCombineRule {
@@ -63,7 +63,7 @@ impl CoefficientCombineRule {
             }
             CoefficientCombineRule::Multiply => coeff1 * coeff2,
             CoefficientCombineRule::Max => coeff1.max(coeff2),
-            CoefficientCombineRule::Sum => (coeff1 + coeff2).clamp(0.0, 1.0),
+            CoefficientCombineRule::ClampedSum => (coeff1 + coeff2).clamp(0.0, 1.0),
         }
     }
 }
