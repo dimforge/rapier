@@ -11,9 +11,10 @@ use crate::math::Real;
 /// **Most games use Average (the default)** and never change this.
 ///
 /// - **Average** (default): `(friction1 + friction2) / 2` - Balanced, intuitive
-/// - **Min**: `min(friction1, friction2)` - "Slippery wins" (ice on any surface = ice)
+/// - **Min**: `min(friction1, friction2).abs()` - "Slippery wins" (ice on any surface = ice)
 /// - **Multiply**: `friction1 × friction2` - Both must be high for high friction
 /// - **Max**: `max(friction1, friction2)` - "Sticky wins" (rubber on any surface = rubber)
+/// - **ClampedSum**: `sum(friction1, friction2).clamp(0, 1)` - Sum of both frictions, clamped to range 0, 1.
 ///
 /// ## Example
 /// ```
@@ -26,7 +27,7 @@ use crate::math::Real;
 /// ```
 ///
 /// ## Priority System
-/// If colliders disagree on rules, the "higher" one wins: Max > Multiply > Min > Average
+/// If colliders disagree on rules, the "higher" one wins: ClampedSum > Max > Multiply > Min > Average
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub enum CoefficientCombineRule {
@@ -39,6 +40,8 @@ pub enum CoefficientCombineRule {
     Multiply = 2,
     /// Use the larger value ("sticky/bouncy wins").
     Max = 3,
+    /// The clamped sum of the two coefficients.
+    ClampedSum = 4,
 }
 
 impl CoefficientCombineRule {
@@ -52,9 +55,15 @@ impl CoefficientCombineRule {
 
         match effective_rule {
             CoefficientCombineRule::Average => (coeff1 + coeff2) / 2.0,
-            CoefficientCombineRule::Min => coeff1.min(coeff2),
+            CoefficientCombineRule::Min => {
+                // Even though coeffs are meant to be positive, godot use-case has negative values.
+                // We're following their logic here.
+                // Context: https://github.com/dimforge/rapier/pull/741#discussion_r1862402948
+                coeff1.min(coeff2).abs()
+            }
             CoefficientCombineRule::Multiply => coeff1 * coeff2,
             CoefficientCombineRule::Max => coeff1.max(coeff2),
+            CoefficientCombineRule::ClampedSum => (coeff1 + coeff2).clamp(0.0, 1.0),
         }
     }
 }

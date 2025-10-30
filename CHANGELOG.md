@@ -1,3 +1,11 @@
+## Unreleased
+
+- `InteractionGroups` struct now contains `InteractionTestMode`. Continues [rapier/pull/170](https://github.com/dimforge/rapier/pull/170) for [rapier/issues/622](https://github.com/dimforge/rapier/issues/622)
+- `InteractionGroups` constructor now requires an `InteractionTestMode` parameter. If you want same behaviour as before, use `InteractionTestMode::And` (eg. `InteractionGroups::new(Group::GROUP_1, Group::GROUP_1, InteractionTestMode::And)`)
+- `CoefficientCombineRule::Min` - now makes sure it uses a non zero value as result by using `coeff1.min(coeff2).abs()`
+- `InteractionTestMode`: Specifies which method should be used to test interactions. Supports `AND` and `OR`.
+- `CoefficientCombineRule::ClampedSum` - Adds the two coefficients and does a clamp to have at most 1.
+
 ## v0.30.1 (17 Oct. 2025)
 
 - Kinematic rigid-bodies will no longer fall asleep if they have a nonzero velocity, even if that velocity is very

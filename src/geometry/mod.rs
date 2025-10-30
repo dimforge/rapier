@@ -12,7 +12,7 @@ pub use self::contact_pair::{
 pub use self::interaction_graph::{
     ColliderGraphIndex, InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex,
 };
-pub use self::interaction_groups::{Group, InteractionGroups};
+pub use self::interaction_groups::{Group, InteractionGroups, InteractionTestMode};
 pub use self::mesh_converter::{MeshConverter, MeshConverterError};
 pub use self::narrow_phase::NarrowPhase;
 

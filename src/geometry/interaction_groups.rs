@@ -6,10 +6,20 @@
 /// - **Memberships**: What groups does this collider belong to? (up to 32 groups)
 /// - **Filter**: What groups can this collider interact with?
 ///
-/// Two colliders interact only if:
-/// 1. Collider A's memberships overlap with Collider B's filter, AND
-/// 2. Collider B's memberships overlap with Collider A's filter
+/// An interaction is allowed between two colliders `a` and `b` when two conditions
+/// are met simultaneously for [`InteractionTestMode::And`] or individually for [`InteractionTestMode::Or`]::
+/// - The groups membership of `a` has at least one bit set to `1` in common with the groups filter of `b`.
+/// - The groups membership of `b` has at least one bit set to `1` in common with the groups filter of `a`.
 ///
+/// In other words, interactions are allowed between two colliders iff. the following condition is met
+/// for [`InteractionTestMode::And`]:
+/// ```ignore
+/// (self.memberships.bits() & rhs.filter.bits()) != 0 && (rhs.memberships.bits() & self.filter.bits()) != 0
+/// ```
+/// or for [`InteractionTestMode::Or`]:
+/// ```ignore
+/// (self.memberships.bits() & rhs.filter.bits()) != 0 || (rhs.memberships.bits() & self.filter.bits()) != 0
+/// ```
 /// # Common use cases
 ///
 /// - **Player vs. Enemy bullets**: Players in group 1, enemies in group 2. Player bullets
@@ -18,18 +28,20 @@
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// # use rapier3d::geometry::{InteractionGroups, Group};
 /// // Player collider: in group 1, collides with groups 2 and 3
 /// let player_groups = InteractionGroups::new(
-///     Group::GROUP_1,           // I am in group 1
-///     Group::GROUP_2 | Group::GROUP_3  // I collide with groups 2 and 3
+///     Group::GROUP_1,                    // I am in group 1
+///     Group::GROUP_2, | Group::GROUP_3,  // I collide with groups 2 and 3
+///     InteractionTestMode::And
 /// );
 ///
 /// // Enemy collider: in group 2, collides with group 1
 /// let enemy_groups = InteractionGroups::new(
 ///     Group::GROUP_2,  // I am in group 2
-///     Group::GROUP_1   // I collide with group 1
+///     Group::GROUP_1,  // I collide with group 1
+///     InteractionTestMode::And
 /// );
 ///
 /// // These will collide because:
@@ -45,14 +57,34 @@ pub struct InteractionGroups {
     pub memberships: Group,
     /// Groups filter.
     pub filter: Group,
+    /// Interaction test mode
+    ///
+    /// In case of different test modes between two [`InteractionGroups`], [`InteractionTestMode::And`] is given priority.
+    pub test_mode: InteractionTestMode,
+}
+
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, Default)]
+/// Specifies which method should be used to test interactions.
+///
+/// In case of different test modes between two [`InteractionGroups`], [`InteractionTestMode::And`] is given priority.
+pub enum InteractionTestMode {
+    /// Use [`InteractionGroups::test_and`].
+    #[default]
+    And,
+    /// Use [`InteractionGroups::test_or`], iff. the `rhs` is also [`InteractionTestMode::Or`].
+    ///
+    /// If the `rhs` is not [`InteractionTestMode::Or`], use [`InteractionGroups::test_and`].
+    Or,
 }
 
 impl InteractionGroups {
     /// Initializes with the given interaction groups and interaction mask.
-    pub const fn new(memberships: Group, filter: Group) -> Self {
+    pub const fn new(memberships: Group, filter: Group, test_mode: InteractionTestMode) -> Self {
         Self {
             memberships,
             filter,
+            test_mode,
         }
     }
 
@@ -60,14 +92,14 @@ impl InteractionGroups {
     ///
     /// The collider is in all groups and collides with all groups.
     pub const fn all() -> Self {
-        Self::new(Group::ALL, Group::ALL)
+        Self::new(Group::ALL, Group::ALL, InteractionTestMode::And)
     }
 
     /// Creates a filter that prevents all interactions.
     ///
     /// The collider won't collide with anything. Useful for temporarily disabled colliders.
     pub const fn none() -> Self {
-        Self::new(Group::NONE, Group::NONE)
+        Self::new(Group::NONE, Group::NONE, InteractionTestMode::And)
     }
 
     /// Sets the group this filter is part of.
@@ -85,13 +117,37 @@ impl InteractionGroups {
     /// Check if interactions should be allowed based on the interaction memberships and filter.
     ///
     /// An interaction is allowed iff. the memberships of `self` contain at least one bit set to 1 in common
-    /// with the filter of `rhs`, and vice-versa.
+    /// with the filter of `rhs`, **and** vice-versa.
     #[inline]
-    pub const fn test(self, rhs: Self) -> bool {
+    pub const fn test_and(self, rhs: Self) -> bool {
         // NOTE: since const ops is not stable, we have to convert `Group` into u32
         // to use & operator in const context.
         (self.memberships.bits() & rhs.filter.bits()) != 0
             && (rhs.memberships.bits() & self.filter.bits()) != 0
+    }
+
+    /// Check if interactions should be allowed based on the interaction memberships and filter.
+    ///
+    /// An interaction is allowed iff. the groups of `self` contain at least one bit set to 1 in common
+    /// with the mask of `rhs`, **or** vice-versa.
+    #[inline]
+    pub const fn test_or(self, rhs: Self) -> bool {
+        // NOTE: since const ops is not stable, we have to convert `Group` into u32
+        // to use & operator in const context.
+        (self.memberships.bits() & rhs.filter.bits()) != 0
+            || (rhs.memberships.bits() & self.filter.bits()) != 0
+    }
+
+    /// Check if interactions should be allowed based on the interaction memberships and filter.
+    ///
+    /// See [`InteractionTestMode`] for more info.
+    #[inline]
+    pub const fn test(self, rhs: Self) -> bool {
+        match (self.test_mode, rhs.test_mode) {
+            (InteractionTestMode::And, _) => self.test_and(rhs),
+            (InteractionTestMode::Or, InteractionTestMode::And) => self.test_and(rhs),
+            (InteractionTestMode::Or, InteractionTestMode::Or) => self.test_or(rhs),
+        }
     }
 }
 
@@ -100,6 +156,7 @@ impl Default for InteractionGroups {
         Self {
             memberships: Group::GROUP_1,
             filter: Group::ALL,
+            test_mode: InteractionTestMode::And,
         }
     }
 }
