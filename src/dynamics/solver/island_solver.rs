@@ -44,7 +44,7 @@ impl IslandSolver {
     ) {
         counters.solver.velocity_assembly_time.resume();
         let num_solver_iterations = base_params.num_solver_iterations
-            + islands.active_island_additional_solver_iterations(island_id);
+            + islands.island(island_id).additional_solver_iterations();
 
         let mut params = *base_params;
         params.dt /= num_solver_iterations as Real;

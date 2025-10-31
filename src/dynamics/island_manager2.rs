@@ -13,9 +13,45 @@ use vec_map::VecMap;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Default)]
-struct Island {
+pub(crate) struct Island {
+    /// The rigid-bodies part of this island.
     bodies: Vec<RigidBodyHandle>,
+    /// The additional solver iterations needed by this island.
     additional_solver_iterations: usize,
+    /// Index of this island in `IslandManager::awake_islands`.
+    ///
+    /// If `None`, the island is sleeping.
+    id_in_awake_list: Option<usize>,
+}
+
+impl Island {
+    pub fn singleton(handle: RigidBodyHandle, rb: &RigidBody) -> Self {
+        Self {
+            bodies: vec![handle],
+            additional_solver_iterations: rb.additional_solver_iterations,
+            id_in_awake_list: None,
+        }
+    }
+
+    pub fn bodies(&self) -> &[RigidBodyHandle] {
+        &self.bodies
+    }
+
+    pub fn additional_solver_iterations(&self) -> usize {
+        self.additional_solver_iterations
+    }
+
+    pub fn is_sleeping(&self) -> bool {
+        self.id_in_awake_list.is_none()
+    }
+
+    pub fn len(&self) -> usize {
+        self.bodies.len()
+    }
+
+    pub(crate) fn id_in_awake_list(&self) -> Option<usize> {
+        self.id_in_awake_list
+    }
 }
 
 /// System that manages which bodies are active (awake) vs sleeping to optimize performance.
@@ -33,35 +69,18 @@ struct Island {
 ///
 /// You rarely interact with this directly - it's automatically managed by [`PhysicsPipeline`](crate::pipeline::PhysicsPipeline).
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct IslandManager {
-    // Island 0 is active, all the others are sleeping.
     pub(crate) islands: VecMap<Island>,
+    pub(crate) awake_islands: Vec<usize>,
+    // TODO PERF: should this be `Vec<(usize, Island)>` to reuse the allocation?
     pub(crate) free_islands: Vec<usize>,
     /// Potential candidate roots for graph traversal to identify a sleeping
     /// connected component.
     traversal_candidates: VecDeque<RigidBodyHandle>,
-    /// Same as `traversal_candidates` but these roots **must** all be traversed as the next
-    /// timestep to properly handle bodies that are sleeping at creation.
-    priority_traversal_candidates: Vec<RigidBodyHandle>,
     timestamp: u32, // TODO: the physics pipeline (or something else) should expose a step_id?
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     stack: Vec<RigidBodyHandle>, // Workspace.
-}
-
-impl Default for IslandManager {
-    fn default() -> Self {
-        let mut islands = VecMap::new();
-        islands.insert(0, Island::default());
-        Self {
-            islands,
-            free_islands: Default::default(),
-            traversal_candidates: Default::default(),
-            priority_traversal_candidates: Default::default(),
-            timestamp: Default::default(),
-            stack: Default::default(),
-        }
-    }
 }
 
 impl IslandManager {
@@ -70,9 +89,8 @@ impl IslandManager {
         Self::default()
     }
 
-    // TODO: rename this to `num_active_islands`?
-    pub(crate) fn num_active_islands(&self) -> usize {
-        1
+    pub(crate) fn active_islands(&self) -> &[usize] {
+        &self.awake_islands
     }
 
     pub(crate) fn rigid_body_removed(
@@ -91,6 +109,7 @@ impl IslandManager {
             .bodies
             .swap_remove(removed_ids.active_set_offset as usize);
 
+        // Remap the active_set_id of the body we moved with the `swap_remove`.
         if swapped_handle != removed_handle {
             let swapped_body = bodies
                 .get_mut(swapped_handle)
@@ -99,9 +118,16 @@ impl IslandManager {
             swapped_body.ids.active_set_id = removed_ids.active_set_id;
         }
 
-        if removed_ids.active_island_id != 0 && island.bodies.is_empty() {
-            // We removed the last body from this island. Remove the island (but never remove
-            // island 0 since it’s the special active island).
+        // If we deleted the last body from this island, delete the island.
+        if island.bodies.is_empty() {
+            if let Some(awake_id) = island.id_in_awake_list {
+                // Remove it from the free island list.
+                self.awake_islands.swap_remove(awake_id);
+                // Update the awake list index of the awake island id we moved.
+                if let Some(moved_id) = self.awake_islands.get(awake_id) {
+                    self.islands[*moved_id].id_in_awake_list = Some(awake_id);
+                }
+            }
             self.islands.remove(removed_ids.active_island_id);
             self.free_islands.push(removed_ids.active_island_id);
         }
@@ -115,11 +141,32 @@ impl IslandManager {
         started: bool,
     ) {
         if started {
-            if let Some(handle1) = handle1 {
-                self.wake_up(bodies, handle1, false);
-            }
-            if let Some(handle2) = handle2 {
-                self.wake_up(bodies, handle2, false);
+            match (handle1, handle2) {
+                (Some(handle1), Some(handle2)) => {
+                    self.wake_up(bodies, handle1, false);
+                    self.wake_up(bodies, handle2, false);
+
+                    if let (Some(rb1), Some(rb2)) = (bodies.get(handle1), bodies.get(handle2)) {
+                        // If both bodies are not part of the same island, merge the islands.
+                        if !rb1.is_fixed()
+                            && !rb2.is_fixed()
+                            && rb1.ids.active_island_id != rb2.ids.active_island_id
+                        {
+                            self.merge_islands(
+                                bodies,
+                                rb1.ids.active_island_id,
+                                rb2.ids.active_island_id,
+                            );
+                        }
+                    }
+                }
+                (Some(handle1), None) => {
+                    self.wake_up(bodies, handle1, false);
+                }
+                (None, Some(handle2)) => {
+                    self.wake_up(bodies, handle2, false);
+                }
+                (None, None) => { /* Nothing to do. */ }
             }
         }
     }
@@ -150,7 +197,7 @@ impl IslandManager {
         // NOTE: the use an Option here because there are many legitimate cases (like when
         //       deleting a joint attached to an already-removed body) where we could be
         //       attempting to wake-up a rigid-body that has already been deleted.
-        if bodies.get(handle).map(|rb| rb.is_dynamic_or_kinematic()) == Some(true) {
+        if bodies.get(handle).map(|rb| !rb.is_fixed()) == Some(true) {
             let rb = bodies.index_mut_internal(handle);
 
             // TODO: not sure if this is still relevant:
@@ -161,53 +208,99 @@ impl IslandManager {
             // }
 
             rb.activation.wake_up(strong);
-            if rb.is_enabled() && rb.ids.active_island_id != 0 {
-                // Wake up the sleeping island this rigid-body is part of.
-                let Some(removed_island) = self.islands.remove(rb.ids.active_island_id) else {
-                    // TODO: the island doesn’t exist is that an internal error?
-                    return;
-                };
+            let island_to_wake_up = rb.ids.active_island_id;
+            self.wake_up_island(bodies, island_to_wake_up);
+        }
+    }
 
-                self.free_islands.push(rb.ids.active_island_id);
+    fn wake_up_island(&mut self, bodies: &mut RigidBodySet, island_id: usize) {
+        let Some(island) = self.islands.get_mut(island_id) else {
+            return;
+        };
 
-                // TODO: if we switched to linked list, we could avoid moving around all this memory.
-                let active_island = &mut self.islands[0];
-                for handle in &removed_island.bodies {
-                    let Some(rb) = bodies.get_mut_internal(*handle) else {
-                        // This body no longer exists.
-                        continue;
-                    };
+        if island.is_sleeping() {
+            island.id_in_awake_list = Some(self.awake_islands.len());
+            self.awake_islands.push(island_id);
+
+            // Wake up all the bodies from this island.
+            for handle in &island.bodies {
+                if let Some(rb) = bodies.get_mut(*handle) {
                     rb.wake_up(false);
-                    rb.ids.active_island_id = 0;
-                    rb.ids.active_set_id = active_island.bodies.len();
-                    rb.ids.active_set_offset = (active_island.bodies.len()) as u32;
-                    active_island.bodies.push(*handle);
                 }
-
-                active_island.additional_solver_iterations = active_island
-                    .additional_solver_iterations
-                    .max(removed_island.additional_solver_iterations);
             }
         }
     }
 
-    // TODO: remove the island_id argument?
-    pub(crate) fn active_island(&self, island_id: usize) -> &[RigidBodyHandle] {
-        assert_eq!(island_id, 0);
-        &self.islands[0].bodies
+    fn merge_islands(&mut self, bodies: &mut RigidBodySet, island_id1: usize, island_id2: usize) {
+        if island_id1 == island_id2 {
+            return;
+        }
+
+        println!("Merging: {} - {}", island_id1, island_id2);
+        let island1 = &self.islands[island_id1];
+        let island2 = &self.islands[island_id2];
+
+        assert_eq!(
+            island1.id_in_awake_list.is_some(),
+            island2.id_in_awake_list.is_some(),
+            "Internal error: cannot merge two island with different sleeping statuses."
+        );
+
+        // Prefer removing the smallest island to reduce the amount of memory to move.
+        let (to_keep, to_remove) = if island1.bodies.len() < island2.bodies.len() {
+            (island_id2, island_id1)
+        } else {
+            (island_id1, island_id2)
+        };
+
+        println!("Removing: {}", to_remove);
+
+        let Some(removed_island) = self.islands.remove(to_remove) else {
+            // TODO: the island doesn’t exist is that an internal error?
+            return;
+        };
+
+        self.free_islands.push(to_remove);
+
+        // TODO: if we switched to linked list, we could avoid moving around all this memory.
+        let target_island = &mut self.islands[to_keep];
+        for handle in &removed_island.bodies {
+            let Some(rb) = bodies.get_mut_internal(*handle) else {
+                // This body no longer exists.
+                continue;
+            };
+            rb.wake_up(false);
+            rb.ids.active_island_id = to_keep;
+            rb.ids.active_set_id = target_island.bodies.len();
+            rb.ids.active_set_offset = (target_island.bodies.len()) as u32;
+            target_island.bodies.push(*handle);
+            target_island.additional_solver_iterations = target_island
+                .additional_solver_iterations
+                .max(rb.additional_solver_iterations);
+        }
+
+        // Update the awake_islands list.
+        if let Some(awake_id_to_remove) = removed_island.id_in_awake_list {
+            self.awake_islands.swap_remove(awake_id_to_remove);
+            // Update the awake list index of the awake island id we moved.
+            if let Some(moved_id) = self.awake_islands.get(awake_id_to_remove) {
+                self.islands[*moved_id].id_in_awake_list = Some(awake_id_to_remove);
+            }
+        }
     }
 
-    pub(crate) fn active_island_additional_solver_iterations(&self, island_id: usize) -> usize {
-        self.islands[0].additional_solver_iterations
+    pub(crate) fn island(&self, island_id: usize) -> &Island {
+        &self.islands[island_id]
     }
 
     /// Handles of dynamic and kinematic rigid-bodies that are currently active (i.e. not sleeping).
     #[inline]
-    pub fn active_bodies(&self) -> &[RigidBodyHandle] {
-        &self.islands[0].bodies
+    pub fn active_bodies(&self) -> impl Iterator<Item = RigidBodyHandle> + '_ {
+        self.awake_islands
+            .iter()
+            .flat_map(|i| self.islands[*i].bodies.iter().copied())
     }
 
-    // TODO: what if the body is sleeping when we add it?
     pub(crate) fn update_body(&mut self, handle: RigidBodyHandle, bodies: &mut RigidBodySet) {
         let Some(rb) = bodies.get_mut(handle) else {
             return;
@@ -217,20 +310,21 @@ impl IslandManager {
             return;
         }
 
-        let id = self.islands[0].bodies.len();
+        if rb.ids.active_island_id == usize::MAX {
+            // We’ve never seen this rigid-body before.
+            let mut new_island = Island::singleton(handle, rb);
+            let id = self.free_islands.pop().unwrap_or(self.islands.len());
 
-        if rb.ids.active_set_id == usize::MAX {
-            // This body is new.
-            rb.ids.active_island_id = 0;
-            rb.ids.active_set_id = id;
-            rb.ids.active_set_offset = id as u32;
-            self.islands[0].bodies.push(handle);
-
-            if rb.is_sleeping() {
-                // The rigid-body is sleeping. We need to move it into a sleeping island during
-                // the next step.
-                self.priority_traversal_candidates.push(handle);
+            if !rb.is_sleeping() {
+                new_island.id_in_awake_list = Some(self.awake_islands.len());
+                self.awake_islands.push(id);
             }
+
+            rb.ids.active_island_id = id;
+            rb.ids.active_set_id = 0;
+            rb.ids.active_set_offset = 0;
+            self.islands.insert(id, new_island);
+            println!("Created islands: {}", self.islands.len());
         }
 
         // Push the body to the active set if it is not inside the active set yet, and
@@ -256,6 +350,7 @@ impl IslandManager {
         multibody_joints: &MultibodyJointSet,
         min_island_size: usize,
     ) {
+        /*
         self.timestamp += 1;
         // 1. Update active rigid-bodies energy.
         // let t0 = std::time::Instant::now();
@@ -288,18 +383,6 @@ impl IslandManager {
         // let t0 = std::time::Instant::now();
         let frame_base_timestamp = self.timestamp;
         let mut niters = 0;
-        for sleep_root in std::mem::take(&mut self.priority_traversal_candidates) {
-            niters += self.extract_sleeping_island(
-                bodies,
-                colliders,
-                impulse_joints,
-                multibody_joints,
-                narrow_phase,
-                sleep_root,
-                frame_base_timestamp,
-            );
-            self.timestamp += 1;
-        }
 
         // 3. Perform one, or multiple, sleeping islands extraction (graph traversal).
         //    Limit the traversal cost by not traversing all the known sleeping roots if
@@ -323,6 +406,7 @@ impl IslandManager {
             self.timestamp += 1;
         }
         // println!("Island extraction: {}", t0.elapsed().as_secs_f32() * 1000.0);
+         */
     }
 
     /// Returns the number of iterations run by the graph traversal so we can balance load across
@@ -337,6 +421,8 @@ impl IslandManager {
         sleep_root: RigidBodyHandle,
         frame_base_timestamp: u32,
     ) -> usize {
+        0
+        /*
         let Some(rb) = bodies.get_mut_internal(sleep_root) else {
             // This branch happens if the rigid-body no longer exists.
             return 0;
@@ -422,6 +508,7 @@ impl IslandManager {
 
         self.islands.insert(new_island_id, new_island);
         niter
+         */
     }
 }
 

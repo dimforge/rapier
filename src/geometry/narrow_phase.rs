@@ -1271,7 +1271,7 @@ impl NarrowPhase {
         out_manifolds: &mut Vec<&'a mut ContactManifold>,
         out: &mut [Vec<ContactManifoldIndex>],
     ) {
-        for out_island in &mut out[..islands.num_active_islands()] {
+        for out_island in &mut out[..islands.active_islands().len()] {
             out_island.clear();
         }
 
@@ -1314,13 +1314,17 @@ impl NarrowPhase {
                         && (!rb_type1.is_dynamic() || !sleeping1)
                         && (!rb_type2.is_dynamic() || !sleeping2)
                     {
-                        let island_index = if !rb_type1.is_dynamic() {
-                            active_island_id2
+                        let island_awake_index = if !rb_type1.is_dynamic() {
+                            islands.islands[active_island_id2]
+                                .id_in_awake_list()
+                                .expect("Internal error: island should be awake.")
                         } else {
-                            active_island_id1
+                            islands.islands[active_island_id1]
+                                .id_in_awake_list()
+                                .expect("Internal error: island should be awake.")
                         };
 
-                        out[island_index].push(out_manifolds.len());
+                        out[island_awake_index].push(out_manifolds.len());
                         out_manifolds.push(manifold);
                         push_pair = true;
                     }
