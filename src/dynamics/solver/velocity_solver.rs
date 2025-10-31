@@ -82,7 +82,7 @@ impl VelocitySolver {
         self.solver_bodies.clear();
 
         let aligned_solver_bodies_len =
-            islands.active_island(island_id).len().div_ceil(SIMD_WIDTH) * SIMD_WIDTH;
+            islands.island(island_id).len().div_ceil(SIMD_WIDTH) * SIMD_WIDTH;
         self.solver_bodies.resize(aligned_solver_bodies_len);
 
         self.solver_vels_increment.clear();
@@ -97,7 +97,7 @@ impl VelocitySolver {
         // Assign solver ids to multibodies, and collect the relevant roots.
         // And init solver_vels for rigid-bodies.
         let mut multibody_solver_id = 0;
-        for handle in islands.active_island(island_id) {
+        for handle in islands.island(island_id).bodies() {
             if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
                 let multibody = multibodies
                     .get_multibody_mut_internal(link.multibody)
@@ -295,7 +295,7 @@ impl VelocitySolver {
         bodies: &mut RigidBodySet,
         multibodies: &mut MultibodyJointSet,
     ) {
-        for handle in islands.active_island(island_id) {
+        for handle in islands.island(island_id).bodies() {
             let link = if self.multibody_roots.is_empty() {
                 None
             } else {

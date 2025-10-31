@@ -207,14 +207,14 @@ impl PhysicsPipeline {
             integration_parameters.min_island_size,
         );
 
-        if self.manifold_indices.len() < islands.num_active_islands() {
-            self.manifold_indices
-                .resize(islands.num_active_islands(), Vec::new());
+        let num_active_islands = islands.active_islands().len();
+        if self.manifold_indices.len() < num_active_islands {
+            self.manifold_indices.resize(num_active_islands, Vec::new());
         }
 
-        if self.joint_constraint_indices.len() < islands.num_active_islands() {
+        if self.joint_constraint_indices.len() < num_active_islands {
             self.joint_constraint_indices
-                .resize(islands.num_active_islands(), Vec::new());
+                .resize(num_active_islands, Vec::new());
         }
 
         // let t0 = std::time::Instant::now();
@@ -241,7 +241,7 @@ impl PhysicsPipeline {
         for handle in islands.active_bodies() {
             // TODO: should that be moved to the solver (just like we moved
             //       the multibody dynamics update) since it depends on dt?
-            let rb = bodies.index_mut_internal(*handle);
+            let rb = bodies.index_mut_internal(handle);
             rb.mprops
                 .update_world_mass_properties(rb.body_type, &rb.pos.position);
             let effective_mass = rb.mprops.effective_mass();
@@ -251,26 +251,26 @@ impl PhysicsPipeline {
         self.counters.stages.update_time.pause();
 
         self.counters.stages.solver_time.resume();
-        if self.solvers.len() < islands.num_active_islands() {
+        if self.solvers.len() < num_active_islands {
             self.solvers
-                .resize_with(islands.num_active_islands(), IslandSolver::new);
+                .resize_with(num_active_islands, IslandSolver::new);
         }
 
         #[cfg(not(feature = "parallel"))]
         {
             enable_flush_to_zero!();
 
-            for island_id in 0..islands.num_active_islands() {
-                self.solvers[island_id].init_and_solve(
-                    island_id,
+            for (island_awake_id, island_id) in islands.active_islands().iter().enumerate() {
+                self.solvers[island_awake_id].init_and_solve(
+                    *island_id,
                     &mut self.counters,
                     integration_parameters,
                     islands,
                     bodies,
                     &mut manifolds[..],
-                    &self.manifold_indices[island_id],
+                    &self.manifold_indices[island_awake_id],
                     impulse_joints.joints_mut(),
-                    &self.joint_constraint_indices[island_id],
+                    &self.joint_constraint_indices[island_awake_id],
                     multibody_joints,
                 )
             }
@@ -282,8 +282,7 @@ impl PhysicsPipeline {
             use rayon::prelude::*;
             use std::sync::atomic::Ordering;
 
-            let num_islands = islands.num_islands();
-            let solvers = &mut self.solvers[..num_islands];
+            let solvers = &mut self.solvers[..num_active_islands];
             let bodies = &std::sync::atomic::AtomicPtr::new(bodies as *mut _);
             let manifolds = &std::sync::atomic::AtomicPtr::new(&mut manifolds as *mut _);
             let impulse_joints =
@@ -302,7 +301,8 @@ impl PhysicsPipeline {
                 solvers
                     .par_iter_mut()
                     .enumerate()
-                    .for_each(|(island_id, solver)| {
+                    .for_each(|(island_awake_id, solver)| {
+                        let island_id = islands.active_islands()[island_awake_id];
                         let bodies: &mut RigidBodySet =
                             unsafe { &mut *bodies.load(Ordering::Relaxed) };
                         let manifolds: &mut Vec<&mut ContactManifold> =
@@ -320,9 +320,9 @@ impl PhysicsPipeline {
                             islands,
                             bodies,
                             &mut manifolds[..],
-                            &manifold_indices[island_id],
+                            &manifold_indices[island_awake_id],
                             impulse_joints,
-                            &joint_constraint_indices[island_id],
+                            &joint_constraint_indices[island_awake_id],
                             multibody_joints,
                         )
                     });
@@ -395,7 +395,7 @@ impl PhysicsPipeline {
     ) {
         // Set the rigid-bodies and kinematic bodies to their final position.
         for handle in islands.active_bodies() {
-            let rb = bodies.index_mut_internal(*handle);
+            let rb = bodies.index_mut_internal(handle);
             rb.pos.position = rb.pos.next_position;
             rb.colliders
                 .update_positions(colliders, modified_colliders, &rb.pos.position);
@@ -415,7 +415,7 @@ impl PhysicsPipeline {
         // bodies it is touching.
         for handle in islands.active_bodies() {
             // TODO PERF: only iterate on kinematic position-based bodies
-            let rb = bodies.index_mut_internal(*handle);
+            let rb = bodies.index_mut_internal(handle);
 
             match rb.body_type {
                 RigidBodyType::KinematicPositionBased => {
@@ -749,7 +749,7 @@ impl PhysicsPipeline {
         //       not modified by the user in the mean time.
         self.counters.stages.update_time.resume();
         for handle in islands.active_bodies() {
-            let rb = bodies.index_mut_internal(*handle);
+            let rb = bodies.index_mut_internal(handle);
             rb.mprops
                 .update_world_mass_properties(rb.body_type, &rb.pos.position);
         }
