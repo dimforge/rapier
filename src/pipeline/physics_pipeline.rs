@@ -649,7 +649,9 @@ impl PhysicsPipeline {
 
             self.counters.ccd.num_substeps += 1;
 
+            self.counters.custom.resume();
             self.interpolate_kinematic_velocities(&integration_parameters, islands, bodies);
+            self.counters.custom.pause();
             self.build_islands_and_solve_velocity_constraints(
                 gravity,
                 &integration_parameters,
@@ -711,6 +713,8 @@ impl PhysicsPipeline {
             } else {
                 // If we ran the last substep, just update the broad-phase bvh instead
                 // of a full collision-detection step.
+                self.counters.stages.collision_detection_time.resume();
+                self.counters.cd.final_broad_phase_time.resume();
                 for handle in modified_colliders.iter() {
                     let co = colliders.index_mut_internal(*handle);
                     // NOTE: `advance_to_final_positions` might have added disabled colliders to
@@ -738,6 +742,8 @@ impl PhysicsPipeline {
 
                 // Empty the modified colliders set. See comment for `co.change.remove(..)` above.
                 modified_colliders.clear();
+                self.counters.cd.final_broad_phase_time.pause();
+                self.counters.stages.collision_detection_time.pause();
             }
         }
 

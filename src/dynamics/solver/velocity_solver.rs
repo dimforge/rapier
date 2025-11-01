@@ -97,7 +97,8 @@ impl VelocitySolver {
         // Assign solver ids to multibodies, and collect the relevant roots.
         // And init solver_vels for rigid-bodies.
         let mut multibody_solver_id = 0;
-        for handle in islands.island(island_id).bodies() {
+
+        for (offset, handle) in islands.island(island_id).bodies().iter().enumerate() {
             if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
                 let multibody = multibodies
                     .get_multibody_mut_internal(link.multibody)
@@ -110,11 +111,7 @@ impl VelocitySolver {
                 }
             } else {
                 let rb = &bodies[*handle];
-                if rb.ids.active_set_offset == u32::MAX {
-                    println!("Invalid: {:?} -> {}", *handle, rb.ids.active_set_offset);
-                    println!("ty: {:?}", rb.body_type);
-                }
-
+                assert_eq!(offset, rb.ids.active_set_offset as usize);
                 let solver_vel_incr =
                     &mut self.solver_vels_increment[rb.ids.active_set_offset as usize];
                 self.solver_bodies

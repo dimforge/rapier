@@ -321,6 +321,10 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
                 counters.broad_phase_time_ms()
             ));
             ui.label(format!(
+                "Final broad-phase: {:.2}ms",
+                counters.cd.final_broad_phase_time.time_ms()
+            ));
+            ui.label(format!(
                 "Narrow-phase: {:.2}ms",
                 counters.narrow_phase_time_ms()
             ));
@@ -331,6 +335,14 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
                 ui.label(format!(
                     "Velocity assembly: {:.2}ms",
                     counters.solver.velocity_assembly_time.time_ms()
+                ));
+                ui.label(format!(
+                    "> Velocity assembly A: {:.2}ms",
+                    counters.solver.velocity_assembly_time_a.time_ms()
+                ));
+                ui.label(format!(
+                    "> Velocity assembly B: {:.2}ms",
+                    counters.solver.velocity_assembly_time_b.time_ms()
                 ));
                 ui.label(format!(
                     "Velocity resolution: {:.2}ms",
@@ -370,10 +382,12 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
             "Island computation: {:.2}ms",
             counters.island_construction_time_ms()
         ));
+        ui.label(format!("Mprops update: {:.2}ms", counters.update_time_ms()));
         ui.label(format!(
             "User changes: {:.2}ms",
             counters.stages.user_changes.time_ms()
         ));
+        ui.label(format!("Debug timer: {:.2}ms", counters.custom.time_ms()));
     });
 }
 

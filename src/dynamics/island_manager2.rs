@@ -236,7 +236,6 @@ impl IslandManager {
             return;
         }
 
-        println!("Merging: {} - {}", island_id1, island_id2);
         let island1 = &self.islands[island_id1];
         let island2 = &self.islands[island_id2];
 
@@ -253,7 +252,7 @@ impl IslandManager {
             (island_id1, island_id2)
         };
 
-        println!("Removing: {}", to_remove);
+        println!("Merging: {} <- {}", to_keep, to_remove);
 
         let Some(removed_island) = self.islands.remove(to_remove) else {
             // TODO: the island doesn’t exist is that an internal error?
@@ -286,6 +285,17 @@ impl IslandManager {
             if let Some(moved_id) = self.awake_islands.get(awake_id_to_remove) {
                 self.islands[*moved_id].id_in_awake_list = Some(awake_id_to_remove);
             }
+        }
+
+        if self.islands[to_keep].bodies.len() > 48 {
+            println!(
+                "Completed: {:?}",
+                self.islands[to_keep]
+                    .bodies
+                    .iter()
+                    .map(|h| h.into_raw_parts().0)
+                    .collect::<Vec<_>>()
+            );
         }
     }
 

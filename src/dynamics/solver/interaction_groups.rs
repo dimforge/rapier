@@ -72,7 +72,7 @@ impl ParallelInteractionGroups {
         interactions: &[Interaction],
         interaction_indices: &[usize],
     ) {
-        let num_island_bodies = islands.active_island(island_id).len();
+        let num_island_bodies = islands.island(island_id).len();
         self.bodies_color.clear();
         self.interaction_indices.clear();
         self.groups.clear();
