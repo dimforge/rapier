@@ -831,6 +831,10 @@ impl NarrowPhase {
                     // No update needed for these colliders.
                     return;
                 }
+                if !co1.is_enabled() || !co2.is_enabled() {
+                    pair.clear();
+                    break 'emit_events;
+                }
                 if co1.parent.map(|p| p.handle) == co2.parent.map(|p| p.handle) && co1.parent.is_some()
                 {
                     // Same parents. Ignore collisions.
