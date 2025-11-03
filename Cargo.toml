@@ -43,7 +43,7 @@ needless_lifetimes = "allow"
 #parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
 
 # See https://github.com/EmbarkStudios/puffin/pull/234
-puffin_egui = { git = "https://github.com/tedsteen/puffin.git", rev = "11771ebe00fd257aedbb545df3339ad597b1cc34" }
+puffin_egui = { git = "https://github.com/tedsteen/puffin.git", rev = "993b78a05318d566687cab01036a2c3af5e54f6b" }
 
 
 # # For feature unstable-puffin-pr-235
