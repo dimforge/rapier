@@ -72,7 +72,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                 // The body's status changed. We need to make sure
                 // it is on the correct active set.
                 if let Some(islands) = islands.as_deref_mut() {
-                    islands.update_body(*handle, bodies);
+                    islands.rigid_body_updated(*handle, bodies);
                 }
             }
 

@@ -3,8 +3,7 @@
 pub use self::ccd::CCDSolver;
 pub use self::coefficient_combine_rule::CoefficientCombineRule;
 pub use self::integration_parameters::IntegrationParameters;
-// pub use self::island_manager::IslandManager;
-pub use self::island_manager2::IslandManager;
+pub use self::island_manager::IslandManager;
 
 #[cfg(feature = "dim3")]
 pub use self::integration_parameters::FrictionModel;
@@ -27,7 +26,6 @@ mod ccd;
 mod coefficient_combine_rule;
 mod integration_parameters;
 mod island_manager;
-mod island_manager2;
 mod joint;
 mod rigid_body_components;
 mod solver;
