@@ -196,7 +196,7 @@ impl PhysicsPipeline {
         events: &dyn EventHandler,
     ) {
         self.counters.stages.island_construction_time.resume();
-        islands.update_active_set_with_contacts(
+        islands.update_islands(
             integration_parameters.dt,
             integration_parameters.length_unit,
             bodies,
