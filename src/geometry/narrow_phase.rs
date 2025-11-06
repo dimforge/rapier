@@ -1251,11 +1251,12 @@ impl NarrowPhase {
                 }
 
                 // FIXME: this won’t work with the parallel feature enabled.
-                islands.contact_started_or_stopped(
+                islands.interaction_started_or_stopped(
                     bodies,
                     co1.parent.map(|p| p.handle),
                     co2.parent.map(|p| p.handle),
                     pair.has_any_active_contact,
+                    true,
                 );
             }
         });

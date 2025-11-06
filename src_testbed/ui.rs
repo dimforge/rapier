@@ -382,6 +382,10 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
             "Island computation: {:.2}ms",
             counters.island_construction_time_ms()
         ));
+        ui.label(format!(
+            "Active constraints collection: {:.2}ms",
+            counters.stages.island_constraints_collection_time.time_ms()
+        ));
         ui.label(format!("Mprops update: {:.2}ms", counters.update_time_ms()));
         ui.label(format!(
             "User changes: {:.2}ms",

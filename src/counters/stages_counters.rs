@@ -10,6 +10,8 @@ pub struct StagesCounters {
     pub collision_detection_time: Timer,
     /// Time spent for the computation of collision island and body activation/deactivation (sleeping).
     pub island_construction_time: Timer,
+    /// Time spent for collecting awake constraints from islands.
+    pub island_constraints_collection_time: Timer,
     /// Total time spent for the constraints resolution and position update.t
     pub solver_time: Timer,
     /// Total time spent for CCD and CCD resolution.
@@ -25,6 +27,7 @@ impl StagesCounters {
             update_time: Timer::new(),
             collision_detection_time: Timer::new(),
             island_construction_time: Timer::new(),
+            island_constraints_collection_time: Timer::new(),
             solver_time: Timer::new(),
             ccd_time: Timer::new(),
             user_changes: Timer::new(),
@@ -36,6 +39,7 @@ impl StagesCounters {
         self.update_time.reset();
         self.collision_detection_time.reset();
         self.island_construction_time.reset();
+        self.island_constraints_collection_time.reset();
         self.solver_time.reset();
         self.ccd_time.reset();
         self.user_changes.reset();
@@ -54,6 +58,11 @@ impl Display for StagesCounters {
             f,
             "Island construction time: {}",
             self.island_construction_time
+        )?;
+        writeln!(
+            f,
+            "Island construction time: {}",
+            self.island_constraints_collection_time
         )?;
         writeln!(f, "Solver time: {}", self.solver_time)?;
         writeln!(f, "CCD time: {}", self.ccd_time)?;
