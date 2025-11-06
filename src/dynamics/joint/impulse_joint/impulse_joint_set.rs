@@ -73,6 +73,8 @@ pub struct ImpulseJointSet {
     joint_graph: InteractionGraph<RigidBodyHandle, ImpulseJoint>,
     /// A set of rigid-body handles to wake-up during the next timestep.
     pub(crate) to_wake_up: HashSet<RigidBodyHandle>,
+    /// A set of rigid-body pairs to join in the island manager during the next timestep.
+    pub(crate) to_join: HashSet<(RigidBodyHandle, RigidBodyHandle)>,
 }
 
 impl ImpulseJointSet {
@@ -83,6 +85,7 @@ impl ImpulseJointSet {
             joint_ids: Arena::new(),
             joint_graph: InteractionGraph::new(),
             to_wake_up: HashSet::default(),
+            to_join: HashSet::default(),
         }
     }
 
@@ -366,6 +369,8 @@ impl ImpulseJointSet {
             self.to_wake_up.insert(body2);
         }
 
+        self.to_join.insert((body1, body2));
+
         ImpulseJointHandle(handle)
     }
 
@@ -392,13 +397,17 @@ impl ImpulseJointSet {
                 && (!rb1.is_dynamic_or_kinematic() || !rb1.is_sleeping())
                 && (!rb2.is_dynamic_or_kinematic() || !rb2.is_sleeping())
             {
-                let island_index = if !rb1.is_dynamic_or_kinematic() {
-                    rb2.ids.active_island_id
+                let island_awake_index = if !rb1.is_dynamic_or_kinematic() {
+                    islands.islands[rb2.ids.active_island_id]
+                        .id_in_awake_list()
+                        .expect("Internal error: island should be awake.")
                 } else {
-                    rb1.ids.active_island_id
+                    islands.islands[rb1.ids.active_island_id]
+                        .id_in_awake_list()
+                        .expect("Internal error: island should be awake.")
                 };
 
-                out[island_index].push(i);
+                out[island_awake_index].push(i);
             }
         }
     }

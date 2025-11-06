@@ -216,8 +216,12 @@ impl PhysicsPipeline {
             self.joint_constraint_indices
                 .resize(num_active_islands, Vec::new());
         }
+        self.counters.stages.island_construction_time.pause();
 
-        // let t0 = std::time::Instant::now();
+        self.counters
+            .stages
+            .island_constraints_collection_time
+            .resume();
         let mut manifolds = Vec::new();
         narrow_phase.select_active_contacts(
             islands,
@@ -231,11 +235,10 @@ impl PhysicsPipeline {
             bodies,
             &mut self.joint_constraint_indices,
         );
-        // println!(
-        //     "Manifolds extraction: {:?}",
-        //     t0.elapsed().as_secs_f32() * 1000.0
-        // );
-        self.counters.stages.island_construction_time.pause();
+        self.counters
+            .stages
+            .island_constraints_collection_time
+            .pause();
 
         self.counters.stages.update_time.resume();
         for handle in islands.active_bodies() {
@@ -501,16 +504,16 @@ impl PhysicsPipeline {
         // Apply some of delayed wake-ups.
         self.counters.stages.user_changes.start();
         #[cfg(feature = "enhanced-determinism")]
-        let impulse_joints_iterator = impulse_joints
+        let to_wake_up_iterator = impulse_joints
             .to_wake_up
             .drain(..)
             .chain(multibody_joints.to_wake_up.drain(..));
         #[cfg(not(feature = "enhanced-determinism"))]
-        let impulse_joints_iterator = impulse_joints
+        let to_wake_up_iterator = impulse_joints
             .to_wake_up
             .drain()
             .chain(multibody_joints.to_wake_up.drain());
-        for handle in impulse_joints_iterator {
+        for handle in to_wake_up_iterator {
             islands.wake_up(bodies, handle, true);
         }
 
@@ -544,6 +547,27 @@ impl PhysicsPipeline {
                 .copied()
                 .filter(|h| colliders.get(*h).map(|c| !c.is_enabled()).unwrap_or(false)),
         );
+
+        // Join islands based on new joints.
+        #[cfg(feature = "enhanced-determinism")]
+        let to_join_iterator = impulse_joints
+            .to_join
+            .drain(..)
+            .chain(multibody_joints.to_join.drain(..));
+        #[cfg(not(feature = "enhanced-determinism"))]
+        let to_join_iterator = impulse_joints
+            .to_join
+            .drain()
+            .chain(multibody_joints.to_join.drain());
+        for (handle1, handle2) in to_join_iterator {
+            islands.interaction_started_or_stopped(
+                bodies,
+                Some(handle1),
+                Some(handle2),
+                true,
+                false,
+            );
+        }
         self.counters.stages.user_changes.pause();
 
         // TODO: do this only on user-change.
