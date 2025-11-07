@@ -1138,6 +1138,19 @@ impl RigidBodyDominance {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+pub(crate) enum SleepRootState {
+    /// This sleep root has already been traversed. No need to traverse
+    /// again until the rigid-body either gets awaken by an event.
+    Traversed,
+    /// This sleep root has not been traversed yet.
+    TraversalPending,
+    /// This body can become a sleep root once it falls asleep.
+    #[default]
+    Unknown,
+}
+
 /// Controls when a body goes to sleep (becomes inactive to save CPU).
 ///
 /// ## Sleeping System
@@ -1184,9 +1197,7 @@ pub struct RigidBodyActivation {
     /// Is this body currently sleeping?
     pub sleeping: bool,
 
-    /// If this is `true` then the island manager has already registered that this rigid-body
-    /// can be used as a root for graph traversal to potentially extract a sleeping island.
-    pub is_sleep_root_candidate: bool,
+    pub(crate) sleep_root_state: SleepRootState,
 }
 
 impl Default for RigidBodyActivation {
@@ -1220,7 +1231,7 @@ impl RigidBodyActivation {
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: 0.0,
             sleeping: false,
-            is_sleep_root_candidate: false,
+            sleep_root_state: SleepRootState::Unknown,
         }
     }
 
@@ -1232,7 +1243,7 @@ impl RigidBodyActivation {
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: Self::default_time_until_sleep(),
             sleeping: true,
-            is_sleep_root_candidate: false,
+            sleep_root_state: SleepRootState::Unknown,
         }
     }
 
@@ -1255,6 +1266,12 @@ impl RigidBodyActivation {
     #[inline]
     pub fn wake_up(&mut self, strong: bool) {
         self.sleeping = false;
+
+        // Make this body eligible as a sleep root again.
+        if self.sleep_root_state != SleepRootState::TraversalPending {
+            self.sleep_root_state = SleepRootState::Unknown;
+        }
+
         if strong {
             self.time_since_can_sleep = 0.0;
         }

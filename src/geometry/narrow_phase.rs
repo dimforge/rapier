@@ -7,11 +7,10 @@ use crate::dynamics::{
     CoefficientCombineRule, ImpulseJointSet, IslandManager, RigidBodyDominance, RigidBodySet,
     RigidBodyType,
 };
-use crate::geometry::manifold_reduction::reduce_manifold_bepu_like;
 use crate::geometry::{
     BoundingVolume, BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle,
     ColliderPair, ColliderSet, CollisionEvent, ContactData, ContactManifold, ContactManifoldData,
-    ContactPair, InteractionGraph, IntersectionPair, Segment, SolverContact, SolverFlags,
+    ContactPair, InteractionGraph, IntersectionPair, SolverContact, SolverFlags,
     TemporaryInteractionIndex,
 };
 use crate::math::{MAX_MANIFOLD_POINTS, Real, Vector};
@@ -583,7 +582,7 @@ impl NarrowPhase {
                     // Emit a contact stopped event if we had a contact before removing the edge.
                     // Also wake up the dynamic bodies that were in contact.
                     if let Some(mut ctct) = contact_pair {
-                        if ctct.has_any_active_contact {
+                        if ctct.has_any_active_contact() {
                             if let Some(islands) = islands {
                                 if let Some(co_parent1) = &co1.parent {
                                     islands.wake_up(bodies, co_parent1.handle, true);
@@ -819,10 +818,10 @@ impl NarrowPhase {
     ) {
         let query_dispatcher = &*self.query_dispatcher;
 
-        // TODO: don't iterate on all the edges.
+        // TODO PERF: don't iterate on all the edges.
         par_iter_mut!(&mut self.contact_graph.graph.edges).for_each(|edge| {
             let pair = &mut edge.weight;
-            let had_any_active_contact = pair.has_any_active_contact;
+            let had_any_active_contact = pair.has_any_active_contact();
             let co1 = &colliders[pair.collider1];
             let co2 = &colliders[pair.collider2];
 
@@ -833,6 +832,7 @@ impl NarrowPhase {
                     // No update needed for these colliders.
                     return;
                 }
+
                 if co1.parent.map(|p| p.handle) == co2.parent.map(|p| p.handle)
                     && co1.parent.is_some()
                 {
@@ -990,8 +990,6 @@ impl NarrowPhase {
                 let dominance1 = rb1.map(|rb| rb.dominance).unwrap_or(zero);
                 let dominance2 = rb2.map(|rb| rb.dominance).unwrap_or(zero);
 
-                pair.has_any_active_contact = false;
-
                 for manifold in &mut pair.manifolds {
                     let world_pos1 = manifold.subshape_pos1.prepend_to(&co1.pos);
                     let world_pos2 = manifold.subshape_pos2.prepend_to(&co2.pos);
@@ -1004,22 +1002,24 @@ impl NarrowPhase {
                     manifold.data.normal = world_pos1 * manifold.local_n1;
 
                     // Generate solver contacts.
+                    #[allow(unused_mut)] // Mut not needed in 2D.
                     let mut selected = [0, 1, 2, 3];
+                    #[allow(unused_mut)] // Mut not needed in 2D.
                     let mut num_selected = MAX_MANIFOLD_POINTS.min(manifold.points.len());
 
                     #[cfg(feature = "dim3")]
-                    super::manifold_reduction::reduce_manifold_bepu_like(
-                        manifold,
-                        &mut selected,
-                        &mut num_selected,
-                    );
-                    // #[cfg(feature = "dim3")]
-                    // super::manifold_reduction::reduce_manifold_naive(
+                    // super::manifold_reduction::reduce_manifold_bepu_like(
                     //     manifold,
                     //     &mut selected,
                     //     &mut num_selected,
-                    //     prediction_distance,
                     // );
+                    #[cfg(feature = "dim3")]
+                    super::manifold_reduction::reduce_manifold_naive(
+                        manifold,
+                        &mut selected,
+                        &mut num_selected,
+                        prediction_distance,
+                    );
 
                     for contact_id in &selected[..num_selected] {
                         //     // manifold.points.iter().enumerate() {
@@ -1065,7 +1065,6 @@ impl NarrowPhase {
                             };
 
                             manifold.data.solver_contacts.push(solver_contact);
-                            pair.has_any_active_contact = true;
                         }
                     }
 
@@ -1095,35 +1094,6 @@ impl NarrowPhase {
                         manifold.data.normal = modifiable_normal;
                         manifold.data.user_data = modifiable_user_data;
                     }
-
-                    /*
-                     * TODO: When using the block solver in 3D, I’d expect this sort to help, but
-                     *       it makes the domino demo worse. Needs more investigation.
-                    fn sort_solver_contacts(mut contacts: &mut [SolverContact]) {
-                        while contacts.len() > 2 {
-                            let first = contacts[0];
-                            let mut furthest_id = 1;
-                            let mut furthest_dist = na::distance(&first.point, &contacts[1].point);
-
-                            for (candidate_id, candidate) in contacts.iter().enumerate().skip(2) {
-                                let candidate_dist = na::distance(&first.point, &candidate.point);
-
-                                if candidate_dist > furthest_dist {
-                                    furthest_dist = candidate_dist;
-                                    furthest_id = candidate_id;
-                                }
-                            }
-
-                            if furthest_id > 1 {
-                                contacts.swap(1, furthest_id);
-                            }
-
-                            contacts = &mut contacts[2..];
-                        }
-                    }
-
-                    sort_solver_contacts(&mut manifold.data.solver_contacts);
-                    */
                 }
             }
 
@@ -1132,10 +1102,11 @@ impl NarrowPhase {
              *  - Emit event (if applicable).
              *  - Notify the island manager to potentially wake up the bodies.
              */
-            if pair.has_any_active_contact != had_any_active_contact {
+            let has_any_active_contact = pair.has_any_active_contact();
+            if has_any_active_contact != had_any_active_contact {
                 let active_events = co1.flags.active_events | co2.flags.active_events;
                 if active_events.contains(ActiveEvents::COLLISION_EVENTS) {
-                    if pair.has_any_active_contact {
+                    if has_any_active_contact {
                         pair.emit_start_event(bodies, colliders, events);
                     } else {
                         pair.emit_stop_event(bodies, colliders, events);
@@ -1147,7 +1118,7 @@ impl NarrowPhase {
                     bodies,
                     co1.parent.map(|p| p.handle),
                     co2.parent.map(|p| p.handle),
-                    pair.has_any_active_contact,
+                    has_any_active_contact,
                     true,
                 );
             }

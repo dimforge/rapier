@@ -1,8 +1,15 @@
 use crate::dynamics::{IslandManager, RigidBodySet};
+use crate::geometry::NarrowPhase;
+use crate::prelude::ColliderSet;
 
 impl IslandManager {
-    #[cfg(debug_assertions)]
-    pub fn assert_state_is_valid(&self, bodies: &RigidBodySet) {
+    #[allow(dead_code)]
+    pub(super) fn assert_state_is_valid(
+        &self,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        nf: &NarrowPhase,
+    ) {
         for (island_id, island) in self.islands.iter() {
             // Sleeping island must not be in the awake list.
             if island.is_sleeping() {
@@ -10,7 +17,7 @@ impl IslandManager {
             } else {
                 // If the island is awake, the awake id must match.
                 let awake_id = island.id_in_awake_list.unwrap();
-                self.awake_islands[awake_id] == island_id;
+                assert_eq!(self.awake_islands[awake_id], island_id);
             }
 
             for (body_id, handle) in island.bodies.iter().enumerate() {
@@ -36,6 +43,27 @@ impl IslandManager {
         awake_islands_dedup.sort();
         awake_islands_dedup.dedup();
         assert_eq!(self.awake_islands.len(), awake_islands_dedup.len());
+
+        // If two bodies have solver contacts, they must be in the same island.
+        for pair in nf.contact_pairs() {
+            let Some(body_handle1) = colliders[pair.collider1].parent.map(|p| p.handle) else {
+                continue;
+            };
+            let Some(body_handle2) = colliders[pair.collider2].parent.map(|p| p.handle) else {
+                continue;
+            };
+
+            let body1 = &bodies[body_handle1];
+            let body2 = &bodies[body_handle2];
+
+            if body1.is_fixed() || body2.is_fixed() {
+                continue;
+            }
+
+            if pair.has_any_active_contact() {
+                assert_eq!(body1.ids.active_island_id, body2.ids.active_island_id);
+            }
+        }
 
         println!(
             "`IslandManager::assert_state_is_valid` validation checks passed. This is slow. Only enable for debugging."

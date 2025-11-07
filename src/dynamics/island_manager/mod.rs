@@ -1,7 +1,7 @@
 pub use manager::IslandManager;
 
 pub(crate) use island::Island;
-pub(self) use optimizer::IslandsOptimizer;
+use optimizer::IslandsOptimizer;
 
 mod island;
 mod manager;

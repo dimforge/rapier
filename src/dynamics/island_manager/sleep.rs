@@ -1,4 +1,6 @@
-use crate::dynamics::{ImpulseJointSet, MultibodyJointSet, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{
+    ImpulseJointSet, MultibodyJointSet, RigidBodyHandle, RigidBodySet, SleepRootState,
+};
 use crate::geometry::{ColliderSet, NarrowPhase};
 
 use super::{Island, IslandManager};
@@ -56,18 +58,18 @@ impl IslandManager {
         multibody_joints: &MultibodyJointSet,
         narrow_phase: &NarrowPhase,
         sleep_root: RigidBodyHandle,
-        frame_base_timestamp: u32,
     ) -> usize {
         let Some(rb) = bodies.get_mut_internal(sleep_root) else {
             // This branch happens if the rigid-body no longer exists.
             return 0;
         };
 
-        rb.activation.is_sleep_root_candidate = false;
-
-        if rb.ids.active_set_timestamp >= frame_base_timestamp {
-            return 0; // We already traversed this rigid-body this frame.
+        if rb.activation.sleep_root_state != SleepRootState::TraversalPending {
+            // We already traversed this sleep root.
+            return 0;
         }
+
+        rb.activation.sleep_root_state = SleepRootState::Traversed;
 
         let active_island_id = rb.ids.active_island_id;
         let active_island = &mut self.islands[active_island_id];
@@ -81,8 +83,9 @@ impl IslandManager {
         self.stack.clear();
         self.stack.push(sleep_root);
 
-        let mut can_sleep = true;
         let mut niter = 0;
+        self.traversal_timestamp += 1;
+
         while let Some(handle) = self.stack.pop() {
             let rb = bodies.index_mut_internal(handle);
 
@@ -91,30 +94,41 @@ impl IslandManager {
                 continue;
             }
 
-            if rb.ids.active_set_timestamp == self.timestamp {
+            if rb.ids.active_set_timestamp == self.traversal_timestamp {
                 // We already visited this body and its neighbors.
                 continue;
             }
 
-            if rb.ids.active_set_timestamp >= frame_base_timestamp {
-                // We already visited this body and its neighbors during this frame.
-                // So we already know this islands cannot sleep (otherwise the bodies
-                // currently being traversed would already have been marked as sleeping).
-                return niter;
-            }
+            // if rb.ids.active_set_timestamp >= frame_base_timestamp {
+            //     // We already visited this body and its neighbors during this frame.
+            //     // So we already know this islands cannot sleep (otherwise the bodies
+            //     // currently being traversed would already have been marked as sleeping).
+            //     return niter;
+            // }
 
             niter += 1;
-            rb.ids.active_set_timestamp = self.timestamp;
+            rb.ids.active_set_timestamp = self.traversal_timestamp;
 
-            assert!(!rb.activation.sleeping);
+            if rb.activation.is_eligible_for_sleep() {
+                rb.activation.sleep_root_state = SleepRootState::Traversed;
+            }
+
             assert_eq!(
-                rb.ids.active_island_id, active_island_id,
-                "note niter: {}",
-                niter
+                rb.ids.active_island_id,
+                active_island_id,
+                "handle: {:?}, note niter: {}, isl size: {}",
+                handle,
+                niter,
+                active_island.len()
+            );
+            assert!(
+                !rb.activation.sleeping,
+                "is sleeping: {:?} note niter: {}, isl size: {}",
+                handle,
+                niter,
+                active_island.len()
             );
 
-            // TODO PERF: early-exit as soon as we reach a body not eligible to sleep.
-            can_sleep = can_sleep && rb.activation().is_eligible_for_sleep();
             if !rb.activation.is_eligible_for_sleep() {
                 // If this body cannot sleep, abort the traversal, we are not traversing
                 // yet an island that can sleep.
@@ -138,8 +152,6 @@ impl IslandManager {
             );
             new_island.bodies.push(handle);
         }
-
-        assert!(can_sleep);
 
         // If we reached this line, we completed a sleeping island traversal.
         // - Put its bodies to sleep.

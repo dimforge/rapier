@@ -1,5 +1,5 @@
 use crate::geometry::ContactManifold;
-use crate::math::{Point, Real};
+use crate::math::Real;
 use crate::utils::SimdBasis;
 
 pub(crate) fn reduce_manifold_naive(
@@ -12,8 +12,6 @@ pub(crate) fn reduce_manifold_naive(
         return;
     }
 
-    // Run contact reduction so we only have up to four solver contacts.
-    // We follow a logic similar to Bepu’s approach.
     // 1. Find the deepest contact.
     *selected = [usize::MAX; 4];
 
@@ -32,9 +30,9 @@ pub(crate) fn reduce_manifold_naive(
 
     // 2. Find the point that is the furthest from the deepest point.
     let selected_a = &manifold.points[selected[0]].local_p1;
-    let mut furthest_dist = -f32::MAX;
+    let mut furthest_dist = -Real::MAX;
     for (i, pt) in manifold.points.iter().enumerate() {
-        let dist = na::distance_squared(&pt.local_p1, &selected_a);
+        let dist = na::distance_squared(&pt.local_p1, selected_a);
         if i != selected[0] && pt.dist <= prediction_distance && dist > furthest_dist {
             furthest_dist = dist;
             selected[1] = i;
@@ -87,10 +85,10 @@ pub(crate) fn reduce_manifold_naive(
 }
 
 // Run contact reduction using Bepu's InternalReduce algorithm.
-// This reduces the manifold to at most 4 contacts using:
-// 1. Deepest contact (with extremity bias for stability)
-// 2. Most distant contact from the first
-// 3. Two contacts that maximize positive and negative signed area with the first edge
+// The general idea is quite similar to our naive approach except that they add some
+// additional heuristics. This is implemented mainly for comparison purpose to see
+// if there is a strong advantage to having the extra checks.
+#[allow(dead_code)]
 pub(crate) fn reduce_manifold_bepu_like(
     manifold: &ContactManifold,
     selected: &mut [usize; 4],
@@ -106,8 +104,8 @@ pub(crate) fn reduce_manifold_bepu_like(
     let mut best_score = -Real::MAX;
     const EXTREMITY_SCALE: Real = 1e-2;
     // Use an arbitrary direction (roughly 38 degrees from X axis) to break ties
-    const EXTREMITY_DIR_X: Real = 0.7946897654;
-    const EXTREMITY_DIR_Y: Real = 0.60701579614;
+    const EXTREMITY_DIR_X: Real = 0.7946898;
+    const EXTREMITY_DIR_Y: Real = 0.6070158;
 
     let tangents = manifold.local_n1.orthonormal_basis();
 

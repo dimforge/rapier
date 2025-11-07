@@ -1,19 +1,19 @@
+use super::{Island, IslandsOptimizer};
 use crate::dynamics::{
     ImpulseJointSet, MultibodyJointSet, RigidBodyChanges, RigidBodyHandle, RigidBodyIds,
     RigidBodySet,
 };
 use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
+use crate::prelude::SleepRootState;
 use crate::utils::SimdDot;
 use std::collections::VecDeque;
 use vec_map::VecMap;
 
-use super::{Island, IslandsOptimizer};
-
 /// An island starting at this rigid-body might be eligible for sleeping.
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-struct SleepCandidate(RigidBodyHandle);
+pub(super) struct SleepCandidate(RigidBodyHandle);
 
 /// System that manages which bodies are active (awake) vs sleeping to optimize performance.
 ///
@@ -39,7 +39,7 @@ pub struct IslandManager {
     /// Potential candidate roots for graph traversal to identify a sleeping
     /// connected component or to split an island in two.
     pub(super) traversal_candidates: VecDeque<SleepCandidate>,
-    pub(super) timestamp: u32, // TODO: the physics pipeline (or something else) should expose a step_id?
+    pub(super) traversal_timestamp: u32,
     pub(super) optimizer: IslandsOptimizer,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(super) stack: Vec<RigidBodyHandle>, // Workspace.
@@ -103,14 +103,14 @@ impl IslandManager {
         started: bool,
         wake_up: bool,
     ) {
-        if started {
-            match (handle1, handle2) {
-                (Some(handle1), Some(handle2)) => {
-                    if wake_up {
-                        self.wake_up(bodies, handle1, false);
-                        self.wake_up(bodies, handle2, false);
-                    }
+        match (handle1, handle2) {
+            (Some(handle1), Some(handle2)) => {
+                if wake_up {
+                    self.wake_up(bodies, handle1, false);
+                    self.wake_up(bodies, handle2, false);
+                }
 
+                if started {
                     if let (Some(rb1), Some(rb2)) = (bodies.get(handle1), bodies.get(handle2)) {
                         assert!(rb1.is_fixed() || rb1.ids.active_island_id != usize::MAX);
                         assert!(rb2.is_fixed() || rb2.ids.active_island_id != usize::MAX);
@@ -128,18 +128,20 @@ impl IslandManager {
                         }
                     }
                 }
-                (Some(handle1), None) => {
-                    if wake_up {
-                        self.wake_up(bodies, handle1, false);
-                    }
-                }
-                (None, Some(handle2)) => {
-                    if wake_up {
-                        self.wake_up(bodies, handle2, false);
-                    }
-                }
-                (None, None) => { /* Nothing to do. */ }
             }
+            (Some(handle1), None) => {
+                if wake_up {
+                    // NOTE: see NOTE of the Some(_), Some(_) case.
+                    self.wake_up(bodies, handle1, false);
+                }
+            }
+            (None, Some(handle2)) => {
+                if wake_up {
+                    // NOTE: see NOTE of the Some(_), Some(_) case.
+                    self.wake_up(bodies, handle2, false);
+                }
+            }
+            (None, None) => { /* Nothing to do. */ }
         }
     }
 
@@ -224,9 +226,7 @@ impl IslandManager {
         narrow_phase: &NarrowPhase,
         impulse_joints: &ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
-        min_island_size: usize,
     ) {
-        self.timestamp += 1;
         // 1. Update active rigid-bodies energy.
         // TODO PERF: should this done by the velocity solver after solving the constraints?
         // let t0 = std::time::Instant::now();
@@ -241,8 +241,6 @@ impl IslandManager {
             };
             let sq_linvel = rb.vels.linvel.norm_squared();
             let sq_angvel = rb.vels.angvel.gdot(rb.vels.angvel);
-            let can_sleep_before = rb.activation.is_eligible_for_sleep();
-
             rb.activation
                 .update_energy(rb.body_type, length_unit, sq_linvel, sq_angvel, dt);
 
@@ -250,16 +248,16 @@ impl IslandManager {
 
             // 2. Identify active rigid-bodies that transition from "awake" to "can_sleep"
             //    and push the sleep root candidate if applicable.
-            if !can_sleep_before && can_sleep_now {
+            if can_sleep_now && rb.activation.sleep_root_state == SleepRootState::Unknown {
                 // This is a new candidate for island extraction.
-                if !rb.activation.is_sleep_root_candidate {
-                    self.traversal_candidates.push_back(SleepCandidate(handle));
-                }
+                self.traversal_candidates.push_back(SleepCandidate(handle));
+                rb.activation.sleep_root_state = SleepRootState::TraversalPending;
+            } else if !can_sleep_now {
+                rb.activation.sleep_root_state = SleepRootState::Unknown;
             }
         }
         // println!("Update energy: {}", t0.elapsed().as_secs_f32() * 1000.0);
 
-        let frame_base_timestamp = self.timestamp;
         let mut cost = 0;
 
         // 3. Perform one, or multiple, sleeping islands extraction (graph traversal).
@@ -267,11 +265,6 @@ impl IslandManager {
         //    there are too many.
         const MAX_PER_FRAME_COST: usize = 1000; // TODO: find the best value.
         while let Some(sleep_root) = self.traversal_candidates.pop_front() {
-            if cost > MAX_PER_FRAME_COST {
-                // Early-break if we consider we have done enough island extraction work.
-                break;
-            }
-
             cost += self.extract_sleeping_island(
                 bodies,
                 colliders,
@@ -279,10 +272,12 @@ impl IslandManager {
                 multibody_joints,
                 narrow_phase,
                 sleep_root.0,
-                frame_base_timestamp,
             );
 
-            self.timestamp += 1;
+            if cost > MAX_PER_FRAME_COST {
+                // Early-break if we consider we have done enough island extraction work.
+                break;
+            }
         }
 
         self.update_optimizer(
@@ -294,7 +289,7 @@ impl IslandManager {
         );
         // println!("Island extraction: {}", t0.elapsed().as_secs_f32() * 1000.0);
 
-        #[cfg(debug_assertions)]
-        self.assert_state_is_valid(bodies);
+        // NOTE: uncomment for debugging.
+        // self.assert_state_is_valid(bodies, colliders, narrow_phase);
     }
 }

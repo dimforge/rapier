@@ -11,10 +11,9 @@ use crate::dynamics::{
     RigidBodySet,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
+use crate::math::Real;
 use crate::math::SIMD_WIDTH;
-use crate::math::{MAX_MANIFOLD_POINTS, Real};
 use na::DVector;
-use parry::math::DIM;
 
 use crate::dynamics::solver::contact_constraint::any_contact_constraint::AnyContactConstraintMut;
 #[cfg(feature = "dim3")]

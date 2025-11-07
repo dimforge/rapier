@@ -58,7 +58,7 @@ impl IslandManager {
         sleep: bool,
     ) {
         let new_island_id = self.free_islands.pop().unwrap_or(self.islands.len());
-        let active_island = &mut self.islands[source_id];
+        let source_island = &mut self.islands[source_id];
 
         for (id, handle) in new_island.bodies.iter().enumerate() {
             let rb = bodies.index_mut_internal(*handle);
@@ -82,9 +82,9 @@ impl IslandManager {
             new_island.additional_solver_iterations = new_island
                 .additional_solver_iterations
                 .max(rb.additional_solver_iterations);
-            active_island.bodies.swap_remove(id_to_remove);
+            source_island.bodies.swap_remove(id_to_remove);
 
-            if let Some(moved_handle) = active_island.bodies.get(id_to_remove).copied() {
+            if let Some(moved_handle) = source_island.bodies.get(id_to_remove).copied() {
                 let moved_rb = bodies.index_mut_internal(moved_handle);
                 moved_rb.ids.active_set_id = id_to_remove;
                 moved_rb.ids.active_set_offset = id_to_remove as u32;
@@ -95,6 +95,8 @@ impl IslandManager {
         if !sleep {
             new_island.id_in_awake_list = Some(self.awake_islands.len());
             self.awake_islands.push(new_island_id);
+        } else {
+            new_island.id_in_awake_list = None;
         }
 
         self.islands.insert(new_island_id, new_island);
@@ -126,7 +128,7 @@ impl IslandManager {
             (island_id1, island_id2)
         };
 
-        // println!("Merging: keep {} remove {}", to_keep, to_remove);
+        // println!("Merging: {} <- {}", to_keep, to_remove);
 
         let Some(removed_island) = self.islands.remove(to_remove) else {
             // TODO: the island doesn’t exist is that an internal error?
