@@ -111,11 +111,10 @@ impl VelocitySolver {
                 }
             } else {
                 let rb = &bodies[*handle];
-                assert_eq!(offset, rb.ids.active_set_offset as usize);
-                let solver_vel_incr =
-                    &mut self.solver_vels_increment[rb.ids.active_set_offset as usize];
+                assert_eq!(offset, rb.ids.active_set_id);
+                let solver_vel_incr = &mut self.solver_vels_increment[rb.ids.active_set_id];
                 self.solver_bodies
-                    .copy_from(total_step_dt, rb.ids.active_set_offset as usize, rb);
+                    .copy_from(total_step_dt, rb.ids.active_set_id, rb);
 
                 solver_vel_incr.angular =
                     rb.mprops.effective_world_inv_inertia * rb.forces.torque * params.dt;
@@ -312,8 +311,8 @@ impl VelocitySolver {
                 }
             } else {
                 let rb = bodies.index_mut_internal(*handle);
-                let solver_vels = &self.solver_bodies.vels[rb.ids.active_set_offset as usize];
-                let solver_poses = &self.solver_bodies.poses[rb.ids.active_set_offset as usize];
+                let solver_vels = &self.solver_bodies.vels[rb.ids.active_set_id];
+                let solver_poses = &self.solver_bodies.poses[rb.ids.active_set_id];
 
                 let dangvel = solver_vels.angular;
 

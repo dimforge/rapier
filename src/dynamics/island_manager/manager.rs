@@ -67,16 +67,13 @@ impl IslandManager {
         };
 
         let swapped_handle = island.bodies.last().copied().unwrap_or(removed_handle);
-        island
-            .bodies
-            .swap_remove(removed_ids.active_set_offset as usize);
+        island.bodies.swap_remove(removed_ids.active_set_id);
 
         // Remap the active_set_id of the body we moved with the `swap_remove`.
         if swapped_handle != removed_handle {
             let swapped_body = bodies
                 .get_mut(swapped_handle)
                 .expect("Internal error: bodies must be removed from islands on at a times");
-            swapped_body.ids.active_set_offset = removed_ids.active_set_offset;
             swapped_body.ids.active_set_id = removed_ids.active_set_id;
         }
 
@@ -187,7 +184,6 @@ impl IslandManager {
 
                 rb.ids.active_island_id = id;
                 rb.ids.active_set_id = target_island.bodies.len();
-                rb.ids.active_set_offset = target_island.bodies.len() as u32;
                 target_island.bodies.push(handle);
             } else {
                 let mut new_island = Island::singleton(handle, rb);
@@ -201,7 +197,6 @@ impl IslandManager {
                 self.islands.insert(id, new_island);
                 rb.ids.active_island_id = id;
                 rb.ids.active_set_id = 0;
-                rb.ids.active_set_offset = 0;
             }
         }
 

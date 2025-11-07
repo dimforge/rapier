@@ -1029,7 +1029,6 @@ impl RigidBodyCcd {
 pub struct RigidBodyIds {
     pub(crate) active_island_id: usize,
     pub(crate) active_set_id: usize,
-    pub(crate) active_set_offset: u32,
     pub(crate) active_set_timestamp: u32,
 }
 
@@ -1038,7 +1037,6 @@ impl Default for RigidBodyIds {
         Self {
             active_island_id: usize::MAX,
             active_set_id: usize::MAX,
-            active_set_offset: u32::MAX,
             active_set_timestamp: 0,
         }
     }

@@ -77,7 +77,6 @@ impl IslandManager {
             );
             rb.ids.active_island_id = new_island_id;
             rb.ids.active_set_id = id;
-            rb.ids.active_set_offset = id as u32;
 
             new_island.additional_solver_iterations = new_island
                 .additional_solver_iterations
@@ -87,7 +86,6 @@ impl IslandManager {
             if let Some(moved_handle) = source_island.bodies.get(id_to_remove).copied() {
                 let moved_rb = bodies.index_mut_internal(moved_handle);
                 moved_rb.ids.active_set_id = id_to_remove;
-                moved_rb.ids.active_set_offset = id_to_remove as u32;
             }
         }
 
@@ -147,7 +145,6 @@ impl IslandManager {
             rb.wake_up(false);
             rb.ids.active_island_id = to_keep;
             rb.ids.active_set_id = target_island.bodies.len();
-            rb.ids.active_set_offset = (target_island.bodies.len()) as u32;
             target_island.bodies.push(*handle);
             target_island.additional_solver_iterations = target_island
                 .additional_solver_iterations
