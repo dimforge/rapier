@@ -196,6 +196,7 @@ impl PhysicsPipeline {
         events: &dyn EventHandler,
     ) {
         self.counters.stages.island_construction_time.resume();
+        // NOTE: this must be done after the narrow-phase.
         islands.update_islands(
             integration_parameters.dt,
             integration_parameters.length_unit,

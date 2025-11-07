@@ -69,7 +69,12 @@ impl IslandManager {
             }
 
             let id_to_remove = rb.ids.active_set_id;
-            assert_eq!(rb.ids.active_island_id, source_id);
+
+            assert_eq!(
+                rb.ids.active_island_id, source_id,
+                "note, new id: {}",
+                new_island_id
+            );
             rb.ids.active_island_id = new_island_id;
             rb.ids.active_set_id = id;
             rb.ids.active_set_offset = id as u32;
@@ -120,6 +125,8 @@ impl IslandManager {
         } else {
             (island_id1, island_id2)
         };
+
+        // println!("Merging: keep {} remove {}", to_keep, to_remove);
 
         let Some(removed_island) = self.islands.remove(to_remove) else {
             // TODO: the island doesn’t exist is that an internal error?

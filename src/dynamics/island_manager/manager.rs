@@ -112,14 +112,14 @@ impl IslandManager {
                     }
 
                     if let (Some(rb1), Some(rb2)) = (bodies.get(handle1), bodies.get(handle2)) {
+                        assert!(rb1.is_fixed() || rb1.ids.active_island_id != usize::MAX);
+                        assert!(rb2.is_fixed() || rb2.ids.active_island_id != usize::MAX);
+
                         // If both bodies are not part of the same island, merge the islands.
                         if !rb1.is_fixed()
                             && !rb2.is_fixed()
                             && rb1.ids.active_island_id != rb2.ids.active_island_id
                         {
-                            assert_ne!(rb1.ids.active_island_id, usize::MAX);
-                            assert_ne!(rb2.ids.active_island_id, usize::MAX);
-
                             self.merge_islands(
                                 bodies,
                                 rb1.ids.active_island_id,
@@ -293,5 +293,8 @@ impl IslandManager {
             narrow_phase,
         );
         // println!("Island extraction: {}", t0.elapsed().as_secs_f32() * 1000.0);
+
+        #[cfg(debug_assertions)]
+        self.assert_state_is_valid(bodies);
     }
 }
