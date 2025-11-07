@@ -68,7 +68,7 @@ impl GenericContactConstraintBuilder {
             multibody1
                 .map(|mb| mb.0.solver_id)
                 .unwrap_or(if type1.is_dynamic_or_kinematic() {
-                    rb1.ids.active_set_offset
+                    rb1.ids.active_set_id as u32
                 } else {
                     u32::MAX
                 });
@@ -76,7 +76,7 @@ impl GenericContactConstraintBuilder {
             multibody2
                 .map(|mb| mb.0.solver_id)
                 .unwrap_or(if type2.is_dynamic_or_kinematic() {
-                    rb2.ids.active_set_offset
+                    rb2.ids.active_set_id as u32
                 } else {
                     u32::MAX
                 });

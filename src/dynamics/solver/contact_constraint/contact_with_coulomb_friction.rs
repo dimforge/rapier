@@ -52,7 +52,7 @@ impl ContactWithCoulombFrictionBuilder {
             && manifold_id[ii] != usize::MAX
         {
             let handle = manifolds[ii].data.rigid_body1.unwrap(); // Can unwrap thanks to the dominance check.
-            bodies[handle].ids.active_set_offset
+            bodies[handle].ids.active_set_id as u32
         } else {
             u32::MAX
         }];
@@ -60,7 +60,7 @@ impl ContactWithCoulombFrictionBuilder {
             && manifold_id[ii] != usize::MAX
         {
             let handle = manifolds[ii].data.rigid_body2.unwrap(); // Can unwrap thanks to the dominance check.
-            bodies[handle].ids.active_set_offset
+            bodies[handle].ids.active_set_id as u32
         } else {
             u32::MAX
         }];

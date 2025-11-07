@@ -26,8 +26,7 @@ impl IslandManager {
                     assert_eq!(rb.is_sleeping(), island.is_sleeping());
                     // The body’s island id must match the island id.
                     assert_eq!(rb.ids.active_island_id, island_id);
-                    // The body’s offset must match its handle’s position in island.bodies.
-                    assert_eq!(body_id, rb.ids.active_set_offset as usize);
+                    // The body’s active set id must match its handle’s position in island.bodies.
                     assert_eq!(body_id, rb.ids.active_set_id);
                 }
             }
