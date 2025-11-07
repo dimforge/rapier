@@ -7,6 +7,7 @@ use crate::dynamics::{
     CoefficientCombineRule, ImpulseJointSet, IslandManager, RigidBodyDominance, RigidBodySet,
     RigidBodyType,
 };
+use crate::geometry::manifold_reduction::reduce_manifold_bepu_like;
 use crate::geometry::{
     BoundingVolume, BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle,
     ColliderPair, ColliderSet, CollisionEvent, ContactData, ContactManifold, ContactManifoldData,
@@ -1007,127 +1008,18 @@ impl NarrowPhase {
                     let mut num_selected = MAX_MANIFOLD_POINTS.min(manifold.points.len());
 
                     #[cfg(feature = "dim3")]
-                    {
-                        if manifold.points.len() > 4 {
-                            // Run contact reduction using Bepu's InternalReduce algorithm.
-                            // This reduces the manifold to at most 4 contacts using:
-                            // 1. Deepest contact (with extremity bias for stability)
-                            // 2. Most distant contact from the first
-                            // 3. Two contacts that maximize positive and negative signed area with the first edge
-
-                            // Step 1: Find the deepest contact, biased by extremity for frame stability.
-                            // The extremity heuristic helps maintain consistent contact selection across frames
-                            // when multiple contacts have similar depths.
-                            let mut best_score = -Real::MAX;
-                            const EXTREMITY_SCALE: Real = 1e-2;
-                            // Use an arbitrary direction (roughly 38 degrees from X axis) to break ties
-                            const EXTREMITY_DIR_X: Real = 0.7946897654;
-                            const EXTREMITY_DIR_Y: Real = 0.60701579614;
-
-                            for (i, pt) in manifold.points.iter().enumerate() {
-                                // Extremity measures how far the contact is from the origin in the tangent plane
-                                let extremity = (pt.local_p1.x * EXTREMITY_DIR_X
-                                    + pt.local_p1.y * EXTREMITY_DIR_Y)
-                                    .abs();
-
-                                // Score = depth + small extremity bias (only for non-speculative contacts)
-                                // Negative dist = deeper penetration = higher score
-                                let score = if pt.dist >= 0.0 {
-                                    -pt.dist // Speculative contact, no extremity bias
-                                } else {
-                                    -pt.dist + extremity * EXTREMITY_SCALE
-                                };
-
-                                if score > best_score {
-                                    best_score = score;
-                                    selected[0] = i;
-                                }
-                            }
-
-                            // Step 2: Find the point most distant from the first contact.
-                            // This establishes a baseline "edge" for the manifold.
-                            let contact0_pos = manifold.points[selected[0]].local_p1;
-                            let mut max_distance_squared = 0.0;
-
-                            for (i, pt) in manifold.points.iter().enumerate() {
-                                let offset = pt.local_p1 - contact0_pos;
-                                let distance_squared = offset.x * offset.x + offset.y * offset.y;
-
-                                if distance_squared > max_distance_squared {
-                                    max_distance_squared = distance_squared;
-                                    selected[1] = i;
-                                }
-                            }
-
-                            // Early out if the contacts are too close together
-                            let epsilon = 1e-6;
-                            if max_distance_squared <= epsilon {
-                                // Only one meaningful contact
-                                num_selected = 1;
-                            } else {
-                                // Step 3: Find two more contacts that maximize positive and negative signed area.
-                                // Using the first two contacts as an edge, we look for contacts that form triangles
-                                // with the largest magnitude negative and positive areas. This maximizes the
-                                // spatial extent of the contact manifold.
-
-                                num_selected = 2;
-                                selected[2] = usize::MAX;
-                                selected[3] = usize::MAX;
-
-                                let contact1_pos = manifold.points[selected[1]].local_p1;
-                                let edge_offset_x = contact1_pos.x - contact0_pos.x;
-                                let edge_offset_y = contact1_pos.y - contact0_pos.y;
-
-                                let mut min_signed_area = 0.0;
-                                let mut max_signed_area = 0.0;
-
-                                for (i, pt) in manifold.points.iter().enumerate() {
-                                    let candidate_offset_x = pt.local_p1.x - contact0_pos.x;
-                                    let candidate_offset_y = pt.local_p1.y - contact0_pos.y;
-
-                                    // Signed area of the triangle formed by (contact0, contact1, candidate)
-                                    // This is a 2D cross product: (candidate - contact0) × (contact1 - contact0)
-                                    let mut signed_area = candidate_offset_x * edge_offset_y
-                                        - candidate_offset_y * edge_offset_x;
-
-                                    // Penalize speculative contacts (they're less important)
-                                    if pt.dist >= 0.0 {
-                                        signed_area *= 0.25;
-                                    }
-
-                                    if signed_area < min_signed_area {
-                                        min_signed_area = signed_area;
-                                        selected[2] = i;
-                                    }
-                                    if signed_area > max_signed_area {
-                                        max_signed_area = signed_area;
-                                        selected[3] = i;
-                                    }
-                                }
-
-                                // Check if the signed areas are significant enough
-                                // Epsilon based on the edge length squared
-                                let area_epsilon =
-                                    max_distance_squared * max_distance_squared * 1e-6;
-
-                                // If the areas are too small, don't add those contacts
-                                if min_signed_area * min_signed_area <= area_epsilon {
-                                    selected[2] = usize::MAX;
-                                }
-                                if max_signed_area * max_signed_area <= area_epsilon {
-                                    selected[3] = usize::MAX;
-                                }
-
-                                let keep2 = selected[2] != usize::MAX;
-                                let keep3 = selected[3] != usize::MAX;
-                                num_selected += keep2 as usize + keep3 as usize;
-
-                                if !keep2 {
-                                    selected[2] = selected[3];
-                                }
-                            }
-                        }
-                    }
+                    super::manifold_reduction::reduce_manifold_bepu_like(
+                        manifold,
+                        &mut selected,
+                        &mut num_selected,
+                    );
+                    // #[cfg(feature = "dim3")]
+                    // super::manifold_reduction::reduce_manifold_naive(
+                    //     manifold,
+                    //     &mut selected,
+                    //     &mut num_selected,
+                    //     prediction_distance,
+                    // );
 
                     for contact_id in &selected[..num_selected] {
                         //     // manifold.points.iter().enumerate() {

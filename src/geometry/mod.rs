@@ -231,3 +231,6 @@ mod broad_phase_pair_event;
 mod collider;
 mod collider_set;
 mod mesh_converter;
+
+#[cfg(feature = "dim3")]
+mod manifold_reduction;
