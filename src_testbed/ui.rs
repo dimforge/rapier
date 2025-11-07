@@ -337,12 +337,18 @@ fn profiling_ui(ui: &mut Ui, counters: &Counters) {
                     counters.solver.velocity_assembly_time.time_ms()
                 ));
                 ui.label(format!(
-                    "> Velocity assembly A: {:.2}ms",
-                    counters.solver.velocity_assembly_time_a.time_ms()
+                    "> Velocity assembly - solver bodies: {:.2}ms",
+                    counters
+                        .solver
+                        .velocity_assembly_time_solver_bodies
+                        .time_ms()
                 ));
                 ui.label(format!(
-                    "> Velocity assembly B: {:.2}ms",
-                    counters.solver.velocity_assembly_time_b.time_ms()
+                    "> Velocity assembly - constraints init: {:.2}ms",
+                    counters
+                        .solver
+                        .velocity_assembly_time_constraints_init
+                        .time_ms()
                 ));
                 ui.label(format!(
                     "Velocity resolution: {:.2}ms",

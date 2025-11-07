@@ -196,7 +196,7 @@ impl PhysicsPipeline {
         events: &dyn EventHandler,
     ) {
         self.counters.stages.island_construction_time.resume();
-        // NOTE: this must be done after the narrow-phase.
+        // NOTE: islands update must be done after the narrow-phase.
         islands.update_islands(
             integration_parameters.dt,
             integration_parameters.length_unit,
@@ -205,7 +205,6 @@ impl PhysicsPipeline {
             narrow_phase,
             impulse_joints,
             multibody_joints,
-            integration_parameters.min_island_size,
         );
 
         let num_active_islands = islands.active_islands().len();

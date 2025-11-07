@@ -43,7 +43,10 @@ impl IslandSolver {
         multibodies: &mut MultibodyJointSet,
     ) {
         counters.solver.velocity_assembly_time.resume();
-        counters.solver.velocity_assembly_time_a.resume();
+        counters
+            .solver
+            .velocity_assembly_time_solver_bodies
+            .resume();
         let num_solver_iterations = base_params.num_solver_iterations
             + islands.island(island_id).additional_solver_iterations();
 
@@ -65,8 +68,11 @@ impl IslandSolver {
                 bodies,
                 multibodies,
             );
-        counters.solver.velocity_assembly_time_a.pause();
-        counters.solver.velocity_assembly_time_b.resume();
+        counters.solver.velocity_assembly_time_solver_bodies.pause();
+        counters
+            .solver
+            .velocity_assembly_time_constraints_init
+            .resume();
         self.velocity_solver.init_constraints(
             island_id,
             islands,
@@ -81,7 +87,10 @@ impl IslandSolver {
             #[cfg(feature = "dim3")]
             params.friction_model,
         );
-        counters.solver.velocity_assembly_time_b.pause();
+        counters
+            .solver
+            .velocity_assembly_time_constraints_init
+            .pause();
         counters.solver.velocity_assembly_time.pause();
 
         // SOLVE

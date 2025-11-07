@@ -155,8 +155,6 @@ pub struct ContactPair {
     /// [`Collider::contact_skin`] which only affects the constraint solver and the
     /// [`SolverContact`].
     pub manifolds: Vec<ContactManifold>,
-    /// Is there any active contact in this contact pair?
-    pub has_any_active_contact: bool,
     /// Was a `CollisionEvent::Started` emitted for this collider?
     pub(crate) start_event_emitted: bool,
     pub(crate) workspace: Option<ContactManifoldsWorkspace>,
@@ -173,17 +171,22 @@ impl ContactPair {
         Self {
             collider1,
             collider2,
-            has_any_active_contact: false,
             manifolds: Vec::new(),
             start_event_emitted: false,
             workspace: None,
         }
     }
 
+    /// Is there any active contact in this contact pair?
+    pub fn has_any_active_contact(&self) -> bool {
+        self.manifolds
+            .iter()
+            .any(|m| !m.data.solver_contacts.is_empty())
+    }
+
     /// Clears all the contacts of this contact pair.
     pub fn clear(&mut self) {
         self.manifolds.clear();
-        self.has_any_active_contact = false;
         self.workspace = None;
     }
 

@@ -8,6 +8,8 @@ pub struct CollisionDetectionCounters {
     pub ncontact_pairs: usize,
     /// Time spent for the broad-phase of the collision detection.
     pub broad_phase_time: Timer,
+    /// Time spent by the final broad-phase AABB update after body movement to keep
+    /// user scene queries valid.
     pub final_broad_phase_time: Timer,
     /// Time spent for the narrow-phase of the collision detection.
     pub narrow_phase_time: Timer,

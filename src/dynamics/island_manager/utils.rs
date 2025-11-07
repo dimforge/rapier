@@ -11,16 +11,13 @@ pub(super) fn push_contacting_bodies(
 ) {
     for collider_handle in &rb_colliders.0 {
         for inter in narrow_phase.contact_pairs_with(*collider_handle) {
-            for manifold in &inter.manifolds {
-                if !manifold.data.solver_contacts.is_empty() {
-                    let other = crate::utils::select_other(
-                        (inter.collider1, inter.collider2),
-                        *collider_handle,
-                    );
-                    if let Some(other_body) = colliders[other].parent {
-                        stack.push(other_body.handle);
-                    }
-                    break;
+            if inter.has_any_active_contact() {
+                let other = crate::utils::select_other(
+                    (inter.collider1, inter.collider2),
+                    *collider_handle,
+                );
+                if let Some(other_body) = colliders[other].parent {
+                    stack.push(other_body.handle);
                 }
             }
         }

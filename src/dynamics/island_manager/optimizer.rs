@@ -157,7 +157,7 @@ impl IslandManager {
 
                 // TODO: implement islands recycling to avoid reallocating every time.
                 let mut new_island = Island::default();
-                self.timestamp += 1;
+                self.traversal_timestamp += 1;
 
                 for root in &self.islands[id].bodies {
                     self.stack.push(*root);
@@ -170,12 +170,12 @@ impl IslandManager {
                             continue;
                         }
 
-                        if rb.ids.active_set_timestamp == self.timestamp {
+                        if rb.ids.active_set_timestamp == self.traversal_timestamp {
                             // We already visited this body.
                             continue;
                         }
 
-                        rb.ids.active_set_timestamp = self.timestamp;
+                        rb.ids.active_set_timestamp = self.traversal_timestamp;
                         assert!(!rb.activation.sleeping);
 
                         // Traverse bodies that are interacting with the current one either through

@@ -134,7 +134,7 @@ pub static FOUNDATION: std::cell::RefCell<PxPhysicsFoundation> = std::cell::RefC
 
 pub struct PhysxWorld {
     // physics: Physics,
-    materials: Vec<Owner<PxMaterial>>,
+    // materials: Vec<Owner<PxMaterial>>,
     shapes: Vec<Owner<PxShape>>,
     scene: Option<Owner<PxScene>>,
 }
@@ -162,7 +162,6 @@ impl PhysxWorld {
         FOUNDATION.with(|physics| {
             let mut physics = physics.borrow_mut();
             let mut shapes = Vec::new();
-            let mut materials = Vec::new();
 
             let friction_type = if use_two_friction_directions {
                 FrictionType::TwoDirectional
@@ -399,7 +398,6 @@ impl PhysxWorld {
             Self {
                 scene: Some(scene),
                 shapes,
-                materials,
             }
         })
     }
