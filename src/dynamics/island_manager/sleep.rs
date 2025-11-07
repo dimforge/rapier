@@ -78,6 +78,7 @@ impl IslandManager {
 
         // TODO: implement recycling islands to avoid repeated allocations?
         let mut new_island = Island::default();
+        self.stack.clear();
         self.stack.push(sleep_root);
 
         let mut can_sleep = true;
@@ -106,6 +107,11 @@ impl IslandManager {
             rb.ids.active_set_timestamp = self.timestamp;
 
             assert!(!rb.activation.sleeping);
+            assert_eq!(
+                rb.ids.active_island_id, active_island_id,
+                "note niter: {}",
+                niter
+            );
 
             // TODO PERF: early-exit as soon as we reach a body not eligible to sleep.
             can_sleep = can_sleep && rb.activation().is_eligible_for_sleep();

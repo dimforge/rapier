@@ -119,7 +119,6 @@ impl IslandManager {
                 {
                     // Found a second candidate! Merge them.
                     self.merge_islands(bodies, island1.id, id2);
-                    println!("Found a merge {}!", self.awake_islands.len());
 
                     // TODO: support doing more than a single merge per frame.
                     return;
