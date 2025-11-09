@@ -138,10 +138,28 @@ impl FixedJointBuilder {
         self
     }
 
-    /// Sets the joint’s anchor, expressed in the local-space of the second rigid-body.
+    /// Sets the joint's anchor, expressed in the local-space of the second rigid-body.
     #[must_use]
     pub fn local_anchor2(mut self, anchor2: Point<Real>) -> Self {
         self.0.set_local_anchor2(anchor2);
+        self
+    }
+
+    /// Sets the natural frequency (Hz) for this joint's constraint regularization.
+    ///
+    /// Higher values make the joint stiffer and resolve constraint violations more quickly.
+    #[must_use]
+    pub fn natural_frequency(mut self, frequency: Real) -> Self {
+        self.0.data.set_natural_frequency(frequency);
+        self
+    }
+
+    /// Sets the damping ratio for this joint's constraint regularization.
+    ///
+    /// Larger values make the joint more compliant (allowing more drift before stabilization).
+    #[must_use]
+    pub fn damping_ratio(mut self, ratio: Real) -> Self {
+        self.0.data.set_damping_ratio(ratio);
         self
     }
 

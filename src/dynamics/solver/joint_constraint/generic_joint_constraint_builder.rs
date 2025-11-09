@@ -407,6 +407,8 @@ impl JointConstraintHelper<Real> {
         mb2: LinkOrBodyRef,
         locked_axis: usize,
         writeback_id: WritebackId,
+        natural_frequency: Real,
+        damping_ratio: Real,
     ) -> GenericJointConstraint {
         let lin_jac = self.basis.column(locked_axis).into_owned();
         let ang_jac1 = self.cmat1_basis.column(locked_axis).into_owned();
@@ -426,7 +428,11 @@ impl JointConstraintHelper<Real> {
             ang_jac2,
         );
 
-        let erp_inv_dt = params.joint_erp_inv_dt();
+        let erp_inv_dt = params.joint_erp_inv_dt_with_override(natural_frequency, damping_ratio);
+        eprintln!(
+            "[joint_constraint] lock_linear_generic: joint_id={} natural_frequency={:?} damping_ratio={:?} erp_inv_dt={:?}",
+            joint_id, natural_frequency, damping_ratio, erp_inv_dt
+        );
         let rhs_bias = lin_jac.dot(&self.lin_err) * erp_inv_dt;
         c.rhs += rhs_bias;
         c
@@ -445,6 +451,8 @@ impl JointConstraintHelper<Real> {
         limited_axis: usize,
         limits: [Real; 2],
         writeback_id: WritebackId,
+        natural_frequency: Real,
+        damping_ratio: Real,
     ) -> GenericJointConstraint {
         let lin_jac = self.basis.column(limited_axis).into_owned();
         let ang_jac1 = self.cmat1_basis.column(limited_axis).into_owned();
@@ -468,7 +476,13 @@ impl JointConstraintHelper<Real> {
         let min_enabled = dist <= limits[0];
         let max_enabled = limits[1] <= dist;
 
-        let erp_inv_dt = params.joint_erp_inv_dt();
+        let erp_inv_dt = params.joint_erp_inv_dt_with_override(natural_frequency, damping_ratio);
+        // Debug: print per-joint compliance overrides and computed ERP for limit constraints.
+        eprintln!(
+            "[joint_constraint] limit_linear_generic: joint_id={} natural_frequency={:?} damping_ratio={:?} erp_inv_dt={:?}",
+            joint_id, natural_frequency, damping_ratio, erp_inv_dt
+        );
+
         let rhs_bias = ((dist - limits[1]).max(0.0) - (limits[0] - dist).max(0.0)) * erp_inv_dt;
         constraint.rhs += rhs_bias;
         constraint.impulse_bounds = [
@@ -546,6 +560,8 @@ impl JointConstraintHelper<Real> {
         mb2: LinkOrBodyRef,
         _locked_axis: usize,
         writeback_id: WritebackId,
+        natural_frequency: Real,
+        damping_ratio: Real,
     ) -> GenericJointConstraint {
         #[cfg(feature = "dim2")]
         let ang_jac = Vector1::new(1.0);
@@ -566,7 +582,7 @@ impl JointConstraintHelper<Real> {
             ang_jac,
         );
 
-        let erp_inv_dt = params.joint_erp_inv_dt();
+        let erp_inv_dt = params.joint_erp_inv_dt_with_override(natural_frequency, damping_ratio);
         #[cfg(feature = "dim2")]
         let rhs_bias = self.ang_err.im * erp_inv_dt;
         #[cfg(feature = "dim3")]
@@ -588,6 +604,8 @@ impl JointConstraintHelper<Real> {
         _limited_axis: usize,
         limits: [Real; 2],
         writeback_id: WritebackId,
+        natural_frequency: Real,
+        damping_ratio: Real,
     ) -> GenericJointConstraint {
         #[cfg(feature = "dim2")]
         let ang_jac = Vector1::new(1.0);
@@ -620,7 +638,7 @@ impl JointConstraintHelper<Real> {
             max_enabled as u32 as Real * Real::MAX,
         ];
 
-        let erp_inv_dt = params.joint_erp_inv_dt();
+        let erp_inv_dt = params.joint_erp_inv_dt_with_override(natural_frequency, damping_ratio);
         let rhs_bias =
             ((s_ang - s_limits[1]).max(0.0) - (s_limits[0] - s_ang).max(0.0)) * erp_inv_dt;
 

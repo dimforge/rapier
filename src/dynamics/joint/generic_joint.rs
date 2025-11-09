@@ -282,6 +282,16 @@ pub struct GenericJoint {
     /// For coupled degrees of freedoms (DoF), only the first linear (resp. angular) coupled DoF motor and `motor_axes`
     /// bitmask is applied to the coupled linear (resp. angular) axes.
     pub motors: [JointMotor; SPATIAL_DIM],
+    /// The natural frequency (Hz) used for the joint constraint spring-like regularization.
+    ///
+    /// Higher values make the joint stiffer and resolve constraint violations more quickly.
+    /// (default: `1.0e6`).
+    pub natural_frequency: Real,
+    /// The damping ratio used for the joint constraint spring-like regularization.
+    ///
+    /// Larger values make the joint more compliant (allowing more drift before stabilization).
+    /// (default: `1.0`).
+    pub damping_ratio: Real,
     /// Are contacts between the attached rigid-bodies enabled?
     pub contacts_enabled: bool,
     /// Whether the joint is enabled.
@@ -301,6 +311,8 @@ impl Default for GenericJoint {
             coupled_axes: JointAxesMask::empty(),
             limits: [JointLimits::default(); SPATIAL_DIM],
             motors: [JointMotor::default(); SPATIAL_DIM],
+            natural_frequency: 1.0e6,
+            damping_ratio: 1.0,
             contacts_enabled: true,
             enabled: JointEnabled::Enabled,
             user_data: 0,
@@ -438,6 +450,75 @@ impl GenericJoint {
     pub fn set_contacts_enabled(&mut self, enabled: bool) -> &mut Self {
         self.contacts_enabled = enabled;
         self
+    }
+
+    /// The natural frequency (Hz) for this joint's constraint regularization.
+    #[must_use]
+    pub fn natural_frequency(&self) -> Real {
+        self.natural_frequency
+    }
+
+    /// Sets the natural frequency (Hz) for this joint's constraint regularization.
+    ///
+    /// Higher values make the joint stiffer and resolve constraint violations more quickly.
+    ///
+    /// # Example
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// let mut joint = RevoluteJoint::new(Vector::y_axis());
+    /// joint.set_natural_frequency(5.0e5); // Softer than default (1.0e6)
+    /// ```
+    pub fn set_natural_frequency(&mut self, frequency: Real) -> &mut Self {
+        self.natural_frequency = frequency;
+        self
+    }
+
+    /// The damping ratio for this joint's constraint regularization.
+    #[must_use]
+    pub fn damping_ratio(&self) -> Real {
+        self.damping_ratio
+    }
+
+    /// Sets the damping ratio for this joint's constraint regularization.
+    ///
+    /// Larger values make the joint more compliant (allowing more drift before stabilization).
+    ///
+    /// # Example
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// let mut joint = RevoluteJoint::new(Vector::y_axis());
+    /// joint.set_damping_ratio(2.0); // More compliant than default (1.0)
+    /// ```
+    pub fn set_damping_ratio(&mut self, ratio: Real) -> &mut Self {
+        self.damping_ratio = ratio;
+        self
+    }
+
+    /// The joint's spring angular frequency for constraint regularization.
+    pub fn joint_angular_frequency(&self) -> Real {
+        self.natural_frequency * std::f64::consts::TAU as Real
+    }
+
+    /// The joint ERP coefficient (multiplied by inverse timestep).
+    pub fn joint_erp_inv_dt(&self, dt: Real) -> Real {
+        let ang_freq = self.joint_angular_frequency();
+        ang_freq / (dt * ang_freq + 2.0 * self.damping_ratio)
+    }
+
+    /// The effective Error Reduction Parameter for calculating regularization forces.
+    pub fn joint_erp(&self, dt: Real) -> Real {
+        dt * self.joint_erp_inv_dt(dt)
+    }
+
+    /// The CFM coefficient for constraint regularization.
+    pub fn joint_cfm_coeff(&self, dt: Real) -> Real {
+        let joint_erp = self.joint_erp(dt);
+        if joint_erp == 0.0 {
+            return 0.0;
+        }
+        let inv_erp_minus_one = 1.0 / joint_erp - 1.0;
+        inv_erp_minus_one * inv_erp_minus_one
+            / ((1.0 + inv_erp_minus_one) * 4.0 * self.damping_ratio * self.damping_ratio)
     }
 
     /// The joint limits along the specified axis.
@@ -764,6 +845,40 @@ impl GenericJointBuilder {
     #[must_use]
     pub fn motor_max_force(mut self, axis: JointAxis, max_force: Real) -> Self {
         self.0.set_motor_max_force(axis, max_force);
+        self
+    }
+
+    /// Sets the natural frequency (Hz) for this joint's constraint regularization.
+    ///
+    /// Higher values make the joint stiffer and resolve constraint violations more quickly.
+    ///
+    /// # Example
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// let joint = RevoluteJointBuilder::new(Vector::y_axis())
+    ///     .natural_frequency(5.0e5)  // Softer than default
+    ///     .build();
+    /// ```
+    #[must_use]
+    pub fn natural_frequency(mut self, frequency: Real) -> Self {
+        self.0.set_natural_frequency(frequency);
+        self
+    }
+
+    /// Sets the damping ratio for this joint's constraint regularization.
+    ///
+    /// Larger values make the joint more compliant (allowing more drift before stabilization).
+    ///
+    /// # Example
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// let joint = RevoluteJointBuilder::new(Vector::y_axis())
+    ///     .damping_ratio(2.0)  // More compliant than default
+    ///     .build();
+    /// ```
+    #[must_use]
+    pub fn damping_ratio(mut self, ratio: Real) -> Self {
+        self.0.set_damping_ratio(ratio);
         self
     }
 

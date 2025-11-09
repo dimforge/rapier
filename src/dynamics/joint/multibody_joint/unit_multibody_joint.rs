@@ -19,12 +19,17 @@ pub fn unit_joint_limit_constraint(
     jacobians: &mut DVector<Real>,
     constraints: &mut [GenericJointConstraint],
     insert_at: &mut usize,
+    natural_frequency: Real,
+    damping_ratio: Real,
 ) {
     let ndofs = multibody.ndofs();
     let min_enabled = curr_pos < limits[0];
     let max_enabled = limits[1] < curr_pos;
-    let erp_inv_dt = params.joint_erp_inv_dt();
-    let cfm_coeff = params.joint_cfm_coeff();
+    
+    // Compute per-joint ERP and CFM
+    let erp_inv_dt = params.joint_erp_inv_dt_with_override(natural_frequency, damping_ratio);
+    let cfm_coeff = params.joint_cfm_coeff_with_override(natural_frequency, damping_ratio);
+    
     let rhs_bias = ((curr_pos - limits[1]).max(0.0) - (limits[0] - curr_pos).max(0.0)) * erp_inv_dt;
     let rhs_wo_bias = 0.0;
 
