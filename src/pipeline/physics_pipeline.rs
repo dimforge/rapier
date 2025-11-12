@@ -704,7 +704,8 @@ impl PhysicsPipeline {
                     let aabb = co.compute_broad_phase_aabb(&integration_parameters, bodies);
                     broad_phase.set_aabb(&integration_parameters, *handle, aabb);
                 }
-                modified_colliders.clear();
+
+                // modified_colliders.clear();
                 // self.clear_modified_colliders(colliders, &mut modified_colliders);
             }
         }
