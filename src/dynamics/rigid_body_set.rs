@@ -31,12 +31,12 @@ pub(crate) type ModifiedRigidBodies = ModifiedObjects<RigidBodyHandle, RigidBody
 impl HasModifiedFlag for RigidBody {
     #[inline]
     fn has_modified_flag(&self) -> bool {
-        self.changes.contains(RigidBodyChanges::MODIFIED)
+        self.changes.contains(RigidBodyChanges::IN_MODIFIED_SET)
     }
 
     #[inline]
     fn set_modified_flag(&mut self) {
-        self.changes |= RigidBodyChanges::MODIFIED;
+        self.changes |= RigidBodyChanges::IN_MODIFIED_SET;
     }
 }
 
