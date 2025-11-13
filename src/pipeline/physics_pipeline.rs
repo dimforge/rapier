@@ -82,6 +82,12 @@ impl PhysicsPipeline {
         colliders: &mut ColliderSet,
         modified_colliders: &mut ModifiedColliders,
     ) {
+        // TODO: we can’t just iterate on `modified_colliders` here to clear the
+        //       flags because the last substep will leave some colliders with
+        //       changes flags set after solving, but without the collider being
+        //       part of the `ModifiedColliders` set. This is a bit error-prone but
+        //       is necessary for the modified information to carry on to the
+        //       next frame’s narrow-phase for updating.
         for co in colliders.colliders.iter_mut() {
             co.1.changes = ColliderChanges::empty();
         }
@@ -700,12 +706,30 @@ impl PhysicsPipeline {
                 // If we ran the last substep, just update the broad-phase bvh instead
                 // of a full collision-detection step.
                 for handle in modified_colliders.iter() {
-                    let co = &colliders[*handle];
-                    let aabb = co.compute_broad_phase_aabb(&integration_parameters, bodies);
-                    broad_phase.set_aabb(&integration_parameters, *handle, aabb);
+                    let co = colliders.index_mut_internal(*handle);
+                    // NOTE: `advance_to_final_positions` might have added disabled colliders to
+                    //       `modified_colliders`. This raises the question: do we want
+                    //       rigid-body transform propagation to happen on disabled colliders if
+                    //       their parent rigid-body is enabled? For now, we are propagating as
+                    //       it feels less surprising to the user and makes handling collider
+                    //       re-enable less awkward.
+                        let aabb = co.compute_broad_phase_aabb(&integration_parameters, bodies);
+                        broad_phase.set_aabb(&integration_parameters, *handle, aabb);
+
+                    // Clear the modified collider set, but keep the other collider changes flags.
+                    // This is needed so that the narrow-phase at the next timestep knows it must
+                    // not skip these colliders for its update.
+                    // TODO: this doesn’t feel very clean, but leaving the collider in the modified
+                    //       set would be expensive as this will be traversed by all the user-changes
+                    //       functions. An alternative would be to maintain a second modified set,
+                    //       one for user changes, and one for changes applied by the solver but that
+                    //       feels a bit too much. Let’s keep it simple for now and we’ll see how it
+                    //       goes after the persistent island rework.
+                    co.changes.remove(ColliderChanges::IN_MODIFIED_SET);
                 }
+
+                // Empty the modified colliders set. See comment for `co.change.remove(..)` above.
                 modified_colliders.clear();
-                // self.clear_modified_colliders(colliders, &mut modified_colliders);
             }
         }
 
