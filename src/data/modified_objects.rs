@@ -9,7 +9,7 @@ use std::ops::Deref;
 /// be done for internal engine usage (like the physics pipeline).
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
-pub(crate) struct ModifiedObjects<Handle, Object>(Vec<Handle>, PhantomData<Object>);
+pub struct ModifiedObjects<Handle, Object>(Vec<Handle>, PhantomData<Object>);
 
 impl<Handle, Object> Default for ModifiedObjects<Handle, Object> {
     fn default() -> Self {
@@ -17,8 +17,11 @@ impl<Handle, Object> Default for ModifiedObjects<Handle, Object> {
     }
 }
 
-pub(crate) trait HasModifiedFlag {
+/// Objects that internally track a flag indicating whether they've been modified
+pub trait HasModifiedFlag {
+    /// Whether the object has been modified
     fn has_modified_flag(&self) -> bool;
+    /// Mark object as modified
     fn set_modified_flag(&mut self);
 }
 
@@ -30,6 +33,7 @@ impl<Handle, Object> Deref for ModifiedObjects<Handle, Object> {
 }
 
 impl<Handle, Object: HasModifiedFlag> ModifiedObjects<Handle, Object> {
+    /// Preallocate memory for `capacity` handles
     pub fn with_capacity(capacity: usize) -> Self {
         Self(Vec::with_capacity(capacity), PhantomData)
     }
