@@ -713,8 +713,10 @@ impl PhysicsPipeline {
                     //       their parent rigid-body is enabled? For now, we are propagating as
                     //       it feels less surprising to the user and makes handling collider
                     //       re-enable less awkward.
+                    if co.is_enabled() {
                         let aabb = co.compute_broad_phase_aabb(&integration_parameters, bodies);
                         broad_phase.set_aabb(&integration_parameters, *handle, aabb);
+                    }
 
                     // Clear the modified collider set, but keep the other collider changes flags.
                     // This is needed so that the narrow-phase at the next timestep knows it must
