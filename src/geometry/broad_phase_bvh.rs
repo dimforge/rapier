@@ -20,6 +20,13 @@ pub struct BroadPhaseBvh {
     pub(crate) tree: Bvh,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     workspace: BvhWorkspace,
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(
+            serialize_with = "crate::utils::serde::serialize_to_vec_tuple",
+            deserialize_with = "crate::utils::serde::deserialize_from_vec_tuple"
+        )
+    )]
     pairs: HashMap<(ColliderHandle, ColliderHandle), u32>,
     frame_index: u32,
     optimization_strategy: BvhOptimizationStrategy,
