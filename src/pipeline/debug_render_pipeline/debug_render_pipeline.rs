@@ -327,6 +327,8 @@ impl DebugRenderPipeline {
                             c[2] * coeff[2],
                             c[3] * coeff[3],
                         ]
+                    } else if !co.is_enabled() {
+                        self.style.disabled_color_multiplier
                     } else {
                         self.style.collider_parentless_color
                     };
