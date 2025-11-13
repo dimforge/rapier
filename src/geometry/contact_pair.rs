@@ -394,7 +394,7 @@ pub struct SolverContactGeneric<N: SimdRealCopy, const LANES: usize> {
     /// This isn’t a bool for optimizations purpose with SIMD.
     pub is_new: N, // 1/1
     /// The index of the manifold contact used to generate this solver contact.
-    pub contact_id: [u32; LANES], // 1/1
+    pub(crate) contact_id: [u32; LANES], // 1/1
     #[cfg(feature = "dim3")]
     pub(crate) padding: [N; 1],
 }
