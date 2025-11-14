@@ -95,6 +95,8 @@ pub struct MultibodyJointSet {
     //       that any more in the future when we improve our island builder.
     pub(crate) connectivity_graph: InteractionGraph<RigidBodyHandle, ()>,
     pub(crate) to_wake_up: HashSet<RigidBodyHandle>,
+    /// A set of rigid-body pairs to join in the island manager during the next timestep.
+    pub(crate) to_join: HashSet<(RigidBodyHandle, RigidBodyHandle)>,
 }
 
 impl MultibodyJointSet {
@@ -105,6 +107,7 @@ impl MultibodyJointSet {
             rb2mb: Coarena::new(),
             connectivity_graph: InteractionGraph::new(),
             to_wake_up: HashSet::default(),
+            to_join: HashSet::default(),
         }
     }
 
@@ -204,6 +207,8 @@ impl MultibodyJointSet {
             self.to_wake_up.insert(body1);
             self.to_wake_up.insert(body2);
         }
+
+        self.to_join.insert((body1, body2));
 
         // Because each rigid-body can only have one parent link,
         // we can use the second rigid-body’s handle as the multibody_joint’s

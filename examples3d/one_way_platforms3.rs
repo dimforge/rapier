@@ -105,7 +105,7 @@ pub fn init_world(testbed: &mut Testbed) {
         }
 
         for handle in physics.islands.active_bodies() {
-            let body = physics.bodies.get_mut(*handle).unwrap();
+            let body = physics.bodies.get_mut(handle).unwrap();
             if body.position().translation.y > 1.0 {
                 body.set_gravity_scale(1.0, false);
             } else if body.position().translation.y < -1.0 {

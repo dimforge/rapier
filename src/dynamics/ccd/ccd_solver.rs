@@ -88,7 +88,7 @@ impl CCDSolver {
 
         // println!("Checking CCD activation");
         for handle in islands.active_bodies() {
-            let rb = bodies.index_mut_internal(*handle);
+            let rb = bodies.index_mut_internal(handle);
 
             if rb.ccd.ccd_enabled {
                 let forces = if include_forces {
@@ -143,7 +143,7 @@ impl CCDSolver {
         let mut min_toi = dt;
 
         for handle in islands.active_bodies() {
-            let rb1 = &bodies[*handle];
+            let rb1 = &bodies[handle];
 
             if rb1.ccd.ccd_active {
                 let predicted_body_pos1 = rb1.pos.integrate_forces_and_velocities(
@@ -276,7 +276,7 @@ impl CCDSolver {
          */
         // TODO: don't iterate through all the colliders.
         for handle in islands.active_bodies() {
-            let rb1 = &bodies[*handle];
+            let rb1 = &bodies[handle];
 
             if rb1.ccd.ccd_active {
                 let predicted_body_pos1 = rb1.pos.integrate_forces_and_velocities(
