@@ -11,12 +11,12 @@ pub type ModifiedColliders = ModifiedObjects<ColliderHandle, Collider>;
 impl HasModifiedFlag for Collider {
     #[inline]
     fn has_modified_flag(&self) -> bool {
-        self.changes.contains(ColliderChanges::MODIFIED)
+        self.changes.contains(ColliderChanges::IN_MODIFIED_SET)
     }
 
     #[inline]
     fn set_modified_flag(&mut self) {
-        self.changes |= ColliderChanges::MODIFIED;
+        self.changes |= ColliderChanges::IN_MODIFIED_SET;
     }
 }
 

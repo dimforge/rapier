@@ -1,10 +1,18 @@
 ## Unreleased
 
-- `InteractionGroups` struct now contains `InteractionTestMode`. Continues [rapier/pull/170](https://github.com/dimforge/rapier/pull/170) for [rapier/issues/622](https://github.com/dimforge/rapier/issues/622)
-- `InteractionGroups` constructor now requires an `InteractionTestMode` parameter. If you want same behaviour as before, use `InteractionTestMode::And` (eg. `InteractionGroups::new(Group::GROUP_1, Group::GROUP_1, InteractionTestMode::And)`)
+- `InteractionGroups` struct now contains `InteractionTestMode`.
+  Continues [rapier/pull/170](https://github.com/dimforge/rapier/pull/170)
+  for [rapier/issues/622](https://github.com/dimforge/rapier/issues/622)
+- `InteractionGroups` constructor now requires an `InteractionTestMode` parameter. If you want same behaviour as before,
+  use `InteractionTestMode::And` (eg.
+  `InteractionGroups::new(Group::GROUP_1, Group::GROUP_1, InteractionTestMode::And)`)
 - `CoefficientCombineRule::Min` - now makes sure it uses a non zero value as result by using `coeff1.min(coeff2).abs()`
 - `InteractionTestMode`: Specifies which method should be used to test interactions. Supports `AND` and `OR`.
 - `CoefficientCombineRule::ClampedSum` - Adds the two coefficients and does a clamp to have at most 1.
+- Rename `ColliderChanges::CHANGED` to `::IN_CHANGED_SET` to make its meaning more precise.
+- Rename `RigidBodyChanges::CHANGED` to `::IN_CHANGED_SET` to make its meaning more precise.
+- Fix colliders ignoring user-changes after the first simulation step.
+- Fix broad-phase incorrectly taking into account disabled colliders attached to an enabled dynamic rigid-body.
 
 ## v0.30.1 (17 Oct. 2025)
 
