@@ -467,7 +467,7 @@ impl GenericJoint {
     /// ```
     /// # use rapier3d::prelude::*;
     /// let mut joint = RevoluteJoint::new(Vector::y_axis());
-    /// joint.set_natural_frequency(5.0e5); // Softer than default (1.0e6)
+    /// joint.data.natural_frequency = 5.0e5; // Softer than default (1.0e6)
     /// ```
     pub fn set_natural_frequency(&mut self, frequency: Real) -> &mut Self {
         self.natural_frequency = frequency;
@@ -488,7 +488,7 @@ impl GenericJoint {
     /// ```
     /// # use rapier3d::prelude::*;
     /// let mut joint = RevoluteJoint::new(Vector::y_axis());
-    /// joint.set_damping_ratio(2.0); // More compliant than default (1.0)
+    /// joint.data.damping_ratio = 2.0; // More compliant than default (1.0)
     /// ```
     pub fn set_damping_ratio(&mut self, ratio: Real) -> &mut Self {
         self.damping_ratio = ratio;
