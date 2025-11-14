@@ -429,10 +429,6 @@ impl JointConstraintHelper<Real> {
         );
 
         let erp_inv_dt = params.joint_erp_inv_dt_with_override(natural_frequency, damping_ratio);
-        eprintln!(
-            "[joint_constraint] lock_linear_generic: joint_id={} natural_frequency={:?} damping_ratio={:?} erp_inv_dt={:?}",
-            joint_id, natural_frequency, damping_ratio, erp_inv_dt
-        );
         let rhs_bias = lin_jac.dot(&self.lin_err) * erp_inv_dt;
         c.rhs += rhs_bias;
         c
@@ -477,11 +473,6 @@ impl JointConstraintHelper<Real> {
         let max_enabled = limits[1] <= dist;
 
         let erp_inv_dt = params.joint_erp_inv_dt_with_override(natural_frequency, damping_ratio);
-        // Debug: print per-joint compliance overrides and computed ERP for limit constraints.
-        eprintln!(
-            "[joint_constraint] limit_linear_generic: joint_id={} natural_frequency={:?} damping_ratio={:?} erp_inv_dt={:?}",
-            joint_id, natural_frequency, damping_ratio, erp_inv_dt
-        );
 
         let rhs_bias = ((dist - limits[1]).max(0.0) - (limits[0] - dist).max(0.0)) * erp_inv_dt;
         constraint.rhs += rhs_bias;

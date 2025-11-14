@@ -205,8 +205,6 @@ pub(crate) fn update_ui(
                 )
                 .text(format!("damping ratio (cfm-factor = {curr_cfm_factor:.3})",)),
             );
-            // Note: joint_natural_frequency and joint_damping_ratio are now per-joint properties.
-            // Set them via joint.set_natural_frequency() and joint.set_damping_ratio().
         }
 
         #[cfg(feature = "parallel")]
