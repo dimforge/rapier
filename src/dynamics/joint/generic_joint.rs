@@ -1,4 +1,5 @@
 #![allow(clippy::bad_bit_mask)] // Clippy will complain about the bitmasks due to JointAxesMask::FREE_FIXED_AXES being 0.
+#![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
 
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{
