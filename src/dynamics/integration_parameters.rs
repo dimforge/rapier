@@ -244,11 +244,6 @@ impl IntegrationParameters {
         1.0 / (1.0 + cfm_coeff)
     }
 
-    /// The CFM (constraints force mixing) coefficient applied to all joints for constraints regularization.
-    ///
-    /// This parameter is computed automatically from [`Self::joint_natural_frequency`],
-    /// [`Self::joint_damping_ratio`] and the substep length.
-
     /// The joint's spring angular frequency for constraint regularization, using per-joint parameter.
     pub fn joint_angular_frequency_with_override(&self, natural_frequency: Real) -> Real {
         natural_frequency * Real::two_pi()
