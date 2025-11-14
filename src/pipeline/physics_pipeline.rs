@@ -730,13 +730,8 @@ impl PhysicsPipeline {
                     co.changes.remove(ColliderChanges::IN_MODIFIED_SET);
                 }
 
-<<<<<<< HEAD
-                modified_colliders.clear();
-                // self.clear_modified_colliders(colliders, &mut modified_colliders);
-=======
                 // Empty the modified colliders set. See comment for `co.change.remove(..)` above.
                 modified_colliders.clear();
->>>>>>> upstream/fix-disable-and-user-changes
             }
         }
 
