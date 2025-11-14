@@ -111,8 +111,8 @@ bitflags::bitflags! {
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     /// Flags describing how the rigid-body has been modified by the user.
     pub struct RigidBodyChanges: u32 {
-        /// Flag indicating that any component of this rigid-body has been modified.
-        const MODIFIED    = 1 << 0;
+        /// Flag indicating that this rigid-body is in the modified rigid-body set.
+        const IN_MODIFIED_SET = 1 << 0;
         /// Flag indicating that the `RigidBodyPosition` component of this rigid-body has been modified.
         const POSITION    = 1 << 1;
         /// Flag indicating that the `RigidBodyActivation` component of this rigid-body has been modified.
@@ -1061,10 +1061,7 @@ impl RigidBodyColliders {
         co_handle: ColliderHandle,
     ) {
         if let Some(i) = self.0.iter().position(|e| *e == co_handle) {
-            rb_changes.set(
-                RigidBodyChanges::MODIFIED | RigidBodyChanges::COLLIDERS,
-                true,
-            );
+            rb_changes.set(RigidBodyChanges::COLLIDERS, true);
             self.0.swap_remove(i);
         }
     }
@@ -1083,10 +1080,7 @@ impl RigidBodyColliders {
         co_shape: &ColliderShape,
         co_mprops: &ColliderMassProps,
     ) {
-        rb_changes.set(
-            RigidBodyChanges::MODIFIED | RigidBodyChanges::COLLIDERS,
-            true,
-        );
+        rb_changes.set(RigidBodyChanges::COLLIDERS, true);
 
         co_pos.0 = rb_pos.position * co_parent.pos_wrt_parent;
         rb_ccd.ccd_thickness = rb_ccd.ccd_thickness.min(co_shape.ccd_thickness());
@@ -1113,6 +1107,8 @@ impl RigidBodyColliders {
     ) {
         for handle in &self.0 {
             // NOTE: the ColliderParent component must exist if we enter this method.
+            // NOTE: currently, we are propagating the position even if the collider is disabled.
+            //       Is that the best behavior?
             let co = colliders.index_mut_internal(*handle);
             let new_pos = parent_pos * co.parent.as_ref().unwrap().pos_wrt_parent;
 

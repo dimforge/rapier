@@ -35,8 +35,8 @@ bitflags::bitflags! {
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     /// Flags describing how the collider has been modified by the user.
     pub struct ColliderChanges: u32 {
-        /// Flag indicating that any component of the collider has been modified.
-        const MODIFIED = 1 << 0;
+        /// Flag indicating that the collider handle is in the changed collider set.
+        const IN_MODIFIED_SET = 1 << 0;
         /// Flag indicating that the density or mass-properties of this collider was changed.
         const LOCAL_MASS_PROPERTIES = 1 << 1; // => RigidBody local mass-properties update.
         /// Flag indicating that the `ColliderParent` component of the collider has been modified.

@@ -20,6 +20,13 @@ pub struct BroadPhaseBvh {
     pub(crate) tree: Bvh,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     workspace: BvhWorkspace,
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(
+            serialize_with = "crate::utils::serde::serialize_to_vec_tuple",
+            deserialize_with = "crate::utils::serde::deserialize_from_vec_tuple"
+        )
+    )]
     pairs: HashMap<(ColliderHandle, ColliderHandle), u32>,
     frame_index: u32,
     optimization_strategy: BvhOptimizationStrategy,
@@ -68,10 +75,6 @@ impl BroadPhaseBvh {
     /// required to generate new events (i.e. no need to re-send an `AddPair` event if it was already
     /// sent previously and no `RemovePair` happened since then). Sending redundant events is allowed
     /// but can result in a slight computational overhead.
-    ///
-    /// The `colliders` set is mutable only to provide access to
-    /// [`collider.set_internal_broad_phase_proxy_index`]. Other properties of the collider should
-    /// **not** be modified during the broad-phase update.
     ///
     /// # Parameters
     /// - `params`: the integration parameters governing the simulation.

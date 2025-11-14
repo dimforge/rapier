@@ -81,5 +81,6 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_character_body(character_handle);
     testbed.look_at(point![0.0, 1.0], 100.0);
 }
