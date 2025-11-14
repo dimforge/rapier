@@ -44,7 +44,10 @@ pub fn init_world(testbed: &mut Testbed) {
             // Vertical joint.
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
-                let joint = RevoluteJointBuilder::new().local_anchor2(point![0.0, shift]).natural_frequency(5.0 * (i+1) as f32).damping_ratio(0.1 * (i+1) as f32);
+                let joint = RevoluteJointBuilder::new()
+                    .local_anchor2(point![0.0, shift])
+                    .natural_frequency(5.0 * (i + 1) as f32)
+                    .damping_ratio(0.1 * (i + 1) as f32);
                 impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
 
@@ -52,7 +55,10 @@ pub fn init_world(testbed: &mut Testbed) {
             if k > 0 {
                 let parent_index = body_handles.len() - numi;
                 let parent_handle = body_handles[parent_index];
-                let joint = RevoluteJointBuilder::new().local_anchor2(point![-shift, 0.0]).natural_frequency(5.0 * (i+1) as f32).damping_ratio(0.1 * (i+1) as f32);
+                let joint = RevoluteJointBuilder::new()
+                    .local_anchor2(point![-shift, 0.0])
+                    .natural_frequency(5.0 * (i + 1) as f32)
+                    .damping_ratio(0.1 * (i + 1) as f32);
                 impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
 

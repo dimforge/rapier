@@ -1,5 +1,5 @@
-use rapier2d::prelude::*;
 use rapier_testbed2d::Testbed;
+use rapier2d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*

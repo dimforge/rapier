@@ -199,7 +199,6 @@ impl IntegrationParameters {
     pub fn contact_erp(&self) -> Real {
         self.dt * self.contact_erp_inv_dt()
     }
-    
 
     /// The CFM factor to be used in the constraint resolution.
     ///
@@ -249,7 +248,6 @@ impl IntegrationParameters {
     ///
     /// This parameter is computed automatically from [`Self::joint_natural_frequency`],
     /// [`Self::joint_damping_ratio`] and the substep length.
-    
 
     /// The joint's spring angular frequency for constraint regularization, using per-joint parameter.
     pub fn joint_angular_frequency_with_override(&self, natural_frequency: Real) -> Real {
@@ -278,7 +276,8 @@ impl IntegrationParameters {
             return 0.0;
         }
         let inv_erp_minus_one = 1.0 / joint_erp - 1.0;
-        inv_erp_minus_one * inv_erp_minus_one / ((1.0 + inv_erp_minus_one) * 4.0 * damping_ratio * damping_ratio)
+        inv_erp_minus_one * inv_erp_minus_one
+            / ((1.0 + inv_erp_minus_one) * 4.0 * damping_ratio * damping_ratio)
     }
 
     /// Amount of penetration the engine won't attempt to correct (default: `0.001` multiplied by

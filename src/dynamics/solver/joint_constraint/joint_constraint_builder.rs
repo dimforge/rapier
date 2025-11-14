@@ -287,8 +287,16 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         cfm_coeff: N,
     ) -> JointConstraint<N, LANES> {
         let zero = N::zero();
-        let mut constraint =
-            self.lock_linear(params, joint_id, body1, body2, limited_axis, writeback_id, erp_inv_dt, cfm_coeff);
+        let mut constraint = self.lock_linear(
+            params,
+            joint_id,
+            body1,
+            body2,
+            limited_axis,
+            writeback_id,
+            erp_inv_dt,
+            cfm_coeff,
+        );
 
         let dist = self.lin_err.dot(&constraint.lin_jac);
         let min_enabled = dist.simd_le(limits[0]);
@@ -393,8 +401,16 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         let inv_dt = N::splat(params.inv_dt());
         // Motors don't use joint erp/cfm; they use motor-specific parameters.
         // Pass dummy values since lock_linear will override them anyway.
-        let mut constraint =
-            self.lock_linear(params, joint_id, body1, body2, motor_axis, writeback_id, N::zero(), N::zero());
+        let mut constraint = self.lock_linear(
+            params,
+            joint_id,
+            body1,
+            body2,
+            motor_axis,
+            writeback_id,
+            N::zero(),
+            N::zero(),
+        );
 
         let mut rhs_wo_bias = N::zero();
         if motor_params.erp_inv_dt != N::zero() {

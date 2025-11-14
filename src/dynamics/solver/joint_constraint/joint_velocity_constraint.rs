@@ -9,10 +9,10 @@ use crate::utils::{SimdDot, SimdRealCopy};
 use crate::dynamics::solver::solver_body::SolverBodies;
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::{SIMD_WIDTH, SimdReal};
-#[cfg(feature = "simd-is-enabled")]
-use na::SimdValue;
 #[cfg(feature = "dim2")]
 use crate::num::Zero;
+#[cfg(feature = "simd-is-enabled")]
+use na::SimdValue;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct MotorParameters<N: SimdRealCopy> {
@@ -250,8 +250,16 @@ impl JointConstraint<Real, 1> {
         }
         for i in 0..DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] =
-                    builder.lock_linear(params, [joint_id], body1, body2, i, WritebackId::Dof(i), erp_inv_dt, cfm_coeff);
+                out[len] = builder.lock_linear(
+                    params,
+                    [joint_id],
+                    body1,
+                    body2,
+                    i,
+                    WritebackId::Dof(i),
+                    erp_inv_dt,
+                    cfm_coeff,
+                );
                 len += 1;
             }
         }
@@ -369,11 +377,14 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
         let ang_freq = natural_frequency * SimdReal::splat(std::f64::consts::TAU as Real);
         let dt = SimdReal::splat(params.dt);
         let erp_inv_dt = ang_freq / (dt * ang_freq + SimdReal::splat(2.0) * damping_ratio);
-        
+
         let joint_erp = dt * erp_inv_dt;
         let inv_erp_minus_one = SimdReal::splat(1.0) / joint_erp - SimdReal::splat(1.0);
         let cfm_coeff = inv_erp_minus_one * inv_erp_minus_one
-            / ((SimdReal::splat(1.0) + inv_erp_minus_one) * SimdReal::splat(4.0) * damping_ratio * damping_ratio);
+            / ((SimdReal::splat(1.0) + inv_erp_minus_one)
+                * SimdReal::splat(4.0)
+                * damping_ratio
+                * damping_ratio);
 
         let builder = JointConstraintHelper::new(
             frame1,
@@ -386,8 +397,16 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
         let mut len = 0;
         for i in 0..DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] =
-                    builder.lock_linear(params, joint_id, body1, body2, i, WritebackId::Dof(i), erp_inv_dt, cfm_coeff);
+                out[len] = builder.lock_linear(
+                    params,
+                    joint_id,
+                    body1,
+                    body2,
+                    i,
+                    WritebackId::Dof(i),
+                    erp_inv_dt,
+                    cfm_coeff,
+                );
                 len += 1;
             }
         }
