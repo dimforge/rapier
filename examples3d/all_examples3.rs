@@ -41,10 +41,12 @@ mod joints3;
 mod character_controller3;
 mod debug_chain_high_mass_ratio3;
 mod debug_cube_high_mass_ratio3;
+mod debug_disabled3;
 mod debug_internal_edges3;
 mod debug_long_chain3;
 mod debug_multibody_ang_motor_pos3;
 mod debug_sleeping_kinematic3;
+mod debug_two_cubes3;
 mod gyroscopic3;
 mod inverse_kinematics3;
 mod joint_motor_position3;
@@ -106,6 +108,8 @@ pub fn main() {
         ("(Debug) big colliders", debug_big_colliders3::init_world),
         ("(Debug) boxes", debug_boxes3::init_world),
         ("(Debug) balls", debug_balls3::init_world),
+        ("(Debug) disabled", debug_disabled3::init_world),
+        ("(Debug) two cubes", debug_two_cubes3::init_world),
         ("(Debug) pop", debug_pop3::init_world),
         (
             "(Debug) dyn. coll. add",

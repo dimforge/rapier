@@ -69,10 +69,6 @@ impl BroadPhaseBvh {
     /// sent previously and no `RemovePair` happened since then). Sending redundant events is allowed
     /// but can result in a slight computational overhead.
     ///
-    /// The `colliders` set is mutable only to provide access to
-    /// [`collider.set_internal_broad_phase_proxy_index`]. Other properties of the collider should
-    /// **not** be modified during the broad-phase update.
-    ///
     /// # Parameters
     /// - `params`: the integration parameters governing the simulation.
     /// - `colliders`: the set of colliders. Change detection with `collider.needs_broad_phase_update()`
