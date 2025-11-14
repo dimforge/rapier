@@ -170,6 +170,24 @@ impl SpringJointBuilder {
     //     self
     // }
 
+    /// Sets the natural frequency (Hz) for this joint's constraint regularization.
+    ///
+    /// Higher values make the joint stiffer and resolve constraint violations more quickly.
+    #[must_use]
+    pub fn natural_frequency(mut self, frequency: Real) -> Self {
+        self.0.data.set_natural_frequency(frequency);
+        self
+    }
+
+    /// Sets the damping ratio for this joint's constraint regularization.
+    ///
+    /// Larger values make the joint more compliant (allowing more drift before stabilization).
+    #[must_use]
+    pub fn damping_ratio(mut self, ratio: Real) -> Self {
+        self.0.data.set_damping_ratio(ratio);
+        self
+    }
+
     /// Builds the spring joint.
     #[must_use]
     pub fn build(self) -> SpringJoint {

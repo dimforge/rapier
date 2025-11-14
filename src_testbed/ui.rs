@@ -205,17 +205,6 @@ pub(crate) fn update_ui(
                 )
                 .text(format!("damping ratio (cfm-factor = {curr_cfm_factor:.3})",)),
             );
-            ui.add(
-                Slider::new(
-                    &mut integration_parameters.joint_natural_frequency,
-                    0.0..=1200000.0,
-                )
-                .text("joint erp"),
-            );
-            ui.add(
-                Slider::new(&mut integration_parameters.joint_damping_ratio, 0.0..=20.0)
-                    .text("joint damping ratio"),
-            );
         }
 
         #[cfg(feature = "parallel")]
