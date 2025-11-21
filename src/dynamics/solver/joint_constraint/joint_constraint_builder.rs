@@ -123,12 +123,12 @@ impl JointConstraintBuilderSimd {
         let rb2 = array![|ii| &bodies[joint[ii].body2]];
 
         let body1 = array![|ii| if rb1[ii].is_dynamic_or_kinematic() {
-            rb1[ii].ids.active_set_offset
+            rb1[ii].ids.active_set_id as u32
         } else {
             u32::MAX
         }];
         let body2 = array![|ii| if rb2[ii].is_dynamic_or_kinematic() {
-            rb2[ii].ids.active_set_offset
+            rb2[ii].ids.active_set_id as u32
         } else {
             u32::MAX
         }];

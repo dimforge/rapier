@@ -1029,7 +1029,6 @@ impl RigidBodyCcd {
 pub struct RigidBodyIds {
     pub(crate) active_island_id: usize,
     pub(crate) active_set_id: usize,
-    pub(crate) active_set_offset: u32,
     pub(crate) active_set_timestamp: u32,
 }
 
@@ -1038,7 +1037,6 @@ impl Default for RigidBodyIds {
         Self {
             active_island_id: usize::MAX,
             active_set_id: usize::MAX,
-            active_set_offset: u32::MAX,
             active_set_timestamp: 0,
         }
     }
@@ -1138,6 +1136,19 @@ impl RigidBodyDominance {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+pub(crate) enum SleepRootState {
+    /// This sleep root has already been traversed. No need to traverse
+    /// again until the rigid-body either gets awaken by an event.
+    Traversed,
+    /// This sleep root has not been traversed yet.
+    TraversalPending,
+    /// This body can become a sleep root once it falls asleep.
+    #[default]
+    Unknown,
+}
+
 /// Controls when a body goes to sleep (becomes inactive to save CPU).
 ///
 /// ## Sleeping System
@@ -1183,6 +1194,8 @@ pub struct RigidBodyActivation {
 
     /// Is this body currently sleeping?
     pub sleeping: bool,
+
+    pub(crate) sleep_root_state: SleepRootState,
 }
 
 impl Default for RigidBodyActivation {
@@ -1216,6 +1229,7 @@ impl RigidBodyActivation {
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: 0.0,
             sleeping: false,
+            sleep_root_state: SleepRootState::Unknown,
         }
     }
 
@@ -1227,6 +1241,7 @@ impl RigidBodyActivation {
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: Self::default_time_until_sleep(),
             sleeping: true,
+            sleep_root_state: SleepRootState::Unknown,
         }
     }
 
@@ -1249,6 +1264,12 @@ impl RigidBodyActivation {
     #[inline]
     pub fn wake_up(&mut self, strong: bool) {
         self.sleeping = false;
+
+        // Make this body eligible as a sleep root again.
+        if self.sleep_root_state != SleepRootState::TraversalPending {
+            self.sleep_root_state = SleepRootState::Unknown;
+        }
+
         if strong {
             self.time_since_can_sleep = 0.0;
         }
@@ -1259,6 +1280,41 @@ impl RigidBodyActivation {
     pub fn sleep(&mut self) {
         self.sleeping = true;
         self.time_since_can_sleep = self.time_until_sleep;
+    }
+
+    /// Does this body have a sufficiently low kinetic energy for a long enough
+    /// duration to be eligible for sleeping?
+    pub fn is_eligible_for_sleep(&self) -> bool {
+        self.time_since_can_sleep >= self.time_until_sleep
+    }
+
+    pub(crate) fn update_energy(
+        &mut self,
+        body_type: RigidBodyType,
+        length_unit: Real,
+        sq_linvel: Real,
+        sq_angvel: Real,
+        dt: Real,
+    ) {
+        let can_sleep = match body_type {
+            RigidBodyType::Dynamic => {
+                let linear_threshold = self.normalized_linear_threshold * length_unit;
+                sq_linvel < linear_threshold * linear_threshold.abs()
+                    && sq_angvel < self.angular_threshold * self.angular_threshold.abs()
+            }
+            RigidBodyType::KinematicPositionBased | RigidBodyType::KinematicVelocityBased => {
+                // Platforms only sleep if both velocities are exactly zero. If it’s not exactly
+                // zero, then the user really wants them to move.
+                sq_linvel == 0.0 && sq_angvel == 0.0
+            }
+            RigidBodyType::Fixed => true,
+        };
+
+        if can_sleep {
+            self.time_since_can_sleep += dt;
+        } else {
+            self.time_since_can_sleep = 0.0;
+        }
     }
 }
 

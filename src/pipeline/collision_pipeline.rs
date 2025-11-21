@@ -1,6 +1,6 @@
 //! Physics pipeline structures.
 
-use crate::dynamics::{ImpulseJointSet, IntegrationParameters, MultibodyJointSet};
+use crate::dynamics::{ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet};
 use crate::geometry::{
     BroadPhaseBvh, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
     ModifiedColliders, NarrowPhase,
@@ -53,6 +53,7 @@ impl CollisionPipeline {
     fn detect_collisions(
         &mut self,
         prediction_distance: Real,
+        islands: &mut IslandManager,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
@@ -98,6 +99,7 @@ impl CollisionPipeline {
         narrow_phase.compute_contacts(
             prediction_distance,
             0.0,
+            islands,
             bodies,
             colliders,
             &ImpulseJointSet::new(),
@@ -126,6 +128,7 @@ impl CollisionPipeline {
     pub fn step(
         &mut self,
         prediction_distance: Real,
+        islands: &mut IslandManager,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
@@ -162,6 +165,7 @@ impl CollisionPipeline {
 
         self.detect_collisions(
             prediction_distance,
+            islands,
             broad_phase,
             narrow_phase,
             bodies,
