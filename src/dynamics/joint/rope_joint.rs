@@ -1,3 +1,4 @@
+use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::joint::{GenericJoint, GenericJointBuilder, JointAxesMask};
 use crate::dynamics::{JointAxis, MotorModel};
 use crate::math::{Point, Real};
@@ -153,6 +154,19 @@ impl RopeJoint {
         self.data.set_limits(JointAxis::LinX, [0.0, max_dist]);
         self
     }
+
+    /// Gets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn softness(&self) -> SpringCoefficients<Real> {
+        self.data.softness
+    }
+
+    /// Sets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn set_softness(&mut self, softness: SpringCoefficients<Real>) -> &mut Self {
+        self.data.softness = softness;
+        self
+    }
 }
 
 impl From<RopeJoint> for GenericJoint {
@@ -242,6 +256,13 @@ impl RopeJointBuilder {
     #[must_use]
     pub fn max_distance(mut self, max_dist: Real) -> Self {
         self.0.set_max_distance(max_dist);
+        self
+    }
+
+    /// Sets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn softness(mut self, softness: SpringCoefficients<Real>) -> Self {
+        self.0.data.softness = softness;
         self
     }
 

@@ -2,7 +2,7 @@
 
 pub use self::ccd::CCDSolver;
 pub use self::coefficient_combine_rule::CoefficientCombineRule;
-pub use self::integration_parameters::IntegrationParameters;
+pub use self::integration_parameters::{IntegrationParameters, SpringCoefficients};
 pub use self::island_manager::IslandManager;
 
 #[cfg(feature = "dim3")]

@@ -189,32 +189,23 @@ pub(crate) fn update_ui(
 
             let mut substep_params = *integration_parameters;
             substep_params.dt /= substep_params.num_solver_iterations as Real;
-            let curr_erp = substep_params.contact_erp();
-            let curr_cfm_factor = substep_params.contact_cfm_factor();
+            let curr_erp = substep_params.contact_softness.erp(substep_params.dt);
+            let curr_cfm_factor = substep_params
+                .contact_softness
+                .cfm_factor(substep_params.dt);
             ui.add(
                 Slider::new(
-                    &mut integration_parameters.contact_natural_frequency,
+                    &mut integration_parameters.contact_softness.natural_frequency,
                     0.01..=120.0,
                 )
                 .text(format!("contacts Hz (erp = {curr_erp:.3})")),
             );
             ui.add(
                 Slider::new(
-                    &mut integration_parameters.contact_damping_ratio,
+                    &mut integration_parameters.contact_softness.damping_ratio,
                     0.01..=20.0,
                 )
                 .text(format!("damping ratio (cfm-factor = {curr_cfm_factor:.3})",)),
-            );
-            ui.add(
-                Slider::new(
-                    &mut integration_parameters.joint_natural_frequency,
-                    0.0..=1200000.0,
-                )
-                .text("joint erp"),
-            );
-            ui.add(
-                Slider::new(&mut integration_parameters.joint_damping_ratio, 0.0..=20.0)
-                    .text("joint damping ratio"),
             );
         }
 

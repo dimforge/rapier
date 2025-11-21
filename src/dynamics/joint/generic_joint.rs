@@ -1,5 +1,7 @@
 #![allow(clippy::bad_bit_mask)] // Clippy will complain about the bitmasks due to JointAxesMask::FREE_FIXED_AXES being 0.
+#![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
 
+use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{
     FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RigidBody, RopeJoint,
@@ -282,6 +284,8 @@ pub struct GenericJoint {
     /// For coupled degrees of freedoms (DoF), only the first linear (resp. angular) coupled DoF motor and `motor_axes`
     /// bitmask is applied to the coupled linear (resp. angular) axes.
     pub motors: [JointMotor; SPATIAL_DIM],
+    /// The coefficients controlling the joint constraints’ softness.
+    pub softness: SpringCoefficients<Real>,
     /// Are contacts between the attached rigid-bodies enabled?
     pub contacts_enabled: bool,
     /// Whether the joint is enabled.
@@ -301,6 +305,7 @@ impl Default for GenericJoint {
             coupled_axes: JointAxesMask::empty(),
             limits: [JointLimits::default(); SPATIAL_DIM],
             motors: [JointMotor::default(); SPATIAL_DIM],
+            softness: SpringCoefficients::joint_defaults(),
             contacts_enabled: true,
             enabled: JointEnabled::Enabled,
             user_data: 0,
@@ -437,6 +442,13 @@ impl GenericJoint {
     /// Sets whether contacts between the attached rigid-bodies are enabled.
     pub fn set_contacts_enabled(&mut self, enabled: bool) -> &mut Self {
         self.contacts_enabled = enabled;
+        self
+    }
+
+    /// Sets the spring coefficients controlling this joint constraint’s softness.
+    #[must_use]
+    pub fn set_softness(&mut self, softness: SpringCoefficients<Real>) -> &mut Self {
+        self.softness = softness;
         self
     }
 
@@ -764,6 +776,13 @@ impl GenericJointBuilder {
     #[must_use]
     pub fn motor_max_force(mut self, axis: JointAxis, max_force: Real) -> Self {
         self.0.set_motor_max_force(axis, max_force);
+        self
+    }
+
+    /// Sets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn softness(mut self, softness: SpringCoefficients<Real>) -> Self {
+        self.0.softness = softness;
         self
     }
 

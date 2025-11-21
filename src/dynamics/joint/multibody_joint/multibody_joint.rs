@@ -314,6 +314,7 @@ impl MultibodyJoint {
                         jacobians,
                         constraints,
                         &mut num_constraints,
+                        self.data.softness,
                     );
                 }
                 curr_free_dof += 1;
@@ -349,6 +350,7 @@ impl MultibodyJoint {
                         jacobians,
                         constraints,
                         &mut num_constraints,
+                        self.data.softness,
                     );
                     Some(limits)
                 } else {

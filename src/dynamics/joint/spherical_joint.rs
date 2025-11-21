@@ -1,3 +1,4 @@
+use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::joint::{GenericJoint, GenericJointBuilder, JointAxesMask};
 use crate::dynamics::{JointAxis, JointMotor, MotorModel};
 use crate::math::{Isometry, Point, Real};
@@ -192,6 +193,19 @@ impl SphericalJoint {
         self.data.set_limits(axis, limits);
         self
     }
+
+    /// Gets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn softness(&self) -> SpringCoefficients<Real> {
+        self.data.softness
+    }
+
+    /// Sets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn set_softness(&mut self, softness: SpringCoefficients<Real>) -> &mut Self {
+        self.data.softness = softness;
+        self
+    }
 }
 
 impl From<SphericalJoint> for GenericJoint {
@@ -302,6 +316,13 @@ impl SphericalJointBuilder {
     #[must_use]
     pub fn limits(mut self, axis: JointAxis, limits: [Real; 2]) -> Self {
         self.0.set_limits(axis, limits);
+        self
+    }
+
+    /// Sets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn softness(mut self, softness: SpringCoefficients<Real>) -> Self {
+        self.0.data.softness = softness;
         self
     }
 

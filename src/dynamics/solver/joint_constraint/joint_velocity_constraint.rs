@@ -11,6 +11,8 @@ use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::math::{SIMD_WIDTH, SimdReal};
 #[cfg(feature = "dim2")]
 use crate::num::Zero;
+#[cfg(feature = "simd-is-enabled")]
+use na::SimdValue;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct MotorParameters<N: SimdRealCopy> {
@@ -142,6 +144,10 @@ impl JointConstraint<Real, 1> {
         let limit_axes = joint.limit_axes.bits() & !locked_axes;
         let coupled_axes = joint.coupled_axes.bits();
 
+        // Compute per-joint ERP and CFM coefficients
+        let erp_inv_dt = joint.softness.erp_inv_dt(params.dt);
+        let cfm_coeff = joint.softness.cfm_coeff(params.dt);
+
         // The has_lin/ang_coupling test is needed to avoid shl overflow later.
         let has_lin_coupling = (coupled_axes & JointAxesMask::LIN_AXES.bits()) != 0;
         let first_coupled_lin_axis_id =
@@ -236,14 +242,24 @@ impl JointConstraint<Real, 1> {
                     body2,
                     i - DIM,
                     WritebackId::Dof(i),
+                    erp_inv_dt,
+                    cfm_coeff,
                 );
                 len += 1;
             }
         }
         for i in 0..DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] =
-                    builder.lock_linear(params, [joint_id], body1, body2, i, WritebackId::Dof(i));
+                out[len] = builder.lock_linear(
+                    params,
+                    [joint_id],
+                    body1,
+                    body2,
+                    i,
+                    WritebackId::Dof(i),
+                    erp_inv_dt,
+                    cfm_coeff,
+                );
                 len += 1;
             }
         }
@@ -258,6 +274,8 @@ impl JointConstraint<Real, 1> {
                     i - DIM,
                     [joint.limits[i].min, joint.limits[i].max],
                     WritebackId::Limit(i),
+                    erp_inv_dt,
+                    cfm_coeff,
                 );
                 len += 1;
             }
@@ -272,6 +290,8 @@ impl JointConstraint<Real, 1> {
                     i,
                     [joint.limits[i].min, joint.limits[i].max],
                     WritebackId::Limit(i),
+                    erp_inv_dt,
+                    cfm_coeff,
                 );
                 len += 1;
             }
@@ -290,6 +310,8 @@ impl JointConstraint<Real, 1> {
                     joint.limits[first_coupled_ang_axis_id].max,
                 ],
                 WritebackId::Limit(first_coupled_ang_axis_id),
+                erp_inv_dt,
+                cfm_coeff,
             );
             len += 1;
         }
@@ -306,6 +328,8 @@ impl JointConstraint<Real, 1> {
                     joint.limits[first_coupled_lin_axis_id].max,
                 ],
                 WritebackId::Limit(first_coupled_lin_axis_id),
+                erp_inv_dt,
+                cfm_coeff,
             );
             len += 1;
         }
@@ -344,8 +368,13 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
         frame1: &Isometry<SimdReal>,
         frame2: &Isometry<SimdReal>,
         locked_axes: u8,
+        softness: crate::dynamics::SpringCoefficients<SimdReal>,
         out: &mut [Self],
     ) -> usize {
+        let dt = SimdReal::splat(params.dt);
+        let erp_inv_dt = softness.erp_inv_dt(dt);
+        let cfm_coeff = softness.cfm_coeff(dt);
+
         let builder = JointConstraintHelper::new(
             frame1,
             frame2,
@@ -357,8 +386,16 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
         let mut len = 0;
         for i in 0..DIM {
             if locked_axes & (1 << i) != 0 {
-                out[len] =
-                    builder.lock_linear(params, joint_id, body1, body2, i, WritebackId::Dof(i));
+                out[len] = builder.lock_linear(
+                    params,
+                    joint_id,
+                    body1,
+                    body2,
+                    i,
+                    WritebackId::Dof(i),
+                    erp_inv_dt,
+                    cfm_coeff,
+                );
                 len += 1;
             }
         }
@@ -372,6 +409,8 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
                     body2,
                     i - DIM,
                     WritebackId::Dof(i),
+                    erp_inv_dt,
+                    cfm_coeff,
                 );
                 len += 1;
             }

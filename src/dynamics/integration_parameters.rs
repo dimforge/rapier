@@ -1,8 +1,7 @@
-use crate::math::Real;
-use na::RealField;
-
 #[cfg(doc)]
 use super::RigidBodyActivation;
+use crate::math::Real;
+use simba::simd::SimdRealField;
 
 // TODO: enabling the block solver in 3d introduces a lot of jitters in
 //       the 3D domino demo. So for now we dont enable it in 3D.
@@ -28,6 +27,114 @@ pub enum FrictionModel {
     ///
     /// This results in one Coulomb friction constraint per contact point.
     Coulomb,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+// TODO: we should be able to combine this with MotorModel.
+/// Coefficients for a spring, typically used for configuring constraint softness for contacts and
+/// joints.
+pub struct SpringCoefficients<N> {
+    /// Sets the natural frequency (Hz) of the spring-like constraint.
+    ///
+    /// Higher values make the constraint stiffer and resolve constraint violations more quickly.
+    pub natural_frequency: N,
+    /// Sets the damping ratio for the spring-like constraint.
+    ///
+    /// Larger values make the joint more compliant (allowing more drift before stabilization).
+    pub damping_ratio: N,
+}
+
+impl<N: SimdRealField<Element = Real> + Copy> SpringCoefficients<N> {
+    /// Initializes spring coefficients from the spring natural frequency and damping ratio.
+    pub fn new(natural_frequency: N, damping_ratio: N) -> Self {
+        Self {
+            natural_frequency,
+            damping_ratio,
+        }
+    }
+
+    /// Default softness coefficients for contacts.
+    pub fn contact_defaults() -> Self {
+        Self {
+            natural_frequency: N::splat(30.0),
+            damping_ratio: N::splat(5.0),
+        }
+    }
+
+    /// Default softness coefficients for joints.
+    pub fn joint_defaults() -> Self {
+        Self {
+            natural_frequency: N::splat(1.0e6),
+            damping_ratio: N::splat(1.0),
+        }
+    }
+
+    /// The contact’s spring angular frequency for constraints regularization.
+    pub fn angular_frequency(&self) -> N {
+        self.natural_frequency * N::simd_two_pi()
+    }
+
+    /// The [`Self::erp`] coefficient, multiplied by the inverse timestep length.
+    pub fn erp_inv_dt(&self, dt: N) -> N {
+        let ang_freq = self.angular_frequency();
+        ang_freq / (dt * ang_freq + N::splat(2.0) * self.damping_ratio)
+    }
+
+    /// The effective Error Reduction Parameter applied for calculating regularization forces.
+    ///
+    /// This parameter is computed automatically from [`Self::natural_frequency`],
+    /// [`Self::damping_ratio`] and the substep length.
+    pub fn erp(&self, dt: N) -> N {
+        dt * self.erp_inv_dt(dt)
+    }
+
+    /// Compute CFM assuming a critically damped spring multiplied by the damping ratio.
+    ///
+    /// This coefficient softens the impulse applied at each solver iteration.
+    pub fn cfm_coeff(&self, dt: N) -> N {
+        let one = N::one();
+        let erp = self.erp(dt);
+        let erp_is_not_zero = erp.simd_ne(N::zero());
+        let inv_erp_minus_one = one / erp - one;
+
+        // let stiffness = 4.0 * damping_ratio * damping_ratio * projected_mass
+        //     / (dt * dt * inv_erp_minus_one * inv_erp_minus_one);
+        // let damping = 4.0 * damping_ratio * damping_ratio * projected_mass
+        //     / (dt * inv_erp_minus_one);
+        // let cfm = 1.0 / (dt * dt * stiffness + dt * damping);
+        // NOTE: This simplifies to cfm = cfm_coeff / projected_mass:
+        let result = inv_erp_minus_one * inv_erp_minus_one
+            / ((one + inv_erp_minus_one) * N::splat(4.0) * self.damping_ratio * self.damping_ratio);
+        result.select(erp_is_not_zero, N::zero())
+    }
+
+    /// The CFM factor to be used in the constraint resolution.
+    ///
+    /// This parameter is computed automatically from [`Self::natural_frequency`],
+    /// [`Self::damping_ratio`] and the substep length.
+    pub fn cfm_factor(&self, dt: N) -> N {
+        let one = N::one();
+        let cfm_coeff = self.cfm_coeff(dt);
+
+        // We use this coefficient inside the impulse resolution.
+        // Surprisingly, several simplifications happen there.
+        // Let `m` the projected mass of the constraint.
+        // Let `m’` the projected mass that includes CFM: `m’ = 1 / (1 / m + cfm_coeff / m) = m / (1 + cfm_coeff)`
+        // We have:
+        // new_impulse = old_impulse - m’ (delta_vel - cfm * old_impulse)
+        //             = old_impulse - m / (1 + cfm_coeff) * (delta_vel - cfm_coeff / m * old_impulse)
+        //             = old_impulse * (1 - cfm_coeff / (1 + cfm_coeff)) - m / (1 + cfm_coeff) * delta_vel
+        //             = old_impulse / (1 + cfm_coeff) - m * delta_vel / (1 + cfm_coeff)
+        //             = 1 / (1 + cfm_coeff) * (old_impulse - m * delta_vel)
+        // So, setting cfm_factor = 1 / (1 + cfm_coeff).
+        // We obtain:
+        // new_impulse = cfm_factor * (old_impulse - m * delta_vel)
+        //
+        // The value returned by this function is this cfm_factor that can be used directly
+        // in the constraint solver.
+        one / (one + cfm_coeff)
+    }
 }
 
 /// Configuration parameters that control the physics simulation quality and behavior.
@@ -80,34 +187,8 @@ pub struct IntegrationParameters {
     /// to numerical instabilities.
     pub min_ccd_dt: Real,
 
-    /// > 0: the damping ratio used by the springs for contact constraint stabilization.
-    ///
-    /// Larger values make the constraints more compliant (allowing more visible
-    /// penetrations before stabilization).
-    /// (default `5.0`).
-    pub contact_damping_ratio: Real,
-
-    /// > 0: the natural frequency used by the springs for contact constraint regularization.
-    ///
-    /// Increasing this value will make it so that penetrations get fixed more quickly at the
-    /// expense of potential jitter effects due to overshooting. In order to make the simulation
-    /// look stiffer, it is recommended to increase the [`Self::contact_damping_ratio`] instead of this
-    /// value.
-    /// (default: `30.0`).
-    pub contact_natural_frequency: Real,
-
-    /// > 0: the natural frequency used by the springs for joint constraint regularization.
-    ///
-    /// Increasing this value will make it so that penetrations get fixed more quickly.
-    /// (default: `1.0e6`).
-    pub joint_natural_frequency: Real,
-
-    /// The fraction of critical damping applied to the joint for constraints regularization.
-    ///
-    /// Larger values make the constraints more compliant (allowing more joint
-    /// drift before stabilization).
-    /// (default `1.0`).
-    pub joint_damping_ratio: Real,
+    /// Softness coefficients for contact constraints.
+    pub contact_softness: SpringCoefficients<Real>,
 
     /// The coefficient in `[0, 1]` applied to warmstart impulses, i.e., impulses that are used as the
     /// initial solution (instead of 0) at the next simulation step.
@@ -193,110 +274,7 @@ impl IntegrationParameters {
         }
     }
 
-    /// The contact’s spring angular frequency for constraints regularization.
-    pub fn contact_angular_frequency(&self) -> Real {
-        self.contact_natural_frequency * Real::two_pi()
-    }
-
-    /// The [`Self::contact_erp`] coefficient, multiplied by the inverse timestep length.
-    pub fn contact_erp_inv_dt(&self) -> Real {
-        let ang_freq = self.contact_angular_frequency();
-        ang_freq / (self.dt * ang_freq + 2.0 * self.contact_damping_ratio)
-    }
-
-    /// The effective Error Reduction Parameter applied for calculating regularization forces
-    /// on contacts.
-    ///
-    /// This parameter is computed automatically from [`Self::contact_natural_frequency`],
-    /// [`Self::contact_damping_ratio`] and the substep length.
-    pub fn contact_erp(&self) -> Real {
-        self.dt * self.contact_erp_inv_dt()
-    }
-
-    /// The joint’s spring angular frequency for constraint regularization.
-    pub fn joint_angular_frequency(&self) -> Real {
-        self.joint_natural_frequency * Real::two_pi()
-    }
-
-    /// The [`Self::joint_erp`] coefficient, multiplied by the inverse timestep length.
-    pub fn joint_erp_inv_dt(&self) -> Real {
-        let ang_freq = self.joint_angular_frequency();
-        ang_freq / (self.dt * ang_freq + 2.0 * self.joint_damping_ratio)
-    }
-
-    /// The effective Error Reduction Parameter applied for calculating regularization forces
-    /// on joints.
-    ///
-    /// This parameter is computed automatically from [`Self::joint_natural_frequency`],
-    /// [`Self::joint_damping_ratio`] and the substep length.
-    pub fn joint_erp(&self) -> Real {
-        self.dt * self.joint_erp_inv_dt()
-    }
-
-    /// The CFM factor to be used in the constraint resolution.
-    ///
-    /// This parameter is computed automatically from [`Self::contact_natural_frequency`],
-    /// [`Self::contact_damping_ratio`] and the substep length.
-    pub fn contact_cfm_factor(&self) -> Real {
-        // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
-        // The logic is similar to [`Self::joint_cfm_coeff`].
-        let contact_erp = self.contact_erp();
-        if contact_erp == 0.0 {
-            return 0.0;
-        }
-        let inv_erp_minus_one = 1.0 / contact_erp - 1.0;
-
-        // let stiffness = 4.0 * damping_ratio * damping_ratio * projected_mass
-        //     / (dt * dt * inv_erp_minus_one * inv_erp_minus_one);
-        // let damping = 4.0 * damping_ratio * damping_ratio * projected_mass
-        //     / (dt * inv_erp_minus_one);
-        // let cfm = 1.0 / (dt * dt * stiffness + dt * damping);
-        // NOTE: This simplifies to cfm = cfm_coeff / projected_mass:
-        let cfm_coeff = inv_erp_minus_one * inv_erp_minus_one
-            / ((1.0 + inv_erp_minus_one)
-                * 4.0
-                * self.contact_damping_ratio
-                * self.contact_damping_ratio);
-
-        // Furthermore, we use this coefficient inside of the impulse resolution.
-        // Surprisingly, several simplifications happen there.
-        // Let `m` the projected mass of the constraint.
-        // Let `m’` the projected mass that includes CFM: `m’ = 1 / (1 / m + cfm_coeff / m) = m / (1 + cfm_coeff)`
-        // We have:
-        // new_impulse = old_impulse - m’ (delta_vel - cfm * old_impulse)
-        //             = old_impulse - m / (1 + cfm_coeff) * (delta_vel - cfm_coeff / m * old_impulse)
-        //             = old_impulse * (1 - cfm_coeff / (1 + cfm_coeff)) - m / (1 + cfm_coeff) * delta_vel
-        //             = old_impulse / (1 + cfm_coeff) - m * delta_vel / (1 + cfm_coeff)
-        //             = 1 / (1 + cfm_coeff) * (old_impulse - m * delta_vel)
-        // So, setting cfm_factor = 1 / (1 + cfm_coeff).
-        // We obtain:
-        // new_impulse = cfm_factor * (old_impulse - m * delta_vel)
-        //
-        // The value returned by this function is this cfm_factor that can be used directly
-        // in the constraint solver.
-        1.0 / (1.0 + cfm_coeff)
-    }
-
-    /// The CFM (constraints force mixing) coefficient applied to all joints for constraints regularization.
-    ///
-    /// This parameter is computed automatically from [`Self::joint_natural_frequency`],
-    /// [`Self::joint_damping_ratio`] and the substep length.
-    pub fn joint_cfm_coeff(&self) -> Real {
-        // Compute CFM assuming a critically damped spring multiplied by the damping ratio.
-        // The logic is similar to `Self::contact_cfm_factor`.
-        let joint_erp = self.joint_erp();
-        if joint_erp == 0.0 {
-            return 0.0;
-        }
-        let inv_erp_minus_one = 1.0 / joint_erp - 1.0;
-        inv_erp_minus_one * inv_erp_minus_one
-            / ((1.0 + inv_erp_minus_one)
-                * 4.0
-                * self.joint_damping_ratio
-                * self.joint_damping_ratio)
-    }
-
-    /// Amount of penetration the engine won’t attempt to correct (default: `0.001` multiplied by
+    /// Amount of penetration the engine won't attempt to correct (default: `0.001` multiplied by
     /// [`Self::length_unit`]).
     pub fn allowed_linear_error(&self) -> Real {
         self.normalized_allowed_linear_error * self.length_unit
@@ -326,10 +304,7 @@ impl Default for IntegrationParameters {
         Self {
             dt: 1.0 / 60.0,
             min_ccd_dt: 1.0 / 60.0 / 100.0,
-            contact_natural_frequency: 30.0,
-            contact_damping_ratio: 5.0,
-            joint_natural_frequency: 1.0e6,
-            joint_damping_ratio: 1.0,
+            contact_softness: SpringCoefficients::contact_defaults(),
             warmstart_coefficient: 1.0,
             num_internal_pgs_iterations: 1,
             num_internal_stabilization_iterations: 1,

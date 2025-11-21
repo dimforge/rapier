@@ -1,3 +1,4 @@
+use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::{GenericJoint, GenericJointBuilder, JointAxesMask};
 use crate::math::{Isometry, Point, Real};
 
@@ -91,6 +92,19 @@ impl FixedJoint {
         self.data.set_local_anchor2(anchor2);
         self
     }
+
+    /// Gets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn softness(&self) -> SpringCoefficients<Real> {
+        self.data.softness
+    }
+
+    /// Sets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn set_softness(&mut self, softness: SpringCoefficients<Real>) -> &mut Self {
+        self.data.softness = softness;
+        self
+    }
 }
 
 impl From<FixedJoint> for GenericJoint {
@@ -138,10 +152,17 @@ impl FixedJointBuilder {
         self
     }
 
-    /// Sets the joint’s anchor, expressed in the local-space of the second rigid-body.
+    /// Sets the joint's anchor, expressed in the local-space of the second rigid-body.
     #[must_use]
     pub fn local_anchor2(mut self, anchor2: Point<Real>) -> Self {
         self.0.set_local_anchor2(anchor2);
+        self
+    }
+
+    /// Sets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn softness(mut self, softness: SpringCoefficients<Real>) -> Self {
+        self.0.data.softness = softness;
         self
     }
 

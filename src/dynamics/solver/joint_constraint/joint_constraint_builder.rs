@@ -15,7 +15,10 @@ use crate::utils::{SimdBasis, SimdQuat};
 use na::SMatrix;
 
 #[cfg(feature = "simd-is-enabled")]
-use crate::math::{SIMD_WIDTH, SimdReal};
+use {
+    crate::dynamics::SpringCoefficients,
+    crate::math::{SIMD_WIDTH, SimdReal},
+};
 
 pub struct JointConstraintBuilder {
     body1: u32,
@@ -103,6 +106,7 @@ pub struct JointConstraintBuilderSimd {
     local_frame1: Isometry<SimdReal>,
     local_frame2: Isometry<SimdReal>,
     locked_axes: u8,
+    softness: SpringCoefficients<SimdReal>,
     constraint_id: usize,
 }
 
@@ -149,6 +153,10 @@ impl JointConstraintBuilderSimd {
             local_frame1,
             local_frame2,
             locked_axes: joint[0].data.locked_axes.bits(),
+            softness: SpringCoefficients {
+                natural_frequency: array![|ii| joint[ii].data.softness.natural_frequency].into(),
+                damping_ratio: array![|ii| joint[ii].data.softness.damping_ratio].into(),
+            },
             constraint_id: *out_constraint_id,
         };
 
@@ -191,6 +199,7 @@ impl JointConstraintBuilderSimd {
             &frame1,
             &frame2,
             self.locked_axes,
+            self.softness,
             &mut out[self.constraint_id..],
         );
     }
@@ -277,17 +286,25 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         limited_axis: usize,
         limits: [N; 2],
         writeback_id: WritebackId,
+        erp_inv_dt: N,
+        cfm_coeff: N,
     ) -> JointConstraint<N, LANES> {
         let zero = N::zero();
-        let mut constraint =
-            self.lock_linear(params, joint_id, body1, body2, limited_axis, writeback_id);
+        let mut constraint = self.lock_linear(
+            params,
+            joint_id,
+            body1,
+            body2,
+            limited_axis,
+            writeback_id,
+            erp_inv_dt,
+            cfm_coeff,
+        );
 
         let dist = self.lin_err.dot(&constraint.lin_jac);
         let min_enabled = dist.simd_le(limits[0]);
         let max_enabled = limits[1].simd_le(dist);
 
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
         let rhs_bias =
             ((dist - limits[1]).simd_max(zero) - (limits[0] - dist).simd_max(zero)) * erp_inv_dt;
         constraint.rhs = constraint.rhs_wo_bias + rhs_bias;
@@ -309,6 +326,8 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         coupled_axes: u8,
         limits: [N; 2],
         writeback_id: WritebackId,
+        erp_inv_dt: N,
+        cfm_coeff: N,
     ) -> JointConstraint<N, LANES> {
         let zero = N::zero();
         let mut lin_jac = Vector::zeros();
@@ -345,8 +364,6 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         let ii_ang_jac1 = body1.ii * ang_jac1;
         let ii_ang_jac2 = body2.ii * ang_jac2;
 
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
         let rhs_bias = (dist - limits[1]).simd_max(zero) * erp_inv_dt;
         let rhs = rhs_wo_bias + rhs_bias;
         let impulse_bounds = [N::zero(), N::splat(Real::INFINITY)];
@@ -385,8 +402,18 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         writeback_id: WritebackId,
     ) -> JointConstraint<N, LANES> {
         let inv_dt = N::splat(params.inv_dt());
-        let mut constraint =
-            self.lock_linear(params, joint_id, body1, body2, motor_axis, writeback_id);
+        let mut constraint = self.lock_linear(
+            params,
+            joint_id,
+            body1,
+            body2,
+            motor_axis,
+            writeback_id,
+            // Set regularization factors to zero.
+            // The motor impl. will overwrite them after.
+            N::zero(),
+            N::zero(),
+        );
 
         let mut rhs_wo_bias = N::zero();
         if motor_params.erp_inv_dt != N::zero() {
@@ -491,12 +518,14 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
 
     pub fn lock_linear<const LANES: usize>(
         &self,
-        params: &IntegrationParameters,
+        _params: &IntegrationParameters,
         joint_id: [JointIndex; LANES],
         body1: &JointSolverBody<N, LANES>,
         body2: &JointSolverBody<N, LANES>,
         locked_axis: usize,
         writeback_id: WritebackId,
+        erp_inv_dt: N,
+        cfm_coeff: N,
     ) -> JointConstraint<N, LANES> {
         let lin_jac = self.basis.column(locked_axis).into_owned();
         #[cfg(feature = "dim2")]
@@ -509,8 +538,6 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         let ang_jac2 = self.cmat2_basis.column(locked_axis).into_owned();
 
         let rhs_wo_bias = N::zero();
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
         let rhs_bias = lin_jac.dot(&self.lin_err) * erp_inv_dt;
 
         let ii_ang_jac1 = body1.ii * ang_jac1;
@@ -540,13 +567,15 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
 
     pub fn limit_angular<const LANES: usize>(
         &self,
-        params: &IntegrationParameters,
+        _params: &IntegrationParameters,
         joint_id: [JointIndex; LANES],
         body1: &JointSolverBody<N, LANES>,
         body2: &JointSolverBody<N, LANES>,
         _limited_axis: usize,
         limits: [N; 2],
         writeback_id: WritebackId,
+        erp_inv_dt: N,
+        cfm_coeff: N,
     ) -> JointConstraint<N, LANES> {
         let zero = N::zero();
         let half = N::splat(0.5);
@@ -568,8 +597,6 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         #[cfg(feature = "dim3")]
         let ang_jac = self.ang_basis.column(_limited_axis).into_owned();
         let rhs_wo_bias = N::zero();
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
         let rhs_bias = ((s_ang - s_limits[1]).simd_max(zero)
             - (s_limits[0] - s_ang).simd_max(zero))
             * erp_inv_dt;
@@ -663,12 +690,14 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
 
     pub fn lock_angular<const LANES: usize>(
         &self,
-        params: &IntegrationParameters,
+        _params: &IntegrationParameters,
         joint_id: [JointIndex; LANES],
         body1: &JointSolverBody<N, LANES>,
         body2: &JointSolverBody<N, LANES>,
         _locked_axis: usize,
         writeback_id: WritebackId,
+        erp_inv_dt: N,
+        cfm_coeff: N,
     ) -> JointConstraint<N, LANES> {
         #[cfg(feature = "dim2")]
         let ang_jac = N::one();
@@ -676,8 +705,6 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         let ang_jac = self.ang_basis.column(_locked_axis).into_owned();
 
         let rhs_wo_bias = N::zero();
-        let erp_inv_dt = N::splat(params.joint_erp_inv_dt());
-        let cfm_coeff = N::splat(params.joint_cfm_coeff());
         #[cfg(feature = "dim2")]
         let rhs_bias = self.ang_err.im * erp_inv_dt;
         #[cfg(feature = "dim3")]
@@ -760,13 +787,15 @@ impl JointConstraintHelper<Real> {
     #[cfg(feature = "dim3")]
     pub fn limit_angular_coupled(
         &self,
-        params: &IntegrationParameters,
+        _params: &IntegrationParameters,
         joint_id: [JointIndex; 1],
         body1: &JointSolverBody<Real, 1>,
         body2: &JointSolverBody<Real, 1>,
         coupled_axes: u8,
         limits: [Real; 2],
         writeback_id: WritebackId,
+        erp_inv_dt: Real,
+        cfm_coeff: Real,
     ) -> JointConstraint<Real, 1> {
         // NOTE: right now, this only supports exactly 2 coupled axes.
         let ang_coupled_axes = coupled_axes >> DIM;
@@ -791,8 +820,6 @@ impl JointConstraintHelper<Real> {
 
         let rhs_wo_bias = 0.0;
 
-        let erp_inv_dt = params.joint_erp_inv_dt();
-        let cfm_coeff = params.joint_cfm_coeff();
         let rhs_bias = ((angle - limits[1]).max(0.0) - (limits[0] - angle).max(0.0)) * erp_inv_dt;
 
         let ii_ang_jac1 = body1.ii * ang_jac;
