@@ -383,7 +383,6 @@ fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
     let bf = bincode::serialize(&physics.broad_phase).unwrap();
     // println!("bf: {}", Instant::now() - t);
     // let t = Instant::now();
-    let bf = bincode::serialize(&physics.broad_phase).unwrap();
     let nf = bincode::serialize(&physics.narrow_phase).unwrap();
     // println!("nf: {}", Instant::now() - t);
     // let t = Instant::now();
