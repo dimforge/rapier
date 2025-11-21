@@ -19,6 +19,7 @@
   `IntegrationParameters::softness` and `GenericJoint::softness` fields (#789).
 - Removed `IntegrationParameters::joint_natural_frequency` and `IntegrationParameters::joint_damping_ratio` in favor of
   per-joint softness coefficients `GenericJoint::softness` (#789).
+- Make `SolverContact::contact_id` public so that user code knows what geometric contact it originates from (#888).
 
 ## v0.30.1 (17 Oct. 2025)
 
