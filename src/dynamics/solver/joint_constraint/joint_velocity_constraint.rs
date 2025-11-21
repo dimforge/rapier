@@ -145,8 +145,8 @@ impl JointConstraint<Real, 1> {
         let coupled_axes = joint.coupled_axes.bits();
 
         // Compute per-joint ERP and CFM coefficients
-        let erp_inv_dt = joint.joint_erp_inv_dt(params.dt);
-        let cfm_coeff = joint.joint_cfm_coeff(params.dt);
+        let erp_inv_dt = joint.softness.erp_inv_dt(params.dt);
+        let cfm_coeff = joint.softness.cfm_coeff(params.dt);
 
         // The has_lin/ang_coupling test is needed to avoid shl overflow later.
         let has_lin_coupling = (coupled_axes & JointAxesMask::LIN_AXES.bits()) != 0;
@@ -368,23 +368,12 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
         frame1: &Isometry<SimdReal>,
         frame2: &Isometry<SimdReal>,
         locked_axes: u8,
-        natural_frequency: SimdReal,
-        damping_ratio: SimdReal,
+        softness: crate::dynamics::SpringCoefficients<SimdReal>,
         out: &mut [Self],
     ) -> usize {
-        // Compute per-lane ERP and CFM coefficients using the `_with_override` methods
-        // Need to compute per-lane, so use the formula directly:
-        let ang_freq = natural_frequency * SimdReal::splat(std::f64::consts::TAU as Real);
         let dt = SimdReal::splat(params.dt);
-        let erp_inv_dt = ang_freq / (dt * ang_freq + SimdReal::splat(2.0) * damping_ratio);
-
-        let joint_erp = dt * erp_inv_dt;
-        let inv_erp_minus_one = SimdReal::splat(1.0) / joint_erp - SimdReal::splat(1.0);
-        let cfm_coeff = inv_erp_minus_one * inv_erp_minus_one
-            / ((SimdReal::splat(1.0) + inv_erp_minus_one)
-                * SimdReal::splat(4.0)
-                * damping_ratio
-                * damping_ratio);
+        let erp_inv_dt = softness.erp_inv_dt(dt);
+        let cfm_coeff = softness.cfm_coeff(dt);
 
         let builder = JointConstraintHelper::new(
             frame1,

@@ -15,7 +15,10 @@ use crate::utils::{SimdBasis, SimdQuat};
 use na::SMatrix;
 
 #[cfg(feature = "simd-is-enabled")]
-use crate::math::{SIMD_WIDTH, SimdReal};
+use {
+    crate::dynamics::SpringCoefficients,
+    crate::math::{SIMD_WIDTH, SimdReal},
+};
 
 pub struct JointConstraintBuilder {
     body1: u32,
@@ -103,8 +106,7 @@ pub struct JointConstraintBuilderSimd {
     local_frame1: Isometry<SimdReal>,
     local_frame2: Isometry<SimdReal>,
     locked_axes: u8,
-    natural_frequency: SimdReal,
-    damping_ratio: SimdReal,
+    softness: SpringCoefficients<SimdReal>,
     constraint_id: usize,
 }
 
@@ -151,8 +153,10 @@ impl JointConstraintBuilderSimd {
             local_frame1,
             local_frame2,
             locked_axes: joint[0].data.locked_axes.bits(),
-            natural_frequency: array![|ii| joint[ii].data.natural_frequency].into(),
-            damping_ratio: array![|ii| joint[ii].data.damping_ratio].into(),
+            softness: SpringCoefficients {
+                natural_frequency: array![|ii| joint[ii].data.softness.natural_frequency].into(),
+                damping_ratio: array![|ii| joint[ii].data.softness.damping_ratio].into(),
+            },
             constraint_id: *out_constraint_id,
         };
 
@@ -195,8 +199,7 @@ impl JointConstraintBuilderSimd {
             &frame1,
             &frame2,
             self.locked_axes,
-            self.natural_frequency,
-            self.damping_ratio,
+            self.softness,
             &mut out[self.constraint_id..],
         );
     }

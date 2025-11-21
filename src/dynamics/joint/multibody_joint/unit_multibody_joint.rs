@@ -1,5 +1,6 @@
 #![allow(missing_docs)] // For downcast.
 
+use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::joint::MultibodyLink;
 use crate::dynamics::solver::{GenericJointConstraint, WritebackId};
 use crate::dynamics::{IntegrationParameters, JointMotor, Multibody};
@@ -19,16 +20,15 @@ pub fn unit_joint_limit_constraint(
     jacobians: &mut DVector<Real>,
     constraints: &mut [GenericJointConstraint],
     insert_at: &mut usize,
-    natural_frequency: Real,
-    damping_ratio: Real,
+    softness: SpringCoefficients<Real>,
 ) {
     let ndofs = multibody.ndofs();
     let min_enabled = curr_pos < limits[0];
     let max_enabled = limits[1] < curr_pos;
 
     // Compute per-joint ERP and CFM
-    let erp_inv_dt = params.joint_erp_inv_dt_with_override(natural_frequency, damping_ratio);
-    let cfm_coeff = params.joint_cfm_coeff_with_override(natural_frequency, damping_ratio);
+    let erp_inv_dt = softness.erp_inv_dt(params.dt);
+    let cfm_coeff = softness.cfm_coeff(params.dt);
 
     let rhs_bias = ((curr_pos - limits[1]).max(0.0) - (limits[0] - curr_pos).max(0.0)) * erp_inv_dt;
     let rhs_wo_bias = 0.0;

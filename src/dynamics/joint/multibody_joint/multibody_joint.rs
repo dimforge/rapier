@@ -314,8 +314,7 @@ impl MultibodyJoint {
                         jacobians,
                         constraints,
                         &mut num_constraints,
-                        self.data.natural_frequency,
-                        self.data.damping_ratio,
+                        self.data.softness,
                     );
                 }
                 curr_free_dof += 1;
@@ -351,8 +350,7 @@ impl MultibodyJoint {
                         jacobians,
                         constraints,
                         &mut num_constraints,
-                        self.data.natural_frequency,
-                        self.data.damping_ratio,
+                        self.data.softness,
                     );
                     Some(limits)
                 } else {

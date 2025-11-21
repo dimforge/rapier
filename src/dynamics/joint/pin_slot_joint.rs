@@ -1,6 +1,7 @@
 #[cfg(feature = "dim2")]
 use crate::dynamics::joint::{GenericJointBuilder, JointAxesMask};
 
+use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::joint::GenericJoint;
 use crate::dynamics::{JointAxis, MotorModel};
 use crate::math::{Point, Real, UnitVector};
@@ -155,6 +156,19 @@ impl PinSlotJoint {
         self.data.set_limits(JointAxis::LinX, limits);
         self
     }
+
+    /// Gets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn softness(&self) -> SpringCoefficients<Real> {
+        self.data.softness
+    }
+
+    /// Sets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn set_softness(&mut self, softness: SpringCoefficients<Real>) -> &mut Self {
+        self.data.softness = softness;
+        self
+    }
 }
 
 impl From<PinSlotJoint> for GenericJoint {
@@ -262,21 +276,10 @@ impl PinSlotJointBuilder {
         self
     }
 
-    /// Sets the natural frequency (Hz) for this joint's constraint regularization.
-    ///
-    /// Higher values make the joint stiffer and resolve constraint violations more quickly.
+    /// Sets the softness of this joint’s locked degrees of freedom.
     #[must_use]
-    pub fn natural_frequency(mut self, frequency: Real) -> Self {
-        self.0.data.set_natural_frequency(frequency);
-        self
-    }
-
-    /// Sets the damping ratio for this joint's constraint regularization.
-    ///
-    /// Larger values make the joint more compliant (allowing more drift before stabilization).
-    #[must_use]
-    pub fn damping_ratio(mut self, ratio: Real) -> Self {
-        self.0.data.set_damping_ratio(ratio);
+    pub fn softness(mut self, softness: SpringCoefficients<Real>) -> Self {
+        self.0.data.softness = softness;
         self
     }
 

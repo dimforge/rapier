@@ -11,6 +11,7 @@ use crate::utils;
 use crate::utils::IndexMut2;
 use na::{DVector, SVector};
 
+use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::solver::ConstraintsCounts;
 use crate::dynamics::solver::solver_body::SolverBodies;
 #[cfg(feature = "dim3")]
@@ -406,9 +407,8 @@ impl JointConstraintHelper<Real> {
         mb1: LinkOrBodyRef,
         mb2: LinkOrBodyRef,
         locked_axis: usize,
+        softness: SpringCoefficients<Real>,
         writeback_id: WritebackId,
-        natural_frequency: Real,
-        damping_ratio: Real,
     ) -> GenericJointConstraint {
         let lin_jac = self.basis.column(locked_axis).into_owned();
         let ang_jac1 = self.cmat1_basis.column(locked_axis).into_owned();
@@ -428,7 +428,7 @@ impl JointConstraintHelper<Real> {
             ang_jac2,
         );
 
-        let erp_inv_dt = params.joint_erp_inv_dt_with_override(natural_frequency, damping_ratio);
+        let erp_inv_dt = softness.erp_inv_dt(params.dt);
         let rhs_bias = lin_jac.dot(&self.lin_err) * erp_inv_dt;
         c.rhs += rhs_bias;
         c
@@ -446,9 +446,8 @@ impl JointConstraintHelper<Real> {
         mb2: LinkOrBodyRef,
         limited_axis: usize,
         limits: [Real; 2],
+        softness: SpringCoefficients<Real>,
         writeback_id: WritebackId,
-        natural_frequency: Real,
-        damping_ratio: Real,
     ) -> GenericJointConstraint {
         let lin_jac = self.basis.column(limited_axis).into_owned();
         let ang_jac1 = self.cmat1_basis.column(limited_axis).into_owned();
@@ -472,7 +471,7 @@ impl JointConstraintHelper<Real> {
         let min_enabled = dist <= limits[0];
         let max_enabled = limits[1] <= dist;
 
-        let erp_inv_dt = params.joint_erp_inv_dt_with_override(natural_frequency, damping_ratio);
+        let erp_inv_dt = softness.erp_inv_dt(params.dt);
 
         let rhs_bias = ((dist - limits[1]).max(0.0) - (limits[0] - dist).max(0.0)) * erp_inv_dt;
         constraint.rhs += rhs_bias;
@@ -550,9 +549,8 @@ impl JointConstraintHelper<Real> {
         mb1: LinkOrBodyRef,
         mb2: LinkOrBodyRef,
         _locked_axis: usize,
+        softness: SpringCoefficients<Real>,
         writeback_id: WritebackId,
-        natural_frequency: Real,
-        damping_ratio: Real,
     ) -> GenericJointConstraint {
         #[cfg(feature = "dim2")]
         let ang_jac = Vector1::new(1.0);
@@ -573,7 +571,7 @@ impl JointConstraintHelper<Real> {
             ang_jac,
         );
 
-        let erp_inv_dt = params.joint_erp_inv_dt_with_override(natural_frequency, damping_ratio);
+        let erp_inv_dt = softness.erp_inv_dt(params.dt);
         #[cfg(feature = "dim2")]
         let rhs_bias = self.ang_err.im * erp_inv_dt;
         #[cfg(feature = "dim3")]
@@ -594,9 +592,8 @@ impl JointConstraintHelper<Real> {
         mb2: LinkOrBodyRef,
         _limited_axis: usize,
         limits: [Real; 2],
+        softness: SpringCoefficients<Real>,
         writeback_id: WritebackId,
-        natural_frequency: Real,
-        damping_ratio: Real,
     ) -> GenericJointConstraint {
         #[cfg(feature = "dim2")]
         let ang_jac = Vector1::new(1.0);
@@ -629,7 +626,7 @@ impl JointConstraintHelper<Real> {
             max_enabled as u32 as Real * Real::MAX,
         ];
 
-        let erp_inv_dt = params.joint_erp_inv_dt_with_override(natural_frequency, damping_ratio);
+        let erp_inv_dt = softness.erp_inv_dt(params.dt);
         let rhs_bias =
             ((s_ang - s_limits[1]).max(0.0) - (s_limits[0] - s_ang).max(0.0)) * erp_inv_dt;
 

@@ -346,9 +346,9 @@ impl GenericContactConstraintBuilder {
         multibodies: &MultibodyJointSet,
         constraint: &mut GenericContactConstraint,
     ) {
-        let cfm_factor = params.contact_cfm_factor();
+        let cfm_factor = params.contact_softness.cfm_factor(params.dt);
         let inv_dt = params.inv_dt();
-        let erp_inv_dt = params.contact_erp_inv_dt();
+        let erp_inv_dt = params.contact_softness.erp_inv_dt(params.dt);
 
         // We don’t update jacobians so the update is mostly identical to the non-generic velocity constraint.
         let pose1 = multibodies

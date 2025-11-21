@@ -13,7 +13,12 @@
 - Rename `RigidBodyChanges::CHANGED` to `::IN_CHANGED_SET` to make its meaning more precise.
 - Fix colliders ignoring user-changes after the first simulation step.
 - Fix broad-phase incorrectly taking into account disabled colliders attached to an enabled dynamic rigid-body.
-- Removed `IntegrationParameters::joint_natural_frequency` and `IntegrationParameters::joint_damping_ratio` in favor of being in `GenericJoint` (#789).
+- Grouped `IntegrationParameters::contact_natural_frequency` and `IntegrationParameters::contact_damping_ratio` behind
+  a single `IntegrationParameters::contact_softness` (#789).
+- Removed the `Integration_parameters` methods related to `erp` and `cfm`. They are now methods of the
+  `IntegrationParameters::softness` and `GenericJoint::softness` fields (#789).
+- Removed `IntegrationParameters::joint_natural_frequency` and `IntegrationParameters::joint_damping_ratio` in favor of
+  per-joint softness coefficients `GenericJoint::softness` (#789).
 
 ## v0.30.1 (17 Oct. 2025)
 

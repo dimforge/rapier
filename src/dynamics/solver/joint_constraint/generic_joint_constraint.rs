@@ -140,9 +140,8 @@ impl GenericJointConstraint {
                     mb1,
                     mb2,
                     i - DIM,
+                    joint.softness,
                     WritebackId::Dof(i),
-                    joint.natural_frequency,
-                    joint.damping_ratio,
                 );
                 len += 1;
             }
@@ -159,9 +158,8 @@ impl GenericJointConstraint {
                     mb1,
                     mb2,
                     i,
+                    joint.softness,
                     WritebackId::Dof(i),
-                    joint.natural_frequency,
-                    joint.damping_ratio,
                 );
                 len += 1;
             }
@@ -180,9 +178,8 @@ impl GenericJointConstraint {
                     mb2,
                     i - DIM,
                     [joint.limits[i].min, joint.limits[i].max],
+                    joint.softness,
                     WritebackId::Limit(i),
-                    joint.natural_frequency,
-                    joint.damping_ratio,
                 );
                 len += 1;
             }
@@ -200,9 +197,8 @@ impl GenericJointConstraint {
                     mb2,
                     i,
                     [joint.limits[i].min, joint.limits[i].max],
+                    joint.softness,
                     WritebackId::Limit(i),
-                    joint.natural_frequency,
-                    joint.damping_ratio,
                 );
                 len += 1;
             }
