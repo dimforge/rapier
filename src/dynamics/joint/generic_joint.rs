@@ -305,10 +305,7 @@ impl Default for GenericJoint {
             coupled_axes: JointAxesMask::empty(),
             limits: [JointLimits::default(); SPATIAL_DIM],
             motors: [JointMotor::default(); SPATIAL_DIM],
-            softness: SpringCoefficients {
-                natural_frequency: 1.0e6,
-                damping_ratio: 1.0,
-            },
+            softness: SpringCoefficients::joint_defaults(),
             contacts_enabled: true,
             enabled: JointEnabled::Enabled,
             user_data: 0,

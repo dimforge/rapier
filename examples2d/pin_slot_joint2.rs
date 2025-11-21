@@ -1,4 +1,7 @@
+use crate::utils::character;
+use crate::utils::character::CharacterControlMode;
 use rapier_testbed2d::Testbed;
+use rapier2d::control::{KinematicCharacterController, PidController};
 use rapier2d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -76,6 +79,26 @@ pub fn init_world(testbed: &mut Testbed) {
         .limits([-1.0, f32::INFINITY]) // Set the limits for the pin slot joint
         .build();
     impulse_joints.insert(character_handle, cube_handle, pin_slot_joint, true);
+
+    /*
+     * Callback to update the character based on user inputs.
+     */
+    let mut control_mode = CharacterControlMode::Kinematic(0.1);
+    let mut controller = KinematicCharacterController::default();
+    let mut pid = PidController::default();
+
+    testbed.add_callback(move |graphics, physics, _, _| {
+        if let Some(graphics) = graphics {
+            character::update_character(
+                graphics,
+                physics,
+                &mut control_mode,
+                &mut controller,
+                &mut pid,
+                character_handle,
+            );
+        }
+    });
 
     /*
      * Set up the testbed.

@@ -402,8 +402,6 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         writeback_id: WritebackId,
     ) -> JointConstraint<N, LANES> {
         let inv_dt = N::splat(params.inv_dt());
-        // Motors don't use joint erp/cfm; they use motor-specific parameters.
-        // Pass dummy values since lock_linear will override them anyway.
         let mut constraint = self.lock_linear(
             params,
             joint_id,
@@ -411,6 +409,8 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
             body2,
             motor_axis,
             writeback_id,
+            // Set regularization factors to zero.
+            // The motor impl. will overwrite them after.
             N::zero(),
             N::zero(),
         );
