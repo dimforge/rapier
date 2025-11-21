@@ -411,7 +411,7 @@ Hashes at frame: {}
         serialization_time.as_secs_f64() * 1000.0,
         timestep_id,
         bf.len() as f32 / 1000.0,
-        format!("{:?}", hash_bf).split_at(10).0,
+        format!("{hash_bf:?}").split_at(10).0,
         nf.len() as f32 / 1000.0,
         format!("{hash_nf:?}").split_at(10).0,
         bs.len() as f32 / 1000.0,
