@@ -1,4 +1,4 @@
-## Unreleased
+## v0.31.0 (21 Nov. 2025)
 
 - `InteractionGroups` struct now contains `InteractionTestMode`.
   Continues [rapier/pull/170](https://github.com/dimforge/rapier/pull/170)
