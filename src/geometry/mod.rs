@@ -204,7 +204,7 @@ impl ContactForceEvent {
             result.total_force += m.data.normal * total_manifold_impulse;
 
             for sc in m.data.solver_contacts.iter() {
-                if sc.is_new {
+                if sc.is_new == 1.0 {
                     result.first_tick = true;
                 }
             }
