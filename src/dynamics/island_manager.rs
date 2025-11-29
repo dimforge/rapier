@@ -6,13 +6,24 @@ use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
 use crate::utils::SimdDot;
 
-/// Structure responsible for maintaining the set of active rigid-bodies, and
-/// putting non-moving rigid-bodies to sleep to save computation times.
+/// System that manages which bodies are active (awake) vs sleeping to optimize performance.
+///
+/// ## Sleeping Optimization
+///
+/// Bodies at rest automatically "sleep" - they're excluded from simulation until something
+/// disturbs them (collision, joint connection to moving body, manual wake-up). This can
+/// dramatically improve performance in scenes with many static/resting objects.
+///
+/// ## Islands
+///
+/// Connected bodies (via contacts or joints) are grouped into "islands" that are solved together.
+/// This allows parallel solving and better organization.
+///
+/// You rarely interact with this directly - it's automatically managed by [`PhysicsPipeline`](crate::pipeline::PhysicsPipeline).
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Default)]
 pub struct IslandManager {
-    pub(crate) active_dynamic_set: Vec<RigidBodyHandle>,
-    pub(crate) active_kinematic_set: Vec<RigidBodyHandle>,
+    pub(crate) active_set: Vec<RigidBodyHandle>,
     pub(crate) active_islands: Vec<usize>,
     pub(crate) active_islands_additional_solver_iterations: Vec<usize>,
     active_set_timestamp: u32,
@@ -26,8 +37,7 @@ impl IslandManager {
     /// Creates a new empty island manager.
     pub fn new() -> Self {
         Self {
-            active_dynamic_set: vec![],
-            active_kinematic_set: vec![],
+            active_set: vec![],
             active_islands: vec![],
             active_islands_additional_solver_iterations: vec![],
             active_set_timestamp: 0,
@@ -42,26 +52,22 @@ impl IslandManager {
 
     /// Update this data-structure after one or multiple rigid-bodies have been removed for `bodies`.
     pub fn cleanup_removed_rigid_bodies(&mut self, bodies: &mut RigidBodySet) {
-        let mut active_sets = [&mut self.active_kinematic_set, &mut self.active_dynamic_set];
+        let mut i = 0;
 
-        for active_set in &mut active_sets {
-            let mut i = 0;
+        while i < self.active_set.len() {
+            let handle = self.active_set[i];
+            if bodies.get(handle).is_none() {
+                // This rigid-body no longer exists, so we need to remove it from the active set.
+                self.active_set.swap_remove(i);
 
-            while i < active_set.len() {
-                let handle = active_set[i];
-                if bodies.get(handle).is_none() {
-                    // This rigid-body no longer exists, so we need to remove it from the active set.
-                    active_set.swap_remove(i);
-
-                    if i < active_set.len() {
-                        // Update the active_set_id for the body that has been swapped.
-                        if let Some(swapped_rb) = bodies.get_mut_internal(active_set[i]) {
-                            swapped_rb.ids.active_set_id = i;
-                        }
+                if i < self.active_set.len() {
+                    // Update the self.active_set_id for the body that has been swapped.
+                    if let Some(swapped_rb) = bodies.get_mut_internal(self.active_set[i]) {
+                        swapped_rb.ids.active_set_id = i;
                     }
-                } else {
-                    i += 1;
                 }
+            } else {
+                i += 1;
             }
         }
     }
@@ -72,26 +78,41 @@ impl IslandManager {
         removed_ids: &RigidBodyIds,
         bodies: &mut RigidBodySet,
     ) {
-        let mut active_sets = [&mut self.active_kinematic_set, &mut self.active_dynamic_set];
+        if self.active_set.get(removed_ids.active_set_id) == Some(&removed_handle) {
+            self.active_set.swap_remove(removed_ids.active_set_id);
 
-        for active_set in &mut active_sets {
-            if active_set.get(removed_ids.active_set_id) == Some(&removed_handle) {
-                active_set.swap_remove(removed_ids.active_set_id);
-
-                if let Some(replacement) = active_set
-                    .get(removed_ids.active_set_id)
-                    .and_then(|h| bodies.get_mut_internal(*h))
-                {
-                    replacement.ids.active_set_id = removed_ids.active_set_id;
-                }
+            if let Some(replacement) = self
+                .active_set
+                .get(removed_ids.active_set_id)
+                .and_then(|h| bodies.get_mut_internal(*h))
+            {
+                replacement.ids.active_set_id = removed_ids.active_set_id;
             }
         }
     }
 
-    /// Forces the specified rigid-body to wake up if it is dynamic.
+    /// Wakes up a sleeping body, forcing it back into the active simulation.
     ///
-    /// If `strong` is `true` then it is assured that the rigid-body will
-    /// remain awake during multiple subsequent timesteps.
+    /// Use this when you want to ensure a body is active (useful after manually moving
+    /// a sleeping body, or to prevent it from sleeping in the next few frames).
+    ///
+    /// # Parameters
+    /// * `strong` - If `true`, the body is guaranteed to stay awake for multiple frames.
+    ///   If `false`, it might sleep again immediately if conditions are met.
+    ///
+    /// # Example
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut islands = IslandManager::new();
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic());
+    /// islands.wake_up(&mut bodies, body_handle, true);
+    /// let body = bodies.get_mut(body_handle).unwrap();
+    /// // Wake up a body before applying force to it
+    /// body.add_force(vector![100.0, 0.0, 0.0], false);
+    /// ```
+    ///
+    /// Only affects dynamic bodies (kinematic and fixed bodies don't sleep).
     pub fn wake_up(&mut self, bodies: &mut RigidBodySet, handle: RigidBodyHandle, strong: bool) {
         // NOTE: the use an Option here because there are many legitimate cases (like when
         //       deleting a joint attached to an already-removed body) where we could be
@@ -104,41 +125,27 @@ impl IslandManager {
             if !rb.changes.contains(RigidBodyChanges::SLEEP) {
                 rb.activation.wake_up(strong);
 
-                if rb.is_enabled()
-                    && self.active_dynamic_set.get(rb.ids.active_set_id) != Some(&handle)
-                {
-                    rb.ids.active_set_id = self.active_dynamic_set.len();
-                    self.active_dynamic_set.push(handle);
+                if rb.is_enabled() && self.active_set.get(rb.ids.active_set_id) != Some(&handle) {
+                    rb.ids.active_set_id = self.active_set.len();
+                    self.active_set.push(handle);
                 }
             }
         }
     }
 
-    /// Iter through all the active kinematic rigid-bodies on this set.
-    pub fn active_kinematic_bodies(&self) -> &[RigidBodyHandle] {
-        &self.active_kinematic_set[..]
-    }
-
-    /// Iter through all the active dynamic rigid-bodies on this set.
-    pub fn active_dynamic_bodies(&self) -> &[RigidBodyHandle] {
-        &self.active_dynamic_set[..]
-    }
-
     pub(crate) fn active_island(&self, island_id: usize) -> &[RigidBodyHandle] {
         let island_range = self.active_islands[island_id]..self.active_islands[island_id + 1];
-        &self.active_dynamic_set[island_range]
+        &self.active_set[island_range]
     }
 
     pub(crate) fn active_island_additional_solver_iterations(&self, island_id: usize) -> usize {
         self.active_islands_additional_solver_iterations[island_id]
     }
 
-    #[inline(always)]
-    pub(crate) fn iter_active_bodies(&self) -> impl Iterator<Item = RigidBodyHandle> + '_ {
-        self.active_dynamic_set
-            .iter()
-            .copied()
-            .chain(self.active_kinematic_set.iter().copied())
+    /// Handls of dynamic and kinematic rigid-bodies that are currently active (i.e. not sleeping).
+    #[inline]
+    pub fn active_bodies(&self) -> &[RigidBodyHandle] {
+        &self.active_set
     }
 
     #[cfg(feature = "parallel")]
@@ -171,10 +178,10 @@ impl IslandManager {
         self.can_sleep.clear();
 
         // NOTE: the `.rev()` is here so that two successive timesteps preserve
-        // the order of the bodies in the `active_dynamic_set` vec. This reversal
+        // the order of the bodies in the `active_set` vec. This reversal
         // does not seem to affect performances nor stability. However it makes
         // debugging slightly nicer.
-        for h in self.active_dynamic_set.drain(..).rev() {
+        for h in self.active_set.drain(..).rev() {
             let can_sleep = &mut self.can_sleep;
             let stack = &mut self.stack;
 
@@ -182,7 +189,14 @@ impl IslandManager {
             let sq_linvel = rb.vels.linvel.norm_squared();
             let sq_angvel = rb.vels.angvel.gdot(rb.vels.angvel);
 
-            update_energy(length_unit, &mut rb.activation, sq_linvel, sq_angvel, dt);
+            update_energy(
+                &mut rb.activation,
+                rb.body_type,
+                length_unit,
+                sq_linvel,
+                sq_angvel,
+                dt,
+            );
 
             if rb.activation.time_since_can_sleep >= rb.activation.time_until_sleep {
                 // Mark them as sleeping for now. This will
@@ -196,7 +210,7 @@ impl IslandManager {
         }
 
         // Read all the contacts and push objects touching touching this rigid-body.
-        #[inline(always)]
+        #[inline]
         fn push_contacting_bodies(
             rb_colliders: &RigidBodyColliders,
             colliders: &ColliderSet,
@@ -219,20 +233,6 @@ impl IslandManager {
                     }
                 }
             }
-        }
-
-        // Now iterate on all active kinematic bodies and push all the bodies
-        // touching them to the stack so they can be woken up.
-        for h in self.active_kinematic_set.iter() {
-            let rb = &bodies[*h];
-
-            if rb.vels.is_zero() {
-                // If the kinematic body does not move, it does not have
-                // to wake up any dynamic body.
-                continue;
-            }
-
-            push_contacting_bodies(&rb.colliders, colliders, narrow_phase, &mut self.stack);
         }
 
         //        println!("Selection: {}", Instant::now() - t);
@@ -258,7 +258,9 @@ impl IslandManager {
         while let Some(handle) = self.stack.pop() {
             let rb = bodies.index_mut_internal(handle);
 
-            if rb.ids.active_set_timestamp == self.active_set_timestamp || !rb.is_dynamic() {
+            if rb.ids.active_set_timestamp == self.active_set_timestamp
+                || !rb.is_dynamic_or_kinematic()
+            {
                 // We already visited this body and its neighbors.
                 // Also, we don't propagate awake state through fixed bodies.
                 continue;
@@ -266,13 +268,13 @@ impl IslandManager {
 
             if self.stack.len() < island_marker {
                 if additional_solver_iterations != rb.additional_solver_iterations
-                    || self.active_dynamic_set.len() - *self.active_islands.last().unwrap()
+                    || self.active_set.len() - *self.active_islands.last().unwrap()
                         >= min_island_size
                 {
                     // We are starting a new island.
                     self.active_islands_additional_solver_iterations
                         .push(additional_solver_iterations);
-                    self.active_islands.push(self.active_dynamic_set.len());
+                    self.active_islands.push(self.active_set.len());
                     additional_solver_iterations = 0;
                 }
 
@@ -297,17 +299,17 @@ impl IslandManager {
 
             rb.activation.wake_up(false);
             rb.ids.active_island_id = self.active_islands.len() - 1;
-            rb.ids.active_set_id = self.active_dynamic_set.len();
+            rb.ids.active_set_id = self.active_set.len();
             rb.ids.active_set_offset =
-                rb.ids.active_set_id - self.active_islands[rb.ids.active_island_id];
+                (rb.ids.active_set_id - self.active_islands[rb.ids.active_island_id]) as u32;
             rb.ids.active_set_timestamp = self.active_set_timestamp;
 
-            self.active_dynamic_set.push(handle);
+            self.active_set.push(handle);
         }
 
         self.active_islands_additional_solver_iterations
             .push(additional_solver_iterations);
-        self.active_islands.push(self.active_dynamic_set.len());
+        self.active_islands.push(self.active_set.len());
         //        println!(
         //            "Extraction: {}, num islands: {}",
         //            Instant::now() - t,
@@ -326,16 +328,28 @@ impl IslandManager {
 }
 
 fn update_energy(
-    length_unit: Real,
     activation: &mut RigidBodyActivation,
+    body_type: RigidBodyType,
+    length_unit: Real,
     sq_linvel: Real,
     sq_angvel: Real,
     dt: Real,
 ) {
-    let linear_threshold = activation.normalized_linear_threshold * length_unit;
-    if sq_linvel < linear_threshold * linear_threshold.abs()
-        && sq_angvel < activation.angular_threshold * activation.angular_threshold.abs()
-    {
+    let can_sleep = match body_type {
+        RigidBodyType::Dynamic => {
+            let linear_threshold = activation.normalized_linear_threshold * length_unit;
+            sq_linvel < linear_threshold * linear_threshold.abs()
+                && sq_angvel < activation.angular_threshold * activation.angular_threshold.abs()
+        }
+        RigidBodyType::KinematicPositionBased | RigidBodyType::KinematicVelocityBased => {
+            // Platforms only sleep if both velocities are exactly zero. If it’s not exactly
+            // zero, then the user really wants them to move.
+            sq_linvel == 0.0 && sq_angvel == 0.0
+        }
+        RigidBodyType::Fixed => true,
+    };
+
+    if can_sleep {
         activation.time_since_can_sleep += dt;
     } else {
         activation.time_since_can_sleep = 0.0;

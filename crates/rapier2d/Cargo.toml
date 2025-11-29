@@ -1,6 +1,6 @@
 [package]
 name = "rapier2d"
-version = "0.27.0-beta.0"
+version = "0.31.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "2-dimensional physics engine in Rust."
 documentation = "https://docs.rs/rapier2d"
@@ -33,8 +33,8 @@ default = ["dim2", "f32"]
 dim2 = []
 f32 = []
 parallel = ["dep:rayon"]
-simd-stable = ["simba/wide", "simd-is-enabled"]
-simd-nightly = ["simba/portable_simd", "simd-is-enabled"]
+simd-stable = ["simba/wide", "parry2d/simd-stable", "simd-is-enabled"]
+simd-nightly = ["simba/portable_simd", "parry2d/simd-nightly", "simd-is-enabled"]
 # Do not enable this feature directly. It is automatically
 # enabled with the "simd-stable" or "simd-nightly" feature.
 simd-is-enabled = ["dep:vec_map"]
@@ -63,18 +63,17 @@ features = ["parallel", "simd-stable", "serde-serialize", "debug-render"]
 name = "rapier2d"
 path = "../../src/lib.rs"
 required-features = ["dim2", "f32"]
-
+doctest = false # All doctests are written assuming the 3D version.
 
 [dependencies]
 vec_map = { version = "0.8", optional = true }
 web-time = { version = "1.1", optional = true }
 num-traits = "0.2"
-nalgebra = "0.33"
-parry2d = "0.22.0-beta.1"
-simba = "0.9"
+nalgebra = "0.34"
+parry2d = "0.25.1"
+simba = "0.9.1"
 approx = "0.5"
 rayon = { version = "1", optional = true }
-crossbeam = "0.8"
 arrayvec = "0.7"
 bit-vec = "0.8"
 rustc-hash = "2"
@@ -86,6 +85,10 @@ log = "0.4"
 ordered-float = "5"
 thiserror = "2"
 profiling = "1.0"
+static_assertions = "1"
+
+# TODO: should be re-exported from simba
+wide = "0.7.1"
 
 [dev-dependencies]
 bincode = "1"

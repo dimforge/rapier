@@ -10,6 +10,7 @@ use parry::math::AngVector;
 /// This is a [PID controller](https://en.wikipedia.org/wiki/Proportional%E2%80%93integral%E2%80%93derivative_controller)
 /// without the Integral part to keep the API immutable, while having a behaviour generally
 /// sufficient for games.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PdController {
     /// The Proportional gain applied to the instantaneous linear position errors.
@@ -51,6 +52,7 @@ impl Default for PdController {
 ///
 /// For video games, the Proportional-Derivative [`PdController`] is generally sufficient and
 /// offers an immutable API.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PidController {
     /// The Proportional-Derivative (PD) part of this PID controller.
@@ -79,8 +81,8 @@ pub struct PdErrors {
     pub angular: AngVector<Real>,
 }
 
-impl From<RigidBodyVelocity> for PdErrors {
-    fn from(vels: RigidBodyVelocity) -> Self {
+impl From<RigidBodyVelocity<Real>> for PdErrors {
+    fn from(vels: RigidBodyVelocity<Real>) -> Self {
         Self {
             linear: vels.linvel,
             angular: vels.angvel,
@@ -173,8 +175,8 @@ impl PdController {
         &self,
         rb: &RigidBody,
         target_pose: Isometry<Real>,
-        target_vels: RigidBodyVelocity,
-    ) -> RigidBodyVelocity {
+        target_vels: RigidBodyVelocity<Real>,
+    ) -> RigidBodyVelocity<Real> {
         let pose_errors = RigidBodyPosition {
             position: rb.pos.position,
             next_position: target_pose,
@@ -218,7 +220,11 @@ impl PdController {
     /// The unit of the returned value depends on the gain values. In general, `kd` is proportional to
     /// the inverse of the simulation step so the returned value is a rigid-body velocity
     /// change.
-    pub fn correction(&self, pose_errors: &PdErrors, vel_errors: &PdErrors) -> RigidBodyVelocity {
+    pub fn correction(
+        &self,
+        pose_errors: &PdErrors,
+        vel_errors: &PdErrors,
+    ) -> RigidBodyVelocity<Real> {
         let lin_mask = self.lin_mask();
         let ang_mask = self.ang_mask();
 
@@ -359,8 +365,8 @@ impl PidController {
         dt: Real,
         rb: &RigidBody,
         target_pose: Isometry<Real>,
-        target_vels: RigidBodyVelocity,
-    ) -> RigidBodyVelocity {
+        target_vels: RigidBodyVelocity<Real>,
+    ) -> RigidBodyVelocity<Real> {
         let pose_errors = RigidBodyPosition {
             position: rb.pos.position,
             next_position: target_pose,
@@ -384,7 +390,7 @@ impl PidController {
         dt: Real,
         pose_errors: &PdErrors,
         vel_errors: &PdErrors,
-    ) -> RigidBodyVelocity {
+    ) -> RigidBodyVelocity<Real> {
         self.lin_integral += pose_errors.linear * dt;
         self.ang_integral += pose_errors.angular * dt;
 

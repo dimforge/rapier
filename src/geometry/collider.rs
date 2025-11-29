@@ -1,4 +1,4 @@
-use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle};
+use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle, RigidBodySet};
 #[cfg(feature = "dim3")]
 use crate::geometry::HeightFieldFlags;
 use crate::geometry::{
@@ -9,7 +9,7 @@ use crate::geometry::{
 use crate::math::{AngVector, DIM, Isometry, Point, Real, Rotation, Vector};
 use crate::parry::transformation::vhacd::VHACDParameters;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
-use crate::prelude::ColliderEnabled;
+use crate::prelude::{ColliderEnabled, IntegrationParameters};
 use na::Unit;
 use parry::bounding_volume::{Aabb, BoundingVolume};
 use parry::shape::{Shape, TriMeshBuilderError, TriMeshFlags};
@@ -17,9 +17,34 @@ use parry::transformation::voxelization::FillMode;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
-/// A geometric entity that can be attached to a body so it can be affected by contacts and proximity queries.
+/// The collision shape attached to a rigid body that defines what it can collide with.
 ///
-/// To build a new collider, use the [`ColliderBuilder`] structure.
+/// Think of a collider as the "hitbox" or "collision shape" for your physics object. While a
+/// [`RigidBody`](crate::dynamics::RigidBody) handles the physics (mass, velocity, forces),
+/// the collider defines what shape the object has for collision detection.
+///
+/// ## Key concepts
+///
+/// - **Shape**: The geometric form (box, sphere, capsule, mesh, etc.)
+/// - **Material**: Physical properties like friction (slipperiness) and restitution (bounciness)
+/// - **Sensor vs. Solid**: Sensors detect overlaps but don't create physical collisions
+/// - **Mass properties**: Automatically computed from the shape's volume and density
+///
+/// ## Creating colliders
+///
+/// Always use [`ColliderBuilder`] to create colliders:
+///
+/// ```ignore
+/// let collider = ColliderBuilder::cuboid(1.0, 0.5, 1.0)  // 2x1x2 box
+///     .friction(0.7)
+///     .restitution(0.3);
+/// colliders.insert_with_parent(collider, body_handle, &mut bodies);
+/// ```
+///
+/// ## Attaching to bodies
+///
+/// Colliders are usually attached to rigid bodies. One body can have multiple colliders
+/// to create compound shapes (like a character with separate colliders for head, torso, limbs).
 pub struct Collider {
     pub(crate) coll_type: ColliderType,
     pub(crate) shape: ColliderShape,
@@ -52,12 +77,21 @@ impl Collider {
         }
     }
 
-    /// The rigid body this collider is attached to.
+    /// The rigid body this collider is attached to, if any.
+    ///
+    /// Returns `None` for standalone colliders (not attached to any body).
     pub fn parent(&self) -> Option<RigidBodyHandle> {
         self.parent.map(|parent| parent.handle)
     }
 
-    /// Is this collider a sensor?
+    /// Checks if this collider is a sensor (detects overlaps without physical collision).
+    ///
+    /// Sensors are like "trigger zones" - they detect when other colliders enter/exit them
+    /// but don't create physical contact forces. Use for:
+    /// - Trigger zones (checkpoint areas, damage regions)
+    /// - Proximity detection
+    /// - Collectible items
+    /// - Area-of-effect detection
     pub fn is_sensor(&self) -> bool {
         self.coll_type.is_sensor()
     }
@@ -110,22 +144,31 @@ impl Collider {
         self.contact_skin = *contact_skin;
     }
 
-    /// The physics hooks enabled for this collider.
+    /// Which physics hooks are enabled for this collider.
+    ///
+    /// Hooks allow custom filtering and modification of collisions. See [`PhysicsHooks`](crate::pipeline::PhysicsHooks).
     pub fn active_hooks(&self) -> ActiveHooks {
         self.flags.active_hooks
     }
 
-    /// Sets the physics hooks enabled for this collider.
+    /// Enables/disables physics hooks for this collider.
+    ///
+    /// Use to opt colliders into custom collision filtering logic.
     pub fn set_active_hooks(&mut self, active_hooks: ActiveHooks) {
         self.flags.active_hooks = active_hooks;
     }
 
-    /// The events enabled for this collider.
+    /// Which events are enabled for this collider.
+    ///
+    /// Controls whether you receive collision/contact force events. See [`ActiveEvents`](crate::pipeline::ActiveEvents).
     pub fn active_events(&self) -> ActiveEvents {
         self.flags.active_events
     }
 
-    /// Sets the events enabled for this collider.
+    /// Enables/disables event generation for this collider.
+    ///
+    /// Set to `ActiveEvents::COLLISION_EVENTS` to receive started/stopped collision notifications.
+    /// Set to `ActiveEvents::CONTACT_FORCE_EVENTS` to receive force threshold events.
     pub fn set_active_events(&mut self, active_events: ActiveEvents) {
         self.flags.active_events = active_events;
     }
@@ -154,12 +197,19 @@ impl Collider {
         self.contact_skin = skin_thickness;
     }
 
-    /// The friction coefficient of this collider.
+    /// The friction coefficient of this collider (how "slippery" it is).
+    ///
+    /// - `0.0` = perfectly slippery (ice)
+    /// - `1.0` = high friction (rubber on concrete)
+    /// - Typical values: 0.3-0.8
     pub fn friction(&self) -> Real {
         self.material.friction
     }
 
-    /// Sets the friction coefficient of this collider.
+    /// Sets the friction coefficient (slipperiness).
+    ///
+    /// Controls how much this surface resists sliding. Higher values = more grip.
+    /// Works with other collider's friction via the combine rule.
     pub fn set_friction(&mut self, coefficient: Real) {
         self.material.friction = coefficient
     }
@@ -178,12 +228,20 @@ impl Collider {
         self.material.friction_combine_rule = rule;
     }
 
-    /// The restitution coefficient of this collider.
+    /// The restitution coefficient of this collider (how "bouncy" it is).
+    ///
+    /// - `0.0` = no bounce (clay, soft material)
+    /// - `1.0` = perfect bounce (ideal elastic collision)
+    /// - `>1.0` = super bouncy (gains energy, unrealistic but fun!)
+    /// - Typical values: 0.0-0.8
     pub fn restitution(&self) -> Real {
         self.material.restitution
     }
 
-    /// Sets the restitution coefficient of this collider.
+    /// Sets the restitution coefficient (bounciness).
+    ///
+    /// Controls how much velocity is preserved after impact. Higher values = more bounce.
+    /// Works with other collider's restitution via the combine rule.
     pub fn set_restitution(&mut self, coefficient: Real) {
         self.material.restitution = coefficient
     }
@@ -207,7 +265,10 @@ impl Collider {
         self.contact_force_event_threshold = threshold;
     }
 
-    /// Sets whether or not this is a sensor collider.
+    /// Converts this collider to/from a sensor.
+    ///
+    /// Sensors detect overlaps but don't create physical contact forces.
+    /// Use `true` for trigger zones, `false` for solid collision shapes.
     pub fn set_sensor(&mut self, is_sensor: bool) {
         if is_sensor != self.is_sensor() {
             self.changes.insert(ColliderChanges::TYPE);
@@ -219,12 +280,17 @@ impl Collider {
         }
     }
 
-    /// Is this collider enabled?
+    /// Returns `true` if this collider is active in the simulation.
+    ///
+    /// Disabled colliders are excluded from collision detection and physics.
     pub fn is_enabled(&self) -> bool {
         matches!(self.flags.enabled, ColliderEnabled::Enabled)
     }
 
-    /// Sets whether or not this collider is enabled.
+    /// Enables or disables this collider.
+    ///
+    /// When disabled, the collider is excluded from all collision detection and physics.
+    /// Useful for temporarily "turning off" colliders without removing them.
     pub fn set_enabled(&mut self, enabled: bool) {
         match self.flags.enabled {
             ColliderEnabled::Enabled | ColliderEnabled::DisabledByParent => {
@@ -242,45 +308,60 @@ impl Collider {
         }
     }
 
-    /// Sets the translational part of this collider's position.
+    /// Sets the collider's position (for standalone colliders).
+    ///
+    /// For attached colliders, modify the parent body's position instead.
+    /// This directly sets world-space position.
     pub fn set_translation(&mut self, translation: Vector<Real>) {
         self.changes.insert(ColliderChanges::POSITION);
         self.pos.0.translation.vector = translation;
     }
 
-    /// Sets the rotational part of this collider's position.
+    /// Sets the collider's rotation (for standalone colliders).
+    ///
+    /// For attached colliders, modify the parent body's rotation instead.
     pub fn set_rotation(&mut self, rotation: Rotation<Real>) {
         self.changes.insert(ColliderChanges::POSITION);
         self.pos.0.rotation = rotation;
     }
 
-    /// Sets the position of this collider.
+    /// Sets the collider's full pose (for standalone colliders).
+    ///
+    /// For attached colliders, modify the parent body instead.
     pub fn set_position(&mut self, position: Isometry<Real>) {
         self.changes.insert(ColliderChanges::POSITION);
         self.pos.0 = position;
     }
 
-    /// The world-space position of this collider.
+    /// The current world-space position of this collider.
+    ///
+    /// For attached colliders, this is automatically updated when the parent body moves.
+    /// For standalone colliders, this is the position you set directly.
     pub fn position(&self) -> &Isometry<Real> {
         &self.pos
     }
 
-    /// The translational part of this collider's position.
+    /// The current position vector of this collider (world coordinates).
     pub fn translation(&self) -> &Vector<Real> {
         &self.pos.0.translation.vector
     }
 
-    /// The rotational part of this collider's position.
+    /// The current rotation/orientation of this collider.
     pub fn rotation(&self) -> &Rotation<Real> {
         &self.pos.0.rotation
     }
 
-    /// The position of this collider with respect to the body it is attached to.
+    /// The collider's position relative to its parent body (local coordinates).
+    ///
+    /// Returns `None` for standalone colliders. This is the offset from the parent body's origin.
     pub fn position_wrt_parent(&self) -> Option<&Isometry<Real>> {
         self.parent.as_ref().map(|p| &p.pos_wrt_parent)
     }
 
-    /// Sets the translational part of this collider's translation relative to its parent rigid-body.
+    /// Changes this collider's position offset from its parent body.
+    ///
+    /// Useful for adjusting where a collider sits on a body without moving the whole body.
+    /// Does nothing if the collider has no parent.
     pub fn set_translation_wrt_parent(&mut self, translation: Vector<Real>) {
         if let Some(parent) = self.parent.as_mut() {
             self.changes.insert(ColliderChanges::PARENT);
@@ -288,7 +369,9 @@ impl Collider {
         }
     }
 
-    /// Sets the rotational part of this collider's rotation relative to its parent rigid-body.
+    /// Changes this collider's rotation offset from its parent body.
+    ///
+    /// Rotates the collider relative to its parent. Does nothing if no parent.
     pub fn set_rotation_wrt_parent(&mut self, rotation: AngVector<Real>) {
         if let Some(parent) = self.parent.as_mut() {
             self.changes.insert(ColliderChanges::PARENT);
@@ -296,7 +379,7 @@ impl Collider {
         }
     }
 
-    /// Sets the position of this collider with respect to its parent rigid-body.
+    /// Changes this collider's full pose (position + rotation) relative to its parent.
     ///
     /// Does nothing if the collider is not attached to a rigid-body.
     pub fn set_position_wrt_parent(&mut self, pos_wrt_parent: Isometry<Real>) {
@@ -306,12 +389,16 @@ impl Collider {
         }
     }
 
-    /// The collision groups used by this collider.
+    /// The collision groups controlling what this collider can interact with.
+    ///
+    /// See [`InteractionGroups`] for details on collision filtering.
     pub fn collision_groups(&self) -> InteractionGroups {
         self.flags.collision_groups
     }
 
-    /// Sets the collision groups of this collider.
+    /// Changes which collision groups this collider belongs to and can interact with.
+    ///
+    /// Use to control collision filtering (like changing layers).
     pub fn set_collision_groups(&mut self, groups: InteractionGroups) {
         if self.flags.collision_groups != groups {
             self.changes.insert(ColliderChanges::GROUPS);
@@ -319,12 +406,14 @@ impl Collider {
         }
     }
 
-    /// The solver groups used by this collider.
+    /// The solver groups for this collider (advanced collision filtering).
+    ///
+    /// Most users should use `collision_groups()` instead.
     pub fn solver_groups(&self) -> InteractionGroups {
         self.flags.solver_groups
     }
 
-    /// Sets the solver groups of this collider.
+    /// Changes the solver groups (advanced contact resolution filtering).
     pub fn set_solver_groups(&mut self, groups: InteractionGroups) {
         if self.flags.solver_groups != groups {
             self.changes.insert(ColliderChanges::GROUPS);
@@ -332,17 +421,22 @@ impl Collider {
         }
     }
 
-    /// The material (friction and restitution properties) of this collider.
+    /// Returns the material properties (friction and restitution) of this collider.
     pub fn material(&self) -> &ColliderMaterial {
         &self.material
     }
 
-    /// The volume (or surface in 2D) of this collider.
+    /// Returns the volume (3D) or area (2D) of this collider's shape.
+    ///
+    /// Used internally for mass calculations when density is set.
     pub fn volume(&self) -> Real {
         self.shape.mass_properties(1.0).mass()
     }
 
-    /// The density of this collider.
+    /// The density of this collider (mass per unit volume).
+    ///
+    /// Used to automatically compute mass from the collider's volume.
+    /// Returns an approximate density if mass was set directly instead.
     pub fn density(&self) -> Real {
         match &self.mprops {
             ColliderMassProps::Density(density) => *density,
@@ -357,7 +451,9 @@ impl Collider {
         }
     }
 
-    /// The mass of this collider.
+    /// The mass contributed by this collider to its parent body.
+    ///
+    /// Either set directly or computed from density × volume.
     pub fn mass(&self) -> Real {
         match &self.mprops {
             ColliderMassProps::Density(density) => self.shape.mass_properties(*density).mass(),
@@ -409,7 +505,10 @@ impl Collider {
         }
     }
 
-    /// The geometric shape of this collider.
+    /// The geometric shape of this collider (ball, cuboid, mesh, etc.).
+    ///
+    /// Returns a reference to the underlying shape object for reading properties
+    /// or performing geometric queries.
     pub fn shape(&self) -> &dyn Shape {
         self.shape.as_ref()
     }
@@ -430,45 +529,111 @@ impl Collider {
         self.shape = shape;
     }
 
-    /// Retrieve the SharedShape. Also see the `shape()` function
+    /// Returns the shape as a `SharedShape` (reference-counted shape).
+    ///
+    /// Use `shape()` for the trait object, this for the concrete type.
     pub fn shared_shape(&self) -> &SharedShape {
         &self.shape
     }
 
-    /// Compute the axis-aligned bounding box of this collider.
+    /// Computes the axis-aligned bounding box (AABB) of this collider.
     ///
-    /// This AABB doesn’t take into account the collider’s contact skin.
-    /// [`Collider::contact_skin`].
+    /// The AABB is the smallest box (aligned with world axes) that contains the shape.
+    /// Doesn't include contact skin.
     pub fn compute_aabb(&self) -> Aabb {
         self.shape.compute_aabb(&self.pos)
     }
 
-    /// Compute the axis-aligned bounding box of this collider, taking into account the
-    /// [`Collider::contact_skin`] and prediction distance.
+    /// Computes the AABB including contact skin and prediction distance.
+    ///
+    /// This is the AABB used for collision detection (slightly larger than the visual shape).
     pub fn compute_collision_aabb(&self, prediction: Real) -> Aabb {
         self.shape
             .compute_aabb(&self.pos)
             .loosened(self.contact_skin + prediction)
     }
 
-    /// Compute the axis-aligned bounding box of this collider moving from its current position
-    /// to the given `next_position`
+    /// Computes the AABB swept from current position to `next_position`.
+    ///
+    /// Returns a box that contains the shape at both positions plus everything in between.
+    /// Used for continuous collision detection.
     pub fn compute_swept_aabb(&self, next_position: &Isometry<Real>) -> Aabb {
         self.shape.compute_swept_aabb(&self.pos, next_position)
     }
 
-    /// Compute the local-space mass properties of this collider.
+    // TODO: we have a lot of different AABB computation functions
+    //       We should group them somehow.
+    /// Computes the collider’s AABB for usage in a broad-phase.
+    ///
+    /// It takes into account soft-ccd, the contact skin, and the contact prediction.
+    pub fn compute_broad_phase_aabb(
+        &self,
+        params: &IntegrationParameters,
+        bodies: &RigidBodySet,
+    ) -> Aabb {
+        // Take soft-ccd into account by growing the aabb.
+        let next_pose = self.parent.and_then(|p| {
+            let parent = bodies.get(p.handle)?;
+            (parent.soft_ccd_prediction() > 0.0).then(|| {
+                parent.predict_position_using_velocity_and_forces_with_max_dist(
+                    params.dt,
+                    parent.soft_ccd_prediction(),
+                ) * p.pos_wrt_parent
+            })
+        });
+
+        let prediction_distance = params.prediction_distance();
+        let mut aabb = self.compute_collision_aabb(prediction_distance / 2.0);
+        if let Some(next_pose) = next_pose {
+            let next_aabb = self
+                .shape
+                .compute_aabb(&next_pose)
+                .loosened(self.contact_skin() + prediction_distance / 2.0);
+            aabb.merge(&next_aabb);
+        }
+
+        aabb
+    }
+
+    /// Computes the full mass properties (mass, center of mass, angular inertia).
+    ///
+    /// Returns properties in the collider's local coordinate system.
     pub fn mass_properties(&self) -> MassProperties {
         self.mprops.mass_properties(&*self.shape)
     }
 
-    /// The total force magnitude beyond which a contact force event can be emitted.
+    /// Returns the force threshold for contact force events.
+    ///
+    /// When contact forces exceed this value, a `ContactForceEvent` is generated.
+    /// See `set_contact_force_event_threshold()` for details.
     pub fn contact_force_event_threshold(&self) -> Real {
         self.contact_force_event_threshold
     }
 }
 
-/// A structure responsible for building a new collider.
+/// A builder for creating colliders with custom shapes and properties.
+///
+/// This builder lets you create collision shapes and configure their physical properties
+/// (friction, bounciness, density, etc.) before adding them to your world.
+///
+/// # Common shapes
+///
+/// - [`ball(radius)`](Self::ball) - Sphere (3D) or circle (2D)
+/// - [`cuboid(hx, hy, hz)`](Self::cuboid) - Box with half-extents
+/// - [`capsule_y(half_height, radius)`](Self::capsule_y) - Pill shape (great for characters)
+/// - [`trimesh(vertices, indices)`](Self::trimesh) - Triangle mesh for complex geometry
+/// - [`heightfield(...)`](Self::heightfield) - Terrain from height data
+///
+/// # Example
+///
+/// ```ignore
+/// // Create a bouncy ball
+/// let collider = ColliderBuilder::ball(0.5)
+///     .restitution(0.9)       // Very bouncy
+///     .friction(0.1)          // Low friction (slippery)
+///     .density(2.0);           // Heavy material
+/// colliders.insert_with_parent(collider, body_handle, &mut bodies);
+/// ```
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[must_use = "Builder functions return the updated builder"]
@@ -544,7 +709,16 @@ impl ColliderBuilder {
         Self::new(SharedShape::compound(shapes))
     }
 
-    /// Initialize a new collider builder with a ball shape defined by its radius.
+    /// Creates a sphere (3D) or circle (2D) collider.
+    ///
+    /// The simplest and fastest collision shape. Use for:
+    /// - Balls and spheres
+    /// - Approximate round objects
+    /// - Projectiles
+    /// - Particles
+    ///
+    /// # Parameters
+    /// * `radius` - The sphere's radius
     pub fn ball(radius: Real) -> Self {
         Self::new(SharedShape::ball(radius))
     }
@@ -649,7 +823,18 @@ impl ColliderBuilder {
         Self::new(SharedShape::capsule_x(half_height, radius))
     }
 
-    /// Initialize a new collider builder with a capsule shape aligned with the `y` axis.
+    /// Creates a capsule (pill-shaped) collider aligned with the Y axis.
+    ///
+    /// Capsules are cylinders with hemispherical caps. Excellent for characters because:
+    /// - Smooth collision (no getting stuck on edges)
+    /// - Good for upright objects (characters, trees)
+    /// - Fast collision detection
+    ///
+    /// # Parameters
+    /// * `half_height` - Half the height of the cylindrical part (not including caps)
+    /// * `radius` - Radius of the cylinder and caps
+    ///
+    /// **Example**: `capsule_y(1.0, 0.5)` creates a 3.0 tall capsule (1.0×2 cylinder + 0.5×2 caps)
     pub fn capsule_y(half_height: Real, radius: Real) -> Self {
         Self::new(SharedShape::capsule_y(half_height, radius))
     }
@@ -660,7 +845,17 @@ impl ColliderBuilder {
         Self::new(SharedShape::capsule_z(half_height, radius))
     }
 
-    /// Initialize a new collider builder with a cuboid shape defined by its half-extents.
+    /// Creates a box collider defined by its half-extents (half-widths).
+    ///
+    /// Very fast collision detection. Use for:
+    /// - Boxes and crates
+    /// - Buildings and rooms
+    /// - Most rectangular objects
+    ///
+    /// # Parameters (3D)
+    /// * `hx`, `hy`, `hz` - Half-extents (half the width) along each axis
+    ///
+    /// **Example**: `cuboid(1.0, 0.5, 2.0)` creates a box with full size 2×1×4
     #[cfg(feature = "dim3")]
     pub fn cuboid(hx: Real, hy: Real, hz: Real) -> Self {
         Self::new(SharedShape::cuboid(hx, hy, hz))
@@ -673,12 +868,17 @@ impl ColliderBuilder {
         Self::new(SharedShape::round_cuboid(hx, hy, hz, border_radius))
     }
 
-    /// Initializes a collider builder with a segment shape.
+    /// Creates a line segment collider between two points.
+    ///
+    /// Useful for thin barriers, edges, or 2D line-based collision.
+    /// Has no thickness - purely a mathematical line.
     pub fn segment(a: Point<Real>, b: Point<Real>) -> Self {
         Self::new(SharedShape::segment(a, b))
     }
 
-    /// Initializes a collider builder with a triangle shape.
+    /// Creates a single triangle collider.
+    ///
+    /// Use for simple 3-sided shapes or as building blocks for more complex geometry.
     pub fn triangle(a: Point<Real>, b: Point<Real>, c: Point<Real>) -> Self {
         Self::new(SharedShape::triangle(a, b, c))
     }
@@ -698,7 +898,34 @@ impl ColliderBuilder {
         Self::new(SharedShape::polyline(vertices, indices))
     }
 
-    /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers.
+    /// Creates a triangle mesh collider from vertices and triangle indices.
+    ///
+    /// Use for complex, arbitrary shapes like:
+    /// - Level geometry and terrain
+    /// - Imported 3D models
+    /// - Custom irregular shapes
+    ///
+    /// **Performance note**: Triangle meshes are slower than primitive shapes (balls, boxes, capsules).
+    /// Consider using compound shapes or simpler approximations when possible.
+    ///
+    /// # Parameters
+    /// * `vertices` - Array of 3D points
+    /// * `indices` - Array of triangles, each is 3 indices into the vertex array
+    ///
+    /// # Example
+    /// ```ignore
+    /// use rapier3d::prelude::*;
+    /// use nalgebra::Point3;
+    ///
+    /// let vertices = vec![
+    ///     Point3::new(0.0, 0.0, 0.0),
+    ///     Point3::new(1.0, 0.0, 0.0),
+    ///     Point3::new(0.0, 1.0, 0.0),
+    /// ];
+    /// let triangle: [u32; 3] = [0, 1, 2];
+    /// let indices = vec![triangle];  // One triangle
+    /// let collider = ColliderBuilder::trimesh(vertices, indices)?;
+    /// ```
     pub fn trimesh(
         vertices: Vec<Point<Real>>,
         indices: Vec<[u32; 3]>,
@@ -733,8 +960,12 @@ impl ColliderBuilder {
         Ok(Self::new(shape).position(pose))
     }
 
-    /// Initializes a collider builder with a compound shape obtained from the decomposition of
-    /// the given trimesh (in 3D) or polyline (in 2D) into convex parts.
+    /// Creates a compound collider by decomposing a mesh/polyline into convex pieces.
+    ///
+    /// Concave shapes (like an 'L' or 'C') are automatically broken into multiple convex
+    /// parts for efficient collision detection. This is often faster than using a trimesh.
+    ///
+    /// Uses the V-HACD algorithm. Good for imported models that aren't already convex.
     pub fn convex_decomposition(vertices: &[Point<Real>], indices: &[[u32; DIM]]) -> Self {
         Self::new(SharedShape::convex_decomposition(vertices, indices))
     }
@@ -781,8 +1012,15 @@ impl ColliderBuilder {
         ))
     }
 
-    /// Initializes a new collider builder with a 2D convex polygon or 3D convex polyhedron
-    /// obtained after computing the convex-hull of the given points.
+    /// Creates the smallest convex shape that contains all the given points.
+    ///
+    /// Computes the "shrink-wrap" around a point cloud. Useful for:
+    /// - Creating collision shapes from vertex data
+    /// - Approximating complex shapes with a simpler convex one
+    ///
+    /// Returns `None` if the points don't form a valid convex shape.
+    ///
+    /// **Performance**: Convex shapes are much faster than triangle meshes!
     pub fn convex_hull(points: &[Point<Real>]) -> Option<Self> {
         SharedShape::convex_hull(points).map(Self::new)
     }
@@ -837,8 +1075,21 @@ impl ColliderBuilder {
         Self::new(SharedShape::heightfield(heights, scale))
     }
 
-    /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
-    /// factor along each coordinate axis.
+    /// Creates a terrain/landscape collider from a 2D grid of height values.
+    ///
+    /// Perfect for outdoor terrain in 3D games. The heightfield is a grid where each cell
+    /// stores a height value, creating a landscape surface.
+    ///
+    /// Use for:
+    /// - Terrain and landscapes
+    /// - Hills and valleys
+    /// - Ground surfaces in open worlds
+    ///
+    /// # Parameters
+    /// * `heights` - 2D matrix of height values (Y coordinates)
+    /// * `scale` - Size of each grid cell in X and Z directions
+    ///
+    /// **Performance**: Much faster than triangle meshes for terrain!
     #[cfg(feature = "dim3")]
     pub fn heightfield(heights: na::DMatrix<Real>, scale: Vector<Real>) -> Self {
         Self::new(SharedShape::heightfield(heights, scale))
@@ -855,77 +1106,142 @@ impl ColliderBuilder {
         Self::new(SharedShape::heightfield_with_flags(heights, scale, flags))
     }
 
-    /// The default friction coefficient used by the collider builder.
+    /// Returns the default friction value used when not specified (0.5).
     pub fn default_friction() -> Real {
         0.5
     }
 
-    /// The default density used by the collider builder.
+    /// Returns the default density value used when not specified (1.0).
     pub fn default_density() -> Real {
-        100.0
+        1.0
     }
 
-    /// Sets an arbitrary user-defined 128-bit integer associated to the colliders built by this builder.
+    /// Stores custom user data with this collider (128-bit integer).
+    ///
+    /// Use to associate game data (entity ID, type, etc.) with physics objects.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let collider = ColliderBuilder::ball(0.5)
+    ///     .user_data(entity_id as u128)
+    ///     .build();
+    /// ```
     pub fn user_data(mut self, data: u128) -> Self {
         self.user_data = data;
         self
     }
 
-    /// Sets the collision groups used by this collider.
+    /// Sets which collision groups this collider belongs to and can interact with.
     ///
-    /// Two colliders will interact iff. their collision groups are compatible.
-    /// See [InteractionGroups::test] for details.
+    /// Use this to control what can collide with what (like collision layers).
+    /// See [`InteractionGroups`] for examples.
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Player bullet: in group 1, only hits group 2 (enemies)
+    /// let groups = InteractionGroups::new(Group::GROUP_1, Group::GROUP_2);
+    /// let bullet = ColliderBuilder::ball(0.1)
+    ///     .collision_groups(groups)
+    ///     .build();
+    /// ```
     pub fn collision_groups(mut self, groups: InteractionGroups) -> Self {
         self.collision_groups = groups;
         self
     }
 
-    /// Sets the solver groups used by this collider.
+    /// Sets solver groups (advanced collision filtering for contact resolution).
     ///
-    /// Forces between two colliders in contact will be computed iff their solver groups are
-    /// compatible. See [InteractionGroups::test] for details.
+    /// Similar to collision_groups but specifically for the contact solver.
+    /// Most users should use `collision_groups()` instead - this is for advanced scenarios
+    /// where you want collisions detected but not resolved (e.g., one-way platforms).
     pub fn solver_groups(mut self, groups: InteractionGroups) -> Self {
         self.solver_groups = groups;
         self
     }
 
-    /// Sets whether or not the collider built by this builder is a sensor.
+    /// Makes this collider a sensor (trigger zone) instead of a solid collision shape.
+    ///
+    /// Sensors detect overlaps but don't create physical collisions. Use for:
+    /// - Trigger zones (checkpoints, danger areas)
+    /// - Collectible item detection
+    /// - Proximity sensors
+    /// - Win/lose conditions
+    ///
+    /// You'll receive collision events when objects enter/exit the sensor.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let trigger = ColliderBuilder::cuboid(5.0, 5.0, 5.0)
+    ///     .sensor(true)
+    ///     .build();
+    /// ```
     pub fn sensor(mut self, is_sensor: bool) -> Self {
         self.is_sensor = is_sensor;
         self
     }
 
-    /// The set of physics hooks enabled for this collider.
+    /// Enables custom physics hooks for this collider (advanced).
+    ///
+    /// See [`ActiveHooks`](crate::pipeline::ActiveHooks) for details on custom collision filtering.
     pub fn active_hooks(mut self, active_hooks: ActiveHooks) -> Self {
         self.active_hooks = active_hooks;
         self
     }
 
-    /// The set of events enabled for this collider.
+    /// Enables event generation for this collider.
+    ///
+    /// Set to `ActiveEvents::COLLISION_EVENTS` for start/stop notifications.
+    /// Set to `ActiveEvents::CONTACT_FORCE_EVENTS` for force threshold events.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let sensor = ColliderBuilder::ball(1.0)
+    ///     .sensor(true)
+    ///     .active_events(ActiveEvents::COLLISION_EVENTS)
+    ///     .build();
+    /// ```
     pub fn active_events(mut self, active_events: ActiveEvents) -> Self {
         self.active_events = active_events;
         self
     }
 
-    /// The set of active collision types for this collider.
+    /// Sets which body type combinations can collide with this collider.
+    ///
+    /// See [`ActiveCollisionTypes`] for details. Most users don't need to change this.
     pub fn active_collision_types(mut self, active_collision_types: ActiveCollisionTypes) -> Self {
         self.active_collision_types = active_collision_types;
         self
     }
 
-    /// Sets the friction coefficient of the collider this builder will build.
+    /// Sets the friction coefficient (slipperiness) for this collider.
+    ///
+    /// - `0.0` = ice (very slippery)
+    /// - `0.5` = wood on wood
+    /// - `1.0` = rubber (high grip)
+    ///
+    /// Default is `0.5`.
     pub fn friction(mut self, friction: Real) -> Self {
         self.friction = friction;
         self
     }
 
-    /// Sets the rule to be used to combine two friction coefficients in a contact.
+    /// Sets how friction coefficients are combined when two colliders touch.
+    ///
+    /// Options: Average, Min, Max, Multiply. Default is Average.
+    /// Most games can ignore this and use the default.
     pub fn friction_combine_rule(mut self, rule: CoefficientCombineRule) -> Self {
         self.friction_combine_rule = rule;
         self
     }
 
-    /// Sets the restitution coefficient of the collider this builder will build.
+    /// Sets the restitution coefficient (bounciness) for this collider.
+    ///
+    /// - `0.0` = no bounce (clay, soft)
+    /// - `0.5` = moderate bounce
+    /// - `1.0` = perfect elastic bounce
+    /// - `>1.0` = super bouncy (gains energy!)
+    ///
+    /// Default is `0.0`.
     pub fn restitution(mut self, restitution: Real) -> Self {
         self.restitution = restitution;
         self
@@ -937,25 +1253,35 @@ impl ColliderBuilder {
         self
     }
 
-    /// Sets the uniform density of the collider this builder will build.
+    /// Sets the density (mass per unit volume) of this collider.
     ///
-    /// This will be overridden by a call to [`Self::mass`] or [`Self::mass_properties`] so it only
-    /// makes sense to call either [`Self::density`] or [`Self::mass`] or [`Self::mass_properties`].
+    /// Mass will be computed as: `density × volume`. Common densities:
+    /// - `1000.0` = water
+    /// - `2700.0` = aluminum
+    /// - `7850.0` = steel
     ///
-    /// The mass and angular inertia of this collider will be computed automatically based on its
-    /// shape.
+    /// ⚠️ Use either `density()` OR `mass()`, not both (last call wins).
+    ///
+    /// # Example
+    /// ```ignore
+    /// let steel_ball = ColliderBuilder::ball(0.5).density(7850.0).build();
+    /// ```
     pub fn density(mut self, density: Real) -> Self {
         self.mass_properties = ColliderMassProps::Density(density);
         self
     }
 
-    /// Sets the mass of the collider this builder will build.
+    /// Sets the total mass of this collider directly.
     ///
-    /// This will be overridden by a call to [`Self::density`] or [`Self::mass_properties`] so it only
-    /// makes sense to call either [`Self::density`] or [`Self::mass`] or [`Self::mass_properties`].
+    /// Angular inertia is computed automatically from the shape and mass.
     ///
-    /// The angular inertia of this collider will be computed automatically based on its shape
-    /// and this mass value.
+    /// ⚠️ Use either `mass()` OR `density()`, not both (last call wins).
+    ///
+    /// # Example
+    /// ```ignore
+    /// // 10kg ball regardless of its radius
+    /// let collider = ColliderBuilder::ball(0.5).mass(10.0).build();
+    /// ```
     pub fn mass(mut self, mass: Real) -> Self {
         self.mass_properties = ColliderMassProps::Mass(mass);
         self
@@ -970,34 +1296,55 @@ impl ColliderBuilder {
         self
     }
 
-    /// Sets the total force magnitude beyond which a contact force event can be emitted.
+    /// Sets the force threshold for triggering contact force events.
+    ///
+    /// When total contact force exceeds this value, a `ContactForceEvent` is generated
+    /// (if `ActiveEvents::CONTACT_FORCE_EVENTS` is enabled).
+    ///
+    /// Use for detecting hard impacts, breaking objects, or damage systems.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let glass = ColliderBuilder::cuboid(1.0, 1.0, 0.1)
+    ///     .active_events(ActiveEvents::CONTACT_FORCE_EVENTS)
+    ///     .contact_force_event_threshold(1000.0)  // Break at 1000N
+    ///     .build();
+    /// ```
     pub fn contact_force_event_threshold(mut self, threshold: Real) -> Self {
         self.contact_force_event_threshold = threshold;
         self
     }
 
-    /// Sets the initial translation of the collider to be created.
+    /// Sets where the collider sits relative to its parent body.
     ///
-    /// If the collider will be attached to a rigid-body, this sets the translation relative to the
-    /// rigid-body it will be attached to.
+    /// For attached colliders, this is the offset from the body's origin.
+    /// For standalone colliders, this is the world position.
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Collider offset 2 units to the right of the body
+    /// let collider = ColliderBuilder::ball(0.5)
+    ///     .translation(vector![2.0, 0.0, 0.0])
+    ///     .build();
+    /// ```
     pub fn translation(mut self, translation: Vector<Real>) -> Self {
         self.position.translation.vector = translation;
         self
     }
 
-    /// Sets the initial orientation of the collider to be created.
+    /// Sets the collider's rotation relative to its parent body.
     ///
-    /// If the collider will be attached to a rigid-body, this sets the orientation relative to the
-    /// rigid-body it will be attached to.
+    /// For attached colliders, this rotates the collider relative to the body.
+    /// For standalone colliders, this is the world rotation.
     pub fn rotation(mut self, angle: AngVector<Real>) -> Self {
         self.position.rotation = Rotation::new(angle);
         self
     }
 
-    /// Sets the initial position (translation and orientation) of the collider to be created.
+    /// Sets the collider's full pose (position + rotation) relative to its parent.
     ///
-    /// If the collider will be attached to a rigid-body, this sets the position relative
-    /// to the rigid-body it will be attached to.
+    /// For attached colliders, this is relative to the parent body.
+    /// For standalone colliders, this is the world pose.
     pub fn position(mut self, pos: Isometry<Real>) -> Self {
         self.position = pos;
         self
@@ -1032,13 +1379,23 @@ impl ColliderBuilder {
         self
     }
 
-    /// Enable or disable the collider after its creation.
+    /// Sets whether this collider starts enabled or disabled.
+    ///
+    /// Default is `true` (enabled). Set to `false` to create a disabled collider.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
-    /// Builds a new collider attached to the given rigid-body.
+    /// Finalizes the collider and returns it, ready to be added to the world.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let collider = ColliderBuilder::ball(0.5)
+    ///     .friction(0.7)
+    ///     .build();
+    /// colliders.insert_with_parent(collider, body_handle, &mut bodies);
+    /// ```
     pub fn build(&self) -> Collider {
         let shape = self.shape.clone();
         let material = ColliderMaterial {

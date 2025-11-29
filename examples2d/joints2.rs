@@ -11,6 +11,12 @@ pub fn init_world(testbed: &mut Testbed) {
     let multibody_joints = MultibodyJointSet::new();
 
     /*
+     * Enable/disable softness.
+     */
+    let settings = testbed.example_settings_mut();
+    let variable_softness = settings.get_or_set_bool("Variable softness", false);
+
+    /*
      * Create the balls
      */
     // Build the rigid body.
@@ -41,10 +47,22 @@ pub fn init_world(testbed: &mut Testbed) {
             let collider = ColliderBuilder::ball(rad);
             colliders.insert_with_parent(collider, child_handle, &mut bodies);
 
+            let softness = if variable_softness {
+                // If variable softness is enabled, joints closer to the fixed body are softer.
+                SpringCoefficients {
+                    natural_frequency: 5.0 * (i.max(k) + 1) as f32,
+                    damping_ratio: 0.1 * (i.max(k) + 1) as f32,
+                }
+            } else {
+                SpringCoefficients::joint_defaults()
+            };
+
             // Vertical joint.
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
-                let joint = RevoluteJointBuilder::new().local_anchor2(point![0.0, shift]);
+                let joint = RevoluteJointBuilder::new()
+                    .local_anchor2(point![0.0, shift])
+                    .softness(softness);
                 impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
 
@@ -52,7 +70,9 @@ pub fn init_world(testbed: &mut Testbed) {
             if k > 0 {
                 let parent_index = body_handles.len() - numi;
                 let parent_handle = body_handles[parent_index];
-                let joint = RevoluteJointBuilder::new().local_anchor2(point![-shift, 0.0]);
+                let joint = RevoluteJointBuilder::new()
+                    .local_anchor2(point![-shift, 0.0])
+                    .softness(softness);
                 impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
 

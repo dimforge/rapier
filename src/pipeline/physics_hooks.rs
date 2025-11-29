@@ -119,13 +119,35 @@ impl ContactModificationContext<'_> {
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
-    /// Flags affecting the behavior of the constraints solver for a given contact manifold.
+    /// Flags that enable custom collision filtering and contact modification callbacks.
+    ///
+    /// These are advanced features for custom physics behavior. Most users don't need hooks -
+    /// use [`InteractionGroups`](crate::geometry::InteractionGroups) for collision filtering instead.
+    ///
+    /// Hooks let you:
+    /// - Dynamically decide if two colliders should collide (beyond collision groups)
+    /// - Modify contact properties before solving (friction, restitution, etc.)
+    /// - Implement one-way platforms, custom collision rules
+    ///
+    /// # Example use cases
+    /// - One-way platforms (collide from above, pass through from below)
+    /// - Complex collision rules that can't be expressed with collision groups
+    /// - Dynamic friction/restitution based on impact velocity
+    /// - Ghost mode (player temporarily ignores certain objects)
     pub struct ActiveHooks: u32 {
-        /// If set, Rapier will call `PhysicsHooks::filter_contact_pair` whenever relevant.
+        /// Enables `PhysicsHooks::filter_contact_pair` callback for this collider.
+        ///
+        /// Lets you programmatically decide if contact should be computed and resolved.
         const FILTER_CONTACT_PAIRS = 0b0001;
-        /// If set, Rapier will call `PhysicsHooks::filter_intersection_pair` whenever relevant.
+
+        /// Enables `PhysicsHooks::filter_intersection_pair` callback for this collider.
+        ///
+        /// For sensor/intersection filtering (similar to contact filtering but for sensors).
         const FILTER_INTERSECTION_PAIR = 0b0010;
-        /// If set, Rapier will call `PhysicsHooks::modify_solver_contact` whenever relevant.
+
+        /// Enables `PhysicsHooks::modify_solver_contacts` callback for this collider.
+        ///
+        /// Lets you modify contact properties (friction, restitution, etc.) before solving.
         const MODIFY_SOLVER_CONTACTS = 0b0100;
     }
 }

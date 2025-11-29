@@ -13,7 +13,7 @@ other-backends = ["rapier_testbed2d/other-backends"]
 enhanced-determinism = ["rapier2d/enhanced-determinism"]
 
 [dependencies]
-rand = "0.8"
+rand = "0.9"
 lyon = "0.17"
 usvg = "0.14"
 dot_vox = "5"

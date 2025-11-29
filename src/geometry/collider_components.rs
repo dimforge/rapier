@@ -35,8 +35,8 @@ bitflags::bitflags! {
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     /// Flags describing how the collider has been modified by the user.
     pub struct ColliderChanges: u32 {
-        /// Flag indicating that any component of the collider has been modified.
-        const MODIFIED = 1 << 0;
+        /// Flag indicating that the collider handle is in the changed collider set.
+        const IN_MODIFIED_SET = 1 << 0;
         /// Flag indicating that the density or mass-properties of this collider was changed.
         const LOCAL_MASS_PROPERTIES = 1 << 1; // => RigidBody local mass-properties update.
         /// Flag indicating that the `ColliderParent` component of the collider has been modified.
@@ -277,29 +277,45 @@ impl Default for ColliderMaterial {
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
     #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
-    /// Flags affecting whether or not collision-detection happens between two colliders
-    /// depending on the type of rigid-bodies they are attached to.
+    /// Controls which combinations of body types can collide with each other.
+    ///
+    /// By default, Rapier only detects collisions between pairs that make physical sense
+    /// (e.g., dynamic-dynamic, dynamic-fixed). Use this to customize that behavior.
+    ///
+    /// **Most users don't need to change this** - the defaults are correct for normal physics.
+    ///
+    /// ## Default behavior
+    /// - ✅ Dynamic ↔ Dynamic (moving objects collide)
+    /// - ✅ Dynamic ↔ Fixed (moving objects hit walls)
+    /// - ✅ Dynamic ↔ Kinematic (moving objects hit platforms)
+    /// - ❌ Fixed ↔ Fixed (walls don't collide with each other - waste of CPU)
+    /// - ❌ Kinematic ↔ Kinematic (platforms don't collide - they're user-controlled)
+    /// - ❌ Kinematic ↔ Fixed (platforms don't collide with walls)
+    ///
+    /// # Example
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut colliders = ColliderSet::new();
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let collider_handle = colliders.insert_with_parent(ColliderBuilder::ball(0.5), body_handle, &mut bodies);
+    /// # let collider = colliders.get_mut(collider_handle).unwrap();
+    /// // Enable kinematic-kinematic collisions (unusual)
+    /// let types = ActiveCollisionTypes::default() | ActiveCollisionTypes::KINEMATIC_KINEMATIC;
+    /// collider.set_active_collision_types(types);
+    /// ```
     pub struct ActiveCollisionTypes: u16 {
-        /// Enable collision-detection between a collider attached to a dynamic body
-        /// and another collider attached to a dynamic body.
+        /// Enables dynamic ↔ dynamic collision detection.
         const DYNAMIC_DYNAMIC = 0b0000_0000_0000_0001;
-        /// Enable collision-detection between a collider attached to a dynamic body
-        /// and another collider attached to a kinematic body.
+        /// Enables dynamic ↔ kinematic collision detection.
         const DYNAMIC_KINEMATIC = 0b0000_0000_0000_1100;
-        /// Enable collision-detection between a collider attached to a dynamic body
-        /// and another collider attached to a fixed body (or not attached to any body).
+        /// Enables dynamic ↔ fixed collision detection.
         const DYNAMIC_FIXED  = 0b0000_0000_0000_0010;
-        /// Enable collision-detection between a collider attached to a kinematic body
-        /// and another collider attached to a kinematic body.
+        /// Enables kinematic ↔ kinematic collision detection (rarely needed).
         const KINEMATIC_KINEMATIC = 0b1100_1100_0000_0000;
-
-        /// Enable collision-detection between a collider attached to a kinematic body
-        /// and another collider attached to a fixed body (or not attached to any body).
+        /// Enables kinematic ↔ fixed collision detection (rarely needed).
         const KINEMATIC_FIXED = 0b0010_0010_0000_0000;
-
-        /// Enable collision-detection between a collider attached to a fixed body (or
-        /// not attached to any body) and another collider attached to a fixed body (or
-        /// not attached to any body).
+        /// Enables fixed ↔ fixed collision detection (rarely needed).
         const FIXED_FIXED = 0b0000_0000_0010_0000;
     }
 }

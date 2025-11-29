@@ -117,26 +117,26 @@ impl ParallelInteractionGroups {
                 (false, false) => {
                     let rb1 = &bodies[body_pair.0.unwrap()];
                     let rb2 = &bodies[body_pair.1.unwrap()];
-                    let color_mask =
-                        bcolors[rb1.ids.active_set_offset] | bcolors[rb2.ids.active_set_offset];
+                    let color_mask = bcolors[rb1.ids.active_set_offset as usize]
+                        | bcolors[rb2.ids.active_set_offset as usize];
                     *color = (!color_mask).trailing_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb1.ids.active_set_offset] |= 1 << *color;
-                    bcolors[rb2.ids.active_set_offset] |= 1 << *color;
+                    bcolors[rb1.ids.active_set_offset as usize] |= 1 << *color;
+                    bcolors[rb2.ids.active_set_offset as usize] |= 1 << *color;
                 }
                 (true, false) => {
                     let rb2 = &bodies[body_pair.1.unwrap()];
-                    let color_mask = bcolors[rb2.ids.active_set_offset];
+                    let color_mask = bcolors[rb2.ids.active_set_offset as usize];
                     *color = 127 - (!color_mask).leading_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb2.ids.active_set_offset] |= 1 << *color;
+                    bcolors[rb2.ids.active_set_offset as usize] |= 1 << *color;
                 }
                 (false, true) => {
                     let rb1 = &bodies[body_pair.0.unwrap()];
-                    let color_mask = bcolors[rb1.ids.active_set_offset];
+                    let color_mask = bcolors[rb1.ids.active_set_offset as usize];
                     *color = 127 - (!color_mask).leading_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb1.ids.active_set_offset] |= 1 << *color;
+                    bcolors[rb1.ids.active_set_offset as usize] |= 1 << *color;
                 }
                 (true, true) => unreachable!(),
             }
@@ -173,9 +173,8 @@ pub(crate) struct InteractionGroups {
     buckets: VecMap<([usize; SIMD_WIDTH], usize)>,
     #[cfg(feature = "simd-is-enabled")]
     body_masks: Vec<u128>,
-    #[cfg(feature = "simd-is-enabled")]
-    pub simd_interactions: Vec<usize>,
-    pub nongrouped_interactions: Vec<usize>,
+    pub simd_interactions: Vec<ContactManifoldIndex>,
+    pub nongrouped_interactions: Vec<ContactManifoldIndex>,
 }
 
 impl InteractionGroups {
@@ -185,7 +184,6 @@ impl InteractionGroups {
             buckets: VecMap::new(),
             #[cfg(feature = "simd-is-enabled")]
             body_masks: Vec::new(),
-            #[cfg(feature = "simd-is-enabled")]
             simd_interactions: Vec::new(),
             nongrouped_interactions: Vec::new(),
         }
@@ -258,8 +256,8 @@ impl InteractionGroups {
             let rb1 = &bodies[interaction.body1];
             let rb2 = &bodies[interaction.body2];
 
-            let is_fixed1 = !rb1.is_dynamic();
-            let is_fixed2 = !rb2.is_dynamic();
+            let is_fixed1 = !rb1.is_dynamic_or_kinematic();
+            let is_fixed2 = !rb2.is_dynamic_or_kinematic();
 
             if is_fixed1 && is_fixed2 {
                 continue;
@@ -274,8 +272,17 @@ impl InteractionGroups {
             let ijoint = interaction.data.locked_axes.bits() as usize;
             let i1 = rb1.ids.active_set_offset;
             let i2 = rb2.ids.active_set_offset;
-            let conflicts =
-                self.body_masks[i1] | self.body_masks[i2] | joint_type_conflicts[ijoint];
+            let conflicts = self
+                .body_masks
+                .get(i1 as usize)
+                .copied()
+                .unwrap_or_default()
+                | self
+                    .body_masks
+                    .get(i2 as usize)
+                    .copied()
+                    .unwrap_or_default()
+                | joint_type_conflicts[ijoint];
             let conflictfree_targets = !(conflicts & occupied_mask); // The & is because we consider empty buckets as free of conflicts.
             let conflictfree_occupied_targets = conflictfree_targets & occupied_mask;
 
@@ -288,7 +295,7 @@ impl InteractionGroups {
 
             if target_index == 128 {
                 // The interaction conflicts with every bucket we can manage.
-                // So push it in an nongrouped interaction list that won't be combined with
+                // So push it in a nongrouped interaction list that won't be combined with
                 // any other interactions.
                 self.nongrouped_interactions.push(*interaction_i);
                 continue;
@@ -327,11 +334,11 @@ impl InteractionGroups {
             // NOTE: fixed bodies don't transmit forces. Therefore they don't
             // imply any interaction conflicts.
             if !is_fixed1 {
-                self.body_masks[i1] |= target_mask_bit;
+                self.body_masks[i1 as usize] |= target_mask_bit;
             }
 
             if !is_fixed2 {
-                self.body_masks[i2] |= target_mask_bit;
+                self.body_masks[i2 as usize] |= target_mask_bit;
             }
         }
 
@@ -356,7 +363,6 @@ impl InteractionGroups {
     }
 
     pub fn clear_groups(&mut self) {
-        #[cfg(feature = "simd-is-enabled")]
         self.simd_interactions.clear();
         self.nongrouped_interactions.clear();
     }
@@ -419,18 +425,18 @@ impl InteractionGroups {
                     let rb1 = &bodies[rb1];
                     (rb1.body_type, rb1.ids.active_set_offset)
                 } else {
-                    (RigidBodyType::Fixed, usize::MAX)
+                    (RigidBodyType::Fixed, u32::MAX)
                 };
                 let (status2, active_set_offset2) = if let Some(rb2) = interaction.data.rigid_body2
                 {
                     let rb2 = &bodies[rb2];
                     (rb2.body_type, rb2.ids.active_set_offset)
                 } else {
-                    (RigidBodyType::Fixed, usize::MAX)
+                    (RigidBodyType::Fixed, u32::MAX)
                 };
 
-                let is_fixed1 = !status1.is_dynamic();
-                let is_fixed2 = !status2.is_dynamic();
+                let is_fixed1 = !status1.is_dynamic_or_kinematic();
+                let is_fixed2 = !status2.is_dynamic_or_kinematic();
 
                 // TODO: don't generate interactions between fixed bodies in the first place.
                 if is_fixed1 && is_fixed2 {
@@ -439,8 +445,16 @@ impl InteractionGroups {
 
                 let i1 = active_set_offset1;
                 let i2 = active_set_offset2;
-                let mask1 = if !is_fixed1 { self.body_masks[i1] } else { 0 };
-                let mask2 = if !is_fixed2 { self.body_masks[i2] } else { 0 };
+                let mask1 = if !is_fixed1 {
+                    self.body_masks[i1 as usize]
+                } else {
+                    0
+                };
+                let mask2 = if !is_fixed2 {
+                    self.body_masks[i2 as usize]
+                } else {
+                    0
+                };
                 let conflicts = mask1 | mask2;
                 let conflictfree_targets = !(conflicts & occupied_mask); // The & is because we consider empty buckets as free of conflicts.
                 let conflictfree_occupied_targets = conflictfree_targets & occupied_mask;
@@ -482,11 +496,11 @@ impl InteractionGroups {
                 // NOTE: fixed bodies don't transmit forces. Therefore they don't
                 // imply any interaction conflicts.
                 if !is_fixed1 {
-                    self.body_masks[i1] |= target_mask_bit;
+                    self.body_masks[i1 as usize] |= target_mask_bit;
                 }
 
                 if !is_fixed2 {
-                    self.body_masks[i2] |= target_mask_bit;
+                    self.body_masks[i2 as usize] |= target_mask_bit;
                 }
             }
 

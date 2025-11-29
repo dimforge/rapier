@@ -17,7 +17,10 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    let bytes = std::fs::read("state.bin").unwrap();
+    let Ok(bytes) = std::fs::read("state.bin") else {
+        println!("Failed to load serialized world state.");
+        return;
+    };
     let state: State = bincode::deserialize(&bytes).unwrap();
 
     testbed.set_world(
@@ -27,7 +30,7 @@ pub fn init_world(testbed: &mut Testbed) {
         state.multibody_joints,
     );
     testbed.harness_mut().physics.islands = state.islands;
-    testbed.harness_mut().physics.broad_phase = Box::new(state.broad_phase);
+    testbed.harness_mut().physics.broad_phase = state.broad_phase;
     testbed.harness_mut().physics.narrow_phase = state.narrow_phase;
     testbed.harness_mut().physics.ccd_solver = state.ccd_solver;
 

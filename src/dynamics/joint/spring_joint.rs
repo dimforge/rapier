@@ -5,11 +5,21 @@ use crate::math::{Point, Real};
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]
-/// A spring-damper joint, applies a force proportional to the distance between two objects.
+/// A spring joint that pulls/pushes two bodies toward a target distance (like a spring or shock absorber).
 ///
-/// The spring is integrated implicitly, implying that even an undamped spring will be subject to some
-/// amount of numerical damping (so it will eventually come to a rest). More solver iterations, or smaller
-/// timesteps, will lower the effect of numerical damping, providing a more realistic result.
+/// Springs apply force based on:
+/// - **Stiffness**: How strong the spring force is (higher = stiffer spring)
+/// - **Damping**: Resistance to motion (higher = less bouncy, settles faster)
+/// - **Rest length**: The distance the spring "wants" to be
+///
+/// Use for:
+/// - Suspension systems (vehicles, furniture)
+/// - Bouncy connections
+/// - Soft constraints between objects
+/// - Procedural animation (following targets softly)
+///
+/// **Technical note**: Springs use implicit integration which adds some numerical damping.
+/// This means even zero-damping springs will eventually settle (more iterations = less damping).
 pub struct SpringJoint {
     /// The underlying joint data.
     pub data: GenericJoint,
@@ -68,12 +78,14 @@ impl SpringJoint {
         self
     }
 
-    /// Set the spring model used by this joint to reach the desired target velocity and position.
+    /// Sets whether spring constants are mass-dependent or mass-independent.
     ///
-    /// Setting this to `MotorModel::ForceBased` (which is the default value for this joint) makes the spring constants
-    /// (stiffness and damping) parameter understood as in the regular spring-mass-damper system. With
-    /// `MotorModel::AccelerationBased`, the spring constants will be automatically scaled by the attached masses,
-    /// making the spring more mass-independent.
+    /// - `MotorModel::ForceBased` (default): Stiffness/damping are absolute values.
+    ///   Heavier objects will respond differently to the same spring constants.
+    /// - `MotorModel::AccelerationBased`: Spring constants auto-scale with mass.
+    ///   Objects of different masses behave more similarly.
+    ///
+    /// Most users can ignore this and use the default.
     pub fn set_spring_model(&mut self, model: MotorModel) -> &mut Self {
         self.data.set_motor_model(JointAxis::LinX, model);
         self

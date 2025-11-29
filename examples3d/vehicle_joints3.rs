@@ -53,9 +53,13 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let body_co = ColliderBuilder::cuboid(0.65, 0.3, 0.9)
         .density(100.0)
-        .collision_groups(InteractionGroups::new(CAR_GROUP, !CAR_GROUP));
+        .collision_groups(InteractionGroups::new(
+            CAR_GROUP,
+            !CAR_GROUP,
+            InteractionTestMode::And,
+        ));
     let body_rb = RigidBodyBuilder::dynamic()
-        .position(body_position.into())
+        .pose(body_position.into())
         .build();
     let body_handle = bodies.insert(body_rb);
     colliders.insert_with_parent(body_co, body_handle, &mut bodies);
@@ -69,7 +73,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
         let axle_mass_props = MassProperties::from_ball(100.0, wheel_radius);
         let axle_rb = RigidBodyBuilder::dynamic()
-            .position(wheel_center.into())
+            .pose(wheel_center.into())
             .additional_mass_properties(axle_mass_props);
         let axle_handle = bodies.insert(axle_rb);
 
@@ -85,9 +89,13 @@ pub fn init_world(testbed: &mut Testbed) {
         // is mathematically simpler than a cylinder and cheaper to compute for collision-detection.
         let wheel_co = ColliderBuilder::ball(wheel_radius)
             .density(100.0)
-            .collision_groups(InteractionGroups::new(CAR_GROUP, !CAR_GROUP))
+            .collision_groups(InteractionGroups::new(
+                CAR_GROUP,
+                !CAR_GROUP,
+                InteractionTestMode::And,
+            ))
             .friction(1.0);
-        let wheel_rb = RigidBodyBuilder::dynamic().position(wheel_center.into());
+        let wheel_rb = RigidBodyBuilder::dynamic().pose(wheel_center.into());
         let wheel_handle = bodies.insert(wheel_rb);
         colliders.insert_with_parent(wheel_co, wheel_handle, &mut bodies);
         colliders.insert_with_parent(wheel_fake_co, wheel_handle, &mut bodies);

@@ -9,11 +9,14 @@ use rapier_testbed3d::{Testbed, TestbedApp};
 use std::cmp::Ordering;
 
 mod debug_serialized3;
+mod trimesh3_f64;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn main() {
-    let mut builders: Vec<(_, fn(&mut Testbed))> =
-        vec![("(Debug) serialized", debug_serialized3::init_world)];
+    let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
+        ("Trimesh", trimesh3_f64::init_world),
+        ("(Debug) serialized", debug_serialized3::init_world),
+    ];
 
     // Lexicographic sort, with stress tests moved at the end of the list.
     builders.sort_by(|a, b| match (a.0.starts_with('('), b.0.starts_with('(')) {

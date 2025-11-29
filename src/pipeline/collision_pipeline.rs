@@ -2,18 +2,27 @@
 
 use crate::dynamics::{ImpulseJointSet, IntegrationParameters, MultibodyJointSet};
 use crate::geometry::{
-    BroadPhase, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
+    BroadPhaseBvh, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
     ModifiedColliders, NarrowPhase,
 };
 use crate::math::Real;
 use crate::pipeline::{EventHandler, PhysicsHooks};
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 
-/// The collision pipeline, responsible for performing collision detection between colliders.
+/// A collision detection pipeline that can be used without full physics simulation.
 ///
-/// This structure only contains temporary data buffers. It can be dropped and replaced by a fresh
-/// copy at any time. For performance reasons it is recommended to reuse the same physics pipeline
-/// instance to benefit from the cached data.
+/// This runs only collision detection (broad-phase + narrow-phase) without dynamics/forces.
+/// Use when you want to detect collisions but don't need physics simulation.
+///
+/// **For full physics**, use [`PhysicsPipeline`](crate::pipeline::PhysicsPipeline) instead which includes this internally.
+///
+/// ## Use cases
+///
+/// - Collision detection in a non-physics game
+/// - Custom physics integration where you handle forces yourself
+/// - Debugging collision detection separately from dynamics
+///
+/// Like PhysicsPipeline, this only holds temporary buffers. Reuse the same instance for performance.
 // NOTE: this contains only workspace data, so there is no point in making this serializable.
 pub struct CollisionPipeline {
     broadphase_collider_pairs: Vec<ColliderPair>,
@@ -44,7 +53,7 @@ impl CollisionPipeline {
     fn detect_collisions(
         &mut self,
         prediction_distance: Real,
-        broad_phase: &mut dyn BroadPhase,
+        broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
@@ -93,11 +102,10 @@ impl CollisionPipeline {
             colliders,
             &ImpulseJointSet::new(),
             &MultibodyJointSet::new(),
-            modified_colliders,
             hooks,
             events,
         );
-        narrow_phase.compute_intersections(bodies, colliders, modified_colliders, hooks, events);
+        narrow_phase.compute_intersections(bodies, colliders, hooks, events);
     }
 
     fn clear_modified_colliders(
@@ -118,7 +126,7 @@ impl CollisionPipeline {
     pub fn step(
         &mut self,
         prediction_distance: Real,
-        broad_phase: &mut dyn BroadPhase,
+        broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &mut NarrowPhase,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,

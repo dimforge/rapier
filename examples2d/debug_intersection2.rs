@@ -42,10 +42,7 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.add_callback(move |mut graphics, physics, _, run| {
         let slow_time = run.timestep_id as f32 / 3.0;
 
-        let Some(broad_phase) = physics.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
-            return;
-        };
-        let query_pipeline = broad_phase.as_query_pipeline(
+        let query_pipeline = physics.broad_phase.as_query_pipeline(
             physics.narrow_phase.query_dispatcher(),
             &physics.bodies,
             &physics.colliders,
@@ -53,7 +50,7 @@ pub fn init_world(testbed: &mut Testbed) {
         );
 
         for intersection in query_pipeline.intersect_shape(
-            &Isometry::translation(slow_time.cos() * 10.0, slow_time.sin() * 10.0),
+            Isometry::translation(slow_time.cos() * 10.0, slow_time.sin() * 10.0),
             &Ball::new(rad / 2.0),
         ) {
             if let Some(graphics) = graphics.as_deref_mut() {

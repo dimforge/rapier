@@ -1,4 +1,4 @@
-use crate::dynamics::solver::JointGenericOneBodyConstraint;
+use crate::dynamics::solver::GenericJointConstraint;
 use crate::dynamics::{
     FixedJointBuilder, GenericJoint, IntegrationParameters, Multibody, MultibodyLink,
     RigidBodyVelocity, joint,
@@ -185,7 +185,7 @@ impl MultibodyJoint {
 
     /// Multiply the multibody_joint jacobian by generalized velocities to obtain the
     /// relative velocity of the multibody link containing this multibody_joint.
-    pub fn jacobian_mul_coordinates(&self, acc: &[Real]) -> RigidBodyVelocity {
+    pub fn jacobian_mul_coordinates(&self, acc: &[Real]) -> RigidBodyVelocity<Real> {
         let locked_bits = self.data.locked_axes.bits();
         let mut result = RigidBodyVelocity::zero();
         let mut curr_free_dof = 0;
@@ -269,7 +269,7 @@ impl MultibodyJoint {
         link: &MultibodyLink,
         mut j_id: usize,
         jacobians: &mut DVector<Real>,
-        constraints: &mut [JointGenericOneBodyConstraint],
+        constraints: &mut [GenericJointConstraint],
     ) -> usize {
         let j_id = &mut j_id;
         let locked_bits = self.data.locked_axes.bits();
@@ -314,6 +314,7 @@ impl MultibodyJoint {
                         jacobians,
                         constraints,
                         &mut num_constraints,
+                        self.data.softness,
                     );
                 }
                 curr_free_dof += 1;
@@ -349,6 +350,7 @@ impl MultibodyJoint {
                         jacobians,
                         constraints,
                         &mut num_constraints,
+                        self.data.softness,
                     );
                     Some(limits)
                 } else {

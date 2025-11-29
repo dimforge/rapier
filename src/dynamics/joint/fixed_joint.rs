@@ -1,10 +1,20 @@
+use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::{GenericJoint, GenericJointBuilder, JointAxesMask};
 use crate::math::{Isometry, Point, Real};
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]
-/// A fixed joint, locks all relative motion between two bodies.
+/// A joint that rigidly connects two bodies together (like welding them).
+///
+/// Fixed joints lock all relative motion - the two bodies move as if they were a single
+/// solid object. Use for:
+/// - Permanently attaching objects (gluing, welding)
+/// - Composite objects made of multiple bodies
+/// - Connecting parts of a structure
+///
+/// Unlike simply using one body with multiple colliders, fixed joints let you attach
+/// bodies that were created separately, and you can break the connection later if needed.
 pub struct FixedJoint {
     /// The underlying joint data.
     pub data: GenericJoint,
@@ -82,6 +92,19 @@ impl FixedJoint {
         self.data.set_local_anchor2(anchor2);
         self
     }
+
+    /// Gets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn softness(&self) -> SpringCoefficients<Real> {
+        self.data.softness
+    }
+
+    /// Sets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn set_softness(&mut self, softness: SpringCoefficients<Real>) -> &mut Self {
+        self.data.softness = softness;
+        self
+    }
 }
 
 impl From<FixedJoint> for GenericJoint {
@@ -129,10 +152,17 @@ impl FixedJointBuilder {
         self
     }
 
-    /// Sets the joint’s anchor, expressed in the local-space of the second rigid-body.
+    /// Sets the joint's anchor, expressed in the local-space of the second rigid-body.
     #[must_use]
     pub fn local_anchor2(mut self, anchor2: Point<Real>) -> Self {
         self.0.set_local_anchor2(anchor2);
+        self
+    }
+
+    /// Sets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn softness(mut self, softness: SpringCoefficients<Real>) -> Self {
+        self.0.data.softness = softness;
         self
     }
 

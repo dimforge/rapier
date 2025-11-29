@@ -389,7 +389,7 @@ impl<N, E> Graph<N, E> {
     ///
     /// Produces an empty iterator if the node doesn't exist.<br>
     /// Iterator element type is `EdgeReference<E, Ix>`.
-    pub fn edges(&self, a: NodeIndex) -> Edges<E> {
+    pub fn edges(&self, a: NodeIndex) -> Edges<'_, E> {
         self.edges_directed(a, Direction::Outgoing)
     }
 
@@ -404,7 +404,7 @@ impl<N, E> Graph<N, E> {
     ///
     /// Produces an empty iterator if the node `a` doesn't exist.<br>
     /// Iterator element type is `EdgeReference<E, Ix>`.
-    pub fn edges_directed(&self, a: NodeIndex, dir: Direction) -> Edges<E> {
+    pub fn edges_directed(&self, a: NodeIndex, dir: Direction) -> Edges<'_, E> {
         Edges {
             skip_start: a,
             edges: &self.edges,
@@ -527,7 +527,7 @@ fn edges_walker_mut<E>(
     edges: &mut [Edge<E>],
     next: EdgeIndex,
     dir: Direction,
-) -> EdgesWalkerMut<E> {
+) -> EdgesWalkerMut<'_, E> {
     EdgesWalkerMut { edges, next, dir }
 }
 

@@ -8,6 +8,8 @@ use crate::prelude::QueryPipelineMut;
 use crate::utils::{SimdCross, SimdDot};
 
 /// A character controller to simulate vehicles using ray-casting for the wheels.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
 pub struct DynamicRayCastVehicleController {
     wheels: Vec<Wheel>,
     forward_ws: Vec<Vector<Real>>,
@@ -23,6 +25,7 @@ pub struct DynamicRayCastVehicleController {
     pub index_forward_axis: usize,
 }
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 /// Parameters affecting the physical behavior of a wheel.
 pub struct WheelTuning {
@@ -101,6 +104,7 @@ struct WheelDesc {
     pub side_friction_stiffness: Real,
 }
 
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 /// A wheel attached to a vehicle.
 pub struct Wheel {
@@ -225,6 +229,7 @@ impl Wheel {
 
 /// Information about suspension and the ground obtained from the ray-casting
 /// to simulate a wheel’s suspension.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub struct RayCastInfo {
     /// The (world-space) contact normal between the wheel and the floor.
@@ -723,9 +728,7 @@ impl<'a> WheelContactPoint<'a> {
         fn impulse_denominator(body: &RigidBody, pos: &Point<Real>, n: &Vector<Real>) -> Real {
             let dpt = pos - body.center_of_mass();
             let gcross = dpt.gcross(*n);
-            let v = (body.mprops.effective_world_inv_inertia_sqrt
-                * (body.mprops.effective_world_inv_inertia_sqrt * gcross))
-                .gcross(dpt);
+            let v = (body.mprops.effective_world_inv_inertia * gcross).gcross(dpt);
             // TODO: take the effective inv mass into account instead of the inv_mass?
             body.mprops.local_mprops.inv_mass + n.dot(&v)
         }
@@ -782,8 +785,8 @@ fn resolve_single_bilateral(
     let dpt2 = pt2 - body2.center_of_mass();
     let aj = dpt1.gcross(*normal);
     let bj = dpt2.gcross(-*normal);
-    let iaj = body1.mprops.effective_world_inv_inertia_sqrt * aj;
-    let ibj = body2.mprops.effective_world_inv_inertia_sqrt * bj;
+    let iaj = body1.mprops.effective_world_inv_inertia * aj;
+    let ibj = body2.mprops.effective_world_inv_inertia * bj;
 
     // TODO: take the effective_inv_mass into account?
     let im1 = body1.mprops.local_mprops.inv_mass;
@@ -803,7 +806,7 @@ fn resolve_single_unilateral(body1: &RigidBody, pt1: &Point<Real>, normal: &Vect
     let dvel = vel1;
     let dpt1 = pt1 - body1.center_of_mass();
     let aj = dpt1.gcross(*normal);
-    let iaj = body1.mprops.effective_world_inv_inertia_sqrt * aj;
+    let iaj = body1.mprops.effective_world_inv_inertia * aj;
 
     // TODO: take the effective_inv_mass into account?
     let im1 = body1.mprops.local_mprops.inv_mass;

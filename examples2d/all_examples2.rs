@@ -26,6 +26,7 @@ mod joint_motor_position2;
 mod joints2;
 mod locked_rotations2;
 mod one_way_platforms2;
+mod pin_slot_joint2;
 mod platform2;
 mod polyline2;
 mod pyramid2;
@@ -66,6 +67,7 @@ pub fn main() {
         ("One-way platforms", one_way_platforms2::init_world),
         ("Platform", platform2::init_world),
         ("Polyline", polyline2::init_world),
+        ("Pin Slot Joint", pin_slot_joint2::init_world),
         ("Pyramid", pyramid2::init_world),
         ("Restitution", restitution2::init_world),
         ("Rope Joints", rope_joints2::init_world),

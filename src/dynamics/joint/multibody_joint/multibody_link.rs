@@ -27,7 +27,7 @@ pub struct MultibodyLink {
     pub(crate) shift23: Vector<Real>,
 
     /// The velocity added by the joint, in world-space.
-    pub(crate) joint_velocity: RigidBodyVelocity,
+    pub(crate) joint_velocity: RigidBodyVelocity<Real>,
 }
 
 impl MultibodyLink {

@@ -23,7 +23,7 @@ fn create_tower_circle(
                 * Translation::new(0.0, y, radius);
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::dynamic().position(pos);
+            let rigid_body = RigidBodyBuilder::dynamic().pose(pos);
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z);
             colliders.insert_with_parent(collider, handle, bodies);

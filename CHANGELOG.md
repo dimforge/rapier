@@ -1,3 +1,88 @@
+## v0.31.0 (21 Nov. 2025)
+
+- `InteractionGroups` struct now contains `InteractionTestMode`.
+  Continues [rapier/pull/170](https://github.com/dimforge/rapier/pull/170)
+  for [rapier/issues/622](https://github.com/dimforge/rapier/issues/622)
+- `InteractionGroups` constructor now requires an `InteractionTestMode` parameter. If you want same behaviour as before,
+  use `InteractionTestMode::And` (eg.
+  `InteractionGroups::new(Group::GROUP_1, Group::GROUP_1, InteractionTestMode::And)`)
+- `CoefficientCombineRule::Min` - now makes sure it uses a non zero value as result by using `coeff1.min(coeff2).abs()`
+- `InteractionTestMode`: Specifies which method should be used to test interactions. Supports `AND` and `OR`.
+- `CoefficientCombineRule::ClampedSum` - Adds the two coefficients and does a clamp to have at most 1.
+- Rename `ColliderChanges::CHANGED` to `::IN_CHANGED_SET` to make its meaning more precise.
+- Rename `RigidBodyChanges::CHANGED` to `::IN_CHANGED_SET` to make its meaning more precise.
+- Fix colliders ignoring user-changes after the first simulation step.
+- Fix broad-phase incorrectly taking into account disabled colliders attached to an enabled dynamic rigid-body.
+- Grouped `IntegrationParameters::contact_natural_frequency` and `IntegrationParameters::contact_damping_ratio` behind
+  a single `IntegrationParameters::contact_softness` (#789).
+- Removed the `Integration_parameters` methods related to `erp` and `cfm`. They are now methods of the
+  `IntegrationParameters::softness` and `GenericJoint::softness` fields (#789).
+- Removed `IntegrationParameters::joint_natural_frequency` and `IntegrationParameters::joint_damping_ratio` in favor of
+  per-joint softness coefficients `GenericJoint::softness` (#789).
+- Make `SolverContact::contact_id` public so that user code knows what geometric contact it originates from (#888).
+
+## v0.30.1 (17 Oct. 2025)
+
+- Kinematic rigid-bodies will no longer fall asleep if they have a nonzero velocity, even if that velocity is very
+  small. The rationale is that, since that velocity is chosen by the user, they really want the platform to move even
+  if the speed is low.
+- Fix bug where kinematic bodies would ignore the `wake_up` flag passed to `set_linear_velocity` and
+  `set_angular_velocity`.
+- Add serde derives to `PdController`, `PidController` and `DynamicRaycastVehicle` controllers.
+
+## v0.30.0 (03 Oct. 2025)
+
+- Update to parry 0.25 (which involves breaking changes in the `Voxels` API but improves its internal storage to support
+  large voxel maps).
+
+## v0.29.0 (05 Sept. 2025)
+
+This version contains a significant rework of the internal velocity constraints solver.
+This makes it both simpler and more optimized (making the whole simulation up to 25% faster). For details on all the
+changes, see [#876](https://github.com/dimforge/rapier/pull/876).
+
+Notable changes include:
+
+- Update to parry 0.24 (includes a breaking change where all the `*angular_inertia_sqrt` fields and functions have been
+  replaced by their non-square-root equivalent.
+- Fixed bug where friction on kinematic bodies would affect dynamic bodies much more weakly than it should.
+- In 3D, added a new friction model that is more efficient than the traditional Coulomb friction. This new simplified
+  model is enabled by default and can be changed with `IntegrationParameters::friction_model`.
+- Removed support for the legacy PGS solver. Removed `IntegrationParameters::pgs_legacy` and
+  `::tgs_soft_without_warmstart`.
+
+## v0.28.0 (08 August 2025)
+
+### Modified
+
+- Update to nalgebra 0.34 and parry 0.23.
+- Only run the broad-phase once at the beginning of the physics step.
+- Don’t rebuild a BVH from scratch for CCD. Instead, reuse the broad-phase bvh with localized changes.
+- The public methods of `IslandSolver` has changed slightly to take the broad-phase as input.
+- Removed the `BroadPhase` trait and use the BVH broad-phase directly instead of a trait-object.
+
+### Added
+
+- Add `Collider::compute_broad_phase_aabb` to compute the AABB to be used by the broad-phase, taking
+  into account its contact skin, prediction, and soft-ccd.
+
+### Fix
+
+- Fix issue where some solver contacts would disappear from the contact graph before the user
+  had a chance to read them.
+
+## v0.27.0 (24 July 2025)
+
+### Modified
+
+- Modified the `QueryPipeline` API to take some geometric elements by-value instead of by-reference to make them
+  easier to use.
+- Modified the character controller to take the query-pipeline by reference instead of by-value.
+
+### Fixed
+
+- Fix crash in the new BVH broad-phase when removing colliders in a particular order.
+
 ## v0.27.0-beta.0 (11 July 2025)
 
 ### Modified

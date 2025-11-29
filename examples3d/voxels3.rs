@@ -211,10 +211,7 @@ pub fn init_world(testbed: &mut Testbed) {
             predicate: Some(&|_, co: &Collider| co.shape().as_voxels().is_some()),
             ..Default::default()
         };
-        let Some(broad_phase) = physics.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
-            return;
-        };
-        let query_pipeline = broad_phase.as_query_pipeline(
+        let query_pipeline = physics.broad_phase.as_query_pipeline(
             physics.narrow_phase.query_dispatcher(),
             &physics.bodies,
             &physics.colliders,
@@ -231,7 +228,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let FeatureId::Face(id) = hit.feature else {
                 unreachable!()
             };
-            let voxel_key = voxels.voxel_at_id(id);
+            let voxel_key = voxels.voxel_at_flat_id(id).unwrap();
             let voxel_center = hit_collider.position() * voxels.voxel_center(voxel_key);
             let voxel_size = voxels.voxel_size();
             let hit_highlight = physics.colliders.get_mut(hit_highlight_handle).unwrap();

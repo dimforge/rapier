@@ -51,10 +51,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let t1 = std::time::Instant::now();
         let max_toi = ray_ball_radius - 1.0;
 
-        let Some(broad_phase) = physics.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
-            return;
-        };
-        let query_pipeline = broad_phase.as_query_pipeline(
+        let query_pipeline = physics.broad_phase.as_query_pipeline(
             physics.narrow_phase.query_dispatcher(),
             &physics.bodies,
             &physics.colliders,

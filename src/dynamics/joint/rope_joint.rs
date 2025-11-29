@@ -1,3 +1,4 @@
+use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::joint::{GenericJoint, GenericJointBuilder, JointAxesMask};
 use crate::dynamics::{JointAxis, MotorModel};
 use crate::math::{Point, Real};
@@ -7,7 +8,18 @@ use super::JointMotor;
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(transparent)]
-/// A rope joint, limits the maximum distance between two bodies
+/// A distance-limiting joint (like a rope or cable connecting two objects).
+///
+/// Rope joints keep two bodies from getting too far apart, but allow them to get closer.
+/// They only apply force when stretched to their maximum length. Use for:
+/// - Ropes and chains
+/// - Cables and tethers
+/// - Leashes
+/// - Grappling hooks
+/// - Maximum distance constraints
+///
+/// Unlike spring joints, rope joints are inelastic - they don't bounce or stretch smoothly,
+/// they just enforce a hard maximum distance.
 pub struct RopeJoint {
     /// The underlying joint data.
     pub data: GenericJoint,
@@ -116,7 +128,9 @@ impl RopeJoint {
         self
     }
 
-    /// The maximum distance allowed between the attached objects.
+    /// The maximum rope length (distance between anchor points).
+    ///
+    /// Bodies can get closer but not farther than this distance.
     #[must_use]
     pub fn max_distance(&self) -> Real {
         self.data
@@ -125,11 +139,32 @@ impl RopeJoint {
             .unwrap_or(Real::MAX)
     }
 
-    /// Sets the maximum allowed distance between the attached objects.
+    /// Changes the maximum rope length.
     ///
-    /// The `max_dist` must be strictly greater than 0.0.
+    /// Must be greater than 0.0. Bodies will be pulled together if farther apart.
+    ///
+    /// # Example
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # use rapier3d::dynamics::RopeJoint;
+    /// # let mut rope_joint = RopeJoint::new(5.0);
+    /// rope_joint.set_max_distance(10.0);  // Max 10 units apart
+    /// ```
     pub fn set_max_distance(&mut self, max_dist: Real) -> &mut Self {
         self.data.set_limits(JointAxis::LinX, [0.0, max_dist]);
+        self
+    }
+
+    /// Gets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn softness(&self) -> SpringCoefficients<Real> {
+        self.data.softness
+    }
+
+    /// Sets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn set_softness(&mut self, softness: SpringCoefficients<Real>) -> &mut Self {
+        self.data.softness = softness;
         self
     }
 }
@@ -221,6 +256,13 @@ impl RopeJointBuilder {
     #[must_use]
     pub fn max_distance(mut self, max_dist: Real) -> Self {
         self.0.set_max_distance(max_dist);
+        self
+    }
+
+    /// Sets the softness of this joint’s locked degrees of freedom.
+    #[must_use]
+    pub fn softness(mut self, softness: SpringCoefficients<Real>) -> Self {
+        self.0.data.softness = softness;
         self
     }
 

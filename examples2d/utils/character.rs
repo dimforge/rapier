@@ -50,7 +50,7 @@ pub fn update_character(
 fn character_movement_from_inputs(
     gfx: &TestbedGraphics,
     mut speed: Real,
-    artificial_gravity: Option<Real>,
+    artificial_gravity: bool,
 ) -> Vector<Real> {
     let mut desired_movement = Vector::zeros();
 
@@ -77,8 +77,8 @@ fn character_movement_from_inputs(
 
     desired_movement *= speed;
 
-    if let Some(artificial_gravity) = artificial_gravity {
-        desired_movement += Vector::y() * artificial_gravity;
+    if artificial_gravity {
+        desired_movement -= Vector::y() * speed;
     }
 
     desired_movement
@@ -91,7 +91,7 @@ fn update_pid_controller(
     pid: &mut PidController,
     speed: Real,
 ) {
-    let desired_movement = character_movement_from_inputs(gfx, speed, None);
+    let desired_movement = character_movement_from_inputs(gfx, speed, false);
 
     let character_body = &mut phx.bodies[character_handle];
 
@@ -129,7 +129,7 @@ fn update_kinematic_controller(
     controller: &KinematicCharacterController,
     speed: Real,
 ) {
-    let desired_movement = character_movement_from_inputs(gfx, speed, Some(phx.gravity.y));
+    let desired_movement = character_movement_from_inputs(gfx, speed, true);
 
     let character_body = &phx.bodies[character_handle];
     let character_collider = &phx.colliders[character_body.colliders()[0]];
@@ -137,10 +137,7 @@ fn update_kinematic_controller(
     let character_shape = character_collider.shared_shape().clone();
     let character_mass = character_body.mass();
 
-    let Some(broad_phase) = phx.broad_phase.downcast_ref::<BroadPhaseBvh>() else {
-        return;
-    };
-    let query_pipeline = broad_phase.as_query_pipeline_mut(
+    let mut query_pipeline = phx.broad_phase.as_query_pipeline_mut(
         phx.narrow_phase.query_dispatcher(),
         &mut phx.bodies,
         &mut phx.colliders,
@@ -165,7 +162,7 @@ fn update_kinematic_controller(
 
     controller.solve_character_collision_impulses(
         phx.integration_parameters.dt,
-        query_pipeline,
+        &mut query_pipeline,
         &*character_shape,
         character_mass,
         &*collisions,

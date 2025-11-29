@@ -1,11 +1,10 @@
 use super::TOIEntry;
-use crate::dynamics::{IslandManager, RigidBodyHandle, RigidBodySet};
-use crate::geometry::{ColliderParent, ColliderSet, CollisionEvent, NarrowPhase};
+use crate::dynamics::{IntegrationParameters, IslandManager, RigidBodyHandle, RigidBodySet};
+use crate::geometry::{BroadPhaseBvh, ColliderParent, ColliderSet, CollisionEvent, NarrowPhase};
 use crate::math::Real;
 use crate::parry::utils::SortedPair;
-use crate::pipeline::{EventHandler, QueryFilter, QueryPipeline};
+use crate::pipeline::{EventHandler, QueryFilter};
 use crate::prelude::{ActiveEvents, CollisionEventFlags};
-use parry::partitioning::{Bvh, BvhBuildStrategy};
 use parry::utils::hashmap::HashMap;
 use std::collections::BinaryHeap;
 
@@ -15,27 +14,36 @@ pub enum PredictedImpacts {
     NoImpacts,
 }
 
-/// Solver responsible for performing motion-clamping on fast-moving bodies.
-#[derive(Clone)]
+/// Continuous Collision Detection solver that prevents fast objects from tunneling through geometry.
+///
+/// CCD (Continuous Collision Detection) solves the "tunneling problem" where fast-moving objects
+/// pass through thin walls because they move more than the wall's thickness in one timestep.
+///
+/// ## How it works
+///
+/// 1. Detects which bodies are moving fast enough to potentially tunnel
+/// 2. Predicts where/when they would impact during the timestep
+/// 3. Clamps their motion to stop just before impact
+/// 4. Next frame, normal collision detection handles the contact
+///
+/// ## When to use CCD
+///
+/// Enable CCD on bodies that:
+/// - Move very fast (bullets, projectiles)
+/// - Are small and hit thin geometry
+/// - Must NEVER pass through walls (gameplay-critical)
+///
+/// **Cost**: More expensive than regular collision detection. Only use when needed!
+///
+/// Enable via `RigidBodyBuilder::ccd_enabled(true)` or `body.enable_ccd(true)`.
+#[derive(Clone, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-pub struct CCDSolver {
-    // TODO PERF: for now the CCD solver maintains its own bvh for CCD queries.
-    //            At each frame it get rebuilt.
-    //            We should consider an alternative to directly use the broad-phase’s.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    bvh: Bvh,
-}
-
-impl Default for CCDSolver {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub struct CCDSolver;
 
 impl CCDSolver {
     /// Initializes a new CCD solver
     pub fn new() -> Self {
-        Self { bvh: Bvh::new() }
+        Self
     }
 
     /// Apply motion-clamping to the bodies affected by the given `impacts`.
@@ -49,7 +57,7 @@ impl CCDSolver {
 
                 let min_toi = (rb.ccd.ccd_thickness
                     * 0.15
-                    * crate::utils::inv(rb.ccd.max_point_velocity(&rb.integrated_vels)))
+                    * crate::utils::inv(rb.ccd.max_point_velocity(&rb.ccd_vels)))
                 .min(dt);
                 // println!(
                 //     "Min toi: {}, Toi: {}, thick: {}, max_vel: {}",
@@ -58,9 +66,9 @@ impl CCDSolver {
                 //     rb.ccd.ccd_thickness,
                 //     rb.ccd.max_point_velocity(&rb.integrated_vels)
                 // );
-                let new_pos =
-                    rb.integrated_vels
-                        .integrate(toi.max(min_toi), &rb.pos.position, local_com);
+                let new_pos = rb
+                    .ccd_vels
+                    .integrate(toi.max(min_toi), &rb.pos.position, local_com);
                 rb.pos.next_position = new_pos;
             }
         }
@@ -79,7 +87,7 @@ impl CCDSolver {
         let mut ccd_active = false;
 
         // println!("Checking CCD activation");
-        for handle in islands.active_dynamic_bodies() {
+        for handle in islands.active_bodies() {
             let rb = bodies.index_mut_internal(*handle);
 
             if rb.ccd.ccd_enabled {
@@ -88,7 +96,7 @@ impl CCDSolver {
                 } else {
                     None
                 };
-                let moving_fast = rb.ccd.is_moving_fast(dt, &rb.integrated_vels, forces);
+                let moving_fast = rb.ccd.is_moving_fast(dt, &rb.ccd_vels, forces);
                 rb.ccd.ccd_active = moving_fast;
                 ccd_active = ccd_active || moving_fast;
             }
@@ -101,54 +109,47 @@ impl CCDSolver {
     #[profiling::function]
     pub fn find_first_impact(
         &mut self,
-        dt: Real,
+        dt: Real, // NOTE: this doesn’t necessarily match the `params.dt`.
+        params: &IntegrationParameters,
         islands: &IslandManager,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
+        broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &NarrowPhase,
     ) -> Option<Real> {
         // Update the query pipeline with the colliders’ predicted positions.
-        self.bvh = Bvh::from_iter(
-            BvhBuildStrategy::Binned,
-            colliders.iter_enabled().map(|(co_handle, co)| {
-                let id = co_handle.into_raw_parts().0;
-                if let Some(co_parent) = co.parent {
-                    let rb = &bodies[co_parent.handle];
+        for (handle, co) in colliders.iter_enabled() {
+            if let Some(co_parent) = co.parent {
+                let rb = &bodies[co_parent.handle];
+                if rb.is_ccd_active() {
                     let predicted_pos = rb
                         .pos
                         .integrate_forces_and_velocities(dt, &rb.forces, &rb.vels, &rb.mprops);
-
                     let next_position = predicted_pos * co_parent.pos_wrt_parent;
-                    (
-                        id as usize,
-                        co.shape.compute_swept_aabb(&co.pos, &next_position),
-                    )
-                } else {
-                    (id as usize, co.shape.compute_aabb(&co.pos))
+                    let swept_aabb = co.shape.compute_swept_aabb(&co.pos, &next_position);
+                    broad_phase.set_aabb(params, handle, swept_aabb);
                 }
-            }),
-        );
+            }
+        }
 
-        let query_pipeline = QueryPipeline {
-            // NOTE: the upcast needs at least rust 1.86
-            dispatcher: narrow_phase.query_dispatcher(),
-            bvh: &self.bvh,
+        let query_pipeline = broad_phase.as_query_pipeline(
+            narrow_phase.query_dispatcher(),
             bodies,
             colliders,
-            filter: QueryFilter::default(),
-        };
+            QueryFilter::default(),
+        );
 
         let mut pairs_seen = HashMap::default();
         let mut min_toi = dt;
 
-        for handle in islands.active_dynamic_bodies() {
+        for handle in islands.active_bodies() {
             let rb1 = &bodies[*handle];
 
             if rb1.ccd.ccd_active {
                 let predicted_body_pos1 = rb1.pos.integrate_forces_and_velocities(
                     dt,
                     &rb1.forces,
-                    &rb1.integrated_vels,
+                    &rb1.ccd_vels,
                     &rb1.mprops,
                 );
 
@@ -168,7 +169,7 @@ impl CCDSolver {
                         .shape
                         .compute_swept_aabb(&co1.pos, &predicted_collider_pos1);
 
-                    for (ch2, _) in query_pipeline.intersect_aabb_conservative(&aabb1) {
+                    for (ch2, _) in query_pipeline.intersect_aabb_conservative(aabb1) {
                         if *ch1 == ch2 {
                             // Ignore self-intersection.
                             continue;
@@ -234,43 +235,39 @@ impl CCDSolver {
     #[profiling::function]
     pub fn predict_impacts_at_next_positions(
         &mut self,
-        dt: Real,
+        params: &IntegrationParameters,
         islands: &IslandManager,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
+        broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &NarrowPhase,
         events: &dyn EventHandler,
     ) -> PredictedImpacts {
+        let dt = params.dt;
         let mut frozen = HashMap::<_, Real>::default();
         let mut all_toi = BinaryHeap::new();
         let mut pairs_seen = HashMap::default();
         let mut min_overstep = dt;
 
         // Update the query pipeline with the colliders’ `next_position`.
-        self.bvh = Bvh::from_iter(
-            BvhBuildStrategy::Binned,
-            colliders.iter_enabled().map(|(co_handle, co)| {
-                let id = co_handle.into_raw_parts().0;
-                if let Some(co_parent) = co.parent {
+        for (handle, co) in colliders.iter_enabled() {
+            if let Some(co_parent) = co.parent {
+                let rb = &bodies[co_parent.handle];
+                if rb.is_ccd_active() {
                     let rb_next_pos = &bodies[co_parent.handle].pos.next_position;
                     let next_position = rb_next_pos * co_parent.pos_wrt_parent;
-                    (
-                        id as usize,
-                        co.shape.compute_swept_aabb(&co.pos, &next_position),
-                    )
-                } else {
-                    (id as usize, co.shape.compute_aabb(&co.pos))
+                    let swept_aabb = co.shape.compute_swept_aabb(&co.pos, &next_position);
+                    broad_phase.set_aabb(params, handle, swept_aabb);
                 }
-            }),
-        );
+            }
+        }
 
-        let query_pipeline = QueryPipeline {
-            dispatcher: narrow_phase.query_dispatcher(),
-            bvh: &self.bvh,
+        let query_pipeline = broad_phase.as_query_pipeline(
+            narrow_phase.query_dispatcher(),
             bodies,
             colliders,
-            filter: QueryFilter::default(),
-        };
+            QueryFilter::default(),
+        );
 
         /*
          *
@@ -278,14 +275,14 @@ impl CCDSolver {
          *
          */
         // TODO: don't iterate through all the colliders.
-        for handle in islands.active_dynamic_bodies() {
+        for handle in islands.active_bodies() {
             let rb1 = &bodies[*handle];
 
             if rb1.ccd.ccd_active {
                 let predicted_body_pos1 = rb1.pos.integrate_forces_and_velocities(
                     dt,
                     &rb1.forces,
-                    &rb1.integrated_vels,
+                    &rb1.ccd_vels,
                     &rb1.mprops,
                 );
 
@@ -301,7 +298,7 @@ impl CCDSolver {
                         .shape
                         .compute_swept_aabb(&co1.pos, &predicted_collider_pos1);
 
-                    for (ch2, _) in query_pipeline.intersect_aabb_conservative(&aabb1) {
+                    for (ch2, _) in query_pipeline.intersect_aabb_conservative(aabb1) {
                         if *ch1 == ch2 {
                             // Ignore self-intersection.
                             continue;
@@ -433,7 +430,7 @@ impl CCDSolver {
                 let co_next_pos1 = rb1.pos.next_position * co1_parent.pos_wrt_parent;
                 let aabb = co1.shape.compute_swept_aabb(&co1.pos, &co_next_pos1);
 
-                for (ch2, _) in query_pipeline.intersect_aabb_conservative(&aabb) {
+                for (ch2, _) in query_pipeline.intersect_aabb_conservative(aabb) {
                     let co2 = &colliders[ch2];
 
                     let bh1 = co1.parent.map(|p| p.handle);
@@ -511,10 +508,7 @@ impl CCDSolver {
                 let local_com1 = &rb1.mprops.local_mprops.local_com;
                 let frozen1 = frozen.get(&b1);
                 let pos1 = frozen1
-                    .map(|t| {
-                        rb1.integrated_vels
-                            .integrate(*t, &rb1.pos.position, local_com1)
-                    })
+                    .map(|t| rb1.ccd_vels.integrate(*t, &rb1.pos.position, local_com1))
                     .unwrap_or(rb1.pos.next_position);
                 pos1 * co_parent1.pos_wrt_parent
             } else {
@@ -527,10 +521,7 @@ impl CCDSolver {
                 let local_com2 = &rb2.mprops.local_mprops.local_com;
                 let frozen2 = frozen.get(&b2);
                 let pos2 = frozen2
-                    .map(|t| {
-                        rb2.integrated_vels
-                            .integrate(*t, &rb2.pos.position, local_com2)
-                    })
+                    .map(|t| rb2.ccd_vels.integrate(*t, &rb2.pos.position, local_com2))
                     .unwrap_or(rb2.pos.next_position);
                 pos2 * co_parent2.pos_wrt_parent
             } else {
