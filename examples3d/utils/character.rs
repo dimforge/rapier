@@ -255,7 +255,7 @@ fn kinematic_control_ui(
             .on_hover_text("The minimum angle (radians) between the floor’s normal and the `up` vector before the character starts to slide down automatically.");
     }
     let mut is_snapped = character_controller.snap_to_ground.is_some();
-    if ui.checkbox(&mut is_snapped, "snap_to_ground").changed {
+    if ui.checkbox(&mut is_snapped, "snap_to_ground").changed() {
         match is_snapped {
             true => {
                 character_controller.snap_to_ground = Some(CharacterLength::Relative(0.1));
