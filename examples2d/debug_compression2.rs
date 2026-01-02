@@ -18,7 +18,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let ys = [-30.0 - thickness, 30.0 + thickness];
 
     for y in ys {
-        let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, y]);
+        let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, y));
         let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(width, thickness);
         colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -30,7 +30,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut handles = [RigidBodyHandle::invalid(); 2];
 
     for i in 0..2 {
-        let rigid_body = RigidBodyBuilder::dynamic().translation(vector![xs[i], 0.0]);
+        let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(xs[i], 0.0));
         let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(thickness, half_height);
         colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -44,14 +44,14 @@ pub fn init_world(testbed: &mut Testbed) {
         for j in 0..num {
             let x = i as f32 * rad * 2.0 - num as f32 * rad;
             let y = j as f32 * rad * 2.0 - num as f32 * rad + rad;
-            let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
+            let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y));
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::ball(rad);
             colliders.insert_with_parent(collider, handle, &mut bodies);
         }
     }
 
-    let mut force = vector![0.0, 0.0];
+    let mut force = Vector::new(0.0, 0.0);
 
     testbed.add_callback(move |_, physics, _, _| {
         let left_plank = &mut physics.bodies[handles[0]];
@@ -71,5 +71,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 0.0], 50.0);
+    testbed.look_at(Vec2::ZERO, 50.0);
 }

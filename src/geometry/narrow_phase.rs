@@ -13,14 +13,14 @@ use crate::geometry::{
     ContactPair, InteractionGraph, IntersectionPair, SolverContact, SolverFlags,
     TemporaryInteractionIndex,
 };
-use crate::math::{MAX_MANIFOLD_POINTS, Real, Vector};
+use crate::math::{MAX_MANIFOLD_POINTS, Real};
 use crate::pipeline::{
     ActiveEvents, ActiveHooks, ContactModificationContext, EventHandler, PairFilterContext,
     PhysicsHooks,
 };
 use crate::prelude::{CollisionEventFlags, MultibodyJointSet};
 use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
-use parry::utils::IsometryOpt;
+use parry::utils::PoseOpt;
 use parry::utils::hashmap::HashMap;
 use std::sync::Arc;
 
@@ -721,6 +721,8 @@ impl NarrowPhase {
             let had_intersection = edge.weight.intersecting;
             let co1 = &colliders[handle1];
             let co2 = &colliders[handle2];
+            let rb_handle1 = co1.parent.map(|p| p.handle);
+            let rb_handle2 = co2.parent.map(|p| p.handle);
 
             'emit_events: {
                 if !co1.changes.needs_narrow_phase_update()
@@ -729,9 +731,8 @@ impl NarrowPhase {
                     // No update needed for these colliders.
                     return;
                 }
-                if co1.parent.map(|p| p.handle) == co2.parent.map(|p| p.handle)
-                    && co1.parent.is_some()
-                {
+
+                if rb_handle1 == rb_handle2 && co1.parent.is_some() {
                     // Same parents. Ignore collisions.
                     edge.weight.intersecting = false;
                     break 'emit_events;
@@ -768,8 +769,8 @@ impl NarrowPhase {
                     let context = PairFilterContext {
                         bodies,
                         colliders,
-                        rigid_body1: co1.parent.map(|p| p.handle),
-                        rigid_body2: co2.parent.map(|p| p.handle),
+                        rigid_body1: rb_handle1,
+                        rigid_body2: rb_handle2,
                         collider1: handle1,
                         collider2: handle2,
                     };
@@ -817,6 +818,8 @@ impl NarrowPhase {
         events: &dyn EventHandler,
     ) {
         let query_dispatcher = &*self.query_dispatcher;
+        #[cfg(feature = "parallel")]
+        let (snd, rcv) = std::sync::mpsc::channel();
 
         // TODO PERF: don't iterate on all the edges.
         par_iter_mut!(&mut self.contact_graph.graph.edges).for_each(|edge| {
@@ -824,6 +827,8 @@ impl NarrowPhase {
             let had_any_active_contact = pair.has_any_active_contact();
             let co1 = &colliders[pair.collider1];
             let co2 = &colliders[pair.collider2];
+            let rb_handle1 = co1.parent.map(|p| p.handle);
+            let rb_handle2 = co2.parent.map(|p| p.handle);
 
             'emit_events: {
                 if !co1.changes.needs_narrow_phase_update()
@@ -833,9 +838,7 @@ impl NarrowPhase {
                     return;
                 }
 
-                if co1.parent.map(|p| p.handle) == co2.parent.map(|p| p.handle)
-                    && co1.parent.is_some()
-                {
+                if rb_handle1 == rb_handle2 && co1.parent.is_some() {
                     // Same parents. Ignore collisions.
                     pair.clear();
                     break 'emit_events;
@@ -906,8 +909,8 @@ impl NarrowPhase {
                     let context = PairFilterContext {
                         bodies,
                         colliders,
-                        rigid_body1: co1.parent.map(|p| p.handle),
-                        rigid_body2: co2.parent.map(|p| p.handle),
+                        rigid_body1: rb_handle1,
+                        rigid_body2: rb_handle2,
                         collider1: pair.collider1,
                         collider2: pair.collider2,
                     };
@@ -939,30 +942,31 @@ impl NarrowPhase {
                 let contact_skin_sum = co1.contact_skin() + co2.contact_skin();
                 let soft_ccd_prediction1 = rb1.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
                 let soft_ccd_prediction2 = rb2.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
-                let effective_prediction_distance =
-                    if soft_ccd_prediction1 > 0.0 || soft_ccd_prediction2 > 0.0 {
-                        let aabb1 = co1.compute_collision_aabb(0.0);
-                        let aabb2 = co2.compute_collision_aabb(0.0);
-                        let inv_dt = crate::utils::inv(dt);
+                let effective_prediction_distance = if soft_ccd_prediction1 > 0.0
+                    || soft_ccd_prediction2 > 0.0
+                {
+                    let aabb1 = co1.compute_collision_aabb(0.0);
+                    let aabb2 = co2.compute_collision_aabb(0.0);
+                    let inv_dt = crate::utils::inv(dt);
 
-                        let linvel1 = rb1
-                            .map(|rb| rb.linvel().cap_magnitude(soft_ccd_prediction1 * inv_dt))
-                            .unwrap_or_default();
-                        let linvel2 = rb2
-                            .map(|rb| rb.linvel().cap_magnitude(soft_ccd_prediction2 * inv_dt))
-                            .unwrap_or_default();
+                    let linvel1 = rb1
+                        .map(|rb| rb.linvel().clamp_length_max(soft_ccd_prediction1 * inv_dt))
+                        .unwrap_or_default();
+                    let linvel2 = rb2
+                        .map(|rb| rb.linvel().clamp_length_max(soft_ccd_prediction2 * inv_dt))
+                        .unwrap_or_default();
 
-                        if !aabb1.intersects(&aabb2)
-                            && !aabb1.intersects_moving_aabb(&aabb2, linvel2 - linvel1)
-                        {
-                            pair.clear();
-                            break 'emit_events;
-                        }
+                    if !aabb1.intersects(&aabb2)
+                        && !aabb1.intersects_moving_aabb(&aabb2, linvel2 - linvel1)
+                    {
+                        pair.clear();
+                        break 'emit_events;
+                    }
 
-                        prediction_distance.max(dt * (linvel1 - linvel2).norm()) + contact_skin_sum
-                    } else {
-                        prediction_distance + contact_skin_sum
-                    };
+                    prediction_distance.max(dt * (linvel1 - linvel2).length()) + contact_skin_sum
+                } else {
+                    prediction_distance + contact_skin_sum
+                };
 
                 let _ = query_dispatcher.contact_manifolds(
                     &pos12,
@@ -994,12 +998,12 @@ impl NarrowPhase {
                     let world_pos1 = manifold.subshape_pos1.prepend_to(&co1.pos);
                     let world_pos2 = manifold.subshape_pos2.prepend_to(&co2.pos);
                     manifold.data.solver_contacts.clear();
-                    manifold.data.rigid_body1 = co1.parent.map(|p| p.handle);
-                    manifold.data.rigid_body2 = co2.parent.map(|p| p.handle);
+                    manifold.data.rigid_body1 = rb_handle1;
+                    manifold.data.rigid_body2 = rb_handle2;
                     manifold.data.solver_flags = solver_flags;
                     manifold.data.relative_dominance = dominance1.effective_group(&rb_type1)
                         - dominance2.effective_group(&rb_type2);
-                    manifold.data.normal = world_pos1 * manifold.local_n1;
+                    manifold.data.normal = world_pos1.rotation * manifold.local_n1;
 
                     // Generate solver contacts.
                     #[allow(unused_mut)] // Mut not needed in 2D.
@@ -1031,12 +1035,12 @@ impl NarrowPhase {
                             let world_pt1 = world_pos1 * contact.local_p1;
                             let world_pt2 = world_pos2 * contact.local_p2;
                             let vel1 = rb1
-                                .map(|rb| rb.velocity_at_point(&world_pt1))
+                                .map(|rb| rb.velocity_at_point(world_pt1))
                                 .unwrap_or_default();
                             let vel2 = rb2
-                                .map(|rb| rb.velocity_at_point(&world_pt2))
+                                .map(|rb| rb.velocity_at_point(world_pt2))
                                 .unwrap_or_default();
-                            effective_contact_dist + (vel2 - vel1).dot(&manifold.data.normal) * dt
+                            effective_contact_dist + (vel2 - vel1).dot(manifold.data.normal) * dt
                                 < prediction_distance
                         };
 
@@ -1044,7 +1048,8 @@ impl NarrowPhase {
                             // Generate the solver contact.
                             let world_pt1 = world_pos1 * contact.local_p1;
                             let world_pt2 = world_pos2 * contact.local_p2;
-                            let effective_point = na::center(&world_pt1, &world_pt2);
+
+                            let effective_point = world_pt1.midpoint(world_pt2);
 
                             let solver_contact = SolverContact {
                                 contact_id: [*contact_id as u32],
@@ -1052,7 +1057,7 @@ impl NarrowPhase {
                                 dist: effective_contact_dist,
                                 friction,
                                 restitution,
-                                tangent_velocity: Vector::zeros(),
+                                tangent_velocity: Default::default(),
                                 is_new: (contact.data.impulse == 0.0) as u32 as Real,
                                 warmstart_impulse: contact.data.warmstart_impulse,
                                 warmstart_tangent_impulse: contact.data.warmstart_tangent_impulse,
@@ -1078,8 +1083,8 @@ impl NarrowPhase {
                         let mut context = ContactModificationContext {
                             bodies,
                             colliders,
-                            rigid_body1: co1.parent.map(|p| p.handle),
-                            rigid_body2: co2.parent.map(|p| p.handle),
+                            rigid_body1: rb_handle1,
+                            rigid_body2: rb_handle2,
                             collider1: pair.collider1,
                             collider2: pair.collider2,
                             manifold,
@@ -1113,16 +1118,35 @@ impl NarrowPhase {
                     }
                 }
 
-                // FIXME: this won’t work with the parallel feature enabled.
+                #[cfg(not(feature = "parallel"))]
                 islands.interaction_started_or_stopped(
                     bodies,
-                    co1.parent.map(|p| p.handle),
-                    co2.parent.map(|p| p.handle),
+                    rb_handle1,
+                    rb_handle2,
                     has_any_active_contact,
                     true,
                 );
+                #[cfg(feature = "parallel")]
+                {
+                    // When running in parallel mode, deffer the islands call after the loop.
+                    snd.send((rb_handle1, rb_handle2, has_any_active_contact));
+                }
             }
         });
+
+        #[cfg(feature = "parallel")]
+        {
+            drop(snd);
+            for (parent1, parent2, any_active_contact) in rcv.iter() {
+                islands.interaction_started_or_stopped(
+                    bodies,
+                    parent1,
+                    parent2,
+                    any_active_contact,
+                    true,
+                );
+            }
+        }
     }
 
     /// Retrieve all the interactions with at least one contact point, happening between two active bodies.
@@ -1278,8 +1302,7 @@ mod test {
         let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
         let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
         assert!(
-            (collider_1_position.translation.vector - collider_2_position.translation.vector)
-                .magnitude()
+            (collider_1_position.translation - collider_2_position.translation).magnitude()
                 < 0.5f32
         );
 
@@ -1349,8 +1372,7 @@ mod test {
         let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
         println!("collider 2 position: {}", collider_2_position.translation);
         assert!(
-            (collider_1_position.translation.vector - collider_2_position.translation.vector)
-                .magnitude()
+            (collider_1_position.translation - collider_2_position.translation).magnitude()
                 >= 0.5f32,
             "colliders should no longer be penetrating."
         );
@@ -1432,8 +1454,7 @@ mod test {
         let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
         let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
         assert!(
-            (collider_1_position.translation.vector - collider_2_position.translation.vector)
-                .magnitude()
+            (collider_1_position.translation - collider_2_position.translation).magnitude()
                 < 0.5f32
         );
 

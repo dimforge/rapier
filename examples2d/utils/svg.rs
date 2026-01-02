@@ -4,7 +4,6 @@ use lyon::math::Point;
 use lyon::path::PathEvent;
 use lyon::tessellation::geometry_builder::*;
 use lyon::tessellation::{self, FillOptions, FillTessellator};
-use rapier2d::na::{Point2, Rotation2};
 use usvg::prelude::*;
 
 const RAPIER_SVG_STR: &str = r#"
@@ -37,11 +36,11 @@ const RAPIER_SVG_STR: &str = r#"
 </svg>
 "#;
 
-pub fn rapier_logo() -> Vec<(Vec<Point2<f32>>, Vec<[u32; 3]>)> {
+pub fn rapier_logo() -> Vec<(Vec<Vector>, Vec<[u32; 3]>)> {
     tessellate_svg_str(RAPIER_SVG_STR)
 }
 
-pub fn tessellate_svg_str(svg_str: &str) -> Vec<(Vec<Point2<f32>>, Vec<[u32; 3]>)> {
+pub fn tessellate_svg_str(svg_str: &str) -> Vec<(Vec<Vector>, Vec<[u32; 3]>)> {
     let mut result = vec![];
     let mut fill_tess = FillTessellator::new();
     let opt = usvg::Options::default();
@@ -80,7 +79,7 @@ pub fn tessellate_svg_str(svg_str: &str) -> Vec<(Vec<Point2<f32>>, Vec<[u32; 3]>
                     .vertices
                     .iter()
                     .map(|v| {
-                        Rotation2::new(angle) * point![v.position[0] * sx, v.position[1] * -sy]
+                        Rotation::new(angle) * Vector::new(v.position[0] * sx, v.position[1] * -sy)
                     })
                     .collect();
 

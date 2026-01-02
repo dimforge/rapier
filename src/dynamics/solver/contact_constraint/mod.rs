@@ -18,44 +18,43 @@ mod any_contact_constraint;
 mod contact_with_twist_friction;
 
 #[cfg(feature = "dim3")]
+use crate::utils::ScalarType;
+#[cfg(feature = "dim3")]
 use crate::{
-    math::{DIM, Real, Vector},
-    utils::{DisableFloatingPointExceptionsFlags, SimdBasis, SimdRealCopy},
+    math::DIM,
+    utils::{DisableFloatingPointExceptionsFlags, OrthonormalBasis},
 };
 
 #[inline]
 #[cfg(feature = "dim3")]
-pub(crate) fn compute_tangent_contact_directions<N>(
-    force_dir1: &Vector<N>,
-    linvel1: &Vector<N>,
-    linvel2: &Vector<N>,
-) -> [Vector<N>; DIM - 1]
-where
-    N: SimdRealCopy,
-    Vector<N>: SimdBasis,
-{
-    use SimdBasis;
-    use na::SimdValue;
+pub(crate) fn compute_tangent_contact_directions<N: ScalarType>(
+    force_dir1: &N::Vector,
+    linvel1: &N::Vector,
+    linvel2: &N::Vector,
+) -> [N::Vector; DIM - 1] {
+    use crate::utils::{CrossProduct, DotProduct, SimdLength, SimdSelect};
+    use OrthonormalBasis;
 
     // Compute the tangent direction. Pick the direction of
     // the linear relative velocity, if it is not too small.
     // Otherwise use a fallback direction.
-    let relative_linvel = linvel1 - linvel2;
+    let relative_linvel = *linvel1 - *linvel2;
     let mut tangent_relative_linvel =
-        relative_linvel - force_dir1 * (force_dir1.dot(&relative_linvel));
+        relative_linvel - *force_dir1 * (force_dir1.gdot(relative_linvel));
 
     let tangent_linvel_norm = {
         let _disable_fe_except =
             DisableFloatingPointExceptionsFlags::disable_floating_point_exceptions();
-        tangent_relative_linvel.normalize_mut()
+        let length = tangent_relative_linvel.simd_length();
+        tangent_relative_linvel /= length;
+        length
     };
 
-    const THRESHOLD: Real = 1.0e-4;
-    let use_fallback = tangent_linvel_norm.simd_lt(N::splat(THRESHOLD));
+    const THRESHOLD: f32 = 1.0e-4;
+    let use_fallback = tangent_linvel_norm.simd_lt(na::convert(THRESHOLD));
     let tangent_fallback = force_dir1.orthonormal_vector();
-
     let tangent1 = tangent_fallback.select(use_fallback, tangent_relative_linvel);
-    let bitangent1 = force_dir1.cross(&tangent1);
+    let bitangent1 = force_dir1.gcross(tangent1);
 
     [tangent1, bitangent1]
 }

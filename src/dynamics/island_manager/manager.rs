@@ -6,7 +6,7 @@ use crate::dynamics::{
 use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
 use crate::prelude::SleepRootState;
-use crate::utils::SimdDot;
+use crate::utils::DotProduct;
 use std::collections::VecDeque;
 use vec_map::VecMap;
 
@@ -234,7 +234,7 @@ impl IslandManager {
                 // This branch happens if the rigid-body no longer exists.
                 continue;
             };
-            let sq_linvel = rb.vels.linvel.norm_squared();
+            let sq_linvel = rb.vels.linvel.length_squared();
             let sq_angvel = rb.vels.angvel.gdot(rb.vels.angvel);
             rb.activation
                 .update_energy(rb.body_type, length_unit, sq_linvel, sq_angvel, dt);

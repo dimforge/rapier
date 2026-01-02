@@ -1,3 +1,5 @@
+## Unreleased
+
 ## v0.31.0 (21 Nov. 2025)
 
 - `InteractionGroups` struct now contains `InteractionTestMode`.

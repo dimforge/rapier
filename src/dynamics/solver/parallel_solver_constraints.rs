@@ -10,13 +10,12 @@ use crate::dynamics::{
     MultibodyJointSet, RigidBodyHandle, RigidBodySet,
 };
 use crate::geometry::ContactManifold;
-use crate::math::{Real, SPATIAL_DIM};
+use crate::math::{DVector, Real, SPATIAL_DIM};
 #[cfg(feature = "simd-is-enabled")]
 use crate::{
     dynamics::solver::{OneBodyConstraintSimd, TwoBodyConstraintSimd},
     math::SIMD_WIDTH,
 };
-use na::DVector;
 use std::sync::atomic::Ordering;
 
 // pub fn init_constraint_groups(
@@ -47,7 +46,7 @@ pub(crate) enum ConstraintDesc {
 }
 
 pub(crate) struct ParallelSolverConstraints<TwoBodyConstraint> {
-    pub generic_jacobians: DVector<Real>,
+    pub generic_jacobians: DVector,
     pub two_body_interactions: Vec<usize>,
     pub one_body_interactions: Vec<usize>,
     pub generic_two_body_interactions: Vec<usize>,

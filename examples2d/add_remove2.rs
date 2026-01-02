@@ -1,5 +1,5 @@
 use rapier_testbed2d::Testbed;
-use rapier2d::{na::UnitComplex, prelude::*};
+use rapier2d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     let mut bodies = RigidBodySet::new();
@@ -9,7 +9,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let rad = 0.5;
 
-    let positions = [vector![5.0, -1.0], vector![-5.0, -1.0]];
+    let positions = [Vector::new(5.0, -1.0), Vector::new(-5.0, -1.0)];
 
     let platform_handles = positions
         .into_iter()
@@ -27,13 +27,13 @@ pub fn init_world(testbed: &mut Testbed) {
         let rot = -state.time;
         for rb_handle in &platform_handles {
             let rb = physics.bodies.get_mut(*rb_handle).unwrap();
-            rb.set_next_kinematic_rotation(UnitComplex::new(rot));
+            rb.set_next_kinematic_rotation(Rotation::new(rot));
         }
 
         if state.timestep_id % 10 == 0 {
             let x = rand::random::<f32>() * 10.0 - 5.0;
             let y = rand::random::<f32>() * 10.0 + 10.0;
-            let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
+            let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y));
             let handle = physics.bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(rad, rad);
             physics
@@ -48,7 +48,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let to_remove: Vec<_> = physics
             .bodies
             .iter()
-            .filter(|(_, b)| b.position().translation.vector.y < -10.0)
+            .filter(|(_, b)| b.position().translation.y < -10.0)
             .map(|e| e.0)
             .collect();
         for handle in to_remove {
@@ -71,5 +71,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 0.0], 20.0);
+    testbed.look_at(Vec2::ZERO, 20.0);
 }

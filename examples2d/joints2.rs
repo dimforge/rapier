@@ -42,7 +42,7 @@ pub fn init_world(testbed: &mut Testbed) {
             };
 
             let rigid_body =
-                RigidBodyBuilder::new(status).translation(vector![fk * shift, -fi * shift]);
+                RigidBodyBuilder::new(status).translation(Vector::new(fk * shift, -fi * shift));
             let child_handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::ball(rad);
             colliders.insert_with_parent(collider, child_handle, &mut bodies);
@@ -61,7 +61,7 @@ pub fn init_world(testbed: &mut Testbed) {
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
                 let joint = RevoluteJointBuilder::new()
-                    .local_anchor2(point![0.0, shift])
+                    .local_anchor2(Vector::new(0.0, shift))
                     .softness(softness);
                 impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
@@ -71,7 +71,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 let parent_index = body_handles.len() - numi;
                 let parent_handle = body_handles[parent_index];
                 let joint = RevoluteJointBuilder::new()
-                    .local_anchor2(point![-shift, 0.0])
+                    .local_anchor2(Vector::new(-shift, 0.0))
                     .softness(softness);
                 impulse_joints.insert(parent_handle, child_handle, joint, true);
             }
@@ -84,5 +84,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![numk as f32 * rad, numi as f32 * -rad], 20.0);
+    testbed.look_at(Vec2::new(numk as f32 * rad, numi as f32 * -rad), 20.0);
 }

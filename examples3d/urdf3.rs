@@ -19,7 +19,7 @@ pub fn init_world(testbed: &mut Testbed) {
         create_colliders_from_collision_shapes: false,
         make_roots_fixed: true,
         // Z-up to Y-up.
-        shift: Isometry::rotation(Vector::x() * std::f32::consts::FRAC_PI_2),
+        shift: Pose::rotation(Vector::X * std::f32::consts::FRAC_PI_2),
         ..Default::default()
     };
 
@@ -32,7 +32,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .clone()
         .insert_using_impulse_joints(&mut bodies, &mut colliders, &mut impulse_joints);
     // Insert the robot a second time, but using multibody joints this time.
-    robot.append_transform(&Isometry::translation(10.0, 0.0, 0.0));
+    robot.append_transform(&Pose::translation(10.0, 0.0, 0.0));
     robot.insert_using_multibody_joints(
         &mut bodies,
         &mut colliders,
@@ -44,5 +44,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![20.0, 20.0, 20.0], point![5.0, 0.0, 0.0]);
+    testbed.look_at(Vec3::new(20.0, 20.0, 20.0), Vec3::new(5.0, 0.0, 0.0));
 }

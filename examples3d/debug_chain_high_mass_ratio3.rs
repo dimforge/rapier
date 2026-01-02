@@ -38,7 +38,7 @@ pub fn init_world(testbed: &mut Testbed) {
         };
 
         let rigid_body = RigidBodyBuilder::new(status)
-            .translation(vector![0.0, 0.0, z])
+            .translation(Vector::new(0.0, 0.0, z))
             .additional_solver_iterations(16);
         let child_handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::ball(ball_rad);
@@ -48,11 +48,11 @@ pub fn init_world(testbed: &mut Testbed) {
         if i > 0 {
             let parent_handle = *body_handles.last().unwrap();
             let joint = if i == 1 {
-                SphericalJointBuilder::new().local_anchor2(point![0.0, 0.0, -shift1 * 2.0])
+                SphericalJointBuilder::new().local_anchor2(Vector::new(0.0, 0.0, -shift1 * 2.0))
             } else {
                 SphericalJointBuilder::new()
-                    .local_anchor1(point![0.0, 0.0, shift1])
-                    .local_anchor2(point![0.0, 0.0, -shift2])
+                    .local_anchor1(Vector::new(0.0, 0.0, shift1))
+                    .local_anchor2(Vector::new(0.0, 0.0, -shift2))
             };
 
             if use_articulations {
@@ -69,5 +69,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![10.0, 10.0, 10.0], Point::origin());
+    testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
 }

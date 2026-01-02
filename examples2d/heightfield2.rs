@@ -1,5 +1,4 @@
 use rapier_testbed2d::Testbed;
-use rapier2d::na::DVector;
 use rapier2d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
@@ -17,13 +16,15 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = Vector::new(50.0, 1.0);
     let nsubdivs = 2000;
 
-    let heights = DVector::from_fn(nsubdivs + 1, |i, _| {
-        if i == 0 || i == nsubdivs {
-            8.0
-        } else {
-            (i as f32 * ground_size.x / (nsubdivs as f32)).cos() * 2.0
-        }
-    });
+    let heights = (0..nsubdivs + 1)
+        .map(|i| {
+            if i == 0 || i == nsubdivs {
+                8.0
+            } else {
+                (i as f32 * ground_size.x / (nsubdivs as f32)).cos() * 2.0
+            }
+        })
+        .collect();
 
     let rigid_body = RigidBodyBuilder::fixed();
     let handle = bodies.insert(rigid_body);
@@ -46,7 +47,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let y = j as f32 * shift + centery + 3.0;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
+            let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y));
             let handle = bodies.insert(rigid_body);
 
             if j % 2 == 0 {
@@ -63,5 +64,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 0.0], 10.0);
+    testbed.look_at(Vec2::ZERO, 10.0);
 }

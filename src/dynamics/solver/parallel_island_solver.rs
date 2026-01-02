@@ -10,7 +10,7 @@ use crate::dynamics::{
     RigidBodySet,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use na::DVector;
+use crate::math::DVector;
 
 use super::{ParallelInteractionGroups, ParallelVelocitySolver, SolverVel};
 
@@ -322,7 +322,7 @@ impl ParallelIslandSolver {
                                 // NOTE: `dvel.angular` is actually storing angular velocity delta multiplied
                                 //       by the square root of the inertia tensor:
                                 dvel.angular += rb.mprops.effective_world_inv_inertia * rb.forces.torque * params.dt;
-                                dvel.linear += rb.forces.force.component_mul(&rb.mprops.effective_inv_mass) * params.dt;
+                                dvel.linear += rb.forces.force * rb.mprops.effective_inv_mass * params.dt;
                             }
                         }
                     }

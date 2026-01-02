@@ -11,9 +11,8 @@ use crate::dynamics::{
     RigidBodySet,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::Real;
-use crate::math::SIMD_WIDTH;
-use na::DVector;
+use crate::math::{DVector, Real, SIMD_WIDTH};
+use parry::math::SimdReal;
 
 use crate::dynamics::solver::contact_constraint::any_contact_constraint::AnyContactConstraintMut;
 #[cfg(feature = "dim3")]
@@ -55,20 +54,20 @@ impl ConstraintsCounts {
 }
 
 pub(crate) struct ContactConstraintsSet {
-    pub generic_jacobians: DVector<Real>,
+    pub generic_jacobians: DVector,
     pub two_body_interactions: Vec<ContactManifoldIndex>,
     pub generic_two_body_interactions: Vec<ContactManifoldIndex>,
     pub interaction_groups: InteractionGroups,
 
     pub generic_velocity_constraints: Vec<GenericContactConstraint>,
-    pub simd_velocity_coulomb_constraints: Vec<ContactWithCoulombFriction>,
+    pub simd_velocity_coulomb_constraints: Vec<ContactWithCoulombFriction<SimdReal>>,
     #[cfg(feature = "dim3")]
-    pub simd_velocity_twist_constraints: Vec<ContactWithTwistFriction>,
+    pub simd_velocity_twist_constraints: Vec<ContactWithTwistFriction<SimdReal>>,
 
     pub generic_velocity_constraints_builder: Vec<GenericContactConstraintBuilder>,
     pub simd_velocity_coulomb_constraints_builder: Vec<ContactWithCoulombFrictionBuilder>,
     #[cfg(feature = "dim3")]
-    pub simd_velocity_twist_constraints_builder: Vec<ContactWithTwistFrictionBuilder>,
+    pub simd_velocity_twist_constraints_builder: Vec<ContactWithTwistFrictionBuilder<SimdReal>>,
 }
 
 impl ContactConstraintsSet {
@@ -107,10 +106,7 @@ impl ContactConstraintsSet {
     // Returns the generic jacobians and a mutable iterator through all the constraints.
     pub fn iter_constraints_mut(
         &mut self,
-    ) -> (
-        &DVector<Real>,
-        impl Iterator<Item = AnyContactConstraintMut<'_>>,
-    ) {
+    ) -> (&DVector, impl Iterator<Item = AnyContactConstraintMut<'_>>) {
         let jac = &self.generic_jacobians;
         let a = self
             .generic_velocity_constraints
@@ -489,7 +485,7 @@ impl ContactConstraintsSet {
     pub fn warmstart(
         &mut self,
         solver_bodies: &mut SolverBodies,
-        generic_solver_vels: &mut DVector<Real>,
+        generic_solver_vels: &mut DVector,
     ) {
         let (jac, constraints) = self.iter_constraints_mut();
         for mut c in constraints {
@@ -498,11 +494,7 @@ impl ContactConstraintsSet {
     }
 
     #[profiling::function]
-    pub fn solve(
-        &mut self,
-        solver_bodies: &mut SolverBodies,
-        generic_solver_vels: &mut DVector<Real>,
-    ) {
+    pub fn solve(&mut self, solver_bodies: &mut SolverBodies, generic_solver_vels: &mut DVector) {
         let (jac, constraints) = self.iter_constraints_mut();
         for mut c in constraints {
             c.solve(jac, solver_bodies, generic_solver_vels);
@@ -513,7 +505,7 @@ impl ContactConstraintsSet {
     pub fn solve_wo_bias(
         &mut self,
         solver_bodies: &mut SolverBodies,
-        generic_solver_vels: &mut DVector<Real>,
+        generic_solver_vels: &mut DVector,
     ) {
         let (jac, constraints) = self.iter_constraints_mut();
         for mut c in constraints {

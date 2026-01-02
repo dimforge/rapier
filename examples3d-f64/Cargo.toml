@@ -7,8 +7,8 @@ default-run = "all_examples3-f64"
 
 [features]
 parallel = ["rapier3d-f64/parallel", "rapier_testbed3d-f64/parallel"]
-simd-stable = ["rapier3d-f64/simd-stable"]
-simd-nightly = ["rapier3d-f64/simd-nightly"]
+#simd-stable = ["rapier3d-f64/simd-stable"]
+#simd-nightly = ["rapier3d-f64/simd-nightly"]
 enhanced-determinism = ["rapier3d-f64/enhanced-determinism"]
 
 [dependencies]

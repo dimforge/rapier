@@ -21,8 +21,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let rigid_body = RigidBodyBuilder::fixed();
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::segment(
-        point![-0.5 * 2.0 * ground_width, 0.0],
-        point![0.5 * 2.0 * ground_width, 0.0],
+        Vector::new(-0.5 * 2.0 * ground_width, 0.0),
+        Vector::new(0.5 * 2.0 * ground_width, 0.0),
     )
     .friction(friction);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
@@ -30,17 +30,20 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create the cubes
      */
-    let rigid_body = RigidBodyBuilder::dynamic().translation(vector![-9.0 * extent, 0.5 * extent]);
+    let rigid_body =
+        RigidBodyBuilder::dynamic().translation(Vector::new(-9.0 * extent, 0.5 * extent));
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(0.5 * extent, 0.5 * extent).friction(friction);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
-    let rigid_body = RigidBodyBuilder::dynamic().translation(vector![9.0 * extent, 0.5 * extent]);
+    let rigid_body =
+        RigidBodyBuilder::dynamic().translation(Vector::new(9.0 * extent, 0.5 * extent));
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(0.5 * extent, 0.5 * extent).friction(friction);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
-    let rigid_body = RigidBodyBuilder::dynamic().translation(vector![0.0, (10.0 + 16.0) * extent]);
+    let rigid_body =
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, (10.0 + 16.0) * extent));
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(10.0 * extent, 10.0 * extent).friction(friction);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
@@ -49,5 +52,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 2.5], 20.0);
+    testbed.look_at(Vec2::new(0.0, 2.5), 20.0);
 }

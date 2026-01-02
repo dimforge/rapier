@@ -1,7 +1,7 @@
 use crate::dynamics::RigidBodyHandle;
 use crate::geometry::{Aabb, Collider, ColliderHandle, PointProjection, Ray, RayIntersection};
 use crate::geometry::{BroadPhaseBvh, InteractionGroups};
-use crate::math::{Isometry, Point, Real, Vector};
+use crate::math::{Pose, Real, Vector};
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 use parry::bounding_volume::BoundingVolume;
 use parry::partitioning::{Bvh, BvhNode};
@@ -89,7 +89,7 @@ impl CompositeShape for QueryPipeline<'_> {
     fn map_part_at(
         &self,
         shape_id: u32,
-        f: &mut dyn FnMut(Option<&Isometry<Real>>, &dyn Shape, Option<&dyn NormalConstraints>),
+        f: &mut dyn FnMut(Option<&Pose>, &dyn Shape, Option<&dyn NormalConstraints>),
     ) {
         self.map_untyped_part_at(shape_id, f);
     }
@@ -104,11 +104,7 @@ impl TypedCompositeShape for QueryPipeline<'_> {
     fn map_typed_part_at<T>(
         &self,
         shape_id: u32,
-        mut f: impl FnMut(
-            Option<&Isometry<Real>>,
-            &Self::PartShape,
-            Option<&Self::PartNormalConstraints>,
-        ) -> T,
+        mut f: impl FnMut(Option<&Pose>, &Self::PartShape, Option<&Self::PartNormalConstraints>) -> T,
     ) -> Option<T> {
         let (co, co_handle) = self.colliders.get_unknown_gen(shape_id)?;
 
@@ -122,7 +118,7 @@ impl TypedCompositeShape for QueryPipeline<'_> {
     fn map_untyped_part_at<T>(
         &self,
         shape_id: u32,
-        mut f: impl FnMut(Option<&Isometry<Real>>, &dyn Shape, Option<&dyn NormalConstraints>) -> T,
+        mut f: impl FnMut(Option<&Pose>, &dyn Shape, Option<&dyn NormalConstraints>) -> T,
     ) -> Option<T> {
         let (co, co_handle) = self.colliders.get_unknown_gen(shape_id)?;
 
@@ -349,7 +345,7 @@ impl<'a> QueryPipeline<'a> {
     #[profiling::function]
     pub fn project_point(
         &self,
-        point: &Point<Real>,
+        point: Vector,
         _max_dist: Real,
         solid: bool,
     ) -> Option<(ColliderHandle, PointProjection)> {
@@ -381,15 +377,15 @@ impl<'a> QueryPipeline<'a> {
     #[profiling::function]
     pub fn intersect_point(
         &'a self,
-        point: Point<Real>,
+        point: Vector,
     ) -> impl Iterator<Item = (ColliderHandle, &'a Collider)> + 'a {
         // TODO: add to CompositeShapeRef?
         self.bvh
-            .leaves(move |node: &BvhNode| node.aabb().contains_local_point(&point))
+            .leaves(move |node: &BvhNode| node.aabb().contains_local_point(point))
             .filter_map(move |leaf| {
                 let (co, co_handle) = self.colliders.get_unknown_gen(leaf)?;
                 if self.filter.test(self.bodies, co_handle, co)
-                    && co.shape.contains_point(co.position(), &point)
+                    && co.shape.contains_point(co.position(), point)
                 {
                     return Some((co_handle, co));
                 }
@@ -407,7 +403,7 @@ impl<'a> QueryPipeline<'a> {
     #[profiling::function]
     pub fn project_point_and_get_feature(
         &self,
-        point: &Point<Real>,
+        point: Vector,
     ) -> Option<(ColliderHandle, PointProjection, FeatureId)> {
         let (id, (proj, feat)) = CompositeShapeRef(self).project_local_point_and_get_feature(point);
         let handle = self.colliders.get_unknown_gen(id)?.1;
@@ -470,7 +466,7 @@ impl<'a> QueryPipeline<'a> {
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
     /// // Sweep a sphere downward
     /// let shape = Ball::new(0.5);
-    /// let start_pos = Isometry::translation(0.0, 10.0, 0.0);
+    /// let start_pos = Pose::translation(0.0, 10.0, 0.0);
     /// let velocity = vector![0.0, -1.0, 0.0];
     /// let options = ShapeCastOptions::default();
     ///
@@ -481,8 +477,8 @@ impl<'a> QueryPipeline<'a> {
     #[profiling::function]
     pub fn cast_shape(
         &self,
-        shape_pos: &Isometry<Real>,
-        shape_vel: &Vector<Real>,
+        shape_pos: &Pose,
+        shape_vel: Vector,
         shape: &dyn Shape,
         options: ShapeCastOptions,
     ) -> Option<(ColliderHandle, ShapeCastHit)> {
@@ -538,7 +534,7 @@ impl<'a> QueryPipeline<'a> {
     #[profiling::function]
     pub fn intersect_shape(
         &'a self,
-        shape_pos: Isometry<Real>,
+        shape_pos: Pose,
         shape: &'a dyn Shape,
     ) -> impl Iterator<Item = (ColliderHandle, &'a Collider)> + 'a {
         // TODO: add this to CompositeShapeRef?

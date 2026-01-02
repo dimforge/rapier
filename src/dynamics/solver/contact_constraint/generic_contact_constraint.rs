@@ -1,16 +1,15 @@
 use crate::dynamics::solver::GenericRhs;
 use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::{DIM, MAX_MANIFOLD_POINTS, Real};
-use crate::utils::{SimdAngularInertia, SimdCross, SimdDot};
+use crate::math::{DIM, DVector, MAX_MANIFOLD_POINTS, Real};
+use crate::utils::{AngularInertiaOps, CrossProduct, DotProduct};
 
 use super::{ContactConstraintNormalPart, ContactConstraintTangentPart};
 use crate::dynamics::solver::CoulombContactPointInfos;
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::prelude::RigidBodyHandle;
 #[cfg(feature = "dim2")]
-use crate::utils::SimdBasis;
-use na::DVector;
+use crate::utils::OrthonormalBasis;
 use parry::math::Vector;
 
 #[derive(Copy, Clone)]
@@ -38,7 +37,7 @@ impl GenericContactConstraintBuilder {
         multibodies: &MultibodyJointSet,
         out_builder: &mut GenericContactConstraintBuilder,
         out_constraint: &mut GenericContactConstraint,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         jacobian_id: &mut usize,
     ) {
         // TODO PERF: we haven’t tried to optimized this codepath yet (since it relies
@@ -85,8 +84,11 @@ impl GenericContactConstraintBuilder {
         #[cfg(feature = "dim2")]
         let tangents1 = force_dir1.orthonormal_basis();
         #[cfg(feature = "dim3")]
-        let tangents1 =
-            super::compute_tangent_contact_directions(&force_dir1, &vels1.linvel, &vels2.linvel);
+        let tangents1 = super::compute_tangent_contact_directions::<Real>(
+            &force_dir1,
+            &vels1.linvel,
+            &vels2.linvel,
+        );
 
         let multibodies_ndof = multibody1.map(|m| m.0.ndofs()).unwrap_or(0)
             + multibody2.map(|m| m.0.ndofs()).unwrap_or(0);
@@ -106,12 +108,12 @@ impl GenericContactConstraintBuilder {
         out_constraint.im1 = if type1.is_dynamic_or_kinematic() {
             mprops1.effective_inv_mass
         } else {
-            na::zero()
+            Vector::ZERO
         };
         out_constraint.im2 = if type2.is_dynamic_or_kinematic() {
             mprops2.effective_inv_mass
         } else {
-            na::zero()
+            Vector::ZERO
         };
         out_constraint.solver_vel1 = solver_vel1;
         out_constraint.solver_vel2 = solver_vel2;
@@ -145,49 +147,31 @@ impl GenericContactConstraintBuilder {
                         .effective_world_inv_inertia
                         .transform_vector(torque_dir1)
                 } else {
-                    na::zero()
+                    Default::default()
                 };
                 let ii_torque_dir2 = if type2.is_dynamic_or_kinematic() {
                     mprops2
                         .effective_world_inv_inertia
                         .transform_vector(torque_dir2)
                 } else {
-                    na::zero()
+                    Default::default()
                 };
 
                 let inv_r1 = if let Some((mb1, link_id1)) = multibody1.as_ref() {
-                    mb1.fill_jacobians(
-                        *link_id1,
-                        force_dir1,
-                        #[cfg(feature = "dim2")]
-                        na::vector!(torque_dir1),
-                        #[cfg(feature = "dim3")]
-                        torque_dir1,
-                        jacobian_id,
-                        jacobians,
-                    )
-                    .0
+                    mb1.fill_jacobians(*link_id1, force_dir1, torque_dir1, jacobian_id, jacobians)
+                        .0
                 } else if type1.is_dynamic_or_kinematic() {
-                    force_dir1.dot(&mprops1.effective_inv_mass.component_mul(&force_dir1))
+                    force_dir1.dot(mprops1.effective_inv_mass * force_dir1)
                         + ii_torque_dir1.gdot(torque_dir1)
                 } else {
                     0.0
                 };
 
                 let inv_r2 = if let Some((mb2, link_id2)) = multibody2.as_ref() {
-                    mb2.fill_jacobians(
-                        *link_id2,
-                        -force_dir1,
-                        #[cfg(feature = "dim2")]
-                        na::vector!(torque_dir2),
-                        #[cfg(feature = "dim3")]
-                        torque_dir2,
-                        jacobian_id,
-                        jacobians,
-                    )
-                    .0
+                    mb2.fill_jacobians(*link_id2, -force_dir1, torque_dir2, jacobian_id, jacobians)
+                        .0
                 } else if type2.is_dynamic_or_kinematic() {
-                    force_dir1.dot(&mprops2.effective_inv_mass.component_mul(&force_dir1))
+                    force_dir1.dot(mprops2.effective_inv_mass * force_dir1)
                         + ii_torque_dir2.gdot(torque_dir2)
                 } else {
                     0.0
@@ -198,16 +182,16 @@ impl GenericContactConstraintBuilder {
                 let is_bouncy = manifold_point.is_bouncy() as u32 as Real;
 
                 normal_rhs_wo_bias =
-                    (is_bouncy * manifold_point.restitution) * (vel1 - vel2).dot(&force_dir1);
+                    (is_bouncy * manifold_point.restitution) * (vel1 - vel2).dot(force_dir1);
 
                 out_constraint.normal_part[k] = ContactConstraintNormalPart {
                     torque_dir1,
                     torque_dir2,
                     ii_torque_dir1,
                     ii_torque_dir2,
-                    rhs: na::zero(),
-                    rhs_wo_bias: na::zero(),
-                    impulse_accumulator: na::zero(),
+                    rhs: Default::default(),
+                    rhs_wo_bias: Default::default(),
+                    impulse_accumulator: Default::default(),
                     impulse: manifold_point.warmstart_impulse,
                     r,
                     r_mat_elts: [0.0; 2],
@@ -225,7 +209,7 @@ impl GenericContactConstraintBuilder {
                             .effective_world_inv_inertia
                             .transform_vector(torque_dir1)
                     } else {
-                        na::zero()
+                        Default::default()
                     };
                     out_constraint.tangent_part[k].torque_dir1[j] = torque_dir1;
                     out_constraint.tangent_part[k].ii_torque_dir1[j] = ii_torque_dir1;
@@ -236,25 +220,23 @@ impl GenericContactConstraintBuilder {
                             .effective_world_inv_inertia
                             .transform_vector(torque_dir2)
                     } else {
-                        na::zero()
+                        Default::default()
                     };
                     out_constraint.tangent_part[k].torque_dir2[j] = torque_dir2;
                     out_constraint.tangent_part[k].ii_torque_dir2[j] = ii_torque_dir2;
 
+                    let tangent_glam = tangents1[j];
                     let inv_r1 = if let Some((mb1, link_id1)) = multibody1.as_ref() {
                         mb1.fill_jacobians(
                             *link_id1,
-                            tangents1[j],
-                            #[cfg(feature = "dim2")]
-                            na::vector![torque_dir1],
-                            #[cfg(feature = "dim3")]
+                            tangent_glam,
                             torque_dir1,
                             jacobian_id,
                             jacobians,
                         )
                         .0
                     } else if type1.is_dynamic_or_kinematic() {
-                        force_dir1.dot(&mprops1.effective_inv_mass.component_mul(&force_dir1))
+                        tangent_glam.dot(mprops1.effective_inv_mass * tangent_glam)
                             + ii_torque_dir1.gdot(torque_dir1)
                     } else {
                         0.0
@@ -263,24 +245,21 @@ impl GenericContactConstraintBuilder {
                     let inv_r2 = if let Some((mb2, link_id2)) = multibody2.as_ref() {
                         mb2.fill_jacobians(
                             *link_id2,
-                            -tangents1[j],
-                            #[cfg(feature = "dim2")]
-                            na::vector![torque_dir2],
-                            #[cfg(feature = "dim3")]
+                            -tangent_glam,
                             torque_dir2,
                             jacobian_id,
                             jacobians,
                         )
                         .0
                     } else if type2.is_dynamic_or_kinematic() {
-                        force_dir1.dot(&mprops2.effective_inv_mass.component_mul(&force_dir1))
+                        tangent_glam.dot(mprops2.effective_inv_mass * tangent_glam)
                             + ii_torque_dir2.gdot(torque_dir2)
                     } else {
                         0.0
                     };
 
                     let r = crate::utils::inv(inv_r1 + inv_r2);
-                    let rhs_wo_bias = manifold_point.tangent_velocity.dot(&tangents1[j]);
+                    let rhs_wo_bias = manifold_point.tangent_velocity.gdot(tangents1[j]);
 
                     out_constraint.tangent_part[k].rhs_wo_bias[j] = rhs_wo_bias;
                     out_constraint.tangent_part[k].rhs[j] = rhs_wo_bias;
@@ -297,11 +276,11 @@ impl GenericContactConstraintBuilder {
                 local_p1: rb1
                     .pos
                     .position
-                    .inverse_transform_point(&manifold_point.point),
+                    .inverse_transform_point(manifold_point.point),
                 local_p2: rb2
                     .pos
                     .position
-                    .inverse_transform_point(&manifold_point.point),
+                    .inverse_transform_point(manifold_point.point),
                 tangent_vel: manifold_point.tangent_velocity,
                 dist: manifold_point.dist,
                 normal_vel: normal_rhs_wo_bias,
@@ -342,15 +321,15 @@ impl GenericContactConstraintBuilder {
         let inv_dt = params.inv_dt();
         let erp_inv_dt = params.contact_softness.erp_inv_dt(params.dt);
 
-        // We don’t update jacobians so the update is mostly identical to the non-generic velocity constraint.
+        // We don't update jacobians so the update is mostly identical to the non-generic velocity constraint.
         let pose1 = multibodies
             .rigid_body_link(self.handle1)
             .map(|m| multibodies[m.multibody].link(m.id).unwrap().local_to_world)
-            .unwrap_or_else(|| bodies.get_pose(constraint.solver_vel1).pose);
+            .unwrap_or_else(|| bodies.get_pose(constraint.solver_vel1).pose());
         let pose2 = multibodies
             .rigid_body_link(self.handle2)
             .map(|m| multibodies[m.multibody].link(m.id).unwrap().local_to_world)
-            .unwrap_or_else(|| bodies.get_pose(constraint.solver_vel2).pose);
+            .unwrap_or_else(|| bodies.get_pose(constraint.solver_vel2).pose());
         let all_infos = &self.infos[..constraint.num_contacts as usize];
         let normal_parts = &mut constraint.normal_part[..constraint.num_contacts as usize];
         let tangent_parts = &mut constraint.tangent_part[..constraint.num_contacts as usize];
@@ -360,18 +339,19 @@ impl GenericContactConstraintBuilder {
         #[cfg(feature = "dim3")]
         let tangents1 = [
             constraint.tangent1,
-            constraint.dir1.cross(&constraint.tangent1),
+            constraint.dir1.gcross(constraint.tangent1),
         ];
 
+        let dir1_na = constraint.dir1;
         for ((info, normal_part), tangent_part) in all_infos
             .iter()
             .zip(normal_parts.iter_mut())
             .zip(tangent_parts.iter_mut())
         {
-            // Tangent velocity is equivalent to the first body’s surface moving artificially.
+            // Tangent velocity is equivalent to the first body's surface moving artificially.
             let p1 = pose1 * info.local_p1 + info.tangent_vel * solved_dt;
             let p2 = pose2 * info.local_p2;
-            let dist = info.dist + (p1 - p2).dot(&constraint.dir1);
+            let dist = info.dist + (p1 - p2).gdot(dir1_na);
 
             // Normal part.
             {
@@ -392,7 +372,7 @@ impl GenericContactConstraintBuilder {
                 tangent_part.impulse *= params.warmstart_coefficient;
 
                 for j in 0..DIM - 1 {
-                    let bias = (p1 - p2).dot(&tangents1[j]) * inv_dt;
+                    let bias = (p1 - p2).gdot(tangents1[j]) * inv_dt;
                     tangent_part.rhs[j] = tangent_part.rhs_wo_bias[j] + bias;
                 }
             }
@@ -415,11 +395,11 @@ pub(crate) struct GenericContactConstraint {
     /*
      * Fields similar to the rigid-body constraints.
      */
-    pub dir1: Vector<Real>, // Non-penetration force direction for the first body.
+    pub dir1: Vector, // Non-penetration force direction for the first body.
     #[cfg(feature = "dim3")]
-    pub tangent1: Vector<Real>, // One of the friction force directions.
-    pub im1: Vector<Real>,
-    pub im2: Vector<Real>,
+    pub tangent1: Vector, // One of the friction force directions.
+    pub im1: Vector,
+    pub im2: Vector,
     pub cfm_factor: Real,
     pub limit: Real,
     pub solver_vel1: u32,
@@ -438,11 +418,11 @@ impl GenericContactConstraint {
             ndofs1: usize::MAX,
             ndofs2: usize::MAX,
             generic_constraint_mask: u8::MAX,
-            dir1: Vector::zeros(),
+            dir1: Vector::ZERO,
             #[cfg(feature = "dim3")]
-            tangent1: Vector::zeros(),
-            im1: Vector::zeros(),
-            im2: Vector::zeros(),
+            tangent1: Vector::ZERO,
+            im1: Vector::ZERO,
+            im2: Vector::ZERO,
             cfm_factor: 0.0,
             limit: 0.0,
             solver_vel1: u32::MAX,
@@ -457,9 +437,9 @@ impl GenericContactConstraint {
 
     pub fn warmstart(
         &mut self,
-        jacobians: &DVector<Real>,
+        jacobians: &DVector,
         bodies: &mut SolverBodies,
-        generic_solver_vels: &mut DVector<Real>,
+        generic_solver_vels: &mut DVector,
     ) {
         let mut solver_vel1 = if self.solver_vel1 == u32::MAX {
             GenericRhs::Fixed
@@ -483,11 +463,11 @@ impl GenericContactConstraint {
             normal_parts,
             tangent_parts,
             jacobians,
-            &self.dir1,
+            self.dir1,
             #[cfg(feature = "dim3")]
-            &self.tangent1,
-            &self.im1,
-            &self.im2,
+            self.tangent1,
+            self.im1,
+            self.im2,
             self.ndofs1,
             self.ndofs2,
             self.j_id,
@@ -507,9 +487,9 @@ impl GenericContactConstraint {
 
     pub fn solve(
         &mut self,
-        jacobians: &DVector<Real>,
+        jacobians: &DVector,
         bodies: &mut SolverBodies,
-        generic_solver_vels: &mut DVector<Real>,
+        generic_solver_vels: &mut DVector,
         solve_restitution: bool,
         solve_friction: bool,
     ) {
@@ -536,11 +516,11 @@ impl GenericContactConstraint {
             normal_parts,
             tangent_parts,
             jacobians,
-            &self.dir1,
+            self.dir1,
             #[cfg(feature = "dim3")]
-            &self.tangent1,
-            &self.im1,
-            &self.im2,
+            self.tangent1,
+            self.im1,
+            self.im2,
             self.limit,
             self.ndofs1,
             self.ndofs2,

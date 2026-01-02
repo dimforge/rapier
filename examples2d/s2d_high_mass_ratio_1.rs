@@ -21,8 +21,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let rigid_body = RigidBodyBuilder::fixed();
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::segment(
-        point![-0.5 * 2.0 * ground_width, 0.0],
-        point![0.5 * 2.0 * ground_width, 0.0],
+        Vector::new(-0.5 * 2.0 * ground_width, 0.0),
+        Vector::new(0.5 * 2.0 * ground_width, 0.0),
     )
     .friction(friction);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
@@ -40,7 +40,7 @@ pub fn init_world(testbed: &mut Testbed) {
             for i in 0..count {
                 let coeff = i as f32 - 0.5 * count as f32;
                 let yy = if count == 1 { y + 2.0 } else { y };
-                let position = vector![2.0 * coeff * extent + offset, yy];
+                let position = Vector::new(2.0 * coeff * extent + offset, yy);
                 let rigid_body = RigidBodyBuilder::dynamic().translation(position);
                 let parent = bodies.insert(rigid_body);
 
@@ -62,5 +62,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 2.5], 20.0);
+    testbed.look_at(Vec2::new(0.0, 2.5), 20.0);
 }

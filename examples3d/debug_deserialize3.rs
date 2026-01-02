@@ -3,7 +3,7 @@ use rapier3d::prelude::*;
 
 #[derive(serde::Deserialize)]
 struct PhysicsState {
-    pub gravity: Vector<f32>,
+    pub gravity: Vector,
     pub integration_parameters: IntegrationParameters,
     pub islands: IslandManager,
     pub broad_phase: DefaultBroadPhase,
@@ -41,7 +41,7 @@ pub fn init_world(testbed: &mut Testbed) {
             println!("\timpulse_joints: {:?}", state.impulse_joints.len());
 
             for (_, rb) in state.bodies.iter() {
-                if rb.linvel().norm() != 0.0 {
+                if rb.linvel().length() != 0.0 {
                     println!("\tlinvel: {:?}", rb.linvel());
                 }
             }
@@ -59,7 +59,7 @@ pub fn init_world(testbed: &mut Testbed) {
             testbed.harness_mut().physics.integration_parameters = state.integration_parameters;
             testbed.harness_mut().physics.gravity = state.gravity;
 
-            testbed.look_at(point![10.0, 10.0, 10.0], point![0.0, 0.0, 0.0]);
+            testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::new(0.0, 0.0, 0.0));
         }
         Err(err) => println!("Failed to deserialize the world state: {err}"),
     }

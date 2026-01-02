@@ -8,9 +8,11 @@ use crate::dynamics::{
 use crate::geometry::{
     ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition, ColliderSet, ColliderShape,
 };
-use crate::math::{AngVector, Isometry, Point, Real, Rotation, Vector};
-use crate::utils::SimdCross;
-use num::Zero;
+use crate::math::{AngVector, Pose, Real, Rotation, Vector, rotation_from_angle};
+use crate::utils::CrossProduct;
+
+#[cfg(feature = "dim2")]
+use crate::num::Zero;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A physical object that can move, rotate, and collide with other objects in your simulation.
@@ -266,16 +268,16 @@ impl RigidBody {
     /// This is the "balance point" where the body's mass is centered. Forces applied here
     /// produce no rotation, only translation.
     #[inline]
-    pub fn center_of_mass(&self) -> &Point<Real> {
-        &self.mprops.world_com
+    pub fn center_of_mass(&self) -> Vector {
+        self.mprops.world_com
     }
 
     /// The center of mass in the body's local coordinate system.
     ///
     /// This is relative to the body's position, computed from attached colliders.
     #[inline]
-    pub fn local_center_of_mass(&self) -> &Point<Real> {
-        &self.mprops.local_mprops.local_com
+    pub fn local_center_of_mass(&self) -> Vector {
+        self.mprops.local_mprops.local_com
     }
 
     /// The mass-properties of this rigid-body.
@@ -692,7 +694,7 @@ impl RigidBody {
     /// If this rigid-body is kinematic this value is set by the `set_next_kinematic_position`
     /// method and is used for estimating the kinematic body velocity at the next timestep.
     /// For non-kinematic bodies, this value is currently unspecified.
-    pub fn next_position(&self) -> &Isometry<Real> {
+    pub fn next_position(&self) -> &Pose {
         &self.pos.next_position
     }
 
@@ -814,7 +816,11 @@ impl RigidBody {
     ///
     /// Useful for checking if an object is actually moving vs sitting still.
     pub fn is_moving(&self) -> bool {
-        !self.vels.linvel.is_zero() || !self.vels.angvel.is_zero()
+        #[cfg(feature = "dim2")]
+        let angvel_is_nonzero = self.vels.angvel != 0.0;
+        #[cfg(feature = "dim3")]
+        let angvel_is_nonzero = self.vels.angvel != Default::default();
+        self.vels.linvel != Default::default() || angvel_is_nonzero
     }
 
     /// Returns both linear and angular velocity as a combined structure.
@@ -828,8 +834,8 @@ impl RigidBody {
     ///
     /// This is how fast the body is moving in units per second. Use with [`set_linvel()`](Self::set_linvel)
     /// to directly control the body's movement speed.
-    pub fn linvel(&self) -> &Vector<Real> {
-        &self.vels.linvel
+    pub fn linvel(&self) -> Vector {
+        self.vels.linvel
     }
 
     /// The current angular velocity (rotation speed) in 2D.
@@ -844,8 +850,8 @@ impl RigidBody {
     ///
     /// Returns a vector in radians per second around each axis (X, Y, Z).
     #[cfg(feature = "dim3")]
-    pub fn angvel(&self) -> &Vector<Real> {
-        &self.vels.angvel
+    pub fn angvel(&self) -> AngVector {
+        self.vels.angvel
     }
 
     /// Set both the angular and linear velocity of this rigid-body.
@@ -854,6 +860,9 @@ impl RigidBody {
     /// put to sleep because it did not move for a while.
     pub fn set_vels(&mut self, vels: RigidBodyVelocity<Real>, wake_up: bool) {
         self.set_linvel(vels.linvel, wake_up);
+        #[cfg(feature = "dim2")]
+        self.set_angvel(vels.angvel, wake_up);
+        #[cfg(feature = "dim3")]
         self.set_angvel(vels.angvel, wake_up);
     }
 
@@ -875,7 +884,7 @@ impl RigidBody {
     /// // Make the body move to the right at 5 units/second
     /// bodies[body].set_linvel(vector![5.0, 0.0, 0.0], true);
     /// ```
-    pub fn set_linvel(&mut self, linvel: Vector<Real>, wake_up: bool) {
+    pub fn set_linvel(&mut self, linvel: Vector, wake_up: bool) {
         if self.vels.linvel != linvel {
             match self.body_type {
                 RigidBodyType::Dynamic | RigidBodyType::KinematicVelocityBased => {
@@ -913,7 +922,7 @@ impl RigidBody {
     /// If `wake_up` is `true` then the rigid-body will be woken up if it was
     /// put to sleep because it did not move for a while.
     #[cfg(feature = "dim3")]
-    pub fn set_angvel(&mut self, angvel: Vector<Real>, wake_up: bool) {
+    pub fn set_angvel(&mut self, angvel: AngVector, wake_up: bool) {
         if self.vels.angvel != angvel {
             match self.body_type {
                 RigidBodyType::Dynamic | RigidBodyType::KinematicVelocityBased => {
@@ -929,10 +938,10 @@ impl RigidBody {
 
     /// The current position (translation + rotation) of this rigid body in world space.
     ///
-    /// Returns an `Isometry` which combines both translation and rotation.
+    /// Returns an `SimdPose` which combines both translation and rotation.
     /// For just the position vector, use [`translation()`](Self::translation) instead.
     #[inline]
-    pub fn position(&self) -> &Isometry<Real> {
+    pub fn position(&self) -> &Pose {
         &self.pos.position
     }
 
@@ -941,8 +950,8 @@ impl RigidBody {
     /// This is just the XYZ location, without rotation. For the full pose (position + rotation),
     /// use [`position()`](Self::position).
     #[inline]
-    pub fn translation(&self) -> &Vector<Real> {
-        &self.pos.position.translation.vector
+    pub fn translation(&self) -> Vector {
+        self.pos.position.translation
     }
 
     /// Teleports this rigid body to a new position (world coordinates).
@@ -958,13 +967,13 @@ impl RigidBody {
     /// # Parameters
     /// * `wake_up` - If `true`, prevents the body from immediately going back to sleep
     #[inline]
-    pub fn set_translation(&mut self, translation: Vector<Real>, wake_up: bool) {
-        if self.pos.position.translation.vector != translation
-            || self.pos.next_position.translation.vector != translation
+    pub fn set_translation(&mut self, translation: Vector, wake_up: bool) {
+        if self.pos.position.translation != translation
+            || self.pos.next_position.translation != translation
         {
             self.changes.insert(RigidBodyChanges::POSITION);
-            self.pos.position.translation.vector = translation;
-            self.pos.next_position.translation.vector = translation;
+            self.pos.position.translation = translation;
+            self.pos.next_position.translation = translation;
 
             // Update the world mass-properties so torque application remains valid.
             self.update_world_mass_properties();
@@ -978,7 +987,7 @@ impl RigidBody {
 
     /// The current rotation/orientation of this rigid body.
     #[inline]
-    pub fn rotation(&self) -> &Rotation<Real> {
+    pub fn rotation(&self) -> &Rotation {
         &self.pos.position.rotation
     }
 
@@ -986,7 +995,7 @@ impl RigidBody {
     ///
     /// ⚠️ **Warning**: This teleports the rotation, ignoring physics! See [`set_translation()`](Self::set_translation) for details.
     #[inline]
-    pub fn set_rotation(&mut self, rotation: Rotation<Real>, wake_up: bool) {
+    pub fn set_rotation(&mut self, rotation: Rotation, wake_up: bool) {
         if self.pos.position.rotation != rotation || self.pos.next_position.rotation != rotation {
             self.changes.insert(RigidBodyChanges::POSITION);
             self.pos.position.rotation = rotation;
@@ -1008,7 +1017,7 @@ impl RigidBody {
     /// For position-based kinematic bodies, this also resets their interpolated velocity to zero.
     ///
     /// Use for respawning, level transitions, or resetting positions.
-    pub fn set_position(&mut self, pos: Isometry<Real>, wake_up: bool) {
+    pub fn set_position(&mut self, pos: Pose, wake_up: bool) {
         if self.pos.position != pos || self.pos.next_position != pos {
             self.changes.insert(RigidBodyChanges::POSITION);
             self.pos.position = pos;
@@ -1028,7 +1037,7 @@ impl RigidBody {
     ///
     /// Only works for `KinematicPositionBased` bodies. Rapier computes the angular velocity
     /// needed to reach this rotation smoothly.
-    pub fn set_next_kinematic_rotation(&mut self, rotation: Rotation<Real>) {
+    pub fn set_next_kinematic_rotation(&mut self, rotation: Rotation) {
         if self.is_kinematic() {
             self.pos.next_position.rotation = rotation;
 
@@ -1042,11 +1051,11 @@ impl RigidBody {
     ///
     /// Only works for `KinematicPositionBased` bodies. Rapier computes the velocity
     /// needed to reach this position smoothly.
-    pub fn set_next_kinematic_translation(&mut self, translation: Vector<Real>) {
+    pub fn set_next_kinematic_translation(&mut self, translation: Vector) {
         if self.is_kinematic() {
-            self.pos.next_position.translation.vector = translation;
+            self.pos.next_position.translation = translation;
 
-            if self.pos.position.translation.vector != translation {
+            if self.pos.position.translation != translation {
                 self.wake_up(true);
             }
         }
@@ -1055,7 +1064,7 @@ impl RigidBody {
     /// For position-based kinematic bodies: sets the target pose (position + rotation) for next frame.
     ///
     /// Only works for `KinematicPositionBased` bodies. Combines translation and rotation control.
-    pub fn set_next_kinematic_position(&mut self, pos: Isometry<Real>) {
+    pub fn set_next_kinematic_position(&mut self, pos: Pose) {
         if self.is_kinematic() {
             self.pos.next_position = pos;
 
@@ -1071,10 +1080,10 @@ impl RigidBody {
         &self,
         dt: Real,
         max_dist: Real,
-    ) -> Isometry<Real> {
+    ) -> Pose {
         let new_vels = self.forces.integrate(dt, &self.vels, &self.mprops);
-        // Compute the clamped dt such that the body doesn’t travel more than `max_dist`.
-        let linvel_norm = new_vels.linvel.norm();
+        // Compute the clamped dt such that the body doesn't travel more than `max_dist`.
+        let linvel_norm = new_vels.linvel.length();
         let clamped_linvel = linvel_norm.min(max_dist * crate::utils::inv(dt));
         let clamped_dt = dt * clamped_linvel * crate::utils::inv(linvel_norm);
         new_vels.integrate(
@@ -1088,7 +1097,7 @@ impl RigidBody {
     ///
     /// Useful for predicting future positions or implementing custom integration.
     /// Accounts for gravity and applied forces.
-    pub fn predict_position_using_velocity_and_forces(&self, dt: Real) -> Isometry<Real> {
+    pub fn predict_position_using_velocity_and_forces(&self, dt: Real) -> Pose {
         self.pos
             .integrate_forces_and_velocities(dt, &self.forces, &self.vels, &self.mprops)
     }
@@ -1097,7 +1106,7 @@ impl RigidBody {
     ///
     /// Like `predict_position_using_velocity_and_forces()` but ignores applied forces.
     /// Useful when you only care about inertial motion without acceleration.
-    pub fn predict_position_using_velocity(&self, dt: Real) -> Isometry<Real> {
+    pub fn predict_position_using_velocity(&self, dt: Real) -> Pose {
         self.vels
             .integrate(dt, &self.pos.position, &self.mprops.local_mprops.local_com)
     }
@@ -1115,8 +1124,8 @@ impl RigidBody {
     /// Forces are automatically cleared each physics step, so you rarely need this.
     /// Useful if you want to cancel forces mid-frame.
     pub fn reset_forces(&mut self, wake_up: bool) {
-        if !self.forces.user_force.is_zero() {
-            self.forces.user_force = na::zero();
+        if self.forces.user_force != Vector::ZERO {
+            self.forces.user_force = Vector::ZERO;
 
             if wake_up {
                 self.wake_up(true);
@@ -1127,9 +1136,24 @@ impl RigidBody {
     /// Clears all torques that were added with `add_torque()`.
     ///
     /// Torques are automatically cleared each physics step. Rarely needed.
+    #[cfg(feature = "dim2")]
     pub fn reset_torques(&mut self, wake_up: bool) {
-        if !self.forces.user_torque.is_zero() {
-            self.forces.user_torque = na::zero();
+        if self.forces.user_torque != 0.0 {
+            self.forces.user_torque = 0.0;
+
+            if wake_up {
+                self.wake_up(true);
+            }
+        }
+    }
+
+    /// Clears all torques that were added with `add_torque()`.
+    ///
+    /// Torques are automatically cleared each physics step. Rarely needed.
+    #[cfg(feature = "dim3")]
+    pub fn reset_torques(&mut self, wake_up: bool) {
+        if self.forces.user_torque != AngVector::ZERO {
+            self.forces.user_torque = AngVector::ZERO;
 
             if wake_up {
                 self.wake_up(true);
@@ -1159,8 +1183,8 @@ impl RigidBody {
     /// ```
     ///
     /// Only affects dynamic bodies (does nothing for kinematic/fixed bodies).
-    pub fn add_force(&mut self, force: Vector<Real>, wake_up: bool) {
-        if !force.is_zero() && self.body_type == RigidBodyType::Dynamic {
+    pub fn add_force(&mut self, force: Vector, wake_up: bool) {
+        if force != Vector::ZERO && self.body_type == RigidBodyType::Dynamic {
             self.forces.user_force += force;
 
             if wake_up {
@@ -1193,8 +1217,8 @@ impl RigidBody {
     ///
     /// Only affects dynamic bodies.
     #[cfg(feature = "dim3")]
-    pub fn add_torque(&mut self, torque: Vector<Real>, wake_up: bool) {
-        if !torque.is_zero() && self.body_type == RigidBodyType::Dynamic {
+    pub fn add_torque(&mut self, torque: Vector, wake_up: bool) {
+        if torque != Vector::ZERO && self.body_type == RigidBodyType::Dynamic {
             self.forces.user_torque += torque;
 
             if wake_up {
@@ -1215,8 +1239,8 @@ impl RigidBody {
     /// * `point` - Where to apply the force (world coordinates)
     ///
     /// Only affects dynamic bodies.
-    pub fn add_force_at_point(&mut self, force: Vector<Real>, point: Point<Real>, wake_up: bool) {
-        if !force.is_zero() && self.body_type == RigidBodyType::Dynamic {
+    pub fn add_force_at_point(&mut self, force: Vector, point: Vector, wake_up: bool) {
+        if force != Vector::ZERO && self.body_type == RigidBodyType::Dynamic {
             self.forces.user_force += force;
             self.forces.user_torque += (point - self.mprops.world_com).gcross(force);
 
@@ -1253,9 +1277,9 @@ impl RigidBody {
     ///
     /// Only affects dynamic bodies (does nothing for kinematic/fixed bodies).
     #[profiling::function]
-    pub fn apply_impulse(&mut self, impulse: Vector<Real>, wake_up: bool) {
-        if !impulse.is_zero() && self.body_type == RigidBodyType::Dynamic {
-            self.vels.linvel += impulse.component_mul(&self.mprops.effective_inv_mass);
+    pub fn apply_impulse(&mut self, impulse: Vector, wake_up: bool) {
+        if impulse != Vector::ZERO && self.body_type == RigidBodyType::Dynamic {
+            self.vels.linvel += impulse * self.mprops.effective_inv_mass;
 
             if wake_up {
                 self.wake_up(true);
@@ -1284,8 +1308,8 @@ impl RigidBody {
     /// Like `apply_impulse()` but for rotation. Only affects dynamic bodies.
     #[cfg(feature = "dim3")]
     #[profiling::function]
-    pub fn apply_torque_impulse(&mut self, torque_impulse: Vector<Real>, wake_up: bool) {
-        if !torque_impulse.is_zero() && self.body_type == RigidBodyType::Dynamic {
+    pub fn apply_torque_impulse(&mut self, torque_impulse: Vector, wake_up: bool) {
+        if torque_impulse != Vector::ZERO && self.body_type == RigidBodyType::Dynamic {
             self.vels.angvel += self.mprops.effective_world_inv_inertia * torque_impulse;
 
             if wake_up {
@@ -1314,12 +1338,7 @@ impl RigidBody {
     /// ```
     ///
     /// Only affects dynamic bodies.
-    pub fn apply_impulse_at_point(
-        &mut self,
-        impulse: Vector<Real>,
-        point: Point<Real>,
-        wake_up: bool,
-    ) {
+    pub fn apply_impulse_at_point(&mut self, impulse: Vector, point: Vector, wake_up: bool) {
         let torque_impulse = (point - self.mprops.world_com).gcross(impulse);
         self.apply_impulse(impulse, wake_up);
         self.apply_torque_impulse(torque_impulse, wake_up);
@@ -1329,11 +1348,11 @@ impl RigidBody {
     ///
     /// This is the sum of all `add_force()` calls since the last physics step.
     /// Returns zero for non-dynamic bodies.
-    pub fn user_force(&self) -> Vector<Real> {
+    pub fn user_force(&self) -> Vector {
         if self.body_type == RigidBodyType::Dynamic {
             self.forces.user_force
         } else {
-            Vector::zeros()
+            Vector::ZERO
         }
     }
 
@@ -1341,11 +1360,18 @@ impl RigidBody {
     ///
     /// This is the sum of all `add_torque()` calls since the last physics step.
     /// Returns zero for non-dynamic bodies.
-    pub fn user_torque(&self) -> AngVector<Real> {
+    pub fn user_torque(&self) -> AngVector {
         if self.body_type == RigidBodyType::Dynamic {
             self.forces.user_torque
         } else {
-            AngVector::zero()
+            #[cfg(feature = "dim2")]
+            {
+                0.0
+            }
+            #[cfg(feature = "dim3")]
+            {
+                AngVector::ZERO
+            }
         }
     }
 
@@ -1377,8 +1403,8 @@ impl RigidBody {
     /// This computes the linear velocity at any world-space point.
     ///
     /// Useful for: impact calculations, particle effects, sound volume based on impact speed.
-    pub fn velocity_at_point(&self, point: &Point<Real>) -> Vector<Real> {
-        self.vels.velocity_at_point(point, &self.mprops.world_com)
+    pub fn velocity_at_point(&self, point: Vector) -> Vector {
+        self.vels.velocity_at_point(point, self.mprops.world_com)
     }
 
     /// Calculates the kinetic energy of this body (energy from motion).
@@ -1392,40 +1418,36 @@ impl RigidBody {
     /// Calculates the gravitational potential energy of this body.
     ///
     /// Returns `mass * gravity * height`. Useful for energy conservation checks.
-    pub fn gravitational_potential_energy(&self, dt: Real, gravity: Vector<Real>) -> Real {
-        let world_com = self
-            .mprops
-            .local_mprops
-            .world_com(&self.pos.position)
-            .coords;
+    pub fn gravitational_potential_energy(&self, dt: Real, gravity: Vector) -> Real {
+        let world_com = self.mprops.local_mprops.world_com(&self.pos.position);
 
         // Project position back along velocity vector one half-step (leap-frog)
         // to sync up the potential energy with the kinetic energy:
         let world_com = world_com - self.vels.linvel * (dt / 2.0);
 
-        -self.mass() * self.forces.gravity_scale * gravity.dot(&world_com)
+        -self.mass() * self.forces.gravity_scale * gravity.dot(world_com)
     }
 
     /// Computes the angular velocity of this rigid-body after application of gyroscopic forces.
     #[cfg(feature = "dim3")]
-    pub fn angvel_with_gyroscopic_forces(&self, dt: Real) -> AngVector<Real> {
+    pub fn angvel_with_gyroscopic_forces(&self, dt: Real) -> AngVector {
         // NOTE: integrating the gyroscopic forces implicitly are both slower and
         //       very dissipative. Instead, we only keep the explicit term and
         //       ensure angular momentum is preserved (similar to Jolt).
-        let w = self.pos.position.inverse_transform_vector(self.angvel());
+        let w = self.pos.position.rotation.inverse() * self.angvel();
         let i = self.mprops.local_mprops.principal_inertia();
         let ii = self.mprops.local_mprops.inv_principal_inertia;
-        let curr_momentum = i.component_mul(&w);
-        let explicit_gyro_momentum = -w.cross(&curr_momentum) * dt;
+        let curr_momentum = i * w;
+        let explicit_gyro_momentum = -w.cross(curr_momentum) * dt;
         let total_momentum = curr_momentum + explicit_gyro_momentum;
-        let total_momentum_sqnorm = total_momentum.norm_squared();
+        let total_momentum_sqnorm = total_momentum.length_squared();
 
         if total_momentum_sqnorm != 0.0 {
             let capped_momentum =
-                total_momentum * (curr_momentum.norm_squared() / total_momentum_sqnorm).sqrt();
-            self.pos.position * (ii.component_mul(&capped_momentum))
+                total_momentum * (curr_momentum.length_squared() / total_momentum_sqnorm).sqrt();
+            self.pos.position.rotation * (ii * capped_momentum)
         } else {
-            *self.angvel()
+            self.angvel()
         }
     }
 }
@@ -1452,11 +1474,11 @@ impl RigidBody {
 #[must_use = "Builder functions return the updated builder"]
 pub struct RigidBodyBuilder {
     /// The initial position of the rigid-body to be built.
-    pub position: Isometry<Real>,
+    pub position: Pose,
     /// The linear velocity of the rigid-body to be built.
-    pub linvel: Vector<Real>,
+    pub linvel: Vector,
     /// The angular velocity of the rigid-body to be built.
-    pub angvel: AngVector<Real>,
+    pub angvel: AngVector,
     /// The scale factor applied to the gravity affecting the rigid-body to be built, `1.0` by default.
     pub gravity_scale: Real,
     /// Damping factor for gradually slowing down the translational motion of the rigid-body, `0.0` by default.
@@ -1511,10 +1533,15 @@ impl Default for RigidBodyBuilder {
 impl RigidBodyBuilder {
     /// Initialize a new builder for a rigid body which is either fixed, dynamic, or kinematic.
     pub fn new(body_type: RigidBodyType) -> Self {
+        #[cfg(feature = "dim2")]
+        let angvel = 0.0;
+        #[cfg(feature = "dim3")]
+        let angvel = AngVector::ZERO;
+
         Self {
-            position: Isometry::identity(),
-            linvel: Vector::zeros(),
-            angvel: na::zero(),
+            position: Pose::IDENTITY,
+            linvel: Vector::ZERO,
+            angvel,
             gravity_scale: 1.0,
             linear_damping: 0.0,
             angular_damping: 0.0,
@@ -1632,8 +1659,8 @@ impl RigidBodyBuilder {
     ///     .translation(vector![10.0, 5.0, -3.0])
     ///     .build();
     /// ```
-    pub fn translation(mut self, translation: Vector<Real>) -> Self {
-        self.position.translation.vector = translation;
+    pub fn translation(mut self, translation: Vector) -> Self {
+        self.position.translation = translation;
         self
     }
 
@@ -1647,20 +1674,20 @@ impl RigidBodyBuilder {
     ///     .rotation(vector![0.0, std::f32::consts::PI / 4.0, 0.0])
     ///     .build();
     /// ```
-    pub fn rotation(mut self, angle: AngVector<Real>) -> Self {
-        self.position.rotation = Rotation::new(angle);
+    pub fn rotation(mut self, angle: AngVector) -> Self {
+        self.position.rotation = rotation_from_angle(angle);
         self
     }
 
     /// Sets the initial position (translation and orientation) of the rigid-body to be created.
     #[deprecated = "renamed to `RigidBodyBuilder::pose`"]
-    pub fn position(mut self, pos: Isometry<Real>) -> Self {
+    pub fn position(mut self, pos: Pose) -> Self {
         self.position = pos;
         self
     }
 
     /// Sets the initial pose (translation and orientation) of the rigid-body to be created.
-    pub fn pose(mut self, pos: Isometry<Real>) -> Self {
+    pub fn pose(mut self, pos: Pose) -> Self {
         self.position = pos;
         self
     }
@@ -1828,7 +1855,7 @@ impl RigidBodyBuilder {
     /// Sets the initial linear velocity (movement speed and direction).
     ///
     /// The body will start moving at this velocity when created.
-    pub fn linvel(mut self, linvel: Vector<Real>) -> Self {
+    pub fn linvel(mut self, linvel: Vector) -> Self {
         self.linvel = linvel;
         self
     }
@@ -1836,7 +1863,7 @@ impl RigidBodyBuilder {
     /// Sets the initial angular velocity (rotation speed).
     ///
     /// The body will start rotating at this speed when created.
-    pub fn angvel(mut self, angvel: AngVector<Real>) -> Self {
+    pub fn angvel(mut self, angvel: AngVector) -> Self {
         self.angvel = angvel;
         self
     }
@@ -1924,7 +1951,7 @@ impl RigidBodyBuilder {
         rb.additional_solver_iterations = self.additional_solver_iterations;
 
         if self.additional_mass_properties
-            != RigidBodyAdditionalMassProps::MassProps(MassProperties::zero())
+            != RigidBodyAdditionalMassProps::MassProps(MassProperties::default())
             && self.additional_mass_properties != RigidBodyAdditionalMassProps::Mass(0.0)
         {
             rb.mprops.additional_local_mprops = Some(Box::new(self.additional_mass_properties));

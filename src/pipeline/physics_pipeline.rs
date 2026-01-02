@@ -185,7 +185,7 @@ impl PhysicsPipeline {
 
     fn build_islands_and_solve_velocity_constraints(
         &mut self,
-        gravity: &Vector<Real>,
+        gravity: Vector,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
         narrow_phase: &mut NarrowPhase,
@@ -249,7 +249,7 @@ impl PhysicsPipeline {
                 .update_world_mass_properties(rb.body_type, &rb.pos.position);
             let effective_mass = rb.mprops.effective_mass();
             rb.forces
-                .compute_effective_force_and_torque(gravity, &effective_mass);
+                .compute_effective_force_and_torque(gravity, effective_mass);
         }
         self.counters.stages.update_time.pause();
 
@@ -424,7 +424,7 @@ impl PhysicsPipeline {
                 RigidBodyType::KinematicPositionBased => {
                     rb.vels = rb.pos.interpolate_velocity(
                         integration_parameters.inv_dt(),
-                        &rb.mprops.local_mprops.local_com,
+                        rb.mprops.local_mprops.local_com,
                     );
                 }
                 RigidBodyType::KinematicVelocityBased => {}
@@ -485,7 +485,7 @@ impl PhysicsPipeline {
     /// ```
     pub fn step(
         &mut self,
-        gravity: &Vector<Real>,
+        gravity: Vector,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
         broad_phase: &mut BroadPhaseBvh,
@@ -801,7 +801,7 @@ mod test {
         RigidBodySet,
     };
     use crate::geometry::{BroadPhaseBvh, ColliderBuilder, ColliderSet, NarrowPhase};
-    use crate::math::Vector;
+    use crate::math::SimdVector;
     use crate::pipeline::PhysicsPipeline;
     use crate::prelude::{MultibodyJointSet, RevoluteJointBuilder, RigidBodyType};
 
@@ -827,7 +827,7 @@ mod test {
         colliders.insert_with_parent(co, h2, &mut bodies);
 
         pipeline.step(
-            &Vector::zeros(),
+            Vector::ZERO,
             &IntegrationParameters::default(),
             &mut islands,
             &mut bf,
@@ -882,7 +882,7 @@ mod test {
         }
 
         pipeline.step(
-            &Vector::zeros(),
+            Vector::ZERO,
             &IntegrationParameters::default(),
             &mut islands,
             &mut bf,
@@ -1088,7 +1088,7 @@ mod test {
         // Add joint
         #[cfg(feature = "dim2")]
         let joint = RevoluteJointBuilder::new()
-            .local_anchor1(point![0.0, 1.0])
+            .local_anchor1(Vec2::new(0.0, 1.0))
             .local_anchor2(point![0.0, -3.0]);
         #[cfg(feature = "dim3")]
         let joint = RevoluteJointBuilder::new(Vector::z_axis())

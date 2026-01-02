@@ -1,11 +1,10 @@
 use crate::dynamics::solver::SolverVel;
 use crate::dynamics::solver::contact_constraint::GenericContactConstraint;
 use crate::dynamics::solver::{ContactConstraintNormalPart, ContactConstraintTangentPart};
-use crate::math::{AngVector, DIM, Real, Vector};
-use crate::utils::SimdDot;
-use na::DVector;
+use crate::math::{AngVector, DIM, DVector, Real, Vector};
+use crate::utils::{ComponentMul, DotProduct};
 #[cfg(feature = "dim2")]
-use {crate::utils::SimdBasis, na::SimdPartialOrd};
+use {crate::utils::OrthonormalBasis, na::SimdPartialOrd};
 
 pub(crate) enum GenericRhs {
     SolverVel(SolverVel<Real>),
@@ -45,13 +44,13 @@ impl GenericRhs {
         &self,
         j_id: usize,
         ndofs: usize,
-        jacobians: &DVector<Real>,
-        dir: &Vector<Real>,
-        gcross: &AngVector<Real>,
-        solver_vels: &DVector<Real>,
+        jacobians: &DVector,
+        dir: Vector,
+        gcross: AngVector,
+        solver_vels: &DVector,
     ) -> Real {
         match self {
-            GenericRhs::SolverVel(rhs) => dir.dot(&rhs.linear) + gcross.gdot(rhs.angular),
+            GenericRhs::SolverVel(rhs) => dir.dot(rhs.linear) + gcross.gdot(rhs.angular),
             GenericRhs::GenericId(solver_vel) => {
                 let j = jacobians.rows(j_id, ndofs);
                 let rhs = solver_vels.rows(*solver_vel as usize, ndofs);
@@ -67,16 +66,24 @@ impl GenericRhs {
         j_id: usize,
         ndofs: usize,
         impulse: Real,
-        jacobians: &DVector<Real>,
-        dir: &Vector<Real>,
-        ii_torque_dir: &AngVector<Real>,
-        solver_vels: &mut DVector<Real>,
-        inv_mass: &Vector<Real>,
+        jacobians: &DVector,
+        dir: Vector,
+        ii_torque_dir: AngVector,
+        solver_vels: &mut DVector,
+        inv_mass: Vector,
     ) {
         match self {
             GenericRhs::SolverVel(rhs) => {
-                rhs.linear += dir.component_mul(inv_mass) * impulse;
-                rhs.angular += ii_torque_dir * impulse;
+                rhs.linear += dir.component_mul(&inv_mass) * impulse;
+                #[cfg(feature = "dim2")]
+                {
+                    // In 2D, angular values are scalars
+                    rhs.angular += ii_torque_dir * impulse;
+                }
+                #[cfg(feature = "dim3")]
+                {
+                    rhs.angular += ii_torque_dir * impulse;
+                }
             }
             GenericRhs::GenericId(solver_vel) => {
                 let wj_id = j_id + ndofs;
@@ -94,15 +101,15 @@ impl ContactConstraintTangentPart<Real> {
     pub fn generic_warmstart(
         &mut self,
         j_id: usize,
-        jacobians: &DVector<Real>,
-        tangents1: [&Vector<Real>; DIM - 1],
-        im1: &Vector<Real>,
-        im2: &Vector<Real>,
+        jacobians: &DVector,
+        tangents1: [Vector; DIM - 1],
+        im1: Vector,
+        im2: Vector,
         ndofs1: usize,
         ndofs2: usize,
         solver_vel1: &mut GenericRhs,
         solver_vel2: &mut GenericRhs,
-        solver_vels: &mut DVector<Real>,
+        solver_vels: &mut DVector,
     ) {
         let j_id1 = j_id1(j_id, ndofs1, ndofs2);
         let j_id2 = j_id2(j_id, ndofs1, ndofs2);
@@ -117,7 +124,7 @@ impl ContactConstraintTangentPart<Real> {
                 self.impulse[0],
                 jacobians,
                 tangents1[0],
-                &self.ii_torque_dir1[0],
+                self.ii_torque_dir1[0],
                 solver_vels,
                 im1,
             );
@@ -126,8 +133,8 @@ impl ContactConstraintTangentPart<Real> {
                 ndofs2,
                 self.impulse[0],
                 jacobians,
-                &-tangents1[0],
-                &self.ii_torque_dir2[0],
+                -tangents1[0],
+                self.ii_torque_dir2[0],
                 solver_vels,
                 im2,
             );
@@ -141,7 +148,7 @@ impl ContactConstraintTangentPart<Real> {
                 self.impulse[0],
                 jacobians,
                 tangents1[0],
-                &self.ii_torque_dir1[0],
+                self.ii_torque_dir1[0],
                 solver_vels,
                 im1,
             );
@@ -151,7 +158,7 @@ impl ContactConstraintTangentPart<Real> {
                 self.impulse[1],
                 jacobians,
                 tangents1[1],
-                &self.ii_torque_dir1[1],
+                self.ii_torque_dir1[1],
                 solver_vels,
                 im1,
             );
@@ -161,8 +168,8 @@ impl ContactConstraintTangentPart<Real> {
                 ndofs2,
                 self.impulse[0],
                 jacobians,
-                &-tangents1[0],
-                &self.ii_torque_dir2[0],
+                -tangents1[0],
+                self.ii_torque_dir2[0],
                 solver_vels,
                 im2,
             );
@@ -171,8 +178,8 @@ impl ContactConstraintTangentPart<Real> {
                 ndofs2,
                 self.impulse[1],
                 jacobians,
-                &-tangents1[1],
-                &self.ii_torque_dir2[1],
+                -tangents1[1],
+                self.ii_torque_dir2[1],
                 solver_vels,
                 im2,
             );
@@ -183,16 +190,16 @@ impl ContactConstraintTangentPart<Real> {
     pub fn generic_solve(
         &mut self,
         j_id: usize,
-        jacobians: &DVector<Real>,
-        tangents1: [&Vector<Real>; DIM - 1],
-        im1: &Vector<Real>,
-        im2: &Vector<Real>,
+        jacobians: &DVector,
+        tangents1: [Vector; DIM - 1],
+        im1: Vector,
+        im2: Vector,
         ndofs1: usize,
         ndofs2: usize,
         limit: Real,
         solver_vel1: &mut GenericRhs,
         solver_vel2: &mut GenericRhs,
-        solver_vels: &mut DVector<Real>,
+        solver_vels: &mut DVector,
     ) {
         let j_id1 = j_id1(j_id, ndofs1, ndofs2);
         let j_id2 = j_id2(j_id, ndofs1, ndofs2);
@@ -206,14 +213,14 @@ impl ContactConstraintTangentPart<Real> {
                 ndofs1,
                 jacobians,
                 tangents1[0],
-                &self.torque_dir1[0],
+                self.torque_dir1[0],
                 solver_vels,
             ) + solver_vel2.dvel(
                 j_id2,
                 ndofs2,
                 jacobians,
-                &-tangents1[0],
-                &self.torque_dir2[0],
+                -tangents1[0],
+                self.torque_dir2[0],
                 solver_vels,
             ) + self.rhs[0];
 
@@ -227,7 +234,7 @@ impl ContactConstraintTangentPart<Real> {
                 dlambda,
                 jacobians,
                 tangents1[0],
-                &self.ii_torque_dir1[0],
+                self.ii_torque_dir1[0],
                 solver_vels,
                 im1,
             );
@@ -236,8 +243,8 @@ impl ContactConstraintTangentPart<Real> {
                 ndofs2,
                 dlambda,
                 jacobians,
-                &-tangents1[0],
-                &self.ii_torque_dir2[0],
+                -tangents1[0],
+                self.ii_torque_dir2[0],
                 solver_vels,
                 im2,
             );
@@ -250,14 +257,14 @@ impl ContactConstraintTangentPart<Real> {
                 ndofs1,
                 jacobians,
                 tangents1[0],
-                &self.torque_dir1[0],
+                self.torque_dir1[0],
                 solver_vels,
             ) + solver_vel2.dvel(
                 j_id2,
                 ndofs2,
                 jacobians,
-                &-tangents1[0],
-                &self.torque_dir2[0],
+                -tangents1[0],
+                self.torque_dir2[0],
                 solver_vels,
             ) + self.rhs[0];
             let dvel_1 = solver_vel1.dvel(
@@ -265,14 +272,14 @@ impl ContactConstraintTangentPart<Real> {
                 ndofs1,
                 jacobians,
                 tangents1[1],
-                &self.torque_dir1[1],
+                self.torque_dir1[1],
                 solver_vels,
             ) + solver_vel2.dvel(
                 j_id2 + j_step,
                 ndofs2,
                 jacobians,
-                &-tangents1[1],
-                &self.torque_dir2[1],
+                -tangents1[1],
+                self.torque_dir2[1],
                 solver_vels,
             ) + self.rhs[1];
 
@@ -291,7 +298,7 @@ impl ContactConstraintTangentPart<Real> {
                 dlambda[0],
                 jacobians,
                 tangents1[0],
-                &self.ii_torque_dir1[0],
+                self.ii_torque_dir1[0],
                 solver_vels,
                 im1,
             );
@@ -301,7 +308,7 @@ impl ContactConstraintTangentPart<Real> {
                 dlambda[1],
                 jacobians,
                 tangents1[1],
-                &self.ii_torque_dir1[1],
+                self.ii_torque_dir1[1],
                 solver_vels,
                 im1,
             );
@@ -311,8 +318,8 @@ impl ContactConstraintTangentPart<Real> {
                 ndofs2,
                 dlambda[0],
                 jacobians,
-                &-tangents1[0],
-                &self.ii_torque_dir2[0],
+                -tangents1[0],
+                self.ii_torque_dir2[0],
                 solver_vels,
                 im2,
             );
@@ -321,8 +328,8 @@ impl ContactConstraintTangentPart<Real> {
                 ndofs2,
                 dlambda[1],
                 jacobians,
-                &-tangents1[1],
-                &self.ii_torque_dir2[1],
+                -tangents1[1],
+                self.ii_torque_dir2[1],
                 solver_vels,
                 im2,
             );
@@ -335,15 +342,15 @@ impl ContactConstraintNormalPart<Real> {
     pub fn generic_warmstart(
         &mut self,
         j_id: usize,
-        jacobians: &DVector<Real>,
-        dir1: &Vector<Real>,
-        im1: &Vector<Real>,
-        im2: &Vector<Real>,
+        jacobians: &DVector,
+        dir1: Vector,
+        im1: Vector,
+        im2: Vector,
         ndofs1: usize,
         ndofs2: usize,
         solver_vel1: &mut GenericRhs,
         solver_vel2: &mut GenericRhs,
-        solver_vels: &mut DVector<Real>,
+        solver_vels: &mut DVector,
     ) {
         let j_id1 = j_id1(j_id, ndofs1, ndofs2);
         let j_id2 = j_id2(j_id, ndofs1, ndofs2);
@@ -354,7 +361,7 @@ impl ContactConstraintNormalPart<Real> {
             self.impulse,
             jacobians,
             dir1,
-            &self.ii_torque_dir1,
+            self.ii_torque_dir1,
             solver_vels,
             im1,
         );
@@ -363,8 +370,8 @@ impl ContactConstraintNormalPart<Real> {
             ndofs2,
             self.impulse,
             jacobians,
-            &-dir1,
-            &self.ii_torque_dir2,
+            -dir1,
+            self.ii_torque_dir2,
             solver_vels,
             im2,
         );
@@ -375,15 +382,15 @@ impl ContactConstraintNormalPart<Real> {
         &mut self,
         cfm_factor: Real,
         j_id: usize,
-        jacobians: &DVector<Real>,
-        dir1: &Vector<Real>,
-        im1: &Vector<Real>,
-        im2: &Vector<Real>,
+        jacobians: &DVector,
+        dir1: Vector,
+        im1: Vector,
+        im2: Vector,
         ndofs1: usize,
         ndofs2: usize,
         solver_vel1: &mut GenericRhs,
         solver_vel2: &mut GenericRhs,
-        solver_vels: &mut DVector<Real>,
+        solver_vels: &mut DVector,
     ) {
         let j_id1 = j_id1(j_id, ndofs1, ndofs2);
         let j_id2 = j_id2(j_id, ndofs1, ndofs2);
@@ -393,14 +400,14 @@ impl ContactConstraintNormalPart<Real> {
             ndofs1,
             jacobians,
             dir1,
-            &self.torque_dir1,
+            self.torque_dir1,
             solver_vels,
         ) + solver_vel2.dvel(
             j_id2,
             ndofs2,
             jacobians,
-            &-dir1,
-            &self.torque_dir2,
+            -dir1,
+            self.torque_dir2,
             solver_vels,
         ) + self.rhs;
 
@@ -414,7 +421,7 @@ impl ContactConstraintNormalPart<Real> {
             dlambda,
             jacobians,
             dir1,
-            &self.ii_torque_dir1,
+            self.ii_torque_dir1,
             solver_vels,
             im1,
         );
@@ -423,8 +430,8 @@ impl ContactConstraintNormalPart<Real> {
             ndofs2,
             dlambda,
             jacobians,
-            &-dir1,
-            &self.ii_torque_dir2,
+            -dir1,
+            self.ii_torque_dir2,
             solver_vels,
             im2,
         );
@@ -436,11 +443,11 @@ impl GenericContactConstraint {
     pub fn generic_warmstart_group(
         normal_parts: &mut [ContactConstraintNormalPart<Real>],
         tangent_parts: &mut [ContactConstraintTangentPart<Real>],
-        jacobians: &DVector<Real>,
-        dir1: &Vector<Real>,
-        #[cfg(feature = "dim3")] tangent1: &Vector<Real>,
-        im1: &Vector<Real>,
-        im2: &Vector<Real>,
+        jacobians: &DVector,
+        dir1: Vector,
+        #[cfg(feature = "dim3")] tangent1: Vector,
+        im1: Vector,
+        im2: Vector,
         // ndofs is 0 for a non-multibody body, or a multibody with zero
         // degrees of freedom.
         ndofs1: usize,
@@ -449,7 +456,7 @@ impl GenericContactConstraint {
         j_id: usize,
         solver_vel1: &mut GenericRhs,
         solver_vel2: &mut GenericRhs,
-        solver_vels: &mut DVector<Real>,
+        solver_vels: &mut DVector,
     ) {
         let j_step = j_step(ndofs1, ndofs2) * DIM;
 
@@ -477,9 +484,9 @@ impl GenericContactConstraint {
         // Solve friction.
         {
             #[cfg(feature = "dim3")]
-            let tangents1 = [tangent1, &dir1.cross(tangent1)];
+            let tangents1 = [tangent1, dir1.cross(tangent1)];
             #[cfg(feature = "dim2")]
-            let tangents1 = [&dir1.orthonormal_vector()];
+            let tangents1 = [dir1.orthonormal_vector()];
             let mut tng_j_id = tangent_j_id(j_id, ndofs1, ndofs2);
 
             for tangent_part in tangent_parts {
@@ -505,11 +512,11 @@ impl GenericContactConstraint {
         cfm_factor: Real,
         normal_parts: &mut [ContactConstraintNormalPart<Real>],
         tangent_parts: &mut [ContactConstraintTangentPart<Real>],
-        jacobians: &DVector<Real>,
-        dir1: &Vector<Real>,
-        #[cfg(feature = "dim3")] tangent1: &Vector<Real>,
-        im1: &Vector<Real>,
-        im2: &Vector<Real>,
+        jacobians: &DVector,
+        dir1: Vector,
+        #[cfg(feature = "dim3")] tangent1: Vector,
+        im1: Vector,
+        im2: Vector,
         limit: Real,
         // ndofs is 0 for a non-multibody body, or a multibody with zero
         // degrees of freedom.
@@ -519,7 +526,7 @@ impl GenericContactConstraint {
         j_id: usize,
         solver_vel1: &mut GenericRhs,
         solver_vel2: &mut GenericRhs,
-        solver_vels: &mut DVector<Real>,
+        solver_vels: &mut DVector,
         solve_restitution: bool,
         solve_friction: bool,
     ) {
@@ -550,9 +557,9 @@ impl GenericContactConstraint {
         // Solve friction.
         if solve_friction {
             #[cfg(feature = "dim3")]
-            let tangents1 = [tangent1, &dir1.cross(tangent1)];
+            let tangents1 = [tangent1, dir1.cross(tangent1)];
             #[cfg(feature = "dim2")]
-            let tangents1 = [&dir1.orthonormal_vector()];
+            let tangents1 = [dir1.orthonormal_vector()];
             let mut tng_j_id = tangent_j_id(j_id, ndofs1, ndofs2);
 
             for (normal_part, tangent_part) in normal_parts.iter().zip(tangent_parts.iter_mut()) {

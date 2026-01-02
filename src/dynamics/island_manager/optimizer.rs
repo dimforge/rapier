@@ -14,6 +14,7 @@ pub(super) struct IslandsOptimizerMergeState {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub(super) struct IslandsOptimizerSplitState {
     curr_awake_id: usize,
+    #[allow(dead_code)]
     curr_body_id: usize,
 }
 

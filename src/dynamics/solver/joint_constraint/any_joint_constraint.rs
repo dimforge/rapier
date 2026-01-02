@@ -1,8 +1,7 @@
 use crate::dynamics::JointGraphEdge;
 use crate::dynamics::solver::joint_constraint::generic_joint_constraint::GenericJointConstraint;
 use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::JointConstraint;
-use crate::math::Real;
-use na::DVector;
+use crate::math::{DVector, Real};
 
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::{SIMD_WIDTH, SimdReal};
@@ -29,9 +28,9 @@ impl AnyJointConstraintMut<'_> {
 
     pub fn solve(
         &mut self,
-        generic_jacobians: &DVector<Real>,
+        generic_jacobians: &DVector,
         solver_vels: &mut SolverBodies,
-        generic_solver_vels: &mut DVector<Real>,
+        generic_solver_vels: &mut DVector,
     ) {
         match self {
             Self::Rigid(c) => c.solve(solver_vels),

@@ -6,18 +6,25 @@ use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
 };
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::dynamics::{GenericJoint, ImpulseJoint, IntegrationParameters, JointIndex};
-use crate::math::{ANG_DIM, AngVector, DIM, Isometry, Matrix, Point, Real, Rotation, Vector};
+use crate::math::{DIM, Real};
 use crate::prelude::RigidBodySet;
 use crate::utils;
-use crate::utils::{IndexMut2, SimdCrossMatrix, SimdDot, SimdRealCopy};
 #[cfg(feature = "dim3")]
-use crate::utils::{SimdBasis, SimdQuat};
-use na::SMatrix;
+use crate::utils::OrthonormalBasis;
+use crate::utils::{
+    AngularInertiaOps, ComponentMul, CrossProductMatrix, DotProduct, IndexMut2, MatrixColumn,
+    PoseOps, RotationOps, ScalarType, SimdLength,
+};
 
+#[cfg(feature = "dim2")]
+use crate::num::One;
+
+#[cfg(feature = "dim3")]
+use parry::math::Rot3;
 #[cfg(feature = "simd-is-enabled")]
 use {
     crate::dynamics::SpringCoefficients,
-    crate::math::{SIMD_WIDTH, SimdReal},
+    crate::math::{SIMD_WIDTH, SimdPose, SimdReal},
 };
 
 pub struct JointConstraintBuilder {
@@ -67,10 +74,10 @@ impl JointConstraintBuilder {
 
         let rb1 = bodies.get_pose(self.body1);
         let rb2 = bodies.get_pose(self.body2);
-        let frame1 = rb1.pose * self.joint.local_frame1;
-        let frame2 = rb2.pose * self.joint.local_frame2;
-        let world_com1 = Point::from(rb1.pose.translation.vector);
-        let world_com2 = Point::from(rb2.pose.translation.vector);
+        let frame1 = rb1.pose() * self.joint.local_frame1;
+        let frame2 = rb2.pose() * self.joint.local_frame2;
+        let world_com1 = rb1.translation;
+        let world_com2 = rb2.translation;
 
         let joint_body1 = JointSolverBody {
             im: rb1.im,
@@ -103,8 +110,8 @@ pub struct JointConstraintBuilderSimd {
     body1: [u32; SIMD_WIDTH],
     body2: [u32; SIMD_WIDTH],
     joint_id: [JointIndex; SIMD_WIDTH],
-    local_frame1: Isometry<SimdReal>,
-    local_frame2: Isometry<SimdReal>,
+    local_frame1: SimdPose<SimdReal>,
+    local_frame2: SimdPose<SimdReal>,
     locked_axes: u8,
     softness: SpringCoefficients<SimdReal>,
     constraint_id: usize,
@@ -134,15 +141,15 @@ impl JointConstraintBuilderSimd {
         }];
 
         let local_frame1 = array![|ii| if body1[ii] != u32::MAX {
-            joint[ii].data.local_frame1
+            (joint[ii].data.local_frame1).into()
         } else {
-            rb1[ii].pos.position * joint[ii].data.local_frame1
+            (rb1[ii].pos.position * joint[ii].data.local_frame1).into()
         }]
         .into();
         let local_frame2 = array![|ii| if body2[ii] != u32::MAX {
-            joint[ii].data.local_frame2
+            (joint[ii].data.local_frame2).into()
         } else {
-            rb2[ii].pos.position * joint[ii].data.local_frame2
+            (rb2[ii].pos.position * joint[ii].data.local_frame2).into()
         }]
         .into();
 
@@ -175,19 +182,19 @@ impl JointConstraintBuilderSimd {
 
         let rb1 = bodies.gather_poses(self.body1);
         let rb2 = bodies.gather_poses(self.body2);
-        let frame1 = rb1.pose * self.local_frame1;
-        let frame2 = rb2.pose * self.local_frame2;
+        let frame1 = rb1.pose() * self.local_frame1;
+        let frame2 = rb2.pose() * self.local_frame2;
 
         let joint_body1 = JointSolverBody {
             im: rb1.im,
             ii: rb1.ii,
-            world_com: rb1.pose.translation.vector.into(),
+            world_com: rb1.translation,
             solver_vel: self.body1,
         };
         let joint_body2 = JointSolverBody {
             im: rb2.im,
             ii: rb2.ii,
-            world_com: rb2.pose.translation.vector.into(),
+            world_com: rb2.translation,
             solver_vel: self.body2,
         };
 
@@ -206,75 +213,94 @@ impl JointConstraintBuilderSimd {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct JointConstraintHelper<N: SimdRealCopy> {
-    pub basis: Matrix<N>,
+pub struct JointConstraintHelper<N: ScalarType> {
+    pub basis: N::Matrix,
     #[cfg(feature = "dim3")]
-    pub basis2: Matrix<N>, // TODO: used for angular coupling. Can we avoid storing this?
-    pub cmat1_basis: SMatrix<N, ANG_DIM, DIM>,
-    pub cmat2_basis: SMatrix<N, ANG_DIM, DIM>,
+    pub basis2: N::Matrix, // TODO: used for angular coupling. Can we avoid storing this?
     #[cfg(feature = "dim3")]
-    pub ang_basis: SMatrix<N, ANG_DIM, ANG_DIM>,
-    pub lin_err: Vector<N>,
-    pub ang_err: Rotation<N>,
+    pub cmat1_basis: N::Matrix,
+    #[cfg(feature = "dim3")]
+    pub cmat2_basis: N::Matrix,
+    #[cfg(feature = "dim3")]
+    pub ang_basis: N::Matrix,
+    #[cfg(feature = "dim2")]
+    pub cmat1_basis: [N::AngVector; 2],
+    #[cfg(feature = "dim2")]
+    pub cmat2_basis: [N::AngVector; 2],
+    pub lin_err: N::Vector,
+    pub ang_err: N::Rotation,
 }
 
-impl<N: SimdRealCopy> JointConstraintHelper<N> {
+impl<N: ScalarType> JointConstraintHelper<N> {
     pub fn new(
-        frame1: &Isometry<N>,
-        frame2: &Isometry<N>,
-        world_com1: &Point<N>,
-        world_com2: &Point<N>,
+        frame1: &N::Pose,
+        frame2: &N::Pose,
+        world_com1: &N::Vector,
+        world_com2: &N::Vector,
         locked_lin_axes: u8,
     ) -> Self {
         let mut frame1 = *frame1;
-        let basis = frame1.rotation.to_rotation_matrix().into_inner();
-        let lin_err = frame2.translation.vector - frame1.translation.vector;
+        let basis = frame1.rotation().to_mat();
+        let lin_err = frame2.translation() - frame1.translation();
 
         // Adjust the point of application of the force for the first body,
-        // by snapping free axes to the second frame’s center (to account for
+        // by snapping free axes to the second frame's center (to account for
         // the allowed relative movement).
         {
-            let mut new_center1 = frame2.translation.vector; // First, assume all dofs are free.
+            let mut new_center1 = frame2.translation(); // First, assume all dofs are free.
 
             // Then snap the locked ones.
             for i in 0..DIM {
                 if locked_lin_axes & (1 << i) != 0 {
                     let axis = basis.column(i);
-                    new_center1 -= axis * lin_err.dot(&axis);
+                    new_center1 -= axis * lin_err.gdot(axis);
                 }
             }
-            frame1.translation.vector = new_center1;
+            frame1.set_translation(new_center1);
         }
 
-        let r1 = frame1.translation.vector - world_com1.coords;
-        let r2 = frame2.translation.vector - world_com2.coords;
+        let r1 = frame1.translation() - *world_com1;
+        let r2 = frame2.translation() - *world_com2;
 
         let cmat1 = r1.gcross_matrix();
         let cmat2 = r2.gcross_matrix();
 
         #[cfg(feature = "dim3")]
-        let mut ang_basis = frame1.rotation.diff_conj1_2(&frame2.rotation).transpose();
+        let mut ang_basis = frame1.rotation().diff_conj1_2_tr(&frame2.rotation());
         #[allow(unused_mut)] // The mut is needed for 3D
-        let mut ang_err = frame1.rotation.inverse() * frame2.rotation;
+        let mut ang_err = frame1.rotation().inverse() * frame2.rotation();
 
         #[cfg(feature = "dim3")]
         {
-            let sgn = N::one().simd_copysign(frame1.rotation.dot(&frame2.rotation));
+            let sgn = N::one().simd_copysign(frame1.rotation().dot(&frame2.rotation()));
             ang_basis *= sgn;
-            *ang_err.as_mut_unchecked() *= sgn;
+            ang_err.mul_assign_unchecked(sgn);
         }
 
-        Self {
+        #[cfg(feature = "dim2")]
+        return Self {
             basis,
-            #[cfg(feature = "dim3")]
-            basis2: frame2.rotation.to_rotation_matrix().into_inner(),
+            cmat1_basis: [
+                cmat1.gdot(basis.column(0)).into(),
+                cmat1.gdot(basis.column(1)).into(),
+            ],
+            cmat2_basis: [
+                cmat2.gdot(basis.column(0)).into(),
+                cmat2.gdot(basis.column(1)).into(),
+            ],
+            lin_err,
+            ang_err,
+        };
+        #[cfg(feature = "dim3")]
+        return Self {
+            basis,
+            basis2: frame2.rotation().to_mat(),
             cmat1_basis: cmat1 * basis,
             cmat2_basis: cmat2 * basis,
-            #[cfg(feature = "dim3")]
             ang_basis,
             lin_err,
             ang_err,
-        }
+        };
     }
 
     pub fn limit_linear<const LANES: usize>(
@@ -301,7 +327,7 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
             cfm_coeff,
         );
 
-        let dist = self.lin_err.dot(&constraint.lin_jac);
+        let dist = self.lin_err.gdot(constraint.lin_jac);
         let min_enabled = dist.simd_le(limits[0]);
         let max_enabled = limits[1].simd_le(dist);
 
@@ -330,13 +356,13 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         cfm_coeff: N,
     ) -> JointConstraint<N, LANES> {
         let zero = N::zero();
-        let mut lin_jac = Vector::zeros();
-        let mut ang_jac1: AngVector<N> = na::zero();
-        let mut ang_jac2: AngVector<N> = na::zero();
+        let mut lin_jac: N::Vector = Default::default();
+        let mut ang_jac1: N::AngVector = Default::default();
+        let mut ang_jac2: N::AngVector = Default::default();
 
         for i in 0..DIM {
             if coupled_axes & (1 << i) != 0 {
-                let coeff = self.basis.column(i).dot(&self.lin_err);
+                let coeff = self.basis.column(i).gdot(self.lin_err);
                 lin_jac += self.basis.column(i) * coeff;
                 #[cfg(feature = "dim2")]
                 {
@@ -345,15 +371,15 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
                 }
                 #[cfg(feature = "dim3")]
                 {
-                    ang_jac1 += self.cmat1_basis.column(i) * coeff;
-                    ang_jac2 += self.cmat2_basis.column(i) * coeff;
+                    ang_jac1 += self.cmat1_basis.column(i).into() * coeff;
+                    ang_jac2 += self.cmat2_basis.column(i).into() * coeff;
                 }
             }
         }
 
         // FIXME: handle min limit too.
 
-        let dist = lin_jac.norm();
+        let dist = lin_jac.simd_length();
         let inv_dist = crate::utils::simd_inv(dist);
         lin_jac *= inv_dist;
         ang_jac1 *= inv_dist;
@@ -361,8 +387,8 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
 
         let rhs_wo_bias = (dist - limits[1]).simd_min(zero) * N::splat(params.inv_dt());
 
-        let ii_ang_jac1 = body1.ii * ang_jac1;
-        let ii_ang_jac2 = body2.ii * ang_jac2;
+        let ii_ang_jac1 = body1.ii.transform_vector(ang_jac1);
+        let ii_ang_jac2 = body2.ii.transform_vector(ang_jac2);
 
         let rhs_bias = (dist - limits[1]).simd_max(zero) * erp_inv_dt;
         let rhs = rhs_wo_bias + rhs_bias;
@@ -417,13 +443,13 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
 
         let mut rhs_wo_bias = N::zero();
         if motor_params.erp_inv_dt != N::zero() {
-            let dist = self.lin_err.dot(&constraint.lin_jac);
+            let dist = self.lin_err.gdot(constraint.lin_jac);
             rhs_wo_bias += (dist - motor_params.target_pos) * motor_params.erp_inv_dt;
         }
 
         let mut target_vel = motor_params.target_vel;
         if let Some(limits) = limits {
-            let dist = self.lin_err.dot(&constraint.lin_jac);
+            let dist = self.lin_err.gdot(constraint.lin_jac);
             target_vel =
                 target_vel.simd_clamp((limits[0] - dist) * inv_dt, (limits[1] - dist) * inv_dt);
         };
@@ -451,13 +477,13 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
     ) -> JointConstraint<N, LANES> {
         let inv_dt = N::splat(params.inv_dt());
 
-        let mut lin_jac = Vector::zeros();
-        let mut ang_jac1: AngVector<N> = na::zero();
-        let mut ang_jac2: AngVector<N> = na::zero();
+        let mut lin_jac: N::Vector = Default::default();
+        let mut ang_jac1: N::AngVector = Default::default();
+        let mut ang_jac2: N::AngVector = Default::default();
 
         for i in 0..DIM {
             if coupled_axes & (1 << i) != 0 {
-                let coeff = self.basis.column(i).dot(&self.lin_err);
+                let coeff = self.basis.column(i).gdot(self.lin_err);
                 lin_jac += self.basis.column(i) * coeff;
                 #[cfg(feature = "dim2")]
                 {
@@ -466,13 +492,13 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
                 }
                 #[cfg(feature = "dim3")]
                 {
-                    ang_jac1 += self.cmat1_basis.column(i) * coeff;
-                    ang_jac2 += self.cmat2_basis.column(i) * coeff;
+                    ang_jac1 += self.cmat1_basis.column(i).into() * coeff;
+                    ang_jac2 += self.cmat2_basis.column(i).into() * coeff;
                 }
             }
         }
 
-        let dist = lin_jac.norm();
+        let dist = lin_jac.simd_length();
         let inv_dist = crate::utils::simd_inv(dist);
         lin_jac *= inv_dist;
         ang_jac1 *= inv_dist;
@@ -491,8 +517,8 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
 
         rhs_wo_bias += -target_vel;
 
-        let ii_ang_jac1 = body1.ii * ang_jac1;
-        let ii_ang_jac2 = body2.ii * ang_jac2;
+        let ii_ang_jac1 = body1.ii.transform_vector(ang_jac1);
+        let ii_ang_jac2 = body2.ii.transform_vector(ang_jac2);
 
         JointConstraint {
             joint_id,
@@ -527,21 +553,21 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         erp_inv_dt: N,
         cfm_coeff: N,
     ) -> JointConstraint<N, LANES> {
-        let lin_jac = self.basis.column(locked_axis).into_owned();
+        let lin_jac = self.basis.column(locked_axis);
         #[cfg(feature = "dim2")]
         let ang_jac1 = self.cmat1_basis[locked_axis];
         #[cfg(feature = "dim2")]
         let ang_jac2 = self.cmat2_basis[locked_axis];
         #[cfg(feature = "dim3")]
-        let ang_jac1 = self.cmat1_basis.column(locked_axis).into_owned();
+        let ang_jac1 = self.cmat1_basis.column(locked_axis).into();
         #[cfg(feature = "dim3")]
-        let ang_jac2 = self.cmat2_basis.column(locked_axis).into_owned();
+        let ang_jac2 = self.cmat2_basis.column(locked_axis).into();
 
         let rhs_wo_bias = N::zero();
-        let rhs_bias = lin_jac.dot(&self.lin_err) * erp_inv_dt;
+        let rhs_bias = lin_jac.gdot(self.lin_err) * erp_inv_dt;
 
-        let ii_ang_jac1 = body1.ii * ang_jac1;
-        let ii_ang_jac2 = body2.ii * ang_jac2;
+        let ii_ang_jac1 = body1.ii.transform_vector(ang_jac1);
+        let ii_ang_jac2 = body2.ii.transform_vector(ang_jac2);
 
         JointConstraint {
             joint_id,
@@ -593,16 +619,16 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         ];
 
         #[cfg(feature = "dim2")]
-        let ang_jac = N::one();
+        let ang_jac = N::AngVector::one();
         #[cfg(feature = "dim3")]
-        let ang_jac = self.ang_basis.column(_limited_axis).into_owned();
+        let ang_jac = self.ang_basis.column(_limited_axis).into();
         let rhs_wo_bias = N::zero();
         let rhs_bias = ((s_ang - s_limits[1]).simd_max(zero)
             - (s_limits[0] - s_ang).simd_max(zero))
             * erp_inv_dt;
 
-        let ii_ang_jac1 = body1.ii * ang_jac;
-        let ii_ang_jac2 = body2.ii * ang_jac;
+        let ii_ang_jac1 = body1.ii.transform_vector(ang_jac);
+        let ii_ang_jac2 = body2.ii.transform_vector(ang_jac);
 
         JointConstraint {
             joint_id,
@@ -612,7 +638,7 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
             im2: body2.im,
             impulse: N::zero(),
             impulse_bounds,
-            lin_jac: na::zero(),
+            lin_jac: Default::default(),
             ang_jac1: ang_jac,
             ang_jac2: ang_jac,
             ii_ang_jac1,
@@ -636,9 +662,9 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         writeback_id: WritebackId,
     ) -> JointConstraint<N, LANES> {
         #[cfg(feature = "dim2")]
-        let ang_jac = N::one();
+        let ang_jac = N::AngVector::one();
         #[cfg(feature = "dim3")]
-        let ang_jac = self.basis.column(_motor_axis).into_owned();
+        let ang_jac = self.basis.column(_motor_axis).into();
 
         let mut rhs_wo_bias = N::zero();
         if motor_params.erp_inv_dt != N::zero() {
@@ -663,8 +689,8 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
 
         rhs_wo_bias += -motor_params.target_vel;
 
-        let ii_ang_jac1 = body1.ii * ang_jac;
-        let ii_ang_jac2 = body2.ii * ang_jac;
+        let ii_ang_jac1 = body1.ii.transform_vector(ang_jac);
+        let ii_ang_jac2 = body2.ii.transform_vector(ang_jac);
 
         JointConstraint {
             joint_id,
@@ -674,7 +700,7 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
             im2: body2.im,
             impulse: N::zero(),
             impulse_bounds: [-motor_params.max_impulse, motor_params.max_impulse],
-            lin_jac: na::zero(),
+            lin_jac: Default::default(),
             ang_jac1: ang_jac,
             ang_jac2: ang_jac,
             ii_ang_jac1,
@@ -700,18 +726,18 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         cfm_coeff: N,
     ) -> JointConstraint<N, LANES> {
         #[cfg(feature = "dim2")]
-        let ang_jac = N::one();
+        let ang_jac = N::AngVector::one();
         #[cfg(feature = "dim3")]
-        let ang_jac = self.ang_basis.column(_locked_axis).into_owned();
+        let ang_jac = self.ang_basis.column(_locked_axis).into();
 
         let rhs_wo_bias = N::zero();
         #[cfg(feature = "dim2")]
-        let rhs_bias = self.ang_err.im * erp_inv_dt;
+        let rhs_bias = self.ang_err.imag() * erp_inv_dt;
         #[cfg(feature = "dim3")]
         let rhs_bias = self.ang_err.imag()[_locked_axis] * erp_inv_dt;
 
-        let ii_ang_jac1 = body1.ii * ang_jac;
-        let ii_ang_jac2 = body2.ii * ang_jac;
+        let ii_ang_jac1 = body1.ii.transform_vector(ang_jac);
+        let ii_ang_jac2 = body2.ii.transform_vector(ang_jac);
 
         JointConstraint {
             joint_id,
@@ -721,7 +747,7 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
             im2: body2.im,
             impulse: N::zero(),
             impulse_bounds: [-N::splat(Real::MAX), N::splat(Real::MAX)],
-            lin_jac: na::zero(),
+            lin_jac: Default::default(),
             ang_jac1: ang_jac,
             ang_jac2: ang_jac,
             ii_ang_jac1,
@@ -748,7 +774,7 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
         // Use the modified Gram-Schmidt orthogonalization.
         for j in 0..len {
             let c_j = &mut constraints[j];
-            let dot_jj = c_j.lin_jac.dot(&imsum.component_mul(&c_j.lin_jac))
+            let dot_jj = c_j.lin_jac.gdot(imsum.component_mul(&c_j.lin_jac))
                 + c_j.ii_ang_jac1.gdot(c_j.ang_jac1)
                 + c_j.ii_ang_jac2.gdot(c_j.ang_jac2);
             let cfm_gain = dot_jj * c_j.cfm_coeff + c_j.cfm_gain;
@@ -766,7 +792,7 @@ impl<N: SimdRealCopy> JointConstraintHelper<N> {
             for i in (j + 1)..len {
                 let (c_i, c_j) = constraints.index_mut_const(i, j);
 
-                let dot_ij = c_i.lin_jac.dot(&imsum.component_mul(&c_j.lin_jac))
+                let dot_ij = c_i.lin_jac.gdot(imsum.component_mul(&c_j.lin_jac))
                     + c_i.ii_ang_jac1.gdot(c_j.ang_jac1)
                     + c_i.ii_ang_jac2.gdot(c_j.ang_jac2);
                 let coeff = dot_ij * inv_dot_jj;
@@ -801,14 +827,15 @@ impl JointConstraintHelper<Real> {
         let ang_coupled_axes = coupled_axes >> DIM;
         assert_eq!(ang_coupled_axes.count_ones(), 2);
         let not_coupled_index = ang_coupled_axes.trailing_ones() as usize;
-        let axis1 = self.basis.column(not_coupled_index).into_owned();
-        let axis2 = self.basis2.column(not_coupled_index).into_owned();
+        let axis1 = self.basis.column(not_coupled_index);
+        let axis2 = self.basis2.column(not_coupled_index);
 
-        let rot = Rotation::rotation_between(&axis1, &axis2).unwrap_or_else(Rotation::identity);
-        let (ang_jac, angle) = rot
-            .axis_angle()
-            .map(|(axis, angle)| (axis.into_inner(), angle))
-            .unwrap_or_else(|| (axis1.orthonormal_basis()[0], 0.0));
+        let rot = Rot3::from_rotation_arc(axis1, axis2);
+        let (mut ang_jac, angle) = rot.to_axis_angle();
+
+        if angle == 0.0 {
+            ang_jac = axis1.orthonormal_basis()[0];
+        }
 
         let min_enabled = angle <= limits[0];
         let max_enabled = limits[1] <= angle;
@@ -822,8 +849,8 @@ impl JointConstraintHelper<Real> {
 
         let rhs_bias = ((angle - limits[1]).max(0.0) - (limits[0] - angle).max(0.0)) * erp_inv_dt;
 
-        let ii_ang_jac1 = body1.ii * ang_jac;
-        let ii_ang_jac2 = body2.ii * ang_jac;
+        let ii_ang_jac1 = body1.ii.transform_vector(ang_jac);
+        let ii_ang_jac2 = body2.ii.transform_vector(ang_jac);
 
         JointConstraint {
             joint_id,
@@ -833,7 +860,7 @@ impl JointConstraintHelper<Real> {
             im2: body2.im,
             impulse: 0.0,
             impulse_bounds,
-            lin_jac: na::zero(),
+            lin_jac: Default::default(),
             ang_jac1: ang_jac,
             ang_jac2: ang_jac,
             ii_ang_jac1,

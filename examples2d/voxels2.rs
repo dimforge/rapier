@@ -39,12 +39,12 @@ pub fn init_world(testbed: &mut Testbed) {
     let nx = 50;
     for i in 0..nx {
         for j in 0..10 {
-            let mut rb = RigidBodyBuilder::dynamic().translation(vector![
+            let mut rb = RigidBodyBuilder::dynamic().translation(Vector::new(
                 i as f32 * 2.0 - nx as f32 / 2.0,
-                20.0 + j as f32 * 2.0
-            ]);
+                20.0 + j as f32 * 2.0,
+            ));
             if test_ccd {
-                rb = rb.linvel(vector![0.0, -1000.0]).ccd_enabled(true);
+                rb = rb.linvel(Vector::new(0.0, -1000.0)).ccd_enabled(true);
             }
             let rb_handle = bodies.insert(rb);
 
@@ -69,19 +69,19 @@ pub fn init_world(testbed: &mut Testbed) {
      * Voxelization.
      */
     let polyline = vec![
-        point![0.0, 0.0],
-        point![0.0, 10.0],
-        point![7.0, 4.0],
-        point![14.0, 10.0],
-        point![14.0, 0.0],
-        point![13.0, 7.0],
-        point![7.0, 2.0],
-        point![1.0, 7.0],
+        Vector::new(0.0, 0.0),
+        Vector::new(0.0, 10.0),
+        Vector::new(7.0, 4.0),
+        Vector::new(14.0, 10.0),
+        Vector::new(14.0, 0.0),
+        Vector::new(13.0, 7.0),
+        Vector::new(7.0, 2.0),
+        Vector::new(1.0, 7.0),
     ];
     let indices: Vec<_> = (0..polyline.len() as u32)
         .map(|i| [i, (i + 1) % polyline.len() as u32])
         .collect();
-    let rb = bodies.insert(RigidBodyBuilder::fixed().translation(vector![-20.0, -10.0]));
+    let rb = bodies.insert(RigidBodyBuilder::fixed().translation(Vector::new(-20.0, -10.0)));
     let shape = SharedShape::voxelized_mesh(&polyline, &indices, 0.2, FillMode::default());
 
     colliders.insert_with_parent(ColliderBuilder::new(shape), rb, &mut bodies);
@@ -92,7 +92,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let voxels: Vec<_> = (0..300)
         .map(|i| {
             let y = (i as f32 / 20.0).sin().clamp(-0.5, 0.5) * 20.0;
-            point![(i as f32 - 125.0) * voxel_size.x / 2.0, y * voxel_size.y]
+            Vector::new((i as f32 - 125.0) * voxel_size.x / 2.0, y * voxel_size.y)
         })
         .collect();
     colliders.insert(ColliderBuilder::voxels_from_points(voxel_size, &voxels));
@@ -101,5 +101,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 20.0], 17.0);
+    testbed.look_at(Vec2::new(0.0, 20.0), 17.0);
 }

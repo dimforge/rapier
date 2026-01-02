@@ -6,7 +6,7 @@ use crate::geometry::{
     ColliderParent, ColliderPosition, ColliderShape, ColliderType, InteractionGroups,
     MeshConverter, MeshConverterError, SharedShape,
 };
-use crate::math::{AngVector, DIM, Isometry, Point, Real, Rotation, Vector};
+use crate::math::{AngVector, DIM, IVector, Pose, Real, Rotation, Vector, rotation_from_angle};
 use crate::parry::transformation::vhacd::VHACDParameters;
 use crate::pipeline::{ActiveEvents, ActiveHooks};
 use crate::prelude::{ColliderEnabled, IntegrationParameters};
@@ -14,6 +14,8 @@ use na::Unit;
 use parry::bounding_volume::{Aabb, BoundingVolume};
 use parry::shape::{Shape, TriMeshBuilderError, TriMeshFlags};
 use parry::transformation::voxelization::FillMode;
+#[cfg(feature = "dim3")]
+use parry::utils::Array2;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
@@ -312,15 +314,15 @@ impl Collider {
     ///
     /// For attached colliders, modify the parent body's position instead.
     /// This directly sets world-space position.
-    pub fn set_translation(&mut self, translation: Vector<Real>) {
+    pub fn set_translation(&mut self, translation: Vector) {
         self.changes.insert(ColliderChanges::POSITION);
-        self.pos.0.translation.vector = translation;
+        self.pos.0.translation = translation;
     }
 
     /// Sets the collider's rotation (for standalone colliders).
     ///
     /// For attached colliders, modify the parent body's rotation instead.
-    pub fn set_rotation(&mut self, rotation: Rotation<Real>) {
+    pub fn set_rotation(&mut self, rotation: Rotation) {
         self.changes.insert(ColliderChanges::POSITION);
         self.pos.0.rotation = rotation;
     }
@@ -328,7 +330,7 @@ impl Collider {
     /// Sets the collider's full pose (for standalone colliders).
     ///
     /// For attached colliders, modify the parent body instead.
-    pub fn set_position(&mut self, position: Isometry<Real>) {
+    pub fn set_position(&mut self, position: Pose) {
         self.changes.insert(ColliderChanges::POSITION);
         self.pos.0 = position;
     }
@@ -337,24 +339,24 @@ impl Collider {
     ///
     /// For attached colliders, this is automatically updated when the parent body moves.
     /// For standalone colliders, this is the position you set directly.
-    pub fn position(&self) -> &Isometry<Real> {
+    pub fn position(&self) -> &Pose {
         &self.pos
     }
 
     /// The current position vector of this collider (world coordinates).
-    pub fn translation(&self) -> &Vector<Real> {
-        &self.pos.0.translation.vector
+    pub fn translation(&self) -> Vector {
+        self.pos.0.translation
     }
 
     /// The current rotation/orientation of this collider.
-    pub fn rotation(&self) -> &Rotation<Real> {
-        &self.pos.0.rotation
+    pub fn rotation(&self) -> Rotation {
+        self.pos.0.rotation
     }
 
     /// The collider's position relative to its parent body (local coordinates).
     ///
     /// Returns `None` for standalone colliders. This is the offset from the parent body's origin.
-    pub fn position_wrt_parent(&self) -> Option<&Isometry<Real>> {
+    pub fn position_wrt_parent(&self) -> Option<&Pose> {
         self.parent.as_ref().map(|p| &p.pos_wrt_parent)
     }
 
@@ -362,27 +364,27 @@ impl Collider {
     ///
     /// Useful for adjusting where a collider sits on a body without moving the whole body.
     /// Does nothing if the collider has no parent.
-    pub fn set_translation_wrt_parent(&mut self, translation: Vector<Real>) {
+    pub fn set_translation_wrt_parent(&mut self, translation: Vector) {
         if let Some(parent) = self.parent.as_mut() {
             self.changes.insert(ColliderChanges::PARENT);
-            parent.pos_wrt_parent.translation.vector = translation;
+            parent.pos_wrt_parent.translation = translation;
         }
     }
 
     /// Changes this collider's rotation offset from its parent body.
     ///
     /// Rotates the collider relative to its parent. Does nothing if no parent.
-    pub fn set_rotation_wrt_parent(&mut self, rotation: AngVector<Real>) {
+    pub fn set_rotation_wrt_parent(&mut self, rotation: AngVector) {
         if let Some(parent) = self.parent.as_mut() {
             self.changes.insert(ColliderChanges::PARENT);
-            parent.pos_wrt_parent.rotation = Rotation::new(rotation);
+            parent.pos_wrt_parent.rotation = rotation_from_angle(rotation);
         }
     }
 
     /// Changes this collider's full pose (position + rotation) relative to its parent.
     ///
     /// Does nothing if the collider is not attached to a rigid-body.
-    pub fn set_position_wrt_parent(&mut self, pos_wrt_parent: Isometry<Real>) {
+    pub fn set_position_wrt_parent(&mut self, pos_wrt_parent: Pose) {
         if let Some(parent) = self.parent.as_mut() {
             self.changes.insert(ColliderChanges::PARENT);
             parent.pos_wrt_parent = pos_wrt_parent;
@@ -557,7 +559,7 @@ impl Collider {
     ///
     /// Returns a box that contains the shape at both positions plus everything in between.
     /// Used for continuous collision detection.
-    pub fn compute_swept_aabb(&self, next_position: &Isometry<Real>) -> Aabb {
+    pub fn compute_swept_aabb(&self, next_position: &Pose) -> Aabb {
         self.shape.compute_swept_aabb(&self.pos, next_position)
     }
 
@@ -651,7 +653,7 @@ pub struct ColliderBuilder {
     /// The rule used to combine two restitution coefficients.
     pub restitution_combine_rule: CoefficientCombineRule,
     /// The position of this collider.
-    pub position: Isometry<Real>,
+    pub position: Pose,
     /// Is this collider a sensor?
     pub is_sensor: bool,
     /// Contact pairs enabled for this collider.
@@ -688,7 +690,7 @@ impl ColliderBuilder {
             mass_properties: ColliderMassProps::default(),
             friction: Self::default_friction(),
             restitution: 0.0,
-            position: Isometry::identity(),
+            position: Pose::IDENTITY,
             is_sensor: false,
             user_data: 0,
             collision_groups: InteractionGroups::all(),
@@ -705,7 +707,7 @@ impl ColliderBuilder {
     }
 
     /// Initialize a new collider builder with a compound shape.
-    pub fn compound(shapes: Vec<(Isometry<Real>, SharedShape)>) -> Self {
+    pub fn compound(shapes: Vec<(Pose, SharedShape)>) -> Self {
         Self::new(SharedShape::compound(shapes))
     }
 
@@ -725,8 +727,8 @@ impl ColliderBuilder {
 
     /// Initialize a new collider build with a half-space shape defined by the outward normal
     /// of its planar boundary.
-    pub fn halfspace(outward_normal: Unit<Vector<Real>>) -> Self {
-        Self::new(SharedShape::halfspace(outward_normal))
+    pub fn halfspace(outward_normal: Unit<Vector>) -> Self {
+        Self::new(SharedShape::halfspace(outward_normal.into_inner()))
     }
 
     /// Initializes a shape made of voxels.
@@ -736,7 +738,7 @@ impl ColliderBuilder {
     ///
     /// For initializing a voxels shape from points in space, see [`Self::voxels_from_points`].
     /// For initializing a voxels shape from a mesh to voxelize, see [`Self::voxelized_mesh`].
-    pub fn voxels(voxel_size: Vector<Real>, voxels: &[Point<i32>]) -> Self {
+    pub fn voxels(voxel_size: Vector, voxels: &[IVector]) -> Self {
         Self::new(SharedShape::voxels(voxel_size, voxels))
     }
 
@@ -744,14 +746,14 @@ impl ColliderBuilder {
     ///
     /// Each voxel has the size `voxel_size` and contains at least one point from `centers`.
     /// The `primitive_geometry` controls the behavior of collision detection at voxels boundaries.
-    pub fn voxels_from_points(voxel_size: Vector<Real>, points: &[Point<Real>]) -> Self {
+    pub fn voxels_from_points(voxel_size: Vector, points: &[Vector]) -> Self {
         Self::new(SharedShape::voxels_from_points(voxel_size, points))
     }
 
     /// Initializes a voxels obtained from the decomposition of the given trimesh (in 3D)
     /// or polyline (in 2D) into voxelized convex parts.
     pub fn voxelized_mesh(
-        vertices: &[Point<Real>],
+        vertices: &[Vector],
         indices: &[[u32; DIM]],
         voxel_size: Real,
         fill_mode: FillMode,
@@ -814,7 +816,7 @@ impl ColliderBuilder {
     /// (and `ColliderBuilder::capsule_z` in 3D only)
     /// for a simpler way to build capsules with common
     /// orientations.
-    pub fn capsule_from_endpoints(a: Point<Real>, b: Point<Real>, radius: Real) -> Self {
+    pub fn capsule_from_endpoints(a: Vector, b: Vector, radius: Real) -> Self {
         Self::new(SharedShape::capsule(a, b, radius))
     }
 
@@ -872,29 +874,24 @@ impl ColliderBuilder {
     ///
     /// Useful for thin barriers, edges, or 2D line-based collision.
     /// Has no thickness - purely a mathematical line.
-    pub fn segment(a: Point<Real>, b: Point<Real>) -> Self {
+    pub fn segment(a: Vector, b: Vector) -> Self {
         Self::new(SharedShape::segment(a, b))
     }
 
     /// Creates a single triangle collider.
     ///
     /// Use for simple 3-sided shapes or as building blocks for more complex geometry.
-    pub fn triangle(a: Point<Real>, b: Point<Real>, c: Point<Real>) -> Self {
+    pub fn triangle(a: Vector, b: Vector, c: Vector) -> Self {
         Self::new(SharedShape::triangle(a, b, c))
     }
 
     /// Initializes a collider builder with a triangle shape with round corners.
-    pub fn round_triangle(
-        a: Point<Real>,
-        b: Point<Real>,
-        c: Point<Real>,
-        border_radius: Real,
-    ) -> Self {
+    pub fn round_triangle(a: Vector, b: Vector, c: Vector, border_radius: Real) -> Self {
         Self::new(SharedShape::round_triangle(a, b, c, border_radius))
     }
 
     /// Initializes a collider builder with a polyline shape defined by its vertex and index buffers.
-    pub fn polyline(vertices: Vec<Point<Real>>, indices: Option<Vec<[u32; 2]>>) -> Self {
+    pub fn polyline(vertices: Vec<Vector>, indices: Option<Vec<[u32; 2]>>) -> Self {
         Self::new(SharedShape::polyline(vertices, indices))
     }
 
@@ -927,7 +924,7 @@ impl ColliderBuilder {
     /// let collider = ColliderBuilder::trimesh(vertices, indices)?;
     /// ```
     pub fn trimesh(
-        vertices: Vec<Point<Real>>,
+        vertices: Vec<Vector>,
         indices: Vec<[u32; 3]>,
     ) -> Result<Self, TriMeshBuilderError> {
         Ok(Self::new(SharedShape::trimesh(vertices, indices)?))
@@ -936,7 +933,7 @@ impl ColliderBuilder {
     /// Initializes a collider builder with a triangle mesh shape defined by its vertex and index buffers and
     /// flags controlling its pre-processing.
     pub fn trimesh_with_flags(
-        vertices: Vec<Point<Real>>,
+        vertices: Vec<Vector>,
         indices: Vec<[u32; 3]>,
         flags: TriMeshFlags,
     ) -> Result<Self, TriMeshBuilderError> {
@@ -952,7 +949,7 @@ impl ColliderBuilder {
     /// but having this specified by an enum can occasionally be easier or more flexible (determined
     /// at runtime).
     pub fn converted_trimesh(
-        vertices: Vec<Point<Real>>,
+        vertices: Vec<Vector>,
         indices: Vec<[u32; 3]>,
         converter: MeshConverter,
     ) -> Result<Self, MeshConverterError> {
@@ -966,14 +963,14 @@ impl ColliderBuilder {
     /// parts for efficient collision detection. This is often faster than using a trimesh.
     ///
     /// Uses the V-HACD algorithm. Good for imported models that aren't already convex.
-    pub fn convex_decomposition(vertices: &[Point<Real>], indices: &[[u32; DIM]]) -> Self {
+    pub fn convex_decomposition(vertices: &[Vector], indices: &[[u32; DIM]]) -> Self {
         Self::new(SharedShape::convex_decomposition(vertices, indices))
     }
 
     /// Initializes a collider builder with a compound shape obtained from the decomposition of
     /// the given trimesh (in 3D) or polyline (in 2D) into convex parts dilated with round corners.
     pub fn round_convex_decomposition(
-        vertices: &[Point<Real>],
+        vertices: &[Vector],
         indices: &[[u32; DIM]],
         border_radius: Real,
     ) -> Self {
@@ -987,7 +984,7 @@ impl ColliderBuilder {
     /// Initializes a collider builder with a compound shape obtained from the decomposition of
     /// the given trimesh (in 3D) or polyline (in 2D) into convex parts.
     pub fn convex_decomposition_with_params(
-        vertices: &[Point<Real>],
+        vertices: &[Vector],
         indices: &[[u32; DIM]],
         params: &VHACDParameters,
     ) -> Self {
@@ -999,7 +996,7 @@ impl ColliderBuilder {
     /// Initializes a collider builder with a compound shape obtained from the decomposition of
     /// the given trimesh (in 3D) or polyline (in 2D) into convex parts dilated with round corners.
     pub fn round_convex_decomposition_with_params(
-        vertices: &[Point<Real>],
+        vertices: &[Vector],
         indices: &[[u32; DIM]],
         params: &VHACDParameters,
         border_radius: Real,
@@ -1021,14 +1018,14 @@ impl ColliderBuilder {
     /// Returns `None` if the points don't form a valid convex shape.
     ///
     /// **Performance**: Convex shapes are much faster than triangle meshes!
-    pub fn convex_hull(points: &[Point<Real>]) -> Option<Self> {
+    pub fn convex_hull(points: &[Vector]) -> Option<Self> {
         SharedShape::convex_hull(points).map(Self::new)
     }
 
     /// Initializes a new collider builder with a round 2D convex polygon or 3D convex polyhedron
     /// obtained after computing the convex-hull of the given points. The shape is dilated
     /// by a sphere of radius `border_radius`.
-    pub fn round_convex_hull(points: &[Point<Real>], border_radius: Real) -> Option<Self> {
+    pub fn round_convex_hull(points: &[Vector], border_radius: Real) -> Option<Self> {
         SharedShape::round_convex_hull(points, border_radius).map(Self::new)
     }
 
@@ -1036,7 +1033,7 @@ impl ColliderBuilder {
     /// given polyline assumed to be convex (no convex-hull will be automatically
     /// computed).
     #[cfg(feature = "dim2")]
-    pub fn convex_polyline(points: Vec<Point<Real>>) -> Option<Self> {
+    pub fn convex_polyline(points: Vec<Vector>) -> Option<Self> {
         SharedShape::convex_polyline(points).map(Self::new)
     }
 
@@ -1044,7 +1041,7 @@ impl ColliderBuilder {
     /// given polyline assumed to be convex (no convex-hull will be automatically
     /// computed). The polygon shape is dilated by a sphere of radius `border_radius`.
     #[cfg(feature = "dim2")]
-    pub fn round_convex_polyline(points: Vec<Point<Real>>, border_radius: Real) -> Option<Self> {
+    pub fn round_convex_polyline(points: Vec<Vector>, border_radius: Real) -> Option<Self> {
         SharedShape::round_convex_polyline(points, border_radius).map(Self::new)
     }
 
@@ -1052,7 +1049,7 @@ impl ColliderBuilder {
     /// given triangle-mesh assumed to be convex (no convex-hull will be automatically
     /// computed).
     #[cfg(feature = "dim3")]
-    pub fn convex_mesh(points: Vec<Point<Real>>, indices: &[[u32; 3]]) -> Option<Self> {
+    pub fn convex_mesh(points: Vec<Vector>, indices: &[[u32; 3]]) -> Option<Self> {
         SharedShape::convex_mesh(points, indices).map(Self::new)
     }
 
@@ -1061,7 +1058,7 @@ impl ColliderBuilder {
     /// computed). The triangle mesh shape is dilated by a sphere of radius `border_radius`.
     #[cfg(feature = "dim3")]
     pub fn round_convex_mesh(
-        points: Vec<Point<Real>>,
+        points: Vec<Vector>,
         indices: &[[u32; 3]],
         border_radius: Real,
     ) -> Option<Self> {
@@ -1071,7 +1068,7 @@ impl ColliderBuilder {
     /// Initializes a collider builder with a heightfield shape defined by its set of height and a scale
     /// factor along each coordinate axis.
     #[cfg(feature = "dim2")]
-    pub fn heightfield(heights: na::DVector<Real>, scale: Vector<Real>) -> Self {
+    pub fn heightfield(heights: Vec<Real>, scale: Vector) -> Self {
         Self::new(SharedShape::heightfield(heights, scale))
     }
 
@@ -1091,7 +1088,7 @@ impl ColliderBuilder {
     ///
     /// **Performance**: Much faster than triangle meshes for terrain!
     #[cfg(feature = "dim3")]
-    pub fn heightfield(heights: na::DMatrix<Real>, scale: Vector<Real>) -> Self {
+    pub fn heightfield(heights: Array2<Real>, scale: Vector) -> Self {
         Self::new(SharedShape::heightfield(heights, scale))
     }
 
@@ -1099,8 +1096,8 @@ impl ColliderBuilder {
     /// factor along each coordinate axis.
     #[cfg(feature = "dim3")]
     pub fn heightfield_with_flags(
-        heights: na::DMatrix<Real>,
-        scale: Vector<Real>,
+        heights: Array2<Real>,
+        scale: Vector,
         flags: HeightFieldFlags,
     ) -> Self {
         Self::new(SharedShape::heightfield_with_flags(heights, scale, flags))
@@ -1327,8 +1324,8 @@ impl ColliderBuilder {
     ///     .translation(vector![2.0, 0.0, 0.0])
     ///     .build();
     /// ```
-    pub fn translation(mut self, translation: Vector<Real>) -> Self {
-        self.position.translation.vector = translation;
+    pub fn translation(mut self, translation: Vector) -> Self {
+        self.position.translation = translation;
         self
     }
 
@@ -1336,8 +1333,8 @@ impl ColliderBuilder {
     ///
     /// For attached colliders, this rotates the collider relative to the body.
     /// For standalone colliders, this is the world rotation.
-    pub fn rotation(mut self, angle: AngVector<Real>) -> Self {
-        self.position.rotation = Rotation::new(angle);
+    pub fn rotation(mut self, angle: AngVector) -> Self {
+        self.position.rotation = rotation_from_angle(angle);
         self
     }
 
@@ -1345,7 +1342,7 @@ impl ColliderBuilder {
     ///
     /// For attached colliders, this is relative to the parent body.
     /// For standalone colliders, this is the world pose.
-    pub fn position(mut self, pos: Isometry<Real>) -> Self {
+    pub fn position(mut self, pos: Pose) -> Self {
         self.position = pos;
         self
     }
@@ -1353,14 +1350,14 @@ impl ColliderBuilder {
     /// Sets the initial position (translation and orientation) of the collider to be created,
     /// relative to the rigid-body it is attached to.
     #[deprecated(note = "Use `.position` instead.")]
-    pub fn position_wrt_parent(mut self, pos: Isometry<Real>) -> Self {
+    pub fn position_wrt_parent(mut self, pos: Pose) -> Self {
         self.position = pos;
         self
     }
 
     /// Set the position of this collider in the local-space of the rigid-body it is attached to.
     #[deprecated(note = "Use `.position` instead.")]
-    pub fn delta(mut self, delta: Isometry<Real>) -> Self {
+    pub fn delta(mut self, delta: Pose) -> Self {
         self.position = delta;
         self
     }

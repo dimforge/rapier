@@ -26,7 +26,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let y = j as f32 * shift - centery;
 
             // Build the rigid body.
-            let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
+            let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y));
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(rad, rad);
             colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -40,16 +40,16 @@ pub fn init_world(testbed: &mut Testbed) {
     let velocity_based_platform_handle = bodies.insert(platform_body);
 
     let sides = [
-        (10.0, 0.25, vector![0.0, 10.0]),
-        (10.0, 0.25, vector![0.0, -10.0]),
-        (0.25, 10.0, vector![10.0, 0.0]),
-        (0.25, 10.0, vector![-10.0, 0.0]),
+        (10.0, 0.25, Vector::new(0.0, 10.0)),
+        (10.0, 0.25, Vector::new(0.0, -10.0)),
+        (0.25, 10.0, Vector::new(10.0, 0.0)),
+        (0.25, 10.0, Vector::new(-10.0, 0.0)),
     ];
     let balls = [
-        (1.25, vector![6.0, 6.0]),
-        (1.25, vector![-6.0, 6.0]),
-        (1.25, vector![6.0, -6.0]),
-        (1.25, vector![-6.0, -6.0]),
+        (1.25, Vector::new(6.0, 6.0)),
+        (1.25, Vector::new(-6.0, 6.0)),
+        (1.25, Vector::new(6.0, -6.0)),
+        (1.25, Vector::new(-6.0, -6.0)),
     ];
 
     for (hx, hy, pos) in sides {
@@ -75,5 +75,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Run the simulation.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 1.0], 40.0);
+    testbed.look_at(Vec2::new(0.0, 1.0), 40.0);
 }

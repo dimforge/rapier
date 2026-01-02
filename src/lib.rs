@@ -32,6 +32,8 @@ pub extern crate nalgebra as na;
 extern crate serde;
 extern crate num_traits as num;
 
+pub use parry::glamx;
+
 #[cfg(feature = "parallel")]
 pub use rayon;
 
@@ -54,6 +56,7 @@ macro_rules! enable_flush_to_zero(
     }
 );
 
+#[allow(unused_macros)]
 macro_rules! gather(
     ($callback: expr) => {
         {
@@ -170,6 +173,95 @@ pub mod utils;
 pub mod math {
     pub use parry::math::*;
 
+    // Re-export glam from parry for direct access
+    pub use parry::glamx;
+
+    /// Creates a rotation from an angular vector.
+    ///
+    /// In 2D, the angular vector is a scalar angle in radians.
+    /// In 3D, the angular vector is a scaled axis-angle (axis * angle).
+    #[cfg(feature = "dim2")]
+    #[inline]
+    pub fn rotation_from_angle(angle: AngVector) -> Rotation {
+        Rotation::new(angle)
+    }
+
+    /// Creates a rotation from an angular vector.
+    ///
+    /// In 2D, the angular vector is a scalar angle in radians.
+    /// In 3D, the angular vector is a scaled axis-angle (axis * angle).
+    #[cfg(feature = "dim3")]
+    #[inline]
+    pub fn rotation_from_angle(angle: AngVector) -> Rotation {
+        Rotation::from_scaled_axis(angle)
+    }
+
+    // Generic nalgebra type aliases for SIMD/generic code (where N is SimdReal or similar)
+    // These use nalgebra types which support generic scalars
+    // Note: These override the non-generic versions above when used with <T> syntax
+
+    /// Generic vector type (nalgebra) for SoA SIMD code
+    #[cfg(feature = "dim2")]
+    pub type SimdVector<N> = na::Vector2<N>;
+    /// Generic vector type (nalgebra) for SoA SIMD code
+    #[cfg(feature = "dim3")]
+    pub type SimdVector<N> = na::Vector3<N>;
+    /// Generic angular vector type (nalgebra) for SoA SIMD code
+    #[cfg(feature = "dim2")]
+    pub type SimdAngVector<N> = N;
+    /// Generic angular vector type (nalgebra) for SoA SIMD code
+    #[cfg(feature = "dim3")]
+    pub type SimdAngVector<N> = na::Vector3<N>;
+    /// Generic point type (nalgebra) for SoA SIMD code
+    #[cfg(feature = "dim2")]
+    pub type SimdPoint<N> = na::Point2<N>;
+    /// Generic point type (nalgebra) for SoA SIMD code
+    #[cfg(feature = "dim3")]
+    pub type SimdPoint<N> = na::Point3<N>;
+    /// Generic isometry type (nalgebra) for SoA SIMD code
+    #[cfg(feature = "dim2")]
+    pub type SimdPose<N> = na::Isometry2<N>;
+    /// Generic isometry type (nalgebra) for SoA SIMD code
+    #[cfg(feature = "dim3")]
+    pub type SimdPose<N> = na::Isometry3<N>;
+    /// Generic rotation type (nalgebra) for SoA SIMD code
+    #[cfg(feature = "dim2")]
+    pub type SimdRotation<N> = na::UnitComplex<N>;
+    /// Generic rotation type (nalgebra) for SoA SIMD code
+    #[cfg(feature = "dim3")]
+    pub type SimdRotation<N> = na::UnitQuaternion<N>;
+    /// Generic angular inertia type for SoA SIMD code (scalar in 2D, SdpMatrix3 in 3D)
+    #[cfg(feature = "dim2")]
+    pub type SimdAngularInertia<N> = N;
+    /// Generic angular inertia type for SoA SIMD code (scalar in 2D, SdpMatrix3 in 3D)
+    #[cfg(feature = "dim3")]
+    pub type SimdAngularInertia<N> = parry::utils::SdpMatrix3<N>;
+    /// Generic 2D/3D square matrix for SoA SIMD code
+    #[cfg(feature = "dim2")]
+    pub type SimdMatrix<N> = na::Matrix2<N>;
+    /// Generic 2D/3D square matrix for SoA SIMD code
+    #[cfg(feature = "dim3")]
+    pub type SimdMatrix<N> = na::Matrix3<N>;
+
+    // Dimension types for nalgebra matrix operations (used in multibody code)
+    /// The dimension type constant (U2 for 2D).
+    #[cfg(feature = "dim2")]
+    pub type Dim = na::U2;
+    /// The dimension type constant (U3 for 3D).
+    #[cfg(feature = "dim3")]
+    pub type Dim = na::U3;
+    /// The angular dimension type constant (U1 for 2D).
+    #[cfg(feature = "dim2")]
+    pub type AngDim = na::U1;
+    /// The angular dimension type constant (U3 for 3D).
+    #[cfg(feature = "dim3")]
+    pub type AngDim = na::U3;
+
+    /// Dynamic vector type for multibody/solver code
+    pub type DVector = na::DVector<Real>;
+    /// Dynamic matrix type for multibody/solver code
+    pub type DMatrix = na::DMatrix<Real>;
+
     /*
      * 2D
      */
@@ -243,6 +335,6 @@ pub mod prelude {
     pub use crate::geometry::*;
     pub use crate::math::*;
     pub use crate::pipeline::*;
-    pub use na::{DMatrix, DVector, point, vector};
+    pub use na::{point, vector};
     pub extern crate nalgebra;
 }

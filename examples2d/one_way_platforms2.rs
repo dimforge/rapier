@@ -20,24 +20,24 @@ impl PhysicsHooks for OneWayPlatformHook {
         // - If context.collider_handle2 == self.platform1 then the allowed normal is -y.
         // - If context.collider_handle1 == self.platform2 then its allowed normal +y needs to be flipped to -y.
         // - If context.collider_handle2 == self.platform2 then the allowed normal -y needs to be flipped to +y.
-        let mut allowed_local_n1 = Vector::zeros();
+        let mut allowed_local_n1 = Vector::ZERO;
 
         if context.collider1 == self.platform1 {
-            allowed_local_n1 = Vector::y();
+            allowed_local_n1 = Vector::Y;
         } else if context.collider2 == self.platform1 {
             // Flip the allowed direction.
-            allowed_local_n1 = -Vector::y();
+            allowed_local_n1 = -Vector::Y;
         }
 
         if context.collider1 == self.platform2 {
-            allowed_local_n1 = -Vector::y();
+            allowed_local_n1 = -Vector::Y;
         } else if context.collider2 == self.platform2 {
             // Flip the allowed direction.
-            allowed_local_n1 = Vector::y();
+            allowed_local_n1 = Vector::Y;
         }
 
         // Call the helper function that simulates one-way platforms.
-        context.update_as_oneway_platform(&allowed_local_n1, 0.1);
+        context.update_as_oneway_platform(allowed_local_n1, 0.1);
 
         // Set the surface velocity of the accepted contacts.
         let tangent_velocity =
@@ -69,11 +69,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let handle = bodies.insert(rigid_body);
 
     let collider = ColliderBuilder::cuboid(25.0, 0.5)
-        .translation(vector![30.0, 2.0])
+        .translation(Vector::new(30.0, 2.0))
         .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS);
     let platform1 = colliders.insert_with_parent(collider, handle, &mut bodies);
     let collider = ColliderBuilder::cuboid(25.0, 0.5)
-        .translation(vector![-30.0, -2.0])
+        .translation(Vector::new(-30.0, -2.0))
         .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS);
     let platform2 = colliders.insert_with_parent(collider, handle, &mut bodies);
 
@@ -93,7 +93,7 @@ pub fn init_world(testbed: &mut Testbed) {
         if run_state.timestep_id % 200 == 0 && physics.bodies.len() <= 7 {
             // Spawn a new cube.
             let collider = ColliderBuilder::cuboid(1.5, 2.0);
-            let body = RigidBodyBuilder::dynamic().translation(vector![20.0, 10.0]);
+            let body = RigidBodyBuilder::dynamic().translation(Vector::new(20.0, 10.0));
             let handle = physics.bodies.insert(body);
             physics
                 .colliders
@@ -122,8 +122,8 @@ pub fn init_world(testbed: &mut Testbed) {
         colliders,
         impulse_joints,
         multibody_joints,
-        vector![0.0, -9.81],
+        Vector::new(0.0, -9.81),
         physics_hooks,
     );
-    testbed.look_at(point![0.0, 0.0], 20.0);
+    testbed.look_at(Vec2::ZERO, 20.0);
 }

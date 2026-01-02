@@ -23,19 +23,19 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Build a dynamic box rigid body.
     let rigid_body = RigidBodyBuilder::dynamic()
-        .translation(vector![0.0, 1.1, 0.0])
-        .rotation(Vector::y() * 0.3);
+        .translation(Vector::new(0.0, 1.1, 0.0))
+        .rotation(Vector::Y * 0.3);
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(2.0, 1.0, 3.0).friction(1.5);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
     let rigid_body = &mut bodies[handle];
-    let force = rigid_body.position() * Vector::z() * 50.0;
+    let force = rigid_body.rotation() * Vector::Z * 50.0;
     rigid_body.set_linvel(force, true);
 
     /*
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
+    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

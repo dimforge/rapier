@@ -3,7 +3,7 @@
 
 use mesh_loader::Mesh;
 use rapier3d::geometry::{MeshConverter, SharedShape};
-use rapier3d::math::{Isometry, Point, Real, Vector};
+use rapier3d::math::{Pose, Vector};
 use rapier3d::prelude::MeshConverterError;
 use std::path::Path;
 
@@ -11,8 +11,8 @@ use std::path::Path;
 pub struct LoadedShape {
     /// The shape loaded from the file and converted by the [`MeshConverter`].
     pub shape: SharedShape,
-    /// The shape’s pose.
-    pub pose: Isometry<Real>,
+    /// The shape's pose.
+    pub pose: Pose,
     /// The raw mesh read from the file without any modification.
     pub raw_mesh: Mesh,
 }
@@ -41,7 +41,7 @@ pub enum MeshLoaderError {
 pub fn load_from_path(
     path: impl AsRef<Path>,
     converter: &MeshConverter,
-    scale: Vector<Real>,
+    scale: Vector,
 ) -> Result<Vec<Result<LoadedShape, MeshConverterError>>, MeshLoaderError> {
     let loader = mesh_loader::Loader::default();
     let mut colliders = vec![];
@@ -71,16 +71,13 @@ pub fn load_from_path(
 pub fn load_from_raw_mesh(
     raw_mesh: &Mesh,
     converter: &MeshConverter,
-    scale: Vector<Real>,
-) -> Result<(SharedShape, Isometry<Real>), MeshConverterError> {
-    let mut vertices: Vec<_> = raw_mesh
+    scale: Vector,
+) -> Result<(SharedShape, Pose), MeshConverterError> {
+    let vertices: Vec<_> = raw_mesh
         .vertices
         .iter()
-        .map(|xyz| Point::new(xyz[0], xyz[1], xyz[2]))
+        .map(|xyz| Vector::new(xyz[0], xyz[1], xyz[2]) * scale)
         .collect();
-    vertices
-        .iter_mut()
-        .for_each(|pt| pt.coords.component_mul_assign(&scale));
     let indices: Vec<_> = raw_mesh.faces.clone();
     converter.convert(vertices, indices)
 }

@@ -1,15 +1,15 @@
 use crate::dynamics::solver::SolverVel;
-use crate::math::{AngVector, DIM, TangentImpulse, Vector};
-use crate::utils::{SimdDot, SimdRealCopy};
+use crate::math::{DIM, TangentImpulse};
+use crate::utils::{ComponentMul, DotProduct, ScalarType};
 use na::Vector2;
 use simba::simd::SimdValue;
 
 #[cfg(feature = "dim3")]
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct ContactConstraintTwistPart<N: SimdRealCopy> {
-    // pub twist_dir: AngVector<N>, // NOTE: The torque direction equals the normal in 3D and 1.0 in 2D.
-    pub ii_twist_dir1: AngVector<N>,
-    pub ii_twist_dir2: AngVector<N>,
+pub(crate) struct ContactConstraintTwistPart<N: ScalarType> {
+    // pub twist_dir: N::AngVector, // NOTE: The torque direction equals the normal in 3D and 1.0 in 2D.
+    pub ii_twist_dir1: N::AngVector,
+    pub ii_twist_dir2: N::AngVector,
     pub rhs: N,
     pub impulse: N,
     pub impulse_accumulator: N,
@@ -17,11 +17,11 @@ pub(crate) struct ContactConstraintTwistPart<N: SimdRealCopy> {
 }
 
 #[cfg(feature = "dim3")]
-impl<N: SimdRealCopy> ContactConstraintTwistPart<N> {
+impl<N: ScalarType> ContactConstraintTwistPart<N> {
     #[inline]
     pub fn warmstart(&mut self, solver_vel1: &mut SolverVel<N>, solver_vel2: &mut SolverVel<N>)
     where
-        AngVector<N>: SimdDot<AngVector<N>, Result = N>,
+        N::AngVector: DotProduct<N::AngVector, Result = N>,
     {
         solver_vel1.angular += self.ii_twist_dir1 * self.impulse;
         solver_vel2.angular += self.ii_twist_dir2 * self.impulse;
@@ -30,12 +30,12 @@ impl<N: SimdRealCopy> ContactConstraintTwistPart<N> {
     #[inline]
     pub fn solve(
         &mut self,
-        twist_dir1: &AngVector<N>,
+        twist_dir1: &N::AngVector,
         limit: N,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) where
-        AngVector<N>: SimdDot<AngVector<N>, Result = N>,
+        N::AngVector: DotProduct<N::AngVector, Result = N>,
     {
         let dvel = twist_dir1.gdot(solver_vel1.angular - solver_vel2.angular) + self.rhs;
         let new_impulse = (self.impulse - self.r * dvel).simd_clamp(-limit, limit);
@@ -47,11 +47,11 @@ impl<N: SimdRealCopy> ContactConstraintTwistPart<N> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct ContactConstraintTangentPart<N: SimdRealCopy> {
-    pub torque_dir1: [AngVector<N>; DIM - 1],
-    pub torque_dir2: [AngVector<N>; DIM - 1],
-    pub ii_torque_dir1: [AngVector<N>; DIM - 1],
-    pub ii_torque_dir2: [AngVector<N>; DIM - 1],
+pub(crate) struct ContactConstraintTangentPart<N: ScalarType> {
+    pub torque_dir1: [N::AngVector; DIM - 1],
+    pub torque_dir2: [N::AngVector; DIM - 1],
+    pub ii_torque_dir1: [N::AngVector; DIM - 1],
+    pub ii_torque_dir2: [N::AngVector; DIM - 1],
     pub rhs: [N; DIM - 1],
     pub rhs_wo_bias: [N; DIM - 1],
     #[cfg(feature = "dim2")]
@@ -68,21 +68,21 @@ pub(crate) struct ContactConstraintTangentPart<N: SimdRealCopy> {
     pub r: [N; DIM],
 }
 
-impl<N: SimdRealCopy> ContactConstraintTangentPart<N> {
+impl<N: ScalarType> ContactConstraintTangentPart<N> {
     pub fn zero() -> Self {
         Self {
-            torque_dir1: [na::zero(); DIM - 1],
-            torque_dir2: [na::zero(); DIM - 1],
-            ii_torque_dir1: [na::zero(); DIM - 1],
-            ii_torque_dir2: [na::zero(); DIM - 1],
-            rhs: [na::zero(); DIM - 1],
-            rhs_wo_bias: [na::zero(); DIM - 1],
+            torque_dir1: [Default::default(); DIM - 1],
+            torque_dir2: [Default::default(); DIM - 1],
+            ii_torque_dir1: [Default::default(); DIM - 1],
+            ii_torque_dir2: [Default::default(); DIM - 1],
+            rhs: [N::zero(); DIM - 1],
+            rhs_wo_bias: [N::zero(); DIM - 1],
             impulse: na::zero(),
             impulse_accumulator: na::zero(),
             #[cfg(feature = "dim2")]
-            r: [na::zero(); 1],
+            r: [N::zero(); 1],
             #[cfg(feature = "dim3")]
-            r: [na::zero(); DIM],
+            r: [N::zero(); DIM],
         }
     }
 
@@ -95,13 +95,13 @@ impl<N: SimdRealCopy> ContactConstraintTangentPart<N> {
     #[inline]
     pub fn warmstart(
         &mut self,
-        tangents1: [&Vector<N>; DIM - 1],
-        im1: &Vector<N>,
-        im2: &Vector<N>,
+        tangents1: [&N::Vector; DIM - 1],
+        im1: &N::Vector,
+        im2: &N::Vector,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) where
-        AngVector<N>: SimdDot<AngVector<N>, Result = N>,
+        N::AngVector: DotProduct<N::AngVector, Result = N>,
     {
         #[cfg(feature = "dim2")]
         {
@@ -114,13 +114,14 @@ impl<N: SimdRealCopy> ContactConstraintTangentPart<N> {
 
         #[cfg(feature = "dim3")]
         {
-            solver_vel1.linear += (tangents1[0] * self.impulse[0] + tangents1[1] * self.impulse[1])
+            solver_vel1.linear += (*tangents1[0] * self.impulse[0]
+                + *tangents1[1] * self.impulse[1])
                 .component_mul(im1);
             solver_vel1.angular +=
                 self.ii_torque_dir1[0] * self.impulse[0] + self.ii_torque_dir1[1] * self.impulse[1];
 
-            solver_vel2.linear += (tangents1[0] * -self.impulse[0]
-                + tangents1[1] * -self.impulse[1])
+            solver_vel2.linear += (*tangents1[0] * -self.impulse[0]
+                + *tangents1[1] * -self.impulse[1])
                 .component_mul(im2);
             solver_vel2.angular +=
                 self.ii_torque_dir2[0] * self.impulse[0] + self.ii_torque_dir2[1] * self.impulse[1];
@@ -130,20 +131,20 @@ impl<N: SimdRealCopy> ContactConstraintTangentPart<N> {
     #[inline]
     pub fn solve(
         &mut self,
-        tangents1: [&Vector<N>; DIM - 1],
-        im1: &Vector<N>,
-        im2: &Vector<N>,
+        tangents1: [&N::Vector; DIM - 1],
+        im1: &N::Vector,
+        im2: &N::Vector,
         limit: N,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) where
-        AngVector<N>: SimdDot<AngVector<N>, Result = N>,
+        N::AngVector: DotProduct<N::AngVector, Result = N>,
     {
         #[cfg(feature = "dim2")]
         {
-            let dvel = tangents1[0].dot(&solver_vel1.linear)
+            let dvel = tangents1[0].gdot(solver_vel1.linear)
                 + self.torque_dir1[0].gdot(solver_vel1.angular)
-                - tangents1[0].dot(&solver_vel2.linear)
+                - tangents1[0].gdot(solver_vel2.linear)
                 + self.torque_dir2[0].gdot(solver_vel2.angular)
                 + self.rhs[0];
             let new_impulse = (self.impulse[0] - self.r[0] * dvel).simd_clamp(-limit, limit);
@@ -159,14 +160,14 @@ impl<N: SimdRealCopy> ContactConstraintTangentPart<N> {
 
         #[cfg(feature = "dim3")]
         {
-            let dvel_0 = tangents1[0].dot(&solver_vel1.linear)
+            let dvel_0 = tangents1[0].gdot(solver_vel1.linear)
                 + self.torque_dir1[0].gdot(solver_vel1.angular)
-                - tangents1[0].dot(&solver_vel2.linear)
+                - tangents1[0].gdot(solver_vel2.linear)
                 + self.torque_dir2[0].gdot(solver_vel2.angular)
                 + self.rhs[0];
-            let dvel_1 = tangents1[1].dot(&solver_vel1.linear)
+            let dvel_1 = tangents1[1].gdot(solver_vel1.linear)
                 + self.torque_dir1[1].gdot(solver_vel1.angular)
-                - tangents1[1].dot(&solver_vel2.linear)
+                - tangents1[1].gdot(solver_vel2.linear)
                 + self.torque_dir2[1].gdot(solver_vel2.angular)
                 + self.rhs[1];
 
@@ -190,12 +191,12 @@ impl<N: SimdRealCopy> ContactConstraintTangentPart<N> {
             self.impulse = new_impulse;
 
             solver_vel1.linear +=
-                (tangents1[0] * dlambda[0] + tangents1[1] * dlambda[1]).component_mul(im1);
+                (*tangents1[0] * dlambda[0] + *tangents1[1] * dlambda[1]).component_mul(im1);
             solver_vel1.angular +=
                 self.ii_torque_dir1[0] * dlambda[0] + self.ii_torque_dir1[1] * dlambda[1];
 
             solver_vel2.linear +=
-                (tangents1[0] * -dlambda[0] + tangents1[1] * -dlambda[1]).component_mul(im2);
+                (*tangents1[0] * -dlambda[0] + *tangents1[1] * -dlambda[1]).component_mul(im2);
             solver_vel2.angular +=
                 self.ii_torque_dir2[0] * dlambda[0] + self.ii_torque_dir2[1] * dlambda[1];
         }
@@ -203,11 +204,11 @@ impl<N: SimdRealCopy> ContactConstraintTangentPart<N> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct ContactConstraintNormalPart<N: SimdRealCopy> {
-    pub torque_dir1: AngVector<N>,
-    pub torque_dir2: AngVector<N>,
-    pub ii_torque_dir1: AngVector<N>,
-    pub ii_torque_dir2: AngVector<N>,
+pub(crate) struct ContactConstraintNormalPart<N: ScalarType> {
+    pub torque_dir1: N::AngVector,
+    pub torque_dir2: N::AngVector,
+    pub ii_torque_dir1: N::AngVector,
+    pub ii_torque_dir2: N::AngVector,
     pub rhs: N,
     pub rhs_wo_bias: N,
     pub impulse: N,
@@ -220,18 +221,18 @@ pub(crate) struct ContactConstraintNormalPart<N: SimdRealCopy> {
     pub r_mat_elts: [N; 2],
 }
 
-impl<N: SimdRealCopy> ContactConstraintNormalPart<N> {
+impl<N: ScalarType> ContactConstraintNormalPart<N> {
     pub fn zero() -> Self {
         Self {
-            torque_dir1: na::zero(),
-            torque_dir2: na::zero(),
-            ii_torque_dir1: na::zero(),
-            ii_torque_dir2: na::zero(),
-            rhs: na::zero(),
-            rhs_wo_bias: na::zero(),
-            impulse: na::zero(),
-            impulse_accumulator: na::zero(),
-            r: na::zero(),
+            torque_dir1: Default::default(),
+            torque_dir2: Default::default(),
+            ii_torque_dir1: Default::default(),
+            ii_torque_dir2: Default::default(),
+            rhs: N::zero(),
+            rhs_wo_bias: N::zero(),
+            impulse: N::zero(),
+            impulse_accumulator: N::zero(),
+            r: N::zero(),
             r_mat_elts: [N::zero(); 2],
         }
     }
@@ -245,9 +246,9 @@ impl<N: SimdRealCopy> ContactConstraintNormalPart<N> {
     #[inline]
     pub fn warmstart(
         &mut self,
-        dir1: &Vector<N>,
-        im1: &Vector<N>,
-        im2: &Vector<N>,
+        dir1: &N::Vector,
+        im1: &N::Vector,
+        im2: &N::Vector,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) {
@@ -262,16 +263,16 @@ impl<N: SimdRealCopy> ContactConstraintNormalPart<N> {
     pub fn solve(
         &mut self,
         cfm_factor: N,
-        dir1: &Vector<N>,
-        im1: &Vector<N>,
-        im2: &Vector<N>,
+        dir1: &N::Vector,
+        im1: &N::Vector,
+        im2: &N::Vector,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) where
-        AngVector<N>: SimdDot<AngVector<N>, Result = N>,
+        N::AngVector: DotProduct<N::AngVector, Result = N>,
     {
-        let dvel = dir1.dot(&solver_vel1.linear) + self.torque_dir1.gdot(solver_vel1.angular)
-            - dir1.dot(&solver_vel2.linear)
+        let dvel = dir1.gdot(solver_vel1.linear) + self.torque_dir1.gdot(solver_vel1.angular)
+            - dir1.gdot(solver_vel2.linear)
             + self.torque_dir2.gdot(solver_vel2.angular)
             + self.rhs;
         let new_impulse = cfm_factor * (self.impulse - self.r * dvel).simd_max(N::zero());
@@ -322,15 +323,15 @@ impl<N: SimdRealCopy> ContactConstraintNormalPart<N> {
         constraint_a: &mut Self,
         constraint_b: &mut Self,
         cfm_factor: N,
-        dir1: &Vector<N>,
-        im1: &Vector<N>,
-        im2: &Vector<N>,
+        dir1: &N::Vector,
+        im1: &N::Vector,
+        im2: &N::Vector,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) where
-        AngVector<N>: SimdDot<AngVector<N>, Result = N>,
+        N::AngVector: DotProduct<N::AngVector, Result = N>,
     {
-        let dvel_lin = dir1.dot(&solver_vel1.linear) - dir1.dot(&solver_vel2.linear);
+        let dvel_lin = dir1.gdot(solver_vel1.linear) - dir1.gdot(solver_vel2.linear);
         let dvel_a = dvel_lin
             + constraint_a.torque_dir1.gdot(solver_vel1.angular)
             + constraint_a.torque_dir2.gdot(solver_vel2.angular)

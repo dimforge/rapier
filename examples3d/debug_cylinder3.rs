@@ -19,7 +19,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 100.1;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
+    let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -44,7 +44,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let z = -centerz + offset;
 
     // Build the rigid body.
-    let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y, z]);
+    let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z));
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cylinder(rad, rad);
     colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -53,5 +53,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
+    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

@@ -15,7 +15,7 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let rigid_body = RigidBodyBuilder::fixed();
     let handle = bodies.insert(rigid_body);
-    let halfspace = SharedShape::new(HalfSpace::new(Vector::y_axis()));
+    let halfspace = SharedShape::new(HalfSpace::new(Vector::Y));
     let collider = ColliderBuilder::new(halfspace);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
@@ -26,7 +26,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let curr_height = 0.1f32.min(curr_width);
         curr_y += curr_height * 4.0;
 
-        let rigid_body = RigidBodyBuilder::dynamic().translation(vector![0.0, curr_y, 0.0]);
+        let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(0.0, curr_y, 0.0));
         let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(curr_width, curr_height, curr_width);
         colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -38,5 +38,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![10.0, 10.0, 10.0], Point::origin());
+    testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
 }

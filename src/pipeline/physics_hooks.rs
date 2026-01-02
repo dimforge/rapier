@@ -38,7 +38,7 @@ pub struct ContactModificationContext<'a> {
     /// The solver contacts that can be modified.
     pub solver_contacts: &'a mut Vec<SolverContact>,
     /// The contact normal that can be modified.
-    pub normal: &'a mut Vector<Real>,
+    pub normal: &'a mut Vector,
     /// User-defined data attached to the manifold.
     // NOTE: we keep this a &'a mut u32 to emphasize the
     // fact that this can be modified.
@@ -56,11 +56,7 @@ impl ContactModificationContext<'_> {
     /// `PhysicsHooks::modify_solver_contacts` method at each timestep, for each
     /// contact manifold involving a one-way platform. The `self.user_data` field
     /// must not be modified from the outside of this method.
-    pub fn update_as_oneway_platform(
-        &mut self,
-        allowed_local_n1: &Vector<Real>,
-        allowed_angle: Real,
-    ) {
+    pub fn update_as_oneway_platform(&mut self, allowed_local_n1: Vector, allowed_angle: Real) {
         const CONTACT_CONFIGURATION_UNKNOWN: u32 = 0;
         const CONTACT_CURRENTLY_ALLOWED: u32 = 1;
         const CONTACT_CURRENTLY_FORBIDDEN: u32 = 2;
@@ -87,7 +83,7 @@ impl ContactModificationContext<'_> {
                     // So in this case we can't really conclude.
                     // If the norm is non-zero, then we can tell we need to forbid
                     // further contacts. Otherwise we have to wait for the next frame.
-                    if self.manifold.local_n1.norm_squared() > 0.1 {
+                    if self.manifold.local_n1.length_squared() > 0.1 {
                         *self.user_data = CONTACT_CURRENTLY_FORBIDDEN;
                     }
                 }
