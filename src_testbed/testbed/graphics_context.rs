@@ -46,7 +46,7 @@ impl<'a> TestbedGraphics<'a> {
         self.graphics.add_collider(self.window, handle, colliders);
     }
 
-    pub fn remove_collider(&mut self, handle: ColliderHandle, colliders: &ColliderSet) {
+    pub fn remove_collider(&mut self, handle: ColliderHandle) {
         self.graphics.remove_collider_nodes(handle);
     }
 

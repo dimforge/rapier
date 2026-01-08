@@ -1,10 +1,10 @@
 //! RotationOps trait for quaternion operations.
 
+#[cfg(feature = "dim3")]
+use crate::math::Mat3;
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SimdReal;
-#[cfg(feature = "dim3")]
-use crate::math::{Mat3, Vector};
-use crate::math::{Matrix, Real, Rotation};
+use crate::math::{Matrix, Real, Rotation, Vector};
 #[cfg(feature = "dim3")]
 use crate::utils::CrossProductMatrix;
 use crate::utils::ScalarType;
@@ -151,7 +151,10 @@ impl RotationOps<Real> for Rotation {
 impl RotationOps<Real> for Rotation {
     #[inline]
     fn to_mat(self) -> Matrix {
-        (&self).to_mat()
+        Matrix::from_cols(
+            Vector::new(self.re, self.im),
+            Vector::new(-self.im, self.re),
+        )
     }
 
     #[inline]

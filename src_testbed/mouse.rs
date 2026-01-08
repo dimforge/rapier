@@ -1,11 +1,11 @@
-use glamx::{Vec2, Vec3};
+use glamx::Vec2;
 
 #[derive(Default, Copy, Clone, Debug)]
 pub struct SceneMouse {
     #[cfg(feature = "dim2")]
     pub point: Option<Vec2>,
     #[cfg(feature = "dim3")]
-    pub ray: Option<(Vec3, Vec3)>,
+    pub ray: Option<(glamx::Vec3, glamx::Vec3)>,
 }
 
 impl SceneMouse {

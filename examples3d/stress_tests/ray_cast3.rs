@@ -1,7 +1,7 @@
-use rapier_testbed3d::{Testbed};
-use rapier3d::prelude::*;
+use crate::{Example, stress_tests};
 use kiss3d::prelude::*;
-use crate::{stress_tests, Example};
+use rapier_testbed3d::Testbed;
+use rapier3d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
     let settings = testbed.example_settings_mut();
@@ -11,9 +11,7 @@ pub fn init_world(testbed: &mut Testbed) {
     //       ray-casting in a wide variety of situations.
     let demos: Vec<Example> = stress_tests::builders()
         .into_iter()
-        .filter(|demo| {
-            !std::ptr::fn_addr_eq(demo.builder, self::init_world as fn(&mut Testbed))
-        })
+        .filter(|demo| !std::ptr::fn_addr_eq(demo.builder, self::init_world as fn(&mut Testbed)))
         .collect();
     let demo_names: Vec<_> = demos.iter().map(|demo| demo.name.to_string()).collect();
     let selected = settings.get_or_set_string("Scene", 0, demo_names);
@@ -64,17 +62,11 @@ pub fn init_world(testbed: &mut Testbed) {
             if let Some((_, toi)) = query_pipeline.cast_ray(ray, max_toi, true) {
                 let a = ray.origin;
                 let b = ray.point_at(toi);
-                graphics.window.draw_line(a, b,
-                    GREEN,
-                                          100.0, true
-                );
+                graphics.window.draw_line(a, b, GREEN, 100.0, true);
             } else {
                 let a = ray.origin;
                 let b = ray.point_at(max_toi);
-                graphics.window.draw_line(a, b,
-                    RED,
-                                          100.0, true
-                );
+                graphics.window.draw_line(a, b, RED, 100.0, true);
             }
         }
         let main_check_time = t1.elapsed().as_secs_f32();

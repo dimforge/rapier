@@ -105,7 +105,7 @@ pub struct UrdfLoaderOptions {
     /// Note that the default enables all the flags. This is operating under the assumption that the provided
     /// mesh are generally well-formed and properly oriented (2-manifolds with outward normals).
     pub trimesh_flags: TriMeshFlags,
-    /// The transform appended to every created rigid-bodies (default: [`SimdPose::identity`]).
+    /// The transform appended to every created rigid-bodies (default: `Pose::IDENTITY`).
     pub shift: Pose,
     /// A description of the collider properties that need to be applied to every collider created
     /// by the loader (default: `ColliderBuilder::default().density(0.0)`).

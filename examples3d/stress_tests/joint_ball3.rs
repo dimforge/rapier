@@ -56,5 +56,8 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(Vec3::new(-110.0, -46.0, 170.0), Vec3::new(54.0, -38.0, 29.0));
+    testbed.look_at(
+        Vec3::new(-110.0, -46.0, 170.0),
+        Vec3::new(54.0, -38.0, 29.0),
+    );
 }

@@ -1,3 +1,4 @@
+use kiss3d::color::Color;
 use obj::raw::object::Polygon;
 use rapier_testbed3d::KeyCode;
 use rapier_testbed3d::Testbed;
@@ -6,7 +7,6 @@ use rapier3d::parry::transformation::voxelization::FillMode;
 use rapier3d::prelude::*;
 use std::fs::File;
 use std::io::BufReader;
-use kiss3d::color::Color;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*

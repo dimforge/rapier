@@ -1,4 +1,4 @@
-use rapier_testbed2d::{Example};
+use rapier_testbed2d::Example;
 
 mod balls2;
 mod boxes2;
@@ -23,10 +23,15 @@ pub fn builders() -> Vec<Example> {
         Example::new(STRESS, "Pyramid", pyramid2::init_world),
         Example::new(STRESS, "Verticals stacks", vertical_stacks2::init_world),
         Example::new(STRESS, "(Stress test) joint ball", joint_ball2::init_world),
-        Example::new(STRESS, "(Stress test) joint fixed", joint_fixed2::init_world),
-        Example::new(STRESS,
+        Example::new(
+            STRESS,
+            "(Stress test) joint fixed",
+            joint_fixed2::init_world,
+        ),
+        Example::new(
+            STRESS,
             "(Stress test) joint prismatic",
             joint_prismatic2::init_world,
-        )
+        ),
     ]
 }

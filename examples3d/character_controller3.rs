@@ -1,5 +1,5 @@
-use kiss3d::color::Color;
 use crate::utils::character::{self, CharacterControlMode};
+use kiss3d::color::Color;
 use rapier_testbed3d::Testbed;
 use rapier3d::{
     control::{KinematicCharacterController, PidController},

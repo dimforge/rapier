@@ -1128,8 +1128,8 @@ impl NarrowPhase {
                 );
                 #[cfg(feature = "parallel")]
                 {
-                    // When running in parallel mode, deffer the islands call after the loop.
-                    snd.send((rb_handle1, rb_handle2, has_any_active_contact));
+                    // When running in parallel mode, defer the islands call after the loop.
+                    let _ = snd.send((rb_handle1, rb_handle2, has_any_active_contact));
                 }
             }
         });
@@ -1230,8 +1230,7 @@ impl NarrowPhase {
 #[cfg(feature = "f32")]
 #[cfg(feature = "dim3")]
 mod test {
-    use na::vector;
-
+    use crate::math::Vector;
     use crate::prelude::{
         CCDSolver, ColliderBuilder, DefaultBroadPhase, IntegrationParameters, PhysicsPipeline,
         RigidBodyBuilder,
@@ -1254,7 +1253,7 @@ mod test {
 
         /* Create body 1, which will contain both colliders at first. */
         let rigid_body_1 = RigidBodyBuilder::dynamic()
-            .translation(vector![0.0, 0.0, 0.0])
+            .translation(Vector::new(0.0, 0.0, 0.0))
             .build();
         let body_1_handle = rigid_body_set.insert(rigid_body_1);
 
@@ -1268,12 +1267,12 @@ mod test {
 
         /* Create body 2. No attached colliders yet. */
         let rigid_body_2 = RigidBodyBuilder::dynamic()
-            .translation(vector![0.0, 0.0, 0.0])
+            .translation(Vector::new(0.0, 0.0, 0.0))
             .build();
         let body_2_handle = rigid_body_set.insert(rigid_body_2);
 
         /* Create other structures necessary for the simulation. */
-        let gravity = vector![0.0, 0.0, 0.0];
+        let gravity = Vector::ZERO;
         let integration_parameters = IntegrationParameters::default();
         let mut physics_pipeline = PhysicsPipeline::new();
         let mut island_manager = IslandManager::new();
@@ -1286,7 +1285,7 @@ mod test {
         let event_handler = ();
 
         physics_pipeline.step(
-            &gravity,
+            gravity,
             &integration_parameters,
             &mut island_manager,
             &mut broad_phase,
@@ -1302,8 +1301,7 @@ mod test {
         let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
         let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
         assert!(
-            (collider_1_position.translation - collider_2_position.translation).magnitude()
-                < 0.5f32
+            (collider_1_position.translation - collider_2_position.translation).length() < 0.5f32
         );
 
         let contact_pair = narrow_phase
@@ -1320,7 +1318,7 @@ mod test {
         collider_set.set_parent(collider_2_handle, Some(body_2_handle), &mut rigid_body_set);
 
         physics_pipeline.step(
-            &gravity,
+            gravity,
             &integration_parameters,
             &mut island_manager,
             &mut broad_phase,
@@ -1348,7 +1346,7 @@ mod test {
         /* Run the game loop, stepping the simulation once per frame. */
         for _ in 0..200 {
             physics_pipeline.step(
-                &gravity,
+                gravity,
                 &integration_parameters,
                 &mut island_manager,
                 &mut broad_phase,
@@ -1372,8 +1370,7 @@ mod test {
         let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
         println!("collider 2 position: {}", collider_2_position.translation);
         assert!(
-            (collider_1_position.translation - collider_2_position.translation).magnitude()
-                >= 0.5f32,
+            (collider_1_position.translation - collider_2_position.translation).length() >= 0.5f32,
             "colliders should no longer be penetrating."
         );
     }
@@ -1396,7 +1393,7 @@ mod test {
 
         /* Create body 1, which will contain collider 1. */
         let rigid_body_1 = RigidBodyBuilder::dynamic()
-            .translation(vector![0.0, 0.0, 0.0])
+            .translation(Vector::new(0.0, 0.0, 0.0))
             .build();
         let body_1_handle = rigid_body_set.insert(rigid_body_1);
 
@@ -1406,7 +1403,7 @@ mod test {
 
         /* Create body 2, which will contain collider 2 at first. */
         let rigid_body_2 = RigidBodyBuilder::dynamic()
-            .translation(vector![0.0, 0.0, 0.0])
+            .translation(Vector::new(0.0, 0.0, 0.0))
             .build();
         let body_2_handle = rigid_body_set.insert(rigid_body_2);
 
@@ -1415,7 +1412,7 @@ mod test {
             collider_set.insert_with_parent(collider.build(), body_2_handle, &mut rigid_body_set);
 
         /* Create other structures necessary for the simulation. */
-        let gravity = vector![0.0, 0.0, 0.0];
+        let gravity = Vector::ZERO;
         let integration_parameters = IntegrationParameters::default();
         let mut physics_pipeline = PhysicsPipeline::new();
         let mut island_manager = IslandManager::new();
@@ -1428,7 +1425,7 @@ mod test {
         let event_handler = ();
 
         physics_pipeline.step(
-            &gravity,
+            gravity,
             &integration_parameters,
             &mut island_manager,
             &mut broad_phase,
@@ -1454,14 +1451,13 @@ mod test {
         let collider_1_position = collider_set.get(collider_1_handle).unwrap().pos;
         let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
         assert!(
-            (collider_1_position.translation - collider_2_position.translation).magnitude()
-                < 0.5f32
+            (collider_1_position.translation - collider_2_position.translation).length() < 0.5f32
         );
 
         /* Parent collider 2 to body 1. */
         collider_set.set_parent(collider_2_handle, Some(body_1_handle), &mut rigid_body_set);
         physics_pipeline.step(
-            &gravity,
+            gravity,
             &integration_parameters,
             &mut island_manager,
             &mut broad_phase,
@@ -1487,7 +1483,7 @@ mod test {
         /* Parent collider 2 back to body 1. */
         collider_set.set_parent(collider_2_handle, Some(body_2_handle), &mut rigid_body_set);
         physics_pipeline.step(
-            &gravity,
+            gravity,
             &integration_parameters,
             &mut island_manager,
             &mut broad_phase,

@@ -2,7 +2,6 @@
 
 use bitflags::bitflags;
 use na::Point3;
-use rapier::dynamics::RigidBodyHandle;
 
 #[cfg(feature = "dim3")]
 use rapier::control::DynamicRayCastVehicleController;

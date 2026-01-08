@@ -34,7 +34,7 @@ use crate::num::Zero;
 /// # use rapier3d::prelude::*;
 /// # let mut bodies = RigidBodySet::new();
 /// let body = RigidBodyBuilder::dynamic()
-///     .translation(vector![0.0, 10.0, 0.0])
+///     .translation(Vector::new(0.0, 10.0, 0.0))
 ///     .build();
 /// let handle = bodies.insert(body);
 /// ```
@@ -882,7 +882,7 @@ impl RigidBody {
     /// # let mut bodies = RigidBodySet::new();
     /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Make the body move to the right at 5 units/second
-    /// bodies[body].set_linvel(vector![5.0, 0.0, 0.0], true);
+    /// bodies[body].set_linvel(Vector::new(5.0, 0.0, 0.0), true);
     /// ```
     pub fn set_linvel(&mut self, linvel: Vector, wake_up: bool) {
         if self.vels.linvel != linvel {
@@ -1179,7 +1179,7 @@ impl RigidBody {
     /// # let mut bodies = RigidBodySet::new();
     /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Apply thrust every frame
-    /// bodies[body].add_force(vector![0.0, 100.0, 0.0], true);
+    /// bodies[body].add_force(Vector::new(0.0, 100.0, 0.0), true);
     /// ```
     ///
     /// Only affects dynamic bodies (does nothing for kinematic/fixed bodies).
@@ -1272,7 +1272,7 @@ impl RigidBody {
     /// # let mut bodies = RigidBodySet::new();
     /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Make a character jump
-    /// bodies[body].apply_impulse(vector![0.0, 300.0, 0.0], true);
+    /// bodies[body].apply_impulse(Vector::new(0.0, 300.0, 0.0), true);
     /// ```
     ///
     /// Only affects dynamic bodies (does nothing for kinematic/fixed bodies).
@@ -1330,8 +1330,8 @@ impl RigidBody {
     /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Hit the top-left corner of a box
     /// bodies[body].apply_impulse_at_point(
-    ///     vector![100.0, 0.0, 0.0],
-    ///     point![-0.5, 0.5, 0.0],  // Top-left of a 1x1 box
+    ///     Vector::new(100.0, 0.0, 0.0),
+    ///     Vector::new(-0.5, 0.5, 0.0),  // Top-left of a 1x1 box
     ///     true
     /// );
     /// // Box will move right AND spin
@@ -1465,9 +1465,9 @@ impl RigidBody {
 /// ```
 /// # use rapier3d::prelude::*;
 /// let body = RigidBodyBuilder::dynamic()
-///     .translation(vector![0.0, 5.0, 0.0])  // Start 5 units above ground
-///     .linvel(vector![1.0, 0.0, 0.0])       // Initial velocity to the right
-///     .can_sleep(false)                      // Keep always active
+///     .translation(Vector::new(0.0, 5.0, 0.0))  // Start 5 units above ground
+///     .linvel(Vector::new(1.0, 0.0, 0.0))       // Initial velocity to the right
+///     .can_sleep(false)                          // Keep always active
 ///     .build();
 /// ```
 #[derive(Clone, Debug, PartialEq)]
@@ -1656,7 +1656,7 @@ impl RigidBodyBuilder {
     /// ```
     /// # use rapier3d::prelude::*;
     /// let body = RigidBodyBuilder::dynamic()
-    ///     .translation(vector![10.0, 5.0, -3.0])
+    ///     .translation(Vector::new(10.0, 5.0, -3.0))
     ///     .build();
     /// ```
     pub fn translation(mut self, translation: Vector) -> Self {
@@ -1671,7 +1671,7 @@ impl RigidBodyBuilder {
     /// # use rapier3d::prelude::*;
     /// // Rotate 45 degrees around Y axis (in 3D)
     /// let body = RigidBodyBuilder::dynamic()
-    ///     .rotation(vector![0.0, std::f32::consts::PI / 4.0, 0.0])
+    ///     .rotation(Vector::new(0.0, std::f32::consts::PI / 4.0, 0.0))
     ///     .build();
     /// ```
     pub fn rotation(mut self, angle: AngVector) -> Self {

@@ -29,7 +29,10 @@ pub fn init_world(testbed: &mut Testbed) {
     let width = 1.0;
     let thickness = 0.1;
 
-    let colors = [Color::new(0.7, 0.5, 0.9, 1.0), Color::new(0.6, 1.0, 0.6, 1.0)];
+    let colors = [
+        Color::new(0.7, 0.5, 0.9, 1.0),
+        Color::new(0.6, 1.0, 0.6, 1.0),
+    ];
 
     let mut curr_angle = 0.0;
     let mut curr_rad = 10.0;

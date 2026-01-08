@@ -1,4 +1,5 @@
 use rapier_testbed3d::Testbed;
+use rapier3d::glamx::{DVec3, Vec3};
 use rapier3d::na::ComplexField;
 use rapier3d::prelude::*;
 
@@ -14,7 +15,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_size = Vec3::new(200.0, 1.0, 200.0);
+    let ground_size = DVec3::new(200.0, 1.0, 200.0);
     let nsubdivs = 20;
 
     let heights = Array2::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
@@ -60,7 +61,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f64 * shift - centerz;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::dynamic().translation(Vec3::new(x, y, z));
+                let rigid_body = RigidBodyBuilder::dynamic().translation(DVec3::new(x, y, z));
                 let handle = bodies.insert(rigid_body);
 
                 if j % 2 == 0 {
@@ -78,5 +79,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![100.0, 100.0, 100.0], SimdPoint::origin());
+    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

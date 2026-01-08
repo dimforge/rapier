@@ -1,13 +1,5 @@
 //! TestbedApp - the main application runner.
 
-use glamx::Vec3;
-use kiss3d::event::{Action, Key, WindowEvent};
-use kiss3d::light::Light;
-use kiss3d::window::Window;
-use rapier::dynamics::RigidBodyActivation;
-use std::mem;
-use kiss3d::color::Color;
-use rapier::prelude::QueryFilter;
 use crate::Camera;
 use crate::debug_render::{DebugRenderPipelineResource, debug_render_scene};
 use crate::graphics::GraphicsManager;
@@ -16,12 +8,20 @@ use crate::mouse::SceneMouse;
 use crate::save::SerializableTestbedState;
 use crate::testbed::hover::highlight_hovered_body;
 use crate::ui;
+use kiss3d::color::Color;
+use kiss3d::event::{Action, Key, WindowEvent};
+use kiss3d::window::Window;
+use rapier::dynamics::RigidBodyActivation;
+use std::mem;
 
+use super::Plugins;
 use super::graphics_context::TestbedGraphics;
 use super::keys::KeysState;
 use super::state::{RAPIER_BACKEND, RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags};
 use super::testbed::{SimulationBuilders, Testbed};
-use super::{OtherBackends, Plugins};
+
+#[cfg(feature = "other-backends")]
+use super::OtherBackends;
 
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 use super::state::{PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR};
@@ -192,7 +192,7 @@ impl TestbedApp {
         }
     }
 
-    async fn run_async(mut self, init: impl FnMut(&mut Testbed)) {
+    async fn run_async(mut self, mut init: impl FnMut(&mut Testbed)) {
         let title = if cfg!(feature = "dim2") {
             "Rapier: 2D demos"
         } else {
@@ -206,6 +206,27 @@ impl TestbedApp {
         let mut camera = Camera::default();
         let mut scene_mouse = SceneMouse::new();
         let mut keys = KeysState::default();
+
+        // User init
+        let testbed_gfx = TestbedGraphics {
+            graphics: &mut self.graphics,
+            window: &mut window,
+            camera: &mut camera,
+            mouse: &mut scene_mouse,
+            keys: &mut keys,
+            settings: None,
+        };
+
+        let mut testbed = Testbed {
+            graphics: Some(testbed_gfx),
+            state: &mut self.state,
+            harness: &mut self.harness,
+            #[cfg(feature = "other-backends")]
+            other_backends: &mut self.other_backends,
+            plugins: &mut self.plugins,
+        };
+
+        init(&mut testbed);
 
         // Main render loop
         #[cfg(feature = "dim3")]
@@ -325,8 +346,7 @@ impl TestbedApp {
             }
         }
 
-        highlight_hovered_body(&mut self.graphics, &mut self.state, scene_mouse, &self.harness.physics);
-
+        highlight_hovered_body(&mut self.graphics, scene_mouse, &self.harness.physics);
 
         // Update graphics
         self.graphics.draw(
@@ -395,6 +415,8 @@ impl TestbedApp {
 
     #[cfg(feature = "dim3")]
     fn update_vehicle_controller(&mut self, keys: &mut KeysState) {
+        use rapier::prelude::QueryFilter;
+
         if self.state.running == RunMode::Stop {
             return;
         }
@@ -446,7 +468,10 @@ impl TestbedApp {
     ) {
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let app_started = self.state.action_flags.contains(TestbedActionFlags::APP_STARTED);
+            let app_started = self
+                .state
+                .action_flags
+                .contains(TestbedActionFlags::APP_STARTED);
 
             if app_started {
                 self.state

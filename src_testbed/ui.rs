@@ -9,8 +9,8 @@ use crate::testbed::{
 
 pub use egui;
 
-use crate::settings::SettingValue;
 use crate::PhysicsState;
+use crate::settings::SettingValue;
 use egui::{ComboBox, RichText, Slider, Ui, Window};
 use web_time::Instant;
 
@@ -138,17 +138,15 @@ pub(crate) fn update_ui(
             // ═══════════════════════════════════════════════════════════════
             egui::ScrollArea::vertical()
                 .max_height(400.0)
-                .show(ui, |ui| {
-                    match state.selected_tab {
-                        UiTab::Examples => {
-                            examples_tab(ui, state);
-                        }
-                        UiTab::Settings => {
-                            settings_tab(ui, state, harness, debug_render);
-                        }
-                        UiTab::Performance => {
-                            performance_tab(ui, harness);
-                        }
+                .show(ui, |ui| match state.selected_tab {
+                    UiTab::Examples => {
+                        examples_tab(ui, state);
+                    }
+                    UiTab::Settings => {
+                        settings_tab(ui, state, harness, debug_render);
+                    }
+                    UiTab::Performance => {
+                        performance_tab(ui, harness);
                     }
                 });
 
@@ -174,11 +172,7 @@ pub(crate) fn update_ui(
                 }
 
                 // Step
-                if ui
-                    .button("Step")
-                    .on_hover_text("Single step (S)")
-                    .clicked()
-                {
+                if ui.button("Step").on_hover_text("Single step (S)").clicked() {
                     state.running = RunMode::Step;
                 }
 
@@ -269,7 +263,11 @@ fn examples_tab(ui: &mut Ui, state: &mut TestbedState) {
 
         // Current example name
         if let Some(current) = state.examples.get(state.selected_display_index) {
-            ui.label(RichText::new(format!("[{}] {}", current.group, current.name)).strong().italics());
+            ui.label(
+                RichText::new(format!("[{}] {}", current.group, current.name))
+                    .strong()
+                    .italics(),
+            );
         }
     });
 
@@ -328,7 +326,6 @@ fn settings_tab(
     let integration_parameters = &mut harness.physics.integration_parameters;
     let is_physx = state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
         || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR;
-
 
     // ─────────────────────────────────────────────────────────────────
     // RENDERING
@@ -402,10 +399,8 @@ fn settings_tab(
     ui.label(RichText::new("Solver").strong());
     ui.add_space(2.0);
 
-    ui.add(
-        Slider::new(&mut integration_parameters.num_solver_iterations, 1..=10).text("Substeps"),
-    )
-    .on_hover_text("Main solver iterations. Higher = more stable stacking.");
+    ui.add(Slider::new(&mut integration_parameters.num_solver_iterations, 1..=10).text("Substeps"))
+        .on_hover_text("Main solver iterations. Higher = more stable stacking.");
 
     if !is_physx {
         ui.add(
@@ -538,7 +533,8 @@ fn settings_tab(
         .on_hover_text("Continuous collision detection substeps.");
 
         ui.add(
-            Slider::new(&mut integration_parameters.min_island_size, 1..=10_000).text("Min island sz."),
+            Slider::new(&mut integration_parameters.min_island_size, 1..=10_000)
+                .text("Min island sz."),
         )
         .on_hover_text("Minimum bodies per simulation island.");
 
@@ -546,9 +542,7 @@ fn settings_tab(
         {
             let mut num_threads = harness.state.num_threads();
             if ui
-                .add(
-                    Slider::new(&mut num_threads, 1..=num_cpus::get_physical()).text("Threads"),
-                )
+                .add(Slider::new(&mut num_threads, 1..=num_cpus::get_physical()).text("Threads"))
                 .on_hover_text("Parallel solver threads.")
                 .changed()
             {
@@ -785,18 +779,12 @@ fn example_settings_ui(ui_context: &egui::Context, state: &mut TestbedState) {
                     }
                     SettingValue::U32 { value, range } => {
                         ui.horizontal(|ui| {
-                            if ui
-                                .small_button("-")
-                                .on_hover_text("Decrease")
-                                .clicked()
+                            if ui.small_button("-").on_hover_text("Decrease").clicked()
                                 && *value > *range.start()
                             {
                                 *value -= 1;
                             }
-                            if ui
-                                .small_button("+")
-                                .on_hover_text("Increase")
-                                .clicked()
+                            if ui.small_button("+").on_hover_text("Increase").clicked()
                                 && *value < *range.end()
                             {
                                 *value += 1;

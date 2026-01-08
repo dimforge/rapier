@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
 use crate::ui::egui::emath::OrderedFloat;
-use na::{Isometry3, Matrix4, Point3, Quaternion, Translation3, Unit, UnitQuaternion, Vector3};
+use glamx::{Pose3, Vec3};
+use na::{Isometry3, Matrix4, Point3, Quaternion, Unit, UnitQuaternion, Vector3};
 use physx::cooking::{
     ConvexMeshCookingResult, PxConvexMeshDesc, PxCookingParams, PxHeightFieldDesc,
     PxTriangleMeshDesc, TriangleMeshCookingResult,
@@ -22,7 +23,6 @@ use rapier::dynamics::{
 use rapier::geometry::{Collider, ColliderSet};
 use rapier::prelude::JointAxesMask;
 use std::collections::HashMap;
-use glamx::{Pose3, Vec3};
 
 trait IntoNa {
     type Output;
@@ -554,7 +554,10 @@ impl PhysxWorld {
             for coll_handle in rb.colliders() {
                 let collider = &mut colliders[*coll_handle];
                 collider.set_position(
-                    pos * collider.position_wrt_parent().copied().unwrap_or(Pose3::IDENTITY),
+                    pos * collider
+                        .position_wrt_parent()
+                        .copied()
+                        .unwrap_or(Pose3::IDENTITY),
                 );
             }
         };
@@ -585,7 +588,10 @@ fn physx_collider_from_rapier_collider(
     collider: &Collider,
     materials_cache: &mut HashMap<[OrderedFloat<f32>; 2], Owner<PxMaterial>>,
 ) -> Option<(Owner<PxShape>, Pose3)> {
-    let mut local_pose = collider.position_wrt_parent().copied().unwrap_or(Pose3::IDENTITY);
+    let mut local_pose = collider
+        .position_wrt_parent()
+        .copied()
+        .unwrap_or(Pose3::IDENTITY);
     let cooking_params = PxCookingParams::new(physics).unwrap();
     let shape = collider.shape();
     let shape_flags = if collider.is_sensor() {
@@ -630,8 +636,7 @@ fn physx_collider_from_rapier_collider(
         }
 
         let rot = glamx::Quat::from_rotation_arc(Vec3::X, dir);
-        local_pose = local_pose
-            .prepend_translation(center) * rot;
+        local_pose = local_pose.prepend_translation(center) * rot;
         let geometry = PxCapsuleGeometry::new(capsule.radius, capsule.half_height());
         physics.create_shape(&geometry, materials, true, shape_flags, ())
     } else if let Some(heightfield) = shape.as_heightfield() {

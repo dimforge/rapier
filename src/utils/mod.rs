@@ -61,7 +61,7 @@ pub fn try_normalize_and_get_length(v: Vector, threshold: Real) -> Option<(Vecto
     }
 }
 
-/// Convert glam Vector to nalgebra SimdVector<Real>
+/// Convert glam Vector to nalgebra `SimdVector<Real>`
 #[inline]
 pub fn vect_to_na(v: Vector) -> SimdVector<Real> {
     v.into()
@@ -69,14 +69,14 @@ pub fn vect_to_na(v: Vector) -> SimdVector<Real> {
 
 use crate::math::Matrix;
 
-/// Convert glam Matrix to nalgebra Matrix2<Real> (2D matrix)
+/// Convert glam Matrix to nalgebra `Matrix2<Real>` (2D matrix)
 #[cfg(feature = "dim2")]
 #[inline]
 pub fn mat_to_na(m: Matrix) -> Matrix2<Real> {
     m.into()
 }
 
-/// Convert glam Matrix to nalgebra Matrix3<Real> (3D matrix)
+/// Convert glam Matrix to nalgebra `Matrix3<Real>` (3D matrix)
 #[cfg(feature = "dim3")]
 #[inline]
 pub fn mat_to_na(m: Matrix) -> Matrix3<Real> {

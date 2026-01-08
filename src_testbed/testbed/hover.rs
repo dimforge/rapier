@@ -1,16 +1,25 @@
-use kiss3d::prelude::*;
-use rapier::prelude::{QueryFilter, Ray, Real};
-use crate::{Camera, GraphicsManager, PhysicsState, TestbedState};
+#![allow(clippy::useless_conversion)] // Conversions are needed for switching between f32/f64.
+
 use crate::mouse::SceneMouse;
+use crate::{GraphicsManager, PhysicsState};
+use kiss3d::prelude::*;
+use rapier::prelude::QueryFilter;
+
+#[cfg(feature = "dim3")]
+use rapier::prelude::{Ray, Real};
 
 #[cfg(feature = "dim2")]
 pub fn highlight_hovered_body(
     graphics_manager: &mut GraphicsManager,
-    testbed_state: &mut TestbedState,
     mouse: &SceneMouse,
     physics: &PhysicsState,
 ) {
+    use rapier::math::Vector;
+
     if let Some(pt) = mouse.point {
+        // Convert from kiss3d Vec2 (f32) to rapier Vector (may be f64)
+        let pt = Vector::new(pt.x as _, pt.y as _);
+
         let query_pipeline = physics.broad_phase.as_query_pipeline(
             physics.narrow_phase.query_dispatcher(),
             &physics.bodies,
@@ -30,12 +39,11 @@ pub fn highlight_hovered_body(
 #[cfg(feature = "dim3")]
 pub fn highlight_hovered_body(
     graphics_manager: &mut GraphicsManager,
-    testbed_state: &mut TestbedState,
     mouse: &SceneMouse,
     physics: &PhysicsState,
 ) {
     if let Some((ray_origin, ray_dir)) = mouse.ray {
-        let ray = Ray::new(ray_origin, ray_dir);
+        let ray = Ray::new(ray_origin.into(), ray_dir.into());
         let query_pipeline = physics.broad_phase.as_query_pipeline(
             physics.narrow_phase.query_dispatcher(),
             &physics.bodies,

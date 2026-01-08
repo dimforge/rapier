@@ -22,7 +22,7 @@ bincode = "1"
 serde_json = "1"
 dot_vox = "5"
 glam = { version = "0.30.9", features = ["fast-math"] }
-kiss3d = { path = "../../claude_workspace/kiss3d", features = ["egui", "parry", "serde"] }
+kiss3d = { version = "0.40.0", features = ["egui", "parry", "serde"] }
 
 [dependencies.rapier_testbed3d]
 path = "../crates/rapier_testbed3d"

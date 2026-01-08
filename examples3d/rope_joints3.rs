@@ -1,5 +1,5 @@
-use kiss3d::color::Color;
 use crate::utils::character::{self, CharacterControlMode};
+use kiss3d::color::Color;
 use rapier_testbed3d::Testbed;
 use rapier3d::control::{KinematicCharacterController, PidController};
 use rapier3d::prelude::*;
@@ -70,7 +70,10 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(0.15, 0.3, 0.15);
     colliders.insert_with_parent(collider, character_handle, &mut bodies);
 
-    testbed.set_initial_body_color(character_handle, Color::new(1., 131. / 255., 244.0 / 255., 1.0));
+    testbed.set_initial_body_color(
+        character_handle,
+        Color::new(1., 131. / 255., 244.0 / 255., 1.0),
+    );
 
     /*
      * Tethered Ball

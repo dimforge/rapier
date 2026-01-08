@@ -1,11 +1,10 @@
-#![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
+#![allow(clippy::unnecessary_cast, clippy::useless_conversion)] // Casts/conversions are needed for switching between f32/f64.
 
 use crate::testbed::TestbedStateFlags;
 use kiss3d::prelude::*;
 use rand_pcg::Pcg32;
 use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
 use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
-use std::cell::RefCell;
 use std::collections::HashMap;
 
 #[cfg(feature = "dim2")]
@@ -46,7 +45,6 @@ pub struct ShapeTemplate {
 pub struct IndividualNode {
     pub node: SceneNode,
     pub collider: ColliderHandle,
-    pub body: Option<RigidBodyHandle>,
     pub delta: rapier::math::Pose,
     pub color: Color,
     pub tmp_color: Option<Color>,
@@ -90,7 +88,12 @@ pub struct GraphicsManager {
     wireframe_mode: bool,
 }
 
-const GROUND_COLOR: Color = Color { r: 0.58, g: 0.54, b: 0.50, a: 1.0 };
+const GROUND_COLOR: Color = Color {
+    r: 0.58,
+    g: 0.54,
+    b: 0.50,
+    a: 1.0,
+};
 
 impl GraphicsManager {
     pub fn new() -> GraphicsManager {
@@ -115,15 +118,14 @@ impl GraphicsManager {
         #[cfg(feature = "dim3")]
         {
             // Setup lights.
-            let mut light = self.scene.add_light(
-                Light::directional(Vec3::new(-1.0, -1.0, -1.0))
-            );
+            let mut light = self
+                .scene
+                .add_light(Light::directional(Vec3::new(-1.0, -1.0, -1.0)));
             light.set_position(Vec3::new(100.0, 100.0, 100.0));
 
-            let mut light = self.scene.add_light(
-                Light::point(10000.0)
-                    .with_intensity(1.0)
-            );
+            let mut light = self
+                .scene
+                .add_light(Light::point(10000.0).with_intensity(1.0));
             light.set_position(Vec3::new(-100.0, 100.0, -100.0));
         }
 
@@ -252,10 +254,7 @@ impl GraphicsManager {
         }
     }
 
-    fn remove_node(
-        &mut self,
-        location: NodeLocation
-    ) {
+    fn remove_node(&mut self, location: NodeLocation) {
         match location {
             NodeLocation::Instanced { template, index } => {
                 if let Some(tmpl) = self.templates.get_mut(&template) {
@@ -291,10 +290,7 @@ impl GraphicsManager {
         }
     }
 
-    pub fn remove_collider_nodes(
-        &mut self,
-        collider: ColliderHandle,
-    ) {
+    pub fn remove_collider_nodes(&mut self, collider: ColliderHandle) {
         if let Some(location) = self.c2nodes.remove(&collider) {
             self.remove_node(location);
         }
@@ -464,7 +460,7 @@ impl GraphicsManager {
 
     pub fn add_shape(
         &mut self,
-        window: &mut Window,
+        _window: &mut Window,
         handle: ColliderHandle,
         body: Option<RigidBodyHandle>,
         shape: &dyn Shape,
@@ -483,7 +479,7 @@ impl GraphicsManager {
         if let Some(compound) = shape.as_compound() {
             for (shape_pos, sub_shape) in compound.shapes() {
                 self.add_shape(
-                    window,
+                    _window,
                     handle,
                     body,
                     &**sub_shape,
@@ -508,7 +504,7 @@ impl GraphicsManager {
                 delta,
                 half_extents,
                 color: color.with_alpha(opacity),
-                tmp_color: None
+                tmp_color: None,
             });
             self.c2nodes.insert(
                 handle,
@@ -519,17 +515,15 @@ impl GraphicsManager {
             );
         } else {
             // Create individual node for complex shapes
-            if let Some(node) =
-                Self::create_individual_node(&mut self.scene, shape, color, sensor)
+            if let Some(node) = Self::create_individual_node(&mut self.scene, shape, color, sensor)
             {
                 let index = self.individual_nodes.len();
                 self.individual_nodes.push(IndividualNode {
                     node,
                     collider: handle,
-                    body,
                     delta,
                     color: color.with_alpha(opacity),
-                    tmp_color: None
+                    tmp_color: None,
                 });
                 self.c2nodes
                     .insert(handle, NodeLocation::Individual { index });
@@ -544,16 +538,31 @@ impl GraphicsManager {
         color: Color,
         sensor: bool,
     ) -> Option<SceneNode3d> {
+        use kiss3d::procedural::{IndexBuffer, RenderMesh};
+
+        fn to_render_mesh(trimesh: &rapier::geometry::TriMesh) -> RenderMesh {
+            let vtx = trimesh
+                .vertices()
+                .iter()
+                .map(|pt| Vec3::new(pt.x as f32, pt.y as f32, pt.z as f32))
+                .collect();
+            let idx = trimesh.indices().to_vec();
+            let mut mesh = RenderMesh::new(vtx, None, None, Some(IndexBuffer::Unified(idx)));
+            mesh.replicate_vertices();
+            mesh.recompute_normals();
+            mesh
+        }
+
         let mut node = match shape.shape_type() {
             ShapeType::TriMesh => {
                 let trimesh = shape.as_trimesh().unwrap();
-                Some(scene.add_trimesh(trimesh.clone(), Vec3::ONE, true))
+                Some(scene.add_render_mesh(to_render_mesh(trimesh), Vec3::ONE))
             }
             ShapeType::HeightField => {
                 let heightfield = shape.as_heightfield().unwrap();
                 let (vertices, indices) = heightfield.to_trimesh();
                 let trimesh = rapier::geometry::TriMesh::new(vertices, indices).unwrap();
-                Some(scene.add_trimesh(trimesh, Vec3::ONE, true))
+                Some(scene.add_render_mesh(to_render_mesh(&trimesh), Vec3::ONE))
             }
             ShapeType::ConvexPolyhedron | ShapeType::RoundConvexPolyhedron => {
                 let poly = shape
@@ -562,39 +571,36 @@ impl GraphicsManager {
                 poly.map(|p| {
                     let (vertices, indices) = p.to_trimesh();
                     let trimesh = rapier::geometry::TriMesh::new(vertices, indices).unwrap();
-                    scene.add_trimesh(trimesh, Vec3::ONE, true)
+                    scene.add_render_mesh(to_render_mesh(&trimesh), Vec3::ONE)
                 })
             }
             ShapeType::Capsule => {
                 let caps = shape.as_capsule().unwrap();
                 let pose = caps.canonical_transform();
                 let mut parent = scene.add_group();
-                let mut node = parent.add_capsule(caps.radius, caps.half_height() * 2.0);
-                node.set_pose(pose);
+                let mut node =
+                    parent.add_capsule(caps.radius as f32, caps.half_height() as f32 * 2.0);
+                node.set_pose(pose.into());
                 Some(parent)
             }
             ShapeType::Triangle => {
                 let tri = shape.as_triangle().unwrap();
-                let vertices = vec![
-                    Vec3::new(tri.a.x as f32, tri.a.y as f32, tri.a.z as f32),
-                    Vec3::new(tri.b.x as f32, tri.b.y as f32, tri.b.z as f32),
-                    Vec3::new(tri.c.x as f32, tri.c.y as f32, tri.c.z as f32),
-                ];
+                let vertices = vec![tri.a, tri.b, tri.c];
                 let indices = vec![[0u32, 1, 2], [0u32, 2, 1]];
                 let trimesh = rapier::geometry::TriMesh::new(vertices, indices).unwrap();
-                Some(scene.add_trimesh(trimesh, Vec3::ONE, true))
+                Some(scene.add_render_mesh(to_render_mesh(&trimesh), Vec3::ONE))
             }
             ShapeType::HalfSpace => {
                 let mut parent = scene.add_group();
                 parent.rotate(Quat::from_axis_angle(Vec3::X, -std::f32::consts::FRAC_PI_2));
-                let mut node = parent.add_quad(2000.0, 2000.0, 1, 1);
+                let node = parent.add_quad(2000.0, 2000.0, 1, 1);
                 Some(node)
             }
             ShapeType::Voxels => {
                 let voxels = shape.as_voxels().unwrap();
                 let (vertices, indices) = voxels.to_trimesh();
                 let trimesh = rapier::geometry::TriMesh::new(vertices, indices).unwrap();
-                Some(scene.add_trimesh(trimesh, Vec3::ONE, true))
+                Some(scene.add_render_mesh(to_render_mesh(&trimesh), Vec3::ONE))
             }
             _ => None,
         };
@@ -629,12 +635,12 @@ impl GraphicsManager {
             }
             ShapeType::TriMesh => {
                 let trimesh = shape.as_trimesh().unwrap();
-                let render_mesh = GpuMesh2d::new(
-                    trimesh.vertices().to_vec(),
-                    trimesh.indices().to_vec(),
-                    None,
-                    false,
-                );
+                let vertices: Vec<Vec2> = trimesh
+                    .vertices()
+                    .iter()
+                    .map(|pt| Vec2::new(pt.x as f32, pt.y as f32))
+                    .collect();
+                let render_mesh = GpuMesh2d::new(vertices, trimesh.indices().to_vec(), None, false);
                 Some(scene.add_mesh(Rc::new(RefCell::new(render_mesh)), Vec2::ONE))
             }
             ShapeType::ConvexPolygon | ShapeType::RoundConvexPolygon => {
@@ -654,29 +660,46 @@ impl GraphicsManager {
                 let caps = shape.as_capsule().unwrap();
                 let pose = caps.canonical_transform();
                 let mut parent = scene.add_group();
-                let mut node = parent.add_capsule(caps.radius, caps.half_height() * 2.0);
-                node.set_pose(pose);
+                let mut node =
+                    parent.add_capsule(caps.radius as f32, caps.half_height() as f32 * 2.0);
+                node.set_pose(pose.into());
                 Some(parent)
             }
             ShapeType::Segment => {
                 // Render segment as a thin quad with some thickness
                 let seg = shape.as_segment().unwrap();
-                Some(scene.add_polyline(vec![seg.a, seg.b], None, 0.1))
+                let vertices = vec![
+                    Vec2::new(seg.a.x as f32, seg.a.y as f32),
+                    Vec2::new(seg.b.x as f32, seg.b.y as f32),
+                ];
+                Some(scene.add_polyline(vertices, None, 0.1))
             }
             ShapeType::Polyline => {
                 // Render polyline as connected thin quads
                 let polyline = shape.as_polyline().unwrap();
-                Some(scene.add_polyline(
-                    polyline.vertices().to_vec(),
-                    Some(polyline.indices().to_vec()),
-                    0.2,
-                ).set_lines_color(Some(GROUND_COLOR)))
+                let vertices: Vec<Vec2> = polyline
+                    .vertices()
+                    .iter()
+                    .map(|pt| Vec2::new(pt.x as f32, pt.y as f32))
+                    .collect();
+                Some(
+                    scene
+                        .add_polyline(vertices, Some(polyline.indices().to_vec()), 0.2)
+                        .set_lines_color(Some(GROUND_COLOR)),
+                )
             }
             ShapeType::HeightField => {
                 let hf = shape.as_heightfield().unwrap();
                 let (polyline_verts, indices) = hf.to_polyline();
-                Some(scene.add_polyline(polyline_verts, Some(indices), 0.2)
-                    .set_lines_color(Some(GROUND_COLOR)))
+                let vertices: Vec<Vec2> = polyline_verts
+                    .iter()
+                    .map(|pt| Vec2::new(pt.x as f32, pt.y as f32))
+                    .collect();
+                Some(
+                    scene
+                        .add_polyline(vertices, Some(indices), 0.2)
+                        .set_lines_color(Some(GROUND_COLOR)),
+                )
             }
             ShapeType::Voxels => {
                 let voxels = shape.as_voxels().unwrap();
@@ -687,11 +710,11 @@ impl GraphicsManager {
                 for vox in voxels.voxels() {
                     if !vox.state.is_empty() {
                         let bid = vtx.len() as u32;
-                        let center = Vec2::new(vox.center.x, vox.center.y);
-                        vtx.push(center + Vec2::new(sz.x, sz.y));
-                        vtx.push(center + Vec2::new(-sz.x, sz.y));
-                        vtx.push(center + Vec2::new(-sz.x, -sz.y));
-                        vtx.push(center + Vec2::new(sz.x, -sz.y));
+                        let center = Vec2::new(vox.center.x as f32, vox.center.y as f32);
+                        vtx.push(center + Vec2::new(sz.x as f32, sz.y as f32));
+                        vtx.push(center + Vec2::new(-sz.x as f32, sz.y as f32));
+                        vtx.push(center + Vec2::new(-sz.x as f32, -sz.y as f32));
+                        vtx.push(center + Vec2::new(sz.x as f32, -sz.y as f32));
                         idx.push([bid, bid + 1, bid + 2]);
                         idx.push([bid + 2, bid + 3, bid]);
                     }
@@ -741,9 +764,12 @@ impl GraphicsManager {
                         .body
                         .and_then(|b| self.b2color.get(&b).copied())
                         .unwrap_or(ic.color);
-                    let ccolor =
-                        self.c2color.get(&ic.collider).copied().unwrap_or(bcolor)
-                            .with_alpha(ic.color.a);
+                    let ccolor = self
+                        .c2color
+                        .get(&ic.collider)
+                        .copied()
+                        .unwrap_or(bcolor)
+                        .with_alpha(ic.color.a);
                     let color = ic.tmp_color.take().unwrap_or(ccolor);
 
                     // Build position
@@ -825,8 +851,10 @@ impl GraphicsManager {
 
             if let Some(co) = colliders.get(node.collider) {
                 let co_pos = *co.position() * node.delta;
-                node.node.set_pose(co_pos.append_translation(self.gfx_shift));
-                node.node.set_color(node.tmp_color.take().unwrap_or(node.color));
+                node.node
+                    .set_pose(co_pos.append_translation(self.gfx_shift).into());
+                node.node
+                    .set_color(node.tmp_color.take().unwrap_or(node.color));
             }
         }
     }
@@ -862,17 +890,26 @@ impl GraphicsManager {
                         .body
                         .and_then(|b| self.b2color.get(&b).copied())
                         .unwrap_or(ic.color);
-                    let ccolor =
-                        self.c2color.get(&ic.collider).copied().unwrap_or(bcolor)
+                    let ccolor = self
+                        .c2color
+                        .get(&ic.collider)
+                        .copied()
+                        .unwrap_or(bcolor)
                         .with_alpha(ic.color.a);
                     let color = ic.tmp_color.take().unwrap_or(ccolor);
 
-
                     // Build position
                     let pos = co_pos.translation + self.gfx_shift;
+                    let pos = Vec2::new(pos.x as f32, pos.y as f32);
 
                     // Build deformation matrix (rotation * scale)
                     let rot_mat = co_pos.rotation.to_mat();
+                    let rot_mat = Mat2::from_cols_array(&[
+                        rot_mat.x_axis.x as f32,
+                        rot_mat.x_axis.y as f32,
+                        rot_mat.y_axis.x as f32,
+                        rot_mat.y_axis.y as f32,
+                    ]);
 
                     // Scale based on shape type
                     let scale = match template_type {
@@ -915,7 +952,8 @@ impl GraphicsManager {
                     (co_pos.translation.y + self.gfx_shift.y) as f32,
                 ));
                 node.node.set_rotation(co_pos.rotation.angle() as f32);
-                node.node.set_color(node.tmp_color.take().unwrap_or(node.color));
+                node.node
+                    .set_color(node.tmp_color.take().unwrap_or(node.color));
             }
         }
     }

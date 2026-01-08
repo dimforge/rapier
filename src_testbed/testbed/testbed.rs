@@ -1,6 +1,5 @@
 //! Testbed struct for building examples.
 
-use glamx::{Vec2};
 use kiss3d::color::Color;
 use rapier::dynamics::{
     ImpulseJointSet, IntegrationParameters, MultibodyJointSet, RigidBodyHandle, RigidBodySet,
@@ -9,8 +8,7 @@ use rapier::geometry::{ColliderHandle, ColliderSet};
 use rapier::pipeline::PhysicsHooks;
 
 #[cfg(feature = "dim3")]
-use {rapier::control::DynamicRayCastVehicleController,
-glamx::Vec3};
+use {glamx::Vec3, rapier::control::DynamicRayCastVehicleController};
 
 use crate::harness::Harness;
 use crate::physics::PhysicsState;
@@ -176,29 +174,29 @@ impl Testbed<'_> {
     }
 
     pub fn set_graphics_shift(&mut self, shift: rapier::math::Vector) {
-        if !self.state.camera_locked {
-            if let Some(graphics) = &mut self.graphics {
-                graphics.graphics.gfx_shift = shift;
-            }
+        if !self.state.camera_locked
+            && let Some(graphics) = &mut self.graphics
+        {
+            graphics.graphics.gfx_shift = shift;
         }
     }
 
     #[cfg(feature = "dim2")]
-    pub fn look_at(&mut self, at: Vec2, zoom: f32) {
-        if !self.state.camera_locked {
-            if let Some(graphics) = &mut self.graphics {
-                graphics.camera.set_at(at);
-                graphics.camera.set_zoom(zoom);
-            }
+    pub fn look_at(&mut self, at: glamx::Vec2, zoom: f32) {
+        if !self.state.camera_locked
+            && let Some(graphics) = &mut self.graphics
+        {
+            graphics.camera.set_at(at);
+            graphics.camera.set_zoom(zoom);
         }
     }
 
     #[cfg(feature = "dim3")]
     pub fn look_at(&mut self, eye: Vec3, at: Vec3) {
-        if !self.state.camera_locked {
-            if let Some(graphics) = &mut self.graphics {
-                graphics.camera.look_at(eye, at);
-            }
+        if !self.state.camera_locked
+            && let Some(graphics) = &mut self.graphics
+        {
+            graphics.camera.look_at(eye, at);
         }
     }
 

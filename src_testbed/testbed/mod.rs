@@ -2,13 +2,14 @@
 
 #![allow(clippy::bad_bit_mask)]
 #![allow(clippy::unnecessary_cast)]
+#![allow(clippy::module_inception)]
 
 mod app;
 mod graphics_context;
+mod hover;
 mod keys;
 mod state;
 mod testbed;
-mod hover;
 
 #[cfg(all(feature = "dim3", feature = "other-backends"))]
 use crate::physx_backend::PhysxWorld;
@@ -28,16 +29,6 @@ pub(crate) use state::{PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_
 pub struct OtherBackends {
     #[cfg(feature = "dim3")]
     pub physx: Option<PhysxWorld>,
-}
-
-#[cfg(not(feature = "other-backends"))]
-pub struct OtherBackends;
-
-#[cfg(not(feature = "other-backends"))]
-impl Default for OtherBackends {
-    fn default() -> Self {
-        OtherBackends
-    }
 }
 
 /// Container for testbed plugins

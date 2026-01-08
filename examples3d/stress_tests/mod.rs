@@ -1,4 +1,4 @@
-use rapier_testbed3d::{Example};
+use rapier_testbed3d::Example;
 
 mod balls3;
 mod boxes3;
@@ -41,7 +41,11 @@ pub fn builders() -> Vec<Example> {
         Example::new(STRESS, "ImpulseJoint ball", joint_ball3::init_world),
         Example::new(STRESS, "ImpulseJoint fixed", joint_fixed3::init_world),
         Example::new(STRESS, "ImpulseJoint revolute", joint_revolute3::init_world),
-        Example::new(STRESS, "ImpulseJoint prismatic", joint_prismatic3::init_world),
+        Example::new(
+            STRESS,
+            "ImpulseJoint prismatic",
+            joint_prismatic3::init_world,
+        ),
         Example::new(STRESS, "Many pyramids", many_pyramids3::init_world),
         Example::new(STRESS, "Keva tower", keva3::init_world),
         Example::new(STRESS, "Ray cast", ray_cast3::init_world),

@@ -1,10 +1,10 @@
 use crate::utils::character;
 use crate::utils::character::CharacterControlMode;
+use kiss3d::color::Color;
 use rapier_testbed2d::Testbed;
 use rapier2d::control::{KinematicCharacterController, PidController};
 use rapier2d::prelude::*;
 use std::f32::consts::PI;
-use kiss3d::color::Color;
 
 pub fn init_world(testbed: &mut Testbed) {
     /*

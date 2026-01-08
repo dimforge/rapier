@@ -697,7 +697,7 @@ impl RigidBodyVelocity<Real> {
     /// Are these velocities exactly equal to zero?
     #[must_use]
     pub fn is_zero(&self) -> bool {
-        self.linvel == Default::default() && self.angvel == Default::default()
+        self.linvel == Vector::ZERO && self.angvel == AngVector::default()
     }
 
     /// The kinetic energy of this rigid-body.
@@ -1407,7 +1407,7 @@ mod tests {
                 position: curr_pos,
                 next_position: next_pos,
             };
-            let vel = rb_pos.interpolate_velocity(1.0 / dt, &local_com);
+            let vel = rb_pos.interpolate_velocity(1.0 / dt, local_com);
             let interp_pos = vel.integrate(dt, &curr_pos, &local_com);
             approx::assert_relative_eq!(interp_pos, next_pos, epsilon = 1.0e-5);
         }

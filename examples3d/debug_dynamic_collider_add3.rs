@@ -75,7 +75,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
             for handle in &extra_colliders {
                 if let Some(graphics) = &mut graphics {
-                    graphics.remove_collider(*handle, &physics.colliders);
+                    graphics.remove_collider(*handle);
                 }
 
                 physics

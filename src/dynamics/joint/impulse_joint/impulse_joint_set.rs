@@ -61,8 +61,8 @@ pub(crate) type JointGraphEdge = crate::data::graph::Edge<ImpulseJoint>;
 ///
 /// // Create a hinge connecting two bodies
 /// let joint = RevoluteJointBuilder::new(Vector::Y)
-///     .local_anchor1(point![1.0, 0.0, 0.0])
-///     .local_anchor2(point![-1.0, 0.0, 0.0])
+///     .local_anchor1(Vector::new(1.0, 0.0, 0.0))
+///     .local_anchor2(Vector::new(-1.0, 0.0, 0.0))
 ///     .build();
 /// let handle = joints.insert(body1, body2, joint, true);
 /// ```
@@ -319,8 +319,8 @@ impl ImpulseJointSet {
     /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
     /// let joint = RevoluteJointBuilder::new(Vector::Y)
-    ///     .local_anchor1(point![1.0, 0.0, 0.0])
-    ///     .local_anchor2(point![-1.0, 0.0, 0.0])
+    ///     .local_anchor1(Vector::new(1.0, 0.0, 0.0))
+    ///     .local_anchor2(Vector::new(-1.0, 0.0, 0.0))
     ///     .build();
     /// let handle = joints.insert(body1, body2, joint, true);
     /// ```

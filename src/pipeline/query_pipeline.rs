@@ -35,7 +35,7 @@ use parry::shape::{CompositeShape, CompositeShapeRef, FeatureId, Shape, TypedCom
 /// );
 ///
 /// // Cast a ray downward
-/// let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
+/// let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
 /// if let Some((handle, toi)) = query_pipeline.cast_ray(&ray, Real::MAX, false) {
 ///     println!("Hit collider {:?} at distance {}", handle, toi);
 /// }
@@ -202,7 +202,7 @@ impl<'a> QueryPipeline<'a> {
     /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
     /// // Raycast downward from (0, 10, 0)
-    /// let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
+    /// let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
     /// if let Some((handle, toi)) = query_pipeline.cast_ray(&ray, Real::MAX, true) {
     ///     let hit_point = ray.origin + ray.dir * toi;
     ///     println!("Hit at {:?}, distance = {}", hit_point, toi);
@@ -242,7 +242,7 @@ impl<'a> QueryPipeline<'a> {
     /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
     /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
-    /// # let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
+    /// # let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
     /// if let Some((handle, hit)) = query_pipeline.cast_ray_and_get_normal(&ray, 100.0, true) {
     ///     println!("Hit at distance {}, surface normal: {:?}", hit.time_of_impact, hit.normal);
     /// }
@@ -279,7 +279,7 @@ impl<'a> QueryPipeline<'a> {
     /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
     /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
-    /// # let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
+    /// # let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
     /// for (handle, collider, hit) in query_pipeline.intersect_ray(ray, 100.0, true) {
     ///     println!("Ray passed through {:?} at distance {}", handle, hit.time_of_impact);
     /// }
@@ -335,11 +335,11 @@ impl<'a> QueryPipeline<'a> {
     /// # let collider_handle = colliders.insert_with_parent(ground_collider, ground, &mut bodies);
     /// # broad_phase.set_aabb(&params, collider_handle, ground_aabb);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
-    /// let point = point![5.0, 0.0, 0.0];
-    /// if let Some((handle, projection)) = query_pipeline.project_point(&point, std::f32::MAX, true) {
+    /// let point = Vector::new(5.0, 0.0, 0.0);
+    /// if let Some((handle, projection)) = query_pipeline.project_point(point, std::f32::MAX, true) {
     ///     println!("Closest collider: {:?}", handle);
     ///     println!("Closest point: {:?}", projection.point);
-    ///     println!("Distance: {}", (point - projection.point).norm());
+    ///     println!("Distance: {}", (point - projection.point).length());
     /// }
     /// ```
     #[profiling::function]
@@ -369,7 +369,7 @@ impl<'a> QueryPipeline<'a> {
     /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
     /// # colliders.insert_with_parent(ColliderBuilder::ball(5.0), ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
-    /// let point = point![0.0, 0.0, 0.0];
+    /// let point = Vector::new(0.0, 0.0, 0.0);
     /// for (handle, collider) in query_pipeline.intersect_point(point) {
     ///     println!("Point is inside {:?}", handle);
     /// }
@@ -467,10 +467,10 @@ impl<'a> QueryPipeline<'a> {
     /// // Sweep a sphere downward
     /// let shape = Ball::new(0.5);
     /// let start_pos = Pose::translation(0.0, 10.0, 0.0);
-    /// let velocity = vector![0.0, -1.0, 0.0];
+    /// let velocity = Vector::new(0.0, -1.0, 0.0);
     /// let options = ShapeCastOptions::default();
     ///
-    /// if let Some((handle, hit)) = query_pipeline.cast_shape(&start_pos, &velocity, &shape, options) {
+    /// if let Some((handle, hit)) = query_pipeline.cast_shape(&start_pos, velocity, &shape, options) {
     ///     println!("Shape would hit {:?} at time {}", handle, hit.time_of_impact);
     /// }
     /// ```

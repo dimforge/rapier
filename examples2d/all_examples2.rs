@@ -40,10 +40,10 @@ mod s2d_high_mass_ratio_3;
 mod s2d_joint_grid;
 mod s2d_pyramid;
 mod sensor2;
+mod stress_tests;
 #[cfg(not(target_arch = "wasm32"))]
 mod trimesh2;
 mod voxels2;
-mod stress_tests;
 
 mod utils;
 
@@ -71,8 +71,16 @@ pub async fn main() {
         #[cfg(not(target_arch = "wasm32"))]
         Example::new(COLLISIONS, "Trimesh", trimesh2::init_world),
         Example::new(COLLISIONS, "Voxels", voxels2::init_world),
-        Example::new(COLLISIONS, "Collision groups", collision_groups2::init_world),
-        Example::new(COLLISIONS, "One-way platforms", one_way_platforms2::init_world),
+        Example::new(
+            COLLISIONS,
+            "Collision groups",
+            collision_groups2::init_world,
+        ),
+        Example::new(
+            COLLISIONS,
+            "One-way platforms",
+            one_way_platforms2::init_world,
+        ),
         // ── Dynamics ──────────────────────────────────────────────────────────
         Example::new(DYNAMICS, "Locked rotations", locked_rotations2::init_world),
         Example::new(DYNAMICS, "Restitution", restitution2::init_world),
@@ -82,10 +90,22 @@ pub async fn main() {
         Example::new(JOINTS, "Joints", joints2::init_world),
         Example::new(JOINTS, "Rope Joints", rope_joints2::init_world),
         Example::new(JOINTS, "Pin Slot Joint", pin_slot_joint2::init_world),
-        Example::new(JOINTS, "Joint motor position", joint_motor_position2::init_world),
-        Example::new(JOINTS, "Inverse kinematics", inverse_kinematics2::init_world),
+        Example::new(
+            JOINTS,
+            "Joint motor position",
+            joint_motor_position2::init_world,
+        ),
+        Example::new(
+            JOINTS,
+            "Inverse kinematics",
+            inverse_kinematics2::init_world,
+        ),
         // ── Characters ─────────────────────────────────────────────────────
-        Example::new(CONTROLS, "Character controller", character_controller2::init_world),
+        Example::new(
+            CONTROLS,
+            "Character controller",
+            character_controller2::init_world,
+        ),
         // ── Debug ──────────────────────────────────────────────────────────
         Example::new(DEBUG, "Box ball", debug_box_ball2::init_world),
         Example::new(DEBUG, "Compression", debug_compression2::init_world),

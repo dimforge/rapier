@@ -240,7 +240,7 @@ impl Harness {
             let event_handler = &self.event_handler;
             self.state.thread_pool.install(|| {
                 physics.pipeline.step(
-                    &physics.gravity,
+                    physics.gravity,
                     &physics.integration_parameters,
                     &mut physics.islands,
                     &mut physics.broad_phase,

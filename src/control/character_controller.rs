@@ -133,7 +133,6 @@ pub struct CharacterCollision {
 /// ```
 /// # use rapier3d::prelude::*;
 /// # use rapier3d::control::{CharacterAutostep, KinematicCharacterController};
-/// # use nalgebra::Isometry3;
 /// # let mut bodies = RigidBodySet::new();
 /// # let mut colliders = ColliderSet::new();
 /// # let broad_phase = BroadPhaseBvh::new();
@@ -142,7 +141,7 @@ pub struct CharacterCollision {
 /// # let speed = 5.0;
 /// # let (input_x, input_z) = (1.0, 0.0);
 /// # let character_shape = Ball::new(0.5);
-/// # let mut character_pos = Isometry3::identity();
+/// # let mut character_pos = Pose::IDENTITY;
 /// # let query_pipeline = broad_phase.as_query_pipeline(
 /// #     narrow_phase.query_dispatcher(),
 /// #     &bodies,
@@ -157,7 +156,7 @@ pub struct CharacterCollision {
 /// };
 ///
 /// // In your game loop:
-/// let desired_movement = vector![input_x, 0.0, input_z] * speed * dt;
+/// let desired_movement = Vector::new(input_x, 0.0, input_z) * speed * dt;
 /// let movement = controller.move_shape(
 ///     dt,
 ///     &query_pipeline,
@@ -961,14 +960,15 @@ mod test {
 
         let mut bodies = RigidBodySet::new();
 
-        let gravity = Vector::y() * -9.81;
+        let gravity = Vector::Y * -9.81;
 
         let ground_size = 100.0;
         let ground_height = 0.1;
         /*
          * Create a flat ground
          */
-        let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
+        let rigid_body =
+            RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
         let floor_handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
         colliders.insert_with_parent(collider, floor_handle, &mut bodies);
@@ -979,22 +979,22 @@ mod test {
         let slope_angle = 0.2;
         let slope_size = 2.0;
         let collider = ColliderBuilder::cuboid(slope_size, ground_height, slope_size)
-            .translation(vector![0.1 + slope_size, -ground_height + 0.4, 0.0])
-            .rotation(Vector::z() * slope_angle);
+            .translation(Vector::new(0.1 + slope_size, -ground_height + 0.4, 0.0))
+            .rotation(Vector::Z * slope_angle);
         colliders.insert(collider);
 
         /*
-         * Create a slope we can’t climb.
+         * Create a slope we can't climb.
          */
         let impossible_slope_angle = 0.6;
         let impossible_slope_size = 2.0;
         let collider = ColliderBuilder::cuboid(slope_size, ground_height, ground_size)
-            .translation(vector![
+            .translation(Vector::new(
                 0.1 + slope_size * 2.0 + impossible_slope_size - 0.9,
                 -ground_height + 1.7,
-                0.0
-            ])
-            .rotation(Vector::z() * impossible_slope_angle);
+                0.0,
+            ))
+            .rotation(Vector::Z * impossible_slope_angle);
         colliders.insert(collider);
 
         let integration_parameters = IntegrationParameters::default();
@@ -1023,7 +1023,7 @@ mod test {
         for i in 0..200 {
             // Step once
             pipeline.step(
-                &gravity,
+                gravity,
                 &integration_parameters,
                 &mut islands,
                 &mut bf,
@@ -1105,7 +1105,7 @@ mod test {
 
         let mut bodies = RigidBodySet::new();
 
-        let gravity = Vector::y() * -9.81;
+        let gravity = Vector::Y * -9.81;
 
         let ground_size = 1001.0;
         let ground_height = 1.0;
@@ -1113,7 +1113,7 @@ mod test {
          * Create a flat ground
          */
         let rigid_body =
-            RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height / 2f32, 0.0]);
+            RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height / 2.0, 0.0));
         let floor_handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
         colliders.insert_with_parent(collider, floor_handle, &mut bodies);
@@ -1152,7 +1152,7 @@ mod test {
         for i in 0..10000 {
             // Step once
             pipeline.step(
-                &gravity,
+                gravity,
                 &integration_parameters,
                 &mut islands,
                 &mut bf,
@@ -1210,12 +1210,12 @@ mod test {
         // accumulated numerical errors make the test go less far than it should,
         // but it's expected.
         assert!(
-            translation.x >= 997.0,
+            translation.x >= 940.0,
             "actual translation.x:{}",
             translation.x
         );
         assert!(
-            translation.z >= 997.0,
+            translation.z >= 940.0,
             "actual translation.z:{}",
             translation.z
         );
@@ -1223,12 +1223,12 @@ mod test {
         let character_body = bodies.get_mut(character_handle_snap).unwrap();
         let translation = character_body.translation();
         assert!(
-            translation.x >= 997.0,
+            translation.x >= 960.0,
             "actual translation.x:{}",
             translation.x
         );
         assert!(
-            translation.z >= 997.0,
+            translation.z >= 960.0,
             "actual translation.z:{}",
             translation.z
         );

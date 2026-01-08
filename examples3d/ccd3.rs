@@ -28,9 +28,11 @@ fn create_wall(
             colliders.insert_with_parent(collider, handle, bodies);
             k += 1;
             if k % 2 == 0 {
-                testbed.set_initial_body_color(handle, Color::new(1., 131. / 255., 244.0 / 255., 1.0));
+                testbed
+                    .set_initial_body_color(handle, Color::new(1., 131. / 255., 244.0 / 255., 1.0));
             } else {
-                testbed.set_initial_body_color(handle, Color::new(131. / 255., 1., 244.0 / 255., 1.0));
+                testbed
+                    .set_initial_body_color(handle, Color::new(131. / 255., 1., 244.0 / 255., 1.0));
             }
         }
     }

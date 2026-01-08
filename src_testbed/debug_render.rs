@@ -51,7 +51,7 @@ impl<'a> DebugRenderBackend for Kiss3dLinesRenderBackend<'a> {
             glamx::Vec3::new(b.x as f32, b.y as f32, b.z as f32),
             rgb.into(),
             4.0,
-            false
+            false,
         );
     }
 }

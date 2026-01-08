@@ -1,6 +1,6 @@
-use crate::{Camera, TestbedState};
 use crate::settings::ExampleSettings;
 use crate::testbed::{RunMode, TestbedStateFlags};
+use crate::{Camera, TestbedState};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]

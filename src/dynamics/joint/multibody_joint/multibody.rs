@@ -1380,6 +1380,8 @@ impl IndexSequence {
 mod test {
     use super::IndexSequence;
     use crate::dynamics::{ImpulseJointSet, IslandManager};
+    #[cfg(feature = "dim3")]
+    use crate::math::Vector;
     use crate::math::{Real, SPATIAL_DIM};
     use crate::prelude::{
         ColliderSet, MultibodyJointHandle, MultibodyJointSet, RevoluteJoint, RigidBodyBuilder,
