@@ -1,6 +1,6 @@
 [package]
 name = "rapier_testbed3d"
-version = "0.31.0"
+version = "0.32.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "Testbed for the Rapier 3-dimensional physics engine in Rust."
 homepage = "http://rapier.rs"
@@ -67,5 +67,5 @@ kiss3d = { version = "0.40.0", features = ["egui", "parry", "serde"] }
 [dependencies.rapier]
 package = "rapier3d"
 path = "../rapier3d"
-version = "0.31.0"
+version = "0.32.0"
 features = ["serde-serialize", "debug-render", "profiler"]
