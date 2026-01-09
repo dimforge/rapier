@@ -16,13 +16,13 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = Vector::new(60.0, 0.4, 60.0);
     let nsubdivs = 100;
 
-    let heights = DMatrix::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
+    let heights = Array2::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
         -(i as f32 * ground_size.x / (nsubdivs as f32) / 2.0).cos()
             - (j as f32 * ground_size.z / (nsubdivs as f32) / 2.0).cos()
     });
 
     let collider = ColliderBuilder::heightfield(heights, ground_size)
-        .translation(vector![-7.0, 0.0, 0.0])
+        .translation(Vector::new(-7.0, 0.0, 0.0))
         .friction(1.0);
     colliders.insert(collider);
 
@@ -33,10 +33,10 @@ pub fn init_world(testbed: &mut Testbed) {
     const CAR_GROUP: Group = Group::GROUP_1;
 
     let wheel_params = [
-        vector![0.6874, 0.2783, -0.7802],
-        vector![-0.6874, 0.2783, -0.7802],
-        vector![0.64, 0.2783, 1.0254],
-        vector![-0.64, 0.2783, 1.0254],
+        Vector::new(0.6874, 0.2783, -0.7802),
+        Vector::new(-0.6874, 0.2783, -0.7802),
+        Vector::new(0.64, 0.2783, 1.0254),
+        Vector::new(-0.64, 0.2783, 1.0254),
     ];
     // TODO: lower center of mass?
     // let mut center_of_mass = wheel_params.iter().sum().unwrap() / 4.0;
@@ -46,8 +46,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let max_steering_angle = 35.0f32.to_radians();
     let drive_strength = 1.0;
     let wheel_radius = 0.28;
-    let car_position = point![0.0, wheel_radius + suspension_height, 0.0];
-    let body_position_in_car_space = vector![0.0, 0.4739, 0.0];
+    let car_position = Vector::new(0.0, wheel_radius + suspension_height, 0.0);
+    let body_position_in_car_space = Vector::new(0.0, 0.4739, 0.0);
 
     let body_position = car_position + body_position_in_car_space;
 
@@ -59,7 +59,7 @@ pub fn init_world(testbed: &mut Testbed) {
             InteractionTestMode::And,
         ));
     let body_rb = RigidBodyBuilder::dynamic()
-        .pose(body_position.into())
+        .translation(body_position)
         .build();
     let body_handle = bodies.insert(body_rb);
     colliders.insert_with_parent(body_co, body_handle, &mut bodies);
@@ -69,18 +69,18 @@ pub fn init_world(testbed: &mut Testbed) {
 
     for (wheel_id, wheel_pos_in_car_space) in wheel_params.into_iter().enumerate() {
         let is_front = wheel_id >= 2;
-        let wheel_center = car_position + wheel_pos_in_car_space;
+        let wheel_center: Vector = car_position + wheel_pos_in_car_space;
 
         let axle_mass_props = MassProperties::from_ball(100.0, wheel_radius);
         let axle_rb = RigidBodyBuilder::dynamic()
-            .pose(wheel_center.into())
+            .translation(wheel_center)
             .additional_mass_properties(axle_mass_props);
         let axle_handle = bodies.insert(axle_rb);
 
         // This is a fake cylinder collider that we add only because our testbed can
         // only render colliders. Setting it as sensor makes it show up as wireframe.
         let wheel_fake_co = ColliderBuilder::cylinder(wheel_radius / 2.0, wheel_radius)
-            .rotation(Vector::z() * std::f32::consts::FRAC_PI_2)
+            .rotation(Vector::Z * std::f32::consts::FRAC_PI_2)
             .sensor(true)
             .density(0.0)
             .collision_groups(InteractionGroups::none());
@@ -95,7 +95,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 InteractionTestMode::And,
             ))
             .friction(1.0);
-        let wheel_rb = RigidBodyBuilder::dynamic().pose(wheel_center.into());
+        let wheel_rb = RigidBodyBuilder::dynamic().translation(wheel_center);
         let wheel_handle = bodies.insert(wheel_rb);
         colliders.insert_with_parent(wheel_co, wheel_handle, &mut bodies);
         colliders.insert_with_parent(wheel_fake_co, wheel_handle, &mut bodies);
@@ -115,7 +115,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let mut suspension_joint = GenericJointBuilder::new(locked_axes)
             .limits(JointAxis::LinY, [0.0, suspension_height])
             .motor_position(JointAxis::LinY, 0.0, 1.0e4, 1.0e3)
-            .local_anchor1(suspension_attachment_in_body_space.into());
+            .local_anchor1(suspension_attachment_in_body_space);
 
         if is_front {
             suspension_joint =
@@ -126,7 +126,7 @@ pub fn init_world(testbed: &mut Testbed) {
             impulse_joints.insert(body_handle, axle_handle, suspension_joint, true);
 
         // Joint between the axle and the wheel.
-        let wheel_joint = RevoluteJointBuilder::new(Vector::x_axis());
+        let wheel_joint = RevoluteJointBuilder::new(Vector::X);
         let wheel_joint_handle =
             impulse_joints.insert(axle_handle, wheel_handle, wheel_joint, true);
 
@@ -148,19 +148,19 @@ pub fn init_world(testbed: &mut Testbed) {
 
         for key in gfx.keys().get_pressed() {
             match *key {
-                KeyCode::ArrowRight => {
+                KeyCode::Right => {
                     steering = -1.0;
                 }
-                KeyCode::ArrowLeft => {
+                KeyCode::Left => {
                     steering = 1.0;
                 }
-                KeyCode::ArrowUp => {
+                KeyCode::Up => {
                     thrust = -drive_strength;
                 }
-                KeyCode::ArrowDown => {
+                KeyCode::Down => {
                     thrust = drive_strength;
                 }
-                KeyCode::ShiftRight => {
+                KeyCode::RShift => {
                     boost = 1.5;
                 }
                 _ => {}
@@ -227,7 +227,7 @@ pub fn init_world(testbed: &mut Testbed) {
     //             let y = j as f32 * shift + centery;
     //             let z = k as f32 * shift + centerx;
     //
-    //             let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y, z]);
+    //             let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z));
     //             let handle = bodies.insert(rigid_body);
     //             let collider = ColliderBuilder::cuboid(rad, rad, rad);
     //             colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -239,5 +239,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point!(10.0, 10.0, 10.0), Point::origin());
+    testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
 }

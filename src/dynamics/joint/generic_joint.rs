@@ -6,8 +6,9 @@ use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{
     FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RigidBody, RopeJoint,
 };
-use crate::math::{Isometry, Point, Real, Rotation, SPATIAL_DIM, UnitVector, Vector};
-use crate::utils::{SimdBasis, SimdRealCopy};
+use crate::math::{Pose, Real, Rotation, SPATIAL_DIM, Vector};
+use crate::utils::{OrthonormalBasis, SimdRealCopy};
+use parry::math::Matrix;
 
 #[cfg(feature = "dim3")]
 use crate::dynamics::SphericalJoint;
@@ -180,8 +181,8 @@ impl<N: SimdRealCopy> From<[N; 2]> for JointLimits<N> {
 /// ```
 /// # use rapier3d::prelude::*;
 /// # use rapier3d::dynamics::{RevoluteJoint, PrismaticJoint};
-/// # let mut revolute_joint = RevoluteJoint::new(Vector::x_axis());
-/// # let mut prismatic_joint = PrismaticJoint::new(Vector::x_axis());
+/// # let mut revolute_joint = RevoluteJoint::new(Vector::X);
+/// # let mut prismatic_joint = PrismaticJoint::new(Vector::X);
 /// // Motor that spins a wheel at 10 rad/s
 /// revolute_joint.set_motor_velocity(10.0, 0.8);
 ///
@@ -256,9 +257,9 @@ pub enum JointEnabled {
 /// A generic joint.
 pub struct GenericJoint {
     /// The joint’s frame, expressed in the first rigid-body’s local-space.
-    pub local_frame1: Isometry<Real>,
+    pub local_frame1: Pose,
     /// The joint’s frame, expressed in the second rigid-body’s local-space.
-    pub local_frame2: Isometry<Real>,
+    pub local_frame2: Pose,
     /// The degrees-of-freedoms locked by this joint.
     pub locked_axes: JointAxesMask,
     /// The degrees-of-freedoms limited by this joint.
@@ -297,8 +298,8 @@ pub struct GenericJoint {
 impl Default for GenericJoint {
     fn default() -> Self {
         Self {
-            local_frame1: Isometry::identity(),
-            local_frame2: Isometry::identity(),
+            local_frame1: Pose::IDENTITY,
+            local_frame2: Pose::IDENTITY,
             locked_axes: JointAxesMask::empty(),
             limit_axes: JointAxesMask::empty(),
             motor_axes: JointAxesMask::empty(),
@@ -327,23 +328,19 @@ impl GenericJoint {
     }
 
     #[doc(hidden)]
-    pub fn complete_ang_frame(axis: UnitVector<Real>) -> Rotation<Real> {
+    pub fn complete_ang_frame(axis: Vector) -> Rotation {
         let basis = axis.orthonormal_basis();
 
         #[cfg(feature = "dim2")]
         {
-            use na::{Matrix2, Rotation2, UnitComplex};
-            let mat = Matrix2::from_columns(&[axis.into_inner(), basis[0]]);
-            let rotmat = Rotation2::from_matrix_unchecked(mat);
-            UnitComplex::from_rotation_matrix(&rotmat)
+            let mat = Matrix::from_cols(axis, basis[0]);
+            Rotation::from_matrix_unchecked(mat)
         }
 
         #[cfg(feature = "dim3")]
         {
-            use na::{Matrix3, Rotation3, UnitQuaternion};
-            let mat = Matrix3::from_columns(&[axis.into_inner(), basis[0], basis[1]]);
-            let rotmat = Rotation3::from_matrix_unchecked(mat);
-            UnitQuaternion::from_rotation_matrix(&rotmat)
+            let mat = Matrix::from_cols(axis, basis[0], basis[1]);
+            Rotation::from_mat3(&mat)
         }
     }
 
@@ -375,62 +372,62 @@ impl GenericJoint {
     }
 
     /// Sets the joint’s frame, expressed in the first rigid-body’s local-space.
-    pub fn set_local_frame1(&mut self, local_frame: Isometry<Real>) -> &mut Self {
+    pub fn set_local_frame1(&mut self, local_frame: Pose) -> &mut Self {
         self.local_frame1 = local_frame;
         self
     }
 
     /// Sets the joint’s frame, expressed in the second rigid-body’s local-space.
-    pub fn set_local_frame2(&mut self, local_frame: Isometry<Real>) -> &mut Self {
+    pub fn set_local_frame2(&mut self, local_frame: Pose) -> &mut Self {
         self.local_frame2 = local_frame;
         self
     }
 
     /// The principal (local X) axis of this joint, expressed in the first rigid-body’s local-space.
     #[must_use]
-    pub fn local_axis1(&self) -> UnitVector<Real> {
-        self.local_frame1 * Vector::x_axis()
+    pub fn local_axis1(&self) -> Vector {
+        self.local_frame1 * Vector::X
     }
 
     /// Sets the principal (local X) axis of this joint, expressed in the first rigid-body’s local-space.
-    pub fn set_local_axis1(&mut self, local_axis: UnitVector<Real>) -> &mut Self {
+    pub fn set_local_axis1(&mut self, local_axis: Vector) -> &mut Self {
         self.local_frame1.rotation = Self::complete_ang_frame(local_axis);
         self
     }
 
     /// The principal (local X) axis of this joint, expressed in the second rigid-body’s local-space.
     #[must_use]
-    pub fn local_axis2(&self) -> UnitVector<Real> {
-        self.local_frame2 * Vector::x_axis()
+    pub fn local_axis2(&self) -> Vector {
+        self.local_frame2 * Vector::X
     }
 
     /// Sets the principal (local X) axis of this joint, expressed in the second rigid-body’s local-space.
-    pub fn set_local_axis2(&mut self, local_axis: UnitVector<Real>) -> &mut Self {
+    pub fn set_local_axis2(&mut self, local_axis: Vector) -> &mut Self {
         self.local_frame2.rotation = Self::complete_ang_frame(local_axis);
         self
     }
 
     /// The anchor of this joint, expressed in the first rigid-body’s local-space.
     #[must_use]
-    pub fn local_anchor1(&self) -> Point<Real> {
-        self.local_frame1.translation.vector.into()
+    pub fn local_anchor1(&self) -> Vector {
+        self.local_frame1.translation
     }
 
-    /// Sets anchor of this joint, expressed in the first rigid-body’s local-space.
-    pub fn set_local_anchor1(&mut self, anchor1: Point<Real>) -> &mut Self {
-        self.local_frame1.translation.vector = anchor1.coords;
+    /// Sets anchor of this joint, expressed in the first rigid-body's local-space.
+    pub fn set_local_anchor1(&mut self, anchor1: Vector) -> &mut Self {
+        self.local_frame1.translation = anchor1;
         self
     }
 
-    /// The anchor of this joint, expressed in the second rigid-body’s local-space.
+    /// The anchor of this joint, expressed in the second rigid-body's local-space.
     #[must_use]
-    pub fn local_anchor2(&self) -> Point<Real> {
-        self.local_frame2.translation.vector.into()
+    pub fn local_anchor2(&self) -> Vector {
+        self.local_frame2.translation
     }
 
-    /// Sets anchor of this joint, expressed in the second rigid-body’s local-space.
-    pub fn set_local_anchor2(&mut self, anchor2: Point<Real>) -> &mut Self {
-        self.local_frame2.translation.vector = anchor2.coords;
+    /// Sets anchor of this joint, expressed in the second rigid-body's local-space.
+    pub fn set_local_anchor2(&mut self, anchor2: Vector) -> &mut Self {
+        self.local_frame2.translation = anchor2;
         self
     }
 
@@ -573,13 +570,13 @@ impl GenericJoint {
         if rb1.is_fixed() {
             self.local_frame1 = rb1.pos.position * self.local_frame1;
         } else {
-            self.local_frame1.translation.vector -= rb1.mprops.local_mprops.local_com.coords;
+            self.local_frame1.translation -= rb1.mprops.local_mprops.local_com;
         }
 
         if rb2.is_fixed() {
             self.local_frame2 = rb2.pos.position * self.local_frame2;
         } else {
-            self.local_frame2.translation.vector -= rb2.mprops.local_mprops.local_com.coords;
+            self.local_frame2.translation -= rb2.mprops.local_mprops.local_com;
         }
     }
 }
@@ -675,42 +672,42 @@ impl GenericJointBuilder {
 
     /// Sets the joint’s frame, expressed in the first rigid-body’s local-space.
     #[must_use]
-    pub fn local_frame1(mut self, local_frame: Isometry<Real>) -> Self {
+    pub fn local_frame1(mut self, local_frame: Pose) -> Self {
         self.0.set_local_frame1(local_frame);
         self
     }
 
     /// Sets the joint’s frame, expressed in the second rigid-body’s local-space.
     #[must_use]
-    pub fn local_frame2(mut self, local_frame: Isometry<Real>) -> Self {
+    pub fn local_frame2(mut self, local_frame: Pose) -> Self {
         self.0.set_local_frame2(local_frame);
         self
     }
 
     /// Sets the principal (local X) axis of this joint, expressed in the first rigid-body’s local-space.
     #[must_use]
-    pub fn local_axis1(mut self, local_axis: UnitVector<Real>) -> Self {
+    pub fn local_axis1(mut self, local_axis: Vector) -> Self {
         self.0.set_local_axis1(local_axis);
         self
     }
 
     /// Sets the principal (local X) axis of this joint, expressed in the second rigid-body’s local-space.
     #[must_use]
-    pub fn local_axis2(mut self, local_axis: UnitVector<Real>) -> Self {
+    pub fn local_axis2(mut self, local_axis: Vector) -> Self {
         self.0.set_local_axis2(local_axis);
         self
     }
 
     /// Sets the anchor of this joint, expressed in the first rigid-body’s local-space.
     #[must_use]
-    pub fn local_anchor1(mut self, anchor1: Point<Real>) -> Self {
+    pub fn local_anchor1(mut self, anchor1: Vector) -> Self {
         self.0.set_local_anchor1(anchor1);
         self
     }
 
     /// Sets the anchor of this joint, expressed in the second rigid-body’s local-space.
     #[must_use]
-    pub fn local_anchor2(mut self, anchor2: Point<Real>) -> Self {
+    pub fn local_anchor2(mut self, anchor2: Vector) -> Self {
         self.0.set_local_anchor2(anchor2);
         self
     }

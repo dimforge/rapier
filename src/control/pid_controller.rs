@@ -1,6 +1,5 @@
 use crate::dynamics::{AxesMask, RigidBody, RigidBodyPosition, RigidBodyVelocity};
-use crate::math::{Isometry, Point, Real, Rotation, Vector};
-use parry::math::AngVector;
+use crate::math::{AngVector, Pose, Real, Rotation, Vector};
 
 /// A Proportional-Derivative (PD) controller.
 ///
@@ -17,24 +16,24 @@ pub struct PdController {
     ///
     /// This is usually set to a multiple of the inverse of simulation step time
     /// (e.g. `60` if the delta-time is `1.0 / 60.0`).
-    pub lin_kp: Vector<Real>,
+    pub lin_kp: Vector,
     /// The Derivative gain applied to the instantaneous linear velocity errors.
     ///
     /// This is usually set to a value in `[0.0, 1.0]` where `0.0` implies no damping
     /// (no correction of velocity errors) and `1.0` implies complete damping (velocity errors
     /// are corrected in a single simulation step).
-    pub lin_kd: Vector<Real>,
+    pub lin_kd: Vector,
     /// The Proportional gain applied to the instantaneous angular position errors.
     ///
     /// This is usually set to a multiple of the inverse of simulation step time
     /// (e.g. `60` if the delta-time is `1.0 / 60.0`).
-    pub ang_kp: AngVector<Real>,
+    pub ang_kp: AngVector,
     /// The Derivative gain applied to the instantaneous angular velocity errors.
     ///
     /// This is usually set to a value in `[0.0, 1.0]` where `0.0` implies no damping
     /// (no correction of velocity errors) and `1.0` implies complete damping (velocity errors
     /// are corrected in a single simulation step).
-    pub ang_kd: AngVector<Real>,
+    pub ang_kd: AngVector,
     /// The axes affected by this controller.
     ///
     /// Only coordinate axes with a bit flags set to `true` will be taken into
@@ -58,13 +57,13 @@ pub struct PidController {
     /// The Proportional-Derivative (PD) part of this PID controller.
     pub pd: PdController,
     /// The translational error accumulated through time for the Integral part of the PID controller.
-    pub lin_integral: Vector<Real>,
+    pub lin_integral: Vector,
     /// The angular error accumulated through time for the Integral part of the PID controller.
-    pub ang_integral: AngVector<Real>,
+    pub ang_integral: AngVector,
     /// The linear gain applied to the Integral part of the PID controller.
-    pub lin_ki: Vector<Real>,
+    pub lin_ki: Vector,
     /// The angular gain applied to the Integral part of the PID controller.
-    pub ang_ki: AngVector<Real>,
+    pub ang_ki: AngVector,
 }
 
 impl Default for PidController {
@@ -76,16 +75,22 @@ impl Default for PidController {
 /// Position or velocity errors measured for PID control.
 pub struct PdErrors {
     /// The linear (translational) part of the error.
-    pub linear: Vector<Real>,
+    pub linear: Vector,
     /// The angular (rotational) part of the error.
-    pub angular: AngVector<Real>,
+    pub angular: AngVector,
 }
 
 impl From<RigidBodyVelocity<Real>> for PdErrors {
     fn from(vels: RigidBodyVelocity<Real>) -> Self {
         Self {
-            linear: vels.linvel,
+            #[cfg(feature = "dim2")]
+            linear: Vector::new(vels.linvel.x, vels.linvel.y),
+            #[cfg(feature = "dim3")]
+            linear: Vector::new(vels.linvel.x, vels.linvel.y, vels.linvel.z),
+            #[cfg(feature = "dim2")]
             angular: vels.angvel,
+            #[cfg(feature = "dim3")]
+            angular: AngVector::new(vels.angvel.x, vels.angvel.y, vels.angvel.z),
         }
     }
 }
@@ -101,8 +106,8 @@ impl PdController {
     pub fn new(kp: Real, kd: Real, axes: AxesMask) -> PdController {
         #[cfg(feature = "dim2")]
         return Self {
-            lin_kp: Vector::repeat(kp),
-            lin_kd: Vector::repeat(kd),
+            lin_kp: Vector::splat(kp),
+            lin_kd: Vector::splat(kd),
             ang_kp: kp,
             ang_kd: kd,
             axes,
@@ -110,10 +115,10 @@ impl PdController {
 
         #[cfg(feature = "dim3")]
         return Self {
-            lin_kp: Vector::repeat(kp),
-            lin_kd: Vector::repeat(kd),
-            ang_kp: AngVector::repeat(kp),
-            ang_kd: AngVector::repeat(kd),
+            lin_kp: Vector::splat(kp),
+            lin_kd: Vector::splat(kd),
+            ang_kp: AngVector::splat(kp),
+            ang_kd: AngVector::splat(kd),
             axes,
         };
     }
@@ -127,16 +132,17 @@ impl PdController {
     pub fn linear_rigid_body_correction(
         &self,
         rb: &RigidBody,
-        target_pos: Point<Real>,
-        target_linvel: Vector<Real>,
-    ) -> Vector<Real> {
+        target_pos: Vector,
+        target_linvel: Vector,
+    ) -> Vector {
+        let angvel = rb.angvel();
+
         self.rigid_body_correction(
             rb,
-            Isometry::from(target_pos),
+            Pose::from_translation(target_pos),
             RigidBodyVelocity {
                 linvel: target_linvel,
-                #[allow(clippy::clone_on_copy)]
-                angvel: rb.angvel().clone(),
+                angvel,
             },
         )
         .linvel
@@ -151,14 +157,14 @@ impl PdController {
     pub fn angular_rigid_body_correction(
         &self,
         rb: &RigidBody,
-        target_rot: Rotation<Real>,
-        target_angvel: AngVector<Real>,
-    ) -> AngVector<Real> {
+        target_rot: Rotation,
+        target_angvel: AngVector,
+    ) -> AngVector {
         self.rigid_body_correction(
             rb,
-            Isometry::from_parts(na::one(), target_rot),
+            Pose::from_parts(Vector::ZERO, target_rot),
             RigidBodyVelocity {
-                linvel: *rb.linvel(),
+                linvel: rb.linvel(),
                 angvel: target_angvel,
             },
         )
@@ -174,7 +180,7 @@ impl PdController {
     pub fn rigid_body_correction(
         &self,
         rb: &RigidBody,
-        target_pose: Isometry<Real>,
+        target_pose: Pose,
         target_vels: RigidBodyVelocity<Real>,
     ) -> RigidBodyVelocity<Real> {
         let pose_errors = RigidBodyPosition {
@@ -188,7 +194,7 @@ impl PdController {
 
     /// Mask where each component is 1.0 or 0.0 depending on whether
     /// the corresponding linear axis is enabled.
-    fn lin_mask(&self) -> Vector<Real> {
+    fn lin_mask(&self) -> Vector {
         #[cfg(feature = "dim2")]
         return Vector::new(
             self.axes.contains(AxesMask::LIN_X) as u32 as Real,
@@ -204,7 +210,7 @@ impl PdController {
 
     /// Mask where each component is 1.0 or 0.0 depending on whether
     /// the corresponding angular axis is enabled.
-    fn ang_mask(&self) -> AngVector<Real> {
+    fn ang_mask(&self) -> AngVector {
         #[cfg(feature = "dim2")]
         return self.axes.contains(AxesMask::ANG_Z) as u32 as Real;
         #[cfg(feature = "dim3")]
@@ -228,18 +234,12 @@ impl PdController {
         let lin_mask = self.lin_mask();
         let ang_mask = self.ang_mask();
 
-        RigidBodyVelocity {
-            linvel: (pose_errors.linear.component_mul(&self.lin_kp)
-                + vel_errors.linear.component_mul(&self.lin_kd))
-            .component_mul(&lin_mask),
-            #[cfg(feature = "dim2")]
-            angvel: (pose_errors.angular * self.ang_kp + vel_errors.angular * self.ang_kd)
-                * ang_mask,
-            #[cfg(feature = "dim3")]
-            angvel: (pose_errors.angular.component_mul(&self.ang_kp)
-                + vel_errors.angular.component_mul(&self.ang_kd))
-            .component_mul(&ang_mask),
-        }
+        let linvel =
+            (pose_errors.linear * self.lin_kp + vel_errors.linear * self.lin_kd) * lin_mask;
+        let angvel =
+            (pose_errors.angular * self.ang_kp + vel_errors.angular * self.ang_kd) * ang_mask;
+
+        RigidBodyVelocity { linvel, angvel }
     }
 }
 
@@ -255,19 +255,19 @@ impl PidController {
         #[cfg(feature = "dim2")]
         return Self {
             pd: PdController::new(kp, kd, axes),
-            lin_integral: na::zero(),
-            ang_integral: na::zero(),
-            lin_ki: Vector::repeat(ki),
+            lin_integral: Vector::ZERO,
+            ang_integral: 0.0,
+            lin_ki: Vector::splat(ki),
             ang_ki: ki,
         };
 
         #[cfg(feature = "dim3")]
         return Self {
             pd: PdController::new(kp, kd, axes),
-            lin_integral: na::zero(),
-            ang_integral: na::zero(),
-            lin_ki: Vector::repeat(ki),
-            ang_ki: AngVector::repeat(ki),
+            lin_integral: Vector::ZERO,
+            ang_integral: AngVector::ZERO,
+            lin_ki: Vector::splat(ki),
+            ang_ki: AngVector::splat(ki),
         };
     }
 
@@ -286,8 +286,15 @@ impl PidController {
     /// Resets to zero the accumulated linear and angular errors used by
     /// the Integral part of the controller.
     pub fn reset_integrals(&mut self) {
-        self.lin_integral = na::zero();
-        self.ang_integral = na::zero();
+        self.lin_integral = Vector::ZERO;
+        #[cfg(feature = "dim2")]
+        {
+            self.ang_integral = 0.0;
+        }
+        #[cfg(feature = "dim3")]
+        {
+            self.ang_integral = AngVector::ZERO;
+        }
     }
 
     /// Calculates the linear correction from positional and velocity errors calculated automatically
@@ -304,17 +311,16 @@ impl PidController {
         &mut self,
         dt: Real,
         rb: &RigidBody,
-        target_pos: Point<Real>,
-        target_linvel: Vector<Real>,
-    ) -> Vector<Real> {
+        target_pos: Vector,
+        target_linvel: Vector,
+    ) -> Vector {
         self.rigid_body_correction(
             dt,
             rb,
-            Isometry::from(target_pos),
+            Pose::from_translation(target_pos),
             RigidBodyVelocity {
                 linvel: target_linvel,
-                #[allow(clippy::clone_on_copy)]
-                angvel: rb.angvel().clone(),
+                angvel: rb.angvel(),
             },
         )
         .linvel
@@ -334,17 +340,16 @@ impl PidController {
         &mut self,
         dt: Real,
         rb: &RigidBody,
-        target_rot: Rotation<Real>,
-        target_angvel: AngVector<Real>,
-    ) -> AngVector<Real> {
+        target_rot: Rotation,
+        target_angvel: AngVector,
+    ) -> AngVector {
         self.rigid_body_correction(
             dt,
             rb,
-            Isometry::from_parts(na::one(), target_rot),
+            Pose::from_parts(Vector::ZERO, target_rot),
             RigidBodyVelocity {
-                linvel: *rb.linvel(),
-                #[allow(clippy::clone_on_copy)]
-                angvel: target_angvel.clone(),
+                linvel: rb.linvel(),
+                angvel: target_angvel,
             },
         )
         .angvel
@@ -364,7 +369,7 @@ impl PidController {
         &mut self,
         dt: Real,
         rb: &RigidBody,
-        target_pose: Isometry<Real>,
+        target_pose: Pose,
         target_vels: RigidBodyVelocity<Real>,
     ) -> RigidBodyVelocity<Real> {
         let pose_errors = RigidBodyPosition {
@@ -397,21 +402,21 @@ impl PidController {
         let lin_mask = self.pd.lin_mask();
         let ang_mask = self.pd.ang_mask();
 
-        RigidBodyVelocity {
-            linvel: (pose_errors.linear.component_mul(&self.pd.lin_kp)
-                + vel_errors.linear.component_mul(&self.pd.lin_kd)
-                + self.lin_integral.component_mul(&self.lin_ki))
-            .component_mul(&lin_mask),
-            #[cfg(feature = "dim2")]
-            angvel: (pose_errors.angular * self.pd.ang_kp
-                + vel_errors.angular * self.pd.ang_kd
-                + self.ang_integral * self.ang_ki)
-                * ang_mask,
-            #[cfg(feature = "dim3")]
-            angvel: (pose_errors.angular.component_mul(&self.pd.ang_kp)
-                + vel_errors.angular.component_mul(&self.pd.ang_kd)
-                + self.ang_integral.component_mul(&self.ang_ki))
-            .component_mul(&ang_mask),
-        }
+        let linvel = (pose_errors.linear * self.pd.lin_kp
+            + vel_errors.linear * self.pd.lin_kd
+            + self.lin_integral * self.lin_ki)
+            * lin_mask;
+        #[cfg(feature = "dim2")]
+        let angvel = (pose_errors.angular * self.pd.ang_kp
+            + vel_errors.angular * self.pd.ang_kd
+            + self.ang_integral * self.ang_ki)
+            * ang_mask;
+        #[cfg(feature = "dim3")]
+        let angvel = (pose_errors.angular * self.pd.ang_kp
+            + vel_errors.angular * self.pd.ang_kd
+            + self.ang_integral * self.ang_ki)
+            * ang_mask;
+
+        RigidBodyVelocity { linvel, angvel }
     }
 }

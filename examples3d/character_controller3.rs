@@ -1,4 +1,5 @@
 use crate::utils::character::{self, CharacterControlMode};
+use kiss3d::color::Color;
 use rapier_testbed3d::Testbed;
 use rapier3d::{
     control::{KinematicCharacterController, PidController},
@@ -22,7 +23,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body =
-        RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0] * scale);
+        RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0) * scale);
     let floor_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(
         ground_size * scale,
@@ -31,8 +32,8 @@ pub fn init_world(testbed: &mut Testbed) {
     );
     colliders.insert_with_parent(collider, floor_handle, &mut bodies);
 
-    let rigid_body =
-        RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, -ground_size] * scale); //.rotation(vector![-0.1, 0.0, 0.0]);
+    let rigid_body = RigidBodyBuilder::fixed()
+        .translation(Vector::new(0.0, -ground_height, -ground_size) * scale); //.rotation(Vector::new(-0.1, 0.0, 0.0));
     let floor_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(
         ground_size * scale,
@@ -45,7 +46,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Character we will control manually.
      */
     let rigid_body = RigidBodyBuilder::kinematic_position_based()
-        .translation(vector![0.0, 0.5, 0.0] * scale)
+        .translation(Vector::new(0.0, 0.5, 0.0) * scale)
         // The two config below makes the character
         // nicer to control with the PID control enabled.
         .gravity_scale(10.0)
@@ -53,7 +54,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let character_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::capsule_y(0.3 * scale, 0.15 * scale); // 0.15, 0.3, 0.15);
     colliders.insert_with_parent(collider, character_handle, &mut bodies);
-    testbed.set_initial_body_color(character_handle, [0.8, 0.1, 0.1]);
+    testbed.set_initial_body_color(character_handle, Color::new(0.8, 0.1, 0.1, 1.0));
 
     /*
      * Create the cubes
@@ -72,7 +73,8 @@ pub fn init_world(testbed: &mut Testbed) {
                 let y = j as f32 * shift + centery;
                 let z = k as f32 * shift + centerx;
 
-                let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y, z] * scale);
+                let rigid_body =
+                    RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z) * scale);
                 let handle = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::cuboid(rad * scale, rad * scale, rad * scale);
                 colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -94,7 +96,7 @@ pub fn init_world(testbed: &mut Testbed) {
             stair_height / 2.0 * scale,
             stair_width * scale,
         )
-        .translation(vector![x * scale, y * scale, 0.0]);
+        .translation(Vector::new(x * scale, y * scale, 0.0));
         colliders.insert(collider);
     }
 
@@ -104,8 +106,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let slope_angle = 0.2;
     let slope_size = 2.0;
     let collider = ColliderBuilder::cuboid(slope_size, ground_height, slope_size)
-        .translation(vector![0.1 + slope_size, -ground_height + 0.4, 0.0])
-        .rotation(Vector::z() * slope_angle);
+        .translation(Vector::new(0.1 + slope_size, -ground_height + 0.4, 0.0))
+        .rotation(Vector::Z * slope_angle);
     colliders.insert(collider);
 
     /*
@@ -119,20 +121,20 @@ pub fn init_world(testbed: &mut Testbed) {
         ground_size * scale,
     )
     .translation(
-        vector![
+        Vector::new(
             0.1 + slope_size * 2.0 + impossible_slope_size - 0.9,
             -ground_height + 1.7,
-            0.0
-        ] * scale,
+            0.0,
+        ) * scale,
     )
-    .rotation(Vector::z() * impossible_slope_angle);
+    .rotation(Vector::Z * impossible_slope_angle);
     colliders.insert(collider);
 
     /*
      * Create a moving platform.
      */
-    let body =
-        RigidBodyBuilder::kinematic_velocity_based().translation(vector![-8.0, 0.0, 0.0] * scale);
+    let body = RigidBodyBuilder::kinematic_velocity_based()
+        .translation(Vector::new(-8.0, 0.0, 0.0) * scale);
     // .rotation(-0.3);
     let platform_handle = bodies.insert(body);
     let collider = ColliderBuilder::cuboid(2.0 * scale, ground_height * scale, 2.0 * scale);
@@ -144,36 +146,36 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = Vector::new(10.0, 1.0, 10.0);
     let nsubdivs = 20;
 
-    let heights = DMatrix::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
+    let heights = Array2::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
         (i as f32 * ground_size.x / (nsubdivs as f32) / 2.0).cos()
             + (j as f32 * ground_size.z / (nsubdivs as f32) / 2.0).cos()
     });
 
     let collider = ColliderBuilder::heightfield(heights, ground_size * scale)
-        .translation(vector![-8.0, 5.0, 0.0] * scale);
+        .translation(Vector::new(-8.0, 5.0, 0.0) * scale);
     colliders.insert(collider);
 
     /*
      * A tilting dynamic body with a limited joint.
      */
-    let ground = RigidBodyBuilder::fixed().translation(vector![0.0, 5.0, 0.0] * scale);
+    let ground = RigidBodyBuilder::fixed().translation(Vector::new(0.0, 5.0, 0.0) * scale);
     let ground_handle = bodies.insert(ground);
-    let body = RigidBodyBuilder::dynamic().translation(vector![0.0, 5.0, 0.0] * scale);
+    let body = RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 5.0, 0.0) * scale);
     let handle = bodies.insert(body);
     let collider = ColliderBuilder::cuboid(1.0 * scale, 0.1 * scale, 2.0 * scale);
     colliders.insert_with_parent(collider, handle, &mut bodies);
-    let joint = RevoluteJointBuilder::new(Vector::z_axis()).limits([-0.3, 0.3]);
+    let joint = RevoluteJointBuilder::new(Vector::Z).limits([-0.3, 0.3]);
     impulse_joints.insert(ground_handle, handle, joint, true);
 
     /*
      * Setup a callback to move the platform.
      */
     testbed.add_callback(move |_, physics, _, run_state| {
-        let linvel = vector![
+        let linvel = Vector::new(
             (run_state.time * 2.0).sin() * 2.0,
             (run_state.time * 5.0).sin() * 1.5,
-            0.0
-        ] * scale;
+            0.0,
+        ) * scale;
         // let angvel = run_state.time.sin() * 0.5;
 
         // Update the velocity-based kinematic body by setting its velocity.
@@ -213,5 +215,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point!(10.0, 10.0, 10.0), Point::origin());
+    testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
 }

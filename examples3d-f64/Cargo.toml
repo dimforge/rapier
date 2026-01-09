@@ -7,8 +7,8 @@ default-run = "all_examples3-f64"
 
 [features]
 parallel = ["rapier3d-f64/parallel", "rapier_testbed3d-f64/parallel"]
-simd-stable = ["rapier3d-f64/simd-stable"]
-simd-nightly = ["rapier3d-f64/simd-nightly"]
+#simd-stable = ["rapier3d-f64/simd-stable"]
+#simd-nightly = ["rapier3d-f64/simd-nightly"]
 enhanced-determinism = ["rapier3d-f64/enhanced-determinism"]
 
 [dependencies]
@@ -18,6 +18,7 @@ wasm-bindgen = "0.2"
 obj-rs = { version = "0.7", default-features = false }
 bincode = "1"
 serde = "1"
+kiss3d = { version = "0.40.0", features = ["egui", "parry", "serde"] }
 
 [dependencies.rapier_testbed3d-f64]
 path = "../crates/rapier_testbed3d-f64"

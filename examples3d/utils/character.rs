@@ -1,9 +1,11 @@
+use kiss3d::color::Color;
 use rapier_testbed3d::{
     KeyCode, PhysicsState, TestbedGraphics,
-    ui::egui::{Align2, ComboBox, Slider, Ui, Window},
+    egui::{Align2, ComboBox, Slider, Ui, Window},
 };
 use rapier3d::{
     control::{CharacterLength, KinematicCharacterController, PidController},
+    math::Vector,
     prelude::*,
 };
 
@@ -50,36 +52,38 @@ fn character_movement_from_inputs(
     gfx: &TestbedGraphics,
     mut speed: Real,
     artificial_gravity: bool,
-) -> Vector<Real> {
-    let mut desired_movement = Vector::zeros();
+) -> Vector {
+    let mut desired_movement = Vector::ZERO;
 
     let rot = gfx.camera_rotation();
-    let mut rot_x = rot * Vector::x();
-    let mut rot_z = rot * Vector::z();
-    rot_x.y = 0.0;
-    rot_z.y = 0.0;
+    let mut rot_x_na = rot * SimdVector::x();
+    let mut rot_z_na = rot * SimdVector::z();
+    rot_x_na.y = 0.0;
+    rot_z_na.y = 0.0;
+    let rot_x = Vector::new(rot_x_na.x, rot_x_na.y, rot_x_na.z);
+    let rot_z = Vector::new(rot_z_na.x, rot_z_na.y, rot_z_na.z);
 
     for key in gfx.keys().get_pressed() {
         match *key {
-            KeyCode::ArrowRight => {
+            KeyCode::Right => {
                 desired_movement += rot_x;
             }
-            KeyCode::ArrowLeft => {
+            KeyCode::Left => {
                 desired_movement -= rot_x;
             }
-            KeyCode::ArrowUp => {
+            KeyCode::Up => {
                 desired_movement -= rot_z;
             }
-            KeyCode::ArrowDown => {
+            KeyCode::Down => {
                 desired_movement += rot_z;
             }
             KeyCode::Space => {
-                desired_movement += Vector::y() * 2.0;
+                desired_movement += Vector::Y * 2.0;
             }
-            KeyCode::ControlRight => {
-                desired_movement -= Vector::y();
+            KeyCode::RControl => {
+                desired_movement -= Vector::Y;
             }
-            KeyCode::ShiftLeft => {
+            KeyCode::LShift => {
                 speed /= 10.0;
             }
             _ => {}
@@ -89,7 +93,7 @@ fn character_movement_from_inputs(
     desired_movement *= speed;
 
     if artificial_gravity {
-        desired_movement -= Vector::y() * speed;
+        desired_movement -= Vector::Y * speed;
     }
 
     desired_movement
@@ -107,11 +111,11 @@ fn update_pid_controller(
 
     // Adjust the controlled axis depending on the keys pressed by the user.
     // - If the user is jumping, enable control over Y.
-    // - If the user isn’t pressing any key, disable all linear controls to let
+    // - If the user isn't pressing any key, disable all linear controls to let
     //   gravity/collision do their thing freely.
     let mut axes = AxesMask::ANG_X | AxesMask::ANG_Y | AxesMask::ANG_Z;
 
-    if desired_movement.norm() != 0.0 {
+    if desired_movement.length() != 0.0 {
         axes |= if desired_movement.y == 0.0 {
             AxesMask::LIN_X | AxesMask::LIN_Z
         } else {
@@ -121,10 +125,12 @@ fn update_pid_controller(
 
     pid.set_axes(axes);
 
+    let target_translation = character_body.translation() + desired_movement;
+    let target_pose = Pose::from_parts(target_translation, *character_body.rotation());
     let corrective_vel = pid.rigid_body_correction(
         phx.integration_parameters.dt,
         character_body,
-        (character_body.translation() + desired_movement).into(),
+        target_pose,
         RigidBodyVelocity::zero(),
     );
     let new_vel = *character_body.vels() + corrective_vel;
@@ -160,14 +166,14 @@ fn update_kinematic_controller(
         &query_pipeline.as_ref(),
         &*character_shape,
         &character_pose,
-        desired_movement.cast::<Real>(),
+        desired_movement,
         |c| collisions.push(c),
     );
 
     if mvt.grounded {
-        gfx.set_body_color(character_handle, [0.1, 0.8, 0.1]);
+        gfx.set_body_color(character_handle, Color::new(0.1, 0.8, 0.1, 1.0), true);
     } else {
-        gfx.set_body_color(character_handle, [0.8, 0.1, 0.1]);
+        gfx.set_body_color(character_handle, Color::new(0.8, 0.1, 0.1, 1.0), true);
     }
 
     controller.solve_character_collision_impulses(
@@ -180,7 +186,7 @@ fn update_kinematic_controller(
 
     let character_body = &mut phx.bodies[character_handle];
     let pose = character_body.position();
-    character_body.set_next_kinematic_translation(pose.translation.vector + mvt.translation);
+    character_body.set_next_kinematic_translation(pose.translation + mvt.translation);
 }
 
 fn character_control_ui(
@@ -191,7 +197,7 @@ fn character_control_ui(
 ) {
     Window::new("Character Control")
         .anchor(Align2::RIGHT_TOP, [-15.0, 15.0])
-        .show(gfx.ui_context_mut().ctx_mut(), |ui| {
+        .show(gfx.egui_context(), |ui| {
             ComboBox::from_label("control mode")
                 .selected_text(format!("{:?}", *control_mode))
                 .show_ui(ui, |ui| {
@@ -230,12 +236,12 @@ fn pid_control_ui(ui: &mut Ui, pid_controller: &mut PidController, speed: &mut R
     ui.add(Slider::new(&mut ang_ki, 0.0..=10.0).text("angular Ki"));
     ui.add(Slider::new(&mut ang_kd, 0.0..=1.0).text("angular Kd"));
 
-    pid_controller.pd.lin_kp.fill(lin_kp);
-    pid_controller.lin_ki.fill(lin_ki);
-    pid_controller.pd.lin_kd.fill(lin_kd);
-    pid_controller.pd.ang_kp.fill(ang_kp);
-    pid_controller.ang_ki.fill(ang_ki);
-    pid_controller.pd.ang_kd.fill(ang_kd);
+    pid_controller.pd.lin_kp = Vector::splat(lin_kp);
+    pid_controller.lin_ki = Vector::splat(lin_ki);
+    pid_controller.pd.lin_kd = Vector::splat(lin_kd);
+    pid_controller.pd.ang_kp = Vector::splat(ang_kp);
+    pid_controller.ang_ki = Vector::splat(ang_ki);
+    pid_controller.pd.ang_kd = Vector::splat(ang_kd);
 }
 
 fn kinematic_control_ui(
@@ -250,12 +256,12 @@ fn kinematic_control_ui(
     #[allow(clippy::useless_conversion)]
     {
         ui.add(Slider::new(&mut character_controller.max_slope_climb_angle, 0.0..=std::f32::consts::TAU.into()).text("max_slope_climb_angle"))
-            .on_hover_text("The maximum angle (radians) between the floor’s normal and the `up` vector that the character is able to climb.");
+            .on_hover_text("The maximum angle (radians) between the floor's normal and the `up` vector that the character is able to climb.");
         ui.add(Slider::new(&mut character_controller.min_slope_slide_angle, 0.0..=std::f32::consts::FRAC_PI_2.into()).text("min_slope_slide_angle"))
-            .on_hover_text("The minimum angle (radians) between the floor’s normal and the `up` vector before the character starts to slide down automatically.");
+            .on_hover_text("The minimum angle (radians) between the floor's normal and the `up` vector before the character starts to slide down automatically.");
     }
     let mut is_snapped = character_controller.snap_to_ground.is_some();
-    if ui.checkbox(&mut is_snapped, "snap_to_ground").changed {
+    if ui.checkbox(&mut is_snapped, "snap_to_ground").changed() {
         match is_snapped {
             true => {
                 character_controller.snap_to_ground = Some(CharacterLength::Relative(0.1));

@@ -5,15 +5,13 @@ use crate::dynamics::{
     solver::ParallelSolverConstraints,
 };
 use crate::geometry::ContactManifold;
-use crate::math::Real;
+use crate::math::{DVector, Real};
 use crate::utils::SimdAngularInertia;
-
-use na::DVector;
 use std::sync::atomic::Ordering;
 
 pub(crate) struct ParallelVelocitySolver {
     pub solver_vels: Vec<SolverVel<Real>>,
-    pub generic_solver_vels: DVector<Real>,
+    pub generic_solver_vels: DVector,
 }
 
 impl ParallelVelocitySolver {

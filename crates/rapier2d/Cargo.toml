@@ -1,6 +1,6 @@
 [package]
 name = "rapier2d"
-version = "0.31.0"
+version = "0.32.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "2-dimensional physics engine in Rust."
 documentation = "https://docs.rs/rapier2d"
@@ -37,7 +37,7 @@ simd-stable = ["simba/wide", "parry2d/simd-stable", "simd-is-enabled"]
 simd-nightly = ["simba/portable_simd", "parry2d/simd-nightly", "simd-is-enabled"]
 # Do not enable this feature directly. It is automatically
 # enabled with the "simd-stable" or "simd-nightly" feature.
-simd-is-enabled = ["dep:vec_map"]
+simd-is-enabled = []
 serde-serialize = [
     "nalgebra/serde-serialize",
     "parry2d/serde-serialize",
@@ -67,11 +67,12 @@ required-features = ["dim2", "f32"]
 doctest = false # All doctests are written assuming the 3D version.
 
 [dependencies]
-vec_map = { version = "0.8", optional = true }
+vec_map = "0.8"
 web-time = { version = "1.1", optional = true }
 num-traits = "0.2"
 nalgebra = "0.34"
-parry2d = "0.25.1"
+glamx = { version = "0.1", features = ["nalgebra"] }
+parry2d = "0.26.0"
 simba = "0.9.1"
 approx = "0.5"
 rayon = { version = "1", optional = true }

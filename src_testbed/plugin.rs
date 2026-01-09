@@ -1,43 +1,26 @@
 use crate::GraphicsManager;
-use crate::graphics::BevyMaterial;
 use crate::harness::Harness;
 use crate::physics::PhysicsState;
-use bevy::prelude::*;
-// use bevy::render::render_resource::RenderPipelineDescriptor;
-use bevy_egui::EguiContexts;
+use kiss3d::window::Window;
 
 pub trait TestbedPlugin {
     fn init_plugin(&mut self);
     fn init_graphics(
         &mut self,
         graphics: &mut GraphicsManager,
-        commands: &mut Commands,
-        meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<BevyMaterial>,
-        components: &mut Query<&mut Transform>,
+        window: &mut Window,
         harness: &mut Harness,
     );
-    fn clear_graphics(&mut self, graphics: &mut GraphicsManager, commands: &mut Commands);
+    fn clear_graphics(&mut self, graphics: &mut GraphicsManager, window: &mut Window);
     fn run_callbacks(&mut self, harness: &mut Harness);
     fn step(&mut self, physics: &mut PhysicsState);
-    fn draw(
-        &mut self,
-        graphics: &mut GraphicsManager,
-        commands: &mut Commands,
-        meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<BevyMaterial>,
-        components: &mut Query<&mut Transform>,
-        harness: &mut Harness,
-    );
+    fn draw(&mut self, graphics: &mut GraphicsManager, window: &mut Window, harness: &mut Harness);
     fn update_ui(
         &mut self,
-        ui_context: &EguiContexts,
+        ui_context: &egui::Context,
         harness: &mut Harness,
         graphics: &mut GraphicsManager,
-        commands: &mut Commands,
-        meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<BevyMaterial>,
-        components: &mut Query<&mut Transform>,
+        window: &mut Window,
     );
     fn profiling_string(&self) -> String;
 }

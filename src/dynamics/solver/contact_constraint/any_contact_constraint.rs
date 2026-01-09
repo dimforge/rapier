@@ -1,7 +1,7 @@
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::dynamics::solver::{ContactWithCoulombFriction, GenericContactConstraint};
-use crate::math::Real;
-use na::DVector;
+use crate::math::DVector;
+use parry::math::SimdReal;
 
 #[cfg(feature = "dim3")]
 use crate::dynamics::solver::ContactWithTwistFriction;
@@ -10,9 +10,9 @@ use crate::prelude::ContactManifold;
 #[derive(Debug)]
 pub enum AnyContactConstraintMut<'a> {
     Generic(&'a mut GenericContactConstraint),
-    WithCoulombFriction(&'a mut ContactWithCoulombFriction),
+    WithCoulombFriction(&'a mut ContactWithCoulombFriction<SimdReal>),
     #[cfg(feature = "dim3")]
-    WithTwistFriction(&'a mut ContactWithTwistFriction),
+    WithTwistFriction(&'a mut ContactWithTwistFriction<SimdReal>),
 }
 
 impl AnyContactConstraintMut<'_> {
@@ -26,9 +26,9 @@ impl AnyContactConstraintMut<'_> {
     }
     pub fn warmstart(
         &mut self,
-        generic_jacobians: &DVector<Real>,
+        generic_jacobians: &DVector,
         solver_vels: &mut SolverBodies,
-        generic_solver_vels: &mut DVector<Real>,
+        generic_solver_vels: &mut DVector,
     ) {
         match self {
             Self::Generic(c) => c.warmstart(generic_jacobians, solver_vels, generic_solver_vels),
@@ -40,9 +40,9 @@ impl AnyContactConstraintMut<'_> {
 
     pub fn solve(
         &mut self,
-        generic_jacobians: &DVector<Real>,
+        generic_jacobians: &DVector,
         bodies: &mut SolverBodies,
-        generic_solver_vels: &mut DVector<Real>,
+        generic_solver_vels: &mut DVector,
     ) {
         match self {
             Self::Generic(c) => c.solve(generic_jacobians, bodies, generic_solver_vels, true, true),

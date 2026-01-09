@@ -14,14 +14,14 @@ pub fn init_world(testbed: &mut Testbed) {
      * Setup a velocity-based kinematic rigid body.
      */
     let platform_body =
-        RigidBodyBuilder::kinematic_velocity_based().translation(vector![0.0, 1.5 + 0.8, 0.0]);
+        RigidBodyBuilder::kinematic_velocity_based().translation(Vector::new(0.0, 1.5 + 0.8, 0.0));
     let platform_handle = bodies.insert(platform_body);
     let collider = ColliderBuilder::cuboid(5.0, 0.5, 5.0);
     colliders.insert_with_parent(collider, platform_handle, &mut bodies);
 
     // A second velocity-based platform but this one will move super slow.
     let slow_platform_body =
-        RigidBodyBuilder::kinematic_velocity_based().translation(vector![0.0, 0.0, 0.0]);
+        RigidBodyBuilder::kinematic_velocity_based().translation(Vector::new(0.0, 0.0, 0.0));
     let slow_platform_handle = bodies.insert(slow_platform_body);
     let collider = ColliderBuilder::cuboid(5.0, 0.5, 5.0);
     colliders.insert_with_parent(collider, slow_platform_handle, &mut bodies);
@@ -40,10 +40,10 @@ pub fn init_world(testbed: &mut Testbed) {
             assert!(!physics.bodies[slow_platform_handle].is_sleeping());
 
             if let Some(slow_platform) = physics.bodies.get_mut(slow_platform_handle) {
-                slow_platform.set_linvel(Vector::zeros(), true);
+                slow_platform.set_linvel(Vector::ZERO, true);
             }
             if let Some(platform) = physics.bodies.get_mut(platform_handle) {
-                platform.set_linvel(Vector::zeros(), true);
+                platform.set_linvel(Vector::ZERO, true);
             }
         }
 
@@ -62,17 +62,17 @@ pub fn init_world(testbed: &mut Testbed) {
             assert!(physics.bodies[platform_handle].is_sleeping());
             assert!(physics.bodies[slow_platform_handle].is_sleeping());
 
-            let slow_velocity = vector![0.0, 0.01, 0.0];
+            let slow_velocity = Vector::new(0.0, 0.01, 0.0);
             if let Some(slow_platform) = physics.bodies.get_mut(slow_platform_handle) {
                 slow_platform.set_linvel(slow_velocity, true);
             }
         }
 
-        let velocity = vector![
+        let velocity = Vector::new(
             0.0,
             (run_state.time * 2.0).cos(),
-            run_state.time.sin() * 2.0
-        ];
+            run_state.time.sin() * 2.0,
+        );
 
         // Update the velocity-based kinematic body by setting its velocity.
         if let Some(platform) = physics.bodies.get_mut(platform_handle) {
@@ -84,5 +84,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Run the simulation.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![-10.0, 5.0, -10.0], Point::origin());
+    testbed.look_at(Vec3::new(10.0, 5.0, 10.0), Vec3::ZERO);
 }

@@ -31,14 +31,14 @@ pub fn init_world(testbed: &mut Testbed) {
         let rigid_body = RigidBodyBuilder::dynamic()
             .linear_damping(0.1)
             .angular_damping(0.1)
-            .translation(vector![(1.0 + 2.0 * i as f32) * hx, count as f32 * hx]);
+            .translation(Vector::new((1.0 + 2.0 * i as f32) * hx, count as f32 * hx));
         let handle = bodies.insert(rigid_body);
         colliders.insert_with_parent(capsule.clone(), handle, &mut bodies);
 
-        let pivot = point![(2.0 * i as f32) * hx, count as f32 * hx];
+        let pivot = Vector::new((2.0 * i as f32) * hx, count as f32 * hx);
         let joint = RevoluteJointBuilder::new()
-            .local_anchor1(bodies[prev].position().inverse_transform_point(&pivot))
-            .local_anchor2(bodies[handle].position().inverse_transform_point(&pivot))
+            .local_anchor1(bodies[prev].position().inverse_transform_point(pivot))
+            .local_anchor2(bodies[handle].position().inverse_transform_point(pivot))
             .contacts_enabled(false);
         impulse_joints.insert(prev, handle, joint, true);
         prev = handle;
@@ -48,20 +48,20 @@ pub fn init_world(testbed: &mut Testbed) {
     let rigid_body = RigidBodyBuilder::dynamic()
         .linear_damping(0.1)
         .angular_damping(0.1)
-        .translation(vector![
+        .translation(Vector::new(
             (1.0 + 2.0 * count as f32) * hx + radius - hx,
-            count as f32 * hx
-        ]);
+            count as f32 * hx,
+        ));
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::ball(radius)
         .friction(friction)
         .density(density);
     colliders.insert_with_parent(collider, handle, &mut bodies);
 
-    let pivot = point![(2.0 * count as f32) * hx, count as f32 * hx];
+    let pivot = Vector::new((2.0 * count as f32) * hx, count as f32 * hx);
     let joint = RevoluteJointBuilder::new()
-        .local_anchor1(bodies[prev].position().inverse_transform_point(&pivot))
-        .local_anchor2(bodies[handle].position().inverse_transform_point(&pivot))
+        .local_anchor1(bodies[prev].position().inverse_transform_point(pivot))
+        .local_anchor2(bodies[handle].position().inverse_transform_point(pivot))
         .contacts_enabled(false);
     impulse_joints.insert(prev, handle, joint, true);
 
@@ -69,5 +69,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 2.5], 20.0);
+    testbed.look_at(Vec2::new(0.0, 2.5), 20.0);
 }

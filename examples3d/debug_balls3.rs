@@ -42,7 +42,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
                 // Build the rigid body.
                 let rigid_body = RigidBodyBuilder::new(status)
-                    .translation(vector![x, y, z])
+                    .translation(Vector::new(x, y, z))
                     .can_sleep(false);
                 let handle = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::ball(rad).friction(0.0);
@@ -55,5 +55,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
+    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

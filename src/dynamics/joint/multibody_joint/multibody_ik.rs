@@ -1,7 +1,6 @@
 use crate::dynamics::{JointAxesMask, Multibody, MultibodyLink, RigidBodySet};
-use crate::math::{ANG_DIM, DIM, Isometry, Jacobian, Real, SPATIAL_DIM};
-use na::{self, DVector, SMatrix};
-use parry::math::SpacialVector;
+use crate::math::{ANG_DIM, DIM, DVector, Jacobian, Pose, Real, SPATIAL_DIM};
+use na::{self, SMatrix, SVector};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 /// Options for the jacobian-based Inverse Kinematics solver for multibodies.
@@ -47,9 +46,9 @@ impl Multibody {
     pub fn inverse_kinematics_delta(
         &self,
         link_id: usize,
-        desired_movement: &SpacialVector<Real>,
+        desired_movement: &SVector<Real, SPATIAL_DIM>,
         damping: Real,
-        displacements: &mut DVector<Real>,
+        displacements: &mut DVector,
     ) {
         let body_jacobian = self.body_jacobian(link_id);
         Self::inverse_kinematics_delta_with_jacobian(
@@ -67,9 +66,9 @@ impl Multibody {
     #[profiling::function]
     pub fn inverse_kinematics_delta_with_jacobian(
         jacobian: &Jacobian<Real>,
-        desired_movement: &SpacialVector<Real>,
+        desired_movement: &SVector<Real, SPATIAL_DIM>,
         damping: Real,
-        displacements: &mut DVector<Real>,
+        displacements: &mut DVector,
     ) {
         let identity = SMatrix::<Real, SPATIAL_DIM, SPATIAL_DIM>::identity();
         let jj = jacobian * &jacobian.transpose() + identity * (damping * damping);
@@ -95,9 +94,9 @@ impl Multibody {
         bodies: &RigidBodySet,
         link_id: usize,
         options: &InverseKinematicsOption,
-        target_pose: &Isometry<Real>,
+        target_pose: &Pose,
         joint_can_move: impl Fn(&MultibodyLink) -> bool,
-        displacements: &mut DVector<Real>,
+        displacements: &mut DVector,
     ) {
         let mut jacobian = Jacobian::zeros(0);
         let branch = self.kinematic_branch(link_id);
@@ -124,11 +123,14 @@ impl Multibody {
                 }
             }
 
-            let delta_lin = target_pose.translation.vector - pose.translation.vector;
-            let delta_ang = (target_pose.rotation * pose.rotation.inverse()).scaled_axis();
+            let delta_lin = target_pose.translation - pose.translation;
+            #[cfg(feature = "dim2")]
+            let delta_ang = (target_pose.rotation * pose.rotation.inverse()).angle();
+            #[cfg(feature = "dim3")]
+            let delta_ang = (target_pose.rotation * pose.rotation.inverse()).to_scaled_axis();
 
             #[cfg(feature = "dim2")]
-            let mut delta = na::vector![delta_lin.x, delta_lin.y, delta_ang.x];
+            let mut delta = na::vector![delta_lin.x, delta_lin.y, delta_ang];
             #[cfg(feature = "dim3")]
             let mut delta = na::vector![
                 delta_lin.x,
@@ -204,10 +206,10 @@ mod test {
             #[cfg(feature = "dim2")]
             let builder = RevoluteJointBuilder::new();
             #[cfg(feature = "dim3")]
-            let builder = RevoluteJointBuilder::new(Vector::z_axis());
+            let builder = RevoluteJointBuilder::new(Vector::Z);
             let link_ab = builder
-                .local_anchor1((Vector::y() * (0.5 / num_segments as Real)).into())
-                .local_anchor2((Vector::y() * (-0.5 / num_segments as Real)).into());
+                .local_anchor1((Vector::Y * (0.5 / num_segments as Real)).into())
+                .local_anchor2((Vector::Y * (-0.5 / num_segments as Real)).into());
             last_link = multibodies
                 .insert(last_body, new_body, link_ab, true)
                 .unwrap();

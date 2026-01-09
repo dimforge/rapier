@@ -8,11 +8,13 @@ use crate::geometry::{
     ColliderChanges, ColliderHandle, ColliderMassProps, ColliderParent, ColliderPosition,
     ColliderSet, ColliderShape, ModifiedColliders,
 };
-use crate::math::{
-    AngVector, AngularInertia, Isometry, Point, Real, Rotation, Translation, Vector,
+use crate::math::{AngVector, AngularInertia, Pose, Real, Rotation, Vector};
+use crate::utils::{
+    AngularInertiaOps, CrossProduct, DotProduct, PoseOps, ScalarType, SimdRealCopy,
 };
-use crate::utils::{SimdAngularInertia, SimdCross, SimdDot, SimdRealCopy};
 use num::Zero;
+#[cfg(feature = "dim2")]
+use parry::math::Rot2;
 
 /// The unique handle of a rigid body added to a `RigidBodySet`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
@@ -141,7 +143,7 @@ impl Default for RigidBodyChanges {
 /// The position of this rigid-body.
 pub struct RigidBodyPosition {
     /// The world-space position of the rigid-body.
-    pub position: Isometry<Real>,
+    pub position: Pose,
     /// The next position of the rigid-body.
     ///
     /// At the beginning of the timestep, and when the
@@ -151,14 +153,14 @@ pub struct RigidBodyPosition {
     /// The next_position is updated after the velocity and position
     /// resolution. Then it is either validated (ie. we set position := set_position)
     /// or clamped by CCD.
-    pub next_position: Isometry<Real>,
+    pub next_position: Pose,
 }
 
 impl Default for RigidBodyPosition {
     fn default() -> Self {
         Self {
-            position: Isometry::identity(),
-            next_position: Isometry::identity(),
+            position: Pose::IDENTITY,
+            next_position: Pose::IDENTITY,
         }
     }
 }
@@ -167,11 +169,7 @@ impl RigidBodyPosition {
     /// Computes the velocity need to travel from `self.position` to `self.next_position` in
     /// a time equal to `1.0 / inv_dt`.
     #[must_use]
-    pub fn interpolate_velocity(
-        &self,
-        inv_dt: Real,
-        local_com: &Point<Real>,
-    ) -> RigidBodyVelocity<Real> {
+    pub fn interpolate_velocity(&self, inv_dt: Real, local_com: Vector) -> RigidBodyVelocity<Real> {
         let pose_err = self.pose_errors(local_com);
         RigidBodyVelocity {
             linvel: pose_err.linear * inv_dt,
@@ -189,9 +187,10 @@ impl RigidBodyPosition {
         forces: &RigidBodyForces,
         vels: &RigidBodyVelocity<Real>,
         mprops: &RigidBodyMassProps,
-    ) -> Isometry<Real> {
+    ) -> Pose {
         let new_vels = forces.integrate(dt, vels, mprops);
-        new_vels.integrate(dt, &self.position, &mprops.local_mprops.local_com)
+        let local_com = mprops.local_mprops.local_com;
+        new_vels.integrate(dt, &self.position, &local_com)
     }
 
     /// Computes the difference between [`Self::next_position`] and [`Self::position`].
@@ -201,9 +200,9 @@ impl RigidBodyPosition {
     ///
     /// Note that interpolating the velocity can be done more conveniently with
     /// [`Self::interpolate_velocity`].
-    pub fn pose_errors(&self, local_com: &Point<Real>) -> PdErrors {
+    pub fn pose_errors(&self, local_com: Vector) -> PdErrors {
         let com = self.position * local_com;
-        let shift = Translation::from(com.coords);
+        let shift = Pose::from_translation(com);
         let dpos = shift.inverse() * self.next_position * self.position.inverse() * shift;
 
         let angular;
@@ -213,9 +212,9 @@ impl RigidBodyPosition {
         }
         #[cfg(feature = "dim3")]
         {
-            angular = dpos.rotation.scaled_axis();
+            angular = dpos.rotation.to_scaled_axis();
         }
-        let linear = dpos.translation.vector;
+        let linear = dpos.translation;
 
         PdErrors { linear, angular }
     }
@@ -223,7 +222,7 @@ impl RigidBodyPosition {
 
 impl<T> From<T> for RigidBodyPosition
 where
-    Isometry<Real>: From<T>,
+    Pose: From<T>,
 {
     fn from(position: T) -> Self {
         let position = position.into();
@@ -337,12 +336,12 @@ impl Default for RigidBodyAdditionalMassProps {
 /// The mass properties of a rigid-body.
 pub struct RigidBodyMassProps {
     /// The world-space center of mass of the rigid-body.
-    pub world_com: Point<Real>,
+    pub world_com: Vector,
     /// The inverse mass taking into account translation locking.
-    pub effective_inv_mass: Vector<Real>,
+    pub effective_inv_mass: Vector,
     /// The square-root of the world-space inverse angular inertia tensor of the rigid-body,
     /// taking into account rotation locking.
-    pub effective_world_inv_inertia: AngularInertia<Real>,
+    pub effective_world_inv_inertia: AngularInertia,
     /// The local mass properties of the rigid-body.
     pub local_mprops: MassProperties,
     /// Flags for locking rotation and translation.
@@ -357,8 +356,8 @@ impl Default for RigidBodyMassProps {
             flags: LockedAxes::empty(),
             local_mprops: MassProperties::zero(),
             additional_local_mprops: None,
-            world_com: Point::origin(),
-            effective_inv_mass: Vector::zero(),
+            world_com: Vector::ZERO,
+            effective_inv_mass: Vector::ZERO,
             effective_world_inv_inertia: AngularInertia::zero(),
         }
     }
@@ -392,14 +391,14 @@ impl RigidBodyMassProps {
     /// The effective mass (that takes the potential translation locking into account) of
     /// this rigid-body.
     #[must_use]
-    pub fn effective_mass(&self) -> Vector<Real> {
+    pub fn effective_mass(&self) -> Vector {
         self.effective_inv_mass.map(crate::utils::inv)
     }
 
     /// The square root of the effective world-space angular inertia (that takes the potential rotation locking into account) of
     /// this rigid-body.
     #[must_use]
-    pub fn effective_angular_inertia(&self) -> AngularInertia<Real> {
+    pub fn effective_angular_inertia(&self) -> AngularInertia {
         #[allow(unused_mut)] // mut needed in 3D.
         let mut ang_inertia = self.effective_world_inv_inertia;
 
@@ -443,7 +442,7 @@ impl RigidBodyMassProps {
         colliders: &ColliderSet,
         attached_colliders: &RigidBodyColliders,
         body_type: RigidBodyType,
-        position: &Isometry<Real>,
+        position: &Pose,
     ) {
         let added_mprops = self
             .additional_local_mprops
@@ -481,13 +480,9 @@ impl RigidBodyMassProps {
     }
 
     /// Update the world-space mass properties of `self`, taking into account the new position.
-    pub fn update_world_mass_properties(
-        &mut self,
-        body_type: RigidBodyType,
-        position: &Isometry<Real>,
-    ) {
+    pub fn update_world_mass_properties(&mut self, body_type: RigidBodyType, position: &Pose) {
         self.world_com = self.local_mprops.world_com(position);
-        self.effective_inv_mass = Vector::repeat(self.local_mprops.inv_mass);
+        self.effective_inv_mass = Vector::splat(self.local_mprops.inv_mass);
         self.effective_world_inv_inertia = self.local_mprops.world_inv_inertia(&position.rotation);
 
         // Take into account translation/rotation locking.
@@ -535,11 +530,11 @@ impl RigidBodyMassProps {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Copy, PartialEq)]
 /// The velocities of this rigid-body.
-pub struct RigidBodyVelocity<T: SimdRealCopy> {
+pub struct RigidBodyVelocity<T: ScalarType> {
     /// The linear velocity of the rigid-body.
-    pub linvel: Vector<T>,
+    pub linvel: T::Vector,
     /// The angular velocity of the rigid-body.
-    pub angvel: AngVector<T>,
+    pub angvel: T::AngVector,
 }
 
 impl Default for RigidBodyVelocity<Real> {
@@ -551,8 +546,19 @@ impl Default for RigidBodyVelocity<Real> {
 impl RigidBodyVelocity<Real> {
     /// Create a new rigid-body velocity component.
     #[must_use]
-    pub fn new(linvel: Vector<Real>, angvel: AngVector<Real>) -> Self {
+    #[cfg(feature = "dim2")]
+    pub fn new(linvel: Vector, angvel: AngVector) -> Self {
         Self { linvel, angvel }
+    }
+
+    /// Create a new rigid-body velocity component.
+    #[must_use]
+    #[cfg(feature = "dim3")]
+    pub fn new(linvel: Vector, angvel: AngVector) -> Self {
+        Self {
+            linvel: Vector::new(linvel.x, linvel.y, linvel.z),
+            angvel: AngVector::new(angvel.x, angvel.y, angvel.z),
+        }
     }
 
     /// Converts a slice to a rigid-body velocity.
@@ -585,8 +591,8 @@ impl RigidBodyVelocity<Real> {
     #[must_use]
     pub fn zero() -> Self {
         Self {
-            linvel: na::zero(),
-            angvel: na::zero(),
+            linvel: Default::default(),
+            angvel: Default::default(),
         }
     }
 
@@ -644,13 +650,21 @@ impl RigidBodyVelocity<Real> {
 
     /// Return `self` rotated by `rotation`.
     #[must_use]
-    pub fn transformed(self, rotation: &Rotation<Real>) -> Self {
+    #[cfg(feature = "dim2")]
+    pub fn transformed(self, rotation: &Rotation) -> Self {
         Self {
-            linvel: rotation * self.linvel,
-            #[cfg(feature = "dim2")]
+            linvel: *rotation * self.linvel,
             angvel: self.angvel,
-            #[cfg(feature = "dim3")]
-            angvel: rotation * self.angvel,
+        }
+    }
+
+    /// Return `self` rotated by `rotation`.
+    #[must_use]
+    #[cfg(feature = "dim3")]
+    pub fn transformed(self, rotation: &Rotation) -> Self {
+        Self {
+            linvel: *rotation * self.linvel,
+            angvel: *rotation * self.angvel,
         }
     }
 
@@ -661,12 +675,21 @@ impl RigidBodyVelocity<Real> {
     /// energy".
     #[must_use]
     pub fn pseudo_kinetic_energy(&self) -> Real {
-        0.5 * (self.linvel.norm_squared() + self.angvel.gdot(self.angvel))
+        0.5 * (self.linvel.length_squared() + self.angvel.gdot(self.angvel))
     }
 
     /// The velocity of the given world-space point on this rigid-body.
     #[must_use]
-    pub fn velocity_at_point(&self, point: &Point<Real>, world_com: &Point<Real>) -> Vector<Real> {
+    #[cfg(feature = "dim2")]
+    pub fn velocity_at_point(&self, point: Vector, world_com: Vector) -> Vector {
+        let dpt = point - world_com;
+        self.linvel + self.angvel.gcross(dpt)
+    }
+
+    /// The velocity of the given world-space point on this rigid-body.
+    #[must_use]
+    #[cfg(feature = "dim3")]
+    pub fn velocity_at_point(&self, point: Vector, world_com: Vector) -> Vector {
         let dpt = point - world_com;
         self.linvel + self.angvel.gcross(dpt)
     }
@@ -674,17 +697,17 @@ impl RigidBodyVelocity<Real> {
     /// Are these velocities exactly equal to zero?
     #[must_use]
     pub fn is_zero(&self) -> bool {
-        self.linvel.is_zero() && self.angvel.is_zero()
+        self.linvel == Vector::ZERO && self.angvel == AngVector::default()
     }
 
     /// The kinetic energy of this rigid-body.
     #[must_use]
     #[profiling::function]
     pub fn kinetic_energy(&self, rb_mprops: &RigidBodyMassProps) -> Real {
-        let mut energy = (rb_mprops.mass() * self.linvel.norm_squared()) / 2.0;
+        let mut energy = (rb_mprops.mass() * self.linvel.length_squared()) / 2.0;
 
         #[cfg(feature = "dim2")]
-        if !rb_mprops.effective_world_inv_inertia.is_zero() {
+        if !num::Zero::is_zero(&rb_mprops.effective_world_inv_inertia) {
             let inertia = 1.0 / rb_mprops.effective_world_inv_inertia;
             energy += inertia * self.angvel * self.angvel / 2.0;
         }
@@ -692,7 +715,7 @@ impl RigidBodyVelocity<Real> {
         #[cfg(feature = "dim3")]
         if !rb_mprops.effective_world_inv_inertia.is_zero() {
             let inertia = rb_mprops.effective_world_inv_inertia.inverse_unchecked();
-            energy += self.angvel.dot(&(inertia * self.angvel)) / 2.0;
+            energy += self.angvel.gdot(inertia * self.angvel) / 2.0;
         }
 
         energy
@@ -701,8 +724,8 @@ impl RigidBodyVelocity<Real> {
     /// Applies an impulse at the center-of-mass of this rigid-body.
     /// The impulse is applied right away, changing the linear velocity.
     /// This does nothing on non-dynamic bodies.
-    pub fn apply_impulse(&mut self, rb_mprops: &RigidBodyMassProps, impulse: Vector<Real>) {
-        self.linvel += impulse.component_mul(&rb_mprops.effective_inv_mass);
+    pub fn apply_impulse(&mut self, rb_mprops: &RigidBodyMassProps, impulse: Vector) {
+        self.linvel += impulse * rb_mprops.effective_inv_mass;
     }
 
     /// Applies an angular impulse at the center-of-mass of this rigid-body.
@@ -717,30 +740,42 @@ impl RigidBodyVelocity<Real> {
     /// The impulse is applied right away, changing the angular velocity.
     /// This does nothing on non-dynamic bodies.
     #[cfg(feature = "dim3")]
-    pub fn apply_torque_impulse(
-        &mut self,
-        rb_mprops: &RigidBodyMassProps,
-        torque_impulse: Vector<Real>,
-    ) {
+    pub fn apply_torque_impulse(&mut self, rb_mprops: &RigidBodyMassProps, torque_impulse: Vector) {
         self.angvel += rb_mprops.effective_world_inv_inertia * torque_impulse;
     }
 
     /// Applies an impulse at the given world-space point of this rigid-body.
     /// The impulse is applied right away, changing the linear and/or angular velocities.
     /// This does nothing on non-dynamic bodies.
+    #[cfg(feature = "dim2")]
     pub fn apply_impulse_at_point(
         &mut self,
         rb_mprops: &RigidBodyMassProps,
-        impulse: Vector<Real>,
-        point: Point<Real>,
+        impulse: Vector,
+        point: Vector,
     ) {
-        let torque_impulse = (point - rb_mprops.world_com).gcross(impulse);
+        let torque_impulse = (point - rb_mprops.world_com).perp_dot(impulse);
+        self.apply_impulse(rb_mprops, impulse);
+        self.apply_torque_impulse(rb_mprops, torque_impulse);
+    }
+
+    /// Applies an impulse at the given world-space point of this rigid-body.
+    /// The impulse is applied right away, changing the linear and/or angular velocities.
+    /// This does nothing on non-dynamic bodies.
+    #[cfg(feature = "dim3")]
+    pub fn apply_impulse_at_point(
+        &mut self,
+        rb_mprops: &RigidBodyMassProps,
+        impulse: Vector,
+        point: Vector,
+    ) {
+        let torque_impulse = (point - rb_mprops.world_com).cross(impulse);
         self.apply_impulse(rb_mprops, impulse);
         self.apply_torque_impulse(rb_mprops, torque_impulse);
     }
 }
 
-impl<T: SimdRealCopy> RigidBodyVelocity<T> {
+impl<T: ScalarType> RigidBodyVelocity<T> {
     /// Returns the update velocities after applying the given damping.
     #[must_use]
     pub fn apply_damping(&self, dt: T, damping: &RigidBodyDamping<T>) -> Self {
@@ -755,55 +790,57 @@ impl<T: SimdRealCopy> RigidBodyVelocity<T> {
     /// initial position `init_pos`.
     #[must_use]
     #[inline]
-    pub fn integrate(&self, dt: T, init_pos: &Isometry<T>, local_com: &Point<T>) -> Isometry<T> {
-        let com = init_pos * local_com;
-        let shift = Translation::from(com.coords);
-        let mut result =
-            shift * Isometry::new(self.linvel * dt, self.angvel * dt) * shift.inverse() * init_pos;
-        result.rotation.renormalize_fast();
+    #[allow(clippy::let_and_return)] // Keeping `result` binding for potential renormalization
+    pub fn integrate(&self, dt: T, init_pos: &T::Pose, local_com: &T::Vector) -> T::Pose {
+        let com = *init_pos * *local_com;
+        let result = init_pos
+            .append_translation(-com)
+            .append_rotation(self.angvel * dt)
+            .append_translation(com + self.linvel * dt);
+        // TODO: is renormalization really useful?
+        // result.rotation.renormalize_fast();
         result
     }
+}
 
-    /// Same as [`Self::integrate`] but with a local center-of-mass assumed to be zero.
-    #[must_use]
-    #[inline]
-    pub fn integrate_centered(&self, dt: T, mut pose: Isometry<T>) -> Isometry<T> {
-        pose.translation.vector += self.linvel * dt;
-        pose.rotation = Rotation::new(self.angvel * dt) * pose.rotation;
-        pose.rotation.renormalize_fast();
-        pose
-    }
-
+impl RigidBodyVelocity<Real> {
     /// Same as [`Self::integrate`] but with the angular part linearized and the local
     /// center-of-mass assumed to be zero.
     #[inline]
     #[cfg(feature = "dim2")]
-    pub fn integrate_linearized(&self, dt: T, pose: &mut Isometry<T>) {
+    pub(crate) fn integrate_linearized(
+        &self,
+        dt: Real,
+        translation: &mut Vector,
+        rotation: &mut Rotation,
+    ) {
         let dang = self.angvel * dt;
-        let new_cos = pose.rotation.re - dang * pose.rotation.im;
-        let new_sin = pose.rotation.im + dang * pose.rotation.re;
-        pose.rotation = Rotation::from_cos_sin_unchecked(new_cos, new_sin);
-        // NOTE: don’t use renormalize_fast since the linearization might cause more drift.
-        // TODO: check for zeros?
-        pose.rotation.renormalize();
-        pose.translation.vector += self.linvel * dt;
+        let new_cos = rotation.re - dang * rotation.im;
+        let new_sin = rotation.im + dang * rotation.re;
+        *rotation = Rot2::from_cos_sin_unchecked(new_cos, new_sin);
+        // NOTE: don't use renormalize_fast since the linearization might cause more drift.
+        rotation.normalize_mut();
+        *translation += self.linvel * dt;
     }
 
     /// Same as [`Self::integrate`] but with the angular part linearized and the local
     /// center-of-mass assumed to be zero.
     #[inline]
     #[cfg(feature = "dim3")]
-    pub fn integrate_linearized(&self, dt: T, pose: &mut Isometry<T>) {
+    pub(crate) fn integrate_linearized(
+        &self,
+        dt: Real,
+        translation: &mut Vector,
+        rotation: &mut Rotation,
+    ) {
         // Rotations linearization is inspired from
         // https://ahrs.readthedocs.io/en/latest/filters/angular.html (not using the matrix form).
-        let hang = self.angvel * (dt * T::splat(0.5));
+        let hang = self.angvel * (dt * 0.5);
         // Quaternion identity + `hang` seen as a quaternion.
-        let id_plus_hang = na::Quaternion::new(T::one(), hang.x, hang.y, hang.z);
-        pose.rotation = Rotation::new_unchecked(id_plus_hang * pose.rotation.into_inner());
-        // NOTE: don’t use renormalize_fast since the linearization might cause more drift.
-        // TODO: check for zeros?
-        pose.rotation.renormalize();
-        pose.translation.vector += self.linvel * dt;
+        let id_plus_hang = Rotation::from_xyzw(hang.x, hang.y, hang.z, 1.0);
+        *rotation = id_plus_hang * *rotation;
+        *rotation = rotation.normalize();
+        *translation += self.linvel * dt;
     }
 }
 
@@ -878,16 +915,16 @@ impl<T: SimdRealCopy> Default for RigidBodyDamping<T> {
 /// The user-defined external forces applied to this rigid-body.
 pub struct RigidBodyForces {
     /// Accumulation of external forces (only for dynamic bodies).
-    pub force: Vector<Real>,
+    pub force: Vector,
     /// Accumulation of external torques (only for dynamic bodies).
-    pub torque: AngVector<Real>,
+    pub torque: AngVector,
     /// Gravity is multiplied by this scaling factor before it's
     /// applied to this rigid-body.
     pub gravity_scale: Real,
     /// Forces applied by the user.
-    pub user_force: Vector<Real>,
+    pub user_force: Vector,
     /// Torque applied by the user.
-    pub user_torque: AngVector<Real>,
+    pub user_torque: AngVector,
     /// Are gyroscopic forces enabled for this rigid-body?
     #[cfg(feature = "dim3")]
     pub gyroscopic_forces_enabled: bool,
@@ -895,15 +932,24 @@ pub struct RigidBodyForces {
 
 impl Default for RigidBodyForces {
     fn default() -> Self {
-        Self {
-            force: na::zero(),
-            torque: na::zero(),
+        #[cfg(feature = "dim2")]
+        return Self {
+            force: Vector::ZERO,
+            torque: 0.0,
             gravity_scale: 1.0,
-            user_force: na::zero(),
-            user_torque: na::zero(),
-            #[cfg(feature = "dim3")]
+            user_force: Vector::ZERO,
+            user_torque: 0.0,
+        };
+
+        #[cfg(feature = "dim3")]
+        return Self {
+            force: Vector::ZERO,
+            torque: AngVector::ZERO,
+            gravity_scale: 1.0,
+            user_force: Vector::ZERO,
+            user_torque: AngVector::ZERO,
             gyroscopic_forces_enabled: false,
-        }
+        };
     }
 }
 
@@ -916,7 +962,7 @@ impl RigidBodyForces {
         init_vels: &RigidBodyVelocity<Real>,
         mprops: &RigidBodyMassProps,
     ) -> RigidBodyVelocity<Real> {
-        let linear_acc = self.force.component_mul(&mprops.effective_inv_mass);
+        let linear_acc = self.force * mprops.effective_inv_mass;
         let angular_acc = mprops.effective_world_inv_inertia * self.torque;
 
         RigidBodyVelocity {
@@ -927,12 +973,8 @@ impl RigidBodyForces {
 
     /// Adds to `self` the gravitational force that would result in a gravitational acceleration
     /// equal to `gravity`.
-    pub fn compute_effective_force_and_torque(
-        &mut self,
-        gravity: &Vector<Real>,
-        mass: &Vector<Real>,
-    ) {
-        self.force = self.user_force + gravity.component_mul(mass) * self.gravity_scale;
+    pub fn compute_effective_force_and_torque(&mut self, gravity: Vector, mass: Vector) {
+        self.force = self.user_force + gravity * mass * self.gravity_scale;
         self.torque = self.user_torque;
     }
 
@@ -940,8 +982,8 @@ impl RigidBodyForces {
     pub fn apply_force_at_point(
         &mut self,
         rb_mprops: &RigidBodyMassProps,
-        force: Vector<Real>,
-        point: Point<Real>,
+        force: Vector,
+        point: Vector,
     ) {
         self.user_force += force;
         self.user_torque += (point - rb_mprops.world_com).gcross(force);
@@ -987,9 +1029,9 @@ impl RigidBodyCcd {
     /// moving with the given velocity can have.
     pub fn max_point_velocity(&self, vels: &RigidBodyVelocity<Real>) -> Real {
         #[cfg(feature = "dim2")]
-        return vels.linvel.norm() + vels.angvel.abs() * self.ccd_max_dist;
+        return vels.linvel.length() + vels.angvel.abs() * self.ccd_max_dist;
         #[cfg(feature = "dim3")]
-        return vels.linvel.norm() + vels.angvel.norm() * self.ccd_max_dist;
+        return vels.linvel.length() + vels.angvel.length() * self.ccd_max_dist;
     }
 
     /// Is this rigid-body moving fast enough so that it may cause a tunneling problem?
@@ -1010,11 +1052,11 @@ impl RigidBodyCcd {
         let threshold = self.ccd_thickness / 10.0;
 
         if let Some(forces) = forces {
-            let linear_part = (vels.linvel + forces.force * dt).norm();
+            let linear_part = (vels.linvel + forces.force * dt).length();
             #[cfg(feature = "dim2")]
             let angular_part = (vels.angvel + forces.torque * dt).abs() * self.ccd_max_dist;
             #[cfg(feature = "dim3")]
-            let angular_part = (vels.angvel + forces.torque * dt).norm() * self.ccd_max_dist;
+            let angular_part = (vels.angvel + forces.torque * dt).length() * self.ccd_max_dist;
             let vel_with_forces = linear_part + angular_part;
             vel_with_forces > threshold
         } else {
@@ -1086,7 +1128,7 @@ impl RigidBodyColliders {
         let shape_bsphere = co_shape.compute_bounding_sphere(&co_parent.pos_wrt_parent);
         rb_ccd.ccd_max_dist = rb_ccd
             .ccd_max_dist
-            .max(shape_bsphere.center.coords.norm() + shape_bsphere.radius);
+            .max(shape_bsphere.center.length() + shape_bsphere.radius);
 
         let mass_properties = co_mprops
             .mass_properties(&**co_shape)
@@ -1101,7 +1143,7 @@ impl RigidBodyColliders {
         &self,
         colliders: &mut ColliderSet,
         modified_colliders: &mut ModifiedColliders,
-        parent_pos: &Isometry<Real>,
+        parent_pos: &Pose,
     ) {
         for handle in &self.0 {
             // NOTE: the ColliderParent component must exist if we enter this method.
@@ -1337,24 +1379,24 @@ mod tests {
             let (local_com, curr_pos, next_pos);
             #[cfg(feature = "dim2")]
             {
-                local_com = Point::new(rng.rand_float(), rng.rand_float());
-                curr_pos = Isometry::new(
+                local_com = Vector::new(rng.rand_float(), rng.rand_float());
+                curr_pos = Pose::new(
                     Vector::new(rng.rand_float(), rng.rand_float()) * mult,
                     rng.rand_float(),
                 );
-                next_pos = Isometry::new(
+                next_pos = Pose::new(
                     Vector::new(rng.rand_float(), rng.rand_float()) * mult,
                     rng.rand_float(),
                 );
             }
             #[cfg(feature = "dim3")]
             {
-                local_com = Point::new(rng.rand_float(), rng.rand_float(), rng.rand_float());
-                curr_pos = Isometry::new(
+                local_com = Vector::new(rng.rand_float(), rng.rand_float(), rng.rand_float());
+                curr_pos = Pose::new(
                     Vector::new(rng.rand_float(), rng.rand_float(), rng.rand_float()) * mult,
                     Vector::new(rng.rand_float(), rng.rand_float(), rng.rand_float()),
                 );
-                next_pos = Isometry::new(
+                next_pos = Pose::new(
                     Vector::new(rng.rand_float(), rng.rand_float(), rng.rand_float()) * mult,
                     Vector::new(rng.rand_float(), rng.rand_float(), rng.rand_float()),
                 );
@@ -1365,7 +1407,7 @@ mod tests {
                 position: curr_pos,
                 next_position: next_pos,
             };
-            let vel = rb_pos.interpolate_velocity(1.0 / dt, &local_com);
+            let vel = rb_pos.interpolate_velocity(1.0 / dt, local_com);
             let interp_pos = vel.integrate(dt, &curr_pos, &local_com);
             approx::assert_relative_eq!(interp_pos, next_pos, epsilon = 1.0e-5);
         }

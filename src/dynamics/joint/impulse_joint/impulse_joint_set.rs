@@ -60,9 +60,9 @@ pub(crate) type JointGraphEdge = crate::data::graph::Edge<ImpulseJoint>;
 /// let mut joints = ImpulseJointSet::new();
 ///
 /// // Create a hinge connecting two bodies
-/// let joint = RevoluteJointBuilder::new(Vector::y_axis())
-///     .local_anchor1(point![1.0, 0.0, 0.0])
-///     .local_anchor2(point![-1.0, 0.0, 0.0])
+/// let joint = RevoluteJointBuilder::new(Vector::Y)
+///     .local_anchor1(Vector::new(1.0, 0.0, 0.0))
+///     .local_anchor2(Vector::new(-1.0, 0.0, 0.0))
 ///     .build();
 /// let handle = joints.insert(body1, body2, joint, true);
 /// ```
@@ -117,7 +117,7 @@ impl ImpulseJointSet {
     /// # let mut joints = ImpulseJointSet::new();
     /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
-    /// # let joint = RevoluteJointBuilder::new(Vector::y_axis());
+    /// # let joint = RevoluteJointBuilder::new(Vector::Y);
     /// # joints.insert(body1, body2, joint, true);
     /// for (handle, joint) in joints.joints_between(body1, body2) {
     ///     println!("Found joint {:?}", handle);
@@ -148,7 +148,7 @@ impl ImpulseJointSet {
     /// # let mut joints = ImpulseJointSet::new();
     /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let other_body = bodies.insert(RigidBodyBuilder::dynamic());
-    /// # let joint = RevoluteJointBuilder::new(Vector::y_axis());
+    /// # let joint = RevoluteJointBuilder::new(Vector::Y);
     /// # joints.insert(body_handle, other_body, joint, true);
     /// for (b1, b2, j_handle, joint) in joints.attached_joints(body_handle) {
     ///     println!("Body connected to {:?} via {:?}", b2, j_handle);
@@ -318,9 +318,9 @@ impl ImpulseJointSet {
     /// # let mut joints = ImpulseJointSet::new();
     /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
-    /// let joint = RevoluteJointBuilder::new(Vector::y_axis())
-    ///     .local_anchor1(point![1.0, 0.0, 0.0])
-    ///     .local_anchor2(point![-1.0, 0.0, 0.0])
+    /// let joint = RevoluteJointBuilder::new(Vector::Y)
+    ///     .local_anchor1(Vector::new(1.0, 0.0, 0.0))
+    ///     .local_anchor2(Vector::new(-1.0, 0.0, 0.0))
     ///     .build();
     /// let handle = joints.insert(body1, body2, joint, true);
     /// ```
@@ -338,7 +338,7 @@ impl ImpulseJointSet {
             body1,
             body2,
             data,
-            impulses: na::zero(),
+            impulses: Default::default(),
             handle: ImpulseJointHandle(handle),
         };
 
@@ -426,7 +426,7 @@ impl ImpulseJointSet {
     /// # let mut joints = ImpulseJointSet::new();
     /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
-    /// # let joint = RevoluteJointBuilder::new(Vector::y_axis()).build();
+    /// # let joint = RevoluteJointBuilder::new(Vector::Y).build();
     /// # let joint_handle = joints.insert(body1, body2, joint, true);
     /// if let Some(joint) = joints.remove(joint_handle, true) {
     ///     println!("Removed joint between {:?} and {:?}", joint.body1, joint.body2);

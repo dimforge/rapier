@@ -14,10 +14,10 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_size = vector![100.0, 1.0, 100.0];
+    let ground_size = Vector::new(100.0, 1.0, 100.0);
     let nsubdivs = 20;
 
-    let heights = DMatrix::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
+    let heights = Array2::from_fn(nsubdivs + 1, nsubdivs + 1, |i, j| {
         if i == 0 || i == nsubdivs || j == 0 || j == nsubdivs {
             10.0
         } else {
@@ -65,7 +65,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f32 * shift - centerz;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y, z]);
+                let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z));
                 let handle = bodies.insert(rigid_body);
 
                 let collider = match j % 6 {
@@ -79,15 +79,15 @@ pub fn init_world(testbed: &mut Testbed) {
                     _ => {
                         let shapes = vec![
                             (
-                                Isometry::identity(),
+                                Pose::IDENTITY,
                                 SharedShape::cuboid(rad, rad / 2.0, rad / 2.0),
                             ),
                             (
-                                Isometry::translation(rad, 0.0, 0.0),
+                                Pose::from_translation(Vector::new(rad, 0.0, 0.0)),
                                 SharedShape::cuboid(rad / 2.0, rad, rad / 2.0),
                             ),
                             (
-                                Isometry::translation(-rad, 0.0, 0.0),
+                                Pose::from_translation(Vector::new(-rad, 0.0, 0.0)),
                                 SharedShape::cuboid(rad / 2.0, rad, rad / 2.0),
                             ),
                         ];
@@ -105,5 +105,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
+    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

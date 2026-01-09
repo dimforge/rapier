@@ -1,8 +1,8 @@
 use crate::dynamics::RigidBody;
-use crate::math::{AngularInertia, Isometry, Real, SPATIAL_DIM, Vector};
-use crate::utils::SimdRealCopy;
+use crate::math::{Real, SPATIAL_DIM, Vector};
+use crate::utils::{RotationOps, ScalarType};
 use na::{DVectorView, DVectorViewMut};
-use parry::math::{AngVector, SIMD_WIDTH, SimdReal, Translation};
+use parry::math::{Pose, Rotation, SIMD_WIDTH, SimdReal};
 use std::ops::{AddAssign, Sub, SubAssign};
 
 #[cfg(feature = "simd-is-enabled")]
@@ -106,11 +106,17 @@ impl SolverBodies {
             if rb.forces.gyroscopic_forces_enabled {
                 vels.angular = rb.angvel_with_gyroscopic_forces(_dt);
             } else {
-                vels.angular = *rb.angvel();
+                vels.angular = rb.angvel();
             }
         }
         vels.linear = rb.vels.linvel;
-        poses.pose = rb.pos.position * Translation::from(rb.mprops.local_mprops.local_com);
+
+        let pose = rb
+            .pos
+            .position
+            .prepend_translation(rb.mprops.local_mprops.local_com);
+        poses.rotation = pose.rotation;
+        poses.translation = pose.translation;
 
         if rb.is_dynamic_or_kinematic() {
             poses.ii = rb.mprops.effective_world_inv_inertia;
@@ -218,9 +224,9 @@ impl SolverBodies {
 #[repr(C)]
 #[cfg_attr(feature = "simd-is-enabled", repr(align(16)))]
 #[derive(Copy, Clone, Default)]
-pub struct SolverVel<T: SimdRealCopy> {
-    pub linear: Vector<T>,     // 2/3
-    pub angular: AngVector<T>, // 1/3
+pub struct SolverVel<T: ScalarType> {
+    pub linear: T::Vector,     // 2/3
+    pub angular: T::AngVector, // 1/3
     // TODO: explicit padding are useful for static assertions.
     //       But might be wasteful for the SolverVel<SimdReal>
     //       specialization.
@@ -332,20 +338,47 @@ impl SolverVel<SimdReal> {
 #[repr(C)]
 #[cfg_attr(feature = "simd-is-enabled", repr(align(16)))]
 #[derive(Copy, Clone)]
-pub struct SolverPose<T> {
+pub struct SolverPose<N: ScalarType> {
     /// Positional change of the rigid-body’s center of mass.
-    pub pose: Isometry<T>, // 4/7
-    pub ii: AngularInertia<T>, // 1/6
-    pub im: Vector<T>,         // 2/3
+    pub rotation: N::Rotation, // 2/4
+    pub translation: N::Vector, // 2/3
+    pub ii: N::AngInertia,      // 1/6
+    pub im: N::Vector,          // 2/3
     #[cfg(feature = "dim2")]
-    pub padding: [T; 1],
+    pub padding: [N; 1],
+}
+
+impl SolverPose<Real> {
+    pub fn pose(&self) -> Pose {
+        Pose::from_parts(self.translation, self.rotation)
+    }
+}
+
+#[cfg(feature = "simd-is-enabled")]
+impl SolverPose<SimdReal> {
+    pub fn pose(&self) -> <SimdReal as ScalarType>::Pose {
+        <SimdReal as ScalarType>::Pose::from_parts(self.translation.into(), self.rotation)
+    }
+}
+
+impl<N: ScalarType> SolverPose<N> {
+    #[inline]
+    pub fn transform_point(&self, pt: N::Vector) -> N::Vector {
+        self.rotation * pt + self.translation
+    }
+
+    #[inline]
+    pub fn inverse_transform_point(&self, pt: N::Vector) -> N::Vector {
+        self.rotation.inverse() * (pt - self.translation)
+    }
 }
 
 impl Default for SolverPose<Real> {
     #[inline]
     fn default() -> Self {
         Self {
-            pose: Isometry::identity(),
+            rotation: Rotation::IDENTITY,
+            translation: Vector::ZERO,
             ii: Default::default(),
             im: Default::default(),
             #[cfg(feature = "dim2")]
@@ -494,7 +527,7 @@ impl SolverPose<SimdReal> {
     }
 }
 
-impl<N: SimdRealCopy> SolverVel<N> {
+impl<N: ScalarType> SolverVel<N> {
     pub fn as_slice(&self) -> &[N; SPATIAL_DIM] {
         unsafe { std::mem::transmute(self) }
     }
@@ -512,11 +545,11 @@ impl<N: SimdRealCopy> SolverVel<N> {
     }
 }
 
-impl<N: SimdRealCopy> SolverVel<N> {
+impl<N: ScalarType> SolverVel<N> {
     pub fn zero() -> Self {
         Self {
-            linear: na::zero(),
-            angular: na::zero(),
+            linear: Default::default(),
+            angular: Default::default(),
             #[cfg(feature = "simd-is-enabled")]
             #[cfg(feature = "dim2")]
             padding: [na::zero(); 1],
@@ -527,21 +560,21 @@ impl<N: SimdRealCopy> SolverVel<N> {
     }
 }
 
-impl<N: SimdRealCopy> AddAssign for SolverVel<N> {
+impl<N: ScalarType> AddAssign for SolverVel<N> {
     fn add_assign(&mut self, rhs: Self) {
         self.linear += rhs.linear;
         self.angular += rhs.angular;
     }
 }
 
-impl<N: SimdRealCopy> SubAssign for SolverVel<N> {
+impl<N: ScalarType> SubAssign for SolverVel<N> {
     fn sub_assign(&mut self, rhs: Self) {
         self.linear -= rhs.linear;
         self.angular -= rhs.angular;
     }
 }
 
-impl<N: SimdRealCopy> Sub for SolverVel<N> {
+impl<N: ScalarType> Sub for SolverVel<N> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {

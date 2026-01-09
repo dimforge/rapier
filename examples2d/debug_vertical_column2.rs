@@ -32,7 +32,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let y = i as f32 * rad * 2.0 + ground_thickness + rad;
 
         // Build the rigid body.
-        let rigid_body = RigidBodyBuilder::dynamic().translation(vector![0.0, y]);
+        let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(0.0, y));
         let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(rad, rad).friction(0.3);
         colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -43,5 +43,5 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
     // testbed.harness_mut().physics.gravity.y = -981.0;
-    testbed.look_at(point![0.0, 2.5], 5.0);
+    testbed.look_at(Vec2::new(0.0, 2.5), 5.0);
 }

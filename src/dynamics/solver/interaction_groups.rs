@@ -326,11 +326,11 @@ impl InteractionGroups {
             // NOTE: fixed bodies don't transmit forces. Therefore they don't
             // imply any interaction conflicts.
             if !is_fixed1 {
-                self.body_masks[i1 as usize] |= target_mask_bit;
+                self.body_masks[i1] |= target_mask_bit;
             }
 
             if !is_fixed2 {
-                self.body_masks[i2 as usize] |= target_mask_bit;
+                self.body_masks[i2] |= target_mask_bit;
             }
         }
 

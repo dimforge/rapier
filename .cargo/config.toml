@@ -1,0 +1,4 @@
+[target.wasm32-unknown-unknown]
+runner = "wasm-server-runner"
+# Needed for getrandom/uuid: https://github.com/uuid-rs/uuid/issues/792
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']

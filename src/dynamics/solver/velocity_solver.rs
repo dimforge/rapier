@@ -6,10 +6,9 @@ use crate::dynamics::{
     MultibodyLinkId, RigidBodySet, RigidBodyType, solver::SolverVel,
 };
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
-use crate::math::Real;
+use crate::math::{DVector, Real};
 use crate::prelude::RigidBodyVelocity;
-use na::DVector;
-use parry::math::{SIMD_WIDTH, Translation};
+use parry::math::SIMD_WIDTH;
 
 #[cfg(feature = "dim3")]
 use crate::dynamics::FrictionModel;
@@ -17,8 +16,8 @@ use crate::dynamics::FrictionModel;
 pub(crate) struct VelocitySolver {
     pub solver_bodies: SolverBodies,
     pub solver_vels_increment: Vec<SolverVel<Real>>,
-    pub generic_solver_vels: DVector<Real>,
-    pub generic_solver_vels_increment: DVector<Real>,
+    pub generic_solver_vels: DVector,
+    pub generic_solver_vels_increment: DVector,
     pub multibody_roots: Vec<MultibodyLinkId>,
 }
 
@@ -118,8 +117,7 @@ impl VelocitySolver {
 
                 solver_vel_incr.angular =
                     rb.mprops.effective_world_inv_inertia * rb.forces.torque * params.dt;
-                solver_vel_incr.linear =
-                    rb.forces.force.component_mul(&rb.mprops.effective_inv_mass) * params.dt;
+                solver_vel_incr.linear = rb.forces.force * rb.mprops.effective_inv_mass * params.dt;
             }
         }
 
@@ -230,7 +228,11 @@ impl VelocitySolver {
             // TODO: should we add a compile flag (or a simulation parameter)
             //       to disable the rotation linearization?
             let new_vels = RigidBodyVelocity { linvel, angvel };
-            new_vels.integrate_linearized(params.dt, &mut solver_pose.pose);
+            new_vels.integrate_linearized(
+                params.dt,
+                &mut solver_pose.translation,
+                &mut solver_pose.rotation,
+            );
         }
 
         // TODO PERF: SIMD-optimized integration. Works fine, but doesn’t run faster than the scalar
@@ -324,12 +326,12 @@ impl VelocitySolver {
 
                 rb.vels = new_vels;
 
-                // NOTE: if it’s a position-based kinematic body, don’t writeback as we want
+                // NOTE: if it's a position-based kinematic body, don't writeback as we want
                 //       to preserve exactly the value given by the user (it might not be exactly
                 //       equal to the integrated position because of rounding errors).
                 if rb.body_type != RigidBodyType::KinematicPositionBased {
-                    rb.pos.next_position =
-                        solver_poses.pose * Translation::from(-rb.mprops.local_mprops.local_com);
+                    let local_com = -rb.mprops.local_mprops.local_com;
+                    rb.pos.next_position = solver_poses.pose().prepend_translation(local_com);
                 }
 
                 if rb.ccd.ccd_enabled {

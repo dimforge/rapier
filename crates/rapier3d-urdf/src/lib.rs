@@ -35,12 +35,13 @@ use rapier3d::{
         RigidBodyBuilder, RigidBodyHandle, RigidBodySet, RigidBodyType,
     },
     geometry::{Collider, ColliderBuilder, ColliderHandle, ColliderSet, SharedShape, TriMeshFlags},
-    math::{Isometry, Point, Real, Vector},
+    glamx::EulerRot,
+    math::{Pose, Real, Rotation, Vector},
     na,
 };
 use std::collections::HashMap;
 use std::path::Path;
-use urdf_rs::{Geometry, Inertial, Joint, Pose, Robot};
+use urdf_rs::{Geometry, Inertial, Joint, Pose as UrdfPose, Robot};
 
 #[cfg(doc)]
 use rapier3d::dynamics::Multibody;
@@ -104,8 +105,8 @@ pub struct UrdfLoaderOptions {
     /// Note that the default enables all the flags. This is operating under the assumption that the provided
     /// mesh are generally well-formed and properly oriented (2-manifolds with outward normals).
     pub trimesh_flags: TriMeshFlags,
-    /// The transform appended to every created rigid-bodies (default: [`Isometry::identity`]).
-    pub shift: Isometry<Real>,
+    /// The transform appended to every created rigid-bodies (default: `Pose::IDENTITY`).
+    pub shift: Pose,
     /// A description of the collider properties that need to be applied to every collider created
     /// by the loader (default: `ColliderBuilder::default().density(0.0)`).
     ///
@@ -136,7 +137,7 @@ impl Default for UrdfLoaderOptions {
             enable_joint_collisions: false,
             make_roots_fixed: false,
             trimesh_flags: TriMeshFlags::all(),
-            shift: Isometry::identity(),
+            shift: Pose::IDENTITY,
             collider_blueprint: ColliderBuilder::default().density(0.0),
             rigid_body_blueprint: RigidBodyBuilder::dynamic(),
         }
@@ -295,7 +296,8 @@ impl UrdfRobot {
                     }))
                 }
                 let mut body = urdf_to_rigid_body(&options, &link.inertial);
-                body.set_position(options.shift * body.position(), false);
+                let new_pos = options.shift * body.position();
+                body.set_position(new_pos, false);
                 UrdfLink { body, colliders }
             })
             .collect();
@@ -429,30 +431,30 @@ impl UrdfRobot {
     }
 
     /// Appends a transform to all the rigid-bodie of this robot.
-    pub fn append_transform(&mut self, transform: &Isometry<Real>) {
+    pub fn append_transform(&mut self, transform: &Pose) {
         for link in &mut self.links {
-            link.body
-                .set_position(transform * link.body.position(), true);
+            let new_pos = transform * link.body.position();
+            link.body.set_position(new_pos, true);
         }
     }
 }
 
 #[rustfmt::skip]
 fn urdf_to_rigid_body(options: &UrdfLoaderOptions, inertial: &Inertial) -> RigidBody {
-    let origin = urdf_to_isometry(&inertial.origin);
+    let origin = urdf_to_pose(&inertial.origin);
     let mut builder = options.rigid_body_blueprint.clone();
     builder.body_type = RigidBodyType::Dynamic;
 
     if options.apply_imported_mass_props {
         builder = builder.additional_mass_properties(MassProperties::with_inertia_matrix(
-            origin.translation.vector.into(),
+            origin.translation,
             inertial.mass.value as Real,
             // See http://wiki.ros.org/urdf/Tutorials/Adding%20Physical%20and%20Collision%20Properties%20to%20a%20URDF%20Model#Inertia
             na::Matrix3::new(
                 inertial.inertia.ixx as Real, inertial.inertia.ixy as Real, inertial.inertia.ixz as Real,
                 inertial.inertia.ixy as Real, inertial.inertia.iyy as Real, inertial.inertia.iyz as Real,
                 inertial.inertia.ixz as Real, inertial.inertia.iyz as Real,inertial.inertia.izz as Real,
-            ),
+            ).into(),
         ))
     }
 
@@ -463,9 +465,9 @@ fn urdf_to_colliders(
     options: &UrdfLoaderOptions,
     _mesh_dir: &Path, // Unused if none of the meshloader features is enabled.
     geometry: &Geometry,
-    origin: &Pose,
+    origin: &UrdfPose,
 ) -> Vec<Collider> {
-    let mut shape_transform = Isometry::identity();
+    let mut shape_transform = Pose::IDENTITY;
 
     let mut colliders = Vec::new();
 
@@ -480,7 +482,7 @@ fn urdf_to_colliders(
         Geometry::Cylinder { radius, length } => {
             // This rotation will make the cylinder Z-up as per the URDF spec,
             // instead of rapier’s default Y-up.
-            shape_transform = Isometry::rotation(Vector::x() * Real::frac_pi_2());
+            shape_transform = Pose::rotation(Vector::X * Real::frac_pi_2());
             colliders.push(SharedShape::cylinder(
                 *length as Real / 2.0,
                 *radius as Real,
@@ -506,7 +508,7 @@ fn urdf_to_colliders(
             let full_path = _mesh_dir.join(filename);
             let scale = scale
                 .map(|s| Vector::new(s[0] as Real, s[1] as Real, s[2] as Real))
-                .unwrap_or_else(|| Vector::<Real>::repeat(1.0));
+                .unwrap_or_else(|| Vector::splat(1.0));
 
             let Ok(loaded_mesh) = rapier3d_meshloader::load_from_path(
                 full_path,
@@ -530,21 +532,21 @@ fn urdf_to_colliders(
             let mut builder = options.collider_blueprint.clone();
             builder.shape = shape;
             builder
-                .position(urdf_to_isometry(origin) * shape_transform)
+                .position(urdf_to_pose(origin) * shape_transform)
                 .build()
         })
         .collect()
 }
 
-fn urdf_to_isometry(pose: &Pose) -> Isometry<Real> {
-    Isometry::from_parts(
-        Point::new(
+fn urdf_to_pose(pose: &UrdfPose) -> Pose {
+    Pose::from_parts(
+        Vector::new(
             pose.xyz[0] as Real,
             pose.xyz[1] as Real,
             pose.xyz[2] as Real,
-        )
-        .into(),
-        na::UnitQuaternion::from_euler_angles(
+        ),
+        Rotation::from_euler(
+            EulerRot::XYZ,
             pose.rpy[0] as Real,
             pose.rpy[1] as Real,
             pose.rpy[2] as Real,
@@ -555,7 +557,7 @@ fn urdf_to_isometry(pose: &Pose) -> Isometry<Real> {
 fn urdf_to_joint(
     options: &UrdfLoaderOptions,
     joint: &Joint,
-    pose1: &Isometry<Real>,
+    pose1: &Pose,
     link2: &mut RigidBody,
 ) -> GenericJoint {
     let locked_axes = match joint.joint_type {
@@ -568,25 +570,23 @@ fn urdf_to_joint(
         urdf_rs::JointType::Prismatic => JointAxesMask::LOCKED_PRISMATIC_AXES,
         urdf_rs::JointType::Spherical => JointAxesMask::LOCKED_SPHERICAL_AXES,
     };
-    let joint_to_parent = urdf_to_isometry(&joint.origin);
-    let joint_axis = na::Unit::try_new(
-        Vector::new(
-            joint.axis.xyz[0] as Real,
-            joint.axis.xyz[1] as Real,
-            joint.axis.xyz[2] as Real,
-        ),
-        1.0e-5,
-    );
+    let joint_to_parent = urdf_to_pose(&joint.origin);
+    let joint_axis = Vector::new(
+        joint.axis.xyz[0] as Real,
+        joint.axis.xyz[1] as Real,
+        joint.axis.xyz[2] as Real,
+    )
+    .normalize_or_zero();
 
     link2.set_position(pose1 * joint_to_parent, false);
 
     let mut builder = GenericJointBuilder::new(locked_axes)
-        .local_anchor1(joint_to_parent.translation.vector.into())
+        .local_anchor1(joint_to_parent.translation)
         .contacts_enabled(options.enable_joint_collisions);
 
-    if let Some(joint_axis) = joint_axis {
+    if joint_axis != Vector::ZERO {
         builder = builder
-            .local_axis1(joint_to_parent * joint_axis)
+            .local_axis1(joint_to_parent.rotation * joint_axis)
             .local_axis2(joint_axis);
     }
 

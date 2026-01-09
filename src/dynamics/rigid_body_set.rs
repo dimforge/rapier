@@ -64,7 +64,7 @@ impl HasModifiedFlag for RigidBody {
 ///
 /// // Access it later
 /// if let Some(body) = bodies.get_mut(handle) {
-///     body.apply_impulse(vector![0.0, 10.0, 0.0], true);
+///     body.apply_impulse(Vector::new(0.0, 10.0, 0.0), true);
 /// }
 /// ```
 pub struct RigidBodySet {
@@ -142,7 +142,7 @@ impl RigidBodySet {
     /// # let mut bodies = RigidBodySet::new();
     /// let handle = bodies.insert(
     ///     RigidBodyBuilder::dynamic()
-    ///         .translation(vector![0.0, 5.0, 0.0])
+    ///         .translation(Vector::new(0.0, 5.0, 0.0))
     ///         .build()
     /// );
     /// // Store `handle` to access this body later
@@ -211,7 +211,7 @@ impl RigidBodySet {
         /*
          * Update active sets.
          */
-        islands.rigid_body_removed(handle, &rb.ids, self);
+        islands.rigid_body_removed_or_disabled(handle, &rb.ids, self);
 
         /*
          * Remove colliders attached to this rigid-body.
@@ -287,8 +287,8 @@ impl RigidBodySet {
     /// # let mut bodies = RigidBodySet::new();
     /// # let handle = bodies.insert(RigidBodyBuilder::dynamic());
     /// if let Some(body) = bodies.get_mut(handle) {
-    ///     body.set_linvel(vector![1.0, 0.0, 0.0], true);
-    ///     body.apply_impulse(vector![0.0, 100.0, 0.0], true);
+    ///     body.set_linvel(Vector::new(1.0, 0.0, 0.0), true);
+    ///     body.apply_impulse(Vector::new(0.0, 100.0, 0.0), true);
     /// }
     /// ```
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
@@ -313,8 +313,8 @@ impl RigidBodySet {
     /// let (body1, body2) = bodies.get_pair_mut(handle1, handle2);
     /// if let (Some(b1), Some(b2)) = (body1, body2) {
     ///     // Can modify both bodies at once
-    ///     b1.apply_impulse(vector![10.0, 0.0, 0.0], true);
-    ///     b2.apply_impulse(vector![-10.0, 0.0, 0.0], true);
+    ///     b1.apply_impulse(Vector::new(10.0, 0.0, 0.0), true);
+    ///     b2.apply_impulse(Vector::new(-10.0, 0.0, 0.0), true);
     /// }
     /// ```
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
@@ -387,7 +387,7 @@ impl RigidBodySet {
     /// // Apply gravity manually to all dynamic bodies
     /// for (handle, body) in bodies.iter_mut() {
     ///     if body.is_dynamic() {
-    ///         body.add_force(vector![0.0, -9.81 * body.mass(), 0.0], true);
+    ///         body.add_force(Vector::new(0.0, -9.81 * body.mass(), 0.0), true);
     ///     }
     /// }
     /// ```

@@ -5,11 +5,11 @@ use crate::dynamics::{
 use crate::geometry::{Ball, ColliderSet, Cuboid, NarrowPhase, Shape, TypedShape};
 #[cfg(feature = "dim3")]
 use crate::geometry::{Cone, Cylinder};
-use crate::math::{DIM, Isometry, Point, Real, Vector};
+use crate::math::{DIM, Matrix, Pose, Vector};
 use crate::pipeline::debug_render_pipeline::DebugRenderStyle;
 use crate::pipeline::debug_render_pipeline::debug_render_backend::DebugRenderObject;
-use crate::utils::SimdBasis;
-use parry::utils::IsometryOpt;
+use crate::utils::OrthonormalBasis;
+use parry::utils::PoseOpt;
 use std::any::TypeId;
 use std::collections::HashMap;
 
@@ -44,9 +44,9 @@ impl Default for DebugRenderMode {
 }
 
 #[cfg(feature = "dim2")]
-type InstancesMap = HashMap<TypeId, Vec<Point<Real>>>;
+type InstancesMap = HashMap<TypeId, Vec<Vector>>;
 #[cfg(feature = "dim3")]
-type InstancesMap = HashMap<TypeId, (Vec<Point<Real>>, Vec<[u32; 2]>)>;
+type InstancesMap = HashMap<TypeId, (Vec<Vector>, Vec<[u32; 2]>)>;
 
 /// Pipeline responsible for rendering the state of the physics engine for debugging purpose.
 pub struct DebugRenderPipeline {
@@ -153,11 +153,11 @@ impl DebugRenderPipeline {
                     if backend.filter_object(object) {
                         for manifold in &pair.manifolds {
                             for contact in &manifold.data.solver_contacts {
+                                let point = contact.point;
                                 backend.draw_line(
                                     object,
-                                    contact.point,
-                                    contact.point
-                                        + manifold.data.normal * self.style.contact_normal_length,
+                                    point,
+                                    point + manifold.data.normal * self.style.contact_normal_length,
                                     self.style.contact_normal_color,
                                 );
                             }
@@ -201,19 +201,19 @@ impl DebugRenderPipeline {
                 let frame1 = rb1.position() * data.local_frame1;
                 let frame2 = rb2.position() * data.local_frame2;
 
-                let a = *rb1.translation();
-                let b = frame1.translation.vector;
-                let c = frame2.translation.vector;
-                let d = *rb2.translation();
+                let a = rb1.translation();
+                let b = frame1.translation;
+                let c = frame2.translation;
+                let d = rb2.translation();
 
                 for k in 0..4 {
                     anchor_color[k] *= coeff[k];
                     separation_color[k] *= coeff[k];
                 }
 
-                backend.draw_line(object, a.into(), b.into(), anchor_color);
-                backend.draw_line(object, b.into(), c.into(), separation_color);
-                backend.draw_line(object, c.into(), d.into(), anchor_color);
+                backend.draw_line(object, a, b, anchor_color);
+                backend.draw_line(object, b, c, separation_color);
+                backend.draw_line(object, c, d, anchor_color);
             }
         };
 
@@ -265,7 +265,10 @@ impl DebugRenderPipeline {
                 && self.mode.contains(DebugRenderMode::RIGID_BODY_AXES)
                 && backend.filter_object(object)
             {
-                let basis = rb.rotation().to_rotation_matrix().into_inner();
+                #[cfg(feature = "dim2")]
+                let basis = Matrix::from_angle(rb.rotation().angle());
+                #[cfg(feature = "dim3")]
+                let basis = Matrix::from_quat(*rb.rotation());
                 let coeff = if !rb.is_enabled() {
                     self.style.disabled_color_multiplier
                 } else if rb.is_sleeping() {
@@ -279,12 +282,10 @@ impl DebugRenderPipeline {
                     [240.0 * coeff[0], 1.0 * coeff[1], 0.2 * coeff[2], coeff[3]],
                 ];
 
-                let com = rb
-                    .position()
-                    .transform_point(&rb.mprops.local_mprops.local_com);
+                let com = rb.position() * rb.mprops.local_mprops.local_com;
 
                 for k in 0..DIM {
-                    let axis = basis.column(k) * self.style.rigid_body_axes_length;
+                    let axis = basis.col(k) * self.style.rigid_body_axes_length;
                     backend.draw_line(object, com, com + axis, colors[k]);
                 }
             }
@@ -349,7 +350,7 @@ impl DebugRenderPipeline {
                         object,
                         backend,
                         &cuboid,
-                        &aabb.center().into(),
+                        &Pose::from_translation(aabb.center()),
                         self.style.collider_aabb_color,
                     );
                 }
@@ -364,7 +365,7 @@ impl DebugRenderPipeline {
         object: DebugRenderObject,
         backend: &mut impl DebugRenderBackend,
         shape: &dyn Shape,
-        pos: &Isometry<Real>,
+        pos: &Pose,
         color: DebugColor,
     ) {
         match shape.as_typed_shape() {
@@ -374,39 +375,34 @@ impl DebugRenderPipeline {
                     object,
                     vtx,
                     pos,
-                    &Vector::repeat(s.radius * 2.0),
+                    Vector::splat(s.radius * 2.0),
                     color,
                     true,
                 );
                 // Draw a radius line to visualize rotation
                 backend.draw_line(
                     object,
-                    pos * Point::new(s.radius * 0.2, 0.0),
-                    pos * Point::new(s.radius * 0.8, 0.0),
+                    pos * Vector::new(s.radius * 0.2, 0.0),
+                    pos * Vector::new(s.radius * 0.8, 0.0),
                     color,
                 )
             }
             TypedShape::Cuboid(s) => {
                 let vtx = &self.instances[&TypeId::of::<Cuboid>()];
-                backend.draw_line_strip(object, vtx, pos, &(s.half_extents * 2.0), color, true)
+                backend.draw_line_strip(object, vtx, pos, s.half_extents * 2.0, color, true)
             }
             TypedShape::Capsule(s) => {
                 let vtx = s.to_polyline(self.style.subdivisions);
-                backend.draw_line_strip(object, &vtx, pos, &Vector::repeat(1.0), color, true)
+                backend.draw_line_strip(object, &vtx, pos, Vector::splat(1.0), color, true)
             }
-            TypedShape::Segment(s) => backend.draw_line_strip(
-                object,
-                &[s.a, s.b],
-                pos,
-                &Vector::repeat(1.0),
-                color,
-                false,
-            ),
+            TypedShape::Segment(s) => {
+                backend.draw_line_strip(object, &[s.a, s.b], pos, Vector::splat(1.0), color, false)
+            }
             TypedShape::Triangle(s) => backend.draw_line_strip(
                 object,
                 &[s.a, s.b, s.c],
                 pos,
-                &Vector::repeat(1.0),
+                Vector::splat(1.0),
                 color,
                 true,
             ),
@@ -420,14 +416,14 @@ impl DebugRenderPipeline {
                 s.vertices(),
                 s.indices(),
                 pos,
-                &Vector::repeat(1.0),
+                Vector::splat(1.0),
                 color,
             ),
             TypedShape::HalfSpace(s) => {
                 let basis = s.normal.orthonormal_basis()[0];
-                let a = Point::from(basis) * 10_000.0;
-                let b = Point::from(basis) * -10_000.0;
-                backend.draw_line_strip(object, &[a, b], pos, &Vector::repeat(1.0), color, false)
+                let a = Vector::from(basis) * 10_000.0;
+                let b = Vector::from(basis) * -10_000.0;
+                backend.draw_line_strip(object, &[a, b], pos, Vector::splat(1.0), color, false)
             }
             TypedShape::HeightField(s) => {
                 for seg in s.segments() {
@@ -440,14 +436,14 @@ impl DebugRenderPipeline {
                 }
             }
             TypedShape::ConvexPolygon(s) => {
-                backend.draw_line_strip(object, s.points(), pos, &Vector::repeat(1.0), color, true)
+                backend.draw_line_strip(object, s.points(), pos, Vector::splat(1.0), color, true)
             }
             /*
              * Round shapes.
              */
             TypedShape::RoundCuboid(s) => {
                 let vtx = s.to_polyline(self.style.border_subdivisions);
-                backend.draw_line_strip(object, &vtx, pos, &Vector::repeat(1.0), color, true)
+                backend.draw_line_strip(object, &vtx, pos, Vector::splat(1.0), color, true)
             }
             TypedShape::RoundTriangle(s) => {
                 // TODO: take roundness into account.
@@ -459,11 +455,11 @@ impl DebugRenderPipeline {
             // }
             TypedShape::RoundConvexPolygon(s) => {
                 let vtx = s.to_polyline(self.style.border_subdivisions);
-                backend.draw_line_strip(object, &vtx, pos, &Vector::repeat(1.0), color, true)
+                backend.draw_line_strip(object, &vtx, pos, Vector::splat(1.0), color, true)
             }
             TypedShape::Voxels(s) => {
                 let (vtx, idx) = s.to_polyline();
-                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
+                backend.draw_polyline(object, &vtx, &idx, pos, Vector::splat(1.0), color)
             }
             TypedShape::Custom(_) => {}
         }
@@ -476,42 +472,35 @@ impl DebugRenderPipeline {
         object: DebugRenderObject,
         backend: &mut impl DebugRenderBackend,
         shape: &dyn Shape,
-        pos: &Isometry<Real>,
+        pos: &Pose,
         color: DebugColor,
     ) {
         match shape.as_typed_shape() {
             TypedShape::Ball(s) => {
                 let (vtx, idx) = &self.instances[&TypeId::of::<Ball>()];
-                backend.draw_polyline(
-                    object,
-                    vtx,
-                    idx,
-                    pos,
-                    &Vector::repeat(s.radius * 2.0),
-                    color,
-                )
+                backend.draw_polyline(object, vtx, idx, pos, Vector::splat(s.radius * 2.0), color)
             }
             TypedShape::Cuboid(s) => {
                 let (vtx, idx) = &self.instances[&TypeId::of::<Cuboid>()];
-                backend.draw_polyline(object, vtx, idx, pos, &(s.half_extents * 2.0), color)
+                backend.draw_polyline(object, vtx, idx, pos, s.half_extents * 2.0, color)
             }
             TypedShape::Capsule(s) => {
                 let (vtx, idx) = s.to_outline(self.style.subdivisions);
-                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
+                backend.draw_polyline(object, &vtx, &idx, pos, Vector::splat(1.0), color)
             }
             TypedShape::Segment(s) => backend.draw_polyline(
                 object,
                 &[s.a, s.b],
                 &[[0, 1]],
                 pos,
-                &Vector::repeat(1.0),
+                Vector::splat(1.0),
                 color,
             ),
             TypedShape::Triangle(s) => backend.draw_line_strip(
                 object,
                 &[s.a, s.b, s.c],
                 pos,
-                &Vector::repeat(1.0),
+                Vector::splat(1.0),
                 color,
                 true,
             ),
@@ -525,21 +514,21 @@ impl DebugRenderPipeline {
                 s.vertices(),
                 s.indices(),
                 pos,
-                &Vector::repeat(1.0),
+                Vector::splat(1.0),
                 color,
             ),
             TypedShape::HalfSpace(s) => {
                 let basis = s.normal.orthonormal_basis();
-                let a = Point::from(basis[0]) * 10_000.0;
-                let b = Point::from(basis[0]) * -10_000.0;
-                let c = Point::from(basis[1]) * 10_000.0;
-                let d = Point::from(basis[1]) * -10_000.0;
+                let a = Vector::from(basis[0]) * 10_000.0;
+                let b = Vector::from(basis[0]) * -10_000.0;
+                let c = Vector::from(basis[1]) * 10_000.0;
+                let d = Vector::from(basis[1]) * -10_000.0;
                 backend.draw_polyline(
                     object,
                     &[a, b, c, d],
                     &[[0, 1], [2, 3]],
                     pos,
-                    &Vector::repeat(1.0),
+                    Vector::splat(1.0),
                     color,
                 )
             }
@@ -557,16 +546,9 @@ impl DebugRenderPipeline {
                 let indices: Vec<_> = s
                     .edges()
                     .iter()
-                    .map(|e| [e.vertices.x, e.vertices.y])
+                    .map(|e| [e.vertices[0], e.vertices[1]])
                     .collect();
-                backend.draw_polyline(
-                    object,
-                    s.points(),
-                    &indices,
-                    pos,
-                    &Vector::repeat(1.0),
-                    color,
-                )
+                backend.draw_polyline(object, s.points(), &indices, pos, Vector::splat(1.0), color)
             }
             TypedShape::Cylinder(s) => {
                 let (vtx, idx) = &self.instances[&TypeId::of::<Cylinder>()];
@@ -575,7 +557,7 @@ impl DebugRenderPipeline {
                     vtx,
                     idx,
                     pos,
-                    &(Vector::new(s.radius, s.half_height, s.radius) * 2.0),
+                    Vector::new(s.radius, s.half_height, s.radius) * 2.0,
                     color,
                 )
             }
@@ -586,7 +568,7 @@ impl DebugRenderPipeline {
                     vtx,
                     idx,
                     pos,
-                    &(Vector::new(s.radius, s.half_height, s.radius) * 2.0),
+                    Vector::new(s.radius, s.half_height, s.radius) * 2.0,
                     color,
                 )
             }
@@ -595,7 +577,7 @@ impl DebugRenderPipeline {
              */
             TypedShape::RoundCuboid(s) => {
                 let (vtx, idx) = s.to_outline(self.style.border_subdivisions);
-                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
+                backend.draw_polyline(object, &vtx, &idx, pos, Vector::splat(1.0), color)
             }
             TypedShape::RoundTriangle(s) => {
                 // TODO: take roundness into account.
@@ -608,20 +590,20 @@ impl DebugRenderPipeline {
             TypedShape::RoundCylinder(s) => {
                 let (vtx, idx) =
                     s.to_outline(self.style.subdivisions, self.style.border_subdivisions);
-                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
+                backend.draw_polyline(object, &vtx, &idx, pos, Vector::splat(1.0), color)
             }
             TypedShape::RoundCone(s) => {
                 let (vtx, idx) =
                     s.to_outline(self.style.subdivisions, self.style.border_subdivisions);
-                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
+                backend.draw_polyline(object, &vtx, &idx, pos, Vector::splat(1.0), color)
             }
             TypedShape::RoundConvexPolyhedron(s) => {
                 let (vtx, idx) = s.to_outline(self.style.border_subdivisions);
-                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
+                backend.draw_polyline(object, &vtx, &idx, pos, Vector::splat(1.0), color)
             }
             TypedShape::Voxels(s) => {
                 let (vtx, idx) = s.to_outline();
-                backend.draw_polyline(object, &vtx, &idx, pos, &Vector::repeat(1.0), color)
+                backend.draw_polyline(object, &vtx, &idx, pos, Vector::splat(1.0), color)
             }
             TypedShape::Custom(_) => {}
         }

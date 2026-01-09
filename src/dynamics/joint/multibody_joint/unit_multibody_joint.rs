@@ -4,8 +4,7 @@ use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::joint::MultibodyLink;
 use crate::dynamics::solver::{GenericJointConstraint, WritebackId};
 use crate::dynamics::{IntegrationParameters, JointMotor, Multibody};
-use crate::math::Real;
-use na::DVector;
+use crate::math::{DVector, Real};
 
 /// Initializes and generate the velocity constraints applicable to the multibody links attached
 /// to this multibody_joint.
@@ -17,7 +16,7 @@ pub fn unit_joint_limit_constraint(
     curr_pos: Real,
     dof_id: usize,
     j_id: &mut usize,
-    jacobians: &mut DVector<Real>,
+    jacobians: &mut DVector,
     constraints: &mut [GenericJointConstraint],
     insert_at: &mut usize,
     softness: SpringCoefficients<Real>,
@@ -85,7 +84,7 @@ pub fn unit_joint_motor_constraint(
     limits: Option<[Real; 2]>,
     dof_id: usize,
     j_id: &mut usize,
-    jacobians: &mut DVector<Real>,
+    jacobians: &mut DVector,
     constraints: &mut [GenericJointConstraint],
     insert_at: &mut usize,
 ) {

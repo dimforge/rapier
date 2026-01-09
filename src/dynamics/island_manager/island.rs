@@ -3,7 +3,7 @@ use crate::dynamics::{RigidBody, RigidBodyHandle, RigidBodySet};
 use super::IslandManager;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub(crate) struct Island {
     /// The rigid-bodies part of this island.
     pub(super) bodies: Vec<RigidBodyHandle>,

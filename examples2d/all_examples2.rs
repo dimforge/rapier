@@ -1,11 +1,7 @@
 #![allow(dead_code)]
 #![allow(clippy::type_complexity)]
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
-
-use rapier_testbed2d::{Testbed, TestbedApp};
-use std::cmp::Ordering;
+use rapier_testbed2d::{Example, TestbedApp};
 
 mod add_remove2;
 mod ccd2;
@@ -44,66 +40,94 @@ mod s2d_high_mass_ratio_3;
 mod s2d_joint_grid;
 mod s2d_pyramid;
 mod sensor2;
+mod stress_tests;
+#[cfg(not(target_arch = "wasm32"))]
 mod trimesh2;
 mod voxels2;
 
 mod utils;
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub fn main() {
-    let mut builders: Vec<(_, fn(&mut Testbed))> = vec![
-        ("Add remove", add_remove2::init_world),
-        ("CCD", ccd2::init_world),
-        ("Character controller", character_controller2::init_world),
-        ("Collision groups", collision_groups2::init_world),
-        ("Convex polygons", convex_polygons2::init_world),
-        ("Damping", damping2::init_world),
-        ("Drum", drum2::init_world),
-        ("Heightfield", heightfield2::init_world),
-        ("Inverse kinematics", inverse_kinematics2::init_world),
-        ("Inv pyramid", inv_pyramid2::init_world),
-        ("Joints", joints2::init_world),
-        ("Locked rotations", locked_rotations2::init_world),
-        ("One-way platforms", one_way_platforms2::init_world),
-        ("Platform", platform2::init_world),
-        ("Polyline", polyline2::init_world),
-        ("Pin Slot Joint", pin_slot_joint2::init_world),
-        ("Pyramid", pyramid2::init_world),
-        ("Restitution", restitution2::init_world),
-        ("Rope Joints", rope_joints2::init_world),
-        ("Sensor", sensor2::init_world),
-        ("Trimesh", trimesh2::init_world),
-        ("Voxels", voxels2::init_world),
-        ("Joint motor position", joint_motor_position2::init_world),
-        ("(Debug) box ball", debug_box_ball2::init_world),
-        ("(Debug) compression", debug_compression2::init_world),
-        ("(Debug) intersection", debug_intersection2::init_world),
-        ("(Debug) total overlap", debug_total_overlap2::init_world),
-        (
-            "(Debug) vertical column",
-            debug_vertical_column2::init_world,
-        ),
-        ("(s2d) high mass ratio 1", s2d_high_mass_ratio_1::init_world),
-        ("(s2d) high mass ratio 2", s2d_high_mass_ratio_2::init_world),
-        ("(s2d) high mass ratio 3", s2d_high_mass_ratio_3::init_world),
-        ("(s2d) confined", s2d_confined::init_world),
-        ("(s2d) pyramid", s2d_pyramid::init_world),
-        ("(s2d) card house", s2d_card_house::init_world),
-        ("(s2d) arch", s2d_arch::init_world),
-        ("(s2d) bridge", s2d_bridge::init_world),
-        ("(s2d) ball and chain", s2d_ball_and_chain::init_world),
-        ("(s2d) joint grid", s2d_joint_grid::init_world),
-        ("(s2d) far pyramid", s2d_far_pyramid::init_world),
-    ];
+#[kiss3d::main]
+pub async fn main() {
+    const COLLISIONS: &str = "Collisions";
+    const DYNAMICS: &str = "Dynamics";
+    const COMPLEX: &str = "Complex Shapes";
+    const JOINTS: &str = "Joints";
+    const CONTROLS: &str = "Controls";
+    const DEBUG: &str = "Debug";
+    const S2D: &str = "Inspired by Solver 2D";
 
-    // Lexicographic sort, with stress tests moved at the end of the list.
-    builders.sort_by(|a, b| match (a.0.starts_with('('), b.0.starts_with('(')) {
-        (true, true) | (false, false) => a.0.cmp(b.0),
-        (true, false) => Ordering::Greater,
-        (false, true) => Ordering::Less,
-    });
+    let mut builders: Vec<Example> = vec![
+        // ── Demos ──────────────────────────────────────────────────────────
+        Example::new(COLLISIONS, "Add remove", add_remove2::init_world),
+        Example::new(COLLISIONS, "Drum", drum2::init_world),
+        Example::new(COLLISIONS, "Inv pyramid", inv_pyramid2::init_world),
+        Example::new(COLLISIONS, "Platform", platform2::init_world),
+        Example::new(COLLISIONS, "Pyramid", pyramid2::init_world),
+        Example::new(COLLISIONS, "Sensor", sensor2::init_world),
+        Example::new(COLLISIONS, "Convex polygons", convex_polygons2::init_world),
+        Example::new(COLLISIONS, "Heightfield", heightfield2::init_world),
+        Example::new(COLLISIONS, "Polyline", polyline2::init_world),
+        #[cfg(not(target_arch = "wasm32"))]
+        Example::new(COLLISIONS, "Trimesh", trimesh2::init_world),
+        Example::new(COLLISIONS, "Voxels", voxels2::init_world),
+        Example::new(
+            COLLISIONS,
+            "Collision groups",
+            collision_groups2::init_world,
+        ),
+        Example::new(
+            COLLISIONS,
+            "One-way platforms",
+            one_way_platforms2::init_world,
+        ),
+        // ── Dynamics ──────────────────────────────────────────────────────────
+        Example::new(DYNAMICS, "Locked rotations", locked_rotations2::init_world),
+        Example::new(DYNAMICS, "Restitution", restitution2::init_world),
+        Example::new(DYNAMICS, "Damping", damping2::init_world),
+        Example::new(DYNAMICS, "CCD", ccd2::init_world),
+        // ── Joints ─────────────────────────────────────────────────────────
+        Example::new(JOINTS, "Joints", joints2::init_world),
+        Example::new(JOINTS, "Rope Joints", rope_joints2::init_world),
+        Example::new(JOINTS, "Pin Slot Joint", pin_slot_joint2::init_world),
+        Example::new(
+            JOINTS,
+            "Joint motor position",
+            joint_motor_position2::init_world,
+        ),
+        Example::new(
+            JOINTS,
+            "Inverse kinematics",
+            inverse_kinematics2::init_world,
+        ),
+        // ── Characters ─────────────────────────────────────────────────────
+        Example::new(
+            CONTROLS,
+            "Character controller",
+            character_controller2::init_world,
+        ),
+        // ── Debug ──────────────────────────────────────────────────────────
+        Example::new(DEBUG, "Box ball", debug_box_ball2::init_world),
+        Example::new(DEBUG, "Compression", debug_compression2::init_world),
+        Example::new(DEBUG, "Intersection", debug_intersection2::init_world),
+        Example::new(DEBUG, "Total overlap", debug_total_overlap2::init_world),
+        Example::new(DEBUG, "Vertical column", debug_vertical_column2::init_world),
+        // ── Demos inspired by Solver2D ───────────────────────────────────────────────────
+        Example::new(S2D, "High mass ratio 1", s2d_high_mass_ratio_1::init_world),
+        Example::new(S2D, "High mass ratio 2", s2d_high_mass_ratio_2::init_world),
+        Example::new(S2D, "High mass ratio 3", s2d_high_mass_ratio_3::init_world),
+        Example::new(S2D, "Confined", s2d_confined::init_world),
+        Example::new(S2D, "Pyramid", s2d_pyramid::init_world),
+        Example::new(S2D, "Card house", s2d_card_house::init_world),
+        Example::new(S2D, "Arch", s2d_arch::init_world),
+        Example::new(S2D, "Bridge", s2d_bridge::init_world),
+        Example::new(S2D, "Ball and chain", s2d_ball_and_chain::init_world),
+        Example::new(S2D, "Joint grid", s2d_joint_grid::init_world),
+        Example::new(S2D, "Far pyramid", s2d_far_pyramid::init_world),
+    ];
+    let mut benches = stress_tests::builders();
+    builders.append(&mut benches);
 
     let testbed = TestbedApp::from_builders(builders);
-
-    testbed.run()
+    testbed.run().await
 }

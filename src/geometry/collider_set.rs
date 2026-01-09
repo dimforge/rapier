@@ -2,7 +2,7 @@ use crate::data::arena::Arena;
 use crate::data::{HasModifiedFlag, ModifiedObjects};
 use crate::dynamics::{IslandManager, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{Collider, ColliderChanges, ColliderHandle, ColliderParent};
-use crate::math::Isometry;
+use crate::math::Pose;
 use std::ops::{Index, IndexMut};
 
 /// A set of modified colliders
@@ -286,7 +286,7 @@ impl ColliderSet {
                     } else {
                         collider.parent = Some(ColliderParent {
                             handle: new_parent_handle,
-                            pos_wrt_parent: Isometry::identity(),
+                            pos_wrt_parent: Pose::IDENTITY,
                         })
                     };
 

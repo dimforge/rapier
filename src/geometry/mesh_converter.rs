@@ -1,5 +1,5 @@
 use parry::bounding_volume;
-use parry::math::{Isometry, Point, Real};
+use parry::math::{Pose, Vector};
 use parry::shape::{Cuboid, SharedShape, TriMeshBuilderError, TriMeshFlags};
 
 #[cfg(feature = "dim3")]
@@ -58,10 +58,10 @@ impl MeshConverter {
     #[profiling::function]
     pub fn convert(
         &self,
-        vertices: Vec<Point<Real>>,
+        vertices: Vec<Vector>,
         indices: Vec<[u32; 3]>,
-    ) -> Result<(SharedShape, Isometry<Real>), MeshConverterError> {
-        let mut transform = Isometry::identity();
+    ) -> Result<(SharedShape, Pose), MeshConverterError> {
+        let mut transform = Pose::IDENTITY;
         let shape = match self {
             MeshConverter::TriMesh => SharedShape::trimesh(vertices, indices)
                 .map_err(MeshConverterError::TriMeshBuilderError)?,
@@ -78,7 +78,7 @@ impl MeshConverter {
                 let aabb =
                     bounding_volume::details::local_point_cloud_aabb(vertices.iter().copied());
                 let cuboid = Cuboid::new(aabb.half_extents());
-                transform = Isometry::from(aabb.center().coords);
+                transform = Pose::from_translation(aabb.center());
                 SharedShape::new(cuboid)
             }
             MeshConverter::ConvexHull => {

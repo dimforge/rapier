@@ -3,10 +3,10 @@ use super::Collider;
 use super::CollisionEvent;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Contact, ContactManifold};
-use crate::math::{Point, Real, TangentImpulse, Vector};
+use crate::math::{Real, TangentImpulse, Vector};
 use crate::pipeline::EventHandler;
 use crate::prelude::CollisionEventFlags;
-use crate::utils::SimdRealCopy;
+use crate::utils::ScalarType;
 use parry::math::{SIMD_WIDTH, SimdReal};
 use parry::query::ContactManifoldsWorkspace;
 
@@ -194,7 +194,7 @@ impl ContactPair {
     ///
     /// This is the accumulated force that pushed the colliders apart.
     /// Useful for determining impact strength.
-    pub fn total_impulse(&self) -> Vector<Real> {
+    pub fn total_impulse(&self) -> Vector {
         self.manifolds
             .iter()
             .map(|m| m.total_impulse() * m.data.normal)
@@ -213,8 +213,8 @@ impl ContactPair {
     /// Finds the strongest contact impulse and its direction.
     ///
     /// Returns `(magnitude, normal_direction)` of the strongest individual contact.
-    pub fn max_impulse(&self) -> (Real, Vector<Real>) {
-        let mut result = (0.0, Vector::zeros());
+    pub fn max_impulse(&self) -> (Real, Vector) {
+        let mut result = (0.0, Vector::ZERO);
 
         for m in &self.manifolds {
             let impulse = m.total_impulse();
@@ -322,7 +322,7 @@ pub struct ContactManifoldData {
     /// The world-space contact normal shared by all the contact in this contact manifold.
     // NOTE: read the comment of `solver_contacts` regarding serialization. It applies
     // to this field as well.
-    pub normal: Vector<Real>,
+    pub normal: Vector,
     /// The contacts that will be seen by the constraints solver for computing forces.
     // NOTE: unfortunately, we can't ignore this field when serialize
     // the contact manifold data. The reason is that the solver contacts
@@ -357,22 +357,24 @@ pub type SimdSolverContact = SolverContactGeneric<SimdReal, SIMD_WIDTH>;
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[cfg_attr(
     feature = "serde-serialize",
-    serde(bound(serialize = "N: serde::Serialize, [u32; LANES]: serde::Serialize"))
+    serde(bound(
+        serialize = "N: serde::Serialize, N::Vector: serde::Serialize, [u32; LANES]: serde::Serialize"
+    ))
 )]
 #[cfg_attr(
     feature = "serde-serialize",
     serde(bound(
-        deserialize = "N: serde::Deserialize<'de>, [u32; LANES]: serde::Deserialize<'de>"
+        deserialize = "N: serde::Deserialize<'de>, N::Vector: serde::Deserialize<'de>, [u32; LANES]: serde::Deserialize<'de>"
     ))
 )]
 #[repr(C)]
 #[repr(align(16))]
-pub struct SolverContactGeneric<N: SimdRealCopy, const LANES: usize> {
+pub struct SolverContactGeneric<N: ScalarType, const LANES: usize> {
     // IMPORTANT: don’t change the fields unless `SimdSolverContactRepr` is also changed.
     //
     // TOTAL: 11/14 = 3*4/4*4-1
     /// The contact point in world-space.
-    pub point: Point<N>, // 2/3
+    pub point: N::Vector, // 2/3
     /// The distance between the two original contacts points along the contact normal.
     /// If negative, this is measures the penetration depth.
     pub dist: N, // 1/1
@@ -384,7 +386,7 @@ pub struct SolverContactGeneric<N: SimdRealCopy, const LANES: usize> {
     ///
     /// This is set to zero by default. Set to a non-zero value to
     /// simulate, e.g., conveyor belts.
-    pub tangent_velocity: Vector<N>, // 2/3
+    pub tangent_velocity: N::Vector, // 2/3
     /// Impulse used to warmstart the solve for the normal constraint.
     pub warmstart_impulse: N, // 1/1
     /// Impulse used to warmstart the solve for the friction constraints.
@@ -598,7 +600,7 @@ impl ContactManifoldData {
             rigid_body1,
             rigid_body2,
             solver_flags,
-            normal: Vector::zeros(),
+            normal: Vector::ZERO,
             solver_contacts: Vec::new(),
             relative_dominance: 0,
             user_data: 0,

@@ -185,7 +185,7 @@ impl PhysicsPipeline {
 
     fn build_islands_and_solve_velocity_constraints(
         &mut self,
-        gravity: &Vector<Real>,
+        gravity: Vector,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
         narrow_phase: &mut NarrowPhase,
@@ -249,7 +249,7 @@ impl PhysicsPipeline {
                 .update_world_mass_properties(rb.body_type, &rb.pos.position);
             let effective_mass = rb.mprops.effective_mass();
             rb.forces
-                .compute_effective_force_and_torque(gravity, &effective_mass);
+                .compute_effective_force_and_torque(gravity, effective_mass);
         }
         self.counters.stages.update_time.pause();
 
@@ -424,7 +424,7 @@ impl PhysicsPipeline {
                 RigidBodyType::KinematicPositionBased => {
                     rb.vels = rb.pos.interpolate_velocity(
                         integration_parameters.inv_dt(),
-                        &rb.mprops.local_mprops.local_com,
+                        rb.mprops.local_mprops.local_com,
                     );
                 }
                 RigidBodyType::KinematicVelocityBased => {}
@@ -469,7 +469,7 @@ impl PhysicsPipeline {
     /// # let integration_parameters = IntegrationParameters::default();
     /// // In your game loop:
     /// physics_pipeline.step(
-    ///     &vector![0.0, -9.81, 0.0],  // Gravity pointing down
+    ///     Vector::new(0.0, -9.81, 0.0),  // Gravity pointing down
     ///     &integration_parameters,
     ///     &mut islands,
     ///     &mut broad_phase,
@@ -485,7 +485,7 @@ impl PhysicsPipeline {
     /// ```
     pub fn step(
         &mut self,
-        gravity: &Vector<Real>,
+        gravity: Vector,
         integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
         broad_phase: &mut BroadPhaseBvh,
@@ -794,13 +794,13 @@ impl PhysicsPipeline {
 
 #[cfg(test)]
 mod test {
-    use na::point;
-
     use crate::dynamics::{
         CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, RigidBodyBuilder,
         RigidBodySet,
     };
     use crate::geometry::{BroadPhaseBvh, ColliderBuilder, ColliderSet, NarrowPhase};
+    #[cfg(feature = "dim2")]
+    use crate::math::Rotation;
     use crate::math::Vector;
     use crate::pipeline::PhysicsPipeline;
     use crate::prelude::{MultibodyJointSet, RevoluteJointBuilder, RigidBodyType};
@@ -827,7 +827,7 @@ mod test {
         colliders.insert_with_parent(co, h2, &mut bodies);
 
         pipeline.step(
-            &Vector::zeros(),
+            Vector::ZERO,
             &IntegrationParameters::default(),
             &mut islands,
             &mut bf,
@@ -882,7 +882,7 @@ mod test {
         }
 
         pipeline.step(
-            &Vector::zeros(),
+            Vector::ZERO,
             &IntegrationParameters::default(),
             &mut islands,
             &mut bf,
@@ -955,7 +955,7 @@ mod test {
     #[test]
     fn collider_removal_before_step() {
         let mut pipeline = PhysicsPipeline::new();
-        let gravity = Vector::y() * -9.81;
+        let gravity = Vector::Y * -9.81;
         let integration_parameters = IntegrationParameters::default();
         let mut broad_phase = BroadPhaseBvh::new();
         let mut narrow_phase = NarrowPhase::new();
@@ -984,7 +984,7 @@ mod test {
 
         for _ in 0..10 {
             pipeline.step(
-                &gravity,
+                gravity,
                 &integration_parameters,
                 &mut islands,
                 &mut broad_phase,
@@ -1019,9 +1019,9 @@ mod test {
         let h = bodies.insert(rb.clone());
 
         // Step once
-        let gravity = Vector::y() * -9.81;
+        let gravity = Vector::Y * -9.81;
         pipeline.step(
-            &gravity,
+            gravity,
             &IntegrationParameters::default(),
             &mut islands,
             &mut bf,
@@ -1043,7 +1043,7 @@ mod test {
 
         // Step again
         pipeline.step(
-            &gravity,
+            gravity,
             &IntegrationParameters::default(),
             &mut islands,
             &mut bf,
@@ -1063,8 +1063,8 @@ mod test {
         // Expect gravity to be applied on second step after switching to Dynamic
         assert!(h_y < 0.0);
 
-        // Expect body to now be in active_set
-        assert!(islands.active_set.contains(&h));
+        // Expect body to now be awake (not sleeping)
+        assert!(!body.is_sleeping());
     }
 
     #[test]
@@ -1088,12 +1088,12 @@ mod test {
         // Add joint
         #[cfg(feature = "dim2")]
         let joint = RevoluteJointBuilder::new()
-            .local_anchor1(point![0.0, 1.0])
-            .local_anchor2(point![0.0, -3.0]);
+            .local_anchor1(Vector::new(0.0, 1.0))
+            .local_anchor2(Vector::new(0.0, -3.0));
         #[cfg(feature = "dim3")]
-        let joint = RevoluteJointBuilder::new(Vector::z_axis())
-            .local_anchor1(point![0.0, 1.0, 0.0])
-            .local_anchor2(point![0.0, -3.0, 0.0]);
+        let joint = RevoluteJointBuilder::new(Vector::Z)
+            .local_anchor1(Vector::new(0.0, 1.0, 0.0))
+            .local_anchor2(Vector::new(0.0, -3.0, 0.0));
         impulse_joints.insert(h, h_dynamic, joint, true);
 
         let parameters = IntegrationParameters {
@@ -1101,9 +1101,9 @@ mod test {
             ..Default::default()
         };
         // Step once
-        let gravity = Vector::y() * -9.81;
+        let gravity = Vector::Y * -9.81;
         pipeline.step(
-            &gravity,
+            gravity,
             &parameters,
             &mut islands,
             &mut bf,
@@ -1121,13 +1121,16 @@ mod test {
         assert!(translation.x.is_finite());
         assert!(translation.y.is_finite());
         #[cfg(feature = "dim2")]
-        assert!(rotation.is_finite());
+        {
+            assert!(rotation.re.is_finite());
+            assert!(rotation.im.is_finite());
+        }
         #[cfg(feature = "dim3")]
         {
             assert!(translation.z.is_finite());
-            assert!(rotation.i.is_finite());
-            assert!(rotation.j.is_finite());
-            assert!(rotation.k.is_finite());
+            assert!(rotation.x.is_finite());
+            assert!(rotation.y.is_finite());
+            assert!(rotation.z.is_finite());
             assert!(rotation.w.is_finite());
         }
     }
@@ -1135,24 +1138,21 @@ mod test {
     #[test]
     #[cfg(feature = "dim2")]
     fn test_multi_sap_disable_body() {
-        use na::vector;
         let mut rigid_body_set = RigidBodySet::new();
         let mut collider_set = ColliderSet::new();
 
         /* Create the ground. */
-        let collider = ColliderBuilder::cuboid(100.0, 0.1).build();
+        let collider = ColliderBuilder::cuboid(100.0, 0.1);
         collider_set.insert(collider);
 
         /* Create the bouncing ball. */
-        let rigid_body = RigidBodyBuilder::dynamic()
-            .translation(vector![0.0, 10.0])
-            .build();
-        let collider = ColliderBuilder::ball(0.5).restitution(0.7).build();
+        let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 10.0));
+        let collider = ColliderBuilder::ball(0.5).restitution(0.7);
         let ball_body_handle = rigid_body_set.insert(rigid_body);
         collider_set.insert_with_parent(collider, ball_body_handle, &mut rigid_body_set);
 
         /* Create other structures necessary for the simulation. */
-        let gravity = vector![0.0, -9.81];
+        let gravity = Vector::new(0.0, -9.81);
         let integration_parameters = IntegrationParameters::default();
         let mut physics_pipeline = PhysicsPipeline::new();
         let mut island_manager = IslandManager::new();
@@ -1165,7 +1165,7 @@ mod test {
         let event_handler = ();
 
         physics_pipeline.step(
-            &gravity,
+            gravity,
             &integration_parameters,
             &mut island_manager,
             &mut broad_phase,
@@ -1184,14 +1184,13 @@ mod test {
             let ball_body = &mut rigid_body_set[ball_body_handle];
 
             // Also, change the translation and rotation to different values
-            ball_body.set_translation(vector![1.0, 1.0], true);
-            ball_body.set_rotation(nalgebra::UnitComplex::new(1.0), true);
-
+            ball_body.set_translation(Vector::new(1.0, 1.0), true);
+            ball_body.set_rotation(Rotation::from_angle(1.0), true);
             ball_body.set_enabled(false);
         }
 
         physics_pipeline.step(
-            &gravity,
+            gravity,
             &integration_parameters,
             &mut island_manager,
             &mut broad_phase,
@@ -1210,14 +1209,13 @@ mod test {
             let ball_body = &mut rigid_body_set[ball_body_handle];
 
             // Also, change the translation and rotation to different values
-            ball_body.set_translation(vector![0.0, 0.0], true);
-            ball_body.set_rotation(nalgebra::UnitComplex::new(0.0), true);
-
+            ball_body.set_translation(Vector::new(0.0, 0.0), true);
+            ball_body.set_rotation(Rotation::from_angle(0.0), true);
             ball_body.set_enabled(true);
         }
 
         physics_pipeline.step(
-            &gravity,
+            gravity,
             &integration_parameters,
             &mut island_manager,
             &mut broad_phase,

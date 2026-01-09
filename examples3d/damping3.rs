@@ -23,9 +23,9 @@ pub fn init_world(testbed: &mut Testbed) {
 
         // Build the rigid body.
         let rb = RigidBodyBuilder::dynamic()
-            .translation(vector![x, y, 0.0])
-            .linvel(vector![x * 10.0, y * 10.0, 0.0])
-            .angvel(Vector::z() * 100.0)
+            .translation(Vector::new(x, y, 0.0))
+            .linvel(Vector::new(x * 10.0, y * 10.0, 0.0))
+            .angvel(Vector::Z * 100.0)
             .linear_damping((i + 1) as f32 * subdiv * 10.0)
             .angular_damping((num - i) as f32 * subdiv * 10.0);
         let rb_handle = bodies.insert(rb);
@@ -43,8 +43,8 @@ pub fn init_world(testbed: &mut Testbed) {
         colliders,
         impulse_joints,
         multibody_joints,
-        Vector::zeros(),
+        Vector::ZERO,
         (),
     );
-    testbed.look_at(point![2.0, 2.5, 20.0], point![2.0, 2.5, 0.0]);
+    testbed.look_at(Vec3::new(2.0, 2.5, 20.0), Vec3::new(2.0, 2.5, 0.0));
 }

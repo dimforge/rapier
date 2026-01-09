@@ -4,29 +4,29 @@ use super::{
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex, SimdSolverContact};
-use crate::math::{DIM, MAX_MANIFOLD_POINTS, Point, Real, SIMD_WIDTH, SimdReal, Vector};
-#[cfg(feature = "dim2")]
-use crate::utils::SimdBasis;
-use crate::utils::{self, SimdAngularInertia, SimdCross, SimdDot, SimdRealCopy};
+use crate::math::{DIM, MAX_MANIFOLD_POINTS, Real, SIMD_WIDTH, SimdReal};
+#[cfg(not(feature = "simd-is-enabled"))]
+use crate::utils::ComponentMul;
+use crate::utils::{self, AngularInertiaOps, CrossProduct, DotProduct, ScalarType, SimdLength};
 use num::Zero;
 use simba::simd::{SimdPartialOrd, SimdValue};
 
 #[derive(Copy, Clone, Debug)]
-pub struct TwistContactPointInfos<N: SimdRealCopy> {
+pub struct TwistContactPointInfos<N: ScalarType> {
     // This is different from the Coulomb version because it doesn’t
     // have the `tangent_vel` per-contact here.
     pub normal_vel: N,
-    pub local_p1: Point<N>,
-    pub local_p2: Point<N>,
+    pub local_p1: N::Vector,
+    pub local_p2: N::Vector,
     pub dist: N,
 }
 
-impl<N: SimdRealCopy> Default for TwistContactPointInfos<N> {
+impl<N: ScalarType> Default for TwistContactPointInfos<N> {
     fn default() -> Self {
         Self {
             normal_vel: N::zero(),
-            local_p1: Point::origin(),
-            local_p2: Point::origin(),
+            local_p1: Default::default(),
+            local_p2: Default::default(),
             dist: N::zero(),
         }
     }
@@ -37,21 +37,21 @@ impl<N: SimdRealCopy> Default for TwistContactPointInfos<N> {
  *        Find a way to refactor so we can at least share the code for the ristution part.
  */
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct ContactWithTwistFrictionBuilder {
-    infos: [TwistContactPointInfos<SimdReal>; MAX_MANIFOLD_POINTS],
-    local_friction_center1: Point<SimdReal>,
-    local_friction_center2: Point<SimdReal>,
-    tangent_vel: Vector<SimdReal>,
+pub(crate) struct ContactWithTwistFrictionBuilder<N: ScalarType> {
+    infos: [TwistContactPointInfos<N>; MAX_MANIFOLD_POINTS],
+    local_friction_center1: N::Vector,
+    local_friction_center2: N::Vector,
+    tangent_vel: N::Vector,
 }
 
-impl ContactWithTwistFrictionBuilder {
+impl ContactWithTwistFrictionBuilder<SimdReal> {
     pub fn generate(
         manifold_id: [ContactManifoldIndex; SIMD_WIDTH],
         manifolds: [&ContactManifold; SIMD_WIDTH],
         bodies: &RigidBodySet,
         solver_bodies: &SolverBodies,
-        out_builder: &mut ContactWithTwistFrictionBuilder,
-        out_constraint: &mut ContactWithTwistFriction,
+        out_builder: &mut ContactWithTwistFrictionBuilder<SimdReal>,
+        out_constraint: &mut ContactWithTwistFriction<SimdReal>,
     ) {
         // TODO: could we avoid having to fetch the ids here? It’s the only thing we
         //       read from the original rigid-bodies.
@@ -77,18 +77,25 @@ impl ContactWithTwistFrictionBuilder {
         let vels2 = solver_bodies.gather_vels(ids2);
         let poses2 = solver_bodies.gather_poses(ids2);
 
-        let world_com1 = Point::from(poses1.pose.translation.vector);
-        let world_com2 = Point::from(poses2.pose.translation.vector);
+        let world_com1 = poses1.translation;
+        let world_com2 = poses2.translation;
 
         // TODO PERF: implement SIMD gather
-        let force_dir1 = -Vector::<SimdReal>::from(gather![|ii| manifolds[ii].data.normal]);
+        #[cfg(feature = "simd-is-enabled")]
+        let force_dir1 =
+            -<SimdReal as ScalarType>::Vector::from(gather![|ii| manifolds[ii].data.normal.into()]);
+        #[cfg(not(feature = "simd-is-enabled"))]
+        let force_dir1 = -manifolds[0].data.normal;
         let num_active_contacts = manifolds[0].data.num_active_contacts();
 
         #[cfg(feature = "dim2")]
         let tangents1 = force_dir1.orthonormal_basis();
         #[cfg(feature = "dim3")]
-        let tangents1 =
-            super::compute_tangent_contact_directions(&force_dir1, &vels1.linear, &vels2.linear);
+        let tangents1 = super::compute_tangent_contact_directions::<SimdReal>(
+            &force_dir1,
+            &vels1.linear,
+            &vels2.linear,
+        );
 
         let manifold_points =
             array![|ii| &manifolds[ii].data.solver_contacts[..num_active_contacts]];
@@ -108,10 +115,10 @@ impl ContactWithTwistFrictionBuilder {
             out_constraint.tangent1 = tangents1[0];
         }
 
-        let mut friction_center = Point::origin();
-        let mut twist_warmstart = na::zero();
-        let mut tangent_warmstart = na::zero();
-        let mut tangent_vel: Vector<_> = na::zero();
+        let mut friction_center = Default::default();
+        let mut twist_warmstart = Default::default();
+        let mut tangent_warmstart = Default::default();
+        let mut tangent_vel: <SimdReal as ScalarType>::Vector = Default::default();
 
         for k in 0..num_points {
             // SAFETY: we already know that the `manifold_points` has `num_points` elements
@@ -121,7 +128,7 @@ impl ContactWithTwistFrictionBuilder {
 
             let is_bouncy = solver_contact.is_bouncy();
 
-            friction_center += solver_contact.point.coords * inv_num_points;
+            friction_center += solver_contact.point * inv_num_points;
 
             let dp1 = solver_contact.point - world_com1;
             let dp2 = solver_contact.point - world_com2;
@@ -146,12 +153,12 @@ impl ContactWithTwistFrictionBuilder {
 
                 let imsum = poses1.im + poses2.im;
                 let projected_mass = utils::simd_inv(
-                    force_dir1.dot(&imsum.component_mul(&force_dir1))
+                    force_dir1.gdot(imsum.component_mul(&force_dir1))
                         + ii_torque_dir1.gdot(torque_dir1)
                         + ii_torque_dir2.gdot(torque_dir2),
                 );
 
-                let projected_velocity = (vel1 - vel2).dot(&force_dir1);
+                let projected_velocity = (vel1 - vel2).gdot(force_dir1);
                 normal_rhs_wo_bias = is_bouncy * solver_contact.restitution * projected_velocity;
 
                 out_constraint.normal_part[k].torque_dir1 = torque_dir1;
@@ -163,10 +170,8 @@ impl ContactWithTwistFrictionBuilder {
             }
 
             // Builder.
-            out_builder.infos[k].local_p1 =
-                poses1.pose.inverse_transform_point(&solver_contact.point);
-            out_builder.infos[k].local_p2 =
-                poses2.pose.inverse_transform_point(&solver_contact.point);
+            out_builder.infos[k].local_p1 = poses1.inverse_transform_point(solver_contact.point);
+            out_builder.infos[k].local_p2 = poses2.inverse_transform_point(solver_contact.point);
             out_builder.infos[k].dist = solver_contact.dist;
             out_builder.infos[k].normal_vel = normal_rhs_wo_bias;
         }
@@ -177,8 +182,8 @@ impl ContactWithTwistFrictionBuilder {
         out_constraint.tangent_part.impulse = tangent_warmstart;
         out_constraint.twist_part.impulse = twist_warmstart;
 
-        out_builder.local_friction_center1 = poses1.pose.inverse_transform_point(&friction_center);
-        out_builder.local_friction_center2 = poses2.pose.inverse_transform_point(&friction_center);
+        out_builder.local_friction_center1 = poses1.inverse_transform_point(friction_center);
+        out_builder.local_friction_center2 = poses2.inverse_transform_point(friction_center);
 
         let dp1 = friction_center - world_com1;
         let dp2 = friction_center - world_com2;
@@ -190,7 +195,7 @@ impl ContactWithTwistFrictionBuilder {
                 // FIXME PERF: we don’t want to re-fetch here just to get the solver contact point!
                 let solver_contact =
                     unsafe { SimdSolverContact::gather_unchecked(&manifold_points, k) };
-                twist_dists[k] = nalgebra::distance(&friction_center, &solver_contact.point);
+                twist_dists[k] = (friction_center - solver_contact.point).simd_length();
             }
 
             let ii_twist_dir1 = poses1.ii.transform_vector(force_dir1);
@@ -212,14 +217,14 @@ impl ContactWithTwistFrictionBuilder {
 
             let imsum = poses1.im + poses2.im;
 
-            let r = tangents1[j].dot(&imsum.component_mul(&tangents1[j]))
+            let r = tangents1[j].gdot(imsum.component_mul(&tangents1[j]))
                 + ii_torque_dir1.gdot(torque_dir1)
                 + ii_torque_dir2.gdot(torque_dir2);
 
             // TODO: add something similar to tangent velocity to the twist
             //       constraint for the case where the different points don’t
             //       have the same tangent vel?
-            let rhs_wo_bias = tangent_vel.dot(&tangents1[j]);
+            let rhs_wo_bias = tangent_vel.gdot(tangents1[j]);
 
             out_constraint.tangent_part.torque_dir1[j] = torque_dir1;
             out_constraint.tangent_part.torque_dir2[j] = torque_dir2;
@@ -252,7 +257,7 @@ impl ContactWithTwistFrictionBuilder {
         solved_dt: Real,
         bodies: &SolverBodies,
         _multibodies: &MultibodyJointSet,
-        constraint: &mut ContactWithTwistFriction,
+        constraint: &mut ContactWithTwistFriction<SimdReal>,
     ) {
         let cfm_factor = SimdReal::splat(params.contact_softness.cfm_factor(params.dt));
         let inv_dt = SimdReal::splat(params.inv_dt());
@@ -273,7 +278,7 @@ impl ContactWithTwistFrictionBuilder {
         #[cfg(feature = "dim3")]
         let tangents1 = [
             constraint.tangent1,
-            constraint.dir1.cross(&constraint.tangent1),
+            constraint.dir1.gcross(constraint.tangent1),
         ];
 
         let solved_dt = SimdReal::splat(solved_dt);
@@ -281,9 +286,9 @@ impl ContactWithTwistFrictionBuilder {
 
         for (info, normal_part) in all_infos.iter().zip(normal_parts.iter_mut()) {
             // NOTE: the tangent velocity is equivalent to an additional movement of the first body’s surface.
-            let p1 = poses1.pose * info.local_p1 + tangent_delta;
-            let p2 = poses2.pose * info.local_p2;
-            let dist = info.dist + (p1 - p2).dot(&constraint.dir1);
+            let p1 = poses1.transform_point(info.local_p1) + tangent_delta;
+            let p2 = poses2.transform_point(info.local_p2);
+            let dist = info.dist + (p1 - p2).gdot(constraint.dir1);
 
             // Normal part.
             {
@@ -301,11 +306,11 @@ impl ContactWithTwistFrictionBuilder {
 
         // tangent parts.
         {
-            let p1 = poses1.pose * self.local_friction_center1 + tangent_delta;
-            let p2 = poses2.pose * self.local_friction_center2;
+            let p1 = poses1.transform_point(self.local_friction_center1) + tangent_delta;
+            let p2 = poses2.transform_point(self.local_friction_center2);
 
             for j in 0..DIM - 1 {
-                let bias = (p1 - p2).dot(&tangents1[j]) * inv_dt;
+                let bias = (p1 - p2).gdot(tangents1[j]) * inv_dt;
                 tangent_part.rhs[j] = tangent_part.rhs_wo_bias[j] + bias;
             }
             tangent_part.impulse_accumulator += tangent_part.impulse;
@@ -320,23 +325,23 @@ impl ContactWithTwistFrictionBuilder {
 
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
-pub(crate) struct ContactWithTwistFriction {
-    pub dir1: Vector<SimdReal>, // Non-penetration force direction for the first body.
-    pub im1: Vector<SimdReal>,
-    pub im2: Vector<SimdReal>,
-    pub cfm_factor: SimdReal,
-    pub limit: SimdReal,
+pub(crate) struct ContactWithTwistFriction<N: ScalarType> {
+    pub dir1: N::Vector, // Non-penetration force direction for the first body.
+    pub im1: N::Vector,
+    pub im2: N::Vector,
+    pub cfm_factor: N,
+    pub limit: N,
 
     #[cfg(feature = "dim3")]
-    pub tangent1: Vector<SimdReal>, // One of the friction force directions.
-    pub normal_part: [ContactConstraintNormalPart<SimdReal>; MAX_MANIFOLD_POINTS],
+    pub tangent1: N::Vector, // One of the friction force directions.
+    pub normal_part: [ContactConstraintNormalPart<N>; MAX_MANIFOLD_POINTS],
     // The twist friction model emulates coulomb with only one tangent
     // constraint + one twist constraint per manifold.
-    pub tangent_part: ContactConstraintTangentPart<SimdReal>,
+    pub tangent_part: ContactConstraintTangentPart<N>,
     // Twist constraint (angular-only) to compensate the lack of angular resistance on the tangent plane.
-    pub twist_part: ContactConstraintTwistPart<SimdReal>,
+    pub twist_part: ContactConstraintTwistPart<N>,
     // Distances between the friction center and the contact point.
-    pub twist_dists: [SimdReal; MAX_MANIFOLD_POINTS],
+    pub twist_dists: [N; MAX_MANIFOLD_POINTS],
 
     pub solver_vel1: [u32; SIMD_WIDTH],
     pub solver_vel2: [u32; SIMD_WIDTH],
@@ -345,7 +350,7 @@ pub(crate) struct ContactWithTwistFriction {
     pub manifold_contact_id: [[u8; SIMD_WIDTH]; MAX_MANIFOLD_POINTS],
 }
 
-impl ContactWithTwistFriction {
+impl ContactWithTwistFriction<SimdReal> {
     pub fn warmstart(&mut self, bodies: &mut SolverBodies) {
         let mut solver_vel1 = bodies.gather_vels(self.solver_vel1);
         let mut solver_vel2 = bodies.gather_vels(self.solver_vel2);
@@ -369,7 +374,7 @@ impl ContactWithTwistFriction {
          * Warmstart friction.
          */
         #[cfg(feature = "dim3")]
-        let tangents1 = [&self.tangent1, &self.dir1.cross(&self.tangent1)];
+        let tangents1 = [&self.tangent1, &self.dir1.gcross(self.tangent1)];
         #[cfg(feature = "dim2")]
         let tangents1 = [&self.dir1.orthonormal_vector()];
 
@@ -419,7 +424,7 @@ impl ContactWithTwistFriction {
          */
         if solve_friction {
             #[cfg(feature = "dim3")]
-            let tangents1 = [&self.tangent1, &self.dir1.cross(&self.tangent1)];
+            let tangents1 = [&self.tangent1, &self.dir1.gcross(self.tangent1)];
             #[cfg(feature = "dim2")]
             let tangents1 = [&self.dir1.orthonormal_vector()];
 

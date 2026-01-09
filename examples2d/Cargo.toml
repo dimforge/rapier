@@ -15,12 +15,15 @@ enhanced-determinism = ["rapier2d/enhanced-determinism"]
 [dependencies]
 rand = "0.9"
 lyon = "0.17"
-usvg = "0.14"
 dot_vox = "5"
+kiss3d = { version = "0.40.0", features = ["egui", "parry", "serde"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+usvg = "0.14"
 
 [dependencies.rapier_testbed2d]
 path = "../crates/rapier_testbed2d"
-features = ["profiler_ui"]
+#features = ["profiler_ui"]
 
 [dependencies.rapier2d]
 path = "../crates/rapier2d"

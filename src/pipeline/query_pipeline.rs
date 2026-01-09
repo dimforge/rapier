@@ -1,7 +1,7 @@
 use crate::dynamics::RigidBodyHandle;
 use crate::geometry::{Aabb, Collider, ColliderHandle, PointProjection, Ray, RayIntersection};
 use crate::geometry::{BroadPhaseBvh, InteractionGroups};
-use crate::math::{Isometry, Point, Real, Vector};
+use crate::math::{Pose, Real, Vector};
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 use parry::bounding_volume::BoundingVolume;
 use parry::partitioning::{Bvh, BvhNode};
@@ -35,7 +35,7 @@ use parry::shape::{CompositeShape, CompositeShapeRef, FeatureId, Shape, TypedCom
 /// );
 ///
 /// // Cast a ray downward
-/// let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
+/// let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
 /// if let Some((handle, toi)) = query_pipeline.cast_ray(&ray, Real::MAX, false) {
 ///     println!("Hit collider {:?} at distance {}", handle, toi);
 /// }
@@ -89,7 +89,7 @@ impl CompositeShape for QueryPipeline<'_> {
     fn map_part_at(
         &self,
         shape_id: u32,
-        f: &mut dyn FnMut(Option<&Isometry<Real>>, &dyn Shape, Option<&dyn NormalConstraints>),
+        f: &mut dyn FnMut(Option<&Pose>, &dyn Shape, Option<&dyn NormalConstraints>),
     ) {
         self.map_untyped_part_at(shape_id, f);
     }
@@ -104,11 +104,7 @@ impl TypedCompositeShape for QueryPipeline<'_> {
     fn map_typed_part_at<T>(
         &self,
         shape_id: u32,
-        mut f: impl FnMut(
-            Option<&Isometry<Real>>,
-            &Self::PartShape,
-            Option<&Self::PartNormalConstraints>,
-        ) -> T,
+        mut f: impl FnMut(Option<&Pose>, &Self::PartShape, Option<&Self::PartNormalConstraints>) -> T,
     ) -> Option<T> {
         let (co, co_handle) = self.colliders.get_unknown_gen(shape_id)?;
 
@@ -122,7 +118,7 @@ impl TypedCompositeShape for QueryPipeline<'_> {
     fn map_untyped_part_at<T>(
         &self,
         shape_id: u32,
-        mut f: impl FnMut(Option<&Isometry<Real>>, &dyn Shape, Option<&dyn NormalConstraints>) -> T,
+        mut f: impl FnMut(Option<&Pose>, &dyn Shape, Option<&dyn NormalConstraints>) -> T,
     ) -> Option<T> {
         let (co, co_handle) = self.colliders.get_unknown_gen(shape_id)?;
 
@@ -206,7 +202,7 @@ impl<'a> QueryPipeline<'a> {
     /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
     /// // Raycast downward from (0, 10, 0)
-    /// let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
+    /// let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
     /// if let Some((handle, toi)) = query_pipeline.cast_ray(&ray, Real::MAX, true) {
     ///     let hit_point = ray.origin + ray.dir * toi;
     ///     println!("Hit at {:?}, distance = {}", hit_point, toi);
@@ -246,7 +242,7 @@ impl<'a> QueryPipeline<'a> {
     /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
     /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
-    /// # let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
+    /// # let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
     /// if let Some((handle, hit)) = query_pipeline.cast_ray_and_get_normal(&ray, 100.0, true) {
     ///     println!("Hit at distance {}, surface normal: {:?}", hit.time_of_impact, hit.normal);
     /// }
@@ -283,7 +279,7 @@ impl<'a> QueryPipeline<'a> {
     /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
     /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
-    /// # let ray = Ray::new(point![0.0, 10.0, 0.0], vector![0.0, -1.0, 0.0]);
+    /// # let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
     /// for (handle, collider, hit) in query_pipeline.intersect_ray(ray, 100.0, true) {
     ///     println!("Ray passed through {:?} at distance {}", handle, hit.time_of_impact);
     /// }
@@ -339,17 +335,17 @@ impl<'a> QueryPipeline<'a> {
     /// # let collider_handle = colliders.insert_with_parent(ground_collider, ground, &mut bodies);
     /// # broad_phase.set_aabb(&params, collider_handle, ground_aabb);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
-    /// let point = point![5.0, 0.0, 0.0];
-    /// if let Some((handle, projection)) = query_pipeline.project_point(&point, std::f32::MAX, true) {
+    /// let point = Vector::new(5.0, 0.0, 0.0);
+    /// if let Some((handle, projection)) = query_pipeline.project_point(point, std::f32::MAX, true) {
     ///     println!("Closest collider: {:?}", handle);
     ///     println!("Closest point: {:?}", projection.point);
-    ///     println!("Distance: {}", (point - projection.point).norm());
+    ///     println!("Distance: {}", (point - projection.point).length());
     /// }
     /// ```
     #[profiling::function]
     pub fn project_point(
         &self,
-        point: &Point<Real>,
+        point: Vector,
         _max_dist: Real,
         solid: bool,
     ) -> Option<(ColliderHandle, PointProjection)> {
@@ -373,7 +369,7 @@ impl<'a> QueryPipeline<'a> {
     /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
     /// # colliders.insert_with_parent(ColliderBuilder::ball(5.0), ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
-    /// let point = point![0.0, 0.0, 0.0];
+    /// let point = Vector::new(0.0, 0.0, 0.0);
     /// for (handle, collider) in query_pipeline.intersect_point(point) {
     ///     println!("Point is inside {:?}", handle);
     /// }
@@ -381,15 +377,15 @@ impl<'a> QueryPipeline<'a> {
     #[profiling::function]
     pub fn intersect_point(
         &'a self,
-        point: Point<Real>,
+        point: Vector,
     ) -> impl Iterator<Item = (ColliderHandle, &'a Collider)> + 'a {
         // TODO: add to CompositeShapeRef?
         self.bvh
-            .leaves(move |node: &BvhNode| node.aabb().contains_local_point(&point))
+            .leaves(move |node: &BvhNode| node.aabb().contains_local_point(point))
             .filter_map(move |leaf| {
                 let (co, co_handle) = self.colliders.get_unknown_gen(leaf)?;
                 if self.filter.test(self.bodies, co_handle, co)
-                    && co.shape.contains_point(co.position(), &point)
+                    && co.shape.contains_point(co.position(), point)
                 {
                     return Some((co_handle, co));
                 }
@@ -407,7 +403,7 @@ impl<'a> QueryPipeline<'a> {
     #[profiling::function]
     pub fn project_point_and_get_feature(
         &self,
-        point: &Point<Real>,
+        point: Vector,
     ) -> Option<(ColliderHandle, PointProjection, FeatureId)> {
         let (id, (proj, feat)) = CompositeShapeRef(self).project_local_point_and_get_feature(point);
         let handle = self.colliders.get_unknown_gen(id)?.1;
@@ -470,19 +466,19 @@ impl<'a> QueryPipeline<'a> {
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
     /// // Sweep a sphere downward
     /// let shape = Ball::new(0.5);
-    /// let start_pos = Isometry::translation(0.0, 10.0, 0.0);
-    /// let velocity = vector![0.0, -1.0, 0.0];
+    /// let start_pos = Pose::translation(0.0, 10.0, 0.0);
+    /// let velocity = Vector::new(0.0, -1.0, 0.0);
     /// let options = ShapeCastOptions::default();
     ///
-    /// if let Some((handle, hit)) = query_pipeline.cast_shape(&start_pos, &velocity, &shape, options) {
+    /// if let Some((handle, hit)) = query_pipeline.cast_shape(&start_pos, velocity, &shape, options) {
     ///     println!("Shape would hit {:?} at time {}", handle, hit.time_of_impact);
     /// }
     /// ```
     #[profiling::function]
     pub fn cast_shape(
         &self,
-        shape_pos: &Isometry<Real>,
-        shape_vel: &Vector<Real>,
+        shape_pos: &Pose,
+        shape_vel: Vector,
         shape: &dyn Shape,
         options: ShapeCastOptions,
     ) -> Option<(ColliderHandle, ShapeCastHit)> {
@@ -538,7 +534,7 @@ impl<'a> QueryPipeline<'a> {
     #[profiling::function]
     pub fn intersect_shape(
         &'a self,
-        shape_pos: Isometry<Real>,
+        shape_pos: Pose,
         shape: &'a dyn Shape,
     ) -> impl Iterator<Item = (ColliderHandle, &'a Collider)> + 'a {
         // TODO: add this to CompositeShapeRef?

@@ -1,3 +1,4 @@
+use kiss3d::color::Color;
 use obj::raw::object::Polygon;
 use rapier_testbed3d::KeyCode;
 use rapier_testbed3d::Testbed;
@@ -57,7 +58,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let shift = 7.0f32;
 
         for (igeom, obj_path) in geoms.into_iter().enumerate() {
-            let deltas = Isometry::identity();
+            let deltas = Pose::IDENTITY;
 
             let mut shapes = Vec::new();
             println!("Parsing and decomposing: {obj_path}");
@@ -65,10 +66,10 @@ pub fn init_world(testbed: &mut Testbed) {
             let input = BufReader::new(File::open(obj_path).unwrap());
 
             if let Ok(model) = obj::raw::parse_obj(input) {
-                let mut vertices: Vec<_> = model
+                let mut vertices: Vec<Vector> = model
                     .positions
                     .iter()
-                    .map(|v| point![v.0, v.1, v.2])
+                    .map(|v| Vector::new(v.0, v.1, v.2))
                     .collect();
                 let indices: Vec<_> = model
                     .polygons
@@ -91,11 +92,12 @@ pub fn init_world(testbed: &mut Testbed) {
                 let aabb =
                     bounding_volume::details::point_cloud_aabb(&deltas, vertices.iter().copied());
                 let center = aabb.center();
-                let diag = (aabb.maxs - aabb.mins).norm();
+                let center_v = Vector::new(center.x, center.y, center.z);
+                let diag = (aabb.maxs - aabb.mins).length();
 
                 vertices
                     .iter_mut()
-                    .for_each(|p| *p = (*p - center.coords) * 6.0 / diag);
+                    .for_each(|p| *p = (*p - center_v) * 6.0 / diag);
 
                 let indices: Vec<_> = indices
                     .chunks(3)
@@ -112,7 +114,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     let y = (igeom / width) as f32 * shift + 4.0;
                     let z = k as f32 * shift - 3.0;
 
-                    let body = RigidBodyBuilder::fixed().translation(vector![x, y, z]);
+                    let body = RigidBodyBuilder::fixed().translation(Vector::new(x, y, z));
                     let handle = bodies.insert(body);
 
                     for shape in &shapes {
@@ -127,7 +129,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Create a voxelized wavy floor.
      */
-    let mut samples = vec![];
+    let mut samples: Vec<Vector> = vec![];
     let n = 200;
     for i in 0..n {
         for j in 0..n {
@@ -135,12 +137,16 @@ pub fn init_world(testbed: &mut Testbed) {
                 * (j as f32 / n as f32 * 10.0).cos().clamp(-0.8, 0.8)
                 * 16.0;
 
-            samples.push(point![i as f32, y * voxel_size_y, j as f32]);
+            samples.push(Vector::new(i as f32, y * voxel_size_y, j as f32));
 
             if i == 0 || i == n - 1 || j == 0 || j == n - 1 {
-                // Create walls so the object at the edge don’t fall into the infinite void.
+                // Create walls so the object at the edge don't fall into the infinite void.
                 for k in 0..4 {
-                    samples.push(point![i as f32, (y + k as f32) * voxel_size_y, j as f32]);
+                    samples.push(Vector::new(
+                        i as f32,
+                        (y + k as f32) * voxel_size_y,
+                        j as f32,
+                    ));
                 }
             }
         }
@@ -159,13 +165,13 @@ pub fn init_world(testbed: &mut Testbed) {
     for i in 0..nik {
         for j in 0..5 {
             for k in 0..nik {
-                let mut rb = RigidBodyBuilder::dynamic().translation(vector![
+                let mut rb = RigidBodyBuilder::dynamic().translation(Vector::new(
                     floor_aabb.mins.x + margin.x + i as f32 * extents.x / nik as f32,
                     floor_aabb.maxs.y + j as f32 * 2.0,
                     floor_aabb.mins.z + margin.z + k as f32 * extents.z / nik as f32,
-                ]);
+                ));
                 if test_ccd {
-                    rb = rb.linvel(vector![0.0, -1000.0, 0.0]).ccd_enabled(true);
+                    rb = rb.linvel(Vector::new(0.0, -1000.0, 0.0)).ccd_enabled(true);
                 }
                 let rb_handle = bodies.insert(rb);
 
@@ -197,8 +203,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let hit_highlight_handle = colliders.insert(
         ColliderBuilder::cuboid(0.51, 0.51, 0.51).collision_groups(InteractionGroups::none()),
     );
-    testbed.set_initial_collider_color(hit_indicator_handle, [0.5, 0.5, 0.1]);
-    testbed.set_initial_collider_color(hit_highlight_handle, [0.1, 0.5, 0.1]);
+    testbed.set_initial_collider_color(hit_indicator_handle, Color::new(0.5, 0.5, 0.1, 1.0));
+    testbed.set_initial_collider_color(hit_highlight_handle, Color::new(0.1, 0.5, 0.1, 1.0));
 
     testbed.add_callback(move |graphics, physics, _, _| {
         let Some(graphics) = graphics else { return };
@@ -206,7 +212,10 @@ pub fn init_world(testbed: &mut Testbed) {
             return;
         };
 
-        let ray = Ray::new(mouse_orig, mouse_dir);
+        let ray = Ray::new(
+            Vector::new(mouse_orig.x, mouse_orig.y, mouse_orig.z),
+            Vector::new(mouse_dir.x, mouse_dir.y, mouse_dir.z),
+        );
         let filter = QueryFilter {
             predicate: Some(&|_, co: &Collider| co.shape().as_voxels().is_some()),
             ..Default::default()
@@ -221,35 +230,35 @@ pub fn init_world(testbed: &mut Testbed) {
         if let Some((handle, hit)) = query_pipeline.cast_ray_and_get_normal(&ray, Real::MAX, true) {
             // Highlight the voxel.
             let hit_collider = &physics.colliders[handle];
-            let hit_local_normal = hit_collider
-                .position()
-                .inverse_transform_vector(&hit.normal);
+            let hit_pos = hit_collider.position();
+            let hit_local_normal = hit_pos.rotation.inverse() * hit.normal;
             let voxels = hit_collider.shape().as_voxels().unwrap();
             let FeatureId::Face(id) = hit.feature else {
                 unreachable!()
             };
             let voxel_key = voxels.voxel_at_flat_id(id).unwrap();
-            let voxel_center = hit_collider.position() * voxels.voxel_center(voxel_key);
+            let voxel_center_local = voxels.voxel_center(voxel_key);
+            let voxel_center = hit_pos.rotation * voxel_center_local + hit_pos.translation;
             let voxel_size = voxels.voxel_size();
             let hit_highlight = physics.colliders.get_mut(hit_highlight_handle).unwrap();
-            hit_highlight.set_translation(voxel_center.coords);
+            hit_highlight.set_translation(voxel_center);
             hit_highlight
                 .shape_mut()
                 .as_cuboid_mut()
                 .unwrap()
-                .half_extents = voxel_size / 2.0 + Vector::repeat(0.001);
+                .half_extents = voxel_size / 2.0 + Vector::splat(0.001);
             graphics.update_collider(hit_highlight_handle, &physics.colliders);
 
             // Show the hit point.
             let hit_pt = ray.point_at(hit.time_of_impact);
             let hit_indicator = physics.colliders.get_mut(hit_indicator_handle).unwrap();
-            hit_indicator.set_translation(hit_pt.coords);
-            hit_indicator.shape_mut().as_ball_mut().unwrap().radius = voxel_size.norm() / 3.5;
+            hit_indicator.set_translation(hit_pt);
+            hit_indicator.shape_mut().as_ball_mut().unwrap().radius = voxel_size.length() / 3.5;
             graphics.update_collider(hit_indicator_handle, &physics.colliders);
 
             // If a relevant key was pressed, edit the shape.
             if graphics.keys().pressed(KeyCode::Space) {
-                let removal_mode = graphics.keys().pressed(KeyCode::ShiftLeft);
+                let removal_mode = graphics.keys().pressed(KeyCode::LShift);
                 let voxels = physics
                     .colliders
                     .get_mut(handle)
@@ -260,8 +269,17 @@ pub fn init_world(testbed: &mut Testbed) {
                 let mut affected_key = voxel_key;
 
                 if !removal_mode {
-                    let imax = hit_local_normal.iamax();
-                    if hit_local_normal[imax] >= 0.0 {
+                    // Find index of max absolute value component
+                    let abs_normal = hit_local_normal.abs();
+                    let imax = if abs_normal.x >= abs_normal.y && abs_normal.x >= abs_normal.z {
+                        0
+                    } else if abs_normal.y >= abs_normal.z {
+                        1
+                    } else {
+                        2
+                    };
+                    let normal_arr = [hit_local_normal.x, hit_local_normal.y, hit_local_normal.z];
+                    if normal_arr[imax] >= 0.0 {
                         affected_key[imax] += 1;
                     } else {
                         affected_key[imax] -= 1;
@@ -274,10 +292,11 @@ pub fn init_world(testbed: &mut Testbed) {
         } else {
             // When there is no hit, move the indicators behind the camera.
             let behind_camera = mouse_orig - mouse_dir * 1000.0;
+            let behind_camera_vect = Vector::new(behind_camera.x, behind_camera.y, behind_camera.z);
             let hit_indicator = physics.colliders.get_mut(hit_indicator_handle).unwrap();
-            hit_indicator.set_translation(behind_camera.coords);
+            hit_indicator.set_translation(behind_camera_vect);
             let hit_highlight = physics.colliders.get_mut(hit_highlight_handle).unwrap();
-            hit_highlight.set_translation(behind_camera.coords);
+            hit_highlight.set_translation(behind_camera_vect);
         }
     });
 
@@ -285,7 +304,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
+    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }
 
 fn models() -> Vec<String> {

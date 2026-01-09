@@ -10,7 +10,6 @@ use rapier::dynamics::{
     RigidBodySet,
 };
 use rapier::geometry::{BroadPhaseBvh, BvhOptimizationStrategy, ColliderSet, NarrowPhase};
-use rapier::math::{Real, Vector};
 use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline};
 
 pub mod plugin;
@@ -184,7 +183,7 @@ impl Harness {
             impulse_joints,
             multibody_joints,
             broad_phase_type,
-            Vector::y() * -9.81,
+            rapier::math::Vector::Y * -9.81,
             (),
         )
     }
@@ -196,11 +195,9 @@ impl Harness {
         impulse_joints: ImpulseJointSet,
         multibody_joints: MultibodyJointSet,
         broad_phase_type: RapierBroadPhaseType,
-        gravity: Vector<Real>,
+        gravity: rapier::math::Vector,
         hooks: impl PhysicsHooks + 'static,
     ) {
-        // println!("Num bodies: {}", bodies.len());
-        // println!("Num impulse_joints: {}", impulse_joints.len());
         self.physics.gravity = gravity;
         self.physics.bodies = bodies;
         self.physics.colliders = colliders;
@@ -243,7 +240,7 @@ impl Harness {
             let event_handler = &self.event_handler;
             self.state.thread_pool.install(|| {
                 physics.pipeline.step(
-                    &physics.gravity,
+                    physics.gravity,
                     &physics.integration_parameters,
                     &mut physics.islands,
                     &mut physics.broad_phase,
@@ -261,7 +258,7 @@ impl Harness {
 
         #[cfg(not(feature = "parallel"))]
         self.physics.pipeline.step(
-            &self.physics.gravity,
+            self.physics.gravity,
             &self.physics.integration_parameters,
             &mut self.physics.islands,
             &mut self.physics.broad_phase,

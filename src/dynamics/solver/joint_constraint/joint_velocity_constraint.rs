@@ -3,16 +3,15 @@ use crate::dynamics::solver::joint_constraint::JointConstraintHelper;
 use crate::dynamics::{
     GenericJoint, IntegrationParameters, JointAxesMask, JointGraphEdge, JointIndex,
 };
-use crate::math::{AngVector, AngularInertia, DIM, Isometry, Point, Real, SPATIAL_DIM, Vector};
-use crate::utils::{SimdDot, SimdRealCopy};
+use crate::math::{DIM, Real, SPATIAL_DIM};
+use crate::utils::{ComponentMul, DotProduct, ScalarType, SimdRealCopy};
 
 use crate::dynamics::solver::solver_body::SolverBodies;
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::{SIMD_WIDTH, SimdReal};
-#[cfg(feature = "dim2")]
-use crate::num::Zero;
 #[cfg(feature = "simd-is-enabled")]
 use na::SimdValue;
+use parry::math::Pose;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct MotorParameters<N: SimdRealCopy> {
@@ -49,26 +48,26 @@ pub enum WritebackId {
 // the solver, to avoid fetching data from the rigid-body set
 // every time.
 #[derive(Copy, Clone)]
-pub struct JointSolverBody<N: SimdRealCopy, const LANES: usize> {
-    pub im: Vector<N>,
-    pub ii: AngularInertia<N>,
-    pub world_com: Point<N>, // TODO: is this still needed now that the solver body poses are expressed at the center of mass?
+pub struct JointSolverBody<N: ScalarType, const LANES: usize> {
+    pub im: N::Vector,
+    pub ii: N::AngInertia,
+    pub world_com: N::Vector, // TODO: is this still needed now that the solver body poses are expressed at the center of mass?
     pub solver_vel: [u32; LANES],
 }
 
-impl<N: SimdRealCopy, const LANES: usize> JointSolverBody<N, LANES> {
+impl<N: ScalarType, const LANES: usize> JointSolverBody<N, LANES> {
     pub fn invalid() -> Self {
         Self {
-            im: Vector::zeros(),
-            ii: AngularInertia::zero(),
-            world_com: Point::origin(),
+            im: Default::default(),
+            ii: N::AngInertia::default(),
+            world_com: Default::default(),
             solver_vel: [u32::MAX; LANES],
         }
     }
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct JointConstraint<N: SimdRealCopy, const LANES: usize> {
+pub struct JointConstraint<N: ScalarType, const LANES: usize> {
     pub solver_vel1: [u32; LANES],
     pub solver_vel2: [u32; LANES],
 
@@ -76,12 +75,12 @@ pub struct JointConstraint<N: SimdRealCopy, const LANES: usize> {
 
     pub impulse: N,
     pub impulse_bounds: [N; 2],
-    pub lin_jac: Vector<N>,
-    pub ang_jac1: AngVector<N>,
-    pub ang_jac2: AngVector<N>,
+    pub lin_jac: N::Vector,
+    pub ang_jac1: N::AngVector,
+    pub ang_jac2: N::AngVector,
 
-    pub ii_ang_jac1: AngVector<N>,
-    pub ii_ang_jac2: AngVector<N>,
+    pub ii_ang_jac1: N::AngVector,
+    pub ii_ang_jac2: N::AngVector,
 
     pub inv_lhs: N,
     pub rhs: N,
@@ -89,20 +88,20 @@ pub struct JointConstraint<N: SimdRealCopy, const LANES: usize> {
     pub cfm_gain: N,
     pub cfm_coeff: N,
 
-    pub im1: Vector<N>,
-    pub im2: Vector<N>,
+    pub im1: N::Vector,
+    pub im2: N::Vector,
 
     pub writeback_id: WritebackId,
 }
 
-impl<N: SimdRealCopy, const LANES: usize> JointConstraint<N, LANES> {
+impl<N: ScalarType, const LANES: usize> JointConstraint<N, LANES> {
     #[profiling::function]
     pub fn solve_generic(
         &mut self,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) {
-        let dlinvel = self.lin_jac.dot(&(solver_vel2.linear - solver_vel1.linear));
+        let dlinvel = self.lin_jac.gdot(solver_vel2.linear - solver_vel1.linear);
         let dangvel =
             self.ang_jac2.gdot(solver_vel2.angular) - self.ang_jac1.gdot(solver_vel1.angular);
 
@@ -133,8 +132,8 @@ impl JointConstraint<Real, 1> {
         joint_id: JointIndex,
         body1: &JointSolverBody<Real, 1>,
         body2: &JointSolverBody<Real, 1>,
-        frame1: &Isometry<Real>,
-        frame2: &Isometry<Real>,
+        frame1: &Pose,
+        frame2: &Pose,
         joint: &GenericJoint,
         out: &mut [Self],
     ) -> usize {
@@ -159,7 +158,7 @@ impl JointConstraint<Real, 1> {
         let first_coupled_ang_axis_id =
             (coupled_axes & JointAxesMask::ANG_AXES.bits()).trailing_zeros() as usize;
 
-        let builder = JointConstraintHelper::new(
+        let builder = JointConstraintHelper::<Real>::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -365,8 +364,8 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
         joint_id: [JointIndex; SIMD_WIDTH],
         body1: &JointSolverBody<SimdReal, SIMD_WIDTH>,
         body2: &JointSolverBody<SimdReal, SIMD_WIDTH>,
-        frame1: &Isometry<SimdReal>,
-        frame2: &Isometry<SimdReal>,
+        frame1: &<SimdReal as ScalarType>::Pose,
+        frame2: &<SimdReal as ScalarType>::Pose,
         locked_axes: u8,
         softness: crate::dynamics::SpringCoefficients<SimdReal>,
         out: &mut [Self],

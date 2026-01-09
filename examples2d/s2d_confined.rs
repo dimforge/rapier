@@ -18,21 +18,33 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let collider =
-        ColliderBuilder::capsule_from_endpoints(point![-10.5, 0.0], point![10.5, 0.0], radius)
-            .friction(friction);
+    let collider = ColliderBuilder::capsule_from_endpoints(
+        Vector::new(-10.5, 0.0),
+        Vector::new(10.5, 0.0),
+        radius,
+    )
+    .friction(friction);
     colliders.insert(collider);
-    let collider =
-        ColliderBuilder::capsule_from_endpoints(point![-10.5, 0.0], point![-10.5, 20.5], radius)
-            .friction(friction);
+    let collider = ColliderBuilder::capsule_from_endpoints(
+        Vector::new(-10.5, 0.0),
+        Vector::new(-10.5, 20.5),
+        radius,
+    )
+    .friction(friction);
     colliders.insert(collider);
-    let collider =
-        ColliderBuilder::capsule_from_endpoints(point![10.5, 0.0], point![10.5, 20.5], radius)
-            .friction(friction);
+    let collider = ColliderBuilder::capsule_from_endpoints(
+        Vector::new(10.5, 0.0),
+        Vector::new(10.5, 20.5),
+        radius,
+    )
+    .friction(friction);
     colliders.insert(collider);
-    let collider =
-        ColliderBuilder::capsule_from_endpoints(point![-10.5, 20.5], point![10.5, 20.5], radius)
-            .friction(friction);
+    let collider = ColliderBuilder::capsule_from_endpoints(
+        Vector::new(-10.5, 20.5),
+        Vector::new(10.5, 20.5),
+        radius,
+    )
+    .friction(friction);
     colliders.insert(collider);
 
     /*
@@ -48,7 +60,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let x = -8.75 + column as f32 * 18.0 / (grid_count as f32);
             let y = 1.5 + row as f32 * 18.0 / (grid_count as f32);
             let body = RigidBodyBuilder::dynamic()
-                .translation(vector![x, y])
+                .translation(Vector::new(x, y))
                 .gravity_scale(0.0);
             let body_handle = bodies.insert(body);
             let ball = ColliderBuilder::ball(radius).friction(friction);
@@ -65,5 +77,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 2.5], 20.0);
+    testbed.look_at(Vec2::new(0.0, 2.5), 20.0);
 }

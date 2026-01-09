@@ -14,12 +14,12 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Ground
      */
-    let ground_size = 100.1;
+    let ground_size = 40.0;
     let ground_height = 2.1; // 16.0;
 
     for k in 0..3 {
         let rigid_body =
-            RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height - k as f32, 0.0]);
+            RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height - k as f32, 0.0));
         let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
         colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -27,7 +27,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, _, run_state| {
-        let rigid_body = RigidBodyBuilder::dynamic().translation(vector![0.0, 10.0, 0.0]);
+        let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 10.0, 0.0));
         let handle = physics.bodies.insert(rigid_body);
         let collider = match run_state.timestep_id % 3 {
             0 => ColliderBuilder::round_cylinder(rad, rad, rad / 10.0),
@@ -44,11 +44,11 @@ pub fn init_world(testbed: &mut Testbed) {
         }
 
         if physics.bodies.len() > MAX_NUMBER_OF_BODIES {
-            let mut to_remove: Vec<_> = physics
+            let mut to_remove: Vec<(RigidBodyHandle, Vector)> = physics
                 .bodies
                 .iter()
                 .filter(|e| e.1.is_dynamic())
-                .map(|e| (e.0, e.1.position().translation.vector))
+                .map(|e| (e.0, e.1.translation()))
                 .collect();
 
             to_remove.sort_by(|a, b| {
@@ -84,5 +84,5 @@ pub fn init_world(testbed: &mut Testbed) {
     //     .physics_state_mut()
     //     .integration_parameters
     //     .erp = 0.2;
-    testbed.look_at(point![-30.0, 4.0, -30.0], point![0.0, 1.0, 0.0]);
+    testbed.look_at(Vec3::new(30.0, 4.0, 30.0), Vec3::new(0.0, 1.0, 0.0));
 }

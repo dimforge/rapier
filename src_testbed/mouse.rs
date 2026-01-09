@@ -1,46 +1,54 @@
-use crate::math::Point;
-use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
+use glamx::Vec2;
 
-#[derive(Component)]
-pub struct MainCamera;
-
-#[derive(Default, Copy, Clone, Debug, Resource)]
+#[derive(Default, Copy, Clone, Debug)]
 pub struct SceneMouse {
     #[cfg(feature = "dim2")]
-    pub point: Option<Point<f32>>,
+    pub point: Option<Vec2>,
     #[cfg(feature = "dim3")]
-    pub ray: Option<(Point<f32>, crate::math::Vector<f32>)>,
+    pub ray: Option<(glamx::Vec3, glamx::Vec3)>,
 }
 
-pub fn track_mouse_state(
-    mut scene_mouse: ResMut<SceneMouse>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    camera: Query<(&GlobalTransform, &Camera), With<MainCamera>>,
-) {
-    if let Ok(window) = windows.get_single() {
-        for (camera_transform, camera) in camera.iter() {
-            if let Some(cursor) = window.cursor_position() {
-                let ndc_cursor = ((cursor / Vec2::new(window.width(), window.height()) * 2.0)
-                    - Vec2::ONE)
-                    * Vec2::new(1.0, -1.0);
-                let ndc_to_world =
-                    camera_transform.compute_matrix() * camera.clip_from_view().inverse();
-                let ray_pt1 =
-                    ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, -1.0));
+impl SceneMouse {
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-                #[cfg(feature = "dim2")]
-                {
-                    scene_mouse.point = Some(Point::new(ray_pt1.x, ray_pt1.y));
-                }
-                #[cfg(feature = "dim3")]
-                {
-                    let ray_pt2 =
-                        ndc_to_world.project_point3(Vec3::new(ndc_cursor.x, ndc_cursor.y, 1.0));
-                    let ray_dir = ray_pt2 - ray_pt1;
-                    scene_mouse.ray = Some((na::Vector3::from(ray_pt1).into(), ray_dir.into()));
-                }
-            }
+    #[cfg(feature = "dim2")]
+    pub fn update_from_window(
+        &mut self,
+        cursor_pos: Option<(f64, f64)>,
+        window_size: (u32, u32),
+        camera: &kiss3d::camera::PanZoomCamera2d,
+    ) {
+        use kiss3d::camera::Camera2d;
+
+        if let Some((x, y)) = cursor_pos {
+            // Convert cursor position to world coordinates using the camera
+            let cursor = Vec2::new(x as f32, y as f32);
+            let window_size = Vec2::new(window_size.0 as f32, window_size.1 as f32);
+            let world_pos = camera.unproject(cursor, window_size);
+            self.point = Some(world_pos);
+        } else {
+            self.point = None;
+        }
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn update_from_window(
+        &mut self,
+        cursor_pos: Option<(f64, f64)>,
+        window_size: (u32, u32),
+        camera: &crate::Camera,
+    ) {
+        use kiss3d::camera::Camera3d;
+
+        if let Some((x, y)) = cursor_pos {
+            // Convert cursor position to world coordinates using the camera
+            let cursor = Vec2::new(x as f32, y as f32);
+            let window_size = Vec2::new(window_size.0 as f32, window_size.1 as f32);
+            self.ray = Some(camera.unproject(cursor, window_size));
+        } else {
+            self.ray = None;
         }
     }
 }

@@ -1,3 +1,4 @@
+use kiss3d::color::Color;
 use rapier_testbed3d::Testbed;
 use rapier3d::prelude::*;
 
@@ -16,7 +17,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 200.1;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
+    let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -28,7 +29,10 @@ pub fn init_world(testbed: &mut Testbed) {
     let width = 1.0;
     let thickness = 0.1;
 
-    let colors = [[0.7, 0.5, 0.9], [0.6, 1.0, 0.6]];
+    let colors = [
+        Color::new(0.7, 0.5, 0.9, 1.0),
+        Color::new(0.6, 1.0, 0.6, 1.0),
+    ];
 
     let mut curr_angle = 0.0;
     let mut curr_rad = 10.0;
@@ -47,12 +51,13 @@ pub fn init_world(testbed: &mut Testbed) {
         let tilt = if nudged || i == num - 1 { 0.2 } else { 0.0 };
 
         if skip == 0 {
-            let rot = Rotation::new(Vector::y() * curr_angle);
-            let tilt = Rotation::new(rot * Vector::z() * tilt);
-            let position =
-                Translation::new(x * curr_rad, width * 2.0 + ground_height, z * curr_rad)
-                    * tilt
-                    * rot;
+            let rot = Rotation::from_rotation_y(curr_angle);
+            let tilt_axis = rot * Vector::Z;
+            let tilt_rot = Rotation::from_axis_angle(tilt_axis, tilt);
+            let position = Pose::from_parts(
+                Vector::new(x * curr_rad, width * 2.0 + ground_height, z * curr_rad),
+                tilt_rot * rot,
+            );
             let rigid_body = RigidBodyBuilder::dynamic().pose(position);
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(thickness, width * 2.0, width);
@@ -73,5 +78,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
+    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

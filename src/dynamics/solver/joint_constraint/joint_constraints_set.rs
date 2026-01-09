@@ -7,7 +7,7 @@ use crate::dynamics::{
     IntegrationParameters, IslandManager, JointGraphEdge, JointIndex, MultibodyJointSet,
     RigidBodySet,
 };
-use na::DVector;
+use crate::math::DVector;
 use parry::math::Real;
 
 use crate::dynamics::solver::interaction_groups::InteractionGroups;
@@ -22,7 +22,7 @@ use {
 };
 
 pub struct JointConstraintsSet {
-    pub generic_jacobians: DVector<Real>,
+    pub generic_jacobians: DVector,
     pub two_body_interactions: Vec<usize>,
     pub generic_two_body_interactions: Vec<usize>,
     pub interaction_groups: InteractionGroups,
@@ -72,10 +72,7 @@ impl JointConstraintsSet {
     // Returns the generic jacobians and a mutable iterator through all the constraints.
     pub fn iter_constraints_mut(
         &mut self,
-    ) -> (
-        &DVector<Real>,
-        impl Iterator<Item = AnyJointConstraintMut<'_>>,
-    ) {
+    ) -> (&DVector, impl Iterator<Item = AnyJointConstraintMut<'_>>) {
         let jac = &self.generic_jacobians;
         let a = self
             .generic_velocity_constraints
@@ -296,11 +293,7 @@ impl JointConstraintsSet {
     }
 
     #[profiling::function]
-    pub fn solve(
-        &mut self,
-        solver_vels: &mut SolverBodies,
-        generic_solver_vels: &mut DVector<Real>,
-    ) {
+    pub fn solve(&mut self, solver_vels: &mut SolverBodies, generic_solver_vels: &mut DVector) {
         let (jac, constraints) = self.iter_constraints_mut();
         for mut c in constraints {
             c.solve(jac, solver_vels, generic_solver_vels);
@@ -310,7 +303,7 @@ impl JointConstraintsSet {
     pub fn solve_wo_bias(
         &mut self,
         solver_vels: &mut SolverBodies,
-        generic_solver_vels: &mut DVector<Real>,
+        generic_solver_vels: &mut DVector,
     ) {
         let (jac, constraints) = self.iter_constraints_mut();
         for mut c in constraints {

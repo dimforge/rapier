@@ -24,5 +24,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 0.0], 50.0);
+    testbed.look_at(Vec2::ZERO, 50.0);
 }

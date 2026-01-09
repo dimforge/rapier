@@ -1,12 +1,11 @@
+use super::LinkOrBodyRef;
 use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::WritebackId;
 use crate::dynamics::solver::joint_constraint::{JointConstraintHelper, JointSolverBody};
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::dynamics::{GenericJoint, IntegrationParameters, JointGraphEdge, JointIndex};
-use crate::math::{DIM, Isometry, Real};
-use crate::prelude::SPATIAL_DIM;
-use na::{DVector, DVectorView, DVectorViewMut};
-
-use super::LinkOrBodyRef;
+use crate::math::{DIM, DVector, Real, SPATIAL_DIM};
+use na::{DVectorView, DVectorViewMut};
+use parry::math::Pose;
 
 #[derive(Debug, Copy, Clone)]
 pub struct GenericJointConstraint {
@@ -69,10 +68,10 @@ impl GenericJointConstraint {
         body2: &JointSolverBody<Real, 1>,
         mb1: LinkOrBodyRef,
         mb2: LinkOrBodyRef,
-        frame1: &Isometry<Real>,
-        frame2: &Isometry<Real>,
+        frame1: &Pose,
+        frame2: &Pose,
         joint: &GenericJoint,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         j_id: &mut usize,
         out: &mut [Self],
     ) -> usize {
@@ -81,7 +80,7 @@ impl GenericJointConstraint {
         let motor_axes = joint.motor_axes.bits();
         let limit_axes = joint.limit_axes.bits();
 
-        let builder = JointConstraintHelper::new(
+        let builder = JointConstraintHelper::<Real>::new(
             frame1,
             frame2,
             &body1.world_com,
@@ -219,7 +218,7 @@ impl GenericJointConstraint {
     fn solver_vel1<'a>(
         &self,
         solver_vels: &'a SolverBodies,
-        generic_solver_vels: &'a DVector<Real>,
+        generic_solver_vels: &'a DVector,
     ) -> DVectorView<'a, Real> {
         if self.solver_vel1 == u32::MAX {
             generic_solver_vels.rows(0, 0) // empty
@@ -233,7 +232,7 @@ impl GenericJointConstraint {
     fn solver_vel1_mut<'a>(
         &self,
         solver_vels: &'a mut SolverBodies,
-        generic_solver_vels: &'a mut DVector<Real>,
+        generic_solver_vels: &'a mut DVector,
     ) -> DVectorViewMut<'a, Real> {
         if self.solver_vel1 == u32::MAX {
             generic_solver_vels.rows_mut(0, 0) // empty
@@ -247,7 +246,7 @@ impl GenericJointConstraint {
     fn solver_vel2<'a>(
         &self,
         solver_vels: &'a SolverBodies,
-        generic_solver_vels: &'a DVector<Real>,
+        generic_solver_vels: &'a DVector,
     ) -> DVectorView<'a, Real> {
         if self.solver_vel2 == u32::MAX {
             generic_solver_vels.rows(0, 0) // empty
@@ -261,7 +260,7 @@ impl GenericJointConstraint {
     fn solver_vel2_mut<'a>(
         &self,
         solver_vels: &'a mut SolverBodies,
-        generic_solver_vels: &'a mut DVector<Real>,
+        generic_solver_vels: &'a mut DVector,
     ) -> DVectorViewMut<'a, Real> {
         if self.solver_vel2 == u32::MAX {
             generic_solver_vels.rows_mut(0, 0) // empty
@@ -274,9 +273,9 @@ impl GenericJointConstraint {
 
     pub fn solve(
         &mut self,
-        jacobians: &DVector<Real>,
+        jacobians: &DVector,
         solver_vels: &mut SolverBodies,
-        generic_solver_vels: &mut DVector<Real>,
+        generic_solver_vels: &mut DVector,
     ) {
         let jacobians = jacobians.as_slice();
 

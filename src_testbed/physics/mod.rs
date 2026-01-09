@@ -5,10 +5,10 @@ use rapier::dynamics::{
 use rapier::geometry::{
     BroadPhaseBvh, ColliderSet, CollisionEvent, ContactForceEvent, DefaultBroadPhase, NarrowPhase,
 };
-use rapier::math::{Real, Vector};
 use rapier::pipeline::{PhysicsHooks, PhysicsPipeline};
 use std::sync::mpsc::Receiver;
 
+#[derive(Clone)]
 pub struct PhysicsSnapshot {
     timestep_id: usize,
     broad_phase: Vec<u8>,
@@ -98,7 +98,7 @@ pub struct PhysicsState {
     pub ccd_solver: CCDSolver,
     pub pipeline: PhysicsPipeline,
     pub integration_parameters: IntegrationParameters,
-    pub gravity: Vector<Real>,
+    pub gravity: rapier::math::Vector,
     pub hooks: Box<dyn PhysicsHooks>,
 }
 
@@ -121,9 +121,38 @@ impl PhysicsState {
             ccd_solver: CCDSolver::new(),
             pipeline: PhysicsPipeline::new(),
             integration_parameters: IntegrationParameters::default(),
-            gravity: Vector::y() * -9.81,
+            gravity: rapier::math::Vector::Y * -9.81,
             hooks: Box::new(()),
         }
+    }
+
+    /// Create a snapshot of the current physics state.
+    pub fn snapshot(&self) -> PhysicsSnapshot {
+        PhysicsSnapshot::new(
+            0, // timestep_id - could be tracked if needed
+            &self.broad_phase,
+            &self.narrow_phase,
+            &self.islands,
+            &self.bodies,
+            &self.colliders,
+            &self.impulse_joints,
+            &self.multibody_joints,
+        )
+        .expect("Failed to create physics snapshot")
+    }
+
+    /// Restore physics state from a snapshot.
+    pub fn restore_snapshot(&mut self, snapshot: PhysicsSnapshot) {
+        let restored = snapshot
+            .restore()
+            .expect("Failed to restore physics snapshot");
+        self.broad_phase = restored.broad_phase;
+        self.narrow_phase = restored.narrow_phase;
+        self.islands = restored.island_manager;
+        self.bodies = restored.bodies;
+        self.colliders = restored.colliders;
+        self.impulse_joints = restored.impulse_joints;
+        self.multibody_joints = restored.multibody_joints;
     }
 }
 

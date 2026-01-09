@@ -1,6 +1,6 @@
 [package]
 name = "rapier2d-f64"
-version = "0.31.0"
+version = "0.32.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "2-dimensional physics engine in Rust."
 documentation = "https://docs.rs/rapier2d"
@@ -24,7 +24,7 @@ maintenance = { status = "actively-developed" }
 
 [lints]
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(feature, values("dim3", "f32"))',
+    'cfg(feature, values("dim3", "f32", "simd-is-enabled", "simd-stable", "simd-nightly"))',
 ] }
 
 [features]
@@ -32,11 +32,12 @@ default = ["dim2", "f64"]
 dim2 = []
 f64 = []
 parallel = ["dep:rayon"]
-simd-stable = ["simba/wide", "simd-is-enabled"]
-simd-nightly = ["simba/portable_simd", "simd-is-enabled"]
-# Do not enable this feature directly. It is automatically
-# enabled with the "simd-stable" or "simd-nightly" feature.
-simd-is-enabled = ["dep:vec_map"]
+# SoA SIMD not supported yet on f64
+#simd-stable = ["simba/wide", "simd-is-enabled"]
+#simd-nightly = ["simba/portable_simd", "simd-is-enabled"]
+## Do not enable this feature directly. It is automatically
+## enabled with the "simd-stable" or "simd-nightly" feature.
+#simd-is-enabled = []
 serde-serialize = [
     "nalgebra/serde-serialize",
     "parry2d-f64/serde-serialize",
@@ -66,11 +67,12 @@ required-features = ["dim2", "f64"]
 doctest = false # All doctests are written assuming the 3D version.
 
 [dependencies]
-vec_map = { version = "0.8", optional = true }
+vec_map = "0.8"
 web-time = { version = "1.1", optional = true }
 num-traits = "0.2"
 nalgebra = "0.34"
-parry2d-f64 = "0.25.1"
+glamx = { version = "0.1", features = ["nalgebra"] }
+parry2d-f64 = "0.26.0"
 simba = "0.9.1"
 approx = "0.5"
 rayon = { version = "1", optional = true }

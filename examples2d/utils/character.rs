@@ -1,7 +1,7 @@
-use rapier_testbed2d::ui::egui::Align2;
+use kiss3d::color::Color;
 use rapier_testbed2d::{
     KeyCode, PhysicsState, TestbedGraphics,
-    ui::egui::{ComboBox, Slider, Ui, Window},
+    egui::{Align2, ComboBox, Slider, Ui, Window},
 };
 use rapier2d::{
     control::{CharacterLength, KinematicCharacterController, PidController},
@@ -51,24 +51,24 @@ fn character_movement_from_inputs(
     gfx: &TestbedGraphics,
     mut speed: Real,
     artificial_gravity: bool,
-) -> Vector<Real> {
-    let mut desired_movement = Vector::zeros();
+) -> Vector {
+    let mut desired_movement = Vector::ZERO;
 
     for key in gfx.keys().get_pressed() {
         match *key {
-            KeyCode::ArrowRight => {
-                desired_movement += Vector::x();
+            KeyCode::Right => {
+                desired_movement += Vector::X;
             }
-            KeyCode::ArrowLeft => {
-                desired_movement -= Vector::x();
+            KeyCode::Left => {
+                desired_movement -= Vector::X;
             }
             KeyCode::Space => {
-                desired_movement += Vector::y() * 2.0;
+                desired_movement += Vector::Y * 2.0;
             }
-            KeyCode::ControlRight => {
-                desired_movement -= Vector::y();
+            KeyCode::RControl => {
+                desired_movement -= Vector::Y;
             }
-            KeyCode::ShiftRight => {
+            KeyCode::RShift => {
                 speed /= 10.0;
             }
             _ => {}
@@ -78,7 +78,7 @@ fn character_movement_from_inputs(
     desired_movement *= speed;
 
     if artificial_gravity {
-        desired_movement -= Vector::y() * speed;
+        desired_movement -= Vector::Y * speed;
     }
 
     desired_movement
@@ -97,11 +97,11 @@ fn update_pid_controller(
 
     // Adjust the controlled axis depending on the keys pressed by the user.
     // - If the user is jumping, enable control over Y.
-    // - If the user isn’t pressing any key, disable all linear controls to let
+    // - If the user isn't pressing any key, disable all linear controls to let
     //   gravity/collision do their thing freely.
     let mut axes = AxesMask::ANG_Z;
 
-    if desired_movement.norm() != 0.0 {
+    if desired_movement.length() != 0.0 {
         axes |= if desired_movement.y == 0.0 {
             AxesMask::LIN_X
         } else {
@@ -114,7 +114,7 @@ fn update_pid_controller(
     let corrective_vel = pid.rigid_body_correction(
         phx.integration_parameters.dt,
         character_body,
-        (character_body.translation() + desired_movement).into(),
+        Pose::from_translation(character_body.translation() + desired_movement),
         RigidBodyVelocity::zero(),
     );
     let new_vel = *character_body.vels() + corrective_vel;
@@ -150,14 +150,14 @@ fn update_kinematic_controller(
         &query_pipeline.as_ref(),
         &*character_shape,
         &character_collider_pose,
-        desired_movement.cast::<Real>(),
+        desired_movement,
         |c| collisions.push(c),
     );
 
     if mvt.grounded {
-        gfx.set_body_color(character_handle, [0.1, 0.8, 0.1]);
+        gfx.set_body_color(character_handle, Color::new(0.1, 0.8, 0.1, 1.0), false);
     } else {
-        gfx.set_body_color(character_handle, [0.8, 0.1, 0.1]);
+        gfx.set_body_color(character_handle, Color::new(0.8, 0.1, 0.1, 1.0), false);
     }
 
     controller.solve_character_collision_impulses(
@@ -170,7 +170,7 @@ fn update_kinematic_controller(
 
     let character_body = &mut phx.bodies[character_handle];
     let pose = character_body.position();
-    character_body.set_next_kinematic_translation(pose.translation.vector + mvt.translation);
+    character_body.set_next_kinematic_translation(pose.translation + mvt.translation);
 }
 
 fn character_control_ui(
@@ -181,7 +181,7 @@ fn character_control_ui(
 ) {
     Window::new("Character Control")
         .anchor(Align2::RIGHT_TOP, [-15.0, 15.0])
-        .show(gfx.ui_context_mut().ctx_mut(), |ui| {
+        .show(gfx.egui_context(), |ui| {
             ComboBox::from_label("control mode")
                 .selected_text(format!("{:?}", *control_mode))
                 .show_ui(ui, |ui| {
@@ -220,9 +220,9 @@ fn pid_control_ui(ui: &mut Ui, pid_controller: &mut PidController, speed: &mut R
     ui.add(Slider::new(&mut ang_ki, 0.0..=10.0).text("angular Ki"));
     ui.add(Slider::new(&mut ang_kd, 0.0..=1.0).text("angular Kd"));
 
-    pid_controller.pd.lin_kp.fill(lin_kp);
-    pid_controller.lin_ki.fill(lin_ki);
-    pid_controller.pd.lin_kd.fill(lin_kd);
+    pid_controller.pd.lin_kp = Vector::splat(lin_kp);
+    pid_controller.lin_ki = Vector::splat(lin_ki);
+    pid_controller.pd.lin_kd = Vector::splat(lin_kd);
     pid_controller.pd.ang_kp = ang_kp;
     pid_controller.ang_ki = ang_ki;
     pid_controller.pd.ang_kd = ang_kd;
@@ -240,12 +240,12 @@ fn kinematic_control_ui(
     #[allow(clippy::useless_conversion)]
     {
         ui.add(Slider::new(&mut character_controller.max_slope_climb_angle, 0.0..=std::f32::consts::TAU.into()).text("max_slope_climb_angle"))
-            .on_hover_text("The maximum angle (radians) between the floor’s normal and the `up` vector that the character is able to climb.");
+            .on_hover_text("The maximum angle (radians) between the floor's normal and the `up` vector that the character is able to climb.");
         ui.add(Slider::new(&mut character_controller.min_slope_slide_angle, 0.0..=std::f32::consts::FRAC_PI_2.into()).text("min_slope_slide_angle"))
-            .on_hover_text("The minimum angle (radians) between the floor’s normal and the `up` vector before the character starts to slide down automatically.");
+            .on_hover_text("The minimum angle (radians) between the floor's normal and the `up` vector before the character starts to slide down automatically.");
     }
     let mut is_snapped = character_controller.snap_to_ground.is_some();
-    if ui.checkbox(&mut is_snapped, "snap_to_ground").changed {
+    if ui.checkbox(&mut is_snapped, "snap_to_ground").changed() {
         match is_snapped {
             true => {
                 character_controller.snap_to_ground = Some(CharacterLength::Relative(0.1));

@@ -53,7 +53,7 @@ impl Default for MultibodyJointHandle {
 /// # let mut multibody_joint_set = MultibodyJointSet::new();
 /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
 /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
-/// # let joint = RevoluteJointBuilder::new(Vector::y_axis());
+/// # let joint = RevoluteJointBuilder::new(Vector::Y);
 /// # multibody_joint_set.insert(body1, body2, joint, true);
 /// # let multibody_link_id = multibody_joint_set.rigid_body_link(body2).unwrap();
 /// // With:

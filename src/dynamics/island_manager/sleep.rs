@@ -24,7 +24,7 @@ impl IslandManager {
     /// islands.wake_up(&mut bodies, body_handle, true);
     /// let body = bodies.get_mut(body_handle).unwrap();
     /// // Wake up a body before applying force to it
-    /// body.add_force(vector![100.0, 0.0, 0.0], false);
+    /// body.add_force(Vector::new(100.0, 0.0, 0.0), false);
     /// ```
     ///
     /// Only affects dynamic bodies (kinematic and fixed bodies don't sleep).

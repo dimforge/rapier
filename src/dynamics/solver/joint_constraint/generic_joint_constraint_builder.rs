@@ -6,19 +6,16 @@ use crate::dynamics::{
     GenericJoint, ImpulseJoint, IntegrationParameters, JointIndex, Multibody, MultibodyJointSet,
     MultibodyLinkId, RigidBodySet,
 };
-use crate::math::{ANG_DIM, DIM, Real, SPATIAL_DIM, Vector};
+use crate::math::{ANG_DIM, DIM, DVector, Real, SPATIAL_DIM, Vector};
 use crate::utils;
-use crate::utils::IndexMut2;
-use na::{DVector, SVector};
+use crate::utils::{ComponentMul, IndexMut2, MatrixColumn};
 
 use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::solver::ConstraintsCounts;
 use crate::dynamics::solver::solver_body::SolverBodies;
 #[cfg(feature = "dim3")]
-use crate::utils::SimdAngularInertia;
-#[cfg(feature = "dim2")]
-use na::Vector1;
-use parry::math::Isometry;
+use crate::utils::AngularInertiaOps;
+use parry::math::{AngVector, Pose};
 
 #[derive(Copy, Clone)]
 enum LinkOrBody {
@@ -65,7 +62,7 @@ impl JointGenericExternalConstraintBuilder {
         multibodies: &MultibodyJointSet,
         out_builder: &mut GenericJointConstraintBuilder,
         j_id: &mut usize,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         out_constraint_id: &mut usize,
     ) {
         let starting_j_id = *j_id;
@@ -150,7 +147,7 @@ impl JointGenericExternalConstraintBuilder {
         params: &IntegrationParameters,
         multibodies: &MultibodyJointSet,
         bodies: &SolverBodies,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         out: &mut [GenericJointConstraint],
     ) {
         if self.multibodies_ndof == 0 {
@@ -172,11 +169,11 @@ impl JointGenericExternalConstraintBuilder {
                 mb1 = LinkOrBodyRef::Link(mb, link.id);
             }
             LinkOrBody::Body(body1) => {
-                pos1 = bodies.get_pose(body1).pose;
+                pos1 = bodies.get_pose(body1).pose();
                 mb1 = LinkOrBodyRef::Body(body1);
             }
             LinkOrBody::Fixed => {
-                pos1 = Isometry::identity();
+                pos1 = Pose::IDENTITY;
                 mb1 = LinkOrBodyRef::Fixed;
             }
         };
@@ -187,11 +184,11 @@ impl JointGenericExternalConstraintBuilder {
                 mb2 = LinkOrBodyRef::Link(mb, link.id);
             }
             LinkOrBody::Body(body2) => {
-                pos2 = bodies.get_pose(body2).pose;
+                pos2 = bodies.get_pose(body2).pose();
                 mb2 = LinkOrBodyRef::Body(body2);
             }
             LinkOrBody::Fixed => {
-                pos2 = Isometry::identity();
+                pos2 = Pose::IDENTITY;
                 mb2 = LinkOrBodyRef::Fixed;
             }
         };
@@ -200,11 +197,11 @@ impl JointGenericExternalConstraintBuilder {
         let frame2 = pos2 * self.joint.local_frame2;
 
         let joint_body1 = JointSolverBody {
-            world_com: pos1.translation.vector.into(), // the solver body pose is at the center of mass.
+            world_com: pos1.translation, // the solver body pose is at the center of mass.
             ..self.local_body1
         };
         let joint_body2 = JointSolverBody {
-            world_com: pos2.translation.vector.into(), // the solver body pose is at the center of mass.
+            world_com: pos2.translation, // the solver body pose is at the center of mass.
             ..self.local_body2
         };
 
@@ -246,7 +243,7 @@ impl JointGenericInternalConstraintBuilder {
         link_id: &MultibodyLinkId,
         out_builder: &mut GenericJointConstraintBuilder,
         j_id: &mut usize,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         out_constraint_id: &mut usize,
     ) {
         let multibody = &multibodies[link_id.multibody];
@@ -275,7 +272,7 @@ impl JointGenericInternalConstraintBuilder {
         &self,
         params: &IntegrationParameters,
         multibodies: &MultibodyJointSet,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         out: &mut [GenericJointConstraint],
     ) {
         let mb = &multibodies[self.link.multibody];
@@ -294,24 +291,29 @@ impl JointGenericInternalConstraintBuilder {
 impl JointSolverBody<Real, 1> {
     pub fn fill_jacobians(
         &self,
-        unit_force: Vector<Real>,
-        unit_torque: SVector<Real, ANG_DIM>,
+        unit_force: Vector,
+        unit_torque: AngVector,
         j_id: &mut usize,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
     ) {
         let wj_id = *j_id + SPATIAL_DIM;
         jacobians
             .fixed_rows_mut::<DIM>(*j_id)
-            .copy_from(&unit_force);
+            .copy_from_slice(unit_force.as_ref());
+        #[cfg(feature = "dim2")]
         jacobians
             .fixed_rows_mut::<ANG_DIM>(*j_id + DIM)
-            .copy_from(&unit_torque);
+            .copy_from_slice(&[unit_torque]);
+        #[cfg(feature = "dim3")]
+        jacobians
+            .fixed_rows_mut::<ANG_DIM>(*j_id + DIM)
+            .copy_from_slice(unit_torque.as_ref());
 
         {
             let mut out_invm_j = jacobians.fixed_rows_mut::<SPATIAL_DIM>(wj_id);
             out_invm_j
                 .fixed_rows_mut::<DIM>(0)
-                .copy_from(&self.im.component_mul(&unit_force));
+                .copy_from_slice(self.im.component_mul(&unit_force).as_ref());
 
             #[cfg(feature = "dim2")]
             {
@@ -319,12 +321,10 @@ impl JointSolverBody<Real, 1> {
             }
             #[cfg(feature = "dim3")]
             {
-                out_invm_j.fixed_rows_mut::<ANG_DIM>(DIM).gemv(
-                    1.0,
-                    &self.ii.into_matrix(),
-                    &unit_torque,
-                    0.0,
-                );
+                let invm_j = self.ii.transform_vector(unit_torque);
+                out_invm_j
+                    .fixed_rows_mut::<ANG_DIM>(DIM)
+                    .copy_from_slice(invm_j.as_ref());
             }
         }
 
@@ -335,7 +335,7 @@ impl JointSolverBody<Real, 1> {
 impl JointConstraintHelper<Real> {
     pub fn lock_jacobians_generic(
         &self,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         j_id: &mut usize,
         joint_id: JointIndex,
         body1: &JointSolverBody<Real, 1>,
@@ -343,9 +343,9 @@ impl JointConstraintHelper<Real> {
         mb1: LinkOrBodyRef,
         mb2: LinkOrBodyRef,
         writeback_id: WritebackId,
-        lin_jac: Vector<Real>,
-        ang_jac1: SVector<Real, ANG_DIM>,
-        ang_jac2: SVector<Real, ANG_DIM>,
+        lin_jac: Vector,
+        ang_jac1: AngVector,
+        ang_jac2: AngVector,
     ) -> GenericJointConstraint {
         let j_id1 = *j_id;
         let (ndofs1, solver_vel1, is_rigid_body1) = match mb1 {
@@ -399,7 +399,7 @@ impl JointConstraintHelper<Real> {
     pub fn lock_linear_generic(
         &self,
         params: &IntegrationParameters,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         j_id: &mut usize,
         joint_id: JointIndex,
         body1: &JointSolverBody<Real, 1>,
@@ -410,9 +410,9 @@ impl JointConstraintHelper<Real> {
         softness: SpringCoefficients<Real>,
         writeback_id: WritebackId,
     ) -> GenericJointConstraint {
-        let lin_jac = self.basis.column(locked_axis).into_owned();
-        let ang_jac1 = self.cmat1_basis.column(locked_axis).into_owned();
-        let ang_jac2 = self.cmat2_basis.column(locked_axis).into_owned();
+        let lin_jac = self.basis.col(locked_axis);
+        let ang_jac1 = self.cmat1_basis.column(locked_axis);
+        let ang_jac2 = self.cmat2_basis.column(locked_axis);
 
         let mut c = self.lock_jacobians_generic(
             jacobians,
@@ -429,7 +429,7 @@ impl JointConstraintHelper<Real> {
         );
 
         let erp_inv_dt = softness.erp_inv_dt(params.dt);
-        let rhs_bias = lin_jac.dot(&self.lin_err) * erp_inv_dt;
+        let rhs_bias = lin_jac.dot(self.lin_err) * erp_inv_dt;
         c.rhs += rhs_bias;
         c
     }
@@ -437,7 +437,7 @@ impl JointConstraintHelper<Real> {
     pub fn limit_linear_generic(
         &self,
         params: &IntegrationParameters,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         j_id: &mut usize,
         joint_id: JointIndex,
         body1: &JointSolverBody<Real, 1>,
@@ -449,9 +449,9 @@ impl JointConstraintHelper<Real> {
         softness: SpringCoefficients<Real>,
         writeback_id: WritebackId,
     ) -> GenericJointConstraint {
-        let lin_jac = self.basis.column(limited_axis).into_owned();
-        let ang_jac1 = self.cmat1_basis.column(limited_axis).into_owned();
-        let ang_jac2 = self.cmat2_basis.column(limited_axis).into_owned();
+        let lin_jac = self.basis.col(limited_axis);
+        let ang_jac1 = self.cmat1_basis.column(limited_axis);
+        let ang_jac2 = self.cmat2_basis.column(limited_axis);
 
         let mut constraint = self.lock_jacobians_generic(
             jacobians,
@@ -467,7 +467,7 @@ impl JointConstraintHelper<Real> {
             ang_jac2,
         );
 
-        let dist = self.lin_err.dot(&lin_jac);
+        let dist = self.lin_err.dot(lin_jac);
         let min_enabled = dist <= limits[0];
         let max_enabled = limits[1] <= dist;
 
@@ -485,7 +485,7 @@ impl JointConstraintHelper<Real> {
 
     pub fn motor_linear_generic(
         &self,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         j_id: &mut usize,
         joint_id: JointIndex,
         body1: &JointSolverBody<Real, 1>,
@@ -496,9 +496,9 @@ impl JointConstraintHelper<Real> {
         motor_params: &MotorParameters<Real>,
         writeback_id: WritebackId,
     ) -> GenericJointConstraint {
-        let lin_jac = self.basis.column(motor_axis).into_owned();
-        let ang_jac1 = self.cmat1_basis.column(motor_axis).into_owned();
-        let ang_jac2 = self.cmat2_basis.column(motor_axis).into_owned();
+        let lin_jac = self.basis.col(motor_axis);
+        let ang_jac1 = self.cmat1_basis.column(motor_axis);
+        let ang_jac2 = self.cmat2_basis.column(motor_axis);
 
         // TODO: do we need the same trick as for the non-generic constraint?
         // if locked_ang_axes & (1 << motor_axis) != 0 {
@@ -524,7 +524,7 @@ impl JointConstraintHelper<Real> {
 
         let mut rhs_wo_bias = 0.0;
         if motor_params.erp_inv_dt != 0.0 {
-            let dist = self.lin_err.dot(&lin_jac);
+            let dist = self.lin_err.dot(lin_jac);
             rhs_wo_bias += (dist - motor_params.target_pos) * motor_params.erp_inv_dt;
         }
 
@@ -541,7 +541,7 @@ impl JointConstraintHelper<Real> {
     pub fn lock_angular_generic(
         &self,
         params: &IntegrationParameters,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         j_id: &mut usize,
         joint_id: JointIndex,
         body1: &JointSolverBody<Real, 1>,
@@ -553,9 +553,9 @@ impl JointConstraintHelper<Real> {
         writeback_id: WritebackId,
     ) -> GenericJointConstraint {
         #[cfg(feature = "dim2")]
-        let ang_jac = Vector1::new(1.0);
+        let ang_jac: AngVector = 1.0;
         #[cfg(feature = "dim3")]
-        let ang_jac = self.ang_basis.column(_locked_axis).into_owned();
+        let ang_jac = self.ang_basis.column(_locked_axis);
 
         let mut constraint = self.lock_jacobians_generic(
             jacobians,
@@ -566,7 +566,7 @@ impl JointConstraintHelper<Real> {
             mb1,
             mb2,
             writeback_id,
-            na::zero(),
+            Vector::ZERO,
             ang_jac,
             ang_jac,
         );
@@ -575,7 +575,7 @@ impl JointConstraintHelper<Real> {
         #[cfg(feature = "dim2")]
         let rhs_bias = self.ang_err.im * erp_inv_dt;
         #[cfg(feature = "dim3")]
-        let rhs_bias = self.ang_err.imag()[_locked_axis] * erp_inv_dt;
+        let rhs_bias = self.ang_err.xyz()[_locked_axis] * erp_inv_dt;
         constraint.rhs += rhs_bias;
         constraint
     }
@@ -583,7 +583,7 @@ impl JointConstraintHelper<Real> {
     pub fn limit_angular_generic(
         &self,
         params: &IntegrationParameters,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         j_id: &mut usize,
         joint_id: JointIndex,
         body1: &JointSolverBody<Real, 1>,
@@ -596,9 +596,9 @@ impl JointConstraintHelper<Real> {
         writeback_id: WritebackId,
     ) -> GenericJointConstraint {
         #[cfg(feature = "dim2")]
-        let ang_jac = Vector1::new(1.0);
+        let ang_jac: AngVector = 1.0;
         #[cfg(feature = "dim3")]
-        let ang_jac = self.ang_basis.column(_limited_axis).into_owned();
+        let ang_jac = self.ang_basis.column(_limited_axis);
 
         let mut constraint = self.lock_jacobians_generic(
             jacobians,
@@ -609,7 +609,7 @@ impl JointConstraintHelper<Real> {
             mb1,
             mb2,
             writeback_id,
-            na::zero(),
+            Vector::ZERO,
             ang_jac,
             ang_jac,
         );
@@ -618,7 +618,7 @@ impl JointConstraintHelper<Real> {
         #[cfg(feature = "dim2")]
         let s_ang = (self.ang_err.angle() / 2.0).sin();
         #[cfg(feature = "dim3")]
-        let s_ang = self.ang_err.imag()[_limited_axis];
+        let s_ang = self.ang_err.xyz()[_limited_axis];
         let min_enabled = s_ang <= s_limits[0];
         let max_enabled = s_limits[1] <= s_ang;
         let impulse_bounds = [
@@ -637,7 +637,7 @@ impl JointConstraintHelper<Real> {
 
     pub fn motor_angular_generic(
         &self,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         j_id: &mut usize,
         joint_id: JointIndex,
         body1: &JointSolverBody<Real, 1>,
@@ -649,9 +649,9 @@ impl JointConstraintHelper<Real> {
         writeback_id: WritebackId,
     ) -> GenericJointConstraint {
         #[cfg(feature = "dim2")]
-        let ang_jac = na::Vector1::new(1.0);
+        let ang_jac = 1.0;
         #[cfg(feature = "dim3")]
-        let ang_jac = self.basis.column(_motor_axis).into_owned();
+        let ang_jac = self.basis.col(_motor_axis);
 
         let mut constraint = self.lock_jacobians_generic(
             jacobians,
@@ -662,7 +662,7 @@ impl JointConstraintHelper<Real> {
             mb1,
             mb2,
             writeback_id,
-            na::zero(),
+            Vector::ZERO,
             ang_jac,
             ang_jac,
         );
@@ -672,7 +672,7 @@ impl JointConstraintHelper<Real> {
             #[cfg(feature = "dim2")]
             let s_ang_dist = (self.ang_err.angle() / 2.0).sin();
             #[cfg(feature = "dim3")]
-            let s_ang_dist = self.ang_err.imag()[_motor_axis];
+            let s_ang_dist = self.ang_err.xyz()[_motor_axis];
             let s_target_ang = (motor_params.target_pos / 2.0).sin();
             rhs_wo_bias += utils::smallest_abs_diff_between_sin_angles(s_ang_dist, s_target_ang)
                 * motor_params.erp_inv_dt;
@@ -689,7 +689,7 @@ impl JointConstraintHelper<Real> {
     }
 
     pub fn finalize_generic_constraints(
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         constraints: &mut [GenericJointConstraint],
     ) {
         // TODO: orthogonalization doesn’t seem to give good results for multibodies?

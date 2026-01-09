@@ -16,7 +16,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 50.0;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height, 0.0]);
+    let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
     colliders.insert_with_parent(collider, handle, &mut bodies);
@@ -43,32 +43,29 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f32 * shift * 2.0 - centerz + offset;
 
                 // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y, z]);
+                let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z));
                 let handle = bodies.insert(rigid_body);
 
                 // First option: attach several colliders to a single rigid-body.
                 if j < numy / 2 {
                     let collider1 = ColliderBuilder::cuboid(rad * 10.0, rad, rad);
                     let collider2 = ColliderBuilder::cuboid(rad, rad * 10.0, rad)
-                        .translation(vector![rad * 10.0, rad * 10.0, 0.0]);
+                        .translation(Vector::new(rad * 10.0, rad * 10.0, 0.0));
                     let collider3 = ColliderBuilder::cuboid(rad, rad * 10.0, rad)
-                        .translation(vector![-rad * 10.0, rad * 10.0, 0.0]);
+                        .translation(Vector::new(-rad * 10.0, rad * 10.0, 0.0));
                     colliders.insert_with_parent(collider1, handle, &mut bodies);
                     colliders.insert_with_parent(collider2, handle, &mut bodies);
                     colliders.insert_with_parent(collider3, handle, &mut bodies);
                 } else {
                     // Second option: create a compound shape and attach it to a single collider.
                     let shapes = vec![
+                        (Pose::IDENTITY, SharedShape::cuboid(rad * 10.0, rad, rad)),
                         (
-                            Isometry::identity(),
-                            SharedShape::cuboid(rad * 10.0, rad, rad),
-                        ),
-                        (
-                            Isometry::translation(rad * 10.0, rad * 10.0, 0.0),
+                            Pose::from_translation(Vector::new(rad * 10.0, rad * 10.0, 0.0)),
                             SharedShape::cuboid(rad, rad * 10.0, rad),
                         ),
                         (
-                            Isometry::translation(-rad * 10.0, rad * 10.0, 0.0),
+                            Pose::from_translation(Vector::new(-rad * 10.0, rad * 10.0, 0.0)),
                             SharedShape::cuboid(rad, rad * 10.0, rad),
                         ),
                     ];
@@ -86,5 +83,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
+    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

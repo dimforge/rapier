@@ -158,7 +158,7 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                     FinalAction::RemoveFromIsland => {
                         let rb = bodies.index_mut_internal(*handle);
                         let ids = rb.ids;
-                        islands.rigid_body_removed(*handle, &ids, bodies);
+                        islands.rigid_body_removed_or_disabled(*handle, &ids, bodies);
                     }
                 };
             }

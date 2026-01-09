@@ -19,13 +19,13 @@ pub fn init_world(testbed: &mut Testbed) {
 
     for i in 0..n {
         let (ball_pos, attach) = (
-            vector![i as Real * 2.2 * radius, 0.0, 0.0],
-            Vector::y() * length,
+            Vector::new(i as Real * 2.2 * radius, 0.0, 0.0),
+            Vector::Y * length,
         );
         let vel = if i >= n - 1 {
-            vector![7.0, 0.0, 0.0]
+            Vector::new(7.0, 0.0, 0.0)
         } else {
-            Vector::zeros()
+            Vector::ZERO
         };
 
         let ground = bodies.insert(RigidBodyBuilder::fixed().translation(ball_pos + attach));
@@ -33,7 +33,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let handle = bodies.insert(rb);
         colliders.insert_with_parent(co.clone(), handle, &mut bodies);
 
-        let joint = SphericalJointBuilder::new().local_anchor2(attach.into());
+        let joint = SphericalJointBuilder::new().local_anchor2(attach);
         impulse_joints.insert(ground, handle, joint, true);
     }
 
@@ -41,5 +41,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
+    testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
 }

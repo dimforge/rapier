@@ -1,3 +1,4 @@
+use kiss3d::color::Color;
 use rapier_testbed2d::Testbed;
 use rapier2d::prelude::*;
 
@@ -23,15 +24,15 @@ pub fn init_world(testbed: &mut Testbed) {
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     let collider =
-        ColliderBuilder::cuboid(ground_thickness, ground_size).translation(vector![-3.0, 0.0]);
+        ColliderBuilder::cuboid(ground_thickness, ground_size).translation(Vector::new(-3.0, 0.0));
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     let collider =
-        ColliderBuilder::cuboid(ground_thickness, ground_size).translation(vector![6.0, 0.0]);
+        ColliderBuilder::cuboid(ground_thickness, ground_size).translation(Vector::new(6.0, 0.0));
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
 
     let collider = ColliderBuilder::cuboid(ground_thickness, ground_size)
-        .translation(vector![2.5, 0.0])
+        .translation(Vector::new(2.5, 0.0))
         .sensor(true)
         .active_events(ActiveEvents::COLLISION_EVENTS);
     let sensor_handle = colliders.insert_with_parent(collider, ground_handle, &mut bodies);
@@ -42,9 +43,9 @@ pub fn init_world(testbed: &mut Testbed) {
     let radx = 0.4;
     let rady = 0.05;
 
-    let delta1 = Isometry::translation(0.0, radx - rady);
-    let delta2 = Isometry::translation(-radx + rady, 0.0);
-    let delta3 = Isometry::translation(radx - rady, 0.0);
+    let delta1 = Pose::from_translation(Vector::new(0.0, radx - rady));
+    let delta2 = Pose::from_translation(Vector::new(-radx + rady, 0.0));
+    let delta3 = Pose::from_translation(Vector::new(radx - rady, 0.0));
 
     let mut compound_parts = Vec::new();
     let vertical = SharedShape::cuboid(rady, radx);
@@ -67,8 +68,8 @@ pub fn init_world(testbed: &mut Testbed) {
 
             // Build the rigid body.
             let rigid_body = RigidBodyBuilder::dynamic()
-                .translation(vector![x, y])
-                .linvel(vector![100.0, -10.0])
+                .translation(Vector::new(x, y))
+                .linvel(Vector::new(100.0, -10.0))
                 .ccd_enabled(true);
             let handle = bodies.insert(rigid_body);
 
@@ -89,9 +90,9 @@ pub fn init_world(testbed: &mut Testbed) {
     testbed.add_callback(move |mut graphics, physics, events, _| {
         while let Ok(prox) = events.collision_events.try_recv() {
             let color = if prox.started() {
-                [1.0, 1.0, 0.0]
+                Color::new(1.0, 1.0, 0.0, 1.0)
             } else {
-                [0.5, 0.5, 1.0]
+                Color::new(0.5, 0.5, 1.0, 1.0)
             };
 
             let parent_handle1 = physics
@@ -108,11 +109,11 @@ pub fn init_world(testbed: &mut Testbed) {
                 .unwrap();
             if let Some(graphics) = &mut graphics {
                 if parent_handle1 != ground_handle && prox.collider1() != sensor_handle {
-                    graphics.set_body_color(parent_handle1, color);
+                    graphics.set_body_color(parent_handle1, color, false);
                 }
 
                 if parent_handle2 != ground_handle && prox.collider2() != sensor_handle {
-                    graphics.set_body_color(parent_handle2, color);
+                    graphics.set_body_color(parent_handle2, color, false);
                 }
             }
         }
@@ -122,5 +123,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 2.5], 20.0);
+    testbed.look_at(Vec2::new(0.0, 2.5), 20.0);
 }

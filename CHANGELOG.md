@@ -1,3 +1,44 @@
+## v0.31.0 (09 Jan. 2026)
+
+### Modified
+
+- **Breaking:** Migrate math types from nalgebra to glam (via parry). The main type aliases are now:
+  - `Isometry<Real>` → `Pose` (glamx `Pose2/3`)
+  - `Point<Real>` → `Vector` for world-space positions (parry no longer distinguishes Point from Vector)
+  - `Rotation<Real>` → `Rotation` (glamx `Rot2` or `Quat`)
+  - `Translation<Real>` → removed, use `Pose::from_translation()`
+  - nalgebra is still used internally for SIMD code and multibody Jacobians (via `SimdVector<N>`, `SimdPose<N>`, `DVector`, `DMatrix`).
+- **Breaking:** Several getters now return by value instead of by reference:
+  - `RigidBody::linvel()` returns `Vector` instead of `&Vector<Real>`
+  - `RigidBody::angvel()` returns `AngVector` instead of `&Vector<Real>` (3D) or `Real` (2D)
+  - `RigidBody::center_of_mass()` returns `Vector` instead of `&Point<Real>`
+  - `RigidBody::local_center_of_mass()` returns `Vector` instead of `&Point<Real>`
+  - `Collider::translation()` returns `Vector` instead of `&Vector<Real>`
+  - `Collider::rotation()` returns `Rotation` instead of `&Rotation<Real>`
+- **Breaking:** `DebugRenderBackend::draw_line` signature changed: takes `Vector` instead of `Point<Real>` for line endpoints.
+- **Breaking:** `DebugRenderBackend::draw_polyline` and `draw_line_strip` now take `&Pose` and `Vector` instead of `&Isometry<Real>` and `&Vector<Real>`.
+- Testbed migrated from Bevy to kiss3d for lighter dependencies and simpler maintenance.
+- Removed `benchmarks2d` and `benchmarks3d` crates (merged with `examples2d` and `examples3d`).
+
+### Migration guide
+
+If your codebase currently relies on `nalgebra`, note that `nalgebra` and `glamx` provide type conversion. Enable the
+corresponding features:
+- `nalgebra = { version = "0.34", features = [ "convert-glam030" ] }`
+- `glamx = { version = "0.1", features = ["nalgebra"] }`
+then you can convert between `glam` and `nalgebra` types using `.into()`.
+
+1. **Type changes:** Replace `Isometry<Real>` with `Pose`, and `Point<Real>` with `Vector` for positions.
+2. **Pose construction:**
+   - `Isometry::identity()` → `Pose::IDENTITY`
+   - `Isometry::translation(x, y, z)` → `Pose::from_translation(Vector::new(x, y, z))`
+   - `Isometry::rotation(axis_angle)` → `Pose::from_rotation(Rotation::from_scaled_axis(axis_angle))`
+   - `isometry.translation.vector` → `pose.translation`
+   - `isometry.rotation.scaled_axis()` → `pose.rotation.to_scaled_axis()`
+3. **Getter usage:** Remove `&` or `.clone()` when using `linvel()`, `angvel()`, `center_of_mass()`, `translation()`, `rotation()` since they now return by value.
+4. **Debug renderer:** Update `DebugRenderBackend` implementations to use `Vector` instead of `Point<Real>`.
+5. **glam access:** The `glamx` crate is re-exported as `rapier::glamx` for direct glam type access if needed.
+
 ## v0.31.0 (21 Nov. 2025)
 
 - `InteractionGroups` struct now contains `InteractionTestMode`.

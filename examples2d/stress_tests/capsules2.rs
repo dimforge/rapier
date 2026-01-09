@@ -1,0 +1,67 @@
+use rapier_testbed2d::Testbed;
+use rapier2d::prelude::*;
+
+pub fn init_world(testbed: &mut Testbed) {
+    /*
+     * World
+     */
+    let mut bodies = RigidBodySet::new();
+    let mut colliders = ColliderSet::new();
+    let impulse_joints = ImpulseJointSet::new();
+    let multibody_joints = MultibodyJointSet::new();
+
+    /*
+     * Ground
+     */
+    let ground_size = 25.0;
+
+    let rigid_body = RigidBodyBuilder::fixed();
+    let handle = bodies.insert(rigid_body);
+    let collider = ColliderBuilder::cuboid(ground_size, 1.2);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
+
+    let rigid_body = RigidBodyBuilder::fixed()
+        .rotation(std::f32::consts::FRAC_PI_2)
+        .translation(Vec2::new(ground_size, ground_size * 4.0));
+    let handle = bodies.insert(rigid_body);
+    let collider = ColliderBuilder::cuboid(ground_size * 4.0, 1.2);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
+
+    let rigid_body = RigidBodyBuilder::fixed()
+        .rotation(std::f32::consts::FRAC_PI_2)
+        .translation(Vec2::new(-ground_size, ground_size * 4.0));
+    let handle = bodies.insert(rigid_body);
+    let collider = ColliderBuilder::cuboid(ground_size * 4.0, 1.2);
+    colliders.insert_with_parent(collider, handle, &mut bodies);
+
+    /*
+     * Create the cubes
+     */
+    let num = 26;
+    let numy = num * 5;
+    let rad = 0.5;
+
+    let shift = rad * 2.0;
+    let shifty = rad * 5.0;
+    let centerx = shift * (num as f32) / 2.0;
+    let centery = shift / 2.0;
+
+    for i in 0..num {
+        for j in 0usize..numy {
+            let x = i as f32 * shift - centerx;
+            let y = j as f32 * shifty + centery + 3.0;
+
+            // Build the rigid body.
+            let rigid_body = RigidBodyBuilder::dynamic().translation(Vec2::new(x, y));
+            let handle = bodies.insert(rigid_body);
+            let collider = ColliderBuilder::capsule_y(rad * 1.5, rad);
+            colliders.insert_with_parent(collider, handle, &mut bodies);
+        }
+    }
+
+    /*
+     * Set up the testbed.
+     */
+    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.look_at(Vec2::new(0.0, 50.0), 10.0);
+}

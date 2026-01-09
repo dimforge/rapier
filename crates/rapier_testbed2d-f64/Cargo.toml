@@ -1,6 +1,6 @@
 [package]
 name = "rapier_testbed2d-f64"
-version = "0.31.0"
+version = "0.32.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "Testbed for the Rapier 2-dimensional physics engine in Rust."
 homepage = "http://rapier.rs"
@@ -44,6 +44,7 @@ features = ["parallel", "profiler_ui"]
 
 [dependencies]
 nalgebra = { version = "0.34", features = ["rand", "glam029"] }
+glamx = "0.1"
 rand = "0.9"
 rand_pcg = "0.9"
 web-time = { version = "1.1" }
@@ -52,51 +53,17 @@ num_cpus = { version = "1", optional = true }
 wrapped2d = { version = "0.4", optional = true }
 bincode = "1"
 Inflector = "0.11"
-md5 = "0.7"
-bevy_egui = "0.31"
-bevy_ecs = "0.15"
-bevy_core_pipeline = "0.15"
-bevy_pbr = "0.15"
-bevy_sprite = "0.15"
+md5 = "0.8"
+egui = "0.33"
 profiling = "1.0"
 puffin_egui = { version = "0.29", optional = true }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-serde = { version = "1.0.215", features = ["derive"] }
 indexmap = { version = "2", features = ["serde"] }
-
-# Dependencies for native only.
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy = { version = "0.15", default-features = false, features = [
-    "bevy_asset",
-    "bevy_winit",
-    "bevy_window",
-    "x11",
-    "tonemapping_luts",
-    "ktx2",
-    "zstd",
-    "bevy_render",
-    "bevy_pbr",
-    "bevy_gizmos",
-    "serialize"
-] }
-
-# Dependencies for WASM only.
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-bevy = { version = "0.15", default-features = false, features = [
-    "bevy_asset",
-    "bevy_winit",
-    "bevy_window",
-    "tonemapping_luts",
-    "ktx2",
-    "zstd",
-    "bevy_render",
-    "bevy_pbr",
-    "bevy_gizmos",
-] }
-#bevy_webgl2 = "0.5"
+kiss3d = { version = "0.40.0", features = ["egui", "parry", "serde"] }
 
 [dependencies.rapier]
 package = "rapier2d-f64"
 path = "../rapier2d-f64"
-version = "0.31.0"
+version = "0.32.0"
 features = ["serde-serialize", "debug-render", "profiler"]

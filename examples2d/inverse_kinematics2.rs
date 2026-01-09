@@ -16,7 +16,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 1.0;
     let ground_height = 0.01;
 
-    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height]);
+    let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height));
     let floor_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height);
     colliders.insert_with_parent(collider, floor_handle, &mut bodies);
@@ -41,8 +41,8 @@ pub fn init_world(testbed: &mut Testbed) {
         colliders.insert_with_parent(collider, new_body, &mut bodies);
 
         let link_ab = RevoluteJointBuilder::new()
-            .local_anchor1(point![0.0, size / 2.0 * (i != 0) as usize as f32])
-            .local_anchor2(point![0.0, -size / 2.0])
+            .local_anchor1(Vector::new(0.0, size / 2.0 * (i != 0) as usize as f32))
+            .local_anchor2(Vector::new(0.0, -size / 2.0))
             .build()
             .data;
 
@@ -70,7 +70,7 @@ pub fn init_world(testbed: &mut Testbed) {
             };
 
             // We will have the endpoint track the mouse position.
-            let target_point = mouse_point.coords;
+            let target_point = Vector::new(mouse_point.x, mouse_point.y);
 
             let options = InverseKinematicsOption {
                 constrained_axes: JointAxesMask::LIN_AXES,
@@ -81,7 +81,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 &physics.bodies,
                 link_id,
                 &options,
-                &Isometry::from(target_point),
+                &Pose::from_translation(target_point),
                 |_| true,
                 &mut displacements,
             );
@@ -93,5 +93,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 0.0], 300.0);
+    testbed.look_at(Vec2::ZERO, 300.0);
 }

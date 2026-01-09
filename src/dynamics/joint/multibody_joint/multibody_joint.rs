@@ -4,12 +4,17 @@ use crate::dynamics::{
     RigidBodyVelocity, joint,
 };
 use crate::math::{
-    ANG_DIM, DIM, Isometry, JacobianViewMut, Real, Rotation, SPATIAL_DIM, SpacialVector,
-    Translation, Vector,
+    ANG_DIM, DIM, DVector, JacobianViewMut, Pose, Real, Rotation, SPATIAL_DIM, SpatialVector,
+    Vector,
 };
-use na::{DVector, DVectorViewMut};
+use parry::math::VectorExt;
+
+#[cfg(feature = "dim2")]
+use crate::math::rotation_from_angle;
 #[cfg(feature = "dim3")]
-use na::{UnitQuaternion, Vector3};
+use crate::utils::RotationOps;
+use crate::utils::vect_to_na;
+use na::DVectorViewMut;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug)]
@@ -22,8 +27,8 @@ pub struct MultibodyJoint {
     /// Kinematic joint velocities are never changed by the physics engine. This gives the user
     /// total control over the values of their degrees of freedoms.
     pub kinematic: bool,
-    pub(crate) coords: SpacialVector<Real>,
-    pub(crate) joint_rot: Rotation<Real>,
+    pub(crate) coords: SpatialVector,
+    pub(crate) joint_rot: Rotation,
 }
 
 impl MultibodyJoint {
@@ -32,32 +37,40 @@ impl MultibodyJoint {
         Self {
             data,
             kinematic,
-            coords: na::zero(),
-            joint_rot: Rotation::identity(),
+            coords: Default::default(),
+            joint_rot: Rotation::IDENTITY,
         }
     }
 
-    pub(crate) fn free(pos: Isometry<Real>) -> Self {
+    pub(crate) fn free(pos: Pose) -> Self {
         let mut result = Self::new(GenericJoint::default(), false);
         result.set_free_pos(pos);
         result
     }
 
-    pub(crate) fn fixed(pos: Isometry<Real>) -> Self {
+    pub(crate) fn fixed(pos: Pose) -> Self {
         Self::new(
             FixedJointBuilder::new().local_frame1(pos).build().into(),
             false,
         )
     }
 
-    pub(crate) fn set_free_pos(&mut self, pos: Isometry<Real>) {
-        self.coords
-            .fixed_rows_mut::<DIM>(0)
-            .copy_from(&pos.translation.vector);
+    pub(crate) fn set_free_pos(&mut self, pos: Pose) {
+        #[cfg(feature = "dim2")]
+        {
+            self.coords.x = pos.translation.x;
+            self.coords.y = pos.translation.y;
+        }
+        #[cfg(feature = "dim3")]
+        {
+            self.coords[0] = pos.translation.x;
+            self.coords[1] = pos.translation.y;
+            self.coords[2] = pos.translation.z;
+        }
         self.joint_rot = pos.rotation;
     }
 
-    // pub(crate) fn local_joint_rot(&self) -> &Rotation<Real> {
+    // pub(crate) fn local_joint_rot(&self) -> &Rotation {
     //     &self.joint_rot
     // }
 
@@ -72,13 +85,15 @@ impl MultibodyJoint {
     }
 
     /// The position of the multibody link containing this multibody_joint relative to its parent.
-    pub fn body_to_parent(&self) -> Isometry<Real> {
+    pub fn body_to_parent(&self) -> Pose {
         let locked_bits = self.data.locked_axes.bits();
-        let mut transform = self.joint_rot * self.data.local_frame2.inverse();
+        let mut transform = Pose::from_rotation(self.joint_rot) * self.data.local_frame2.inverse();
 
         for i in 0..DIM {
             if (locked_bits & (1 << i)) == 0 {
-                transform = Translation::from(Vector::ith(i, self.coords[i])) * transform;
+                // Create a translation along axis i with the coordinate value
+                let translation = Vector::ith(i, self.coords[i]);
+                transform = Pose::from_translation(translation) * transform;
             }
         }
 
@@ -107,12 +122,12 @@ impl MultibodyJoint {
                 self.coords[DIM + dof_id] += vels[curr_free_dof] * dt;
                 #[cfg(feature = "dim2")]
                 {
-                    self.joint_rot = Rotation::new(self.coords[DIM + dof_id]);
+                    self.joint_rot = rotation_from_angle(self.coords[DIM + dof_id]);
                 }
                 #[cfg(feature = "dim3")]
                 {
                     self.joint_rot = Rotation::from_axis_angle(
-                        &Vector::ith_axis(dof_id),
+                        Vector::ith(dof_id, 1.0),
                         self.coords[DIM + dof_id],
                     );
                 }
@@ -122,8 +137,8 @@ impl MultibodyJoint {
             }
             #[cfg(feature = "dim3")]
             3 => {
-                let angvel = Vector3::from_row_slice(&vels[curr_free_dof..curr_free_dof + 3]);
-                let disp = UnitQuaternion::new_eps(angvel * dt, 0.0);
+                let angvel = Vector::from_slice(&vels[curr_free_dof..curr_free_dof + 3]);
+                let disp = Rotation::from_scaled_axis(angvel * dt);
                 self.joint_rot = disp * self.joint_rot;
                 self.coords[3] += angvel[0] * dt;
                 self.coords[4] += angvel[1] * dt;
@@ -139,15 +154,15 @@ impl MultibodyJoint {
     }
 
     /// Sets in `out` the non-zero entries of the multibody_joint jacobian transformed by `transform`.
-    pub fn jacobian(&self, transform: &Rotation<Real>, out: &mut JacobianViewMut<Real>) {
+    pub fn jacobian(&self, transform: &Rotation, out: &mut JacobianViewMut<Real>) {
         let locked_bits = self.data.locked_axes.bits();
         let mut curr_free_dof = 0;
 
         for i in 0..DIM {
             if (locked_bits & (1 << i)) == 0 {
-                let transformed_axis = transform * Vector::ith(i, 1.0);
+                let transformed_axis = (*transform) * Vector::ith(i, 1.0);
                 out.fixed_view_mut::<DIM, 1>(0, curr_free_dof)
-                    .copy_from(&transformed_axis);
+                    .copy_from(&vect_to_na(transformed_axis));
                 curr_free_dof += 1;
             }
         }
@@ -165,9 +180,9 @@ impl MultibodyJoint {
                 #[cfg(feature = "dim3")]
                 {
                     let dof_id = (!locked_ang_bits).trailing_zeros() as usize;
-                    let rotmat = transform.to_rotation_matrix().into_inner();
+                    let rotmat = transform.to_mat();
                     out.fixed_view_mut::<ANG_DIM, 1>(DIM, curr_free_dof)
-                        .copy_from(&rotmat.column(dof_id));
+                        .copy_from_slice(rotmat.col(dof_id).as_ref());
                 }
             }
             2 => {
@@ -175,9 +190,9 @@ impl MultibodyJoint {
             }
             #[cfg(feature = "dim3")]
             3 => {
-                let rotmat = transform.to_rotation_matrix();
+                let rotmat = transform.to_mat();
                 out.fixed_view_mut::<3, 3>(3, curr_free_dof)
-                    .copy_from(rotmat.matrix());
+                    .copy_from_slice(rotmat.as_ref());
             }
             _ => unreachable!(),
         }
@@ -217,7 +232,7 @@ impl MultibodyJoint {
             }
             #[cfg(feature = "dim3")]
             3 => {
-                let angvel = Vector3::from_row_slice(&acc[curr_free_dof..curr_free_dof + 3]);
+                let angvel = Vector::from_slice(&acc[curr_free_dof..curr_free_dof + 3]);
                 result.angvel += angvel;
             }
             _ => unreachable!(),
@@ -268,7 +283,7 @@ impl MultibodyJoint {
         multibody: &Multibody,
         link: &MultibodyLink,
         mut j_id: usize,
-        jacobians: &mut DVector<Real>,
+        jacobians: &mut DVector,
         constraints: &mut [GenericJointConstraint],
     ) -> usize {
         let j_id = &mut j_id;

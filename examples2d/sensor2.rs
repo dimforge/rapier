@@ -1,3 +1,4 @@
+use kiss3d::color::Color;
 use rapier_testbed2d::Testbed;
 use rapier2d::prelude::*;
 
@@ -16,7 +17,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 200.1;
     let ground_height = 0.1;
 
-    let rigid_body = RigidBodyBuilder::fixed().translation(vector![0.0, -ground_height]);
+    let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height));
     let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height);
     colliders.insert_with_parent(collider, ground_handle, &mut bodies);
@@ -35,12 +36,12 @@ pub fn init_world(testbed: &mut Testbed) {
         let y = 3.0;
 
         // Build the rigid body.
-        let rigid_body = RigidBodyBuilder::dynamic().translation(vector![x, y]);
+        let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y));
         let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(rad, rad);
         colliders.insert_with_parent(collider, handle, &mut bodies);
 
-        testbed.set_initial_body_color(handle, [0.5, 0.5, 1.0]);
+        testbed.set_initial_body_color(handle, Color::new(0.5, 0.5, 1.0, 1.0));
     }
 
     /*
@@ -48,7 +49,7 @@ pub fn init_world(testbed: &mut Testbed) {
      */
 
     // Rigid body so that the sensor can move.
-    let sensor = RigidBodyBuilder::dynamic().translation(vector![0.0, 10.0]);
+    let sensor = RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 10.0));
     let sensor_handle = bodies.insert(sensor);
 
     // Solid cube attached to the sensor which
@@ -64,15 +65,15 @@ pub fn init_world(testbed: &mut Testbed) {
         .active_events(ActiveEvents::COLLISION_EVENTS);
     colliders.insert_with_parent(sensor_collider, sensor_handle, &mut bodies);
 
-    testbed.set_initial_body_color(sensor_handle, [0.5, 1.0, 1.0]);
+    testbed.set_initial_body_color(sensor_handle, Color::new(0.5, 1.0, 1.0, 1.0));
 
     // Callback that will be executed on the main loop to handle proximities.
     testbed.add_callback(move |mut graphics, physics, events, _| {
         while let Ok(prox) = events.collision_events.try_recv() {
             let color = if prox.started() {
-                [1.0, 1.0, 0.0]
+                Color::new(1.0, 1.0, 0.0, 1.0)
             } else {
-                [0.5, 0.5, 1.0]
+                Color::new(0.5, 0.5, 1.0, 1.0)
             };
 
             let parent_handle1 = physics.colliders[prox.collider1()].parent().unwrap();
@@ -80,10 +81,10 @@ pub fn init_world(testbed: &mut Testbed) {
 
             if let Some(graphics) = &mut graphics {
                 if parent_handle1 != ground_handle && parent_handle1 != sensor_handle {
-                    graphics.set_body_color(parent_handle1, color);
+                    graphics.set_body_color(parent_handle1, color, false);
                 }
                 if parent_handle2 != ground_handle && parent_handle2 != sensor_handle {
-                    graphics.set_body_color(parent_handle2, color);
+                    graphics.set_body_color(parent_handle2, color, false);
                 }
             }
         }
@@ -93,5 +94,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![0.0, 1.0], 100.0);
+    testbed.look_at(Vec2::new(0.0, 1.0), 100.0);
 }

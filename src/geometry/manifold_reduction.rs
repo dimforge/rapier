@@ -1,6 +1,6 @@
 use crate::geometry::ContactManifold;
 use crate::math::Real;
-use crate::utils::SimdBasis;
+use crate::utils::OrthonormalBasis;
 
 pub(crate) fn reduce_manifold_naive(
     manifold: &ContactManifold,
@@ -29,10 +29,10 @@ pub(crate) fn reduce_manifold_naive(
     }
 
     // 2. Find the point that is the furthest from the deepest point.
-    let selected_a = &manifold.points[selected[0]].local_p1;
+    let selected_a = manifold.points[selected[0]].local_p1;
     let mut furthest_dist = -Real::MAX;
     for (i, pt) in manifold.points.iter().enumerate() {
-        let dist = na::distance_squared(&pt.local_p1, selected_a);
+        let dist = (pt.local_p1 - selected_a).length_squared();
         if i != selected[0] && pt.dist <= prediction_distance && dist > furthest_dist {
             furthest_dist = dist;
             selected[1] = i;
@@ -45,7 +45,7 @@ pub(crate) fn reduce_manifold_naive(
     }
 
     // 3. Now find the two points furthest from the segment we built so far.
-    let selected_b = &manifold.points[selected[1]].local_p1;
+    let selected_b = manifold.points[selected[1]].local_p1;
 
     if selected_a == selected_b {
         *num_selected = 1;
@@ -53,7 +53,7 @@ pub(crate) fn reduce_manifold_naive(
     }
 
     let selected_ab = selected_b - selected_a;
-    let tangent = selected_ab.cross(&manifold.local_n1);
+    let tangent = selected_ab.cross(manifold.local_n1);
 
     // Find the points that minimize and maximize the dot product with the tangent.
     let mut min_dot = Real::MAX;
@@ -63,7 +63,7 @@ pub(crate) fn reduce_manifold_naive(
             continue;
         }
 
-        let dot = (pt.local_p1 - selected_a).dot(&tangent);
+        let dot = (pt.local_p1 - selected_a).dot(tangent);
         if dot < min_dot {
             min_dot = dot;
             selected[2] = i;
@@ -111,8 +111,8 @@ pub(crate) fn reduce_manifold_bepu_like(
 
     for (i, pt) in manifold.points.iter().enumerate() {
         // Extremity measures how far the contact is from the origin in the tangent plane
-        let tx1 = pt.local_p1.coords.dot(&tangents[0]);
-        let ty1 = pt.local_p1.coords.dot(&tangents[1]);
+        let tx1 = pt.local_p1.dot(tangents[0]);
+        let ty1 = pt.local_p1.dot(tangents[1]);
 
         let extremity = (tx1 * EXTREMITY_DIR_X + ty1 * EXTREMITY_DIR_Y).abs();
 
@@ -137,8 +137,8 @@ pub(crate) fn reduce_manifold_bepu_like(
 
     for (i, pt) in manifold.points.iter().enumerate() {
         let offset = pt.local_p1 - contact0_pos;
-        let offset_x = offset.dot(&tangents[0]);
-        let offset_y = offset.dot(&tangents[1]);
+        let offset_x = offset.dot(tangents[0]);
+        let offset_y = offset.dot(tangents[1]);
         let distance_squared = offset_x * offset_x + offset_y * offset_y;
 
         if distance_squared > max_distance_squared {
@@ -164,16 +164,16 @@ pub(crate) fn reduce_manifold_bepu_like(
 
         let contact1_pos = manifold.points[selected[1]].local_p1;
         let edge_offset = contact1_pos - contact0_pos;
-        let edge_offset_x = edge_offset.dot(&tangents[0]);
-        let edge_offset_y = edge_offset.dot(&tangents[1]);
+        let edge_offset_x = edge_offset.dot(tangents[0]);
+        let edge_offset_y = edge_offset.dot(tangents[1]);
 
         let mut min_signed_area = 0.0;
         let mut max_signed_area = 0.0;
 
         for (i, pt) in manifold.points.iter().enumerate() {
             let candidate_offset = pt.local_p1 - contact0_pos;
-            let candidate_offset_x = candidate_offset.dot(&tangents[0]);
-            let candidate_offset_y = candidate_offset.dot(&tangents[1]);
+            let candidate_offset_x = candidate_offset.dot(tangents[0]);
+            let candidate_offset_y = candidate_offset.dot(tangents[1]);
 
             // Signed area of the triangle formed by (contact0, contact1, candidate)
             // This is a 2D cross product: (candidate - contact0) × (contact1 - contact0)

@@ -17,17 +17,17 @@ pub fn init_world(testbed: &mut Testbed) {
      * Ground
      */
     // let vertices = vec![
-    //     point![-50.0, 0.0, -50.0],
-    //     point![-50.0, 0.0, 50.0],
-    //     point![50.0, 0.0, 50.0],
-    //     point![50.0, 0.0, -50.0],
+    //     Vec3::new(-50.0, 0.0, -50.0),
+    //     Vec3::new(-50.0, 0.0, 50.0),
+    //     Vec3::new(50.0, 0.0, 50.0),
+    //     Vec3::new(50.0, 0.0, -50.0),
     // ];
     // let indices = vec![[0, 1, 2], [0, 2, 3]];
     //
     // let collider = ColliderBuilder::trimesh_with_flags(vertices, indices, TriMeshFlags::all());
     // colliders.insert(collider);
 
-    let heights = DMatrix::repeat(2, 2, 0.0);
+    let heights = Array2::repeat(2, 2, 0.0);
     let collider = ColliderBuilder::heightfield_with_flags(
         heights,
         Vector::new(50.0, 1.0, 50.0),
@@ -40,9 +40,9 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     // Build the rigid body.
     let rigid_body = RigidBodyBuilder::dynamic()
-        .translation(vector![0.0, 5.0, 0.0])
-        .rotation(vector![0.5, 0.0, 0.5])
-        .linvel(vector![0.0, -100.0, 0.0])
+        .translation(Vector::new(0.0, 5.0, 0.0))
+        .rotation(Vector::new(0.5, 0.0, 0.5))
+        .linvel(Vector::new(0.0, -100.0, 0.0))
         .soft_ccd_prediction(10.0);
     let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(5.0, 0.015, 5.0);
@@ -52,5 +52,5 @@ pub fn init_world(testbed: &mut Testbed) {
      * Set up the testbed.
      */
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(point![100.0, 100.0, 100.0], Point::origin());
+    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

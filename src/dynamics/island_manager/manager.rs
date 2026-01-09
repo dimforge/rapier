@@ -6,7 +6,7 @@ use crate::dynamics::{
 use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
 use crate::prelude::SleepRootState;
-use crate::utils::SimdDot;
+use crate::utils::DotProduct;
 use std::collections::VecDeque;
 use vec_map::VecMap;
 
@@ -55,7 +55,7 @@ impl IslandManager {
         &self.awake_islands
     }
 
-    pub(crate) fn rigid_body_removed(
+    pub(crate) fn rigid_body_removed_or_disabled(
         &mut self,
         removed_handle: RigidBodyHandle,
         removed_ids: &RigidBodyIds,
@@ -65,6 +65,12 @@ impl IslandManager {
             // The island already doesn’t exist.
             return;
         };
+
+        // If the rigid-body was disabled, it is still in the body set. Invalid its islands ids.
+        if let Some(body) = bodies.get_mut_internal(removed_handle) {
+            body.ids.active_island_id = usize::MAX;
+            body.ids.active_set_id = usize::MAX;
+        }
 
         let swapped_handle = island.bodies.last().copied().unwrap_or(removed_handle);
         island.bodies.swap_remove(removed_ids.active_set_id);
@@ -234,7 +240,7 @@ impl IslandManager {
                 // This branch happens if the rigid-body no longer exists.
                 continue;
             };
-            let sq_linvel = rb.vels.linvel.norm_squared();
+            let sq_linvel = rb.vels.linvel.length_squared();
             let sq_angvel = rb.vels.angvel.gdot(rb.vels.angvel);
             rb.activation
                 .update_energy(rb.body_type, length_unit, sq_linvel, sq_angvel, dt);

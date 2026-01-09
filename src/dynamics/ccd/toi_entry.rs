@@ -55,22 +55,22 @@ impl TOIEntry {
         }
 
         let linvel1 =
-            frozen1.is_none() as u32 as Real * rb1.map(|b| b.ccd_vels.linvel).unwrap_or(na::zero());
+            frozen1.is_none() as u32 as Real * rb1.map(|b| b.ccd_vels.linvel).unwrap_or_default();
         let linvel2 =
-            frozen2.is_none() as u32 as Real * rb2.map(|b| b.ccd_vels.linvel).unwrap_or(na::zero());
+            frozen2.is_none() as u32 as Real * rb2.map(|b| b.ccd_vels.linvel).unwrap_or_default();
         let angvel1 =
-            frozen1.is_none() as u32 as Real * rb1.map(|b| b.ccd_vels.angvel).unwrap_or(na::zero());
+            frozen1.is_none() as u32 as Real * rb1.map(|b| b.ccd_vels.angvel).unwrap_or_default();
         let angvel2 =
-            frozen2.is_none() as u32 as Real * rb2.map(|b| b.ccd_vels.angvel).unwrap_or(na::zero());
+            frozen2.is_none() as u32 as Real * rb2.map(|b| b.ccd_vels.angvel).unwrap_or_default();
 
         #[cfg(feature = "dim2")]
-        let vel12 = (linvel2 - linvel1).norm()
+        let vel12 = (linvel2 - linvel1).length()
             + angvel1.abs() * rb1.map(|b| b.ccd.ccd_max_dist).unwrap_or(0.0)
             + angvel2.abs() * rb2.map(|b| b.ccd.ccd_max_dist).unwrap_or(0.0);
         #[cfg(feature = "dim3")]
-        let vel12 = (linvel2 - linvel1).norm()
-            + angvel1.norm() * rb1.map(|b| b.ccd.ccd_max_dist).unwrap_or(0.0)
-            + angvel2.norm() * rb2.map(|b| b.ccd.ccd_max_dist).unwrap_or(0.0);
+        let vel12 = (linvel2 - linvel1).length()
+            + angvel1.length() * rb1.map(|b| b.ccd.ccd_max_dist).unwrap_or(0.0)
+            + angvel2.length() * rb2.map(|b| b.ccd.ccd_max_dist).unwrap_or(0.0);
 
         // We may be slightly over-conservative by taking the `max(0.0)` here.
         // But removing the `max` doesn't really affect performances so let's
@@ -135,7 +135,7 @@ impl TOIEntry {
             let mut hit = query_dispatcher
                 .cast_shapes(
                     &pos12,
-                    &vel12,
+                    vel12,
                     co1.shape.as_ref(),
                     co2.shape.as_ref(),
                     options,
