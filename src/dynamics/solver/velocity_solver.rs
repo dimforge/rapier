@@ -82,7 +82,7 @@ impl VelocitySolver {
         self.solver_bodies.clear();
 
         let aligned_solver_bodies_len =
-            islands.active_island(island_id).len().div_ceil(SIMD_WIDTH) * SIMD_WIDTH;
+            islands.island(island_id).len().div_ceil(SIMD_WIDTH) * SIMD_WIDTH;
         self.solver_bodies.resize(aligned_solver_bodies_len);
 
         self.solver_vels_increment.clear();
@@ -97,7 +97,8 @@ impl VelocitySolver {
         // Assign solver ids to multibodies, and collect the relevant roots.
         // And init solver_vels for rigid-bodies.
         let mut multibody_solver_id = 0;
-        for handle in islands.active_island(island_id) {
+
+        for (offset, handle) in islands.island(island_id).bodies().iter().enumerate() {
             if let Some(link) = multibodies.rigid_body_link(*handle).copied() {
                 let multibody = multibodies
                     .get_multibody_mut_internal(link.multibody)
@@ -110,10 +111,10 @@ impl VelocitySolver {
                 }
             } else {
                 let rb = &bodies[*handle];
-                let solver_vel_incr =
-                    &mut self.solver_vels_increment[rb.ids.active_set_offset as usize];
+                assert_eq!(offset, rb.ids.active_set_id);
+                let solver_vel_incr = &mut self.solver_vels_increment[rb.ids.active_set_id];
                 self.solver_bodies
-                    .copy_from(total_step_dt, rb.ids.active_set_offset as usize, rb);
+                    .copy_from(total_step_dt, rb.ids.active_set_id, rb);
 
                 solver_vel_incr.angular =
                     rb.mprops.effective_world_inv_inertia * rb.forces.torque * params.dt;
@@ -181,7 +182,7 @@ impl VelocitySolver {
             if params.warmstart_coefficient != 0.0 {
                 // TODO PERF: we could probably figure out a way to avoid this warmstart when
                 //            step_id > 0? Maybe for that to happen `solver_vels` needs to
-                //            represent velocity changes instead of total rigid-boody velocities.
+                //            represent velocity changes instead of total rigid-body velocities.
                 //            Need to be careful wrt. multibody and joints too.
                 contact_constraints
                     .warmstart(&mut self.solver_bodies, &mut self.generic_solver_vels);
@@ -290,7 +291,7 @@ impl VelocitySolver {
         bodies: &mut RigidBodySet,
         multibodies: &mut MultibodyJointSet,
     ) {
-        for handle in islands.active_island(island_id) {
+        for handle in islands.island(island_id).bodies() {
             let link = if self.multibody_roots.is_empty() {
                 None
             } else {
@@ -310,8 +311,8 @@ impl VelocitySolver {
                 }
             } else {
                 let rb = bodies.index_mut_internal(*handle);
-                let solver_vels = &self.solver_bodies.vels[rb.ids.active_set_offset as usize];
-                let solver_poses = &self.solver_bodies.poses[rb.ids.active_set_offset as usize];
+                let solver_vels = &self.solver_bodies.vels[rb.ids.active_set_id];
+                let solver_poses = &self.solver_bodies.poses[rb.ids.active_set_id];
 
                 let dangvel = solver_vels.angular;
 

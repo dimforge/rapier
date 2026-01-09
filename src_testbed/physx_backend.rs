@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::ui::egui::emath::OrderedFloat;
 use na::{Isometry3, Matrix4, Point3, Quaternion, Translation3, Unit, UnitQuaternion, Vector3};
 use physx::cooking::{
     ConvexMeshCookingResult, PxConvexMeshDesc, PxCookingParams, PxHeightFieldDesc,
@@ -133,7 +134,7 @@ pub static FOUNDATION: std::cell::RefCell<PxPhysicsFoundation> = std::cell::RefC
 
 pub struct PhysxWorld {
     // physics: Physics,
-    materials: Vec<Owner<PxMaterial>>,
+    // materials: Vec<Owner<PxMaterial>>,
     shapes: Vec<Owner<PxShape>>,
     scene: Option<Owner<PxScene>>,
 }
@@ -141,7 +142,7 @@ pub struct PhysxWorld {
 impl Drop for PhysxWorld {
     fn drop(&mut self) {
         let scene = self.scene.take();
-        // FIXME: we get a segfault if we don't forget the scene.
+        // FIXME: we get a segfault if we don't leak the scene.
         std::mem::forget(scene);
     }
 }
@@ -161,7 +162,6 @@ impl PhysxWorld {
         FOUNDATION.with(|physics| {
             let mut physics = physics.borrow_mut();
             let mut shapes = Vec::new();
-            let mut materials = Vec::new();
 
             let friction_type = if use_two_friction_directions {
                 FrictionType::TwoDirectional
@@ -300,10 +300,13 @@ impl PhysxWorld {
              * Colliders
              *
              */
+            let mut materials_cache = HashMap::new();
             for (_, collider) in colliders.iter() {
-                if let Some((mut px_shape, px_material, collider_pos)) =
-                    physx_collider_from_rapier_collider(&mut *physics, &collider)
-                {
+                if let Some((mut px_shape, collider_pos)) = physx_collider_from_rapier_collider(
+                    &mut *physics,
+                    &collider,
+                    &mut materials_cache,
+                ) {
                     if let Some(parent_handle) = collider.parent() {
                         let parent_body = &bodies[parent_handle];
 
@@ -331,7 +334,6 @@ impl PhysxWorld {
                         }
 
                         shapes.push(px_shape);
-                        materials.push(px_material);
                     }
                 }
             }
@@ -396,7 +398,6 @@ impl PhysxWorld {
             Self {
                 scene: Some(scene),
                 shapes,
-                materials,
             }
         })
     }
@@ -557,7 +558,8 @@ impl PhysxWorld {
 fn physx_collider_from_rapier_collider(
     physics: &mut PxPhysicsFoundation,
     collider: &Collider,
-) -> Option<(Owner<PxShape>, Owner<PxMaterial>, Isometry3<f32>)> {
+    materials_cache: &mut HashMap<[OrderedFloat<f32>; 2], Owner<PxMaterial>>,
+) -> Option<(Owner<PxShape>, Isometry3<f32>)> {
     let mut local_pose = collider.position_wrt_parent().copied().unwrap_or(na::one());
     let cooking_params = PxCookingParams::new(physics).unwrap();
     let shape = collider.shape();
@@ -566,14 +568,22 @@ fn physx_collider_from_rapier_collider(
     } else {
         ShapeFlags::SimulationShape
     };
-    let mut material = physics
-        .create_material(
-            collider.material().friction,
-            collider.material().friction,
-            collider.material().restitution,
-            (),
-        )
-        .unwrap();
+
+    let material = materials_cache
+        .entry([
+            OrderedFloat(collider.material().friction),
+            OrderedFloat(collider.material().restitution),
+        ])
+        .or_insert_with(|| {
+            physics
+                .create_material(
+                    collider.material().friction,
+                    collider.material().friction,
+                    collider.material().restitution,
+                    (),
+                )
+                .unwrap()
+        });
     let materials = &mut [material.as_mut()][..];
 
     let shape = if let Some(cuboid) = shape.as_cuboid() {
@@ -705,7 +715,7 @@ fn physx_collider_from_rapier_collider(
         return None;
     };
 
-    shape.map(|s| (s, material, local_pose))
+    shape.map(|s| (s, local_pose))
 }
 
 type PxPhysicsFoundation = PhysicsFoundation<DefaultAllocator, PxShape>;

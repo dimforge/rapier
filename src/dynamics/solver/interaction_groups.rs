@@ -72,7 +72,7 @@ impl ParallelInteractionGroups {
         interactions: &[Interaction],
         interaction_indices: &[usize],
     ) {
-        let num_island_bodies = islands.active_island(island_id).len();
+        let num_island_bodies = islands.island(island_id).len();
         self.bodies_color.clear();
         self.interaction_indices.clear();
         self.groups.clear();
@@ -117,26 +117,26 @@ impl ParallelInteractionGroups {
                 (false, false) => {
                     let rb1 = &bodies[body_pair.0.unwrap()];
                     let rb2 = &bodies[body_pair.1.unwrap()];
-                    let color_mask = bcolors[rb1.ids.active_set_offset as usize]
-                        | bcolors[rb2.ids.active_set_offset as usize];
+                    let color_mask =
+                        bcolors[rb1.ids.active_set_id] | bcolors[rb2.ids.active_set_id];
                     *color = (!color_mask).trailing_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb1.ids.active_set_offset as usize] |= 1 << *color;
-                    bcolors[rb2.ids.active_set_offset as usize] |= 1 << *color;
+                    bcolors[rb1.ids.active_set_id] |= 1 << *color;
+                    bcolors[rb2.ids.active_set_id] |= 1 << *color;
                 }
                 (true, false) => {
                     let rb2 = &bodies[body_pair.1.unwrap()];
-                    let color_mask = bcolors[rb2.ids.active_set_offset as usize];
+                    let color_mask = bcolors[rb2.ids.active_set_id];
                     *color = 127 - (!color_mask).leading_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb2.ids.active_set_offset as usize] |= 1 << *color;
+                    bcolors[rb2.ids.active_set_id] |= 1 << *color;
                 }
                 (false, true) => {
                     let rb1 = &bodies[body_pair.0.unwrap()];
-                    let color_mask = bcolors[rb1.ids.active_set_offset as usize];
+                    let color_mask = bcolors[rb1.ids.active_set_id];
                     *color = 127 - (!color_mask).leading_zeros() as usize;
                     color_len[*color] += 1;
-                    bcolors[rb1.ids.active_set_offset as usize] |= 1 << *color;
+                    bcolors[rb1.ids.active_set_id] |= 1 << *color;
                 }
                 (true, true) => unreachable!(),
             }
@@ -244,7 +244,7 @@ impl InteractionGroups {
         // is full, we don't clear the corresponding body mask bit. This may result
         // in less grouped constraints.
         self.body_masks
-            .resize(islands.active_island(island_id).len(), 0u128);
+            .resize(islands.island(island_id).len(), 0u128);
 
         // NOTE: each bit of the occupied mask indicates what bucket already
         // contains at least one constraint.
@@ -270,18 +270,10 @@ impl InteractionGroups {
             }
 
             let ijoint = interaction.data.locked_axes.bits() as usize;
-            let i1 = rb1.ids.active_set_offset;
-            let i2 = rb2.ids.active_set_offset;
-            let conflicts = self
-                .body_masks
-                .get(i1 as usize)
-                .copied()
-                .unwrap_or_default()
-                | self
-                    .body_masks
-                    .get(i2 as usize)
-                    .copied()
-                    .unwrap_or_default()
+            let i1 = rb1.ids.active_set_id;
+            let i2 = rb2.ids.active_set_id;
+            let conflicts = self.body_masks.get(i1).copied().unwrap_or_default()
+                | self.body_masks.get(i2).copied().unwrap_or_default()
                 | joint_type_conflicts[ijoint];
             let conflictfree_targets = !(conflicts & occupied_mask); // The & is because we consider empty buckets as free of conflicts.
             let conflictfree_occupied_targets = conflictfree_targets & occupied_mask;
@@ -396,7 +388,7 @@ impl InteractionGroups {
         // in less grouped contacts.
         // NOTE: body_masks and buckets are already cleared/zeroed at the end of each sort loop.
         self.body_masks
-            .resize(islands.active_island(island_id).len(), 0u128);
+            .resize(islands.island(island_id).len(), 0u128);
 
         // NOTE: each bit of the occupied mask indicates what bucket already
         // contains at least one constraint.
@@ -420,17 +412,15 @@ impl InteractionGroups {
                     continue;
                 }
 
-                let (status1, active_set_offset1) = if let Some(rb1) = interaction.data.rigid_body1
-                {
+                let (status1, active_set_id1) = if let Some(rb1) = interaction.data.rigid_body1 {
                     let rb1 = &bodies[rb1];
-                    (rb1.body_type, rb1.ids.active_set_offset)
+                    (rb1.body_type, rb1.ids.active_set_id as u32)
                 } else {
                     (RigidBodyType::Fixed, u32::MAX)
                 };
-                let (status2, active_set_offset2) = if let Some(rb2) = interaction.data.rigid_body2
-                {
+                let (status2, active_set_id2) = if let Some(rb2) = interaction.data.rigid_body2 {
                     let rb2 = &bodies[rb2];
-                    (rb2.body_type, rb2.ids.active_set_offset)
+                    (rb2.body_type, rb2.ids.active_set_id as u32)
                 } else {
                     (RigidBodyType::Fixed, u32::MAX)
                 };
@@ -443,8 +433,8 @@ impl InteractionGroups {
                     continue;
                 }
 
-                let i1 = active_set_offset1;
-                let i2 = active_set_offset2;
+                let i1 = active_set_id1;
+                let i2 = active_set_id2;
                 let mask1 = if !is_fixed1 {
                     self.body_masks[i1 as usize]
                 } else {

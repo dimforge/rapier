@@ -43,6 +43,7 @@ serde-serialize = [
     "dep:serde",
     "bit-vec/serde",
     "arrayvec/serde",
+    "vec_map/serde"
 ]
 enhanced-determinism = ["simba/libm_force", "parry2d-f64/enhanced-determinism"]
 debug-render = []

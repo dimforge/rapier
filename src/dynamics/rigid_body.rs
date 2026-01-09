@@ -665,7 +665,7 @@ impl RigidBody {
     //       to all the fixed bodies active set offsets?
     pub fn effective_active_set_offset(&self) -> u32 {
         if self.is_dynamic_or_kinematic() {
-            self.ids.active_set_offset
+            self.ids.active_set_id as u32
         } else {
             u32::MAX
         }

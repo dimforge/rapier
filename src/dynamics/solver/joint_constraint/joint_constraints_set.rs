@@ -183,6 +183,7 @@ impl JointConstraintsSet {
 
     fn compute_generic_joint_constraints(
         &mut self,
+        // TODO: pass around the &Island directly.
         island_id: usize,
         islands: &IslandManager,
         bodies: &RigidBodySet,
@@ -193,7 +194,7 @@ impl JointConstraintsSet {
         // Count the internal and external constraints builder.
         let num_external_constraint_builders = self.generic_two_body_interactions.len();
         let mut num_internal_constraint_builders = 0;
-        for handle in islands.active_island(island_id) {
+        for handle in islands.island(island_id).bodies() {
             if let Some(link_id) = multibodies.rigid_body_link(*handle) {
                 if JointGenericInternalConstraintBuilder::num_constraints(multibodies, link_id) > 0
                 {
@@ -230,7 +231,7 @@ impl JointConstraintsSet {
 
         // Generate internal constraints builder. They are indexed after the
         let mut curr_builder = self.generic_two_body_interactions.len();
-        for handle in islands.active_island(island_id) {
+        for handle in islands.island(island_id).bodies() {
             if curr_builder >= self.generic_velocity_constraints_builder.len() {
                 break; // No more builder need to be generated.
             }

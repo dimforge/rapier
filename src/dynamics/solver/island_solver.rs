@@ -43,8 +43,12 @@ impl IslandSolver {
         multibodies: &mut MultibodyJointSet,
     ) {
         counters.solver.velocity_assembly_time.resume();
+        counters
+            .solver
+            .velocity_assembly_time_solver_bodies
+            .resume();
         let num_solver_iterations = base_params.num_solver_iterations
-            + islands.active_island_additional_solver_iterations(island_id);
+            + islands.island(island_id).additional_solver_iterations();
 
         let mut params = *base_params;
         params.dt /= num_solver_iterations as Real;
@@ -55,7 +59,6 @@ impl IslandSolver {
          *
          */
         // INIT
-        // let t0 = std::time::Instant::now();
         self.velocity_solver
             .init_solver_velocities_and_solver_bodies(
                 base_params.dt,
@@ -65,8 +68,11 @@ impl IslandSolver {
                 bodies,
                 multibodies,
             );
-        // let t_solver_body_init = t0.elapsed().as_secs_f32();
-        // let t0 = std::time::Instant::now();
+        counters.solver.velocity_assembly_time_solver_bodies.pause();
+        counters
+            .solver
+            .velocity_assembly_time_constraints_init
+            .resume();
         self.velocity_solver.init_constraints(
             island_id,
             islands,
@@ -81,13 +87,11 @@ impl IslandSolver {
             #[cfg(feature = "dim3")]
             params.friction_model,
         );
-        // let t_init_constraints = t0.elapsed().as_secs_f32();
+        counters
+            .solver
+            .velocity_assembly_time_constraints_init
+            .pause();
         counters.solver.velocity_assembly_time.pause();
-        // println!(
-        //     "Solver body init: {}, init constraints: {}",
-        //     t_solver_body_init * 1000.0,
-        //     t_init_constraints * 1000.0
-        // );
 
         // SOLVE
         counters.solver.velocity_resolution_time.resume();
