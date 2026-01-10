@@ -179,6 +179,9 @@ pub struct KinematicCharacterController {
     pub offset: CharacterLength,
     /// Should the character try to slide against the floor if it hits it?
     pub slide: bool,
+    /// Should the speed lost because of collisions be applied to the final direction ?
+    /// Useless if sliding is not enabled
+    pub reapply_lost_speed: bool,
     /// Should the character automatically step over small obstacles? (disabled by default)
     ///
     /// Note that autostepping is currently a very computationally expensive feature, so it
@@ -211,6 +214,7 @@ impl Default for KinematicCharacterController {
             offset: CharacterLength::Relative(0.01),
             slide: true,
             autostep: None,
+            reapply_lost_speed: false,
             max_slope_climb_angle: Real::frac_pi_4(),
             min_slope_slide_angle: Real::frac_pi_4(),
             snap_to_ground: Some(CharacterLength::Relative(0.2)),
@@ -336,7 +340,7 @@ impl KinematicCharacterController {
                 });
 
                 let hit_info = self.compute_hit_info(hit);
-
+                let pre_slide_translation_remaining = translation_remaining;
                 // Try to go upstairs.
                 if !self.handle_stairs(
                     *queries,
@@ -356,6 +360,17 @@ impl KinematicCharacterController {
                         self.normal_nudge_factor,
                         &mut result,
                     );
+                }
+                if self.slide && self.reapply_lost_speed {
+                    let diff =
+                        pre_slide_translation_remaining.norm() - translation_remaining.norm();
+                    if let Some((normalized_dir, _)) =
+                        // threshold has to be > subtract_hit hardcoded correction, if not, we get made up movement in the direction of the hit normal
+                        UnitVector::try_new_and_get(translation_remaining, 1.0e-4)
+                    {
+                        // reapply the lost speed (but in the corrected direction)
+                        translation_remaining += *normalized_dir * diff;
+                    }
                 }
             } else {
                 // No interference along the path.
