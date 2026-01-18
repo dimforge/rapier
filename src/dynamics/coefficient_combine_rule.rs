@@ -15,6 +15,7 @@ use crate::math::Real;
 /// - **Multiply**: `friction1 × friction2` - Both must be high for high friction
 /// - **Max**: `max(friction1, friction2)` - "Sticky wins" (rubber on any surface = rubber)
 /// - **ClampedSum**: `sum(friction1, friction2).clamp(0, 1)` - Sum of both frictions, clamped to range 0, 1.
+/// - **GeometricMean**: `sqrt(friction1 × friction2)` - Geometric average of both values
 ///
 /// ## Example
 /// ```
@@ -27,7 +28,7 @@ use crate::math::Real;
 /// ```
 ///
 /// ## Priority System
-/// If colliders disagree on rules, the "higher" one wins: ClampedSum > Max > Multiply > Min > Average
+/// If colliders disagree on rules, the "higher" one wins: GeometricMean > ClampedSum > Max > Multiply > Min > Average
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub enum CoefficientCombineRule {
@@ -42,6 +43,8 @@ pub enum CoefficientCombineRule {
     Max = 3,
     /// The clamped sum of the two coefficients.
     ClampedSum = 4,
+    /// The geometric mean of the two coefficients.
+    GeometricMean = 5,
 }
 
 impl CoefficientCombineRule {
@@ -64,6 +67,74 @@ impl CoefficientCombineRule {
             CoefficientCombineRule::Multiply => coeff1 * coeff2,
             CoefficientCombineRule::Max => coeff1.max(coeff2),
             CoefficientCombineRule::ClampedSum => (coeff1 + coeff2).clamp(0.0, 1.0),
+            CoefficientCombineRule::GeometricMean => (coeff1 * coeff2).abs().sqrt(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_geometric_mean_basic() {
+        let result = CoefficientCombineRule::combine(
+            0.4,
+            0.9,
+            CoefficientCombineRule::GeometricMean,
+            CoefficientCombineRule::GeometricMean,
+        );
+        assert!((result - 0.6).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_geometric_mean_same_values() {
+        let result = CoefficientCombineRule::combine(
+            0.5,
+            0.5,
+            CoefficientCombineRule::GeometricMean,
+            CoefficientCombineRule::GeometricMean,
+        );
+        assert!((result - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_geometric_mean_with_zero() {
+        let result = CoefficientCombineRule::combine(
+            0.0,
+            0.8,
+            CoefficientCombineRule::GeometricMean,
+            CoefficientCombineRule::GeometricMean,
+        );
+        assert!((result - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_geometric_mean_negative_handling() {
+        let result = CoefficientCombineRule::combine(
+            -0.5,
+            0.5,
+            CoefficientCombineRule::GeometricMean,
+            CoefficientCombineRule::GeometricMean,
+        );
+        assert!(!result.is_nan());
+        assert!((result - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_geometric_mean_priority() {
+        let result = CoefficientCombineRule::combine(
+            0.4,
+            0.9,
+            CoefficientCombineRule::Average,
+            CoefficientCombineRule::GeometricMean,
+        );
+        assert!((result - 0.6).abs() < 1e-6); // GeometricMean wins
+    }
+
+    #[test]
+    fn test_combine_rule_ordering() {
+        assert!(CoefficientCombineRule::GeometricMean > CoefficientCombineRule::ClampedSum);
+        assert!(CoefficientCombineRule::GeometricMean > CoefficientCombineRule::Max);
     }
 }
