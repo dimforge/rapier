@@ -1,5 +1,9 @@
 ## v0.31.0 (09 Jan. 2026)
 
+### Added
+
+- `CoefficientCombineRule::GeometricMean` - Computes the geometric mean of two coefficients using `sqrt(coeff1 * coeff2)`.
+
 ### Modified
 
 - **Breaking:** Migrate math types from nalgebra to glam (via parry). The main type aliases are now:
