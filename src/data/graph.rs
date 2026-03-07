@@ -140,17 +140,18 @@ enum Pair<T> {
 
 /// Get mutable references at index `a` and `b`.
 fn index_twice<T>(arr: &mut [T], a: usize, b: usize) -> Pair<&mut T> {
-    if max(a, b) >= arr.len() {
-        Pair::None
-    } else if a == b {
-        Pair::One(&mut arr[max(a, b)])
-    } else {
-        // safe because a, b are in bounds and distinct
-        unsafe {
-            let ar = &mut *(arr.get_unchecked_mut(a) as *mut _);
-            let br = &mut *(arr.get_unchecked_mut(b) as *mut _);
-            Pair::Both(ar, br)
-        }
+    let len = arr.len();
+    if a >= len || b >= len {
+        return Pair::None;
+    }
+    if a == b {
+        return Pair::One(&mut arr[a]);
+    }
+    // safe because a, b are in bounds and distinct
+    unsafe {
+        let ar = &mut *(arr.get_unchecked_mut(a) as *mut _);
+        let br = &mut *(arr.get_unchecked_mut(b) as *mut _);
+        Pair::Both(ar, br)
     }
 }
 

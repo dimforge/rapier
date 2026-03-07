@@ -412,12 +412,7 @@ impl PhysicsPipeline {
         bodies: &mut RigidBodySet,
     ) {
         // Update kinematic bodies velocities.
-        // TODO: what is the best place for this? It should at least be
-        // located before the island computation because we test the velocity
-        // there to determine if this kinematic body should wake-up dynamic
-        // bodies it is touching.
-        for handle in islands.active_bodies() {
-            // TODO PERF: only iterate on kinematic position-based bodies
+        for handle in islands.active_kinematic_bodies() {
             let rb = bodies.index_mut_internal(handle);
 
             match rb.body_type {
