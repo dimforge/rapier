@@ -30,10 +30,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     let rad = 0.5;
     let pyramid_count = 40;
@@ -46,13 +43,12 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::fixed().translation(Vec3::new(0.0, -ground_height, 0.0));
-    let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(
         ground_size,
         ground_height,
         pyramid_count as f32 * spacing / 2.0 + ground_size,
     );
-    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+    let _ = world.insert(rigid_body, collider);
 
     /*
      * Create the cubes
@@ -60,8 +56,8 @@ pub fn init_world(testbed: &mut Testbed) {
     for pyramid_index in 0..pyramid_count {
         let bottomy = rad;
         create_pyramid(
-            &mut bodies,
-            &mut colliders,
+            &mut world.bodies,
+            &mut world.colliders,
             Vec3::new(
                 0.0,
                 bottomy,
@@ -75,6 +71,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

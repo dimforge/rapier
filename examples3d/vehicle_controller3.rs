@@ -6,10 +6,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -18,9 +15,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
-    let floor_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    colliders.insert_with_parent(collider, floor_handle, &mut bodies);
+    world.insert(rigid_body, collider);
 
     /*
      * Vehicle we will control manually.
@@ -28,9 +24,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let hw = 0.3;
     let hh = 0.15;
     let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 1.0, 0.0));
-    let vehicle_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(hw * 2.0, hh, hw).density(100.0);
-    colliders.insert_with_parent(collider, vehicle_handle, &mut bodies);
+    let (vehicle_handle, _) = world.insert(rigid_body, collider);
 
     let tuning = WheelTuning {
         suspension_stiffness: 100.0,
@@ -67,9 +62,8 @@ pub fn init_world(testbed: &mut Testbed) {
                 let z = k as f32 * shift + centerx;
 
                 let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z));
-                let handle = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::cuboid(rad, rad, rad);
-                colliders.insert_with_parent(collider, handle, &mut bodies);
+                world.insert(rigid_body, collider);
             }
         }
     }
@@ -86,7 +80,7 @@ pub fn init_world(testbed: &mut Testbed) {
             0.0,
         ))
         .rotation(Vector::Z * slope_angle);
-    colliders.insert(collider);
+    world.insert_collider(collider);
 
     /*
      * Create a slope we can’t climb.
@@ -100,7 +94,7 @@ pub fn init_world(testbed: &mut Testbed) {
             0.0,
         ))
         .rotation(Vector::Z * impossible_slope_angle);
-    colliders.insert(collider);
+    world.insert_collider(collider);
 
     /*
      * More complex ground.
@@ -115,12 +109,12 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let collider =
         ColliderBuilder::heightfield(heights, ground_size).translation(Vector::new(-7.0, 0.0, 0.0));
-    colliders.insert(collider);
+    world.insert_collider(collider);
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.set_vehicle_controller(vehicle);
     testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
 }

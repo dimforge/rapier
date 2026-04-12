@@ -57,25 +57,20 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
      */
     let rigid_body = RigidBodyBuilder::fixed();
-    let handle = bodies.insert(rigid_body);
-
     let collider = ColliderBuilder::cuboid(9.0, 0.5, 25.0)
         .translation(Vector::new(0.0, 2.0, 30.0))
         .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS);
-    let platform1 = colliders.insert_with_parent(collider, handle, &mut bodies);
+    let (handle, platform1) = world.insert(rigid_body, collider);
     let collider = ColliderBuilder::cuboid(9.0, 0.5, 25.0)
         .translation(Vector::new(0.0, -2.0, -30.0))
         .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS);
-    let platform2 = colliders.insert_with_parent(collider, handle, &mut bodies);
+    let platform2 = world.insert_collider_with_parent(collider, handle);
 
     /*
      * Setup the one-way platform hook.
@@ -117,13 +112,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world_with_params(
-        bodies,
-        colliders,
-        impulse_joints,
-        multibody_joints,
-        Vector::new(0.0, -9.81, 0.0),
-        physics_hooks,
-    );
+    testbed.set_physics_world_with_hooks(world, physics_hooks);
     testbed.look_at(Vec3::new(100.0, 0.0, 0.0), Vec3::ZERO);
 }

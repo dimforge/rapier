@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let mut impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     let rad = 0.4;
     let num = 10;
@@ -21,9 +18,8 @@ pub fn init_world(testbed: &mut Testbed) {
             let x = j as f32 * shift * 4.0;
 
             let ground = RigidBodyBuilder::fixed().translation(Vec3::new(x, y, 0.0));
-            let mut curr_parent = bodies.insert(ground);
             let collider = ColliderBuilder::cuboid(rad, rad, rad);
-            colliders.insert_with_parent(collider, curr_parent, &mut bodies);
+            let (mut curr_parent, _) = world.insert(ground, collider);
 
             for i in 0..num {
                 // Create four bodies.
@@ -39,9 +35,9 @@ pub fn init_world(testbed: &mut Testbed) {
                 for k in 0..4 {
                     let density = 1.0;
                     let rigid_body = RigidBodyBuilder::dynamic().pose(positions[k]);
-                    handles[k] = bodies.insert(rigid_body);
                     let collider = ColliderBuilder::cuboid(rad, rad, rad).density(density);
-                    colliders.insert_with_parent(collider, handles[k], &mut bodies);
+                    let (h, _) = world.insert(rigid_body, collider);
+                    handles[k] = h;
                 }
 
                 // Setup four impulse_joints.
@@ -55,10 +51,10 @@ pub fn init_world(testbed: &mut Testbed) {
                     RevoluteJointBuilder::new(x).local_anchor2(Vec3::new(shift, 0.0, 0.0)),
                 ];
 
-                impulse_joints.insert(curr_parent, handles[0], revs[0], true);
-                impulse_joints.insert(handles[0], handles[1], revs[1], true);
-                impulse_joints.insert(handles[1], handles[2], revs[2], true);
-                impulse_joints.insert(handles[2], handles[3], revs[3], true);
+                world.insert_impulse_joint(curr_parent, handles[0], revs[0]);
+                world.insert_impulse_joint(handles[0], handles[1], revs[1]);
+                world.insert_impulse_joint(handles[1], handles[2], revs[2]);
+                world.insert_impulse_joint(handles[2], handles[3], revs[3]);
 
                 curr_parent = handles[3];
             }
@@ -68,7 +64,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(
         Vec3::new(478.0, 83.0, 228.0),
         Vec3::new(134.0, 83.0, -116.0),

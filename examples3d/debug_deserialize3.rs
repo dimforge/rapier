@@ -46,18 +46,17 @@ pub fn init_world(testbed: &mut Testbed) {
                 }
             }
 
-            testbed.set_world(
-                state.bodies,
-                state.colliders,
-                state.impulse_joints,
-                state.multibody_joints,
-            );
-
-            testbed.harness_mut().physics.islands = state.islands;
-            testbed.harness_mut().physics.broad_phase = state.broad_phase;
-            testbed.harness_mut().physics.narrow_phase = state.narrow_phase;
-            testbed.harness_mut().physics.integration_parameters = state.integration_parameters;
-            testbed.harness_mut().physics.gravity = state.gravity;
+            let mut world = PhysicsWorld::new();
+            world.bodies = state.bodies;
+            world.colliders = state.colliders;
+            world.impulse_joints = state.impulse_joints;
+            world.multibody_joints = state.multibody_joints;
+            world.islands = state.islands;
+            world.broad_phase = state.broad_phase;
+            world.narrow_phase = state.narrow_phase;
+            world.integration_parameters = state.integration_parameters;
+            world.gravity = state.gravity;
+            testbed.set_physics_world(world);
 
             testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::new(0.0, 0.0, 0.0));
         }

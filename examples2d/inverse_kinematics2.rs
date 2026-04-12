@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let mut multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -17,28 +14,26 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.01;
 
     let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height));
-    let floor_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height);
-    colliders.insert_with_parent(collider, floor_handle, &mut bodies);
+    let _ = world.insert(rigid_body, collider);
 
     /*
      * Setup groups
      */
     let num_segments = 10;
     let body = RigidBodyBuilder::fixed();
-    let mut last_body = bodies.insert(body);
+    let mut last_body = world.insert_body(body);
     let mut last_link = MultibodyJointHandle::invalid();
 
     for i in 0..num_segments {
         let size = 1.0 / num_segments as f32;
         let body = RigidBodyBuilder::dynamic().can_sleep(false);
-        let new_body = bodies.insert(body);
         // NOTE: we add a sensor collider just to make the destbed draw a rectangle to make
         //       the demo look nicer. IK could be used without cuboid.
         let collider = ColliderBuilder::cuboid(size / 8.0, size / 2.0)
             .density(0.0)
             .sensor(true);
-        colliders.insert_with_parent(collider, new_body, &mut bodies);
+        let (new_body, _) = world.insert(body, collider);
 
         let link_ab = RevoluteJointBuilder::new()
             .local_anchor1(Vector::new(0.0, size / 2.0 * (i != 0) as usize as f32))
@@ -46,8 +41,8 @@ pub fn init_world(testbed: &mut Testbed) {
             .build()
             .data;
 
-        last_link = multibody_joints
-            .insert(last_body, new_body, link_ab, true)
+        last_link = world
+            .insert_multibody_joint(last_body, new_body, link_ab)
             .unwrap();
 
         last_body = new_body;
@@ -92,6 +87,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::ZERO, 300.0);
 }

@@ -8,10 +8,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * The ground
@@ -20,9 +17,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let (_handle, _) = world.insert(rigid_body, collider);
 
     /*
      * A rectangle that only rotates along the `x` axis.
@@ -31,9 +27,8 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(Vector::new(0.0, 3.0, 0.0))
         .lock_translations()
         .enabled_rotations(true, false, false);
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(0.2, 0.6, 2.0);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let (_handle, _) = world.insert(rigid_body, collider);
 
     /*
      * A tilted capsule that cannot rotate.
@@ -42,15 +37,14 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(Vector::new(0.0, 5.0, 0.0))
         .rotation(Vector::X * 1.0)
         .lock_rotations();
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::capsule_y(0.6, 0.4);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let (handle, _) = world.insert(rigid_body, collider);
     let collider = ColliderBuilder::capsule_x(0.6, 0.4);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    world.insert_collider_with_parent(collider, handle);
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(10.0, 3.0, 0.0), Vec3::new(0.0, 3.0, 0.0));
 }

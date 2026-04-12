@@ -13,10 +13,7 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -38,7 +35,7 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
     let heightfield = HeightField::new(heights, Vector::new(100.0, 2.0, 100.0));
     let mut trimesh = TriMesh::from(heightfield);
     let _ = trimesh.set_flags(TriMeshFlags::FIX_INTERNAL_EDGES);
-    colliders.insert(ColliderBuilder::new(SharedShape::new(trimesh.clone())));
+    world.insert_collider(ColliderBuilder::new(SharedShape::new(trimesh.clone())));
 
     /*
      * Create the convex decompositions.
@@ -108,11 +105,11 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
                 let z = k as f32 * shift_xz - num_duplications as f32 * shift_xz / 2.0;
 
                 let body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z));
-                let handle = bodies.insert(body);
+                let handle = world.insert_body(body);
 
                 for shape in &shapes {
                     let collider = ColliderBuilder::new(shape.clone()).contact_skin(0.1);
-                    colliders.insert_with_parent(collider, handle, &mut bodies);
+                    world.insert_collider_with_parent(collider, handle);
                 }
             }
         }
@@ -121,7 +118,7 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }
 

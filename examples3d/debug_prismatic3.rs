@@ -1,14 +1,11 @@
 use rapier_testbed3d::Testbed;
 use rapier3d::prelude::*;
 
-fn prismatic_repro(
-    bodies: &mut RigidBodySet,
-    colliders: &mut ColliderSet,
-    impulse_joints: &mut ImpulseJointSet,
-    box_center: Vector,
-) {
-    let box_rb = bodies.insert(RigidBodyBuilder::dynamic().translation(box_center));
-    colliders.insert_with_parent(ColliderBuilder::cuboid(1.0, 0.25, 1.0), box_rb, bodies);
+fn prismatic_repro(world: &mut PhysicsWorld, box_center: Vector) {
+    let (box_rb, _) = world.insert(
+        RigidBodyBuilder::dynamic().translation(box_center),
+        ColliderBuilder::cuboid(1.0, 0.25, 1.0),
+    );
 
     let wheel_y = -1.0;
     let wheel_positions = vec![
@@ -20,34 +17,35 @@ fn prismatic_repro(
 
     for pos in wheel_positions {
         let wheel_pos_in_world = box_center + pos;
-        let wheel_rb = bodies.insert(RigidBodyBuilder::dynamic().translation(wheel_pos_in_world));
-        colliders.insert_with_parent(ColliderBuilder::ball(0.5), wheel_rb, bodies);
+        let (wheel_rb, _) = world.insert(
+            RigidBodyBuilder::dynamic().translation(wheel_pos_in_world),
+            ColliderBuilder::ball(0.5),
+        );
 
         let (stiffness, damping) = (0.05, 0.2);
 
         let prismatic = PrismaticJointBuilder::new(Vector::Y)
             .local_anchor1(pos)
             .motor_position(0.0, stiffness, damping);
-        impulse_joints.insert(box_rb, wheel_rb, prismatic, true);
+        world.insert_impulse_joint(box_rb, wheel_rb, prismatic);
     }
 
     // put a small box under one of the wheels
-    let gravel = bodies.insert(RigidBodyBuilder::dynamic().translation(Vector::new(
-        box_center.x + 1.0,
-        box_center.y - 2.4,
-        -1.0,
-    )));
-    colliders.insert_with_parent(ColliderBuilder::cuboid(0.5, 0.1, 0.5), gravel, bodies);
+    let (_gravel, _) = world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(
+            box_center.x + 1.0,
+            box_center.y - 2.4,
+            -1.0,
+        )),
+        ColliderBuilder::cuboid(0.5, 0.1, 0.5),
+    );
 }
 
 pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let mut impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -56,20 +54,14 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let (_handle, _) = world.insert(rigid_body, collider);
 
-    prismatic_repro(
-        &mut bodies,
-        &mut colliders,
-        &mut impulse_joints,
-        Vector::new(0.0, 5.0, 0.0),
-    );
+    prismatic_repro(&mut world, Vector::new(0.0, 5.0, 0.0));
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
 }

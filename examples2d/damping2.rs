@@ -5,10 +5,8 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::ZERO;
 
     /*
      * Create the balls
@@ -28,23 +26,14 @@ pub fn init_world(testbed: &mut Testbed) {
             .angvel(100.0)
             .linear_damping((i + 1) as f32 * subdiv * 10.0)
             .angular_damping((num - i) as f32 * subdiv * 10.0);
-        let rb_handle = bodies.insert(rb);
-
         // Build the collider.
         let co = ColliderBuilder::cuboid(rad, rad);
-        colliders.insert_with_parent(co, rb_handle, &mut bodies);
+        let _ = world.insert(rb, co);
     }
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world_with_params(
-        bodies,
-        colliders,
-        impulse_joints,
-        multibody_joints,
-        Vector::ZERO,
-        (),
-    );
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::new(3.0, 2.0), 50.0);
 }

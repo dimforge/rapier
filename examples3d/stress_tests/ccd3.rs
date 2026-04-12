@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -17,9 +14,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::fixed().translation(Vec3::new(0.0, -ground_height, 0.0));
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    world.insert(rigid_body, collider);
 
     /*
      * Create the cubes
@@ -49,7 +45,6 @@ pub fn init_world(testbed: &mut Testbed) {
                     .translation(Vec3::new(x, y, z))
                     .linvel(Vec3::new(0.0, -1000.0, 0.0))
                     .ccd_enabled(true);
-                let handle = bodies.insert(rigid_body);
 
                 let collider = match j % 5 {
                     0 => ColliderBuilder::cuboid(rad, rad, rad),
@@ -61,7 +56,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     _ => ColliderBuilder::capsule_y(rad, rad),
                 };
 
-                colliders.insert_with_parent(collider, handle, &mut bodies);
+                world.insert(rigid_body, collider);
             }
         }
 
@@ -71,6 +66,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

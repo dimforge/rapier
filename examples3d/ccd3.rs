@@ -4,8 +4,7 @@ use rapier3d::prelude::*;
 
 fn create_wall(
     testbed: &mut Testbed,
-    bodies: &mut RigidBodySet,
-    colliders: &mut ColliderSet,
+    world: &mut PhysicsWorld,
     offset: Vector,
     stack_height: usize,
     half_extents: Vector,
@@ -23,9 +22,8 @@ fn create_wall(
 
             // Build the rigid body.
             let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z));
-            let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z);
-            colliders.insert_with_parent(collider, handle, bodies);
+            let (handle, _) = world.insert(rigid_body, collider);
             k += 1;
             if k % 2 == 0 {
                 testbed
@@ -42,10 +40,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -54,9 +49,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
-    let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+    let (ground_handle, _) = world.insert(rigid_body, collider);
 
     /*
      * Create the pyramids.
@@ -70,8 +64,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let x = i as f32 * 6.0;
         create_wall(
             testbed,
-            &mut bodies,
-            &mut colliders,
+            &mut world,
             Vector::new(x, shift_y, 0.0),
             num_z,
             Vector::new(0.5, 0.5, 1.0),
@@ -79,8 +72,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
         create_wall(
             testbed,
-            &mut bodies,
-            &mut colliders,
+            &mut world,
             Vector::new(x, shift_y, shift_z),
             num_z,
             Vector::new(0.5, 0.5, 1.0),
@@ -100,8 +92,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .linvel(Vector::new(1000.0, 0.0, 0.0))
         .translation(Vector::new(-20.0, shift_y + 2.0, 0.0))
         .ccd_enabled(true);
-    let sensor_handle = bodies.insert(rigid_body);
-    colliders.insert_with_parent(collider, sensor_handle, &mut bodies);
+    let (sensor_handle, _) = world.insert(rigid_body, collider);
 
     // Second rigid-body with CCD enabled.
     let collider = ColliderBuilder::ball(1.0).density(10.0);
@@ -109,8 +100,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .linvel(Vector::new(1000.0, 0.0, 0.0))
         .translation(Vector::new(-20.0, shift_y + 2.0, shift_z))
         .ccd_enabled(true);
-    let handle = bodies.insert(rigid_body);
-    colliders.insert_with_parent(collider.clone(), handle, &mut bodies);
+    let (handle, _) = world.insert(rigid_body, collider.clone());
     testbed.set_initial_body_color(handle, Color::new(0.2, 0.2, 1.0, 1.0));
 
     // Callback that will be executed on the main loop to handle proximities.
@@ -149,6 +139,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

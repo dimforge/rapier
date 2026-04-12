@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     let radius = 0.5;
     let grid_count = 25;
@@ -24,28 +21,28 @@ pub fn init_world(testbed: &mut Testbed) {
         radius,
     )
     .friction(friction);
-    colliders.insert(collider);
+    world.insert_collider(collider);
     let collider = ColliderBuilder::capsule_from_endpoints(
         Vector::new(-10.5, 0.0),
         Vector::new(-10.5, 20.5),
         radius,
     )
     .friction(friction);
-    colliders.insert(collider);
+    world.insert_collider(collider);
     let collider = ColliderBuilder::capsule_from_endpoints(
         Vector::new(10.5, 0.0),
         Vector::new(10.5, 20.5),
         radius,
     )
     .friction(friction);
-    colliders.insert(collider);
+    world.insert_collider(collider);
     let collider = ColliderBuilder::capsule_from_endpoints(
         Vector::new(-10.5, 20.5),
         Vector::new(10.5, 20.5),
         radius,
     )
     .friction(friction);
-    colliders.insert(collider);
+    world.insert_collider(collider);
 
     /*
      * Create the spheres
@@ -62,9 +59,8 @@ pub fn init_world(testbed: &mut Testbed) {
             let body = RigidBodyBuilder::dynamic()
                 .translation(Vector::new(x, y))
                 .gravity_scale(0.0);
-            let body_handle = bodies.insert(body);
             let ball = ColliderBuilder::ball(radius).friction(friction);
-            colliders.insert_with_parent(ball, body_handle, &mut bodies);
+            let _ = world.insert(body, ball);
 
             count += 1;
             row += 1;
@@ -76,6 +72,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::new(0.0, 2.5), 20.0);
 }

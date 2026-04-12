@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground.
@@ -17,9 +14,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    world.insert(rigid_body, collider);
 
     /*
      * Create the boxes
@@ -41,9 +37,8 @@ pub fn init_world(testbed: &mut Testbed) {
 
                 // Build the rigid body.
                 let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z));
-                let handle = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::cuboid(rad, rad, rad);
-                colliders.insert_with_parent(collider, handle, &mut bodies);
+                world.insert(rigid_body, collider);
             }
         }
     }
@@ -53,9 +48,8 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let platform_body =
         RigidBodyBuilder::kinematic_velocity_based().translation(Vector::new(0.0, 1.5 + 0.8, 0.0));
-    let velocity_based_platform_handle = bodies.insert(platform_body);
     let collider = ColliderBuilder::cuboid(rad * 10.0, rad, rad * 10.0);
-    colliders.insert_with_parent(collider, velocity_based_platform_handle, &mut bodies);
+    let (velocity_based_platform_handle, _) = world.insert(platform_body, collider);
 
     /*
      * Setup a position-based kinematic rigid body.
@@ -65,9 +59,8 @@ pub fn init_world(testbed: &mut Testbed) {
         3.0 + 1.5 + 0.8,
         0.0,
     ));
-    let position_based_platform_handle = bodies.insert(platform_body);
     let collider = ColliderBuilder::cuboid(rad * 10.0, rad, rad * 10.0);
-    colliders.insert_with_parent(collider, position_based_platform_handle, &mut bodies);
+    let (position_based_platform_handle, _) = world.insert(platform_body, collider);
 
     /*
      * Setup a callback to control the platform.
@@ -99,6 +92,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Run the simulation.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(10.0, 5.0, 10.0), Vec3::ZERO);
 }

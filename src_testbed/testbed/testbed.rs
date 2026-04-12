@@ -5,7 +5,7 @@ use rapier::dynamics::{
     ImpulseJointSet, IntegrationParameters, MultibodyJointSet, RigidBodyHandle, RigidBodySet,
 };
 use rapier::geometry::{ColliderHandle, ColliderSet};
-use rapier::pipeline::PhysicsHooks;
+use rapier::pipeline::{PhysicsHooks, PhysicsWorld};
 
 #[cfg(feature = "dim3")]
 use {glamx::Vec3, rapier::control::DynamicRayCastVehicleController};
@@ -145,6 +145,32 @@ impl Testbed<'_> {
             hooks,
         );
 
+        self.post_set_world();
+    }
+
+    /// Installs a [`PhysicsWorld`] into the testbed, using its gravity and integration
+    /// parameters. This is the most ergonomic way to set up a scene.
+    ///
+    /// Use [`set_physics_world_with_hooks`](Self::set_physics_world_with_hooks) if you need
+    /// custom physics hooks.
+    pub fn set_physics_world(&mut self, world: PhysicsWorld) {
+        self.set_physics_world_with_hooks(world, ());
+    }
+
+    /// Same as [`set_physics_world`](Self::set_physics_world) but also installs the given
+    /// physics hooks.
+    pub fn set_physics_world_with_hooks(
+        &mut self,
+        world: PhysicsWorld,
+        hooks: impl PhysicsHooks + 'static,
+    ) {
+        self.harness
+            .set_physics_world_with_hooks(world, self.state.broad_phase_type, hooks);
+
+        self.post_set_world();
+    }
+
+    fn post_set_world(&mut self) {
         self.state
             .action_flags
             .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);

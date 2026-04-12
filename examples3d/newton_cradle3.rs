@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let mut impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     let radius = 0.5;
     let length = 10.0 * radius;
@@ -28,18 +25,19 @@ pub fn init_world(testbed: &mut Testbed) {
             Vector::ZERO
         };
 
-        let ground = bodies.insert(RigidBodyBuilder::fixed().translation(ball_pos + attach));
+        let ground = world
+            .bodies
+            .insert(RigidBodyBuilder::fixed().translation(ball_pos + attach));
         let rb = rb.clone().translation(ball_pos).linvel(vel);
-        let handle = bodies.insert(rb);
-        colliders.insert_with_parent(co.clone(), handle, &mut bodies);
+        let (handle, _) = world.insert(rb, co.clone());
 
         let joint = SphericalJointBuilder::new().local_anchor2(attach);
-        impulse_joints.insert(ground, handle, joint, true);
+        world.insert_impulse_joint(ground, handle, joint);
     }
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
 }

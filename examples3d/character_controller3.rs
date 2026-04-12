@@ -10,10 +10,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let mut impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -24,23 +21,21 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let rigid_body =
         RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0) * scale);
-    let floor_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(
         ground_size * scale,
         ground_height * scale,
         ground_size * scale,
     );
-    colliders.insert_with_parent(collider, floor_handle, &mut bodies);
+    let (_floor_handle, _) = world.insert(rigid_body, collider);
 
     let rigid_body = RigidBodyBuilder::fixed()
         .translation(Vector::new(0.0, -ground_height, -ground_size) * scale); //.rotation(Vector::new(-0.1, 0.0, 0.0));
-    let floor_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(
         ground_size * scale,
         ground_size * scale,
         ground_height * scale,
     );
-    colliders.insert_with_parent(collider, floor_handle, &mut bodies);
+    let (_floor_handle, _) = world.insert(rigid_body, collider);
 
     /*
      * Character we will control manually.
@@ -51,9 +46,8 @@ pub fn init_world(testbed: &mut Testbed) {
         // nicer to control with the PID control enabled.
         .gravity_scale(10.0)
         .soft_ccd_prediction(10.0);
-    let character_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::capsule_y(0.3 * scale, 0.15 * scale); // 0.15, 0.3, 0.15);
-    colliders.insert_with_parent(collider, character_handle, &mut bodies);
+    let (character_handle, _) = world.insert(rigid_body, collider);
     testbed.set_initial_body_color(character_handle, Color::new(0.8, 0.1, 0.1, 1.0));
 
     /*
@@ -75,9 +69,8 @@ pub fn init_world(testbed: &mut Testbed) {
 
                 let rigid_body =
                     RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z) * scale);
-                let handle = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::cuboid(rad * scale, rad * scale, rad * scale);
-                colliders.insert_with_parent(collider, handle, &mut bodies);
+                let (_handle, _) = world.insert(rigid_body, collider);
             }
         }
     }
@@ -97,7 +90,7 @@ pub fn init_world(testbed: &mut Testbed) {
             stair_width * scale,
         )
         .translation(Vector::new(x * scale, y * scale, 0.0));
-        colliders.insert(collider);
+        world.insert_collider(collider);
     }
 
     /*
@@ -108,7 +101,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(slope_size, ground_height, slope_size)
         .translation(Vector::new(0.1 + slope_size, -ground_height + 0.4, 0.0))
         .rotation(Vector::Z * slope_angle);
-    colliders.insert(collider);
+    world.insert_collider(collider);
 
     /*
      * Create a slope we can’t climb.
@@ -128,7 +121,7 @@ pub fn init_world(testbed: &mut Testbed) {
         ) * scale,
     )
     .rotation(Vector::Z * impossible_slope_angle);
-    colliders.insert(collider);
+    world.insert_collider(collider);
 
     /*
      * Create a moving platform.
@@ -136,9 +129,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let body = RigidBodyBuilder::kinematic_velocity_based()
         .translation(Vector::new(-8.0, 0.0, 0.0) * scale);
     // .rotation(-0.3);
-    let platform_handle = bodies.insert(body);
     let collider = ColliderBuilder::cuboid(2.0 * scale, ground_height * scale, 2.0 * scale);
-    colliders.insert_with_parent(collider, platform_handle, &mut bodies);
+    let (platform_handle, _) = world.insert(body, collider);
 
     /*
      * More complex ground.
@@ -153,19 +145,18 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let collider = ColliderBuilder::heightfield(heights, ground_size * scale)
         .translation(Vector::new(-8.0, 5.0, 0.0) * scale);
-    colliders.insert(collider);
+    world.insert_collider(collider);
 
     /*
      * A tilting dynamic body with a limited joint.
      */
     let ground = RigidBodyBuilder::fixed().translation(Vector::new(0.0, 5.0, 0.0) * scale);
-    let ground_handle = bodies.insert(ground);
+    let ground_handle = world.insert_body(ground);
     let body = RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 5.0, 0.0) * scale);
-    let handle = bodies.insert(body);
     let collider = ColliderBuilder::cuboid(1.0 * scale, 0.1 * scale, 2.0 * scale);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let (handle, _) = world.insert(body, collider);
     let joint = RevoluteJointBuilder::new(Vector::Z).limits([-0.3, 0.3]);
-    impulse_joints.insert(ground_handle, handle, joint, true);
+    world.insert_impulse_joint(ground_handle, handle, joint);
 
     /*
      * Setup a callback to move the platform.
@@ -214,6 +205,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
 }

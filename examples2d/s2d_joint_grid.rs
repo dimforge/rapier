@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let mut impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Create the joint grid.
@@ -30,16 +27,15 @@ pub fn init_world(testbed: &mut Testbed) {
 
             let rigid_body = RigidBodyBuilder::new(body_type)
                 .translation(Vector::new(k as f32 * shift, -(i as f32) * shift));
-            let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::ball(rad);
-            colliders.insert_with_parent(collider, handle, &mut bodies);
+            let (handle, _) = world.insert(rigid_body, collider);
 
             if i > 0 {
                 let joint = RevoluteJointBuilder::new()
                     .local_anchor1(Vector::new(0.0, -0.5 * shift))
                     .local_anchor2(Vector::new(0.0, 0.5 * shift))
                     .contacts_enabled(false);
-                impulse_joints.insert(handles[index - 1], handle, joint, true);
+                world.insert_impulse_joint(handles[index - 1], handle, joint);
             }
 
             if k > 0 {
@@ -47,7 +43,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     .local_anchor1(Vector::new(0.5 * shift, 0.0))
                     .local_anchor2(Vector::new(-0.5 * shift, 0.0))
                     .contacts_enabled(false);
-                impulse_joints.insert(handles[index - numi], handle, joint, true);
+                world.insert_impulse_joint(handles[index - numi], handle, joint);
             }
 
             handles[index] = handle;
@@ -58,6 +54,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::new(0.0, 2.5), 20.0);
 }

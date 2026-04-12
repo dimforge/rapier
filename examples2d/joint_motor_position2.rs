@@ -5,16 +5,13 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let mut impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Fixed ground to attach one end of the joints.
      */
     let rigid_body = RigidBodyBuilder::fixed();
-    let ground_handle = bodies.insert(rigid_body);
+    let ground_handle = world.insert_body(rigid_body);
 
     /*
      * A rectangle on a motor with target position.
@@ -24,9 +21,8 @@ pub fn init_world(testbed: &mut Testbed) {
         let rigid_body = RigidBodyBuilder::dynamic()
             .translation(Vector::new(x_pos, 2.0))
             .can_sleep(false);
-        let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(0.1, 0.5);
-        colliders.insert_with_parent(collider, handle, &mut bodies);
+        let (handle, _) = world.insert(rigid_body, collider);
 
         let joint = RevoluteJointBuilder::new()
             .local_anchor1(Vector::new(x_pos, 1.5))
@@ -36,7 +32,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 1000.0,
                 150.0,
             );
-        impulse_joints.insert(ground_handle, handle, joint, true);
+        world.insert_impulse_joint(ground_handle, handle, joint);
     }
 
     /*
@@ -48,9 +44,8 @@ pub fn init_world(testbed: &mut Testbed) {
             .translation(Vector::new(x_pos, 4.5))
             .rotation(std::f32::consts::PI)
             .can_sleep(false);
-        let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(0.1, 0.5);
-        colliders.insert_with_parent(collider, handle, &mut bodies);
+        let (handle, _) = world.insert(rigid_body, collider);
 
         let joint = RevoluteJointBuilder::new()
             .local_anchor1(Vector::new(x_pos, 5.0))
@@ -61,19 +56,13 @@ pub fn init_world(testbed: &mut Testbed) {
                 -std::f32::consts::PI,
                 -std::f32::consts::PI + std::f32::consts::PI / 4.0 * num as f32,
             ]);
-        impulse_joints.insert(ground_handle, handle, joint, true);
+        world.insert_impulse_joint(ground_handle, handle, joint);
     }
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world_with_params(
-        bodies,
-        colliders,
-        impulse_joints,
-        multibody_joints,
-        Vector::new(0.0, 0.0),
-        (),
-    );
+    world.gravity = Vector::new(0.0, 0.0);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::ZERO, 40.0);
 }

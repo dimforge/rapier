@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let mut impulse_joints = ImpulseJointSet::new();
-    let mut multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
     let use_articulations = false;
 
     /*
@@ -40,9 +37,8 @@ pub fn init_world(testbed: &mut Testbed) {
         let rigid_body = RigidBodyBuilder::new(status)
             .translation(Vector::new(0.0, 0.0, z))
             .additional_solver_iterations(16);
-        let child_handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::ball(ball_rad);
-        colliders.insert_with_parent(collider, child_handle, &mut bodies);
+        let (child_handle, _) = world.insert(rigid_body, collider);
 
         // Vertical joint.
         if i > 0 {
@@ -56,9 +52,9 @@ pub fn init_world(testbed: &mut Testbed) {
             };
 
             if use_articulations {
-                multibody_joints.insert(parent_handle, child_handle, joint, true);
+                world.insert_multibody_joint(parent_handle, child_handle, joint);
             } else {
-                impulse_joints.insert(parent_handle, child_handle, joint, true);
+                world.insert_impulse_joint(parent_handle, child_handle, joint);
             }
         }
 
@@ -68,6 +64,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
 }

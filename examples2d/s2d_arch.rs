@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     #[allow(clippy::excessive_precision)]
     let mut ps1 = [
@@ -49,7 +46,7 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let collider =
         ColliderBuilder::segment(Vector::new(-100.0, 0.0), Vector::new(100.0, 0.0)).friction(0.6);
-    colliders.insert(collider);
+    world.insert_collider(collider);
 
     /*
      * Create the arch
@@ -57,11 +54,10 @@ pub fn init_world(testbed: &mut Testbed) {
     for i in 0..8 {
         let ps = [ps1[i], ps2[i], ps2[i + 1], ps1[i + 1]];
         let rigid_body = RigidBodyBuilder::dynamic();
-        let ground_handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::convex_hull(&ps)
             .unwrap()
             .friction(friction);
-        colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+        let _ = world.insert(rigid_body, collider);
     }
 
     for i in 0..8 {
@@ -72,11 +68,10 @@ pub fn init_world(testbed: &mut Testbed) {
             Vector::new(-ps2[i + 1].x, ps2[i + 1].y),
         ];
         let rigid_body = RigidBodyBuilder::dynamic();
-        let ground_handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::convex_hull(&ps)
             .unwrap()
             .friction(friction);
-        colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+        let _ = world.insert(rigid_body, collider);
     }
 
     {
@@ -87,24 +82,22 @@ pub fn init_world(testbed: &mut Testbed) {
             Vector::new(-ps2[8].x, ps2[8].y),
         ];
         let rigid_body = RigidBodyBuilder::dynamic();
-        let ground_handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::convex_hull(&ps)
             .unwrap()
             .friction(friction);
-        colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+        let _ = world.insert(rigid_body, collider);
     }
 
     for i in 0..4 {
         let rigid_body = RigidBodyBuilder::dynamic()
             .translation(Vector::new(0.0, 0.5 + ps2[8].y + 1.0 * i as f32));
-        let ground_handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(2.0, 0.5).friction(friction);
-        colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+        let _ = world.insert(rigid_body, collider);
     }
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::new(0.0, 2.5), 20.0);
 }

@@ -4,10 +4,7 @@ use rapier3d::prelude::*;
 const MAX_NUMBER_OF_BODIES: usize = 400;
 
 pub fn init_world(testbed: &mut Testbed) {
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     let rad = 0.5;
 
@@ -20,9 +17,8 @@ pub fn init_world(testbed: &mut Testbed) {
     for k in 0..3 {
         let rigid_body =
             RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height - k as f32, 0.0));
-        let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-        colliders.insert_with_parent(collider, handle, &mut bodies);
+        let (_handle, _) = world.insert(rigid_body, collider);
     }
 
     // Callback that will be executed on the main loop to handle proximities.
@@ -79,7 +75,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     // testbed
     //     .physics_state_mut()
     //     .integration_parameters

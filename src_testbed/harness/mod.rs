@@ -10,7 +10,7 @@ use rapier::dynamics::{
     RigidBodySet,
 };
 use rapier::geometry::{BroadPhaseBvh, BvhOptimizationStrategy, ColliderSet, NarrowPhase};
-use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline};
+use rapier::pipeline::{ChannelEventCollector, PhysicsHooks, PhysicsPipeline, PhysicsWorld};
 
 pub mod plugin;
 
@@ -203,6 +203,46 @@ impl Harness {
         self.physics.colliders = colliders;
         self.physics.impulse_joints = impulse_joints;
         self.physics.multibody_joints = multibody_joints;
+        self.physics.hooks = Box::new(hooks);
+
+        self.physics.islands = IslandManager::new();
+        self.physics.broad_phase = broad_phase_type.init_broad_phase();
+        self.physics.narrow_phase = NarrowPhase::new();
+        self.state.timestep_id = 0;
+        self.state.time = 0.0;
+        self.physics.ccd_solver = CCDSolver::new();
+        self.physics.pipeline = PhysicsPipeline::new();
+        self.physics.pipeline.counters.enable();
+    }
+
+    /// Replaces the world state with the contents of a [`PhysicsWorld`].
+    ///
+    /// This is a convenience method equivalent to [`set_world_with_params`](Self::set_world_with_params)
+    /// but takes a single [`PhysicsWorld`] and respects its gravity and integration parameters.
+    /// No physics hooks are installed; use [`set_physics_world_with_hooks`](Self::set_physics_world_with_hooks)
+    /// if you need hooks.
+    pub fn set_physics_world(
+        &mut self,
+        world: PhysicsWorld,
+        broad_phase_type: RapierBroadPhaseType,
+    ) {
+        self.set_physics_world_with_hooks(world, broad_phase_type, ());
+    }
+
+    /// Replaces the world state with the contents of a [`PhysicsWorld`] and installs the given
+    /// physics hooks.
+    pub fn set_physics_world_with_hooks(
+        &mut self,
+        world: PhysicsWorld,
+        broad_phase_type: RapierBroadPhaseType,
+        hooks: impl PhysicsHooks + 'static,
+    ) {
+        self.physics.gravity = world.gravity;
+        self.physics.integration_parameters = world.integration_parameters;
+        self.physics.bodies = world.bodies;
+        self.physics.colliders = world.colliders;
+        self.physics.impulse_joints = world.impulse_joints;
+        self.physics.multibody_joints = world.multibody_joints;
         self.physics.hooks = Box::new(hooks);
 
         self.physics.islands = IslandManager::new();

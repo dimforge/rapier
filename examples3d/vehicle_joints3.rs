@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let mut impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground.
@@ -24,7 +21,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::heightfield(heights, ground_size)
         .translation(Vector::new(-7.0, 0.0, 0.0))
         .friction(1.0);
-    colliders.insert(collider);
+    world.insert_collider(collider);
 
     /*
      * Vehicle we will control manually, simulated using joints.
@@ -61,8 +58,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let body_rb = RigidBodyBuilder::dynamic()
         .translation(body_position)
         .build();
-    let body_handle = bodies.insert(body_rb);
-    colliders.insert_with_parent(body_co, body_handle, &mut bodies);
+    let (body_handle, _) = world.insert(body_rb, body_co);
 
     let mut steering_joints = vec![];
     let mut motor_joints = vec![];
@@ -75,7 +71,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let axle_rb = RigidBodyBuilder::dynamic()
             .translation(wheel_center)
             .additional_mass_properties(axle_mass_props);
-        let axle_handle = bodies.insert(axle_rb);
+        let axle_handle = world.insert_body(axle_rb);
 
         // This is a fake cylinder collider that we add only because our testbed can
         // only render colliders. Setting it as sensor makes it show up as wireframe.
@@ -96,9 +92,8 @@ pub fn init_world(testbed: &mut Testbed) {
             ))
             .friction(1.0);
         let wheel_rb = RigidBodyBuilder::dynamic().translation(wheel_center);
-        let wheel_handle = bodies.insert(wheel_rb);
-        colliders.insert_with_parent(wheel_co, wheel_handle, &mut bodies);
-        colliders.insert_with_parent(wheel_fake_co, wheel_handle, &mut bodies);
+        let (wheel_handle, _) = world.insert(wheel_rb, wheel_co);
+        world.insert_collider_with_parent(wheel_fake_co, wheel_handle);
 
         let suspension_attachment_in_body_space =
             wheel_pos_in_car_space - body_position_in_car_space;
@@ -123,12 +118,12 @@ pub fn init_world(testbed: &mut Testbed) {
         }
 
         let body_axle_joint_handle =
-            impulse_joints.insert(body_handle, axle_handle, suspension_joint, true);
+            world.insert_impulse_joint(body_handle, axle_handle, suspension_joint);
 
         // Joint between the axle and the wheel.
         let wheel_joint = RevoluteJointBuilder::new(Vector::X);
         let wheel_joint_handle =
-            impulse_joints.insert(axle_handle, wheel_handle, wheel_joint, true);
+            world.insert_impulse_joint(axle_handle, wheel_handle, wheel_joint);
 
         if is_front {
             steering_joints.push(body_axle_joint_handle);
@@ -238,6 +233,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
 }

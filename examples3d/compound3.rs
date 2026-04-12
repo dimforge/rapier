@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -17,9 +14,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let (_handle, _) = world.insert(rigid_body, collider);
 
     /*
      * Create the cubes
@@ -44,7 +40,6 @@ pub fn init_world(testbed: &mut Testbed) {
 
                 // Build the rigid body.
                 let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z));
-                let handle = bodies.insert(rigid_body);
 
                 // First option: attach several colliders to a single rigid-body.
                 if j < numy / 2 {
@@ -53,9 +48,9 @@ pub fn init_world(testbed: &mut Testbed) {
                         .translation(Vector::new(rad * 10.0, rad * 10.0, 0.0));
                     let collider3 = ColliderBuilder::cuboid(rad, rad * 10.0, rad)
                         .translation(Vector::new(-rad * 10.0, rad * 10.0, 0.0));
-                    colliders.insert_with_parent(collider1, handle, &mut bodies);
-                    colliders.insert_with_parent(collider2, handle, &mut bodies);
-                    colliders.insert_with_parent(collider3, handle, &mut bodies);
+                    let (handle, _) = world.insert(rigid_body, collider1);
+                    world.insert_collider_with_parent(collider2, handle);
+                    world.insert_collider_with_parent(collider3, handle);
                 } else {
                     // Second option: create a compound shape and attach it to a single collider.
                     let shapes = vec![
@@ -71,7 +66,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     ];
 
                     let collider = ColliderBuilder::compound(shapes);
-                    colliders.insert_with_parent(collider, handle, &mut bodies);
+                    let (_handle, _) = world.insert(rigid_body, collider);
                 }
             }
         }
@@ -82,6 +77,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

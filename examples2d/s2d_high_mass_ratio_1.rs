@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     let extent = 1.0;
     let friction = 0.5;
@@ -19,13 +16,12 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_width = 66.0 * extent;
 
     let rigid_body = RigidBodyBuilder::fixed();
-    let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::segment(
         Vector::new(-0.5 * 2.0 * ground_width, 0.0),
         Vector::new(0.5 * 2.0 * ground_width, 0.0),
     )
     .friction(friction);
-    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+    let _ = world.insert(rigid_body, collider);
 
     /*
      * Create the cubes
@@ -42,8 +38,6 @@ pub fn init_world(testbed: &mut Testbed) {
                 let yy = if count == 1 { y + 2.0 } else { y };
                 let position = Vector::new(2.0 * coeff * extent + offset, yy);
                 let rigid_body = RigidBodyBuilder::dynamic().translation(position);
-                let parent = bodies.insert(rigid_body);
-
                 let collider = ColliderBuilder::cuboid(extent, extent)
                     .density(if count == 1 {
                         (j as f32 + 1.0) * 100.0
@@ -51,7 +45,7 @@ pub fn init_world(testbed: &mut Testbed) {
                         1.0
                     })
                     .friction(friction);
-                colliders.insert_with_parent(collider, parent, &mut bodies);
+                let _ = world.insert(rigid_body, collider);
             }
 
             count -= 1;
@@ -61,6 +55,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::new(0.0, 2.5), 20.0);
 }
