@@ -1,3 +1,7 @@
+use crate::alloc_prelude::*;
+#[cfg(all(not(feature = "std"), feature = "dim3"))]
+use simba::scalar::ComplexField;
+
 #[cfg(doc)]
 use super::IntegrationParameters;
 use crate::dynamics::{

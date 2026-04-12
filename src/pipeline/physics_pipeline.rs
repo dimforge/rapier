@@ -1,5 +1,7 @@
 //! Physics pipeline structures.
 
+use crate::alloc_prelude::*;
+
 use crate::counters::Counters;
 // #[cfg(not(feature = "parallel"))]
 use crate::dynamics::IslandSolver;
@@ -282,15 +284,15 @@ impl PhysicsPipeline {
         #[cfg(feature = "parallel")]
         {
             use crate::geometry::ContactManifold;
+            use core::sync::atomic::Ordering;
             use rayon::prelude::*;
-            use std::sync::atomic::Ordering;
 
             let solvers = &mut self.solvers[..num_active_islands];
-            let bodies = &std::sync::atomic::AtomicPtr::new(bodies as *mut _);
-            let manifolds = &std::sync::atomic::AtomicPtr::new(&mut manifolds as *mut _);
+            let bodies = &core::sync::atomic::AtomicPtr::new(bodies as *mut _);
+            let manifolds = &core::sync::atomic::AtomicPtr::new(&mut manifolds as *mut _);
             let impulse_joints =
-                &std::sync::atomic::AtomicPtr::new(impulse_joints.joints_vec_mut() as *mut _);
-            let multibody_joints = &std::sync::atomic::AtomicPtr::new(multibody_joints as *mut _);
+                &core::sync::atomic::AtomicPtr::new(impulse_joints.joints_vec_mut() as *mut _);
+            let multibody_joints = &core::sync::atomic::AtomicPtr::new(multibody_joints as *mut _);
             let manifold_indices = &self.manifold_indices[..];
             let joint_constraint_indices = &self.joint_constraint_indices[..];
 

@@ -4,7 +4,7 @@ use crate::dynamics::{
     RigidBodyChanges, RigidBodyHandle,
 };
 use crate::geometry::ColliderSet;
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 #[cfg(doc)]
 use crate::pipeline::PhysicsPipeline;
@@ -111,7 +111,7 @@ impl RigidBodySet {
     }
 
     pub(crate) fn take_modified(&mut self) -> ModifiedRigidBodies {
-        std::mem::take(&mut self.modified_bodies)
+        core::mem::take(&mut self.modified_bodies)
     }
 
     /// Returns how many rigid bodies are currently in this collection.

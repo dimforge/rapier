@@ -1,5 +1,7 @@
 //! Physics pipeline structures.
 
+use crate::alloc_prelude::*;
+
 use crate::dynamics::{ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet};
 use crate::geometry::{
     BroadPhaseBvh, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,

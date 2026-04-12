@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::geometry::{ColliderHandle, ContactManifold, Shape, ShapeCastHit};
 use crate::math::{Pose, Real, Vector};
 use crate::pipeline::{QueryFilterFlags, QueryPipeline, QueryPipelineMut};
@@ -943,10 +944,13 @@ fn subtract_hit(translation: Vector, hit: &ShapeCastHit) -> Vector {
 #[cfg(all(feature = "dim3", feature = "f32"))]
 #[cfg(test)]
 mod test {
+    #[allow(unused_imports)]
+    use crate::alloc_prelude::*;
     use crate::{
         control::{CharacterLength, KinematicCharacterController},
         prelude::*,
     };
+    use std::dbg;
 
     #[test]
     fn character_controller_climb_test() {

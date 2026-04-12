@@ -1,3 +1,6 @@
+#[cfg(not(feature = "std"))]
+use simba::scalar::ComplexField;
+
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::solver::joint_constraint::generic_joint_constraint::GenericJointConstraint;
 use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::WritebackId;

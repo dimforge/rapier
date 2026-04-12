@@ -1,6 +1,7 @@
 //! IndexMut2 trait for simultaneously indexing with two distinct indices.
+use crate::alloc_prelude::*;
 
-use std::ops::IndexMut;
+use core::ops::IndexMut;
 
 /// Methods for simultaneously indexing a container with two distinct indices.
 pub trait IndexMut2<I>: IndexMut<I> {

@@ -1,5 +1,6 @@
 #[cfg(doc)]
 use super::IntegrationParameters;
+use crate::alloc_prelude::*;
 use crate::control::PdErrors;
 #[cfg(doc)]
 use crate::control::PidController;
@@ -618,7 +619,7 @@ impl RigidBodyVelocity<Real> {
     #[inline]
     #[cfg(feature = "dim2")]
     pub fn as_vector(&self) -> &na::Vector3<Real> {
-        unsafe { std::mem::transmute(self) }
+        unsafe { core::mem::transmute(self) }
     }
 
     /// This velocity seen as a mutable vector.
@@ -627,7 +628,7 @@ impl RigidBodyVelocity<Real> {
     #[inline]
     #[cfg(feature = "dim2")]
     pub fn as_vector_mut(&mut self) -> &mut na::Vector3<Real> {
-        unsafe { std::mem::transmute(self) }
+        unsafe { core::mem::transmute(self) }
     }
 
     /// This velocity seen as a vector.
@@ -636,7 +637,7 @@ impl RigidBodyVelocity<Real> {
     #[inline]
     #[cfg(feature = "dim3")]
     pub fn as_vector(&self) -> &na::Vector6<Real> {
-        unsafe { std::mem::transmute(self) }
+        unsafe { core::mem::transmute(self) }
     }
 
     /// This velocity seen as a mutable vector.
@@ -645,7 +646,7 @@ impl RigidBodyVelocity<Real> {
     #[inline]
     #[cfg(feature = "dim3")]
     pub fn as_vector_mut(&mut self) -> &mut na::Vector6<Real> {
-        unsafe { std::mem::transmute(self) }
+        unsafe { core::mem::transmute(self) }
     }
 
     /// Return `self` rotated by `rotation`.
@@ -844,7 +845,7 @@ impl RigidBodyVelocity<Real> {
     }
 }
 
-impl std::ops::Mul<Real> for RigidBodyVelocity<Real> {
+impl core::ops::Mul<Real> for RigidBodyVelocity<Real> {
     type Output = Self;
 
     fn mul(self, rhs: Real) -> Self {
@@ -855,7 +856,7 @@ impl std::ops::Mul<Real> for RigidBodyVelocity<Real> {
     }
 }
 
-impl std::ops::Add<RigidBodyVelocity<Real>> for RigidBodyVelocity<Real> {
+impl core::ops::Add<RigidBodyVelocity<Real>> for RigidBodyVelocity<Real> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
@@ -866,14 +867,14 @@ impl std::ops::Add<RigidBodyVelocity<Real>> for RigidBodyVelocity<Real> {
     }
 }
 
-impl std::ops::AddAssign<RigidBodyVelocity<Real>> for RigidBodyVelocity<Real> {
+impl core::ops::AddAssign<RigidBodyVelocity<Real>> for RigidBodyVelocity<Real> {
     fn add_assign(&mut self, rhs: Self) {
         self.linvel += rhs.linvel;
         self.angvel += rhs.angvel;
     }
 }
 
-impl std::ops::Sub<RigidBodyVelocity<Real>> for RigidBodyVelocity<Real> {
+impl core::ops::Sub<RigidBodyVelocity<Real>> for RigidBodyVelocity<Real> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
@@ -884,7 +885,7 @@ impl std::ops::Sub<RigidBodyVelocity<Real>> for RigidBodyVelocity<Real> {
     }
 }
 
-impl std::ops::SubAssign<RigidBodyVelocity<Real>> for RigidBodyVelocity<Real> {
+impl core::ops::SubAssign<RigidBodyVelocity<Real>> for RigidBodyVelocity<Real> {
     fn sub_assign(&mut self, rhs: Self) {
         self.linvel -= rhs.linvel;
         self.angvel -= rhs.angvel;

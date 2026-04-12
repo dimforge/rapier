@@ -9,9 +9,9 @@ use crate::utils::{
     AngularInertiaOps, ComponentMul, CrossProduct, CrossProductMatrix, DIM_MINUS_ONE, DotProduct,
     MatrixColumn, OrthonormalBasis, PoseOps, RotationOps,
 };
+use core::fmt::Debug;
+use core::ops::{Add, AddAssign, DivAssign, Index, Mul, MulAssign, Neg, Sub, SubAssign};
 use na::SimdRealField;
-use std::fmt::Debug;
-use std::ops::{Add, AddAssign, DivAssign, Index, Mul, MulAssign, Neg, Sub, SubAssign};
 
 /// Trait for types that can be used as scalars in the generic code supporting both
 /// the scalar and AoSoA SIMD pattern.

@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::{RigidBody, RigidBodyHandle, RigidBodySet};
 
 use super::IslandManager;

@@ -3,9 +3,10 @@
 // - It preserves associated edge iteration order after Serialization/Deserialization.
 // - It is always undirected.
 //! A stripped-down version of petgraph's UnGraph.
+use crate::alloc_prelude::*;
 
-use std::cmp::max;
-use std::ops::{Index, IndexMut};
+use core::cmp::max;
+use core::ops::{Index, IndexMut};
 
 /// Node identifier.
 #[derive(Copy, Clone, Default, PartialEq, PartialOrd, Eq, Ord, Hash, Debug)]

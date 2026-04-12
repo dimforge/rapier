@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 use rayon::Scope;
 
@@ -124,7 +124,7 @@ impl ThreadContext {
     pub fn lock_until_ge(val: &AtomicUsize, target: usize) {
         if target > 0 {
             //        let backoff = crossbeam::utils::Backoff::new();
-            std::sync::atomic::fence(Ordering::SeqCst);
+            core::sync::atomic::fence(Ordering::SeqCst);
             while val.load(Ordering::Relaxed) < target {
                 //  backoff.spin();
                 // std::thread::yield_now();
@@ -265,33 +265,33 @@ impl ParallelIslandSolver {
             // See https://internals.rust-lang.org/t/shouldnt-pointers-be-send-sync-or/8818
             let thread = &self.thread;
             let velocity_solver =
-                std::sync::atomic::AtomicPtr::new(&mut self.velocity_solver as *mut _);
-            let bodies = std::sync::atomic::AtomicPtr::new(bodies as *mut _);
-            let multibodies = std::sync::atomic::AtomicPtr::new(multibodies as *mut _);
-            let manifolds = std::sync::atomic::AtomicPtr::new(manifolds as *mut _);
-            let impulse_joints = std::sync::atomic::AtomicPtr::new(impulse_joints as *mut _);
+                core::sync::atomic::AtomicPtr::new(&mut self.velocity_solver as *mut _);
+            let bodies = core::sync::atomic::AtomicPtr::new(bodies as *mut _);
+            let multibodies = core::sync::atomic::AtomicPtr::new(multibodies as *mut _);
+            let manifolds = core::sync::atomic::AtomicPtr::new(manifolds as *mut _);
+            let impulse_joints = core::sync::atomic::AtomicPtr::new(impulse_joints as *mut _);
             let parallel_contact_constraints =
-                std::sync::atomic::AtomicPtr::new(&mut self.parallel_contact_constraints as *mut _);
+                core::sync::atomic::AtomicPtr::new(&mut self.parallel_contact_constraints as *mut _);
             let parallel_joint_constraints =
-                std::sync::atomic::AtomicPtr::new(&mut self.parallel_joint_constraints as *mut _);
+                core::sync::atomic::AtomicPtr::new(&mut self.parallel_joint_constraints as *mut _);
 
             scope.spawn(move |_| {
                 // Transmute *mut -> &mut
                 let velocity_solver: &mut ParallelVelocitySolver =
-                    unsafe { std::mem::transmute(velocity_solver.load(Ordering::Relaxed)) };
+                    unsafe { core::mem::transmute(velocity_solver.load(Ordering::Relaxed)) };
                 let bodies: &mut RigidBodySet =
-                    unsafe { std::mem::transmute(bodies.load(Ordering::Relaxed)) };
+                    unsafe { core::mem::transmute(bodies.load(Ordering::Relaxed)) };
                 let multibodies: &mut MultibodyJointSet =
-                    unsafe { std::mem::transmute(multibodies.load(Ordering::Relaxed)) };
+                    unsafe { core::mem::transmute(multibodies.load(Ordering::Relaxed)) };
                 let manifolds: &mut Vec<&mut ContactManifold> =
-                    unsafe { std::mem::transmute(manifolds.load(Ordering::Relaxed)) };
+                    unsafe { core::mem::transmute(manifolds.load(Ordering::Relaxed)) };
                 let impulse_joints: &mut Vec<JointGraphEdge> =
-                    unsafe { std::mem::transmute(impulse_joints.load(Ordering::Relaxed)) };
+                    unsafe { core::mem::transmute(impulse_joints.load(Ordering::Relaxed)) };
                 let parallel_contact_constraints: &mut ParallelSolverConstraints<ContactConstraintTypes> = unsafe {
-                    std::mem::transmute(parallel_contact_constraints.load(Ordering::Relaxed))
+                    core::mem::transmute(parallel_contact_constraints.load(Ordering::Relaxed))
                 };
                 let parallel_joint_constraints: &mut ParallelSolverConstraints<JointConstraintTypes> = unsafe {
-                    std::mem::transmute(parallel_joint_constraints.load(Ordering::Relaxed))
+                    core::mem::transmute(parallel_joint_constraints.load(Ordering::Relaxed))
                 };
 
                 enable_flush_to_zero!(); // Ensure this is enabled on each thread.

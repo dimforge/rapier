@@ -1,10 +1,11 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::{IslandManager, JointGraphEdge, JointIndex, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 
 #[cfg(feature = "simd-is-enabled")]
 use {
     crate::math::{SIMD_LAST_INDEX, SIMD_WIDTH},
-    vec_map::VecMap,
+    parry::utils::VecMap,
 };
 
 #[cfg(feature = "parallel")]

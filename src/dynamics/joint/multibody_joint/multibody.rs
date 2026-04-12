@@ -1,5 +1,6 @@
 use super::multibody_link::{MultibodyLink, MultibodyLinkVec};
 use super::multibody_workspace::MultibodyWorkspace;
+use crate::alloc_prelude::*;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet, RigidBodyType, RigidBodyVelocity};
 use crate::math::{
     ANG_DIM, AngDim, AngVector, DIM, DVector, Dim, Jacobian, Pose, Real, SPATIAL_DIM,
@@ -29,7 +30,7 @@ impl Force {
     }
 
     fn as_vector(&self) -> &SVector<Real, SPATIAL_DIM> {
-        unsafe { std::mem::transmute(self) }
+        unsafe { core::mem::transmute(self) }
     }
 }
 
@@ -1379,6 +1380,7 @@ impl IndexSequence {
 #[cfg(test)]
 mod test {
     use super::IndexSequence;
+    use crate::alloc_prelude::*;
     use crate::dynamics::{ImpulseJointSet, IslandManager};
     #[cfg(feature = "dim3")]
     use crate::math::Vector;

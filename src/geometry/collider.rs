@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle, RigidBodySet};
 #[cfg(feature = "dim3")]
 use crate::geometry::HeightFieldFlags;

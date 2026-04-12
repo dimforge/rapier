@@ -1,6 +1,7 @@
 #[cfg(doc)]
 use super::Collider;
 use super::CollisionEvent;
+use crate::alloc_prelude::*;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Contact, ContactManifold};
 use crate::math::{Real, TangentImpulse, Vector};
@@ -440,11 +441,11 @@ impl SimdSolverContact {
         //       isn’t generating useless copies.
 
         let data_repr: &[&[SimdSolverContactRepr]; SIMD_WIDTH] =
-            unsafe { std::mem::transmute(contacts) };
+            unsafe { core::mem::transmute(contacts) };
 
         /* NOTE: this is a manual NEON implementation. To compare with what the compiler generates with `wide`.
         unsafe {
-            use std::arch::aarch64::*;
+            use core::arch::aarch64::*;
 
             assert!(k < SIMD_WIDTH);
 
@@ -493,7 +494,7 @@ impl SimdSolverContact {
             let soa2_3 = vzip2q_f32(c, d);
 
             // Return.
-            std::mem::transmute([
+            core::mem::transmute([
                 soa0_0, soa0_1, soa0_2, soa0_3, soa1_0, soa1_1, soa1_2, soa1_3, soa2_0, soa2_1,
                 soa2_2, soa2_3,
             ])
@@ -535,13 +536,13 @@ impl SimdSolverContact {
 
         #[cfg(feature = "dim2")]
         return unsafe {
-            std::mem::transmute::<[[wide::f32x4; 4]; 3], SolverContactGeneric<SimdReal, 4>>([
+            core::mem::transmute::<[[wide::f32x4; 4]; 3], SolverContactGeneric<SimdReal, 4>>([
                 soa0, soa1, soa2,
             ])
         };
         #[cfg(feature = "dim3")]
         return unsafe {
-            std::mem::transmute::<[[wide::f32x4; 4]; 4], SolverContactGeneric<SimdReal, 4>>([
+            core::mem::transmute::<[[wide::f32x4; 4]; 4], SolverContactGeneric<SimdReal, 4>>([
                 soa0, soa1, soa2, soa3,
             ])
         };

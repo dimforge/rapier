@@ -1,7 +1,7 @@
 //! Counters for benchmarking various parts of the physics engine.
 
+use core::fmt::{Display, Formatter, Result};
 use core::time::Duration;
-use std::fmt::{Display, Formatter, Result};
 
 pub use self::ccd_counters::CCDCounters;
 pub use self::collision_detection_counters::CollisionDetectionCounters;

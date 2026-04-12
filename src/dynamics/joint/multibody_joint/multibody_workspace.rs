@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::RigidBodyVelocity;
 use crate::math::{DVector, Real};
 

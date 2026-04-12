@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use parry::bounding_volume;
 use parry::math::{Pose, Vector};
 use parry::shape::{Cuboid, SharedShape, TriMeshBuilderError, TriMeshFlags};

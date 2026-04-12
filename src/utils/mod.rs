@@ -127,8 +127,8 @@ pub fn smallest_abs_diff_between_angles<N: SimdRealCopy>(a: N, b: N) -> N {
 
 #[cfg(feature = "simd-nightly")]
 #[inline(always)]
-pub(crate) fn transmute_to_wide(val: [std::simd::f32x4; SIMD_WIDTH]) -> [wide::f32x4; SIMD_WIDTH] {
-    unsafe { std::mem::transmute(val) }
+pub(crate) fn transmute_to_wide(val: [core::simd::f32x4; SIMD_WIDTH]) -> [wide::f32x4; SIMD_WIDTH] {
+    unsafe { core::mem::transmute(val) }
 }
 
 #[cfg(feature = "simd-stable")]
@@ -140,8 +140,9 @@ pub(crate) fn transmute_to_wide(val: [wide::f32x4; SIMD_WIDTH]) -> [wide::f32x4;
 /// Helpers around serialization.
 #[cfg(feature = "serde-serialize")]
 pub mod serde {
+    use crate::alloc_prelude::*;
+    use core::iter::FromIterator;
     use serde::{Deserialize, Serialize};
-    use std::iter::FromIterator;
 
     /// Serializes to a `Vec<(K, V)>`.
     ///
@@ -180,6 +181,7 @@ pub mod serde {
 
     #[cfg(test)]
     mod test {
+        use crate::alloc_prelude::*;
         use std::collections::HashMap;
 
         /// This test uses serde_json because json doesn't support non string

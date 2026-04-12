@@ -1,5 +1,5 @@
 use crate::counters::Timer;
-use std::fmt::{Display, Formatter, Result};
+use core::fmt::{Display, Formatter, Result};
 
 /// Performance counters related to each stage of the time step.
 #[derive(Default, Clone, Copy)]

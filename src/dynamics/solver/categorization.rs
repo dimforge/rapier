@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::{JointGraphEdge, JointIndex, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{ContactManifold, ContactManifoldIndex};
 

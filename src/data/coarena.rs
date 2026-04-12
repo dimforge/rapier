@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::data::arena::Index;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -57,7 +58,7 @@ impl<T> Coarena<T> {
         let data = self.data.get_mut(i as usize)?;
         if g == data.0 {
             data.0 = u32::MAX; // invalidate the generation number.
-            Some(std::mem::replace(&mut data.1, removed_value))
+            Some(core::mem::replace(&mut data.1, removed_value))
         } else {
             None
         }

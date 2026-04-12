@@ -67,6 +67,29 @@ jobs:
         run: cargo check -j 1 --verbose -p rapier-examples-2d;
       - name: Check rapier-examples-3d
         run: cargo check -j 1 --verbose -p rapier-examples-3d;
+  build-no-std:
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: "x86_64-unknown-linux-gnu,thumbv7em-none-eabihf"
+      - name: Check rapier2d thumbv7em-none-eabihf
+        run: cargo check --verbose -p rapier2d --no-default-features --features dim2,f32 --target=thumbv7em-none-eabihf
+      - name: Check rapier3d thumbv7em-none-eabihf
+        run: cargo check --verbose -p rapier3d --no-default-features --features dim3,f32 --target=thumbv7em-none-eabihf
+      - name: Check rapier2d-f64 thumbv7em-none-eabihf
+        run: cargo check --verbose -p rapier2d-f64 --no-default-features --features dim2,f64 --target=thumbv7em-none-eabihf
+      - name: Check rapier3d-f64 thumbv7em-none-eabihf
+        run: cargo check --verbose -p rapier3d-f64 --no-default-features --features dim3,f64 --target=thumbv7em-none-eabihf
+      - name: Check rapier2d thumbv7em-none-eabihf + debug-render
+        run: cargo check --verbose -p rapier2d --no-default-features --features dim2,f32,debug-render --target=thumbv7em-none-eabihf
+      - name: Check rapier3d thumbv7em-none-eabihf + debug-render
+        run: cargo check --verbose -p rapier3d --no-default-features --features dim3,f32,debug-render --target=thumbv7em-none-eabihf
   build-wasm:
     runs-on: ubuntu-latest
     env:

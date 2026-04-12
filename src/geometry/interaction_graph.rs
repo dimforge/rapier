@@ -227,7 +227,7 @@ impl<'a, N: Copy, E> Iterator for InteractionsWithMut<'a, N, E> {
             let (co1, co2) = (self.graph[endpoints.0], self.graph[endpoints.1]);
             let interaction = &mut self.graph[edge];
             return Some((co1, co2, edge, unsafe {
-                std::mem::transmute::<&mut E, &'a mut E>(interaction)
+                core::mem::transmute::<&mut E, &'a mut E>(interaction)
             }));
         }
 
@@ -237,7 +237,7 @@ impl<'a, N: Copy, E> Iterator for InteractionsWithMut<'a, N, E> {
         let (co1, co2) = (self.graph[endpoints.0], self.graph[endpoints.1]);
         let interaction = &mut self.graph[edge];
         Some((co1, co2, edge, unsafe {
-            std::mem::transmute::<&mut E, &'a mut E>(interaction)
+            core::mem::transmute::<&mut E, &'a mut E>(interaction)
         }))
     }
 }

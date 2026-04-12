@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
@@ -19,10 +20,10 @@ use crate::pipeline::{
     PhysicsHooks,
 };
 use crate::prelude::{CollisionEventFlags, MultibodyJointSet};
+use alloc::sync::Arc;
 use parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
 use parry::utils::PoseOpt;
 use parry::utils::hashmap::HashMap;
-use std::sync::Arc;
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -1076,7 +1077,7 @@ impl NarrowPhase {
                     // Apply the user-defined contact modification.
                     if active_hooks.contains(ActiveHooks::MODIFY_SOLVER_CONTACTS) {
                         let mut modifiable_solver_contacts =
-                            std::mem::take(&mut manifold.data.solver_contacts);
+                            core::mem::take(&mut manifold.data.solver_contacts);
                         let mut modifiable_user_data = manifold.data.user_data;
                         let mut modifiable_normal = manifold.data.normal;
 
@@ -1230,11 +1231,14 @@ impl NarrowPhase {
 #[cfg(feature = "f32")]
 #[cfg(feature = "dim3")]
 mod test {
+    #[allow(unused_imports)]
+    use crate::alloc_prelude::*;
     use crate::math::Vector;
     use crate::prelude::{
         CCDSolver, ColliderBuilder, DefaultBroadPhase, IntegrationParameters, PhysicsPipeline,
         RigidBodyBuilder,
     };
+    use std::println;
 
     use super::*;
 

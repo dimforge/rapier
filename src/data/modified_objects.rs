@@ -1,5 +1,6 @@
-use std::marker::PhantomData;
-use std::ops::Deref;
+use crate::alloc_prelude::*;
+use core::marker::PhantomData;
+use core::ops::Deref;
 
 /// Contains handles of modified objects.
 ///

@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::solver::JointConstraintsSet;
 use crate::dynamics::solver::contact_constraint::ContactConstraintsSet;
 use crate::dynamics::solver::solver_body::SolverBodies;

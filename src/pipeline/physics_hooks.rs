@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, ContactManifold, SolverContact, SolverFlags};
 use crate::math::{Real, Vector};

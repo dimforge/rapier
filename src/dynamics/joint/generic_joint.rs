@@ -550,7 +550,7 @@ impl GenericJoint {
 
     /// Flips the orientation of the joint, including limits and motors.
     pub fn flip(&mut self) {
-        std::mem::swap(&mut self.local_frame1, &mut self.local_frame2);
+        core::mem::swap(&mut self.local_frame1, &mut self.local_frame2);
 
         let coupled_bits = self.coupled_axes.bits();
 
@@ -589,7 +589,7 @@ macro_rules! joint_conversion_methods(
             if self.locked_axes == $axes {
                 // SAFETY: this is OK because the target joint type is
                 //         a `repr(transparent)` newtype of `Joint`.
-                Some(unsafe { std::mem::transmute::<&Self, &$Joint>(self) })
+                Some(unsafe { core::mem::transmute::<&Self, &$Joint>(self) })
             } else {
                 None
             }
@@ -601,7 +601,7 @@ macro_rules! joint_conversion_methods(
             if self.locked_axes == $axes {
                 // SAFETY: this is OK because the target joint type is
                 //         a `repr(transparent)` newtype of `Joint`.
-                Some(unsafe { std::mem::transmute::<&mut Self, &mut $Joint>(self) })
+                Some(unsafe { core::mem::transmute::<&mut Self, &mut $Joint>(self) })
             } else {
                 None
             }

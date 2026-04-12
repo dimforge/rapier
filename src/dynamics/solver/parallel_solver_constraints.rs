@@ -16,7 +16,7 @@ use crate::{
     dynamics::solver::{OneBodyConstraintSimd, TwoBodyConstraintSimd},
     math::SIMD_WIDTH,
 };
-use std::sync::atomic::Ordering;
+use core::sync::atomic::Ordering;
 
 // pub fn init_constraint_groups(
 //     &mut self,

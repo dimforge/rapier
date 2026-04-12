@@ -1,7 +1,9 @@
 //! Structure for combining the various physics components to perform an actual simulation.
 
 pub use collision_pipeline::CollisionPipeline;
-pub use event_handler::{ActiveEvents, ChannelEventCollector, EventHandler};
+#[cfg(feature = "std")]
+pub use event_handler::ChannelEventCollector;
+pub use event_handler::{ActiveEvents, EventHandler};
 pub use physics_hooks::{ActiveHooks, ContactModificationContext, PairFilterContext, PhysicsHooks};
 pub use physics_pipeline::PhysicsPipeline;
 pub use query_pipeline::{QueryFilter, QueryFilterFlags, QueryPipeline, QueryPipelineMut};
