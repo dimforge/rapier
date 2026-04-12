@@ -1,6 +1,6 @@
 use crate::dynamics::{ImpulseJointSet, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{ColliderSet, NarrowPhase};
-use std::ops::IndexMut;
+use core::ops::IndexMut;
 
 use super::{Island, IslandManager};
 

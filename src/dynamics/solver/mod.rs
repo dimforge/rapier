@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 // #[cfg(not(feature = "parallel"))]
 pub(crate) use self::island_solver::IslandSolver;
 // #[cfg(feature = "parallel")]

@@ -7,7 +7,7 @@ use crate::dynamics::{
 use crate::geometry::ContactManifold;
 use crate::math::{DVector, Real};
 use crate::utils::SimdAngularInertia;
-use std::sync::atomic::Ordering;
+use core::sync::atomic::Ordering;
 
 pub(crate) struct ParallelVelocitySolver {
     pub solver_vels: Vec<SolverVel<Real>>,

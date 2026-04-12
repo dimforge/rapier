@@ -1,9 +1,10 @@
+use crate::alloc_prelude::*;
 use crate::data::arena::Arena;
 use crate::data::{HasModifiedFlag, ModifiedObjects};
 use crate::dynamics::{IslandManager, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{Collider, ColliderChanges, ColliderHandle, ColliderParent};
 use crate::math::Pose;
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 /// A set of modified colliders
 pub type ModifiedColliders = ModifiedObjects<ColliderHandle, Collider>;
@@ -82,7 +83,7 @@ impl ColliderSet {
     /// [`PhysicsPipeline`](crate::pipeline::PhysicsPipeline), which handles
     /// broadphase updates automatically.
     pub fn take_modified(&mut self) -> ModifiedColliders {
-        std::mem::take(&mut self.modified_colliders)
+        core::mem::take(&mut self.modified_colliders)
     }
 
     pub(crate) fn set_modified(&mut self, modified: ModifiedColliders) {
@@ -98,7 +99,7 @@ impl ColliderSet {
     /// [`PhysicsPipeline`](crate::pipeline::PhysicsPipeline), which handles
     /// broadphase updates automatically.
     pub fn take_removed(&mut self) -> Vec<ColliderHandle> {
-        std::mem::take(&mut self.removed_colliders)
+        core::mem::take(&mut self.removed_colliders)
     }
 
     /// Returns a handle that's guaranteed to be invalid.

@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use parry::utils::hashset::HashSet;
 
 use super::ImpulseJoint;

@@ -1,4 +1,8 @@
 //! A vehicle controller based on ray-casting, ported and modified from Bullet’s `btRaycastVehicle`.
+use crate::alloc_prelude::*;
+
+#[cfg(not(feature = "std"))]
+use simba::scalar::ComplexField;
 
 use crate::dynamics::{RigidBody, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderHandle, ColliderSet, Ray};

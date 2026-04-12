@@ -24,14 +24,29 @@ maintenance = { status = "actively-developed" }
 
 [lints]
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(feature, values("dim2", "f32", "simd-is-enabled", "simd-stable", "simd-nightly"))',
+    'cfg(feature, values("dim2", "f32", "std", "simd-is-enabled", "simd-stable", "simd-nightly"))',
 ] }
 
 [features]
-default = ["dim3", "f64"]
+default = ["dim3", "f64", "std"]
 dim3 = []
 f64 = []
-parallel = ["dep:rayon"]
+std = [
+    "parry3d-f64/std",
+    "nalgebra/std",
+    "simba/std",
+    "glamx/std",
+    "num-traits/std",
+    "approx/std",
+    "arrayvec/std",
+    "bit-vec/std",
+    "rustc-hash/std",
+    "downcast-rs/std",
+    "ordered-float/std",
+    "thiserror/std",
+    "serde?/std",
+]
+parallel = ["dep:rayon", "std"]
 # SoA SIMD not supported yet on f64
 #simd-stable = ["parry3d-f64/simd-stable", "simba/wide", "simd-is-enabled"]
 #simd-nightly = [
@@ -47,7 +62,7 @@ serde-serialize = [
     "parry3d-f64/serde-serialize",
     "dep:serde",
     "bit-vec/serde",
-    "vec_map/serde"
+    "std",
 ]
 enhanced-determinism = ["simba/libm_force", "parry3d-f64/enhanced-determinism"]
 debug-render = []
@@ -70,25 +85,24 @@ required-features = ["dim3", "f64"]
 doctest = false # All doctests are written assuming the 3D f32 version.
 
 [dependencies]
-vec_map = "0.8"
 web-time = { version = "1.1", optional = true }
-num-traits = "0.2"
-nalgebra = "0.34"
-glamx = { version = "0.1", features = ["nalgebra"] }
-parry3d-f64 = "0.26.0"
-simba = "0.9.1"
-approx = "0.5"
+num-traits = { version = "0.2", default-features = false }
+nalgebra = { version = "0.34", default-features = false, features = ["macros", "alloc"] }
+glamx = { version = "0.1", default-features = false, features = ["nalgebra"] }
+parry3d-f64 = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
+simba = { version = "0.9.1", default-features = false }
+approx = { version = "0.5", default-features = false }
 rayon = { version = "1", optional = true }
-arrayvec = "0.7"
-bit-vec = "0.8"
-rustc-hash = "2"
-serde = { version = "1", features = ["derive"], optional = true }
-downcast-rs = "2"
+arrayvec = { version = "0.7", default-features = false }
+bit-vec = { version = "0.8", default-features = false }
+rustc-hash = { version = "2", default-features = false }
+serde = { version = "1", default-features = false, features = ["derive", "alloc"], optional = true }
+downcast-rs = { version = "2", default-features = false, features = ["sync"] }
 num-derive = "0.4"
 bitflags = "2"
 log = "0.4"
-ordered-float = "5"
-thiserror = "2"
+ordered-float = { version = "5", default-features = false }
+thiserror = { version = "2", default-features = false }
 profiling = "1.0"
 static_assertions = "1"
 

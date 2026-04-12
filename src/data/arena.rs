@@ -3,12 +3,13 @@
 //! See <https://github.com/fitzgen/generational-arena/blob/master/src/lib.rs>.
 //! This has been modified to have a fully deterministic deserialization (including for the order of
 //! Index attribution after a deserialization of the arena).
-use std::cmp;
-use std::iter::{self, Extend, FromIterator, FusedIterator};
-use std::mem;
-use std::ops;
-use std::slice;
-use std::vec;
+use crate::alloc_prelude::*;
+use alloc::vec;
+use core::cmp;
+use core::iter::{self, Extend, FromIterator, FusedIterator};
+use core::mem;
+use core::ops;
+use core::slice;
 
 /// The `Arena` allows inserting and removing elements that are referred to by
 /// `Index`.

@@ -1,4 +1,4 @@
-use std::{
+use core::{
     fmt::{Display, Error, Formatter},
     time::Duration,
 };

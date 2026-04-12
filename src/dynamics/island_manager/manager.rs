@@ -1,4 +1,5 @@
 use super::{Island, IslandsOptimizer};
+use crate::alloc_prelude::*;
 use crate::dynamics::{
     ImpulseJointSet, MultibodyJointSet, RigidBodyChanges, RigidBodyHandle, RigidBodyIds,
     RigidBodySet,
@@ -7,8 +8,8 @@ use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
 use crate::prelude::SleepRootState;
 use crate::utils::DotProduct;
-use std::collections::VecDeque;
-use vec_map::VecMap;
+use alloc::collections::VecDeque;
+use parry::utils::VecMap;
 
 /// An island starting at this rigid-body might be eligible for sleeping.
 #[derive(Copy, Clone, Debug, PartialEq)]

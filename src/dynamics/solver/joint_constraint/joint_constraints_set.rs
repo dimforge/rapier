@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::solver::categorization::categorize_joints;
 use crate::dynamics::solver::{
     AnyJointConstraintMut, GenericJointConstraint, JointGenericExternalConstraintBuilder,

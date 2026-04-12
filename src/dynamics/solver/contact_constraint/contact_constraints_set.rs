@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::solver::categorization::categorize_contacts;
 use crate::dynamics::solver::contact_constraint::{
     ContactWithCoulombFriction, ContactWithCoulombFrictionBuilder, GenericContactConstraint,

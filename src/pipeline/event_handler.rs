@@ -1,7 +1,8 @@
 use crate::dynamics::RigidBodySet;
-use crate::geometry::{ColliderSet, CollisionEvent, ContactForceEvent, ContactPair};
+#[cfg(feature = "std")]
+use crate::geometry::ContactForceEvent;
+use crate::geometry::{ColliderSet, CollisionEvent, ContactPair};
 use crate::math::Real;
-use std::sync::mpsc::Sender;
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -178,16 +179,18 @@ impl EventHandler for () {
 ///     }
 /// }
 /// ```
+#[cfg(feature = "std")]
 pub struct ChannelEventCollector {
-    collision_event_sender: Sender<CollisionEvent>,
-    contact_force_event_sender: Sender<ContactForceEvent>,
+    collision_event_sender: std::sync::mpsc::Sender<CollisionEvent>,
+    contact_force_event_sender: std::sync::mpsc::Sender<ContactForceEvent>,
 }
 
+#[cfg(feature = "std")]
 impl ChannelEventCollector {
     /// Initialize a new collision event handler from channel senders.
     pub fn new(
-        collision_event_sender: Sender<CollisionEvent>,
-        contact_force_event_sender: Sender<ContactForceEvent>,
+        collision_event_sender: std::sync::mpsc::Sender<CollisionEvent>,
+        contact_force_event_sender: std::sync::mpsc::Sender<ContactForceEvent>,
     ) -> Self {
         Self {
             collision_event_sender,
@@ -196,6 +199,7 @@ impl ChannelEventCollector {
     }
 }
 
+#[cfg(feature = "std")]
 impl EventHandler for ChannelEventCollector {
     fn handle_collision_event(
         &self,

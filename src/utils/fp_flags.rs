@@ -26,9 +26,9 @@ impl FlushToZeroDenormalsAreZeroFlags {
     pub fn flush_denormal_to_zero() -> Self {
         unsafe {
             #[cfg(target_arch = "x86")]
-            use std::arch::x86::{_MM_FLUSH_ZERO_ON, _mm_getcsr, _mm_setcsr};
+            use core::arch::x86::{_MM_FLUSH_ZERO_ON, _mm_getcsr, _mm_setcsr};
             #[cfg(target_arch = "x86_64")]
-            use std::arch::x86_64::{_MM_FLUSH_ZERO_ON, _mm_getcsr, _mm_setcsr};
+            use core::arch::x86_64::{_MM_FLUSH_ZERO_ON, _mm_getcsr, _mm_setcsr};
 
             // Flush denormals & underflows to zero as this as a significant impact on the solver's performances.
             // To enable this we need to set the bit 15 (given by _MM_FLUSH_ZERO_ON) and the bit 6 (for denormals-are-zero).
@@ -50,11 +50,11 @@ impl Drop for FlushToZeroDenormalsAreZeroFlags {
     fn drop(&mut self) {
         #[cfg(target_arch = "x86")]
         unsafe {
-            std::arch::x86::_mm_setcsr(self.original_flags)
+            core::arch::x86::_mm_setcsr(self.original_flags)
         }
         #[cfg(target_arch = "x86_64")]
         unsafe {
-            std::arch::x86_64::_mm_setcsr(self.original_flags)
+            core::arch::x86_64::_mm_setcsr(self.original_flags)
         }
     }
 }
@@ -76,8 +76,8 @@ pub(crate) struct DisableFloatingPointExceptionsFlags {
 
 #[cfg(feature = "debug-disable-legitimate-fe-exceptions")]
 extern "C" {
-    fn feholdexcept(env: *mut std::ffi::c_void);
-    fn fesetenv(env: *const std::ffi::c_void);
+    fn feholdexcept(env: *mut core::ffi::c_void);
+    fn fesetenv(env: *const core::ffi::c_void);
 }
 
 impl DisableFloatingPointExceptionsFlags {

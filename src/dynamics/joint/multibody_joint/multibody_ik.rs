@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::{JointAxesMask, Multibody, MultibodyLink, RigidBodySet};
 use crate::math::{ANG_DIM, DIM, DVector, Jacobian, Pose, Real, SPATIAL_DIM};
 use na::{self, SMatrix, SVector};
@@ -182,6 +183,7 @@ impl Multibody {
 
 #[cfg(test)]
 mod test {
+    use crate::alloc_prelude::*;
     use crate::dynamics::{
         MultibodyJointHandle, MultibodyJointSet, RevoluteJointBuilder, RigidBodyBuilder,
         RigidBodySet,

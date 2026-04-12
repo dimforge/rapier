@@ -24,15 +24,31 @@ maintenance = { status = "actively-developed" }
 
 [lints]
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(feature, values("dim3", "f64"))',
+    'cfg(feature, values("dim3", "f64", "std"))',
 ] }
 clippy = { needless_lifetimes = "allow" }
 
 [features]
-default = ["dim2", "f32"]
+default = ["dim2", "f32", "std"]
 dim2 = []
 f32 = []
-parallel = ["dep:rayon"]
+std = [
+    "parry2d/std",
+    "nalgebra/std",
+    "simba/std",
+    "glamx/std",
+    "num-traits/std",
+    "approx/std",
+    "arrayvec/std",
+    "bit-vec/std",
+    "rustc-hash/std",
+    "downcast-rs/std",
+    "ordered-float/std",
+    "thiserror/std",
+    "wide/std",
+    "serde?/std",
+]
+parallel = ["dep:rayon", "std"]
 simd-stable = ["simba/wide", "parry2d/simd-stable", "simd-is-enabled"]
 simd-nightly = ["simba/portable_simd", "parry2d/simd-nightly", "simd-is-enabled"]
 # Do not enable this feature directly. It is automatically
@@ -44,7 +60,7 @@ serde-serialize = [
     "dep:serde",
     "bit-vec/serde",
     "arrayvec/serde",
-    "vec_map/serde"
+    "std",
 ]
 enhanced-determinism = ["simba/libm_force", "parry2d/enhanced-determinism"]
 debug-render = []
@@ -67,30 +83,29 @@ required-features = ["dim2", "f32"]
 doctest = false # All doctests are written assuming the 3D version.
 
 [dependencies]
-vec_map = "0.8"
 web-time = { version = "1.1", optional = true }
-num-traits = "0.2"
-nalgebra = "0.34"
-glamx = { version = "0.1", features = ["nalgebra"] }
-parry2d = "0.26.0"
-simba = "0.9.1"
-approx = "0.5"
+num-traits = { version = "0.2", default-features = false }
+nalgebra = { version = "0.34", default-features = false, features = ["macros", "alloc"] }
+glamx = { version = "0.1", default-features = false, features = ["nalgebra"] }
+parry2d = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
+simba = { version = "0.9.1", default-features = false }
+approx = { version = "0.5", default-features = false }
 rayon = { version = "1", optional = true }
-arrayvec = "0.7"
-bit-vec = "0.8"
-rustc-hash = "2"
-serde = { version = "1", features = ["derive"], optional = true }
-downcast-rs = "2"
+arrayvec = { version = "0.7", default-features = false }
+bit-vec = { version = "0.8", default-features = false }
+rustc-hash = { version = "2", default-features = false }
+serde = { version = "1", default-features = false, features = ["derive", "alloc"], optional = true }
+downcast-rs = { version = "2", default-features = false, features = ["sync"] }
 num-derive = "0.4"
 bitflags = "2"
 log = "0.4"
-ordered-float = "5"
-thiserror = "2"
+ordered-float = { version = "5", default-features = false }
+thiserror = { version = "2", default-features = false }
 profiling = "1.0"
 static_assertions = "1"
 
 # TODO: should be re-exported from simba
-wide = "0.7.1"
+wide = { version = "0.7.1", default-features = false }
 
 [dev-dependencies]
 bincode = "1"

@@ -64,7 +64,7 @@ impl IslandManager {
             }
         }
 
-        println!(
+        log::info!(
             "`IslandManager::assert_state_is_valid` validation checks passed. This is slow. Only enable for debugging."
         );
     }

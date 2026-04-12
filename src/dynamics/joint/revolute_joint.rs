@@ -1,3 +1,6 @@
+#[cfg(all(not(feature = "std"), feature = "dim3"))]
+use simba::scalar::ComplexField;
+
 use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::joint::{GenericJoint, GenericJointBuilder, JointAxesMask};
 use crate::dynamics::{JointAxis, JointLimits, JointMotor, MotorModel};

@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::{ImpulseJointSet, MultibodyJointSet, RigidBodyColliders, RigidBodyHandle};
 use crate::geometry::{ColliderSet, NarrowPhase};
 

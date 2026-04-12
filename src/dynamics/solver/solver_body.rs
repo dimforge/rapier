@@ -1,9 +1,10 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::RigidBody;
 use crate::math::{Real, SPATIAL_DIM, Vector};
 use crate::utils::{RotationOps, ScalarType};
+use core::ops::{AddAssign, Sub, SubAssign};
 use na::{DVectorView, DVectorViewMut};
 use parry::math::{Pose, Rotation, SIMD_WIDTH, SimdReal};
-use std::ops::{AddAssign, Sub, SubAssign};
 
 #[cfg(feature = "simd-is-enabled")]
 use crate::utils::transmute_to_wide;
@@ -54,7 +55,7 @@ macro_rules! scatter(
        unsafe {
             #[allow(clippy::missing_transmute_annotations)] // Different macro calls transmute to different types
             if ($idx[$i] as usize) < $data.len() {
-                $data[$idx[$i] as usize] = std::mem::transmute([$($aos[$i]),*]);
+                $data[$idx[$i] as usize] = core::mem::transmute([$($aos[$i]),*]);
             }
         }
     }
@@ -65,7 +66,7 @@ macro_rules! scatter_unchecked(
     ($data: ident [ $idx: ident [ $i: expr ] ] = [$($aos: ident),*]) => {
        #[allow(clippy::missing_transmute_annotations)] // Different macro calls transmute to different types
        unsafe {
-           *$data.get_unchecked_mut($idx[$i] as usize) = std::mem::transmute([$($aos[$i]),*]);
+           *$data.get_unchecked_mut($idx[$i] as usize) = core::mem::transmute([$($aos[$i]),*]);
        }
     }
 );
@@ -264,13 +265,13 @@ impl SolverVel<SimdReal> {
         // TODO: double-check that the compiler is using simd loads and
         //       isn’t generating useless copies.
 
-        let data_repr: &[SolverVelRepr] = unsafe { std::mem::transmute(data) };
+        let data_repr: &[SolverVelRepr] = unsafe { core::mem::transmute(data) };
 
         #[cfg(feature = "dim2")]
         {
             let aos = aos_unchecked!(data_repr[idx].data0);
             let soa = wide::f32x4::transpose(transmute_to_wide(aos));
-            unsafe { std::mem::transmute(soa) }
+            unsafe { core::mem::transmute(soa) }
         }
 
         #[cfg(feature = "dim3")]
@@ -279,7 +280,7 @@ impl SolverVel<SimdReal> {
             let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
             let aos1 = aos_unchecked!(data_repr[idx].data1);
             let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
-            unsafe { std::mem::transmute((soa0, soa1)) }
+            unsafe { core::mem::transmute((soa0, soa1)) }
         }
     }
 
@@ -289,13 +290,13 @@ impl SolverVel<SimdReal> {
         //       isn’t generating useless copies.
 
         let zero = SolverVelRepr::zero();
-        let data_repr: &[SolverVelRepr] = unsafe { std::mem::transmute(data) };
+        let data_repr: &[SolverVelRepr] = unsafe { core::mem::transmute(data) };
 
         #[cfg(feature = "dim2")]
         {
             let aos = aos!(data_repr[idx].data0, zero);
             let soa = wide::f32x4::transpose(transmute_to_wide(aos));
-            unsafe { std::mem::transmute(soa) }
+            unsafe { core::mem::transmute(soa) }
         }
 
         #[cfg(feature = "dim3")]
@@ -304,7 +305,7 @@ impl SolverVel<SimdReal> {
             let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
             let aos1 = aos!(data_repr[idx].data1, zero);
             let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
-            unsafe { std::mem::transmute((soa0, soa1)) }
+            unsafe { core::mem::transmute((soa0, soa1)) }
         }
     }
 
@@ -312,7 +313,7 @@ impl SolverVel<SimdReal> {
     #[cfg(feature = "dim2")]
     pub fn scatter(self, data: &mut [SolverVel<Real>], idx: [u32; SIMD_WIDTH]) {
         // TODO: double-check that the compiler is using simd loads and no useless copies.
-        let soa: [wide::f32x4; 4] = unsafe { std::mem::transmute(self) };
+        let soa: [wide::f32x4; 4] = unsafe { core::mem::transmute(self) };
         let aos = wide::f32x4::transpose(soa);
         scatter!(data[idx[0]] = [aos]);
         scatter!(data[idx[1]] = [aos]);
@@ -323,7 +324,7 @@ impl SolverVel<SimdReal> {
     #[inline]
     #[cfg(feature = "dim3")]
     pub fn scatter(self, data: &mut [SolverVel<Real>], idx: [u32; SIMD_WIDTH]) {
-        let soa: [[wide::f32x4; 4]; 2] = unsafe { std::mem::transmute(self) };
+        let soa: [[wide::f32x4; 4]; 2] = unsafe { core::mem::transmute(self) };
         // TODO: double-check that the compiler is using simd loads and no useless copies.
         let aos0 = wide::f32x4::transpose(soa[0]);
         let aos1 = wide::f32x4::transpose(soa[1]);
@@ -403,7 +404,7 @@ impl SolverPoseRepr {
     pub fn identity() -> Self {
         // TODO PERF: will the compiler handle this efficiently and generate
         //            everything at compile-time?
-        unsafe { std::mem::transmute(SolverPose::default()) }
+        unsafe { core::mem::transmute(SolverPose::default()) }
     }
 }
 
@@ -414,7 +415,7 @@ impl SolverPose<SimdReal> {
         // TODO: double-check that the compiler is using simd loads and
         //       isn’t generating useless copies.
 
-        let data_repr: &[SolverPoseRepr] = unsafe { std::mem::transmute(data) };
+        let data_repr: &[SolverPoseRepr] = unsafe { core::mem::transmute(data) };
 
         #[cfg(feature = "dim2")]
         {
@@ -422,7 +423,7 @@ impl SolverPose<SimdReal> {
             let aos1 = aos_unchecked!(data_repr[idx].data1);
             let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
             let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
-            unsafe { std::mem::transmute([soa0, soa1]) }
+            unsafe { core::mem::transmute([soa0, soa1]) }
         }
 
         #[cfg(feature = "dim3")]
@@ -435,7 +436,7 @@ impl SolverPose<SimdReal> {
             let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
             let soa2 = wide::f32x4::transpose(transmute_to_wide(aos2));
             let soa3 = wide::f32x4::transpose(transmute_to_wide(aos3));
-            unsafe { std::mem::transmute([soa0, soa1, soa2, soa3]) }
+            unsafe { core::mem::transmute([soa0, soa1, soa2, soa3]) }
         }
     }
 
@@ -445,7 +446,7 @@ impl SolverPose<SimdReal> {
         //       isn’t generating useless copies.
 
         let identity = SolverPoseRepr::identity();
-        let data_repr: &[SolverPoseRepr] = unsafe { std::mem::transmute(data) };
+        let data_repr: &[SolverPoseRepr] = unsafe { core::mem::transmute(data) };
 
         #[cfg(feature = "dim2")]
         {
@@ -453,7 +454,7 @@ impl SolverPose<SimdReal> {
             let aos1 = aos!(data_repr[idx].data1, identity);
             let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
             let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
-            unsafe { std::mem::transmute([soa0, soa1]) }
+            unsafe { core::mem::transmute([soa0, soa1]) }
         }
 
         #[cfg(feature = "dim3")]
@@ -466,7 +467,7 @@ impl SolverPose<SimdReal> {
             let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
             let soa2 = wide::f32x4::transpose(transmute_to_wide(aos2));
             let soa3 = wide::f32x4::transpose(transmute_to_wide(aos3));
-            unsafe { std::mem::transmute([soa0, soa1, soa2, soa3]) }
+            unsafe { core::mem::transmute([soa0, soa1, soa2, soa3]) }
         }
     }
 
@@ -474,7 +475,7 @@ impl SolverPose<SimdReal> {
     #[cfg(feature = "dim2")]
     pub fn scatter_unchecked(self, data: &mut [SolverPose<Real>], idx: [u32; SIMD_WIDTH]) {
         // TODO: double-check that the compiler is using simd loads and no useless copies.
-        let soa: [[wide::f32x4; 4]; 2] = unsafe { std::mem::transmute(self) };
+        let soa: [[wide::f32x4; 4]; 2] = unsafe { core::mem::transmute(self) };
         let aos0 = wide::f32x4::transpose(soa[0]);
         let aos1 = wide::f32x4::transpose(soa[1]);
         scatter_unchecked!(data[idx[0]] = [aos0, aos1]);
@@ -486,7 +487,7 @@ impl SolverPose<SimdReal> {
     #[inline]
     #[cfg(feature = "dim3")]
     pub fn scatter_unchecked(self, data: &mut [SolverPose<Real>], idx: [u32; SIMD_WIDTH]) {
-        let soa: [[wide::f32x4; 4]; 4] = unsafe { std::mem::transmute(self) };
+        let soa: [[wide::f32x4; 4]; 4] = unsafe { core::mem::transmute(self) };
         // TODO: double-check that the compiler is using simd loads and no useless copies.
         let aos0 = wide::f32x4::transpose(soa[0]);
         let aos1 = wide::f32x4::transpose(soa[1]);
@@ -502,7 +503,7 @@ impl SolverPose<SimdReal> {
     #[cfg(feature = "dim2")]
     pub fn scatter(self, data: &mut [SolverPose<Real>], idx: [u32; SIMD_WIDTH]) {
         // TODO: double-check that the compiler is using simd loads and no useless copies.
-        let soa: [[wide::f32x4; 4]; 2] = unsafe { std::mem::transmute(self) };
+        let soa: [[wide::f32x4; 4]; 2] = unsafe { core::mem::transmute(self) };
         let aos0 = wide::f32x4::transpose(soa[0]);
         let aos1 = wide::f32x4::transpose(soa[1]);
         scatter!(data[idx[0]] = [aos0, aos1]);
@@ -514,7 +515,7 @@ impl SolverPose<SimdReal> {
     #[inline]
     #[cfg(feature = "dim3")]
     pub fn scatter(self, data: &mut [SolverPose<Real>], idx: [u32; SIMD_WIDTH]) {
-        let soa: [[wide::f32x4; 4]; 4] = unsafe { std::mem::transmute(self) };
+        let soa: [[wide::f32x4; 4]; 4] = unsafe { core::mem::transmute(self) };
         // TODO: double-check that the compiler is using simd loads and no useless copies.
         let aos0 = wide::f32x4::transpose(soa[0]);
         let aos1 = wide::f32x4::transpose(soa[1]);
@@ -529,11 +530,11 @@ impl SolverPose<SimdReal> {
 
 impl<N: ScalarType> SolverVel<N> {
     pub fn as_slice(&self) -> &[N; SPATIAL_DIM] {
-        unsafe { std::mem::transmute(self) }
+        unsafe { core::mem::transmute(self) }
     }
 
     pub fn as_mut_slice(&mut self) -> &mut [N; SPATIAL_DIM] {
-        unsafe { std::mem::transmute(self) }
+        unsafe { core::mem::transmute(self) }
     }
 
     pub fn as_vector_slice(&self) -> DVectorView<'_, N> {

@@ -1,12 +1,13 @@
 use super::TOIEntry;
+use crate::alloc_prelude::*;
 use crate::dynamics::{IntegrationParameters, IslandManager, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{BroadPhaseBvh, ColliderParent, ColliderSet, CollisionEvent, NarrowPhase};
 use crate::math::Real;
 use crate::parry::utils::SortedPair;
 use crate::pipeline::{EventHandler, QueryFilter};
 use crate::prelude::{ActiveEvents, CollisionEventFlags};
+use alloc::collections::BinaryHeap;
 use parry::utils::hashmap::HashMap;
-use std::collections::BinaryHeap;
 
 pub enum PredictedImpacts {
     Impacts(HashMap<RigidBodyHandle, Real>),

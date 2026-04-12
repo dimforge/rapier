@@ -1,4 +1,5 @@
 use super::{DebugColor, DebugRenderBackend, outlines};
+use crate::alloc_prelude::*;
 use crate::dynamics::{
     GenericJoint, ImpulseJointSet, MultibodyJointSet, RigidBodySet, RigidBodyType,
 };
@@ -9,9 +10,9 @@ use crate::math::{DIM, Matrix, Pose, Vector};
 use crate::pipeline::debug_render_pipeline::DebugRenderStyle;
 use crate::pipeline::debug_render_pipeline::debug_render_backend::DebugRenderObject;
 use crate::utils::OrthonormalBasis;
+use core::any::TypeId;
 use parry::utils::PoseOpt;
-use std::any::TypeId;
-use std::collections::HashMap;
+use parry::utils::hashmap::HashMap;
 
 bitflags::bitflags! {
     /// Flags indicating what part of the physics engine should be rendered

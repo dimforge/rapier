@@ -1,3 +1,4 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::{IntegrationParameters, RigidBodySet};
 use crate::geometry::{Aabb, BroadPhasePairEvent, ColliderHandle, ColliderPair, ColliderSet};
 use crate::math::Real;
@@ -190,7 +191,7 @@ impl BroadPhaseBvh {
             };
 
             if co1 > co2 {
-                std::mem::swap(&mut handle1, &mut handle2);
+                core::mem::swap(&mut handle1, &mut handle2);
             }
 
             match self.pairs.entry((handle1, handle2)) {

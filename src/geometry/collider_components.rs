@@ -1,8 +1,9 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::{CoefficientCombineRule, MassProperties, RigidBodyHandle, RigidBodyType};
 use crate::geometry::{InteractionGroups, Shape, SharedShape};
 use crate::math::{Pose, Real};
 use crate::pipeline::{ActiveEvents, ActiveHooks};
-use std::ops::{Deref, DerefMut};
+use core::ops::{Deref, DerefMut};
 
 /// The unique identifier of a collider added to a collider set.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
