@@ -35,14 +35,8 @@ std = [
     "parry3d-f64/std",
     "nalgebra/std",
     "simba/std",
-    "glamx/std",
     "num-traits/std",
     "approx/std",
-    "arrayvec/std",
-    "bit-vec/std",
-    "rustc-hash/std",
-    "downcast-rs/std",
-    "ordered-float/std",
     "thiserror/std",
     "serde?/std",
 ]
@@ -61,7 +55,6 @@ serde-serialize = [
     "nalgebra/serde-serialize",
     "parry3d-f64/serde-serialize",
     "dep:serde",
-    "bit-vec/serde",
     "std",
 ]
 enhanced-determinism = ["simba/libm_force", "parry3d-f64/enhanced-determinism"]
@@ -93,15 +86,9 @@ parry3d-f64 = { version = "0.26.0", default-features = false, features = ["requi
 simba = { version = "0.9.1", default-features = false }
 approx = { version = "0.5", default-features = false }
 rayon = { version = "1", optional = true }
-arrayvec = { version = "0.7", default-features = false }
-bit-vec = { version = "0.8", default-features = false }
-rustc-hash = { version = "2", default-features = false }
 serde = { version = "1", default-features = false, features = ["derive", "alloc"], optional = true }
-downcast-rs = { version = "2", default-features = false, features = ["sync"] }
-num-derive = "0.4"
 bitflags = "2"
 log = "0.4"
-ordered-float = { version = "5", default-features = false }
 thiserror = { version = "2", default-features = false }
 profiling = "1.0"
 static_assertions = "1"
