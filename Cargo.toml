@@ -16,8 +16,56 @@ members = [
 ]
 resolver = "2"
 
+[workspace.package]
+version = "0.32.0"
+authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
+homepage = "https://rapier.rs"
+repository = "https://github.com/dimforge/rapier"
+categories = [
+    "science",
+    "game-development",
+    "mathematics",
+    "simulation",
+    "wasm",
+]
+license = "Apache-2.0"
+rust-version = "1.86"
+edition = "2024"
+
 [workspace.lints.clippy]
 needless_lifetimes = "allow"
+
+[workspace.dependencies]
+# Core math
+nalgebra = { version = "0.34", default-features = false, features = ["macros", "alloc"] }
+glamx = { version = "0.1", default-features = false, features = ["nalgebra"] }
+simba = { version = "0.9.1", default-features = false }
+num-traits = { version = "0.2", default-features = false }
+approx = { version = "0.5", default-features = false }
+
+# Parry (each crate picks its own variant)
+parry2d = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
+parry3d = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
+parry2d-f64 = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
+parry3d-f64 = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
+
+# Utilities
+bitflags = "2"
+log = "0.4"
+thiserror = { version = "2", default-features = false }
+profiling = "1.0"
+static_assertions = "1"
+wide = { version = "0.7.1", default-features = false }
+
+# Optional (optional = true must be set per-crate, not here)
+web-time = "1.1"
+rayon = "1"
+serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
+
+# Dev
+bincode = "1"
+serde_json = "1"
+oorandom = { version = "11", default-features = false }
 
 [patch.crates-io]
 #wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }

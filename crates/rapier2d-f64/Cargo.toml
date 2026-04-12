@@ -1,28 +1,23 @@
 [package]
 name = "rapier2d-f64"
-version = "0.32.0"
-authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
+version.workspace = true
+authors.workspace = true
 description = "2-dimensional physics engine in Rust."
 documentation = "https://docs.rs/rapier2d"
-homepage = "https://rapier.rs"
-repository = "https://github.com/dimforge/rapier"
+homepage.workspace = true
+repository.workspace = true
 readme = "README.md"
-categories = [
-    "science",
-    "game-development",
-    "mathematics",
-    "simulation",
-    "wasm",
-]
+categories.workspace = true
 keywords = ["physics", "dynamics", "rigid", "real-time", "impulse_joints"]
-license = "Apache-2.0"
-rust-version = "1.86"
-edition = "2024"
+license.workspace = true
+rust-version.workspace = true
+edition.workspace = true
 
 [badges]
 maintenance = { status = "actively-developed" }
 
 [lints]
+clippy = { needless_lifetimes = "allow" }
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(feature, values("dim3", "f32", "std", "simd-is-enabled", "simd-stable", "simd-nightly"))',
 ] }
@@ -74,23 +69,23 @@ required-features = ["dim2", "f64"]
 doctest = false # All doctests are written assuming the 3D version.
 
 [dependencies]
-web-time = { version = "1.1", optional = true }
-num-traits = { version = "0.2", default-features = false }
-nalgebra = { version = "0.34", default-features = false, features = ["macros", "alloc"] }
-glamx = { version = "0.1", default-features = false, features = ["nalgebra"] }
-parry2d-f64 = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
-simba = { version = "0.9.1", default-features = false }
-approx = { version = "0.5", default-features = false }
-rayon = { version = "1", optional = true }
-serde = { version = "1", default-features = false, features = ["derive", "alloc"], optional = true }
-bitflags = "2"
-log = "0.4"
-thiserror = { version = "2", default-features = false }
-profiling = "1.0"
-static_assertions = "1"
+nalgebra.workspace = true
+glamx.workspace = true
+parry2d-f64.workspace = true
+simba.workspace = true
+num-traits.workspace = true
+approx.workspace = true
+bitflags.workspace = true
+log.workspace = true
+thiserror.workspace = true
+profiling.workspace = true
+static_assertions.workspace = true
+web-time = { workspace = true, optional = true }
+rayon = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
 
 [dev-dependencies]
-bincode = "1"
-serde_json = "1"
+bincode.workspace = true
+serde_json.workspace = true
 serde = { version = "1", features = ["derive"] }
-oorandom = { version = "11", default-features = false }
+oorandom.workspace = true
