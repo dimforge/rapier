@@ -5,26 +5,21 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Setup a velocity-based kinematic rigid body.
      */
     let platform_body =
         RigidBodyBuilder::kinematic_velocity_based().translation(Vector::new(0.0, 1.5 + 0.8, 0.0));
-    let platform_handle = bodies.insert(platform_body);
     let collider = ColliderBuilder::cuboid(5.0, 0.5, 5.0);
-    colliders.insert_with_parent(collider, platform_handle, &mut bodies);
+    let (platform_handle, _) = world.insert(platform_body, collider);
 
     // A second velocity-based platform but this one will move super slow.
     let slow_platform_body =
         RigidBodyBuilder::kinematic_velocity_based().translation(Vector::new(0.0, 0.0, 0.0));
-    let slow_platform_handle = bodies.insert(slow_platform_body);
     let collider = ColliderBuilder::cuboid(5.0, 0.5, 5.0);
-    colliders.insert_with_parent(collider, slow_platform_handle, &mut bodies);
+    let (slow_platform_handle, _) = world.insert(slow_platform_body, collider);
 
     /*
      * Setup a callback to control the platform.
@@ -83,6 +78,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Run the simulation.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(10.0, 5.0, 10.0), Vec3::ZERO);
 }

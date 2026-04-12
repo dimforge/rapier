@@ -5,24 +5,20 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     // Build many balls, all spawned at the same point.
     let rad = 0.5;
 
     for _ in 0..100 {
         let rigid_body = RigidBodyBuilder::dynamic();
-        let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(rad, rad);
-        colliders.insert_with_parent(collider, handle, &mut bodies);
+        let _ = world.insert(rigid_body, collider);
     }
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::ZERO, 50.0);
 }

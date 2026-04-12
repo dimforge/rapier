@@ -5,10 +5,7 @@ pub fn init_world(harness: &mut Harness) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -17,9 +14,8 @@ pub fn init_world(harness: &mut Harness) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let (_handle, _) = world.insert(rigid_body, collider);
 
     /*
      * Create the cubes
@@ -44,9 +40,8 @@ pub fn init_world(harness: &mut Harness) {
 
                 // Build the rigid body.
                 let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z));
-                let handle = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::capsule_y(rad, rad);
-                colliders.insert_with_parent(collider, handle, &mut bodies);
+                let (_handle, _) = world.insert(rigid_body, collider);
             }
         }
 
@@ -56,13 +51,7 @@ pub fn init_world(harness: &mut Harness) {
     /*
      * Set up the harness.
      */
-    harness.set_world(
-        bodies,
-        colliders,
-        impulse_joints,
-        multibody_joints,
-        RapierBroadPhaseType::default(),
-    );
+    harness.set_physics_world(world, RapierBroadPhaseType::default());
 }
 
 fn main() {

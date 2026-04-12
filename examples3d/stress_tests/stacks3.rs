@@ -92,10 +92,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -104,9 +101,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::fixed().translation(Vec3::new(0.0, -ground_height, 0.0));
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let _ = world.insert(rigid_body, collider);
 
     /*
      * Create the cubes
@@ -115,57 +111,57 @@ pub fn init_world(testbed: &mut Testbed) {
     let hext = Vec3::splat(cube_size);
     let bottomy = cube_size * 50.0;
     create_pyramid(
-        &mut bodies,
-        &mut colliders,
+        &mut world.bodies,
+        &mut world.colliders,
         Vec3::new(-110.0, bottomy, 0.0),
         12,
         hext,
     );
     create_pyramid(
-        &mut bodies,
-        &mut colliders,
+        &mut world.bodies,
+        &mut world.colliders,
         Vec3::new(-80.0, bottomy, 0.0),
         12,
         hext,
     );
     create_pyramid(
-        &mut bodies,
-        &mut colliders,
+        &mut world.bodies,
+        &mut world.colliders,
         Vec3::new(-50.0, bottomy, 0.0),
         12,
         hext,
     );
     create_pyramid(
-        &mut bodies,
-        &mut colliders,
+        &mut world.bodies,
+        &mut world.colliders,
         Vec3::new(-20.0, bottomy, 0.0),
         12,
         hext,
     );
     create_wall(
-        &mut bodies,
-        &mut colliders,
+        &mut world.bodies,
+        &mut world.colliders,
         Vec3::new(-2.0, bottomy, 0.0),
         12,
         hext,
     );
     create_wall(
-        &mut bodies,
-        &mut colliders,
+        &mut world.bodies,
+        &mut world.colliders,
         Vec3::new(4.0, bottomy, 0.0),
         12,
         hext,
     );
     create_wall(
-        &mut bodies,
-        &mut colliders,
+        &mut world.bodies,
+        &mut world.colliders,
         Vec3::new(10.0, bottomy, 0.0),
         12,
         hext,
     );
     create_tower_circle(
-        &mut bodies,
-        &mut colliders,
+        &mut world.bodies,
+        &mut world.colliders,
         Vec3::new(25.0, bottomy, 0.0),
         8,
         24,
@@ -175,6 +171,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

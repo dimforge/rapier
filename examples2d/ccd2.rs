@@ -6,10 +6,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -18,24 +15,22 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_thickness = 0.1;
 
     let rigid_body = RigidBodyBuilder::fixed().ccd_enabled(true);
-    let ground_handle = bodies.insert(rigid_body);
-
     let collider = ColliderBuilder::cuboid(ground_size, ground_thickness);
-    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+    let (ground_handle, _) = world.insert(rigid_body, collider);
 
     let collider =
         ColliderBuilder::cuboid(ground_thickness, ground_size).translation(Vector::new(-3.0, 0.0));
-    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+    world.insert_collider_with_parent(collider, ground_handle);
 
     let collider =
         ColliderBuilder::cuboid(ground_thickness, ground_size).translation(Vector::new(6.0, 0.0));
-    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+    world.insert_collider_with_parent(collider, ground_handle);
 
     let collider = ColliderBuilder::cuboid(ground_thickness, ground_size)
         .translation(Vector::new(2.5, 0.0))
         .sensor(true)
         .active_events(ActiveEvents::COLLISION_EVENTS);
-    let sensor_handle = colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+    let sensor_handle = world.insert_collider_with_parent(collider, ground_handle);
 
     /*
      * Create the shapes
@@ -71,7 +66,6 @@ pub fn init_world(testbed: &mut Testbed) {
                 .translation(Vector::new(x, y))
                 .linvel(Vector::new(100.0, -10.0))
                 .ccd_enabled(true);
-            let handle = bodies.insert(rigid_body);
 
             // for part in &compound_parts {
             //     let collider = ColliderBuilder::new(part.1.clone())
@@ -82,7 +76,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
             let collider = ColliderBuilder::new(compound_shape.clone());
             // let collider = ColliderBuilder::cuboid(radx, rady);
-            colliders.insert_with_parent(collider, handle, &mut bodies);
+            let _ = world.insert(rigid_body, collider);
         }
     }
 
@@ -122,6 +116,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::new(0.0, 2.5), 20.0);
 }

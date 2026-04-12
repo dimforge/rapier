@@ -39,10 +39,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Create a bowl for the ground
@@ -115,11 +112,14 @@ pub fn init_world(testbed: &mut Testbed) {
                     let z = k as f32 * shift - 3.0;
 
                     let body = RigidBodyBuilder::fixed().translation(Vector::new(x, y, z));
-                    let handle = bodies.insert(body);
+                    let mut shapes_iter = shapes.iter();
+                    let first_shape = shapes_iter.next().unwrap();
+                    let (handle, _) =
+                        world.insert(body, ColliderBuilder::new(first_shape.clone()));
 
-                    for shape in &shapes {
+                    for shape in shapes_iter {
                         let collider = ColliderBuilder::new(shape.clone());
-                        colliders.insert_with_parent(collider, handle, &mut bodies);
+                        world.insert_collider_with_parent(collider, handle);
                     }
                 }
             }
@@ -153,7 +153,7 @@ pub fn init_world(testbed: &mut Testbed) {
     }
     let collider = ColliderBuilder::voxels_from_points(voxel_size, &samples).build();
     let floor_aabb = collider.compute_aabb();
-    colliders.insert(collider);
+    world.insert_collider(collider);
 
     /*
      * Some dynamic primitives.
@@ -173,8 +173,6 @@ pub fn init_world(testbed: &mut Testbed) {
                 if test_ccd {
                     rb = rb.linvel(Vector::new(0.0, -1000.0, 0.0)).ccd_enabled(true);
                 }
-                let rb_handle = bodies.insert(rb);
-
                 let falling_objects = if falling_objects == 5 {
                     j % 5
                 } else {
@@ -189,7 +187,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     4 => ColliderBuilder::capsule_y(ball_radius, ball_radius),
                     _ => unreachable!(),
                 };
-                colliders.insert_with_parent(co, rb_handle, &mut bodies);
+                world.insert(rb, co);
             }
         }
     }
@@ -199,8 +197,8 @@ pub fn init_world(testbed: &mut Testbed) {
     // with anything. They are used as gizmos to indicate where the ray hits on voxels
     // by highlighting the voxel and drawing a small ball at the intersection.
     let hit_indicator_handle =
-        colliders.insert(ColliderBuilder::ball(0.1).collision_groups(InteractionGroups::none()));
-    let hit_highlight_handle = colliders.insert(
+        world.insert_collider(ColliderBuilder::ball(0.1).collision_groups(InteractionGroups::none()));
+    let hit_highlight_handle = world.insert_collider(
         ColliderBuilder::cuboid(0.51, 0.51, 0.51).collision_groups(InteractionGroups::none()),
     );
     testbed.set_initial_collider_color(hit_indicator_handle, Color::new(0.5, 0.5, 0.1, 1.0));
@@ -303,7 +301,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }
 

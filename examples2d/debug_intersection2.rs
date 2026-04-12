@@ -6,10 +6,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     let rad = 1.0;
     let collider = ColliderBuilder::ball(rad);
@@ -21,8 +18,7 @@ pub fn init_world(testbed: &mut Testbed) {
                 (x as f32 - count as f32 / 2.0) * rad * 3.0,
                 (y as f32 - count as f32 / 2.0) * rad * 3.0,
             ));
-            let handle = bodies.insert(rigid_body);
-            colliders.insert_with_parent(collider.clone(), handle, &mut bodies);
+            let (handle, _) = world.insert(rigid_body, collider.clone());
             testbed.set_initial_body_color(
                 handle,
                 Color::new(
@@ -38,7 +34,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::ZERO, 50.0);
 
     testbed.add_callback(move |mut graphics, physics, _, run| {

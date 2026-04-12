@@ -1,13 +1,7 @@
 use rapier_testbed3d::Testbed;
 use rapier3d::prelude::*;
 
-fn create_ball_articulations(
-    bodies: &mut RigidBodySet,
-    colliders: &mut ColliderSet,
-    impulse_joints: &mut ImpulseJointSet,
-    multibody_joints: &mut MultibodyJointSet,
-    num: usize,
-) {
+fn create_ball_articulations(world: &mut PhysicsWorld, num: usize) {
     let rad = 0.4;
     let shift = 1.0;
 
@@ -30,16 +24,15 @@ fn create_ball_articulations(
                 0.0,
                 fi * shift * 2.0,
             ));
-            let child_handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::capsule_z(rad * 1.25, rad);
-            colliders.insert_with_parent(collider, child_handle, bodies);
+            let (child_handle, _) = world.insert(rigid_body, collider);
 
             // Vertical multibody_joint.
             if i > 0 {
                 let parent_handle = *body_handles.last().unwrap();
                 let joint =
                     SphericalJointBuilder::new().local_anchor2(Vector::new(0.0, 0.0, -shift * 2.0));
-                multibody_joints.insert(parent_handle, child_handle, joint, true);
+                world.insert_multibody_joint(parent_handle, child_handle, joint);
             }
 
             // Horizontal multibody_joint.
@@ -53,7 +46,7 @@ fn create_ball_articulations(
                 // let joint = FixedJoint::new().local_anchor2(Vector::new(-shift, 0.0, 0.0));
                 // let joint =
                 //     RevoluteJoint::new(Vector::X).local_anchor2(Vector::new(-shift, 0.0, 0.0));
-                impulse_joints.insert(parent_handle, child_handle, joint, true);
+                world.insert_impulse_joint(parent_handle, child_handle, joint);
             }
 
             body_handles.push(child_handle);
@@ -65,34 +58,24 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let mut impulse_joints = ImpulseJointSet::new();
-    let mut multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     let collider = ColliderBuilder::cuboid(30.0, 0.01, 30.0)
         .translation(Vector::new(0.0, -3.02, 0.0))
         .rotation(Vector::new(0.1, 0.0, 0.1));
-    colliders.insert(collider);
+    world.insert_collider(collider);
 
     let rigid_body = RigidBodyBuilder::dynamic();
     let collider = ColliderBuilder::cuboid(30.0, 0.01, 30.0)
         .translation(Vector::new(0.0, -3.0, 0.0))
         .rotation(Vector::new(0.1, 0.0, 0.1));
-    let handle = bodies.insert(rigid_body);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let (_handle, _) = world.insert(rigid_body, collider);
 
-    create_ball_articulations(
-        &mut bodies,
-        &mut colliders,
-        &mut impulse_joints,
-        &mut multibody_joints,
-        15,
-    );
+    create_ball_articulations(&mut world, 15);
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(15.0, 5.0, 42.0), Vec3::new(13.0, 1.0, 1.0));
 }

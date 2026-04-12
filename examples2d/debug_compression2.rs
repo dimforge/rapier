@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -19,9 +16,8 @@ pub fn init_world(testbed: &mut Testbed) {
 
     for y in ys {
         let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, y));
-        let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(width, thickness);
-        colliders.insert_with_parent(collider, handle, &mut bodies);
+        let _ = world.insert(rigid_body, collider);
     }
 
     // Build two compression boxes rigid body.
@@ -31,9 +27,8 @@ pub fn init_world(testbed: &mut Testbed) {
 
     for i in 0..2 {
         let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(xs[i], 0.0));
-        let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(thickness, half_height);
-        colliders.insert_with_parent(collider, handle, &mut bodies);
+        let (handle, _) = world.insert(rigid_body, collider);
         handles[i] = handle;
     }
 
@@ -45,9 +40,8 @@ pub fn init_world(testbed: &mut Testbed) {
             let x = i as f32 * rad * 2.0 - num as f32 * rad;
             let y = j as f32 * rad * 2.0 - num as f32 * rad + rad;
             let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y));
-            let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::ball(rad);
-            colliders.insert_with_parent(collider, handle, &mut bodies);
+            let _ = world.insert(rigid_body, collider);
         }
     }
 
@@ -70,6 +64,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::ZERO, 50.0);
 }

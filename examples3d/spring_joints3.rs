@@ -5,16 +5,13 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let mut impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Fixed ground to attach one end of the joints.
      */
     let rigid_body = RigidBodyBuilder::fixed();
-    let ground_handle = bodies.insert(rigid_body);
+    let ground_handle = world.insert_body(rigid_body);
 
     /*
      * Spring joints with a variety of spring parameters.
@@ -31,33 +28,24 @@ pub fn init_world(testbed: &mut Testbed) {
         let rigid_body = RigidBodyBuilder::dynamic()
             .translation(ball_pos)
             .can_sleep(false);
-        let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::ball(radius);
-        colliders.insert_with_parent(collider, handle, &mut bodies);
+        let (handle, _) = world.insert(rigid_body, collider);
 
         let damping_ratio = i as f32 / (num as f32 / 2.0);
         let damping = damping_ratio * critical_damping;
         let joint = SpringJointBuilder::new(0.0, stiffness, damping)
             .local_anchor1(ball_pos - Vector::Y * 3.0);
-        impulse_joints.insert(ground_handle, handle, joint, true);
+        world.insert_impulse_joint(ground_handle, handle, joint);
 
         // Box that will fall on to of the springed balls, makes the simulation funnier to watch.
         let rigid_body = RigidBodyBuilder::dynamic().translation(ball_pos + Vector::Y * 5.0);
-        let handle = bodies.insert(rigid_body);
         let collider = ColliderBuilder::cuboid(radius, radius, radius).density(100.0);
-        colliders.insert_with_parent(collider, handle, &mut bodies);
+        world.insert(rigid_body, collider);
     }
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world_with_params(
-        bodies,
-        colliders,
-        impulse_joints,
-        multibody_joints,
-        Vector::new(0.0, -9.81, 0.0),
-        (),
-    );
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(15.0, 5.0, 42.0), Vec3::new(13.0, 1.0, 1.0));
 }
