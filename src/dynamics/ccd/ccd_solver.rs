@@ -1,13 +1,51 @@
 use super::TOIEntry;
 use crate::alloc_prelude::*;
 use crate::dynamics::{IntegrationParameters, IslandManager, RigidBodyHandle, RigidBodySet};
-use crate::geometry::{BroadPhaseBvh, ColliderParent, ColliderSet, CollisionEvent, NarrowPhase};
+use crate::geometry::{
+    BroadPhaseBvh, Collider, ColliderHandle, ColliderParent, ColliderSet, CollisionEvent,
+    NarrowPhase,
+};
 use crate::math::Real;
 use crate::parry::utils::SortedPair;
-use crate::pipeline::{EventHandler, QueryFilter};
+use crate::pipeline::{ActiveHooks, EventHandler, PairFilterContext, PhysicsHooks, QueryFilter};
 use crate::prelude::{ActiveEvents, CollisionEventFlags};
 use alloc::collections::BinaryHeap;
 use parry::utils::hashmap::HashMap;
+
+/// Returns `true` if the user's `filter_contact_pair` hook rejected this
+/// pair. Mirrors the narrow-phase filter call in `NarrowPhase::compute_contacts`
+/// so CCD respects the same user-level contact filtering (see issue #754).
+///
+/// Note: the narrow phase may invoke this hook for sensor pairs too (it
+/// uses `solver_flags` to decide downstream). The CCD sweep sites skip
+/// sensors before calling this helper, which is intentional — CCD only
+/// resolves contact TOIs, and sensor intersections are reported elsewhere.
+#[inline]
+fn pair_filtered_out_by_hooks(
+    hooks: &dyn PhysicsHooks,
+    bodies: &RigidBodySet,
+    colliders: &ColliderSet,
+    co1: &Collider,
+    co2: &Collider,
+    ch1: ColliderHandle,
+    ch2: ColliderHandle,
+    bh1: Option<RigidBodyHandle>,
+    bh2: Option<RigidBodyHandle>,
+) -> bool {
+    let active_hooks = co1.flags.active_hooks | co2.flags.active_hooks;
+    if !active_hooks.contains(ActiveHooks::FILTER_CONTACT_PAIRS) {
+        return false;
+    }
+    let context = PairFilterContext {
+        bodies,
+        colliders,
+        rigid_body1: bh1,
+        rigid_body2: bh2,
+        collider1: ch1,
+        collider2: ch2,
+    };
+    hooks.filter_contact_pair(&context).is_none()
+}
 
 pub enum PredictedImpacts {
     Impacts(HashMap<RigidBodyHandle, Real>),
@@ -117,6 +155,7 @@ impl CCDSolver {
         colliders: &ColliderSet,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &NarrowPhase,
+        hooks: &dyn PhysicsHooks,
     ) -> Option<Real> {
         // Update the query pipeline with the colliders’ predicted positions.
         for (handle, co) in colliders.iter_enabled() {
@@ -199,6 +238,12 @@ impl CCDSolver {
                                 continue;
                             }
 
+                            if pair_filtered_out_by_hooks(
+                                hooks, bodies, colliders, co1, co2, *ch1, ch2, bh1, bh2,
+                            ) {
+                                continue;
+                            }
+
                             let smallest_dist = narrow_phase
                                 .contact_pair(*ch1, ch2)
                                 .and_then(|p| p.find_deepest_contact())
@@ -242,6 +287,7 @@ impl CCDSolver {
         colliders: &ColliderSet,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &NarrowPhase,
+        hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) -> PredictedImpacts {
         let dt = params.dt;
@@ -322,6 +368,12 @@ impl CCDSolver {
                             if bh1 == bh2
                                 || !co1.flags.collision_groups.test(co2.flags.collision_groups)
                             {
+                                continue;
+                            }
+
+                            if pair_filtered_out_by_hooks(
+                                hooks, bodies, colliders, co1, co2, *ch1, ch2, bh1, bh2,
+                            ) {
                                 continue;
                             }
 
@@ -439,6 +491,12 @@ impl CCDSolver {
 
                     // Ignore self-intersection and apply groups filter.
                     if bh1 == bh2 || !co1.flags.collision_groups.test(co2.flags.collision_groups) {
+                        continue;
+                    }
+
+                    if pair_filtered_out_by_hooks(
+                        hooks, bodies, colliders, co1, co2, *ch1, ch2, bh1, bh2,
+                    ) {
                         continue;
                     }
 

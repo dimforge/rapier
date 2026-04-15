@@ -1,3 +1,17 @@
+## Unreleased
+
+### Fixed
+
+- Continuous Collision Detection now consults the user's `PhysicsHooks::filter_contact_pair`
+  hook, matching narrow-phase semantics. Previously, CCD would clamp a fast-moving body's
+  motion at a predicted impact with a pair the user had filtered out. Closes #754.
+
+### Modified
+
+- **Breaking (CCD solver direct callers only):** `CCDSolver::find_first_impact` and
+  `CCDSolver::predict_impacts_at_next_positions` now take an extra `hooks: &dyn PhysicsHooks`
+  argument. `PhysicsPipeline::step` callers are unaffected.
+
 ## v0.31.0 (09 Jan. 2026)
 
 ### Modified

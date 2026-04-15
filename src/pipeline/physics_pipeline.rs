@@ -374,6 +374,7 @@ impl PhysicsPipeline {
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &NarrowPhase,
         ccd_solver: &mut CCDSolver,
+        hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
         self.counters.ccd.toi_computation_time.start();
@@ -385,6 +386,7 @@ impl PhysicsPipeline {
             colliders,
             broad_phase,
             narrow_phase,
+            hooks,
             events,
         );
         ccd_solver.clamp_motions(integration_parameters.dt, bodies, &impacts);
@@ -638,6 +640,7 @@ impl PhysicsPipeline {
                         colliders,
                         broad_phase,
                         narrow_phase,
+                        hooks,
                     )
                 } else {
                     None
@@ -709,6 +712,7 @@ impl PhysicsPipeline {
                         broad_phase,
                         narrow_phase,
                         ccd_solver,
+                        hooks,
                         events,
                     );
                 }
@@ -952,6 +956,100 @@ mod test {
         assert_eq!(h1a, h1b);
         assert_eq!(h2a, h2b);
         assert_eq!(h3a, h3b);
+    }
+
+    // Regression test for https://github.com/dimforge/rapier/issues/754 —
+    // CCD must consult `filter_contact_pair` just like the narrow phase, so
+    // pairs the user filtered out don't clamp a fast CCD body's motion.
+    #[test]
+    #[cfg(feature = "dim3")]
+    fn ccd_respects_filter_contact_pair_hook() {
+        use crate::pipeline::{ActiveHooks, PairFilterContext, PhysicsHooks};
+        use crate::prelude::{ColliderHandle, SolverFlags};
+        use core::sync::atomic::{AtomicUsize, Ordering};
+
+        struct RejectAllHooks {
+            calls: AtomicUsize,
+        }
+        impl PhysicsHooks for RejectAllHooks {
+            fn filter_contact_pair(&self, _: &PairFilterContext) -> Option<SolverFlags> {
+                self.calls.fetch_add(1, Ordering::Relaxed);
+                None // reject every pair
+            }
+        }
+
+        let mut pipeline = PhysicsPipeline::new();
+        let integration_parameters = IntegrationParameters::default();
+        let mut broad_phase = BroadPhaseBvh::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut bodies = RigidBodySet::new();
+        let mut colliders = ColliderSet::new();
+        let mut ccd = CCDSolver::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
+        let mut islands = IslandManager::new();
+        let hooks = RejectAllHooks { calls: AtomicUsize::new(0) };
+        let event_handler = ();
+
+        // Body A: fast-moving, CCD-enabled.
+        let body_a = RigidBodyBuilder::dynamic()
+            .translation(Vector::new(-5.0, 0.0, 0.0))
+            .linvel(Vector::new(200.0, 0.0, 0.0))
+            .ccd_enabled(true)
+            .build();
+        let a_handle = bodies.insert(body_a);
+        let _: ColliderHandle = colliders.insert_with_parent(
+            ColliderBuilder::ball(0.5)
+                .active_hooks(ActiveHooks::FILTER_CONTACT_PAIRS)
+                .build(),
+            a_handle,
+            &mut bodies,
+        );
+
+        // Body B: stationary, CCD-enabled, at origin.
+        let body_b = RigidBodyBuilder::dynamic().ccd_enabled(true).build();
+        let b_handle = bodies.insert(body_b);
+        let _: ColliderHandle = colliders.insert_with_parent(
+            ColliderBuilder::ball(0.5)
+                .active_hooks(ActiveHooks::FILTER_CONTACT_PAIRS)
+                .build(),
+            b_handle,
+            &mut bodies,
+        );
+
+        for _ in 0..5 {
+            pipeline.step(
+                Vector::ZERO,
+                &integration_parameters,
+                &mut islands,
+                &mut broad_phase,
+                &mut narrow_phase,
+                &mut bodies,
+                &mut colliders,
+                &mut impulse_joints,
+                &mut multibody_joints,
+                &mut ccd,
+                &hooks,
+                &event_handler,
+            );
+        }
+
+        // Hook must be called at least once (from CCD, since they never
+        // reach narrow-phase contact in a single step at 200 m/s × 1/60s).
+        assert!(
+            hooks.calls.load(Ordering::Relaxed) > 0,
+            "filter_contact_pair was never called",
+        );
+
+        // Without the fix: CCD clamps A's motion at the predicted impact
+        // with B (hook ignored). A stalls near B.
+        // With the fix: A flies straight through at 200 m/s for 5 steps of
+        // dt=1/60s ≈ 16.67 units, so it ends near +11.67.
+        let a_pos = bodies[a_handle].translation().x;
+        assert!(
+            a_pos > 10.0,
+            "body A should have passed through filtered body B, but x={a_pos}",
+        );
     }
 
     #[test]
