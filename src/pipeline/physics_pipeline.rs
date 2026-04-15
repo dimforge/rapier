@@ -988,7 +988,9 @@ mod test {
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
         let mut islands = IslandManager::new();
-        let hooks = RejectAllHooks { calls: AtomicUsize::new(0) };
+        let hooks = RejectAllHooks {
+            calls: AtomicUsize::new(0),
+        };
         let event_handler = ();
 
         // Body A: fast-moving, CCD-enabled.
