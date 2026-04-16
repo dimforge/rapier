@@ -175,6 +175,10 @@ pub struct ContactForceEvent {
     pub max_force_direction: Vector,
     /// The magnitude of the largest force at a contact point of this contact pair.
     pub max_force_magnitude: Real,
+
+    /// True if this the first physics tick on which this contact has generated a
+    /// contact force event.
+    pub first_tick: bool,
 }
 
 impl ContactForceEvent {
@@ -199,6 +203,12 @@ impl ContactForceEvent {
             }
 
             result.total_force += m.data.normal * total_manifold_impulse;
+
+            for sc in m.data.solver_contacts.iter() {
+                if sc.is_new == 1.0 {
+                    result.first_tick = true;
+                }
+            }
         }
 
         let inv_dt = crate::utils::inv(dt);
