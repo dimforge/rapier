@@ -56,6 +56,13 @@ impl IslandManager {
         &self.awake_islands
     }
 
+    /// Returns an iterator over the handles of kinematic rigid-bodies that are currently active.
+    pub(crate) fn active_kinematic_bodies(&self) -> impl Iterator<Item = RigidBodyHandle> + '_ {
+        self.awake_islands
+            .iter()
+            .flat_map(move |i| self.islands[*i].active_kinematic_bodies.iter().copied())
+    }
+
     pub(crate) fn rigid_body_removed_or_disabled(
         &mut self,
         removed_handle: RigidBodyHandle,
@@ -75,6 +82,15 @@ impl IslandManager {
 
         let swapped_handle = island.bodies.last().copied().unwrap_or(removed_handle);
         island.bodies.swap_remove(removed_ids.active_set_id);
+
+        // If the removed body was kinematic, remove it from the active kinematic bodies list.
+        if let Some(pos) = island
+            .active_kinematic_bodies
+            .iter()
+            .position(|h| *h == removed_handle)
+        {
+            island.active_kinematic_bodies.swap_remove(pos);
+        }
 
         // Remap the active_set_id of the body we moved with the `swap_remove`.
         if swapped_handle != removed_handle {
@@ -192,6 +208,11 @@ impl IslandManager {
                 rb.ids.active_island_id = id;
                 rb.ids.active_set_id = target_island.bodies.len();
                 target_island.bodies.push(handle);
+
+                // If the body is kinematic, add it to the active kinematic bodies list.
+                if rb.is_kinematic() {
+                    target_island.active_kinematic_bodies.push(handle);
+                }
             } else {
                 let mut new_island = Island::singleton(handle, rb);
                 let id = self.free_islands.pop().unwrap_or(self.islands.len());
