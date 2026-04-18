@@ -80,7 +80,7 @@ pub fn init_world(testbed: &mut Testbed) {
             0.0,
         ))
         .rotation(Vector::Z * slope_angle);
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
 
     /*
      * Create a slope we can’t climb.
@@ -94,7 +94,7 @@ pub fn init_world(testbed: &mut Testbed) {
             0.0,
         ))
         .rotation(Vector::Z * impossible_slope_angle);
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
 
     /*
      * More complex ground.
@@ -109,7 +109,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let collider =
         ColliderBuilder::heightfield(heights, ground_size).translation(Vector::new(-7.0, 0.0, 0.0));
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
 
     /*
      * Set up the testbed.

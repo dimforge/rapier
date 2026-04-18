@@ -61,7 +61,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .density(0.0)
         .sensor(true)
         .active_events(ActiveEvents::COLLISION_EVENTS);
-    world.insert_collider_with_parent(sensor_collider, sensor_handle);
+    world.insert_collider(sensor_collider, Some(sensor_handle));
 
     testbed.set_initial_body_color(sensor_handle, Color::new(0.5, 1.0, 1.0, 1.0));
 

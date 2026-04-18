@@ -16,7 +16,7 @@ mod stages_counters;
 mod timer;
 
 /// Aggregation of all the performances counters tracked by rapier.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Counters {
     /// Whether this counter is enabled or not.
     pub enabled: bool,

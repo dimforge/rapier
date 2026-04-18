@@ -21,7 +21,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::heightfield(heights, ground_size)
         .translation(Vector::new(-7.0, 0.0, 0.0))
         .friction(1.0);
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
 
     /*
      * Vehicle we will control manually, simulated using joints.
@@ -93,7 +93,7 @@ pub fn init_world(testbed: &mut Testbed) {
             .friction(1.0);
         let wheel_rb = RigidBodyBuilder::dynamic().translation(wheel_center);
         let (wheel_handle, _) = world.insert(wheel_rb, wheel_co);
-        world.insert_collider_with_parent(wheel_fake_co, wheel_handle);
+        world.insert_collider(wheel_fake_co, Some(wheel_handle));
 
         let suspension_attachment_in_body_space =
             wheel_pos_in_car_space - body_position_in_car_space;

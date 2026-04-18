@@ -30,7 +30,7 @@ pub fn init_world(testbed: &mut Testbed) {
         Vector::new(50.0, 1.0, 50.0),
         HeightFieldFlags::FIX_INTERNAL_EDGES,
     );
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
 
     /*
      * Create the cubes

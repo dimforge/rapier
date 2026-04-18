@@ -36,7 +36,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let shape_size = 3.0;
     let static_collider =
         ColliderBuilder::ball(shape_size).translation(Vector::new(-15.0, shape_size, 18.0));
-    world.insert_collider(static_collider);
+    world.insert_collider(static_collider, None);
 
     let shapes = [
         SharedShape::ball(shape_size),
@@ -47,7 +47,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut shape_idx = 0;
     let shapeshifting_collider = ColliderBuilder::new(shapes[shape_idx].clone())
         .translation(Vector::new(-15.0, shape_size, 9.0));
-    let shapeshifting_coll_handle = world.insert_collider(shapeshifting_collider);
+    let shapeshifting_coll_handle = world.insert_collider(shapeshifting_collider, None);
 
     let mut linvel = Vector::ZERO;
     let mut angvel = AngVector::ZERO;

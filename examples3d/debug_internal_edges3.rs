@@ -14,8 +14,10 @@ pub fn init_world(testbed: &mut Testbed) {
         HeightFieldFlags::all(),
     );
     let rotation = Vector::new(0.0, 0.0, 0.0); // Vector::new(-0.1, 0.0, 0.0);
-    world
-        .insert_collider(ColliderBuilder::new(SharedShape::new(heightfield.clone())).rotation(rotation));
+    world.insert_collider(
+        ColliderBuilder::new(SharedShape::new(heightfield.clone())).rotation(rotation),
+        None,
+    );
 
     // let mut trimesh = TriMesh::from(heightfield);
     // trimesh.set_flags(TriMeshFlags::MERGE_DUPLICATE_VERTICES)

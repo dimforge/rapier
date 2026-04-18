@@ -49,8 +49,8 @@ pub fn init_world(testbed: &mut Testbed) {
                     let collider3 = ColliderBuilder::cuboid(rad, rad * 10.0, rad)
                         .translation(Vector::new(-rad * 10.0, rad * 10.0, 0.0));
                     let (handle, _) = world.insert(rigid_body, collider1);
-                    world.insert_collider_with_parent(collider2, handle);
-                    world.insert_collider_with_parent(collider3, handle);
+                    world.insert_collider(collider2, Some(handle));
+                    world.insert_collider(collider3, Some(handle));
                 } else {
                     // Second option: create a compound shape and attach it to a single collider.
                     let shapes = vec![

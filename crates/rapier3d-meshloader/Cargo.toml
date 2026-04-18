@@ -27,6 +27,6 @@ wavefront = ["mesh-loader/obj"]
 [dependencies]
 thiserror = "2"
 profiling = "1.0"
-mesh-loader = "0.1.12"
+mesh-loader = "0.1.13"
 
 rapier3d = { version = "0.32.0", path = "../rapier3d" }

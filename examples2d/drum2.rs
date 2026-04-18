@@ -50,11 +50,11 @@ pub fn init_world(testbed: &mut Testbed) {
 
     for (hx, hy, pos) in sides {
         let collider = ColliderBuilder::cuboid(hx, hy).translation(pos);
-        world.insert_collider_with_parent(collider, velocity_based_platform_handle);
+        world.insert_collider(collider, Some(velocity_based_platform_handle));
     }
     for (r, pos) in balls {
         let collider = ColliderBuilder::ball(r).translation(pos);
-        world.insert_collider_with_parent(collider, velocity_based_platform_handle);
+        world.insert_collider(collider, Some(velocity_based_platform_handle));
     }
 
     /*

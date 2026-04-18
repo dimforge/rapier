@@ -40,7 +40,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::capsule_y(0.6, 0.4);
     let (handle, _) = world.insert(rigid_body, collider);
     let collider = ColliderBuilder::capsule_x(0.6, 0.4);
-    world.insert_collider_with_parent(collider, handle);
+    world.insert_collider(collider, Some(handle));
 
     /*
      * Set up the testbed.

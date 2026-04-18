@@ -9,9 +9,11 @@ use crate::geometry::{
 };
 use crate::math::{Real, Vector};
 use crate::pipeline::{EventHandler, PhysicsHooks, PhysicsPipeline, QueryFilter, QueryPipeline};
+use parry::bounding_volume::{Aabb, BoundingVolume};
+use parry::partitioning::BvhNode;
 use parry::query::details::ShapeCastOptions;
-use parry::query::{NonlinearRigidMotion, ShapeCastHit};
-use parry::shape::Shape;
+use parry::query::{NonlinearRigidMotion, RayCast, ShapeCastHit};
+use parry::shape::{FeatureId, Shape};
 
 use crate::geometry::{PointProjection, Ray, RayIntersection};
 use crate::math::Pose;
@@ -158,7 +160,7 @@ impl PhysicsWorld {
     /// any collider (typically an anchor body for joints), use
     /// [`insert_body`](Self::insert_body) instead. For compound bodies with multiple
     /// colliders, pass the first collider here and use
-    /// [`insert_collider_with_parent`](Self::insert_collider_with_parent) for the rest.
+    /// [`insert_collider`](Self::insert_collider) with `Some(body_handle)` for the rest.
     ///
     /// # Example
     /// ```
@@ -214,32 +216,35 @@ impl PhysicsWorld {
 
     // ── Colliders ───────────────────────────────────────────────────────
 
-    /// Insert a collider attached to a rigid body, and return its handle.
+    /// Insert a collider, optionally attached to a rigid body, and return its handle.
     ///
-    /// The collider's position is relative to its parent body.
+    /// Pass `Some(parent)` to attach the collider to a rigid body — its position will
+    /// then be interpreted relative to its parent. Pass `None` for a standalone collider,
+    /// useful for static collision geometry or sensors that don't need a rigid body.
     ///
     /// # Example
     /// ```
     /// # use rapier3d::prelude::*;
     /// # let mut world = PhysicsWorld::default();
     /// let body = world.insert_body(RigidBodyBuilder::dynamic());
-    /// let collider = world.insert_collider_with_parent(ColliderBuilder::ball(0.5), body);
+    ///
+    /// // Attached collider.
+    /// let attached = world.insert_collider(ColliderBuilder::ball(0.5), Some(body));
+    ///
+    /// // Standalone collider (e.g. static geometry).
+    /// let standalone = world.insert_collider(ColliderBuilder::cuboid(10.0, 0.1, 10.0), None);
     /// ```
-    pub fn insert_collider_with_parent(
+    pub fn insert_collider(
         &mut self,
         collider: impl Into<Collider>,
-        parent: RigidBodyHandle,
+        parent: Option<RigidBodyHandle>,
     ) -> ColliderHandle {
-        self.colliders
-            .insert_with_parent(collider, parent, &mut self.bodies)
-    }
-
-    /// Insert a standalone collider (not attached to any body) and return its handle.
-    ///
-    /// Standalone colliders are useful for static collision geometry or sensors
-    /// that don't need a rigid body.
-    pub fn insert_collider(&mut self, collider: impl Into<Collider>) -> ColliderHandle {
-        self.colliders.insert(collider)
+        match parent {
+            Some(parent) => self
+                .colliders
+                .insert_with_parent(collider, parent, &mut self.bodies),
+            None => self.colliders.insert(collider),
+        }
     }
 
     /// Remove a collider from the world.
@@ -337,70 +342,207 @@ impl PhysicsWorld {
 
     /// Cast a ray and return the first collider hit.
     ///
-    /// Shorthand for `world.query_pipeline().cast_ray(...)`.
+    /// Shorthand for `world.query_pipeline_with_filter(filter).cast_ray(...)`.
     ///
     /// Returns `Some((collider_handle, distance))`, or `None` if nothing was hit.
-    pub fn cast_ray(
-        &self,
+    /// Pass [`QueryFilter::default()`] to consider every collider.
+    pub fn cast_ray<'a>(
+        &'a self,
         ray: &Ray,
         max_toi: Real,
         solid: bool,
+        filter: QueryFilter<'a>,
     ) -> Option<(ColliderHandle, Real)> {
-        self.query_pipeline().cast_ray(ray, max_toi, solid)
+        self.query_pipeline_with_filter(filter)
+            .cast_ray(ray, max_toi, solid)
     }
 
     /// Cast a ray and return the first hit with surface normal information.
     ///
-    /// Shorthand for `world.query_pipeline().cast_ray_and_get_normal(...)`.
-    pub fn cast_ray_and_get_normal(
-        &self,
+    /// Shorthand for `world.query_pipeline_with_filter(filter).cast_ray_and_get_normal(...)`.
+    pub fn cast_ray_and_get_normal<'a>(
+        &'a self,
         ray: &Ray,
         max_toi: Real,
         solid: bool,
+        filter: QueryFilter<'a>,
     ) -> Option<(ColliderHandle, RayIntersection)> {
-        self.query_pipeline()
+        self.query_pipeline_with_filter(filter)
             .cast_ray_and_get_normal(ray, max_toi, solid)
     }
 
     /// Cast (sweep) a shape through the world and return the first collider hit.
     ///
-    /// Shorthand for `world.query_pipeline().cast_shape(...)`.
-    pub fn cast_shape(
-        &self,
+    /// Shorthand for `world.query_pipeline_with_filter(filter).cast_shape(...)`.
+    pub fn cast_shape<'a>(
+        &'a self,
         shape_pos: &Pose,
         shape_vel: Vector,
         shape: &dyn Shape,
         options: ShapeCastOptions,
+        filter: QueryFilter<'a>,
     ) -> Option<(ColliderHandle, ShapeCastHit)> {
-        self.query_pipeline()
+        self.query_pipeline_with_filter(filter)
             .cast_shape(shape_pos, shape_vel, shape, options)
     }
 
     /// Cast a shape with a nonlinear motion and return the first collider hit.
     ///
-    /// Shorthand for `world.query_pipeline().cast_shape_nonlinear(...)`.
-    pub fn cast_shape_nonlinear(
-        &self,
+    /// Shorthand for `world.query_pipeline_with_filter(filter).cast_shape_nonlinear(...)`.
+    pub fn cast_shape_nonlinear<'a>(
+        &'a self,
         shape_motion: &NonlinearRigidMotion,
         shape: &dyn Shape,
         start_time: Real,
         end_time: Real,
         stop_at_penetration: bool,
+        filter: QueryFilter<'a>,
     ) -> Option<(ColliderHandle, ShapeCastHit)> {
-        self.query_pipeline()
-            .cast_shape_nonlinear(shape_motion, shape, start_time, end_time, stop_at_penetration)
+        self.query_pipeline_with_filter(filter).cast_shape_nonlinear(
+            shape_motion,
+            shape,
+            start_time,
+            end_time,
+            stop_at_penetration,
+        )
     }
 
     /// Find the closest point on any collider to the given point.
     ///
-    /// Shorthand for `world.query_pipeline().project_point(...)`.
-    pub fn project_point(
-        &self,
+    /// Shorthand for `world.query_pipeline_with_filter(filter).project_point(...)`.
+    pub fn project_point<'a>(
+        &'a self,
         point: Vector,
         max_dist: Real,
         solid: bool,
+        filter: QueryFilter<'a>,
     ) -> Option<(ColliderHandle, PointProjection)> {
-        self.query_pipeline().project_point(point, max_dist, solid)
+        self.query_pipeline_with_filter(filter)
+            .project_point(point, max_dist, solid)
+    }
+
+    /// Project a point onto the closest collider and also return the geometric feature
+    /// (vertex, edge, or face) that contains the projection.
+    ///
+    /// Shorthand for
+    /// `world.query_pipeline_with_filter(filter).project_point_and_get_feature(...)`.
+    pub fn project_point_and_get_feature<'a>(
+        &'a self,
+        point: Vector,
+        filter: QueryFilter<'a>,
+    ) -> Option<(ColliderHandle, PointProjection, FeatureId)> {
+        self.query_pipeline_with_filter(filter)
+            .project_point_and_get_feature(point)
+    }
+
+    /// Iterate over every collider that the given ray passes through.
+    ///
+    /// Unlike [`cast_ray`](Self::cast_ray) which stops at the first hit, this yields
+    /// every collider along the ray's path. Each item is
+    /// `(handle, &collider, intersection)`.
+    pub fn intersect_ray<'a>(
+        &'a self,
+        ray: Ray,
+        max_toi: Real,
+        solid: bool,
+        filter: QueryFilter<'a>,
+    ) -> impl Iterator<Item = (ColliderHandle, &'a Collider, RayIntersection)> + 'a {
+        let bvh = &self.broad_phase.tree;
+        let bodies = &self.bodies;
+        let colliders = &self.colliders;
+        bvh.leaves(move |node: &BvhNode| node.aabb().intersects_local_ray(&ray, max_toi))
+            .filter_map(move |leaf| {
+                let (co, co_handle) = colliders.get_unknown_gen(leaf)?;
+                if filter.test(bodies, co_handle, co) {
+                    let intersection = co.shape.cast_ray_and_get_normal(
+                        co.position(),
+                        &ray,
+                        max_toi,
+                        solid,
+                    )?;
+                    Some((co_handle, co, intersection))
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Iterate over every collider that contains the given point.
+    ///
+    /// Each item is `(handle, &collider)`.
+    pub fn intersect_point<'a>(
+        &'a self,
+        point: Vector,
+        filter: QueryFilter<'a>,
+    ) -> impl Iterator<Item = (ColliderHandle, &'a Collider)> + 'a {
+        let bvh = &self.broad_phase.tree;
+        let bodies = &self.bodies;
+        let colliders = &self.colliders;
+        bvh.leaves(move |node: &BvhNode| node.aabb().contains_local_point(point))
+            .filter_map(move |leaf| {
+                let (co, co_handle) = colliders.get_unknown_gen(leaf)?;
+                if filter.test(bodies, co_handle, co)
+                    && co.shape.contains_point(co.position(), point)
+                {
+                    Some((co_handle, co))
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Iterate over every collider whose shape intersects the given shape positioned
+    /// at `shape_pos`.
+    ///
+    /// Each item is `(handle, &collider)`.
+    pub fn intersect_shape<'a>(
+        &'a self,
+        shape_pos: Pose,
+        shape: &'a dyn Shape,
+        filter: QueryFilter<'a>,
+    ) -> impl Iterator<Item = (ColliderHandle, &'a Collider)> + 'a {
+        let bvh = &self.broad_phase.tree;
+        let bodies = &self.bodies;
+        let colliders = &self.colliders;
+        let dispatcher = self.narrow_phase.query_dispatcher();
+        let shape_aabb = shape.compute_aabb(&shape_pos);
+        bvh.leaves(move |node: &BvhNode| node.aabb().intersects(&shape_aabb))
+            .filter_map(move |leaf| {
+                let (co, co_handle) = colliders.get_unknown_gen(leaf)?;
+                if filter.test(bodies, co_handle, co) {
+                    let pos12 = shape_pos.inv_mul(co.position());
+                    if dispatcher.intersection_test(&pos12, shape, co.shape()) == Ok(true) {
+                        return Some((co_handle, co));
+                    }
+                }
+                None
+            })
+    }
+
+    /// Iterate over every collider whose stored AABB intersects the given AABB.
+    ///
+    /// This is *conservative*: the AABBs used are the ones in the broad-phase BVH,
+    /// not freshly recomputed collider AABBs. Useful for cheap, broad-strokes
+    /// proximity queries.
+    ///
+    /// Each item is `(handle, &collider)`.
+    pub fn intersect_aabb_conservative<'a>(
+        &'a self,
+        aabb: Aabb,
+        filter: QueryFilter<'a>,
+    ) -> impl Iterator<Item = (ColliderHandle, &'a Collider)> + 'a {
+        let bvh = &self.broad_phase.tree;
+        let bodies = &self.bodies;
+        let colliders = &self.colliders;
+        bvh.leaves(move |node: &BvhNode| node.aabb().intersects(&aabb))
+            .filter_map(move |leaf| {
+                let (co, co_handle) = colliders.get_unknown_gen(leaf)?;
+                if filter.test(bodies, co_handle, co) {
+                    Some((co_handle, co))
+                } else {
+                    None
+                }
+            })
     }
 
     // ── Contact / intersection queries (from NarrowPhase) ───────────────
@@ -442,18 +584,111 @@ impl PhysicsWorld {
     }
 
     /// Iterate over all intersection pairs involving the given collider.
+    ///
+    /// Each item is `(handle_a, &collider_a, handle_b, &collider_b, intersecting)`.
+    ///
+    /// # Mutable access
+    ///
+    /// There is no `_mut` variant of this method: the same collider may appear in
+    /// several intersection pairs, so a safe `Iterator` yielding `&mut Collider` from
+    /// a pair iterator isn't possible in stable Rust. To mutate colliders based on
+    /// intersection pairs, iterate here to collect the handles you care about, then
+    /// call [`ColliderSet::get_pair_mut`](crate::geometry::ColliderSet::get_pair_mut)
+    /// on [`self.colliders`](Self#structfield.colliders):
+    ///
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut world = PhysicsWorld::default();
+    /// # let collider = ColliderHandle::invalid();
+    /// let pairs: Vec<_> = world
+    ///     .intersection_pairs_with(collider)
+    ///     .map(|(h1, _, h2, _, _)| (h1, h2))
+    ///     .collect();
+    /// for (h1, h2) in pairs {
+    ///     if let (Some(c1), Some(c2)) = world.colliders.get_pair_mut(h1, h2) {
+    ///         // mutate c1 and c2…
+    ///         # let _ = (c1, c2);
+    ///     }
+    /// }
+    /// ```
     pub fn intersection_pairs_with(
         &self,
         collider: ColliderHandle,
-    ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_ {
-        self.narrow_phase.intersection_pairs_with(collider)
+    ) -> impl Iterator<Item = (ColliderHandle, &Collider, ColliderHandle, &Collider, bool)> + '_
+    {
+        self.narrow_phase
+            .intersection_pairs_with(collider)
+            .filter_map(move |(h1, h2, intersecting)| {
+                let c1 = self.colliders.get(h1)?;
+                let c2 = self.colliders.get(h2)?;
+                Some((h1, c1, h2, c2, intersecting))
+            })
     }
 
     /// Iterate over all intersection pairs in the world.
+    ///
+    /// Each item is `(handle_a, &collider_a, handle_b, &collider_b, intersecting)`.
+    ///
+    /// # Mutable access
+    ///
+    /// There is no `_mut` variant of this method: the same collider may appear in
+    /// several intersection pairs, so a safe `Iterator` yielding `&mut Collider` from
+    /// a pair iterator isn't possible in stable Rust. To mutate colliders based on
+    /// intersection pairs, iterate here to collect the handles you care about, then
+    /// call [`ColliderSet::get_pair_mut`](crate::geometry::ColliderSet::get_pair_mut)
+    /// on [`self.colliders`](Self#structfield.colliders):
+    ///
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut world = PhysicsWorld::default();
+    /// let pairs: Vec<_> = world
+    ///     .intersection_pairs()
+    ///     .map(|(h1, _, h2, _, _)| (h1, h2))
+    ///     .collect();
+    /// for (h1, h2) in pairs {
+    ///     if let (Some(c1), Some(c2)) = world.colliders.get_pair_mut(h1, h2) {
+    ///         // mutate c1 and c2…
+    ///         # let _ = (c1, c2);
+    ///     }
+    /// }
+    /// ```
     pub fn intersection_pairs(
         &self,
-    ) -> impl Iterator<Item = (ColliderHandle, ColliderHandle, bool)> + '_ {
-        self.narrow_phase.intersection_pairs()
+    ) -> impl Iterator<Item = (ColliderHandle, &Collider, ColliderHandle, &Collider, bool)> + '_
+    {
+        self.narrow_phase
+            .intersection_pairs()
+            .filter_map(move |(h1, h2, intersecting)| {
+                let c1 = self.colliders.get(h1)?;
+                let c2 = self.colliders.get(h2)?;
+                Some((h1, c1, h2, c2, intersecting))
+            })
+    }
+
+    // ── Iterators over all bodies and colliders ─────────────────────────
+
+    /// Iterate over every rigid body in the world as `(handle, &body)` pairs.
+    pub fn rigid_bodies(&self) -> impl Iterator<Item = (RigidBodyHandle, &RigidBody)> {
+        self.bodies.iter()
+    }
+
+    /// Iterate over every rigid body in the world as `(handle, &mut body)` pairs.
+    pub fn rigid_bodies_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (RigidBodyHandle, &mut RigidBody)> {
+        self.bodies.iter_mut()
+    }
+
+    /// Iterate over every collider in the world as `(handle, &collider)` pairs.
+    pub fn all_colliders(&self) -> impl Iterator<Item = (ColliderHandle, &Collider)> {
+        self.colliders.iter()
+    }
+
+    /// Iterate over every collider in the world as `(handle, &mut collider)` pairs.
+    pub fn all_colliders_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (ColliderHandle, &mut Collider)> {
+        self.colliders.iter_mut()
     }
 
     // ── Debug rendering ─────────────────────────────────────────────────

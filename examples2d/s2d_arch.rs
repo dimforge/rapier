@@ -46,7 +46,7 @@ pub fn init_world(testbed: &mut Testbed) {
      */
     let collider =
         ColliderBuilder::segment(Vector::new(-100.0, 0.0), Vector::new(100.0, 0.0)).friction(0.6);
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
 
     /*
      * Create the arch

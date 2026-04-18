@@ -20,17 +20,17 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let collider =
         ColliderBuilder::cuboid(ground_thickness, ground_size).translation(Vector::new(-3.0, 0.0));
-    world.insert_collider_with_parent(collider, ground_handle);
+    world.insert_collider(collider, Some(ground_handle));
 
     let collider =
         ColliderBuilder::cuboid(ground_thickness, ground_size).translation(Vector::new(6.0, 0.0));
-    world.insert_collider_with_parent(collider, ground_handle);
+    world.insert_collider(collider, Some(ground_handle));
 
     let collider = ColliderBuilder::cuboid(ground_thickness, ground_size)
         .translation(Vector::new(2.5, 0.0))
         .sensor(true)
         .active_events(ActiveEvents::COLLISION_EVENTS);
-    let sensor_handle = world.insert_collider_with_parent(collider, ground_handle);
+    let sensor_handle = world.insert_collider(collider, Some(ground_handle));
 
     /*
      * Create the shapes

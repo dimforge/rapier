@@ -90,7 +90,7 @@ pub fn init_world(testbed: &mut Testbed) {
             stair_width * scale,
         )
         .translation(Vector::new(x * scale, y * scale, 0.0));
-        world.insert_collider(collider);
+        world.insert_collider(collider, None);
     }
 
     /*
@@ -101,7 +101,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(slope_size, ground_height, slope_size)
         .translation(Vector::new(0.1 + slope_size, -ground_height + 0.4, 0.0))
         .rotation(Vector::Z * slope_angle);
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
 
     /*
      * Create a slope we can’t climb.
@@ -121,7 +121,7 @@ pub fn init_world(testbed: &mut Testbed) {
         ) * scale,
     )
     .rotation(Vector::Z * impossible_slope_angle);
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
 
     /*
      * Create a moving platform.
@@ -145,7 +145,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let collider = ColliderBuilder::heightfield(heights, ground_size * scale)
         .translation(Vector::new(-8.0, 5.0, 0.0) * scale);
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
 
     /*
      * A tilting dynamic body with a limited joint.

@@ -63,7 +63,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(30.0, 0.01, 30.0)
         .translation(Vector::new(0.0, -3.02, 0.0))
         .rotation(Vector::new(0.1, 0.0, 0.1));
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
 
     let rigid_body = RigidBodyBuilder::dynamic();
     let collider = ColliderBuilder::cuboid(30.0, 0.01, 30.0)

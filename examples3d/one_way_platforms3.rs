@@ -70,7 +70,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(9.0, 0.5, 25.0)
         .translation(Vector::new(0.0, -2.0, -30.0))
         .active_hooks(ActiveHooks::MODIFY_SOLVER_CONTACTS);
-    let platform2 = world.insert_collider_with_parent(collider, handle);
+    let platform2 = world.insert_collider(collider, Some(handle));
 
     /*
      * Setup the one-way platform hook.

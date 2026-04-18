@@ -21,28 +21,28 @@ pub fn init_world(testbed: &mut Testbed) {
         radius,
     )
     .friction(friction);
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
     let collider = ColliderBuilder::capsule_from_endpoints(
         Vector::new(-10.5, 0.0),
         Vector::new(-10.5, 20.5),
         radius,
     )
     .friction(friction);
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
     let collider = ColliderBuilder::capsule_from_endpoints(
         Vector::new(10.5, 0.0),
         Vector::new(10.5, 20.5),
         radius,
     )
     .friction(friction);
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
     let collider = ColliderBuilder::capsule_from_endpoints(
         Vector::new(-10.5, 20.5),
         Vector::new(10.5, 20.5),
         radius,
     )
     .friction(friction);
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
 
     /*
      * Create the spheres

@@ -119,7 +119,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
                     for shape in shapes_iter {
                         let collider = ColliderBuilder::new(shape.clone());
-                        world.insert_collider_with_parent(collider, handle);
+                        world.insert_collider(collider, Some(handle));
                     }
                 }
             }
@@ -153,7 +153,7 @@ pub fn init_world(testbed: &mut Testbed) {
     }
     let collider = ColliderBuilder::voxels_from_points(voxel_size, &samples).build();
     let floor_aabb = collider.compute_aabb();
-    world.insert_collider(collider);
+    world.insert_collider(collider, None);
 
     /*
      * Some dynamic primitives.
@@ -196,10 +196,13 @@ pub fn init_world(testbed: &mut Testbed) {
     // pointed at by the mouse. We spawn two fake colliders that don’t interact
     // with anything. They are used as gizmos to indicate where the ray hits on voxels
     // by highlighting the voxel and drawing a small ball at the intersection.
-    let hit_indicator_handle =
-        world.insert_collider(ColliderBuilder::ball(0.1).collision_groups(InteractionGroups::none()));
+    let hit_indicator_handle = world.insert_collider(
+        ColliderBuilder::ball(0.1).collision_groups(InteractionGroups::none()),
+        None,
+    );
     let hit_highlight_handle = world.insert_collider(
         ColliderBuilder::cuboid(0.51, 0.51, 0.51).collision_groups(InteractionGroups::none()),
+        None,
     );
     testbed.set_initial_collider_color(hit_indicator_handle, Color::new(0.5, 0.5, 0.1, 1.0));
     testbed.set_initial_collider_color(hit_highlight_handle, Color::new(0.1, 0.5, 0.1, 1.0));
